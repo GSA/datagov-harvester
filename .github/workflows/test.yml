@@ -27,7 +27,7 @@ jobs:
       - name: Report test coverage
         uses: orgoro/coverage@v3    
         with:
-          coverageFile: path/to/coverage.xml
+          coverageFile: pytest-coverage.txt
           token: ${{ secrets.GITHUB_TOKEN }}
 
   lint:
