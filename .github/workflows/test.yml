@@ -1,5 +1,5 @@
 name: lint and tests
-on: [push]
+on: [push, pull_request]
 
 jobs:
   test:
@@ -25,10 +25,11 @@ jobs:
         run: poetry run pytest --junitxml=pytest.xml --cov=datagovharvester | tee pytest-coverage.txt
 
       - name: Report test coverage
-        uses: orgoro/coverage@v3    
+        uses: MishaKav/pytest-coverage-comment@main
         with:
-          coverageFile: pytest-coverage.txt
-          token: ${{ secrets.GITHUB_TOKEN }}
+          pytest-coverage-path: pytest-coverage.txt
+          junitxml-path: pytest.xml
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 
   lint:
     runs-on: ubuntu-latest
