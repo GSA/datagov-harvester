@@ -1,0 +1,16 @@
+[tool.poetry]
+name = "datagov-harvesting-logic"
+version = "0.1.0"
+description = ""
+authors = ["Jin-Sun-tts <jin.sun@gsa.gov>"]
+readme = "README.md"
+packages = [{include = "demo", from = "src"}]
+
+[tool.poetry.dependencies]
+python = "^3.9"
+pytest = "^7.3.0"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
