@@ -24,10 +24,10 @@ jobs:
         run: poetry run pytest --junitxml=pytest.xml --cov=main | tee pytest-coverage.txt
 
       - name: Report test coverage
-          uses: MishaKav/pytest-coverage-comment@main
-          with:
-            pytest-coverage-path: ./pytest-coverage.txt
-            junitxml-path: ./pytest.xml
+        uses: MishaKav/pytest-coverage-comment@main
+        with:
+          pytest-coverage-path: ./pytest-coverage.txt
+          junitxml-path: ./pytest.xml
 
   lint:
     runs-on: ubuntu-latest
