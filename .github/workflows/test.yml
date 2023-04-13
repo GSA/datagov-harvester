@@ -25,11 +25,10 @@ jobs:
         run: poetry run pytest --junitxml=pytest.xml --cov=datagovharvester | tee pytest-coverage.txt
 
       - name: Report test coverage
-        uses: MishaKav/pytest-coverage-comment@main
+        uses: orgoro/coverage@v3    
         with:
-          pytest-coverage-path: pytest-coverage.txt
-          junitxml-path: pytest.xml
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          coverageFile: path/to/coverage.xml
+          token: ${{ secrets.GITHUB_TOKEN }}
 
   lint:
     runs-on: ubuntu-latest
