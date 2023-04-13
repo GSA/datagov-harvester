@@ -1,11 +1,6 @@
 name: lint and tests
 on: [push]
 
-permissions:
-  contents: read
-  pull-requests: write
-  issues: write
-
 jobs:
   test:
     runs-on: ubuntu-latest
