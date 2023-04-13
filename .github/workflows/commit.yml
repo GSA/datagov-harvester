@@ -22,3 +22,13 @@ jobs:
 
       - name: Run Pytest
         run: poetry run pytest
+
+      - name: Report test coverage
+        uses: coroo/pytest-coverage-commentator@v1.0.2
+
+  lint:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+      - uses: chartboost/ruff-action@v1
