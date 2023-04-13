@@ -12,7 +12,7 @@ curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/install-
 
 poetry new <project_name>
 
-poetry add xxx
+poetry add xxx --group dev
 
 poetry install
 
