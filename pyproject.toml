@@ -1,15 +1,18 @@
 [tool.poetry]
-name = "datagov-harvesting-logic"
+name = "datagovharvester"
 version = "0.1.0"
 description = ""
 authors = ["Jin-Sun-tts <jin.sun@gsa.gov>"]
 readme = "README.md"
-packages = [{include = "demo", from = "src"}]
+packages = [{include = "datagovharvester"}]
 
 [tool.poetry.dependencies]
 python = "^3.9"
+
+[tool.poetry.group.dev.dependencies]
 pytest = "^7.3.0"
 ruff = "^0.0.261"
+pytest-cov = "^4.0.0"
 
 [tool.ruff]
 # Enable pycodestyle (`E`) and Pyflakes (`F`) codes by default.
