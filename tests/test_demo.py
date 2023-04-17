@@ -1,13 +1,9 @@
 from datagovharvester import __version__
 from datagovharvester.example import hello
-# from tests.fixtures.data import get_catalog_schema
 from utils.json_utilities import open_json
 from pathlib import Path
 import jsonschema
 import pytest
-
-BASE_DIR = Path(__file__).parents[1]
-SCHEMA_DIR = BASE_DIR / "schemas"
 
 
 def test_version():
@@ -16,20 +12,6 @@ def test_version():
 
 def test_hello():
     assert hello('name') == "Hello name!"
-
-
-@pytest.fixture
-def get_dataset_schema():
-
-    dataset_schema = SCHEMA_DIR / "dataset.json"
-    return open_json(dataset_schema)
-
-
-@pytest.fixture
-def get_catalog_schema():
-
-    catalog_schema = SCHEMA_DIR / "catalog.json"
-    return open_json(catalog_schema)
 
 
 @pytest.mark.parametrize(
