@@ -1,0 +1,71 @@
+{
+  "@context": "https://project-open-data.cio.gov/v1.1/schema/catalog.jsonld",
+  "@id": "https://data.ny.gov/data.json",
+  "@type": "dcat:Catalog",
+  "conformsTo": "https://project-open-data.cio.gov/v1.1/schema",
+  "describedBy": "https://project-open-data.cio.gov/v1.1/schema/catalog.json",
+  "dataset": [ 
+    {
+      "accessLevel":"public",
+      "landingPage":"https://data.ny.gov/d/22ew-dxez",
+      "issued":"2016-07-21","@type":"dcat:Dataset",
+      "modified":"2019-06-10",
+      "keyword":[
+        "rental assistance",
+        "rent",
+        "homeownership",
+        "homeowner",
+        "home",
+        "buying",
+        "homebuyer",
+        "first-time",
+        "lmi",
+        "assistance",
+        "mortgage",
+        "loans",
+        "sonyma"
+      ],
+      "contactPoint": {
+        "@type":"vcard:Contact",
+        "fn":"Open Data NY",
+        "hasEmail":"mailto:opendata@its.ny.gov"
+      },
+      "publisher": {
+        "@type":"org:Organization",
+        "name":"State of New York"
+        },
+      "identifier":"https://data.ny.gov/api/views/22ew-dxez",
+      "description":"Financial and Geographic Information on SONYMA Loans purchased since 2004.",
+      "title":"State of New York Mortgage Agency (SONYMA) Loans Purchased: Beginning 2004",
+      "distribution":[
+        {
+          "@type":"dcat:Distribution",
+          "downloadURL":"https://data.ny.gov/api/views/22ew-dxez/rows.csv?accessType=DOWNLOAD",
+          "mediaType":"text/csv"
+        },
+        {
+          "mediaType":"application/rdf+xml",
+          "downloadURL":"https://data.ny.gov/api/views/22ew-dxez/rows.rdf?accessType=DOWNLOAD",
+          "describedBy":"https://data.ny.gov/api/views/22ew-dxez/columns.rdf",
+          "describedByType":"application/rdf+xml",
+          "@type":"dcat:Distribution"
+        },
+        {
+          "mediaType":"application/json",
+          "downloadURL":"https://data.ny.gov/api/views/22ew-dxez/rows.json?accessType=DOWNLOAD",
+          "describedBy":"https://data.ny.gov/api/views/22ew-dxez/columns.json", 
+          "describedByType":"application/json",
+          "@type":"dcat:Distribution"
+        },
+        {
+          "mediaType":"application/xml",
+          "downloadURL":"https://data.ny.gov/api/views/22ew-dxez/rows.xml?accessType=DOWNLOAD",
+          "describedBy":"https://data.ny.gov/api/views/22ew-dxez/columns.svc",
+          "describedByType":"application/xml",
+          "@type":"dcat:Distribution"
+          }
+        ],
+      "theme":["Economic Development"]
+    }
+  ]
+}

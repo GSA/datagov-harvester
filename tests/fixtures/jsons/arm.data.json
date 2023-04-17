@@ -1,0 +1,155 @@
+{
+  "conformsTo": "https://project-open-data.cio.gov/v1.1/schema",
+  "describedBy": "https://project-open-data.cio.gov/v1.1/schema/catalog.json",
+  "@context": "https://project-open-data.cio.gov/v1.1/schema/catalog.jsonld",
+  "@type": "dcat:Catalog",
+  "dataset": [
+    {
+      "accessLevel": "public",
+      "bureauCode": [
+        "018:001"
+      ],
+      "license": "https://project-open-data.cio.gov/unknown-license",
+      "identifier": "ncepgfsbrwpprof",
+      "contactPoint": {
+        "hasEmail": "mailto:adc@arm.gov",
+        "fn": "ARM Data Center"
+      },
+      "description": "No description found",
+      "programCode": [
+        "018:001"
+      ],
+      "distribution": [
+        {
+          "accessURL": "http://www.archive.arm.gov/discovery/#v/results/s/s::ncepgfsbrwpprof",
+          "format": "cdf"
+        }
+      ],
+      "modified": "2019-06-27 12:41:27",
+      "publisher": {
+        "name": "Atmospheric Radiation Measurement Data Center",
+        "subOrganizationOf": {
+          "name": "DOE Biological and Environmental Research (BER)",
+          "subOrganizationOf": {
+            "name": "DOE Office of Science user facilities",
+            "subOrganizationOf": {
+              "name": "U.S. Government"
+            }
+          }
+        }
+      },
+      "@type": "dcat:Dataset",
+      "keyword": [
+        "ARM",
+        "ORNL",
+        "ADC",
+        "ARM Data Center",
+        "Climate",
+        "Atmospheric Data",
+        "ncepgfs",
+        "National Centers for Environment Prediction Global Forecast System",
+        "derivmod"
+      ],
+      "title": "NCEP GFS: vertical profiles of met quantities at standard pressures, at Barrow"
+    },
+    {
+      "accessLevel": "public",
+      "bureauCode": [
+        "018:001"
+      ],
+      "license": "https://project-open-data.cio.gov/unknown-license",
+      "identifier": "10.5439/1027266",
+      "contactPoint": {
+        "hasEmail": "mailto:adc@arm.gov",
+        "fn": "ARM Data Center"
+      },
+      "description": "No description found",
+      "programCode": [
+        "018:001"
+      ],
+      "distribution": [
+        {
+          "accessURL": "http://www.archive.arm.gov/discovery/#v/results/s/s::1swfanalskyrad1long",
+          "format": "cdf"
+        }
+      ],
+      "modified": "2019-06-27 12:41:27",
+      "publisher": {
+        "name": "Atmospheric Radiation Measurement Data Center",
+        "subOrganizationOf": {
+          "name": "DOE Biological and Environmental Research (BER)",
+          "subOrganizationOf": {
+            "name": "DOE Office of Science user facilities",
+            "subOrganizationOf": {
+              "name": "U.S. Government"
+            }
+          }
+        }
+      },
+      "@type": "dcat:Dataset",
+      "keyword": [
+        "ARM",
+        "ORNL",
+        "ADC",
+        "ARM Data Center",
+        "Climate",
+        "Atmospheric Data",
+        "swfluxanal",
+        "Shortwave Flux Analysis",
+        "cloud",
+        "swfluxanal",
+        "Shortwave Flux Analysis",
+        "radio"
+      ],
+      "title": "Short Wave Flux Analysis: 1-min resolution on SKYAD data, Long algorithm"
+    },
+    {
+      "accessLevel": "public",
+      "bureauCode": [
+        "018:001"
+      ],
+      "license": "https://project-open-data.cio.gov/unknown-license",
+      "identifier": "avhrr12",
+      "contactPoint": {
+        "hasEmail": "mailto:adc@arm.gov",
+        "fn": "ARM Data Center"
+      },
+      "description": "No description found",
+      "programCode": [
+        "018:001"
+      ],
+      "distribution": [
+        {
+          "accessURL": "http://www.archive.arm.gov/discovery/#v/results/s/s::avhrr12",
+          "format": "hdfjpg"
+        }
+      ],
+      "modified": "2019-06-27 12:41:27",
+      "publisher": {
+        "name": "Atmospheric Radiation Measurement Data Center",
+        "subOrganizationOf": {
+          "name": "DOE Biological and Environmental Research (BER)",
+          "subOrganizationOf": {
+            "name": "DOE Office of Science user facilities",
+            "subOrganizationOf": {
+              "name": "U.S. Government"
+            }
+          }
+        }
+      },
+      "@type": "dcat:Dataset",
+      "keyword": [
+        "ARM",
+        "ORNL",
+        "ADC",
+        "ARM Data Center",
+        "Climate",
+        "Atmospheric Data",
+        "avhrr",
+        "Advanced Very High Resolution Radiometer",
+        "satellite"
+      ],
+      "title": "AVHRR: albedo and brightness temp., NOAA-12 Satellite"
+    }
+  ]
+}
