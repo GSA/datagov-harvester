@@ -1,6 +1,6 @@
 from datagovharvester import __version__
 from datagovharvester.example import hello
-from tests.fixtures.data import get_dataset_schema, get_catalog_schema
+from tests.fixtures.data import get_catalog_schema
 from utils.json_utilities import open_json
 from pathlib import Path
 from jsonschema import validate
