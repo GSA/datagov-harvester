@@ -1,5 +1,4 @@
 import pytest
-import json
 from pathlib import Path
 from utils.json_utilities import open_json
 
