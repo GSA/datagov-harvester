@@ -3,3 +3,4 @@ pytest-coverage.txt
 .coverage
 .pytest_cache
 .DS_Store
+__pycache__/
