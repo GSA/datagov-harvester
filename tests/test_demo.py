@@ -3,7 +3,7 @@ from datagovharvester.example import hello
 # from tests.fixtures.data import get_catalog_schema
 from utils.json_utilities import open_json
 from pathlib import Path
-from jsonschema import validate
+import jsonschema
 import pytest
 
 BASE_DIR = Path(__file__).parents[1]
@@ -59,9 +59,9 @@ def test_dataset_validity(schema, dataset, is_valid, request):
     output = None
 
     try:
-        validate(json_data, schema=dataset_schema)
+        jsonschema.validate(json_data, schema=dataset_schema)
         output = is_valid
-    except:
+    except jsonschema.ValidationError:
         output = not is_valid
 
     assert output
