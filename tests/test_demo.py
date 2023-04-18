@@ -5,6 +5,8 @@ from pathlib import Path
 import jsonschema
 import pytest
 
+TESTS_DIR = Path(__file__).parents[0]
+
 
 def test_version():
     assert __version__ == "0.1.0"
@@ -16,26 +18,13 @@ def test_hello():
 
 @pytest.mark.parametrize(
     "schema, dataset, is_valid",
-    [
-        ('get_catalog_schema', 'numerical-title.data.json', False),
-        ('get_catalog_schema', 'collection-1-parent-2-children.data.json', True),
-        ('get_catalog_schema', 'missing-catalog.data.json', False),
-        ('get_catalog_schema', 'ny.data.json', False),
-        ('get_catalog_schema', 'missing-identifier-title.data.json', False),
-        ('get_catalog_schema', 'missing-dataset-fields.data.json', False),
-        ('get_catalog_schema', 'usda.gov.data.json', True),
-        ('get_catalog_schema', 'arm.data.json', True),
-        ('get_catalog_schema', 'large-spatial.data.json', True),
-        ('get_catalog_schema', 'reserved-title.data.json', True),
-        ('get_catalog_schema', 'collection-2-parent-4-children.data.json', True),
-        ('get_catalog_schema', 'geospatial.data.json', True),
-        ('get_catalog_schema', 'null-spatial.data.json', True)
-    ]
+    open_json(TESTS_DIR / "fixtures" / "parametrizers" /
+              "params.json")["test_validate_dcat_us"]
 )
 def test_dataset_validity(schema, dataset, is_valid, request):
 
     dataset_schema = request.getfixturevalue(schema)
-    file_path = Path(__file__).parents[0] / "fixtures" / "jsons" / dataset
+    file_path = TESTS_DIR / "fixtures" / "jsons" / dataset
     json_data = open_json(file_path)
 
     output = None
