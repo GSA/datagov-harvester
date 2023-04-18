@@ -33,7 +33,8 @@ def test_dataset_validity(schema, dataset, is_valid, request):
         jsonschema.validate(json_data, schema=dataset_schema)
         output = is_valid
     except jsonschema.ValidationError as e:
-        # error_message = "error: " + e.message + ". offending element: " + e.json_path
+        error_message = "error: " + e.message + ". offending element: " + e.json_path
+        print(error_message)
         output = not is_valid
 
     assert output
