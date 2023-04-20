@@ -4,3 +4,4 @@ pytest-coverage.txt
 .pytest_cache
 .DS_Store
 __pycache__/
+venv/
