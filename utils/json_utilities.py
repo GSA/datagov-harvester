@@ -8,11 +8,12 @@ def open_json(file_path):
         return json.load(fp)
 
 
-def validate_json_schema(json_data, dataset_schema):
+def validate_json_schema(json_data, dataset_schema, valid_flag):
+    # valid_flag: invalid = False; valid = True
     try:
         jsonschema.validate(json_data, schema=dataset_schema)
-        assert False
+        assert valid_flag
     except jsonschema.ValidationError as e:
         error_message = f"error: {e.message}. offending element: {e.json_path}"
         print(error_message)
-        assert True
+        assert not valid_flag
