@@ -5,3 +5,7 @@ pytest-coverage.txt
 .DS_Store
 __pycache__/
 venv/
+
+# previous versions of schemas
+**/catalog_d4.json
+**/dataset_d4.json
