@@ -1,15 +1,30 @@
 import jsonschema
+from jsonschema import Draft202012Validator
+
+# from jsonschema.exceptions import ErrorTree
+
+
+def parse_errors(errors):
+    error_message = ""
+
+    for error in errors:
+        error_message += (
+            f"error: {error.message}. offending element: {error.json_path} \n"
+        )
+
+    return error_message
 
 
 def validate_json_schema(json_data, dataset_schema):
-    success = None
+    success = False
     error_message = ""
 
-    try:
-        jsonschema.validate(json_data, schema=dataset_schema)
+    validator = Draft202012Validator(dataset_schema)
+    errors = list(validator.iter_errors(json_data))
+
+    if len(errors) == 0:
         success = True
-    except jsonschema.ValidationError as e:
-        error_message = f"error: {e.message}. offending element: {e.json_path}"
-        print(error_message)
-        success = False
+    else:
+        error_message = parse_errors(errors)
+
     return success, error_message
