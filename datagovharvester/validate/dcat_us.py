@@ -1,7 +1,4 @@
-import jsonschema
 from jsonschema import Draft202012Validator
-
-# from jsonschema.exceptions import ErrorTree
 
 
 def parse_errors(errors):
