@@ -1,0 +1,174 @@
+{
+  "@type": "dcat:Catalog",
+  "describedBy": "https://project-open-data.cio.gov/v1.1/schema/catalog.json",
+  "conformsTo": "https://project-open-data.cio.gov/v1.1/schema",
+  "@context": "https://project-open-data.cio.gov/v1.1/schema/catalog.jsonld",
+  "dataset": [
+    {
+      "identifier": "USDA-DM-002",
+      "accessLevel": "public",
+      "contactPoint": {
+        "hasEmail": "mailto:Alexis.Graves@ocio.usda.gov",
+        "@type": "vcard:Contact",
+        "fn": "Alexi Graves"
+      },
+      "programCode": [
+        "005:059"
+      ],
+      "description": "This dataset is Congressional Correspondence from the Office of the Executive Secretariat for the Department of Agriculture.",
+      "title": "Department of Agriculture Congressional Logs for Fiscal Year 2014",
+      "distribution": [
+        {
+          "@type": "dcat:Distribution",
+          "downloadURL": "http://www.dm.usda.gov/foia/docs/Copy%20of%20ECM%20Congressional%20Logs%20FY14.xls",
+          "mediaType": "application/vnd.ms-excel",
+          "title": "Congressional Logs for Fiscal Year 2014"
+        }
+      ],
+      "license": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "bureauCode": [
+        "005:12"
+      ],
+      "modified": "2014-10-03",
+      "publisher": {
+        "@type": "org:Organization",
+        "name": "Department of Agriculture"
+      },
+      "keyword": [
+        "Congressional Logs"
+      ]
+    },
+    {
+      "contactPoint": {
+        "hasEmail": "mailto:ebaiello@fs.fed.us",
+        "@type": "vcard:Contact",
+        "fn": "USFS AGOL Admin"
+      },
+      "description": "<p>The National Forest Climate Change Maps project was developed by the Rocky Mountain Research Station (RMRS) and the Office of Sustainability and Climate to meet the needs of national forest managers for information on projected climate changes at a scale relevant to decision making processes, including forest plans. The maps use state-of-the-art science and are available for every national forest in the contiguous United States with relevant data coverage. Currently, the map sets include variables related to precipitation, air temperature, snow (including snow residence time and April 1 snow water equivalent), and stream flow.</p>\r\n\r\n<p>Historical (1975-2005) and future (2071-2090) precipitation and temperature data for the contiguous United States are ensemble mean values across 20 global climate models from the CMIP5 experiment (https://journals.ametsoc.org/doi/abs/10.1175/BAMS-D-11-00094.1), downscaled to a 4 km grid. For more information on the downscaling method and to access the data, please see Abatzoglou and Brown, 2012 (https://rmets.onlinelibrary.wiley.com/doi/full/10.1002/joc.2312) and the Northwest Knowledge Network (https://climate.northwestknowledge.net/MACA/). We used the MACAv2- Metdata monthly dataset; monthly precipitation values (mm) were summed over the season of interest (annual, winter, or summer). Absolute and percent change were then calculated between the historical and future time periods.</p>\r\n\r\n<p>Raster data are also available for download from RMRS site (https://www.fs.fed.us/rm/boise/AWAE/projects/NFS-regional-climate-change-maps/categories/us-raster-layers.html), along with pdf maps and detailed metadata (https://www.fs.fed.us/rm/boise/AWAE/projects/NFS-regional-climate-change-maps/downloads/NationalForestClimateChangeMapsMetadata.pdf).</p>\r\n\r\n<p><img src=\"https://farm8.staticflickr.com/7824/47007970771_22492043f6.jpg\" /></p>",
+      "title": "Percent change in annual precipitation (CONUS) (Image Service)",
+      "distribution": [
+        {
+          "accessURL": "http://enterprisecontent-usfs.opendata.arcgis.com/datasets/429428633a5e486289f6111d9cbe7065",
+          "@type": "dcat:Distribution",
+          "format": "Web page",
+          "mediaType": "text/html",
+          "title": "ArcGIS Open Dataset"
+        },
+        {
+          "accessURL": "https://apps.fs.usda.gov/fsgisx01/rest/services/RDW_Climate/AvgAnnualPrecipPctChange_CONUS/ImageServer",
+          "@type": "dcat:Distribution",
+          "format": "Esri REST",
+          "mediaType": "application/json",
+          "title": "Esri Rest API"
+        }
+      ],
+      "bureauCode": [
+        "005:96"
+      ],
+      "modified": "2019-03-22",
+      "theme": [
+        "geospatial"
+      ],
+      "keyword": [
+        "USDA Forest Service",
+        "USFS",
+        "Office of Sustainability and Climate",
+        "OSC",
+        "Rocky Mountain Research Station",
+        "RMRS",
+        "Air Water and Aquatic Environments Program",
+        "AWAE",
+        "climate",
+        "climate change",
+        "National Forests",
+        "Open Data",
+        "precipitation",
+        "water yield",
+        "CONUS",
+        "contiguous US"
+      ],
+      "spatial": "-134.91336517510808,21.082969302706488,-56.90070213154654,52.37089914390312",
+      "issued": "2017-11-22",
+      "identifier": "http://enterprisecontent-usfs.opendata.arcgis.com/datasets/429428633a5e486289f6111d9cbe7065",
+      "accessLevel": "public",
+      "programCode": [
+        "005:059"
+      ],
+      "landingPage": "http://enterprisecontent-usfs.opendata.arcgis.com/datasets/429428633a5e486289f6111d9cbe7065",
+      "license": "https://hub.arcgis.com/api/v2/datasets/429428633a5e486289f6111d9cbe7065/license",
+      "publisher": {
+        "name": "U.S. Forest Service"
+      }
+    },
+    {
+      "contactPoint": {
+        "hasEmail": "mailto:ebaiello@fs.fed.us",
+        "@type": "vcard:Contact",
+        "fn": "USFS AGOL Admin"
+      },
+      "description": "<p>The National Forest Climate Change Maps project was developed by the Rocky Mountain Research Station (RMRS) and the Office of Sustainability and Climate to meet the needs of national forest managers for information on projected climate changes at a scale relevant to decision making processes, including forest plans. The maps use state-of-the-art science and are available for every national forest in the contiguous United States with relevant data coverage. Currently, the map sets include variables related to precipitation, air temperature, snow (including snow residence time and April 1 snow water equivalent), and stream flow.</p>\r\n\r\n<p>Snow residence time (in days) and April 1 snow water equivalent (in mm) were modeled using the spatial analog models of Luce et al., 2014 (https://agupubs.onlinelibrary.wiley.com/doi/full/10.1002/2013WR014844); see also Lute and Luce, 2017 (https://agupubs.onlinelibrary.wiley.com/doi/full/10.1002/2017WR020752). These models are built on precipitation and snow data from Snowpack Telemetry (SNOTEL) stations across the western United States and temperature data from the TopoWx dataset (https://rmets.onlinelibrary.wiley.com/doi/10.1002/joc.4127). They were calculated for the historical (1975-2005) and future (2071-2090) time periods, along with absolute and percent change.</p>\r\n\r\n<p>Raster data are also available for download from RMRS site (https://www.fs.fed.us/rm/boise/AWAE/projects/NFS-regional-climate-change-maps/categories/us-raster-layers.html), along with pdf maps and detailed metadata (https://www.fs.fed.us/rm/boise/AWAE/projects/NFS-regional-climate-change-maps/downloads/NationalForestClimateChangeMapsMetadata.pdf).</p>\r\n\r\n<p><img src=\"https://farm8.staticflickr.com/7880/47007969021_885cb1a4a5.jpg\" /></p>",
+      "title": "Percent change in snow residence time (CONUS) (Image Service)",
+      "distribution": [
+        {
+          "accessURL": "http://enterprisecontent-usfs.opendata.arcgis.com/datasets/f1879e9f6798461f8fd54719ea2231f8",
+          "@type": "dcat:Distribution",
+          "format": "Web page",
+          "mediaType": "text/html",
+          "title": "ArcGIS Open Dataset"
+        },
+        {
+          "accessURL": "https://apps.fs.usda.gov/fsgisx01/rest/services/RDW_Climate/SnowResidenceTime_PctChange/ImageServer",
+          "@type": "dcat:Distribution",
+          "format": "Esri REST",
+          "mediaType": "application/json",
+          "title": "Esri Rest API"
+        },
+        {
+          "accessURL": "https://apps.fs.usda.gov/fsgisx01/services/RDW_Climate/SnowResidenceTime_PctChange/ImageServer",
+          "@type": "dcat:Distribution",
+          "format": "OGC WMS",
+          "mediaType": "application/vnd.ogc.wms_xml",
+          "title": "OGC WMS"
+        }
+      ],
+      "bureauCode": [
+        "005:96"
+      ],
+      "modified": "2019-03-22",
+      "theme": [
+        "geospatial"
+      ],
+      "keyword": [
+        "USDA Forest Service",
+        "USFS",
+        "Office of Sustainability and Climate",
+        "OSC",
+        "Rocky Mountain Research Station",
+        "RMRS",
+        "Air Water and Aquatic Environments Program",
+        "AWAE",
+        "climate",
+        "climate change",
+        "National Forests",
+        "Open Data",
+        "snow",
+        "snow residence time",
+        "SRT",
+        "CONUS",
+        "contiguous US"
+      ],
+      "spatial": "-134.91336517510808,21.082969302706488,-56.90070213154654,52.37089914390312",
+      "issued": "2017-11-22",
+      "identifier": "http://enterprisecontent-usfs.opendata.arcgis.com/datasets/f1879e9f6798461f8fd54719ea2231f8",
+      "accessLevel": "public",
+      "programCode": [
+        "005:059"
+      ],
+      "landingPage": "http://enterprisecontent-usfs.opendata.arcgis.com/datasets/f1879e9f6798461f8fd54719ea2231f8",
+      "license": "https://hub.arcgis.com/api/v2/datasets/f1879e9f6798461f8fd54719ea2231f8/license",
+      "publisher": {
+        "name": "U.S. Forest Service"
+      }
+    }
+  ]
+}

@@ -1,0 +1,32 @@
+{
+  "conformsTo": "https://project-open-data.cio.gov/v1.1/schema",
+  "describedBy": "https://project-open-data.cio.gov/v1.1/schema/catalog.json",
+  "@context": "https://project-open-data.cio.gov/v1.1/schema/catalog.jsonld",
+  "@type": "dcat:Catalog",
+  "dataset": [
+    {
+    },
+    {
+      "@type": "dcat:Dataset",
+      "title": "Employee Relations Roundtables",
+      "identifier": "IDF6-OPM-0001",
+      "accessLevel": "public",
+      "modified": "2011-12-15",
+      "keyword": ["k1", "k2"],
+      "landingPage": "http://www.opm.gov/policy-data-oversight/employee-relations/training/#url=Roundtables",
+      "license": "http://www.usa.gov/publicdomain/label/1.0/",
+      "publisher": {
+          "@type": "org:Organization",
+          "name": "U.S. Office of Personnel Management"
+      },
+      "contactPoint": {
+          "@type": "vcard:Contact",
+          "fn": "LaShann Freeman",
+          "hasEmail": "mailto:lashann.freeman@opm.gov"
+      },
+      "bureauCode": ["027:00"],
+      "programCode": ["027:000"],
+      "language": ["en-US"]
+    }
+  ]
+}
