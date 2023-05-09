@@ -13,13 +13,11 @@ def create_s3_client(s3_config):
     return S3, error_message
 
 
-def create_or_get_bucket(S3, bucket_name):
+def create_bucket(S3, bucket_name):
     error_message = None
 
     try:
-        resp = S3.list_buckets()
-        if bucket_name not in [bucket["Name"] for bucket in resp["Buckets"]]:
-            S3.create_bucket(bucket_name)
+        S3.create_bucket(Bucket=bucket_name)
     except Exception as e:
         error_message = e
 
