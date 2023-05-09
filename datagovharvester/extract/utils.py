@@ -4,7 +4,7 @@ import os
 from datagovharvester.utils.s3_utilities import (
     upload_dcatus_to_S3,
     create_s3_client,
-    create_or_get_bucket,
+    create_bucket,
     create_s3_payload,
 )
 
@@ -40,8 +40,10 @@ def extract_catalog(url, S3_config, job_id):
     S3, S3_create_error_msg = create_s3_client(S3_config)
 
     bucket_name = os.getenv("S3FILESTORE__AWS_BUCKET_NAME")
-    bucket_name, bucket_error_msg = create_or_get_bucket(S3, bucket_name)
+    bucket_name, bucket_error_msg = create_bucket(S3, bucket_name)
     key_name = job_id + "_extract.json"
+
+    print(bucket_error_msg)
 
     s3_payload = create_s3_payload(data, bucket_name, key_name)
     upload_data, upload_error_message = upload_dcatus_to_S3(S3, s3_payload)
