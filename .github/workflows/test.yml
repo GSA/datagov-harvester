@@ -1,21 +1,38 @@
-name: lint and tests
+name: Tests on Commit
 on: [push, pull_request]
 
+env:
+  PY_VERSION: "3.9"
+
 jobs:
-  test:
+  lint:
     runs-on: ubuntu-latest
+    name: Python Lint
     steps:
       - uses: actions/checkout@v3
-      - name: Set up Python 3.9
+      - uses: chartboost/ruff-action@v1
+
+  test:
+    runs-on: ubuntu-latest
+    name: Pytests
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 1
+
+      - name: Set up Python ${{ env.PY_VERSION }}
         uses: actions/setup-python@v3
         with:
-          python-version: 3.9
+          python-version: ${{ env.PY_VERSION }}
 
       - name: Install Poetry
         run: curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/install-poetry.py | python -
 
       - name: Install Dependencies
-        run: poetry install
+        run: |
+          poetry env use ${{ env.PY_VERSION }}
+          poetry install
 
       - name: Setup services
         run: docker-compose up -d
@@ -29,10 +46,3 @@ jobs:
           pytest-coverage-path: pytest-coverage.txt
           junitxml-path: pytest.xml
           github-token: ${{ secrets.GITHUB_TOKEN }}
-
-  lint:
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v3
-      - uses: chartboost/ruff-action@v1
