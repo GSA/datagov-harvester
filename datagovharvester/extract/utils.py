@@ -1,7 +1,15 @@
 import requests
+import json
+import os
+from datagovharvester.utils.s3_utilities import (
+    upload_dcatus_to_S3,
+    create_s3_client,
+    create_or_get_bucket,
+    create_s3_payload,
+)
 
 
-def extract_data(url):
+def download_catalog(url):
     resp = None
     error = None
 
@@ -11,3 +19,31 @@ def extract_data(url):
         error = e
 
     return resp, error
+
+
+def fetching_url(url):
+    success = False
+
+    resp, error_msg = download_catalog(url)
+
+    if resp.status_code == 200:
+        success = True
+
+    data = json.dumps(resp.json())
+
+    return data, success
+
+
+def extract_catalog(url, S3_config, job_id):
+    data, fetch_success = fetching_url(url)
+
+    S3, S3_create_error_msg = create_s3_client(S3_config)
+
+    bucket_name = os.getenv("S3FILESTORE__AWS_BUCKET_NAME")
+    bucket_name, bucket_error_msg = create_or_get_bucket(S3, bucket_name)
+    key_name = job_id + "_extract.json"
+
+    s3_payload = create_s3_payload(data, bucket_name, key_name)
+    upload_data, upload_error_message = upload_dcatus_to_S3(S3, s3_payload)
+
+    return upload_data, upload_error_message
