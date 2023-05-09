@@ -1,6 +1,4 @@
 from datagovharvester.extract.utils import extract_catalog
-import json
-import os
 
 
 def test_extract_dcatus(create_s3_client_config, get_dcatus_job):
