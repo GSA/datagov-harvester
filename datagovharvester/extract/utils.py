@@ -43,8 +43,6 @@ def extract_catalog(url, S3_config, job_id):
     bucket_name, bucket_error_msg = create_bucket(S3, bucket_name)
     key_name = job_id + "_extract.json"
 
-    print(bucket_error_msg)
-
     s3_payload = create_s3_payload(data, bucket_name, key_name)
     upload_data, upload_error_message = upload_dcatus_to_S3(S3, s3_payload)
 
