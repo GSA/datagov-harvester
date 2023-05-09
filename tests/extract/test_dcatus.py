@@ -11,6 +11,7 @@ def test_extract_dcatus(create_s3_client_config, get_dcatus_job):
 
     final_res, final_error_msg = extract_catalog(url, S3_config, job_id)
 
+    print(final_error_msg)
     if final_error_msg is None:
         success = True
 
