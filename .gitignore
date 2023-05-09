@@ -9,3 +9,6 @@ venv/
 # previous versions of schemas
 **/catalog_d4.json
 **/dataset_d4.json
+
+# openstack ( s3 mock )
+tmp/
