@@ -19,35 +19,28 @@ def create_or_get_bucket(S3, bucket_name):
     try:
         resp = S3.list_buckets()
         if bucket_name not in [bucket["Name"] for bucket in resp["Buckets"]]:
-            S3.create_bucket("test-bucket")
+            S3.create_bucket(bucket_name)
     except Exception as e:
         error_message = e
 
     return bucket_name, error_message
 
 
-def create_S3_payload(body, bucket_name, key_name, content_type):
+def create_s3_payload(json_str, bucket_name, key_name):
     return {
-        "Body": body,
-        "Bucket": bucket_name,
-        "Key": key_name,
-        "ContentType": content_type,
-    }
-
-
-def upload_dcatus_to_S3(S3, json_str, bucket_name, key_name):
-    output = None
-    error_message = None
-
-    config = {
         "Body": json_str,
         "Bucket": bucket_name,
         "Key": key_name,
         "ContentType": "application/json",
     }
 
+
+def upload_dcatus_to_S3(S3, s3_payload):
+    output = None
+    error_message = None
+
     try:
-        output = S3.put_object(**config)
+        output = S3.put_object(**s3_payload)
     except Exception as e:
         error_message = e
 
