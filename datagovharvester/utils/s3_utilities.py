@@ -13,7 +13,7 @@ def create_s3_client(s3_config):
     return S3, error_message
 
 
-def create_bucket(S3, bucket_name):
+def create_s3_bucket(S3, bucket_name):
     error_message = None
 
     try:
