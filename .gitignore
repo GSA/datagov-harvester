@@ -2,6 +2,7 @@ pytest.xml
 pytest-coverage.txt
 .coverage
 .pytest_cache
+.ruff_cache
 .DS_Store
 __pycache__/
 venv/
