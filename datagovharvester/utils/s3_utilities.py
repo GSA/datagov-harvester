@@ -33,7 +33,7 @@ def create_s3_payload(json_str, bucket_name, key_name):
     }
 
 
-def upload_dcatus_to_S3(S3, s3_payload):
+def upload_to_S3(S3, s3_payload):
     output = None
     error_message = None
 
