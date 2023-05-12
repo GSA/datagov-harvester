@@ -20,9 +20,7 @@ services:
       - SERVICES=s3
       - DEBUG=1
       - DATA_DIR=/tmp/localstack/data
-      - HOSTNAME=
       - DOCKER_HOST=unix:///var/run/docker.sock
       - DEFAULT_REGION=us-east-1
-      - START_WEB=1
     volumes:
       - "./tmp/localstack:/var/lib/localstack"
