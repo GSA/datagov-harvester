@@ -1,26 +1,19 @@
 import requests
+import json
 
 
 def download_catalog(url):
-    resp = None
-    error = None
-
     try:
         resp = requests.get(url)
     except requests.exceptions.RequestException as e:
-        error = e
+        return e
 
-    return resp, error
+    if resp.status_code != 200:
+        return None
 
+    try:
+        data = resp.json()
+    except json.JSONDecodeError as e:
+        return e
 
-def fetch_url(url):
-    success = False
-
-    resp, error_msg = download_catalog(url)
-
-    if resp.status_code == 200:
-        success = True
-
-    data = resp.json()
-
-    return data, success
+    return data
