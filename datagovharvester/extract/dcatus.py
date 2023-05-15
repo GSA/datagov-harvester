@@ -1,4 +1,4 @@
-from .utils import fetch_url
+from .utils import download_catalog
 import json
 from datagovharvester.utils.s3_utilities import (
     upload_to_S3,
@@ -6,21 +6,28 @@ from datagovharvester.utils.s3_utilities import (
 )
 
 
-def extract_dcatus_catalog(url, job_id, S3_client, bucket_name):
-    extracted_data = []
-    error_message = None
+def extract_json_catalog(url, job_id, S3_client, bucket_name):
+    errors = []
 
     try:
-        data, fetch_success = fetch_url(url)
+        data = download_catalog(url)
+    except Exception as e:
+        # do something with the error
+        return e
 
-        for idx, record in enumerate(data["dataset"]):
+    if not data.get("dataset", None):
+        # do something with the error
+        return "no dataset key"
+
+    for idx, record in enumerate(data["dataset"]):
+        try:
             record = json.dumps(record)
             key_name = f"{job_id}_{idx}_extract.json"
             s3_payload = create_s3_payload(record, bucket_name, key_name)
+            upload_to_S3(S3_client, s3_payload)
+        except Exception as e:
+            # do something with the error
+            errors.append(e)
+            continue
 
-            upload_data, upload_error_message = upload_to_S3(S3_client, s3_payload)
-            extracted_data.append([upload_data, upload_error_message])
-    except Exception as e:
-        error_message = e
-
-    return extracted_data, error_message
+    return errors
