@@ -3,6 +3,9 @@ import json
 
 
 def download_catalog(url):
+    """ download file and pull json from response
+    url (str)   :   path to the file to be downloaded.
+    """
     try:
         resp = requests.get(url)
     except requests.exceptions.RequestException as e:

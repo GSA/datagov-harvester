@@ -3,28 +3,20 @@ import botocore
 
 
 def create_s3_client(s3_config):
-    S3 = None
-    error_message = None
+    """ create boto3.client object
+    s3_config (dict)    :   configuration dict. 
+    """
     try:
-        S3 = boto3.client("s3", **s3_config)
-    except botocore.exceptions.ClientError as e:
-        error_message = e
-
-    return S3, error_message
-
-
-def create_s3_bucket(S3, bucket_name):
-    error_message = None
-
-    try:
-        S3.create_bucket(Bucket=bucket_name)
-    except Exception as e:
-        error_message = e
-
-    return bucket_name, error_message
-
+        return boto3.client("s3", **s3_config)
+    except botocore.exceptions.ClientError as e: #noqa
+        pass 
 
 def create_s3_payload(json_str, bucket_name, key_name):
+    """ create s3 payload to be added to the input bucket
+    json_str (str)      :   data to be placed in s3 bucket as json string. 
+    bucket_name (str)   :   name of bucket to store the data. 
+    key_name (str)      :   name of the file to be placed in the s3 bucket. 
+    """
     return {
         "Body": json_str,
         "Bucket": bucket_name,
@@ -34,12 +26,11 @@ def create_s3_payload(json_str, bucket_name, key_name):
 
 
 def upload_to_S3(S3, s3_payload):
-    output = None
-    error_message = None
-
+    """ store the s3 payload 
+    S3 (boto3 client)   :   boto3 S3 client
+    s3_payload (dict)   :   payload to be stored in s3 bucket.
+    """
     try:
-        output = S3.put_object(**s3_payload)
-    except Exception as e:
-        error_message = e
-
-    return output, error_message
+        return S3.put_object(**s3_payload)
+    except Exception as e: #noqa
+        pass 
