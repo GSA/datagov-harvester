@@ -17,7 +17,8 @@ def get_dcatus_job():
 
 @pytest.fixture
 def create_client_config():
-    """create s3 configuration dictionary intended to be passed to boto3.client("s3", **s3_config)"""
+    """create s3 configuration dictionary intended 
+    to be passed to boto3.client("s3", **s3_config)"""
     config = {}
     load_dotenv()
 

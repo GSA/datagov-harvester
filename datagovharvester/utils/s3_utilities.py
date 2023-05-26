@@ -1,6 +1,7 @@
 import boto3
 import botocore
 
+# ruff: noqa: F841
 
 def create_s3_client(s3_config):
     """ create boto3.client object
@@ -32,5 +33,5 @@ def upload_to_S3(S3, s3_payload):
     """
     try:
         return S3.put_object(**s3_payload)
-    except Exception as e: #noqa
+    except Exception as e:
         pass 
