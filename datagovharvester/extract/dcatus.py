@@ -5,7 +5,8 @@ from datagovharvester.utils.s3_utilities import (
     create_s3_payload,
 )
 
-def store_record_in_s3( record, source_id, job_id, record_idx, S3_client, bucket_name ):
+def store_record_in_s3( record, source_id, job_id, record_idx, S3_client, 
+    key_name, bucket_name ):
     """ store the input record in a s3 bucket
     record (dict)               :   dcatus record
     source_id (str)             :   uuid 
@@ -16,7 +17,6 @@ def store_record_in_s3( record, source_id, job_id, record_idx, S3_client, bucket
     """
     try:
         record = json.dumps(record)
-        key_name = f"{source_id}/{job_id}/{record_idx}.json"
         s3_payload = create_s3_payload(record, bucket_name, key_name)
         upload_to_S3(S3_client, s3_payload)
         return key_name
@@ -46,9 +46,10 @@ def extract_json_catalog(url, source_id, job_id, S3_client, bucket_name):
 
     for idx, record in enumerate(data["dataset"]):
         try:
-            store_record_in_s3( record, source_id, job_id, idx, S3_client, bucket_name )
-            s3_path = bucket_name + f"/{source_id}/{job_id}/{idx}.json"
-            output["s3_paths"].append( s3_path ) 
+            key_name = f"/{source_id}/{job_id}/{idx}.json"
+            store_record_in_s3( record, source_id, job_id, idx, S3_client, 
+                key_name, bucket_name )
+            output["s3_paths"].append( key_name ) 
             output["job_ids"].append( job_id ) 
         except Exception as e:
             output["errors"].append( e ) 
