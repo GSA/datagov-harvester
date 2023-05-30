@@ -47,7 +47,7 @@ def extract_json_catalog(url, source_id, job_id, S3_client, bucket_name):
     for idx, record in enumerate(data["dataset"]):
         try:
             store_record_in_s3( record, source_id, job_id, idx, S3_client, bucket_name )
-            s3_path = bucket_name + f"/{source_id}/{job_id}/{idx}_extract.json"
+            s3_path = bucket_name + f"/{source_id}/{job_id}/{idx}.json"
             output["s3_paths"].append( s3_path ) 
             output["job_ids"].append( job_id ) 
         except Exception as e:
