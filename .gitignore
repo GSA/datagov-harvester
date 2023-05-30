@@ -13,3 +13,6 @@ venv/
 
 # openstack ( s3 mock )
 tmp/
+
+# vscode debugger
+.vscode/
