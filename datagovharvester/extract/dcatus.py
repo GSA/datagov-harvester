@@ -16,7 +16,7 @@ def store_record_in_s3( record, source_id, job_id, record_idx, S3_client, bucket
     """
     try:
         record = json.dumps(record)
-        key_name = f"{source_id}/{job_id}/{record_idx}_extract.json"
+        key_name = f"{source_id}/{job_id}/{record_idx}.json"
         s3_payload = create_s3_payload(record, bucket_name, key_name)
         upload_to_S3(S3_client, s3_payload)
         return key_name
