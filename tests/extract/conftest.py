@@ -9,11 +9,37 @@ from datagovharvester.utils.s3_utilities import create_s3_client
 def get_dcatus_job():
     """example dcatus job payload"""
     return {
-        "url": "http://localhost/data.json",
+        "url": "http://localhost/dcatus.json",
         "source_id": str(uuid4()),
         "job_id": str(uuid4()),
     }
 
+@pytest.fixture
+def get_bad_url():
+    """example dcatus job payload with bad url"""
+    return {
+        "url": "http://localhost/bad_url",
+        "source_id": str(uuid4()),
+        "job_id": str(uuid4()),
+    }
+
+@pytest.fixture
+def get_bad_json():
+    """example bad json with missing enclosing bracket"""
+    return {
+        "url": "http://localhost/unclosed.json",
+        "source_id": str(uuid4()),
+        "job_id": str(uuid4()),
+    }
+
+@pytest.fixture
+def get_no_dataset_key_dcatus_json():
+    """example dcatus json with no 'dataset' key"""
+    return {
+        "url": "http://localhost/no_dataset_key.json",
+        "source_id": str(uuid4()),
+        "job_id": str(uuid4()),
+    }
 
 @pytest.fixture
 def create_client_config():
