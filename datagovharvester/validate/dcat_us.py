@@ -1,5 +1,6 @@
-from jsonschema.exceptions import ValidationError
 from jsonschema import Draft202012Validator
+from jsonschema.exceptions import ValidationError
+
 
 def is_dcatus_schema( catalog ):
 

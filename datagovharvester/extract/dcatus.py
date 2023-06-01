@@ -1,4 +1,5 @@
 import json
+
 from datagovharvester import content_types, extract_feat_name
 from datagovharvester.utils.s3_utilities import create_s3_upload_data
 

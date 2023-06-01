@@ -1,5 +1,6 @@
-import requests
 import json
+
+import requests
 
 
 def download_json(url):

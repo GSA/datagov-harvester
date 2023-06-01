@@ -1,6 +1,7 @@
 from datagovharvester import bucket_name
 from datagovharvester.extract import main
 
+
 def test_extract_dcatus(get_dcatus_job, create_client):
     """ download dcat-us json file and store result in s3 bucket.
     get_dcatus_job (dict)           :   fixture containing job data 
