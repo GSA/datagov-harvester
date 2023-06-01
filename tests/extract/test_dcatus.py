@@ -1,28 +1,52 @@
-from datagovharvester.extract.dcatus import extract_json_catalog
+from datagovharvester import bucket_name
+from datagovharvester.extract import main
 
 def test_extract_dcatus(get_dcatus_job, create_client):
     """ download dcat-us json file and store result in s3 bucket.
-    get_dcatus_job (dict)   : fixture containing job data 
-    create_client           : S3 object
-    create_bucket           : S3 bucket 
+    get_dcatus_job (dict)           :   fixture containing job data 
+    create_client  (boto3.client)   :   S3 client object
     """
 
-    success = False
-
     S3_client = create_client
-    bucket_name = "test-bucket" 
-
     S3_client.create_bucket(Bucket=bucket_name)
 
-    extraction = extract_json_catalog(
-        get_dcatus_job["url"], 
-        get_dcatus_job["source_id"], 
-        get_dcatus_job["job_id"], 
-        create_client, 
-        bucket_name
-    )
+    assert main( get_dcatus_job, S3_client )
 
-    if len(extraction["errors"]) == 0:
-        success = True
+def test_extract_bad_url(get_bad_url, create_client):
+    """ attempt to download a bad url.
+    get_bad_url (dict)              :   fixture containing job data with bad url
+    create_client  (boto3.client)   :   S3 client object
+    """
 
-    assert success
+    S3_client = create_client
+    S3_client.create_bucket(Bucket=bucket_name)
+
+    if str(main( get_bad_url, S3_client )) == "non-200 status code":
+        assert True
+
+def test_extract_bad_json(get_bad_json, create_client):
+    """ attempt to download a bad url.
+    get_bad_json (dict)             :   fixture containing job data with bad json
+    create_client  (boto3.client)   :   S3 client object
+    """
+
+    S3_client = create_client
+    S3_client.create_bucket(Bucket=bucket_name)
+
+    error = ( "Expecting property name enclosed " 
+        "in double quotes: line 4 column 1 (char 25)" )
+    if str( main( get_bad_json, S3_client ) ) == error:
+        assert True
+
+def test_extract_no_dataset_key(get_no_dataset_key_dcatus_json, create_client):
+    """ attempt to download a invalid dcatus catalog. 
+    get_no_dataset_key_dcatus_json (dict)   
+        :   fixture containing dcatus with no 'dataset' key
+    create_client  (boto3.client)   :   S3 client object
+    """
+
+    S3_client = create_client
+    S3_client.create_bucket(Bucket=bucket_name)
+
+    if main( get_no_dataset_key_dcatus_json, S3_client ) == "invalid dcatus catalog":
+        assert True
