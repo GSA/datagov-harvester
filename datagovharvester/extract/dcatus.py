@@ -14,9 +14,7 @@ def parse_catalog(catalog, job_info):
     for idx, record in enumerate(catalog["dataset"]):
         try:
             record = json.dumps(record)
-            key_name = "{}/{}/{}/{}.json".format(
-                extract_feat_name, job_info["source_id"], job_info["job_id"], idx
-            )
+            key_name = f"{extract_feat_name}/{job_info['source_id']}/{job_info['job_id']}/{idx}.json"
             yield create_s3_upload_data(record, key_name, content_types["json"])
         except Exception as e:
             pass
