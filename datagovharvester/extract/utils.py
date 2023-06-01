@@ -4,7 +4,7 @@ import requests
 
 
 def download_json(url):
-    """ download file and pull json from response
+    """download file and pull json from response
     url (str)   :   path to the file to be downloaded.
     """
     try:
@@ -12,7 +12,7 @@ def download_json(url):
     except requests.exceptions.RequestException as e:
         raise Exception(e)
     except requests.exceptions.JSONDecodeError as e:
-        raise Exception(e) 
+        raise Exception(e)
 
     if resp.status_code != 200:
         raise Exception("non-200 status code")

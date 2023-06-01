@@ -1,6 +1,5 @@
-
 # configuration settings
-bucket_name = "test-bucket" 
+bucket_name = "test-bucket"
 content_types = {
     "json": "application/json",
 }

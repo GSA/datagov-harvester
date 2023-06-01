@@ -16,6 +16,7 @@ def get_dcatus_job():
         "job_id": str(uuid4()),
     }
 
+
 @pytest.fixture
 def get_bad_url():
     """example dcatus job payload with bad url"""
@@ -24,6 +25,7 @@ def get_bad_url():
         "source_id": str(uuid4()),
         "job_id": str(uuid4()),
     }
+
 
 @pytest.fixture
 def get_bad_json():
@@ -34,6 +36,7 @@ def get_bad_json():
         "job_id": str(uuid4()),
     }
 
+
 @pytest.fixture
 def get_no_dataset_key_dcatus_json():
     """example dcatus json with no 'dataset' key"""
@@ -43,9 +46,10 @@ def get_no_dataset_key_dcatus_json():
         "job_id": str(uuid4()),
     }
 
+
 @pytest.fixture
 def create_client_config():
-    """create s3 configuration dictionary intended 
+    """create s3 configuration dictionary intended
     to be passed to boto3.client("s3", **s3_config)"""
     config = {}
     load_dotenv()
