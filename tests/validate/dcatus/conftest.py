@@ -1,5 +1,7 @@
-import pytest
 from pathlib import Path
+
+import pytest
+
 from datagovharvester.utils.json_utilities import open_json
 
 BASE_DIR = Path(__file__).parents[3]

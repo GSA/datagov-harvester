@@ -1,8 +1,10 @@
+---
 name: Tests on Commit
 on: [push, pull_request]
 
 env:
-  PY_VERSION: '3.9'
+  PY_VERSION: "3.9"
+  POETRY_VERSION: "1.4.2"
 
 jobs:
   lint:
@@ -22,20 +24,25 @@ jobs:
           fetch-depth: 1
 
       - name: Set up Python ${{ env.PY_VERSION }}
-        uses: actions/setup-python@v3
+        uses: actions/setup-python@v4
         with:
           python-version: ${{ env.PY_VERSION }}
 
       - name: Install Poetry
-        run: curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/install-poetry.py | python -
+        uses: abatilo/actions-poetry@v2
+        with:
+          poetry-version: ${{ env.POETRY_VERSION }}
 
       - name: Install Dependencies
         run: |
           poetry env use ${{ env.PY_VERSION }}
           poetry install
 
+      - name: Setup services
+        run: docker-compose up -d
+
       - name: Run Pytest
-        run: poetry run pytest --junitxml=pytest.xml --cov=datagovharvester | tee pytest-coverage.txt
+        run: poetry run pytest -s --junitxml=pytest.xml --cov=datagovharvester | tee pytest-coverage.txt
 
       - name: Report test coverage
         uses: MishaKav/pytest-coverage-comment@main

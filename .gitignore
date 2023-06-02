@@ -2,10 +2,17 @@ pytest.xml
 pytest-coverage.txt
 .coverage
 .pytest_cache
+.ruff_cache
 .DS_Store
 __pycache__/
 venv/
 
-# previous versions of schemas
-**/catalog_d4.json
-**/dataset_d4.json
+# any previous versions of schemas
+**/dataset_**.json
+**/catalog_**.json
+
+# openstack ( s3 mock )
+tmp/
+
+# vscode debugger
+.vscode/
