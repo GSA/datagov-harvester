@@ -1,5 +1,7 @@
 import json
+
 import requests
+
 # ruff: noqa: F841
 
 
@@ -12,6 +14,7 @@ def open_json(file_path):
             return json.load(fp)
     except Exception as e:
         pass
+
 
 def download_json(url):
     """download file and pull json from response
