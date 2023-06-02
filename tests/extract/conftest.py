@@ -4,7 +4,7 @@ from uuid import uuid4
 import pytest
 from dotenv import load_dotenv
 
-from datagovharvester.utils.s3_utilities import create_s3_client
+from datagovharvester.utils.s3 import create_s3_client
 
 
 @pytest.fixture
