@@ -1,7 +1,7 @@
 import json
 
-from datagovharvester import content_types, extract_feat_name
-from datagovharvester.utils.s3 import create_s3_upload_data
+from harvester import content_types, extract_feat_name
+from harvester.utils.s3 import create_s3_upload_data
 
 # ruff: noqa: F841
 
