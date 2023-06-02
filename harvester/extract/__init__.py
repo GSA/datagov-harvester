@@ -1,6 +1,6 @@
 from harvester.extract.dcatus import parse_catalog
-from harvester.utils.s3 import upload_to_S3
 from harvester.utils.json import download_json
+from harvester.utils.s3 import upload_to_S3
 from harvester.validate.dcat_us import is_dcatus_schema
 
 # ruff: noqa: F841
