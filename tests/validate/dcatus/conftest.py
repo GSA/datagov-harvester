@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from datagovharvester.utils.json_utilities import open_json
+from datagovharvester.utils.json import open_json
 
 BASE_DIR = Path(__file__).parents[3]
 DATA_DIR = BASE_DIR / "data" / "dcatus"
