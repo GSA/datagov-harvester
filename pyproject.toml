@@ -4,7 +4,7 @@ version = "0.1.0"
 description = ""
 authors = ["Jin-Sun-tts <jin.sun@gsa.gov>"]
 readme = "README.md"
-packages = [{include = "datagovharvester"}]
+packages = [{include = "harvester"}]
 
 [tool.poetry.dependencies]
 python = ">=3.9"
