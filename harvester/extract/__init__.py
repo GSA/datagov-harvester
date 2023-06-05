@@ -1,7 +1,7 @@
-from datagovharvester.extract.dcatus import parse_catalog
-from datagovharvester.extract.utils import download_json
-from datagovharvester.utils.s3_utilities import upload_to_S3
-from datagovharvester.validate.dcat_us import is_dcatus_schema
+from harvester.extract.dcatus import parse_catalog
+from harvester.utils.json import download_json
+from harvester.utils.s3 import upload_to_S3
+from harvester.validate.dcat_us import is_dcatus_schema
 
 # ruff: noqa: F841
 

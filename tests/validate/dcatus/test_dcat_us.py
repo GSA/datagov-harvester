@@ -1,4 +1,4 @@
-from datagovharvester.validate.dcat_us import validate_json_schema
+from harvester.validate.dcat_us import validate_json_schema
 
 
 def test_numerical_title(open_catalog_schema, open_numerical_title_json):

@@ -1,5 +1,5 @@
-from datagovharvester import bucket_name
-from datagovharvester.extract import main
+from harvester import bucket_name
+from harvester.extract import main
 
 
 def test_extract_dcatus(get_dcatus_job, create_client):

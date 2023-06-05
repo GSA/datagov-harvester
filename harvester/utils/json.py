@@ -2,6 +2,19 @@ import json
 
 import requests
 
+# ruff: noqa: F841
+
+
+def open_json(file_path):
+    """open input json file as dictionary
+    file_path (str)     :   json file path.
+    """
+    try:
+        with open(file_path) as fp:
+            return json.load(fp)
+    except Exception as e:
+        pass
+
 
 def download_json(url):
     """download file and pull json from response
