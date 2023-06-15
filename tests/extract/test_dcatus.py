@@ -25,6 +25,8 @@ def test_extract_bad_url(get_bad_url, create_client):
 
     if str(main(get_bad_url, S3_client)) == "non-200 status code":
         assert True
+    else:
+        assert False
 
 
 def test_extract_bad_json(get_bad_json, create_client):
@@ -42,6 +44,8 @@ def test_extract_bad_json(get_bad_json, create_client):
     )
     if str(main(get_bad_json, S3_client)) == error:
         assert True
+    else: 
+        assert False
 
 
 def test_extract_no_dataset_key(get_no_dataset_key_dcatus_json, create_client):
@@ -56,3 +60,14 @@ def test_extract_no_dataset_key(get_no_dataset_key_dcatus_json, create_client):
 
     if main(get_no_dataset_key_dcatus_json, S3_client) == "invalid dcatus catalog":
         assert True
+    else:
+        assert False
+   
+def test_bad_s3_client( create_bad_client ):
+
+    S3_client = create_bad_client
+
+    if str(S3_client) == "Invalid endpoint: garbage":
+        assert True
+    else:
+        assert False
