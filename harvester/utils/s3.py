@@ -1,5 +1,7 @@
 import boto3
-from datagovharvester import bucket_name
+import botocore
+
+from harvester import bucket_name
 
 # ruff: noqa: F841
 
