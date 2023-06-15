@@ -1,6 +1,4 @@
 import boto3
-import botocore
-
 from datagovharvester import bucket_name
 
 # ruff: noqa: F841
@@ -12,8 +10,8 @@ def create_s3_client(s3_config):
     """
     try:
         return boto3.client("s3", **s3_config)
-    except botocore.exceptions.ClientError as e:
-        pass
+    except ValueError as e:
+        return e
 
 
 def create_s3_upload_data(body, key_name, content_type):
