@@ -4,7 +4,7 @@ from uuid import uuid4
 import pytest
 from dotenv import load_dotenv
 
-from harvester.utils.s3 import create_s3_client
+from harvester.utils.s3 import create_s3_client, delete_s3_object
 
 
 @pytest.fixture
@@ -82,8 +82,18 @@ def create_client(create_client_config):
     """create a boto3.client
     create_client_config (dict)     :   configuration file.
     """
-    return create_s3_client(create_client_config)
+    S3_client = create_s3_client(create_client_config)
+    yield S3_client
 
+    # cleanup
+    paginator = S3_client.get_paginator("list_objects_v2")
+    page_iterator = paginator.paginate(Bucket="test-bucket")
+
+    for page in page_iterator:
+        if page["KeyCount"] == 0:
+            break
+        for obj in page["Contents"]:
+            delete_s3_object(S3_client, "test-bucket", obj["Key"])
 
 @pytest.fixture
 def create_bad_client(create_bad_client_config):
