@@ -17,15 +17,8 @@ The datagov-harvesting-logic offers the following features:
 
 ## Requirements
 
-Install poetry
+This project is using poetry to manage this project. Install [here](https://python-poetry.org/docs/#installation).
 
-```bash
-curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/install-poetry.py | python -
+Once installed, `poetry install` installs dependencies into a local virtual environment.
 
-poetry new <project_name>
-
-poetry add xxx
-
-poetry install
-
-```
+Tests are run using docker `docker compose up -d` and with the command `poetry run pytest`. 
