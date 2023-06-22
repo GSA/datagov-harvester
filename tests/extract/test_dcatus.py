@@ -25,6 +25,7 @@ def test_extract_bad_url(get_bad_url, create_client):
 
     assert str(main(get_bad_url, S3_client)) == "non-200 status code"
 
+
 def test_extract_bad_json(get_bad_json, create_client):
     """attempt to download a bad url.
     get_bad_json (dict)             :   fixture containing job data with bad json
@@ -40,6 +41,7 @@ def test_extract_bad_json(get_bad_json, create_client):
     )
     assert str(main(get_bad_json, S3_client)) == error
 
+
 def test_extract_no_dataset_key(get_no_dataset_key_dcatus_json, create_client):
     """attempt to download a invalid dcatus catalog.
     get_no_dataset_key_dcatus_json (dict)
@@ -51,10 +53,11 @@ def test_extract_no_dataset_key(get_no_dataset_key_dcatus_json, create_client):
     S3_client.create_bucket(Bucket=bucket_name)
 
     assert main(get_no_dataset_key_dcatus_json, S3_client) == "invalid dcatus catalog"
-   
-def test_bad_s3_client( create_bad_client ):
+
+
+def test_bad_s3_client(create_bad_client):
     """attempt to create an S3 client using a bad url endpoint
-    create_bad_client (boto3.client)    : S3 client object. 
+    create_bad_client (boto3.client)    : S3 client object.
     """
 
     S3_client = create_bad_client

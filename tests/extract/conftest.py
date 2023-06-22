@@ -61,6 +61,7 @@ def create_client_config():
 
     return config
 
+
 @pytest.fixture
 def create_bad_client_config():
     """create invalid s3 configuration dictionary with bad endpoint_url value
@@ -82,6 +83,7 @@ def create_client(create_client_config):
     create_client_config (dict)     :   configuration file.
     """
     return create_s3_client(create_client_config)
+
 
 @pytest.fixture
 def create_bad_client(create_bad_client_config):
