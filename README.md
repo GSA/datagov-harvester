@@ -1,8 +1,9 @@
 # datagov-harvesting-logic
 
-This is a library that will be utilized for metadata extraction, validation, transformation, and loading into the data.gov catalog
+This is a library that will be utilized for metadata extraction, validation,
+transformation, and loading into the data.gov catalog.
 
-### Features
+## Features
 
 The datagov-harvesting-logic offers the following features:
 
@@ -14,11 +15,11 @@ The datagov-harvesting-logic offers the following features:
   - DCAT-US
     - jsonschema validation using draft 2020-12.
 
-### Requirements:
+## Requirements
 
 Install poetry
 
-```
+```bash
 curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/install-poetry.py | python -
 
 poetry new <project_name>
