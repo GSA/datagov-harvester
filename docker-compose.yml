@@ -17,7 +17,6 @@ services:
       - "4566:4566"
       - "8081:8081"
     healthcheck:
-      #TODO: add custom healthcheck ( pseudo: aws upload_object test-dcatus.json ??? ) 
       test: ["CMD", "curl", "--fail", "localhost:4566"]
       interval: 2s
       timeout: 5s
