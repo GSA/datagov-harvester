@@ -1,5 +1,4 @@
 import boto3
-import botocore
 
 from harvester import bucket_name
 
@@ -12,8 +11,8 @@ def create_s3_client(s3_config):
     """
     try:
         return boto3.client("s3", **s3_config)
-    except botocore.exceptions.ClientError as e:
-        pass
+    except ValueError as e:
+        return e
 
 
 def create_s3_upload_data(body, key_name, content_type):
@@ -28,6 +27,19 @@ def create_s3_upload_data(body, key_name, content_type):
         "ContentType": content_type,
     }
 
+def delete_s3_object( S3, bucket_name, object_key ):
+
+    try:
+        return S3.delete_object( Bucket=bucket_name, Key=object_key )
+    except Exception as e:
+        pass 
+    
+def get_s3_object( S3, bucket_name, object_key ):
+
+    try:
+        return S3.get_object( Bucket=bucket_name, Key=object_key )
+    except Exception as e:
+        pass
 
 def upload_to_S3(S3, s3_upload_data):
     """store the s3 payload

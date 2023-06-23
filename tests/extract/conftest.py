@@ -4,7 +4,7 @@ from uuid import uuid4
 import pytest
 from dotenv import load_dotenv
 
-from harvester.utils.s3 import create_s3_client
+from harvester.utils.s3 import create_s3_client, delete_s3_object
 
 
 @pytest.fixture
@@ -63,8 +63,41 @@ def create_client_config():
 
 
 @pytest.fixture
+def create_bad_client_config():
+    """create invalid s3 configuration dictionary with bad endpoint_url value
+    to be passed to boto3.client("s3", **s3_config)"""
+    config = {}
+    load_dotenv()
+
+    config["aws_access_key_id"] = os.getenv("S3FILESTORE__AWS_ACCESS_KEY_ID")
+    config["aws_secret_access_key"] = os.getenv("S3FILESTORE__AWS_SECRET_ACCESS_KEY")
+    config["region_name"] = os.getenv("S3FILESTORE__REGION_NAME")
+    config["endpoint_url"] = "garbage"
+
+    return config
+
+
+@pytest.fixture
 def create_client(create_client_config):
     """create a boto3.client
     create_client_config (dict)     :   configuration file.
     """
-    return create_s3_client(create_client_config)
+    S3_client = create_s3_client(create_client_config)
+    yield S3_client
+
+    # cleanup
+    paginator = S3_client.get_paginator("list_objects_v2")
+    page_iterator = paginator.paginate(Bucket="test-bucket")
+
+    for page in page_iterator:
+        if page["KeyCount"] == 0:
+            break
+        for obj in page["Contents"]:
+            delete_s3_object(S3_client, "test-bucket", obj["Key"])
+
+@pytest.fixture
+def create_bad_client(create_bad_client_config):
+    """create a boto3.client
+    create_client_config (dict)     :   configuration file.
+    """
+    return create_s3_client(create_bad_client_config)

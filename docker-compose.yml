@@ -16,6 +16,11 @@ services:
     ports:
       - "4566:4566"
       - "8081:8081"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "localhost:4566"]
+      interval: 2s
+      timeout: 5s
+      retries: 5
     environment:
       - SERVICES=s3
       - DEBUG=1
