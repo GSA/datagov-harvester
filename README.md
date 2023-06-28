@@ -21,4 +21,5 @@ This project is using poetry to manage this project. Install [here](https://pyth
 
 Once installed, `poetry install` installs dependencies into a local virtual environment.
 
-Tests are run using docker `docker compose up -d` and with the command `poetry run pytest`. 
+Tests are run using docker `docker compose up -d` and with the command
+`poetry run pytest`.

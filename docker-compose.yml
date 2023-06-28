@@ -1,4 +1,4 @@
-version: "3" 
+version: "3"
 
 services:
   nginx-harvest-source:
@@ -28,3 +28,11 @@ services:
       - DEFAULT_REGION=us-east-1
     volumes:
       - "./tmp/localstack:/var/lib/localstack"
+
+  postgres-db:
+    image: postgres
+    restart: always
+    ports:
+      - "5432:5432"
+    env_file:
+      - .env

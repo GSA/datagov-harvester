@@ -1,50 +1,30 @@
-from os import getenv
-
 import psycopg
-from dotenv import load_dotenv
 
 # ruff: noqa: F841
 
-load_dotenv()
-
 
 class PostgresUtility:
-    def __init__(
-        self,
-        host=getenv("PG_HOST"),
-        port=getenv("PG_PORT"),
-        user=getenv("PG_USER"),
-        password=getenv("PG_PASS"),
-        db=getenv("PG_DB"),
-        table=getenv("PG_TABLE"),
-    ):
-        self.conn = psycopg.connect(
-            host=host,
-            port=port,
-            dbname=db,
-            user=user,
-            password=password,
-        )
-        self.table = table
-        self.cur = self.conn.cursor()
+    def __init__(self, conn):
+        self.conn = conn
+        self.table = "harvestjob"
 
     def query(self, query):
         try:
-            self.conn.execute(query)
-            self.conn.commit()
+            with self.conn.cursor() as cur:
+                cur.execute(query)
+                self.conn.commit()
         except (Exception, psycopg.Error) as error:
             print("Query Error:", error)
 
     def close(self):
-        self.cur.close()
         self.conn.close()
 
     def store_new_entry(self, job_id):
         # TODO verify query
         self.query(
             f"""
-        INSERT INTO {self.table}
-            (jobid, status) VALUES ({job_id}, 'new')
+        INSERT INTO {self.table} (jobid, status)
+            VALUES ('{job_id}', 'new');
         """
         )
         print("New harvest job id {job_id} stored successfully.")
