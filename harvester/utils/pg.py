@@ -5,6 +5,7 @@ import psycopg
 
 class PostgresUtility:
     def __init__(self, conn):
+        # TODO put build connection stuff back in
         self.conn = conn
         self.table = "harvestjob"
 
@@ -20,28 +21,35 @@ class PostgresUtility:
         self.conn.close()
 
     def store_new_entry(self, job_id):
-        # TODO verify query
+        # TODO docstring
+        """"""
+        # TODO verify query for final schema
         self.query(
             f"""
         INSERT INTO {self.table} (jobid, status)
             VALUES ('{job_id}', 'new');
         """
         )
-        print("New harvest job id {job_id} stored successfully.")
+        print(f"New harvest job id {job_id} stored successfully.")
 
     def update_entry_status(self, job_id, new_status):
-        # TODO verify query
+        # TODO docstring
+        """"""
+        # TODO verify query for final schema
         self.query(
             f"""
         UPDATE {self.table}
-            SET status = {new_status} WHERE jobid = {job_id}
+            SET status='{new_status}'
+            WHERE jobid='{job_id}'
         """
         )
         print("Entry status updated successfully.")
 
     # Perform bulk updates on multiple entries
     def perform_bulk_updates(self, new_status, preconditions):
-        # TODO verify query
+        # TODO docstring
+        """"""
+        # TODO verify query for final schema
         query = "UPDATE job_table SET status = %s WHERE <preconditions>"
         try:
             cursor = self.conn.cursor()

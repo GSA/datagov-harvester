@@ -15,8 +15,7 @@ logger.setLevel(logging.DEBUG)
 dotenv.load_dotenv()
 
 
-# TODO scope session?
-@pytest.fixture
+@pytest.fixture(scope="session")
 def table_schema():
     class TableSchema:
         def __init__(self) -> None:
@@ -55,6 +54,7 @@ def test_store_new_entry(postgres_conn, table_schema):
     test_job_id = "test_store_new_entry"
     pg = PostgresUtility(postgres_conn)
     pg.store_new_entry(test_job_id)
+
     with postgres_conn.cursor() as cur:
         cur.execute(
             f"""
@@ -71,15 +71,30 @@ def test_store_new_entry(postgres_conn, table_schema):
     assert test_job_id in col_jobid
 
 
-def test_update_entry_status(postgres_utility):
-    job_id = "job123"
-    new_status = "Extracted"
-    postgres_utility.connection = MagicMock()
-    postgres_utility.update_entry_status(job_id, new_status)
-    postgres_utility.connection.cursor().execute.assert_called_once_with(
-        "UPDATE job_table SET status = %s WHERE job_id = %s", (new_status, job_id)
-    )
-    postgres_utility.connection.commit.assert_called_once()
+# TODO
+# @pytest.mark.parametrize("")
+def test_update_entry_status(postgres_conn, table_schema):
+    new_status = "extract"
+    test_job_id = "test_update_entry"
+    pg = PostgresUtility(postgres_conn)
+    pg.store_new_entry(test_job_id)
+    pg.update_entry_status(test_job_id, new_status)
+
+    with postgres_conn.cursor() as cur:
+        cur.execute(
+            f"""
+            SELECT * FROM {table_schema.table} 
+            WHERE {table_schema.jobid_field}='{test_job_id}'
+            """
+        )
+        results = cur.fetchall()
+
+    assert len(results) == 1
+
+    # TODO based on current schema, will need to change when schema changes
+    col_id, col_jobid, col_status = results[0]
+    assert test_job_id in col_jobid
+    assert new_status in col_status
 
 
 def test_perform_bulk_updates(postgres_utility):
