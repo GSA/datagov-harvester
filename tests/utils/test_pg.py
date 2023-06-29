@@ -97,17 +97,18 @@ def test_update_entry_status(postgres_conn, table_schema):
     assert new_status in col_status
 
 
-# @pytest.mark.parametrize("")
 def test_perform_bulk_updates(postgres_conn, table_schema):
-    updates = [["test_bulk_1", "new", "extract"], ["test_bulk_2", "extract", "compare"]]
+    updates = {
+        "test_bulk_1": {"status": "new", "new_status": "extract"},
+        "test_bulk_2": {"status": "extract", "new_status": "compare"},
+    }
     bulk_updates = []
     pg = PostgresUtility(postgres_conn)
     for update in updates:
-        job_id, status, new_status = update
-        pg.store_new_entry(job_id)
-        if status != "new":
-            pg.update_entry_status(job_id, status)
-        bulk_updates.append([job_id, new_status])
+        pg.store_new_entry(update)
+        if updates[update]["status"] != "new":
+            pg.update_entry_status(update, updates[update]["new_status"])
+        bulk_updates.append([update, updates[update]["new_status"]])
 
     pg.bulk_update(bulk_updates)
 
@@ -121,4 +122,5 @@ def test_perform_bulk_updates(postgres_conn, table_schema):
 
     assert len(results) == len(bulk_updates)
 
-    pass
+    for result in results:
+        assert updates[result[1]]["new_status"] == result[2]
