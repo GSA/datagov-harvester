@@ -97,12 +97,28 @@ def test_update_entry_status(postgres_conn, table_schema):
     assert new_status in col_status
 
 
-def test_perform_bulk_updates(postgres_utility):
-    new_status = "In Progress"
-    preconditions = "<preconditions>"
-    postgres_utility.connection = MagicMock()
-    postgres_utility.perform_bulk_updates(new_status, preconditions)
-    postgres_utility.connection.cursor().execute.assert_called_once_with(
-        "UPDATE job_table SET status = %s WHERE <preconditions>", (new_status,)
-    )
-    postgres_utility.connection.commit.assert_called_once()
+# @pytest.mark.parametrize("")
+def test_perform_bulk_updates(postgres_conn, table_schema):
+    updates = [["test_bulk_1", "new", "extract"], ["test_bulk_2", "extract", "compare"]]
+    bulk_updates = []
+    pg = PostgresUtility(postgres_conn)
+    for update in updates:
+        job_id, status, new_status = update
+        pg.store_new_entry(job_id)
+        if status != "new":
+            pg.update_entry_status(job_id, status)
+        bulk_updates.append([job_id, new_status])
+
+    pg.bulk_update(bulk_updates)
+
+    with postgres_conn.cursor() as cur:
+        cur.execute(
+            f"""
+            SELECT * FROM {table_schema.table} 
+            """
+        )
+        results = cur.fetchall()
+
+    assert len(results) == len(bulk_updates)
+
+    pass

@@ -1,13 +1,23 @@
 import psycopg
+import os
+import dotenv
 
 # ruff: noqa: F841
+
+dotenv.load_dotenv()
+
+
+def get_pg_connection():
+    # TODO put build connection stuff back in
+    pass
 
 
 class PostgresUtility:
     def __init__(self, conn):
-        # TODO put build connection stuff back in
         self.conn = conn
-        self.table = "harvestjob"
+        self.table = os.getenv("POSTGRES_TABLE")
+        self.f_id = os.getenv("POSTGRES_FIELD_ID")
+        self.f_status = os.getenv("POSTGRES_FIELD_STATUS")
 
     def query(self, query):
         try:
@@ -20,13 +30,12 @@ class PostgresUtility:
     def close(self):
         self.conn.close()
 
-    def store_new_entry(self, job_id):
-        # TODO docstring
-        """"""
+    def store_new_entry(self, job_id: str):
+        """Stores new harvest job. Accepts job_id string"""
         # TODO verify query for final schema
         self.query(
             f"""
-        INSERT INTO {self.table} (jobid, status)
+        INSERT INTO {self.table} ({self.f_id}, {self.f_status})
             VALUES ('{job_id}', 'new');
         """
         )
@@ -39,25 +48,24 @@ class PostgresUtility:
         self.query(
             f"""
         UPDATE {self.table}
-            SET status='{new_status}'
-            WHERE jobid='{job_id}'
+            SET {self.f_status}='{new_status}'
+            WHERE {self.f_id}='{job_id}'
         """
         )
-        print("Entry status updated successfully.")
+        print(f"Job {job_id} status updated successfully to {new_status}.")
 
-    # Perform bulk updates on multiple entries
-    def perform_bulk_updates(self, new_status, preconditions):
-        # TODO docstring
-        """"""
-        # TODO verify query for final schema
-        query = "UPDATE job_table SET status = %s WHERE <preconditions>"
-        try:
-            cursor = self.conn.cursor()
-            # Build the query with the specified preconditions
-            # …
-            cursor.execute(query, (new_status,))
-            self.conn.commit()
-            cursor.close()
-            print("Bulk updates performed successfully.")
-        except (Exception, psycopg.Error) as error:
-            print("Error while performing bulk updates:", error)
+    def bulk_update(self, update_list: list):
+        """Bulk updates harvestjobs. Accepts list [[job_id, new_status]]."""
+
+        update_table = ""
+        for jobid, new_status in update_list:
+            update_table += f"('{jobid}', '{new_status}'),"
+        update_table = update_table.rstrip(",")
+
+        query = f"""UPDATE {self.table} as orig
+            SET {self.f_status}=updates.status
+            FROM (values {update_table}) as updates(jobid, status)
+            WHERE updates.jobid=orig.{self.f_id}
+            """
+        self.query(query)
+        print(f"Successsfully bulk updated {len(update_list)} harvet jobs.")
