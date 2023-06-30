@@ -1,6 +1,7 @@
-import psycopg
 import os
+
 import dotenv
+import psycopg
 
 # ruff: noqa: F841
 
@@ -41,9 +42,8 @@ class PostgresUtility:
         )
         print(f"New harvest job id {job_id} stored successfully.")
 
-    def update_entry_status(self, job_id, new_status):
-        # TODO docstring
-        """"""
+    def update_entry_status(self, job_id: str, new_status: str):
+        """Updates a harvestjob entry. Accepts job_id and new_status"""
         # TODO verify query for final schema
         self.query(
             f"""
