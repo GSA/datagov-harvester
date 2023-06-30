@@ -71,8 +71,6 @@ def test_store_new_entry(postgres_conn, table_schema):
     assert test_job_id in col_jobid
 
 
-# TODO
-# @pytest.mark.parametrize("")
 def test_update_entry_status(postgres_conn, table_schema):
     new_status = "extract"
     test_job_id = "test_update_entry"
@@ -97,11 +95,23 @@ def test_update_entry_status(postgres_conn, table_schema):
     assert new_status in col_status
 
 
-def test_perform_bulk_updates(postgres_conn, table_schema):
-    updates = {
-        "test_bulk_1": {"status": "new", "new_status": "extract"},
-        "test_bulk_2": {"status": "extract", "new_status": "compare"},
-    }
+bulk_update_test1 = {
+    "test_bulk_1": {"status": "new", "new_status": "extract"},
+    "test_bulk_2": {"status": "extract", "new_status": "compare"},
+}
+bulk_update_test2 = {
+    "test_bulk_3": {"status": "compare", "new_status": "load"},
+}
+bulk_update_test3 = {
+    "test_bulk_4": {"status": "new", "new_status": "extract"},
+    "test_bulk_5": {"status": "validate", "new_status": "transform"},
+}
+
+
+@pytest.mark.parametrize(
+    "updates", [bulk_update_test1, bulk_update_test2, bulk_update_test3]
+)
+def test_perform_bulk_updates(updates, postgres_conn, table_schema):
     bulk_updates = []
     pg = PostgresUtility(postgres_conn)
     for update in updates:
