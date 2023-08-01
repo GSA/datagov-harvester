@@ -1,24 +1,28 @@
 import datetime
 from controller.dataset import db as dataset_db
-from controller.job import db
-from . import bp
+from controller.job import bp, db
 import uuid
+
 
 def extract(dataset):
     dataset['1_step_extract'] = 'Done at ' + str(datetime.datetime.now())
     return dataset
 
+
 def validate(dataset):
     dataset['2_step_validate'] = 'Done at ' + str(datetime.datetime.now())
-    return dataset 
+    return dataset
+
 
 def transform(dataset):
     dataset['3_step_transform'] = 'Done at ' + str(datetime.datetime.now())
     return dataset
 
+
 def load(dataset):
     dataset['4_step_load'] = 'All done at ' + str(datetime.datetime.now())
     return dataset
+
 
 def process_dataset(dataset):
     ds = extract(dataset)
@@ -27,6 +31,7 @@ def process_dataset(dataset):
     final_ds = load(new_ds)
     final_ds['job_status'] = True
     return final_ds
+
 
 # just for testing purpose
 @bp.route('/run/', methods=['GET'])

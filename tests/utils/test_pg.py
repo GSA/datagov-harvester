@@ -58,7 +58,7 @@ def test_store_new_entry(postgres_conn, table_schema):
     with postgres_conn.cursor() as cur:
         cur.execute(
             f"""
-            SELECT * FROM {table_schema.table} 
+            SELECT * FROM {table_schema.table}
             WHERE {table_schema.jobid_field}='{test_job_id}'
             """
         )
@@ -81,7 +81,7 @@ def test_update_entry_status(postgres_conn, table_schema):
     with postgres_conn.cursor() as cur:
         cur.execute(
             f"""
-            SELECT * FROM {table_schema.table} 
+            SELECT * FROM {table_schema.table}
             WHERE {table_schema.jobid_field}='{test_job_id}'
             """
         )
@@ -125,7 +125,7 @@ def test_perform_bulk_updates(updates, postgres_conn, table_schema):
     with postgres_conn.cursor() as cur:
         cur.execute(
             f"""
-            SELECT * FROM {table_schema.table} 
+            SELECT * FROM {table_schema.table}
             """
         )
         results = cur.fetchall()

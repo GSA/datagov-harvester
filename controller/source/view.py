@@ -1,5 +1,5 @@
-from controller.source import db
-from . import bp
+from controller.source import bp, db
+
 
 @bp.route('/view/<source_id>', methods=['GET'])
 def harvest_view(source_id):

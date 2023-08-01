@@ -1,20 +1,20 @@
-from . import bp
-from controller.dataset import db
+from controller.dataset import bp, db
 import uuid
 
 test_dataset = {
-                    "accessLevel":"public",
-                    "landingPage":"https://data.ny.gov/d/22ew-dxez",
-                    "issued":"2016-07-21","@type":"dcat:Dataset",
-                    "modified":"2019-06-10",
+                    "accessLevel": "public",
+                    "landingPage": "https://data.ny.gov/d/22ew-dxez",
+                    "issued": "2016-07-21", "@type": "dcat:Dataset",
+                    "modified": "2019-06-10",
                     "publisher": {
-                        "@type":"org:Organization",
-                        "name":"State of New York"
+                        "@type": "org:Organization",
+                        "name": "State of New York"
                         },
-                    "identifier":"https://data.ny.gov/api/views/22ew-dxez",
-                    "description":"Financial and Geographic Information on SONYMA...",
-                    "title":"State of New York Mortgage Agency (SONYMA) Loans",
+                    "identifier": "https://data.ny.gov/api/views/22ew-dxez",
+                    "description": "Financial and Geographic Information on SONYMA...",
+                    "title": "State of New York Mortgage Agency (SONYMA) Loans",
                 }
+
 
 # just for testing purpose
 @bp.route('/create/', methods=['GET'])

@@ -1,5 +1,5 @@
-from controller.dataset import db
-from . import bp
+from controller.dataset import bp, db
+
 
 @bp.route('/view/<id>', methods=['GET'])
 def dataset_view(id):
