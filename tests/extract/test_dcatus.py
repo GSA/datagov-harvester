@@ -1,11 +1,12 @@
-from pathlib import Path
-from deepdiff import DeepDiff
 import json
+from pathlib import Path
+
+from deepdiff import DeepDiff
 
 from harvester import bucket_name
 from harvester.extract import main
-from harvester.utils.s3 import get_s3_object
 from harvester.utils.json import open_json
+from harvester.utils.s3 import get_s3_object
 
 TEST_DIR = Path(__file__).parents[1]
 

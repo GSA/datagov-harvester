@@ -1,6 +1,6 @@
-from controller import create_app
-
 import sys
+
+from controller import create_app
 
 app = create_app()
 

@@ -29,7 +29,6 @@ def create_s3_upload_data(body, key_name, content_type):
 
 
 def delete_s3_object(S3, bucket_name, object_key):
-
     try:
         return S3.delete_object(Bucket=bucket_name, Key=object_key)
     except Exception as e:
@@ -37,7 +36,6 @@ def delete_s3_object(S3, bucket_name, object_key):
 
 
 def get_s3_object(S3, bucket_name, object_key):
-
     try:
         return S3.get_object(Bucket=bucket_name, Key=object_key)
     except Exception as e:
