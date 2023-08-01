@@ -1,4 +1,3 @@
-import json
 from . import bp
 from controller.dataset import db
 import uuid
