@@ -12,8 +12,8 @@ test_dataset = {
                         "name":"State of New York"
                         },
                     "identifier":"https://data.ny.gov/api/views/22ew-dxez",
-                    "description":"Financial and Geographic Information on SONYMA Loans purchased since 2004.",
-                    "title":"State of New York Mortgage Agency (SONYMA) Loans Purchased: Beginning 2004",
+                    "description":"Financial and Geographic Information on SONYMA...",
+                    "title":"State of New York Mortgage Agency (SONYMA) Loans",
                 }
 
 # just for testing purpose
