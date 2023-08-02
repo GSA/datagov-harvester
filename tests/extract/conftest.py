@@ -95,6 +95,7 @@ def create_client(create_client_config):
         for obj in page["Contents"]:
             delete_s3_object(S3_client, "test-bucket", obj["Key"])
 
+
 @pytest.fixture
 def create_bad_client(create_bad_client_config):
     """create a boto3.client

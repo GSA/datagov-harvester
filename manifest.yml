@@ -1,0 +1,15 @@
+---
+# To apply this manifest: cf push --vars-file vars.yml
+applications:
+  - name: ((app_name))
+    buildpacks:
+      - python_buildpack
+    routes:
+      - route: ((app_name)).app.cloud.gov
+    health-check-type: http
+    health-check-http-endpoint: /
+    health-check-invocation-timeout: 60
+    instances: 1
+    disk_quota: 2G
+    memory: 200M
+    command: python3 main.py $PORT

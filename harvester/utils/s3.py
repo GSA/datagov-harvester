@@ -27,19 +27,20 @@ def create_s3_upload_data(body, key_name, content_type):
         "ContentType": content_type,
     }
 
-def delete_s3_object( S3, bucket_name, object_key ):
 
+def delete_s3_object(S3, bucket_name, object_key):
     try:
-        return S3.delete_object( Bucket=bucket_name, Key=object_key )
-    except Exception as e:
-        pass 
-    
-def get_s3_object( S3, bucket_name, object_key ):
-
-    try:
-        return S3.get_object( Bucket=bucket_name, Key=object_key )
+        return S3.delete_object(Bucket=bucket_name, Key=object_key)
     except Exception as e:
         pass
+
+
+def get_s3_object(S3, bucket_name, object_key):
+    try:
+        return S3.get_object(Bucket=bucket_name, Key=object_key)
+    except Exception as e:
+        pass
+
 
 def upload_to_S3(S3, s3_upload_data):
     """store the s3 payload
