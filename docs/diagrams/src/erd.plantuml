@@ -1,0 +1,59 @@
+@startuml harvester2.0 ERD 
+
+skinparam linetype ortho
+
+entity "owner" as owner  {
+  uuid : uuid (PK)
+  --
+  name : text
+  description : text
+  agency: text
+  organization: text
+}
+
+entity "source" as source {
+  uuid : uuid (PK)
+  --
+  owner_id: uuid (FK)
+  name : text
+  frequency: text
+  config: json
+  url: text
+  schema_validation_type: text
+}
+
+entity "record" as record {
+  *uuid : uuid (PK)
+  --
+  source_id: uuid (FK)
+  job_id: uuid (FK)
+  status: text
+}
+
+entity "job" as job {
+  *uuid : uuid (PK)
+  --
+  source_id: uuid (FK)
+  date_created: datetime
+  date_finished: datetime
+  extract_started: datetime
+  extract_finished: datetime
+  compare_started: datetime 
+  compare_finished: datetime
+}
+
+entity "error" as error {
+  *uuid : uuid (PK)
+  --
+  job_id: uuid (FK)
+  type: text
+  message: text
+}
+
+owner  ||--|{ source
+source ||--|| job
+source ||--|{ record
+job ||--|{ record
+job ||-|{ error
+
+@enduml
