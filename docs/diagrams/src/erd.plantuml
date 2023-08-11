@@ -2,71 +2,106 @@
 
 skinparam linetype ortho
 
-' entities
-entity "publisher" as owner  {
-  uuid : uuid (PK)
-  --
-  name : text
-  description : text
-  agency: text
-  organization: text
+' ERD
+card "Entity Relationship Diagram" as entities {
+  entity "publisher" as publisher  {
+    uuid : uuid (PK)
+    --
+    name : text
+    description : text
+    organization: text (FK)
+  }
+
+  entity "source" as source {
+    uuid : uuid (PK)
+    --
+    publisher_id: uuid (FK)
+    name : text
+    frequency: text
+    config: json
+    url: text
+    schema_validation_type: text
+  }
+
+  entity "record" as record {
+    uuid : uuid (PK)
+    --
+    source_id: uuid (FK)
+    job_id: uuid (FK)
+    status: text
+  }
+
+  entity "job" as job {
+    uuid : uuid (PK)
+    --
+    source_id: uuid (FK)
+    date_created: datetime
+    date_finished: datetime
+    extract_started: datetime
+    extract_finished: datetime
+    compare_started: datetime 
+    compare_finished: datetime
+  }
+
+  entity "error" as error {
+    uuid : uuid (PK)
+    --
+    job_id: uuid (FK)
+    type: text
+    message: text
+  }
 }
 
-entity "source" as source {
-  uuid : uuid (PK)
-  --
-  owner_id: uuid (FK)
-  name : text
-  frequency: text
-  config: json
-  url: text
-  schema_validation_type: text
-}
+' lookup tables
+card "Lookup Tables" as lookup {
 
-entity "record" as record {
-  uuid : uuid (PK)
-  --
-  source_id: uuid (FK)
-  job_id: uuid (FK)
-  status: text
-}
-
-entity "job" as job {
-  uuid : uuid (PK)
-  --
-  source_id: uuid (FK)
-  date_created: datetime
-  date_finished: datetime
-  extract_started: datetime
-  extract_finished: datetime
-  compare_started: datetime 
-  compare_finished: datetime
-}
-
-entity "error" as error {
-  uuid : uuid (PK)
-  --
-  job_id: uuid (FK)
-  type: text
-  message: text
-}
-
-' lookups
-entity "organization_lu" as organization_lu {
+  entity "organization_lu" as organization_lu {
   name : text (PK)
   --
   type: text 
-  
-}
+  }
 
 entity "bureau_lu" as bureau_lu {
   name: text (PK)
   --
   another_field: text
+  }
+
 }
 
+' enumerators
+card "Enumerators" as enumerators {
+
+  enum error_severity {
+  ERROR
+  CRITICAL
+  }
+
+  enum job_status {
+  CREATE
+  PROCESSING
+  COMPLETE
+  }
+
+  enum schema_validation {
+  DCATUS
+  ISO1911
+  }
+
+  enum data_formats {
+    CSV
+    XML 
+    HTML
+    JSON
+    GEOJSON
+    TIFF
+    PDF
+  }
+  
+} 
+
 ' relationships
-owner  ||--|{ source
+publisher  ||--|{ source
 source ||--|| job
 source ||--|{ record
 job ||--|{ record
