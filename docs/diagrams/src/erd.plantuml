@@ -2,7 +2,8 @@
 
 skinparam linetype ortho
 
-entity "owner" as owner  {
+' entities
+entity "publisher" as owner  {
   uuid : uuid (PK)
   --
   name : text
@@ -23,7 +24,7 @@ entity "source" as source {
 }
 
 entity "record" as record {
-  *uuid : uuid (PK)
+  uuid : uuid (PK)
   --
   source_id: uuid (FK)
   job_id: uuid (FK)
@@ -31,7 +32,7 @@ entity "record" as record {
 }
 
 entity "job" as job {
-  *uuid : uuid (PK)
+  uuid : uuid (PK)
   --
   source_id: uuid (FK)
   date_created: datetime
@@ -43,13 +44,28 @@ entity "job" as job {
 }
 
 entity "error" as error {
-  *uuid : uuid (PK)
+  uuid : uuid (PK)
   --
   job_id: uuid (FK)
   type: text
   message: text
 }
 
+' lookups
+entity "organization_lu" as organization_lu {
+  name : text (PK)
+  --
+  type: text 
+  
+}
+
+entity "bureau_lu" as bureau_lu {
+  name: text (PK)
+  --
+  another_field: text
+}
+
+' relationships
 owner  ||--|{ source
 source ||--|| job
 source ||--|{ record
