@@ -4,105 +4,97 @@ skinparam linetype ortho
 
 ' ERD
 card "Entity Relationship Diagram" as entities {
-  entity "publisher" as publisher  {
+  entity "harvest_source" as source {
     uuid : uuid (PK)
     --
-    name : text
-    description : text
-    organization: text (FK)
-  }
-
-  entity "source" as source {
-    uuid : uuid (PK)
-    --
-    publisher_id: uuid (FK)
-    name : text
+    name: text
+    notifications_emails: array( txt )
+    organization_name: txt
     frequency: text
     config: json
-    url: text
+    urls: array( txt ) 
     schema_validation_type: text
   }
 
-  entity "record" as record {
+  entity "harvest_record" as record {
     uuid : uuid (PK)
     --
     source_id: uuid (FK)
     job_id: uuid (FK)
     status: text
+    s3_path: text
   }
 
-  entity "job" as job {
+  entity "harvest_job" as job {
     uuid : uuid (PK)
     --
     source_id: uuid (FK)
-    date_created: datetime
+    status: text
+    date_created 
     date_finished: datetime
     extract_started: datetime
     extract_finished: datetime
-    compare_started: datetime 
+    compare_started: datetime
     compare_finished: datetime
+    records_added: smallint
+    records_updated: smallint
+    records_deleted: smallint
+    records_errored: smallint
+    records_ignored: smallint
   }
 
-  entity "error" as error {
+  entity "harvest_error" as error {
     uuid : uuid (PK)
     --
     job_id: uuid (FK)
-    type: text
+    record_id: uuid (FK)
+    record_reported_id: text
+    date_created: datetime
+    error_type: text
+    severity: enum
     message: text
+
   }
 }
 
 ' lookup tables
 card "Lookup Tables" as lookup {
-
-  entity "organization_lu" as organization_lu {
-  name : text (PK)
-  --
-  type: text 
+  
+  entity "data_format" as data_format {
+    name: text (PK)
+    --
+    mime_type: text
   }
-
-entity "bureau_lu" as bureau_lu {
-  name: text (PK)
-  --
-  another_field: text
-  }
-
 }
 
 ' enumerators
 card "Enumerators" as enumerators {
 
   enum error_severity {
-  ERROR
-  CRITICAL
+    ERROR
+    CRITICAL
   }
 
   enum job_status {
-  CREATE
-  PROCESSING
-  COMPLETE
+    CREATE
+    PROCESSING
+    COMPLETE
   }
 
   enum schema_validation {
-  DCATUS
-  ISO1911
+    DCATUS
+    ISO1911
   }
 
-  enum data_formats {
-    CSV
-    XML 
-    HTML
-    JSON
-    GEOJSON
-    TIFF
-    PDF
+  enum record_status {
+    STALE
+    ACTIVE
+    INVALID
   }
-  
 } 
 
 ' relationships
-publisher  ||--|{ source
-source ||--|| job
+source ||--|{ job
 source ||--|{ record
 job ||--|{ record
 job ||-|{ error
