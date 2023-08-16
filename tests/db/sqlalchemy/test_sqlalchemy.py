@@ -1,15 +1,10 @@
-from harvester.db.models import Base
-from harvester.db.models.models import (
-    create_sqlalchemy_engine,
-    create_sqlalchemy_session,
-)
-from harvester.db.models.models import (
-    HarvestSource,
-    HarvestJob,
-    HarvestRecord,
-    HarvestError,
-)
 from sqlalchemy.orm import close_all_sessions
+
+from harvester.db.models import Base
+from harvester.db.models.models import (HarvestError, HarvestJob,
+                                        HarvestRecord, HarvestSource,
+                                        create_sqlalchemy_engine,
+                                        create_sqlalchemy_session)
 
 
 def test_add_tables():

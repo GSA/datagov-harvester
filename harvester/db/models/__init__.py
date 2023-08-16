@@ -1,6 +1,6 @@
 from sqlalchemy import text
-from sqlalchemy.orm import DeclarativeBase, mapped_column
 from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import DeclarativeBase, mapped_column
 
 
 class Base(DeclarativeBase):

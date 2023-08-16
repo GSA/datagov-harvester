@@ -1,16 +1,14 @@
+import enum
 import os
 
 import dotenv
-
-from harvester.db.models import Base
-
-from sqlalchemy import ForeignKey, SMALLINT, create_engine
-from sqlalchemy import String, DateTime, Enum
-from sqlalchemy.dialects.postgresql import JSON, UUID, ARRAY
+from sqlalchemy import (SMALLINT, DateTime, Enum, ForeignKey, String,
+                        create_engine)
+from sqlalchemy.dialects.postgresql import ARRAY, JSON, UUID
 from sqlalchemy.orm import mapped_column, sessionmaker
 from sqlalchemy.sql import func
 
-import enum
+from harvester.db.models import Base
 
 dotenv.load_dotenv()
 
