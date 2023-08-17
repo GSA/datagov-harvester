@@ -15,8 +15,9 @@ def engine():
     user = os.getenv("POSTGRES_USER")
     password = os.getenv("POSTGRES_PASSWORD")
     db = os.getenv("POSTGRES_DB")
+    dialect = "psycopg"
 
-    engine = create_engine(f"postgresql://{user}:{password}@{host}/{db}")
+    engine = create_engine(f"postgresql+{dialect}://{user}:{password}@{host}/{db}")
     yield engine
     engine.dispose()
 
