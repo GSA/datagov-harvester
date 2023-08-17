@@ -1,18 +1,10 @@
-import os
-
-import dotenv
-
 from harvester.db.models import Base
-
-from sqlalchemy import ForeignKey, SMALLINT, create_engine
+from sqlalchemy import ForeignKey, SMALLINT
 from sqlalchemy import String, DateTime, Enum
 from sqlalchemy.dialects.postgresql import JSON, UUID, ARRAY
-from sqlalchemy.orm import mapped_column, sessionmaker
+from sqlalchemy.orm import mapped_column
 from sqlalchemy.sql import func
-
 import enum
-
-dotenv.load_dotenv()
 
 
 class SeverityEnum(enum.Enum):
@@ -77,17 +69,3 @@ class HarvestRecord(Base):
     source_id = mapped_column(UUID(as_uuid=True), ForeignKey("harvest_source.id"))
     status = mapped_column(String)  # enum?
     s3_path = mapped_column(String)
-
-
-def create_sqlalchemy_engine():
-    host = os.getenv("POSTGRES_HOST")
-    user = os.getenv("POSTGRES_USER")
-    password = os.getenv("POSTGRES_PASSWORD")
-    db = os.getenv("POSTGRES_DB")
-
-    return create_engine(f"postgresql://{user}:{password}@{host}/{db}")
-
-
-def create_sqlalchemy_session(engine):
-    Session = sessionmaker(bind=engine)
-    return Session()
