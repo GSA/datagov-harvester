@@ -1,77 +1,57 @@
-from harvester.db.models import Base
-from harvester.db.models.models import (
-    create_sqlalchemy_engine,
-    create_sqlalchemy_session,
-)
+import pytest
 from harvester.db.models.models import (
     HarvestSource,
     HarvestJob,
     HarvestRecord,
     HarvestError,
 )
-from sqlalchemy.orm import close_all_sessions
+import uuid
+from datetime import datetime
+
+MODELS = [HarvestSource, HarvestJob, HarvestRecord, HarvestError]
 
 
-def test_add_tables():
-    engine = create_sqlalchemy_engine()
-    Base.metadata.create_all(engine)
-
-
-def test_add_harvest_source(create_test_harvest_source):
-    engine = create_sqlalchemy_engine()
-    session = create_sqlalchemy_session(engine)
-
-    harvest_source = HarvestSource(**create_test_harvest_source)
-
-    session.add(harvest_source)
+@pytest.mark.parametrize(
+    "model, test_record",
+    zip(
+        MODELS,
+        [
+            "test_harvest_source",
+            "test_harvest_job",
+            "test_harvest_record",
+            "test_harvest_error",
+        ],
+    ),
+)
+def test_insert_record(session, model, test_record, request):
+    test_record = request.getfixturevalue(test_record)
+    session.add(model(**test_record))
     session.commit()
 
-    for item in session.query(HarvestSource).all():
-        assert item
-
-    close_all_sessions()
+    row = session.query(model).filter(model.id == test_record["id"]).first()
+    assert row
 
 
-def test_add_harvest_job(create_test_harvest_job):
-    engine = create_sqlalchemy_engine()
-    session = create_sqlalchemy_session(engine)
+@pytest.mark.parametrize(
+    "model, new_info",
+    zip(
+        MODELS[:-1],
+        [
+            "test_update_source",
+            "test_update_job",
+            "test_update_record",
+        ],
+    ),
+)
+def test_update_record(session, model, new_info, request):
+    new_info = request.getfixturevalue(new_info)
+    session.query(model).filter(model.id == new_info["id"]).update(new_info)
 
-    harvest_job = HarvestJob(**create_test_harvest_job)
+    row = session.query(model).filter(model.id == new_info["id"]).first()
 
-    session.add(harvest_job)
-    session.commit()
-
-    for item in session.query(HarvestJob).all():
-        assert item
-
-    close_all_sessions()
-
-
-def test_add_harvest_record(create_test_harvest_record):
-    engine = create_sqlalchemy_engine()
-    session = create_sqlalchemy_session(engine)
-
-    harvest_record = HarvestRecord(**create_test_harvest_record)
-
-    session.add(harvest_record)
-    session.commit()
-
-    for item in session.query(HarvestRecord).all():
-        assert item
-
-    close_all_sessions()
-
-
-def test_add_harvest_error(create_test_harvest_error):
-    engine = create_sqlalchemy_engine()
-    session = create_sqlalchemy_session(engine)
-
-    harvest_error = HarvestError(**create_test_harvest_error)
-
-    session.add(harvest_error)
-    session.commit()
-
-    for item in session.query(HarvestError).all():
-        assert item
-
-    close_all_sessions()
+    new_info["id"] = uuid.UUID(new_info["id"])
+    row = {
+        k: v.replace(tzinfo=None) if type(v) == datetime else v
+        for k, v in row.__dict__.items()
+    }
+    assert new_info.items() <= row.items()
