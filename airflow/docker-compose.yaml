@@ -65,6 +65,7 @@ x-airflow-common: &airflow-common
         - ./logs:/opt/airflow/logs
         - ./plugins:/opt/airflow/plugins
         - /var/run/docker.sock:/var/run/docker.sock
+        - ./schemas:/opt/schemas
 
     user: '${AIRFLOW_UID:-50000}:0'
     depends_on: &airflow-common-depends-on
