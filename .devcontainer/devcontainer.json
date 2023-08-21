@@ -1,0 +1,10 @@
+// .devcontainer/devcontainer.json
+{
+    "name": "Airflow Container",
+    "dockerComposeFile": "docker-compose.yaml",
+    "service": "airflow",
+    "workspaceFolder": "/home/airflow",
+    "extensions": [
+        "ms-python.python"
+    ]
+}
