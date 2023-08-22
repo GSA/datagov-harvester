@@ -77,6 +77,42 @@ ModuleNotFoundError: No module named 'airflow'
 
 5.1 Note that the last the last arg is based on the date YYYY-MM-DD or your log records in the `airflow/logs/scheduler` directory. This is only generated after running the `etl_twitter_pipeline` DAG in the UI and allowing it to dump some logs.
 
+6. WORKING CONFIGS
+
+VS CODE LAUNCH CONFIG
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Airflow Test",
+            "type": "python",
+            "request": "launch",
+            "program": "/home/airflow/.local/bin/airflow",
+            "args": [
+                "tasks",
+                "test",
+                "dcatus_pipeline",
+                "extract_dcatus",
+                "2023-08-17"
+            ],
+            "console": "integratedTerminal"
+        }
+    ]
+}
+
+
+
+CONTAINER CONFIG FILE
+{
+    "workspaceFolder": "/opt/airflow",
+    "extensions": [
+        "ms-python.python",
+        "ms-python.vscode-pylance"
+    ],
+    "remoteUser": "airflow"
+}
+
+
 ## TODO
 
     - seed proper `devcontainer.json` file into container

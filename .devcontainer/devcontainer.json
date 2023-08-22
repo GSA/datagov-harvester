@@ -1,10 +1,41 @@
-// .devcontainer/devcontainer.json
 {
-    "name": "Airflow Container",
-    "dockerComposeFile": "docker-compose.yaml",
-    "service": "airflow",
-    "workspaceFolder": "/home/airflow",
-    "extensions": [
-        "ms-python.python"
-    ]
+	"name": "Airflow DevContainer",
+	"dockerComposeFile": "../airflow/docker-compose.yml",
+	"service": "airflow",
+	"workspaceFolder": "/opt/airflow",
+	"shutdownAction": "stopCompose",
+	"forwardPorts": [
+		8080
+	],
+	"postCreateCommand": "pip install black==20.8b1",
+	// Configure tool-specific properties.
+	"customizations": {
+		// Configure properties specific to VS Code.
+		"vscode": {
+			// Set *default* container specific settings.json values on container create.
+			"settings": {
+				"python.defaultInterpreterPath": "/usr/local/bin/python",
+				"python.formatting.provider": "black",
+				// "python.formatting.autopep8Path": "/usr/local/py-utils/bin/autopep8",
+				"python.formatting.blackPath": "/usr/local/bin/black",
+				// "python.formatting.yapfPath": "/usr/local/py-utils/bin/yapf",
+				"python.linting.enabled": true,
+				"python.linting.banditEnabled": true,
+				"python.linting.banditPath": "/usr/local/bin/bandit",
+				// "python.linting.flake8Path": "/usr/local/bin/flake8",
+				// "python.linting.mypyPath": "/usr/local/py-utils/bin/mypy",
+				"python.linting.pycodestyleEnabled": true,
+				"python.linting.pydocstyleEnabled": true,
+				"python.linting.pycodestylePath": "/usr/local/bin/pycodestyle",
+				"python.linting.pydocstylePath": "/usr/local/bin/pydocstyle",
+				// "python.linting.pylintEnabled": true,
+				// "python.linting.pylintPath": "/usr/local/py-utils/bin/pylint"
+			},
+			// Add the IDs of extensions you want installed when the container is created.
+			"extensions": [
+				"ms-python.python",
+				"ms-python.vscode-pylance"
+			]
+		}
+	},
 }
