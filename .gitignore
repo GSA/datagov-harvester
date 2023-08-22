@@ -1,18 +1,5 @@
-pytest.xml
-pytest-coverage.txt
-.coverage
-.pytest_cache
-.ruff_cache
-.DS_Store
-__pycache__/
-venv/
-
-# any previous versions of schemas
-**/dataset_**.json
-**/catalog_**.json
-
-# openstack ( s3 mock )
-tmp/
-
 # vscode debugger
 .vscode/
+
+# airflow
+logs/
