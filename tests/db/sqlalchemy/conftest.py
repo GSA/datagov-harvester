@@ -60,7 +60,7 @@ def test_harvest_job():
     return {
         "id": "c8837a2f-bd0b-4333-82f5-0b64f126da34",
         "source_id": "efecc0d6-9dac-4916-8356-150a683e9864",
-        "status": "INACTIVE",
+        "status": "CREATE",
     }
 
 
@@ -98,7 +98,7 @@ def test_update_source():
 def test_update_job():
     return {
         "id": "c8837a2f-bd0b-4333-82f5-0b64f126da34",
-        "status": "ACTIVE",
+        "status": "PROCESSING",
         "extract_started": datetime.utcnow(),
     }
 
