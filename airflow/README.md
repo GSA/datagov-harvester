@@ -81,3 +81,7 @@ ModuleNotFoundError: No module named 'airflow'
 
     - seed proper `devcontainer.json` file into container
     - https://betterprogramming.pub/running-a-container-with-a-non-root-user-e35830d1f42a
+
+
+## harvest sources catalog api query example:
+- https://catalog.data.gov/api/action/package_search?fq=dataset_type:harvest
