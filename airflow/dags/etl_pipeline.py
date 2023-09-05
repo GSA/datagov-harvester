@@ -20,35 +20,33 @@ for harvest_source in res["result"]["results"]:
     frequency = harvest_source["frequency"]
     title = "_".join(map(str.lower, harvest_source["title"].split()))
     url = harvest_source["url"]
+    dag_id = f"{title}_workflow"
 
     @dag(
-        f"{title}_workflow",
-        start_date=datetime(year=2023, month=2, day=5),
+        dag_id,
+        start_date=datetime(year=2023, month=8, day=26),
         schedule_interval=f"@{frequency.lower()}",
+        catchup=False,
     )
     def etl_pipeline():
-        @task(task_id="extract_dcatus")
-        def extract(url):
-            return requests.get(url).json()
+        def on_failure_callback(context):
+            ti = context["task_instance"]
+            return context
 
-        @task(task_id="validate_dcatus")
+        @task(task_id="extract_dcatus", on_failure_callback=on_failure_callback)
+        def extract(url):
+            return requests.get(url).json()["dataset"]
+
+        @task(task_id="validate_dcatus", on_failure_callback=on_failure_callback)
         def validate(dcatus_record):
             validator = Draft202012Validator(dcatus_dataset_schema)
             validator.validate(dcatus_record)
             return dcatus_record
 
-        @task(task_id="load_dcatus")
+        @task(task_id="load_dcatus", on_failure_callback=on_failure_callback)
         def load(dcatus_record, ti=None):
-            print("grabbing validation catalog via xcom")
             return ti.xcom_pull(task_ids="validate_dcatus")
-
-        # @task(task_id="extract_error_handler")
-        # def extract_error_handler(ti=None):
-        #     res = ti.xcom_pull(task_ids="extract_dcatus")
-        #     print(res)
-
-        # extract() >> extract_error_handler()
 
         load.expand(dcatus_record=validate.expand(dcatus_record=extract(url)))
 
-    _ = etl_pipeline()
+    globals()[dag_id] = etl_pipeline()
