@@ -1,43 +1,14 @@
 # Harvesting Pipeline Structure
 
+To generate diagrams, run the mermaid-cli:
+```bash
+docker run --rm -u `id -u`:`id -g` -v ./:/data minlag/mermaid-cli -i new_harvesting.mmd -o new_harvesting.svg [-t dark -b transparent]
+```
+
 ## Old Harvesting Logic
 Unique to each file + schema format
-```mermaid
-flowchart LR
-  sc([SOURCE CREATION])
-  gs([GATHER STAGE])
-  fs([FETCH STAGE])
-  is([IMPORT STAGE])
-  sc --> gs
-  gs --> fs
-  fs --> is
-```
+![diagram](./old_harvesting.svg)
 
 ## New Harvesting Logic
 Universal to all file + schema formats
-```mermaid
-flowchart TD
-  sc([SOURCE CREATION])
-  extract([Extract Catalog Source])
-  compare([Compare Source Catalog to Data.gov Catalog])
-  nochanges{No Changes?}
-  deletions{Datasets to Delete?}
-  updates{Datasets to Add or Update?}
-  load([Load into Data.gov Catalog])
-  validate([Validate Dataset])
-  transform([Transform Schema of Dataset])
-  completed([End])
-
-  sc --> extract
-  extract --> compare
-  compare --> deletions
-  compare --> updates
-  deletions --> load
-  updates --> validate
-  validate --> transform
-  transform --> validate
-  validate --> load
-  load --> completed
-  compare --> nochanges
-  nochanges --> completed
-```
+![diagram](./new_harvesting.svg)
