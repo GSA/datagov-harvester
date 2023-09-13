@@ -1,0 +1,18 @@
+app-name: test-airflow
+space-name: development
+
+init-instances: 1
+webserver-instances: 1
+scheduler-instances: 1
+worker-instances: 1
+triggerer-instances: 1
+cli-instances: 1
+flower-instances: 1
+
+memory-quota: 500M
+disk-quota: 750M
+
+# route-external: test-airflow-dev-datagov.app.cloud.gov
+# route-internal: test-airflow-dev-datagov.apps.internal
+# route-external-admin: test-airflow-dev-admin-datagov.app.cloud.gov
+# route-internal-admin: test-airflow-dev-admin-datagov.apps.internal

@@ -1,0 +1,62 @@
+---
+# To apply this manifest: cf push --vars-file vars.<space>.yml
+
+x-airflow-common: &airflow-common
+  buildpacks:
+    - python_buildpack
+  memory: ((memory-quota))
+  disk_quota: ((disk-quota))
+  services:
+    - ((app-name))-db
+    - ((app-name))-redis
+  env: &airflow-common-env
+    AIRFLOW__CORE__DAGS_FOLDER: /home/vcap/app/dags
+    AIRFLOW__CORE__LOAD_EXAMPLES: False
+    AIRFLOW__CORE__MAX_MAP_LENGTH: 5000
+    AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: True
+
+applications:
+  - name: ((app-name))-webserver
+    <<: *airflow-common
+    instances: ((webserver-instances))
+    health-check-type: http
+    health-check-http-endpoint: /health
+    health-check-invocation-timeout: 60
+    command: airflow version && airflow db migrate && airflow webserver
+    env:
+      <<: *airflow-common-env
+
+  - name: ((app-name))-scheduler
+    <<: *airflow-common
+    no-route: true
+    health-check-type: process
+    instances: ((scheduler-instances))
+    command: airflow scheduler
+    env:
+      <<: *airflow-common-env
+
+  - name: ((app-name))-triggerer
+    <<: *airflow-common
+    no-route: true
+    health-check-type: process
+    instances: ((triggerer-instances))
+    command: airflow triggerer
+    env:
+      <<: *airflow-common-env
+
+  - name: ((app-name))-flower
+    <<: *airflow-common
+    no-route: true
+    instances: ((flower-instances)) 
+    command: celery flower
+    env:
+      <<: *airflow-common-env
+
+  - name: ((app-name))-worker
+    <<: *airflow-common
+    no-route: true
+    instances: ((worker-instances))
+    command: celery worker
+    env:
+      <<: *airflow-common-env
+
