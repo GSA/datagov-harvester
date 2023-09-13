@@ -1,0 +1,120 @@
+flowchart TD
+
+  %% Old Logic
+  gs([GATHER STARTED])
+  ge([GATHER ENDED])
+  fs([FETCH STARTED])
+  fe([FETCH ENDED])
+  is([IMPORT STARTED])
+  ie([IMPORT ENDED])
+  
+
+  %% Data
+  error[\Error/]
+  skip[/Skip\]
+  source_data[(Source Datasets)]
+  catalog_values[(Catalog Values)]
+  schema_version[(Schema Version)]
+  %% all_parents[(All Parent Identifiers)]
+  existing_datasets[(Existing Datasets)]
+  existing_parents[(Existing Parent Dataset Identifiers)]
+  new_parents[(New Parent Dataset Identifiers)]
+  orphaned_parents[(Parent Identifiers who no longer have children)]
+  unique_datsets[(Unique Datasets)]
+  seen_datasets[(Seen Datasets)]
+  default_schema_version[(schema_version = 1.0)]
+  hc_filter[(Source Config Filter)]
+  hc_defaults[(Source Config Defaults)]
+  new_pkg_id[(New package id)]
+  HarvestObjectExtra[(Create Harvest Object)]
+
+  %% Functons
+  load_remote_catalog[[Load Remote Catalog]]
+  make_upstream_content_hash[[Make Upstream Content Hash]]
+  load_config[[Load Harvest Source Config]]
+  get_existing_datasets[[Get Existing Datasets]]
+  %% set_dataset_info[[Set Dataset Info]]
+  for_each_dataset[[For Each Source Dataset]]
+  for_each_existing[[For Each Existing Dataset]]
+  update[[Update Dataset]]
+
+  %% Conditional Checks
+  validate_conforms_to{conformsTo is supported schema?}
+  check_schema_version{Does schema_version exist?}
+  is_parent_{Is Parent?}
+  is_parent_demoted{Is Parent Demoted?}
+  is_parent_promoted{Is Dataset Promoted?}
+  is_identifier_both{Is Identifier Parent AND Child?}
+  dataset_contains_filter{dataset contains key-value specified in filter?}
+  has_identifier{Does dataset have identifier?}
+  multiple_identifier{Has the identifier been seen before?}
+  unique_existing{Is the unique dataset an existing dataset?}
+  hash_exists{Does the dataset have an existing hash?}
+  check_hash{Is Hash the same?}
+  is_active{Is Dataset Active?}
+  is_deleted{Is Dataset Deleted?}
+
+  %% Algorithm
+  gs --> load_remote_catalog
+  load_remote_catalog --> validate_conforms_to
+  validate_conforms_to-. No .-> error
+  validate_conforms_to-->|Yes|catalog_values
+  load_remote_catalog --> source_data
+  load_remote_catalog --> catalog_values
+  catalog_values --> check_schema_version
+  check_schema_version-->|No|default_schema_version
+  check_schema_version-->|Yes|schema_version
+  schema_version --> get_existing_datasets
+  default_schema_version --> get_existing_datasets
+  get_existing_datasets --> existing_datasets
+  get_existing_datasets --> is_parent_
+  is_parent_-->|Yes|existing_parents
+  %% existing_parents --> is_parent_demoted
+  is_parent_-->|No|is_parent_demoted
+  is_parent_demoted-->|Yes|orphaned_parents
+  is_parent_demoted-->|No|is_parent_promoted
+  %% existing_datasets --> is_parent_promoted
+  is_parent_promoted-->|Yes|new_parents
+  is_parent_promoted-->|No|load_config
+  load_config --> hc_filter
+  load_config --> hc_defaults
+  load_config --> is_identifier_both
+  is_identifier_both-. Yes .-> error
+  is_identifier_both-->|No|for_each_dataset
+  for_each_dataset --> dataset_contains_filter
+  dataset_contains_filter-. Yes .-> skip
+  dataset_contains_filter-->|No|has_identifier
+  has_identifier-. No .-> error
+  has_identifier-->|Yes|multiple_identifier
+  multiple_identifier-. Yes .-> skip
+  multiple_identifier-->|No|unique_datsets
+  unique_datsets --> unique_existing
+  unique_existing-->|Yes|hash_exists
+  unique_existing-->|Yes|seen_datasets
+  unique_existing-->|No|new_pkg_id
+  hash_exists-->|Yes|make_upstream_content_hash
+  is_active-->|Yes|make_upstream_content_hash
+  orphaned_parents-->|Disjunction|make_upstream_content_hash
+  new_parents-->|Disjunction|make_upstream_content_hash
+  make_upstream_content_hash --> check_hash
+  check_hash-. Yes .-> skip
+  check_hash-->|No|HarvestObjectExtra
+  new_pkg_id --> HarvestObjectExtra
+  Append__is_collection --> HarvestObjectExtra
+  Append__schema_version --> HarvestObjectExtra
+  Append__catalog_values --> HarvestObjectExtra
+  Append__collection_pkg_id --> HarvestObjectExtra
+  is_parent_-->|Yes|Harvest_first
+  is_parent_-->|No|Harvest_second
+  HarvestObjectExtra --> Harvest_first
+  HarvestObjectExtra --> Harvest_second
+  Harvest_first --> for_each_existing
+  Harvest_second --> for_each_existing
+  for_each_existing --> seen_datasets
+  for_each_existing --> is_deleted
+  seen_datasets-. Inverse .-> skip
+  is_deleted-. Yes .-> skip
+  seen_datasets --> update
+  is_deleted-->|No|update
+  update-. exception .-> error
+  update --> ge
