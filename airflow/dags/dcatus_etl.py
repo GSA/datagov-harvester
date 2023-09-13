@@ -7,8 +7,8 @@ import requests
 
 ROOT_DIR = Path(__file__).parents[2]
 SCHEMA_DIR = ROOT_DIR / "schemas"
-CATALOG_SCHEMA = SCHEMA_DIR / "datajson" / "dcatus" / "catalog.json"
-DATASET_SCHEMA = SCHEMA_DIR / "datajson" / "dcatus" / "dataset.json"
+CATALOG_SCHEMA = SCHEMA_DIR / "dcatus" / "catalog.json"
+DATASET_SCHEMA = SCHEMA_DIR / "dcatus" / "dataset.json"
 
 with open(DATASET_SCHEMA) as json_file:
     dcatus_dataset_schema = json.load(json_file)
