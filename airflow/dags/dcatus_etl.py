@@ -30,7 +30,6 @@ for harvest_source in res["result"]["results"]:
     )
     def etl_pipeline():
         def on_failure_callback(context):
-            ti = context["task_instance"]
             return context
 
         @task(task_id="extract_dcatus", on_failure_callback=on_failure_callback)
