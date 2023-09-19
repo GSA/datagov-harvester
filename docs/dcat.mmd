@@ -23,20 +23,42 @@ flowchart TD
   unique_datsets[(Unique Datasets)]
   seen_datasets[(Seen Datasets)]
   default_schema_version[(schema_version = 1.0)]
+  default_collection[(is_collection=false)]
+  default_parent[(parent_pkg_id=empty_str)]
+  default_catalog[(catalog_values=none)]
   hc_filter[(Source Config Filter)]
   hc_defaults[(Source Config Defaults)]
   new_pkg_id[(New package id)]
   HarvestObjectExtra[(Create Harvest Object)]
+  new_pkg_title[(New package title)]
 
   %% Functons
   load_remote_catalog[[Load Remote Catalog]]
   make_upstream_content_hash[[Make Upstream Content Hash]]
   load_config[[Load Harvest Source Config]]
   get_existing_datasets[[Get Existing Datasets]]
+  get_source_hash[[Source Hash]]
   %% set_dataset_info[[Set Dataset Info]]
   for_each_dataset[[For Each Source Dataset]]
   for_each_existing[[For Each Existing Dataset]]
   update[[Update Dataset]]
+  do_nothing[[Nothing to do]]
+  extract_extras[[Parse SchemaVersion, isCollection, CollectioPkgId, catalogValues]]
+  federal_validation[[Federal Validation]]
+  non_federal_validation[[Non-Federal Validation]]
+  validate_dataset[[Validate Dataset]]
+  get_owner_org[[Get Owner Organization]]
+  assemble_basic_dataset_info[[Assemble Basic Dataset]]
+  add_dataset_specific_info[[Add Unique Dataset Info]]
+  tag_collection_parent[[Mark as Collection Parent]]
+  tag_collection_child[[Mark as Collection Child]]
+  tag_geospatial[[Mark as geospatial]]
+  tag_catalog_values[[Track catalog values in dataset]]
+  get_existing_pkg[[Get Existing Package Info]]
+  create[[Create New Package]]
+  avoid_resource_overwriting[[Preserve existing resources]]
+  update_object_reference[[Make this package the Current Harvest Object]]
+
 
   %% Conditional Checks
   validate_conforms_to{conformsTo is supported schema?}
@@ -53,6 +75,15 @@ flowchart TD
   check_hash{Is Hash the same?}
   is_active{Is Dataset Active?}
   is_deleted{Is Dataset Deleted?}
+  empty_dataset{Is the dataset empty?}
+  harvest_first{Should I harvest this first?}
+  is_federal{Is validator schema federal or non-federal?}
+  is_existing{Is it an existing dataset?}
+  is_geospatial{Is the package geospatial?}
+  is_collection{Is the package a collection?}
+  is_existing{Does the dataset exist already?}
+  has_title{Does the dataset have a title?}
+
 
   %% Algorithm
   gs ==> load_remote_catalog
@@ -93,7 +124,9 @@ flowchart TD
   unique_existing == Yes ==> hash_exists
   unique_existing == Yes ==> seen_datasets
   unique_existing == No ==> new_pkg_id
-  hash_exists == Yes ==> make_upstream_content_hash
+  hash_exists == Yes ==> get_source_hash
+  get_source_hash ==> make_upstream_content_hash
+  hash_exists == No ==> make_upstream_content_hash
   is_active == Yes ==> make_upstream_content_hash
   orphaned_parents-- Disjunction -->make_upstream_content_hash
   new_parents-- Disjunction -->make_upstream_content_hash
@@ -106,7 +139,9 @@ flowchart TD
   default_schema_version --> HarvestObjectExtra
   catalog_values --> HarvestObjectExtra
   Append__collection_pkg_id --> HarvestObjectExtra
-  is_parent_ == Yes ==> Harvest_first
+  HarvestObjectExtra ==> harvest_first
+  harvest_first == Yes ==>
+  is_parent_ == Yes ==> harvest_first
   is_parent_ == No ==> Harvest_second
   HarvestObjectExtra --> Harvest_first
   HarvestObjectExtra --> Harvest_second
@@ -117,6 +152,57 @@ flowchart TD
   seen_datasets-. Inverse .-> skip
   is_deleted-. Yes .-> skip
   seen_datasets --> update
-  is_deleted-- No -->update
+  is_deleted== No ==>update
   update-. exception .-> error
-  update --> ge
+  update ==> ge
+  ge ==> fs
+  fs ==> do_nothing
+  do_nothing ==> fe
+  fe ==> is
+  is ==> empty_dataset
+  empty_dataset == Yes ==> ie
+  empty_dataset == No ==> has_title
+  has_title == Yes ==> extract_extras
+  has_title == No ==> ie
+  has_title-. No .->error
+  extract_extras --> default_schema_version
+  extract_extras --> default_collection
+  extract_extras --> default_parent
+  extract_extras --> default_catalog
+  extract_extras ==> does_parent_exist
+  does_parent_exist == Yes ==> fetch_parent
+  does_parent_exist == No ==> new_pkg_title
+  does_parent_exist-. No .->error
+  default_collection --> does_parent_exist
+  default_parent --> does_parent_exist
+  fetch_parent ==> new_pkg_title
+  new_pkg_title ==> is_title_valid
+  is_title_valid== Yes ==> is_federal
+  is_title_valid-. No .->error
+  default_schema_version --> is_federal
+  hc_defaults --> is_federal
+  new_pkg_title ==> is_federal
+  is_federal == Yes ==> federal_validation
+  is_federal == No ==> non_federal_validation
+  federal_validation ==> validate_dataset
+  non_federal_validation ==> validate_dataset
+  validate_dataset ==> get_owner_org
+  get_owner_org ==> assemble_basic_dataset_info
+  make_upstream_content_hash --> assemble_basic_dataset_info
+  assemble_basic_dataset_info ==> add_dataset_specific_info
+  add_dataset_specific_info ==> is_geospatial
+  is_geospatial == Yes ==> tag_geospatial
+  is_geospatial == No ==> is_collection
+  tag_geospatial ==> is_collection
+  is_collection == Yes ==> tag_collection_parent
+  is_collection == No ==> tag_collection_child
+  tag_collection_parent ==> tag_catalog_values
+  tag_collection_child ==> tag_catalog_values
+  tag_catalog_values ==> is_existing
+  is_existing == Yes ==> get_existing_pkg
+  is_existing == No ==> create
+  get_existing_pkg ==> avoid_resource_overwriting
+  avoid_resource_overwriting ==> update
+  create ==> update_object_reference
+  update ==> update_object_reference
+  update_object_reference ==> ie
