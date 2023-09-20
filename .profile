@@ -30,9 +30,13 @@ export APP_NAME=$(echo $VCAP_APPLICATION | jq -r '.application_name')
 export REDIS_HOST=$(vcap_get_service redis .credentials.host)
 export REDIS_PASSWORD=$(vcap_get_service redis .credentials.password)
 export REDIS_PORT=$(vcap_get_service redis .credentials.port)
+
 export AIRFLOW__CELERY__BROKER_URL=$(vcap_get_service redis .credentials.uri)
-export BROKER_URL=$(vcap_get_service redis .credentials.uri)
-export AIRFLOW__CELERY__RESULT_BACKEND="db+$(vcap_get_service db .credentials.uri)"
+export BROKER_URL=$AIRFLOW__CELERY__BROKER_URL
+
+AIRFLOW__CELERY__RESULT_BACKEND="db+$(vcap_get_service db .credentials.uri)"
+export AIRFLOW__CELERY__RESULT_BACKEND=${AIRFLOW__CELERY__RESULT_BACKEND/'postgres'/'postgresql'}
+export FLOWER_PORT="$PORT"
 export SAML2_PRIVATE_KEY=$(vcap_get_service secrets .credentials.SAML2_PRIVATE_KEY)
 
 # remote s3 for logs
@@ -40,12 +44,8 @@ export AIRFLOW__LOGGING__REMOTE_LOG_CONN_ID="s3_connection_logging"  # name of c
 # export AIRFLOW__LOGGING__REMOTE_LOG_CONN_ID=$(vcap_get_service s3 .credentials.uri)
 export AIRFLOW__LOGGING__REMOTE_BASE_LOG_FOLDER="s3://$(vcap_get_service s3 .credentials.endpoing)/$(vcap_get_service s3 .credentials.bucket)"
 
-export AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=$(vcap_get_service db .credentials.uri)
-# this appears to already be available via the manigfest
-#export AIRFLOW__CORE__DAGS_FOLDER=$()
+AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=$(vcap_get_service db .credentials.uri)
+export AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=${AIRFLOW__DATABASE__SQL_ALCHEMY_CONN/'postgres'/'postgresql+psycopg2'}
 
-# export NEW_RELIC_LICENSE_KEY=$(vcap_get_service secrets .credentials.NEW_RELIC_LICENSE_KEY)
-
-echo "Setup airflow webserver admin.."
-# TODO obviously fix this by adding real cred handling
-# airflow users create --role Admin --username <usernam> --password <password> --email <unique@email.com> --firstname <first> --lastname <last> 
+# TODO connections can be provided here:
+# https://airflow.apache.org/docs/apache-airflow/stable/howto/connection.html#storing-connections-in-environment-variables
