@@ -1,4 +1,3 @@
-import requests
 import ckanapi
 
 
@@ -20,5 +19,5 @@ def update_ckan_package(ckan, update_data):
     return ckan.action.package_update(**update_data)
 
 
-def delete_ckan_package(ckan, package_data):
-    return ckan.action.package_delete(**package_data)
+def purge_ckan_package(ckan, package_data):
+    return ckan.action.dataset_purge(**package_data)
