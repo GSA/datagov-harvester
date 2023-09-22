@@ -39,20 +39,12 @@ applications:
     env:
       <<: *airflow-common-env
 
-  - name: ((app-name))-worker
+  - name: ((app-name))-scheduler
     <<: *airflow-common
     no-route: true
     health-check-type: process
-    instances: ((worker-instances))
-    command: airflow celery worker --concurrency=1
-    env:
-      <<: *airflow-common-env
-
-  - name: ((app-name))-flower
-    <<: *airflow-common
-    health-check-type: process
-    instances: ((flower-instances)) 
-    command: airflow celery flower
+    instances: ((scheduler-instances))
+    command: airflow scheduler
     env:
       <<: *airflow-common-env
 
@@ -60,17 +52,17 @@ applications:
     <<: *airflow-common
     no-route: true
     health-check-type: process
-    instances: ((scheduler-instances))
+    instances: ((dagprocessor-instances))
     command: airflow dag-processor --verbose
     env:
       <<: *airflow-common-env
 
-  - name: ((app-name))-scheduler
+  - name: ((app-name))-worker
     <<: *airflow-common
     no-route: true
     health-check-type: process
-    instances: ((scheduler-instances))
-    command: airflow scheduler
+    instances: ((worker-instances))
+    command: airflow celery worker --concurrency=1
     env:
       <<: *airflow-common-env
 
@@ -82,3 +74,12 @@ applications:
     command: airflow triggerer
     env:
       <<: *airflow-common-env
+
+  - name: ((app-name))-flower
+    <<: *airflow-common
+    health-check-type: process
+    instances: ((flower-instances)) 
+    command: airflow celery flower
+    env:
+      <<: *airflow-common-env
+

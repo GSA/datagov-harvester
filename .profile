@@ -31,20 +31,24 @@ export REDIS_HOST=$(vcap_get_service redis .credentials.host)
 export REDIS_PASSWORD=$(vcap_get_service redis .credentials.password)
 export REDIS_PORT=$(vcap_get_service redis .credentials.port)
 
-export AIRFLOW__CELERY__BROKER_URL=$(vcap_get_service redis .credentials.uri)
+export AIRFLOW__CELERY__BROKER_URL="$(vcap_get_service redis .credentials.uri)/0"
 export BROKER_URL=$AIRFLOW__CELERY__BROKER_URL
 
 AIRFLOW__CELERY__RESULT_BACKEND="db+$(vcap_get_service db .credentials.uri)"
-export AIRFLOW__CELERY__RESULT_BACKEND=${AIRFLOW__CELERY__RESULT_BACKEND/'postgres'/'postgresql'}
+export AIRFLOW__CELERY__RESULT_BACKEND=${AIRFLOW__CELERY__RESULT_BACKEND/'postgres'/'postgresql+psycopg2'}
+# export AIRFLOW__CELERY__RESULT_BACKEND=$AIRFLOW__CELERY__BROKER_URL
+
 export FLOWER_PORT="$PORT"
-export SAML2_PRIVATE_KEY=$(vcap_get_service secrets .credentials.SAML2_PRIVATE_KEY)
+# export SAML2_PRIVATE_KEY=$(vcap_get_service secrets .credentials.SAML2_PRIVATE_KEY)
 
 # remote s3 for logs
-export AIRFLOW__LOGGING__REMOTE_LOG_CONN_ID="s3_connection_logging"  # name of conn id in web ui?
+export AIRFLOW__LOGGING__REMOTE_LOGGING="true"
+export AIRFLOW__LOGGING__REMOTE_LOG_CONN_ID="s3conn"  # name of conn id in web ui?
 # export AIRFLOW__LOGGING__REMOTE_LOG_CONN_ID=$(vcap_get_service s3 .credentials.uri)
-export AIRFLOW__LOGGING__REMOTE_BASE_LOG_FOLDER="s3://$(vcap_get_service s3 .credentials.endpoing)/$(vcap_get_service s3 .credentials.bucket)"
+export AIRFLOW__LOGGING__REMOTE_BASE_LOG_FOLDER="s3://$(vcap_get_service s3 .credentials.endpoing)/$(vcap_get_service s3 .credentials.bucket)/logs"
+export AIRFLOW__LOGGING__ENCRYPT_S3_LOGS="false"
 
-AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=$(vcap_get_service db .credentials.uri)
+AIRFLOW__DATABASE__SQL_ALCHEMY_CONN="$(vcap_get_service db .credentials.uri)"
 export AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=${AIRFLOW__DATABASE__SQL_ALCHEMY_CONN/'postgres'/'postgresql+psycopg2'}
 
 # TODO connections can be provided here:

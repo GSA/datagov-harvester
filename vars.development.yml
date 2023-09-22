@@ -4,6 +4,7 @@ space-name: development
 init-instances: 1
 webserver-instances: 1
 scheduler-instances: 1
+dagprocessor-instances: 1
 worker-instances: 1
 triggerer-instances: 1
 cli-instances: 1
