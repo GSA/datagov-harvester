@@ -60,13 +60,63 @@ flowchart LR
     is([IMPORT STARTED])
     ie([IMPORT ENDED])
     is ==> is_object_empty
+    is_object_empty == No ==> is_force_import
+    is_force_import == Yes ==> change_object_2
+    is_force_import == No ==> check_status_from_gather
+    change_object_2 ==> get_existing_object_2
+    check_status_from_gather ==> get_existing_object_2
+    get_existing_object_2 ==> is_delete_2
+    is_delete_2 == Yes ==> delete
+    is_delete_2 == No ==> is_iso_2
+    is_iso_2 == No ==> transform_to_iso
+    transform_to_iso == Success ==> save_content_2
+    save_content_2 == tranform ==> parse_iso
+    is_iso_2 == Yes ==> is_object_content_empty
+    is_object_content_empty == No ==> _validate_document
+    _validate_document == valid ==> parse_iso
+    _validate_document == not valid ==> continue_on_validation_errors
+    continue_on_validation_errors == Yes ==> parse_iso
+    continue_on_validation_errors == No ==> ie
+    parse_iso ==> update_object_reference
+    update_object_reference ==> is_guid_current
+    is_guid_current == No ==> update_guid
+    update_guid ==> is_guid_present
+    is_guid_present == No ==> generate_guid
+    is_guid_present == Yes ==> get_modified_date
+    generate_guid ==> get_modified_date
+    get_modified_date ==> spatial_package_create
+    spatial_package_create ==> is_source_private
+    is_source_private == Yes ==> mark_object_private
+    %% BUG: if source marked as private --> harvest --> changed to public --> harvest --> datasets remain private
+    is_source_private == No ==> is_source_part_of_topic
+    mark_object_private ==> is_source_part_of_topic
+    is_source_part_of_topic == Yes ==> mark_object_part_of_topic
+    is_source_part_of_topic == No ==> mark_as_geospatial
+    mark_object_part_of_topic ==> mark_as_geospatial
+    mark_as_geospatial ==> update_object_reference_2
+    update_object_reference_2 ==> is_status_new
+    is_status_new == Yes ==> create
+    is_status_new == No ==> is_modified_newer
+    is_modified_newer == No ==> transfer_job_history
+    transfer_job_history ==> delete_old_object
+    delete_old_object ==> reindex_package
+    is_modified_newer == Yes ==> update
+    create ==> ie
     update ==> ie
+    is_object_content_empty-. Yes .-> error_3
+    parse_iso-. exception .-> error_3
+    is_guid_current-. Yes .-> error_3
+    get_modified_date-. exception .-> error_3
+    is_object_empty-. Yes .-> skip_2
+    reindex_package -.-> skip_2
   end
 
   %% Data
   error[\Error/]
   error_2[\Error/]
+  error_3[\Error/]
   skip[/Skip\]
+  skip_2[/Skip\]
   new_datasets[(New Datasets)]
   deleted_datasets[(Deleted Datasets)]
   changed_datasets[(Changed Datasets)]
@@ -93,9 +143,7 @@ flowchart LR
   guess_standard[[Guess Metadata Standard]]
   save_content[["Save Content (ISO)"]]
   save_original_document[["Save Original Content (non-ISO)"]]
-
   update[[Update Dataset]]
-  do_nothing[[Nothing to do]]
   create[[Create New Package]]
   update_object_reference[[Make this package the Current Harvest Object]]
   update_object_reference_2[[Make this package the Current Harvest Object]]
@@ -119,7 +167,6 @@ flowchart LR
   %% Conditional Checks
   is_date_present{Does the source object have a date?}
   is_ids{Is there data to process?}
-  is_existing_object{Does the object exist?}
   is_iso{Is document ISO?}
   is_iso_2{Is document ISO?}
   is_object_empty{Is Object Empty?}
@@ -129,6 +176,7 @@ flowchart LR
   is_guid_current{Is the GUID current?}
   is_guid_present{Does the GUID exist?}
   is_delete{Should the dataset be deleted?}
+  is_delete_2{Should the dataset be deleted?}
   is_source_private{Is the Harvest Source Private?}
   is_source_part_of_topic{Is the Harvest Source part of a Topic?}
   is_status_new{Is the Status new?}
