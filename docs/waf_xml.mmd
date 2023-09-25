@@ -1,0 +1,119 @@
+flowchart LR
+
+  %% Algorithm
+  gather_stage ==> fetch_stage
+  fetch_stage ==> import_stage
+
+  subgraph gather_stage [Gather Stage]
+    direction TB
+    gs([GATHER STARTED])
+    ge([GATHER ENDED])
+    gs ==> get_source_url
+    get_source_url-. Exception .-> error
+    get_source_url ==> _get_scraper
+    _get_scraper ==> get_current_objects
+    get_current_objects ==> _extract_waf
+    _extract_waf-. Exception .-> error
+    _extract_waf ==> compare
+    compare ==> is_date_present
+    compare --> new_datasets
+    compare --> deleted_datasets
+    compare --> changed_datasets
+    is_date_present -- No --> changed_datasets
+    is_date_present == Yes ==> for_each_new
+    is_date_present == No ==> for_each_new
+    for_each_new ==> hash_new
+    hash_new --> create_object
+    hash_new ==> end_each_new
+    end_each_new ==> for_each_changed
+    for_each_changed --> create_object
+    for_each_changed ==> end_each_changed
+    end_each_changed ==> for_each_deleted
+    for_each_deleted --> create_object
+    for_each_deleted ==> make_not_current
+    make_not_current ==> end_each_deleted
+    end_each_deleted ==> is_ids
+    is_ids == Yes ==> return_ids
+    is_ids == No ==> return_none
+    return_ids ==> ge
+    return_none ==> ge
+  end
+  subgraph fetch_stage [Fetch Stage]
+    direction TB
+    fs([FETCH STARTED])
+    fe([FETCH ENDED])
+    fs ==> do_nothing
+    do_nothing ==> fe
+  end
+  subgraph import_stage [Import Stage]
+    direction TB
+    is([IMPORT STARTED])
+    ie([IMPORT ENDED])
+    is ==> is_object_empty
+    update ==> ie
+  end
+
+  %% Data
+  error[\Error/]
+  error_2[\Error/]
+  skip[/Skip\]
+  new_datasets[(New Datasets)]
+  deleted_datasets[(Deleted Datasets)]
+  changed_datasets[(Changed Datasets)]
+  create_object[(Create New Object)]
+
+  %% Functons
+  get_source_url[[Get Source Root URL]]
+  _get_scraper[[Determine the WAF Server Type]]
+  get_current_objects[[Load Current Objects]]
+  _extract_waf[[Extract Source Objects]]
+  compare[[Compare Source and Current Objects]]
+  for_each_new[[For Each New Object]]
+  hash_new[[Create GUID based on hash of new object]]
+  end_each_new[[End For New Object]]
+  for_each_changed[[For Each Changed Object]]
+  end_each_changed[[End For Changed Object]]
+  for_each_deleted[[For Each Deleted Object]]
+  make_not_current[[Mark the existing object as not current]]
+  end_each_deleted[[End For Deleted Object]]
+  return_ids[[Return IDS]]
+  return_none[[Return NONE]]
+
+  update[[Update Dataset]]
+  do_nothing[[Nothing to do]]
+  create[[Create New Package]]
+  update_object_reference[[Make this package the Current Harvest Object]]
+  update_object_reference_2[[Make this package the Current Harvest Object]]
+  transform_to_iso[[Transform to ISO]]
+  _validate_document[[Validate Dataset]]
+  parse_iso[[Parse ISO Document]]
+  update_guid[[Update GUID]]
+  generate_guid[[Generate GUID]]
+  check_status_from_gather[[Get status from Gather]]
+  get_modified_date[[Get Modified Date]]
+  mark_object_private[[Mark Object as private]]
+  mark_object_part_of_topic[[Mark Object as part of topic]]
+  mark_as_geospatial[[Mark Object as geospatial]]
+  transfer_job_history[[Transfer old object job history to new object]]
+  delete_old_object[[Delete old object]]
+  reindex_package[[Reindex package to reflect new date]]
+  %% Spatial Package Create: https://github.com/ckan/ckanext-spatial/blob/e59a295431247fcd605fe55bb4fd9a2ecfc28d2b/ckanext/spatial/harvesters/base.py#L233-L492
+  spatial_package_create[[Create Package Data ..see reference in code..]]
+
+
+  %% Conditional Checks
+  is_date_present{Does the source object have a date?}
+  is_ids{Is there data to process?}
+  is_existing_object{Does the object exist?}
+  is_iso{Is document ISO?}
+  is_iso_2{Is document ISO?}
+  is_object_empty{Is Object Empty?}
+  is_force_import{Is the Object being forcible imported?}
+  is_object_content_empty{Is the Object content empty?}
+  continue_on_validation_errors{Continue if validation has errors?}
+  is_guid_current{Is the GUID current?}
+  is_guid_present{Does the GUID exist?}
+  is_delete{Should the dataset be deleted?}
+  is_source_private{Is the Harvest Source Private?}
+  is_source_part_of_topic{Is the Harvest Source part of a Topic?}
+  is_status_new{Is the Status new?}
