@@ -46,9 +46,9 @@ flowchart LR
     is_delete-. Yes .-> skip
     is_delete == No ==> get_location
     get_location-. No URL .-> error_2
-    get_location ==> get_data
-    get_data-. Exception .-> error_2
-    get_data ==> guess_standard
+    get_location ==> _get_content_as_unicode
+    _get_content_as_unicode-. Exception .-> error_2
+    _get_content_as_unicode ==> guess_standard
     guess_standard ==> is_iso
     is_iso == Yes ==> save_content
     is_iso == No ==> save_original_document
@@ -56,6 +56,8 @@ flowchart LR
     save_original_document ==> fe
   end
   subgraph import_stage [Import Stage]
+    %% WAFHarvester does not implement this code, it inherits from
+    %% SpatialHarvester, which is shared with DocHarvester
     direction TB
     is([IMPORT STARTED])
     ie([IMPORT ENDED])
@@ -124,9 +126,15 @@ flowchart LR
 
   %% Functons
   get_source_url[[Get Source Root URL]]
+
+  %% Code: https://github.com/ckan/ckanext-spatial/blob/e59a295431247fcd605fe55bb4fd9a2ecfc28d2b/ckanext/spatial/harvesters/waf.py#L269-L277
   _get_scraper[[Determine the WAF Server Type]]
+
   get_current_objects[[Load Current Objects]]
+
+  %% Code: https://github.com/ckan/ckanext-spatial/blob/e59a295431247fcd605fe55bb4fd9a2ecfc28d2b/ckanext/spatial/harvesters/waf.py#L279-L334
   _extract_waf[[Extract Source Objects]]
+
   compare[[Compare Source and Current Objects]]
   for_each_new[[For Each New Object]]
   hash_new[[Create GUID based on hash of new object]]
@@ -139,7 +147,10 @@ flowchart LR
   return_ids[[Return IDS]]
   return_none[[Return NONE]]
   get_location[[Get URL from Object]]
-  get_data[[Extract Source Object Data]]
+
+  %% Code: https://github.com/ckan/ckanext-spatial/blob/e59a295431247fcd605fe55bb4fd9a2ecfc28d2b/ckanext/spatial/harvesters/base.py#L835-L860
+  _get_content_as_unicode[[Download XML File]]
+
   guess_standard[[Guess Metadata Standard]]
   save_content[["Save Content (ISO)"]]
   save_original_document[["Save Original Content (non-ISO)"]]
@@ -160,6 +171,7 @@ flowchart LR
   transfer_job_history[[Transfer old object job history to new object]]
   delete_old_object[[Delete old object]]
   reindex_package[[Reindex package to reflect new date]]
+
   %% Spatial Package Create: https://github.com/ckan/ckanext-spatial/blob/e59a295431247fcd605fe55bb4fd9a2ecfc28d2b/ckanext/spatial/harvesters/base.py#L233-L492
   spatial_package_create[[Create Package Data ..see reference in code..]]
 
