@@ -42,8 +42,18 @@ flowchart LR
     direction TB
     fs([FETCH STARTED])
     fe([FETCH ENDED])
-    fs ==> do_nothing
-    do_nothing ==> fe
+    fs ==> is_delete
+    is_delete-. Yes .-> skip
+    is_delete == No ==> get_location
+    get_location-. No URL .-> error_2
+    get_location ==> get_data
+    get_data-. Exception .-> error_2
+    get_data ==> guess_standard
+    guess_standard ==> is_iso
+    is_iso == Yes ==> save_content
+    is_iso == No ==> save_original_document
+    save_content ==> fe
+    save_original_document ==> fe
   end
   subgraph import_stage [Import Stage]
     direction TB
@@ -78,6 +88,11 @@ flowchart LR
   end_each_deleted[[End For Deleted Object]]
   return_ids[[Return IDS]]
   return_none[[Return NONE]]
+  get_location[[Get URL from Object]]
+  get_data[[Extract Source Object Data]]
+  guess_standard[[Guess Metadata Standard]]
+  save_content[["Save Content (ISO)"]]
+  save_original_document[["Save Original Content (non-ISO)"]]
 
   update[[Update Dataset]]
   do_nothing[[Nothing to do]]
