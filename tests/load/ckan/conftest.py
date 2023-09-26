@@ -1,7 +1,11 @@
 import pytest
 from harvester.load.ckan import create_ckan_entrypoint, dcatus_to_ckan
+from harvester.utils.json import open_json
 import os
-import requests
+from pathlib import Path
+
+TEST_DIR = Path(__file__).parents[2]
+HARVEST_SOURCES = TEST_DIR / "harvest-sources"
 
 
 @pytest.fixture
@@ -16,20 +20,13 @@ def ckan_entrypoint():
 
 
 @pytest.fixture
-def test_dcatus_catalog_url():
-    return (
-        "https://catalog.data.gov/harvest/object/cb22fea9-0c90-43e9-94bf-903eacd37c92"
-    )
-
-
-@pytest.fixture
 def test_ckan_package_id():
     return "e875348b-a7c3-47eb-b0c3-168d978b0c0f"
 
 
 @pytest.fixture
-def test_dcatus_catalog(test_dcatus_catalog_url):
-    return requests.get(test_dcatus_catalog_url).json()
+def test_dcatus_catalog():
+    return open_json(HARVEST_SOURCES / "dcatus_to_ckan.json")
 
 
 @pytest.fixture
@@ -40,8 +37,8 @@ def test_ckan_package(test_ckan_package_id, test_dcatus_catalog):
 
 
 @pytest.fixture
-def test_ckan_update_package(test_ckan_package_id):
-    return {"author": "test author", "id": test_ckan_package_id}
+def test_ckan_update_package(test_ckan_package):
+    return {**test_ckan_package, **{"author": "test author"}}
 
 
 @pytest.fixture
