@@ -14,6 +14,10 @@ The datagov-harvesting-logic offers the following features:
 - Validation
   - DCAT-US
     - jsonschema validation using draft 2020-12.
+- Load
+  - DCAT-US
+    - conversion of dcatu-us catalog into ckan dataset schema
+    - create, delete, update, and patch of ckan package/dataset
 
 ## Requirements
 
