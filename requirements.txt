@@ -1,0 +1,16 @@
+# Airlow deps
+apache-airflow
+snscrape
+pandas
+psycopg2
+apache-airflow-providers-postgres[amazon]
+apache-airflow-providers-amazon
+apache-airflow[amazon]
+
+# Celery executor deps
+apache-airflow[celery]
+# from https://airflow.apache.org/docs/apache-airflow-providers-celery/stable/index.html#requirements
+apache-airflow-providers-celery
+celery[redis]
+flower
+google-re2
