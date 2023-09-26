@@ -7,6 +7,11 @@ from harvester.load.ckan import (
 
 
 def test_create_package(ckan_entrypoint, test_ckan_package):
+    try:
+        # ckan complains when you try to purge something that doesn't exist
+        purge_ckan_package(ckan_entrypoint, {"id": test_ckan_package["id"]})
+    except:  # noqa E722
+        pass
     assert create_ckan_package(ckan_entrypoint, test_ckan_package)
 
 
