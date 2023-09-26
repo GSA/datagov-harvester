@@ -17,6 +17,7 @@ psycopg = {extras = ["binary"], version = "^3.1.9"}
 pytest = "^7.3.2"
 flask = "^2.3.2"
 sqlalchemy = "^2.0.19"
+ckanapi = "^4.7"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.3.0"
