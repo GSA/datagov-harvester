@@ -1,4 +1,140 @@
 import ckanapi
+import re
+
+
+def create_ckan_extra_base(*args):
+    keys = ["publisher_hierarchy", "resource-type"]
+    data = zip(keys, args)
+    return [{"key": d[0], "value": d[1]} for d in data]
+
+
+def create_ckan_extras_additions(dcatus_catalog, additions):
+    extras = [
+        "accessLevel",
+        "bureauCode",
+        "identifier",
+        "modified",
+        "programCode",
+        "publisher",
+    ]
+
+    output = []
+
+    for extra in extras:
+        data = {"key": extra, "value": None}
+        if extra == "publisher":
+            data["value"] = dcatus_catalog[extra]["name"]
+        else:
+            data["value"] = dcatus_catalog[extra]
+        output.append(data)
+
+    return output + additions
+
+
+def create_ckan_tags(keywords):
+    # TODO: add remaining data
+    output = []
+
+    for keyword in keywords:
+        keyword = "-".join(keyword.split())
+        output.append({"name": keyword})
+
+    return output
+
+
+def create_ckan_publisher_hierarchy(pub_dict, data=[]):
+    for k, v in pub_dict.items():
+        if k == "name":
+            data.append(v)
+        if type(v) == dict:
+            create_ckan_publisher_hierarchy(v, data)
+
+    return " > ".join(data[::-1])
+
+
+def get_email_from_str(in_str):
+    res = re.search(r"[\w.+-]+@[\w-]+\.[\w.-]+", in_str)
+    if res is not None:
+        return res.group(0)
+
+
+def create_ckan_resources(dists):
+    # TODO: add remaining data
+    output = []
+
+    for dist in dists:
+        url_key = "downloadURL" if "downloadURL" in dist else "accessURL"
+        resource = {"url": dist[url_key], "mimetype": dist["mediaType"]}
+        output.append(resource)
+
+    return output
+
+
+def simple_transform(dcatus_catalog):
+    output = {
+        "name": "-".join(dcatus_catalog["title"].lower().split()),
+        "owner_org": "test",
+    }
+
+    mapping = {
+        "contactPoint": {"fn": "maintainer", "hasEmail": "maintainer_email"},
+        "description": "notes",
+        "title": "title",
+    }
+
+    for k, v in dcatus_catalog.items():
+        if k not in mapping:
+            continue
+        if type(mapping[k]) == dict:
+            temp = {}
+            for k2, v2 in v.items():
+                if k2 == "hasEmail":
+                    v2 = get_email_from_str(v2)
+                temp[mapping[k][k2]] = v2
+            output = {**output, **temp}
+        else:
+            output[mapping[k]] = v
+
+    return output
+
+
+def create_defaults():
+    # all of these will be handled by the DB
+    return {
+        "author": None,
+        "author_email": None,
+        "license_id": "notspecified",
+        "license_title": "License not specified",
+        "type": "dataset",
+    }
+
+
+def dcatus_to_ckan(dcatus_catalog):
+    """
+    example:
+    - from this:
+        - https://catalog.data.gov/harvest/object/cb22fea9-0c90-43e9-94bf-903eacd37c92
+    - to this:
+        - https://catalog.data.gov/api/action/package_show?id=fdic-failed-bank-list
+    """
+
+    output = simple_transform(dcatus_catalog)
+
+    resources = create_ckan_resources(dcatus_catalog["distribution"])
+    tags = create_ckan_tags(dcatus_catalog["keyword"])
+    pubisher_hierarchy = create_ckan_publisher_hierarchy(dcatus_catalog["publisher"])
+
+    extras_base = create_ckan_extra_base(pubisher_hierarchy, "Dataset")
+    extras = create_ckan_extras_additions(dcatus_catalog, extras_base)
+
+    defaults = create_defaults()
+
+    output["resources"] = resources
+    output["tags"] = tags
+    output["extras"] = extras_base
+    output["extras"] += extras
+
+    return {**output, **defaults}
 
 
 def create_ckan_entrypoint(url, api_key):
