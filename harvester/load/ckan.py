@@ -46,7 +46,7 @@ def create_ckan_publisher_hierarchy(pub_dict, data=[]):
     for k, v in pub_dict.items():
         if k == "name":
             data.append(v)
-        if type(v) == dict:
+        if isinstance(v, dict):
             create_ckan_publisher_hierarchy(v, data)
 
     return " > ".join(data[::-1])
@@ -85,7 +85,7 @@ def simple_transform(dcatus_catalog):
     for k, v in dcatus_catalog.items():
         if k not in mapping:
             continue
-        if type(mapping[k]) == dict:
+        if isinstance(mapping[k], dict):
             temp = {}
             for k2, v2 in v.items():
                 if k2 == "hasEmail":
