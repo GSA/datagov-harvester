@@ -3,7 +3,7 @@ import re
 
 
 def create_ckan_extra_base(*args):
-    keys = ["publisher_hierarchy", "resource-type"]
+    keys = ["publisher_hierarchy", "resource-type", "publisher"]
     data = zip(keys, args)
     return [{"key": d[0], "value": d[1]} for d in data]
 
@@ -32,7 +32,6 @@ def create_ckan_extras_additions(dcatus_catalog, additions):
 
 
 def create_ckan_tags(keywords):
-    # TODO: add remaining data
     output = []
 
     for keyword in keywords:
@@ -59,7 +58,6 @@ def get_email_from_str(in_str):
 
 
 def create_ckan_resources(dists):
-    # TODO: add remaining data
     output = []
 
     for dist in dists:
@@ -99,13 +97,9 @@ def simple_transform(dcatus_catalog):
 
 
 def create_defaults():
-    # all of these will be handled by the DB
     return {
         "author": None,
         "author_email": None,
-        "license_id": "notspecified",
-        "license_title": "License not specified",
-        "type": "dataset",
     }
 
 
@@ -116,6 +110,7 @@ def dcatus_to_ckan(dcatus_catalog):
         - https://catalog.data.gov/harvest/object/cb22fea9-0c90-43e9-94bf-903eacd37c92
     - to this:
         - https://catalog.data.gov/api/action/package_show?id=fdic-failed-bank-list
+
     """
 
     output = simple_transform(dcatus_catalog)
@@ -124,7 +119,9 @@ def dcatus_to_ckan(dcatus_catalog):
     tags = create_ckan_tags(dcatus_catalog["keyword"])
     pubisher_hierarchy = create_ckan_publisher_hierarchy(dcatus_catalog["publisher"])
 
-    extras_base = create_ckan_extra_base(pubisher_hierarchy, "Dataset")
+    extras_base = create_ckan_extra_base(
+        pubisher_hierarchy, "Dataset", dcatus_catalog["publisher"]["name"]
+    )
     extras = create_ckan_extras_additions(dcatus_catalog, extras_base)
 
     defaults = create_defaults()
