@@ -8,13 +8,13 @@ from harvester.load.ckan import (
 from deepdiff import DeepDiff
 
 
-def test_dcatus_to_ckan_transform(test_ckan_package_id, test_dcatus_catalog):
+def test_dcatus_to_ckan_transform(test_dcatus_catalog):
     expected_result = {
         "name": "fdic-failed-bank-list",
         "owner_org": "test",
         "maintainer": "FDIC Public Data Feedback",
         "maintainer_email": "FDICPublicDataFeedback@fdic.gov",
-        "notes": "The FDIC is often appointed as receiver for failed banks. This list includes banks which have failed since October 1, 2000.",
+        "notes": "The FDIC is often appointed as receiver for failed banks. This list includes banks which have failed since October 1, 2000.",  # noqa E501
         "title": "FDIC Failed Bank List",
         "resources": [
             {
@@ -35,7 +35,7 @@ def test_dcatus_to_ckan_transform(test_ckan_package_id, test_dcatus_catalog):
         "extras": [
             {
                 "key": "publisher_hierarchy",
-                "value": "U.S. Government > Federal Deposit Insurance Corporation > Division of Insurance and Research",
+                "value": "U.S. Government > Federal Deposit Insurance Corporation > Division of Insurance and Research",  # noqa E501
             },
             {"key": "resource-type", "value": "Dataset"},
             {"key": "publisher", "value": "Division of Insurance and Research"},
@@ -50,7 +50,7 @@ def test_dcatus_to_ckan_transform(test_ckan_package_id, test_dcatus_catalog):
             {"key": "publisher", "value": "Division of Insurance and Research"},
             {
                 "key": "publisher_hierarchy",
-                "value": "U.S. Government > Federal Deposit Insurance Corporation > Division of Insurance and Research",
+                "value": "U.S. Government > Federal Deposit Insurance Corporation > Division of Insurance and Research",  # noqa E501
             },
             {"key": "resource-type", "value": "Dataset"},
             {"key": "publisher", "value": "Division of Insurance and Research"},
