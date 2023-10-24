@@ -1,20 +1,10 @@
-import json
-
-from harvester import content_types, extract_feat_name
-from harvester.utils.s3 import create_s3_upload_data
+import requests
 
 # ruff: noqa: F841
 
 
-def parse_catalog(catalog, job_info):
-    """parse the catalog and yield each record as an S3 data upload dict
-    catalog (dict)  :   dcatus catalog json
-    job_info (dict) :   info on the job ( e.g. source_id, job_id, url )
-    """
-    for idx, record in enumerate(catalog["dataset"]):
-        try:
-            record = json.dumps(record)
-            key_name = f"{extract_feat_name}/{job_info['source_id']}/{job_info['job_id']}/{idx}.json"  # noqa: E501
-            yield create_s3_upload_data(record, key_name, content_types["json"])
-        except Exception as e:
-            pass
+def download_dcatus_catalog(url):
+    try:
+        return requests.get(url).json()
+    except Exception as e:
+        return e
