@@ -33,7 +33,7 @@ Once installed, `poetry install` installs dependencies into a local virtual envi
 - Create a `credentials.py` file at the root of the project containing the variable `ckan_catalog_dev_api_key` assigned to the api-key.
 - run tests with the command `poetry run pytest ./tests/load/ckan`
 ### Harvester testing
-- These tests are found in `db`, `extract`, `utils`, and `validate`. Some of them rely on services in the `docker-compose.yml`. run using docker `docker compose up -d` and with the command `poetry run pytest --ignore=./tests/load/ckan`. 
+- These tests are found in `extract`, and `validate`. Some of them rely on services in the `docker-compose.yml`. run using docker `docker compose up -d` and with the command `poetry run pytest --ignore=./tests/load/ckan`. 
 
 If you followed the instructions for `CKAN load testing` and `Harvester testing` you can simply run `poetry run pytest` to run all tests.
 
