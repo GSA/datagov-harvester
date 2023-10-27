@@ -2,8 +2,8 @@
 # To apply this manifest: cf push --vars-file vars.<space>.yml
 
 x-airflow-common: &airflow-common
-  buildpacks:
-    - python_buildpack
+  docker:
+    image: ghcr.io/apache/airflow/main/prod/python3.8:8f452822b556a1ff79d7d92d285596b89d0b789d
   memory: ((memory-quota))
   disk_quota: ((disk-quota))
   services:
@@ -13,26 +13,26 @@ x-airflow-common: &airflow-common
   env: &airflow-common-env
     # TODO most of these should be in airflow.cfg for prod
     AIRFLOW__CORE__STORE_DAG_CODE: true
-    AIRFLOW__CORE__STORE_SERIALIZED_DAGS: true
+    # AIRFLOW__CORE__STORE_SERIALIZED_DAGS: true
     AIRFLOW__CORE__DAGS_FOLDER: /home/vcap/app/dags
     AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: true
-    AIRFLOW__CORE__EXECUTOR: CeleryExecutor
-    AIRFLOW__CORE__LOAD_EXAMPLES: false
+    AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    AIRFLOW__CORE__LOAD_EXAMPLES: true
     AIRFLOW__CORE__MAX_MAP_LENGTH: 5000
     AIRFLOW__CORE__TEST_CONNECTION: Enabled
-    AIRFLOW__CELERY__FLOWER_PORT: 8080
+    # AIRFLOW__CELERY__FLOWER_PORT: 8080
     AIRFLOW__DATABASE__LOAD_DEFAULT_CONNECTIONS: false
     AIRFLOW__LOGGING__REMOTE_LOGGING: true
     AIRFLOW__LOGGING__LOGGING_LEVEL: DEBUG
     AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: true
-    AIRFLOW__SCHEDULER__STANDALONE_DAG_PROCESSOR: true
+    # AIRFLOW__SCHEDULER__STANDALONE_DAG_PROCESSOR: true
     AIRFLOW__WEBSERVER__EXPOSE_CONFIG: true  # TODO REMOVE
 
 applications:
   - name: ((app-name))-webserver
     <<: *airflow-common
     instances: ((webserver-instances))
-    health-check-type: http
+    health-check-type: http 
     health-check-http-endpoint: /health
     health-check-invocation-timeout: 60
     command: airflow version && airflow db migrate && airflow webserver
@@ -48,38 +48,38 @@ applications:
     env:
       <<: *airflow-common-env
 
-  - name: ((app-name))-dagprocessor
-    <<: *airflow-common
-    no-route: true
-    health-check-type: process
-    instances: ((dagprocessor-instances))
-    command: airflow dag-processor --verbose
-    env:
-      <<: *airflow-common-env
+  # - name: ((app-name))-dagprocessor
+  #   <<: *airflow-common
+  #   no-route: true
+  #   health-check-type: process
+  #   instances: ((dagprocessor-instances))
+  #   command: airflow dag-processor --verbose
+  #   env:
+  #     <<: *airflow-common-env
 
-  - name: ((app-name))-worker
-    <<: *airflow-common
-    no-route: true
-    health-check-type: process
-    instances: ((worker-instances))
-    command: airflow celery worker --concurrency=1
-    env:
-      <<: *airflow-common-env
+  # - name: ((app-name))-worker
+  #   <<: *airflow-common
+  #   no-route: true
+  #   health-check-type: process
+  #   instances: ((worker-instances))
+  #   command: airflow celery worker --concurrency=1
+  #   env:
+  #     <<: *airflow-common-env
 
-  - name: ((app-name))-triggerer
-    <<: *airflow-common
-    no-route: true
-    health-check-type: process
-    instances: ((triggerer-instances))
-    command: airflow triggerer
-    env:
-      <<: *airflow-common-env
+  # - name: ((app-name))-triggerer
+  #   <<: *airflow-common
+  #   no-route: true
+  #   health-check-type: process
+  #   instances: ((triggerer-instances))
+  #   command: airflow triggerer
+  #   env:
+  #     <<: *airflow-common-env
 
-  - name: ((app-name))-flower
-    <<: *airflow-common
-    health-check-type: process
-    instances: ((flower-instances)) 
-    command: airflow celery flower
-    env:
-      <<: *airflow-common-env
+  # - name: ((app-name))-flower
+  #   <<: *airflow-common
+  #   health-check-type: process
+  #   instances: ((flower-instances)) 
+  #   command: airflow celery flower
+  #   env:
+  #     <<: *airflow-common-env
 

@@ -10,8 +10,8 @@ triggerer-instances: 1
 cli-instances: 1
 flower-instances: 1
 
-memory-quota: 750M
-disk-quota: 750M
+memory-quota: 2G
+disk-quota: 2G
 
 # route-external: test-airflow-dev-datagov.app.cloud.gov
 # route-internal: test-airflow-dev-datagov.apps.internal
