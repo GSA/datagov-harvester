@@ -1,16 +1,18 @@
----
-# To apply this manifest: cf push --manifest manifest-standalone.yml
 applications:
-  - name: test-airflow-standalone
-    buildpacks:
-      - python_buildpack
-    # services:
-    instances: 1
-    health-check-type: http
-    health-check-http-endpoint: /health
-    health-check-invocation-timeout: 60
-    memory: 2G
-    disk_quota: 3G
-    command: airflow standalone
-    env:
-      AIRFLOW__CORE__DAGS_FOLDER: /home/vcap/app/dags
+- name: airflow-test
+  disk_quota: 2G
+  instances: 1
+  memory: 2G
+  docker:
+    image: ghcr.io/apache/airflow/main/prod/python3.8:8f452822b556a1ff79d7d92d285596b89d0b789d
+  command: airflow db upgrade && airflow standalone
+    services:
+    - airflow-test-db
+  env:
+    AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    AIRFLOW__CORE__LOAD_EXAMPLES: true
+    AIRFLOW__WEBSERVER__EXPOSE_CONFIG: true
+    AIRFLOW__LOGGING__LOGGING_LEVEL: DEBUG
+    AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: true
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: 
+
