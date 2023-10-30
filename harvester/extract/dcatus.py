@@ -1,20 +1,22 @@
-import json
-
-from harvester import content_types, extract_feat_name
-from harvester.utils.s3 import create_s3_upload_data
-
-# ruff: noqa: F841
+import requests
+from requests.exceptions import RequestException, JSONDecodeError
 
 
-def parse_catalog(catalog, job_info):
-    """parse the catalog and yield each record as an S3 data upload dict
-    catalog (dict)  :   dcatus catalog json
-    job_info (dict) :   info on the job ( e.g. source_id, job_id, url )
+def download_dcatus_catalog(url):
+    """download file and pull json from response
+    url (str)   :   path to the file to be downloaded.
     """
-    for idx, record in enumerate(catalog["dataset"]):
-        try:
-            record = json.dumps(record)
-            key_name = f"{extract_feat_name}/{job_info['source_id']}/{job_info['job_id']}/{idx}.json"  # noqa: E501
-            yield create_s3_upload_data(record, key_name, content_types["json"])
-        except Exception as e:
-            pass
+    try:
+        resp = requests.get(url)
+    except RequestException as e:
+        return Exception(e)
+    except JSONDecodeError as e:
+        return Exception(e)
+
+    if resp.status_code != 200:
+        return Exception("non-200 status code")
+
+    try:
+        return resp.json()
+    except JSONDecodeError as e:
+        return Exception(e)

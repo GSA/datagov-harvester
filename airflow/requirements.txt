@@ -1,5 +1,0 @@
-apache-airflow
-snscrape
-pandas
-psycopg2
-apache-airflow-providers-postgres

@@ -10,13 +10,9 @@ packages = [{include = "harvester"}]
 python = ">=3.9"
 jsonschema = "^4.17.3"
 requests = "^2.31.0"
-boto3 = "^1.26.129"
 python-dotenv = "^1.0.0"
 deepdiff = "^6.3.0"
-psycopg = {extras = ["binary"], version = "^3.1.9"}
 pytest = "^7.3.2"
-flask = "^2.3.2"
-sqlalchemy = "^2.0.19"
 ckanapi = "^4.7"
 
 [tool.poetry.group.dev.dependencies]
