@@ -1,10 +1,23 @@
 import requests
-
-# ruff: noqa: F841
+from requests.exceptions import RequestException, JSONDecodeError
+import json
 
 
 def download_dcatus_catalog(url):
+    """download file and pull json from response
+    url (str)   :   path to the file to be downloaded.
+    """
     try:
-        return requests.get(url).json()
-    except Exception as e:
-        return e
+        resp = requests.get(url)
+    except RequestException as e:
+        return Exception(e)
+    except JSONDecodeError as e:
+        return Exception(e)
+
+    if resp.status_code != 200:
+        return Exception("non-200 status code")
+
+    try:
+        return resp.json()
+    except JSONDecodeError as e:
+        return Exception(e)
