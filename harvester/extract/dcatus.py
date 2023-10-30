@@ -1,6 +1,5 @@
 import requests
 from requests.exceptions import RequestException, JSONDecodeError
-import json
 
 
 def download_dcatus_catalog(url):
