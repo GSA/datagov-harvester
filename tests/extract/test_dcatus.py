@@ -17,17 +17,18 @@ def test_extract_bad_url(get_bad_url):
 
     res = download_dcatus_catalog(get_bad_url)
 
-    if hasattr(res, "status_code"):
-        assert res.status_code == 404
-    else:
-        assert isinstance(res, ConnectionError) or isinstance(res, JSONDecodeError)
+    assert isinstance(res, Exception) and str(res) == "non-200 status code"
 
 
 def test_extract_bad_json(get_bad_json):
     """download a malformed json.
     get_bad_json (str)  :   fixture of malformed json
     """
-    assert isinstance(download_dcatus_catalog(get_bad_json), JSONDecodeError)
+
+    res = download_dcatus_catalog(get_bad_json)
+    assert isinstance(
+        res, Exception
+    ) and "Expecting property name enclosed in double quotes" in str(res)
 
 
 def test_extract_no_dataset_key(get_no_dataset_key_dcatus_json):
