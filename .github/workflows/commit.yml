@@ -1,0 +1,77 @@
+---
+name: 1 - Commit
+
+on:
+  push:
+  workflow_dispatch:  
+
+jobs:
+  lint-actions:
+    name: Lint Yaml
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v3
+      - name: Lint GitHub Actions
+        run: yamllint -c .yamllint.yml .github/workflows/
+  # test:
+  #   name: Build and Test
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - name: checkout
+  #       uses: actions/checkout@v3
+  #     - name: build
+  #       run: make build
+  #     - name: test
+  #       run: make test
+  #     - name: cypress-artifacs
+  #       uses: actions/upload-artifact@v3
+  #       if: failure()
+  #       with:
+  #         name: cypress-artifacts
+  #         path: |
+  #           ./e2e/cypress/screenshots/
+  #           ./e2e/cypress/videos/
+
+  # test_proxy:
+  #   name: Validate Proxy Configuration Files
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - name: checkout
+  #       uses: actions/checkout@v3
+  #     - name: test
+  #       run: make validate-proxy
+
+  # test_importer:
+  #   name: test importer
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - name: checkout
+  #       uses: actions/checkout@v3
+  #     - name: setup python
+  #       uses: actions/setup-python@v4
+  #       with:
+  #         python-version: '3.x'
+  #         architecture: x64
+  #     - name: test_importer
+  #       run: make test-import-tool
+
+  create-cloudgov-services-development:
+    if: github.ref == 'refs/heads/develop'
+    name: create services (development)
+    uses: gsa/data.gov/.github/workflows/create-services-template.yml@main
+    with:
+      environ: development
+    secrets: inherit
+
+  # deploy-development:
+  #   if: github.ref == 'refs/heads/develop'
+  #   name: deploy (development)
+  #   needs:
+  #     - create-cloudgov-services-development
+  #   uses: gsa/data.gov/.github/workflows/deploy-template.yml@main
+  #   with:
+  #     environ: development
+  #     app_url: https://catalog-dev-datagov.app.cloud.gov
+  #     app_names: "{\"include\":[{\"app\":\"catalog-web\",\"smoketest\":true},{\"app\":\"catalog-admin\"},{\"app\":\"catalog-fetch\"},{\"app\":\"catalog-gather\"},{\"app\":\"catalog-proxy\",\"robots-dev\":true}]}"
+  #   secrets: inherit
