@@ -3,7 +3,7 @@ name: 1 - Commit
 
 on:
   push:
-  workflow_dispatch:  
+  workflow_dispatch:
 
 jobs:
   lint-actions:
