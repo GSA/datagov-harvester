@@ -57,7 +57,7 @@ jobs:
   #       run: make test-import-tool
 
   create-cloudgov-services-development:
-    if: github.ref == 'refs/heads/develop'
+    # if: github.ref == 'refs/heads/develop'
     name: create services (development)
     uses: gsa/data.gov/.github/workflows/create-services-template.yml@main
     with:
