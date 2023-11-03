@@ -4,15 +4,7 @@ applications:
   instances: 1
   memory: 2G
   docker:
-    image: ghcr.io/apache/airflow/main/prod/python3.8:8f452822b556a1ff79d7d92d285596b89d0b789d
-  command: airflow db upgrade && airflow standalone
-    services:
-    - airflow-test-db
+    image: ghcr.io/gsa/airflow-test:development
+  command: airflow standalone
   env:
-    AIRFLOW__CORE__EXECUTOR: LocalExecutor
-    AIRFLOW__CORE__LOAD_EXAMPLES: true
-    AIRFLOW__WEBSERVER__EXPOSE_CONFIG: true
-    AIRFLOW__LOGGING__LOGGING_LEVEL: DEBUG
-    AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: true
-    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: 
-
+    AIRFLOW__LOGGING__LOGGING_LEVEL: INFO

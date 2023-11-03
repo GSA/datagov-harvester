@@ -1,9 +1,9 @@
-This repository contains the Airflow Infrastructure code for Datagov's Harvester 2.0, and is intended to follow best practises for running Airflow in production.
+This Airflow ETL test was built with the following guides:
 
 ## Background
 
-We use Airflow's Official Production image as a base
--   
+-   https://towardsdatascience.com/run-airflow-docker-1b83a57616fb
+    -   for airflow setup
 -   https://www.freecodecamp.org/news/orchestrate-an-etl-data-pipeline-with-apache-airflow/
     -   TODO: still need to wire in actual services
 -   https://davidgriffiths-data.medium.com/debugging-airflow-in-a-container-with-vs-code-7cc26734444
@@ -41,8 +41,7 @@ The terminal process failed to launch: Path to shell executable "/sbin/nologin" 
 4.2 Run `Remote-Containers: Open Container Configuration File` from the Command Palette after attaching.
 4.3 Add `"remoteUser": "airflow"` to the JSON
 4.4 Close the Container window and reattach
-4.5 You should now be able to open a terminal 
-5.0 Select the correct Python interpreter by opening the command pallete and choosing the global python executable instead of the recommended one.
+4.5 You should now be able to open a terminal 5. Select the correct Python interpreter by opening the command pallete and choosing the global python executable instead of the recommended one.
 5.1 NOTE: This fixes the error you may encounter when when running the debugger:
 
 ```

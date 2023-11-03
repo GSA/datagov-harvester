@@ -1,19 +1,9 @@
-app-name: test-airflow
+app-name: airflow-test
 space-name: development
+image-tag: development
 
-init-instances: 1
 webserver-instances: 1
-scheduler-instances: 1
-dagprocessor-instances: 1
-worker-instances: 1
-triggerer-instances: 1
-cli-instances: 1
-flower-instances: 1
+scheduler-instances: 2
 
 memory-quota: 2G
 disk-quota: 2G
-
-# route-external: test-airflow-dev-datagov.app.cloud.gov
-# route-internal: test-airflow-dev-datagov.apps.internal
-# route-external-admin: test-airflow-dev-admin-datagov.app.cloud.gov
-# route-internal-admin: test-airflow-dev-admin-datagov.apps.internal

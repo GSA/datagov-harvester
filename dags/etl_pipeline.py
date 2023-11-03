@@ -7,7 +7,7 @@ from airflow.decorators import dag, task
 from jsonschema import Draft202012Validator
 
 ROOT_DIR = Path(__file__).parents[1]
-SCHEMA_DIR = ROOT_DIR.joinpath("schemas")
+SCHEMA_DIR = ROOT_DIR.joinpath("dags").joinpath("schemas")
 CATALOG_SCHEMA = SCHEMA_DIR.joinpath("catalog.json")
 DATASET_SCHEMA = SCHEMA_DIR.joinpath("dataset.json")
 
