@@ -2,18 +2,13 @@
 # To apply this manifest: cf push --vars-file vars.<space>.yml
 
 x-airflow-common: &airflow-common
-  buildpacks:
-    - python_buildpack
+  docker:
+    image: ghcr.io/gsa/airflow-test:((image-tag))
   services:
     - ((app-name))-db-med
   env: &airflow-common-env
     AIRFLOW__LOGGING__LOGGING_LEVEL: DEBUG
     AIRFLOW__CORE__MAX_ACTIVE_TASKS_PER_DAG: 32
-    AIRFLOW__CORE__LOAD_EXAMPLES: true
-    AIRFLOW__CORE__EXECUTOR: LocalExecutor  
-    AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: false
-    AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: true
-    AIRFLOW__WEBSERVER__EXPOSE_CONFIG: true  # TODO REMOVE
 
 applications:
   - name: ((app-name))-webserver
