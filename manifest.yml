@@ -4,29 +4,45 @@
 x-airflow-common: &airflow-common
   docker:
     image: ghcr.io/gsa/airflow-test:((image-tag))
-  memory: ((memory-quota))
-  disk_quota: ((disk-quota))
   services:
     - ((app-name))-db
   env: &airflow-common-env
     AIRFLOW__LOGGING__LOGGING_LEVEL: INFO
+    # AIRFLOW__WEBSERVER__SECRET_KEY: test123
+    # AIRFLOW__CORE__FERNET_KEY: ''
 
 applications:
   - name: ((app-name))-webserver
     <<: *airflow-common
+    memory: ((webserver-memory-quota))
+    disk_quota: ((webserver-disk-quota))
     instances: ((webserver-instances))
     health-check-type: http 
     health-check-http-endpoint: /health
     health-check-invocation-timeout: 60
     command: airflow webserver
+    routes:
+      - route: ((route-webserver-external))    
     env:
       <<: *airflow-common-env
 
   - name: ((app-name))-scheduler
     <<: *airflow-common
-    no-route: true
+    memory: ((scheduler-memory-quota))
+    disk_quota: ((scheduler-disk-quota))    
     health-check-type: process
     instances: ((scheduler-instances))
     command: airflow scheduler
+    routes:
+      - route: ((route-scheduler-internal))
     env:
       <<: *airflow-common-env
+
+  # - name: ((app-name))-triggerer
+  #   <<: *airflow-common
+  #   no-route: true
+  #   health-check-type: process
+  #   instances: ((scheduler-instances))
+  #   command: airflow triggerer
+  #   env:
+  #     <<: *airflow-common-env

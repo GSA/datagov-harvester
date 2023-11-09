@@ -1,10 +1,9 @@
+# DEPLOY with cf push -f manifest-standalone.yml
 applications:
 - name: airflow-test
   disk_quota: 2G
-  instances: 1
+  instances: 2
   memory: 2G
   docker:
     image: ghcr.io/gsa/airflow-test:development
   command: airflow standalone
-  env:
-    AIRFLOW__LOGGING__LOGGING_LEVEL: INFO

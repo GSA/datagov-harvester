@@ -14,7 +14,8 @@ DATASET_SCHEMA = SCHEMA_DIR.joinpath("dataset.json")
 with open(DATASET_SCHEMA) as json_file:
     dcatus_dataset_schema = json.load(json_file)
 
-daily_data_url = r"https://catalog.data.gov/api/action/package_search?fq=dataset_type:harvest%20AND%20source_type:datajson%20AND%20frequency:DAILY&rows=1000"
+# daily_data_url = r"https://catalog.data.gov/api/action/package_search?fq=dataset_type:harvest%20AND%20source_type:datajson%20AND%20frequency:DAILY&rows=1000"
+daily_data_url = r"https://catalog.data.gov/api/action/package_search?fq=dataset_type:harvest%20AND%20source_type:datajson%20AND%20name:cfpb-json"
 res = requests.get(daily_data_url).json()
 
 for harvest_source in res["result"]["results"]:
