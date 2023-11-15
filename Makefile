@@ -15,7 +15,7 @@ build-docker:
 	docker push ghcr.io/gsa/airflow-test:$(tag)
 
 scale-up:
-	cf scale airflow-test-scheduler -i 1
+	cf scale airflow-test-scheduler -i 2
 	cf scale airflow-test-webserver -i 1
 
 scale-down:

@@ -5,11 +5,10 @@ x-airflow-common: &airflow-common
   docker:
     image: ghcr.io/gsa/airflow-test:((image-tag))
   services:
-    - ((app-name))-db
+    - ((app-name))-db-med
   env: &airflow-common-env
-    AIRFLOW__LOGGING__LOGGING_LEVEL: INFO
-    # AIRFLOW__WEBSERVER__SECRET_KEY: test123
-    # AIRFLOW__CORE__FERNET_KEY: ''
+    AIRFLOW__LOGGING__LOGGING_LEVEL: DEBUG
+    AIRFLOW__CORE__MAX_ACTIVE_TASKS_PER_DAG: 32
 
 applications:
   - name: ((app-name))-webserver
