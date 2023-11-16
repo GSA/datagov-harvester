@@ -13,8 +13,8 @@ DATASET_SCHEMA = CURRENT_DIR / "schemas/dataset.json"
 
 DAILY_HARVEST_SOURCE = CURRENT_DIR / "sources/daily.json"
 
-def create_dag(dag_id, schedule, default_args, url):
-    @dag(dag_id=dag_id, schedule=schedule, default_args=default_args, catchup=False)
+def create_dag(dag_id, schedule, default_args, tags, url):
+    @dag(dag_id=dag_id, schedule=schedule, tags=tags, default_args=default_args, catchup=False)
     def etl_pipeline():
         def on_failure_callback(context):
             ti = context['task_instance']
@@ -56,4 +56,4 @@ with DAILY_HARVEST_SOURCE.open() as fp:
         schedule = "@daily"
         tags = ['daily']
 
-        create_dag(dag_id, schedule, default_args, url)
+        create_dag(dag_id, schedule, default_args, tags, url)
