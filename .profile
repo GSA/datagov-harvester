@@ -48,7 +48,7 @@ export APP_NAME=$(echo $VCAP_APPLICATION | jq -r '.application_name')
 # export AIRFLOW__LOGGING__REMOTE_BASE_LOG_FOLDER="s3://$(vcap_get_service s3 .credentials.endpoing)/$(vcap_get_service s3 .credentials.bucket)/logs"
 # export AIRFLOW__LOGGING__ENCRYPT_S3_LOGS="false"
 
-AIRFLOW__DATABASE__SQL_ALCHEMY_CONN="$(vcap_get_service db-med .credentials.uri)"
+AIRFLOW__DATABASE__SQL_ALCHEMY_CONN="$(vcap_get_service db .credentials.uri)"
 export AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=${AIRFLOW__DATABASE__SQL_ALCHEMY_CONN/'postgres'/'postgresql+psycopg2'}
 
 # TODO connections can be provided here:

@@ -3,7 +3,7 @@ space-name: development
 image-tag: development
 
 webserver-instances: 1
-scheduler-instances: 1
+scheduler-instances: 2
 
 webserver-memory-quota: 1G
 scheduler-memory-quota: 2G

@@ -6,10 +6,12 @@ import requests
 from airflow.decorators import dag, task
 from jsonschema import Draft202012Validator
 
-ROOT_DIR = Path(__file__).parents[1]
-SCHEMA_DIR = ROOT_DIR.joinpath("dags").joinpath("schemas")
-CATALOG_SCHEMA = SCHEMA_DIR.joinpath("catalog.json")
-DATASET_SCHEMA = SCHEMA_DIR.joinpath("dataset.json")
+
+CURRENT_DIR = Path(__file__).parent.absolute()
+CATALOG_SCHEMA = CURRENT_DIR / "schemas/catalog.json"
+DATASET_SCHEMA = CURRENT_DIR / "schemas/dataset.json"
+
+DAILY_HARVEST_SOURCE = CURRENT_DIR / "sources/daily.json"
 
 def create_dag(dag_id, schedule, default_args, url):
     @dag(dag_id=dag_id, schedule=schedule, default_args=default_args, catchup=False)
@@ -34,23 +36,24 @@ def create_dag(dag_id, schedule, default_args, url):
         def load(dcatus_record, ti=None):
             return ti.xcom_pull(task_ids="validate_dcatus")
 
-        load.expand(dcatus_record=validate.expand(dcatus_record=extract(url)))
+        extracted_record=extract(url)
+        validated_record=validate.expand(dcatus_record=extracted_record)
+        load.expand(dcatus_record=validated_record)
     
     generated_dag = etl_pipeline()
 
     return generated_dag
 
 
-sources = [
-    {'name': 'fcc',
-     'url': 'https://opendata.fcc.gov/data.json'}
-]
+with DAILY_HARVEST_SOURCE.open() as fp:
+    res = json.load(fp)
+    sources = res['result']['results']
+    for source in sources:
+        title = source['name']
+        url = source['url']
+        dag_id = f"{title}_workflow"
+        default_args = {"owner": "airflow", "start_date": datetime(2023, 7, 1)}
+        schedule = "@daily"
+        tags = ['daily']
 
-for n in sources:
-    title = n['name']
-    url = n['url']
-    dag_id = f"{title}_workflow"
-    default_args = {"owner": "airflow", "start_date": datetime(2023, 7, 1)}
-    schedule = "@daily"
-
-    create_dag(dag_id, schedule, default_args, url)
+        create_dag(dag_id, schedule, default_args, url)
