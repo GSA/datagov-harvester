@@ -1,10 +1,16 @@
 .DEFAULT_GOAL := help
 
-up: ## Brings up local docker airflow instance
+up: ## Brings up docker airflow instance using LocalExecutor
 	docker-compose up -d
 
-down: ## Shuts down local docker airflow instance
+down: ## Shuts down local docker airflow instance using LocalExecutor
 	docker-compose down
+
+up-celery: ## Brings up docker airflow instance using CeleryExecutor
+	docker-compose -f docker-compose_celery.yml up -d 
+
+down-celery: ## Shuts down local docker airflow instance using CeleryExecutor
+	docker-compose -f docker-compose_celery.yml down
 	
 scale-up: ## Scales up CF airflow test deploy in current CF space
 	cf scale airflow-test-scheduler -i 2
