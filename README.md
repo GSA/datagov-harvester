@@ -1,58 +1,38 @@
-This Airflow ETL test was built with the following guides:
+This repository contains the Airflow Infrastructure code for Datagov's Harvester 2.0, and is intended to follow best practises for running Airflow in production.
 
 ## Background
 
--   https://towardsdatascience.com/run-airflow-docker-1b83a57616fb
-    -   for airflow setup
--   https://www.freecodecamp.org/news/orchestrate-an-etl-data-pipeline-with-apache-airflow/
-    -   TODO: still need to wire in actual services
--   https://davidgriffiths-data.medium.com/debugging-airflow-in-a-container-with-vs-code-7cc26734444
+For cloud.gov (CF), we build Airflow using CF's Python Buildpak
+For local development, the offical Airflow Docker image is used.
 
 ## Setup
 
-1. Initialize the Airflow client:
+### Non-Automated Tasks for Cloud.gov
+1. Push the apps to cloud.gov
+2. Initialize and configure a PostgresRDB instance
+    2.1 size / config
+3. Bind that to the apps using `cf bind-service {AIRFLOW_WEBSERVER_APP_NAME} {AIRFLOW_DB_NAME}`
+6. Add a network policy to allow the webserver to talk to the scheduler: 
+    - `cf add-network-policy {AIRFLOW_WEBSERVER_APP_NAME}{AIRFLOW_SCHEDULER_APP_NAME} -s development --protocol tcp --port 8080`
+7. Repush your app for the buildpak to bind the DB
 
-```
-docker-compose up airflow-init
-```
+## Develop
 
-2. After that completes successfully, you start your containers as normal:
+### Local Development 
 
-```
-docker-compose up
-```
+> [!NOTE]
+> `devcontainer.json` file is WIP. Currently debugging works but you have to follow extra steps to install Python extension in the container.
 
-3. Access the Airflow UI by visiting: `localhost:8080` using user:password :: `airflow:airflow`
-
-## Debugging Remote Container
-
-(using VS Code)
-
-1. Install Dev Containers extension `ms-vscode-remote.remote-containers`
-2. After you have installed the Remote — Container extension you can open up VS Code’s command pallet (ctrl+shift+p) and type: `Remote-Containers: Attach to a Running Container…`
-3. Attach to `airflow-scheduler`
-4. Open a terminal.
-   4.1 If you receive the error, then you need to modify your dev container settings:
-
-```
-The terminal process failed to launch: Path to shell executable "/sbin/nologin" does not exist.
-```
-
-4.2 Run `Remote-Containers: Open Container Configuration File` from the Command Palette after attaching.
-4.3 Add `"remoteUser": "airflow"` to the JSON
-4.4 Close the Container window and reattach
-4.5 You should now be able to open a terminal 5. Select the correct Python interpreter by opening the command pallete and choosing the global python executable instead of the recommended one.
-5.1 NOTE: This fixes the error you may encounter when when running the debugger:
-
-```
-Exception has occurred: ModuleNotFoundError
-No module named 'airflow'
-  File "/home/airflow/.local/bin/airflow", line 5, in <module>
-    from airflow.__main__ import main
-ModuleNotFoundError: No module named 'airflow'
-```
-
-5. Create a launch.json. This configuration worked for me:
+1. Launch project with `make up` or `docker-compose up -d`
+2. Install "Dev Containers" extension `ms-vscode-remote.remote-containers`
+3. Open VS Code’s command pallet (ctrl+shift+p) and type: `Dev-Containers: Attach to a Running Container…`
+4. Attach to `/datagov-harvester-airflow-scheduler-1`
+5. Once the container has launched, install the Python extension
+5.1 This is temporary until the devcontainer.json file is respected
+6. Once that is done, you want to copy the below template into `launch.json`, overwriting `{DAG_ID}` with the dag_id of the dag you wish to test.
+7. Set breakpoints in your DAG file
+7.1 Note that this does not work with dynamically generated DAGs AFAIK
+8. Run Airflow Test from your Run and Debug menu and wait for the debugger to hit your breakpoint. Sometimes it takes awhile.
 
 ```
 {
@@ -67,21 +47,10 @@ ModuleNotFoundError: No module named 'airflow'
             "args": [
                 "dags",
                 "test",
-                "etl_twitter_pipeline",
+                "{DAG_ID}",
                 "2023-08-17"
             ]
         }
     ]
 }
 ```
-
-5.1 Note that the last the last arg is based on the date YYYY-MM-DD or your log records in the `airflow/logs/scheduler` directory. This is only generated after running the `etl_twitter_pipeline` DAG in the UI and allowing it to dump some logs.
-
-## TODO
-
-    - seed proper `devcontainer.json` file into container
-    - https://betterprogramming.pub/running-a-container-with-a-non-root-user-e35830d1f42a
-
-
-## harvest sources catalog api query example:
-- https://catalog.data.gov/api/action/package_search?fq=dataset_type:harvest
