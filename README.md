@@ -10,11 +10,17 @@ For local development, the offical Airflow Docker image is used.
 ### Non-Automated Tasks for Cloud.gov
 1. Push the apps to cloud.gov
 2. Initialize and configure a PostgresRDB instance
-    2.1 size / config
-3. Bind that to the apps using `cf bind-service {AIRFLOW_WEBSERVER_APP_NAME} {AIRFLOW_DB_NAME}`
-6. Add a network policy to allow the webserver to talk to the scheduler: 
-    - `cf add-network-policy {AIRFLOW_WEBSERVER_APP_NAME}{AIRFLOW_SCHEDULER_APP_NAME} -s development --protocol tcp --port 8080`
-7. Repush your app for the buildpak to bind the DB
+    2.1 Currently this is tested with a `medium-psql` instance using this command: `cf create-service aws-rds medium-psql airflow-test-db`
+3. Initialize and configure a Redis Elasticache instance
+    3.1 `cf create-service aws-elasticache-redis redis-dev airflow-test-redis -c '{"engineVersion": "7.0"}'`
+4. Bind those services to the apps to allow the profile to extract the connection following this pattern:`cf bind-service {AIRFLOW_WEBSERVER_APP_NAME} {AIRFLOW_SERVICE_NAME}`
+    4.1 ex. `cf bind-service airflow-test-webserver airflow-test-db`
+    4.2 > do all the apps need to be bound to redis and DB manually prior to pushing? #TBD
+5. Add network policies to allow the webserver to talk to the scheduler and the workers: 
+    - `cf add-network-policy {AIRFLOW_WEBSERVER_APP_NAME} {AIRFLOW_SCHEDULER_APP_NAME} -s development --protocol tcp --port 8080`
+    - `cf add-network-policy {AIRFLOW_WEBSERVER_APP_NAME} {AIRFLOW_WORKER_APP_NAME} -s development --protocol tcp --port 8080`
+    5.1 > do we need a network policy binding from scheduler > worker? #TBD
+6. Push the app to cloud.gov
 
 ## Develop
 
@@ -54,3 +60,4 @@ For local development, the offical Airflow Docker image is used.
     ]
 }
 ```
+### LocalExecutor alternatives

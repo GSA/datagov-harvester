@@ -31,12 +31,12 @@ export APP_NAME=$(echo $VCAP_APPLICATION | jq -r '.application_name')
 # export REDIS_PASSWORD=$(vcap_get_service redis .credentials.password)
 # export REDIS_PORT=$(vcap_get_service redis .credentials.port)
 
-# export AIRFLOW__CELERY__BROKER_URL="$(vcap_get_service redis .credentials.uri)/0"
-# export BROKER_URL=$AIRFLOW__CELERY__BROKER_URL
+# GET VCAP VALS FOR DB & ELASTICACHE REDIS
+POSTGRES_DB_URI="$(vcap_get_service db .credentials.uri)"
+REDIS_URI="$(vcap_get_service redis .credentials.uri)/0?ssl_cert_reqs=CERT_OPTIONAL"
 
-# # AIRFLOW__CELERY__RESULT_BACKEND="db+$(vcap_get_service db .credentials.uri)"
-# export AIRFLOW__CELERY__RESULT_BACKEND=${AIRFLOW__CELERY__RESULT_BACKEND/'postgres'/'postgresql+psycopg2'}
-# export AIRFLOW__CELERY__RESULT_BACKEND=$AIRFLOW__CELERY__BROKER_URL
+export AIRFLOW__CELERY__BROKER_URL=${REDIS_URI/'redis'/'rediss'}
+export AIRFLOW__CELERY__RESULT_BACKEND=${POSTGRES_DB_URI/'postgres'/'db+postgresql'}
 
 # export FLOWER_PORT="$PORT"
 # export SAML2_PRIVATE_KEY=$(vcap_get_service secrets .credentials.SAML2_PRIVATE_KEY)
@@ -48,7 +48,7 @@ export APP_NAME=$(echo $VCAP_APPLICATION | jq -r '.application_name')
 # export AIRFLOW__LOGGING__REMOTE_BASE_LOG_FOLDER="s3://$(vcap_get_service s3 .credentials.endpoing)/$(vcap_get_service s3 .credentials.bucket)/logs"
 # export AIRFLOW__LOGGING__ENCRYPT_S3_LOGS="false"
 
-AIRFLOW__DATABASE__SQL_ALCHEMY_CONN="$(vcap_get_service db .credentials.uri)"
+AIRFLOW__DATABASE__SQL_ALCHEMY_CONN="${POSTGRES_DB_URI}"
 export AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=${AIRFLOW__DATABASE__SQL_ALCHEMY_CONN/'postgres'/'postgresql+psycopg2'}
 
 # TODO connections can be provided here:
