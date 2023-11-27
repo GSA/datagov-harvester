@@ -6,19 +6,29 @@ x-airflow-common: &airflow-common
     - python_buildpack
   services:
     - ((app-name))-db
+    - ((app-name))-redis
   env: &airflow-common-env
     _AIRFLOW_DB_MIGRATE: true
-    AIRFLOW__CORE__EXECUTOR: LocalExecutor  
+    AIRFLOW__CORE__EXECUTOR: CeleryExecutor  
+    AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: false
+    AIRFLOW__CORE__DAGS_FOLDER: /home/vcap/app/dags
     AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: true
     AIRFLOW__LOGGING__LOGGING_LEVEL: DEBUG
     AIRFLOW__WEBSERVER__EXPOSE_CONFIG: true  # TODO REMOVE
     AIRFLOW__CORE__MAX_ACTIVE_TASKS_PER_DAG: 32
-    AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: false
     AIRFLOW__WEBSERVER__EXPOSE_HOSTNAME: true
-    AIRFLOW__WEBSERVER__BASE_URL: https://airflow-test-webserver.app.cloud.gov:8080
-    AIRFLOW__LOGGING__WORKER_LOG_SERVER_PORT: 8080
+    AIRFLOW__WEBSERVER__BASE_URL: https://airflow-test.app.cloud.gov
     AIRFLOW__CORE__HOSTNAME_CALLABLE: airflow.utils.net.get_host_ip_address
-    AIRFLOW__WEBSERVER__SECRET_KEY: test123
+    AIRFLOW__CELERY_BROKER_TRANSPORT_OPTIONS__VISIBILITY_TIMEOUT: 21600 #WIP
+    AIRFLOW__WEBSERVER__SECRET_KEY: test123 #WIP
+    AIRFLOW__CORE__FERNET_KEY: wN8q6cpCjX1A-rYl9YQNrSR8ZkfhUfFUCbRfTrziC5M=
+    AIRFLOW__API__AUTH_BACKENDS: 'airflow.api.auth.backend.basic_auth'
+    AIRFLOW__SCHEDULER__SCHEDULER_HEALTH_CHECK_SERVER_PORT: 8080 #WIP
+    AIRFLOW__LOGGING__WORKER_LOG_SERVER_PORT: 8080 #WIP
+    AIRFLOW__CELERY__WORKER_PRECHECK: true
+    AIRFLOW__CELERY__OPERATION_TIMEOUT: 5.0
+    # AIRFLOW__LOGGING__TRIGGER_LOG_SERVER_PORT: 8080 #WIP
+    # AIRFLOW__CELERY__FLOWER_PORT: 8080
 
 applications:
   - name: ((app-name))-webserver
@@ -39,7 +49,7 @@ applications:
     <<: *airflow-common
     memory: ((scheduler-memory-quota))
     disk_quota: ((scheduler-disk-quota))    
-    health-check-type: process
+    health-check-type: port
     instances: ((scheduler-instances))
     command: airflow scheduler
     routes:
@@ -47,11 +57,44 @@ applications:
     env:
       <<: *airflow-common-env
 
+  - name: ((app-name))-worker
+    <<: *airflow-common
+    instances: ((worker-instances))
+    memory: ((worker-memory-quota))
+    disk_quota: ((worker-disk-quota))    
+    command: airflow celery worker
+    routes:
+      - route: ((route-worker-internal))    
+    env:
+      <<: *airflow-common-env
+
+ # - name: ((app-name))-dagprocessor
+  #   <<: *airflow-common
+  #   no-route: true
+  #   health-check-type: process
+  #   instances: ((dagprocessor-instances))
+  #   command: airflow dag-processor --verbose
+  #   env:
+  #     <<: *airflow-common-env
+
+
   # - name: ((app-name))-triggerer
   #   <<: *airflow-common
   #   no-route: true
   #   health-check-type: process
-  #   instances: ((scheduler-instances))
+  #   instances: ((triggerer-instances))
   #   command: airflow triggerer
+  #   routes:
+  #     - route: ((route-triggerer-internal))    
+  #   env:
+  #     <<: *airflow-common-env
+
+  # - name: ((app-name))-flower
+  #   <<: *airflow-common
+  #   health-check-type: process
+  #   instances: ((flower-instances)) 
+  #   command: airflow celery flower
+  #   routes:
+  #     - route: ((route-flower-external))    
   #   env:
   #     <<: *airflow-common-env

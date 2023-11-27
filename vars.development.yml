@@ -3,13 +3,17 @@ space-name: development
 image-tag: development
 
 webserver-instances: 1
-scheduler-instances: 2
+scheduler-instances: 1
+worker-instances: 1
 
 webserver-memory-quota: 1G
-scheduler-memory-quota: 2G
+scheduler-memory-quota: 1G
+worker-memory-quota: 2G
 
 webserver-disk-quota: 2G
 scheduler-disk-quota: 2G
+worker-disk-quota: 2G
 
-route-webserver-external: airflow-test-webserver.app.cloud.gov
+route-webserver-external: airflow-test.app.cloud.gov
 route-scheduler-internal: airflow-test-scheduler.apps.internal
+route-worker-internal: airflow-test-worker.apps.internal
