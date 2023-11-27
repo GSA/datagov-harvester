@@ -1,5 +1,5 @@
 ---
-# To apply this manifest: cf push --vars-file vars.<space>.yml
+# To apply this manifest: cf push -f manifest_local-executor.yml --vars-file vars.development.yml   
 
 x-airflow-common: &airflow-common
   buildpacks:
