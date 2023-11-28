@@ -6,11 +6,13 @@
 - Approver: Hyon Kim
 - Contributors: Datagov Team
 - Informed: TTS Leadership
-- Date: 2023-09-26
+- Date: 2023-11-28
 - Tags: infrastructure, orchestration
 - Outcome: Airflow
 
-Technical Story: [TICKET](TBD link to implement basic Airflow Docker install)
+Technical Stories:
+- https://github.com/GSA/data.gov/issues/4511
+- https://github.com/GSA/data.gov/issues/4539
 
 ## Context and Problem Statement
 
@@ -18,7 +20,7 @@ In order to construct an ELT pipeline, an orchestration framework must be chosen
 
 ## Decision Drivers <!-- optional -->
 
-- Solution must be FEDRamped, or the SSB needs to be extended to support it.
+- Solution must be FEDRamped, contained entirely within Cloud.gov, or the SSB needs to be extended to support it.
 
 ## Considerations
 
@@ -84,14 +86,19 @@ Pros:
 
 Cons:
 
-- Not FEDRamped. Must be brokered.
+- KubernetesExecutor requires Amazon EKS, which is not supported by Cloud.gov, however CeleryExecutor/LocalExeuctor can both live fully within Cloud.gov
 
 ## Decision
 
-Chosen option: Airflow
+Chosen option: Airflow using CeleryExecutor*
 
-### Positive Consequences <!-- optional -->
+\* LocalExecutor is also supported and we will benchmark that solution against Celery
 
-### Negative Consequences <!-- optional -->
+### Positive Consequences
+
+- Gives us working production configuration that supports true horizontal scaling
+- Unblocks work on Datagov Harvesting Logic
+
+### Negative Consequences
 
 ## Links <!-- optional -->
