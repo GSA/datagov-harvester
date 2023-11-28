@@ -1,3 +1,4 @@
+```mermaid
 flowchart LR
 
   %% Algorithm
@@ -110,3 +111,5 @@ flowchart LR
   is_status_new_2{Is the Status new?}
   is_status_changed{Is the Status changed?}
   is_date_different{Is the Date different?}
+
+```
