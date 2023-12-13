@@ -1,4 +1,4 @@
-from harvester.load.ckan import (
+from harvester.load import (
     create_ckan_package,
     purge_ckan_package,
     patch_ckan_package,

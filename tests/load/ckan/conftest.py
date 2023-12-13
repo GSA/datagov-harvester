@@ -1,5 +1,5 @@
 import pytest
-from harvester.load.ckan import create_ckan_entrypoint, dcatus_to_ckan
+from harvester.load import create_ckan_entrypoint, dcatus_to_ckan
 from harvester.utils.json import open_json
 import os
 from pathlib import Path

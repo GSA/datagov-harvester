@@ -1,13 +1,20 @@
 [tool.poetry]
-name = "datagovharvester"
-version = "0.1.0"
+name = "datagov-harvesting-logic"
+version = "0.0.2"
 description = ""
-authors = ["Jin-Sun-tts <jin.sun@gsa.gov>"]
+# authors = [
+#     {name = "Jin Sun", email = "jin.sun@gsa.gov"},
+#     {name = "Tyler Burton", email = "tyler.burton@gsa.gov"},
+# ]
+authors = ["Datagov Team <datagov@gsa.gov>"]
+maintainers = ["Jin Sun <jin.sun@gsa.gov", "Tyler Burton <tyler.burton@gsa.gov>"]
 readme = "README.md"
 packages = [{include = "harvester"}]
+license = "LICENSE.md"
+repository = "https://github.com/GSA/datagov-harvesting-logic"
 
 [tool.poetry.dependencies]
-python = ">=3.9"
+python = ">=3.10"
 jsonschema = "^4.17.3"
 requests = "^2.31.0"
 python-dotenv = "^1.0.0"

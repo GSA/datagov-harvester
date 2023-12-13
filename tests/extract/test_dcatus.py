@@ -1,4 +1,4 @@
-from harvester.extract.dcatus import download_dcatus_catalog
+from harvester.extract import download_dcatus_catalog
 
 
 def test_extract_dcatus(get_dcatus_job):
