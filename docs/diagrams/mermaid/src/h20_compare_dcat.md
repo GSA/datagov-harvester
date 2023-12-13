@@ -9,7 +9,7 @@ end
 
 subgraph Catalog
   queryCKAN([Faceted Solr Query])
-  extractHash([create `id: sourch_hash` hashmap])
+  extractHash([create `id: source_hash` hashmap])
 end
 
 %% Operations

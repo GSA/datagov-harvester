@@ -12,6 +12,7 @@ import { resolve } from 'node:path';
             await run(
             `${fileSrc}/${file}`, `${fileDest}/${file}`, {puppeteerConfig: {"headless": "old"}},
             )
+            console.log(` `)
         }
     } catch (err) {
         console.error(err)
