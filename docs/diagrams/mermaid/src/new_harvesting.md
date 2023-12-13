@@ -1,7 +1,8 @@
+```mermaid
 flowchart TD
   %% Operations
   sc([SOURCE CREATION])
-  extract([Extract Catalog Source])
+  extract([Extract Faceted Catalog Source])
   compare([Compare Source Catalog to Data.gov Catalog])
   load([Load into Data.gov Catalog])
   validate([Validate Dataset])
@@ -30,3 +31,4 @@ flowchart TD
   load --> completed
   compare --> nochanges
   nochanges --> completed
+```

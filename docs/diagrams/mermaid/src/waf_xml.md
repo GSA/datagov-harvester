@@ -1,3 +1,4 @@
+```mermaid
 flowchart LR
 
   %% Algorithm
@@ -192,3 +193,4 @@ flowchart LR
   is_source_private{Is the Harvest Source Private?}
   is_source_part_of_topic{Is the Harvest Source part of a Topic?}
   is_status_new{Is the Status new?}
+```

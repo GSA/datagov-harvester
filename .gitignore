@@ -7,6 +7,8 @@ pytest-coverage.txt
 __pycache__/
 venv/
 
+# node 
+node_modules/
 # any previous versions of schemas
 **/dataset_**.json
 **/catalog_**.json

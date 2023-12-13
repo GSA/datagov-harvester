@@ -1,3 +1,4 @@
+```mermaid
 flowchart LR
 
   %% Algorithm
@@ -221,3 +222,4 @@ flowchart LR
   has_title{Does the dataset have a title?}
   does_parent_exist{Does Parent exist?}
   is_title_valid{Is the title valid?}
+```

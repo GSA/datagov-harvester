@@ -1,3 +1,4 @@
+```mermaid
 flowchart LR
   %% Operations
   sc([SOURCE CREATION])
@@ -15,3 +16,4 @@ flowchart LR
   scheduled --> gs
   gs --> fs
   fs --> is
+```

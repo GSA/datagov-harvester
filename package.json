@@ -1,0 +1,19 @@
+{
+  "name": "datagov-harvesting-logic",
+  "version": "1.0.0",
+  "description": "This is a library that will be utilized for metadata extraction, validation, transformation, and loading into the data.gov catalog.",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs",
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "makeDoc": "node ./docs/diagrams/mermaid/makeDoc.mjs"
+  },
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@mermaid-js/mermaid-cli": "^10.6.1"
+  }
+}
