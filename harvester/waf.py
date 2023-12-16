@@ -11,12 +11,6 @@ def traverse_waf(url, files=[], file_ext=".xml", folder="/", filters=[]):
         soup = BeautifulSoup(res.content, "html.parser")
         anchors = soup.find_all("a", href=True)
 
-        files += [
-            os.path.join(url, anchor["href"])
-            for anchor in anchors
-            if anchor["href"].endswith(file_ext)
-        ]
-
         folders = []
         for anchor in anchors:
             if (
@@ -26,7 +20,10 @@ def traverse_waf(url, files=[], file_ext=".xml", folder="/", filters=[]):
             ):
                 folders.append(os.path.join(url, anchor["href"]))
 
-        for folder in folders:
-            traverse_waf(folder, files=files, filters=filters)
+            if anchor["href"].endswith(file_ext):
+                files.append(os.path.join(url, anchor["href"]))
+
+    for folder in folders:
+        traverse_waf(folder, files=files, filters=filters)
 
     return files
