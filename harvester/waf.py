@@ -4,6 +4,7 @@ import os
 
 
 def traverse_waf(url, files=[], file_ext=".xml", folder="/", filters=[]):
+    # TODO: add exception handling
     parent = os.path.dirname(url.rstrip("/"))
 
     res = requests.get(url)
