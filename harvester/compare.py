@@ -3,10 +3,9 @@ import logging
 logger = logging.getLogger("harvester")
 
 
-def compare():
+# stub, TODO complete
+def compare(compare_obj):
     """Compares records"""
     logger.info("Hello from harvester.compare()")
 
-    # stub
-
-    pass
+    return compare_obj

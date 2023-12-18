@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "datagov-harvesting-logic"
-version = "0.0.2-2"
+version = "0.0.2-4"
 description = ""
 # authors = [
 #     {name = "Jin Sun", email = "jin.sun@gsa.gov"},
@@ -14,7 +14,7 @@ maintainers = [
 ]
 readme = "README.md"
 packages = [{include = "harvester"}]
-license = "LICENSE.md"
+license = "LICENSE.md" # TODO fix me
 repository = "https://github.com/GSA/datagov-harvesting-logic"
 
 [tool.poetry.dependencies]
@@ -79,5 +79,5 @@ max-complexity = 10
 
 
 [build-system]
-requires = ["poetry-core"]
+requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"

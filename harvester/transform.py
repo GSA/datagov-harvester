@@ -3,10 +3,9 @@ import logging
 logger = logging.getLogger("harvester")
 
 
-def transform():
+# stub, TODO complete
+def transform(transform_obj):
     """Transforms records"""
     logger.info("Hello from harvester.transform()")
 
-    # stub
-
-    pass
+    return transform_obj
