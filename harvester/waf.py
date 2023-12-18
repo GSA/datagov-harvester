@@ -28,3 +28,13 @@ def traverse_waf(url, files=[], file_ext=".xml", folder="/", filters=[]):
         traverse_waf(folder, files=files, filters=filters)
 
     return files
+
+
+def download_waf(files):
+    output = []
+    for file in files:
+        res = requests.get(file)
+        if res.status_code == 200:
+            output.append(res.content)
+
+    return output
