@@ -1,8 +1,9 @@
 name: Publish to PyPI
 on:
-  pull_request:
-    branches: [main]
-    types: [closed]
+  # TODO: configure repo to and uncomment below
+  # pull_request:
+  #   branches: [main]
+  #   types: [closed]
   workflow_dispatch:
     inputs:
       version_no:
@@ -20,6 +21,7 @@ jobs:
       - name: Update setup.py if manual release
         if: github.event_name == 'workflow_dispatch'
         run: |
+          # TODO update for pyproject.toml
           sed -i "s/version='[0-9]\{1,2\}.[0-9]\{1,4\}.[0-9]\{1,4\}',/version='${{github.event.inputs.version_no}}',/g" setup.py
       - name: Create packages
         run: |
