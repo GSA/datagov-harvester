@@ -1,7 +1,7 @@
-import ckanapi
-import re
 import logging
+import re
 
+import ckanapi
 
 logger = logging.getLogger("harvester")
 

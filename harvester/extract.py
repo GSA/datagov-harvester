@@ -1,7 +1,7 @@
-import requests
-from requests.exceptions import RequestException, JSONDecodeError
-
 import logging
+
+import requests
+from requests.exceptions import JSONDecodeError, RequestException
 
 logger = logging.getLogger("harvester")
 
