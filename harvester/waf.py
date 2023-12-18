@@ -33,8 +33,11 @@ def traverse_waf(url, files=[], file_ext=".xml", folder="/", filters=[]):
 def download_waf(files):
     output = []
     for file in files:
+        data = {}
+        data["url"] = file
         res = requests.get(file)
         if res.status_code == 200:
-            output.append(res.content)
+            data["content"] = res.content
+            output.append(data)
 
     return output
