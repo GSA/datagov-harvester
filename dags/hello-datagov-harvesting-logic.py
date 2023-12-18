@@ -28,7 +28,7 @@ task_hello_world = PythonOperator(
 )
 
 def extract():
-    harvester.extract()
+    harvester.extract("some-test-string")
 
 task_extract = PythonOperator(
     task_id='custom_logic_task',

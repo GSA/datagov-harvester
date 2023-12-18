@@ -17,7 +17,7 @@
 
 
 # This doesn't seem right, but seems to work?
--i https://pypi.org/simple ckanapi
--i https://pypi.org/simple pytest
--i https://pypi.org/simple deepdiff
--i https://test.pypi.org/simple datagov-harvesting-logic
+ckanapi
+pytest
+deepdiff
+datagov-harvesting-logic
