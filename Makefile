@@ -1,8 +1,8 @@
 pypi-upload: build-dist  ## Uploads new package to PyPi after clean, build
-	twine upload dist/*	
+	poetry publish
 
-pypi-upload-test: build-dist  ## Uploads new package to TEST PyPi after clean, build
-	twine upload -r testpypi dist/*	
+# pypi-upload-test: build-dist  ## Uploads new package to TEST PyPi after clean, build
+# 	twine upload -r testpypi dist/*	
 
 build-dist: clean-dist  ## Builds new package dist
 	poetry build --verbose
