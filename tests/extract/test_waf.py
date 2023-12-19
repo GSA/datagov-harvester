@@ -1,4 +1,4 @@
-from harvester.extract.waf import traverse_waf, download_waf
+from harvester.extract import download_waf, traverse_waf
 
 
 def test_traverse_waf(get_waf_url):
