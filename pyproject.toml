@@ -24,7 +24,6 @@ python-dotenv = ">=1"
 deepdiff = ">=6"
 pytest = ">=7.3.2"
 ckanapi = ">=4.7"
-ckanapi = "^4.7"
 beautifulsoup4 = "^4.12.2"
 
 [tool.poetry.group.dev.dependencies]
