@@ -16,6 +16,12 @@ test: up ## Runs poetry tests, ignores ckan load
 up: ## Sets up local docker environment
 	docker compose up -d
 
+down: ## Shuts down local docker instance
+	docker-compose down
+
+clean: ## Cleans docker images
+	docker compose down -v --remove-orphans
+
 lint:  ## Lints wtih ruff
 	ruff .
 

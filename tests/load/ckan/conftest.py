@@ -28,7 +28,7 @@ def test_ckan_package_id():
 
 @pytest.fixture
 def test_dcatus_catalog():
-    return open_json(HARVEST_SOURCES / "dcatus_to_ckan.json")
+    return open_json(HARVEST_SOURCES / "dcatus" / "dcatus_to_ckan.json")
 
 
 @pytest.fixture
