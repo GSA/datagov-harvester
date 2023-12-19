@@ -1,5 +1,18 @@
-import ckanapi
+import logging
 import re
+
+import ckanapi
+
+logger = logging.getLogger("harvester")
+
+
+def load():
+    """ """
+    logger.info("Hello from harvester.load()")
+
+    # stub
+
+    pass
 
 
 def create_ckan_extra_base(*args):

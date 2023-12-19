@@ -1,10 +1,10 @@
 ---
 name: Tests on Commit
-on: [push, pull_request]
+on: [push]
 
 env:
-  PY_VERSION: "3.9"
-  POETRY_VERSION: "1.4.2"
+  PY_VERSION: "3.10"
+  POETRY_VERSION: "1.7.1"
   
 jobs:
   lint:

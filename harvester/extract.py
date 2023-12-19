@@ -1,5 +1,9 @@
+import logging
+
 import requests
-from requests.exceptions import RequestException, JSONDecodeError
+from requests.exceptions import JSONDecodeError, RequestException
+
+logger = logging.getLogger("harvester")
 
 
 def download_dcatus_catalog(url):
@@ -20,3 +24,14 @@ def download_dcatus_catalog(url):
         return resp.json()
     except JSONDecodeError as e:
         return Exception(e)
+
+
+def extract(harvest_source) -> list:
+    """Extracts all records from a harvest_source"""
+    logger.info("Hello from harvester.extract()")
+
+    datasets = []
+
+    # stub
+
+    return datasets

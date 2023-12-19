@@ -7,6 +7,7 @@ pytest-coverage.txt
 __pycache__/
 venv/
 credentials.py
+dist/
 
 # any previous versions of schemas
 **/dataset_**.json

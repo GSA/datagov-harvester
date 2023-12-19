@@ -1,11 +1,8 @@
-from harvester.load.ckan import (
-    create_ckan_package,
-    purge_ckan_package,
-    patch_ckan_package,
-    update_ckan_package,
-    dcatus_to_ckan,
-)
 from deepdiff import DeepDiff
+
+from harvester.load import (create_ckan_package, dcatus_to_ckan,
+                            patch_ckan_package, purge_ckan_package,
+                            update_ckan_package)
 
 
 def test_dcatus_to_ckan_transform(test_dcatus_catalog):
