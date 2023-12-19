@@ -6,6 +6,8 @@ pytest-coverage.txt
 .DS_Store
 __pycache__/
 venv/
+credentials.py
+dist/
 
 # node 
 node_modules/
