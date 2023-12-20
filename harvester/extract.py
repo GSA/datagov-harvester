@@ -74,9 +74,10 @@ def download_waf(files):
     return output
 
 
-def extract(harvest_source) -> list:
+def extract(harvest_source):
     """Extracts all records from a harvest_source"""
     logger.info("Hello from harvester.extract()")
+    logger.info(harvest_source["source_type"])
 
     datasets = []
 

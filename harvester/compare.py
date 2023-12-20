@@ -5,7 +5,8 @@ logger = logging.getLogger("harvester")
 
 def compare(harvest_source, ckan_source):
     """Compares records"""
-    logger.info("Hello from harvester.compare()")
+    # TODO better logging
+    logger.info(f"Comparing harvest source: {harvest_source} to ckan's: {ckan_source}.")
 
     output = {
         "create": [],
