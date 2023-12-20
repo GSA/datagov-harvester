@@ -1,7 +1,5 @@
-# Airlow deps
+# Airflow deps
 apache-airflow
-snscrape
-pandas
 psycopg2
 apache-airflow-providers-postgres[amazon]
 apache-airflow-providers-amazon
@@ -14,3 +12,4 @@ apache-airflow-providers-celery
 celery[redis]
 flower
 google-re2
+datagov-harvesting-logic

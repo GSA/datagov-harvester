@@ -5,6 +5,12 @@ up: ## Brings up docker airflow instance using CeleryExecutor
 
 down: ## Shuts down local docker airflow instance using CeleryExecutor
 	docker-compose down
+
+clean: ## Cleans docker images
+	docker compose down -v --remove-orphans
+
+build: ## Forces clean build from Dockerfile
+	docker compose build --no-cache --pull
 	
 scale-up: ## Scales up CF airflow test deploy in current CF space
 	cf scale airflow-test-scheduler -i 1
