@@ -80,6 +80,7 @@ def extract(harvest_source) -> list:
 
     datasets = []
 
-    # stub
+    if harvest_source["source_type"] == "datajson":
+        return download_dcatus_catalog(harvest_source["url"])
 
     return datasets

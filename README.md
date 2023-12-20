@@ -21,6 +21,8 @@ transformation, and loading into the data.gov catalog.
 
 This project is using `poetry` to manage this project. Install [here](https://python-poetry.org/docs/#installation).
 
+For those using pyenv, you can install [via curl](https://python-poetry.org/docs/#installing-with-the-official-installer)
+
 Once installed, `poetry install` installs dependencies into a local virtual environment.
 
 ## Testing

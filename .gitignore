@@ -20,3 +20,6 @@ tmp/
 
 # vscode debugger
 .vscode/
+
+# node_modules
+node_modules
