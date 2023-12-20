@@ -1,7 +1,7 @@
 .DEFAULT_GOAL := help
 
 up: ## Brings up docker airflow instance using CeleryExecutor
-	docker-compose up -d
+	docker-compose up
 
 down: ## Shuts down local docker airflow instance using CeleryExecutor
 	docker-compose down
