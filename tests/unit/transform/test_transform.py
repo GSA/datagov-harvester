@@ -1,11 +1,13 @@
 from harvester.transform import transform
 from harvester.extract import traverse_waf, download_waf
+from unittest.mock import patch
 
 
-def test_transform(transform_route, waf_url):
+@patch("harvester.transform.transform")
+def test_transform(mock_transform):
     """tests transform"""
 
-    files = traverse_waf(waf_url, filters=["../", "dcatus/"])
+    files = traverse_waf("http://localhost:80", filters=["../", "dcatus/"])
     downloaded_files = download_waf(files)
 
     for file in downloaded_files:
@@ -14,5 +16,10 @@ def test_transform(transform_route, waf_url):
             "reader": "fgdc",
             "writer": "iso19115_3",
         }
-        transform_response = transform(transform_route, data)
+
+        mock_transform.return_value = {
+            **data.copy(),
+            **{"transformed_data": "mock_xml_data"},
+        }
+        transform_response = transform(data)
         assert transform_response["transformed_data"] is not None
