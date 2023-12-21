@@ -11,6 +11,10 @@ from .transform import transform
 from .utils import *
 from .validate import *
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
 # configuration settings
 bucket_name = "test-bucket"
 content_types = {
