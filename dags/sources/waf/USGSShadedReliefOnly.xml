@@ -1,0 +1,218 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE metadata SYSTEM "https://thor-f5.er.usgs.gov/ngtoc/metadata/fgdc-std-001-1998.dtd">
+<metadata>
+   <idinfo>
+      <citation>
+         <citeinfo>
+            <origin>U.S. Geological Survey</origin>
+            <pubdate>2018</pubdate>
+            <title>USGS Hill Shade Base Map Service from The National Map</title>
+            <geoform>raster digital data, map service</geoform>
+            <pubinfo>
+               <pubplace>Rolla, MO and Denver, CO</pubplace>
+               <publish>USGS - National Geospatial Technical Operations Center (NGTOC)</publish>
+            </pubinfo>
+            <onlink>https://viewer.nationalmap.gov</onlink>
+         </citeinfo>
+      </citation>
+      <descript>
+         <abstract>The USGS Shaded Relief base map service from The National Map was created with data from the 3D Elevation Program (3DEP) for large and medium scales (1:9,028 through 1:1,155,581), and Global Multi-resolution Terrain Elevation Data 2010 (GMTED2010) for small scales (1:2,311,162 through 1:295,828,764). 3DEP maintains a seamless dataset of best available raster elevation data, as LIDAR and as digital elevation models (DEMs), for the conterminous United States, Alaska, Hawaii, and Territorial Islands. Resolutions available include 1-meter, 3-meter (1/9-arc-second), 10-meter (1/3-arc-second), 30-meter (1-arc-second), and 60-meter (2-arc-second; only in Alaska). 3DEP also contains coverage of Canada, Mexico, Central America, and the Caribbean at 30-meter (1-arc-second) resolution. 3DEP shaded relief was derived with a multi-directional hillshade technique. Small-scale shaded relief was created with a single-direction hillshade from GMTED2010 global elevation data at 7.5-, 15-, and 30-arc-second resolutions, and resampled further for scales 1:18,489,298 and smaller. Ocean areas are left unfilled for maximum flexibility by end users. For additional information, go to https://topotools.cr.usgs.gov/gmted_viewer/ , https://nationalmap.gov/3DEP/ , and https://apps.nationalmap.gov/3depdem/ </abstract>
+         <purpose>This cached tiled base map provides a visualization of the free data that is available for download from The National Map
+            at https://viewer.nationalmap.gov. </purpose>
+         <supplinf></supplinf>
+      </descript>
+      <timeperd>
+         <timeinfo>
+            <sngdate>
+               <caldate>2018</caldate>
+            </sngdate>
+         </timeinfo>
+         <current>publication date</current>
+      </timeperd>
+      <status>
+         <progress>Complete</progress>
+         <update>As needed</update>
+      </status>
+      <spdom>
+         <bounding>
+            <westbc>-179.1666667</westbc>
+            <eastbc>180</eastbc>
+            <northbc>71.5</northbc>
+            <southbc>17.625</southbc>
+         </bounding>
+      </spdom>
+      <keywords>
+         <theme>
+            <themekt>ISO 19115 Topic Category</themekt>
+            <themekey>imageryBaseMapsEarthCover</themekey>
+            <themekey>elevation</themekey>
+         </theme>
+         <theme>
+            <themekt>NGDA Portfolio Themes</themekt>
+            <themekey>National Geospatial Data Asset</themekey>
+            <themekey>NGDA</themekey>
+            <themekey>Elevation Theme</themekey>
+         </theme>         
+         <theme>
+            <themekt>The National Map Theme Thesaurus</themekt>
+            <themekey>Elevation</themekey>
+         </theme>
+         <theme>
+            <themekt>The National Map Type Thesaurus</themekt>
+            <themekey>Base Map Service</themekey>
+         </theme>
+         <place>
+            <placekt>Geographic Names Information System</placekt>
+            <placekey>US</placekey>
+            <placekey>United States</placekey>
+         </place>
+      </keywords>
+
+      <accconst>None</accconst>
+      <useconst>None. Acknowledgement of the originating agencies would be appreciated in products derived from these data. </useconst>
+      <browse>
+         <browsen>https://thor-f5.er.usgs.gov/ngtoc/metadata/waf/services/base_maps/browse/basemap-hillshade.png</browsen>
+         <browsed>Browse graphic showing US representation at small scale.</browsed>
+         <browset>JPG</browset>
+      </browse>
+      <datacred>USGS</datacred>
+      <native>ArcGIS 10.5</native>
+   </idinfo>
+   <spdoinfo>
+      <direct>Raster</direct>
+   </spdoinfo>
+   <spref>
+      <horizsys>
+         <planar>
+            <mapproj>
+               <mapprojn>WGS84 Web Mercator (Auxiliary Sphere)</mapprojn>
+               <mercator>
+                  <stdparll>0</stdparll>
+                  <longcm>0</longcm>
+                  <feast>0</feast>
+                  <fnorth>0</fnorth>
+               </mercator>
+            </mapproj>
+            <planci>
+               <plance>coordinate pair</plance>
+               <coordrep>
+                  <absres>1.000000</absres>
+                  <ordres>1.000000</ordres>
+               </coordrep>
+               <plandu>meters</plandu>
+            </planci>
+         </planar>
+      </horizsys>
+   </spref>
+   <distinfo>
+      <distrib>
+         <cntinfo>
+            <cntorgp>
+               <cntorg>U.S. Geological Survey</cntorg>
+               <cntper>Not Provided</cntper>
+            </cntorgp>
+            <cntaddr>
+               <addrtype>mailing and physical</addrtype>
+               <address>PO Box 25046 Denver Federal Center</address>
+               <city>Lakewood</city>
+               <state>CO</state>
+               <postal>80225</postal>
+            </cntaddr>
+            <cntvoice>1-888-ASK-USGS (1-888-275-8747)</cntvoice>
+            <cntemail>tnm_help@usgs.gov</cntemail>
+         </cntinfo>
+      </distrib>
+      <resdesc>USGS Hill Shade Base Map Service</resdesc>
+      <distliab>Although these data have been processed successfully on a computer system at the U.S. Geological Survey, no warranty
+         expressed or implied is made regarding the accuracy or utility of the data on any other system or for general or scientific
+         purposes, nor shall the act of distribution constitute any such warranty. This disclaimer applies both to individual use of the
+         data and aggregate use with other data. It is strongly recommended that these data are directly acquired from a U.S. Geological
+         Survey server, and not indirectly through other sources which may have changed the data in some way. It is also strongly
+         recommended that careful attention be paid to the contents of the metadata file associated with these data. The U.S. Geological
+         Survey shall not be held liable for improper or incorrect use of the data described and/or contained herein.</distliab>
+      <stdorder>
+         <digform>
+            <digtinfo>
+               <formname>ShadedReliefOnly Base Map Service (ArcGIS)</formname>
+               <formvern>10.21</formvern>
+               <formspec>https://www.geoplatform.gov/spec/</formspec>               
+            </digtinfo>
+            <digtopt>
+               <onlinopt>
+                  <computer>
+                     <networka>
+                        <networkr>https://basemap.nationalmap.gov/arcgis/rest/services/USGSShadedReliefOnly/MapServer</networkr>
+                     </networka>
+                  </computer>
+               </onlinopt>
+            </digtopt>
+         </digform>
+         <digform>
+            <digtinfo>
+               <formname>ShadedReliefOnly Base Map Service (WMS)</formname>
+               <formvern>1.3.0</formvern>
+               <formspec>https://www.opengeospatial.org/standards/wms</formspec>              
+            </digtinfo>
+            <digtopt>
+               <onlinopt>
+                  <computer>
+                     <networka>
+                        <networkr>https://basemap.nationalmap.gov/arcgis/services/USGSShadedReliefOnly/MapServer/WMSServer?request=GetCapabilities&amp;service=WMS</networkr>
+                     </networka>
+                  </computer>
+               </onlinopt>
+            </digtopt>
+         </digform>
+         <digform>
+            <digtinfo>
+               <formname>ShadedReliefOnly Base Map Service (WMTS)</formname>
+               <formvern>1.0.0</formvern>
+               <formspec>https://www.opengeospatial.org/standards/wmts</formspec>
+            </digtinfo>
+            <digtopt>
+               <onlinopt>
+                  <computer>
+                     <networka>
+                        <networkr>https://basemap.nationalmap.gov/arcgis/rest/services/USGSShadedReliefOnly/MapServer/WMTS/1.0.0/WMTSCapabilities.xml</networkr>
+                     </networka>
+                  </computer>
+               </onlinopt>
+            </digtopt>
+         </digform>
+         <fees>None</fees>
+      </stdorder>
+   </distinfo>
+   <metainfo>
+      <metd>20181128</metd>
+      <metc>
+         <cntinfo>
+            <cntorgp>
+               <cntorg>U.S. Geological Survey, National Geospatial Technical Operations Center</cntorg>
+               <cntper>Not Provided</cntper>
+            </cntorgp>
+            <cntaddr>
+               <addrtype>mailing and physical</addrtype>
+               <address>1400 Independence Road</address>
+               <city>Rolla</city>
+               <state>MO</state>
+               <postal>65401</postal>
+            </cntaddr>
+            <cntaddr>
+               <addrtype>mailing and physical</addrtype>
+               <address>PO Box 25046 Denver Federal Center</address>
+               <city>Lakewood</city>
+               <state>CO</state>
+               <postal>80225</postal>
+            </cntaddr>
+            <cntvoice>1-888-ASK-USGS (1-888-275-8747)</cntvoice>
+            <cntemail>tnm_help@usgs.gov</cntemail>
+            <hours>Monday through Friday, 8:00 AM to 4:30 PM CT</hours>
+            <cntinst>Metadata information can also be obtained through online services using The National Map Viewer at
+               https://nationalmap.usgs.gov, or EarthExplorer at https://earthexplorer.usgs.gov, or Ask USGS at
+               https://www.usgs.gov/ask.</cntinst>
+         </cntinfo>
+      </metc>
+      <metstdn>FGDC Content Standard for Digital Geospatial Metadata</metstdn>
+      <metstdv>FGDC-STD-001-1998</metstdv>
+   </metainfo>
+</metadata>

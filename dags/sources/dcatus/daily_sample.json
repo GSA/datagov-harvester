@@ -1,0 +1,48 @@
+{
+    "help": "https://catalog.data.gov/api/3/action/help_show?name=package_search",
+    "success": true,
+    "result": {
+        "count": 33,
+        "facets": {},
+        "results": [
+            {
+                "config": "{\"private_datasets\": \"False\"}",
+                "creator_user_id": "a4aca618-886b-4597-8af0-96dfbf874935",
+                "frequency": "DAILY",
+                "id": "f475bc82-df84-4d61-a79e-59763f76c5a8",
+                "metadata_created": "2020-11-10T18:35:15.672387",
+                "metadata_modified": "2020-11-10T22:44:27.430227",
+                "name": "arm-data-json",
+                "notes": "",
+                "organization": {
+                    "id": "1f2ebc13-fc03-4bcd-b2c0-dad0bb510b65",
+                    "name": "doe-gov",
+                    "title": "Department of Energy",
+                    "type": "organization",
+                    "description": "",
+                    "image_url": "http://energy.gov/sites/prod/files/styles/imagelink/public/DoE-Logo.jpeg",
+                    "created": "2020-11-10T15:11:28.814722",
+                    "is_organization": true,
+                    "approval_status": "approved",
+                    "state": "active"
+                },
+                "owner_org": "1f2ebc13-fc03-4bcd-b2c0-dad0bb510b65",
+                "private": false,
+                "private_datasets": "False",
+                "source_type": "datajson",
+                "state": "active",
+                "title": "ARM data.json",
+                "type": "harvest",
+                "url": "https://www.archive.arm.gov/metadata/data.json",
+                "resources": [],
+                "tags": [],
+                "groups": [],
+                "relationships_as_subject": [],
+                "relationships_as_object": [],
+                "extras": []
+            }
+        ],
+        "sort": "views_recent desc",
+        "search_facets": {}
+    }
+}
