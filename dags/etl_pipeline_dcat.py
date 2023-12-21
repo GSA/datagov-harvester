@@ -26,12 +26,14 @@ def create_dag(dag_id, schedule, default_args, tags, source):
             extracted_source = harvester.extract(source)
             return extracted_source["dataset"]
 
-        @task(task_id="compare_dcatus", trigger_rule='one_success', on_failure_callback=on_failure_callback)
+        # TODO determine correct trigger rule that will allow for a single mapped task to proceed
+        # regardless of the status of its siblings
+        @task(task_id="compare_dcatus", on_failure_callback=on_failure_callback)
         def compare(dcatus_record):
             harvester.compare(dcatus_record["identifier"])
             return dcatus_record
 
-        @task(task_id="transform_dcatus", trigger_rule='one_success', on_failure_callback=on_failure_callback)
+        @task(task_id="transform_dcatus", on_failure_callback=on_failure_callback)
         def transform(dcatus_record):
             harvester.transform(dcatus_record)
             return dcatus_record

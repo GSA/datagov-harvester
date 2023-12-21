@@ -9,5 +9,6 @@ RUN apt-get update \
 
 USER airflow
 
+COPY 2.8.0-constraints-3.10.txt /constraints.txt
 COPY requirements.txt /
-RUN pip install --no-cache-dir "apache-airflow==${AIRFLOW_VERSION}" -r /requirements.txt
+RUN pip install --no-cache-dir "apache-airflow==${AIRFLOW_VERSION}" -r /requirements.txt -c /constraints.txt
