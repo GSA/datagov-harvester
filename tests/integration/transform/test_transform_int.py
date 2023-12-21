@@ -2,7 +2,7 @@ from harvester.transform import transform
 from harvester.extract import traverse_waf, download_waf
 
 
-def test_transform(mock_transform):
+def test_transform():
     """tests transform"""
 
     files = traverse_waf("http://localhost:80", filters=["../", "dcatus/"])
@@ -15,5 +15,5 @@ def test_transform(mock_transform):
             "writer": "iso19115_3",
         }
 
-        transform_response = mock_transform(data)
+        transform_response = transform(data)
         assert transform_response["transformed_data"] is not None

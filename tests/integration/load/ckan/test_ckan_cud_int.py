@@ -1,6 +1,5 @@
 from harvester.load import (
     create_ckan_package,
-    dcatus_to_ckan,
     patch_ckan_package,
     purge_ckan_package,
     update_ckan_package,
@@ -13,13 +12,6 @@ def test_create_package(ckan_entrypoint, test_ckan_package):
         purge_ckan_package(ckan_entrypoint, {"id": test_ckan_package["id"]})
     except:  # noqa E722
         pass
-    assert (
-        create_ckan_package(ckan_entrypoint, test_ckan_package)["title"]
-        == test_ckan_package["title"]
-    )
-
-
-def test_create_package(ckan_entrypoint, test_ckan_package):
     assert (
         create_ckan_package(ckan_entrypoint, test_ckan_package)["title"]
         == test_ckan_package["title"]
