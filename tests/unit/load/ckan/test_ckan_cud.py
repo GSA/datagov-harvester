@@ -1,8 +1,8 @@
+from unittest.mock import patch
+
 from deepdiff import DeepDiff
 
-from harvester.load import (create_ckan_package, dcatus_to_ckan,
-                            patch_ckan_package, purge_ckan_package,
-                            update_ckan_package)
+import harvester
 
 
 def test_dcatus_to_ckan_transform(test_dcatus_catalog):
@@ -56,35 +56,52 @@ def test_dcatus_to_ckan_transform(test_dcatus_catalog):
         "author_email": None,
     }
 
-    assert DeepDiff(dcatus_to_ckan(test_dcatus_catalog), expected_result) == {}
-
-
-def test_create_package(ckan_entrypoint, test_ckan_package):
-    try:
-        # ckan complains when you try to purge something that doesn't exist
-        purge_ckan_package(ckan_entrypoint, {"id": test_ckan_package["id"]})
-    except:  # noqa E722
-        pass
     assert (
-        create_ckan_package(ckan_entrypoint, test_ckan_package)["title"]
+        DeepDiff(harvester.dcatus_to_ckan(test_dcatus_catalog), expected_result) == {}
+    )
+
+
+@patch("harvester.create_ckan_package")
+def test_create_package(mock_create_ckan_package, ckan_entrypoint, test_ckan_package):
+    mock_create_ckan_package.return_value = test_ckan_package.copy()
+    assert (
+        harvester.create_ckan_package(ckan_entrypoint, test_ckan_package)["title"]
         == test_ckan_package["title"]
     )
 
 
-def test_update_package(ckan_entrypoint, test_ckan_update_package):
+@patch("harvester.update_ckan_package")
+def test_update_package(
+    mock_update_ckan_package, ckan_entrypoint, test_ckan_update_package
+):
+    mock_update_ckan_package.return_value = test_ckan_update_package.copy()
     assert (
-        update_ckan_package(ckan_entrypoint, test_ckan_update_package)["author"]
+        harvester.update_ckan_package(ckan_entrypoint, test_ckan_update_package)[
+            "author"
+        ]
         == test_ckan_update_package["author"]
     )
 
 
-def test_patch_package(ckan_entrypoint, test_ckan_patch_package):
+@patch("harvester.patch_ckan_package")
+def test_patch_package(
+    mock_patch_ckan_package, ckan_entrypoint, test_ckan_patch_package
+):
+    mock_patch_ckan_package.return_value = test_ckan_patch_package.copy()
     assert (
-        patch_ckan_package(ckan_entrypoint, test_ckan_patch_package)["author_email"]
+        harvester.patch_ckan_package(ckan_entrypoint, test_ckan_patch_package)[
+            "author_email"
+        ]
         == test_ckan_patch_package["author_email"]
     )
 
 
-def test_delete_package(ckan_entrypoint, test_ckan_purge_package):
+@patch("harvester.purge_ckan_package")
+def test_delete_package(
+    mock_purge_ckan_package, ckan_entrypoint, test_ckan_purge_package
+):
+    mock_purge_ckan_package.return_value = None
     # ckan doesn't return anything when you purge
-    assert purge_ckan_package(ckan_entrypoint, test_ckan_purge_package) is None
+    assert (
+        harvester.purge_ckan_package(ckan_entrypoint, test_ckan_purge_package) is None
+    )

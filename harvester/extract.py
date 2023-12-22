@@ -29,6 +29,9 @@ def download_dcatus_catalog(url):
 
 
 def traverse_waf(url, files=[], file_ext=".xml", folder="/", filters=[]):
+    """Transverses WAF
+    Please add docstrings
+    """
     # TODO: add exception handling
     parent = os.path.dirname(url.rstrip("/"))
 
@@ -56,6 +59,9 @@ def traverse_waf(url, files=[], file_ext=".xml", folder="/", filters=[]):
 
 
 def download_waf(files):
+    """Downloads WAF
+    Please add docstrings
+    """
     output = []
     for file in files:
         data = {}

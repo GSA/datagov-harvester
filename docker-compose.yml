@@ -1,6 +1,15 @@
 version: "3"
 
 services:
+  mdtranslator:
+    image: ghcr.io/gsa/mdtranslator:latest
+    ports:
+      - 3000:3000
+    healthcheck:
+      test: ["CMD", "curl", "-d", "{}", "-X", "POST", "http://localhost:3000/translates"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
   nginx-harvest-source:
     image: nginx
     volumes:

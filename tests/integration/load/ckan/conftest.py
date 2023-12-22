@@ -4,9 +4,8 @@ from pathlib import Path
 import pytest
 
 from harvester.load import create_ckan_entrypoint, dcatus_to_ckan
-from harvester.utils.json import open_json
 
-TEST_DIR = Path(__file__).parents[2]
+TEST_DIR = Path(__file__).parents[3]
 HARVEST_SOURCES = TEST_DIR / "harvest-sources"
 
 
@@ -24,11 +23,6 @@ def ckan_entrypoint():
 @pytest.fixture
 def test_ckan_package_id():
     return "e875348b-a7c3-47eb-b0c3-168d978b0c0f"
-
-
-@pytest.fixture
-def test_dcatus_catalog():
-    return open_json(HARVEST_SOURCES / "dcatus" / "dcatus_to_ckan.json")
 
 
 @pytest.fixture
