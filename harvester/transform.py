@@ -1,7 +1,8 @@
-import logging
-import requests
 import json
+import logging
 import os
+
+import requests
 
 logger = logging.getLogger("harvester")
 

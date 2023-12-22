@@ -22,8 +22,10 @@ down: ## Shuts down local docker instance
 clean: ## Cleans docker images
 	docker compose down -v --remove-orphans
 
-lint:  ## Lints wtih ruff
+lint:  ## Lints wtih ruff, isort, black
 	ruff .
+	isort .
+	black .
 
 # Output documentation for top-level targets
 # Thanks to https://marmelab.com/blog/2016/02/29/auto-documented-makefile.html

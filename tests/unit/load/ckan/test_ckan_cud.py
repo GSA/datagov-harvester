@@ -1,6 +1,8 @@
-from deepdiff import DeepDiff
-import harvester
 from unittest.mock import patch
+
+from deepdiff import DeepDiff
+
+import harvester
 
 
 def test_dcatus_to_ckan_transform(test_dcatus_catalog):

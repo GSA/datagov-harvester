@@ -1,5 +1,5 @@
+from harvester.extract import download_waf, traverse_waf
 from harvester.transform import transform
-from harvester.extract import traverse_waf, download_waf
 
 
 def test_transform():

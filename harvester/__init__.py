@@ -17,22 +17,22 @@ __all__ = [
     "utils",
 ]
 
+from dotenv import load_dotenv
+
 # TODO these imports will need to be updated to ensure a consistent api
 from .compare import compare
-from .extract import extract, traverse_waf, download_waf
+from .extract import download_waf, extract, traverse_waf
 from .load import (
-    load,
     create_ckan_package,
-    update_ckan_package,
+    dcatus_to_ckan,
+    load,
     patch_ckan_package,
     purge_ckan_package,
-    dcatus_to_ckan,
+    update_ckan_package,
 )
 from .transform import transform
 from .utils import *
 from .validate import *
-
-from dotenv import load_dotenv
 
 load_dotenv()
 

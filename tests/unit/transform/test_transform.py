@@ -1,6 +1,7 @@
 # from harvester.transform import transform
-import harvester
 from unittest.mock import patch
+
+import harvester
 
 
 @patch("harvester.transform")
