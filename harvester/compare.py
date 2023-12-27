@@ -19,9 +19,6 @@ def compare(harvest_source, ckan_source):
 
     output["create"] += list(harvest_ids - ckan_ids)
     output["delete"] += list(ckan_ids - harvest_ids)
-
-    for i in same_ids:
-        if harvest_source[i] != ckan_source[i]:
-            output["update"].append(i)
+    output["update"] += [i for i in same_ids if harvest_source[i] != ckan_source[i]]
 
     return output
