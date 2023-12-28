@@ -5,6 +5,8 @@ import requests
 from bs4 import BeautifulSoup
 from requests.exceptions import JSONDecodeError, RequestException
 
+from .harvest import HarvestSource
+
 logger = logging.getLogger("harvester")
 
 
@@ -28,7 +30,7 @@ def download_dcatus_catalog(url):
         return Exception(e)
 
 
-def traverse_waf(url, files=[], file_ext=".xml", folder="/", filters=[]):
+def traverse_waf(url: str, files=[], file_ext=".xml", folder="/", filters=[]) -> list:
     """Transverses WAF
     Please add docstrings
     """
@@ -58,7 +60,7 @@ def traverse_waf(url, files=[], file_ext=".xml", folder="/", filters=[]):
     return files
 
 
-def download_waf(files):
+def download_waf(files: list) -> list:
     """Downloads WAF
     Please add docstrings
     """
@@ -74,14 +76,19 @@ def download_waf(files):
     return output
 
 
-def extract(harvest_source):
+def extract(harvest_source: HarvestSource):
     """Extracts all records from a harvest_source"""
     logger.info("Hello from harvester.extract()")
-    logger.info(harvest_source["source_type"])
+    logger.info(harvest_source.source_type)
 
     datasets = []
 
-    if harvest_source["source_type"] == "datajson":
-        return download_dcatus_catalog(harvest_source["url"])
+    if harvest_source.source_type == "datajson":
+        return download_dcatus_catalog(harvest_source.url)
+    if harvest_source.source_type == "waf":
+        # TODO waf stuff?
+        pass
+    else:
+        raise Exception(f"Source type {harvest_source.source_type} not found")
 
     return datasets

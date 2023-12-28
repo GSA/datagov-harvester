@@ -11,7 +11,7 @@ clean-dist:  ## Cleans dist dir
 	rm -rf dist/*
 
 test: up ## Runs poetry tests, ignores ckan load
-	poetry run pytest --ignore=./tests/integration
+	poetry run pytest --ignore=./tests/integration --cov=harvester
 
 up: ## Sets up local docker environment
 	docker compose up -d
@@ -23,9 +23,9 @@ clean: ## Cleans docker images
 	docker compose down -v --remove-orphans
 
 lint:  ## Lints wtih ruff, isort, black
-	ruff .
 	isort .
 	black .
+	ruff .
 
 # Output documentation for top-level targets
 # Thanks to https://marmelab.com/blog/2016/02/29/auto-documented-makefile.html

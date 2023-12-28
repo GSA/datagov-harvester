@@ -1,39 +1,41 @@
+from harvester import HarvestSource
 from harvester.extract import download_dcatus_catalog
 
 
-def test_extract_dcatus(get_dcatus_job):
+def test_extract(dcat_example: HarvestSource):
     """download dcat-us json file
-    get_dcatus_job (dict)           :   fixture of a valid dcatus url
+    dcat_example (HarvestSource):   fixture of a valid dcatus url
     """
 
-    assert isinstance(download_dcatus_catalog(get_dcatus_job), dict)
+    assert isinstance(download_dcatus_catalog(dcat_example.url), dict)
 
 
-def test_extract_bad_url(get_bad_url):
+def test_extract_bad_url(dcat_bad_url: HarvestSource):
     """download a bad url.
-    get_bad_url (dict)              :   fixture of a bad url
+    dcat_bad_url (HarvestSource):   fixture of a bad url
     """
 
-    res = download_dcatus_catalog(get_bad_url)
+    res = download_dcatus_catalog(dcat_bad_url.url)
 
     assert isinstance(res, Exception) and str(res) == "non-200 status code"
 
 
-def test_extract_bad_json(get_bad_json):
+def test_extract_bad_json(dcat_bad_json: HarvestSource):
     """download a malformed json.
-    get_bad_json (str)  :   fixture of malformed json
+    dcat_bad_json (HarvestSource)  :   fixture of malformed json
     """
 
-    res = download_dcatus_catalog(get_bad_json)
+    res = download_dcatus_catalog(dcat_bad_json.url)
     assert isinstance(
         res, Exception
     ) and "Expecting property name enclosed in double quotes" in str(res)
 
 
-def test_extract_no_dataset_key(get_no_dataset_key_dcatus_json):
+def test_extract_no_dataset_key(dcat_no_dataset_key_json: HarvestSource):
     """download a invalid dcatus catalog.
-    get_no_dataset_key_dcatus_json (dict)
+    dcat_no_dataset_key_json (HarvestSource)
         :   fixture of a dcatus with no "dataset" key
     """
+    resp = download_dcatus_catalog(dcat_no_dataset_key_json.url)
 
-    assert "dataset" not in download_dcatus_catalog(get_no_dataset_key_dcatus_json)
+    assert "dataset" not in resp

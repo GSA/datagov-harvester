@@ -6,6 +6,7 @@ import requests
 
 logger = logging.getLogger("harvester")
 
+
 def transform(transform_obj):
     """Transforms records"""
     dataset_title = transform_obj["title"]
@@ -15,8 +16,8 @@ def transform(transform_obj):
 
     #
     # TODO
-    # We will make an HTTP call to MDTranslator here 
-    # using the source dataset as the payload 
+    # We will make an HTTP call to MDTranslator here
+    # using the source dataset as the payload
     # and return the transformed result
     #
 
