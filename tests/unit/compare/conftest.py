@@ -56,3 +56,31 @@ def data_sources():
         )  # the response is stored sorted
 
     return harvest_source, ckan_source
+
+
+@pytest.fixture
+def data_sources_raw():
+    harvest_source_datasets = open_json(
+        HARVEST_SOURCES / "dcatus" / "dcatus_compare.json"
+    )["dataset"]
+
+    harvest_source = {d["identifier"]: d for d in harvest_source_datasets}
+
+    ckan_source_datasets = open_json(
+        HARVEST_SOURCES / "dcatus" / "ckan_datasets_resp.json"
+    )["result"]["results"]
+
+    ckan_source = {}
+
+    for d in ckan_source_datasets:
+        orig_meta = None
+        orig_id = None
+        for e in d["extras"]:
+            if e["key"] == "dcat_metadata":
+                orig_meta = eval(e["value"], {"__builtins__": {}})
+            if e["key"] == "identifier":
+                orig_id = e["value"]
+
+        ckan_source[orig_id] = orig_meta
+
+    return harvest_source, ckan_source
