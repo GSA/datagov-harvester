@@ -11,7 +11,7 @@ clean-dist:  ## Cleans dist dir
 	rm -rf dist/*
 
 test: up ## Runs poetry tests, ignores ckan load
-	poetry run pytest --ignore=./tests/load/ckan
+	poetry run pytest --ignore=./tests/integration
 
 up: ## Sets up local docker environment
 	docker compose up -d
