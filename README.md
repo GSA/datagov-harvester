@@ -37,3 +37,36 @@ Once installed, `poetry install` installs dependencies into a local virtual envi
 
 If you followed the instructions for `CKAN load testing` and `Harvester testing` you can simply run `poetry run pytest` to run all tests.
 
+
+## Comparison 
+- ./tests/harvest_sources/ckan_datasets_resp.json
+    - represents what ckan would respond with after querying for the harvest source name
+- ./tests/harvest_sources/dcatus_compare.json
+    - represents a changed harvest source
+    - what has been created?
+        - datasets[0] 
+            - "identifier" = "cftc-dc10"
+    - what has been deleted? 
+        - datasets[0]
+            - "identifier" = "cftc-dc1"
+    - what has been updated? 
+        - datasets[1]
+            - from "modified": "R/P1M" to "modified": "R/P1M Update"
+        - datasets[2] 
+            - from "keyword": ["cotton on call", "cotton on-call"]
+            - to "keyword": ["cotton on call", "cotton on-call", "update keyword"]
+        - datasets[3] 
+            - from "publisher": {
+                "name": "U.S. Commodity Futures Trading Commission",
+                "subOrganizationOf": {
+                    "name": "U.S. Government"
+                }
+            }
+            - to "publisher": {
+                "name": "U.S. Commodity Futures Trading Commission",
+                "subOrganizationOf": {
+                    "name": "Changed Value"
+                }
+            }
+- ./test/harvest_sources/dcatus.json 
+    - represents an original harvest source prior to change occuring.
