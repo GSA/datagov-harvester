@@ -33,22 +33,22 @@ def data_sources(ckan_entrypoint):
         )  # the extract needs to be sorted
 
     ckan_source_datasets = search_ckan(
-        ckan_entrypoint, {"q": 'harvest_source_name:"test_harvest_source_name"'}
+        ckan_entrypoint,
+        {
+            "q": 'harvest_source_name:"test_harvest_source_name"',
+            "fl": [
+                "extras_harvest_source_name",
+                "extras_dcat_metadata",
+                "extras_identifier",
+            ],
+        },
     )["results"]
 
     ckan_source = {}
 
     for d in ckan_source_datasets:
-        orig_meta = None
-        orig_id = None
-        for e in d["extras"]:
-            if e["key"] == "dcat_metadata":
-                orig_meta = eval(e["value"], {"__builtins__": {}})
-            if e["key"] == "identifier":
-                orig_id = e["value"]
-
-        ckan_source[orig_id] = dataset_to_hash(
-            orig_meta
+        ckan_source[d["identifier"]] = dataset_to_hash(
+            eval(d["dcat_metadata"], {"__builtins__": {}})
         )  # the response is stored sorted
 
     return harvest_source, ckan_source
