@@ -1,6 +1,5 @@
 import pytest
 from pathlib import Path
-import json
 from harvester.utils.json import open_json
 from harvester.utils.util import sort_dataset, dataset_to_hash
 

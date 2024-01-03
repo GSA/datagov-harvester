@@ -1,16 +1,4 @@
-from harvester.load import (
-    create_ckan_package,
-    purge_ckan_package,
-    update_ckan_package,
-    dcatus_to_ckan,
-)
 from harvester.compare import compare
-from harvester.utils.json import open_json
-
-from pathlib import Path
-
-TEST_DIR = Path(__file__).parents[3]
-HARVEST_SOURCES = TEST_DIR / "harvest-sources"
 
 
 def test_compare(data_sources):

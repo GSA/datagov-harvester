@@ -1,24 +1,10 @@
-import os
 from pathlib import Path
-
 import pytest
-
-from harvester.load import create_ckan_entrypoint, dcatus_to_ckan
+from harvester.load import dcatus_to_ckan
 from harvester.utils.json import open_json
 
 TEST_DIR = Path(__file__).parents[3]
 HARVEST_SOURCES = TEST_DIR / "harvest-sources"
-
-
-# @pytest.fixture
-# def ckan_entrypoint():
-#     catalog_dev_api_key = os.getenv("CKAN_API_TOKEN_DEV")  # gha
-#     if catalog_dev_api_key is None:  # local
-#         import credentials
-
-#         catalog_dev_api_key = credentials.ckan_catalog_dev_api_key
-
-#     return create_ckan_entrypoint("https://catalog-dev.data.gov/", catalog_dev_api_key)
 
 
 @pytest.fixture

@@ -6,6 +6,7 @@ import harvester
 
 
 def test_dcatus_to_ckan_transform(test_dcatus_catalog):
+    # ruff: noqa: E501
     expected_result = {
         "name": "fdic-failed-bank-list",
         "owner_org": "test",
