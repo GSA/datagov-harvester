@@ -9,6 +9,8 @@ HARVEST_SOURCES = TEST_DIR / "harvest-sources"
 
 @pytest.fixture
 def artificial_data_sources():
+    # key = dataset identifier
+    # value = hash value of the dataset
     harvest_source = {
         "1": "de955c1b-fa16-4b84-ad6c-f891ba276056",  # update
         "2": "6d500ebc-19f8-4541-82b0-f02ad24c82e3",  # do nothing
