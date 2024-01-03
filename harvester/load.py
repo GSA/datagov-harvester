@@ -1,7 +1,7 @@
 import logging
 import re
-
 import ckanapi
+from harvester.utils.util import sort_dataset
 
 logger = logging.getLogger("harvester")
 
@@ -21,7 +21,7 @@ def create_ckan_extra_base(*args):
     return [{"key": d[0], "value": d[1]} for d in data]
 
 
-def create_ckan_extras_additions(dcatus_catalog, additions):
+def create_ckan_extras_additions(dcatus_dataset, additions):
     extras = [
         "accessLevel",
         "bureauCode",
@@ -35,10 +35,13 @@ def create_ckan_extras_additions(dcatus_catalog, additions):
 
     for extra in extras:
         data = {"key": extra, "value": None}
+        val = dcatus_dataset[extra]
         if extra == "publisher":
-            data["value"] = dcatus_catalog[extra]["name"]
+            data["value"] = val["name"]
         else:
-            data["value"] = dcatus_catalog[extra]
+            if isinstance(val, list):  # TODO: confirm this is what we want.
+                val = val[0]
+            data["value"] = val
         output.append(data)
 
     return output + additions
@@ -70,21 +73,28 @@ def get_email_from_str(in_str):
         return res.group(0)
 
 
-def create_ckan_resources(dists):
+def create_ckan_resources(dcatus_dataset):
     output = []
 
-    for dist in dists:
+    if "distribution" not in dcatus_dataset:
+        return output
+
+    for dist in dcatus_dataset["distribution"]:
         url_key = "downloadURL" if "downloadURL" in dist else "accessURL"
-        resource = {"url": dist[url_key], "mimetype": dist["mediaType"]}
+        resource = {"url": dist[url_key]}
+        if "mimetype" in dist:
+            resource["mimetype"] = dist["mediaType"]
+
         output.append(resource)
 
     return output
 
 
-def simple_transform(dcatus_catalog):
+def simple_transform(dcatus_dataset):
     output = {
-        "name": "-".join(dcatus_catalog["title"].lower().split()),
-        "owner_org": "test",
+        "name": "-".join(dcatus_dataset["title"].lower().split()),
+        "owner_org": "test",  # TODO: CHANGE THIS!
+        "identifier": dcatus_dataset["identifier"],
     }
 
     mapping = {
@@ -93,14 +103,17 @@ def simple_transform(dcatus_catalog):
         "title": "title",
     }
 
-    for k, v in dcatus_catalog.items():
+    for k, v in dcatus_dataset.items():
         if k not in mapping:
             continue
         if isinstance(mapping[k], dict):
             temp = {}
+            to_skip = ["@type"]
             for k2, v2 in v.items():
                 if k2 == "hasEmail":
                     v2 = get_email_from_str(v2)
+                if k2 in to_skip:
+                    continue
                 temp[mapping[k][k2]] = v2
             output = {**output, **temp}
         else:
@@ -116,7 +129,7 @@ def create_defaults():
     }
 
 
-def dcatus_to_ckan(dcatus_catalog):
+def dcatus_to_ckan(dcatus_dataset, harvest_source_name):
     """
     example:
     - from this:
@@ -126,23 +139,32 @@ def dcatus_to_ckan(dcatus_catalog):
 
     """
 
-    output = simple_transform(dcatus_catalog)
+    output = simple_transform(dcatus_dataset)
 
-    resources = create_ckan_resources(dcatus_catalog["distribution"])
-    tags = create_ckan_tags(dcatus_catalog["keyword"])
-    pubisher_hierarchy = create_ckan_publisher_hierarchy(dcatus_catalog["publisher"])
+    resources = create_ckan_resources(dcatus_dataset)
+    tags = create_ckan_tags(dcatus_dataset["keyword"])
+    pubisher_hierarchy = create_ckan_publisher_hierarchy(dcatus_dataset["publisher"])
 
     extras_base = create_ckan_extra_base(
-        pubisher_hierarchy, "Dataset", dcatus_catalog["publisher"]["name"]
+        pubisher_hierarchy, "Dataset", dcatus_dataset["publisher"]["name"]
     )
-    extras = create_ckan_extras_additions(dcatus_catalog, extras_base)
+    extras = create_ckan_extras_additions(dcatus_dataset, extras_base)
 
     defaults = create_defaults()
 
     output["resources"] = resources
     output["tags"] = tags
+
     output["extras"] = extras_base
     output["extras"] += extras
+    output["extras"] += [
+        {
+            "key": "dcat_metadata",
+            "value": str(sort_dataset(dcatus_dataset)),
+        }
+    ]
+
+    output["extras"] += [{"key": "harvest_source_name", "value": harvest_source_name}]
 
     return {**output, **defaults}
 
@@ -167,3 +189,7 @@ def update_ckan_package(ckan, update_data):
 
 def purge_ckan_package(ckan, package_data):
     return ckan.action.dataset_purge(**package_data)
+
+
+def search_ckan(ckan, query):
+    return ckan.action.package_search(**query)
