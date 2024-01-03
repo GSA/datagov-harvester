@@ -1,7 +1,9 @@
-import pytest
 from pathlib import Path
+
+import pytest
+
 from harvester.utils.json import open_json
-from harvester.utils.util import sort_dataset, dataset_to_hash
+from harvester.utils.util import dataset_to_hash, sort_dataset
 
 TEST_DIR = Path(__file__).parents[2]
 HARVEST_SOURCES = TEST_DIR / "harvest-sources"

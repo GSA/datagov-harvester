@@ -1,6 +1,7 @@
 import hashlib
-import sansjson
 import json
+
+import sansjson
 
 
 def sort_dataset(d):

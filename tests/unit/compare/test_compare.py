@@ -1,5 +1,5 @@
 from harvester.compare import compare
-from harvester.utils.util import sort_dataset, dataset_to_hash
+from harvester.utils.util import dataset_to_hash, sort_dataset
 
 
 def test_artificial_compare(artificial_data_sources):

@@ -1,7 +1,9 @@
-from pathlib import Path
-import pytest
 import os
-from harvester.load import dcatus_to_ckan, create_ckan_entrypoint
+from pathlib import Path
+
+import pytest
+
+from harvester.load import create_ckan_entrypoint, dcatus_to_ckan
 from harvester.utils.json import open_json
 
 TEST_DIR = Path(__file__).parents[3]

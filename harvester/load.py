@@ -1,6 +1,8 @@
 import logging
 import re
+
 import ckanapi
+
 from harvester.utils.util import sort_dataset
 
 logger = logging.getLogger("harvester")
