@@ -1,3 +1,3 @@
-from . import json
+from . import json, util
 
-__all__ = ["json"]
+__all__ = ["json", "util"]

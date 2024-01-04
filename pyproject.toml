@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "datagov-harvesting-logic"
-version = "0.0.4"
+version = "0.1.0"
 description = ""
 # authors = [
 #     {name = "Jin Sun", email = "jin.sun@gsa.gov"},
@@ -25,6 +25,7 @@ deepdiff = ">=6"
 pytest = ">=7.3.2"
 ckanapi = ">=4.7"
 beautifulsoup4 = "^4.12.2"
+sansjson = "^0.3.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.3.0"
