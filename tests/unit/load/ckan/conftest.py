@@ -51,3 +51,21 @@ def test_ckan_patch_package(test_ckan_package_id):
 @pytest.fixture
 def test_ckan_purge_package(test_ckan_package_id):
     return {"id": test_ckan_package_id}
+
+
+@pytest.fixture
+def test_ckan_transform_catalog():
+    return {
+        "identifier": "test identifier",
+        "contactPoint": {"fn": "Bob Smith", "hasEmail": "bob.smith@example.com"},
+        "description": "test description",
+        "title": "test title",
+    }
+
+
+@pytest.fixture
+def test_ckan_publisher():
+    return {
+        "name": "U.S. Test Organization of the Tests",
+        "subOrganizationOf": {"name": "Test Incorporated"},
+    }

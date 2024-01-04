@@ -145,7 +145,9 @@ def dcatus_to_ckan(dcatus_dataset, harvest_source_name):
 
     resources = create_ckan_resources(dcatus_dataset)
     tags = create_ckan_tags(dcatus_dataset["keyword"])
-    pubisher_hierarchy = create_ckan_publisher_hierarchy(dcatus_dataset["publisher"])
+    pubisher_hierarchy = create_ckan_publisher_hierarchy(
+        dcatus_dataset["publisher"], []
+    )
 
     extras_base = create_ckan_extra_base(
         pubisher_hierarchy, "Dataset", dcatus_dataset["publisher"]["name"]
