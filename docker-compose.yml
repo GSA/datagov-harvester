@@ -43,8 +43,8 @@ x-airflow-common: &airflow-common
     # In order to add custom dependencies or upgrade provider packages you can use your extended image.
     # Comment the image line, place your Dockerfile in the directory where you placed the docker-compose.yaml
     # and uncomment the "build" line below, Then run `docker compose build` to build the images.
-    image: ${AIRFLOW_IMAGE_NAME:-apache/airflow:2.7.3}
-    # build: .
+    # image: ${AIRFLOW_IMAGE_NAME:-apache/airflow:2.7.3}
+    build: .
     environment: &airflow-common-env
         AIRFLOW__CORE__EXECUTOR: CeleryExecutor
         AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
@@ -53,16 +53,19 @@ x-airflow-common: &airflow-common
         # AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
         ## ALTERED TO TEST
         AIRFLOW__CORE__SQL_ALCHEMY_CONN: sql_alchemy_conn = postgresql+psycopg2://postgres:1234@localhost:5432/test
-        AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://airflow:airflow@postgres/airflow
-        AIRFLOW__CELERY__BROKER_URL: redis://:@redis:6379/0
         AIRFLOW__CORE__FERNET_KEY: ''
         AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'false'
         AIRFLOW__API__AUTH_BACKENDS: 'airflow.api.auth.backend.basic_auth'
         _PIP_ADDITIONAL_REQUIREMENTS: ${_PIP_ADDITIONAL_REQUIREMENTS:-}
+        AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://airflow:airflow@postgres/airflow
+        AIRFLOW__CELERY__BROKER_URL: redis://:@redis:6379/0
         AIRFLOW__LOGGING__WORKER_LOG_SERVER_PORT: 8080 #WIP
         AIRFLOW__LOGGING__TRIGGER_LOG_SERVER_PORT: 8080 #WIP
         # AIRFLOW__CELERY__FLOWER_PORT: 8080
         AIRFLOW__SCHEDULER__SCHEDULER_HEALTH_CHECK_SERVER_PORT: 8080 #WIP
+        AIRFLOW__WEBSERVER__WEB_SERVER_MASTER_TIMEOUT: 300
+        AIRFLOW__WEBSERVER__WEB_SERVER_WORKER_TIMEOUT: 300
+
     volumes:
         - ./dags:/opt/airflow/dags
         - ./logs:/opt/airflow/logs
@@ -181,13 +184,6 @@ services:
                 airflow_version_comparable=$$(ver $${airflow_version})
                 min_airflow_version=2.2.0
                 min_airflow_version_comparable=$$(ver $${min_airflow_version})
-                if (( airflow_version_comparable < min_airflow_version_comparable )); then
-                  echo
-                  echo -e "\033[1;31mERROR!!!: Too old Airflow version $${airflow_version}!\e[0m"
-                  echo "The minimum Airflow version supported: $${min_airflow_version}. Only use this or higher!"
-                  echo
-                  exit 1
-                fi
                 if [[ -z "${AIRFLOW_UID}" ]]; then
                   echo
                   echo -e "\033[1;33mWARNING!!!: AIRFLOW_UID not set!\e[0m"
@@ -232,7 +228,7 @@ services:
                 fi
                 mkdir -p /sources/logs /sources/dags /sources/plugins
                 chown -R "${AIRFLOW_UID}:0" /sources/{logs,dags,plugins}
-                exec /entrypoint airflow version
+                exec /entrypoint airflow info
         # yamllint enable rule:line-length
         environment:
             <<: *airflow-common-env
