@@ -37,8 +37,8 @@ For local development, the offical Airflow Docker image is used.
 5.1 This is temporary until the devcontainer.json file is respected
 6. Once that is done, you want to copy the below template into `launch.json`, overwriting `{DAG_ID}` with the dag_id of the dag you wish to test.
 7. Set breakpoints in your DAG file
-7.1 Note that this does not work with dynamically generated DAGs AFAIK
 8. Run Airflow Test from your Run and Debug menu and wait for the debugger to hit your breakpoint. Sometimes it takes awhile.
+
 
 ```
 {
@@ -60,4 +60,8 @@ For local development, the offical Airflow Docker image is used.
     ]
 }
 ```
+Troubleshooting:
+- If you receive the message `...nologin`, you may need to select the default shell... pick /bin/bash
+    - ctrl + shift + P and then I typed Terminal: Select Default Profile and changed it to shell
+
 ### LocalExecutor alternatives
