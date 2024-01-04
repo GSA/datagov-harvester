@@ -9,6 +9,8 @@ venv/
 credentials.py
 dist/
 
+# node 
+node_modules/
 # any previous versions of schemas
 **/dataset_**.json
 **/catalog_**.json
