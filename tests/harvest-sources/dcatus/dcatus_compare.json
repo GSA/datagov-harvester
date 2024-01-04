@@ -6,6 +6,8 @@
     "describedBy": "https://project-open-data.cio.gov/v1.1/schema/catalog.json",
     "dataset": [
         {
+            "accessLevel": "public",
+            "bureauCode": ["339:00"],
             "contactPoint": {
                 "fn": "Harold W. Hild",
                 "hasEmail": "mailto:hhild@CFTC.GOV"
@@ -17,6 +19,8 @@
                     "accessURL": "https://www.cftc.gov/MarketReports/CommitmentsofTraders/index.htm"
                 }
             ],
+            "identifier": "cftc-dc10",
+            "keyword": ["commitment of traders", "cot", "open interest"],
             "modified": "R/P1W",
             "programCode": ["000:000"],
             "publisher": {
@@ -25,11 +29,7 @@
                     "name": "U.S. Government"
                 }
             },
-            "title": "Commitment of Traders",
-            "accessLevel": "public",
-            "bureauCode": ["339:00"],
-            "identifier": "cftc-dc1",
-            "keyword": ["commitment of traders", "cot", "open interest"]
+            "title": "Commitment of Traders"
         },
         {
             "accessLevel": "public",
@@ -47,7 +47,7 @@
             ],
             "identifier": "cftc-dc2",
             "keyword": ["bank participation report", "bpr", "banking"],
-            "modified": "R/P1M",
+            "modified": "R/P1M Update",
             "programCode": ["000:000"],
             "publisher": {
                 "name": "U.S. Commodity Futures Trading Commission",
@@ -72,7 +72,7 @@
                 }
             ],
             "identifier": "cftc-dc3",
-            "keyword": ["cotton on call", "cotton on-call"],
+            "keyword": ["cotton on call", "cotton on-call", "update keyword"],
             "modified": "R/P1W",
             "programCode": ["000:000"],
             "publisher": {
@@ -106,23 +106,17 @@
                 "mpd",
                 "futures commission merchant"
             ],
+            "modified": "R/P1M",
+            "programCode": ["000:000"],
             "publisher": {
                 "name": "U.S. Commodity Futures Trading Commission",
                 "subOrganizationOf": {
-                    "name": "U.S. Government"
+                    "name": "Changed Value"
                 }
             },
-            "title": "Financial Data for FCMS",
-            "modified": "R/P1M",
-            "programCode": ["000:000"]
+            "title": "Financial Data for FCMS"
         },
         {
-            "identifier": "cftc-dc5",
-            "keyword": [
-                "net positions",
-                "larger trader net position",
-                "trading account net positions"
-            ],
             "accessLevel": "public",
             "bureauCode": ["339:00"],
             "contactPoint": {
@@ -135,6 +129,12 @@
                 {
                     "accessURL": "https://www.cftc.gov/MarketReports/NetPositionChangesData/index.htm"
                 }
+            ],
+            "identifier": "cftc-dc5",
+            "keyword": [
+                "net positions",
+                "larger trader net position",
+                "trading account net positions"
             ],
             "modified": "2011-06-30",
             "programCode": ["000:000"],
@@ -160,7 +160,6 @@
                     "accessURL": "https://www.cftc.gov/MarketReports/SwapsReports/index.htm"
                 }
             ],
-            "title": "Weekly Swaps Report",
             "identifier": "cftc-dc6",
             "keyword": ["swaps report", "swaps market"],
             "modified": "R/P1W",
@@ -170,7 +169,8 @@
                 "subOrganizationOf": {
                     "name": "U.S. Government"
                 }
-            }
+            },
+            "title": "Weekly Swaps Report"
         },
         {
             "accessLevel": "public",
@@ -179,13 +179,6 @@
                 "fn": "Byung-IL Seo",
                 "hasEmail": "mailto:BSeo@CFTC.gov"
             },
-            "publisher": {
-                "name": "U.S. Commodity Futures Trading Commission",
-                "subOrganizationOf": {
-                    "name": "U.S. Government"
-                }
-            },
-            "title": "Cleared Margin Reports",
             "describedBy": "https://www.cftc.gov/MarketReports/ClearedMarginReports/index.htm",
             "description": "Derivatives clearing organizations (DCOs) are required to file daily reports on initial margin with the CFTC's Division of Clearing and Risk (DCR). Aggregate initial margin summary information for Chicago Mercantile Exchange (CME), ICE Clear Credit (ICC), ICE Clear US (ICUS), ICE Clear Europe (ICEU), LCH Ltd., and LCH SA is published below. The information will generally be updated within ten business days of the end of each month.",
             "distribution": [
@@ -196,7 +189,14 @@
             "identifier": "cftc-dc7",
             "keyword": ["margin", "exchange"],
             "modified": "R/P1M",
-            "programCode": ["000:000"]
+            "programCode": ["000:000"],
+            "publisher": {
+                "name": "U.S. Commodity Futures Trading Commission",
+                "subOrganizationOf": {
+                    "name": "U.S. Government"
+                }
+            },
+            "title": "Cleared Margin Reports"
         }
     ]
 }

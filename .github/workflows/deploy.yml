@@ -1,19 +1,24 @@
 name: Publish to PyPI
 on:
-  # TODO: configure repo to and uncomment below
-  # pull_request:
-  #   branches: [main]
-  #   types: [closed]
+  pull_request:
+    branches: [main]
+    types: [closed]
   workflow_dispatch:
     inputs:
       version_no:
         description: 'Release Version:'
         required: true
 
+env:
+  POETRY_VERSION: "1.7.1"
+
 jobs:
   deploy:
     name: Publish to PyPI
     runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/project/datagov-harvesting-logic/
     if: github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'
     steps:
       - name: checkout
@@ -21,12 +26,14 @@ jobs:
       - name: Update setup.py if manual release
         if: github.event_name == 'workflow_dispatch'
         run: |
-          # TODO update for pyproject.toml
-          sed -i "s/version='[0-9]\{1,2\}.[0-9]\{1,4\}.[0-9]\{1,4\}',/version='${{github.event.inputs.version_no}}',/g" setup.py
+          sed -i "s/version='[0-9]\{1,2\}.[0-9]\{1,4\}.[0-9]\{1,4\}',/version='${{github.event.inputs.version_no}}',/g" pyproject.toml
+      - name: Install Poetry
+        uses: abatilo/actions-poetry@v2
+        with:
+          poetry-version: ${{ env.POETRY_VERSION }}
       - name: Create packages
         run: |
-          python setup.py sdist
-          python setup.py bdist_wheel
+          poetry build --verbose
       - name: pypi-publish
         uses: pypa/gh-action-pypi-publish@v1.8.11
         with:

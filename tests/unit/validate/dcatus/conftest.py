@@ -4,7 +4,7 @@ import pytest
 
 from harvester.utils.json import open_json
 
-BASE_DIR = Path(__file__).parents[3]
+BASE_DIR = Path(__file__).parents[4]
 DATA_DIR = BASE_DIR / "data" / "dcatus"
 SCHEMA_DIR = DATA_DIR / "schemas"
 JSON_DIR = DATA_DIR / "jsons"
