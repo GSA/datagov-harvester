@@ -1,9 +1,10 @@
+from deepdiff import DeepDiff
+
 from harvester.load import (
-    simple_transform,
     create_ckan_publisher_hierarchy,
     dcatus_to_ckan,
+    simple_transform,
 )
-from deepdiff import DeepDiff
 
 
 def test_simple_transform(test_ckan_transform_catalog):

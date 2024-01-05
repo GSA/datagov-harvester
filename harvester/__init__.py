@@ -21,14 +21,6 @@ from dotenv import load_dotenv
 
 from .compare import compare
 from .extract import download_waf, extract, traverse_waf
-from .load import (
-    create_ckan_package,
-    dcatus_to_ckan,
-    load,
-    patch_ckan_package,
-    purge_ckan_package,
-    update_ckan_package,
-)
 
 # TODO these imports will need to be updated to ensure a consistent api
 from .harvest import *

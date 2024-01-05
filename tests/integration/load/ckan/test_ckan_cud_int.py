@@ -1,5 +1,9 @@
-from harvester.load import (create_ckan_package, patch_ckan_package,
-                            purge_ckan_package, update_ckan_package)
+from harvester.load import (
+    create_ckan_package,
+    patch_ckan_package,
+    purge_ckan_package,
+    update_ckan_package,
+)
 
 
 def test_create_package(ckan_entrypoint, test_ckan_package):
