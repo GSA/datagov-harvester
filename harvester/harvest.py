@@ -1,7 +1,8 @@
 ## common classes
 # for lack of a better place to put them
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import Dict, List
 
 
 @dataclass
@@ -10,7 +11,7 @@ class Source:
 
     url: str
     source_type: str = ""
-    records: dict = {}
+    records: Dict = field(default_factory=lambda: {})
     source_type: str = ""  # ckan vs external(dcat, waf)
     ckan_query: str = ""
 
@@ -20,8 +21,16 @@ class Record:
     """Class for Harvest Records"""
 
     identifier: str
-    data: dict = {}
-    hash: str = ""
+    data: Dict = field(default_factory=lambda: {})
+    raw_hash: str = ""
+    operation: str = ""  # TODO maybe None?
+
+
+@dataclass
+class CompareSet:
+    create: List = field(default_factory=lambda: [])
+    update: List = field(default_factory=lambda: [])
+    delete: List = field(default_factory=lambda: [])
 
 
 # class DCATUSCatalog:

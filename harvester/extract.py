@@ -5,7 +5,7 @@ import requests
 from bs4 import BeautifulSoup
 from requests.exceptions import JSONDecodeError, RequestException
 
-from .harvest import HarvestSource
+from .harvest import Source
 
 logger = logging.getLogger("harvester")
 
@@ -76,7 +76,7 @@ def download_waf(files: list) -> list:
     return output
 
 
-def extract(harvest_source: HarvestSource):
+def extract(harvest_source: Source):
     """Extracts all records from a harvest_source"""
     logger.info("Hello from harvester.extract()")
     logger.info(harvest_source.source_type)

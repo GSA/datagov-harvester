@@ -1,8 +1,8 @@
-from harvester import HarvestSource
+from harvester import Source
 from harvester.extract import download_waf, traverse_waf
 
 
-def test_traverse_waf(waf_example: HarvestSource):
+def test_traverse_waf(waf_example: Source):
     files = traverse_waf(waf_example.url, filters=["../", "dcatus/"])
     assert len(files) == 7
 

@@ -2,8 +2,10 @@ from pathlib import Path
 
 import pytest
 
-from harvester import Source, utils
+from harvester import Source
 from harvester.harvest import Record
+from harvester.utils.json import open_json
+from harvester.utils.util import dataset_to_hash, sort_dataset
 
 TEST_DIR = Path(__file__).parents[2]
 HARVEST_SOURCES = TEST_DIR / "harvest-sources"
@@ -32,15 +34,15 @@ def artificial_data_sources():
 
 @pytest.fixture
 def data_sources():
-    harvest_source_datasets = utils.open_json(
+    harvest_source_datasets = open_json(
         HARVEST_SOURCES / "dcatus" / "dcatus_compare.json"
     )["dataset"]
 
-    harvest_source = {}
+    harvest_records = {}
     for d in harvest_source_datasets:
-        harvest_source[d["identifier"]] = dataset_to_hash(
-            sort_dataset(d)
-        )  # the extract needs to be sorted
+        record = Record(d["identified"], dataset_to_hash(sort_dataset(d)))
+        harvest_records[record.identifier] = record
+    harvest_source = Source("dummyurl", "dcatus", harvest_records)
 
     ckan_source_datasets = open_json(
         HARVEST_SOURCES / "dcatus" / "ckan_datasets_resp.json"

@@ -8,7 +8,7 @@ import harvester
 def test_transform(mock_transform):
     """tests transform"""
 
-    source = harvester.HarvestSource(url="http://localhost:80", source_type="waf")
+    source = harvester.Source(url="http://localhost:80", source_type="waf")
     files = harvester.traverse_waf(source.url, filters=["../", "dcatus/"])
     downloaded_files = harvester.download_waf(files)
 
