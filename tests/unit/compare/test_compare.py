@@ -1,4 +1,4 @@
-from harvester.compare import compare
+from harvester import compare
 from harvester.utils.util import dataset_to_hash, sort_dataset
 
 

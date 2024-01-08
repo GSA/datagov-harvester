@@ -1,18 +1,29 @@
 ## common classes
 # for lack of a better place to put them
 
-
-class HarvestSource:
-    def __init__(self, url, source_type) -> None:
-        self.url = url
-        self.source_type = source_type
+from dataclasses import dataclass
 
 
-class HarvestRecord:
-    def __init__(self, source) -> None:
-        self.harvest_source = source
+@dataclass
+class Source:
+    """Class for Harvest Sources"""
+
+    url: str
+    source_type: str = ""
+    records: dict = {}
+    source_type: str = ""  # ckan vs external(dcat, waf)
+    ckan_query: str = ""
 
 
-class DCATUSCatalog:
-    def __init__(self) -> None:
-        pass
+@dataclass(eq=True)
+class Record:
+    """Class for Harvest Records"""
+
+    identifier: str
+    data: dict = {}
+    hash: str = ""
+
+
+# class DCATUSCatalog:
+#     def __init__(self) -> None:
+#         pass
