@@ -28,7 +28,11 @@ def compare(harvest_source: Source, ckan_source: Source):
         if harvest_source.records[i].raw_hash != ckan_source.records[i].raw_hash
     ]
 
-    for r in output["create"]:
-        r
+    for r_id in output["create"]:
+        harvest_source.records[r_id].operation = "create"
+    for r_id in output["delete"]:
+        harvest_source.records[r_id].operation = "delete"
+    for r_id in output["update"]:
+        harvest_source.records[r_id].operation = "update"
 
-    return output
+    return harvest_source

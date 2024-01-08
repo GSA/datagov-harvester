@@ -20,8 +20,10 @@ class Source:
 class Record:
     """Class for Harvest Records"""
 
+    harvest_source: Source
     identifier: str
-    data: Dict = field(default_factory=lambda: {})
+    raw_metadata: str
+    dcatus_metadata: Dict = field(default_factory=lambda: {})
     raw_hash: str = ""
     operation: str = ""  # TODO maybe None?
 

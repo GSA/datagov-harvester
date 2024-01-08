@@ -170,7 +170,7 @@ def dcatus_to_ckan(dcatus_dataset, harvest_source_name):
 
     output["extras"] += [{"key": "harvest_source_name", "value": harvest_source_name}]
 
-    # TODO add hash
+    # TODO add hash to extras
 
     return {**output, **defaults}
 
