@@ -1,51 +1,50 @@
 ```mermaid
 sequenceDiagram
-    participant HDB as HarvestDB
-    participant Airflow
+    autonumber
+    participant HDB as Harvest DB
+    box transparent Airflow
+    participant DAG
     participant DHL as Datagov Harvesting Logic
+    end
     participant CKAN
-    participant S3
     participant MD as MDTranslator
     participant SES
-    Airflow->>HDB: Harvest triggered/<br>scheduled
-    HDB-->>Airflow: Harvest Source Config
-    Airflow->>DHL: Harvest Source Config
+    DAG->>HDB: Harvest triggered/<br>scheduled
+    HDB-->>DAG: Harvest Source Config(HSC)
+    DAG->>DHL: Trigger Extract(HSC)
     DHL->>DHL: Fetch source
-    loop loop through datasets
-        DHL->>DHL: Subset into Lists to Create/Update/Delete
+    loop EXTRACT source & COMPARE datasets
+        DHL->>DHL: Generate lists to Create/Update/Delete
     end
-    DHL->>S3: Push metrics to s3?
-    DHL-->>Airflow: Return metrics on Create/Update/Delete
-    Airflow->>DHL: Trigger Delete
-    loop loop over list of items to delete
+    DHL-->>DAG: Return metrics on Create/Update/Delete
+    DAG->>DHL: Trigger Delete(HSC)
+    loop DELETE items to delete
         DHL->>CKAN: CKAN Delete API(Identifier)
     end
-    DHL->>S3: Push metrics to s3?
-    DHL-->>Airflow: Return metrics on Delete operation
+    DHL-->>DAG: Return metrics on Delete operation
 
-    Airflow->>DHL: Item to transform
-    loop loop over items to transform
-        DHL->>MD: Item to transform
+    rect rgba(0, 0, 255, .1)
+    note right of DAG: *for non-dcat sources
+    DAG->>DHL: Trigger Tranform(HSC)
+    loop TRANSFORM items to transform
+        DHL->>MD: MDTransform(dataset)
         MD-->>DHL: Transformed Item
     end
-    DHL->>S3: Push metrics to s3?    
-    DHL-->>Airflow: Return metrics on Transform operation
-
-    Airflow->>DHL: Trigger Validation on lists to Create/Update
-    loop loop over list of items to validate
+    DHL-->>DAG: Return metrics on Transform operation
+    end
+    DAG->>DHL: Trigger Validation(HSC)
+    loop VALIDATE items create/update
         DHL->>DHL: Validate against schema
     end
-    DHL->>S3: Push metrics to s3?    
-    DHL-->>Airflow: Return validation metrics
-    Airflow->>DHL: Trigger load
+    DHL-->>DAG: Return validation metrics
+    DAG->>DHL: Trigger Load(HSC)
     
-    loop loop over list of items to load
+    loop LOAD items to create/update
         DHL->>CKAN: CKAN package_create(Item)
     end
-    DHL->>S3: Push metrics to s3?    
-    DHL-->>Airflow: Return load metrics
-    Airflow->>S3: Fetch job metrics (harvestSourceId)
-    S3-->>Airflow: Return job metrics
-    Airflow->>SES: Email job metrics(jobMetrics, listOfEmails)
+    DHL-->>DAG: Return load metrics
+    DAG->>DAG: Compile job metrics
+    DAG->>HDB: POST job metrics to Harvest DB
+    DAG->>SES: Email job metrics(jobMetrics, listOfEmails)
     
 ```
