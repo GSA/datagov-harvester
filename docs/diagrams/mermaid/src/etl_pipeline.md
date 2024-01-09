@@ -1,60 +1,43 @@
 ```mermaid
 sequenceDiagram
     participant HDB as HarvestDB
-    box gray Airflow
-    participant DAG
+    participant Airflow
     participant DHL as Datagov Harvesting Logic
-    end
     participant CKAN
+    participant S3
     participant MD as MDTranslator
-    DAG-->>HDB: Harvest triggered/<br>scheduled
-    HDB->>DAG: Harvest Source Config
-    rect white
-    Note over DAG,DHL: Extract/Compare
-    DAG->>DHL: Harvest Source Config
-    DHL->>DAG: returns ([Update],[Create],[Destroy]) as a tuple of lists
+    Airflow->>HDB: Harvest triggered/<br>scheduled
+    HDB->>Airflow: Harvest Source Config
+    Airflow->>DHL: Harvest Source Config
+    DHL->>DHL: Fetch source
+    loop loop through datasets
+        DHL->>DHL: Subset into Lists to Create/Update/Delete
     end
-    rect white
-    Note over DAG,CKAN: CREATE/UPDATE
-    DAG->>DHL: Item to Validate
-    break when validation fails
-        DHL->>DAG: log failed validation
+    DHL-->>S3: Push metrics to s3?
+    DHL->>Airflow: Return metrics on Create/Update/Delete
+    Airflow->>DHL: Trigger Delete
+    loop loop over list of items to delete
+        DHL->>CKAN: Identifier -> CKAN Delete API
     end
-    DHL->>DAG: Validated Item
-    DAG->>DHL: Item to load
-    DHL->>CKAN: Item to load
-    break when loading fails
-        CKAN->>DAG: log failed load
-    end
-    end
-    rect white
-    Note over DAG,CKAN: DESTROY
-    DAG->>DHL: Item to destroy
-    DHL->>CKAN: Item to destroy
-    break when destroy fails
-        CKAN->>DAG: log failed detroy
-    end
-    end
-    rect white
-    Note over DAG,MD: TRANSFORM
-    DAG->>DHL: Item to transform
-    DHL->>MD: Item to transform
-    break when transform fails
-        MD->>DHL: log failed transform
-        DHL->>DAG: log failed transform
-    end    
-    MD->>DHL: Transformed Item
-    DHL->>DAG: Transformed Item
-    DAG->>DHL: Item to Validate
-    break when validation fails
-        CKAN->>DAG: log failed validation
-    end
+    DHL->>Airflow: Return metrics on Delete operation
 
-    DHL->>DAG: Validated Item
-    DAG->>DHL: Item to load
-    DHL->>CKAN: Item to load
-    break when loading fails
-        CKAN->>DAG: log failed load
+    Airflow->>DHL: Item to transform
+    loop loop over items to transform
+        DHL->>MD: Item to transform
+        MD->>DHL: Transformed Item
     end
+    DHL->>Airflow: Return metrics on Transform operation
+
+    Airflow->>DHL: Trigger Validation on lists to Create/Update
+    loop loop over list of items to validate
+        DHL->>DHL: Validate against schema
     end
+    DHL->>Airflow: Return validation metrics
+    Airflow->>DHL: Trigger load
+    
+    loop loop over list of items to load
+        DHL->>CKAN: Item -> CKAN package_create
+    end
+    DHL->>Airflow: Return load metrics
+    
 ```
