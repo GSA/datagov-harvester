@@ -40,7 +40,7 @@ sequenceDiagram
     Airflow->>DHL: Trigger load
     
     loop loop over list of items to load
-        DHL->>CKAN: Item -> CKAN package_create
+        DHL->>CKAN: CKAN package_create(Item)
     end
     DHL->>S3: Push metrics to s3?    
     DHL-->>Airflow: Return load metrics
