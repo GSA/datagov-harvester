@@ -172,11 +172,11 @@ services:
                 fi
                 mkdir -p /sources/logs /sources/dags /sources/plugins
                 chown -R "${AIRFLOW_UID}:0" /sources/{logs,dags,plugins}
-                exec /entrypoint airflow version
+                exec /entrypoint airflow info
         # yamllint enable rule:line-length
         environment:
             <<: *airflow-common-env
-            _AIRFLOW_DB_UPGRADE: 'true'
+            _AIRFLOW_DB_MIGRATE: 'true'
             _AIRFLOW_WWW_USER_CREATE: 'true'
             _AIRFLOW_WWW_USER_USERNAME: ${_AIRFLOW_WWW_USER_USERNAME:-airflow}
             _AIRFLOW_WWW_USER_PASSWORD: ${_AIRFLOW_WWW_USER_PASSWORD:-airflow}

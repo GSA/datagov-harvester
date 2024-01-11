@@ -43,7 +43,6 @@ x-airflow-common: &airflow-common
     # In order to add custom dependencies or upgrade provider packages you can use your extended image.
     # Comment the image line, place your Dockerfile in the directory where you placed the docker-compose.yaml
     # and uncomment the "build" line below, Then run `docker compose build` to build the images.
-    # image: ${AIRFLOW_IMAGE_NAME:-apache/airflow:2.7.3}
     build: .
     environment: &airflow-common-env
         AIRFLOW__CORE__EXECUTOR: CeleryExecutor
@@ -170,6 +169,22 @@ services:
             airflow-init:
                 condition: service_completed_successfully
 
+    flower:
+        <<: *airflow-common
+        command: celery flower
+        ports:
+            - 5555:5555
+        healthcheck:
+            test: ['CMD', 'curl', '--fail', 'http://localhost:5555/']
+            interval: 10s
+            timeout: 10s
+            retries: 5
+        restart: always
+        depends_on:
+            <<: *airflow-common-depends-on
+            airflow-init:
+                condition: service_completed_successfully
+
     airflow-init:
         <<: *airflow-common
         entrypoint: /bin/bash
@@ -252,22 +267,6 @@ services:
             - bash
             - -c
             - airflow
-
-    flower:
-        <<: *airflow-common
-        command: celery flower
-        ports:
-            - 5555:5555
-        healthcheck:
-            test: ['CMD', 'curl', '--fail', 'http://localhost:5555/']
-            interval: 10s
-            timeout: 10s
-            retries: 5
-        restart: always
-        depends_on:
-            <<: *airflow-common-depends-on
-            airflow-init:
-                condition: service_completed_successfully
 
 volumes:
     postgres-db-volume:
