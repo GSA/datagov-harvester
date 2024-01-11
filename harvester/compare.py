@@ -5,8 +5,8 @@ from harvester.harvest import Source
 logger = logging.getLogger("harvester")
 
 
-def compare(harvest_source: Source, ckan_source: Source):
-    """Compares records"""
+def compare(harvest_source: Source, ckan_source: Source) -> dict:
+    """Compares records of Source objects, returns output dict"""
     # TODO better logging
     logger.info(f"Comparing harvest source: {harvest_source} to ckan's: {ckan_source}.")
 
@@ -31,8 +31,9 @@ def compare(harvest_source: Source, ckan_source: Source):
     for r_id in output["create"]:
         harvest_source.records[r_id].operation = "create"
     for r_id in output["delete"]:
+        harvest_source.records[r_id] = ckan_source.records[r_id]
         harvest_source.records[r_id].operation = "delete"
     for r_id in output["update"]:
         harvest_source.records[r_id].operation = "update"
 
-    return harvest_source
+    return output

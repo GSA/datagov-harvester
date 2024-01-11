@@ -3,6 +3,7 @@ from pathlib import Path
 
 import pytest
 
+from harvester import Record, Source
 from harvester.load import create_ckan_entrypoint, search_ckan
 from harvester.utils.json import open_json
 from harvester.utils.util import dataset_to_hash, sort_dataset
@@ -28,11 +29,18 @@ def data_sources(ckan_entrypoint):
         HARVEST_SOURCES / "dcatus" / "dcatus_compare.json"
     )["dataset"]
 
-    harvest_source = {}
-    for d in harvest_source_datasets:
-        harvest_source[d["identifier"]] = dataset_to_hash(
-            sort_dataset(d)
-        )  # the extract needs to be sorted
+    harvest_records = {}
+    for dataset in harvest_source_datasets:
+        record = Record(
+            identifier=dataset["identifier"],
+            raw_hash=dataset_to_hash(sort_dataset(dataset)),
+        )
+        harvest_records[record.identifier] = record
+    harvest_source = Source(
+        url="dummyurl",
+        records=harvest_records,
+        source_type="dcatus",
+    )
 
     ckan_source_datasets = search_ckan(
         ckan_entrypoint,
@@ -45,12 +53,19 @@ def data_sources(ckan_entrypoint):
             ],
         },
     )["results"]
-
-    ckan_source = {}
-
-    for d in ckan_source_datasets:
-        ckan_source[d["identifier"]] = dataset_to_hash(
-            eval(d["dcat_metadata"], {"__builtins__": {}})
-        )  # the response is stored sorted
+    ckan_records = {}
+    for dataset in ckan_source_datasets:
+        record = Record(
+            identifier=dataset["identifier"],
+            raw_hash=dataset_to_hash(
+                eval(dataset["dcat_metadata"], {"__builtins__": {}})
+            ),
+        )
+        ckan_records[record.identifier] = record
+    ckan_source = Source(
+        url="ckandummyurl",
+        records=ckan_records,
+        source_type="ckan",
+    )
 
     return harvest_source, ckan_source
