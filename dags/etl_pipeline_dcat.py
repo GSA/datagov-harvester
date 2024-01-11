@@ -2,79 +2,57 @@ import json
 from datetime import datetime
 from pathlib import Path
 
-from airflow.decorators import dag, task, task_group
-from airflow.exceptions import AirflowSkipException
-from airflow.utils.helpers import chain
-
-from jsonschema import Draft202012Validator
+from airflow.decorators import dag, task
 
 import harvester
 
 CURRENT_DIR = Path(__file__).parent.absolute()
-CATALOG_SCHEMA = CURRENT_DIR / "schemas/catalog.json"
-DATASET_SCHEMA = CURRENT_DIR / "schemas/dataset.json"
-
 DAILY_HARVEST_SOURCE = CURRENT_DIR / "harvest-sources/daily_sample.json"
 
 def create_dag(dag_id, schedule, default_args, tags, source):
-    @dag(dag_id=dag_id, schedule=schedule, tags=tags, default_args=default_args, catchup=False)
+    @dag(dag_id=dag_id, 
+         schedule=schedule, 
+         tags=tags, 
+         default_args=default_args, 
+         catchup=False
+    )
     def etl_pipeline():
         def on_failure_callback(**context):
-            ti = context['task_instance']
+            ti = context['ti']
             print(f"task {ti.task_id } failed in dag { ti.dag_id } ")
 
-        @task(task_id="extract_dcatus", on_failure_callback=on_failure_callback)
-        def extract(*args):
-            extracted_source = harvester.extract(source)
-            return extracted_source["dataset"]
+        @task(on_failure_callback=on_failure_callback)
+        def extract():
+            return harvester.extract(source)
+        
+        @task(on_failure_callback=on_failure_callback)
+        def transform():
+            return harvester.transform(source)
 
-        @task_group(group_id="process_dcatus")
-        def process_datasets(dcatus_record):
-            # TODO determine correct trigger rule that will allow for a single mapped task to proceed
-            # regardless of the status of its siblings
-            @task(on_failure_callback=on_failure_callback)
-            def compare(dataset):
-                should_update = harvester.compare(dataset["identifier"])
-                if should_update:
-                    return dataset
-                else:
-                    raise AirflowSkipException(f"{dataset['identifier']} has no updates...")
-            
-            @task.short_circuit(on_failure_callback=on_failure_callback)
-            def transform(dataset):
-                # dataset = kwargs['ti'].xcom_pull('process_dcatus.compare')[kwargs['ti'].map_index]
-                    try:
-                        return harvester.transform(dataset)
-                    except Exception as err:
-                        print(err)
-                        raise AirflowSkipException(f"Skipping {dataset['identifier']}; as I was told!")                        
+        @task(on_failure_callback=on_failure_callback)
+        def validate():
+            return harvester.validate(source)
+        
+        @task(on_failure_callback=on_failure_callback)
+        def load():
+            return harvester.load(source)
 
-            @task.short_circuit(on_failure_callback=on_failure_callback)
-            def validate(dataset):
-                # dataset = kwargs['ti'].xcom_pull('process_dcatus.transform')[kwargs['ti'].map_index]
-                with open(DATASET_SCHEMA) as json_file:
-                    dcatus_dataset_schema = json.load(json_file)
-                validator = Draft202012Validator(dcatus_dataset_schema)
-                try:
-                    validator.validate(dataset)
-                    return dataset
-                except Exception as err:
-                    print(err)
-                    raise AirflowSkipException(f"Skipping {dataset['identifier']}; as I was told!")
-            
-            @task.short_circuit(on_failure_callback=on_failure_callback)
-            def load(dataset):
-                # dataset = kwargs['ti'].xcom_pull('process_dcatus.validate')[kwargs['ti'].map_index]
-                return dataset
+        @task(on_failure_callback=on_failure_callback)
+        def report(**kwargs):
+            ti = kwargs['ti']
+            dr = kwargs['dag_run']
+            task_return_vals = kwargs['ti'].xcom_pull(key=None, task_ids=['extract', 'transform', 'validate', 'load'])
+            return (
+                f'Dag ID: {dr.dag_id}\n'
+                f'Run ID: {ti.run_id}\n'
+                f'DAG Run queued at: {dr.queued_at}\n'
+                f'Extract reports: {task_return_vals[0]}\n'
+                f'Transform reports: {task_return_vals[1]}\n'
+                f'Validate reports: {task_return_vals[2]}\n'
+                f'Load reports: {task_return_vals[3]}\n'
+            )
 
-            dataset = compare(dataset=dcatus_record)
-            dataset = transform(dataset)
-            dataset = validate(dataset)
-            load(dataset)
-            # compare(dataset=dcatus_record) >> transform() >> validate() >> load()
-
-        extracted_records=extract(url)
-        process_datasets.expand(dcatus_record=extracted_records)
+        extract() >> transform() >> validate() >> load() >> report()
 
     etl_pipeline()
 
