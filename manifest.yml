@@ -61,7 +61,8 @@ applications:
     <<: *airflow-common
     instances: ((worker-instances))
     memory: ((worker-memory-quota))
-    disk_quota: ((worker-disk-quota))    
+    disk_quota: ((worker-disk-quota)) 
+    health-check-type: port
     command: airflow celery worker
     routes:
       - route: ((route-worker-internal))    
