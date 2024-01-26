@@ -11,7 +11,7 @@ def dcatus_config() -> dict:
     return {
         "_title": "test_harvest_source_name",
         "_url": "http://localhost/dcatus/dcatus.json",
-        "_extract_type": "dcatus",
+        "_extract_type": "datajson",
     }
 
 
@@ -21,7 +21,7 @@ def waf_config() -> dict:
     return {
         "_title": "test_harvest_source_name",
         "_url": "http://localhost",
-        "_extract_type": "waf",
+        "_extract_type": "waf-collection",
         "_waf_config": {"filters": ["../", "dcatus/"]},
     }
 
@@ -32,7 +32,7 @@ def dcatus_compare_config() -> dict:
     return {
         "_title": "test_harvest_source_name",
         "_url": "http://localhost/dcatus/dcatus_compare.json",
-        "_extract_type": "dcatus",
+        "_extract_type": "datajson",
     }
 
 
