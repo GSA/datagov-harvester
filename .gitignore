@@ -9,6 +9,9 @@ venv/
 credentials.py
 dist/
 
+# harvest load test log
+harvest_load.log
+
 # node 
 node_modules/
 # any previous versions of schemas
