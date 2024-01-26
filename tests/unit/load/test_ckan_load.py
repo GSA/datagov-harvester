@@ -41,9 +41,11 @@ class TestCKANLoad:
         harvest_source.get_harvest_records_as_id_hash()
 
         expected_result = {
-            "name": "commitment-of-traders",
+            "name": "commitmentoftraders",
             "owner_org": "test",
             "identifier": "cftc-dc1",
+            "author": None,
+            "author_email": None,
             "maintainer": "Harold W. Hild",
             "maintainer_email": "hhild@CFTC.GOV",
             "notes": "COT reports provide a breakdown of each Tuesday's open interest for futures and options on futures market in which 20 or more traders hold positions equal to or above the reporting levels established by CFTC",
@@ -59,29 +61,16 @@ class TestCKANLoad:
                 {"name": "open-interest"},
             ],
             "extras": [
-                {
-                    "key": "publisher_hierarchy",
-                    "value": "U.S. Government > U.S. Commodity Futures Trading Commission",
-                },
                 {"key": "resource-type", "value": "Dataset"},
-                {
-                    "key": "publisher",
-                    "value": "U.S. Commodity Futures Trading Commission",
-                },
                 {"key": "accessLevel", "value": "public"},
                 {"key": "bureauCode", "value": "339:00"},
                 {"key": "identifier", "value": "cftc-dc1"},
                 {"key": "modified", "value": "R/P1W"},
                 {"key": "programCode", "value": "000:000"},
                 {
-                    "key": "publisher",
-                    "value": "U.S. Commodity Futures Trading Commission",
-                },
-                {
                     "key": "publisher_hierarchy",
                     "value": "U.S. Government > U.S. Commodity Futures Trading Commission",
                 },
-                {"key": "resource-type", "value": "Dataset"},
                 {
                     "key": "publisher",
                     "value": "U.S. Commodity Futures Trading Commission",
@@ -91,9 +80,8 @@ class TestCKANLoad:
                     "value": "{'accessLevel': 'public', 'bureauCode': ['339:00'], 'contactPoint': {'fn': 'Harold W. Hild', 'hasEmail': 'mailto:hhild@CFTC.GOV'}, 'describedBy': 'https://www.cftc.gov/MarketReports/CommitmentsofTraders/ExplanatoryNotes/index.htm', 'description': \"COT reports provide a breakdown of each Tuesday's open interest for futures and options on futures market in which 20 or more traders hold positions equal to or above the reporting levels established by CFTC\", 'distribution': [{'accessURL': 'https://www.cftc.gov/MarketReports/CommitmentsofTraders/index.htm'}], 'identifier': 'cftc-dc1', 'keyword': ['commitment of traders', 'cot', 'open interest'], 'modified': 'R/P1W', 'programCode': ['000:000'], 'publisher': {'name': 'U.S. Commodity Futures Trading Commission', 'subOrganizationOf': {'name': 'U.S. Government'}}, 'title': 'Commitment of Traders'}",
                 },
                 {"key": "harvest_source_name", "value": "test_harvest_source_name"},
+                {"key": "identifier", "value": "cftc-dc1"},
             ],
-            "author": None,
-            "author_email": None,
         }
 
         test_record = harvest_source.records["cftc-dc1"]
