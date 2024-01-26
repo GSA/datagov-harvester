@@ -23,4 +23,6 @@ class TestExtractCKAN:
             "cftc-dc3": "d3a2b11fb451b1366d25f173a5a49c60c723959d3e83531cff80b4e3562c079b",
         }
 
-        assert harvest_source.ckan_records == expected_result
+        actual_result = {k: v[0] for k, v in harvest_source.ckan_records.items()}
+
+        assert actual_result == expected_result

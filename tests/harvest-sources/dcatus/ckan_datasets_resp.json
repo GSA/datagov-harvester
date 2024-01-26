@@ -5,37 +5,44 @@
         {
             "identifier": "cftc-dc5",
             "dcat_metadata": "{'accessLevel': 'public', 'bureauCode': ['339:00'], 'contactPoint': {'fn': 'Byung-IL Seo', 'hasEmail': 'mailto:BSeo@CFTC.gov'}, 'describedBy': 'https://www.cftc.gov/MarketReports/LgTraderExplanatory.html', 'description': 'The Large Trader Net Position Changes and the Trading Account Net Position Changes data provides the public with a view of the amount of trading that results in net changes to positions at the trader level and at the account level.  The data reflects trading that changes or creates an end-of-day position, as contrasted with trading that does not change a trader\u2019s end-of-day net position, such as spread or day trading.', 'distribution': [{'accessURL': 'https://www.cftc.gov/MarketReports/NetPositionChangesData/index.htm'}], 'identifier': 'cftc-dc5', 'keyword': ['larger trader net position', 'net positions', 'trading account net positions'], 'modified': '2011-06-30', 'programCode': ['000:000'], 'publisher': {'name': 'U.S. Commodity Futures Trading Commission', 'subOrganizationOf': {'name': 'U.S. Government'}}, 'title': 'Net Positions Changes Data'}",
-            "harvest_source_name": "test_harvest_source_name"
+            "harvest_source_name": "test_harvest_source_name",
+            "id": "dfb914eb-ec04-48d9-8a39-bf78e788e420"
         },
         {
             "identifier": "cftc-dc4",
             "dcat_metadata": "{'accessLevel': 'public', 'bureauCode': ['339:00'], 'contactPoint': {'fn': 'Carrie L Coffin', 'hasEmail': 'mailto:ccoffin@CFTC.gov'}, 'describedBy': 'https://www.cftc.gov/MarketReports/financialfcmdata/DescriptionofReportDataFields/indesx.htm', 'description': \"Futures commission merchants (FCMs) and retail foreign exchange dealers (RFEDs) must file monthly financial reports with the CFTC's Market Participants Division (MPD) within 17 business days after the end of the month. Selected financial information from these reports is published.\", 'distribution': [{'accessURL': 'https://www.cftc.gov/MarketReports/financialfcmdata/index.htm'}], 'identifier': 'cftc-dc4', 'keyword': ['dealer', 'fcm', 'futures commission merchant', 'market participants', 'mpd', 'retail foreign exchange'], 'modified': 'R/P1M', 'programCode': ['000:000'], 'publisher': {'name': 'U.S. Commodity Futures Trading Commission', 'subOrganizationOf': {'name': 'U.S. Government'}}, 'title': 'Financial Data for FCMS'}",
-            "harvest_source_name": "test_harvest_source_name"
+            "harvest_source_name": "test_harvest_source_name",
+            "id": "c2151a0b-9c19-4108-aa13-4a3160e1d130"
         },
         {
             "identifier": "cftc-dc6",
             "dcat_metadata": "{'accessLevel': 'public', 'bureauCode': ['339:00'], 'contactPoint': {'fn': 'Richard Haynes', 'hasEmail': 'mailto:RHaynes@CFTC.gov'}, 'describedBy': 'https://www.cftc.gov/MarketReports/SwapsReports/DataDictionary/index.htm', 'description': \"The CFTC Swaps Report aggregates a comprehensive body of swap market data that was not previously reported to regulators or regulated entities, and makes that information freely available in a form that is readily usable by both market participants and the general public. The swaps market data included in publications produced by entities such as the BIS, ISDA, and the Office of the Comptroller of the Currency vary in scope and granularity, but none corresponds directly to the data stored in the CFTC's SDRs.\", 'distribution': [{'accessURL': 'https://www.cftc.gov/MarketReports/SwapsReports/index.htm'}], 'identifier': 'cftc-dc6', 'keyword': ['swaps market', 'swaps report'], 'modified': 'R/P1W', 'programCode': ['000:000'], 'publisher': {'name': 'U.S. Commodity Futures Trading Commission', 'subOrganizationOf': {'name': 'U.S. Government'}}, 'title': 'Weekly Swaps Report'}",
-            "harvest_source_name": "test_harvest_source_name"
+            "harvest_source_name": "test_harvest_source_name",
+            "id": "4261b099-26dd-41e8-9bd1-fd975ff288be"
         },
         {
             "identifier": "cftc-dc7",
             "dcat_metadata": "{'accessLevel': 'public', 'bureauCode': ['339:00'], 'contactPoint': {'fn': 'Byung-IL Seo', 'hasEmail': 'mailto:BSeo@CFTC.gov'}, 'describedBy': 'https://www.cftc.gov/MarketReports/ClearedMarginReports/index.htm', 'description': \"Derivatives clearing organizations (DCOs) are required to file daily reports on initial margin with the CFTC's Division of Clearing and Risk (DCR). Aggregate initial margin summary information for Chicago Mercantile Exchange (CME), ICE Clear Credit (ICC), ICE Clear US (ICUS), ICE Clear Europe (ICEU), LCH Ltd., and LCH SA is published below. The information will generally be updated within ten business days of the end of each month.\", 'distribution': [{'accessURL': 'https://www.cftc.gov/MarketReports/ClearedMarginReports/index.htm'}], 'identifier': 'cftc-dc7', 'keyword': ['exchange', 'margin'], 'modified': 'R/P1M', 'programCode': ['000:000'], 'publisher': {'name': 'U.S. Commodity Futures Trading Commission', 'subOrganizationOf': {'name': 'U.S. Government'}}, 'title': 'Cleared Margin Reports'}",
-            "harvest_source_name": "test_harvest_source_name"
+            "harvest_source_name": "test_harvest_source_name",
+            "id": "95fc5be4-5232-4ddd-b8ef-0692fb4a3135"
         },
         {
             "identifier": "cftc-dc2",
             "dcat_metadata": "{'accessLevel': 'public', 'bureauCode': ['339:00'], 'contactPoint': {'fn': 'Harold W. Hild', 'hasEmail': 'mailto:hhild@CFTC.GOV'}, 'describedBy': 'https://www.cftc.gov/MarketReports/BankParticipationReports/ExplanatoryNotes/index.htm', 'description': 'The Bank Participation Report (BPR), developed by the Division of Market Oversight to provide the U.S. banking authorities and the Bank for International Settlements (BIS, located in Basel, Switzerland) aggregate large-trader positions of banks participating in various financial and non-financial commodity futures.', 'distribution': [{'accessURL': 'https://www.cftc.gov/MarketReports/BankParticipationReports/index.htm'}], 'identifier': 'cftc-dc2', 'keyword': ['bank participation report', 'banking', 'bpr'], 'modified': 'R/P1M', 'programCode': ['000:000'], 'publisher': {'name': 'U.S. Commodity Futures Trading Commission', 'subOrganizationOf': {'name': 'U.S. Government'}}, 'title': 'Bank Participation Reports'}",
-            "harvest_source_name": "test_harvest_source_name"
+            "harvest_source_name": "test_harvest_source_name",
+            "id": "c79272d0-5925-461e-ba3c-24d08b2acfce"
         },
         {
             "identifier": "cftc-dc1",
             "dcat_metadata": "{'accessLevel': 'public', 'bureauCode': ['339:00'], 'contactPoint': {'fn': 'Harold W. Hild', 'hasEmail': 'mailto:hhild@CFTC.GOV'}, 'describedBy': 'https://www.cftc.gov/MarketReports/CommitmentsofTraders/ExplanatoryNotes/index.htm', 'description': \"COT reports provide a breakdown of each Tuesday's open interest for futures and options on futures market in which 20 or more traders hold positions equal to or above the reporting levels established by CFTC\", 'distribution': [{'accessURL': 'https://www.cftc.gov/MarketReports/CommitmentsofTraders/index.htm'}], 'identifier': 'cftc-dc1', 'keyword': ['commitment of traders', 'cot', 'open interest'], 'modified': 'R/P1W', 'programCode': ['000:000'], 'publisher': {'name': 'U.S. Commodity Futures Trading Commission', 'subOrganizationOf': {'name': 'U.S. Government'}}, 'title': 'Commitment of Traders'}",
-            "harvest_source_name": "test_harvest_source_name"
+            "harvest_source_name": "test_harvest_source_name",
+            "id": "3c607a25-f60d-420d-b160-f118805549f6"
         },
         {
             "identifier": "cftc-dc3",
             "dcat_metadata": "{'accessLevel': 'public', 'bureauCode': ['339:00'], 'contactPoint': {'fn': 'Harold W. Hild', 'hasEmail': 'mailto:hhild@CFTC.gov'}, 'describedBy': 'https://www.cftc.gov/MarketReports/CottonOnCall/index.htm', 'description': 'Cotton On-Call Report shows the quantity of call cotton bought or sold on which the price has not been fixed, together with the respective futures on which the purchase or sale is based on.', 'distribution': [{'accessURL': 'https://www.cftc.gov/MarketReports/CottonOnCall/index.htm'}], 'identifier': 'cftc-dc3', 'keyword': ['cotton on call', 'cotton on-call'], 'modified': 'R/P1W', 'programCode': ['000:000'], 'publisher': {'name': 'U.S. Commodity Futures Trading Commission', 'subOrganizationOf': {'name': 'U.S. Government'}}, 'title': 'Cotton On Call'}",
-            "harvest_source_name": "test_harvest_source_name"
+            "harvest_source_name": "test_harvest_source_name",
+            "id": "120b5f42-9e35-4ca2-af58-54bb7e8a26b1"
         }
     ],
     "sort": "views_recent desc",
