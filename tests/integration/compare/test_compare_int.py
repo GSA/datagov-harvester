@@ -1,9 +1,11 @@
-from harvester.compare import compare
+from harvester.harvest import HarvestSource
 
 
-def test_compare(data_sources):
-    compare_res = compare(*data_sources)
+class TestCompareInt:
+    def test_compare_int(self, dcatus_compare_config):
+        harvest_source = HarvestSource(**dcatus_compare_config)
+        harvest_source.get_record_changes()
 
-    assert len(compare_res["create"]) == 1
-    assert len(compare_res["update"]) == 3
-    assert len(compare_res["delete"]) == 1
+        assert len(harvest_source.compare_data["create"]) == 1
+        assert len(harvest_source.compare_data["update"]) == 3
+        assert len(harvest_source.compare_data["delete"]) == 1
