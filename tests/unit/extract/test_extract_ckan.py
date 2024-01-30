@@ -1,5 +1,6 @@
-from harvester.harvest import HarvestSource
 from unittest.mock import patch
+
+from harvester.harvest import HarvestSource
 
 
 # ruff: noqa: E501

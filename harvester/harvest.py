@@ -1,27 +1,22 @@
-from .utils import (
-    dataset_to_hash,
-    sort_dataset,
-    open_json,
-    S3Handler,
-    convert_set_to_list,
-)
-
-from dataclasses import dataclass, field, asdict
-import os
-from pathlib import Path
+import json
 import logging
-import xml.etree.ElementTree as ET
+import os
 import re
 import sys
 import traceback
+import xml.etree.ElementTree as ET
+from dataclasses import asdict, dataclass, field
 from datetime import datetime
-import json
+from pathlib import Path
 
 import ckanapi
-from jsonschema import Draft202012Validator
 import requests
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
+from jsonschema import Draft202012Validator
+
+from .utils import (S3Handler, convert_set_to_list, dataset_to_hash, open_json,
+                    sort_dataset)
 
 load_dotenv()
 

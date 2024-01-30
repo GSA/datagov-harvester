@@ -1,6 +1,8 @@
-from harvester.harvest import HarvestSource, Record
 from unittest.mock import patch
+
 from deepdiff import DeepDiff
+
+from harvester.harvest import HarvestSource, Record
 
 # ruff: noqa: E501
 

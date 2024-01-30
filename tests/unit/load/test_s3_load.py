@@ -1,6 +1,7 @@
+from unittest.mock import patch
+
 from harvester.harvest import HarvestSource
 from harvester.utils import S3Handler
-from unittest.mock import patch
 
 
 class TestS3Load:
