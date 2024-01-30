@@ -1,6 +1,6 @@
 from .utils import dataset_to_hash, sort_dataset, open_json, S3Handler
 
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, field
 import os
 from pathlib import Path
 import logging
@@ -644,6 +644,7 @@ class Record:
         return pickle.dumps(self)
 
     def upload_to_s3(self, s3handler: S3Handler) -> None:
+        # ruff: noqa: E501
         try:
             out_path = f"{s3handler.endpoint_url}/{self.harvest_source.title}/job-id/{self.status}/{self.identifier}.pkl"
             s3handler.put_object(pickle.dumps(self), out_path)

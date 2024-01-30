@@ -1,4 +1,4 @@
-from harvester.harvest import HarvestSource, Record
+from harvester.harvest import HarvestSource
 from harvester.utils import S3Handler
 from unittest.mock import patch
 
