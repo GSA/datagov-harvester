@@ -1,20 +1,22 @@
-from .utils import dataset_to_hash, sort_dataset, open_json  # re-add the period
-
-from dataclasses import dataclass, field
-import os
-from pathlib import Path
+import json
 import logging
-import xml.etree.ElementTree as ET
+import os
 import re
+import sys
+import traceback
+import xml.etree.ElementTree as ET
+from dataclasses import asdict, dataclass, field
+from datetime import datetime
+from pathlib import Path
 
 import ckanapi
-from jsonschema import Draft202012Validator
 import requests
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
-import sys
-import traceback
-from datetime import datetime
+from jsonschema import Draft202012Validator
+
+from .utils import (S3Handler, convert_set_to_list, dataset_to_hash, open_json,
+                    sort_dataset)
 
 load_dotenv()
 
@@ -29,6 +31,8 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 
+# session = requests.Session()
+# session.auth = ("admin", "datagovteam")
 ckan = ckanapi.RemoteCKAN(os.getenv("CKAN_URL"), apikey=os.getenv("CKAN_API_TOKEN_DEV"))
 
 ROOT_DIR = Path(__file__).parents[0]
@@ -107,6 +111,10 @@ class HarvestSource:
     @property
     def dataset_schema(self) -> dict:
         return self._dataset_schema
+
+    @dataset_schema.deleter
+    def dataset_schema(self):
+        del self._dataset_schema
 
     @property
     def no_harvest_resp(self) -> bool:
@@ -327,9 +335,40 @@ class HarvestSource:
         logger.info("validity of the records")
         logger.info(validity)
 
-    def upload_to_s3(self) -> None:
+    def hydrate_from_s3(self, s3_path: str) -> None:
         # TODO: this method
         return
+
+    def prepare_for_s3_upload(self) -> dict:
+        """this removes data we don't want to store in s3"""
+        # TODO: confirm the minimum we need to store
+
+        for record_id, record in self.records.copy().items():
+            to_process = set().union(*self.compare_data.values())
+            if record_id not in to_process:
+                del self.records[record_id]
+                continue
+            record.harvest_source = self.title
+
+        data = asdict(self)
+        del data["ckan_records"], data["_dataset_schema"]
+
+        return json.dumps(data, default=convert_set_to_list)
+
+    def upload_to_s3(self, s3handler: S3Handler) -> None:
+        try:
+            # TODO: confirm out_path
+            out_path = f"{s3handler.endpoint_url}/{self.title}/job-id/{self.title}.json"
+            s3handler.put_object(self.prepare_for_s3_upload(), out_path)
+            logger.info(f"saved harvest source {self.title} in s3 at {out_path}")
+            return out_path
+        except Exception as e:
+            logger.error(f"error uploading harvest source ({self.title}) to s3 \n")
+            logger.error(
+                "\n".join(traceback.format_exception(None, e, e.__traceback__))
+            )
+
+        return False
 
 
 @dataclass
@@ -350,6 +389,14 @@ class Record:
     @property
     def harvest_source(self) -> HarvestSource:
         return self._harvest_source
+
+    @harvest_source.setter
+    def harvest_source(self, value) -> None:
+        if not isinstance(value, (HarvestSource, str)):
+            raise ValueError(
+                "harvest source must be either a HarvestSource instance or a string"
+            )
+        self._harvest_source = value
 
     @property
     def identifier(self) -> str:
@@ -594,3 +641,35 @@ class Record:
         logger.info(
             f"time to {self.operation} {self.identifier} {datetime.now()-start}"
         )
+
+    def hydrate_from_s3(self, s3_path):
+        # TODO: this method
+        # set props/fields based on data
+        return
+
+    def prepare_for_s3_upload(self) -> dict:
+        # TODO: confirm the minimum we want to store
+
+        if isinstance(self.harvest_source, HarvestSource):
+            self.harvest_source = self.harvest_source.title
+
+        return json.dumps(asdict(self))
+
+    def upload_to_s3(self, s3handler: S3Handler) -> None:
+        # ruff: noqa: E501
+        try:
+            out_path = f"{s3handler.endpoint_url}/{self.harvest_source.title}/job-id/{self.status}/{self.identifier}.pkl"
+            s3handler.put_object(self.prepare_for_s3_upload(), out_path)
+            logger.info(
+                f"saved harvest source record {self.identifier} in s3 at {out_path}"
+            )
+            return out_path
+        except Exception as e:
+            logger.error(
+                f"error uploading harvest record ({self.identifier} of {self.harvest_source.title}) to s3 \n"
+            )
+            logger.error(
+                "\n".join(traceback.format_exception(None, e, e.__traceback__))
+            )
+
+        return False

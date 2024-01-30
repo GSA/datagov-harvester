@@ -1,6 +1,8 @@
-import pytest
-from harvester.utils import open_json
 from pathlib import Path
+
+import pytest
+
+from harvester.utils import open_json
 
 HARVEST_SOURCES = Path(__file__).parents[0] / "harvest-sources"
 
