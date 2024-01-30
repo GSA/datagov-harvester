@@ -4,6 +4,11 @@ from unittest.mock import patch
 
 
 class TestS3Load:
+    @classmethod
+    def setup_class(cls):
+        s3_handler = S3Handler()
+        s3_handler.create_bucket()
+
     @patch.object(HarvestSource, "get_ckan_records")
     def test_upload_harvest_source(
         self, get_ckan_records_mock, dcatus_compare_config, ckan_compare
