@@ -7,6 +7,12 @@ import os
 # ruff: noqa: F841
 
 
+def convert_set_to_list(obj):
+    if isinstance(obj, set):
+        return list(obj)
+    raise TypeError
+
+
 def sort_dataset(d):
     return sansjson.sort_pyobject(d)
 
@@ -59,5 +65,6 @@ class S3Handler:
                 "Body": body,
                 "Bucket": self.bucket,
                 "Key": key_name,
+                "ContentType": "application/json",
             }
         )

@@ -1,6 +1,12 @@
-from .utils import dataset_to_hash, sort_dataset, open_json, S3Handler
+from .utils import (
+    dataset_to_hash,
+    sort_dataset,
+    open_json,
+    S3Handler,
+    convert_set_to_list,
+)
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, asdict
 import os
 from pathlib import Path
 import logging
@@ -9,7 +15,7 @@ import re
 import sys
 import traceback
 from datetime import datetime
-import pickle
+import json
 
 import ckanapi
 from jsonschema import Draft202012Validator
@@ -110,6 +116,10 @@ class HarvestSource:
     @property
     def dataset_schema(self) -> dict:
         return self._dataset_schema
+
+    @dataset_schema.deleter
+    def dataset_schema(self):
+        del self._dataset_schema
 
     @property
     def no_harvest_resp(self) -> bool:
@@ -338,20 +348,23 @@ class HarvestSource:
         """this removes data we don't want to store in s3"""
         # TODO: confirm the minimum we need to store
 
-        # del self.ckan_records
+        for record_id, record in self.records.copy().items():
+            to_process = set().union(*self.compare_data.values())
+            if record_id not in to_process:
+                del self.records[record_id]
+                continue
+            record.harvest_source = self.title
 
-        # for record_id, record in self.records.items():
-        #     to_process = set().union(*self.compare_data.values())
-        #     if record_id not in to_process:
-        #         del self.records[record_id]
+        data = asdict(self)
+        del data["ckan_records"], data["_dataset_schema"]
 
-        return pickle.dumps(self)
+        return json.dumps(data, default=convert_set_to_list)
 
     def upload_to_s3(self, s3handler: S3Handler) -> None:
         try:
             # TODO: confirm out_path
-            out_path = f"{s3handler.endpoint_url}/{self.title}/job-id/{self.title}.pkl"
-            s3handler.put_object(pickle.dumps(self), out_path)
+            out_path = f"{s3handler.endpoint_url}/{self.title}/job-id/{self.title}.json"
+            s3handler.put_object(self.prepare_for_s3_upload(), out_path)
             logger.info(f"saved harvest source {self.title} in s3 at {out_path}")
             return out_path
         except Exception as e:
@@ -641,13 +654,17 @@ class Record:
 
     def prepare_for_s3_upload(self) -> dict:
         # TODO: confirm the minimum we want to store
-        return pickle.dumps(self)
+
+        if isinstance(self.harvest_source, HarvestSource):
+            self.harvest_source = self.harvest_source.title
+
+        return json.dumps(asdict(self))
 
     def upload_to_s3(self, s3handler: S3Handler) -> None:
         # ruff: noqa: E501
         try:
             out_path = f"{s3handler.endpoint_url}/{self.harvest_source.title}/job-id/{self.status}/{self.identifier}.pkl"
-            s3handler.put_object(pickle.dumps(self), out_path)
+            s3handler.put_object(self.prepare_for_s3_upload(), out_path)
             logger.info(
                 f"saved harvest source record {self.identifier} in s3 at {out_path}"
             )
