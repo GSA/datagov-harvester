@@ -27,5 +27,5 @@ jobs:
             CKAN_URL: ${{secrets.CKAN_URL}}
             CKAN_API_TOKEN: ${{secrets.CKAN_API_TOKEN}}
         run: |
-            python load_test.py
+            poetry run python scripts/load_test.py
     

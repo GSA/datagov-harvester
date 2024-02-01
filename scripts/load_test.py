@@ -23,10 +23,6 @@ harvest_source = HarvestSource(
     source_type
 )
 
-if harvest_source.extract_type == "waf-collection":
-    continue
 harvest_source.get_record_changes()
-if harvest_source.no_harvest_resp is True:
-    continue
 harvest_source.synchronize_records()
 harvest_source.report()
