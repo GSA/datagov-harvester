@@ -28,4 +28,3 @@ jobs:
             CKAN_API_TOKEN: ${{secrets.CKAN_API_TOKEN}}
         run: |
             poetry run python scripts/load_test.py
-    
