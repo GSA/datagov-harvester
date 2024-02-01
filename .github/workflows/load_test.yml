@@ -37,7 +37,7 @@ jobs:
             SRC_OWNER_ORG: '82b85475-f85d-404a-b95b-89d1a42e9f6b'
             SRC_SOURCE_TYPE: 'datajson'
             CKAN_URL: ${{secrets.CKAN_URL}}
-            CKAN_API_TOKEN: ${{secrets.CKAN_API_TOKEN}}
+            CKAN_API_TOKEN: ${{secrets.CKAN_API_TOKEN_STAGING}}
         run: |
             source .venv/bin/activate
             poetry run python scripts/load_test.py
