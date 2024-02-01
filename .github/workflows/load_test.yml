@@ -1,4 +1,4 @@
-name: Harvester 2.0 Load Test
+name: Load Test
 on:
   workflow_dispatch:
     
@@ -7,6 +7,8 @@ jobs:
     name: H2.0 Load Test
     runs-on: ubuntu-latest
     steps:
+      - name: checkout
+        uses: actions/checkout@v3      
       - name: Setup python
         uses: actions/setup-python@v4
         with:
@@ -15,10 +17,20 @@ jobs:
         run: python -c "import sys; print(sys.version)"
       - name: Install Poetry
         uses: snok/install-poetry@v1
-      - name: 
-        run:
-            poetry install
-      - name: Run Test
+        with:
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+          installer-parallel: true
+      - name: Load cached venv
+        id: cached-poetry-dependencies
+        uses: actions/cache@v3
+        with:
+          path: .venv
+          key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}
+      - name: Install dependencies
+        if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
+        run: poetry install --no-interaction --no-root
+      - name: Run Load Test
         env:
             SRC_TITLE: 'EPA ScienceHub'
             SRC_URL: 'https://pasteur.epa.gov/metadata.json'
@@ -27,4 +39,5 @@ jobs:
             CKAN_URL: ${{secrets.CKAN_URL}}
             CKAN_API_TOKEN: ${{secrets.CKAN_API_TOKEN}}
         run: |
+            source .venv/bin/activate
             poetry run python scripts/load_test.py
