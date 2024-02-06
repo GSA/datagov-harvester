@@ -32,7 +32,7 @@ class TestCKANLoad:
             sum(r.status == "created" for rid, r in harvest_source.records.items()) == 1
         )
         assert (
-            sum(r.status == "updated" for rid, r in harvest_source.records.items()) == 3
+            sum(r.status == "updated" for rid, r in harvest_source.records.items()) == 2
         )
         assert (
             sum(r.status == "deleted" for rid, r in harvest_source.records.items()) == 1
@@ -44,7 +44,7 @@ class TestCKANLoad:
 
         expected_result = {
             "name": "commitmentoftraders",
-            "owner_org": "test",
+            "owner_org": "example_organization",
             "identifier": "cftc-dc1",
             "author": None,
             "author_email": None,
