@@ -43,7 +43,7 @@ class TestCKANLoad:
         harvest_source.get_harvest_records_as_id_hash()
 
         expected_result = {
-            "name": "commitmentoftraders",
+            "name": "commitment-of-traders",
             "owner_org": "example_organization",
             "identifier": "cftc-dc1",
             "author": None,
