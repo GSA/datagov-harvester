@@ -8,6 +8,7 @@ import xml.etree.ElementTree as ET
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from pathlib import Path
+import functools
 
 import ckanapi
 import requests
@@ -15,8 +16,14 @@ from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 from jsonschema import Draft202012Validator
 
-from .utils import (S3Handler, convert_set_to_list, dataset_to_hash, open_json,
-                    sort_dataset)
+# TODO: add relative import "." for utils
+from .utils import (
+    S3Handler,
+    convert_set_to_list,
+    dataset_to_hash,
+    open_json,
+    sort_dataset,
+)
 
 load_dotenv()
 
@@ -31,9 +38,15 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 
-# session = requests.Session()
-# session.auth = ("admin", "datagovteam")
-ckan = ckanapi.RemoteCKAN(os.getenv("CKAN_URL"), apikey=os.getenv("CKAN_API_TOKEN_DEV"))
+# TODD: make sure this doesn't change all requests
+session = requests.Session()
+session.request = functools.partial(session.request, timeout=15)
+
+ckan = ckanapi.RemoteCKAN(
+    os.getenv("CKAN_URL_STAGE"),
+    apikey=os.getenv("CKAN_API_TOKEN_STAGE"),
+    session=session,
+)
 
 ROOT_DIR = Path(__file__).parents[0]
 
@@ -46,9 +59,10 @@ class HarvestSource:
     # (these values can be set during initialization though)
     _title: str
     _url: str
+    _owner_org: str  # uuid
     _extract_type: str  # "datajson" or "waf-collection"
     _waf_config: dict = field(default_factory=lambda: {})
-    _extra_source_name: str = "harvest_source_name"  # TODO: update this
+    _extra_source_name: str = "harvest_source_name"
     _dataset_schema: dict = field(
         default_factory=lambda: open_json(
             ROOT_DIR / "data" / "dcatus" / "schemas" / "dataset.json"
@@ -62,8 +76,9 @@ class HarvestSource:
     # making them a "property" would require a setter which, because they are dicts,
     # means creating a custom dict class which overloads the __set_item__ method
     # worth it? not sure...
+    # since python 3.7 dicts are insertion ordered so deletions will occur first
     compare_data: dict = field(
-        default_factory=lambda: {"delete": None, "create": None, "update": None}
+        default_factory=lambda: {"delete": set(), "create": set(), "update": set()}
     )
     records: dict = field(default_factory=lambda: {})
     ckan_records: dict = field(default_factory=lambda: {})
@@ -79,7 +94,7 @@ class HarvestSource:
                 f"extras_{self._extra_source_name}",
                 "extras_dcat_metadata",
                 "extras_identifier",
-                "id"
+                "id",
                 # TODO: add last_modified for waf
             ],
         }
@@ -91,6 +106,10 @@ class HarvestSource:
     @property
     def url(self) -> str:
         return self._url.strip()
+
+    @property
+    def owner_org(self) -> str:
+        return self._owner_org
 
     @property
     def extract_type(self) -> str:
@@ -124,7 +143,7 @@ class HarvestSource:
     def no_harvest_resp(self, value) -> None:
         if not isinstance(value, bool):
             raise ValueError("No harvest response field must be a boolean")
-        self._status = value
+        self._no_harvest_resp = value
 
     @property
     def ckan_start(self) -> int:
@@ -145,11 +164,13 @@ class HarvestSource:
         return tree.find(".//title").text
 
     def download_dcatus(self):
+        logger.info("downloading dcatus json")
         resp = requests.get(self.url)
         if resp.status_code == 200:
             return resp.json()
 
     def harvest_to_id_hash(self, records: list[dict]) -> None:
+        logger.info("converting harvest records to id: hash")
         for record in records:
             if self.extract_type == "datajson":
                 if "identifier" not in record:  # TODO: what to do?
@@ -163,6 +184,7 @@ class HarvestSource:
             self.records[identifier] = Record(self, identifier, record, dataset_hash)
 
     def ckan_to_id_hash(self, results: list[dict]) -> None:
+        logger.info("converting ckan records to id: hash")
         for record in results:
             dataset_hash = dataset_to_hash(
                 eval(record["dcat_metadata"], {"__builtins__": {}})
@@ -225,32 +247,34 @@ class HarvestSource:
         ckan_ids = set(self.ckan_records.keys())
         same_ids = harvest_ids & ckan_ids
 
-        # since python 3.7 dicts are insertion ordered so deletions will occur first
         self.compare_data["delete"] = ckan_ids - harvest_ids
         self.compare_data["create"] = harvest_ids - ckan_ids
-        self.compare_data["update"] = set()
 
         for i in same_ids:
             if self.records[i].metadata_hash != self.ckan_records[i][0]:
                 self.compare_data["update"].add(i)
 
     def get_ckan_records(self, results=[]) -> None:
+        logger.info("querying ckan")
         res = ckan.action.package_search(**self.ckan_query)["results"]
-        if len(res) > 0:
-            results += res
+        results += res
+        if len(res) == 1000:
             self.ckan_query["start"] += self.ckan_row
             self.get_ckan_records(results)
         return results
 
     def get_ckan_records_as_id_hash(self) -> None:
         logger.info("retrieving and preparing ckan records")
-        self.ckan_to_id_hash(self.get_ckan_records())
+        self.ckan_to_id_hash(self.get_ckan_records(results=[]))
 
     def get_harvest_records_as_id_hash(self) -> None:
         logger.info("retrieving and preparing harvest records")
         if self.extract_type == "datajson":
             download_res = self.download_dcatus()
             if download_res is None or "dataset" not in download_res:
+                logger.warning(
+                    "no valid response from server or lack of 'dataset' array"
+                )
                 self.no_harvest_resp = True
                 return
             self.harvest_to_id_hash(download_res["dataset"])
@@ -380,7 +404,7 @@ class Record:
     _metadata: dict = field(default_factory=lambda: {})
     _metadata_hash: str = ""
     _operation: str = None
-    _valid: bool = False
+    _valid: bool = None
     _validation_msg: str = ""
     _status: str = "nothing"
 
@@ -548,9 +572,9 @@ class Record:
             # "name": "-".join(str(metadata["title"]).lower().replace(".", "").split()),
             "name": "".join([s for s in str(metadata["title"]).lower() if s.isalnum()])[
                 :99
-            ],  # TODO: confirm if this is okay?
-            "owner_org": "test",  # TODO: CHANGE THIS!
-            "identifier": self.metadata["identifier"],
+            ],  # TODO: need to add the random character suffix thing
+            "owner_org": self.harvest_source.owner_org,
+            "identifier": metadata["identifier"],
             "author": None,  # TODO: CHANGE THIS!
             "author_email": None,  # TODO: CHANGE THIS!
         }
@@ -580,6 +604,7 @@ class Record:
         return output
 
     def ckanify_dcatus(self) -> None:
+        logger.info("ckanifying dcatus record")
         self.ckanified_metadata = self.simple_transform(self.metadata)
 
         self.ckanified_metadata["resources"] = self.create_ckan_resources(self.metadata)
@@ -589,14 +614,17 @@ class Record:
             else []
         )
         self.ckanified_metadata["extras"] = self.create_ckan_extras()
+        logger.info("completed ckanifying dcatus record")
 
     def validate(self) -> None:
+        logger.info(f"validating {self.identifier}")
         validator = Draft202012Validator(self.harvest_source.dataset_schema)
         try:
             validator.validate(self.metadata)
             self.valid = True
         except Exception as e:
             self.validation_msg = str(e)  # TODO: verify this is what we want
+            self.valid = False
 
     # def transform(self, metadata: dict):
     #     """Transforms records"""
@@ -627,7 +655,9 @@ class Record:
         self.status = "deleted"
 
     def sync(self) -> None:
-        # TODO: do we want to do something with the validity of the record?
+        if self.valid is False:
+            logger.warning(f"{self.identifier} is invalid. bypassing {self.operation}")
+            return
 
         self.ckanify_dcatus()
 
@@ -658,7 +688,7 @@ class Record:
     def upload_to_s3(self, s3handler: S3Handler) -> None:
         # ruff: noqa: E501
         try:
-            out_path = f"{s3handler.endpoint_url}/{self.harvest_source.title}/job-id/{self.status}/{self.identifier}.pkl"
+            out_path = f"{s3handler.endpoint_url}/{self.harvest_source.title}/job-id/{self.status}/{self.identifier}.json"
             s3handler.put_object(self.prepare_for_s3_upload(), out_path)
             logger.info(
                 f"saved harvest source record {self.identifier} in s3 at {out_path}"

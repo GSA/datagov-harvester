@@ -1,11 +1,23 @@
 import hashlib
 import json
 import os
+import string
+import random
 
 import boto3
 import sansjson
 
 # ruff: noqa: F841
+
+
+def create_random_text(str_len: int) -> str:
+
+    alphabet = string.ascii_lowercase
+    output = ""
+
+    for _ in range(str_len):
+        output += alphabet[random.randint(0, len(alphabet))]
+    return output
 
 
 def convert_set_to_list(obj):
