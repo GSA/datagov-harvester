@@ -16,7 +16,6 @@ from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 from jsonschema import Draft202012Validator
 
-# TODO: add relative import "." for utils
 from .utils import (
     S3Handler,
     convert_set_to_list,
@@ -24,6 +23,7 @@ from .utils import (
     open_json,
     sort_dataset,
 )
+from .ckan_utils import munge_tag, munge_title_to_name
 
 load_dotenv()
 
@@ -529,8 +529,7 @@ class Record:
         output = []
 
         for keyword in keywords:
-            keyword = "-".join(keyword.split())
-            output.append({"name": keyword})
+            output.append({"name": munge_tag(keyword)})
 
         return output
 
@@ -569,10 +568,7 @@ class Record:
 
     def simple_transform(self, metadata: dict) -> dict:
         output = {
-            # "name": "-".join(str(metadata["title"]).lower().replace(".", "").split()),
-            "name": "".join([s for s in str(metadata["title"]).lower() if s.isalnum()])[
-                :99
-            ],  # TODO: need to add the random character suffix thing
+            "name": munge_title_to_name(metadata["title"]),
             "owner_org": self.harvest_source.owner_org,
             "identifier": metadata["identifier"],
             "author": None,  # TODO: CHANGE THIS!
