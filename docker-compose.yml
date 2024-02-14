@@ -36,3 +36,12 @@ services:
       - DEFAULT_REGION=us-east-1
     volumes:
       - "./tmp/localstack:/var/lib/localstack"
+  db:
+    image: postgres
+    restart: always
+    environment:
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
