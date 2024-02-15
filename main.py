@@ -13,8 +13,7 @@ def index():
     html += "<ul>"
     for rule in app.url_map.iter_rules():
         if 'static' not in rule.endpoint:
-            # Create a list item for each route
-            html += f"<li>{rule.endpoint}:       <a href='{rule.rule}'>{rule.rule}</a></li><br>"
+            html += f"<li>{rule.endpoint} : <a href='{rule.rule}'>{rule.rule}</a></li><br>"
     html += "</ul>"
     return html
 

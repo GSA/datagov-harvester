@@ -37,10 +37,12 @@ services:
     volumes:
       - "./tmp/localstack:/var/lib/localstack"
   db:
+    env_file:
+      - .env
     image: postgres
     restart: always
     environment:
-      POSTGRES_PASSWORD: password
+      POSTGRES_PASSWORD: {POSTGRES_PASSWORD}
     ports:
       - "5432:5432"
     volumes:
