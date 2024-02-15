@@ -2,3 +2,6 @@
 # use this file instead
 
 flask
+sqlalchemy
+psycopg2-binary
+python-dotenv

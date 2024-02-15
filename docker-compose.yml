@@ -36,14 +36,36 @@ services:
       - DEFAULT_REGION=us-east-1
     volumes:
       - "./tmp/localstack:/var/lib/localstack"
+  # db:
+  #   env_file:
+  #     - .env
+  #   image: postgres
+  #   restart: always
+  #   ports:
+  #     - "5432:5432"
+  #   volumes:
+  #     - postgres_data:/var/lib/postgresql/data
+
   db:
-    env_file:
-      - .env
-    image: postgres
-    restart: always
+      image: postgres:latest
+      restart: always
+      environment:
+        POSTGRES_USER: ${DATABASE_USER}
+        POSTGRES_PASSWORD: ${DATABASE_PASSWORD}
+        POSTGRES_DB: ${DATABASE_NAME}
+      ports:
+        - "${DATABASE_PORT}:5432"
+      volumes:
+        - postgres_data:/var/lib/postgresql/data
+
+  app:
+    build: .
+    depends_on:
+      - db
     environment:
-      POSTGRES_PASSWORD: {POSTGRES_PASSWORD}
+      DATABASE_URI: postgresql://${DATABASE_USER}:${DATABASE_PASSWORD}@${DATABASE_SERVER}:${DATABASE_PORT}/${DATABASE_NAME}
     ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - "8080:8080"
+
+volumes:
+  postgres_data:
