@@ -23,6 +23,6 @@ new_error = {
     "record_reported_id": "recordXYZ",
     "date_created": datetime.utcnow(),
     "type": "Validation Error",
-    "severity": "Medium",
+    "severity": "ERROR",
     "message": "Invalid data format."
 }
