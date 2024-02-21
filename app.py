@@ -1,5 +1,4 @@
-from flask import Flask, request, jsonify
-import sys
+from flask import Flask, request
 from harvester.database.interface import HarvesterDBInterface
 from harvester.database import init_db
 from tests.database.data import new_source, new_job, new_error
@@ -13,7 +12,8 @@ def index():
     html += "<ul>"
     for rule in app.url_map.iter_rules():
         if 'static' not in rule.endpoint:
-            html += f"<li>{rule.endpoint} : <a href='{rule.rule}'>{rule.rule}</a></li><br>"
+            html += (f"<li>{rule.endpoint} : "
+                     f"<a href='{rule.rule}'>{rule.rule}</a></li><br>")
     html += "</ul>"
     return html
 

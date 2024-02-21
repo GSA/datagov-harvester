@@ -1,4 +1,4 @@
-from sqlalchemy import text, String, Integer, ForeignKey, ARRAY, DateTime
+from sqlalchemy import text, String, Integer, ForeignKey, DateTime
 from sqlalchemy.orm import DeclarativeBase, relationship, mapped_column
 from sqlalchemy.dialects.postgresql import JSON, UUID, ARRAY
 
@@ -20,7 +20,9 @@ class HarvestSource(Base):
 class HarvestJob(Base):
     __tablename__ = 'harvest_job'
     
-    harvest_source_id = mapped_column(UUID(as_uuid=True), ForeignKey('harvest_source.id'), nullable=False)
+    harvest_source_id = mapped_column(UUID(as_uuid=True),
+                                      ForeignKey('harvest_source.id'),
+                                      nullable=False)
     date_created = mapped_column(DateTime)
     date_finished = mapped_column(DateTime)
     records_added = mapped_column(Integer)
@@ -34,7 +36,9 @@ class HarvestJob(Base):
 class HarvestError(Base):
     __tablename__ = 'harvest_error'
     
-    harvest_job_id = mapped_column(UUID(as_uuid=True), ForeignKey('harvest_job.id'), nullable=False)
+    harvest_job_id = mapped_column(UUID(as_uuid=True),
+                                   ForeignKey('harvest_job.id'),
+                                   nullable=False)
     record_id = mapped_column(String, nullable=True)
     record_reported_id = mapped_column(String)
     date_created = mapped_column(DateTime)
@@ -44,5 +48,7 @@ class HarvestError(Base):
     
     job = relationship("HarvestJob", back_populates="errors")
 
-HarvestSource.jobs = relationship("HarvestJob", order_by=HarvestJob.id, back_populates="source")
-HarvestJob.errors = relationship("HarvestError", order_by=HarvestError.id, back_populates="job")
+HarvestSource.jobs = relationship(
+    "HarvestJob", order_by=HarvestJob.id,back_populates="source")
+HarvestJob.errors = relationship(
+    "HarvestError", order_by=HarvestError.id, back_populates="job")

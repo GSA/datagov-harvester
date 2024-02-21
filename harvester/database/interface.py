@@ -1,11 +1,8 @@
 from sqlalchemy import create_engine, inspect
 from sqlalchemy.orm import sessionmaker
 from harvester.database.models import HarvestSource, HarvestJob, HarvestError
-import os
-from dotenv import load_dotenv
+from . import DATABASE_URI
 
-load_dotenv()
-DATABASE_URI=os.getenv("DATABASE_URI")
 engine = create_engine(DATABASE_URI)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
@@ -27,7 +24,8 @@ class HarvesterDBInterface:
 
     def get_all_harvest_sources(self):
         harvest_sources = self.db.query(HarvestSource).all()
-        harvest_sources_data = [HarvesterDBInterface._to_dict(source) for source in harvest_sources]
+        harvest_sources_data = [
+            HarvesterDBInterface._to_dict(source) for source in harvest_sources]
         return harvest_sources_data
     
     def get_harvest_source(self, source_id):
@@ -44,7 +42,8 @@ class HarvesterDBInterface:
 
     def get_all_harvest_jobs(self):
         harvest_jobs = self.db.query(HarvestJob).all()
-        harvest_jobs_data = [HarvesterDBInterface._to_dict(job) for job in harvest_jobs]
+        harvest_jobs_data = [
+            HarvesterDBInterface._to_dict(job) for job in harvest_jobs]
         return harvest_jobs_data
 
     def get_harvest_job(self, job_id):
@@ -61,7 +60,8 @@ class HarvesterDBInterface:
 
     def get_all_harvest_errors(self):
         harvest_errors = self.db.query(HarvestError).all()
-        harvest_errors_data = [HarvesterDBInterface._to_dict(err) for err in harvest_errors]
+        harvest_errors_data = [
+            HarvesterDBInterface._to_dict(err) for err in harvest_errors]
         return harvest_errors_data
 
     def get_harvest_error(self, error_id):

@@ -1,5 +1,5 @@
 from sqlalchemy import create_engine
-from harvester.database.models import Base, HarvestSource, HarvestJob, HarvestError
+from harvester.database.models import Base
 from sqlalchemy.engine.reflection import Inspector
 from . import DATABASE_URI
 
