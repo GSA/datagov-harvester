@@ -23,3 +23,5 @@ tmp/
 
 # vscode debugger
 .vscode/
+
+vars.yml

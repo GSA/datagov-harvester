@@ -6,10 +6,9 @@ applications:
       - python_buildpack
     routes:
       - route: ((app_name)).app.cloud.gov
-    health-check-type: http
-    health-check-http-endpoint: /
-    health-check-invocation-timeout: 60
+    services:
+      - ((db_name))
     instances: 1
-    disk_quota: 2G
-    memory: 200M
-    command: python3 main.py $PORT
+    env:
+      FLASK_APP: app.py
+      db_name: ((db_name))

@@ -36,16 +36,6 @@ services:
       - DEFAULT_REGION=us-east-1
     volumes:
       - "./tmp/localstack:/var/lib/localstack"
-  # db:
-  #   env_file:
-  #     - .env
-  #   image: postgres
-  #   restart: always
-  #   ports:
-  #     - "5432:5432"
-  #   volumes:
-  #     - postgres_data:/var/lib/postgresql/data
-
   db:
       image: postgres:latest
       restart: always
