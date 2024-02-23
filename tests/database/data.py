@@ -5,7 +5,9 @@ new_source = {
     'notification_emails': ['admin@example.com'],
     'organization_name': 'Example Organization',
     'frequency': 'daily',
-    'config': '{"url": "http://example.com", "schema_validation_type": "strict"}'
+    'url': "http://example.com",
+    'schema_type': 'strict',
+    'source_type': 'json'
 }
 
 new_job = {

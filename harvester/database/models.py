@@ -1,6 +1,6 @@
-from sqlalchemy import text, String, Integer, ForeignKey, DateTime
+from sqlalchemy import text, String, Integer,  ARRAY, ForeignKey, DateTime
 from sqlalchemy.orm import DeclarativeBase, relationship, mapped_column
-from sqlalchemy.dialects.postgresql import JSON, UUID, ARRAY
+from sqlalchemy.dialects.postgresql import JSON, UUID
 
 
 class Base(DeclarativeBase):
@@ -11,11 +11,13 @@ class Base(DeclarativeBase):
 class HarvestSource(Base):
     __tablename__ = 'harvest_source'
     
-    name = mapped_column(String)
+    name = mapped_column(String, nullable=False)
     notification_emails = mapped_column(ARRAY(String))
     organization_name = mapped_column(String)
-    frequency = mapped_column(String)
-    config = mapped_column(JSON) 
+    frequency = mapped_column(String, nullable=False)
+    url = mapped_column(String, nullable=False)
+    schema_type = mapped_column(String, nullable=False)
+    source_type = mapped_column(String, nullable=False)
 
 class HarvestJob(Base):
     __tablename__ = 'harvest_job'

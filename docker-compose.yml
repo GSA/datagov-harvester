@@ -53,7 +53,7 @@ services:
     depends_on:
       - db
     environment:
-      DATABASE_URI: postgresql://${DATABASE_USER}:${DATABASE_PASSWORD}@${DATABASE_SERVER}:${DATABASE_PORT}/${DATABASE_NAME}
+      DATABASE_URI: ${DATABASE_URI}
     ports:
       - "8080:8080"
 

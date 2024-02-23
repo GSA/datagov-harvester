@@ -1,14 +1,16 @@
 from sqlalchemy import create_engine, inspect
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker, scoped_session
 from harvester.database.models import HarvestSource, HarvestJob, HarvestError
 from . import DATABASE_URI
 
-engine = create_engine(DATABASE_URI)
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
 class HarvesterDBInterface:
-    def __init__(self):
-        self.db = SessionLocal()
+    def __init__(self, session=None):
+        if session is None:
+            engine = create_engine(DATABASE_URI)
+            session_factory = sessionmaker(bind=engine, autocommit=False, autoflush=False)
+            self.db = scoped_session(session_factory)
+        else:
+            self.db = session
         
     @staticmethod
     def _to_dict(obj):
@@ -69,4 +71,7 @@ class HarvesterDBInterface:
         return HarvesterDBInterface._to_dict(result)
 
     def close(self):
-        self.db.close()
+        if hasattr(self.db, 'remove'):
+            self.db.remove()
+        elif hasattr(self.db, 'close'):
+            self.db.close()

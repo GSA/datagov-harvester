@@ -8,7 +8,7 @@ def create_tables():
     Base.metadata.create_all(engine)
     inspector = Inspector.from_engine(engine)
     table_names = inspector.get_table_names()
-    return (f"Created database tables : {table_names}")
+    return (f"Database tables : {table_names}")
 
 
 

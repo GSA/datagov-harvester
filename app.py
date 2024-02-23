@@ -8,19 +8,14 @@ db = HarvesterDBInterface()
 
 @app.route('/', methods=['GET'])
 def index():
-    html = "<h1>Available Testings</h1>"
+    html = "<b>" + init_db.create_tables() + "</b>"
     html += "<ul>"
     for rule in app.url_map.iter_rules():
-        if 'static' not in rule.endpoint:
+        if 'static' not in rule.endpoint and 'index' not in rule.endpoint:
             html += (f"<li>{rule.endpoint} : "
                      f"<a href='{rule.rule}'>{rule.rule}</a></li><br>")
     html += "</ul>"
     return html
-
-@app.route('/init_db', methods=['GET'])
-def create_tables():
-    result = init_db.create_tables()
-    return result
 
 @app.route('/add_source', methods=['GET'])
 def add_harvest_source():
@@ -86,6 +81,10 @@ def get_harvest_error():
     else:
         result = db.get_harvest_error(id)
         return result
+
+@app.teardown_appcontext
+def shutdown_session(exception=None):
+    db.close()
 
 if __name__ == '__main__':
     app.run(host="0.0.0.0", port=8080)

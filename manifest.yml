@@ -1,5 +1,4 @@
 ---
-# To apply this manifest: cf push --vars-file vars.yml
 applications:
   - name: ((app_name))
     buildpacks:
