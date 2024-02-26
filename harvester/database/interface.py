@@ -7,7 +7,9 @@ class HarvesterDBInterface:
     def __init__(self, session=None):
         if session is None:
             engine = create_engine(DATABASE_URI)
-            session_factory = sessionmaker(bind=engine, autocommit=False, autoflush=False)
+            session_factory = sessionmaker(bind=engine,
+                                           autocommit=False,
+                                           autoflush=False)
             self.db = scoped_session(session_factory)
         else:
             self.db = session
