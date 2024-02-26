@@ -7,7 +7,9 @@ new_source = {
     'frequency': 'daily',
     'url': "http://example.com",
     'schema_type': 'strict',
-    'source_type': 'json'
+    'source_type': 'json',
+    'harvest_source_id': '8d15bfa3-2b48-4166-bce0-631a1e336ae4',
+    'harvest_source_name': 'source name from ckan'
 }
 
 new_job = {
