@@ -1,4 +1,0 @@
-# poetry not supported by cloud.gov?
-# use this file instead
-
-flask
