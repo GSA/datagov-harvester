@@ -1,7 +1,9 @@
 import os
 import json
 
-db_name = os.getenv('db_name')
+# db_name = os.getenv('DATABASE_URI')
+
+db_name = os.getenv('DATABASE_NAME')
 
 def get_database_uri():
     if 'VCAP_SERVICES' in os.environ:
@@ -15,3 +17,5 @@ def get_database_uri():
         return os.getenv('DATABASE_URI')
 
 DATABASE_URI = get_database_uri()
+
+print(DATABASE_URI)

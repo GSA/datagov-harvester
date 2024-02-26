@@ -6,8 +6,8 @@ applications:
     routes:
       - route: ((app_name)).app.cloud.gov
     services:
-      - ((db_name))
+      - ((database_name))
     instances: 1
     env:
       FLASK_APP: app.py
-      db_name: ((db_name))
+      DATABASE_NAME: ((database_name))
