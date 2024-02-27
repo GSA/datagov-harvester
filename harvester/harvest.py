@@ -24,6 +24,7 @@ from .utils import (
     sort_dataset,
 )
 from .ckan_utils import munge_tag, munge_title_to_name
+from .exceptions import *
 
 load_dotenv()
 
@@ -243,16 +244,19 @@ class HarvestSource:
         """Compares records"""
         logger.info("comparing harvest and ckan records")
 
-        harvest_ids = set(self.records.keys())
-        ckan_ids = set(self.ckan_records.keys())
-        same_ids = harvest_ids & ckan_ids
+        try:
+            harvest_ids = set(self.records.keys())
+            ckan_ids = set(self.ckan_records.keys())
+            same_ids = harvest_ids & ckan_ids
 
-        self.compare_data["delete"] = ckan_ids - harvest_ids
-        self.compare_data["create"] = harvest_ids - ckan_ids
+            self.compare_data["delete"] = ckan_ids - harvest_ids
+            self.compare_data["create"] = harvest_ids - ckan_ids
 
-        for i in same_ids:
-            if self.records[i].metadata_hash != self.ckan_records[i][0]:
-                self.compare_data["update"].add(i)
+            for i in same_ids:
+                if self.records[i].metadata_hash != self.ckan_records[i][0]:
+                    self.compare_data["update"].add(i)
+        except Exception as e:
+            raise CompareException("failed to run compare. exiting job")
 
     def get_ckan_records(self, results=[]) -> None:
         logger.info("querying ckan")
@@ -265,40 +269,61 @@ class HarvestSource:
 
     def get_ckan_records_as_id_hash(self) -> None:
         logger.info("retrieving and preparing ckan records")
-        self.ckan_to_id_hash(self.get_ckan_records(results=[]))
+        try:
+            self.ckan_to_id_hash(self.get_ckan_records(results=[]))
+        except Exception as e:
+            raise ExtractCKANSourceException(
+                "failed to extract ckan records. exiting job"
+            )
 
     def get_harvest_records_as_id_hash(self) -> None:
         logger.info("retrieving and preparing harvest records")
-        if self.extract_type == "datajson":
-            download_res = self.download_dcatus()
-            if download_res is None or "dataset" not in download_res:
-                logger.warning(
-                    "no valid response from server or lack of 'dataset' array"
+        try:
+            if self.extract_type == "datajson":
+                download_res = self.download_dcatus()
+                if download_res is None or "dataset" not in download_res:
+                    logger.warning(
+                        "no valid response from server or lack of 'dataset' array"
+                    )
+                    self.no_harvest_resp = True
+                    raise ExtractHarvestSourceException(
+                        "no valid response from server or lack of 'dataset' array. exiting job"
+                    )
+                self.harvest_to_id_hash(download_res["dataset"])
+            if self.extract_type == "waf-collection":
+                # TODO: break out the xml catalogs as records
+                # TODO: handle no response
+                self.harvest_to_id_hash(
+                    self.download_waf(self.traverse_waf(self.url, **self.waf_config))
                 )
-                self.no_harvest_resp = True
-                return
-            self.harvest_to_id_hash(download_res["dataset"])
-        if self.extract_type == "waf-collection":
-            # TODO: break out the xml catalogs as records
-            # TODO: handle no response
-            self.harvest_to_id_hash(
-                self.download_waf(self.traverse_waf(self.url, **self.waf_config))
+        except Exception as e:
+            raise ExtractHarvestSourceException(
+                "extract from harvest failed. exiting job"
             )
 
     def get_record_changes(self) -> None:
         """determine which records needs to be updated, deleted, or created"""
+        # irrecoverable error
         logger.info(f"getting records changes for {self.title} using {self.url}")
         try:
             self.get_ckan_records_as_id_hash()
             self.get_harvest_records_as_id_hash()
-            if self.no_harvest_resp is True:
-                return
             self.compare()
-        except Exception as e:
-            logger.error(self.title + " " + self.url + " " "\n")
-            logger.error(
-                "\n".join(traceback.format_exception(None, e, e.__traceback__))
-            )
+        except ExtractCKANSourceException as e:
+            # write to log and write to db error table
+            pass
+        except ExtractHarvestSourceException as e:
+            # write to log and write to db error table
+            pass
+        except CompareException as e:
+            # write to log and write to db error table
+            pass
+
+        # except Exception as e:
+        #     logger.error(self.title + " " + self.url + " " "\n")
+        #     logger.error(
+        #         "\n".join(traceback.format_exception(None, e, e.__traceback__))
+        #     )
 
     def synchronize_records(self) -> None:
         """runs the delete, update, and create
@@ -324,11 +349,22 @@ class HarvestSource:
                     record.validate()
                     # TODO: add transformation and validation
                     record.sync()
-                except Exception as e:
-                    logger.error(f"error processing '{operation}' on record {i}\n")
-                    logger.error(
-                        "\n".join(traceback.format_exception(None, e, e.__traceback__))
-                    )
+
+                except ValidationException as e:
+                    # do something
+                    pass
+                except DCATUSToCKANException as e:
+                    # do something
+                    pass
+                except SynchronizeException as e:
+                    # do something
+                    pass
+
+                # except Exception as e:
+                #     logger.error(f"error processing '{operation}' on record {i}\n")
+                #     logger.error(
+                #         "\n".join(traceback.format_exception(None, e, e.__traceback__))
+                #     )
 
     def report(self) -> None:
         logger.info("report results")
@@ -601,16 +637,24 @@ class Record:
 
     def ckanify_dcatus(self) -> None:
         logger.info("ckanifying dcatus record")
-        self.ckanified_metadata = self.simple_transform(self.metadata)
 
-        self.ckanified_metadata["resources"] = self.create_ckan_resources(self.metadata)
-        self.ckanified_metadata["tags"] = (
-            self.create_ckan_tags(self.metadata["keyword"])
-            if "keyword" in self.metadata
-            else []
-        )
-        self.ckanified_metadata["extras"] = self.create_ckan_extras()
-        logger.info("completed ckanifying dcatus record")
+        try:
+            self.ckanified_metadata = self.simple_transform(self.metadata)
+
+            self.ckanified_metadata["resources"] = self.create_ckan_resources(
+                self.metadata
+            )
+            self.ckanified_metadata["tags"] = (
+                self.create_ckan_tags(self.metadata["keyword"])
+                if "keyword" in self.metadata
+                else []
+            )
+            self.ckanified_metadata["extras"] = self.create_ckan_extras()
+            logger.info("completed ckanifying dcatus record")
+        except Exception as e:
+            raise DCATUSToCKANException(
+                "failed to convert from dcatus to ckan. skipping record"
+            )
 
     def validate(self) -> None:
         logger.info(f"validating {self.identifier}")
@@ -621,6 +665,7 @@ class Record:
         except Exception as e:
             self.validation_msg = str(e)  # TODO: verify this is what we want
             self.valid = False
+            raise ValidationException("failed validation")
 
     # def transform(self, metadata: dict):
     #     """Transforms records"""
@@ -646,9 +691,12 @@ class Record:
         self.status = "updated"
 
     def delete_record(self) -> None:
-        # purge returns nothing
-        ckan.action.dataset_purge(**{"id": self.identifier})
-        self.status = "deleted"
+        try:
+            ckan.action.dataset_purge(**{"id": self.identifier})
+            self.status = "deleted"
+        except Exception as e:
+            # do something with e
+            raise SynchronizeException("failed to synchronize record")
 
     def sync(self) -> None:
         if self.valid is False:
@@ -659,10 +707,14 @@ class Record:
 
         start = datetime.now()
 
-        if self.operation == "create":
-            self.create_record()
-        if self.operation == "update":
-            self.update_record()
+        try:
+            if self.operation == "create":
+                self.create_record()
+            if self.operation == "update":
+                self.update_record()
+        except Exception as e:
+            # do something with e
+            raise SynchronizeException("failed to synchronize record")
 
         logger.info(
             f"time to {self.operation} {self.identifier} {datetime.now()-start}"
