@@ -1,6 +1,6 @@
 ---
 name: Tests on Commit
-on: [push, pull_request]
+on: [push]
 
 env:
   PY_VERSION: "3.10"

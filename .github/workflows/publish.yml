@@ -1,8 +1,8 @@
 name: Publish to PyPI
 on:
-  pull_request:
-    branches: [main]
-    types: [closed]
+  push:
+    branches:
+      - main
   workflow_dispatch:
     inputs:
       version_no:
