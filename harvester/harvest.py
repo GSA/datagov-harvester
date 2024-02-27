@@ -66,7 +66,8 @@ class HarvestSource:
     _dataset_schema: dict = field(
         default_factory=lambda: open_json(
             ROOT_DIR / "data" / "dcatus" / "schemas" / "dataset.json"
-        )
+        ),
+        repr=False,
     )
     _no_harvest_resp: bool = False
     _ckan_start: int = 0
@@ -78,10 +79,11 @@ class HarvestSource:
     # worth it? not sure...
     # since python 3.7 dicts are insertion ordered so deletions will occur first
     compare_data: dict = field(
-        default_factory=lambda: {"delete": set(), "create": set(), "update": set()}
+        default_factory=lambda: {"delete": set(), "create": set(), "update": set()},
+        repr=False,
     )
-    records: dict = field(default_factory=lambda: {})
-    ckan_records: dict = field(default_factory=lambda: {})
+    records: dict = field(default_factory=lambda: {}, repr=False)
+    ckan_records: dict = field(default_factory=lambda: {}, repr=False)
 
     def __post_init__(self) -> None:
         # putting this in the post init to avoid an
