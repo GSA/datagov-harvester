@@ -1,1 +1,1 @@
-from .harvest import HarvestSource, Record
+from .harvest import HarvestSource, Record # noqa
