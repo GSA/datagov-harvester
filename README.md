@@ -23,6 +23,16 @@ This project is using `poetry` to manage this project. Install [here](https://py
 
 Once installed, `poetry install` installs dependencies into a local virtual environment.
 
+### Harvesting Logic Database
+
+A database service is required for use on cloud.gov.
+
+In a given Cloud Foundry `space`, a db can be created with `cf create-service <service offering> <plan> <service instance>`. In dev, for example, the db was created with `cf create-service aws-rds micro-psql harvesting-logic-db`. Creating databases for the other spaces should follow the same pattern, though the size may need to be adjusted (see available AWS RDS service offerings with `cf marketplace -e aws-rds`).
+
+Any created service needs to be bound to an app with `cf bind-service <app> <service>`. With the above example, the db can be bound with `cf bind-service harvesting-logic harvesting-logic-db`.
+
+Accessing the service can be done with service keys. They can be created with `cf create-service-keys`, listed with `cf service-keys`, and shown with `cf service-key <service-key-name>`.
+
 ## Testing
 
 ### CKAN load testing
