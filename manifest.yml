@@ -1,6 +1,6 @@
 ---
 applications:
-  - name: datagov-harvesting-logic
+  - name: ((app_name))
     buildpacks:
       - python_buildpack
     routes:
