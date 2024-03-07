@@ -4,7 +4,7 @@ import sys
 
 sys.path.insert(1, "/".join(os.path.realpath(__file__).split("/")[0:-2]))
 
-from harvester.harvest import HarvestSource # noqa E402
+from harvester import HarvestSource # noqa E402
 
 title = os.environ['SRC_TITLE']
 url = os.environ['SRC_URL']
