@@ -3,7 +3,7 @@ from datetime import datetime
 new_source = {
     'name': 'Example Harvest Source',
     'notification_emails': ['admin@example.com'],
-    'organization_name': 'Example Organization',
+    'organization_id': 'Example Organization',
     'frequency': 'daily',
     'url': "http://example.com",
     'schema_type': 'strict',

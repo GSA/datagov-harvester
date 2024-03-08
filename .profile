@@ -13,4 +13,5 @@ function vcap_get_service () {
 
 export APP_NAME=$(echo $VCAP_APPLICATION | jq -r '.application_name')
 
-export DATABASE_URI=$(vcap_get_service aws-rds .credentials.uri)
+export URI=$(vcap_get_service aws-rds .credentials.uri)
+export DATABASE_URI=$(echo $URI | sed 's/postgres:\/\//postgresql:\/\//g')

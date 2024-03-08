@@ -13,7 +13,7 @@ class HarvestSource(Base):
     
     name = mapped_column(String, nullable=False)
     notification_emails = mapped_column(ARRAY(String))
-    organization_name = mapped_column(String)
+    organization_id = mapped_column(String, nullable=False)
     frequency = mapped_column(String, nullable=False)
     url = mapped_column(String, nullable=False)
     schema_type = mapped_column(String, nullable=False)

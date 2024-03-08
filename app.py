@@ -52,8 +52,12 @@ def get_all_harvest_jobs():
 
 @app.route('/harvest_errors_by_job/<job_id>', methods=['GET'])
 def get_all_harvest_errors_by_job(job_id):
-    result = db.get_all_harvest_errors_by_job(job_id)
-    return result
+    try:
+        result = db.get_all_harvest_errors_by_job(job_id)
+        return result
+    except Exception:
+        return " provide job_id"
+    
 
 @app.route('/harvest_source/<source_id>', methods=['GET'])
 def get_harvest_source(source_id):

@@ -63,7 +63,7 @@ class HarvesterDBInterface:
         return new_error
 
     def get_all_harvest_errors_by_job(self, job_id):
-        harvest_errors = self.db.query(HarvestError).filter_by(harvest_job_id=job_id).first()
+        harvest_errors = self.db.query(HarvestError).filter_by(harvest_job_id=job_id)
         harvest_errors_data = [
             HarvesterDBInterface._to_dict(err) for err in harvest_errors]
         return harvest_errors_data

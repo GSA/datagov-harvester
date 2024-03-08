@@ -38,7 +38,7 @@ def db_interface(db_session):
 
 def test_add_harvest_source(db_interface):
     source_data = {'name': 'Test Source',
-                   'organization_name': 'Test Org',
+                   'organization_id': 'Test Org',
                    'frequency': 'daily',
                    'url': "http://example.com",
                    'schema_type': 'strict',
@@ -50,7 +50,7 @@ def test_add_and_get_harvest_source(db_interface):
     new_source = db_interface.add_harvest_source({
             'name': 'Test Source',
             'notification_emails': ['test@example.com'],
-            'organization_name': 'Test Org',
+            'organization_id': 'Test Org',
             'frequency': 'daily',
             'url': "http://example.com",
             'schema_type': 'strict',
@@ -66,7 +66,7 @@ def test_add_harvest_job(db_interface):
     new_source = db_interface.add_harvest_source({
             'name': 'Test Source',
             'notification_emails': ['test@example.com'],
-            'organization_name': 'Test Org',
+            'organization_id': 'Test Org',
             'frequency': 'daily',
             'url': "http://example.com",
             'schema_type': 'strict',
@@ -89,7 +89,7 @@ def test_add_harvest_error(db_interface):
     new_source = db_interface.add_harvest_source({
         'name': 'Error Test Source',
         'notification_emails': ['error@example.com'],
-        'organization_name': 'Error Org',
+        'organization_id': 'Error Org',
         'frequency': 'weekly',
         'url': "http://example.com",
         'schema_type': 'strict',
