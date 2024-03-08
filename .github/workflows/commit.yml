@@ -74,7 +74,7 @@ jobs:
       - name: deploy DHL
         uses: cloud-gov/cg-cli-tools@main
         with:
-          command: cf push datagov-harvesting-logic --strategy rolling --no-wait
+          command: cf push datagov-harvesting-logic --vars-file vars.yml --strategy rolling --no-wait
           cf_org: gsa-datagov
           cf_space: ${{vars.ENVIRONMENT_NAME}}
           cf_username: ${{secrets.CF_SERVICE_USER}}
