@@ -94,14 +94,7 @@ If you followed the instructions for `CKAN load testing` and `Harvester testing`
 
 ### Local development 
 
-1. Copy the sample environment file and set your local configurations:
-
-   ```bash
-   cp .env.sample .env
-   ```
-
-   Edit the `.env` file with your local settings.
-
+1. set your local configurations in `.env` file.
 
 2. Use the Makefile to set up local Docker containers, including a PostgreSQL database and the Flask application:
 
@@ -137,7 +130,12 @@ Accessing the service can be done with service keys. They can be created with `c
 
 #### Manually Deploying the Flask Application
 
-1. Ensure you have a `manifest.yml` and `vars.yml` file configured for your Flask application. The `vars.yml` file should include variables such as `FLASK_APP` and database service bindings.
+1. Ensure you have a `manifest.yml` and `vars.yml` file configured for your Flask application. The `vars.yml` file may include variables: 
+
+    ```bash
+    app_name: harvesting-logic
+    database_name: harvesting-logic-db
+    ```
 
 2. Deploy the application using Cloud Foundry's `cf push` command with the variable file:
 

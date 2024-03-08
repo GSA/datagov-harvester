@@ -10,9 +10,6 @@ build-dist: clean-dist  ## Builds new package dist
 build:  ## build Flask app
 	docker compose build app
 
-up:  ## up Flask app
-	docker compose up db app
-
 clean-dist:  ## Cleans dist dir
 	rm -rf dist/*
 
