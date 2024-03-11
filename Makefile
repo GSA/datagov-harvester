@@ -7,6 +7,9 @@ pypi-upload: build-dist  ## Uploads new package to PyPi after clean, build
 build-dist: clean-dist  ## Builds new package dist
 	poetry build --verbose
 	
+build:  ## build Flask app
+	docker compose build app
+
 clean-dist:  ## Cleans dist dir
 	rm -rf dist/*
 

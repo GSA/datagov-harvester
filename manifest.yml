@@ -1,10 +1,13 @@
 ---
-# To apply this manifest: cf push --vars-file vars.yml
 applications:
-  - name: datagov-harvesting-logic
+  - name: ((app_name))
     buildpacks:
       - python_buildpack
-    no-route: true
-    instances: 0
-    command: sleep infinity
-    health-check-type: process
+    routes:
+      - route: ((app_name)).app.cloud.gov
+    services:
+      - ((database_name))
+    instances: 1
+    env:
+      DATABASE_NAME: ((database_name))
+    command: python app.py

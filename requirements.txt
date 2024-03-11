@@ -1,0 +1,8 @@
+# poetry not supported by cloud.gov?
+# use this file instead for manually push
+
+flask
+sqlalchemy
+psycopg2-binary
+python-dotenv
+ckanapi
