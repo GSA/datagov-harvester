@@ -4,7 +4,7 @@ applications:
     buildpacks:
       - python_buildpack
     routes:
-      - route: ((app_name)).app.cloud.gov
+      - route: ((route-external))
     services:
       - ((database_name))
     instances: 1

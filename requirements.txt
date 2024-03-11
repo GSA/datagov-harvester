@@ -1,8 +1,3 @@
-# poetry not supported by cloud.gov?
-# use this file instead for manually push
-
-flask
-sqlalchemy
-psycopg2-binary
-python-dotenv
-ckanapi
+# poetry not supported by cloud.gov, use this file instead for manually push
+# run this command to generate the file:
+# poetry export -f requirements.txt --output requirements.txt --without-hashes
