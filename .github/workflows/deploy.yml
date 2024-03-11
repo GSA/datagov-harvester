@@ -1,41 +1,129 @@
-name: Publish to PyPI
-on:
-  pull_request:
-    branches: [main]
-    types: [closed]
-  workflow_dispatch:
-    inputs:
-      version_no:
-        description: 'Release Version:'
-        required: true
+---
+  name: Deploy to cloud.gov
+  
+  on:
+    push:
+      branches:
+        - main
+    workflow_dispatch:
+      inputs:
+        version_no:
+          description: 'Release Version:'
+          required: true
+  
+  env:
+    POETRY_VERSION: "1.7.1"
 
-env:
-  POETRY_VERSION: "1.7.1"
+  jobs:
+    deploy-staging:
+      name: deploy staging
+      environment: staging
+      runs-on: ubuntu-latest
+      steps:
+        - name: checkout
+          uses: actions/checkout@v3
+        - name: Install Poetry
+          uses: abatilo/actions-poetry@v2
+          with:
+            poetry-version: ${{ env.POETRY_VERSION }}
+        - name: Add requirement.txt
+          run: |
+            poetry export -f requirements.txt --output requirements.txt --without-hashes
+            echo "Generated requirements.txt:"
+            cat requirements.txt
+        - name: deploy DHL
+          uses: cloud-gov/cg-cli-tools@main
+          with:
+            command: cf push --vars-file vars.yml --strategy rolling --no-wait
+            cf_org: gsa-datagov
+            cf_space: ${{vars.ENVIRONMENT_NAME}}
+            cf_username: ${{secrets.CF_SERVICE_USER}}
+            cf_password: ${{secrets.CF_SERVICE_AUTH}}
+        - name: smoke test
+          uses: cloud-gov/cg-cli-tools@main
+          with:
+            command: cf run-task harvesting-logic -c "/home/vcap/app/scripts/smoke-test.py" --name smoke-test
+            cf_org: gsa-datagov
+            cf_space: ${{vars.ENVIRONMENT_NAME}}
+            cf_username: ${{secrets.CF_SERVICE_USER}}
+            cf_password: ${{secrets.CF_SERVICE_AUTH}}
+        - name: monitor task output
+          uses: cloud-gov/cg-cli-tools@main
+          with:
+            command: >
+              scripts/monitor-cf-logs.sh harvesting-logic smoke-test
+            cf_org: gsa-datagov
+            cf_space: ${{vars.ENVIRONMENT_NAME}}
+            cf_username: ${{secrets.CF_SERVICE_USER}}
+            cf_password: ${{secrets.CF_SERVICE_AUTH}}
+        - name: Create Issue if it fails 😢
+          if: ${{ failure() && github.ref == 'refs/heads/main' }}
+          uses: JasonEtco/create-an-issue@v2
+          env:
+            GITHUB_TOKEN: ${{ secrets.ADD_TO_PROJECT_PAT }}
+            GITHUB_JOB: ${{ toJson(github)['job'] }}
+            GITHUB_ATTEMPTS: ${{ github.run_attempt }}
+            LAST_COMMIT: ${{ github.sha }}
+            LAST_RUN_BY: ${{ github.actor }}
+            RUN_ID: ${{ github.run_id }}
+            REPO: ${{ github.repository }}
+          with:
+            filename: .github/deploy_failure.md
+            update_existing: true
 
-jobs:
-  deploy:
-    name: Publish to PyPI
-    runs-on: ubuntu-latest
-    environment:
-      name: pypi
-      url: https://pypi.org/project/datagov-harvesting-logic/
-    if: github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'
-    steps:
-      - name: checkout
-        uses: actions/checkout@v3
-      - name: Update setup.py if manual release
-        if: github.event_name == 'workflow_dispatch'
-        run: |
-          sed -i "s/version='[0-9]\{1,2\}.[0-9]\{1,4\}.[0-9]\{1,4\}',/version='${{github.event.inputs.version_no}}',/g" pyproject.toml
-      - name: Install Poetry
-        uses: abatilo/actions-poetry@v2
-        with:
-          poetry-version: ${{ env.POETRY_VERSION }}
-      - name: Create packages
-        run: |
-          poetry build --verbose
-      - name: pypi-publish
-        uses: pypa/gh-action-pypi-publish@v1.8.11
-        with:
-          user: __token__
-          password: ${{ secrets.PYPI_API_TOKEN }}
+    deploy-prod:
+      name: deploy prod
+      needs: deploy-staging
+      environment: prod
+      runs-on: ubuntu-latest
+      steps:
+        - name: checkout
+          uses: actions/checkout@v3
+        - name: Install Poetry
+          uses: abatilo/actions-poetry@v2
+          with:
+            poetry-version: ${{ env.POETRY_VERSION }}
+        - name: Add requirement.txt
+          run: |
+            poetry export -f requirements.txt --output requirements.txt --without-hashes
+            echo "Generated requirements.txt:"
+            cat requirements.txt
+        - name: deploy DHL
+          uses: cloud-gov/cg-cli-tools@main
+          with:
+            command: cf push --vars-file vars.yml --strategy rolling --no-wait
+            cf_org: gsa-datagov
+            cf_space: ${{vars.ENVIRONMENT_NAME}}
+            cf_username: ${{secrets.CF_SERVICE_USER}}
+            cf_password: ${{secrets.CF_SERVICE_AUTH}}
+        - name: smoke test
+          uses: cloud-gov/cg-cli-tools@main
+          with:
+            command: cf run-task harvesting-logic -c "/home/vcap/app/scripts/smoke-test.py" --name smoke-test
+            cf_org: gsa-datagov
+            cf_space: ${{vars.ENVIRONMENT_NAME}}
+            cf_username: ${{secrets.CF_SERVICE_USER}}
+            cf_password: ${{secrets.CF_SERVICE_AUTH}}
+        - name: monitor task output
+          uses: cloud-gov/cg-cli-tools@main
+          with:
+            command: >
+              scripts/monitor-cf-logs.sh harvesting-logic smoke-test
+            cf_org: gsa-datagov
+            cf_space: ${{vars.ENVIRONMENT_NAME}}
+            cf_username: ${{secrets.CF_SERVICE_USER}}
+            cf_password: ${{secrets.CF_SERVICE_AUTH}}
+        - name: Create Issue if it fails 😢
+          if: ${{ failure() && github.ref == 'refs/heads/main' }}
+          uses: JasonEtco/create-an-issue@v2
+          env:
+            GITHUB_TOKEN: ${{ secrets.ADD_TO_PROJECT_PAT }}
+            GITHUB_JOB: ${{ toJson(github)['job'] }}
+            GITHUB_ATTEMPTS: ${{ github.run_attempt }}
+            LAST_COMMIT: ${{ github.sha }}
+            LAST_RUN_BY: ${{ github.actor }}
+            RUN_ID: ${{ github.run_id }}
+            REPO: ${{ github.repository }}
+          with:
+            filename: .github/deploy_failure.md
+            update_existing: true

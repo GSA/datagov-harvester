@@ -1,0 +1,98 @@
+---
+name: Tests on Commit
+on: [push]
+
+env:
+  PY_VERSION: "3.10"
+  POETRY_VERSION: "1.7.1"
+  
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    name: Python Lint
+    steps:
+      - uses: actions/checkout@v3
+      - uses: chartboost/ruff-action@v1
+
+  test:
+    env:
+        CKAN_API_TOKEN_DEV: ${{secrets.CKAN_API_TOKEN_DEV}}
+    runs-on: ubuntu-latest
+    name: Pytests
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 1
+
+      - name: Set up Python ${{ env.PY_VERSION }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PY_VERSION }}
+
+      - name: Install Poetry
+        uses: abatilo/actions-poetry@v2
+        with:
+          poetry-version: ${{ env.POETRY_VERSION }}
+
+      - name: Install Dependencies
+        run: |
+          poetry env use ${{ env.PY_VERSION }}
+          poetry install
+
+      - name: Setup services
+        run: docker-compose up -d
+
+      - name: Run Pytest
+        run: set -o pipefail; poetry run pytest --junitxml=pytest.xml --cov=harvester ./tests/unit | tee pytest-coverage.txt
+
+      - name: Report test coverage
+        uses: MishaKav/pytest-coverage-comment@main
+        with:
+          pytest-coverage-path: pytest-coverage.txt
+          junitxml-path: pytest.xml
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+  deploy-development:
+    if: github.ref == 'refs/heads/develop'
+    name: deploy development
+    needs: test
+    environment: development
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v3
+      - name: Install Poetry
+        uses: abatilo/actions-poetry@v2
+        with:
+          poetry-version: ${{ env.POETRY_VERSION }}
+      - name: Add requirement.txt
+        run: |
+          poetry export -f requirements.txt --output requirements.txt --without-hashes
+          echo "Generated requirements.txt:"
+          cat requirements.txt
+      - name: deploy DHL
+        uses: cloud-gov/cg-cli-tools@main
+        with:
+          command: cf push datagov-harvesting-logic --vars-file vars.yml --strategy rolling --no-wait
+          cf_org: gsa-datagov
+          cf_space: ${{vars.ENVIRONMENT_NAME}}
+          cf_username: ${{secrets.CF_SERVICE_USER}}
+          cf_password: ${{secrets.CF_SERVICE_AUTH}}
+      - name: smoke test
+        uses: cloud-gov/cg-cli-tools@main
+        with:
+          command: cf run-task datagov-harvesting-logic -c "/home/vcap/app/scripts/smoke-test.py" --name smoke-test
+          cf_org: gsa-datagov
+          cf_space: ${{vars.ENVIRONMENT_NAME}}
+          cf_username: ${{secrets.CF_SERVICE_USER}}
+          cf_password: ${{secrets.CF_SERVICE_AUTH}}
+      - name: monitor task output
+        uses: cloud-gov/cg-cli-tools@main
+        with:
+          command: >
+            scripts/monitor-cf-logs.sh datagov-harvesting-logic smoke-test
+          cf_org: gsa-datagov
+          cf_space: ${{vars.ENVIRONMENT_NAME}}
+          cf_username: ${{secrets.CF_SERVICE_USER}}
+          cf_password: ${{secrets.CF_SERVICE_AUTH}}
