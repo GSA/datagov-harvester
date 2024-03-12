@@ -15,11 +15,10 @@ LOGGING_CONFIG = {
             "class": "logging.StreamHandler",
             "stream": "ext://sys.stdout",
         },
-        "db": {"level": "ERROR", "class": "harvester.loggers.LogDBHandler"},
     },
     "loggers": {
         "harvest_runner": {
-            "handlers": ["console", "db"],
+            "handlers": ["console"],
             "level": "INFO",
         },
     },
