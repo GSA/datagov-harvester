@@ -11,7 +11,6 @@ import logging
 import ckanapi
 import requests
 from bs4 import BeautifulSoup
-from dotenv import load_dotenv
 from jsonschema import Draft202012Validator
 
 from .utils import (
@@ -31,8 +30,6 @@ from .exceptions import (
     SynchronizeException,
     CompareException,
 )
-
-load_dotenv()
 
 # requests data
 session = requests.Session()
