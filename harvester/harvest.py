@@ -274,7 +274,8 @@ class HarvestSource:
         except Exception as e:
             # TODO: do something with 'e'
             raise CompareException(
-                f"{self.title} {self.url} failed to run compare. exiting.", self.job_id
+                f"{self.title} {self.url} failed to run compare. exiting.",
+                self.job_id,
             )
 
     def get_ckan_records(self, results=[]) -> None:
@@ -310,7 +311,6 @@ class HarvestSource:
                     self.download_waf(self.traverse_waf(self.url, **self.waf_config))
                 )
         except Exception as e:  # ruff: noqa: E841
-            # TODO: do something with 'e'
             raise ExtractHarvestSourceException(
                 f"{self.title} {self.url} failed to extract harvest source. exiting",
                 self.job_id,
@@ -657,6 +657,7 @@ class Record:
             raise DCATUSToCKANException(
                 f"unable to ckanify dcatus record {self.identifier}",
                 self.harvest_source.job_id,
+                self.identifier,
             )
 
     def validate(self) -> None:
@@ -671,7 +672,9 @@ class Record:
             self.valid = False
             # TODO: do something with 'e' in logger?
             raise ValidationException(
-                f"{self.identifier} failed validation", self.harvest_source.job_id
+                f"{self.identifier} failed validation",
+                self.harvest_source.job_id,
+                self.identifier,
             )
 
     # def transform(self, metadata: dict):
@@ -707,6 +710,7 @@ class Record:
             raise SynchronizeException(
                 f"failed to delete {self.identifier}",
                 self.harvest_source.job_id,
+                self.identifier,
             )
 
     def sync(self) -> None:
@@ -729,6 +733,7 @@ class Record:
             raise SynchronizeException(
                 f"failed to {self.operation} for {self.identifier}",
                 self.harvest_source.job_id,
+                self.identifier,
             )
 
         logger.info(
