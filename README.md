@@ -128,18 +128,19 @@ Accessing the service can be done with service keys. They can be created with `c
 
 `cf service-key <service-key-name>`.
 
-#### Manually Deploying the Flask Application
+#### Manually Deploying the Flask Application to development
 
-1. Ensure you have a `manifest.yml` and `vars.yml` file configured for your Flask application. The `vars.yml` file may include variables: 
+1. Ensure you have a `manifest.yml` and `vars.development.yml` file configured for your Flask application. The vars file may include variables: 
 
     ```bash
     app_name: harvesting-logic
     database_name: harvesting-logic-db
+    route-external: harvester-dev-datagov.app.cloud.gov
     ```
 
 2. Deploy the application using Cloud Foundry's `cf push` command with the variable file:
 
    ```bash
    poetry export -f requirements.txt --output requirements.txt --without-hashes
-   cf push --vars-file vars.yml
+   cf push --vars-file vars.development.yml
    ```

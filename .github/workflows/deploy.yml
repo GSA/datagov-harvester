@@ -34,7 +34,7 @@
         - name: deploy DHL
           uses: cloud-gov/cg-cli-tools@main
           with:
-            command: cf push --vars-file vars.yml --strategy rolling --no-wait
+            command: cf push --vars-file vars.staging.yml --strategy rolling --no-wait
             cf_org: gsa-datagov
             cf_space: ${{vars.ENVIRONMENT_NAME}}
             cf_username: ${{secrets.CF_SERVICE_USER}}
@@ -91,7 +91,7 @@
         - name: deploy DHL
           uses: cloud-gov/cg-cli-tools@main
           with:
-            command: cf push --vars-file vars.yml --strategy rolling --no-wait
+            command: cf push --vars-file vars.prod.yml --strategy rolling --no-wait
             cf_org: gsa-datagov
             cf_space: ${{vars.ENVIRONMENT_NAME}}
             cf_username: ${{secrets.CF_SERVICE_USER}}
