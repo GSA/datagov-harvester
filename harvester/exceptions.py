@@ -1,7 +1,6 @@
 import logging
-
-# logging.getLogger(name) follows a singleton pattern
-logger = logging.getLogger("harvest_runner")
+from datetime import datetime
+from .database.interface import HarvesterDBInterface
 
 
 # critical exceptions
@@ -14,15 +13,19 @@ class HarvestCriticalException(Exception):
         self.severity = "CRITICAL"
         self.type = "job"
 
-        self.extras = {
-            # m = message. need to avoid conflicting with existing kwargs
-            "m": self.msg,
+        self.db_interface = HarvesterDBInterface()
+        self.logger = logging.getLogger("harvest_runner")
+
+        error_data = {
             "harvest_job_id": self.harvest_job_id,
+            "message": self.msg,
             "severity": self.severity,
             "type": self.type,
+            "date_created": datetime.utcnow(),
         }
 
-        logger.critical(self.msg, exc_info=True, extra=self.extras)
+        self.db_interface.add_harvest_error(error_data, self.harvest_job_id)
+        self.logger.critical(self.msg, exc_info=True)
 
 
 class ExtractHarvestSourceException(HarvestCriticalException):
@@ -39,23 +42,29 @@ class CompareException(HarvestCriticalException):
 
 # non-critical exceptions
 class HarvestNonCriticalException(Exception):
-    def __init__(self, msg, harvest_job_id):
-        super().__init__(msg, harvest_job_id)
+    def __init__(self, msg, harvest_job_id, title):
+        super().__init__(msg, harvest_job_id, title)
 
+        self.title = title
         self.msg = msg
         self.harvest_job_id = harvest_job_id
         self.severity = "ERROR"
         self.type = "record"
 
-        extras = {
-            # m = message. need to avoid conflicting with existing kwargs
-            "m": self.msg,
+        self.db_interface = HarvesterDBInterface()
+        self.logger = logging.getLogger("harvest_runner")
+
+        error_data = {
             "harvest_job_id": self.harvest_job_id,
+            "message": self.msg,
             "severity": self.severity,
             "type": self.type,
+            "date_created": datetime.utcnow(),
+            "record_id": self.title,
         }
 
-        logger.error(msg, exc_info=True, extra=extras)
+        self.db_interface.add_harvest_error(error_data, self.harvest_job_id)
+        self.logger.error(self.msg, exc_info=True)
 
 
 class ValidationException(HarvestNonCriticalException):
