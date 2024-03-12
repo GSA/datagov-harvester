@@ -140,5 +140,6 @@ Accessing the service can be done with service keys. They can be created with `c
 2. Deploy the application using Cloud Foundry's `cf push` command with the variable file:
 
    ```bash
+   poetry export -f requirements.txt --output requirements.txt --without-hashes
    cf push --vars-file vars.yml
    ```
