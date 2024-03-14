@@ -131,7 +131,7 @@ def test_update_source(db_interface):
         {
             "name": "Update Test Source",
             "notification_emails": ["error@example.com"],
-            "organization_name": "Old Org",
+            "organization_id": "Old Org",
             "frequency": "weekly",
             "url": "http://example.com",
             "schema_type": "strict",
@@ -140,8 +140,7 @@ def test_update_source(db_interface):
     )
 
     new_source = db_interface.update_harvest_source(
-        old_source.id, {"organization_name": "New Org"}
+        old_source.id, {"organization_id": "New Org"}
     )
 
-    assert new_source.organization_name == "New Org"
-
+    assert new_source.organization_id == "New Org"
