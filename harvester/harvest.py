@@ -1,19 +1,16 @@
 import json
-import logging
 import os
 import re
-import sys
-import traceback
 import xml.etree.ElementTree as ET
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from pathlib import Path
 import functools
+import logging
 
 import ckanapi
 import requests
 from bs4 import BeautifulSoup
-from dotenv import load_dotenv
 from jsonschema import Draft202012Validator
 
 from .utils import (
@@ -23,30 +20,32 @@ from .utils import (
     open_json,
     sort_dataset,
 )
+
 from .ckan_utils import munge_tag, munge_title_to_name
-
-load_dotenv()
-
-logging.basicConfig(
-    level=logging.NOTSET,
-    format="[%(asctime)s] %(levelname)s [%(name)s.%(funcName)s:%(lineno)d] %(message)s",
-    handlers=[
-        logging.FileHandler("harvest_load.log"),
-        logging.StreamHandler(sys.stdout),
-    ],
+from .exceptions import (
+    ExtractHarvestSourceException,
+    ExtractCKANSourceException,
+    ValidationException,
+    DCATUSToCKANException,
+    SynchronizeException,
+    CompareException,
 )
 
-logger = logging.getLogger(__name__)
-
-# TODD: make sure this doesn't change all requests
+# requests data
 session = requests.Session()
+# TODD: make sure this timeout config doesn't change all requests!
 session.request = functools.partial(session.request, timeout=15)
 
+# ckan entrypoint
 ckan = ckanapi.RemoteCKAN(
     os.getenv("CKAN_URL_STAGE"),
     apikey=os.getenv("CKAN_API_TOKEN_STAGE"),
     session=session,
 )
+
+# logging data
+# logging.getLogger(name) follows a singleton pattern
+logger = logging.getLogger("harvest_runner")
 
 ROOT_DIR = Path(__file__).parents[0]
 
@@ -60,9 +59,10 @@ class HarvestSource:
     _title: str
     _url: str
     _owner_org: str  # uuid
+    _job_id: str
     _extract_type: str  # "datajson" or "waf-collection"
     _waf_config: dict = field(default_factory=lambda: {})
-    _extra_source_name: str = "harvest_source_name"
+    _extra_source_name: str = "harvest_source_name"  # TODO: change this!
     _dataset_schema: dict = field(
         default_factory=lambda: open_json(
             ROOT_DIR / "data" / "dcatus" / "schemas" / "dataset.json"
@@ -114,8 +114,11 @@ class HarvestSource:
         return self._owner_org
 
     @property
+    def job_id(self) -> str:
+        return self._job_id
+
+    @property
     def extract_type(self) -> str:
-        # TODO: this is probably safe to assume right?
         if "json" in self._extract_type:
             return "datajson"
         if "waf" in self._extract_type:
@@ -172,18 +175,26 @@ class HarvestSource:
             return resp.json()
 
     def harvest_to_id_hash(self, records: list[dict]) -> None:
+        # ruff: noqa: F841
         logger.info("converting harvest records to id: hash")
         for record in records:
-            if self.extract_type == "datajson":
-                if "identifier" not in record:  # TODO: what to do?
-                    continue
-                identifier = record["identifier"]
-                dataset_hash = dataset_to_hash(sort_dataset(record))
-            if self.extract_type == "waf-collection":
-                identifier = self.get_title_from_fgdc(record["content"])
-                dataset_hash = dataset_to_hash(record["content"].decode("utf-8"))
+            try:
+                if self.extract_type == "datajson":
+                    identifier = record["identifier"]
+                    dataset_hash = dataset_to_hash(sort_dataset(record))
+                if self.extract_type == "waf-collection":
+                    identifier = self.get_title_from_fgdc(record["content"])
+                    dataset_hash = dataset_to_hash(record["content"].decode("utf-8"))
 
-            self.records[identifier] = Record(self, identifier, record, dataset_hash)
+                self.records[identifier] = Record(
+                    self, identifier, record, dataset_hash
+                )
+            except Exception as e:
+                # TODO: do something with 'e'
+                raise ExtractHarvestSourceException(
+                    f"{self.title} {self.url} failed to convert record to id: hash format. exiting.",
+                    self.job_id,
+                )
 
     def ckan_to_id_hash(self, results: list[dict]) -> None:
         logger.info("converting ckan records to id: hash")
@@ -243,18 +254,26 @@ class HarvestSource:
 
     def compare(self) -> None:
         """Compares records"""
+        # ruff: noqa: F841
         logger.info("comparing harvest and ckan records")
 
-        harvest_ids = set(self.records.keys())
-        ckan_ids = set(self.ckan_records.keys())
-        same_ids = harvest_ids & ckan_ids
+        try:
+            harvest_ids = set(self.records.keys())
+            ckan_ids = set(self.ckan_records.keys())
+            same_ids = harvest_ids & ckan_ids
 
-        self.compare_data["delete"] = ckan_ids - harvest_ids
-        self.compare_data["create"] = harvest_ids - ckan_ids
+            self.compare_data["delete"] = ckan_ids - harvest_ids
+            self.compare_data["create"] = harvest_ids - ckan_ids
 
-        for i in same_ids:
-            if self.records[i].metadata_hash != self.ckan_records[i][0]:
-                self.compare_data["update"].add(i)
+            for i in same_ids:
+                if self.records[i].metadata_hash != self.ckan_records[i][0]:
+                    self.compare_data["update"].add(i)
+        except Exception as e:
+            # TODO: do something with 'e'
+            raise CompareException(
+                f"{self.title} {self.url} failed to run compare. exiting.",
+                self.job_id,
+            )
 
     def get_ckan_records(self, results=[]) -> None:
         logger.info("querying ckan")
@@ -267,24 +286,31 @@ class HarvestSource:
 
     def get_ckan_records_as_id_hash(self) -> None:
         logger.info("retrieving and preparing ckan records")
-        self.ckan_to_id_hash(self.get_ckan_records(results=[]))
+        try:
+            self.ckan_to_id_hash(self.get_ckan_records(results=[]))
+        except Exception as e:  # ruff: noqa: E841
+            # TODO: do something with 'e'
+            raise ExtractCKANSourceException(
+                f"{self.title} {self.url} failed to extract ckan records. exiting.",
+                self.job_id,
+            )
 
     def get_harvest_records_as_id_hash(self) -> None:
         logger.info("retrieving and preparing harvest records")
-        if self.extract_type == "datajson":
-            download_res = self.download_dcatus()
-            if download_res is None or "dataset" not in download_res:
-                logger.warning(
-                    "no valid response from server or lack of 'dataset' array"
+        try:
+            if self.extract_type == "datajson":
+                download_res = self.download_dcatus()
+                self.harvest_to_id_hash(download_res["dataset"])
+            if self.extract_type == "waf-collection":
+                # TODO: break out the xml catalogs as records
+                # TODO: handle no response
+                self.harvest_to_id_hash(
+                    self.download_waf(self.traverse_waf(self.url, **self.waf_config))
                 )
-                self.no_harvest_resp = True
-                return
-            self.harvest_to_id_hash(download_res["dataset"])
-        if self.extract_type == "waf-collection":
-            # TODO: break out the xml catalogs as records
-            # TODO: handle no response
-            self.harvest_to_id_hash(
-                self.download_waf(self.traverse_waf(self.url, **self.waf_config))
+        except Exception as e:  # ruff: noqa: E841
+            raise ExtractHarvestSourceException(
+                f"{self.title} {self.url} failed to extract harvest source. exiting",
+                self.job_id,
             )
 
     def get_record_changes(self) -> None:
@@ -293,14 +319,14 @@ class HarvestSource:
         try:
             self.get_ckan_records_as_id_hash()
             self.get_harvest_records_as_id_hash()
-            if self.no_harvest_resp is True:
-                return
             self.compare()
-        except Exception as e:
-            logger.error(self.title + " " + self.url + " " "\n")
-            logger.error(
-                "\n".join(traceback.format_exception(None, e, e.__traceback__))
-            )
+        except (
+            ExtractCKANSourceException,
+            ExtractHarvestSourceException,
+            CompareException,
+        ) as e:
+            # TODO: do something with 'e'?
+            raise
 
     def synchronize_records(self) -> None:
         """runs the delete, update, and create
@@ -326,11 +352,14 @@ class HarvestSource:
                     record.validate()
                     # TODO: add transformation and validation
                     record.sync()
-                except Exception as e:
-                    logger.error(f"error processing '{operation}' on record {i}\n")
-                    logger.error(
-                        "\n".join(traceback.format_exception(None, e, e.__traceback__))
-                    )
+
+                except (
+                    ValidationException,
+                    DCATUSToCKANException,
+                    SynchronizeException,
+                ) as e:
+                    # TODO: do something with 'e'?
+                    pass
 
     def report(self) -> None:
         logger.info("report results")
@@ -382,6 +411,7 @@ class HarvestSource:
         return json.dumps(data, default=convert_set_to_list)
 
     def upload_to_s3(self, s3handler: S3Handler) -> None:
+        # ruff: noqa: F841
         try:
             # TODO: confirm out_path
             out_path = f"{s3handler.endpoint_url}/{self.title}/job-id/{self.title}.json"
@@ -389,10 +419,11 @@ class HarvestSource:
             logger.info(f"saved harvest source {self.title} in s3 at {out_path}")
             return out_path
         except Exception as e:
-            logger.error(f"error uploading harvest source ({self.title}) to s3 \n")
-            logger.error(
-                "\n".join(traceback.format_exception(None, e, e.__traceback__))
-            )
+            # logger.error(f"error uploading harvest source ({self.title}) to s3 \n")
+            # logger.error(
+            #     "\n".join(traceback.format_exception(None, e, e.__traceback__))
+            # )
+            pass
 
         return False
 
@@ -602,20 +633,33 @@ class Record:
         return output
 
     def ckanify_dcatus(self) -> None:
+        # ruff: noqa: F841
         logger.info("ckanifying dcatus record")
-        self.ckanified_metadata = self.simple_transform(self.metadata)
 
-        self.ckanified_metadata["resources"] = self.create_ckan_resources(self.metadata)
-        self.ckanified_metadata["tags"] = (
-            self.create_ckan_tags(self.metadata["keyword"])
-            if "keyword" in self.metadata
-            else []
-        )
-        self.ckanified_metadata["extras"] = self.create_ckan_extras()
-        logger.info("completed ckanifying dcatus record")
+        try:
+            self.ckanified_metadata = self.simple_transform(self.metadata)
+
+            self.ckanified_metadata["resources"] = self.create_ckan_resources(
+                self.metadata
+            )
+            self.ckanified_metadata["tags"] = (
+                self.create_ckan_tags(self.metadata["keyword"])
+                if "keyword" in self.metadata
+                else []
+            )
+            self.ckanified_metadata["extras"] = self.create_ckan_extras()
+            logger.info("completed ckanifying dcatus record")
+        except Exception as e:
+            # TODO: something with 'e'
+            raise DCATUSToCKANException(
+                f"unable to ckanify dcatus record {self.identifier}",
+                self.harvest_source.job_id,
+                self.identifier,
+            )
 
     def validate(self) -> None:
         logger.info(f"validating {self.identifier}")
+        # ruff: noqa: F841
         validator = Draft202012Validator(self.harvest_source.dataset_schema)
         try:
             validator.validate(self.metadata)
@@ -623,6 +667,12 @@ class Record:
         except Exception as e:
             self.validation_msg = str(e)  # TODO: verify this is what we want
             self.valid = False
+            # TODO: do something with 'e' in logger?
+            raise ValidationException(
+                f"{self.identifier} failed validation",
+                self.harvest_source.job_id,
+                self.identifier,
+            )
 
     # def transform(self, metadata: dict):
     #     """Transforms records"""
@@ -648,11 +698,20 @@ class Record:
         self.status = "updated"
 
     def delete_record(self) -> None:
-        # purge returns nothing
-        ckan.action.dataset_purge(**{"id": self.identifier})
-        self.status = "deleted"
+        # ruff: noqa: F841
+        try:
+            ckan.action.dataset_purge(**{"id": self.identifier})
+            self.status = "deleted"
+        except Exception as e:
+            # TODO: something with 'e'
+            raise SynchronizeException(
+                f"failed to delete {self.identifier}",
+                self.harvest_source.job_id,
+                self.identifier,
+            )
 
     def sync(self) -> None:
+        # ruff: noqa: F841
         if self.valid is False:
             logger.warning(f"{self.identifier} is invalid. bypassing {self.operation}")
             return
@@ -661,10 +720,18 @@ class Record:
 
         start = datetime.now()
 
-        if self.operation == "create":
-            self.create_record()
-        if self.operation == "update":
-            self.update_record()
+        try:
+            if self.operation == "create":
+                self.create_record()
+            if self.operation == "update":
+                self.update_record()
+        except Exception as e:
+            # TODO: something with 'e'
+            raise SynchronizeException(
+                f"failed to {self.operation} for {self.identifier}",
+                self.harvest_source.job_id,
+                self.identifier,
+            )
 
         logger.info(
             f"time to {self.operation} {self.identifier} {datetime.now()-start}"
@@ -685,6 +752,7 @@ class Record:
 
     def upload_to_s3(self, s3handler: S3Handler) -> None:
         # ruff: noqa: E501
+        # ruff: noqa: F841
         try:
             out_path = f"{s3handler.endpoint_url}/{self.harvest_source.title}/job-id/{self.status}/{self.identifier}.json"
             s3handler.put_object(self.prepare_for_s3_upload(), out_path)
@@ -693,11 +761,16 @@ class Record:
             )
             return out_path
         except Exception as e:
-            logger.error(
-                f"error uploading harvest record ({self.identifier} of {self.harvest_source.title}) to s3 \n"
-            )
-            logger.error(
-                "\n".join(traceback.format_exception(None, e, e.__traceback__))
-            )
+            # TODO: this exception
+            pass
 
         return False
+
+
+def main():
+
+    pass
+
+
+if __name__ == "__main__":
+    main()

@@ -1,23 +1,11 @@
 import hashlib
 import json
 import os
-import string
-import random
 
 import boto3
 import sansjson
 
 # ruff: noqa: F841
-
-
-def create_random_text(str_len: int) -> str:
-
-    alphabet = string.ascii_lowercase
-    output = ""
-
-    for _ in range(str_len):
-        output += alphabet[random.randint(0, len(alphabet))]
-    return output
 
 
 def convert_set_to_list(obj):
@@ -31,6 +19,8 @@ def sort_dataset(d):
 
 
 def dataset_to_hash(d):
+    # TODO: check for sh1 or sha256?
+    # https://github.com/GSA/ckanext-datajson/blob/a3bc214fa7585115b9ff911b105884ef209aa416/ckanext/datajson/datajson.py#L279
     return hashlib.sha256(json.dumps(d, sort_keys=True).encode("utf-8")).hexdigest()
 
 
