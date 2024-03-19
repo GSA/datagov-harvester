@@ -1,18 +1,21 @@
 from datetime import datetime
 
+new_org = {
+    'name': 'GSA',
+    'logo' : 'url for the logo'
+}
+
 new_source = {
     'name': 'Example Harvest Source',
     'notification_emails': ['admin@example.com'],
-    'organization_id': 'Example Organization',
     'frequency': 'daily',
     'url': "http://example.com",
     'schema_type': 'strict',
-    'source_type': 'json',
-    'harvest_source_id': '8d15bfa3-2b48-4166-bce0-631a1e336ae4',
-    'harvest_source_name': 'source name from ckan'
+    'source_type': 'json'
 }
 
 new_job = {
+    "status": "in_progress",
     "date_created": datetime.utcnow(),
     "date_finished": datetime.utcnow(),
     "records_added": 100,
@@ -23,8 +26,7 @@ new_job = {
 }
 
 new_error = {
-    "record_id": "record123", 
-    "record_reported_id": "recordXYZ",
+    "harvest_record_id": "record123", 
     "date_created": datetime.utcnow(),
     "type": "Validation Error",
     "severity": "ERROR",

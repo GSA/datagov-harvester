@@ -1,3 +1,8 @@
 # poetry not supported by cloud.gov, use this file instead for manually push
-# run this command to generate the file:
-# poetry export -f requirements.txt --output requirements.txt --without-hashes
+
+flask-migrate==4.0.7 
+flask-sqlalchemy==3.1.1 
+flask==3.0.2 
+psycopg2-binary==2.9.9 
+pytest==7.4.4 
+python-dotenv==1.0.1 

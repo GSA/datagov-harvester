@@ -21,22 +21,27 @@ import ckanapi
 
 class TestExceptionHandling:
     def test_add_harvest_source(self, db_interface):
+        organization = {
+                "id": "919bfb9e-89eb-4032-9abf-eee54be5a00c",
+                "logo": "url for the logo",
+                "name": "GSA"
+        }
 
         harvest_source = {
             "id": "9347a852-2498-4bee-b817-90b8e93c9cec",
             "name": "harvest_source_test",
             "notification_emails": ["admin@example.com"],
-            "organization_id": "Example Organization",
+            "organization_id": "919bfb9e-89eb-4032-9abf-eee54be5a00c",
             "frequency": "daily",
             "url": "http://example.com",
             "schema_type": "strict",
             "source_type": "json",
-            "harvest_source_name": "source name from ckan",
         }
 
         harvest_job = {
             "harvest_source_id": "9347a852-2498-4bee-b817-90b8e93c9cec",
             "id": "1db556ff-fb02-438b-b7d2-ad914e1f2531",
+            "status": "in_progress",
             "date_created": datetime.utcnow(),
             "date_finished": datetime.utcnow(),
             "records_added": 0,
@@ -45,7 +50,9 @@ class TestExceptionHandling:
             "records_errored": 0,
             "records_ignored": 0,
         }
-        db_interface.add_harvest_source(harvest_source)
+        db_interface.add_organization(organization)
+        db_interface.add_harvest_source(harvest_source,
+                                        harvest_source["organization_id"])
         db_interface.add_harvest_job(harvest_job, harvest_job["harvest_source_id"])
 
     def test_bad_harvest_source_url_exception(self, bad_url_dcatus_config):

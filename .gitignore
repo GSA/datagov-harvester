@@ -24,4 +24,5 @@ tmp/
 # vscode debugger
 .vscode/
 .env
+requirements.txt
 
