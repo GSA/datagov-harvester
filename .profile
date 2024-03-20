@@ -15,3 +15,5 @@ export APP_NAME=$(echo $VCAP_APPLICATION | jq -r '.application_name')
 
 export URI=$(vcap_get_service aws-rds .credentials.uri)
 export DATABASE_URI=$(echo $URI | sed 's/postgres:\/\//postgresql:\/\//g')
+
+flask db upgrade

@@ -6,8 +6,8 @@ from dotenv import load_dotenv
 
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker, scoped_session
-from harvester.database.models import Base
-from harvester.database.interface import HarvesterDBInterface
+from app.models import Base 
+from app.interface import HarvesterDBInterface
 
 from harvester.utils import open_json
 

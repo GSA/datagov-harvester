@@ -1,6 +1,6 @@
 from sqlalchemy import create_engine, inspect
 from sqlalchemy.orm import sessionmaker, scoped_session
-from harvester.database.models import HarvestSource, HarvestJob, HarvestError
+from app.models import Organization, HarvestSource, HarvestJob, HarvestError
 from . import DATABASE_URI
 
 class HarvesterDBInterface:
@@ -19,12 +19,26 @@ class HarvesterDBInterface:
         return {c.key: getattr(obj, c.key) 
                 for c in inspect(obj).mapper.column_attrs}
     
-    def add_harvest_source(self, source_data):
+    def add_organization(self, org_data):
+        new_org = Organization(**org_data)
+        self.db.add(new_org)
+        self.db.commit()
+        self.db.refresh(new_org)
+        return new_org
+
+    def add_harvest_source(self, source_data, org_id):
+        source_data['organization_id'] = org_id
         new_source = HarvestSource(**source_data)
         self.db.add(new_source)
         self.db.commit()
         self.db.refresh(new_source)
         return new_source
+
+    def get_all_organizations(self):
+        orgs = self.db.query(Organization).all()
+        orgs_data = [
+            HarvesterDBInterface._to_dict(org) for org in orgs]
+        return orgs_data
 
     def get_all_harvest_sources(self):
         harvest_sources = self.db.query(HarvestSource).all()

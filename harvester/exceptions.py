@@ -1,6 +1,6 @@
 import logging
 from datetime import datetime
-from .database.interface import HarvesterDBInterface
+from app.interface import HarvesterDBInterface
 
 
 # critical exceptions
@@ -60,7 +60,7 @@ class HarvestNonCriticalException(Exception):
             "severity": self.severity,
             "type": self.type,
             "date_created": datetime.utcnow(),
-            "record_id": self.title,
+            "harvest_record_id": self.title # to-do 
         }
 
         self.db_interface.add_harvest_error(error_data, self.harvest_job_id)

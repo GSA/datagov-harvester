@@ -54,10 +54,14 @@ services:
     build: .
     depends_on:
       - db
+    volumes:
+      - .:/app
     environment:
       DATABASE_URI: ${DATABASE_URI}
+      FLASK_APP: run.py
     ports:
       - "8080:8080"
+    command: flask run --host=0.0.0.0 --port=8080
 
 volumes:
   postgres_data:

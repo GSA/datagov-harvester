@@ -107,6 +107,14 @@ If you followed the instructions for `CKAN load testing` and `Harvester testing`
 
    This will start the necessary services and execute the test.
 
+3. when there are database DDL changes, use following steps to generate migration scripts and update database:
+
+    ```bash
+    docker-compose db up
+    docker-compose run app flask db migrate -m "migration description"
+    docker-compose run app flask db upgrade
+    ```
+
 ### Deployment to cloud.gov
 
 #### Database Service Setup
@@ -144,3 +152,9 @@ Accessing the service can be done with service keys. They can be created with `c
    poetry export -f requirements.txt --output requirements.txt --without-hashes
    cf push --vars-file vars.development.yml
    ```
+
+3. when there are database DDL changes, use following to do the database update:
+
+    ```bash
+    cf run-task harvesting-logic --command "flask db upgrade" --name database-upgrade
+    ```
