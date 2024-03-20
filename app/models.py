@@ -2,7 +2,7 @@ from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.dialects.postgresql import UUID, ARRAY
 from sqlalchemy.sql import text
 from sqlalchemy import Enum
-from sqlalchemy.schema import Index
+from sqlalchemy.schema import UniqueConstraint
 
 db = SQLAlchemy()
 
@@ -78,5 +78,5 @@ class HarvestRecord(Base):
     type = db.Column(db.String(), nullable=False)
     source_metadata = db.Column(db.String(), nullable=True)
     __table_args__ = (
-        Index('ix_job_id_identifier', 'job_id', 'identifier'),
+        UniqueConstraint('job_id', 'identifier', name='uix_job_id_identifier'),
     )
