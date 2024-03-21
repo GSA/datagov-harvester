@@ -89,3 +89,23 @@ def test_add_harvest_job(db_interface):
     }
     new_job = db_interface.add_harvest_job(job_data, str(new_source.id))
     assert new_job.harvest_source_id == new_source.id
+
+
+def test_update_source(db_interface):
+    old_source = db_interface.add_harvest_source(
+        {
+            "name": "Update Test Source",
+            "notification_emails": ["error@example.com"],
+            "organization_id": "Old Org",
+            "frequency": "weekly",
+            "url": "http://example.com",
+            "schema_type": "strict",
+            "source_type": "json",
+        }
+    )
+
+    new_source = db_interface.update_harvest_source(
+        old_source.id, {"organization_id": "New Org"}
+    )
+
+    assert new_source.organization_id == "New Org"

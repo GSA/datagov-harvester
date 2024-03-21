@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     name: Python Lint
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: chartboost/ruff-action@v1
 
   test:
@@ -21,12 +21,12 @@ jobs:
     name: Pytests
     steps:
       - name: Check out the code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           fetch-depth: 1
 
       - name: Set up Python ${{ env.PY_VERSION }}
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PY_VERSION }}
 
@@ -61,7 +61,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Install Poetry
         uses: abatilo/actions-poetry@v2
         with:
