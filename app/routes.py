@@ -63,7 +63,7 @@ def get_all_harvest_errors_by_job(job_id):
         return result
     except Exception:
         return " provide job_id"
-    
+
 @mod.route('/harvest_source/<source_id>', methods=['GET'])
 def get_harvest_source(source_id):
     try:
@@ -71,7 +71,12 @@ def get_harvest_source(source_id):
         return result
     except Exception:
         return " provide source_id"
-    
+
+@mod.route("/harvest_source/<string:source_id>", methods=["PUT"])
+def update_harvest_source(source_id):
+    result = db.update_harvest_source(source_id, request.json)
+    return result
+
 @mod.route('/harvest_job/<job_id>', methods=['GET'])
 def get_harvest_job(job_id):
     try:
@@ -88,15 +93,6 @@ def get_harvest_error(error_id):
     except Exception:
         return "provide error_id"
 
-
-@mod.route("/harvests/<string:source_id>", methods=["PUT"])
-def update_harvest_source():
-    source_id = request.args.get("source_id", None)
-    if source_id is None:
-        return "Please provide a source_id"
-    else:
-        result = db.update_harvest_source(source_id, request.json)
-        return result
 
 def register_routes(app):
     app.register_blueprint(mod)
