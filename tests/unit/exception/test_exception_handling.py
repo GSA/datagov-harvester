@@ -1,19 +1,18 @@
 from datetime import datetime
 from unittest.mock import patch
 
+import ckanapi
 import pytest
 
 import harvester
-from harvester.harvest import HarvestSource
 from harvester.exceptions import (
-    ExtractHarvestSourceException,
-    ExtractCKANSourceException,
-    ValidationException,
     DCATUSToCKANException,
+    ExtractCKANSourceException,
+    ExtractHarvestSourceException,
     SynchronizeException,
+    ValidationException,
 )
-
-import ckanapi
+from harvester.harvest import HarvestSource
 
 # ruff: noqa: F401
 # ruff: noqa: F841
@@ -22,9 +21,9 @@ import ckanapi
 class TestExceptionHandling:
     def test_add_harvest_source(self, db_interface):
         organization = {
-                "id": "919bfb9e-89eb-4032-9abf-eee54be5a00c",
-                "logo": "url for the logo",
-                "name": "GSA"
+            "id": "919bfb9e-89eb-4032-9abf-eee54be5a00c",
+            "logo": "url for the logo",
+            "name": "GSA",
         }
 
         harvest_source = {
@@ -51,8 +50,9 @@ class TestExceptionHandling:
             "records_ignored": 0,
         }
         db_interface.add_organization(organization)
-        db_interface.add_harvest_source(harvest_source,
-                                        harvest_source["organization_id"])
+        db_interface.add_harvest_source(
+            harvest_source, harvest_source["organization_id"]
+        )
         db_interface.add_harvest_job(harvest_job, harvest_job["harvest_source_id"])
 
     def test_bad_harvest_source_url_exception(self, bad_url_dcatus_config):
