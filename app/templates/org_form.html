@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Add Organization</title>
+</head>
+<body>
+    <h2>Add Organization</h2>
+    <form method="POST">
+        {{ form.hidden_tag() }}
+        {{ form.name.label }} {{ form.name() }}<br><br>
+        {{ form.logo.label }} {{ form.logo() }}<br><br>
+        {{ form.submit() }}
+    </form>
+</body>
+</html>

@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Harvest Sources</title>
+</head>
+<body>
+    <h2>Harvest Sources</h2>
+    <br><br>
+
+    <form action="/harvest_source" method="get">
+        <label for="source_id">Get Harvest Source by id:</label>
+        <select name="source_id" id="source_id" onchange="updateLink(this.value)">
+            <option value="" selected>select a source</option>
+            {% for source in sources %}
+                <option value="{{ source.id }}">{{ source.name }} {{ source.id }}</option>
+            {% endfor %}
+        </select>
+        <!-- <a href="/harvest_source/{{ source_id }}">Get Harvest Source</a> -->
+        <!-- <button type="submit">Get Source</button> -->
+        <a id="source_link" href="#" >Get Source</a>
+
+        <script>
+        function updateLink(selectedId) {
+            document.getElementById('source_link').href = `/harvest_source/${selectedId}`;
+        }
+        </script>
+
+    </form>
+
+    <br><br>
+
+    <form action="/harvest_source/" method="get">
+        <label for="organization_id">Get harvest source by Organization:</label>
+        <select name="organization_id" id="organization_id" >
+            <option value="" selected>select an organization</option>
+            {% for org in organizations %}
+                <option value="{{ org.id }}">{{ org.name }} {{ org.id }} </option>
+            {% endfor %}
+        </select>
+        <button type="submit">Get Organization Sources</button>
+    </form>
+
+</body>
+</html>

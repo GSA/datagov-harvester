@@ -10,11 +10,9 @@ load_dotenv()
 
 @pytest.fixture(scope='session')
 def db_session():
-    DATABASE_SERVER = os.getenv("DATABASE_SERVER")
     DATABASE_URI = os.getenv("DATABASE_URI")
     TEST_SCHEMA = "test_schema"
-    modified_uri = DATABASE_URI.replace('@' + DATABASE_SERVER, '@localhost')
-    engine = create_engine(modified_uri)
+    engine = create_engine(DATABASE_URI)
 
     with engine.connect() as connection:
         connection.execute(text(f"CREATE SCHEMA IF NOT EXISTS {TEST_SCHEMA};"))

@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Add Harvest Source</title>
+</head>
+<body>
+    <h2>Add Harvest Source</h2>
+    <form method="POST">
+        {{ form.hidden_tag() }}
+        {{ form.organization_id.label }} {{ form.organization_id() }}<br><br>
+        {{ form.name.label }} {{ form.name() }}<br><br>
+        {{ form.emails.label }} {{ form.emails() }}<br><br>
+        {{ form.url.label }} {{ form.url() }}<br><br>
+        {{ form.frequency.label }} {{ form.frequency() }}<br><br>
+        {{ form.schema_type.label }} {{ form.schema_type() }}<br><br>
+        {{ form.source_type.label }} {{ form.source_type() }}<br><br>
+        {{ form.submit() }}
+    </form>
+</body>
+</html>
