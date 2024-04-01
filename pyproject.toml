@@ -33,6 +33,7 @@ psycopg2-binary = "^2.9.9"
 flask-sqlalchemy = "^3.1.1"
 flask-wtf = "^1.2.1"
 flask-migrate = "^4.0.7"
+cloudfoundry-client = "^1.36.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.3.0"
