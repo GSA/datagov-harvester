@@ -5,6 +5,9 @@ import os
 import boto3
 import sansjson
 
+from cloudfoundry_client.client import CloudFoundryClient
+from cloudfoundry_client.v3.tasks import TaskManager
+
 # ruff: noqa: F841
 
 
@@ -71,3 +74,23 @@ class S3Handler:
                 "ContentType": "application/json",
             }
         )
+
+
+class CFHandler:
+    def __init__(self):
+        self.target_endpoint = "https://api.fr.cloud.gov"
+        self.client = CloudFoundryClient(self.target_endpoint)
+        self.client.init_with_user_credentials(
+            os.getenv("CF_USER"), os.getenv("CF_PASS")
+        )
+
+        self.task_mgr = TaskManager(self.target_endpoint, self.client)
+
+    def start_task(self, app_guuid, command, task_name):
+        self.task_mgr.create(app_guuid, command, task_name)
+
+    def stop_task(self, task_guuid):
+        self.task_mgr.cancel(task_guuid)
+
+    def get_task(self, task_id):
+        self.task_mgr.get(task_id)
