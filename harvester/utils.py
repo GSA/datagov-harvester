@@ -77,20 +77,27 @@ class S3Handler:
 
 
 class CFHandler:
-    def __init__(self):
-        self.target_endpoint = "https://api.fr.cloud.gov"
+    def __init__(self, url: str = None, user: str = None, password: str = None):
+        self.target_endpoint = url if url is not None else os.getenv("CF_API_URL")
         self.client = CloudFoundryClient(self.target_endpoint)
         self.client.init_with_user_credentials(
-            os.getenv("CF_USER"), os.getenv("CF_PASS")
+            user if user is not None else os.getenv("CF_USER"),
+            password if password is not None else os.getenv("CF_PASS"),
         )
 
         self.task_mgr = TaskManager(self.target_endpoint, self.client)
 
-    def start_task(self, app_guuid, command, task_name):
-        self.task_mgr.create(app_guuid, command, task_name)
+    def start_task(self, app_guuid, command, task_id):
+        return self.task_mgr.create(app_guuid, command, task_id)
 
-    def stop_task(self, task_guuid):
-        self.task_mgr.cancel(task_guuid)
+    def stop_task(self, task_id):
+        return self.task_mgr.cancel(task_id)
 
     def get_task(self, task_id):
-        self.task_mgr.get(task_id)
+        return self.task_mgr.get(task_id)
+
+    def read_recent_app_logs(self, app_guuid, task_id=None):
+
+        app = self.client.v2.apps[app_guuid]
+        logs = filter(lambda l: task_id in l, [str(log) for log in app.recent_logs()])
+        return "\n".join(logs)
