@@ -99,5 +99,5 @@ class CFHandler:
     def read_recent_app_logs(self, app_guuid, task_id=None):
 
         app = self.client.v2.apps[app_guuid]
-        logs = filter(lambda l: task_id in l, [str(log) for log in app.recent_logs()])
+        logs = filter(lambda lg: task_id in lg, [str(log) for log in app.recent_logs()])
         return "\n".join(logs)
