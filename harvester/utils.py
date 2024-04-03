@@ -81,8 +81,8 @@ class CFHandler:
         self.target_endpoint = url if url is not None else os.getenv("CF_API_URL")
         self.client = CloudFoundryClient(self.target_endpoint)
         self.client.init_with_user_credentials(
-            user if user is not None else os.getenv("CF_USER"),
-            password if password is not None else os.getenv("CF_PASS"),
+            user if user is not None else os.getenv("CF_SERVICE_USER"),
+            password if password is not None else os.getenv("CF_SERVICE_AUTH"),
         )
 
         self.task_mgr = TaskManager(self.target_endpoint, self.client)
