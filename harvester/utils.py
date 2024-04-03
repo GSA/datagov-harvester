@@ -99,6 +99,9 @@ class CFHandler:
     def get_all_app_tasks(self, app_guuid):
         return [task for task in self.client.v3.apps[app_guuid].tasks()]
 
+    def get_all_running_tasks(self, tasks):
+        return sum(1 for _ in filter(lambda task: task["state"] == "RUNNING", tasks))
+
     def read_recent_app_logs(self, app_guuid, task_id=None):
 
         app = self.client.v2.apps[app_guuid]

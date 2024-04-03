@@ -23,6 +23,12 @@ class TestCFTasking:
         tasks = cf_handler.get_all_app_tasks(dhl_cf_task_data["app_guuid"])
         assert len(tasks) > 0
 
+    def test_get_all_running_app_tasks(self, cf_handler):
+
+        tasks = [{"state": "RUNNING"}, {"state": "SUCCEEDED"}]
+        running_tasks = cf_handler.get_all_running_tasks(tasks)
+        assert running_tasks == 1
+
     @patch.object(CFHandler, "stop_task")
     def test_cancel_task(self, stop_mock, cf_handler, dhl_cf_task_data):
         stop_mock.return_value = {"guuid": "test"}
