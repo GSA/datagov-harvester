@@ -119,7 +119,7 @@ def cf_handler() -> CFHandler:
 @pytest.fixture
 def dhl_cf_task_data() -> dict:
     return {
-        "app_uuid": "f4ab7f86-bee0-44fd-8806-1dca7f8e215a",
+        "app_guuid": "f4ab7f86-bee0-44fd-8806-1dca7f8e215a",
         "task_id": "cf_task_integration",
         "command": "/usr/bin/sleep 60",
     }
