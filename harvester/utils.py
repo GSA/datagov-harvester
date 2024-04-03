@@ -96,6 +96,9 @@ class CFHandler:
     def get_task(self, task_id):
         return self.task_mgr.get(task_id)
 
+    def get_all_app_tasks(self, app_guuid):
+        return [task for task in self.client.v3.apps[app_guuid].tasks()]
+
     def read_recent_app_logs(self, app_guuid, task_id=None):
 
         app = self.client.v2.apps[app_guuid]

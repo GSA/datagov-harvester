@@ -10,6 +10,10 @@ class TestCFTasking:
         )
         assert task is not None
 
+    def test_get_all_app_tasks(self, cf_handler, dhl_cf_task_data):
+        tasks = cf_handler.get_all_app_tasks(dhl_cf_task_data["app_guuid"])
+        assert tasks is not None
+
     def test_cancel_task(self, cf_handler, dhl_cf_task_data):
 
         task = cf_handler.stop_task(dhl_cf_task_data["task_id"])
