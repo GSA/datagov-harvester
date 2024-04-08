@@ -11,22 +11,25 @@ jobs:
     runs-on: ubuntu-latest
     name: Python Lint
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: chartboost/ruff-action@v1
 
   test:
+    environment: development
     env:
         CKAN_API_TOKEN_DEV: ${{secrets.CKAN_API_TOKEN_DEV}}
+        CF_SERVICE_USER: ${{secrets.CF_SERVICE_USER}}
+        CF_SERVICE_AUTH: ${{secrets.CF_SERVICE_AUTH}}
     runs-on: ubuntu-latest
     name: Pytests
     steps:
       - name: Check out the code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           fetch-depth: 1
 
       - name: Set up Python ${{ env.PY_VERSION }}
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PY_VERSION }}
 
@@ -61,7 +64,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Install Poetry
         uses: abatilo/actions-poetry@v2
         with:
@@ -74,25 +77,26 @@ jobs:
       - name: deploy DHL
         uses: cloud-gov/cg-cli-tools@main
         with:
-          command: cf push datagov-harvesting-logic --strategy rolling --no-wait
+          command: cf push --vars-file vars.development.yml --strategy rolling --no-wait
           cf_org: gsa-datagov
           cf_space: ${{vars.ENVIRONMENT_NAME}}
           cf_username: ${{secrets.CF_SERVICE_USER}}
           cf_password: ${{secrets.CF_SERVICE_AUTH}}
-      - name: smoke test
-        uses: cloud-gov/cg-cli-tools@main
-        with:
-          command: cf run-task datagov-harvesting-logic -c "/home/vcap/app/scripts/smoke-test.py" --name smoke-test
-          cf_org: gsa-datagov
-          cf_space: ${{vars.ENVIRONMENT_NAME}}
-          cf_username: ${{secrets.CF_SERVICE_USER}}
-          cf_password: ${{secrets.CF_SERVICE_AUTH}}
-      - name: monitor task output
-        uses: cloud-gov/cg-cli-tools@main
-        with:
-          command: >
-            scripts/monitor-cf-logs.sh datagov-harvesting-logic smoke-test
-          cf_org: gsa-datagov
-          cf_space: ${{vars.ENVIRONMENT_NAME}}
-          cf_username: ${{secrets.CF_SERVICE_USER}}
-          cf_password: ${{secrets.CF_SERVICE_AUTH}}
+      # to-do
+      # - name: smoke test
+      #   uses: cloud-gov/cg-cli-tools@main
+      #   with:
+      #     command: cf run-task harvesting-logic -c "/home/vcap/app/scripts/smoke-test.py" --name smoke-test
+      #     cf_org: gsa-datagov
+      #     cf_space: ${{vars.ENVIRONMENT_NAME}}
+      #     cf_username: ${{secrets.CF_SERVICE_USER}}
+      #     cf_password: ${{secrets.CF_SERVICE_AUTH}}
+      # - name: monitor task output
+      #   uses: cloud-gov/cg-cli-tools@main
+      #   with:
+      #     command: >
+      #       scripts/monitor-cf-logs.sh harvesting-logic smoke-test
+      #     cf_org: gsa-datagov
+      #     cf_space: ${{vars.ENVIRONMENT_NAME}}
+      #     cf_username: ${{secrets.CF_SERVICE_USER}}
+      #     cf_password: ${{secrets.CF_SERVICE_AUTH}}

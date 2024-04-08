@@ -1,0 +1,4 @@
+app_name: harvesting-logic
+database_name: harvesting-logic-db
+
+route-external: harvester-stag-datagov.app.cloud.gov
