@@ -15,8 +15,11 @@ jobs:
       - uses: chartboost/ruff-action@v1
 
   test:
+    environment: development
     env:
         CKAN_API_TOKEN_DEV: ${{secrets.CKAN_API_TOKEN_DEV}}
+        CF_SERVICE_USER: ${{secrets.CF_SERVICE_USER}}
+        CF_SERVICE_AUTH: ${{secrets.CF_SERVICE_AUTH}}
     runs-on: ubuntu-latest
     name: Pytests
     steps:

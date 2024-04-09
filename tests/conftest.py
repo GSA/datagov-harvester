@@ -5,10 +5,11 @@ import pytest
 from dotenv import load_dotenv
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import scoped_session, sessionmaker
-
 from app.interface import HarvesterDBInterface
 from app.models import Base
+
 from harvester.utils import open_json
+from harvester.utils import CFHandler
 
 load_dotenv()
 
@@ -107,3 +108,17 @@ def dcatus_compare_config() -> dict:
 @pytest.fixture
 def ckan_compare() -> dict:
     return open_json(HARVEST_SOURCES / "dcatus" / "ckan_datasets_resp.json")["results"]
+
+
+@pytest.fixture
+def cf_handler() -> CFHandler:
+    return CFHandler()
+
+
+@pytest.fixture
+def dhl_cf_task_data() -> dict:
+    return {
+        "app_guuid": "f4ab7f86-bee0-44fd-8806-1dca7f8e215a",
+        "task_id": "cf_task_integration",
+        "command": "/usr/bin/sleep 60",
+    }
