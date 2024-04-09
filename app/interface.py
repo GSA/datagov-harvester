@@ -290,5 +290,5 @@ class HarvesterDBInterface:
     def close(self):
         if hasattr(self.db, "remove"):
             self.db.remove()
-        elif hasattr(self.db, "close"):
+        elif hasattr(self.db, 'close'):
             self.db.close()

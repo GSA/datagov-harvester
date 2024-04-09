@@ -229,6 +229,5 @@ def get_harvest_record(record_id=None):
         return "Please provide correct record_id or harvest_job_id"
 
 
-
 def register_routes(app):
     app.register_blueprint(mod)
