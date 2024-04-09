@@ -3,22 +3,31 @@ from .models import db
 from flask_migrate import Migrate
 import os
 from dotenv import load_dotenv
+from flask_bootstrap import Bootstrap
 
 load_dotenv()
 
 DATABASE_URI = os.getenv('DATABASE_URI')
 
-def create_app():
+def create_app(testing=False):
     app = Flask(__name__)
-    app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URI
-    SECRET_KEY = os.urandom(16)
-    app.config['SECRET_KEY'] = SECRET_KEY
-    db.init_app(app)
-    
-    # Initialize Flask-Migrate
-    Migrate(app, db)
 
-    from .routes import register_routes
-    register_routes(app)
+    if testing:
+        app.config['TESTING'] = True
+        app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///:memory:'
+        app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+    else:
+        app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv("DATABASE_URI")
+        app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+        app.config['SECRET_KEY'] = os.urandom(16)
+        Bootstrap(app)
+
+    db.init_app(app)
+
+    if not testing:
+        Migrate(app, db)
+
+        from .routes import register_routes
+        register_routes(app)
 
     return app

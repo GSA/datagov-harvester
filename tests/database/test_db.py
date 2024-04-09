@@ -1,89 +1,112 @@
 import pytest
-from sqlalchemy import create_engine, text
-from sqlalchemy.orm import sessionmaker, scoped_session
-from app.models import Base 
+from app import create_app
+from app.models import db
 from app.interface import HarvesterDBInterface
-from dotenv import load_dotenv
-import os
-
-load_dotenv()
+from sqlalchemy.orm import scoped_session, sessionmaker
 
 @pytest.fixture(scope='session')
-def db_session():
-    DATABASE_URI = os.getenv("DATABASE_URI")
-    TEST_SCHEMA = "test_schema"
-    engine = create_engine(DATABASE_URI)
+def app():
+    _app = create_app(testing=True)
+    _app.config['TESTING'] = True
+    _app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///:memory:'
 
-    with engine.connect() as connection:
-        connection.execute(text(f"CREATE SCHEMA IF NOT EXISTS {TEST_SCHEMA};"))
-        connection.execute(text(f"SET search_path TO {TEST_SCHEMA};"))
+    with _app.app_context():
+        db.create_all()
+        yield _app
+        db.drop_all()
 
-    Base.metadata.create_all(engine)
-    SessionLocal = sessionmaker(bind=engine)
+@pytest.fixture(scope='function')
+def session(app):
+    with app.app_context():
+        connection = db.engine.connect()
+        transaction = connection.begin()
 
-    session = scoped_session(SessionLocal)
-    yield session
+        SessionLocal = sessionmaker(bind=connection, autocommit=False, autoflush=False)
+        session = scoped_session(SessionLocal)
+        yield session
 
-    session.remove()
+        session.remove()
+        transaction.rollback()
+        connection.close()
 
-    with engine.begin() as connection:
-        connection.execute(text(f"DROP SCHEMA IF EXISTS {TEST_SCHEMA} CASCADE;"))
-
-    engine.dispose()
-
-@pytest.fixture(scope='session')
-def db_interface(db_session):
-    return HarvesterDBInterface(db_session)
-
-def test_add_harvest_source(db_interface):
-    org_data = db_interface.add_organization({'name': 'GSA',
-                'logo': 'url for the logo'})
-    source_data = {'name': 'Test Source',
-                   'frequency': 'daily',
-                   'url': "http://example-1.com",
-                   'schema_type': 'strict',
-                   'source_type': 'json'}
-    new_source = db_interface.add_harvest_source(source_data, str(org_data.id))
-    assert new_source.name == 'Test Source'
-
-def test_add_and_get_harvest_source(db_interface):
-    org_data = db_interface.add_organization({'name': 'GSA',
-            'logo': 'url for the logo'})
-    new_source = db_interface.add_harvest_source({
-            'name': 'Test Source',
-            'notification_emails': ['test@example.com'],
-            'frequency': 'daily',
-            'url': "http://example-2.com",
-            'schema_type': 'strict',
-            'source_type': 'json'
-    }, str(org_data.id))
-    assert new_source.name == 'Test Source' 
-   
-    sources = db_interface.get_all_harvest_sources()
-    assert any(source['name'] == 'Test Source' for source in sources)
+@pytest.fixture(scope='function')
+def interface(session):
+    return HarvesterDBInterface(session=session)
 
 
-def test_add_harvest_job(db_interface):
-    org_data = db_interface.add_organization({'name': 'GSA',
-                'logo': 'url for the logo'})
-    new_source = db_interface.add_harvest_source({
-            'name': 'Test Source',
-            'notification_emails': ['test@example.com'],
-            'frequency': 'daily',
-            'url': "http://example-3.com",
-            'schema_type': 'strict',
-            'source_type': 'json'
-    }, str(org_data.id))
-        
-    job_data = {
-        'status': 'in_progress',
-        'date_created': '2022-01-01',
-        'date_finished': '2022-01-02',
-        'records_added': 10,
-        'records_updated': 5,
-        'records_deleted': 2,
-        'records_errored': 1,
-        'records_ignored': 0
+@pytest.fixture
+def org_data():
+    return {'name': 'Test Org', 'logo': 'https://example.com/logo.png'}
+
+@pytest.fixture
+def organization(interface, org_data):
+    org = interface.add_organization(org_data)
+    return org
+
+def test_add_organization(interface, org_data):
+    org = interface.add_organization(org_data)
+    assert org is not None
+    assert org.name == 'Test Org'
+
+def test_get_all_organizations(interface, org_data):
+    interface.add_organization(org_data)
+
+    orgs = interface.get_all_organizations()
+    assert len(orgs) > 0
+    assert orgs[0]['name'] == 'Test Org'
+
+def test_update_organization(interface, organization):
+    updates = {'name': 'Updated Org'}
+    updated_org = interface.update_organization(organization.id, updates)
+    assert updated_org['name'] == 'Updated Org'
+
+def test_delete_organization(interface, organization):
+    result = interface.delete_organization(organization.id)
+    assert result == "Organization deleted successfully"
+
+@pytest.fixture
+def source_data(organization):
+    return {
+        "name": "Test Source",
+        "notification_emails": "email@example.com",
+        "organization_id": organization.id,
+        "frequency": "daily",
+        "url": "http://example.com",
+        "schema_type": "type1",
+        "source_type": "typeA",
+        "status": "active"
     }
-    new_job = db_interface.add_harvest_job(job_data, str(new_source.id))
-    assert new_job.harvest_source_id == new_source.id
+
+def test_add_harvest_source(interface, source_data):
+    source = interface.add_harvest_source(source_data)
+    assert source is not None
+    assert source.name == source_data["name"]
+
+def test_get_all_harvest_sources(interface, source_data):
+    interface.add_harvest_source(source_data)
+    sources = interface.get_all_harvest_sources()
+    assert len(sources) > 0
+    assert sources[0]["name"] == source_data["name"]
+
+def test_get_harvest_source(interface, source_data):
+    source = interface.add_harvest_source(source_data)
+    fetched_source = interface.get_harvest_source(source.id)
+    assert fetched_source is not None
+    assert fetched_source["name"] == source_data["name"]
+
+def test_update_harvest_source(interface, source_data):
+    source = interface.add_harvest_source(source_data)
+    updates = {"name": "Updated Test Source"}
+    updated_source = interface.update_harvest_source(source.id, updates)
+    assert updated_source is not None
+    assert updated_source["name"] == updates["name"]
+
+def test_delete_harvest_source(interface, source_data):
+    source = interface.add_harvest_source(source_data)
+    assert source is not None
+
+    response = interface.delete_harvest_source(source.id)
+    assert response == "Harvest source deleted successfully"
+
+    deleted_source = interface.get_harvest_source(source.id)
+    assert deleted_source is None

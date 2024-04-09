@@ -1,6 +1,5 @@
-from flask import Blueprint, request, render_template, redirect, url_for, flash, jsonify
+from flask import Blueprint, request, render_template, jsonify
 from .interface import HarvesterDBInterface
-from tests.database.data import new_org, new_source, new_job, new_error
 from .forms import HarvestSourceForm, OrganizationForm
 
 mod = Blueprint("harvest", __name__)
@@ -71,8 +70,9 @@ def add_harvest_source():
         if form.validate_on_submit():
             new_source = {
                 "name": form.name.data,
-                "notification_emails": form.emails.data,
+                "notification_emails": form.emails.data.replace('\r\n', ', '),
                 "frequency": form.frequency.data,
+                "user_requested_frequency": form.frequency.data,
                 "url": form.url.data,
                 "schema_type": form.schema_type.data,
                 "source_type": form.source_type.data,
@@ -190,6 +190,45 @@ def get_harvest_error(error_id=None):
         return jsonify(error)
     except Exception:
         return "Please provide correct error_id or harvest_job_id"
+
+@mod.route("/harvest_record/add", methods=["POST", "GET"])
+def add_harvest_record():
+    if request.is_json:
+        record = db.add_harvest_record(request.json)
+        if record:
+            return jsonify({"message": f"Added new record with ID: {record.id}"})
+        else:
+            return jsonify({"error": "Failed to add harvest record."}), 400
+    else:
+        return jsonify({"Please provide harvest record with json format."})
+
+@mod.route("/harvest_record/", methods=["GET"])    
+@mod.route("/harvest_record/<record_id>", methods=["GET"])
+def get_harvest_record(record_id=None):
+    try:
+        if record_id:
+            record = db.get_harvest_record(record_id)
+            return jsonify(record) if record else ("Not Found", 404)
+
+        job_id = request.args.get("harvest_job_id")
+        source_id = request.args.get("harvest_source_id")
+        if job_id:
+            record = db.get_harvest_record_by_job(job_id)
+            if not record:
+                return "No harvest records found for this harvest job", 404
+        elif source_id:
+            record = db.get_harvest_record_by_source(source_id)
+            if not record:
+                return "No harvest records found for this harvest source", 404
+        else:
+            # for test, will remove later
+            record = db.get_all_harvest_records()
+    
+        return jsonify(record)
+    except Exception:
+        return "Please provide correct record_id or harvest_job_id"
+
+
 
 def register_routes(app):
     app.register_blueprint(mod)

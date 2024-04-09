@@ -1,71 +1,104 @@
+# flake8: noqa
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Harvest Actions</title>
-        <style>
-            ul {
-                list-style-type: none;
-            }
-            li {
-                margin-bottom: 10px;
-            }
-            a {
-                text-decoration: none;
-                color: blue;
-            }
-            a:hover {
-                text-decoration: underline;
-            }
-        </style>
+    <title>Flask routes </title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
 </head>
 <body>
-    <h2>Harvest Actions</h2>
-    <ul>
-        <li><a href="/organization/add">Add Organization</a></li>
-        <li><a href="/harvest_source/add">Add Harvest Source</a></li>
-        <br>
-        <li>Add Harvest Job : </li>
-        <p>example: <br>
-            <textarea rows="8" cols="150">
-            curl -X POST https://harvester-dev-datagov.app.cloud.gov/harvest_job/add -H "Content-Type: application/json" -d '
+    <div class="container mt-3">
+        <h2>Harvest Actions</h2>
+        <ul class="list-unstyled">
+            <li class="mb-3"><a href="/organization/add" class="btn btn-primary">
+                Add Organization [Form]</a></li>
+            <li class="mb-3"><a href="/harvest_source/add" class="btn btn-primary">
+                Add Harvest Source [Form]</a></li>
+
+            <li class="mb-3"><a href="/get_harvest_source" class="btn btn-primary">
+                Get Harvest Source by id or org</a></li>
+
+            <li class="mb-3"><strong>Add Job/Record/Error:</strong></li>
+            <textarea class="form-control mb-3" rows="10">
+                curl -X POST https://{site}/harvest_job/add -H "Content-Type: application/json" -d '
                 {
                     "harvest_source_id": "4fa42643-1410-480a-94b6-2f83f0345970",
-                    "status": "in_progress",
-                    "date_created": "Wed, 27 Mar 2024 20:37:52 GMT"
+                    "status": "in_progress"
                 }'
-            </textarea>
-        </p>
-        <br>
-        <li>Add Harvest Error : </li>
-        <p>example: <br>
-            <textarea rows="12" cols="150">
-            curl -X POST https://harvester-dev-datagov.app.cloud.gov/harvest_error/add -H "Content-Type: application/json" -d '
+
+                curl -X POST https://{site}/harvest_record/add -H "Content-Type: application/json" -d '
+                {
+                    "id": "identifier-1",
+                    "harvest_job_id": "760129d6-2bf0-4c94-94b9-09622a8a0b23",
+                    "harvest_source_id": "760129d6-2bf0-4c94-94b9-09622a8a0b23"
+                }'
+
+                curl -X POST https://{site}/harvest_error/add -H "Content-Type: application/json" -d '
                 {
                     "harvest_job_id": "aac30640-bd76-46c2-8a64-cf8ee389b190",
-                    "harvest_record_id": "record123", 
-                    "date_created": "Wed, 27 Mar 2024 20:37:52 GMT",
+                    "harvest_record_id": "", 
                     "type": "Validation Error",
                     "severity": "ERROR",
                     "message": "Invalid data format."
                 }'
             </textarea>
-        </p>
-        <br>
-        <li><a href="/organization">Get All Organizations</a></li>
-        <br>
-        <li><a href="/harvest_source">Get All Harvest Sources</a></li>
-        <li><a href="/get_harvest_source">Get Harvest Source</a></li>
-        <br>
-        <li><a href="/harvest_job/">Get All Harvest Jobs</a></li>
-        <li><a href="/harvest_job/<job_id>">Get Harvest Job by id</a></li>
-        <li><a href="/harvest_job/?harvest_source_id=">Get Harvest Job by harvest_source_id</a></li>
-        <br>
-        <li><a href="/harvest_error/">Get All Harvest Errors (for testing) </a></li>
-        <li><a href="/harvest_error/<error_id>">Get Harvest Error by id</a></li>
-        <li><a href="/harvest_error/?harvest_job_id=">Get All Harvest Errors By Job</a></li>
 
-    </ul>
+            <li class="mb-3"><strong>GET:</strong></li>
+            <textarea class="form-control mb-3" rows="10">
+                /organization
+                /organization/{organization_id}
 
+                /harvest_source
+                /harvest_source/{source_id}
+                /harvest_source/?organization_id=
+
+                /harvest_record/{record_id}
+                /harvest_record/?harvest_job_id=
+                /harvest_record/?harvest_source_id=
+   
+                /harvest_job/{job_id}
+                /harvest_job/?harvest_source_id=
+
+                /harvest_error/{error_id}
+                /harvest_error/?harvest_job_id=
+
+            </textarea>
+
+            <li class="mb-3"><strong>UPDATE:</strong></li>
+            <textarea class="form-control mb-3" rows="10">
+                curl -X PUT https://{site}/harvest_job/update -H "Content-Type: application/json" -d '
+                {
+                    "status": "complete",
+                    "records_added": 200,
+                    "records_updated": 50,
+                    "records_deleted": 6,
+                    "records_errored": 4,
+                    "records_ignored": 2
+                }'
+            </textarea>
+
+            <li class="mb-3"><strong>DELETE:</strong></li>
+            <textarea class="form-control mb-3" rows="5">
+                curl -X DELETE https://{site}/organization/{organization_id}
+                curl -X DELETE https://{site}/harvest_source/{source_id}
+                curl -X DELETE https://{site}/harvest_job/{job_id}
+            </textarea>
+
+            <li class="mb-3">Reference for testing:</li>
+            <li class="mb-3"><a href="/organization" class="btn btn-link">
+                Get All Organizations</a></li>
+            <li class="mb-3"><a href="/harvest_source" class="btn btn-link">
+                Get All Harvest Sources</a></li>
+            <li class="mb-3"><a href="/harvest_job/" class="btn btn-link">
+                Get All Harvest Jobs</a></li>
+            <li class="mb-3"><a href="/harvest_record/" class="btn btn-link">
+                Get All Harvest Records (for testing)</a></li>
+            <li class="mb-3"><a href="/harvest_error/" class="btn btn-link">
+                Get All Harvest Errors (for testing)</a></li>
+        </ul>
+    </div>
+    <script src=
+        "https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.bundle.min.js">
+    </script>
 </body>
 </html>

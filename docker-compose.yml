@@ -57,7 +57,7 @@ services:
     volumes:
       - .:/app
     environment:
-      DATABASE_URI: ${DATABASE_URI}
+      DATABASE_URI: postgresql://${DATABASE_USER}:${DATABASE_PASSWORD}@db:${DATABASE_PORT}/${DATABASE_NAME}
       FLASK_APP: run.py
       FLASK_ENV: development
     ports:

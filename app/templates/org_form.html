@@ -3,14 +3,28 @@
 <head>
     <meta charset="UTF-8">
     <title>Add Organization</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
 </head>
 <body>
-    <h2>Add Organization</h2>
-    <form method="POST">
-        {{ form.hidden_tag() }}
-        {{ form.name.label }} {{ form.name() }}<br><br>
-        {{ form.logo.label }} {{ form.logo() }}<br><br>
-        {{ form.submit() }}
-    </form>
+    <div class="container">
+        <h2>Add Organization</h2>
+        <form method="POST" class="mt-3">
+            {{ form.hidden_tag() }}
+            <div class="form-group">
+                {{ form.name.label(class_='form-control-label') }}:
+                {{ form.name(class_='form-control') }}
+            </div>
+            <div class="form-group">
+                {{ form.logo.label(class_='form-control-label') }}:
+                {{ form.logo(class_='form-control') }}
+            </div>
+            <div class="form-group">
+                {{ form.submit(class_='btn btn-primary') }}
+            </div>
+        </form>
+    </div>
+
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.bundle.min.js"></script>
+
 </body>
 </html>

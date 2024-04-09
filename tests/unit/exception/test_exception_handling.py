@@ -51,9 +51,8 @@ class TestExceptionHandling:
             "records_ignored": 0,
         }
         db_interface.add_organization(organization)
-        db_interface.add_harvest_source(harvest_source,
-                                        harvest_source["organization_id"])
-        db_interface.add_harvest_job(harvest_job, harvest_job["harvest_source_id"])
+        db_interface.add_harvest_source(harvest_source)
+        db_interface.add_harvest_job(harvest_job)
 
     def test_bad_harvest_source_url_exception(self, bad_url_dcatus_config):
         harvest_source = HarvestSource(**bad_url_dcatus_config)

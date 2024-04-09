@@ -7,3 +7,4 @@ psycopg2-binary==2.9.9
 pytest==7.4.4 
 python-dotenv==1.0.1 
 flask-wtf==1.2.1
+flask_bootstrap

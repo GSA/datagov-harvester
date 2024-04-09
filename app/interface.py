@@ -1,13 +1,22 @@
 from sqlalchemy import create_engine, inspect
 from sqlalchemy.orm import sessionmaker, scoped_session
-from sqlalchemy.exc import NoResultFound, IntegrityError
-from app.models import Organization, HarvestSource, HarvestJob, HarvestError
+from sqlalchemy.exc import NoResultFound
+from app.models import (
+    Organization, HarvestSource,
+    HarvestJob, HarvestError, HarvestRecord
+)
 from . import DATABASE_URI
 
 class HarvesterDBInterface:
     def __init__(self, session=None):
         if session is None:
-            engine = create_engine(DATABASE_URI)
+            engine = create_engine(
+                DATABASE_URI,
+                pool_size=10,
+                max_overflow=20,
+                pool_timeout=60,
+                pool_recycle=1800
+            )
             session_factory = sessionmaker(bind=engine,
                                            autocommit=False,
                                            autoflush=False)
@@ -34,23 +43,28 @@ class HarvesterDBInterface:
 
     def get_all_organizations(self):
         orgs = self.db.query(Organization).all()
-        orgs_data = [
-            HarvesterDBInterface._to_dict(org) for org in orgs]
-        return orgs_data
+        if orgs is None:
+            return None
+        else:
+            orgs_data = [
+                HarvesterDBInterface._to_dict(org) for org in orgs]
+            return orgs_data
     
     def get_organization(self, org_id):
         result = self.db.query(Organization).filter_by(id=org_id).first()
+        if result is None:
+            return None
         return HarvesterDBInterface._to_dict(result)
 
     def update_organization(self, org_id, updates):
         try:
-            org = self.db.query(Organization).get(org_id)
+            org = self.db.get(Organization, org_id)
 
             for key, value in updates.items():
                 if hasattr(org, key):
                     setattr(org, key, value)
                 else:
-                    print(f"Warning: Trying to update non-existing field '{key}' in organization")
+                    print(f"Warning: non-existing field '{key}' in organization")
 
             self.db.commit()
             return self._to_dict(org)
@@ -60,7 +74,7 @@ class HarvesterDBInterface:
             return None 
         
     def delete_organization(self, org_id):
-        org = self.db.query(Organization).get(org_id)
+        org = self.db.get(Organization, org_id)
         if org is None:
             return "Organization not found"
         self.db.delete(org)
@@ -81,30 +95,38 @@ class HarvesterDBInterface:
 
     def get_all_harvest_sources(self):
         harvest_sources = self.db.query(HarvestSource).all()
-        harvest_sources_data = [
-            HarvesterDBInterface._to_dict(source) for source in harvest_sources]
-        return harvest_sources_data
+        if harvest_sources is None:
+            return None
+        else:
+            harvest_sources_data = [
+                HarvesterDBInterface._to_dict(source) for source in harvest_sources]
+            return harvest_sources_data
     
     def get_harvest_source(self, source_id):
         result = self.db.query(HarvestSource).filter_by(id=source_id).first()
+        if result is None:
+            return None
         return HarvesterDBInterface._to_dict(result)
     
     def get_harvest_source_by_org(self, org_id):
         harvest_source = self.db.query(
             HarvestSource).filter_by(organization_id=org_id).all()
-        harvest_source_data = [
-            HarvesterDBInterface._to_dict(src) for src in harvest_source]
-        return harvest_source_data
+        if harvest_source is None:
+            return None
+        else:
+            harvest_source_data = [
+                HarvesterDBInterface._to_dict(src) for src in harvest_source]
+            return harvest_source_data
 
     def update_harvest_source(self, source_id, updates):
         try:
-            source = self.db.query(HarvestSource).get(source_id)
+            source = self.db.get(HarvestSource, source_id)
 
             for key, value in updates.items():
                 if hasattr(source, key):
                     setattr(source, key, value)
                 else:
-                    print(f"Warning: Trying to update non-existing field '{key}' in HarvestSource")
+                    print(f"Warning: non-existing field '{key}' in HarvestSource")
 
             self.db.commit()
             return self._to_dict(source)
@@ -114,7 +136,7 @@ class HarvesterDBInterface:
             return None 
  
     def delete_harvest_source(self, source_id):
-        source = self.db.query(HarvestSource).get(source_id)
+        source = self.db.get(HarvestSource, source_id)
         if source is None:
             return "Harvest source not found"
         self.db.delete(source)
@@ -133,6 +155,7 @@ class HarvesterDBInterface:
             self.db.rollback()
             return None
 
+    # for test, will remove later 
     def get_all_harvest_jobs(self):
         harvest_jobs = self.db.query(HarvestJob).all()
         harvest_jobs_data = [
@@ -141,24 +164,29 @@ class HarvesterDBInterface:
 
     def get_harvest_job(self, job_id):
         result = self.db.query(HarvestJob).filter_by(id=job_id).first()
+        if result is None:
+            return None
         return HarvesterDBInterface._to_dict(result)
     
     def get_harvest_job_by_source(self, source_id):
         harvest_job = self.db.query(
             HarvestJob).filter_by(harvest_source_id=source_id).all()
-        harvest_job_data = [
-            HarvesterDBInterface._to_dict(job) for job in harvest_job]
-        return harvest_job_data
+        if harvest_job is None:
+            return None
+        else:
+            harvest_job_data = [
+                HarvesterDBInterface._to_dict(job) for job in harvest_job]
+            return harvest_job_data
 
     def update_harvest_job(self, job_id, updates):
         try:
-            job = self.db.query(HarvestJob).get(job_id)
+            job = self.db.get(HarvestJob, job_id)
 
             for key, value in updates.items():
                 if hasattr(job, key):
                     setattr(job, key, value)
                 else:
-                    print(f"Warning: Trying to update non-existing field '{key}' in HavestJob")
+                    print(f"Warning: non-existing field '{key}' in HavestJob")
 
             self.db.commit()
             return self._to_dict(job)
@@ -168,7 +196,7 @@ class HarvesterDBInterface:
             return None 
         
     def delete_harvest_job(self, job_id):
-        job = self.db.query(HarvestJob).get(job_id)
+        job = self.db.get(HarvestJob, job_id)
         if job is None:
             return "Harvest job not found"
         self.db.delete(job)
@@ -194,15 +222,70 @@ class HarvesterDBInterface:
             HarvesterDBInterface._to_dict(err) for err in harvest_errors]
         return harvest_errors_data
 
-    def get_harvest_error_by_job(self, job_id):
-        harvest_errors = self.db.query(HarvestError).filter_by(harvest_job_id=job_id)
-        harvest_errors_data = [
-            HarvesterDBInterface._to_dict(err) for err in harvest_errors]
-        return harvest_errors_data
-
     def get_harvest_error(self, error_id):
         result = self.db.query(HarvestError).filter_by(id=error_id).first()
+        if result is None:
+            return None
         return HarvesterDBInterface._to_dict(result)
+
+    def get_harvest_error_by_job(self, job_id):
+        harvest_errors = self.db.query(HarvestError).filter_by(harvest_job_id=job_id)
+        if harvest_errors is None:
+            return None
+        else:
+            harvest_errors_data = [
+                HarvesterDBInterface._to_dict(err) for err in harvest_errors]
+            return harvest_errors_data
+
+
+    def add_harvest_record(self, record_data):
+        try:
+            new_record = HarvestRecord(**record_data)
+            self.db.add(new_record)
+            self.db.commit()
+            self.db.refresh(new_record)
+            return new_record
+        except Exception as e:
+            print("Error:", e)
+            self.db.rollback()
+            return None
+
+    # for test, will remove later    
+    def get_all_harvest_records(self):
+        harvest_records = self.db.query(HarvestRecord).all()
+        harvest_records_data = [
+            HarvesterDBInterface._to_dict(err) for err in harvest_records]
+        return harvest_records_data
+
+    def get_harvest_record(self, record_id):
+        result = self.db.query(HarvestRecord).filter_by(id=record_id).first()
+        if result is None:
+            return None
+        return HarvesterDBInterface._to_dict(result)
+    
+    def get_harvest_record_by_job(self, job_id):
+        harvest_records = (
+            self.db.query(HarvestRecord)
+            .filter_by(harvest_job_id=job_id)
+        )
+        if harvest_records is None:
+            return None
+        else:
+            harvest_records_data = [
+                HarvesterDBInterface._to_dict(rcd) for rcd in harvest_records]
+            return harvest_records_data
+    
+    def get_harvest_record_by_source(self, source_id):
+        harvest_records = (
+            self.db.query(HarvestRecord)
+            .filter_by(harvest_source_id=source_id)
+        )
+        if harvest_records is None:
+            return None
+        else:
+            harvest_records_data = [
+                HarvesterDBInterface._to_dict(rcd) for rcd in harvest_records]
+            return harvest_records_data
 
     def close(self):
         if hasattr(self.db, "remove"):

@@ -110,9 +110,9 @@ If you followed the instructions for `CKAN load testing` and `Harvester testing`
 3. when there are database DDL changes, use following steps to generate migration scripts and update database:
 
     ```bash
-    docker-compose db up
-    docker-compose run app flask db migrate -m "migration description"
-    docker-compose run app flask db upgrade
+    docker compose db up
+    docker compose run app flask db migrate -m "migration description"
+    docker compose run app flask db upgrade
     ```
 
 ### Deployment to cloud.gov
