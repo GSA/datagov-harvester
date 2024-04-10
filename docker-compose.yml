@@ -57,11 +57,13 @@ services:
     volumes:
       - .:/app
     environment:
-      DATABASE_URI: ${DATABASE_URI}
+      DATABASE_URI: postgresql://${DATABASE_USER}:${DATABASE_PASSWORD}@db:${DATABASE_PORT}/${DATABASE_NAME}
       FLASK_APP: run.py
+      FLASK_ENV: development
     ports:
       - "8080:8080"
-    command: flask run --host=0.0.0.0 --port=8080
+    command: flask run --host=0.0.0.0 --port=8080 --reload
+
 
 volumes:
   postgres_data:

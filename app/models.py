@@ -1,82 +1,89 @@
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy.dialects.postgresql import UUID, ARRAY
-from sqlalchemy.sql import text
-from sqlalchemy import Enum
-from sqlalchemy.schema import UniqueConstraint
+from sqlalchemy import Enum, func
+import uuid
 
 db = SQLAlchemy()
 
 class Base(db.Model):
     __abstract__ = True  # Indicates that this class should not be created as a table
-    id = db.Column(UUID(as_uuid=True), primary_key=True,
-                   server_default=text("gen_random_uuid()"))
+    id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
 
 class Organization(Base):
-    __tablename__ = 'organization'
+    __tablename__ = "organization"
     
     name = db.Column(db.String(), nullable=False, index=True)
     logo = db.Column(db.String())
+    sources = db.relationship("HarvestSource", backref="org",
+                              cascade="all, delete-orphan",
+                              lazy=True)
 
 class HarvestSource(Base):
-    __tablename__ = 'harvest_source'
+    __tablename__ = "harvest_source"
     
     name = db.Column(db.String, nullable=False)
-    notification_emails = db.Column(ARRAY(db.String))
-    organization_id = db.Column(UUID(as_uuid=True),
-                                db.ForeignKey('organization.id'),
+    notification_emails = db.Column(db.String)
+    organization_id = db.Column(db.String(36),
+                                db.ForeignKey("organization.id"),
                                 nullable=False)
     frequency = db.Column(db.String, nullable=False)
+    user_requested_frequency = db.Column(db.String)
     url = db.Column(db.String, nullable=False, unique=True)
     schema_type = db.Column(db.String, nullable=False)
     source_type = db.Column(db.String, nullable=False)
-    jobs = db.relationship('HarvestJob', backref='source')
+    status = db.Column(db.String)
+    jobs = db.relationship("HarvestJob", backref="source",
+                           cascade="all, delete-orphan",
+                           lazy=True)
 
 class HarvestJob(Base):
-    __tablename__ = 'harvest_job'
+    __tablename__ = "harvest_job"
     
-    harvest_source_id = db.Column(UUID(as_uuid=True),
-                                  db.ForeignKey('harvest_source.id'),
+    harvest_source_id = db.Column(db.String(36),
+                                  db.ForeignKey("harvest_source.id"),
                                   nullable=False)
-    status = db.Column(Enum('new', 'in_progress', 'complete', name='job_status'),
+    status = db.Column(Enum("new", "in_progress", "complete", name="job_status"),
                        nullable=False,
                        index=True)
-    date_created = db.Column(db.DateTime, index=True)
+    date_created = db.Column(db.DateTime, index=True, default=func.now())
     date_finished = db.Column(db.DateTime)
     records_added = db.Column(db.Integer)
     records_updated = db.Column(db.Integer)
     records_deleted = db.Column(db.Integer)
     records_errored = db.Column(db.Integer)
     records_ignored = db.Column(db.Integer)
-    errors = db.relationship('HarvestError', backref='job', lazy=True)
+    errors = db.relationship("HarvestError", backref="job",
+                             cascade="all, delete-orphan",
+                             lazy=True)
 
 class HarvestError(Base):
-    __tablename__ = 'harvest_error'
+    __tablename__ = "harvest_error"
     
-    harvest_job_id = db.Column(UUID(as_uuid=True),
-                               db.ForeignKey('harvest_job.id'),
+    harvest_job_id = db.Column(db.String(36),
+                               db.ForeignKey("harvest_job.id"),
                                nullable=False)
-    harvest_record_id = db.Column(db.String)
-    # to-do 
-    # harvest_record_id = db.Column(UUID(as_uuid=True),
-    #                               db.ForeignKey('harvest_record.id'),
-    #                               nullable=True)
-    date_created = db.Column(db.DateTime)
+    harvest_record_id = db.Column(db.String,
+                                  db.ForeignKey("harvest_record.id"),
+                                  nullable=True)
+    date_created = db.Column(db.DateTime, default=func.now())
     type = db.Column(db.String)
-    severity = db.Column(Enum('CRITICAL', 'ERROR', 'WARN', name='error_serverity'),
+    severity = db.Column(Enum("CRITICAL", "ERROR", "WARN", name="error_serverity"),
                          nullable=False,
                          index=True)
     message = db.Column(db.String)
+    reference = db.Column(db.String)
 
-class HarvestRecord(Base):
-    __tablename__ = 'harvest_record'
+class HarvestRecord(db.Model):
+    __tablename__ = "harvest_record"
     
-    job_id = db.Column(UUID(as_uuid=True),
-                       db.ForeignKey('harvest_job.id'),
-                       nullable=False) 
-    identifier = db.Column(db.String(), nullable=False)
-    ckan_id = db.Column(db.String(), nullable=False, index=True)
-    type = db.Column(db.String(), nullable=False)
-    source_metadata = db.Column(db.String(), nullable=True)
-    __table_args__ = (
-        UniqueConstraint('job_id', 'identifier', name='uix_job_id_identifier'),
-    )
+    id = db.Column(db.String, primary_key=True)
+    harvest_job_id = db.Column(db.String(36),
+                       db.ForeignKey("harvest_job.id"),
+                       nullable=True) 
+    harvest_source_id = db.Column(db.String(36),
+                                  db.ForeignKey("harvest_source.id"),
+                                  nullable=True) 
+    source_hash = db.Column(db.String)
+    date_created = db.Column(db.DateTime, index=True, default=func.now())
+    ckan_id = db.Column(db.String, index=True)
+    type = db.Column(db.String)
+    status = db.Column(db.String)
