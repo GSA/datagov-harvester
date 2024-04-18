@@ -59,6 +59,12 @@ services:
     environment:
       DATABASE_URI: ${DATABASE_URI}
       FLASK_APP: run.py
+    # hacky way. not happy about it.
+    healthcheck:
+      test: ["CMD", "curl", "-X", "POST", "localhost:8080/scheduler/start"]
+      interval: 2s
+      timeout: 5s
+      retries: 3
     ports:
       - "8080:8080"
     command: flask run --host=0.0.0.0 --port=8080
