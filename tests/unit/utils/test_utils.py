@@ -1,4 +1,5 @@
 from harvester.ckan_utils import munge_tag, munge_title_to_name
+from harvester.utils import parse_args
 import pytest
 
 # these tests are copied from
@@ -44,3 +45,9 @@ class TestCKANUtils:
         """Munge a list of names gives expected results."""
         munge = munge_title_to_name(original)
         assert munge == expected
+
+
+class TestGeneralUtils:
+    def test_args_parsing(self):
+        args = parse_args(["-j", "test-id"])
+        assert args.jobid == "test-id"

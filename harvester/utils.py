@@ -1,6 +1,7 @@
 import hashlib
 import json
 import os
+import argparse
 
 import boto3
 import sansjson
@@ -9,6 +10,16 @@ from cloudfoundry_client.client import CloudFoundryClient
 from cloudfoundry_client.v3.tasks import TaskManager
 
 # ruff: noqa: F841
+
+
+def parse_args(args):
+
+    parser = argparse.ArgumentParser(
+        prog="Harvest Runner", description="etl harvest sources"
+    )
+    parser.add_argument("-j", "--jobid")
+
+    return parser.parse_args(args)
 
 
 def convert_set_to_list(obj):
