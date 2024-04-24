@@ -10,6 +10,7 @@ load_dotenv()
 DATABASE_URI = os.getenv('DATABASE_URI')
 
 def create_app(testing=False):
+    
     app = Flask(__name__)
 
     if testing:

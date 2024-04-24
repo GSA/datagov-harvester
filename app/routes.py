@@ -1,9 +1,22 @@
-from flask import Blueprint, request, render_template, jsonify
+from flask import Blueprint, request, render_template, jsonify, flash, redirect
 from .interface import HarvesterDBInterface
 from .forms import HarvestSourceForm, OrganizationForm
 
 mod = Blueprint("harvest", __name__)
 db = HarvesterDBInterface()
+
+# convenience method to extract form data
+def make_new_source(form):
+    return {
+        "name": form.name.data,
+        "notification_emails": form.notification_emails.data.replace('\r\n', ', '),
+        "frequency": form.frequency.data,
+        "user_requested_frequency": form.frequency.data,
+        "url": form.url.data,
+        "schema_type": form.schema_type.data,
+        "source_type": form.source_type.data,
+        "organization_id": form.organization_id.data
+    }
 
 @mod.route("/", methods=["GET"])
 def index():
@@ -68,36 +81,43 @@ def add_harvest_source():
             return jsonify({"error": "Failed to add harvest source."}), 400
     else:
         if form.validate_on_submit():
-            new_source = {
-                "name": form.name.data,
-                "notification_emails": form.emails.data.replace('\r\n', ', '),
-                "frequency": form.frequency.data,
-                "user_requested_frequency": form.frequency.data,
-                "url": form.url.data,
-                "schema_type": form.schema_type.data,
-                "source_type": form.source_type.data,
-                "organization_id": form.organization_id.data
-            }
+            new_source = make_new_source(form)
             source=db.add_harvest_source(new_source)
             if source:
-                return f"Added new source with ID: {source.id}"
+                flash(f"Updated source with ID: {source.id}")
             else:
-                return "Failed to add harvest source."
-    return render_template("source_form.html", form=form, choices=organization_choices)
+                flash("Failed to add harvest source.")
+            return redirect('/')
+    return render_template("data_form.html", form=form, action="Add", data_type="Harvest Source", button="Submit")
 
 # test interface, will remove later
 @mod.route("/get_harvest_source", methods=["GET"]) 
 def get_all_harvest_sources():
     source = db.get_all_harvest_sources()
     org = db.get_all_organizations()
-    return render_template("harvest_source.html", sources=source, organizations=org)
+    return render_template("get_harvest_source.html", sources=source, organizations=org)
 
 @mod.route("/harvest_source/", methods=["GET"])    
-@mod.route("/harvest_source/<source_id>", methods=["GET"])
+@mod.route("/harvest_source/<source_id>", methods=["GET", "POST"])
 def get_harvest_source(source_id=None):
     if source_id:
         source = db.get_harvest_source(source_id)
-        return jsonify(source) if source  else ("Not Found", 404)
+        organizations = db.get_all_organizations()
+        organization_choices = [(str(org["id"]), f'{org["name"]} - {org["id"]}')
+                                for org in organizations]
+        form = HarvestSourceForm(data=source)
+        form.organization_id.choices = organization_choices
+        if form.validate_on_submit():
+            new_source_data = make_new_source(form)
+            print(new_source_data)
+            source=db.update_harvest_source(source_id, new_source_data)
+            print(source)
+            if source:
+                flash(f"Updated source with ID: {source.id}")
+            else:
+                flash("Failed to add harvest source.")
+            return redirect('/')
+        return render_template("data_form.html", form=form, action="Edit", data_type="Harvest Source", button="Update")
 
     organization_id = request.args.get("organization_id")
     if organization_id:

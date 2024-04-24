@@ -14,7 +14,7 @@ class HarvestSourceForm(FlaskForm):
                                   choices=[], validators=[DataRequired()])
     name = StringField('Name', validators=[DataRequired()])
     url = StringField('URL', validators=[DataRequired(), URL()])
-    emails = TextAreaField('Notification_emails',
+    notification_emails = TextAreaField('Notification_emails',
                          validators=[DataRequired(), validate_email_list])
     frequency = SelectField('Frequency',
                             choices=['Manual', 'Daily', 'Weekly', 'Biweekly','Monthly'],
@@ -27,8 +27,7 @@ class HarvestSourceForm(FlaskForm):
     source_type = SelectField('Source Type',
                               choices=['Datajson', 'WAF'],
                               validators=[DataRequired()])
-    submit = SubmitField('Submit')
-
+    
 class OrganizationForm(FlaskForm):
     name = StringField('Name', validators=[DataRequired()])
     logo = StringField('Logo', validators=[DataRequired()])

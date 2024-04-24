@@ -129,7 +129,7 @@ class HarvesterDBInterface:
                     print(f"Warning: non-existing field '{key}' in HarvestSource")
 
             self.db.commit()
-            return self._to_dict(source)
+            return source
         
         except NoResultFound:
             self.db.rollback()
