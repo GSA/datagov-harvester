@@ -1,77 +1,61 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Harvest Sources</title>
-    <!-- Include Bootstrap CSS -->
-    <link 
-        href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" 
-        rel="stylesheet">
-    <style>
-        .container {
-            margin-top: 20px;
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h2>Harvest Sources</h2>
-        {% for message in get_flashed_messages() %}
-        <div class="alert alert-warning">
-            <button type="button" class="close" data-dismiss="alert">&times;</button>
-            {{ message }}
-        </div>
+{% extends 'base.html' %}
+
+{% block title %}
+<title>Get Harvest Sources</title>
+{% endblock %}
+
+{% block content %}
+<div class="form-group">
+    <label for="source_id">Get Harvest Source by id:</label>
+    <select name="source_id" id="source_id" class="form-control" 
+            onchange="updateSourceLink()">
+        <option value="">Select a source</option>
+        {% for source in sources %}
+            <option value="{{ source.id }}">{{ source.name }} ({{ source.id }})</option>
         {% endfor %}
-    
-        <div class="form-group">
-            <label for="source_id">Get Harvest Source by id:</label>
-            <select name="source_id" id="source_id" class="form-control" 
-                    onchange="updateSourceLink()">
-                <option value="">Select a source</option>
-                {% for source in sources %}
-                    <option value="{{ source.id }}">{{ source.name }} ({{ source.id }})</option>
-                {% endfor %}
-            </select>
-        </div>
-        <a id="source_link" href="#" class="btn btn-primary">Get Source</a>
-        <span id="example_source_link">/harvest_source/</span>
-        <hr>
-        
-        <div class="form-group">
-            <label for="organization_id">Get Harvest Source by Organization:</label>
-            <select name="organization_id" id="organization_id" class="form-control" 
-                onchange="updateOrgLink()">
-                <option value="">Select an organization</option>
-                {% for org in organizations %}
-                    <option value="{{ org.id }}">{{ org.name }} ({{ org.id }})</option>
-                {% endfor %}
-            </select>
-        </div>
-        <a id="org_link" href="#" class="btn btn-primary">Get Organization Sources</a>
-        <span id="example_org_link">/harvest_source/?organization_id=</span>
-    </div>
+    </select>
+</div>
+<a id="source_link" href="#" class="btn btn-primary">Get Source</a>
+<span id="example_source_link">/harvest_source/</span>
+<hr>
 
-    <script>
-        function updateSourceLink() {
-            var selectedId = document.getElementById('source_id').value;
-            var link = document.getElementById('source_link');
-            link.href = selectedId ? `/harvest_source/${selectedId}` : "#";
-            var exampleLink = document.getElementById('example_source_link');
-            exampleLink.textContent = 
-                selectedId ? `/harvest_source/${selectedId}` : '/harvest_source/';
+<div class="form-group">
+    <label for="organization_id">Get Harvest Source by Organization:</label>
+    <select name="organization_id" id="organization_id" class="form-control" 
+        onchange="updateOrgLink()">
+        <option value="">Select an organization</option>
+        {% for org in organizations %}
+            <option value="{{ org.id }}">{{ org.name }} ({{ org.id }})</option>
+        {% endfor %}
+    </select>
+</div>
+<a id="org_link" href="#" class="btn btn-primary">Get Organization Sources</a>
+<span id="example_org_link">/harvest_source/?organization_id=</span>
+</div>
+{% endblock %}
 
-        }
+{% block scripts %}
+<script>
+    function updateSourceLink() {
+        var selectedId = document.getElementById('source_id').value;
+        var link = document.getElementById('source_link');
+        link.href = selectedId ? `/harvest_source/${selectedId}` : "#";
+        var exampleLink = document.getElementById('example_source_link');
+        exampleLink.textContent = 
+            selectedId ? `/harvest_source/${selectedId}` : '/harvest_source/';
 
-        function updateOrgLink() {
-            var selectedId = document.getElementById('organization_id').value;
-            var link = document.getElementById('org_link');
-            var exampleLink = document.getElementById('example_org_link');
-            link.href = selectedId ? `/harvest_source?organization_id=${selectedId}` : "#";
-            exampleLink.textContent = 
-                selectedId ? `/harvest_source?organization_id
-                    =${selectedId}` : '/harvest_source/?organization_id=';
-        }
+    }
 
-    </script>
-</body>
-</html>
+    function updateOrgLink() {
+        var selectedId = document.getElementById('organization_id').value;
+        var link = document.getElementById('org_link');
+        var exampleLink = document.getElementById('example_org_link');
+        link.href = selectedId ? `/harvest_source?organization_id=${selectedId}` : "#";
+        exampleLink.textContent = 
+            selectedId ? `/harvest_source?organization_id
+                =${selectedId}` : '/harvest_source/?organization_id=';
+    }
+
+</script>
+{% endblock %}
+

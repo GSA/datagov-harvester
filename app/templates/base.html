@@ -1,10 +1,11 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
+    <meta charset="UTF  -8">
     {% block title %}
         <title>{{action}} {{data_type}}</title>
     {% endblock %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
 </head>
 <body>
@@ -12,7 +13,8 @@
         <strong><nav>
             <ul class="menu">
               <li><a href="{{ url_for('harvest.index') }}">Home</a></li>
-              <li><a href="{{ url_for('harvest.get_harvest_source') }}">Get Harvest Source</a></li>
+              <li><a href="{{ url_for('harvest.get_all_harvest_sources') }}">Get Harvest Source</a></li>
+              <li><a href="{{ url_for('harvest.get_all_organizations') }}">Get Organizations</a></li>
             </ul>
           </nav></strong>
     </header>
@@ -29,5 +31,7 @@
 
     <script src="https://code.jquery.com/jquery-3.7.1.min.js" integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
     <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.bundle.min.js"></script>
+    {% block scripts %}
+    {% endblock %}
 </body>
 </html>

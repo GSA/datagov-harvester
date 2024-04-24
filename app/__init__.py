@@ -11,7 +11,9 @@ DATABASE_URI = os.getenv('DATABASE_URI')
 
 def create_app(testing=False):
     
-    app = Flask(__name__)
+    app = Flask(__name__,
+                static_url_path="",
+                static_folder="static")
 
     if testing:
         app.config['TESTING'] = True

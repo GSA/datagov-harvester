@@ -67,7 +67,7 @@ class HarvesterDBInterface:
                     print(f"Warning: non-existing field '{key}' in organization")
 
             self.db.commit()
-            return self._to_dict(org)
+            return org
         
         except NoResultFound:
             self.db.rollback()

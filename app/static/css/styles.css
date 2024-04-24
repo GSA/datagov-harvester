@@ -1,0 +1,11 @@
+ul.menu {
+    list-style-type: none;
+}
+
+ul.menu > li {
+    display: inline-block;
+}
+
+ul.menu > li::after {
+    content: '  |'
+}

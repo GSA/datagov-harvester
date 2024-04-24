@@ -18,6 +18,12 @@ def make_new_source(form):
         "organization_id": form.organization_id.data
     }
 
+def make_new_org(form):
+    return {
+        "name": form.name.data,
+        "logo": form.logo.data
+    }
+
 @mod.route("/", methods=["GET"])
 def index():
     return render_template("index.html")
@@ -40,25 +46,35 @@ def add_organization():
             }
             org=db.add_organization(new_org)
             if org:
-                return f"Added new organization with ID: {org.id}"
+                flash(f"Added new organization with ID: {org.id}")
             else:
-                return "Failed to add organization."
-    return render_template("org_form.html", form=form)
+                flash("Failed to add organization.")
+            return redirect('/')
+    return render_template("data_form.html", form=form, action="Add", data_type="Organization", button="Submit")
 
 @mod.route("/organization", methods=["GET"])
-@mod.route("/organization/<org_id>", methods=["GET"])
+@mod.route("/organization/<org_id>", methods=["GET", "POST"])
 def get_organization(org_id=None):
     if org_id:
         org = db.get_organization(org_id)
-        return jsonify(org) if org else ("Not Found", 404)
+        form = OrganizationForm(data=org)
+        if form.validate_on_submit():
+            new_org_data = make_new_org(form)
+            org = db.update_organization(org_id, new_org_data)
+            if org:
+                flash(f"Updated org with ID: ${org.id}")
+            else:
+                flash("Failed to update organization.")
+            return redirect('/')
+        return render_template("data_form.html", form=form, action="Edit", data_type="Organization", button="Update")
     else:
         org = db.get_all_organizations()
     return org
 
-@mod.route("/organization/<org_id>", methods=["PUT"])
-def update_organization(org_id):
-    result = db.update_organization(org_id, request.json)
-    return result
+# @mod.route("/organization/<org_id>", methods=["PUT"])
+# def update_organization(org_id):
+#     result = db.update_organization(org_id, request.json)
+#     return result
 
 @mod.route("/organization/<org_id>", methods=["DELETE"])
 def delete_organization(org_id):
@@ -97,6 +113,12 @@ def get_all_harvest_sources():
     org = db.get_all_organizations()
     return render_template("get_harvest_source.html", sources=source, organizations=org)
 
+# test interface, will remove later
+@mod.route("/get_organizations", methods=["GET"]) 
+def get_all_organizations():
+    org = db.get_all_organizations()
+    return render_template("get_orgs.html", organizations=org)
+
 @mod.route("/harvest_source/", methods=["GET"])    
 @mod.route("/harvest_source/<source_id>", methods=["GET", "POST"])
 def get_harvest_source(source_id=None):
@@ -109,13 +131,11 @@ def get_harvest_source(source_id=None):
         form.organization_id.choices = organization_choices
         if form.validate_on_submit():
             new_source_data = make_new_source(form)
-            print(new_source_data)
-            source=db.update_harvest_source(source_id, new_source_data)
-            print(source)
+            source = db.update_harvest_source(source_id, new_source_data)
             if source:
                 flash(f"Updated source with ID: {source.id}")
             else:
-                flash("Failed to add harvest source.")
+                flash("Failed to update harvest source.")
             return redirect('/')
         return render_template("data_form.html", form=form, action="Edit", data_type="Harvest Source", button="Update")
 

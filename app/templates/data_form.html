@@ -1,7 +1,11 @@
 {% extends 'base.html' %}
 
+{% block title %}
+<title>{{action}} {{data_type}}</title>
+{% endblock %}
+
 {% block content %}
-    <h2>{{action}} {{data_type}}</h2>
+        <h2>{{action}} {{data_type}}</h2>
         <form action="{{ form_action }}" method="{{ method | d('POST') }}">
             {{ form.hidden_tag() }}
             {% for field in form if field.widget.input_type != 'hidden' %}
