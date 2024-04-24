@@ -22,7 +22,8 @@ node_modules/
 tmp/
 
 # vscode debugger
-.vscode/
+.vscode/*
+!.vscode/launch.json
 .env
 requirements.txt
 

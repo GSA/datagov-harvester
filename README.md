@@ -119,7 +119,20 @@ If you followed the instructions for `CKAN load testing` and `Harvester testing`
     docker compose run app flask db migrate -m "migration description"
     docker compose run app flask db upgrade
     ```
+### Debugging
+*NOTE: To use the VS-Code debugger, you will first need to sacrifice the reloading support for flask*
 
+1. Build new containers with development requirements by running `make build-debug`
+
+2. Launch containers by running `make up-debug`
+
+3. In VS-Code, launch debug process `Python: Remote Attach`
+
+4. Set breakpoints
+
+5. Visit the site at `http://localhost:8080` and invoke the route which contains the code you've set the breakpoint on.
+
+[(source)](https://medium.com/@lassebenninga/how-to-debug-flask-running-in-docker-compose-in-vs-code-ef37f0f516ee)
 ### Deployment to cloud.gov
 
 #### Database Service Setup

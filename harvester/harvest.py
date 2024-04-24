@@ -288,7 +288,7 @@ class HarvestSource:
         logger.info("retrieving and preparing ckan records")
         try:
             self.ckan_to_id_hash(self.get_ckan_records(results=[]))
-        except Exception as e:  # ruff: noqa: E841
+        except Exception as e: # noqa: E841
             # TODO: do something with 'e'
             raise ExtractCKANSourceException(
                 f"{self.title} {self.url} failed to extract ckan records. exiting.",
@@ -307,7 +307,7 @@ class HarvestSource:
                 self.harvest_to_id_hash(
                     self.download_waf(self.traverse_waf(self.url, **self.waf_config))
                 )
-        except Exception as e:  # ruff: noqa: E841
+        except Exception as e:  # noqa: E841
             raise ExtractHarvestSourceException(
                 f"{self.title} {self.url} failed to extract harvest source. exiting",
                 self.job_id,
