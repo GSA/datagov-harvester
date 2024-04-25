@@ -5,29 +5,32 @@ from .forms import HarvestSourceForm, OrganizationForm
 mod = Blueprint("harvest", __name__)
 db = HarvesterDBInterface()
 
-# convenience method to extract form data
+
+# Helper Functions
 def make_new_source(form):
     return {
         "name": form.name.data,
-        "notification_emails": form.notification_emails.data.replace('\r\n', ', '),
+        "notification_emails": form.notification_emails.data.replace("\r\n", ", "),
         "frequency": form.frequency.data,
         "user_requested_frequency": form.frequency.data,
         "url": form.url.data,
         "schema_type": form.schema_type.data,
         "source_type": form.source_type.data,
-        "organization_id": form.organization_id.data
+        "organization_id": form.organization_id.data,
     }
+
 
 def make_new_org(form):
-    return {
-        "name": form.name.data,
-        "logo": form.logo.data
-    }
+    return {"name": form.name.data, "logo": form.logo.data}
 
+
+# Routes
 @mod.route("/", methods=["GET"])
 def index():
     return render_template("index.html")
 
+
+## Organizations
 @mod.route("/organization/add", methods=["POST", "GET"])
 def add_organization():
     form = OrganizationForm()
@@ -40,21 +43,42 @@ def add_organization():
     else:
         form = OrganizationForm()
         if form.validate_on_submit():
-            new_org = {
-                "name": form.name.data,
-                "logo": form.logo.data
-            }
-            org=db.add_organization(new_org)
+            new_org = {"name": form.name.data, "logo": form.logo.data}
+            org = db.add_organization(new_org)
             if org:
                 flash(f"Added new organization with ID: {org.id}")
             else:
                 flash("Failed to add organization.")
-            return redirect('/')
-    return render_template("data_form.html", form=form, action="Add", data_type="Organization", button="Submit")
+            return redirect("/")
+    return render_template(
+        "edit_data.html",
+        form=form,
+        action="Add",
+        data_type="Organization",
+        button="Submit",
+    )
 
-@mod.route("/organization", methods=["GET"])
+
+@mod.route("/organization/", methods=["GET"])
 @mod.route("/organization/<org_id>", methods=["GET", "POST"])
 def get_organization(org_id=None):
+    if org_id:
+        org = db.get_organization(org_id)
+        return render_template(
+            "view_data.html",
+            data=org,
+            action="View",
+            data_type="Organization",
+            org_id=org_id,
+        )
+    else:
+        org = db.get_all_organizations()
+    return jsonify(org)
+
+
+@mod.route("/organization", methods=["GET"])
+@mod.route("/organization/edit/<org_id>", methods=["GET", "POST"])
+def edit_organization(org_id=None):
     if org_id:
         org = db.get_organization(org_id)
         form = OrganizationForm(data=org)
@@ -65,30 +89,35 @@ def get_organization(org_id=None):
                 flash(f"Updated org with ID: ${org.id}")
             else:
                 flash("Failed to update organization.")
-            return redirect('/')
-        return render_template("data_form.html", form=form, action="Edit", data_type="Organization", button="Update")
+            return redirect(f"/organization/{org_id}")
+        return render_template(
+            "edit_data.html",
+            form=form,
+            action="Edit",
+            data_type="Organization",
+            button="Update",
+        )
     else:
         org = db.get_all_organizations()
     return org
 
-# @mod.route("/organization/<org_id>", methods=["PUT"])
-# def update_organization(org_id):
-#     result = db.update_organization(org_id, request.json)
-#     return result
 
 @mod.route("/organization/<org_id>", methods=["DELETE"])
 def delete_organization(org_id):
     result = db.delete_organization(org_id)
     return result
 
+
+## Harvest Source
 @mod.route("/harvest_source/add", methods=["POST", "GET"])
 def add_harvest_source():
     form = HarvestSourceForm()
     organizations = db.get_all_organizations()
-    organization_choices = [(str(org["id"]), f'{org["name"]} - {org["id"]}')
-                            for org in organizations]
+    organization_choices = [
+        (str(org["id"]), f'{org["name"]} - {org["id"]}') for org in organizations
+    ]
     form.organization_id.choices = organization_choices
-    
+
     if request.is_json:
         org = db.add_harvest_source(request.json)
         if org:
@@ -98,35 +127,47 @@ def add_harvest_source():
     else:
         if form.validate_on_submit():
             new_source = make_new_source(form)
-            source=db.add_harvest_source(new_source)
+            source = db.add_harvest_source(new_source)
             if source:
                 flash(f"Updated source with ID: {source.id}")
             else:
                 flash("Failed to add harvest source.")
-            return redirect('/')
-    return render_template("data_form.html", form=form, action="Add", data_type="Harvest Source", button="Submit")
+            return redirect("/")
+    return render_template(
+        "edit_data.html",
+        form=form,
+        action="Add",
+        data_type="Harvest Source",
+        button="Submit",
+    )
 
-# test interface, will remove later
-@mod.route("/get_harvest_source", methods=["GET"]) 
-def get_all_harvest_sources():
-    source = db.get_all_harvest_sources()
-    org = db.get_all_organizations()
-    return render_template("get_harvest_source.html", sources=source, organizations=org)
 
-# test interface, will remove later
-@mod.route("/get_organizations", methods=["GET"]) 
-def get_all_organizations():
-    org = db.get_all_organizations()
-    return render_template("get_orgs.html", organizations=org)
-
-@mod.route("/harvest_source/", methods=["GET"])    
+@mod.route("/harvest_source/", methods=["GET"])
 @mod.route("/harvest_source/<source_id>", methods=["GET", "POST"])
 def get_harvest_source(source_id=None):
     if source_id:
         source = db.get_harvest_source(source_id)
+        print(source)
+        return render_template(
+            "view_data.html",
+            data=source,
+            action="View",
+            data_type="Harvest Source",
+            source_id=source_id,
+        )
+    else:
+        source = db.get_all_harvest_sources()
+    return jsonify(source)
+
+
+@mod.route("/harvest_source/edit/<source_id>", methods=["GET", "POST"])
+def edit_harvest_source(source_id=None):
+    if source_id:
+        source = db.get_harvest_source(source_id)
         organizations = db.get_all_organizations()
-        organization_choices = [(str(org["id"]), f'{org["name"]} - {org["id"]}')
-                                for org in organizations]
+        organization_choices = [
+            (str(org["id"]), f'{org["name"]} - {org["id"]}') for org in organizations
+        ]
         form = HarvestSourceForm(data=source)
         form.organization_id.choices = organization_choices
         if form.validate_on_submit():
@@ -136,8 +177,15 @@ def get_harvest_source(source_id=None):
                 flash(f"Updated source with ID: {source.id}")
             else:
                 flash("Failed to update harvest source.")
-            return redirect('/')
-        return render_template("data_form.html", form=form, action="Edit", data_type="Harvest Source", button="Update")
+            return redirect(f"/harvest_source/{source_id}")
+        return render_template(
+            "edit_data.html",
+            form=form,
+            action="Edit",
+            data_type="Harvest Source",
+            button="Update",
+            source_id=source_id,
+        )
 
     organization_id = request.args.get("organization_id")
     if organization_id:
@@ -147,17 +195,29 @@ def get_harvest_source(source_id=None):
     else:
         source = db.get_all_harvest_sources()
     return jsonify(source)
-        
-@mod.route("/harvest_source/<source_id>", methods=["PUT"])
-def update_harvest_source(source_id):
-    result = db.update_harvest_source(source_id, request.json)
-    return result
 
-@mod.route("/harvest_source/<source_id>", methods=["DELETE"])
+
+@mod.route("/harvest_source/harvest/<source_id>", methods=["GET"])
+def trigger_harvest_source(source_id):
+    job = db.add_harvest_job(
+        {"harvest_source_id": source_id, "status": "pending_manual"}
+    )
+    if job:
+        flash(f"Triggered harvest of source with ID: {source_id}")
+    else:
+        flash("Failed to add harvest job.")
+    # result = db.delete_harvest_source(source_id)
+    return redirect(f"/harvest_source/{source_id}")
+
+
+@mod.route("/harvest_source/delete/<source_id>", methods=["GET"])
 def delete_harvest_source(source_id):
-    result = db.delete_harvest_source(source_id)
-    return result
+    # TODO: write delete logic
+    flash(f"Triggered delete of source with ID: {source_id}")
+    return redirect(f"/harvest_source/{source_id}")
 
+
+## Harvest Job
 @mod.route("/harvest_job/add", methods=["POST"])
 def add_harvest_job():
     if request.is_json:
@@ -169,7 +229,8 @@ def add_harvest_job():
     else:
         return jsonify({"Please provide harvest job with json format."})
 
-@mod.route("/harvest_job/", methods=["GET"])    
+
+@mod.route("/harvest_job/", methods=["GET"])
 @mod.route("/harvest_job/<job_id>", methods=["GET"])
 def get_harvest_job(job_id=None):
     try:
@@ -184,21 +245,25 @@ def get_harvest_job(job_id=None):
                 return "No harvest jobs found for this harvest source", 404
         else:
             job = db.get_all_harvest_jobs()
-    
+
         return jsonify(job)
     except Exception:
         return "Please provide correct job_id or harvest_source_id"
+
 
 @mod.route("/harvest_job/<job_id>", methods=["PUT"])
 def update_harvest_job(job_id):
     result = db.update_harvest_job(job_id, request.json)
     return result
 
+
 @mod.route("/harvest_job/<job_id>", methods=["DELETE"])
 def delete_harvest_job(job_id):
     result = db.delete_harvest_job(job_id)
     return result
 
+
+## Harvest Error
 @mod.route("/harvest_error/add", methods=["POST", "GET"])
 def add_harvest_error():
     if request.is_json:
@@ -210,7 +275,8 @@ def add_harvest_error():
     else:
         return jsonify({"Please provide harvest error with json format."})
 
-@mod.route("/harvest_error/", methods=["GET"])    
+
+@mod.route("/harvest_error/", methods=["GET"])
 @mod.route("/harvest_error/<error_id>", methods=["GET"])
 def get_harvest_error(error_id=None):
     try:
@@ -226,11 +292,13 @@ def get_harvest_error(error_id=None):
         else:
             # for test, will remove later
             error = db.get_all_harvest_errors()
-    
+
         return jsonify(error)
     except Exception:
         return "Please provide correct error_id or harvest_job_id"
 
+
+## Harvest Record
 @mod.route("/harvest_record/add", methods=["POST", "GET"])
 def add_harvest_record():
     if request.is_json:
@@ -242,7 +310,8 @@ def add_harvest_record():
     else:
         return jsonify({"Please provide harvest record with json format."})
 
-@mod.route("/harvest_record/", methods=["GET"])    
+
+@mod.route("/harvest_record/", methods=["GET"])
 @mod.route("/harvest_record/<record_id>", methods=["GET"])
 def get_harvest_record(record_id=None):
     try:
@@ -263,10 +332,19 @@ def get_harvest_record(record_id=None):
         else:
             # for test, will remove later
             record = db.get_all_harvest_records()
-    
+
         return jsonify(record)
     except Exception:
         return "Please provide correct record_id or harvest_job_id"
+
+
+## Test interface, will remove later
+# TODO: remove / improve
+@mod.route("/get_data_sources", methods=["GET"])
+def get_data_sources():
+    source = db.get_all_harvest_sources()
+    org = db.get_all_organizations()
+    return render_template("get_data_sources.html", sources=source, organizations=org)
 
 
 def register_routes(app):

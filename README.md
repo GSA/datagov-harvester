@@ -23,6 +23,8 @@ This project is using `poetry` to manage this project. Install [here](https://py
 
 Once installed, `poetry install` installs dependencies into a local virtual environment.
 
+We use [Ruff](https://github.com/astral-sh/ruff) to format and lint our Python files. If you use VS Code, you can install the formatter [here](https://marketplace.visualstudio.com/items?itemName=charliermarsh.ruff).
+
 ## Testing
 
 ### CKAN load testing
@@ -115,7 +117,8 @@ If you followed the instructions for `CKAN load testing` and `Harvester testing`
 3. when there are database DDL changes, use following steps to generate migration scripts and update database:
 
     ```bash
-    docker compose db up
+    docker compose up -d db
+    docker compose run app flask db stamp head
     docker compose run app flask db migrate -m "migration description"
     docker compose run app flask db upgrade
     ```
