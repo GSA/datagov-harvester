@@ -86,7 +86,7 @@ def edit_organization(org_id=None):
             new_org_data = make_new_org(form)
             org = db.update_organization(org_id, new_org_data)
             if org:
-                flash(f"Updated org with ID: ${org.id}")
+                flash(f"Updated org with ID: {org['id']}")
             else:
                 flash("Failed to update organization.")
             return redirect(f"/organization/{org_id}")
@@ -174,10 +174,10 @@ def edit_harvest_source(source_id=None):
             new_source_data = make_new_source(form)
             source = db.update_harvest_source(source_id, new_source_data)
             if source:
-                flash(f"Updated source with ID: {source.id}")
+                flash(f"Updated source with ID: {source['id']}")
             else:
                 flash("Failed to update harvest source.")
-            return redirect(f"/harvest_source/{source_id}")
+            return redirect(f"/harvest_source/{source['id']}")
         return render_template(
             "edit_data.html",
             form=form,

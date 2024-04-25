@@ -1,0 +1,39 @@
+{% extends 'base.html' %}
+
+{% block title %}
+<title>{{action}} {{data_type}}</title>
+{% endblock %}
+
+{% block content %}
+<h2>{{action}} {{data_type}}</h2>
+<table class="table">
+    <tr>
+        <th scope="col">property</th>
+        <th scope="col">value</th>
+    </tr>
+    {% for key, value in data.items() %}
+    <tr>
+        <td>{{key}}:</td>
+        <td>{{value}}</td>
+    </tr>
+    {% endfor %}
+</table>
+{% if source_id %}
+<a href="{{ url_for('harvest.edit_harvest_source', source_id=source_id)}}">
+    <button class="btn btn-primary">Edit</button>
+</a>
+<a href="{{ url_for('harvest.trigger_harvest_source', source_id=source_id)}}">
+    <button class="btn btn-info">Harvest</button>
+</a>
+<a href="{{ url_for('harvest.delete_harvest_source', source_id=source_id)}}">
+    <button class="btn btn-danger">Delete</button>
+</a>
+{% elif org_id %}
+<a href="{{ url_for('harvest.edit_organization', org_id=org_id)}}">
+    <button class="btn btn-primary">Edit</button>
+</a>
+<a href="{{ url_for('harvest.delete_organization', org_id=org_id)}}">
+    <button class="btn btn-danger">Delete</button>
+</a>
+{% endif %}
+{% endblock %}

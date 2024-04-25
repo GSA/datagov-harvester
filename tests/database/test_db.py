@@ -65,7 +65,7 @@ def test_get_all_organizations(interface, org_data):
 def test_update_organization(interface, organization):
     updates = {"name": "Updated Org"}
     updated_org = interface.update_organization(organization.id, updates)
-    assert updated_org.name == "Updated Org"
+    assert updated_org["name"] == "Updated Org"
 
 
 def test_delete_organization(interface, organization):
@@ -112,7 +112,7 @@ def test_update_harvest_source(interface, source_data):
     updates = {"name": "Updated Test Source"}
     updated_source = interface.update_harvest_source(source.id, updates)
     assert updated_source is not None
-    assert updated_source.name == updates["name"]
+    assert updated_source["name"] == updates["name"]
 
 
 def test_delete_harvest_source(interface, source_data):
