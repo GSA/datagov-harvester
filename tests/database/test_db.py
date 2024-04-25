@@ -110,3 +110,18 @@ def test_delete_harvest_source(interface, source_data):
 
     deleted_source = interface.get_harvest_source(source.id)
     assert deleted_source is None
+
+@pytest.fixture
+def job_data(source_data):
+    return {"status": "new"}
+
+
+def test_harvest_source_by_jobid(interface, source_data, job_data):
+
+    source = interface.add_harvest_source(source_data)
+    job_data["harvest_source_id"] = source.id
+
+    harvest_job = interface.add_harvest_job(job_data)
+    harvest_source = interface.get_source_by_jobid(harvest_job.id)
+
+    assert source.id == harvest_source["id"]
