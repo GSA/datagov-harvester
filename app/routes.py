@@ -60,8 +60,8 @@ def add_organization():
     )
 
 
-@mod.route("/organization/", methods=["GET"])
-@mod.route("/organization/<org_id>", methods=["GET", "POST"])
+@mod.route("/organization", methods=["GET"])
+@mod.route("/organization/<org_id>", methods=["GET"])
 def get_organization(org_id=None):
     if org_id:
         org = db.get_organization(org_id)
@@ -101,14 +101,6 @@ def edit_organization(org_id=None):
     else:
         org = db.get_all_organizations()
     return org
-
-
-## TODO: DO WE NEED THIS?
-# @mod.route("/organization/<org_id>", methods=["DELETE"])
-# def delete_organization(org_id):
-#     result = db.delete_organization(org_id)
-#     return result
-
 
 @mod.route("/organization/delete/<org_id>", methods=["POST"])
 def delete_organization(org_id):

@@ -129,11 +129,10 @@ def test_delete_harvest_source(interface, source_data):
 
 @pytest.fixture
 def job_data(source_data):
-    return {"status": "new"}
+    return {"status": "pending"}
 
 
 def test_harvest_source_by_jobid(interface, source_data, job_data):
-
     source = interface.add_harvest_source(source_data)
     job_data["harvest_source_id"] = source.id
 
