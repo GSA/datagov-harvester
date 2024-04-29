@@ -9,3 +9,7 @@ ul.menu > li {
 ul.menu > li::after {
     content: '  |'
 }
+
+.view-buttons button {
+    margin-right: .5rem;
+}

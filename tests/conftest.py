@@ -1,16 +1,14 @@
-from pathlib import Path
 import os
+from pathlib import Path
 
 import pytest
 from dotenv import load_dotenv
-
 from sqlalchemy import create_engine, text
-from sqlalchemy.orm import sessionmaker, scoped_session
-from app.models import Base
-from app.interface import HarvesterDBInterface
+from sqlalchemy.orm import scoped_session, sessionmaker
 
-from harvester.utils import open_json
-from harvester.utils import CFHandler
+from app.interface import HarvesterDBInterface
+from app.models import Base
+from harvester.utils import CFHandler, open_json
 
 load_dotenv()
 

@@ -1,6 +1,7 @@
-from flask import Blueprint, request, render_template, jsonify, flash, redirect
-from .interface import HarvesterDBInterface
+from flask import Blueprint, flash, jsonify, redirect, render_template, request
+
 from .forms import HarvestSourceForm, OrganizationForm
+from .interface import HarvesterDBInterface
 
 mod = Blueprint("harvest", __name__)
 db = HarvesterDBInterface()
@@ -102,10 +103,25 @@ def edit_organization(org_id=None):
     return org
 
 
-@mod.route("/organization/<org_id>", methods=["DELETE"])
+## TODO: DO WE NEED THIS?
+# @mod.route("/organization/<org_id>", methods=["DELETE"])
+# def delete_organization(org_id):
+#     result = db.delete_organization(org_id)
+#     return result
+
+
+@mod.route("/organization/delete/<org_id>", methods=["POST"])
 def delete_organization(org_id):
-    result = db.delete_organization(org_id)
-    return result
+    try:
+        result = db.delete_organization(org_id)
+        if result:
+            flash(f"Triggered delete of organization with ID: {org_id}")
+            return {"message": "success"}
+        else:
+            raise Exception()
+    except Exception:
+        flash("Failed to delete harvest source")
+        return {"message": "failed"}
 
 
 ## Harvest Source
@@ -147,7 +163,6 @@ def add_harvest_source():
 def get_harvest_source(source_id=None):
     if source_id:
         source = db.get_harvest_source(source_id)
-        print(source)
         return render_template(
             "view_data.html",
             data=source,
@@ -206,15 +221,21 @@ def trigger_harvest_source(source_id):
         flash(f"Triggered harvest of source with ID: {source_id}")
     else:
         flash("Failed to add harvest job.")
-    # result = db.delete_harvest_source(source_id)
     return redirect(f"/harvest_source/{source_id}")
 
 
-@mod.route("/harvest_source/delete/<source_id>", methods=["GET"])
+@mod.route("/harvest_source/delete/<source_id>", methods=["POST"])
 def delete_harvest_source(source_id):
-    # TODO: write delete logic
-    flash(f"Triggered delete of source with ID: {source_id}")
-    return redirect(f"/harvest_source/{source_id}")
+    try:
+        result = db.delete_harvest_source(source_id)
+        if result:
+            flash(f"Triggered delete of source with ID: {source_id}")
+            return {"message": "success"}
+        else:
+            raise Exception()
+    except Exception:
+        flash("Failed to delete harvest source")
+        return {"message": "failed"}
 
 
 ## Harvest Job

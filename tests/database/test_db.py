@@ -1,8 +1,9 @@
 import pytest
-from app import create_app
-from app.models import db
-from app.interface import HarvesterDBInterface
 from sqlalchemy.orm import scoped_session, sessionmaker
+
+from app import create_app
+from app.interface import HarvesterDBInterface
+from app.models import db
 
 
 @pytest.fixture(scope="session")

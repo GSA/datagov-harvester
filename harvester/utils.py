@@ -5,7 +5,6 @@ import argparse
 
 import boto3
 import sansjson
-
 from cloudfoundry_client.client import CloudFoundryClient
 from cloudfoundry_client.v3.tasks import TaskManager
 

@@ -6,9 +6,9 @@ COPY . /app
 
 RUN pip install --no-cache-dir -r requirements.txt
 
-ARG DEBUG 
+ARG DEV 
 
-RUN if [ $DEBUG ]; \
+RUN if [ $DEV ]; \
     then pip install --no-cache-dir -r requirements-dev.txt; \
     fi
 

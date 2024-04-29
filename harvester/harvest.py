@@ -1,34 +1,33 @@
+import functools
 import json
+import logging
 import os
 import re
 import xml.etree.ElementTree as ET
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from pathlib import Path
-import functools
-import logging
 
 import ckanapi
 import requests
 from bs4 import BeautifulSoup
 from jsonschema import Draft202012Validator
 
+from .ckan_utils import munge_tag, munge_title_to_name
+from .exceptions import (
+    CompareException,
+    DCATUSToCKANException,
+    ExtractCKANSourceException,
+    ExtractHarvestSourceException,
+    SynchronizeException,
+    ValidationException,
+)
 from .utils import (
     S3Handler,
     convert_set_to_list,
     dataset_to_hash,
     open_json,
     sort_dataset,
-)
-
-from .ckan_utils import munge_tag, munge_title_to_name
-from .exceptions import (
-    ExtractHarvestSourceException,
-    ExtractCKANSourceException,
-    ValidationException,
-    DCATUSToCKANException,
-    SynchronizeException,
-    CompareException,
 )
 
 # requests data
@@ -288,7 +287,7 @@ class HarvestSource:
         logger.info("retrieving and preparing ckan records")
         try:
             self.ckan_to_id_hash(self.get_ckan_records(results=[]))
-        except Exception as e: # noqa: E841
+        except Exception as e:  # noqa: E841
             # TODO: do something with 'e'
             raise ExtractCKANSourceException(
                 f"{self.title} {self.url} failed to extract ckan records. exiting.",

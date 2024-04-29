@@ -1,7 +1,8 @@
-from flask_wtf import FlaskForm
-from wtforms import StringField, SelectField, TextAreaField
-from wtforms.validators import DataRequired, URL, ValidationError
 import re
+
+from flask_wtf import FlaskForm
+from wtforms import SelectField, StringField, TextAreaField
+from wtforms.validators import URL, DataRequired, ValidationError
 
 
 def validate_email_list(form, field):

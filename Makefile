@@ -14,8 +14,8 @@ build-dist: clean-dist  ## Builds new package dist
 build:  ## build Flask app
 	docker compose build app
 
-build-debug:  ## build Flask app w/ dev dependencies
-	docker compose build app --build-arg DEBUG=True
+build-dev:  ## build Flask app w/ dev dependencies
+	docker compose build app --build-arg DEV=True
 
 clean-dist:  ## Cleans dist dir
 	rm -rf dist/*
