@@ -126,6 +126,7 @@ def test_delete_harvest_source(interface, source_data):
     deleted_source = interface.get_harvest_source(source.id)
     assert deleted_source is None
 
+
 @pytest.fixture
 def job_data(source_data):
     return {"status": "new"}

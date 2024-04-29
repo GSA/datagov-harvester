@@ -1,7 +1,7 @@
+import argparse
 import hashlib
 import json
 import os
-import argparse
 
 import boto3
 import sansjson

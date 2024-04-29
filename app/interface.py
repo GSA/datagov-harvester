@@ -279,7 +279,7 @@ class HarvesterDBInterface:
             return None
         else:
             return HarvesterDBInterface._to_dict(harvest_job.source)
-            
+
     def close(self):
         if hasattr(self.db, "remove"):
             self.db.remove()
