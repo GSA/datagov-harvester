@@ -1,4 +1,5 @@
 from unittest.mock import patch
+
 from harvester.utils import CFHandler
 
 

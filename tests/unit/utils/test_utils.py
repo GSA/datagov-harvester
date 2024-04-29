@@ -1,6 +1,7 @@
+import pytest
+
 from harvester.ckan_utils import munge_tag, munge_title_to_name
 from harvester.utils import parse_args
-import pytest
 
 # these tests are copied from
 # https://github.com/ckan/ckan/blob/master/ckan/tests/lib/test_munge.py
