@@ -8,7 +8,7 @@ db = HarvesterDBInterface()
 
 
 # Helper Functions
-def make_new_source(form):
+def make_new_source_contract(form):
     return {
         "name": form.name.data,
         "notification_emails": form.notification_emails.data.replace("\r\n", ", "),
@@ -21,7 +21,7 @@ def make_new_source(form):
     }
 
 
-def make_new_org(form):
+def make_new_org_contract(form):
     return {"name": form.name.data, "logo": form.logo.data}
 
 
@@ -74,17 +74,16 @@ def get_organization(org_id=None):
         )
     else:
         org = db.get_all_organizations()
-    return jsonify(org)
+    return org
 
 
-@mod.route("/organization", methods=["GET"])
 @mod.route("/organization/edit/<org_id>", methods=["GET", "POST"])
 def edit_organization(org_id=None):
     if org_id:
         org = db.get_organization(org_id)
         form = OrganizationForm(data=org)
         if form.validate_on_submit():
-            new_org_data = make_new_org(form)
+            new_org_data = make_new_org_contract(form)
             org = db.update_organization(org_id, new_org_data)
             if org:
                 flash(f"Updated org with ID: {org['id']}")
@@ -101,6 +100,7 @@ def edit_organization(org_id=None):
     else:
         org = db.get_all_organizations()
     return org
+
 
 @mod.route("/organization/delete/<org_id>", methods=["POST"])
 def delete_organization(org_id):
@@ -134,7 +134,7 @@ def add_harvest_source():
             return jsonify({"error": "Failed to add harvest source."}), 400
     else:
         if form.validate_on_submit():
-            new_source = make_new_source(form)
+            new_source = make_new_source_contract(form)
             source = db.add_harvest_source(new_source)
             if source:
                 flash(f"Updated source with ID: {source.id}")
@@ -164,7 +164,7 @@ def get_harvest_source(source_id=None):
         )
     else:
         source = db.get_all_harvest_sources()
-    return jsonify(source)
+    return source
 
 
 @mod.route("/harvest_source/edit/<source_id>", methods=["GET", "POST"])
@@ -178,7 +178,7 @@ def edit_harvest_source(source_id=None):
         form = HarvestSourceForm(data=source)
         form.organization_id.choices = organization_choices
         if form.validate_on_submit():
-            new_source_data = make_new_source(form)
+            new_source_data = make_new_source_contract(form)
             source = db.update_harvest_source(source_id, new_source_data)
             if source:
                 flash(f"Updated source with ID: {source['id']}")

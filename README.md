@@ -125,7 +125,7 @@ If you followed the instructions for `CKAN load testing` and `Harvester testing`
 ### Debugging
 *NOTE: To use the VS-Code debugger, you will first need to sacrifice the reloading support for flask*
 
-1. Build new containers with development requirements by running `make build-debug`
+1. Build new containers with development requirements by running `make build-dev`
 
 2. Launch containers by running `make up-debug`
 
@@ -135,7 +135,6 @@ If you followed the instructions for `CKAN load testing` and `Harvester testing`
 
 5. Visit the site at `http://localhost:8080` and invoke the route which contains the code you've set the breakpoint on.
 
-[(source)](https://medium.com/@lassebenninga/how-to-debug-flask-running-in-docker-compose-in-vs-code-ef37f0f516ee)
 ### Deployment to cloud.gov
 
 #### Database Service Setup
