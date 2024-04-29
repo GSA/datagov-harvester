@@ -1,21 +1,24 @@
 import pytest
-from app import create_app
-from app.models import db
-from app.interface import HarvesterDBInterface
 from sqlalchemy.orm import scoped_session, sessionmaker
 
-@pytest.fixture(scope='session')
+from app import create_app
+from app.interface import HarvesterDBInterface
+from app.models import db
+
+
+@pytest.fixture(scope="session")
 def app():
     _app = create_app(testing=True)
-    _app.config['TESTING'] = True
-    _app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///:memory:'
+    _app.config["TESTING"] = True
+    _app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///:memory:"
 
     with _app.app_context():
         db.create_all()
         yield _app
         db.drop_all()
 
-@pytest.fixture(scope='function')
+
+@pytest.fixture(scope="function")
 def session(app):
     with app.app_context():
         connection = db.engine.connect()
@@ -29,40 +32,47 @@ def session(app):
         transaction.rollback()
         connection.close()
 
-@pytest.fixture(scope='function')
+
+@pytest.fixture(scope="function")
 def interface(session):
     return HarvesterDBInterface(session=session)
 
 
 @pytest.fixture
 def org_data():
-    return {'name': 'Test Org', 'logo': 'https://example.com/logo.png'}
+    return {"name": "Test Org", "logo": "https://example.com/logo.png"}
+
 
 @pytest.fixture
 def organization(interface, org_data):
     org = interface.add_organization(org_data)
     return org
 
+
 def test_add_organization(interface, org_data):
     org = interface.add_organization(org_data)
     assert org is not None
-    assert org.name == 'Test Org'
+    assert org.name == "Test Org"
+
 
 def test_get_all_organizations(interface, org_data):
     interface.add_organization(org_data)
 
     orgs = interface.get_all_organizations()
     assert len(orgs) > 0
-    assert orgs[0]['name'] == 'Test Org'
+    assert orgs[0]["name"] == "Test Org"
+
 
 def test_update_organization(interface, organization):
-    updates = {'name': 'Updated Org'}
+    updates = {"name": "Updated Org"}
     updated_org = interface.update_organization(organization.id, updates)
-    assert updated_org['name'] == 'Updated Org'
+    assert updated_org["name"] == "Updated Org"
+
 
 def test_delete_organization(interface, organization):
     result = interface.delete_organization(organization.id)
     assert result == "Organization deleted successfully"
+
 
 @pytest.fixture
 def source_data(organization):
@@ -74,13 +84,15 @@ def source_data(organization):
         "url": "http://example.com",
         "schema_type": "type1",
         "source_type": "typeA",
-        "status": "active"
+        "status": "active",
     }
+
 
 def test_add_harvest_source(interface, source_data):
     source = interface.add_harvest_source(source_data)
     assert source is not None
     assert source.name == source_data["name"]
+
 
 def test_get_all_harvest_sources(interface, source_data):
     interface.add_harvest_source(source_data)
@@ -88,11 +100,13 @@ def test_get_all_harvest_sources(interface, source_data):
     assert len(sources) > 0
     assert sources[0]["name"] == source_data["name"]
 
+
 def test_get_harvest_source(interface, source_data):
     source = interface.add_harvest_source(source_data)
     fetched_source = interface.get_harvest_source(source.id)
     assert fetched_source is not None
     assert fetched_source["name"] == source_data["name"]
+
 
 def test_update_harvest_source(interface, source_data):
     source = interface.add_harvest_source(source_data)
@@ -100,6 +114,7 @@ def test_update_harvest_source(interface, source_data):
     updated_source = interface.update_harvest_source(source.id, updates)
     assert updated_source is not None
     assert updated_source["name"] == updates["name"]
+
 
 def test_delete_harvest_source(interface, source_data):
     source = interface.add_harvest_source(source_data)
@@ -110,6 +125,7 @@ def test_delete_harvest_source(interface, source_data):
 
     deleted_source = interface.get_harvest_source(source.id)
     assert deleted_source is None
+
 
 @pytest.fixture
 def job_data(source_data):
