@@ -74,9 +74,13 @@ def job_data():
 def record_data():
     return {"identifier": str(uuid.uuid4()), "source_hash": str(uuid.uuid4())}
 
+
 @pytest.fixture
 def records_data():
-    return [{"identifier": str(uuid.uuid4()), "source_hash": str(uuid.uuid4())} for i in range(10)]
+    return [
+        {"identifier": str(uuid.uuid4()), "source_hash": str(uuid.uuid4())}
+        for i in range(10)
+    ]
 
 
 def test_add_organization(interface, org_data):
