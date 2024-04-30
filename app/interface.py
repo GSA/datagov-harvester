@@ -259,6 +259,23 @@ class HarvesterDBInterface:
             self.db.rollback()
             return None
 
+    def add_harvest_records(self, records_data: list) -> bool:
+        """
+        Add many records at once
+
+        :param list records_data: List of records with unique UUIDs
+        :return bool success of operation
+        :raises Exception: if the records_data contains records with errors
+        """
+        try:
+            self.db.bulk_insert_mappings(HarvestRecord, records_data)
+            self.db.commit()
+            return True
+        except Exception as e:
+            print("Error:", e)
+            self.db.rollback()
+            return None
+
     # for test, will remove later
     def get_all_harvest_records(self):
         harvest_records = self.db.query(HarvestRecord).all()

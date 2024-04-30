@@ -83,10 +83,10 @@ class HarvestError(Base):
     reference = db.Column(db.String)
 
 
-class HarvestRecord(db.Model):
+class HarvestRecord(Base):
     __tablename__ = "harvest_record"
 
-    id = db.Column(db.String, primary_key=True)
+    identifier = db.Column(db.String())
     harvest_job_id = db.Column(
         db.String(36), db.ForeignKey("harvest_job.id"), nullable=True
     )
