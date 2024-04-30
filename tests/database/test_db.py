@@ -72,7 +72,11 @@ def job_data():
 
 @pytest.fixture
 def record_data():
-    return {"identifier": "1234abcd", "source_hash": "1234abcd"}
+    return {"identifier": str(uuid.uuid4()), "source_hash": str(uuid.uuid4())}
+
+@pytest.fixture
+def records_data():
+    return [{"identifier": str(uuid.uuid4()), "source_hash": str(uuid.uuid4())} for i in range(10)]
 
 
 def test_add_organization(interface, org_data):
@@ -162,16 +166,15 @@ def test_add_harvest_record(interface, source_data, job_data, record_data):
     assert record.harvest_job_id == harvest_job.id
 
 
-def test_add_harvest_records(interface, source_data, job_data, record_data):
+def test_add_harvest_records(interface, source_data, job_data, records_data):
     source = interface.add_harvest_source(source_data)
     job_data["harvest_source_id"] = source.id
     harvest_job = interface.add_harvest_job(job_data)
-    record_data["harvest_source_id"] = source.id
-    record_data["harvest_job_id"] = harvest_job.id
 
-    records_data = [record_data.copy() for i in range(10)]
-    for record in records_data:  # add unique uuid to reach record
-        record["identifier"] = str(uuid.uuid4())
+    for record in records_data:
+        record["harvest_source_id"] = source.id
+        record["harvest_job_id"] = harvest_job.id
+
     success = interface.add_harvest_records(records_data)
     assert success is True
     assert len(interface.get_all_harvest_records()) == 10
