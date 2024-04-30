@@ -1,5 +1,6 @@
-import pytest
 import uuid
+
+import pytest
 from sqlalchemy.orm import scoped_session, sessionmaker
 
 from app import create_app
@@ -169,7 +170,7 @@ def test_add_harvest_records(interface, source_data, job_data, record_data):
     record_data["harvest_job_id"] = harvest_job.id
 
     records_data = [record_data.copy() for i in range(10)]
-    for record in records_data:
+    for record in records_data:  # add unique uuid to reach record
         record["identifier"] = str(uuid.uuid4())
     success = interface.add_harvest_records(records_data)
     assert success is True
