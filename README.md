@@ -118,7 +118,6 @@ If you followed the instructions for `CKAN load testing` and `Harvester testing`
 
     ```bash
     docker compose up -d db
-    docker compose run app flask db stamp head
     docker compose run app flask db migrate -m "migration description"
     docker compose run app flask db upgrade
     ```
