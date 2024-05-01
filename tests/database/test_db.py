@@ -1,3 +1,5 @@
+import uuid
+
 import pytest
 from sqlalchemy.orm import scoped_session, sessionmaker
 
@@ -44,9 +46,41 @@ def org_data():
 
 
 @pytest.fixture
+def source_data(organization):
+    return {
+        "name": "Test Source",
+        "notification_emails": "email@example.com",
+        "organization_id": organization.id,
+        "frequency": "daily",
+        "url": "http://example.com",
+        "schema_type": "type1",
+        "source_type": "typeA",
+        "status": "active",
+    }
+
+
+@pytest.fixture
 def organization(interface, org_data):
     org = interface.add_organization(org_data)
     return org
+
+
+@pytest.fixture
+def job_data():
+    return {"status": "pending"}
+
+
+@pytest.fixture
+def record_data():
+    return {"identifier": str(uuid.uuid4()), "source_hash": str(uuid.uuid4())}
+
+
+@pytest.fixture
+def records_data():
+    return [
+        {"identifier": str(uuid.uuid4()), "source_hash": str(uuid.uuid4())}
+        for i in range(10)
+    ]
 
 
 def test_add_organization(interface, org_data):
@@ -72,20 +106,6 @@ def test_update_organization(interface, organization):
 def test_delete_organization(interface, organization):
     result = interface.delete_organization(organization.id)
     assert result == "Organization deleted successfully"
-
-
-@pytest.fixture
-def source_data(organization):
-    return {
-        "name": "Test Source",
-        "notification_emails": "email@example.com",
-        "organization_id": organization.id,
-        "frequency": "daily",
-        "url": "http://example.com",
-        "schema_type": "type1",
-        "source_type": "typeA",
-        "status": "active",
-    }
 
 
 def test_add_harvest_source(interface, source_data):
@@ -127,11 +147,6 @@ def test_delete_harvest_source(interface, source_data):
     assert deleted_source is None
 
 
-@pytest.fixture
-def job_data(source_data):
-    return {"status": "pending"}
-
-
 def test_harvest_source_by_jobid(interface, source_data, job_data):
     source = interface.add_harvest_source(source_data)
     job_data["harvest_source_id"] = source.id
@@ -140,3 +155,30 @@ def test_harvest_source_by_jobid(interface, source_data, job_data):
     harvest_source = interface.get_source_by_jobid(harvest_job.id)
 
     assert source.id == harvest_source["id"]
+
+
+def test_add_harvest_record(interface, source_data, job_data, record_data):
+    source = interface.add_harvest_source(source_data)
+    job_data["harvest_source_id"] = source.id
+    harvest_job = interface.add_harvest_job(job_data)
+    record_data["harvest_source_id"] = source.id
+    record_data["harvest_job_id"] = harvest_job.id
+
+    record = interface.add_harvest_record(record_data)
+
+    assert record.harvest_source_id == source.id
+    assert record.harvest_job_id == harvest_job.id
+
+
+def test_add_harvest_records(interface, source_data, job_data, records_data):
+    source = interface.add_harvest_source(source_data)
+    job_data["harvest_source_id"] = source.id
+    harvest_job = interface.add_harvest_job(job_data)
+
+    for record in records_data:
+        record["harvest_source_id"] = source.id
+        record["harvest_job_id"] = harvest_job.id
+
+    success = interface.add_harvest_records(records_data)
+    assert success is True
+    assert len(interface.get_all_harvest_records()) == 10
