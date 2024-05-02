@@ -47,7 +47,13 @@ class HarvestJob(Base):
         db.String(36), db.ForeignKey("harvest_source.id"), nullable=False
     )
     status = db.Column(
-        Enum("new", "in_progress", "complete", name="job_status"),
+        Enum(
+            "in_progress",
+            "complete",
+            "pending",
+            "pending_manual",
+            name="job_status",
+        ),
         nullable=False,
         index=True,
     )

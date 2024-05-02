@@ -1,7 +1,7 @@
 import re
 
 from flask_wtf import FlaskForm
-from wtforms import SelectField, StringField, SubmitField, TextAreaField
+from wtforms import SelectField, StringField, TextAreaField
 from wtforms.validators import URL, DataRequired, ValidationError
 
 
@@ -18,7 +18,7 @@ class HarvestSourceForm(FlaskForm):
     )
     name = StringField("Name", validators=[DataRequired()])
     url = StringField("URL", validators=[DataRequired(), URL()])
-    emails = TextAreaField(
+    notification_emails = TextAreaField(
         "Notification_emails", validators=[DataRequired(), validate_email_list]
     )
     frequency = SelectField(
@@ -35,10 +35,8 @@ class HarvestSourceForm(FlaskForm):
     source_type = SelectField(
         "Source Type", choices=["Datajson", "WAF"], validators=[DataRequired()]
     )
-    submit = SubmitField("Submit")
 
 
 class OrganizationForm(FlaskForm):
     name = StringField("Name", validators=[DataRequired()])
     logo = StringField("Logo", validators=[DataRequired()])
-    submit = SubmitField("Submit")

@@ -162,12 +162,6 @@ class HarvesterDBInterface:
             self.db.rollback()
             return None
 
-    # for test, will remove later
-    def get_all_harvest_jobs(self):
-        harvest_jobs = self.db.query(HarvestJob).all()
-        harvest_jobs_data = [HarvesterDBInterface._to_dict(job) for job in harvest_jobs]
-        return harvest_jobs_data
-
     def get_harvest_job(self, job_id):
         result = self.db.query(HarvestJob).filter_by(id=job_id).first()
         if result is None:
@@ -223,14 +217,6 @@ class HarvesterDBInterface:
             self.db.rollback()
             return None
 
-    # for test, will remove later
-    def get_all_harvest_errors(self):
-        harvest_errors = self.db.query(HarvestError).all()
-        harvest_errors_data = [
-            HarvesterDBInterface._to_dict(err) for err in harvest_errors
-        ]
-        return harvest_errors_data
-
     def get_harvest_error(self, error_id):
         result = self.db.query(HarvestError).filter_by(id=error_id).first()
         if result is None:
@@ -276,14 +262,6 @@ class HarvesterDBInterface:
             self.db.rollback()
             return None
 
-    # for test, will remove later
-    def get_all_harvest_records(self):
-        harvest_records = self.db.query(HarvestRecord).all()
-        harvest_records_data = [
-            HarvesterDBInterface._to_dict(err) for err in harvest_records
-        ]
-        return harvest_records_data
-
     def get_harvest_record(self, record_id):
         result = self.db.query(HarvestRecord).filter_by(id=record_id).first()
         if result is None:
@@ -324,3 +302,24 @@ class HarvesterDBInterface:
             self.db.remove()
         elif hasattr(self.db, "close"):
             self.db.close()
+
+    ##### TEST INTERFACES BELOW #####
+    ######## TO BE REMOVED ##########
+    def get_all_harvest_jobs(self):
+        harvest_jobs = self.db.query(HarvestJob).all()
+        harvest_jobs_data = [HarvesterDBInterface._to_dict(job) for job in harvest_jobs]
+        return harvest_jobs_data
+
+    def get_all_harvest_records(self):
+        harvest_records = self.db.query(HarvestRecord).all()
+        harvest_records_data = [
+            HarvesterDBInterface._to_dict(err) for err in harvest_records
+        ]
+        return harvest_records_data
+
+    def get_all_harvest_errors(self):
+        harvest_errors = self.db.query(HarvestError).all()
+        harvest_errors_data = [
+            HarvesterDBInterface._to_dict(err) for err in harvest_errors
+        ]
+        return harvest_errors_data

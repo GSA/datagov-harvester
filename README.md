@@ -23,6 +23,8 @@ This project is using `poetry` to manage this project. Install [here](https://py
 
 Once installed, `poetry install` installs dependencies into a local virtual environment.
 
+We use [Ruff](https://github.com/astral-sh/ruff) to format and lint our Python files. If you use VS Code, you can install the formatter [here](https://marketplace.visualstudio.com/items?itemName=charliermarsh.ruff).
+
 ## Testing
 
 ### CKAN load testing
@@ -115,10 +117,22 @@ If you followed the instructions for `CKAN load testing` and `Harvester testing`
 3. when there are database DDL changes, use following steps to generate migration scripts and update database:
 
     ```bash
-    docker compose db up
+    docker compose up -d db
     docker compose run app flask db migrate -m "migration description"
     docker compose run app flask db upgrade
     ```
+### Debugging
+*NOTE: To use the VS-Code debugger, you will first need to sacrifice the reloading support for flask*
+
+1. Build new containers with development requirements by running `make build-dev`
+
+2. Launch containers by running `make up-debug`
+
+3. In VS-Code, launch debug process `Python: Remote Attach`
+
+4. Set breakpoints
+
+5. Visit the site at `http://localhost:8080` and invoke the route which contains the code you've set the breakpoint on.
 
 ### Deployment to cloud.gov
 

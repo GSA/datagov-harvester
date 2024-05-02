@@ -1,0 +1,64 @@
+{% extends 'base.html' %}
+
+{% block title %}
+<title>{{action}} {{data_type}}</title>
+{% endblock %}
+
+{% block content %}
+<h2>{{action}} {{data_type}}</h2>
+<table class="table">
+    <tr>
+        <th scope="col">property</th>
+        <th scope="col">value</th>
+    </tr>
+    {% for key, value in data.items() %}
+    <tr>
+        <td>{{key}}:</td>
+        <td>{{value}}</td>
+    </tr>
+    {% endfor %}
+</table>
+<div class="view-buttons">
+
+    {% if source_id %}
+    <a href="{{ url_for('harvest.edit_harvest_source', source_id=source_id)}}">
+        <button class="btn btn-primary">Edit</button>
+    </a>
+    <a href="{{ url_for('harvest.trigger_harvest_source', source_id=source_id)}}">
+        <button class="btn btn-secondary">Harvest</button>
+    </a>
+    <button class="btn btn-danger"
+        onclick="confirmDelete('harvest source', '/harvest_source/delete/{{source_id}}')">Delete</button>
+    {% elif org_id %}
+    <a href="{{ url_for('harvest.edit_organization', org_id=org_id)}}">
+        <button class="btn btn-primary">Edit</button>
+    </a>
+    <button class="btn btn-danger"
+        onclick="confirmDelete('organization', '/organization/delete/{{org_id}}')">Delete</button>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    async function confirmDelete(type, route) {
+        let choice = window.confirm(`Do you want to delete this ${type}?`)
+        if (choice) {
+            const rawResponse = await fetch(route, {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json'
+                },
+                body: {}
+            });
+            let res = await rawResponse.json()
+            if (res.message && res.message == 'success') {
+                return window.location.replace('/')
+            } else {
+                return window.location.reload()
+            }
+        }
+    }
+</script>
+{% endblock %}

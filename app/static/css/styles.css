@@ -1,0 +1,15 @@
+ul.menu {
+    list-style-type: none;
+}
+
+ul.menu > li {
+    display: inline-block;
+}
+
+ul.menu > li::after {
+    content: '  |'
+}
+
+.view-buttons button {
+    margin-right: .5rem;
+}

@@ -67,7 +67,7 @@ def organization(interface, org_data):
 
 @pytest.fixture
 def job_data():
-    return {"status": "new"}
+    return {"status": "pending"}
 
 
 @pytest.fixture

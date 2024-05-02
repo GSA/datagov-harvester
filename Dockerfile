@@ -6,6 +6,12 @@ COPY . /app
 
 RUN pip install --no-cache-dir -r requirements.txt
 
+ARG DEV 
+
+RUN if [ $DEV ]; \
+    then pip install --no-cache-dir -r requirements-dev.txt; \
+    fi
+
 EXPOSE 8080
 
 ENV FLASK_APP=run.py
