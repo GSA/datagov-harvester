@@ -1,0 +1,1178 @@
+[
+    {
+        "guid": "a95a7d52-9258-41b3-b0f7-2a23f73f326e",
+        "created_at": "2024-04-02T15:19:37Z",
+        "updated_at": "2024-04-02T15:19:43Z",
+        "sequence_id": 2,
+        "name": "cf-client_integration",
+        "command": "/home/vcap/app/scripts/smoke-test.py",
+        "state": "SUCCEEDED",
+        "memory_in_mb": 512,
+        "disk_in_mb": 1024,
+        "log_rate_limit_in_bytes_per_second": -1,
+        "result": {
+            "failure_reason": None
+        },
+        "droplet_guid": "0bdebb73-7bef-4d3b-87bf-1376df752814",
+        "relationships": {
+            "app": {
+                "data": {
+                    "guid": "f4ab7f86-bee0-44fd-8806-1dca7f8e215a"
+                }
+            }
+        },
+        "metadata": {
+            "labels": {},
+            "annotations": {}
+        },
+        "links": {
+            "self": {
+                "href": "https://api.fr.cloud.gov/v3/tasks/a95a7d52-9258-41b3-b0f7-2a23f73f326e"
+            },
+            "app": {
+                "href": "https://api.fr.cloud.gov/v3/apps/f4ab7f86-bee0-44fd-8806-1dca7f8e215a"
+            },
+            "cancel": {
+                "href": "https://api.fr.cloud.gov/v3/tasks/a95a7d52-9258-41b3-b0f7-2a23f73f326e/actions/cancel",
+                "method": "POST"
+            },
+            "droplet": {
+                "href": "https://api.fr.cloud.gov/v3/droplets/0bdebb73-7bef-4d3b-87bf-1376df752814"
+            }
+        }
+    },
+    {
+        "guid": "40c4dbe0-3915-478c-b6e7-35dcee6ca269",
+        "created_at": "2024-04-02T15:40:02Z",
+        "updated_at": "2024-04-02T15:40:07Z",
+        "sequence_id": 3,
+        "name": "cf_task_integration",
+        "command": "/home/vcap/app/scripts/smoke-test.py",
+        "state": "SUCCEEDED",
+        "memory_in_mb": 512,
+        "disk_in_mb": 1024,
+        "log_rate_limit_in_bytes_per_second": -1,
+        "result": {
+            "failure_reason": None
+        },
+        "droplet_guid": "0bdebb73-7bef-4d3b-87bf-1376df752814",
+        "relationships": {
+            "app": {
+                "data": {
+                    "guid": "f4ab7f86-bee0-44fd-8806-1dca7f8e215a"
+                }
+            }
+        },
+        "metadata": {
+            "labels": {},
+            "annotations": {}
+        },
+        "links": {
+            "self": {
+                "href": "https://api.fr.cloud.gov/v3/tasks/40c4dbe0-3915-478c-b6e7-35dcee6ca269"
+            },
+            "app": {
+                "href": "https://api.fr.cloud.gov/v3/apps/f4ab7f86-bee0-44fd-8806-1dca7f8e215a"
+            },
+            "cancel": {
+                "href": "https://api.fr.cloud.gov/v3/tasks/40c4dbe0-3915-478c-b6e7-35dcee6ca269/actions/cancel",
+                "method": "POST"
+            },
+            "droplet": {
+                "href": "https://api.fr.cloud.gov/v3/droplets/0bdebb73-7bef-4d3b-87bf-1376df752814"
+            }
+        }
+    },
+    {
+        "guid": "4021c8b9-eeeb-4f21-b8d1-670800ac383d",
+        "created_at": "2024-04-02T15:53:37Z",
+        "updated_at": "2024-04-02T15:53:57Z",
+        "sequence_id": 4,
+        "name": "cf_task_integration",
+        "command": "/usr/bin/sleep 15",
+        "state": "SUCCEEDED",
+        "memory_in_mb": 512,
+        "disk_in_mb": 1024,
+        "log_rate_limit_in_bytes_per_second": -1,
+        "result": {
+            "failure_reason": None
+        },
+        "droplet_guid": "0bdebb73-7bef-4d3b-87bf-1376df752814",
+        "relationships": {
+            "app": {
+                "data": {
+                    "guid": "f4ab7f86-bee0-44fd-8806-1dca7f8e215a"
+                }
+            }
+        },
+        "metadata": {
+            "labels": {},
+            "annotations": {}
+        },
+        "links": {
+            "self": {
+                "href": "https://api.fr.cloud.gov/v3/tasks/4021c8b9-eeeb-4f21-b8d1-670800ac383d"
+            },
+            "app": {
+                "href": "https://api.fr.cloud.gov/v3/apps/f4ab7f86-bee0-44fd-8806-1dca7f8e215a"
+            },
+            "cancel": {
+                "href": "https://api.fr.cloud.gov/v3/tasks/4021c8b9-eeeb-4f21-b8d1-670800ac383d/actions/cancel",
+                "method": "POST"
+            },
+            "droplet": {
+                "href": "https://api.fr.cloud.gov/v3/droplets/0bdebb73-7bef-4d3b-87bf-1376df752814"
+            }
+        }
+    },
+    {
+        "guid": "72c9cf35-e2d9-4f68-a005-51d86661fb7e",
+        "created_at": "2024-04-02T15:55:02Z",
+        "updated_at": "2024-04-02T15:55:31Z",
+        "sequence_id": 5,
+        "name": "cf_task_integration",
+        "command": "/usr/bin/sleep 60",
+        "state": "FAILED",
+        "memory_in_mb": 512,
+        "disk_in_mb": 1024,
+        "log_rate_limit_in_bytes_per_second": -1,
+        "result": {
+            "failure_reason": "task was cancelled"
+        },
+        "droplet_guid": "0bdebb73-7bef-4d3b-87bf-1376df752814",
+        "relationships": {
+            "app": {
+                "data": {
+                    "guid": "f4ab7f86-bee0-44fd-8806-1dca7f8e215a"
+                }
+            }
+        },
+        "metadata": {
+            "labels": {},
+            "annotations": {}
+        },
+        "links": {
+            "self": {
+                "href": "https://api.fr.cloud.gov/v3/tasks/72c9cf35-e2d9-4f68-a005-51d86661fb7e"
+            },
+            "app": {
+                "href": "https://api.fr.cloud.gov/v3/apps/f4ab7f86-bee0-44fd-8806-1dca7f8e215a"
+            },
+            "cancel": {
+                "href": "https://api.fr.cloud.gov/v3/tasks/72c9cf35-e2d9-4f68-a005-51d86661fb7e/actions/cancel",
+                "method": "POST"
+            },
+            "droplet": {
+                "href": "https://api.fr.cloud.gov/v3/droplets/0bdebb73-7bef-4d3b-87bf-1376df752814"
+            }
+        }
+    },
+    {
+        "guid": "c2aa7430-149b-419c-99f0-13f00a0aea1e",
+        "created_at": "2024-04-03T15:12:40Z",
+        "updated_at": "2024-04-03T15:13:47Z",
+        "sequence_id": 6,
+        "name": "cf_task_integration",
+        "command": "/usr/bin/sleep 60",
+        "state": "SUCCEEDED",
+        "memory_in_mb": 512,
+        "disk_in_mb": 1024,
+        "log_rate_limit_in_bytes_per_second": -1,
+        "result": {
+            "failure_reason": None
+        },
+        "droplet_guid": "0bdebb73-7bef-4d3b-87bf-1376df752814",
+        "relationships": {
+            "app": {
+                "data": {
+                    "guid": "f4ab7f86-bee0-44fd-8806-1dca7f8e215a"
+                }
+            }
+        },
+        "metadata": {
+            "labels": {},
+            "annotations": {}
+        },
+        "links": {
+            "self": {
+                "href": "https://api.fr.cloud.gov/v3/tasks/c2aa7430-149b-419c-99f0-13f00a0aea1e"
+            },
+            "app": {
+                "href": "https://api.fr.cloud.gov/v3/apps/f4ab7f86-bee0-44fd-8806-1dca7f8e215a"
+            },
+            "cancel": {
+                "href": "https://api.fr.cloud.gov/v3/tasks/c2aa7430-149b-419c-99f0-13f00a0aea1e/actions/cancel",
+                "method": "POST"
+            },
+            "droplet": {
+                "href": "https://api.fr.cloud.gov/v3/droplets/0bdebb73-7bef-4d3b-87bf-1376df752814"
+            }
+        }
+    },
+    {
+        "guid": "6d754d00-c32b-4c1a-8471-f4f78f17500f",
+        "created_at": "2024-04-03T15:14:22Z",
+        "updated_at": "2024-04-03T15:15:27Z",
+        "sequence_id": 7,
+        "name": "cf_task_integration",
+        "command": "/usr/bin/sleep 60",
+        "state": "SUCCEEDED",
+        "memory_in_mb": 512,
+        "disk_in_mb": 1024,
+        "log_rate_limit_in_bytes_per_second": -1,
+        "result": {
+            "failure_reason": None
+        },
+        "droplet_guid": "0bdebb73-7bef-4d3b-87bf-1376df752814",
+        "relationships": {
+            "app": {
+                "data": {
+                    "guid": "f4ab7f86-bee0-44fd-8806-1dca7f8e215a"
+                }
+            }
+        },
+        "metadata": {
+            "labels": {},
+            "annotations": {}
+        },
+        "links": {
+            "self": {
+                "href": "https://api.fr.cloud.gov/v3/tasks/6d754d00-c32b-4c1a-8471-f4f78f17500f"
+            },
+            "app": {
+                "href": "https://api.fr.cloud.gov/v3/apps/f4ab7f86-bee0-44fd-8806-1dca7f8e215a"
+            },
+            "cancel": {
+                "href": "https://api.fr.cloud.gov/v3/tasks/6d754d00-c32b-4c1a-8471-f4f78f17500f/actions/cancel",
+                "method": "POST"
+            },
+            "droplet": {
+                "href": "https://api.fr.cloud.gov/v3/droplets/0bdebb73-7bef-4d3b-87bf-1376df752814"
+            }
+        }
+    },
+    {
+        "guid": "ce5bdc87-c15c-4f13-9837-3d3b30d9ff05",
+        "created_at": "2024-04-03T16:12:22Z",
+        "updated_at": "2024-04-03T16:13:27Z",
+        "sequence_id": 8,
+        "name": "test-task-sleep",
+        "command": "/usr/bin/sleep 60",
+        "state": "SUCCEEDED",
+        "memory_in_mb": 512,
+        "disk_in_mb": 1024,
+        "log_rate_limit_in_bytes_per_second": -1,
+        "result": {
+            "failure_reason": None
+        },
+        "droplet_guid": "0bdebb73-7bef-4d3b-87bf-1376df752814",
+        "relationships": {
+            "app": {
+                "data": {
+                    "guid": "f4ab7f86-bee0-44fd-8806-1dca7f8e215a"
+                }
+            }
+        },
+        "metadata": {
+            "labels": {},
+            "annotations": {}
+        },
+        "links": {
+            "self": {
+                "href": "https://api.fr.cloud.gov/v3/tasks/ce5bdc87-c15c-4f13-9837-3d3b30d9ff05"
+            },
+            "app": {
+                "href": "https://api.fr.cloud.gov/v3/apps/f4ab7f86-bee0-44fd-8806-1dca7f8e215a"
+            },
+            "cancel": {
+                "href": "https://api.fr.cloud.gov/v3/tasks/ce5bdc87-c15c-4f13-9837-3d3b30d9ff05/actions/cancel",
+                "method": "POST"
+            },
+            "droplet": {
+                "href": "https://api.fr.cloud.gov/v3/droplets/0bdebb73-7bef-4d3b-87bf-1376df752814"
+            }
+        }
+    },
+    {
+        "guid": "1c942c2c-8b61-4599-afa9-78defb19199c",
+        "created_at": "2024-04-19T21:18:59Z",
+        "updated_at": "2024-04-19T21:20:04Z",
+        "sequence_id": 9,
+        "name": "cf_task_integration",
+        "command": "/usr/bin/sleep 60",
+        "state": "SUCCEEDED",
+        "memory_in_mb": 512,
+        "disk_in_mb": 1024,
+        "log_rate_limit_in_bytes_per_second": -1,
+        "result": {
+            "failure_reason": None
+        },
+        "droplet_guid": "0bdebb73-7bef-4d3b-87bf-1376df752814",
+        "relationships": {
+            "app": {
+                "data": {
+                    "guid": "f4ab7f86-bee0-44fd-8806-1dca7f8e215a"
+                }
+            }
+        },
+        "metadata": {
+            "labels": {},
+            "annotations": {}
+        },
+        "links": {
+            "self": {
+                "href": "https://api.fr.cloud.gov/v3/tasks/1c942c2c-8b61-4599-afa9-78defb19199c"
+            },
+            "app": {
+                "href": "https://api.fr.cloud.gov/v3/apps/f4ab7f86-bee0-44fd-8806-1dca7f8e215a"
+            },
+            "cancel": {
+                "href": "https://api.fr.cloud.gov/v3/tasks/1c942c2c-8b61-4599-afa9-78defb19199c/actions/cancel",
+                "method": "POST"
+            },
+            "droplet": {
+                "href": "https://api.fr.cloud.gov/v3/droplets/0bdebb73-7bef-4d3b-87bf-1376df752814"
+            }
+        }
+    },
+    {
+        "guid": "62958323-e933-498e-a55b-c05d42cd3745",
+        "created_at": "2024-04-19T21:19:32Z",
+        "updated_at": "2024-04-19T21:20:38Z",
+        "sequence_id": 10,
+        "name": "cf_task_integration",
+        "command": "/usr/bin/sleep 60",
+        "state": "SUCCEEDED",
+        "memory_in_mb": 512,
+        "disk_in_mb": 1024,
+        "log_rate_limit_in_bytes_per_second": -1,
+        "result": {
+            "failure_reason": None
+        },
+        "droplet_guid": "0bdebb73-7bef-4d3b-87bf-1376df752814",
+        "relationships": {
+            "app": {
+                "data": {
+                    "guid": "f4ab7f86-bee0-44fd-8806-1dca7f8e215a"
+                }
+            }
+        },
+        "metadata": {
+            "labels": {},
+            "annotations": {}
+        },
+        "links": {
+            "self": {
+                "href": "https://api.fr.cloud.gov/v3/tasks/62958323-e933-498e-a55b-c05d42cd3745"
+            },
+            "app": {
+                "href": "https://api.fr.cloud.gov/v3/apps/f4ab7f86-bee0-44fd-8806-1dca7f8e215a"
+            },
+            "cancel": {
+                "href": "https://api.fr.cloud.gov/v3/tasks/62958323-e933-498e-a55b-c05d42cd3745/actions/cancel",
+                "method": "POST"
+            },
+            "droplet": {
+                "href": "https://api.fr.cloud.gov/v3/droplets/0bdebb73-7bef-4d3b-87bf-1376df752814"
+            }
+        }
+    },
+    {
+        "guid": "4337586e-f48a-4c64-9749-3fcae3a19a9f",
+        "created_at": "2024-04-19T21:27:19Z",
+        "updated_at": "2024-04-19T21:28:24Z",
+        "sequence_id": 11,
+        "name": "cf_task_integration",
+        "command": "/usr/bin/sleep 60",
+        "state": "SUCCEEDED",
+        "memory_in_mb": 512,
+        "disk_in_mb": 1024,
+        "log_rate_limit_in_bytes_per_second": -1,
+        "result": {
+            "failure_reason": None
+        },
+        "droplet_guid": "0bdebb73-7bef-4d3b-87bf-1376df752814",
+        "relationships": {
+            "app": {
+                "data": {
+                    "guid": "f4ab7f86-bee0-44fd-8806-1dca7f8e215a"
+                }
+            }
+        },
+        "metadata": {
+            "labels": {},
+            "annotations": {}
+        },
+        "links": {
+            "self": {
+                "href": "https://api.fr.cloud.gov/v3/tasks/4337586e-f48a-4c64-9749-3fcae3a19a9f"
+            },
+            "app": {
+                "href": "https://api.fr.cloud.gov/v3/apps/f4ab7f86-bee0-44fd-8806-1dca7f8e215a"
+            },
+            "cancel": {
+                "href": "https://api.fr.cloud.gov/v3/tasks/4337586e-f48a-4c64-9749-3fcae3a19a9f/actions/cancel",
+                "method": "POST"
+            },
+            "droplet": {
+                "href": "https://api.fr.cloud.gov/v3/droplets/0bdebb73-7bef-4d3b-87bf-1376df752814"
+            }
+        }
+    },
+    {
+        "guid": "81e5a3f7-f6ed-4c6a-b755-b3de172266ec",
+        "created_at": "2024-04-19T21:27:44Z",
+        "updated_at": "2024-04-19T21:28:49Z",
+        "sequence_id": 12,
+        "name": "cf_task_integration",
+        "command": "/usr/bin/sleep 60",
+        "state": "SUCCEEDED",
+        "memory_in_mb": 512,
+        "disk_in_mb": 1024,
+        "log_rate_limit_in_bytes_per_second": -1,
+        "result": {
+            "failure_reason": None
+        },
+        "droplet_guid": "0bdebb73-7bef-4d3b-87bf-1376df752814",
+        "relationships": {
+            "app": {
+                "data": {
+                    "guid": "f4ab7f86-bee0-44fd-8806-1dca7f8e215a"
+                }
+            }
+        },
+        "metadata": {
+            "labels": {},
+            "annotations": {}
+        },
+        "links": {
+            "self": {
+                "href": "https://api.fr.cloud.gov/v3/tasks/81e5a3f7-f6ed-4c6a-b755-b3de172266ec"
+            },
+            "app": {
+                "href": "https://api.fr.cloud.gov/v3/apps/f4ab7f86-bee0-44fd-8806-1dca7f8e215a"
+            },
+            "cancel": {
+                "href": "https://api.fr.cloud.gov/v3/tasks/81e5a3f7-f6ed-4c6a-b755-b3de172266ec/actions/cancel",
+                "method": "POST"
+            },
+            "droplet": {
+                "href": "https://api.fr.cloud.gov/v3/droplets/0bdebb73-7bef-4d3b-87bf-1376df752814"
+            }
+        }
+    },
+    {
+        "guid": "b8c81ab0-ecee-4c54-83ec-436cef0e57c6",
+        "created_at": "2024-04-19T21:29:35Z",
+        "updated_at": "2024-04-19T21:30:40Z",
+        "sequence_id": 13,
+        "name": "cf_task_integration",
+        "command": "/usr/bin/sleep 60",
+        "state": "SUCCEEDED",
+        "memory_in_mb": 512,
+        "disk_in_mb": 1024,
+        "log_rate_limit_in_bytes_per_second": -1,
+        "result": {
+            "failure_reason": None
+        },
+        "droplet_guid": "0bdebb73-7bef-4d3b-87bf-1376df752814",
+        "relationships": {
+            "app": {
+                "data": {
+                    "guid": "f4ab7f86-bee0-44fd-8806-1dca7f8e215a"
+                }
+            }
+        },
+        "metadata": {
+            "labels": {},
+            "annotations": {}
+        },
+        "links": {
+            "self": {
+                "href": "https://api.fr.cloud.gov/v3/tasks/b8c81ab0-ecee-4c54-83ec-436cef0e57c6"
+            },
+            "app": {
+                "href": "https://api.fr.cloud.gov/v3/apps/f4ab7f86-bee0-44fd-8806-1dca7f8e215a"
+            },
+            "cancel": {
+                "href": "https://api.fr.cloud.gov/v3/tasks/b8c81ab0-ecee-4c54-83ec-436cef0e57c6/actions/cancel",
+                "method": "POST"
+            },
+            "droplet": {
+                "href": "https://api.fr.cloud.gov/v3/droplets/0bdebb73-7bef-4d3b-87bf-1376df752814"
+            }
+        }
+    },
+    {
+        "guid": "08c424c8-91d2-4aa9-add8-326b991f190b",
+        "created_at": "2024-04-22T16:33:42Z",
+        "updated_at": "2024-04-22T16:34:48Z",
+        "sequence_id": 14,
+        "name": "cf_task_integration",
+        "command": "/usr/bin/sleep 60",
+        "state": "SUCCEEDED",
+        "memory_in_mb": 512,
+        "disk_in_mb": 1024,
+        "log_rate_limit_in_bytes_per_second": -1,
+        "result": {
+            "failure_reason": None
+        },
+        "droplet_guid": "0bdebb73-7bef-4d3b-87bf-1376df752814",
+        "relationships": {
+            "app": {
+                "data": {
+                    "guid": "f4ab7f86-bee0-44fd-8806-1dca7f8e215a"
+                }
+            }
+        },
+        "metadata": {
+            "labels": {},
+            "annotations": {}
+        },
+        "links": {
+            "self": {
+                "href": "https://api.fr.cloud.gov/v3/tasks/08c424c8-91d2-4aa9-add8-326b991f190b"
+            },
+            "app": {
+                "href": "https://api.fr.cloud.gov/v3/apps/f4ab7f86-bee0-44fd-8806-1dca7f8e215a"
+            },
+            "cancel": {
+                "href": "https://api.fr.cloud.gov/v3/tasks/08c424c8-91d2-4aa9-add8-326b991f190b/actions/cancel",
+                "method": "POST"
+            },
+            "droplet": {
+                "href": "https://api.fr.cloud.gov/v3/droplets/0bdebb73-7bef-4d3b-87bf-1376df752814"
+            }
+        }
+    },
+    {
+        "guid": "2d98c904-96e0-4606-8c9a-8468140fb6cc",
+        "created_at": "2024-04-22T16:49:23Z",
+        "updated_at": "2024-04-22T16:50:28Z",
+        "sequence_id": 15,
+        "name": "cf_task_integration",
+        "command": "/usr/bin/sleep 60",
+        "state": "SUCCEEDED",
+        "memory_in_mb": 512,
+        "disk_in_mb": 1024,
+        "log_rate_limit_in_bytes_per_second": -1,
+        "result": {
+            "failure_reason": None
+        },
+        "droplet_guid": "0bdebb73-7bef-4d3b-87bf-1376df752814",
+        "relationships": {
+            "app": {
+                "data": {
+                    "guid": "f4ab7f86-bee0-44fd-8806-1dca7f8e215a"
+                }
+            }
+        },
+        "metadata": {
+            "labels": {},
+            "annotations": {}
+        },
+        "links": {
+            "self": {
+                "href": "https://api.fr.cloud.gov/v3/tasks/2d98c904-96e0-4606-8c9a-8468140fb6cc"
+            },
+            "app": {
+                "href": "https://api.fr.cloud.gov/v3/apps/f4ab7f86-bee0-44fd-8806-1dca7f8e215a"
+            },
+            "cancel": {
+                "href": "https://api.fr.cloud.gov/v3/tasks/2d98c904-96e0-4606-8c9a-8468140fb6cc/actions/cancel",
+                "method": "POST"
+            },
+            "droplet": {
+                "href": "https://api.fr.cloud.gov/v3/droplets/0bdebb73-7bef-4d3b-87bf-1376df752814"
+            }
+        }
+    },
+    {
+        "guid": "d9e47127-0efc-4f30-95da-616920f1ff68",
+        "created_at": "2024-04-22T17:26:43Z",
+        "updated_at": "2024-04-22T17:27:49Z",
+        "sequence_id": 16,
+        "name": "cf_task_integration",
+        "command": "/usr/bin/sleep 60",
+        "state": "SUCCEEDED",
+        "memory_in_mb": 512,
+        "disk_in_mb": 1024,
+        "log_rate_limit_in_bytes_per_second": -1,
+        "result": {
+            "failure_reason": None
+        },
+        "droplet_guid": "0bdebb73-7bef-4d3b-87bf-1376df752814",
+        "relationships": {
+            "app": {
+                "data": {
+                    "guid": "f4ab7f86-bee0-44fd-8806-1dca7f8e215a"
+                }
+            }
+        },
+        "metadata": {
+            "labels": {},
+            "annotations": {}
+        },
+        "links": {
+            "self": {
+                "href": "https://api.fr.cloud.gov/v3/tasks/d9e47127-0efc-4f30-95da-616920f1ff68"
+            },
+            "app": {
+                "href": "https://api.fr.cloud.gov/v3/apps/f4ab7f86-bee0-44fd-8806-1dca7f8e215a"
+            },
+            "cancel": {
+                "href": "https://api.fr.cloud.gov/v3/tasks/d9e47127-0efc-4f30-95da-616920f1ff68/actions/cancel",
+                "method": "POST"
+            },
+            "droplet": {
+                "href": "https://api.fr.cloud.gov/v3/droplets/0bdebb73-7bef-4d3b-87bf-1376df752814"
+            }
+        }
+    },
+    {
+        "guid": "18ebbf6d-7248-4c4c-b863-d3f9565aac54",
+        "created_at": "2024-04-22T18:02:11Z",
+        "updated_at": "2024-04-22T18:03:16Z",
+        "sequence_id": 17,
+        "name": "cf_task_integration",
+        "command": "/usr/bin/sleep 60",
+        "state": "SUCCEEDED",
+        "memory_in_mb": 512,
+        "disk_in_mb": 1024,
+        "log_rate_limit_in_bytes_per_second": -1,
+        "result": {
+            "failure_reason": None
+        },
+        "droplet_guid": "0bdebb73-7bef-4d3b-87bf-1376df752814",
+        "relationships": {
+            "app": {
+                "data": {
+                    "guid": "f4ab7f86-bee0-44fd-8806-1dca7f8e215a"
+                }
+            }
+        },
+        "metadata": {
+            "labels": {},
+            "annotations": {}
+        },
+        "links": {
+            "self": {
+                "href": "https://api.fr.cloud.gov/v3/tasks/18ebbf6d-7248-4c4c-b863-d3f9565aac54"
+            },
+            "app": {
+                "href": "https://api.fr.cloud.gov/v3/apps/f4ab7f86-bee0-44fd-8806-1dca7f8e215a"
+            },
+            "cancel": {
+                "href": "https://api.fr.cloud.gov/v3/tasks/18ebbf6d-7248-4c4c-b863-d3f9565aac54/actions/cancel",
+                "method": "POST"
+            },
+            "droplet": {
+                "href": "https://api.fr.cloud.gov/v3/droplets/0bdebb73-7bef-4d3b-87bf-1376df752814"
+            }
+        }
+    },
+    {
+        "guid": "7e78623a-ff62-4087-b1d4-09608dac09f8",
+        "created_at": "2024-04-22T18:13:35Z",
+        "updated_at": "2024-04-22T18:14:40Z",
+        "sequence_id": 18,
+        "name": "cf_task_integration",
+        "command": "/usr/bin/sleep 60",
+        "state": "SUCCEEDED",
+        "memory_in_mb": 512,
+        "disk_in_mb": 1024,
+        "log_rate_limit_in_bytes_per_second": -1,
+        "result": {
+            "failure_reason": None
+        },
+        "droplet_guid": "0bdebb73-7bef-4d3b-87bf-1376df752814",
+        "relationships": {
+            "app": {
+                "data": {
+                    "guid": "f4ab7f86-bee0-44fd-8806-1dca7f8e215a"
+                }
+            }
+        },
+        "metadata": {
+            "labels": {},
+            "annotations": {}
+        },
+        "links": {
+            "self": {
+                "href": "https://api.fr.cloud.gov/v3/tasks/7e78623a-ff62-4087-b1d4-09608dac09f8"
+            },
+            "app": {
+                "href": "https://api.fr.cloud.gov/v3/apps/f4ab7f86-bee0-44fd-8806-1dca7f8e215a"
+            },
+            "cancel": {
+                "href": "https://api.fr.cloud.gov/v3/tasks/7e78623a-ff62-4087-b1d4-09608dac09f8/actions/cancel",
+                "method": "POST"
+            },
+            "droplet": {
+                "href": "https://api.fr.cloud.gov/v3/droplets/0bdebb73-7bef-4d3b-87bf-1376df752814"
+            }
+        }
+    },
+    {
+        "guid": "7b58f839-6cd3-4e37-8988-50c5430e9ff1",
+        "created_at": "2024-04-22T19:47:12Z",
+        "updated_at": "2024-04-22T19:48:18Z",
+        "sequence_id": 19,
+        "name": "cf_task_integration",
+        "command": "/usr/bin/sleep 60",
+        "state": "SUCCEEDED",
+        "memory_in_mb": 512,
+        "disk_in_mb": 1024,
+        "log_rate_limit_in_bytes_per_second": -1,
+        "result": {
+            "failure_reason": None
+        },
+        "droplet_guid": "0bdebb73-7bef-4d3b-87bf-1376df752814",
+        "relationships": {
+            "app": {
+                "data": {
+                    "guid": "f4ab7f86-bee0-44fd-8806-1dca7f8e215a"
+                }
+            }
+        },
+        "metadata": {
+            "labels": {},
+            "annotations": {}
+        },
+        "links": {
+            "self": {
+                "href": "https://api.fr.cloud.gov/v3/tasks/7b58f839-6cd3-4e37-8988-50c5430e9ff1"
+            },
+            "app": {
+                "href": "https://api.fr.cloud.gov/v3/apps/f4ab7f86-bee0-44fd-8806-1dca7f8e215a"
+            },
+            "cancel": {
+                "href": "https://api.fr.cloud.gov/v3/tasks/7b58f839-6cd3-4e37-8988-50c5430e9ff1/actions/cancel",
+                "method": "POST"
+            },
+            "droplet": {
+                "href": "https://api.fr.cloud.gov/v3/droplets/0bdebb73-7bef-4d3b-87bf-1376df752814"
+            }
+        }
+    },
+    {
+        "guid": "e2e9cf95-e89a-4689-89b3-2687a9359a3b",
+        "created_at": "2024-04-22T19:53:36Z",
+        "updated_at": "2024-04-22T19:54:42Z",
+        "sequence_id": 20,
+        "name": "cf_task_integration",
+        "command": "/usr/bin/sleep 60",
+        "state": "SUCCEEDED",
+        "memory_in_mb": 512,
+        "disk_in_mb": 1024,
+        "log_rate_limit_in_bytes_per_second": -1,
+        "result": {
+            "failure_reason": None
+        },
+        "droplet_guid": "0bdebb73-7bef-4d3b-87bf-1376df752814",
+        "relationships": {
+            "app": {
+                "data": {
+                    "guid": "f4ab7f86-bee0-44fd-8806-1dca7f8e215a"
+                }
+            }
+        },
+        "metadata": {
+            "labels": {},
+            "annotations": {}
+        },
+        "links": {
+            "self": {
+                "href": "https://api.fr.cloud.gov/v3/tasks/e2e9cf95-e89a-4689-89b3-2687a9359a3b"
+            },
+            "app": {
+                "href": "https://api.fr.cloud.gov/v3/apps/f4ab7f86-bee0-44fd-8806-1dca7f8e215a"
+            },
+            "cancel": {
+                "href": "https://api.fr.cloud.gov/v3/tasks/e2e9cf95-e89a-4689-89b3-2687a9359a3b/actions/cancel",
+                "method": "POST"
+            },
+            "droplet": {
+                "href": "https://api.fr.cloud.gov/v3/droplets/0bdebb73-7bef-4d3b-87bf-1376df752814"
+            }
+        }
+    },
+    {
+        "guid": "ab27eeb0-52e7-49c6-9657-5e92a072a969",
+        "created_at": "2024-04-22T21:13:08Z",
+        "updated_at": "2024-04-22T21:14:13Z",
+        "sequence_id": 21,
+        "name": "cf_task_integration_1",
+        "command": "/usr/bin/sleep 60",
+        "state": "SUCCEEDED",
+        "memory_in_mb": 512,
+        "disk_in_mb": 1024,
+        "log_rate_limit_in_bytes_per_second": -1,
+        "result": {
+            "failure_reason": None
+        },
+        "droplet_guid": "0bdebb73-7bef-4d3b-87bf-1376df752814",
+        "relationships": {
+            "app": {
+                "data": {
+                    "guid": "f4ab7f86-bee0-44fd-8806-1dca7f8e215a"
+                }
+            }
+        },
+        "metadata": {
+            "labels": {},
+            "annotations": {}
+        },
+        "links": {
+            "self": {
+                "href": "https://api.fr.cloud.gov/v3/tasks/ab27eeb0-52e7-49c6-9657-5e92a072a969"
+            },
+            "app": {
+                "href": "https://api.fr.cloud.gov/v3/apps/f4ab7f86-bee0-44fd-8806-1dca7f8e215a"
+            },
+            "cancel": {
+                "href": "https://api.fr.cloud.gov/v3/tasks/ab27eeb0-52e7-49c6-9657-5e92a072a969/actions/cancel",
+                "method": "POST"
+            },
+            "droplet": {
+                "href": "https://api.fr.cloud.gov/v3/droplets/0bdebb73-7bef-4d3b-87bf-1376df752814"
+            }
+        }
+    },
+    {
+        "guid": "19a0b209-255f-4879-b9e3-201f23eec5d2",
+        "created_at": "2024-04-22T21:25:22Z",
+        "updated_at": "2024-04-22T21:25:27Z",
+        "sequence_id": 22,
+        "name": "usr/bin/sleep 120",
+        "command": "test_task",
+        "state": "FAILED",
+        "memory_in_mb": 512,
+        "disk_in_mb": 1024,
+        "log_rate_limit_in_bytes_per_second": -1,
+        "result": {
+            "failure_reason": "APP/TASK/usr/bin/sleep 120: Exited with status 127"
+        },
+        "droplet_guid": "0bdebb73-7bef-4d3b-87bf-1376df752814",
+        "relationships": {
+            "app": {
+                "data": {
+                    "guid": "f4ab7f86-bee0-44fd-8806-1dca7f8e215a"
+                }
+            }
+        },
+        "metadata": {
+            "labels": {},
+            "annotations": {}
+        },
+        "links": {
+            "self": {
+                "href": "https://api.fr.cloud.gov/v3/tasks/19a0b209-255f-4879-b9e3-201f23eec5d2"
+            },
+            "app": {
+                "href": "https://api.fr.cloud.gov/v3/apps/f4ab7f86-bee0-44fd-8806-1dca7f8e215a"
+            },
+            "cancel": {
+                "href": "https://api.fr.cloud.gov/v3/tasks/19a0b209-255f-4879-b9e3-201f23eec5d2/actions/cancel",
+                "method": "POST"
+            },
+            "droplet": {
+                "href": "https://api.fr.cloud.gov/v3/droplets/0bdebb73-7bef-4d3b-87bf-1376df752814"
+            }
+        }
+    },
+    {
+        "guid": "efed5a98-2dcc-450d-aefb-6b4e873efb82",
+        "created_at": "2024-04-22T21:26:43Z",
+        "updated_at": "2024-04-22T21:26:48Z",
+        "sequence_id": 23,
+        "name": "task_test_1",
+        "command": "usr/bin/sleep 120",
+        "state": "FAILED",
+        "memory_in_mb": 512,
+        "disk_in_mb": 1024,
+        "log_rate_limit_in_bytes_per_second": -1,
+        "result": {
+            "failure_reason": "APP/TASK/task_test_1: Exited with status 127"
+        },
+        "droplet_guid": "0bdebb73-7bef-4d3b-87bf-1376df752814",
+        "relationships": {
+            "app": {
+                "data": {
+                    "guid": "f4ab7f86-bee0-44fd-8806-1dca7f8e215a"
+                }
+            }
+        },
+        "metadata": {
+            "labels": {},
+            "annotations": {}
+        },
+        "links": {
+            "self": {
+                "href": "https://api.fr.cloud.gov/v3/tasks/efed5a98-2dcc-450d-aefb-6b4e873efb82"
+            },
+            "app": {
+                "href": "https://api.fr.cloud.gov/v3/apps/f4ab7f86-bee0-44fd-8806-1dca7f8e215a"
+            },
+            "cancel": {
+                "href": "https://api.fr.cloud.gov/v3/tasks/efed5a98-2dcc-450d-aefb-6b4e873efb82/actions/cancel",
+                "method": "POST"
+            },
+            "droplet": {
+                "href": "https://api.fr.cloud.gov/v3/droplets/0bdebb73-7bef-4d3b-87bf-1376df752814"
+            }
+        }
+    },
+    {
+        "guid": "160d4398-a63c-42ac-a11f-c58818384cd9",
+        "created_at": "2024-04-22T21:36:27Z",
+        "updated_at": "2024-04-22T21:36:33Z",
+        "sequence_id": 24,
+        "name": "abdcefg",
+        "command": "usr/bin/sleep 120",
+        "state": "FAILED",
+        "memory_in_mb": 512,
+        "disk_in_mb": 1024,
+        "log_rate_limit_in_bytes_per_second": -1,
+        "result": {
+            "failure_reason": "APP/TASK/abdcefg: Exited with status 127"
+        },
+        "droplet_guid": "0bdebb73-7bef-4d3b-87bf-1376df752814",
+        "relationships": {
+            "app": {
+                "data": {
+                    "guid": "f4ab7f86-bee0-44fd-8806-1dca7f8e215a"
+                }
+            }
+        },
+        "metadata": {
+            "labels": {},
+            "annotations": {}
+        },
+        "links": {
+            "self": {
+                "href": "https://api.fr.cloud.gov/v3/tasks/160d4398-a63c-42ac-a11f-c58818384cd9"
+            },
+            "app": {
+                "href": "https://api.fr.cloud.gov/v3/apps/f4ab7f86-bee0-44fd-8806-1dca7f8e215a"
+            },
+            "cancel": {
+                "href": "https://api.fr.cloud.gov/v3/tasks/160d4398-a63c-42ac-a11f-c58818384cd9/actions/cancel",
+                "method": "POST"
+            },
+            "droplet": {
+                "href": "https://api.fr.cloud.gov/v3/droplets/0bdebb73-7bef-4d3b-87bf-1376df752814"
+            }
+        }
+    },
+    {
+        "guid": "1b6fed52-93a7-4e05-a703-fcc4e62b9d2e",
+        "created_at": "2024-04-22T21:45:43Z",
+        "updated_at": "2024-04-22T21:45:46Z",
+        "sequence_id": 25,
+        "name": "cf_task_integration",
+        "command": "/usr/bin/sleep 60",
+        "state": "FAILED",
+        "memory_in_mb": 512,
+        "disk_in_mb": 1024,
+        "log_rate_limit_in_bytes_per_second": -1,
+        "result": {
+            "failure_reason": "task was cancelled"
+        },
+        "droplet_guid": "0bdebb73-7bef-4d3b-87bf-1376df752814",
+        "relationships": {
+            "app": {
+                "data": {
+                    "guid": "f4ab7f86-bee0-44fd-8806-1dca7f8e215a"
+                }
+            }
+        },
+        "metadata": {
+            "labels": {},
+            "annotations": {}
+        },
+        "links": {
+            "self": {
+                "href": "https://api.fr.cloud.gov/v3/tasks/1b6fed52-93a7-4e05-a703-fcc4e62b9d2e"
+            },
+            "app": {
+                "href": "https://api.fr.cloud.gov/v3/apps/f4ab7f86-bee0-44fd-8806-1dca7f8e215a"
+            },
+            "cancel": {
+                "href": "https://api.fr.cloud.gov/v3/tasks/1b6fed52-93a7-4e05-a703-fcc4e62b9d2e/actions/cancel",
+                "method": "POST"
+            },
+            "droplet": {
+                "href": "https://api.fr.cloud.gov/v3/droplets/0bdebb73-7bef-4d3b-87bf-1376df752814"
+            }
+        }
+    },
+    {
+        "guid": "14bc647f-fdd3-4bf6-8371-a435524b7fd6",
+        "created_at": "2024-04-23T13:21:32Z",
+        "updated_at": "2024-04-23T13:21:35Z",
+        "sequence_id": 26,
+        "name": "cf_task_integration",
+        "command": "/usr/bin/sleep 60",
+        "state": "FAILED",
+        "memory_in_mb": 512,
+        "disk_in_mb": 1024,
+        "log_rate_limit_in_bytes_per_second": -1,
+        "result": {
+            "failure_reason": "task was cancelled"
+        },
+        "droplet_guid": "0bdebb73-7bef-4d3b-87bf-1376df752814",
+        "relationships": {
+            "app": {
+                "data": {
+                    "guid": "f4ab7f86-bee0-44fd-8806-1dca7f8e215a"
+                }
+            }
+        },
+        "metadata": {
+            "labels": {},
+            "annotations": {}
+        },
+        "links": {
+            "self": {
+                "href": "https://api.fr.cloud.gov/v3/tasks/14bc647f-fdd3-4bf6-8371-a435524b7fd6"
+            },
+            "app": {
+                "href": "https://api.fr.cloud.gov/v3/apps/f4ab7f86-bee0-44fd-8806-1dca7f8e215a"
+            },
+            "cancel": {
+                "href": "https://api.fr.cloud.gov/v3/tasks/14bc647f-fdd3-4bf6-8371-a435524b7fd6/actions/cancel",
+                "method": "POST"
+            },
+            "droplet": {
+                "href": "https://api.fr.cloud.gov/v3/droplets/0bdebb73-7bef-4d3b-87bf-1376df752814"
+            }
+        }
+    },
+    {
+        "guid": "1ccfc7e6-7124-460b-8c15-be1647e0c84e",
+        "created_at": "2024-04-25T21:42:42Z",
+        "updated_at": "2024-04-25T21:43:48Z",
+        "sequence_id": 27,
+        "name": "cf_task_integration",
+        "command": "/usr/bin/sleep 60",
+        "state": "SUCCEEDED",
+        "memory_in_mb": 512,
+        "disk_in_mb": 1024,
+        "log_rate_limit_in_bytes_per_second": -1,
+        "result": {
+            "failure_reason": None
+        },
+        "droplet_guid": "0bdebb73-7bef-4d3b-87bf-1376df752814",
+        "relationships": {
+            "app": {
+                "data": {
+                    "guid": "f4ab7f86-bee0-44fd-8806-1dca7f8e215a"
+                }
+            }
+        },
+        "metadata": {
+            "labels": {},
+            "annotations": {}
+        },
+        "links": {
+            "self": {
+                "href": "https://api.fr.cloud.gov/v3/tasks/1ccfc7e6-7124-460b-8c15-be1647e0c84e"
+            },
+            "app": {
+                "href": "https://api.fr.cloud.gov/v3/apps/f4ab7f86-bee0-44fd-8806-1dca7f8e215a"
+            },
+            "cancel": {
+                "href": "https://api.fr.cloud.gov/v3/tasks/1ccfc7e6-7124-460b-8c15-be1647e0c84e/actions/cancel",
+                "method": "POST"
+            },
+            "droplet": {
+                "href": "https://api.fr.cloud.gov/v3/droplets/0bdebb73-7bef-4d3b-87bf-1376df752814"
+            }
+        }
+    },
+    {
+        "guid": "a9c1c4ef-b976-4a3c-ae16-320de3ca7a19",
+        "created_at": "2024-04-30T16:32:15Z",
+        "updated_at": "2024-04-30T16:32:19Z",
+        "sequence_id": 28,
+        "name": "cf_task_integration",
+        "command": "/usr/bin/sleep 60",
+        "state": "FAILED",
+        "memory_in_mb": 512,
+        "disk_in_mb": 1024,
+        "log_rate_limit_in_bytes_per_second": -1,
+        "result": {
+            "failure_reason": "task was cancelled"
+        },
+        "droplet_guid": "0bdebb73-7bef-4d3b-87bf-1376df752814",
+        "relationships": {
+            "app": {
+                "data": {
+                    "guid": "f4ab7f86-bee0-44fd-8806-1dca7f8e215a"
+                }
+            }
+        },
+        "metadata": {
+            "labels": {},
+            "annotations": {}
+        },
+        "links": {
+            "self": {
+                "href": "https://api.fr.cloud.gov/v3/tasks/a9c1c4ef-b976-4a3c-ae16-320de3ca7a19"
+            },
+            "app": {
+                "href": "https://api.fr.cloud.gov/v3/apps/f4ab7f86-bee0-44fd-8806-1dca7f8e215a"
+            },
+            "cancel": {
+                "href": "https://api.fr.cloud.gov/v3/tasks/a9c1c4ef-b976-4a3c-ae16-320de3ca7a19/actions/cancel",
+                "method": "POST"
+            },
+            "droplet": {
+                "href": "https://api.fr.cloud.gov/v3/droplets/0bdebb73-7bef-4d3b-87bf-1376df752814"
+            }
+        }
+    },
+    {
+        "guid": "8f64f38e-952b-435f-9592-d2cc5843958a",
+        "created_at": "2024-05-02T18:10:35Z",
+        "updated_at": "2024-05-02T18:10:40Z",
+        "sequence_id": 29,
+        "name": "cf_task_integration",
+        "command": "/usr/bin/sleep 60",
+        "state": "FAILED",
+        "memory_in_mb": 512,
+        "disk_in_mb": 1024,
+        "log_rate_limit_in_bytes_per_second": -1,
+        "result": {
+            "failure_reason": "task was cancelled"
+        },
+        "droplet_guid": "0bdebb73-7bef-4d3b-87bf-1376df752814",
+        "relationships": {
+            "app": {
+                "data": {
+                    "guid": "f4ab7f86-bee0-44fd-8806-1dca7f8e215a"
+                }
+            }
+        },
+        "metadata": {
+            "labels": {},
+            "annotations": {}
+        },
+        "links": {
+            "self": {
+                "href": "https://api.fr.cloud.gov/v3/tasks/8f64f38e-952b-435f-9592-d2cc5843958a"
+            },
+            "app": {
+                "href": "https://api.fr.cloud.gov/v3/apps/f4ab7f86-bee0-44fd-8806-1dca7f8e215a"
+            },
+            "cancel": {
+                "href": "https://api.fr.cloud.gov/v3/tasks/8f64f38e-952b-435f-9592-d2cc5843958a/actions/cancel",
+                "method": "POST"
+            },
+            "droplet": {
+                "href": "https://api.fr.cloud.gov/v3/droplets/0bdebb73-7bef-4d3b-87bf-1376df752814"
+            }
+        }
+    }
+]

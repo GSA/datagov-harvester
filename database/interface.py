@@ -1,4 +1,5 @@
-from sqlalchemy import create_engine, inspect
+import os
+from sqlalchemy import create_engine, inspect, or_
 from sqlalchemy.exc import NoResultFound
 from sqlalchemy.orm import scoped_session, sessionmaker
 
@@ -10,7 +11,7 @@ from .models import (
     Organization,
 )
 
-from . import DATABASE_URI
+DATABASE_URI = os.getenv("DATABASE_URI")
 
 
 class HarvesterDBInterface:
@@ -32,6 +33,8 @@ class HarvesterDBInterface:
 
     @staticmethod
     def _to_dict(obj):
+        if obj is None:
+            return None
         return {c.key: getattr(obj, c.key) for c in inspect(obj).mapper.column_attrs}
 
     def add_organization(self, org_data):
@@ -48,16 +51,10 @@ class HarvesterDBInterface:
 
     def get_all_organizations(self):
         orgs = self.db.query(Organization).all()
-        if orgs is None:
-            return None
-        else:
-            orgs_data = [HarvesterDBInterface._to_dict(org) for org in orgs]
-            return orgs_data
+        return [HarvesterDBInterface._to_dict(org) for org in orgs]
 
     def get_organization(self, org_id):
         result = self.db.query(Organization).filter_by(id=org_id).first()
-        if result is None:
-            return None
         return HarvesterDBInterface._to_dict(result)
 
     def update_organization(self, org_id, updates):
@@ -99,31 +96,17 @@ class HarvesterDBInterface:
 
     def get_all_harvest_sources(self):
         harvest_sources = self.db.query(HarvestSource).all()
-        if harvest_sources is None:
-            return None
-        else:
-            harvest_sources_data = [
-                HarvesterDBInterface._to_dict(source) for source in harvest_sources
-            ]
-            return harvest_sources_data
+        return [HarvesterDBInterface._to_dict(source) for source in harvest_sources]
 
     def get_harvest_source(self, source_id):
         result = self.db.query(HarvestSource).filter_by(id=source_id).first()
-        if result is None:
-            return None
         return HarvesterDBInterface._to_dict(result)
 
     def get_harvest_source_by_org(self, org_id):
         harvest_source = (
             self.db.query(HarvestSource).filter_by(organization_id=org_id).all()
         )
-        if harvest_source is None:
-            return None
-        else:
-            harvest_source_data = [
-                HarvesterDBInterface._to_dict(src) for src in harvest_source
-            ]
-            return harvest_source_data
+        return [HarvesterDBInterface._to_dict(src) for src in harvest_source]
 
     def update_harvest_source(self, source_id, updates):
         try:
@@ -164,21 +147,24 @@ class HarvesterDBInterface:
 
     def get_harvest_job(self, job_id):
         result = self.db.query(HarvestJob).filter_by(id=job_id).first()
-        if result is None:
-            return None
         return HarvesterDBInterface._to_dict(result)
+
+    def get_harvest_jobs_by_filter(self, filter):
+        harvest_jobs = self.db.query(HarvestJob).filter_by(**filter).all()
+        harvest_jobs_data = [HarvesterDBInterface._to_dict(job) for job in harvest_jobs]
+        return harvest_jobs_data
+
+    def get_harvest_jobs_by_filter_multival(self, attr, values):
+        query_list = [getattr(HarvestJob, attr) == value for value in values]
+        harvest_jobs = self.db.query(HarvestJob).filter(or_(*query_list)).all()
+        harvest_jobs_data = [HarvesterDBInterface._to_dict(job) for job in harvest_jobs]
+        return harvest_jobs_data
 
     def get_harvest_job_by_source(self, source_id):
         harvest_job = (
             self.db.query(HarvestJob).filter_by(harvest_source_id=source_id).all()
         )
-        if harvest_job is None:
-            return None
-        else:
-            harvest_job_data = [
-                HarvesterDBInterface._to_dict(job) for job in harvest_job
-            ]
-            return harvest_job_data
+        return [HarvesterDBInterface._to_dict(job) for job in harvest_job]
 
     def update_harvest_job(self, job_id, updates):
         try:
@@ -219,19 +205,11 @@ class HarvesterDBInterface:
 
     def get_harvest_error(self, error_id):
         result = self.db.query(HarvestError).filter_by(id=error_id).first()
-        if result is None:
-            return None
         return HarvesterDBInterface._to_dict(result)
 
     def get_harvest_error_by_job(self, job_id):
         harvest_errors = self.db.query(HarvestError).filter_by(harvest_job_id=job_id)
-        if harvest_errors is None:
-            return None
-        else:
-            harvest_errors_data = [
-                HarvesterDBInterface._to_dict(err) for err in harvest_errors
-            ]
-            return harvest_errors_data
+        return [HarvesterDBInterface._to_dict(err) for err in harvest_errors]
 
     def add_harvest_record(self, record_data):
         try:
@@ -264,38 +242,21 @@ class HarvesterDBInterface:
 
     def get_harvest_record(self, record_id):
         result = self.db.query(HarvestRecord).filter_by(id=record_id).first()
-        if result is None:
-            return None
         return HarvesterDBInterface._to_dict(result)
 
     def get_harvest_record_by_job(self, job_id):
         harvest_records = self.db.query(HarvestRecord).filter_by(harvest_job_id=job_id)
-        if harvest_records is None:
-            return None
-        else:
-            harvest_records_data = [
-                HarvesterDBInterface._to_dict(rcd) for rcd in harvest_records
-            ]
-            return harvest_records_data
+        return [HarvesterDBInterface._to_dict(rcd) for rcd in harvest_records]
 
     def get_harvest_record_by_source(self, source_id):
         harvest_records = self.db.query(HarvestRecord).filter_by(
             harvest_source_id=source_id
         )
-        if harvest_records is None:
-            return None
-        else:
-            harvest_records_data = [
-                HarvesterDBInterface._to_dict(rcd) for rcd in harvest_records
-            ]
-            return harvest_records_data
+        return [HarvesterDBInterface._to_dict(rcd) for rcd in harvest_records]
 
     def get_source_by_jobid(self, jobid):
         harvest_job = self.db.query(HarvestJob).filter_by(id=jobid).first()
-        if harvest_job is None:
-            return None
-        else:
-            return HarvesterDBInterface._to_dict(harvest_job.source)
+        return HarvesterDBInterface._to_dict(harvest_job.source)
 
     def close(self):
         if hasattr(self.db, "remove"):
