@@ -1,7 +1,7 @@
 import logging
 from datetime import datetime
 
-from app.interface import HarvesterDBInterface
+from database.interface import HarvesterDBInterface
 
 
 # critical exceptions
@@ -29,11 +29,11 @@ class HarvestCriticalException(Exception):
         self.logger.critical(self.msg, exc_info=True)
 
 
-class ExtractHarvestSourceException(HarvestCriticalException):
+class ExtractExternalException(HarvestCriticalException):
     pass
 
 
-class ExtractCKANSourceException(HarvestCriticalException):
+class ExtractInternalException(HarvestCriticalException):
     pass
 
 
