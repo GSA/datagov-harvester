@@ -2,7 +2,7 @@ from sqlalchemy import create_engine, inspect
 from sqlalchemy.exc import NoResultFound
 from sqlalchemy.orm import scoped_session, sessionmaker
 
-from app.models import (
+from .models import (
     HarvestError,
     HarvestJob,
     HarvestRecord,
