@@ -148,3 +148,147 @@ def munge_tag(tag: str) -> str:
     tag = re.sub(r"[^a-zA-Z0-9\- ]", "", tag).replace(" ", "-")
     tag = _munge_to_length(tag, MIN_TAG_LENGTH, MAX_TAG_LENGTH)
     return tag
+
+
+def create_ckan_extras(metadata: dict) -> list[dict]:
+    extras = [
+        "accessLevel",
+        "bureauCode",
+        "identifier",
+        "modified",
+        "programCode",
+        "publisher",
+    ]
+
+    output = [{"key": "resource-type", "value": "Dataset"}]
+
+    for extra in extras:
+        if extra not in metadata:
+            continue
+        data = {"key": extra, "value": None}
+        val = metadata[extra]
+        if extra == "publisher":
+            data["value"] = val["name"]
+
+            output.append(
+                {
+                    "key": "publisher_hierarchy",
+                    "value": create_ckan_publisher_hierarchy(val, []),
+                }
+            )
+
+        else:
+            if isinstance(val, list):  # TODO: confirm this is what we want.
+                val = val[0]
+            data["value"] = val
+        output.append(data)
+
+    # TODO: update this
+    # output.append(
+    #     {
+    #         "key": "dcat_metadata",
+    #         "value": str(sort_dataset(self.metadata)),
+    #     }
+    # )
+
+    # output.append(
+    #     {
+    #         "key": self.harvest_source.extra_source_name,
+    #         "value": self.harvest_source.title,
+    #     }
+    # )
+
+    output.append({"key": "identifier", "value": metadata["identifier"]})
+
+    return output
+
+
+def create_ckan_tags(keywords: list[str]) -> list:
+    output = []
+
+    for keyword in keywords:
+        output.append({"name": munge_tag(keyword)})
+
+    return output
+
+
+def create_ckan_publisher_hierarchy(pub_dict: dict, data: list = []) -> str:
+    for k, v in pub_dict.items():
+        if k == "name":
+            data.append(v)
+        if isinstance(v, dict):
+            create_ckan_publisher_hierarchy(v, data)
+
+    return " > ".join(data[::-1])
+
+
+def get_email_from_str(in_str: str) -> str:
+    res = re.search(r"[\w.+-]+@[\w-]+\.[\w.-]+", in_str)
+    if res is not None:
+        return res.group(0)
+
+
+def create_ckan_resources(metadata: dict) -> list[dict]:
+    output = []
+
+    if "distribution" not in metadata or metadata["distribution"] is None:
+        return output
+
+    for dist in metadata["distribution"]:
+        url_keys = ["downloadURL", "accessURL"]
+        for url_key in url_keys:
+            if dist.get(url_key, None) is None:
+                continue
+            resource = {"url": dist[url_key]}
+            if "mimetype" in dist:
+                resource["mimetype"] = dist["mediaType"]
+
+        output.append(resource)
+
+    return output
+
+
+def simple_transform(metadata: dict, owner_org: str) -> dict:
+    output = {
+        "name": munge_title_to_name(metadata["title"]),
+        "owner_org": owner_org,
+        "identifier": metadata["identifier"],
+        "author": None,  # TODO: CHANGE THIS!
+        "author_email": None,  # TODO: CHANGE THIS!
+    }
+
+    mapping = {
+        "contactPoint": {"fn": "maintainer", "hasEmail": "maintainer_email"},
+        "description": "notes",
+        "title": "title",
+    }
+
+    for k, v in metadata.items():
+        if k not in mapping:
+            continue
+        if isinstance(mapping[k], dict):
+            temp = {}
+            to_skip = ["@type"]
+            for k2, v2 in v.items():
+                if k2 == "hasEmail":
+                    v2 = get_email_from_str(v2)
+                if k2 in to_skip:
+                    continue
+                temp[mapping[k][k2]] = v2
+            output = {**output, **temp}
+        else:
+            output[mapping[k]] = v
+
+    return output
+
+
+def ckanify_dcatus(metadata: dict, owner_org: str) -> dict:
+    ckanified_metadata = simple_transform(metadata, owner_org)
+
+    ckanified_metadata["resources"] = create_ckan_resources(metadata)
+    ckanified_metadata["tags"] = (
+        create_ckan_tags(metadata["keyword"]) if "keyword" in metadata else []
+    )
+    ckanified_metadata["extras"] = create_ckan_extras(metadata)
+
+    return ckanified_metadata

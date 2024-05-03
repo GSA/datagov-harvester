@@ -2,13 +2,21 @@ import argparse
 import hashlib
 import json
 import os
+import xml.etree.ElementTree as ET
+from typing import Union
 
-import boto3
+import requests
+from bs4 import BeautifulSoup
 import sansjson
 from cloudfoundry_client.client import CloudFoundryClient
 from cloudfoundry_client.v3.tasks import TaskManager
 
 # ruff: noqa: F841
+
+
+def get_title_from_fgdc(xml_str: str) -> str:
+    tree = ET.ElementTree(ET.fromstring(xml_str))
+    return tree.find(".//title").text
 
 
 def parse_args(args):
@@ -45,57 +53,72 @@ def open_json(file_path):
         return json.load(fp)
 
 
-class S3Handler:
-    def __init__(self):
-        self.access_key_id = os.getenv("S3FILESTORE__AWS_ACCESS_KEY_ID")
-        self.secret_access_key = os.getenv("S3FILESTORE__AWS_SECRET_ACCESS_KEY")
-        self.region_name = os.getenv("S3FILESTORE__REGION_NAME")
-        self.endpoint_url = os.getenv("S3FILESTORE__HOST_NAME")
-        self.bucket = os.getenv("S3FILESTORE__AWS_BUCKET_NAME")
+def download_file(url: str, file_type: str) -> Union[str, dict]:
+    resp = requests.get(url)
+    if 200 <= resp.status_code < 300:
+        if file_type == ".xml":
+            return resp.content
+        return resp.json()
 
-        # S3://{h20-bucket-prefix}/{harvest-source}/{harvest-job-id}/{ETL-process-step}/{example.json}
-        self.out_harvest_source = "{}/{}/{}/{ETL-process-step}/{example.json}"
-        self.out_harvest_record = None
 
-        self.config = {
-            "aws_access_key_id": self.access_key_id,
-            "aws_secret_access_key": self.secret_access_key,
-            "region_name": self.region_name,
-            "endpoint_url": self.endpoint_url,
-        }
+def traverse_waf(
+    url, files=[], file_ext=".xml", folder="/", filters=["../", "dcatus/"]
+):
+    """Transverses WAF
+    Please add docstrings
+    """
+    # TODO: add exception handling
+    parent = os.path.dirname(url.rstrip("/"))
 
-        self.client = boto3.client("s3", **self.config)
+    folders = []
 
-    def create_bucket(self):
-        return self.client.create_bucket(Bucket=self.bucket)
+    res = requests.get(url)
+    if res.status_code == 200:
+        soup = BeautifulSoup(res.content, "html.parser")
+        anchors = soup.find_all("a", href=True)
 
-    def delete_object(self, object_key: str):
-        return self.client.delete_object(Bucket=self.bucket, Key=object_key)
+        for anchor in anchors:
+            if (
+                anchor["href"].endswith(folder)  # is the anchor link a folder?
+                and not parent.endswith(
+                    anchor["href"].rstrip("/")
+                )  # it's not the parent folder right?
+                and anchor["href"] not in filters  # and it's not on our exclusion list?
+            ):
+                folders.append(os.path.join(url, anchor["href"]))
 
-    def get_object(self, object_key: str):
-        return self.client.get_object(Bucket=self.bucket, Key=object_key)
+            if anchor["href"].endswith(file_ext):
+                # TODO: just download the file here
+                # instead of storing them and returning at the end.
+                files.append(os.path.join(url, anchor["href"]))
 
-    def put_object(self, body: str, key_name: str):
-        return self.client.put_object(
-            **{
-                "Body": body,
-                "Bucket": self.bucket,
-                "Key": key_name,
-                "ContentType": "application/json",
-            }
-        )
+    for folder in folders:
+        traverse_waf(folder, files=files, filters=filters)
+
+    return files
+
+
+def download_waf(files):
+    """Downloads WAF
+    Please add docstrings
+    """
+    output = []
+    for file in files:
+        output.append({"url": file, "content": download_file(file, ".xml")})
+
+    return output
 
 
 class CFHandler:
-    def __init__(self, url: str = None, user: str = None, password: str = None):
-        self.target_endpoint = url if url is not None else os.getenv("CF_API_URL")
-        self.client = CloudFoundryClient(self.target_endpoint)
-        self.client.init_with_user_credentials(
-            user if user is not None else os.getenv("CF_SERVICE_USER"),
-            password if password is not None else os.getenv("CF_SERVICE_AUTH"),
-        )
+    def __init__(self, url: str, user: str, password: str):
+        self.url = url
+        self.user = user
+        self.password = password
 
-        self.task_mgr = TaskManager(self.target_endpoint, self.client)
+    def setup(self):
+        self.client = CloudFoundryClient(self.url)
+        self.client.init_with_user_credentials(self.user, self.password)
+        self.task_mgr = TaskManager(self.url, self.client)
 
     def start_task(self, app_guuid, command, task_id):
         return self.task_mgr.create(app_guuid, command, task_id)
