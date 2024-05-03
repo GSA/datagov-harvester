@@ -1,8 +1,5 @@
-from unittest.mock import patch
-
 from harvester.harvest import HarvestSource
 from harvester.utils import dataset_to_hash, sort_dataset
-from database.models import HarvestRecord
 
 
 class TestCompare:

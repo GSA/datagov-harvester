@@ -11,7 +11,7 @@ class TestExtract:
     ):
 
         interface.add_organization(organization_data)
-        source = interface.add_harvest_source(source_data_waf)
+        interface.add_harvest_source(source_data_waf)
         harvest_job = interface.add_harvest_job(job_data_waf)
 
         harvest_source = HarvestSource(harvest_job.id, interface)
@@ -28,7 +28,7 @@ class TestExtract:
     ):
 
         interface.add_organization(organization_data)
-        source = interface.add_harvest_source(source_data_dcatus)
+        interface.add_harvest_source(source_data_dcatus)
         harvest_job = interface.add_harvest_job(job_data_dcatus)
 
         harvest_source = HarvestSource(harvest_job.id, interface)

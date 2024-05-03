@@ -9,7 +9,7 @@ from app import create_app
 from flask import Flask
 from database.interface import HarvesterDBInterface
 from database.models import db
-from harvester.utils import CFHandler, open_json
+from harvester.utils import CFHandler
 
 load_dotenv()
 
@@ -189,23 +189,8 @@ def source_data_dcatus_invalid_records_job(
 
 
 @pytest.fixture
-def source_data_waf(organization_data: dict) -> dict:
-    """example waf job payload"""
-    return {
-        "id": "2c1d5883-e7f7-4703-801a-aae7c416355a",
-        "name": "WAF Source",
-        "notification_emails": "waf@example.com",
-        "organization_id": organization_data["id"],
-        "frequency": "daily",
-        "url": "http://localhost/waf",
-        "schema_type": "type1",
-        "source_type": "waf",
-        "status": "active",
-    }
-
-
-@pytest.fixture
 def internal_compare_data(job_data_dcatus: dict) -> dict:
+    # ruff: noqa: E501
     return {
         "job_id": job_data_dcatus["id"],
         "harvest_source_id": job_data_dcatus["harvest_source_id"],

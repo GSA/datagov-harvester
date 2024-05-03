@@ -1,4 +1,5 @@
-from datetime import datetime
+# ruff: noqa: F841
+
 import harvester
 from harvester.exceptions import (
     DCATUSToCKANException,
@@ -24,7 +25,7 @@ class TestExceptionHandling:
     ):
 
         interface.add_organization(organization_data)
-        source = interface.add_harvest_source(source_data_dcatus_bad_url)
+        interface.add_harvest_source(source_data_dcatus_bad_url)
         harvest_job = interface.add_harvest_job(job_data_dcatus_bad_url)
 
         harvest_source = HarvestSource(harvest_job.id, interface)
@@ -76,6 +77,7 @@ class TestExceptionHandling:
         with pytest.raises(DCATUSToCKANException) as e:
             test_record.ckanify_dcatus()
 
+    # ruff: noqa: F401
     @patch("harvester.harvest.ckan", ckanapi.RemoteCKAN("mock_address"))
     def test_ckan_sync_exception(
         self,

@@ -1,9 +1,9 @@
+# ruff: noqa: F841
+
 import functools
-import json
 import logging
 import os
-import re
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 
@@ -12,7 +12,7 @@ import requests
 
 from jsonschema import Draft202012Validator
 
-from .ckan_utils import munge_tag, munge_title_to_name, ckanify_dcatus
+from .ckan_utils import ckanify_dcatus
 from .exceptions import (
     CompareException,
     DCATUSToCKANException,
@@ -23,7 +23,6 @@ from .exceptions import (
 )
 
 from .utils import (
-    convert_set_to_list,
     dataset_to_hash,
     open_json,
     download_file,
@@ -124,7 +123,7 @@ class HarvestSource:
         source_data = self.db_interface.get_source_by_jobid(job_id)
         if source_data is None:
             raise ExtractInternalException(
-                f"failed to extract source info from job. exiting",
+                f"failed to extract source info from {job_id}. exiting",
                 self.job_id,
             )
         for attr in self.source_attrs:
@@ -132,7 +131,7 @@ class HarvestSource:
 
     def internal_records_to_id_hash(self, records: list[dict]) -> None:
         for record in records:
-            # TODO: don't pass None to original metadata. update this when the model is updated
+            # TODO: don't pass None to original metadata
             self.internal_records[record["identifier"]] = Record(
                 self, record["identifier"], None, record["source_hash"]
             )
@@ -155,7 +154,7 @@ class HarvestSource:
             except Exception as e:
                 # TODO: do something with 'e'
                 raise ExtractExternalException(
-                    f"{self.title} {self.url} failed to convert record to id: hash format. exiting.",
+                    f"{self.title} {self.url} failed to convert to id:hash",
                     self.job_id,
                 )
 
@@ -171,7 +170,7 @@ class HarvestSource:
             )
 
     def prepare_external_data(self) -> None:
-        logger.info("retrieving and preparing their records.")
+        logger.info("retrieving and preparing external records.")
         try:
             if self.source_type == "dcatus":
                 self.external_records_to_id_hash(
@@ -180,7 +179,7 @@ class HarvestSource:
             if self.source_type == "waf":
                 # TODO
                 self.external_records_to_id_hash(download_waf(traverse_waf(self.url)))
-        except Exception as e:  # ruff: noqa: E841
+        except Exception as e:
             raise ExtractExternalException(
                 f"{self.name} {self.url} failed to extract harvest source. exiting",
                 self.job_id,
@@ -388,17 +387,8 @@ class Record:
         self.status = "updated"
 
     def delete_record(self) -> None:
-        # ruff: noqa: F841
-        try:
-            ckan.action.dataset_purge(**{"id": self.identifier})
-            self.status = "deleted"
-        except Exception as e:
-            # TODO: something with 'e'
-            raise SynchronizeException(
-                f"failed to delete {self.identifier}",
-                self.harvest_source.job_id,
-                self.identifier,
-            )
+        ckan.action.dataset_purge(**{"id": self.identifier})
+        self.status = "deleted"
 
     def ckanify_dcatus(self) -> None:
         try:

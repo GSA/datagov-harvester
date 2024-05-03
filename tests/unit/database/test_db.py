@@ -26,7 +26,7 @@ class TestDatabase:
         assert result == "Organization deleted successfully"
 
     def test_add_harvest_source(self, interface, organization_data, source_data_dcatus):
-        org = interface.add_organization(organization_data)
+        interface.add_organization(organization_data)
         source = interface.add_harvest_source(source_data_dcatus)
 
         assert source is not None
@@ -115,8 +115,8 @@ class TestDatabase:
     ):
 
         interface.add_organization(organization_data)
-        source = interface.add_harvest_source(source_data_dcatus)
-        harvest_job = interface.add_harvest_job(job_data_dcatus)
+        interface.add_harvest_source(source_data_dcatus)
+        interface.add_harvest_job(job_data_dcatus)
 
         records = [record_data_dcatus] * 10
         success = interface.add_harvest_records(records)
