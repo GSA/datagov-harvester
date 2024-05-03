@@ -106,7 +106,7 @@ def source_data_dcatus_invalid(organization_data: dict) -> dict:
 def job_data_dcatus(source_data_dcatus: dict) -> dict:
     return {
         "id": "6bce761c-7a39-41c1-ac73-94234c139c76",
-        "status": "new",
+        "status": "pending",
         "harvest_source_id": source_data_dcatus["id"],
     }
 
@@ -115,7 +115,7 @@ def job_data_dcatus(source_data_dcatus: dict) -> dict:
 def job_data_waf(source_data_waf: dict) -> dict:
     return {
         "id": "963cdc51-94d5-425d-a688-e0a57e0c5dd2",
-        "status": "new",
+        "status": "pending",
         "harvest_source_id": source_data_waf["id"],
     }
 
@@ -124,7 +124,7 @@ def job_data_waf(source_data_waf: dict) -> dict:
 def job_data_dcatus_invalid(source_data_dcatus_invalid: dict) -> dict:
     return {
         "id": "59df7ba5-102d-4ae3-abd6-01b7eb26a338",
-        "status": "new",
+        "status": "pending",
         "harvest_source_id": source_data_dcatus_invalid["id"],
     }
 
@@ -157,7 +157,7 @@ def source_data_dcatus_bad_url(organization_data: dict) -> dict:
 def job_data_dcatus_bad_url(source_data_dcatus_bad_url: dict) -> dict:
     return {
         "id": "707aee7b-bf72-4e07-a5fc-68980765b214",
-        "status": "new",
+        "status": "pending",
         "harvest_source_id": source_data_dcatus_bad_url["id"],
     }
 
