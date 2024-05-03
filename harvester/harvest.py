@@ -3,32 +3,37 @@ import json
 import logging
 import os
 import re
-import xml.etree.ElementTree as ET
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from pathlib import Path
 
 import ckanapi
 import requests
-from bs4 import BeautifulSoup
+
 from jsonschema import Draft202012Validator
 
-from .ckan_utils import munge_tag, munge_title_to_name
+from .ckan_utils import munge_tag, munge_title_to_name, ckanify_dcatus
 from .exceptions import (
     CompareException,
     DCATUSToCKANException,
-    ExtractCKANSourceException,
-    ExtractHarvestSourceException,
+    ExtractExternalException,
+    ExtractInternalException,
     SynchronizeException,
     ValidationException,
 )
+
 from .utils import (
-    S3Handler,
     convert_set_to_list,
     dataset_to_hash,
     open_json,
+    download_file,
     sort_dataset,
+    get_title_from_fgdc,
+    download_waf,
+    traverse_waf,
 )
+
+from database.interface import HarvesterDBInterface
 
 # requests data
 session = requests.Session()
@@ -46,31 +51,32 @@ ckan = ckanapi.RemoteCKAN(
 # logging.getLogger(name) follows a singleton pattern
 logger = logging.getLogger("harvest_runner")
 
-ROOT_DIR = Path(__file__).parents[0]
+ROOT_DIR = Path(__file__).parents[1]
 
 
 @dataclass
 class HarvestSource:
     """Class for Harvest Sources"""
 
-    # making these fields read-only
-    # (these values can be set during initialization though)
-    _title: str
-    _url: str
-    _owner_org: str  # uuid
     _job_id: str
-    _extract_type: str  # "datajson" or "waf-collection"
-    _waf_config: dict = field(default_factory=lambda: {})
-    _extra_source_name: str = "harvest_source_name"  # TODO: change this!
+    _db_interface: HarvesterDBInterface
+
+    _source_attrs: dict = field(
+        default_factory=lambda: [
+            "name",
+            "url",
+            "organization_id",
+            "source_type",
+            "id",  # db guuid
+        ],
+        repr=False,
+    )
+
     _dataset_schema: dict = field(
-        default_factory=lambda: open_json(
-            ROOT_DIR / "data" / "dcatus" / "schemas" / "dataset.json"
-        ),
+        default_factory=lambda: open_json(ROOT_DIR / "schemas" / "dataset.json"),
         repr=False,
     )
     _no_harvest_resp: bool = False
-    _ckan_start: int = 0
-    _ckan_row: int = 1000
 
     # not read-only because these values are added after initialization
     # making them a "property" would require a setter which, because they are dicts,
@@ -81,63 +87,27 @@ class HarvestSource:
         default_factory=lambda: {"delete": set(), "create": set(), "update": set()},
         repr=False,
     )
-    records: dict = field(default_factory=lambda: {}, repr=False)
-    ckan_records: dict = field(default_factory=lambda: {}, repr=False)
+    external_records: dict = field(default_factory=lambda: {}, repr=False)
+    internal_records: dict = field(default_factory=lambda: {}, repr=False)
 
     def __post_init__(self) -> None:
-        # putting this in the post init to avoid an
-        # undefined error with the string formatted vars
-        self.ckan_query: dict = {
-            "q": f'{self._extra_source_name}:"{self._title}"',
-            "rows": self._ckan_row,
-            "start": self._ckan_start,
-            "fl": [
-                f"extras_{self._extra_source_name}",
-                "extras_dcat_metadata",
-                "extras_identifier",
-                "id",
-                # TODO: add last_modified for waf
-            ],
-        }
-
-    @property
-    def title(self) -> str:
-        return self._title
-
-    @property
-    def url(self) -> str:
-        return self._url.strip()
-
-    @property
-    def owner_org(self) -> str:
-        return self._owner_org
+        self.get_source_info_from_job_id(self.job_id)
 
     @property
     def job_id(self) -> str:
         return self._job_id
 
     @property
-    def extract_type(self) -> str:
-        if "json" in self._extract_type:
-            return "datajson"
-        if "waf" in self._extract_type:
-            return "waf-collection"
+    def db_interface(self) -> HarvesterDBInterface:
+        return self._db_interface
 
     @property
-    def waf_config(self) -> dict:
-        return self._waf_config
-
-    @property
-    def extra_source_name(self) -> str:
-        return self._extra_source_name
+    def source_attrs(self) -> list:
+        return self._source_attrs
 
     @property
     def dataset_schema(self) -> dict:
         return self._dataset_schema
-
-    @dataset_schema.deleter
-    def dataset_schema(self):
-        del self._dataset_schema
 
     @property
     def no_harvest_resp(self) -> bool:
@@ -149,123 +119,90 @@ class HarvestSource:
             raise ValueError("No harvest response field must be a boolean")
         self._no_harvest_resp = value
 
-    @property
-    def ckan_start(self) -> int:
-        return self._ckan_start
+    def get_source_info_from_job_id(self, job_id: str) -> None:
+        # TODO: validate values here?
+        source_data = self.db_interface.get_source_by_jobid(job_id)
+        if source_data is None:
+            raise ExtractInternalException(
+                f"failed to extract source info from job. exiting",
+                self.job_id,
+            )
+        for attr in self.source_attrs:
+            setattr(self, attr, source_data[attr])
 
-    @ckan_start.setter
-    def ckan_start(self, value) -> None:
-        if not isinstance(value, int):
-            raise ValueError("CKAN start search parameter must be an integer")
-        self._ckan_start = value
+    def internal_records_to_id_hash(self, records: list[dict]) -> None:
+        for record in records:
+            # TODO: don't pass None to original metadata. update this when the model is updated
+            self.internal_records[record["identifier"]] = Record(
+                self, record["identifier"], None, record["source_hash"]
+            )
 
-    @property
-    def ckan_row(self) -> int:
-        return self._ckan_row
-
-    def get_title_from_fgdc(self, xml_str: str) -> str:
-        tree = ET.ElementTree(ET.fromstring(xml_str))
-        return tree.find(".//title").text
-
-    def download_dcatus(self):
-        logger.info("downloading dcatus json")
-        resp = requests.get(self.url)
-        if resp.status_code == 200:
-            return resp.json()
-
-    def harvest_to_id_hash(self, records: list[dict]) -> None:
+    def external_records_to_id_hash(self, records: list[dict]) -> None:
         # ruff: noqa: F841
         logger.info("converting harvest records to id: hash")
         for record in records:
             try:
-                if self.extract_type == "datajson":
+                if self.source_type == "dcatus":
                     identifier = record["identifier"]
                     dataset_hash = dataset_to_hash(sort_dataset(record))
-                if self.extract_type == "waf-collection":
-                    identifier = self.get_title_from_fgdc(record["content"])
+                if self.source_type == "waf":
+                    identifier = get_title_from_fgdc(record["content"])
                     dataset_hash = dataset_to_hash(record["content"].decode("utf-8"))
 
-                self.records[identifier] = Record(
+                self.external_records[identifier] = Record(
                     self, identifier, record, dataset_hash
                 )
             except Exception as e:
                 # TODO: do something with 'e'
-                raise ExtractHarvestSourceException(
+                raise ExtractExternalException(
                     f"{self.title} {self.url} failed to convert record to id: hash format. exiting.",
                     self.job_id,
                 )
 
-    def ckan_to_id_hash(self, results: list[dict]) -> None:
-        logger.info("converting ckan records to id: hash")
-        for record in results:
-            dataset_hash = dataset_to_hash(
-                eval(record["dcat_metadata"], {"__builtins__": {}})
+    def prepare_internal_data(self) -> None:
+        logger.info("retrieving and preparing internal records.")
+        try:
+            records = self.db_interface.get_harvest_record_by_source(self.id)
+            self.internal_records_to_id_hash(records)
+        except Exception as e:
+            raise ExtractInternalException(
+                f"{self.name} {self.url} failed to extract internal records. exiting",
+                self.job_id,
             )
-            # storing the ckan id in case we need to delete it later
-            self.ckan_records[record["identifier"]] = [dataset_hash, record["id"]]
 
-    def traverse_waf(self, url, files=[], file_ext=".xml", folder="/", filters=[]):
-        """Transverses WAF
-        Please add docstrings
-        """
-        # TODO: add exception handling
-        parent = os.path.dirname(url.rstrip("/"))
-
-        folders = []
-
-        res = requests.get(url)
-        if res.status_code == 200:
-            soup = BeautifulSoup(res.content, "html.parser")
-            anchors = soup.find_all("a", href=True)
-
-            for anchor in anchors:
-                if (
-                    anchor["href"].endswith(folder)  # is the anchor link a folder?
-                    and not parent.endswith(
-                        anchor["href"].rstrip("/")
-                    )  # it's not the parent folder right?
-                    and anchor["href"]
-                    not in filters  # and it's not on our exclusion list?
-                ):
-                    folders.append(os.path.join(url, anchor["href"]))
-
-                if anchor["href"].endswith(file_ext):
-                    # TODO: just download the file here
-                    # instead of storing them and returning at the end.
-                    files.append(os.path.join(url, anchor["href"]))
-
-        for folder in folders:
-            self.traverse_waf(folder, files=files, filters=filters)
-
-        return files
-
-    def download_waf(self, files):
-        """Downloads WAF
-        Please add docstrings
-        """
-        output = []
-        for file in files:
-            res = requests.get(file)
-            if res.status_code == 200:
-                output.append({"url": file, "content": res.content})
-
-        return output
+    def prepare_external_data(self) -> None:
+        logger.info("retrieving and preparing their records.")
+        try:
+            if self.source_type == "dcatus":
+                self.external_records_to_id_hash(
+                    download_file(self.url, ".json")["dataset"]
+                )
+            if self.source_type == "waf":
+                # TODO
+                self.external_records_to_id_hash(download_waf(traverse_waf(self.url)))
+        except Exception as e:  # ruff: noqa: E841
+            raise ExtractExternalException(
+                f"{self.name} {self.url} failed to extract harvest source. exiting",
+                self.job_id,
+            )
 
     def compare(self) -> None:
         """Compares records"""
         # ruff: noqa: F841
-        logger.info("comparing harvest and ckan records")
+        logger.info("comparing our records with theirs")
 
         try:
-            harvest_ids = set(self.records.keys())
-            ckan_ids = set(self.ckan_records.keys())
-            same_ids = harvest_ids & ckan_ids
+            external_ids = set(self.external_records.keys())
+            internal_ids = set(self.internal_records.keys())
+            same_ids = external_ids & internal_ids
 
-            self.compare_data["delete"] = ckan_ids - harvest_ids
-            self.compare_data["create"] = harvest_ids - ckan_ids
+            self.compare_data["delete"] = internal_ids - external_ids
+            self.compare_data["create"] = external_ids - internal_ids
 
             for i in same_ids:
-                if self.records[i].metadata_hash != self.ckan_records[i][0]:
+                external_hash = self.external_records[i].metadata_hash
+                internal_hash = self.internal_records[i].metadata_hash
+                if external_hash != internal_hash:
                     self.compare_data["update"].add(i)
         except Exception as e:
             # TODO: do something with 'e'
@@ -274,58 +211,12 @@ class HarvestSource:
                 self.job_id,
             )
 
-    def get_ckan_records(self, results=[]) -> None:
-        logger.info("querying ckan")
-        res = ckan.action.package_search(**self.ckan_query)["results"]
-        results += res
-        if len(res) == 1000:
-            self.ckan_query["start"] += self.ckan_row
-            self.get_ckan_records(results)
-        return results
-
-    def get_ckan_records_as_id_hash(self) -> None:
-        logger.info("retrieving and preparing ckan records")
-        try:
-            self.ckan_to_id_hash(self.get_ckan_records(results=[]))
-        except Exception as e:  # noqa: E841
-            # TODO: do something with 'e'
-            raise ExtractCKANSourceException(
-                f"{self.title} {self.url} failed to extract ckan records. exiting.",
-                self.job_id,
-            )
-
-    def get_harvest_records_as_id_hash(self) -> None:
-        logger.info("retrieving and preparing harvest records")
-        try:
-            if self.extract_type == "datajson":
-                download_res = self.download_dcatus()
-                self.harvest_to_id_hash(download_res["dataset"])
-            if self.extract_type == "waf-collection":
-                # TODO: break out the xml catalogs as records
-                # TODO: handle no response
-                self.harvest_to_id_hash(
-                    self.download_waf(self.traverse_waf(self.url, **self.waf_config))
-                )
-        except Exception as e:  # noqa: E841
-            raise ExtractHarvestSourceException(
-                f"{self.title} {self.url} failed to extract harvest source. exiting",
-                self.job_id,
-            )
-
     def get_record_changes(self) -> None:
         """determine which records needs to be updated, deleted, or created"""
-        logger.info(f"getting records changes for {self.title} using {self.url}")
-        try:
-            self.get_ckan_records_as_id_hash()
-            self.get_harvest_records_as_id_hash()
-            self.compare()
-        except (
-            ExtractCKANSourceException,
-            ExtractHarvestSourceException,
-            CompareException,
-        ) as e:
-            # TODO: do something with 'e'?
-            raise
+        logger.info(f"getting records changes for {self.name} using {self.url}")
+        self.prepare_internal_data()
+        self.prepare_external_data()
+        self.compare()
 
     def synchronize_records(self) -> None:
         """runs the delete, update, and create
@@ -339,12 +230,14 @@ class HarvestSource:
                     if operation == "delete":
                         # we don't actually create a Record instance for deletions
                         # so creating it here as a sort of acknowledgement
-                        self.records[i] = Record(self, self.ckan_records[i][1])
-                        self.records[i].operation = operation
-                        self.records[i].delete_record()
+                        self.external_records[i] = Record(
+                            self, self.internal_records[i].identifier
+                        )
+                        self.external_records[i].operation = operation
+                        self.external_records[i].delete_record()
                         continue
 
-                    record = self.records[i]
+                    record = self.external_records[i]
                     # no longer setting operation in compare so setting it here...
                     record.operation = operation
 
@@ -372,7 +265,7 @@ class HarvestSource:
         actual_results = {"deleted": 0, "updated": 0, "created": 0, "nothing": 0}
         validity = {"valid": 0, "invalid": 0}
 
-        for record_id, record in self.records.items():
+        for record_id, record in self.external_records.items():
             # status
             actual_results[record.status] += 1
             # validity
@@ -388,43 +281,6 @@ class HarvestSource:
         # what's our record validity count?
         logger.info("validity of the records")
         logger.info(validity)
-
-    def hydrate_from_s3(self, s3_path: str) -> None:
-        # TODO: this method
-        return
-
-    def prepare_for_s3_upload(self) -> dict:
-        """this removes data we don't want to store in s3"""
-        # TODO: confirm the minimum we need to store
-
-        for record_id, record in self.records.copy().items():
-            to_process = set().union(*self.compare_data.values())
-            if record_id not in to_process:
-                del self.records[record_id]
-                continue
-            record.harvest_source = self.title
-
-        data = asdict(self)
-        del data["ckan_records"], data["_dataset_schema"]
-
-        return json.dumps(data, default=convert_set_to_list)
-
-    def upload_to_s3(self, s3handler: S3Handler) -> None:
-        # ruff: noqa: F841
-        try:
-            # TODO: confirm out_path
-            out_path = f"{s3handler.endpoint_url}/{self.title}/job-id/{self.title}.json"
-            s3handler.put_object(self.prepare_for_s3_upload(), out_path)
-            logger.info(f"saved harvest source {self.title} in s3 at {out_path}")
-            return out_path
-        except Exception as e:
-            # logger.error(f"error uploading harvest source ({self.title}) to s3 \n")
-            # logger.error(
-            #     "\n".join(traceback.format_exception(None, e, e.__traceback__))
-            # )
-            pass
-
-        return False
 
 
 @dataclass
@@ -506,156 +362,6 @@ class Record:
             raise ValueError("status must be a string")
         self._status = value
 
-    def create_ckan_extras(self) -> list[dict]:
-        extras = [
-            "accessLevel",
-            "bureauCode",
-            "identifier",
-            "modified",
-            "programCode",
-            "publisher",
-        ]
-
-        output = [{"key": "resource-type", "value": "Dataset"}]
-
-        for extra in extras:
-            if extra not in self.metadata:
-                continue
-            data = {"key": extra, "value": None}
-            val = self.metadata[extra]
-            if extra == "publisher":
-                data["value"] = val["name"]
-
-                output.append(
-                    {
-                        "key": "publisher_hierarchy",
-                        "value": self.create_ckan_publisher_hierarchy(val, []),
-                    }
-                )
-
-            else:
-                if isinstance(val, list):  # TODO: confirm this is what we want.
-                    val = val[0]
-                data["value"] = val
-            output.append(data)
-
-        output.append(
-            {
-                "key": "dcat_metadata",
-                "value": str(sort_dataset(self.metadata)),
-            }
-        )
-
-        output.append(
-            {
-                "key": self.harvest_source.extra_source_name,
-                "value": self.harvest_source.title,
-            }
-        )
-
-        output.append({"key": "identifier", "value": self.identifier})
-
-        return output
-
-    def create_ckan_tags(self, keywords: list[str]) -> list:
-        output = []
-
-        for keyword in keywords:
-            output.append({"name": munge_tag(keyword)})
-
-        return output
-
-    def create_ckan_publisher_hierarchy(self, pub_dict: dict, data: list = []) -> str:
-        for k, v in pub_dict.items():
-            if k == "name":
-                data.append(v)
-            if isinstance(v, dict):
-                self.create_ckan_publisher_hierarchy(v, data)
-
-        return " > ".join(data[::-1])
-
-    def get_email_from_str(self, in_str: str) -> str:
-        res = re.search(r"[\w.+-]+@[\w-]+\.[\w.-]+", in_str)
-        if res is not None:
-            return res.group(0)
-
-    def create_ckan_resources(self, metadata: dict) -> list[dict]:
-        output = []
-
-        if "distribution" not in metadata or metadata["distribution"] is None:
-            return output
-
-        for dist in metadata["distribution"]:
-            url_keys = ["downloadURL", "accessURL"]
-            for url_key in url_keys:
-                if dist.get(url_key, None) is None:
-                    continue
-                resource = {"url": dist[url_key]}
-                if "mimetype" in dist:
-                    resource["mimetype"] = dist["mediaType"]
-
-            output.append(resource)
-
-        return output
-
-    def simple_transform(self, metadata: dict) -> dict:
-        output = {
-            "name": munge_title_to_name(metadata["title"]),
-            "owner_org": self.harvest_source.owner_org,
-            "identifier": metadata["identifier"],
-            "author": None,  # TODO: CHANGE THIS!
-            "author_email": None,  # TODO: CHANGE THIS!
-        }
-
-        mapping = {
-            "contactPoint": {"fn": "maintainer", "hasEmail": "maintainer_email"},
-            "description": "notes",
-            "title": "title",
-        }
-
-        for k, v in metadata.items():
-            if k not in mapping:
-                continue
-            if isinstance(mapping[k], dict):
-                temp = {}
-                to_skip = ["@type"]
-                for k2, v2 in v.items():
-                    if k2 == "hasEmail":
-                        v2 = self.get_email_from_str(v2)
-                    if k2 in to_skip:
-                        continue
-                    temp[mapping[k][k2]] = v2
-                output = {**output, **temp}
-            else:
-                output[mapping[k]] = v
-
-        return output
-
-    def ckanify_dcatus(self) -> None:
-        # ruff: noqa: F841
-        logger.info("ckanifying dcatus record")
-
-        try:
-            self.ckanified_metadata = self.simple_transform(self.metadata)
-
-            self.ckanified_metadata["resources"] = self.create_ckan_resources(
-                self.metadata
-            )
-            self.ckanified_metadata["tags"] = (
-                self.create_ckan_tags(self.metadata["keyword"])
-                if "keyword" in self.metadata
-                else []
-            )
-            self.ckanified_metadata["extras"] = self.create_ckan_extras()
-            logger.info("completed ckanifying dcatus record")
-        except Exception as e:
-            # TODO: something with 'e'
-            raise DCATUSToCKANException(
-                f"unable to ckanify dcatus record {self.identifier}",
-                self.harvest_source.job_id,
-                self.identifier,
-            )
-
     def validate(self) -> None:
         logger.info(f"validating {self.identifier}")
         # ruff: noqa: F841
@@ -673,21 +379,6 @@ class Record:
                 self.identifier,
             )
 
-    # def transform(self, metadata: dict):
-    #     """Transforms records"""
-    #     logger.info("Hello from harvester.transform()")
-
-    #     url = os.getenv("MDTRANSLATOR_URL")
-    #     res = requests.post(url, metadata)
-
-    #     if res.status_code == 200:
-    #         data = json.loads(res.content.decode("utf-8"))
-    #         transform_obj["transformed_data"] = data["writerOutput"]
-
-    #     return transform_obj
-
-    # the reason for abstracting these calls is because I couldn't find a
-    # way to properly patch the ckan.action calls in my tests
     def create_record(self):
         ckan.action.package_create(**self.ckanified_metadata)
         self.status = "created"
@@ -707,6 +398,18 @@ class Record:
                 f"failed to delete {self.identifier}",
                 self.harvest_source.job_id,
                 self.identifier,
+            )
+
+    def ckanify_dcatus(self) -> None:
+        try:
+            self.ckanified_metadata = ckanify_dcatus(
+                self.metadata, self.harvest_source.organization_id
+            )
+        except Exception as e:
+            raise DCATUSToCKANException(
+                f"failed to convert dcatus to ckan for {self.identifier}",
+                self.harvest_source.job_id,
+                self.harvest_source.name,
             )
 
     def sync(self) -> None:
@@ -735,41 +438,3 @@ class Record:
         logger.info(
             f"time to {self.operation} {self.identifier} {datetime.now()-start}"
         )
-
-    def hydrate_from_s3(self, s3_path):
-        # TODO: this method
-        # set props/fields based on data
-        return
-
-    def prepare_for_s3_upload(self) -> dict:
-        # TODO: confirm the minimum we want to store
-
-        if isinstance(self.harvest_source, HarvestSource):
-            self.harvest_source = self.harvest_source.title
-
-        return json.dumps(asdict(self))
-
-    def upload_to_s3(self, s3handler: S3Handler) -> None:
-        # ruff: noqa: E501
-        # ruff: noqa: F841
-        try:
-            out_path = f"{s3handler.endpoint_url}/{self.harvest_source.title}/job-id/{self.status}/{self.identifier}.json"
-            s3handler.put_object(self.prepare_for_s3_upload(), out_path)
-            logger.info(
-                f"saved harvest source record {self.identifier} in s3 at {out_path}"
-            )
-            return out_path
-        except Exception as e:
-            # TODO: this exception
-            pass
-
-        return False
-
-
-def main():
-
-    pass
-
-
-if __name__ == "__main__":
-    main()
