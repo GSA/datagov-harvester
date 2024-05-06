@@ -5,7 +5,7 @@ from flask import Flask
 from flask_bootstrap import Bootstrap
 from flask_migrate import Migrate
 
-from .models import db
+from database.models import db
 
 load_dotenv()
 

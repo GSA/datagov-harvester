@@ -2,11 +2,22 @@ from harvester.harvest import HarvestSource
 
 
 class TestValidateDCATUS:
-    def test_validate_dcatus(self, dcatus_config):
-        harvest_source = HarvestSource(**dcatus_config)
-        harvest_source.get_harvest_records_as_id_hash()
+    def test_validate_dcatus(
+        self,
+        interface,
+        organization_data,
+        source_data_dcatus,
+        job_data_dcatus,
+    ):
 
-        test_record = harvest_source.records["cftc-dc1"]
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_dcatus)
+        harvest_job = interface.add_harvest_job(job_data_dcatus)
+
+        harvest_source = HarvestSource(harvest_job.id, interface)
+        harvest_source.prepare_external_data()
+
+        test_record = harvest_source.external_records["cftc-dc1"]
         test_record.validate()
 
         assert test_record.valid is True

@@ -1,96 +1,100 @@
-from datetime import datetime
-from unittest.mock import patch
-
-import ckanapi
-import pytest
+# ruff: noqa: F841
 
 import harvester
 from harvester.exceptions import (
     DCATUSToCKANException,
-    ExtractCKANSourceException,
-    ExtractHarvestSourceException,
+    ExtractExternalException,
+    ExtractInternalException,
     SynchronizeException,
     ValidationException,
 )
 from harvester.harvest import HarvestSource
 
-# ruff: noqa: F401
-# ruff: noqa: F841
+import ckanapi
+import pytest
+from unittest.mock import patch
 
 
 class TestExceptionHandling:
-    def test_add_harvest_source(self, db_interface):
-        organization = {
-            "id": "919bfb9e-89eb-4032-9abf-eee54be5a00c",
-            "logo": "url for the logo",
-            "name": "GSA",
-        }
+    def test_bad_harvest_source_url_exception(
+        self,
+        interface,
+        organization_data,
+        source_data_dcatus_bad_url,
+        job_data_dcatus_bad_url,
+    ):
 
-        harvest_source = {
-            "id": "9347a852-2498-4bee-b817-90b8e93c9cec",
-            "name": "harvest_source_test",
-            "notification_emails": ["admin@example.com"],
-            "organization_id": "919bfb9e-89eb-4032-9abf-eee54be5a00c",
-            "frequency": "daily",
-            "url": "http://example.com",
-            "schema_type": "strict",
-            "source_type": "json",
-        }
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_dcatus_bad_url)
+        harvest_job = interface.add_harvest_job(job_data_dcatus_bad_url)
 
-        harvest_job = {
-            "harvest_source_id": "9347a852-2498-4bee-b817-90b8e93c9cec",
-            "id": "1db556ff-fb02-438b-b7d2-ad914e1f2531",
-            "status": "in_progress",
-            "date_created": datetime.utcnow(),
-            "date_finished": datetime.utcnow(),
-            "records_added": 0,
-            "records_updated": 0,
-            "records_deleted": 0,
-            "records_errored": 0,
-            "records_ignored": 0,
-        }
-        db_interface.add_organization(organization)
-        db_interface.add_harvest_source(harvest_source)
-        db_interface.add_harvest_job(harvest_job)
+        harvest_source = HarvestSource(harvest_job.id, interface)
 
-    def test_bad_harvest_source_url_exception(self, bad_url_dcatus_config):
-        harvest_source = HarvestSource(**bad_url_dcatus_config)
+        with pytest.raises(ExtractExternalException) as e:
+            harvest_source.prepare_external_data()
 
-        with pytest.raises(ExtractHarvestSourceException) as e:
-            harvest_source.get_harvest_records_as_id_hash()
+    def test_no_source_info_exception(self, interface, job_data_dcatus):
+        with pytest.raises(ExtractInternalException) as e:
+            HarvestSource(job_data_dcatus["id"], interface)
 
-    @patch("harvester.harvest.ckan", ckanapi.RemoteCKAN("mock_address"))
-    def test_get_ckan_records_exception(self, bad_url_dcatus_config):
-        # using bad_url_dcatus_config just to populate required fields
-        harvest_source = HarvestSource(**bad_url_dcatus_config)
+    def test_validation_exception(
+        self,
+        interface,
+        organization_data,
+        source_data_dcatus_invalid,
+        job_data_dcatus_invalid,
+    ):
 
-        with pytest.raises(ExtractCKANSourceException) as e:
-            harvest_source.get_ckan_records_as_id_hash()
+        interface.add_organization(organization_data)
+        source = interface.add_harvest_source(source_data_dcatus_invalid)
+        harvest_job = interface.add_harvest_job(job_data_dcatus_invalid)
 
-    def test_validation_exception(self, invalid_dcatus_config):
-        harvest_source = HarvestSource(**invalid_dcatus_config)
-        harvest_source.get_harvest_records_as_id_hash()
+        harvest_source = HarvestSource(harvest_job.id, interface)
+        harvest_source.prepare_external_data()
 
-        test_record = harvest_source.records["null-spatial"]
+        test_record = harvest_source.external_records["null-spatial"]
 
         with pytest.raises(ValidationException) as e:
             test_record.validate()
 
-    def test_dcatus_to_ckan_exception(self, invalid_dcatus_config):
-        harvest_source = HarvestSource(**invalid_dcatus_config)
-        harvest_source.get_harvest_records_as_id_hash()
+    def test_dcatus_to_ckan_exception(
+        self,
+        interface,
+        organization_data,
+        source_data_dcatus_invalid,
+        job_data_dcatus_invalid,
+    ):
 
-        test_record = harvest_source.records["null-spatial"]
+        interface.add_organization(organization_data)
+        source = interface.add_harvest_source(source_data_dcatus_invalid)
+        harvest_job = interface.add_harvest_job(job_data_dcatus_invalid)
+
+        harvest_source = HarvestSource(harvest_job.id, interface)
+        harvest_source.prepare_external_data()
+
+        test_record = harvest_source.external_records["null-spatial"]
 
         with pytest.raises(DCATUSToCKANException) as e:
             test_record.ckanify_dcatus()
 
+    # ruff: noqa: F401
     @patch("harvester.harvest.ckan", ckanapi.RemoteCKAN("mock_address"))
-    def test_synchronization_exception(self, dcatus_config):
-        harvest_source = HarvestSource(**dcatus_config)
-        harvest_source.get_harvest_records_as_id_hash()
+    def test_ckan_sync_exception(
+        self,
+        interface,
+        organization_data,
+        source_data_dcatus,
+        job_data_dcatus,
+    ):
 
-        test_record = harvest_source.records["cftc-dc1"]
+        interface.add_organization(organization_data)
+        source = interface.add_harvest_source(source_data_dcatus)
+        harvest_job = interface.add_harvest_job(job_data_dcatus)
+
+        harvest_source = HarvestSource(harvest_job.id, interface)
+        harvest_source.prepare_external_data()
+
+        test_record = harvest_source.external_records["cftc-dc1"]
         test_record.operation = "create"
 
         with pytest.raises(SynchronizeException) as e:
