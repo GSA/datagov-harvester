@@ -113,6 +113,7 @@ class CFHandler:
         self.url = url
         self.user = user
         self.password = password
+        self.setup()
 
     def setup(self):
         self.client = CloudFoundryClient(self.url)

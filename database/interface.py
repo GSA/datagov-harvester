@@ -256,7 +256,10 @@ class HarvesterDBInterface:
 
     def get_source_by_jobid(self, jobid):
         harvest_job = self.db.query(HarvestJob).filter_by(id=jobid).first()
-        return HarvesterDBInterface._to_dict(harvest_job.source)
+        if harvest_job is None:
+            return None
+        else:
+            return HarvesterDBInterface._to_dict(harvest_job.source)
 
     def close(self):
         if hasattr(self.db, "remove"):
