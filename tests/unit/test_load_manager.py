@@ -26,10 +26,10 @@ class TestLoadManager:
     @patch.object(CFHandler, "start_task")
     @patch.object(CFHandler, "get_all_running_tasks")
     @patch.object(CFHandler, "get_all_app_tasks")
-    @patch.object(HarvesterDBInterface, "get_harvest_jobs_by_filter_multival")
+    @patch.object(HarvesterDBInterface, "get_harvest_jobs_by_faceted_filter")
     def test_load_manager_invokes_tasks(
         self,
-        db_get_harvest_jobs_by_filter_multival_mock,
+        db_get_harvest_jobs_by_faceted_filter_mock,
         cf_get_all_app_tasks_mock,
         cf_get_all_running_tasks_mock,
         cf_start_task_mock,
@@ -39,7 +39,7 @@ class TestLoadManager:
         dhl_cf_task_data,
         mock_good_cf_index,
     ):
-        db_get_harvest_jobs_by_filter_multival_mock.return_value = [
+        db_get_harvest_jobs_by_faceted_filter_mock.return_value = [
             job_data_dcatus,
             job_data_waf,
         ]
@@ -50,7 +50,7 @@ class TestLoadManager:
         load_manager()
 
         # assert all mocks are called when env vars in place
-        assert db_get_harvest_jobs_by_filter_multival_mock.called
+        assert db_get_harvest_jobs_by_faceted_filter_mock.called
         assert cf_get_all_app_tasks_mock.called
         assert cf_get_all_running_tasks_mock.called
         assert cf_start_task_mock.called
@@ -65,10 +65,10 @@ class TestLoadManager:
     @patch.object(CFHandler, "start_task")
     @patch.object(CFHandler, "get_all_running_tasks")
     @patch.object(CFHandler, "get_all_app_tasks")
-    @patch.object(HarvesterDBInterface, "get_harvest_jobs_by_filter_multival")
+    @patch.object(HarvesterDBInterface, "get_harvest_jobs_by_faceted_filter")
     def test_load_manager_hits_task_limit(
         self,
-        db_get_harvest_jobs_by_filter_multival_mock,
+        db_get_harvest_jobs_by_faceted_filter_mock,
         cf_get_all_app_tasks_mock,
         cf_get_all_running_tasks_mock,
         cf_start_task_mock,
@@ -78,7 +78,7 @@ class TestLoadManager:
         dhl_cf_task_data,
         mock_good_cf_index,
     ):
-        db_get_harvest_jobs_by_filter_multival_mock.return_value = [
+        db_get_harvest_jobs_by_faceted_filter_mock.return_value = [
             job_data_dcatus,
             job_data_waf,
         ]
@@ -89,7 +89,7 @@ class TestLoadManager:
         load_manager()
 
         # assert certain mocks are called
-        assert db_get_harvest_jobs_by_filter_multival_mock.called
+        assert db_get_harvest_jobs_by_faceted_filter_mock.called
         assert cf_get_all_app_tasks_mock.called
         assert cf_get_all_running_tasks_mock.called
         # assert certain mocks are not called when
@@ -105,10 +105,10 @@ class TestLoadManager:
     @patch.object(CFHandler, "start_task")
     @patch.object(CFHandler, "get_all_running_tasks")
     @patch.object(CFHandler, "get_all_app_tasks")
-    @patch.object(HarvesterDBInterface, "get_harvest_jobs_by_filter_multival")
+    @patch.object(HarvesterDBInterface, "get_harvest_jobs_by_faceted_filter")
     def test_load_manager_bails_on_incorrect_index(
         self,
-        db_get_harvest_jobs_by_filter_multival_mock,
+        db_get_harvest_jobs_by_faceted_filter_mock,
         cf_get_all_app_tasks_mock,
         cf_get_all_running_tasks_mock,
         cf_start_task_mock,
@@ -118,7 +118,7 @@ class TestLoadManager:
         dhl_cf_task_data,
         mock_bad_cf_index,
     ):
-        db_get_harvest_jobs_by_filter_multival_mock.return_value = [
+        db_get_harvest_jobs_by_faceted_filter_mock.return_value = [
             job_data_dcatus,
             job_data_dcatus,
         ]
@@ -129,7 +129,7 @@ class TestLoadManager:
         load_manager()
 
         # assert all mocks are NOT called when env vars NOT in place
-        assert not db_get_harvest_jobs_by_filter_multival_mock.called
+        assert not db_get_harvest_jobs_by_faceted_filter_mock.called
         assert not cf_get_all_app_tasks_mock.called
         assert not cf_get_all_app_tasks_mock.called
         assert not cf_get_all_running_tasks_mock.called

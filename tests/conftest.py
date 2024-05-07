@@ -189,6 +189,24 @@ def source_data_dcatus_invalid_records_job(
 
 
 @pytest.fixture
+def interface_with_multiple_jobs(
+    interface,
+    source_data_dcatus: dict,
+):
+    statuses = ["pending", "pending_manual", "in_progress", "complete"]
+    source_ids = ["1234", "abcd"]
+    jobs = [
+        {"status": status, "harvest_source_id": source}
+        for status in statuses
+        for source in source_ids
+    ]
+    for job in jobs:
+        interface.add_harvest_job(job)
+
+    return interface
+
+
+@pytest.fixture
 def internal_compare_data(job_data_dcatus: dict) -> dict:
     # ruff: noqa: E501
     return {
@@ -249,7 +267,6 @@ def internal_compare_data(job_data_dcatus: dict) -> dict:
 
 @pytest.fixture
 def cf_handler() -> CFHandler:
-
     url = os.getenv("CF_API_URL")
     user = os.getenv("CF_SERVICE_USER")
     password = os.getenv("CF_SERVICE_AUTH")

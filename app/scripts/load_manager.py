@@ -33,7 +33,7 @@ def load_manager():
         return
 
     # filter harvestjobs by pending / pending_manual
-    jobs = interface.get_harvest_jobs_by_filter_multival(
+    jobs = interface.get_harvest_jobs_by_faceted_filter(
         "status", ["pending", "pending_manual"]
     )
 

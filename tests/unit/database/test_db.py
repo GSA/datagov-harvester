@@ -95,7 +95,6 @@ class TestDatabase:
         job_data_dcatus,
         record_data_dcatus,
     ):
-
         interface.add_organization(organization_data)
         source = interface.add_harvest_source(source_data_dcatus)
         harvest_job = interface.add_harvest_job(job_data_dcatus)
@@ -113,7 +112,6 @@ class TestDatabase:
         job_data_dcatus,
         record_data_dcatus,
     ):
-
         interface.add_organization(organization_data)
         interface.add_harvest_source(source_data_dcatus)
         interface.add_harvest_job(job_data_dcatus)
@@ -122,3 +120,33 @@ class TestDatabase:
         success = interface.add_harvest_records(records)
         assert success is True
         assert len(interface.get_all_harvest_records()) == 10
+
+    def test_add_harvest_job_with_id(self, interface, job_data_dcatus):
+        job = interface.add_harvest_job(job_data_dcatus)
+        assert job.id == job_data_dcatus["id"]
+        assert job.status == job_data_dcatus["status"]
+        assert job.harvest_source_id == job_data_dcatus["harvest_source_id"]
+
+    def test_add_harvest_job_without_id(self, interface, job_data_dcatus):
+        job_data_dcatus_id = job_data_dcatus["id"]
+        del job_data_dcatus["id"]
+        job = interface.add_harvest_job(job_data_dcatus)
+        assert job.id
+        assert job.id != job_data_dcatus_id
+        assert job.status == job_data_dcatus["status"]
+        assert job.harvest_source_id == job_data_dcatus["harvest_source_id"]
+
+    def test_get_harvest_jobs_by_filter(self, interface_with_multiple_jobs):
+        filters = {"status": "pending", "harvest_source_id": "1234"}
+        filtered_list = interface_with_multiple_jobs.get_harvest_jobs_by_filter(filters)
+        assert len(filtered_list) == 1
+        assert filtered_list[0]["status"] == "pending"
+        assert filtered_list[0]["harvest_source_id"] == "1234"
+
+    def test_filter_jobs_by_faceted_filter(self, interface_with_multiple_jobs):
+        faceted_list = interface_with_multiple_jobs.get_harvest_jobs_by_faceted_filter(
+            "status", ["pending", "pending_manual"]
+        )
+        assert len(faceted_list) == 4
+        assert len([x for x in faceted_list if x["status"] == "pending"]) == 2
+        assert len([x for x in faceted_list if x["harvest_source_id"] == "1234"]) == 2

@@ -154,7 +154,7 @@ class HarvesterDBInterface:
         harvest_jobs_data = [HarvesterDBInterface._to_dict(job) for job in harvest_jobs]
         return harvest_jobs_data
 
-    def get_harvest_jobs_by_filter_multival(self, attr, values):
+    def get_harvest_jobs_by_faceted_filter(self, attr, values):
         query_list = [getattr(HarvestJob, attr) == value for value in values]
         harvest_jobs = self.db.query(HarvestJob).filter(or_(*query_list)).all()
         harvest_jobs_data = [HarvesterDBInterface._to_dict(job) for job in harvest_jobs]
