@@ -232,7 +232,11 @@ class HarvesterDBInterface:
         :raises Exception: if the records_data contains records with errors
         """
         try:
-            self.db.bulk_insert_mappings(HarvestRecord, records_data)
+            for i, record_data in enumerate(records_data):
+                new_record = HarvestRecord(**record_data)
+                self.db.add(new_record)
+                if i % 1000 == 0:
+                    self.db.flush()
             self.db.commit()
             return True
         except Exception as e:
