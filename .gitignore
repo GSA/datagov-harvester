@@ -21,9 +21,10 @@ node_modules/
 # openstack ( s3 mock )
 tmp/
 
+# env 
+.env.secret
+requirements.txt
+
 # vscode debugger
 .vscode/*
 !.vscode/launch.json
-.env
-requirements.txt
-

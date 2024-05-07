@@ -20,7 +20,6 @@ def get_title_from_fgdc(xml_str: str) -> str:
 
 
 def parse_args(args):
-
     parser = argparse.ArgumentParser(
         prog="Harvest Runner", description="etl harvest sources"
     )
@@ -114,6 +113,7 @@ class CFHandler:
         self.url = url
         self.user = user
         self.password = password
+        self.setup()
 
     def setup(self):
         self.client = CloudFoundryClient(self.url)
@@ -136,7 +136,6 @@ class CFHandler:
         return sum(1 for _ in filter(lambda task: task["state"] == "RUNNING", tasks))
 
     def read_recent_app_logs(self, app_guuid, task_id=None):
-
         app = self.client.v2.apps[app_guuid]
         logs = filter(lambda lg: task_id in lg, [str(log) for log in app.recent_logs()])
         return "\n".join(logs)

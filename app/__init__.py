@@ -6,14 +6,12 @@ from flask_bootstrap import Bootstrap
 from flask_migrate import Migrate
 
 from database.models import db
+from app.scripts.load_manager import load_manager
 
 load_dotenv()
 
-DATABASE_URI = os.getenv("DATABASE_URI")
-
 
 def create_app(testing=False):
-
     app = Flask(__name__, static_url_path="", static_folder="static")
 
     if testing:
@@ -34,5 +32,8 @@ def create_app(testing=False):
         from .routes import register_routes
 
         register_routes(app)
+
+    with app.app_context():
+        load_manager()
 
     return app
