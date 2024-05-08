@@ -16,11 +16,6 @@ def mock_bad_cf_index(monkeypatch):
     monkeypatch.setenv("CF_INSTANCE_INDEX", "1")
 
 
-@pytest.fixture(autouse=True)
-def mock_lm_config(monkeypatch):
-    monkeypatch.setenv("LM_RUNNER_APP_GUID", "f4ab7f86-bee0-44fd-8806-1dca7f8e215a")
-
-
 class TestLoadManager:
     @patch.object(HarvesterDBInterface, "update_harvest_job")
     @patch.object(CFHandler, "start_task")
