@@ -34,6 +34,7 @@ def create_app(testing=False):
         register_routes(app)
 
     with app.app_context():
+        db.create_all()
         load_manager()
 
     return app

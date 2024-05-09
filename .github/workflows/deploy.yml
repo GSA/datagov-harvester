@@ -33,6 +33,11 @@
             cat requirements.txt
         - name: deploy DHL
           uses: cloud-gov/cg-cli-tools@main
+          env:
+              CF_API_URL: https://api.fr.cloud.gov
+              CF_SERVICE_USER: ${{secrets.CF_SERVICE_USER}}
+              CF_SERVICE_AUTH: ${{secrets.CF_SERVICE_AUTH}}
+              LM_RUNNER_APP_GUID: ${{secrets.LM_RUNNER_APP_GUID}}
           with:
             command: cf push --vars-file vars.staging.yml --strategy rolling --no-wait
             cf_org: gsa-datagov
@@ -91,6 +96,11 @@
             cat requirements.txt
         - name: deploy DHL
           uses: cloud-gov/cg-cli-tools@main
+          env:
+              CF_API_URL: https://api.fr.cloud.gov
+              CF_SERVICE_USER: ${{secrets.CF_SERVICE_USER}}
+              CF_SERVICE_AUTH: ${{secrets.CF_SERVICE_AUTH}}
+              LM_RUNNER_APP_GUID: ${{secrets.LM_RUNNER_APP_GUID}}          
           with:
             command: cf push --vars-file vars.prod.yml --strategy rolling --no-wait
             cf_org: gsa-datagov
@@ -125,7 +135,7 @@
             LAST_COMMIT: ${{ github.sha }}
             LAST_RUN_BY: ${{ github.actor }}
             RUN_ID: ${{ github.run_id }}
-            REPO: ${{ github.repository }}
+            REPO: ${{ github.repository }}         
           with:
             filename: .github/deploy_failure.md
             update_existing: true

@@ -3,7 +3,7 @@ pypi-upload: build-dist  ## Uploads new package to PyPi after clean, build
 
 deps-update: ## Updates requirements.txt and requirements_dev.txt from pyproject.toml
 	poetry export --without-hashes --without=dev --format=requirements.txt > requirements.txt
-	poetry export --without-hashes --only=dev --format=requirements-dev.txt > requirements-dev.txt 
+	poetry export --without-hashes --only=dev --format=requirements.txt > requirements-dev.txt 
 
 # pypi-upload-test: build-dist  ## Uploads new package to TEST PyPi after clean, build
 # 	twine upload -r testpypi dist/*	
