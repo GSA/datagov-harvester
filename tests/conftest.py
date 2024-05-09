@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 from dotenv import load_dotenv
 from sqlalchemy.orm import scoped_session, sessionmaker
-
+from sqlalchemy.sql import text
 from app import create_app
 from flask import Flask
 from database.interface import HarvesterDBInterface
@@ -36,6 +36,7 @@ def session(app) -> scoped_session:
 
         SessionLocal = sessionmaker(bind=connection, autocommit=False, autoflush=False)
         session = scoped_session(SessionLocal)
+        session.execute(text("pragma foreign_keys=on"))
         yield session
 
         session.remove()
@@ -190,16 +191,19 @@ def source_data_dcatus_invalid_records_job(
 
 @pytest.fixture
 def interface_with_multiple_jobs(
-    interface,
-    source_data_dcatus: dict,
+    interface, organization_data, source_data_dcatus, source_data_waf
 ):
     statuses = ["pending", "pending_manual", "in_progress", "complete"]
-    source_ids = ["1234", "abcd"]
+    source_ids = [source_data_dcatus["id"], source_data_waf["id"]]
     jobs = [
         {"status": status, "harvest_source_id": source}
         for status in statuses
         for source in source_ids
     ]
+    interface.add_organization(organization_data)
+    interface.add_harvest_source(source_data_dcatus)
+    interface.add_harvest_source(source_data_waf)
+
     for job in jobs:
         interface.add_harvest_job(job)
 
