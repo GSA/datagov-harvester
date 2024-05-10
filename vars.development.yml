@@ -1,3 +1,2 @@
 app_name: harvesting-logic
-database_name: harvesting-logic-db
 route-external: harvester-dev-datagov.app.cloud.gov

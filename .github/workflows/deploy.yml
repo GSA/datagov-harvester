@@ -2,9 +2,6 @@
   name: Deploy to cloud.gov
   
   on:
-    push:
-      branches:
-        - main
     workflow_dispatch:
       inputs:
         version_no:
@@ -33,11 +30,6 @@
             cat requirements.txt
         - name: deploy DHL
           uses: cloud-gov/cg-cli-tools@main
-          env:
-              CF_API_URL: https://api.fr.cloud.gov
-              CF_SERVICE_USER: ${{secrets.CF_SERVICE_USER}}
-              CF_SERVICE_AUTH: ${{secrets.CF_SERVICE_AUTH}}
-              LM_RUNNER_APP_GUID: ${{secrets.LM_RUNNER_APP_GUID}}
           with:
             command: cf push --vars-file vars.staging.yml --strategy rolling --no-wait
             cf_org: gsa-datagov
@@ -95,12 +87,7 @@
             echo "Generated requirements.txt:"
             cat requirements.txt
         - name: deploy DHL
-          uses: cloud-gov/cg-cli-tools@main
-          env:
-              CF_API_URL: https://api.fr.cloud.gov
-              CF_SERVICE_USER: ${{secrets.CF_SERVICE_USER}}
-              CF_SERVICE_AUTH: ${{secrets.CF_SERVICE_AUTH}}
-              LM_RUNNER_APP_GUID: ${{secrets.LM_RUNNER_APP_GUID}}          
+          uses: cloud-gov/cg-cli-tools@main         
           with:
             command: cf push --vars-file vars.prod.yml --strategy rolling --no-wait
             cf_org: gsa-datagov

@@ -6,9 +6,10 @@ applications:
     routes:
       - route: ((route-external))
     services:
-      - ((database_name))
+      - ((app_name))-db
+      - ((app_name))-secrets
     instances: 1
     env:
-      DATABASE_NAME: ((database_name))
+      DATABASE_NAME: ((app_name))-db
       FLASK_APP: run.py
     command: flask run --host=0.0.0.0 --port=8080
