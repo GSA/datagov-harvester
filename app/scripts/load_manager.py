@@ -56,7 +56,9 @@ def load_manager():
 
     # invoke cf_task with next job(s)
     # then mark that job(s) as running in the DB
+    print("Load Manager :: Updated Harvest Jobs")
     for job in jobs_to_invoke:
         task_contract = create_task(job["id"])
         cf_handler.start_task(**task_contract)
-        interface.update_harvest_job(job["id"], {"status": "in_progress"})
+        updated_job = interface.update_harvest_job(job["id"], {"status": "in_progress"})
+        print(updated_job)
