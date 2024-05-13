@@ -136,6 +136,9 @@ def record_data_dcatus(job_data_dcatus: dict) -> dict:
         "identifier": "test_identifier",
         "harvest_job_id": job_data_dcatus["id"],
         "harvest_source_id": job_data_dcatus["harvest_source_id"],
+        "action": "create",
+        "status": "success",
+        "source_raw": "example data",
     }
 
 

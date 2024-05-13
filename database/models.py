@@ -14,8 +14,8 @@ class Base(db.Model):
 class Organization(Base):
     __tablename__ = "organization"
 
-    name = db.Column(db.String(), nullable=False, index=True)
-    logo = db.Column(db.String())
+    name = db.Column(db.String, nullable=False, index=True)
+    logo = db.Column(db.String)
     sources = db.relationship(
         "HarvestSource", backref="org", cascade="all, delete-orphan", lazy=True
     )
@@ -75,9 +75,7 @@ class HarvestError(Base):
     harvest_job_id = db.Column(
         db.String(36), db.ForeignKey("harvest_job.id"), nullable=False
     )
-    harvest_record_id = db.Column(
-        db.String, db.ForeignKey("harvest_record.id"), nullable=True
-    )
+    harvest_record_id = db.Column(db.String, db.ForeignKey("harvest_record.id"))
     date_created = db.Column(db.DateTime, default=func.now())
     type = db.Column(db.String)
     severity = db.Column(
@@ -92,7 +90,7 @@ class HarvestError(Base):
 class HarvestRecord(Base):
     __tablename__ = "harvest_record"
 
-    identifier = db.Column(db.String())
+    identifier = db.Column(db.String)
     harvest_job_id = db.Column(
         db.String(36), db.ForeignKey("harvest_job.id"), nullable=True
     )
@@ -100,7 +98,10 @@ class HarvestRecord(Base):
         db.String(36), db.ForeignKey("harvest_source.id"), nullable=True
     )
     source_hash = db.Column(db.String)
+    source_raw = db.Column(db.String)
     date_created = db.Column(db.DateTime, index=True, default=func.now())
+    date_finished = db.Column(db.DateTime)
     ckan_id = db.Column(db.String, index=True)
     type = db.Column(db.String)
-    status = db.Column(db.String)
+    action = db.Column(Enum("create", "update", "delete", name="record_action"))
+    status = db.Column(Enum("error", "success", name="record_status"))
