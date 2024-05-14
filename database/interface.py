@@ -1,4 +1,5 @@
 import os
+import uuid
 from sqlalchemy import create_engine, inspect, or_
 from sqlalchemy.exc import NoResultFound
 from sqlalchemy.orm import scoped_session, sessionmaker
@@ -223,18 +224,24 @@ class HarvesterDBInterface:
             self.db.rollback()
             return None
 
-    def add_harvest_records(self, records_data: list) -> bool:
+    def add_harvest_records(self, records_data: list) -> dict:
         """
         Add many records at once
 
         :param list records_data: List of records with unique UUIDs
-        :return bool success of operation
+        :return dict id_lookup_table: identifiers -> ids
         :raises Exception: if the records_data contains records with errors
         """
         try:
-            self.db.bulk_insert_mappings(HarvestRecord, records_data)
+            id_lookup_table = {}
+            for i, record_data in enumerate(records_data):
+                new_record = HarvestRecord(id=str(uuid.uuid4()), **record_data)
+                id_lookup_table[new_record.identifier] = new_record.id
+                self.db.add(new_record)
+                if i % 1000 == 0:
+                    self.db.flush()
             self.db.commit()
-            return True
+            return id_lookup_table
         except Exception as e:
             print("Error:", e)
             self.db.rollback()
