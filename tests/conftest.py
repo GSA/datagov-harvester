@@ -4,7 +4,6 @@ from pathlib import Path
 import pytest
 from dotenv import load_dotenv
 from sqlalchemy.orm import scoped_session, sessionmaker
-from sqlalchemy.sql import text
 from app import create_app
 from flask import Flask
 from database.interface import HarvesterDBInterface
@@ -36,7 +35,6 @@ def session(app) -> scoped_session:
 
         SessionLocal = sessionmaker(bind=connection, autocommit=False, autoflush=False)
         session = scoped_session(SessionLocal)
-        session.execute(text("pragma foreign_keys=on"))
         yield session
 
         session.remove()
