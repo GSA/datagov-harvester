@@ -25,7 +25,7 @@ class HarvestSource(Base):
     __tablename__ = "harvest_source"
 
     name = db.Column(db.String, nullable=False)
-    notification_emails = db.Column(db.String)
+    notification_emails = db.Column(db.ARRAY(db.String))
     organization_id = db.Column(
         db.String(36), db.ForeignKey("organization.id"), nullable=False
     )
