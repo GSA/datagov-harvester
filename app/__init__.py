@@ -14,15 +14,11 @@ load_dotenv()
 def create_app(testing=False):
     app = Flask(__name__, static_url_path="", static_folder="static")
 
-    if testing:
-        app.config["TESTING"] = True
-        app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///:memory:"
-        app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-    else:
-        app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv("DATABASE_URI")
-        app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-        app.config["SECRET_KEY"] = os.urandom(16)
-        Bootstrap(app)
+    app.config["TESTING"] = testing
+    app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv("DATABASE_URI")
+    app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+    app.config["SECRET_KEY"] = os.urandom(16)
+    Bootstrap(app)
 
     db.init_app(app)
 
