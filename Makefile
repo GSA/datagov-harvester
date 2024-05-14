@@ -26,8 +26,8 @@ test: up ## Runs poetry tests, ignores ckan load
 up-flask: ## Sets up local flask app docker environment
 	DATABASE_PORT=5432 docker compose -p flask-app up app db -d
 
-up-harvester: ## Sets up local harvester app docker environment
-	DATABASE_PORT=5433 docker compose -p harvest-app up nginx-harvest-source db -d 
+up-harvester: ## Sets up local harvester app docker environment. DATABASE_PORT derives from the local .env
+	docker compose -p harvest-app up nginx-harvest-source db -d 
 
 up-debug: ## Sets up local docker environment
 	docker compose -f docker-compose_debug.yml up -d
