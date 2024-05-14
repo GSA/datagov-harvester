@@ -116,10 +116,17 @@ class TestDatabase:
         interface.add_harvest_source(source_data_dcatus)
         interface.add_harvest_job(job_data_dcatus)
 
-        records = [record_data_dcatus] * 10
-        success = interface.add_harvest_records(records)
-        assert success is True
-        assert len(interface.get_all_harvest_records()) == 10
+        records = []
+        for i in range(10):
+            new_record = record_data_dcatus.copy()
+            new_record["identifier"] = f"test-identifier-{i}"
+            records.append(new_record)
+
+        id_lookup_table = interface.add_harvest_records(records)
+        db_records = interface.get_all_harvest_records()
+        assert len(id_lookup_table) == 10
+        assert len(db_records) == 10
+        assert id_lookup_table[db_records[0]["identifier"]] == db_records[0]["id"]
 
     def test_add_harvest_job_with_id(
         self, interface, organization_data, source_data_dcatus, job_data_dcatus
