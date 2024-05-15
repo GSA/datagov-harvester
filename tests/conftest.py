@@ -79,7 +79,7 @@ def source_data_waf(organization_data: dict) -> dict:
         "notification_emails": "wafl@example.com",
         "organization_id": organization_data["id"],
         "frequency": "daily",
-        "url": f"{HARVEST_SOURCE_URL}/waf",
+        "url": f"{HARVEST_SOURCE_URL}/waf/",
         "schema_type": "type1",
         "source_type": "waf",
         "status": "active",

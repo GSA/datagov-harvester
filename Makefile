@@ -21,12 +21,14 @@ clean-dist:  ## Cleans dist dir
 	rm -rf dist/*
 
 test-unit:
-	poetry run pytest --junitxml=pytest.xml --cov=harvester ./tests/unit
+	HARVEST_SOURCE_URL=http://localhost:81 DATABASE_URI=postgresql://myuser:mypassword@localhost:5433/mydb poetry run pytest --junitxml=pytest.xml --cov=harvester ./tests/unit
 
 test-integration:
-	HARVEST_SOURCE_URL=http://localhost:81 poetry run pytest --junitxml=pytest.xml --cov=harvester ./tests/integration
+	HARVEST_SOURCE_URL=http://localhost:81 DATABASE_URI=postgresql://myuser:mypassword@localhost:5433/mydb poetry run pytest --junitxml=pytest.xml --cov=harvester ./tests/integration
 
-test: test-services test-unit test-integration
+test: test-services
+	HARVEST_SOURCE_URL=http://localhost:81 DATABASE_URI=postgresql://myuser:mypassword@localhost:5433/mydb poetry run pytest
+	make clean-test-services
 
 test-services:
 	DATABASE_PORT=5433 HARVEST_SOURCE_PORT=81 docker compose -p integration-test-services up nginx-harvest-source db -d
