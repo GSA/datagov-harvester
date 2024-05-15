@@ -37,15 +37,17 @@ clean-test-services:
 	docker compose -p integration-test-services down
 
 up: ## Sets up local flask and harvest runner docker environments. harvest runner gets DATABASE_PORT from .env
-	docker compose up app db -d
+	DATABASE_PORT=5433 docker compose up -d
+	docker compose -p harvest-app up db -d
 
 down: ## Tears down the flask and harvester containers
-	docker compose -p flask-app down; docker compose -p harvest-app down
+	docker compose down
+	docker compose -p harvest-app down
 
 up-debug: ## Sets up local docker environment
-	docker compose -f docker-compose_debug.yml up -d
+	docker compose -f docker-compose.yml -f docker-compose_debug.yml up -d
 	
-clean: ## Cleans docker images
+clean: down ## Cleans docker images
 	docker compose down -v --remove-orphans
 
 lint:  ## Lints wtih ruff, isort, black
