@@ -20,11 +20,22 @@ build-dev:  ## build Flask app w/ dev dependencies
 clean-dist:  ## Cleans dist dir
 	rm -rf dist/*
 
-test: up ## Runs poetry tests, ignores ckan load
-	poetry run pytest
+test-unit:
+	poetry run pytest --junitxml=pytest.xml --cov=harvester ./tests/unit
+
+test-integration:
+	HARVEST_SOURCE_URL=http://localhost:81 poetry run pytest --junitxml=pytest.xml --cov=harvester ./tests/integration
+
+test: test-services test-unit test-integration
+
+test-services:
+	DATABASE_PORT=5433 HARVEST_SOURCE_PORT=81 docker compose -p integration-test-services up nginx-harvest-source db -d
+
+clean-test-services:
+	docker compose -p integration-test-services down
 
 up: ## Sets up local flask and harvest runner docker environments. harvest runner gets DATABASE_PORT from .env
-	DATABASE_PORT=5432 docker compose -p flask-app up app db -d && DATABASE_PORT=5433 docker compose -p harvest-app up nginx-harvest-source db -d 
+	docker compose up app db -d
 
 down: ## Tears down the flask and harvester containers
 	docker compose -p flask-app down; docker compose -p harvest-app down

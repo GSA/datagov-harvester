@@ -5,7 +5,7 @@ services:
       - ./example_data:/usr/share/nginx/html
       - ./nginx.conf:/etc/nginx/conf.d/default.conf
     ports:
-      - 80:80  
+      - "${HARVEST_SOURCE_PORT}:80"
   db:
       image: postgres:latest
       restart: always
