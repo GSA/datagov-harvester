@@ -18,9 +18,7 @@ EXAMPLE_DATA = Path(__file__).parents[1] / "example_data"
 
 @pytest.fixture(scope="session")
 def app() -> Flask:
-    app = create_app(testing=True)
-    app.config["TESTING"] = True
-    app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv("DATABASE_URI")
+    app = create_app()
 
     with app.app_context():
         db.create_all()
@@ -36,7 +34,6 @@ def session(app) -> scoped_session:
 
         SessionLocal = sessionmaker(bind=connection, autocommit=False, autoflush=False)
         session = scoped_session(SessionLocal)
-        session.execute(text("pragma foreign_keys=on"))
         yield session
 
         session.remove()
