@@ -8,6 +8,7 @@ __pycache__/
 venv/
 credentials.py
 dist/
+.env
 
 # harvest load test log
 harvest_load.log
