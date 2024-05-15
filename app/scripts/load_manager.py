@@ -12,8 +12,6 @@ CF_INSTANCE_INDEX = os.getenv("CF_INSTANCE_INDEX")
 LM_MAX_TASKS_COUNT = 3
 
 interface = HarvesterDBInterface()
-cf_handler = CFHandler(CF_API_URL, CF_SERVICE_USER, CF_SERVICE_AUTH)
-
 
 def create_task(jobId):
     return {
@@ -28,6 +26,10 @@ def sort_jobs(jobs):
 
 
 def load_manager():
+    if not CF_API_URL or not CF_SERVICE_USER or not CF_SERVICE_AUTH:
+        return
+    
+    cf_handler = CFHandler(CF_API_URL, CF_SERVICE_USER, CF_SERVICE_AUTH)
     # confirm CF_INSTANCE_INDEX == 0 or bail
     if os.getenv("CF_INSTANCE_INDEX") != "0":
         return
