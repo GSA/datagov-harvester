@@ -4,7 +4,6 @@ from pathlib import Path
 import pytest
 from dotenv import load_dotenv
 from sqlalchemy.orm import scoped_session, sessionmaker
-from sqlalchemy.sql import text
 from app import create_app
 from flask import Flask
 from database.interface import HarvesterDBInterface
