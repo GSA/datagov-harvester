@@ -21,25 +21,16 @@ clean-dist:  ## Cleans dist dir
 	rm -rf dist/*
 
 test: up ## Runs poetry tests, ignores ckan load
-	poetry run pytest --ignore=./tests/integration  --ignore=./scripts/load_test.py
+	poetry run pytest
 
-up-flask: ## Sets up local flask app docker environment
-	DATABASE_PORT=5432 docker compose -p flask-app up app db -d
+up: ## Sets up local flask and harvest runner docker environments. harvest runner gets DATABASE_PORT from .env
+	DATABASE_PORT=5432 docker compose -p flask-app up app db -d && DATABASE_PORT=5433 docker compose -p harvest-app up nginx-harvest-source db -d 
 
-up-harvester: ## Sets up local harvester app docker environment. DATABASE_PORT derives from the local .env
-	docker compose -p harvest-app up nginx-harvest-source db -d 
+down: ## Tears down the flask and harvester containers
+	docker compose -p flask-app down; docker compose -p harvest-app down
 
 up-debug: ## Sets up local docker environment
 	docker compose -f docker-compose_debug.yml up -d
-
-down-flask: ## Shuts down flask app container
-	docker compose -p flask-app down
-
-down-harvester:	### Shuts down harvester app container
-	docker compose -p harvest-app down
-
-down-all:
-	docker compose -p flask-app down; docker compose -p harvest-app down
 	
 clean: ## Cleans docker images
 	docker compose down -v --remove-orphans
