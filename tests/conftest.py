@@ -14,12 +14,12 @@ load_dotenv()
 
 EXAMPLE_DATA = Path(__file__).parents[1] / "example_data"
 
+HARVEST_SOURCE_URL = os.getenv('HARVEST_SOURCE_URL')
+
 
 @pytest.fixture(scope="session")
 def app() -> Flask:
-    app = create_app(testing=True)
-    app.config["TESTING"] = True
-    app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv("DATABASE_URI")
+    app = create_app()
 
     with app.app_context():
         db.create_all()
@@ -64,7 +64,7 @@ def source_data_dcatus(organization_data: dict) -> dict:
         "notification_emails": "email@example.com",
         "organization_id": organization_data["id"],
         "frequency": "daily",
-        "url": "http://localhost:80/dcatus/dcatus.json",
+        "url": f"{HARVEST_SOURCE_URL}/dcatus/dcatus.json",
         "schema_type": "type1",
         "source_type": "dcatus",
         "status": "active",
@@ -79,7 +79,7 @@ def source_data_waf(organization_data: dict) -> dict:
         "notification_emails": "wafl@example.com",
         "organization_id": organization_data["id"],
         "frequency": "daily",
-        "url": "http://localhost:80/waf",
+        "url": f"{HARVEST_SOURCE_URL}/waf/",
         "schema_type": "type1",
         "source_type": "waf",
         "status": "active",
@@ -94,7 +94,7 @@ def source_data_dcatus_invalid(organization_data: dict) -> dict:
         "notification_emails": "invalid@example.com",
         "organization_id": organization_data["id"],
         "frequency": "daily",
-        "url": "http://localhost:80/dcatus/missing_title.json",
+        "url": f"{HARVEST_SOURCE_URL}/dcatus/missing_title.json",
         "schema_type": "type1",
         "source_type": "dcatus",
         "status": "active",
@@ -148,7 +148,7 @@ def source_data_dcatus_bad_url(organization_data: dict) -> dict:
         "notification_emails": "bad@example.com",
         "organization_id": organization_data["id"],
         "frequency": "daily",
-        "url": "http://localhost:80/dcatus/bad_url.json",
+        "url": f"{HARVEST_SOURCE_URL}/dcatus/bad_url.json",
         "schema_type": "type1",
         "source_type": "dcatus",
         "status": "active",

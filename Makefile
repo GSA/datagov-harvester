@@ -20,18 +20,31 @@ build-dev:  ## build Flask app w/ dev dependencies
 clean-dist:  ## Cleans dist dir
 	rm -rf dist/*
 
-test: up ## Runs poetry tests, ignores ckan load
-	poetry run pytest --ignore=./tests/integration  --ignore=./scripts/load_test.py
+test-unit:
+	HARVEST_SOURCE_URL=http://localhost:81 DATABASE_URI=postgresql://myuser:mypassword@localhost:5433/mydb poetry run pytest --junitxml=pytest.xml --cov=harvester ./tests/unit
 
-up: ## Sets up local docker environment
-	docker compose up -d
+test-integration:
+	HARVEST_SOURCE_URL=http://localhost:81 DATABASE_URI=postgresql://myuser:mypassword@localhost:5433/mydb poetry run pytest --junitxml=pytest.xml --cov=harvester ./tests/integration
+
+test: test-services
+	HARVEST_SOURCE_URL=http://localhost:81 DATABASE_URI=postgresql://myuser:mypassword@localhost:5433/mydb poetry run pytest
+	make clean-test-services
+
+test-services:
+	DATABASE_PORT=5433 HARVEST_SOURCE_PORT=81 docker compose -p integration-test-services up nginx-harvest-source db -d
+
+clean-test-services:
+	docker compose -p integration-test-services down
+
+up: ## Sets up local flask and harvest runner docker environments. harvest runner gets DATABASE_PORT from .env
+	docker compose up app db -d
+
+down: ## Tears down the flask and harvester containers
+	docker compose -p flask-app down; docker compose -p harvest-app down
 
 up-debug: ## Sets up local docker environment
 	docker compose -f docker-compose_debug.yml up -d
-
-down: ## Shuts down local docker instance
-	docker compose down
-
+	
 clean: ## Cleans docker images
 	docker compose down -v --remove-orphans
 

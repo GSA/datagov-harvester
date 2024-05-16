@@ -11,23 +11,21 @@ from app.scripts.load_manager import load_manager
 load_dotenv()
 
 
-def create_app(testing=False):
+def create_app():
     app = Flask(__name__, static_url_path="", static_folder="static")
 
-    app.config["TESTING"] = testing
     app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv("DATABASE_URI")
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-    app.config["SECRET_KEY"] = os.urandom(16)
+    app.config["SECRET_KEY"] = os.urandom(16)  # TODO: pull from env var
     Bootstrap(app)
 
     db.init_app(app)
 
-    if not testing:
-        Migrate(app, db)
+    Migrate(app, db)
 
-        from .routes import register_routes
+    from .routes import register_routes
 
-        register_routes(app)
+    register_routes(app)
 
     with app.app_context():
         db.create_all()

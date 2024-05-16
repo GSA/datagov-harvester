@@ -44,10 +44,10 @@ jobs:
           poetry install
 
       - name: Setup services
-        run: docker compose up -d
+        run: docker compose -p harvest-app up nginx-harvest-source db -d
 
       - name: Run Pytest
-        run: set -o pipefail; poetry run pytest --junitxml=pytest.xml --cov=harvester ./tests/unit | tee pytest-coverage.txt
+        run: set -o pipefail; poetry run pytest --junitxml=pytest.xml --cov=harvester | tee pytest-coverage.txt
 
       - name: Report test coverage
         uses: MishaKav/pytest-coverage-comment@main
