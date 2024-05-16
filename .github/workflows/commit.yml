@@ -20,6 +20,7 @@ jobs:
         CKAN_API_TOKEN_DEV: ${{secrets.CKAN_API_TOKEN_DEV}}
         CF_SERVICE_USER: ${{secrets.CF_SERVICE_USER}}
         CF_SERVICE_AUTH: ${{secrets.CF_SERVICE_AUTH}}
+        LM_RUNNER_APP_GUID: ${{secrets.LM_RUNNER_APP_GUID}}
     runs-on: ubuntu-latest
     name: Pytests
     steps:
