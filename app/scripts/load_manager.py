@@ -13,6 +13,7 @@ LM_MAX_TASKS_COUNT = 3
 
 interface = HarvesterDBInterface()
 
+
 def create_task(jobId):
     return {
         "app_guuid": LM_RUNNER_APP_GUID,
@@ -27,11 +28,14 @@ def sort_jobs(jobs):
 
 def load_manager():
     if not CF_API_URL or not CF_SERVICE_USER or not CF_SERVICE_AUTH:
+        print("CFHandler is not configured correctly. Check your env vars.")
         return
-    
+
     cf_handler = CFHandler(CF_API_URL, CF_SERVICE_USER, CF_SERVICE_AUTH)
+
     # confirm CF_INSTANCE_INDEX == 0 or bail
     if os.getenv("CF_INSTANCE_INDEX") != "0":
+        print("CF_INSTANCE_INDEX is not set or not equal to zero")
         return
 
     # filter harvestjobs by pending / pending_manual
@@ -45,7 +49,8 @@ def load_manager():
     running_tasks = cf_handler.get_all_running_tasks(current_tasks)
 
     # confirm tasks < MAX_JOBS_COUNT or bail
-    if LM_MAX_TASKS_COUNT < running_tasks:
+    if running_tasks > LM_MAX_TASKS_COUNT:
+        print(f"{running_tasks} running_tasks > LM_MAX_TASKS_COUNT. can't proceed")
         return
     else:
         slots = LM_MAX_TASKS_COUNT - running_tasks
