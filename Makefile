@@ -1,3 +1,5 @@
+all: help
+
 pypi-upload: build-dist  ## Uploads new package to PyPi after clean, build
 	poetry publish
 
@@ -20,16 +22,16 @@ build-dev:  ## build Flask app w/ dev dependencies
 clean-dist:  ## Cleans dist dir
 	rm -rf dist/*
 
-test-unit:
+test-unit: ## Runs unit tests. Compatible with dev environment / `make up`
 	poetry run pytest --junitxml=pytest.xml --cov=harvester ./tests/unit
 
-test-integration:
+test-integration: ## Runs integration tests. Compatible with dev environment / `make up`
 	poetry run pytest --junitxml=pytest.xml --cov=harvester ./tests/integration
 
-test: up test-unit test-integration ## Runs alongside flask app, for development
+test: up test-unit test-integration ## Runs all tests. Compatible with dev environment / `make up`
 
-test-ci: ## Runs only db and required test resources
-	docker-compose up db nginx-harvest-source -d
+test-ci: ## Runs all tests using only db and required test resources. NOT compatible with dev environment / `make up`
+	docker-compose up -d db nginx-harvest-source
 	make test-unit
 	make test-integration
 	make down
@@ -56,5 +58,6 @@ lint:  ## Lints wtih ruff, isort, black
 # Output documentation for top-level targets
 # Thanks to https://marmelab.com/blog/2016/02/29/auto-documented-makefile.html
 .PHONY: help
+
 help: ## This help
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "\033[36m%-10s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
