@@ -14,12 +14,14 @@ load_dotenv()
 
 EXAMPLE_DATA = Path(__file__).parents[1] / "example_data"
 
-HARVEST_SOURCE_URL = os.getenv('HARVEST_SOURCE_URL')
+HARVEST_SOURCE_URL = os.getenv("HARVEST_SOURCE_URL")
 
 
 @pytest.fixture(scope="session")
 def app() -> Flask:
     app = create_app()
+
+    app.config["TESTING"] = True
 
     with app.app_context():
         db.create_all()
