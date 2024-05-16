@@ -41,6 +41,7 @@ pytest-cov = "^4.0.0"
 debugpy = "^1.8.1"
 isort = "^5.13.2"
 black = "^24.4.2"
+pre-commit = "^3.7.1"
 
 [tool.ruff]
 # Enable pycodestyle (`E`) and Pyflakes (`F`) codes by default.

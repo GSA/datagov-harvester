@@ -3,14 +3,14 @@ pypi-upload: build-dist  ## Uploads new package to PyPi after clean, build
 
 deps-update: ## Updates requirements.txt and requirements_dev.txt from pyproject.toml
 	poetry export --without-hashes --without=dev --format=requirements.txt > requirements.txt
-	poetry export --without-hashes --only=dev --format=requirements.txt > requirements-dev.txt 
+	poetry export --without-hashes --only=dev --format=requirements.txt > requirements-dev.txt
 
 # pypi-upload-test: build-dist  ## Uploads new package to TEST PyPi after clean, build
-# 	twine upload -r testpypi dist/*	
+# 	twine upload -r testpypi dist/*
 
 build-dist: clean-dist  ## Builds new package dist
 	poetry build --verbose
-	
+
 build:  ## build Flask app
 	docker compose build app
 
@@ -21,20 +21,18 @@ clean-dist:  ## Cleans dist dir
 	rm -rf dist/*
 
 test-unit:
-	HARVEST_SOURCE_URL=http://localhost:81 DATABASE_URI=postgresql://myuser:mypassword@localhost:5433/mydb poetry run pytest --junitxml=pytest.xml --cov=harvester ./tests/unit
+	poetry run pytest --junitxml=pytest.xml --cov=harvester ./tests/unit
 
 test-integration:
-	HARVEST_SOURCE_URL=http://localhost:81 DATABASE_URI=postgresql://myuser:mypassword@localhost:5433/mydb poetry run pytest --junitxml=pytest.xml --cov=harvester ./tests/integration
+	poetry run pytest --junitxml=pytest.xml --cov=harvester ./tests/integration
 
-test: test-services
-	HARVEST_SOURCE_URL=http://localhost:81 DATABASE_URI=postgresql://myuser:mypassword@localhost:5433/mydb poetry run pytest
-	make clean-test-services
+test: up test-unit test-integration ## Runs alongside flask app, for development
 
-test-services:
-	DATABASE_PORT=5433 HARVEST_SOURCE_PORT=81 docker compose -p integration-test-services up nginx-harvest-source db -d
-
-clean-test-services:
-	docker compose -p integration-test-services down
+test-ci: ## Runs only db and required test resources
+	docker-compose up db nginx-harvest-source -d
+	make test-unit
+	make test-integration
+	make down
 
 up: ## Sets up local flask and harvest runner docker environments. harvest runner gets DATABASE_PORT from .env
 	DATABASE_PORT=5433 docker compose up -d
@@ -46,7 +44,7 @@ down: ## Tears down the flask and harvester containers
 
 up-debug: ## Sets up local docker environment
 	docker compose -f docker-compose.yml -f docker-compose_debug.yml up -d
-	
+
 clean: down ## Cleans docker images
 	docker compose down -v --remove-orphans
 
