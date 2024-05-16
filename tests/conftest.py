@@ -74,6 +74,21 @@ def source_data_dcatus(organization_data: dict) -> dict:
 
 
 @pytest.fixture
+def source_data_dcatus_2(organization_data: dict) -> dict:
+    return {
+        "id": "3f2652de-91df-4c63-8b53-bfced20b276b",
+        "name": "Test Source",
+        "notification_emails": "email@example.com",
+        "organization_id": organization_data["id"],
+        "frequency": "daily",
+        "url": f"{HARVEST_SOURCE_URL}/dcatus/dcatus_2.json",
+        "schema_type": "type1",
+        "source_type": "dcatus",
+        "status": "active",
+    }
+
+
+@pytest.fixture
 def source_data_waf(organization_data: dict) -> dict:
     return {
         "id": "55dca495-3b92-4fe4-b9c5-d433cbc3c82d",
@@ -211,6 +226,100 @@ def interface_with_multiple_jobs(
         interface.add_harvest_job(job)
 
     return interface
+
+
+@pytest.fixture
+def latest_records(source_data_dcatus, source_data_dcatus_2):
+    return [
+        {
+            "identifier": "a",
+            "date_created": "2024-01-01T00:00:00.001Z",
+            "source_raw": "data",
+            "status": "success",
+            "action": "create",
+            "harvest_source_id": source_data_dcatus["id"],
+        },
+        {
+            "identifier": "a",
+            "date_created": "2024-03-01T00:00:00.001Z",
+            "source_raw": "data_1",
+            "status": "success",
+            "action": "update",
+            "harvest_source_id": source_data_dcatus["id"],
+        },
+        {
+            "identifier": "b",
+            "date_created": "2024-03-01T00:00:00.001Z",
+            "source_raw": "data_10",
+            "status": "success",
+            "action": "create",
+            "harvest_source_id": source_data_dcatus["id"],
+        },
+        {
+            "identifier": "b",
+            "date_created": "2022-05-01T00:00:00.001Z",
+            "source_raw": "data_30",
+            "status": "error",
+            "action": "update",
+            "harvest_source_id": source_data_dcatus["id"],
+        },
+        {
+            "identifier": "c",
+            "date_created": "2024-05-01T00:00:00.001Z",
+            "source_raw": "data_12",
+            "status": "success",
+            "action": "create",
+            "harvest_source_id": source_data_dcatus["id"],
+        },
+        {
+            "identifier": "d",
+            "date_created": "2024-05-01T00:00:00.001Z",
+            "source_raw": "data_2",
+            "status": "success",
+            "action": "delete",
+            "harvest_source_id": source_data_dcatus["id"],
+        },
+        {
+            "identifier": "d",
+            "date_created": "2024-04-01T00:00:00.001Z",
+            "source_raw": "data_5",
+            "status": "success",
+            "action": "create",
+            "harvest_source_id": source_data_dcatus["id"],
+        },
+        {
+            "identifier": "e",
+            "date_created": "2024-04-01T00:00:00.001Z",
+            "source_raw": "data_123",
+            "status": "success",
+            "action": "create",
+            "harvest_source_id": source_data_dcatus["id"],
+        },
+        {
+            "identifier": "e",
+            "date_created": "2024-04-02T00:00:00.001Z",
+            "source_raw": "data_123",
+            "status": "success",
+            "action": "delete",
+            "harvest_source_id": source_data_dcatus["id"],
+        },
+        {
+            "identifier": "e",
+            "date_created": "2024-04-03T00:00:00.001Z",
+            "source_raw": "data_123",
+            "status": "success",
+            "action": "create",
+            "harvest_source_id": source_data_dcatus["id"],
+        },
+        {
+            "identifier": "f",
+            "date_created": "2024-04-03T00:00:00.001Z",
+            "source_raw": "data_123",
+            "status": "success",
+            "action": "create",
+            "harvest_source_id": source_data_dcatus_2["id"],
+        },
+    ]
 
 
 @pytest.fixture

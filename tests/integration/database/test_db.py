@@ -190,3 +190,26 @@ class TestDatabase:
             )
             == 2
         )
+
+    def test_get_latest_harvest_records(
+        self,
+        interface,
+        organization_data,
+        source_data_dcatus,
+        source_data_dcatus_2,
+        job_data_dcatus,
+        latest_records,
+    ):
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_dcatus)
+        # another source for querying against. see last record in
+        # `latest_records` fixture
+        interface.add_harvest_source(source_data_dcatus_2)
+        interface.add_harvest_job(job_data_dcatus)
+        interface.add_harvest_records(latest_records)
+
+        latest_records = interface.get_latest_records_by_source(
+            source_data_dcatus["id"]
+        )
+
+        assert len(latest_records) == 4
