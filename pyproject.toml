@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "datagov-harvesting-logic"
-version = "0.4.5"
+version = "0.4.6"
 description = ""
 # authors = [
 #     {name = "Jin Sun", email = "jin.sun@gsa.gov"},
