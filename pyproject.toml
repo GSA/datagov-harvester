@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "datagov-harvesting-logic"
-version = "0.4.2"
+version = "0.4.4"
 description = ""
 # authors = [
 #     {name = "Jin Sun", email = "jin.sun@gsa.gov"},
@@ -41,6 +41,7 @@ pytest-cov = "^4.0.0"
 debugpy = "^1.8.1"
 isort = "^5.13.2"
 black = "^24.4.2"
+pre-commit = "^3.7.1"
 
 [tool.ruff]
 # Enable pycodestyle (`E`) and Pyflakes (`F`) codes by default.

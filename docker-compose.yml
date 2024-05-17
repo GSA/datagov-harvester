@@ -5,13 +5,14 @@ services:
       - ./example_data:/usr/share/nginx/html
       - ./nginx.conf:/etc/nginx/conf.d/default.conf
     ports:
-      - 80:80  
+      - "${HARVEST_SOURCE_PORT}:80"
   db:
       image: postgres:latest
       restart: always
       env_file:
         - .env
       environment:
+        PGPORT: ${DATABASE_PORT}
         POSTGRES_USER: ${DATABASE_USER}
         POSTGRES_PASSWORD: ${DATABASE_PASSWORD}
         POSTGRES_DB: ${DATABASE_NAME}
@@ -27,6 +28,9 @@ services:
       - .:/app
     environment:
       DATABASE_URI: postgresql://${DATABASE_USER}:${DATABASE_PASSWORD}@db:${DATABASE_PORT}/${DATABASE_NAME}
+      CF_SERVICE_USER: ${CF_SERVICE_USER}
+      CF_SERVICE_AUTH: ${CF_SERVICE_AUTH}
+      LM_RUNNER_APP_GUID: ${LM_RUNNER_APP_GUID}
       FLASK_APP: run.py
       FLASK_ENV: development
     ports:
