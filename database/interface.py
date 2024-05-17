@@ -1,6 +1,6 @@
 import os
 import uuid
-from sqlalchemy import create_engine, inspect, or_
+from sqlalchemy import create_engine, inspect, or_, text
 from sqlalchemy.exc import NoResultFound
 from sqlalchemy.orm import scoped_session, sessionmaker
 
@@ -260,6 +260,24 @@ class HarvesterDBInterface:
             harvest_source_id=source_id
         )
         return [HarvesterDBInterface._to_dict(rcd) for rcd in harvest_records]
+
+    def get_latest_records_by_source(self, source_id):
+        # datetimes are returned as datetime objs not strs
+        sql = text(
+            f"""SELECT * FROM (
+                SELECT DISTINCT ON (identifier) *
+                FROM harvest_record 
+                WHERE status = 'success' AND harvest_source_id = '{source_id}'
+                ORDER BY identifier, date_created DESC ) sq
+                WHERE sq.action != 'delete';"""
+        )
+
+        res = self.db.execute(sql)
+
+        fields = list(res.keys())
+        records = res.fetchall()
+
+        return [dict(zip(fields, record)) for record in records]
 
     def get_source_by_jobid(self, jobid):
         harvest_job = self.db.query(HarvestJob).filter_by(id=jobid).first()

@@ -1,3 +1,6 @@
+import datetime
+
+
 class TestDatabase:
     def test_add_organization(self, interface, organization_data):
         org = interface.add_organization(organization_data)
@@ -190,3 +193,87 @@ class TestDatabase:
             )
             == 2
         )
+
+    def test_get_latest_harvest_records(
+        self,
+        interface,
+        organization_data,
+        source_data_dcatus,
+        source_data_dcatus_2,
+        job_data_dcatus,
+        latest_records,
+    ):
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_dcatus)
+        # another source for querying against. see last record in
+        # `latest_records` fixture
+        interface.add_harvest_source(source_data_dcatus_2)
+        interface.add_harvest_job(job_data_dcatus)
+        interface.add_harvest_records(latest_records)
+
+        latest_records = interface.get_latest_records_by_source(
+            source_data_dcatus["id"]
+        )
+
+        # remove so compare works
+        for record in latest_records:
+            del record["id"]
+
+        expected_records = [
+            {
+                "identifier": "a",
+                "harvest_job_id": None,
+                "harvest_source_id": "2f2652de-91df-4c63-8b53-bfced20b276b",
+                "source_hash": None,
+                "source_raw": "data_1",
+                "date_created": datetime.datetime(2024, 3, 1, 0, 0, 0, 1000),
+                "date_finished": None,
+                "ckan_id": None,
+                "type": None,
+                "action": "update",
+                "status": "success",
+            },
+            {
+                "identifier": "b",
+                "harvest_job_id": None,
+                "harvest_source_id": "2f2652de-91df-4c63-8b53-bfced20b276b",
+                "source_hash": None,
+                "source_raw": "data_10",
+                "date_created": datetime.datetime(2024, 3, 1, 0, 0, 0, 1000),
+                "date_finished": None,
+                "ckan_id": None,
+                "type": None,
+                "action": "create",
+                "status": "success",
+            },
+            {
+                "identifier": "c",
+                "harvest_job_id": None,
+                "harvest_source_id": "2f2652de-91df-4c63-8b53-bfced20b276b",
+                "source_hash": None,
+                "source_raw": "data_12",
+                "date_created": datetime.datetime(2024, 5, 1, 0, 0, 0, 1000),
+                "date_finished": None,
+                "ckan_id": None,
+                "type": None,
+                "action": "create",
+                "status": "success",
+            },
+            {
+                "identifier": "e",
+                "harvest_job_id": None,
+                "harvest_source_id": "2f2652de-91df-4c63-8b53-bfced20b276b",
+                "source_hash": None,
+                "source_raw": "data_123",
+                "date_created": datetime.datetime(2024, 4, 3, 0, 0, 0, 1000),
+                "date_finished": None,
+                "ckan_id": None,
+                "type": None,
+                "action": "create",
+                "status": "success",
+            },
+        ]
+
+        assert len(latest_records) == 4
+        # make sure there aren't records that are different
+        assert not any(x != y for x, y in zip(latest_records, expected_records))
