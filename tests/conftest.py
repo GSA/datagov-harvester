@@ -21,8 +21,6 @@ HARVEST_SOURCE_URL = os.getenv("HARVEST_SOURCE_URL")
 def app() -> Flask:
     app = create_app()
 
-    app.config["TESTING"] = True
-
     with app.app_context():
         db.create_all()
         yield app
