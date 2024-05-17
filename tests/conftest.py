@@ -14,12 +14,14 @@ load_dotenv()
 
 EXAMPLE_DATA = Path(__file__).parents[1] / "example_data"
 
-HARVEST_SOURCE_URL = os.getenv('HARVEST_SOURCE_URL')
+HARVEST_SOURCE_URL = os.getenv("HARVEST_SOURCE_URL")
 
 
 @pytest.fixture(scope="session")
 def app() -> Flask:
     app = create_app()
+
+    app.config["TESTING"] = True
 
     with app.app_context():
         db.create_all()
@@ -134,6 +136,9 @@ def record_data_dcatus(job_data_dcatus: dict) -> dict:
         "identifier": "test_identifier",
         "harvest_job_id": job_data_dcatus["id"],
         "harvest_source_id": job_data_dcatus["harvest_source_id"],
+        "action": "create",
+        "status": "success",
+        "source_raw": "example data",
     }
 
 

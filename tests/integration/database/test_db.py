@@ -56,10 +56,18 @@ class TestDatabase:
         interface.add_organization(organization_data)
         source = interface.add_harvest_source(source_data_dcatus)
 
-        updates = {"name": "Updated Test Source"}
+        updates = {
+            "name": "Updated Test Source",
+            "notification_emails": ["example@gmail.com", "another@yahoo.com"],
+        }
+
         updated_source = interface.update_harvest_source(source.id, updates)
         assert updated_source is not None
         assert updated_source["name"] == updates["name"]
+        assert updated_source["notification_emails"] == [
+            "example@gmail.com",
+            "another@yahoo.com",
+        ]
 
     def test_delete_harvest_source(
         self, interface, organization_data, source_data_dcatus
