@@ -95,7 +95,7 @@ class TestExceptionHandling:
         harvest_source.prepare_external_data()
 
         test_record = harvest_source.external_records["cftc-dc1"]
-        test_record.operation = "create"
+        test_record.action = "create"
 
         with pytest.raises(SynchronizeException) as e:
             test_record.sync()

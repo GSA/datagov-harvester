@@ -1,5 +1,8 @@
 import datetime
 
+from harvester.harvest import HarvestSource
+from harvester.utils import dataset_to_hash, sort_dataset
+
 
 class TestDatabase:
     def test_add_organization(self, interface, organization_data):
@@ -277,3 +280,51 @@ class TestDatabase:
         assert len(latest_records) == 4
         # make sure there aren't records that are different
         assert not any(x != y for x, y in zip(latest_records, expected_records))
+
+    def test_write_compare_to_db(
+        self,
+        organization_data,
+        source_data_dcatus,
+        job_data_dcatus,
+        interface,
+        internal_compare_data,
+    ):
+
+        # add the necessary records to satisfy FKs
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_dcatus)
+        interface.add_harvest_job(job_data_dcatus)
+
+        # prefill with records
+        for record in internal_compare_data["records"]:
+            data = {
+                "identifier": record["identifier"],
+                "harvest_job_id": job_data_dcatus["id"],
+                "harvest_source_id": job_data_dcatus["harvest_source_id"],
+                "source_hash": dataset_to_hash(sort_dataset(record)),
+                "source_raw": str(record),
+                "type": "dcatus",
+            }
+
+            interface.add_harvest_record(data)
+
+        harvest_source = HarvestSource(job_data_dcatus["id"], interface)
+        harvest_source.get_record_changes()
+
+        harvest_records = harvest_source.write_compare_to_db()
+
+        expected = sorted(
+            [
+                "cftc-dc10",
+                "cftc-dc3",
+                "cftc-dc7",
+                "cftc-dc5",
+                "cftc-dc4",
+                "cftc-dc6",
+                "cftc-dc1",
+                "cftc-dc2",
+            ]
+        )
+
+        assert len(harvest_records) == 8
+        assert sorted(list(harvest_records.keys())) == expected
