@@ -23,7 +23,6 @@ class TestExceptionHandling:
         source_data_dcatus_bad_url,
         job_data_dcatus_bad_url,
     ):
-
         interface.add_organization(organization_data)
         interface.add_harvest_source(source_data_dcatus_bad_url)
         harvest_job = interface.add_harvest_job(job_data_dcatus_bad_url)
@@ -44,18 +43,27 @@ class TestExceptionHandling:
         source_data_dcatus_invalid,
         job_data_dcatus_invalid,
     ):
-
-        interface.add_organization(organization_data)
+        org = interface.add_organization(organization_data)
         source = interface.add_harvest_source(source_data_dcatus_invalid)
         harvest_job = interface.add_harvest_job(job_data_dcatus_invalid)
 
-        harvest_source = HarvestSource(harvest_job.id, interface)
-        harvest_source.prepare_external_data()
-
+        harvest_source = HarvestSource(harvest_job.id)
+        harvest_source.get_record_changes()
+        harvest_source.write_compare_to_db()
+        harvest_source.synchronize_records()
         test_record = harvest_source.external_records["null-spatial"]
 
-        with pytest.raises(ValidationException) as e:
-            test_record.validate()
+        # with pytest.raises(ValidationException) as e:
+        #     test_record.validate()
+
+        interface_record = interface.get_harvest_record(
+            harvest_source.internal_records_lookup_table[test_record.identifier]
+        )
+        assert (
+            interface_record["id"]
+            == harvest_source.internal_records_lookup_table[test_record.identifier]
+        )
+        assert interface_record["status"] == "error"
 
     def test_dcatus_to_ckan_exception(
         self,
@@ -64,12 +72,11 @@ class TestExceptionHandling:
         source_data_dcatus_invalid,
         job_data_dcatus_invalid,
     ):
-
         interface.add_organization(organization_data)
         source = interface.add_harvest_source(source_data_dcatus_invalid)
         harvest_job = interface.add_harvest_job(job_data_dcatus_invalid)
 
-        harvest_source = HarvestSource(harvest_job.id, interface)
+        harvest_source = HarvestSource(harvest_job.id)
         harvest_source.prepare_external_data()
 
         test_record = harvest_source.external_records["null-spatial"]
@@ -86,7 +93,6 @@ class TestExceptionHandling:
         source_data_dcatus,
         job_data_dcatus,
     ):
-
         interface.add_organization(organization_data)
         source = interface.add_harvest_source(source_data_dcatus)
         harvest_job = interface.add_harvest_job(job_data_dcatus)

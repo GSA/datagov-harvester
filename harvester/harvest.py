@@ -240,7 +240,9 @@ class HarvestSource:
                     }
                 )
 
-        return self.db_interface.add_harvest_records(records)
+        self.internal_records_lookup_table = self.db_interface.add_harvest_records(
+            records
+        )
 
     def synchronize_records(self) -> None:
         """runs the delete, update, and create
@@ -266,7 +268,7 @@ class HarvestSource:
                     record.action = action
 
                     record.validate()
-                    # TODO: add transformation and validation
+                    # TODO: add transformation
                     record.sync()
 
                 except (
@@ -274,8 +276,10 @@ class HarvestSource:
                     DCATUSToCKANException,
                     SynchronizeException,
                 ) as e:
-                    # TODO: do something with 'e'?
-                    pass
+                    self.db_interface.add_harvest_error(e.error_data)
+                    self.db_interface.update_harvest_record(
+                        e.harvest_record_id, {"status": "error"}
+                    )
 
     def report(self) -> None:
         logger.info("report results")
@@ -398,7 +402,7 @@ class Record:
             raise ValidationException(
                 f"{self.identifier} failed validation",
                 self.harvest_source.job_id,
-                self.identifier,
+                self.harvest_source.internal_records_lookup_table[self.identifier],
             )
 
     def create_record(self):
