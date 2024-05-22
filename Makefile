@@ -47,8 +47,9 @@ down: ## Tears down the flask and harvester containers
 up-debug: ## Sets up local docker environment
 	docker compose -f docker-compose.yml -f docker-compose_debug.yml up -d
 
-clean: down ## Cleans docker images
+clean: ## Cleans docker images
 	docker compose down -v --remove-orphans
+	docker compose -p harvest-app down -v --remove-orphans
 
 lint:  ## Lints wtih ruff, isort, black
 	ruff .

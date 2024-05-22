@@ -20,10 +20,16 @@ services:
         - "${DATABASE_PORT}:5432"
       volumes:
         - postgres_data:/var/lib/postgresql/data
+      healthcheck:
+        test: ["CMD-SHELL", "pg_isready"]
+        interval: 5s
+        timeout: 5s
+        retries: 5
   app:
     build: .
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     volumes:
       - .:/app
     environment:
