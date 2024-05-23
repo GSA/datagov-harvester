@@ -1,7 +1,7 @@
 import logging
 from datetime import datetime
 
-from database.interface import HarvesterDBInterface
+from . import db_interface
 
 
 # critical exceptions
@@ -14,7 +14,7 @@ class HarvestCriticalException(Exception):
         self.severity = "CRITICAL"
         self.type = "job"
 
-        self.db_interface = HarvesterDBInterface()
+        self.db_interface = db_interface
         self.logger = logging.getLogger("harvest_runner")
 
         error_data = {
@@ -52,10 +52,10 @@ class HarvestNonCriticalException(Exception):
         self.type = "record"
         self.harvest_record_id = record_id
 
-        self.db_interface = HarvesterDBInterface()
+        self.db_interface = db_interface
         self.logger = logging.getLogger("harvest_runner")
 
-        self.error_data = {
+        error_data = {
             "harvest_job_id": self.harvest_job_id,
             "message": self.msg,
             "severity": self.severity,
@@ -64,7 +64,7 @@ class HarvestNonCriticalException(Exception):
             "harvest_record_id": record_id,  # to-do
         }
 
-        # self.db_interface.add_harvest_error(error_data)
+        self.db_interface.add_harvest_error(error_data)
         self.logger.error(self.msg, exc_info=True)
 
 
@@ -72,7 +72,7 @@ class ValidationException(HarvestNonCriticalException):
     def __init__(self, msg, harvest_job_id, record_id):
         super().__init__(msg, harvest_job_id, record_id)
 
-        # self.db_interface.update_harvest_record(record_id, {"status": "error"})
+        self.db_interface.update_harvest_record(record_id, {"status": "error"})
 
 
 class TranformationException(HarvestNonCriticalException):

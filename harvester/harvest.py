@@ -31,8 +31,9 @@ from .utils import (
     download_waf,
     traverse_waf,
 )
-
 from database.interface import HarvesterDBInterface
+
+from . import db_interface
 
 # requests data
 session = requests.Session()
@@ -58,7 +59,6 @@ class HarvestSource:
     """Class for Harvest Sources"""
 
     _job_id: str
-    _db_interface: HarvesterDBInterface
 
     _source_attrs: dict = field(
         default_factory=lambda: [
@@ -90,6 +90,7 @@ class HarvestSource:
     internal_records: dict = field(default_factory=lambda: {}, repr=False)
 
     def __post_init__(self) -> None:
+        self._db_interface = db_interface
         self.get_source_info_from_job_id(self.job_id)
 
     @property
@@ -97,7 +98,7 @@ class HarvestSource:
         return self._job_id
 
     @property
-    def db_interface(self) -> HarvesterDBInterface:
+    def db_interface(self):
         return self._db_interface
 
     @property
@@ -218,7 +219,6 @@ class HarvestSource:
         self.compare()
 
     def write_compare_to_db(self) -> dict:
-
         records = []
 
         for action, ids in self.compare_data.items():
@@ -276,10 +276,7 @@ class HarvestSource:
                     DCATUSToCKANException,
                     SynchronizeException,
                 ) as e:
-                    self.db_interface.add_harvest_error(e.error_data)
-                    self.db_interface.update_harvest_record(
-                        e.harvest_record_id, {"status": "error"}
-                    )
+                    pass
 
     def report(self) -> None:
         logger.info("report results")
