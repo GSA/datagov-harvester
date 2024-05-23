@@ -9,9 +9,9 @@ from pathlib import Path
 
 import ckanapi
 import requests
-
 from jsonschema import Draft202012Validator
 
+from . import HarvesterDBInterface, db_interface
 from .ckan_utils import ckanify_dcatus
 from .exceptions import (
     CompareException,
@@ -21,19 +21,15 @@ from .exceptions import (
     SynchronizeException,
     ValidationException,
 )
-
 from .utils import (
     dataset_to_hash,
-    open_json,
     download_file,
-    sort_dataset,
-    get_title_from_fgdc,
     download_waf,
+    get_title_from_fgdc,
+    open_json,
+    sort_dataset,
     traverse_waf,
 )
-from database.interface import HarvesterDBInterface
-
-from . import db_interface
 
 # requests data
 session = requests.Session()

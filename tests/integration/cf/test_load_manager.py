@@ -1,9 +1,13 @@
+from unittest.mock import patch
+
 import pytest
 
-from unittest.mock import patch
-from app.scripts.load_manager import load_manager, sort_jobs
-from app.scripts.load_manager import CFHandler
-from app.scripts.load_manager import HarvesterDBInterface
+from app.scripts.load_manager import (
+    CFHandler,
+    HarvesterDBInterface,
+    load_manager,
+    sort_jobs,
+)
 
 
 @pytest.fixture

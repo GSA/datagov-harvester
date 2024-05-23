@@ -1,13 +1,14 @@
-import os
 import logging
+import os
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 from dotenv import load_dotenv
-from sqlalchemy.orm import scoped_session, sessionmaker
-from app import create_app
 from flask import Flask
+from sqlalchemy.orm import scoped_session, sessionmaker
+
+from app import create_app
 from database.interface import HarvesterDBInterface
 from database.models import db
 from harvester.utils import CFHandler

@@ -1,7 +1,8 @@
 from flask import Blueprint, flash, jsonify, redirect, render_template, request
 
-from .forms import HarvestSourceForm, OrganizationForm
 from database.interface import HarvesterDBInterface
+
+from .forms import HarvestSourceForm, OrganizationForm
 
 mod = Blueprint("harvest", __name__)
 db = HarvesterDBInterface()

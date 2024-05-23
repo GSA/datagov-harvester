@@ -1,16 +1,11 @@
 import os
 import uuid
+
 from sqlalchemy import create_engine, inspect, or_, text
 from sqlalchemy.exc import NoResultFound
 from sqlalchemy.orm import scoped_session, sessionmaker
 
-from .models import (
-    HarvestError,
-    HarvestJob,
-    HarvestRecord,
-    HarvestSource,
-    Organization,
-)
+from .models import HarvestError, HarvestJob, HarvestRecord, HarvestSource, Organization
 
 DATABASE_URI = os.getenv("DATABASE_URI")
 

@@ -1,8 +1,7 @@
 import logging
 from datetime import datetime
 
-from database.interface import HarvesterDBInterface
-from . import db_interface
+from . import HarvesterDBInterface, db_interface
 
 
 # critical exceptions

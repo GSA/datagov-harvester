@@ -1,5 +1,10 @@
 # ruff: noqa: F841
 
+from unittest.mock import patch
+
+import ckanapi
+import pytest
+
 import harvester
 from harvester.exceptions import (
     DCATUSToCKANException,
@@ -9,10 +14,6 @@ from harvester.exceptions import (
     ValidationException,
 )
 from harvester.harvest import HarvestSource
-
-import ckanapi
-import pytest
-from unittest.mock import patch
 
 
 class TestExceptionHandling:
