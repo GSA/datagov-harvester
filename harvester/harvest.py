@@ -90,7 +90,7 @@ class HarvestSource:
     internal_records: dict = field(default_factory=lambda: {}, repr=False)
 
     def __post_init__(self) -> None:
-        self._db_interface = db_interface
+        self._db_interface: HarvesterDBInterface = db_interface
         self.get_source_info_from_job_id(self.job_id)
 
     @property
@@ -98,7 +98,7 @@ class HarvestSource:
         return self._job_id
 
     @property
-    def db_interface(self):
+    def db_interface(self) -> HarvesterDBInterface:
         return self._db_interface
 
     @property

@@ -45,7 +45,7 @@ class TestCKANLoad:
             }
             interface.add_harvest_record(data)
 
-        harvest_source = HarvestSource(internal_compare_data["job_id"], interface)
+        harvest_source = HarvestSource(internal_compare_data["job_id"])
         harvest_source.get_record_changes()
         harvest_source.synchronize_records()
 
@@ -76,7 +76,7 @@ class TestCKANLoad:
         interface.add_harvest_source(source_data_dcatus)
         harvest_job = interface.add_harvest_job(job_data_dcatus)
 
-        harvest_source = HarvestSource(harvest_job.id, interface)
+        harvest_source = HarvestSource(harvest_job.id)
         harvest_source.prepare_external_data()
 
         expected_result = {

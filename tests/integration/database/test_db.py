@@ -308,10 +308,10 @@ class TestDatabase:
 
             interface.add_harvest_record(data)
 
-        harvest_source = HarvestSource(job_data_dcatus["id"], interface)
+        harvest_source = HarvestSource(job_data_dcatus["id"])
         harvest_source.get_record_changes()
 
-        harvest_records = harvest_source.write_compare_to_db()
+        harvest_source.write_compare_to_db()
 
         expected = sorted(
             [
@@ -326,5 +326,5 @@ class TestDatabase:
             ]
         )
 
-        assert len(harvest_records) == 8
-        assert sorted(list(harvest_records.keys())) == expected
+        assert len(harvest_source.internal_records_lookup_table) == 8
+        assert sorted(list(harvest_source.internal_records_lookup_table)) == expected

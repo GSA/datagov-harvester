@@ -27,7 +27,7 @@ class TestCompare:
             }
             interface.add_harvest_record(data)
 
-        harvest_source = HarvestSource(internal_compare_data["job_id"], interface)
+        harvest_source = HarvestSource(internal_compare_data["job_id"])
         harvest_source.get_record_changes()
 
         assert len(harvest_source.compare_data["create"]) == 6

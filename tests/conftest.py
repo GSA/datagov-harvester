@@ -1,5 +1,7 @@
 import os
+import logging
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 from dotenv import load_dotenv
@@ -11,6 +13,8 @@ from database.models import db
 from harvester.utils import CFHandler
 
 load_dotenv()
+
+logger = logging.getLogger("pytest.conftest")
 
 EXAMPLE_DATA = Path(__file__).parents[1] / "example_data"
 
@@ -45,6 +49,16 @@ def session(app) -> scoped_session:
 @pytest.fixture(scope="function")
 def interface(session) -> HarvesterDBInterface:
     return HarvesterDBInterface(session=session)
+
+
+@pytest.fixture(scope="function", autouse=True)
+def default_session_fixture(interface):
+    logger.info("Patching core.feature.service")
+    with patch("harvester.harvest.db_interface", interface), patch(
+        "harvester.exceptions.db_interface", interface
+    ):
+        yield
+    logger.info("Patching complete. Unpatching")
 
 
 @pytest.fixture

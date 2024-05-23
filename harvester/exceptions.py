@@ -1,6 +1,7 @@
 import logging
 from datetime import datetime
 
+from database.interface import HarvesterDBInterface
 from . import db_interface
 
 
@@ -14,7 +15,7 @@ class HarvestCriticalException(Exception):
         self.severity = "CRITICAL"
         self.type = "job"
 
-        self.db_interface = db_interface
+        self.db_interface: HarvesterDBInterface = db_interface
         self.logger = logging.getLogger("harvest_runner")
 
         error_data = {
@@ -52,7 +53,7 @@ class HarvestNonCriticalException(Exception):
         self.type = "record"
         self.harvest_record_id = record_id
 
-        self.db_interface = db_interface
+        self.db_interface: HarvesterDBInterface = db_interface
         self.logger = logging.getLogger("harvest_runner")
 
         error_data = {
