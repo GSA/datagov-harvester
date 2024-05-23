@@ -70,8 +70,7 @@ class HarvestNonCriticalException(Exception):
 
 
 class ValidationException(HarvestNonCriticalException):
-    def __init__(self, msg, harvest_job_id, record_id):
-        super().__init__(msg, harvest_job_id, record_id)
+    pass
 
 
 class TranformationException(HarvestNonCriticalException):
