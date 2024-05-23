@@ -1,16 +1,11 @@
 import os
 import uuid
+
 from sqlalchemy import create_engine, inspect, or_, text
 from sqlalchemy.exc import NoResultFound
 from sqlalchemy.orm import scoped_session, sessionmaker
 
-from .models import (
-    HarvestError,
-    HarvestJob,
-    HarvestRecord,
-    HarvestSource,
-    Organization,
-)
+from .models import HarvestError, HarvestJob, HarvestRecord, HarvestSource, Organization
 
 DATABASE_URI = os.getenv("DATABASE_URI")
 
@@ -247,6 +242,23 @@ class HarvesterDBInterface:
             self.db.rollback()
             return None
 
+    def update_harvest_record(self, record_id, updates):
+        try:
+            source = self.db.get(HarvestRecord, record_id)
+
+            for key, value in updates.items():
+                if hasattr(source, key):
+                    setattr(source, key, value)
+                else:
+                    print(f"Warning: non-existing field '{key}' in HarvestRecord")
+
+            self.db.commit()
+            return self._to_dict(source)
+
+        except NoResultFound:
+            self.db.rollback()
+            return None
+
     def get_harvest_record(self, record_id):
         result = self.db.query(HarvestRecord).filter_by(id=record_id).first()
         return HarvesterDBInterface._to_dict(result)
@@ -266,7 +278,7 @@ class HarvesterDBInterface:
         sql = text(
             f"""SELECT * FROM (
                 SELECT DISTINCT ON (identifier) *
-                FROM harvest_record 
+                FROM harvest_record
                 WHERE status = 'success' AND harvest_source_id = '{source_id}'
                 ORDER BY identifier, date_created DESC ) sq
                 WHERE sq.action != 'delete';"""

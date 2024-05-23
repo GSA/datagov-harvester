@@ -6,8 +6,8 @@ import xml.etree.ElementTree as ET
 from typing import Union
 
 import requests
-from bs4 import BeautifulSoup
 import sansjson
+from bs4 import BeautifulSoup
 from cloudfoundry_client.client import CloudFoundryClient
 from cloudfoundry_client.v3.tasks import TaskManager
 

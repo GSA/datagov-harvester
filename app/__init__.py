@@ -5,8 +5,8 @@ from flask import Flask
 from flask_bootstrap import Bootstrap
 from flask_migrate import Migrate
 
-from database.models import db
 from app.scripts.load_manager import load_manager
+from database.models import db
 
 load_dotenv()
 

@@ -1,7 +1,7 @@
 import logging
 from datetime import datetime
 
-from database.interface import HarvesterDBInterface
+from . import HarvesterDBInterface, db_interface
 
 
 # critical exceptions
@@ -14,7 +14,7 @@ class HarvestCriticalException(Exception):
         self.severity = "CRITICAL"
         self.type = "job"
 
-        self.db_interface = HarvesterDBInterface()
+        self.db_interface: HarvesterDBInterface = db_interface
         self.logger = logging.getLogger("harvest_runner")
 
         error_data = {
@@ -43,16 +43,16 @@ class CompareException(HarvestCriticalException):
 
 # non-critical exceptions
 class HarvestNonCriticalException(Exception):
-    def __init__(self, msg, harvest_job_id, title):
-        super().__init__(msg, harvest_job_id, title)
+    def __init__(self, msg, harvest_job_id, record_id):
+        super().__init__(msg, harvest_job_id, record_id)
 
-        self.title = title
         self.msg = msg
         self.harvest_job_id = harvest_job_id
         self.severity = "ERROR"
         self.type = "record"
+        self.harvest_record_id = record_id
 
-        self.db_interface = HarvesterDBInterface()
+        self.db_interface: HarvesterDBInterface = db_interface
         self.logger = logging.getLogger("harvest_runner")
 
         error_data = {
@@ -61,10 +61,11 @@ class HarvestNonCriticalException(Exception):
             "severity": self.severity,
             "type": self.type,
             "date_created": datetime.utcnow(),
-            "harvest_record_id": self.title,  # to-do
+            "harvest_record_id": record_id,  # to-do
         }
 
         self.db_interface.add_harvest_error(error_data)
+        self.db_interface.update_harvest_record(record_id, {"status": "error"})
         self.logger.error(self.msg, exc_info=True)
 
 

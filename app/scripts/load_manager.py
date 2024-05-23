@@ -1,4 +1,5 @@
 import os
+
 from database.interface import HarvesterDBInterface
 from harvester.utils import CFHandler
 
