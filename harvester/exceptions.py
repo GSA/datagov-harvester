@@ -65,14 +65,13 @@ class HarvestNonCriticalException(Exception):
         }
 
         self.db_interface.add_harvest_error(error_data)
+        self.db_interface.update_harvest_record(record_id, {"status": "error"})
         self.logger.error(self.msg, exc_info=True)
 
 
 class ValidationException(HarvestNonCriticalException):
     def __init__(self, msg, harvest_job_id, record_id):
         super().__init__(msg, harvest_job_id, record_id)
-
-        self.db_interface.update_harvest_record(record_id, {"status": "error"})
 
 
 class TranformationException(HarvestNonCriticalException):
