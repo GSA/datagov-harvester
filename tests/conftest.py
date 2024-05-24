@@ -1,6 +1,7 @@
 import logging
 import os
 from pathlib import Path
+from typing import Any, Generator
 from unittest.mock import patch
 
 import pytest
@@ -11,7 +12,7 @@ from sqlalchemy.orm import scoped_session, sessionmaker
 from app import create_app
 from database.interface import HarvesterDBInterface
 from database.models import db
-from harvester.utils import CFHandler
+from harvester.utils import CFHandler, dataset_to_hash, sort_dataset
 
 load_dotenv()
 
@@ -23,7 +24,7 @@ HARVEST_SOURCE_URL = os.getenv("HARVEST_SOURCE_URL")
 
 
 @pytest.fixture(scope="session")
-def app() -> Flask:
+def app() -> Generator[Any, Flask, Any]:
     app = create_app()
 
     with app.app_context():
@@ -33,7 +34,7 @@ def app() -> Flask:
 
 
 @pytest.fixture(scope="function")
-def session(app) -> scoped_session:
+def session(app) -> Generator[Any, scoped_session, Any]:
     with app.app_context():
         connection = db.engine.connect()
         transaction = connection.begin()
@@ -391,6 +392,17 @@ def internal_compare_data(job_data_dcatus: dict) -> dict:
                 "title": "Bank Participation Reports",
             },
         ],
+    }
+
+
+@pytest.fixture
+def single_internal_record(internal_compare_data):
+    record = internal_compare_data["records"][0]
+    return {
+        "identifier": record["identifier"],
+        "harvest_job_id": internal_compare_data["job_id"],
+        "harvest_source_id": internal_compare_data["harvest_source_id"],
+        "source_hash": dataset_to_hash(sort_dataset(record)),
     }
 
 

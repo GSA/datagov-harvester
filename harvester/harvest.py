@@ -256,7 +256,18 @@ class HarvestSource:
                             self, self.internal_records[i].identifier
                         )
                         self.external_records[i].action = action
-                        self.external_records[i].delete_record()
+                        try:
+                            self.external_records[i].delete_record()
+                        except Exception as e:
+                            raise SynchronizeException(
+                                f"failed to {self.external_records[i].action} \
+                                    for {self.external_records[i].identifier} :: \
+                                        {repr(e)}",
+                                self.job_id,
+                                self.internal_records_lookup_table[
+                                    self.external_records[i].identifier
+                                ],
+                            )
                         continue
 
                     record = self.external_records[i]
@@ -393,7 +404,7 @@ class Record:
             self.valid = False
             # TODO: do something with 'e' in logger?
             raise ValidationException(
-                f"{self.identifier} failed validation",
+                repr(e),
                 self.harvest_source.job_id,
                 self.harvest_source.internal_records_lookup_table[self.identifier],
             )
@@ -417,7 +428,7 @@ class Record:
             )
         except Exception as e:
             raise DCATUSToCKANException(
-                f"failed to convert dcatus to ckan for {self.identifier}",
+                repr(e),
                 self.harvest_source.job_id,
                 self.harvest_source.name,
             )
@@ -438,9 +449,8 @@ class Record:
             if self.action == "update":
                 self.update_record()
         except Exception as e:
-            # TODO: something with 'e'
             raise SynchronizeException(
-                f"failed to {self.action} for {self.identifier}",
+                f"failed to {self.action} for {self.identifier} :: {repr(e)}",
                 self.harvest_source.job_id,
                 self.identifier,
             )

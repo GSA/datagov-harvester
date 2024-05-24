@@ -16,6 +16,10 @@ from harvester.exceptions import (
 from harvester.harvest import HarvestSource
 
 
+def download_mock(_, __):
+    return dict({"dataset": []})
+
+
 class TestExceptionHandling:
     def test_bad_harvest_source_url_exception(
         self,
@@ -37,6 +41,46 @@ class TestExceptionHandling:
         with pytest.raises(ExtractInternalException) as e:
             HarvestSource(job_data_dcatus["id"], interface)
 
+    @patch("harvester.harvest.ckan", ckanapi.RemoteCKAN("mock_address"))
+    @patch("harvester.harvest.download_file", download_mock)
+    def test_delete_exception(
+        self,
+        interface,
+        organization_data,
+        source_data_dcatus,
+        job_data_dcatus,
+        single_internal_record,
+    ):
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_dcatus)
+        harvest_job = interface.add_harvest_job(job_data_dcatus)
+
+        interface.add_harvest_record(single_internal_record)
+
+        harvest_source = HarvestSource(harvest_job.id)
+        harvest_source.get_record_changes()
+        harvest_source.write_compare_to_db()
+        harvest_source.synchronize_records()
+
+        interface_record = interface.get_harvest_record(
+            harvest_source.internal_records_lookup_table[
+                single_internal_record["identifier"]
+            ]
+        )
+        interface_errors = interface.get_harvest_errors_by_record_id(
+            harvest_source.internal_records_lookup_table[
+                single_internal_record["identifier"]
+            ]
+        )
+        assert (
+            interface_record["id"]
+            == harvest_source.internal_records_lookup_table[
+                single_internal_record["identifier"]
+            ]
+        )
+        assert interface_record["status"] == "error"
+        assert interface_errors[0]["type"] == "SynchronizeException"
+
     def test_validation_exception(
         self,
         interface,
@@ -57,11 +101,15 @@ class TestExceptionHandling:
         interface_record = interface.get_harvest_record(
             harvest_source.internal_records_lookup_table[test_record.identifier]
         )
+        interface_errors = interface.get_harvest_errors_by_record_id(
+            harvest_source.internal_records_lookup_table[test_record.identifier]
+        )
         assert (
             interface_record["id"]
             == harvest_source.internal_records_lookup_table[test_record.identifier]
         )
         assert interface_record["status"] == "error"
+        assert interface_errors[0]["type"] == "ValidationException"
 
     def test_dcatus_to_ckan_exception(
         self,

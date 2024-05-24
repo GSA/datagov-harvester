@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 
 from . import HarvesterDBInterface, db_interface
 
@@ -12,7 +12,6 @@ class HarvestCriticalException(Exception):
         self.msg = msg
         self.harvest_job_id = harvest_job_id
         self.severity = "CRITICAL"
-        self.type = "job"
 
         self.db_interface: HarvesterDBInterface = db_interface
         self.logger = logging.getLogger("harvest_runner")
@@ -21,8 +20,8 @@ class HarvestCriticalException(Exception):
             "harvest_job_id": self.harvest_job_id,
             "message": self.msg,
             "severity": self.severity,
-            "type": self.type,
-            "date_created": datetime.utcnow(),
+            "type": self.__class__.__name__,
+            "date_created": datetime.now(timezone.utc),
         }
 
         self.db_interface.add_harvest_error(error_data)
@@ -49,7 +48,6 @@ class HarvestNonCriticalException(Exception):
         self.msg = msg
         self.harvest_job_id = harvest_job_id
         self.severity = "ERROR"
-        self.type = "record"
         self.harvest_record_id = record_id
 
         self.db_interface: HarvesterDBInterface = db_interface
@@ -59,8 +57,8 @@ class HarvestNonCriticalException(Exception):
             "harvest_job_id": self.harvest_job_id,
             "message": self.msg,
             "severity": self.severity,
-            "type": self.type,
-            "date_created": datetime.utcnow(),
+            "type": self.__class__.__name__,
+            "date_created": datetime.now(timezone.utc),
             "harvest_record_id": record_id,  # to-do
         }
 
