@@ -12,7 +12,7 @@ from sqlalchemy.orm import scoped_session, sessionmaker
 from app import create_app
 from database.interface import HarvesterDBInterface
 from database.models import db
-from harvester.utils import CFHandler, dataset_to_hash, sort_dataset
+from harvester.utils import dataset_to_hash, sort_dataset
 
 load_dotenv()
 

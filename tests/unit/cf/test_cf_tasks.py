@@ -1,6 +1,7 @@
-from unittest.mock import patch
-from harvester.utils import CFHandler
 import collections
+from unittest.mock import patch
+
+from harvester.utils import CFHandler
 
 
 class AppMock:
