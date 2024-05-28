@@ -22,6 +22,7 @@ def mock_bad_cf_index(monkeypatch):
 
 class TestLoadManager:
     @patch.object(HarvesterDBInterface, "update_harvest_job")
+    @patch.object(CFHandler, "setup")
     @patch.object(CFHandler, "start_task")
     @patch.object(CFHandler, "get_all_running_tasks")
     @patch.object(CFHandler, "get_all_app_tasks")
@@ -32,6 +33,7 @@ class TestLoadManager:
         cf_get_all_app_tasks_mock,
         cf_get_all_running_tasks_mock,
         cf_start_task_mock,
+        cf_setup_mock,
         db_update_harvest_job_mock,
         job_data_dcatus,
         job_data_waf,
@@ -61,6 +63,7 @@ class TestLoadManager:
         ) == cf_start_task_mock.call_count
 
     @patch.object(HarvesterDBInterface, "update_harvest_job")
+    @patch.object(CFHandler, "setup")
     @patch.object(CFHandler, "start_task")
     @patch.object(CFHandler, "get_all_running_tasks")
     @patch.object(CFHandler, "get_all_app_tasks")
@@ -71,6 +74,7 @@ class TestLoadManager:
         cf_get_all_app_tasks_mock,
         cf_get_all_running_tasks_mock,
         cf_start_task_mock,
+        cf_setup_mock,
         db_update_harvest_job_mock,
         job_data_dcatus,
         job_data_waf,
@@ -88,6 +92,7 @@ class TestLoadManager:
         load_manager()
 
         # assert certain mocks are called
+        assert cf_setup_mock.called
         assert db_get_harvest_jobs_by_faceted_filter_mock.called
         assert cf_get_all_app_tasks_mock.called
         assert cf_get_all_running_tasks_mock.called
@@ -101,6 +106,7 @@ class TestLoadManager:
         ) == cf_start_task_mock.call_count
 
     @patch.object(HarvesterDBInterface, "update_harvest_job")
+    @patch.object(CFHandler, "setup")
     @patch.object(CFHandler, "start_task")
     @patch.object(CFHandler, "get_all_running_tasks")
     @patch.object(CFHandler, "get_all_app_tasks")
@@ -111,6 +117,7 @@ class TestLoadManager:
         cf_get_all_app_tasks_mock,
         cf_get_all_running_tasks_mock,
         cf_start_task_mock,
+        cf_setup_mock,
         db_update_harvest_job_mock,
         job_data_dcatus,
         job_data_waf,

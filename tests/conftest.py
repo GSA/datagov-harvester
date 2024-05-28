@@ -12,7 +12,7 @@ from sqlalchemy.orm import scoped_session, sessionmaker
 from app import create_app
 from database.interface import HarvesterDBInterface
 from database.models import db
-from harvester.utils import CFHandler, dataset_to_hash, sort_dataset
+from harvester.utils import dataset_to_hash, sort_dataset
 
 load_dotenv()
 
@@ -21,6 +21,15 @@ logger = logging.getLogger("pytest.conftest")
 EXAMPLE_DATA = Path(__file__).parents[1] / "example_data"
 
 HARVEST_SOURCE_URL = os.getenv("HARVEST_SOURCE_URL")
+
+# ignore tests in the functional dir
+collect_ignore_glob = ["functional/*"]
+
+
+@pytest.fixture(scope="session", autouse=True)
+def default_session_fixture():
+    with patch("app.load_manager", lambda: True):
+        yield
 
 
 @pytest.fixture(scope="session")
@@ -54,7 +63,7 @@ def interface(session) -> HarvesterDBInterface:
 
 
 @pytest.fixture(scope="function", autouse=True)
-def default_session_fixture(interface):
+def default_function_fixture(interface):
     logger.info("Patching core.feature.service")
     with patch("harvester.harvest.db_interface", interface), patch(
         "harvester.exceptions.db_interface", interface
@@ -404,15 +413,6 @@ def single_internal_record(internal_compare_data):
         "harvest_source_id": internal_compare_data["harvest_source_id"],
         "source_hash": dataset_to_hash(sort_dataset(record)),
     }
-
-
-@pytest.fixture
-def cf_handler() -> CFHandler:
-    url = os.getenv("CF_API_URL")
-    user = os.getenv("CF_SERVICE_USER")
-    password = os.getenv("CF_SERVICE_AUTH")
-
-    return CFHandler(url, user, password)
 
 
 @pytest.fixture
