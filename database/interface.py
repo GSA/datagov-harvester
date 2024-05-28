@@ -203,8 +203,14 @@ class HarvesterDBInterface:
         result = self.db.query(HarvestError).filter_by(id=error_id).first()
         return HarvesterDBInterface._to_dict(result)
 
-    def get_harvest_error_by_job(self, job_id):
+    def get_harvest_errors_by_job(self, job_id: str) -> list:
         harvest_errors = self.db.query(HarvestError).filter_by(harvest_job_id=job_id)
+        return [HarvesterDBInterface._to_dict(err) for err in harvest_errors]
+
+    def get_harvest_errors_by_record_id(self, record_id: str) -> list:
+        harvest_errors = self.db.query(HarvestError).filter_by(
+            harvest_record_id=record_id
+        )
         return [HarvesterDBInterface._to_dict(err) for err in harvest_errors]
 
     def add_harvest_record(self, record_data):

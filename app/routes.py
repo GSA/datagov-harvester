@@ -300,7 +300,7 @@ def get_harvest_error(error_id=None):
 
         job_id = request.args.get("harvest_job_id")
         if job_id:
-            error = db.get_harvest_error_by_job(job_id)
+            error = db.get_harvest_errors_by_job(job_id)
             if not error:
                 return "No harvest errors found for this harvest job", 404
         else:
