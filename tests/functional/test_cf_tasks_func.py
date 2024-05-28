@@ -3,7 +3,6 @@ from time import sleep
 
 class TestCFTasking:
     def test_crud_task(self, cf_handler, dhl_cf_task_data):
-
         cf_handler.setup()
 
         # start a new task
@@ -23,7 +22,6 @@ class TestCFTasking:
         assert cancelled_task is not None
 
     def test_get_all_app_tasks(self, cf_handler, dhl_cf_task_data):
-
         cf_handler.setup()
 
         tasks = cf_handler.get_all_app_tasks(dhl_cf_task_data["app_guuid"])

@@ -22,6 +22,15 @@ EXAMPLE_DATA = Path(__file__).parents[1] / "example_data"
 
 HARVEST_SOURCE_URL = os.getenv("HARVEST_SOURCE_URL")
 
+# ignore tests in the functional dir
+collect_ignore_glob = ["functional/*"]
+
+
+@pytest.fixture(scope="session", autouse=True)
+def default_session_fixture():
+    with patch("app.load_manager", lambda: True):
+        yield
+
 
 @pytest.fixture(scope="session")
 def app() -> Generator[Any, Flask, Any]:
@@ -54,7 +63,7 @@ def interface(session) -> HarvesterDBInterface:
 
 
 @pytest.fixture(scope="function", autouse=True)
-def default_session_fixture(interface):
+def default_function_fixture(interface):
     logger.info("Patching core.feature.service")
     with patch("harvester.harvest.db_interface", interface), patch(
         "harvester.exceptions.db_interface", interface
@@ -408,11 +417,7 @@ def single_internal_record(internal_compare_data):
 
 @pytest.fixture
 def cf_handler() -> CFHandler:
-    url = os.getenv("CF_API_URL")
-    user = os.getenv("CF_SERVICE_USER")
-    password = os.getenv("CF_SERVICE_AUTH")
-
-    return CFHandler(url, user, password)
+    return CFHandler("url", "user", "auth")
 
 
 @pytest.fixture
