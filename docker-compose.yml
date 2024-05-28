@@ -36,7 +36,6 @@ services:
       DATABASE_URI: postgresql://${DATABASE_USER}:${DATABASE_PASSWORD}@db:${DATABASE_PORT}/${DATABASE_NAME}
       CF_SERVICE_USER: ${CF_SERVICE_USER}
       CF_SERVICE_AUTH: ${CF_SERVICE_AUTH}
-      LM_RUNNER_APP_GUID: ${LM_RUNNER_APP_GUID}
       FLASK_APP: run.py
       FLASK_ENV: development
     ports:

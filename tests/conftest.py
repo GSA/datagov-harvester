@@ -414,6 +414,7 @@ def single_internal_record(internal_compare_data):
         "source_hash": dataset_to_hash(sort_dataset(record)),
     }
 
+
 @pytest.fixture
 def dhl_cf_task_data() -> dict:
     return {
