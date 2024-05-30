@@ -7,8 +7,8 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 
-import ckanapi
 import requests
+from ckanapi import RemoteCKAN
 from jsonschema import Draft202012Validator
 
 from . import HarvesterDBInterface, db_interface
@@ -37,7 +37,7 @@ session = requests.Session()
 session.request = functools.partial(session.request, timeout=15)
 
 # ckan entrypoint
-ckan = ckanapi.RemoteCKAN(
+ckan = RemoteCKAN(
     os.getenv("CKAN_URL_STAGE"),
     apikey=os.getenv("CKAN_API_TOKEN_STAGE"),
     session=session,
@@ -258,6 +258,7 @@ class HarvestSource:
                         try:
                             self.external_records[i].delete_record()
                         except Exception as e:
+                            self.external_records[i].status = "error"
                             raise SynchronizeException(
                                 f"failed to {self.external_records[i].action} \
                                     for {self.external_records[i].identifier} :: \
@@ -291,7 +292,13 @@ class HarvestSource:
         logger.info({action: len(ids) for action, ids in self.compare_data.items()})
 
         # validation count and actual results
-        actual_results = {"deleted": 0, "updated": 0, "created": 0, "nothing": 0}
+        actual_results = {
+            "deleted": 0,
+            "updated": 0,
+            "created": 0,
+            "nothing": 0,
+            "error": 0,
+        }
         validity = {"valid": 0, "invalid": 0}
 
         for record_id, record in self.external_records.items():
@@ -310,6 +317,17 @@ class HarvestSource:
         # what's our record validity count?
         logger.info("validity of the records")
         logger.info(validity)
+
+        job_status = {
+            "status": "complete",
+            "date_created": datetime.now(),
+            "records_added": actual_results["created"],
+            "records_updated": actual_results["updated"],
+            "records_deleted": actual_results["deleted"],
+            "records_ignored": actual_results["nothing"],
+            "records_errored": actual_results["error"],
+        }
+        self.db_interface.update_harvest_job(self.job_id, job_status)
 
 
 @dataclass
@@ -399,6 +417,7 @@ class Record:
             validator.validate(self.metadata)
             self.valid = True
         except Exception as e:
+            self.status = "error"
             self.validation_msg = str(e)  # TODO: verify this is what we want
             self.valid = False
             raise ValidationException(
@@ -425,6 +444,7 @@ class Record:
                 self.metadata, self.harvest_source.organization_id
             )
         except Exception as e:
+            self.status = "error"
             raise DCATUSToCKANException(
                 repr(e),
                 self.harvest_source.job_id,
@@ -447,10 +467,16 @@ class Record:
             if self.action == "update":
                 self.update_record()
         except Exception as e:
+            self.status = "error"
             raise SynchronizeException(
                 f"failed to {self.action} for {self.identifier} :: {repr(e)}",
                 self.harvest_source.job_id,
                 self.harvest_source.internal_records_lookup_table[self.identifier],
             )
+
+        self.harvest_source.db_interface.update_harvest_record(
+            self.harvest_source.internal_records_lookup_table[self.identifier],
+            {"status": "success", "date_finished": datetime.now()},
+        )
 
         logger.info(f"time to {self.action} {self.identifier} {datetime.now()-start}")
