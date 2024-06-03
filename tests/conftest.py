@@ -145,7 +145,16 @@ def source_data_dcatus_invalid(organization_data: dict) -> dict:
 def job_data_dcatus(source_data_dcatus: dict) -> dict:
     return {
         "id": "6bce761c-7a39-41c1-ac73-94234c139c76",
-        "status": "pending",
+        "status": "new",
+        "harvest_source_id": source_data_dcatus["id"],
+    }
+
+
+@pytest.fixture
+def job_data_dcatus_2(source_data_dcatus: dict) -> dict:
+    return {
+        "id": "392ac4b3-79a6-414b-a2b3-d6c607d3b8d4",
+        "status": "new",
         "harvest_source_id": source_data_dcatus["id"],
     }
 
@@ -154,8 +163,17 @@ def job_data_dcatus(source_data_dcatus: dict) -> dict:
 def job_data_waf(source_data_waf: dict) -> dict:
     return {
         "id": "963cdc51-94d5-425d-a688-e0a57e0c5dd2",
-        "status": "pending",
+        "status": "new",
         "harvest_source_id": source_data_waf["id"],
+    }
+
+
+@pytest.fixture
+def job_error_data(job_data_dcatus) -> dict:
+    return {
+        "harvest_job_id": job_data_dcatus["id"],
+        "message": "error reading records from harvest database",
+        "type": "ExtractInternalException",
     }
 
 
@@ -163,7 +181,7 @@ def job_data_waf(source_data_waf: dict) -> dict:
 def job_data_dcatus_invalid(source_data_dcatus_invalid: dict) -> dict:
     return {
         "id": "59df7ba5-102d-4ae3-abd6-01b7eb26a338",
-        "status": "pending",
+        "status": "new",
         "harvest_source_id": source_data_dcatus_invalid["id"],
     }
 
@@ -171,12 +189,22 @@ def job_data_dcatus_invalid(source_data_dcatus_invalid: dict) -> dict:
 @pytest.fixture
 def record_data_dcatus(job_data_dcatus: dict) -> dict:
     return {
+        "id": "0779c855-df20-49c8-9108-66359d82b77c",
         "identifier": "test_identifier",
         "harvest_job_id": job_data_dcatus["id"],
         "harvest_source_id": job_data_dcatus["harvest_source_id"],
         "action": "create",
         "status": "success",
         "source_raw": "example data",
+    }
+
+
+@pytest.fixture
+def record_error_data(record_data_dcatus) -> dict:
+    return {
+        "harvest_record_id": record_data_dcatus["id"],
+        "message": "record is invalid",
+        "type": "ValidationException",
     }
 
 
@@ -199,7 +227,7 @@ def source_data_dcatus_bad_url(organization_data: dict) -> dict:
 def job_data_dcatus_bad_url(source_data_dcatus_bad_url: dict) -> dict:
     return {
         "id": "707aee7b-bf72-4e07-a5fc-68980765b214",
-        "status": "pending",
+        "status": "new",
         "harvest_source_id": source_data_dcatus_bad_url["id"],
     }
 
@@ -234,7 +262,7 @@ def source_data_dcatus_invalid_records_job(
 def interface_with_multiple_jobs(
     interface, organization_data, source_data_dcatus, source_data_waf
 ):
-    statuses = ["pending", "pending_manual", "in_progress", "complete"]
+    statuses = ["new", "manual", "in_progress", "complete", "error"]
     source_ids = [source_data_dcatus["id"], source_data_waf["id"]]
     jobs = [
         {"status": status, "harvest_source_id": source}
@@ -252,7 +280,9 @@ def interface_with_multiple_jobs(
 
 
 @pytest.fixture
-def latest_records(source_data_dcatus, source_data_dcatus_2):
+def latest_records(
+    source_data_dcatus, source_data_dcatus_2, job_data_dcatus, job_data_dcatus_2
+):
     return [
         {
             "identifier": "a",
@@ -261,6 +291,7 @@ def latest_records(source_data_dcatus, source_data_dcatus_2):
             "status": "success",
             "action": "create",
             "harvest_source_id": source_data_dcatus["id"],
+            "harvest_job_id": job_data_dcatus["id"],
         },
         {
             "identifier": "a",
@@ -269,6 +300,7 @@ def latest_records(source_data_dcatus, source_data_dcatus_2):
             "status": "success",
             "action": "update",
             "harvest_source_id": source_data_dcatus["id"],
+            "harvest_job_id": job_data_dcatus["id"],
         },
         {
             "identifier": "b",
@@ -277,6 +309,7 @@ def latest_records(source_data_dcatus, source_data_dcatus_2):
             "status": "success",
             "action": "create",
             "harvest_source_id": source_data_dcatus["id"],
+            "harvest_job_id": job_data_dcatus["id"],
         },
         {
             "identifier": "b",
@@ -285,6 +318,7 @@ def latest_records(source_data_dcatus, source_data_dcatus_2):
             "status": "error",
             "action": "update",
             "harvest_source_id": source_data_dcatus["id"],
+            "harvest_job_id": job_data_dcatus["id"],
         },
         {
             "identifier": "c",
@@ -293,6 +327,7 @@ def latest_records(source_data_dcatus, source_data_dcatus_2):
             "status": "success",
             "action": "create",
             "harvest_source_id": source_data_dcatus["id"],
+            "harvest_job_id": job_data_dcatus["id"],
         },
         {
             "identifier": "d",
@@ -301,6 +336,7 @@ def latest_records(source_data_dcatus, source_data_dcatus_2):
             "status": "success",
             "action": "delete",
             "harvest_source_id": source_data_dcatus["id"],
+            "harvest_job_id": job_data_dcatus["id"],
         },
         {
             "identifier": "d",
@@ -309,6 +345,7 @@ def latest_records(source_data_dcatus, source_data_dcatus_2):
             "status": "success",
             "action": "create",
             "harvest_source_id": source_data_dcatus["id"],
+            "harvest_job_id": job_data_dcatus["id"],
         },
         {
             "identifier": "e",
@@ -317,6 +354,7 @@ def latest_records(source_data_dcatus, source_data_dcatus_2):
             "status": "success",
             "action": "create",
             "harvest_source_id": source_data_dcatus["id"],
+            "harvest_job_id": job_data_dcatus["id"],
         },
         {
             "identifier": "e",
@@ -325,6 +363,7 @@ def latest_records(source_data_dcatus, source_data_dcatus_2):
             "status": "success",
             "action": "delete",
             "harvest_source_id": source_data_dcatus["id"],
+            "harvest_job_id": job_data_dcatus["id"],
         },
         {
             "identifier": "e",
@@ -333,6 +372,7 @@ def latest_records(source_data_dcatus, source_data_dcatus_2):
             "status": "success",
             "action": "create",
             "harvest_source_id": source_data_dcatus["id"],
+            "harvest_job_id": job_data_dcatus["id"],
         },
         {
             "identifier": "f",
@@ -341,6 +381,7 @@ def latest_records(source_data_dcatus, source_data_dcatus_2):
             "status": "success",
             "action": "create",
             "harvest_source_id": source_data_dcatus_2["id"],
+            "harvest_job_id": job_data_dcatus_2["id"],  #
         },
     ]
 

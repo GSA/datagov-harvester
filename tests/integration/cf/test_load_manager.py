@@ -142,15 +142,15 @@ class TestLoadManager:
 
     def test_sort_jobs(self):
         jobs = [
-            {"status": "pending"},
-            {"status": "pending"},
-            {"status": "pending_manual"},
+            {"status": "new"},
+            {"status": "new"},
+            {"status": "manual"},
         ]
 
         sorted_jobs = sort_jobs(jobs)
 
         assert sorted_jobs == [
-            {"status": "pending_manual"},
-            {"status": "pending"},
-            {"status": "pending"},
+            {"status": "manual"},
+            {"status": "new"},
+            {"status": "new"},
         ]

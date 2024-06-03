@@ -1,17 +1,26 @@
 import uuid
 
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import Enum, func
+from sqlalchemy import Enum, func, String, Column
+from sqlalchemy.orm import DeclarativeBase
 
-db = SQLAlchemy()
 
-
-class Base(db.Model):
+class Base(DeclarativeBase):
     __abstract__ = True  # Indicates that this class should not be created as a table
-    id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
 
 
-class Organization(Base):
+db = SQLAlchemy(model_class=Base)
+
+
+class Error(db.Model):
+    __abstract__ = True
+    date_created = db.Column(db.DateTime, default=func.now())
+    type = db.Column(db.String)
+    message = db.Column(db.String)
+
+
+class Organization(db.Model):
     __tablename__ = "organization"
 
     name = db.Column(db.String, nullable=False, index=True)
@@ -21,7 +30,7 @@ class Organization(Base):
     )
 
 
-class HarvestSource(Base):
+class HarvestSource(db.Model):
     __tablename__ = "harvest_source"
 
     name = db.Column(db.String, nullable=False)
@@ -40,7 +49,7 @@ class HarvestSource(Base):
     )
 
 
-class HarvestJob(Base):
+class HarvestJob(db.Model):
     __tablename__ = "harvest_job"
 
     harvest_source_id = db.Column(
@@ -50,8 +59,9 @@ class HarvestJob(Base):
         Enum(
             "in_progress",
             "complete",
-            "pending",
-            "pending_manual",
+            "new",
+            "manual",
+            "error",
             name="job_status",
         ),
         nullable=False,
@@ -65,43 +75,45 @@ class HarvestJob(Base):
     records_errored = db.Column(db.Integer)
     records_ignored = db.Column(db.Integer)
     errors = db.relationship(
-        "HarvestError", backref="job", cascade="all, delete-orphan", lazy=True
+        "HarvestJobError", backref="job", cascade="all, delete-orphan", lazy=True
     )
 
 
-class HarvestError(Base):
-    __tablename__ = "harvest_error"
+class HarvestRecord(db.Model):
+    __tablename__ = "harvest_record"
 
+    identifier = db.Column(db.String, nullable=False)
     harvest_job_id = db.Column(
         db.String(36), db.ForeignKey("harvest_job.id"), nullable=False
     )
-    harvest_record_id = db.Column(db.String, db.ForeignKey("harvest_record.id"))
-    date_created = db.Column(db.DateTime, default=func.now())
-    type = db.Column(db.String)
-    severity = db.Column(
-        Enum("CRITICAL", "ERROR", "WARN", name="error_serverity"),
-        nullable=False,
-        index=True,
-    )
-    message = db.Column(db.String)
-    reference = db.Column(db.String)
-
-
-class HarvestRecord(Base):
-    __tablename__ = "harvest_record"
-
-    identifier = db.Column(db.String)
-    harvest_job_id = db.Column(
-        db.String(36), db.ForeignKey("harvest_job.id"), nullable=True
-    )
     harvest_source_id = db.Column(
-        db.String(36), db.ForeignKey("harvest_source.id"), nullable=True
+        db.String(36), db.ForeignKey("harvest_source.id"), nullable=False
     )
     source_hash = db.Column(db.String)
     source_raw = db.Column(db.String)
     date_created = db.Column(db.DateTime, index=True, default=func.now())
-    date_finished = db.Column(db.DateTime)
+    date_finished = db.Column(db.DateTime, index=True)
     ckan_id = db.Column(db.String, index=True)
-    type = db.Column(db.String)
-    action = db.Column(Enum("create", "update", "delete", name="record_action"))
-    status = db.Column(Enum("error", "success", name="record_status"))
+    action = db.Column(
+        Enum("create", "update", "delete", name="record_action"), index=True
+    )
+    status = db.Column(Enum("error", "success", name="record_status"), index=True)
+    errors = db.relationship(
+        "HarvestRecordError", backref="record", cascade="all, delete-orphan", lazy=True
+    )
+
+
+class HarvestJobError(Error):
+    __tablename__ = "harvest_job_error"
+
+    harvest_job_id = db.Column(
+        db.String(36), db.ForeignKey("harvest_job.id"), nullable=False
+    )
+
+
+class HarvestRecordError(Error):
+    __tablename__ = "harvest_record_error"
+
+    harvest_record_id = db.Column(
+        db.String, db.ForeignKey("harvest_record.id"), nullable=False
+    )

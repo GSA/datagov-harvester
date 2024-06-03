@@ -62,7 +62,7 @@ class TestNonCritialExceptionHandling:
                 single_internal_record["identifier"]
             ]
         )
-        interface_errors = interface.get_harvest_errors_by_record_id(
+        interface_errors = interface.get_harvest_record_errors(
             harvest_source.internal_records_lookup_table[
                 single_internal_record["identifier"]
             ]
@@ -96,7 +96,7 @@ class TestNonCritialExceptionHandling:
         interface_record = interface.get_harvest_record(
             harvest_source.internal_records_lookup_table[test_record.identifier]
         )
-        interface_errors = interface.get_harvest_errors_by_record_id(
+        interface_errors = interface.get_harvest_record_errors(
             harvest_source.internal_records_lookup_table[test_record.identifier]
         )
         assert (
@@ -129,7 +129,7 @@ class TestNonCritialExceptionHandling:
         interface_record = interface.get_harvest_record(
             harvest_source.internal_records_lookup_table[test_record.identifier]
         )
-        interface_errors = interface.get_harvest_errors_by_record_id(
+        interface_errors = interface.get_harvest_record_errors(
             harvest_source.internal_records_lookup_table[test_record.identifier]
         )
 
@@ -165,7 +165,7 @@ class TestNonCritialExceptionHandling:
             harvest_source.internal_records_lookup_table[test_record.identifier]
         )
 
-        interface_errors = interface.get_harvest_errors_by_record_id(
+        interface_errors = interface.get_harvest_record_errors(
             harvest_source.internal_records_lookup_table[test_record.identifier]
         )
 

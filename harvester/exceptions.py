@@ -11,7 +11,6 @@ class HarvestCriticalException(Exception):
 
         self.msg = msg
         self.harvest_job_id = harvest_job_id
-        self.severity = "CRITICAL"
 
         self.db_interface: HarvesterDBInterface = db_interface
         self.logger = logging.getLogger("harvest_runner")
@@ -19,12 +18,11 @@ class HarvestCriticalException(Exception):
         error_data = {
             "harvest_job_id": self.harvest_job_id,
             "message": self.msg,
-            "severity": self.severity,
             "type": self.__class__.__name__,
             "date_created": datetime.now(timezone.utc),
         }
 
-        self.db_interface.add_harvest_error(error_data)
+        self.db_interface.add_harvest_error(error_data, "job")
         self.logger.critical(self.msg, exc_info=True)
 
 
@@ -47,22 +45,19 @@ class HarvestNonCriticalException(Exception):
 
         self.msg = msg
         self.harvest_job_id = harvest_job_id
-        self.severity = "ERROR"
         self.harvest_record_id = record_id
 
         self.db_interface: HarvesterDBInterface = db_interface
         self.logger = logging.getLogger("harvest_runner")
 
         error_data = {
-            "harvest_job_id": self.harvest_job_id,
             "message": self.msg,
-            "severity": self.severity,
             "type": self.__class__.__name__,
             "date_created": datetime.now(timezone.utc),
             "harvest_record_id": record_id,  # to-do
         }
 
-        self.db_interface.add_harvest_error(error_data)
+        self.db_interface.add_harvest_error(error_data, "record")
         self.db_interface.update_harvest_record(record_id, {"status": "error"})
         self.logger.error(self.msg, exc_info=True)
 
