@@ -117,14 +117,15 @@ class HarvestSource:
 
     def get_source_info_from_job_id(self, job_id: str) -> None:
         # TODO: validate values here?
-        source_data = self.db_interface.get_source_by_jobid(job_id)
-        if source_data is None:
+        try:
+            source_data = self.db_interface.get_source_by_jobid(job_id)
+            for attr in self.source_attrs:
+                setattr(self, attr, source_data[attr])
+        except Exception as e:
             raise ExtractInternalException(
                 f"failed to extract source info from {job_id}. exiting",
                 self.job_id,
             )
-        for attr in self.source_attrs:
-            setattr(self, attr, source_data[attr])
 
     def internal_records_to_id_hash(self, records: list[dict]) -> None:
         for record in records:
