@@ -7,13 +7,12 @@ class TestHarvestFullFlow:
     @patch("harvester.harvest.ckan")
     def test_harvest_single_record_created(
         self,
-        CKANMOCK,
+        CKANMock,
         interface,
         organization_data,
         source_data_dcatus_single_record,
-        single_internal_record,
     ):
-        CKANMOCK.return_value.action = "ok"
+        CKANMock.return_value.action = "ok"
         interface.add_organization(organization_data)
         interface.add_harvest_source(source_data_dcatus_single_record)
         harvest_job = interface.add_harvest_job(
@@ -33,10 +32,10 @@ class TestHarvestFullFlow:
 
     @patch("harvester.harvest.RemoteCKAN")
     @patch("harvester.harvest.download_file")
-    def test_harvest_errors_reported(
+    def test_harvest_record_errors_reported(
         self,
-        CKANMock,
         download_file_mock,
+        CKANMock,
         interface,
         organization_data,
         source_data_dcatus,

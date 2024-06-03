@@ -4,7 +4,7 @@ import functools
 import logging
 import os
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 import requests
@@ -320,7 +320,7 @@ class HarvestSource:
 
         job_status = {
             "status": "complete",
-            "date_created": datetime.now(),
+            "date_finished": datetime.now(timezone.utc),
             "records_added": actual_results["created"],
             "records_updated": actual_results["updated"],
             "records_deleted": actual_results["deleted"],
@@ -459,7 +459,7 @@ class Record:
 
         self.ckanify_dcatus()
 
-        start = datetime.now()
+        start = datetime.now(timezone.utc)
 
         try:
             if self.action == "create":
@@ -476,7 +476,10 @@ class Record:
 
         self.harvest_source.db_interface.update_harvest_record(
             self.harvest_source.internal_records_lookup_table[self.identifier],
-            {"status": "success", "date_finished": datetime.now()},
+            {"status": "success", "date_finished": datetime.now(timezone.utc)},
         )
 
-        logger.info(f"time to {self.action} {self.identifier} {datetime.now()-start}")
+        logger.info(
+            f"time to {self.action} {self.identifier} \
+                {datetime.now(timezone.utc)-start}"
+        )

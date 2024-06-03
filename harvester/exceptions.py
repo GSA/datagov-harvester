@@ -22,7 +22,14 @@ class HarvestCriticalException(Exception):
             "date_created": datetime.now(timezone.utc),
         }
 
+        job_status = {
+            "status": "error",
+            "date_finished": datetime.now(timezone.utc),
+        }
+
         self.db_interface.add_harvest_error(error_data, "job")
+        self.db_interface.add_harvest_error(error_data)
+        self.db_interface.update_harvest_job(harvest_job_id, job_status)
         self.logger.critical(self.msg, exc_info=True)
 
 
