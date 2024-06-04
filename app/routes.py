@@ -207,9 +207,7 @@ def edit_harvest_source(source_id=None):
 
 @mod.route("/harvest_source/harvest/<source_id>", methods=["GET"])
 def trigger_harvest_source(source_id):
-    job = db.add_harvest_job(
-        {"harvest_source_id": source_id, "status": "pending_manual"}
-    )
+    job = db.add_harvest_job({"harvest_source_id": source_id, "status": "manual"})
     if job:
         flash(f"Triggered harvest of source with ID: {source_id}")
     else:
@@ -232,24 +230,12 @@ def delete_harvest_source(source_id):
 
 
 ## Harvest Job
-@mod.route("/harvest_job/add", methods=["POST"])
-def add_harvest_job():
-    if request.is_json:
-        job = db.add_harvest_job(request.json)
-        if job:
-            return jsonify({"message": f"Added new harvest job with ID: {job.id}"})
-        else:
-            return jsonify({"error": "Failed to add harvest job."}), 400
-    else:
-        return jsonify({"Please provide harvest job with json format."})
-
-
 @mod.route("/harvest_job/", methods=["GET"])
 @mod.route("/harvest_job/<job_id>", methods=["GET"])
 def get_harvest_job(job_id=None):
     try:
         if job_id:
-            job = db.get_harvest_job(job_id)
+            job = HarvesterDBInterface._to_dict(db.get_harvest_job(job_id))
             return jsonify(job) if job else ("Not Found", 404)
 
         source_id = request.args.get("harvest_source_id")
@@ -265,6 +251,22 @@ def get_harvest_job(job_id=None):
         return "Please provide correct job_id or harvest_source_id"
 
 
+# all errors associated with a job ( job & records )
+@mod.route("/harvest_job/<job_id>/errors", methods=["GET"])
+@mod.route("/harvest_job/<job_id>/errors/<error_type>", methods=["GET"])
+def get_all_errors_of_harvest_job(job_id, error_type="all"):
+    try:
+        all_errors = db.get_all_errors_of_job(job_id)
+        if error_type == "job":
+            return all_errors[0]
+        elif error_type == "record":
+            return all_errors[1]
+        else:
+            return all_errors
+    except Exception:
+        return "Please provide correct job_id"
+
+
 @mod.route("/harvest_job/<job_id>", methods=["PUT"])
 def update_harvest_job(job_id):
     result = db.update_harvest_job(job_id, request.json)
@@ -277,54 +279,19 @@ def delete_harvest_job(job_id):
     return result
 
 
-## Harvest Error
-@mod.route("/harvest_error/add", methods=["POST", "GET"])
-def add_harvest_error():
+@mod.route("/harvest_job/add", methods=["POST"])
+def add_harvest_job():
     if request.is_json:
-        error = db.add_harvest_error(request.json)
-        if error:
-            return jsonify({"message": f"Added new harvest error with ID: {error.id}"})
+        job = db.add_harvest_job(request.json)
+        if job:
+            return jsonify({"message": f"Added new harvest job with ID: {job.id}"})
         else:
-            return jsonify({"error": "Failed to add harvest error."}), 400
+            return jsonify({"error": "Failed to add harvest job."}), 400
     else:
-        return jsonify({"Please provide harvest error with json format."})
-
-
-@mod.route("/harvest_error/", methods=["GET"])
-@mod.route("/harvest_error/<error_id>", methods=["GET"])
-def get_harvest_error(error_id=None):
-    try:
-        if error_id:
-            error = db.get_harvest_error(error_id)
-            return jsonify(error) if error else ("Not Found", 404)
-
-        job_id = request.args.get("harvest_job_id")
-        if job_id:
-            error = db.get_harvest_errors_by_job(job_id)
-            if not error:
-                return "No harvest errors found for this harvest job", 404
-        else:
-            # for test, will remove later
-            error = db.get_all_harvest_errors()
-
-        return jsonify(error)
-    except Exception:
-        return "Please provide correct error_id or harvest_job_id"
+        return jsonify({"Please provide harvest job with json format."})
 
 
 ## Harvest Record
-@mod.route("/harvest_record/add", methods=["POST", "GET"])
-def add_harvest_record():
-    if request.is_json:
-        record = db.add_harvest_record(request.json)
-        if record:
-            return jsonify({"message": f"Added new record with ID: {record.id}"})
-        else:
-            return jsonify({"error": "Failed to add harvest record."}), 400
-    else:
-        return jsonify({"Please provide harvest record with json format."})
-
-
 @mod.route("/harvest_record/", methods=["GET"])
 @mod.route("/harvest_record/<record_id>", methods=["GET"])
 def get_harvest_record(record_id=None):
@@ -350,6 +317,42 @@ def get_harvest_record(record_id=None):
         return jsonify(record)
     except Exception:
         return "Please provide correct record_id or harvest_job_id"
+
+
+@mod.route("/harvest_record/<record_id>/errors", methods=["GET"])
+def get_all_harvest_record_errors(record_id: str) -> list:
+    try:
+        record_errors = db.get_harvest_record_errors(record_id)
+        return record_errors if record_errors else ("Not Found", 404)
+    except Exception:
+        return "Please provide correct record_id"
+
+
+@mod.route("/harvest_error/<error_id>", methods=["GET"])
+def get_harvest_record_error(error_id: str) -> dict:
+    # retrieves the given error ( either job or record )
+    try:
+        job_error = db.get_harvest_job_error(error_id)
+        if job_error:
+            return job_error
+        record_error = db.get_harvest_record_error(error_id)
+        if record_error:
+            return record_error
+        return ("Not Found", 404)
+    except Exception:
+        return "Please provide correct record_id and record_error_id"
+
+
+@mod.route("/harvest_record/add", methods=["POST", "GET"])
+def add_harvest_record():
+    if request.is_json:
+        record = db.add_harvest_record(request.json)
+        if record:
+            return jsonify({"message": f"Added new record with ID: {record.id}"})
+        else:
+            return jsonify({"error": "Failed to add harvest record."}), 400
+    else:
+        return jsonify({"Please provide harvest record with json format."})
 
 
 ## Test interface, will remove later

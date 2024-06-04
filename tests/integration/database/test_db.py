@@ -1,5 +1,6 @@
 import datetime
 
+from database.models import HarvestJobError, HarvestRecordError
 from harvester.harvest import HarvestSource
 from harvester.utils import dataset_to_hash, sort_dataset
 
@@ -101,6 +102,43 @@ class TestDatabase:
 
         assert source.id == harvest_source["id"]
 
+    def test_add_harvest_job_error(
+        self,
+        interface,
+        organization_data,
+        source_data_dcatus,
+        job_data_dcatus,
+        job_error_data,
+    ):
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_dcatus)
+        interface.add_harvest_job(job_data_dcatus)
+
+        harvest_job_error = interface.add_harvest_error(job_error_data, "job")
+        assert isinstance(harvest_job_error, HarvestJobError)
+        assert harvest_job_error.message == job_error_data["message"]
+
+    def test_get_all_errors_of_job(
+        self,
+        interface,
+        organization_data,
+        source_data_dcatus,
+        job_data_dcatus,
+        job_error_data,
+    ):
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_dcatus)
+        interface.add_harvest_job(job_data_dcatus)
+        interface.add_harvest_error(job_error_data, "job")
+
+        all_errors = interface.get_all_errors_of_job(job_data_dcatus["id"])
+
+        assert len(all_errors) == 2
+        assert len(all_errors[0]) == 1  # job error
+        assert len(all_errors[1]) == 0  # record errors
+        assert all_errors[0][0]["type"] == "ExtractInternalException"
+        assert len(all_errors[1]) == 0
+
     def test_add_harvest_record(
         self,
         interface,
@@ -118,6 +156,29 @@ class TestDatabase:
         assert record.harvest_source_id == source.id
         assert record.harvest_job_id == harvest_job.id
 
+    def test_add_harvest_record_error(
+        self,
+        interface,
+        organization_data,
+        source_data_dcatus,
+        job_data_dcatus,
+        record_data_dcatus,
+        record_error_data,
+    ):
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_dcatus)
+        interface.add_harvest_job(job_data_dcatus)
+        interface.add_harvest_record(record_data_dcatus)
+
+        harvest_record_error = interface.add_harvest_error(record_error_data, "record")
+        assert isinstance(harvest_record_error, HarvestRecordError)
+        assert harvest_record_error.message == record_error_data["message"]
+
+        harvest_record_error_from_db = interface.get_harvest_record_error(
+            harvest_record_error.id
+        )
+        assert harvest_record_error.id == harvest_record_error_from_db["id"]
+
     def test_add_harvest_records(
         self,
         interface,
@@ -133,6 +194,7 @@ class TestDatabase:
         records = []
         for i in range(10):
             new_record = record_data_dcatus.copy()
+            del new_record["id"]
             new_record["identifier"] = f"test-identifier-{i}"
             records.append(new_record)
 
@@ -170,22 +232,22 @@ class TestDatabase:
         self, source_data_dcatus, interface_with_multiple_jobs
     ):
         filters = {
-            "status": "pending",
+            "status": "new",
             "harvest_source_id": f"{source_data_dcatus['id']}",
         }
         filtered_list = interface_with_multiple_jobs.get_harvest_jobs_by_filter(filters)
         assert len(filtered_list) == 1
-        assert filtered_list[0]["status"] == "pending"
+        assert filtered_list[0]["status"] == "new"
         assert filtered_list[0]["harvest_source_id"] == source_data_dcatus["id"]
 
     def test_filter_jobs_by_faceted_filter(
         self, source_data_dcatus, interface_with_multiple_jobs
     ):
         faceted_list = interface_with_multiple_jobs.get_harvest_jobs_by_faceted_filter(
-            "status", ["pending", "pending_manual"]
+            "status", ["new", "manual"]
         )
         assert len(faceted_list) == 4
-        assert len([x for x in faceted_list if x["status"] == "pending"]) == 2
+        assert len([x for x in faceted_list if x["status"] == "new"]) == 2
         assert (
             len(
                 [
@@ -204,6 +266,7 @@ class TestDatabase:
         source_data_dcatus,
         source_data_dcatus_2,
         job_data_dcatus,
+        job_data_dcatus_2,
         latest_records,
     ):
         interface.add_organization(organization_data)
@@ -212,6 +275,7 @@ class TestDatabase:
         # `latest_records` fixture
         interface.add_harvest_source(source_data_dcatus_2)
         interface.add_harvest_job(job_data_dcatus)
+        interface.add_harvest_job(job_data_dcatus_2)
         interface.add_harvest_records(latest_records)
 
         latest_records = interface.get_latest_records_by_source(
@@ -225,53 +289,49 @@ class TestDatabase:
         expected_records = [
             {
                 "identifier": "a",
-                "harvest_job_id": None,
+                "harvest_job_id": "6bce761c-7a39-41c1-ac73-94234c139c76",
                 "harvest_source_id": "2f2652de-91df-4c63-8b53-bfced20b276b",
                 "source_hash": None,
                 "source_raw": "data_1",
                 "date_created": datetime.datetime(2024, 3, 1, 0, 0, 0, 1000),
                 "date_finished": None,
                 "ckan_id": None,
-                "type": None,
                 "action": "update",
                 "status": "success",
             },
             {
                 "identifier": "b",
-                "harvest_job_id": None,
+                "harvest_job_id": "6bce761c-7a39-41c1-ac73-94234c139c76",
                 "harvest_source_id": "2f2652de-91df-4c63-8b53-bfced20b276b",
                 "source_hash": None,
                 "source_raw": "data_10",
                 "date_created": datetime.datetime(2024, 3, 1, 0, 0, 0, 1000),
                 "date_finished": None,
                 "ckan_id": None,
-                "type": None,
                 "action": "create",
                 "status": "success",
             },
             {
                 "identifier": "c",
-                "harvest_job_id": None,
+                "harvest_job_id": "6bce761c-7a39-41c1-ac73-94234c139c76",
                 "harvest_source_id": "2f2652de-91df-4c63-8b53-bfced20b276b",
                 "source_hash": None,
                 "source_raw": "data_12",
                 "date_created": datetime.datetime(2024, 5, 1, 0, 0, 0, 1000),
                 "date_finished": None,
                 "ckan_id": None,
-                "type": None,
                 "action": "create",
                 "status": "success",
             },
             {
                 "identifier": "e",
-                "harvest_job_id": None,
+                "harvest_job_id": "6bce761c-7a39-41c1-ac73-94234c139c76",
                 "harvest_source_id": "2f2652de-91df-4c63-8b53-bfced20b276b",
                 "source_hash": None,
                 "source_raw": "data_123",
                 "date_created": datetime.datetime(2024, 4, 3, 0, 0, 0, 1000),
                 "date_finished": None,
                 "ckan_id": None,
-                "type": None,
                 "action": "create",
                 "status": "success",
             },
@@ -296,17 +356,19 @@ class TestDatabase:
         interface.add_harvest_job(job_data_dcatus)
 
         # prefill with records
+        records = []
         for record in internal_compare_data["records"]:
-            data = {
-                "identifier": record["identifier"],
-                "harvest_job_id": job_data_dcatus["id"],
-                "harvest_source_id": job_data_dcatus["harvest_source_id"],
-                "source_hash": dataset_to_hash(sort_dataset(record)),
-                "source_raw": str(record),
-                "type": "dcatus",
-            }
+            records.append(
+                {
+                    "identifier": record["identifier"],
+                    "harvest_job_id": job_data_dcatus["id"],
+                    "harvest_source_id": job_data_dcatus["harvest_source_id"],
+                    "source_hash": dataset_to_hash(sort_dataset(record)),
+                    "source_raw": str(record),
+                }
+            )
 
-            interface.add_harvest_record(data)
+        interface.add_harvest_records(records)
 
         harvest_source = HarvestSource(job_data_dcatus["id"])
         harvest_source.get_record_changes()

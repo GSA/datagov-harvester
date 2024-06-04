@@ -231,7 +231,6 @@ class HarvestSource:
                         "harvest_source_id": record.harvest_source.id,
                         "source_hash": record.metadata_hash,
                         "source_raw": str(record.metadata),
-                        "type": self.source_type,
                         "action": action,
                     }
                 )

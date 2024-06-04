@@ -1,11 +1,19 @@
 import os
 import uuid
+import itertools
 
 from sqlalchemy import create_engine, inspect, or_, text
 from sqlalchemy.exc import NoResultFound
 from sqlalchemy.orm import scoped_session, sessionmaker
 
-from .models import HarvestError, HarvestJob, HarvestRecord, HarvestSource, Organization
+from .models import (
+    HarvestJobError,
+    HarvestRecordError,
+    HarvestJob,
+    HarvestRecord,
+    HarvestSource,
+    Organization,
+)
 
 DATABASE_URI = os.getenv("DATABASE_URI")
 
@@ -142,8 +150,7 @@ class HarvesterDBInterface:
             return None
 
     def get_harvest_job(self, job_id):
-        result = self.db.query(HarvestJob).filter_by(id=job_id).first()
-        return HarvesterDBInterface._to_dict(result)
+        return self.db.query(HarvestJob).filter_by(id=job_id).first()
 
     def get_harvest_jobs_by_filter(self, filter):
         harvest_jobs = self.db.query(HarvestJob).filter_by(**filter).all()
@@ -187,9 +194,14 @@ class HarvesterDBInterface:
         self.db.commit()
         return "Harvest job deleted successfully"
 
-    def add_harvest_error(self, error_data):
+    def add_harvest_error(self, error_data: dict, error_type: str):
         try:
-            new_error = HarvestError(**error_data)
+            if error_type is None:
+                return "Must indicate what type of error to add"
+            if error_type == "job":
+                new_error = HarvestJobError(**error_data)
+            else:
+                new_error = HarvestRecordError(**error_data)
             self.db.add(new_error)
             self.db.commit()
             self.db.refresh(new_error)
@@ -199,19 +211,36 @@ class HarvesterDBInterface:
             self.db.rollback()
             return None
 
-    def get_harvest_error(self, error_id):
-        result = self.db.query(HarvestError).filter_by(id=error_id).first()
+    def get_all_errors_of_job(self, job_id: str) -> [[dict], [dict]]:
+        job = self.get_harvest_job(job_id)
+        job_errors = list(map(HarvesterDBInterface._to_dict, job.errors))
+
+        # itertools.chain flattens a list of lists into a 1 dimensional list
+        record_errors = itertools.chain(*[record.errors for record in job.records])
+        record_errors = list(map(HarvesterDBInterface._to_dict, record_errors))
+
+        return [job_errors, record_errors]
+
+    def get_harvest_job_error(self, job_id: str) -> dict:
+        result = self.db.query(HarvestJobError).filter_by(harvest_job_id=job_id).first()
         return HarvesterDBInterface._to_dict(result)
 
-    def get_harvest_errors_by_job(self, job_id: str) -> list:
-        harvest_errors = self.db.query(HarvestError).filter_by(harvest_job_id=job_id)
-        return [HarvesterDBInterface._to_dict(err) for err in harvest_errors]
-
-    def get_harvest_errors_by_record_id(self, record_id: str) -> list:
-        harvest_errors = self.db.query(HarvestError).filter_by(
+    def get_harvest_record_errors(self, record_id: str):
+        # TODO: paginate this
+        errors = self.db.query(HarvestRecordError).filter_by(
             harvest_record_id=record_id
         )
-        return [HarvesterDBInterface._to_dict(err) for err in harvest_errors]
+        return [HarvesterDBInterface._to_dict(err) for err in errors]
+
+    def get_harvest_record_error(self, error_id: str) -> dict:
+        error = (
+            self.db.query(HarvestRecordError)
+            .filter_by(
+                id=error_id,
+            )
+            .first()
+        )
+        return HarvesterDBInterface._to_dict(error)
 
     def add_harvest_record(self, record_data):
         try:
@@ -323,10 +352,3 @@ class HarvesterDBInterface:
             HarvesterDBInterface._to_dict(err) for err in harvest_records
         ]
         return harvest_records_data
-
-    def get_all_harvest_errors(self):
-        harvest_errors = self.db.query(HarvestError).all()
-        harvest_errors_data = [
-            HarvesterDBInterface._to_dict(err) for err in harvest_errors
-        ]
-        return harvest_errors_data

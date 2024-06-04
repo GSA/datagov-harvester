@@ -24,7 +24,7 @@ def create_task(jobId):
 
 
 def sort_jobs(jobs):
-    return sorted(jobs, key=lambda x: x["status"], reverse=True)
+    return sorted(jobs, key=lambda x: x["status"])
 
 
 def load_manager():
@@ -39,10 +39,8 @@ def load_manager():
         print("CF_INSTANCE_INDEX is not set or not equal to zero")
         return
 
-    # filter harvestjobs by pending / pending_manual
-    jobs = interface.get_harvest_jobs_by_faceted_filter(
-        "status", ["pending", "pending_manual"]
-    )
+    # filter harvestjobs by new (automated) & manual
+    jobs = interface.get_harvest_jobs_by_faceted_filter("status", ["new", "manual"])
 
     # get current list of all tasks
     current_tasks = cf_handler.get_all_app_tasks(LM_RUNNER_APP_GUID)
@@ -56,7 +54,7 @@ def load_manager():
     else:
         slots = LM_MAX_TASKS_COUNT - running_tasks
 
-    # sort jobs by pending_manual first
+    # sort jobs by manual first
     sorted_jobs = sort_jobs(jobs)
 
     # slice off jobs to invoke
