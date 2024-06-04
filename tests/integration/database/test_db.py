@@ -118,6 +118,27 @@ class TestDatabase:
         assert isinstance(harvest_job_error, HarvestJobError)
         assert harvest_job_error.message == job_error_data["message"]
 
+    def test_get_all_errors_of_job(
+        self,
+        interface,
+        organization_data,
+        source_data_dcatus,
+        job_data_dcatus,
+        job_error_data,
+    ):
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_dcatus)
+        interface.add_harvest_job(job_data_dcatus)
+        interface.add_harvest_error(job_error_data, "job")
+
+        all_errors = interface.get_all_errors_of_job(job_data_dcatus["id"])
+
+        assert len(all_errors) == 2
+        assert len(all_errors[0]) == 1  # job error
+        assert len(all_errors[1]) == 0  # record errors
+        assert all_errors[0][0]["type"] == "ExtractInternalException"
+        assert len(all_errors[1]) == 0
+
     def test_add_harvest_record(
         self,
         interface,

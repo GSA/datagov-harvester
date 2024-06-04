@@ -235,7 +235,7 @@ def delete_harvest_source(source_id):
 def get_harvest_job(job_id=None):
     try:
         if job_id:
-            job = db.get_harvest_job(job_id)
+            job = HarvesterDBInterface._to_dict(db.get_harvest_job(job_id))
             return jsonify(job) if job else ("Not Found", 404)
 
         source_id = request.args.get("harvest_source_id")
@@ -251,11 +251,18 @@ def get_harvest_job(job_id=None):
         return "Please provide correct job_id or harvest_source_id"
 
 
-@mod.route("/harvest_job/<job_id>/error", methods=["GET"])
-def get_harvest_job_error(job_id):
+# all errors associated with a job ( job & records )
+@mod.route("/harvest_job/<job_id>/errors", methods=["GET"])
+@mod.route("/harvest_job/<job_id>/errors/<error_type>", methods=["GET"])
+def get_all_errors_of_harvest_job(job_id, error_type="all"):
     try:
-        job_error = db.get_harvest_job_error(job_id)
-        return jsonify(job_error) if job_id else ("Not Found", 404)
+        all_errors = db.get_all_errors_of_job(job_id)
+        if error_type == "job":
+            return all_errors[0]
+        elif error_type == "record":
+            return all_errors[1]
+        else:
+            return all_errors
     except Exception:
         return "Please provide correct job_id"
 

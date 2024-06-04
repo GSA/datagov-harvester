@@ -1,5 +1,6 @@
 import os
 import uuid
+import itertools
 
 from sqlalchemy import create_engine, inspect, or_, text
 from sqlalchemy.exc import NoResultFound
@@ -149,8 +150,7 @@ class HarvesterDBInterface:
             return None
 
     def get_harvest_job(self, job_id):
-        result = self.db.query(HarvestJob).filter_by(id=job_id).first()
-        return HarvesterDBInterface._to_dict(result)
+        return self.db.query(HarvestJob).filter_by(id=job_id).first()
 
     def get_harvest_jobs_by_filter(self, filter):
         harvest_jobs = self.db.query(HarvestJob).filter_by(**filter).all()
@@ -196,6 +196,8 @@ class HarvesterDBInterface:
 
     def add_harvest_error(self, error_data: dict, error_type: str):
         try:
+            if error_type is None:
+                return "Must indicate what type of error to add"
             if error_type == "job":
                 new_error = HarvestJobError(**error_data)
             else:
@@ -208,6 +210,16 @@ class HarvesterDBInterface:
             print("Error:", e)
             self.db.rollback()
             return None
+
+    def get_all_errors_of_job(self, job_id: str) -> [[dict], [dict]]:
+        job = self.get_harvest_job(job_id)
+        job_errors = list(map(HarvesterDBInterface._to_dict, job.errors))
+
+        # itertools.chain flattens a list of lists into a 1 dimensional list
+        record_errors = itertools.chain(*[record.errors for record in job.records])
+        record_errors = list(map(HarvesterDBInterface._to_dict, record_errors))
+
+        return [job_errors, record_errors]
 
     def get_harvest_job_error(self, job_id: str) -> dict:
         result = self.db.query(HarvestJobError).filter_by(harvest_job_id=job_id).first()

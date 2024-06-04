@@ -77,6 +77,7 @@ class HarvestJob(db.Model):
     errors = db.relationship(
         "HarvestJobError", backref="job", cascade="all, delete-orphan", lazy=True
     )
+    records = db.relationship("HarvestRecord", backref="job", lazy=True)
 
 
 class HarvestRecord(db.Model):
