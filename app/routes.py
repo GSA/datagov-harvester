@@ -328,11 +328,17 @@ def get_all_harvest_record_errors(record_id: str) -> list:
         return "Please provide correct record_id"
 
 
-@mod.route("/harvest_record/<error_id>/error", methods=["GET"])
+@mod.route("/harvest_error/<error_id>", methods=["GET"])
 def get_harvest_record_error(error_id: str) -> dict:
+    # retrieves the given error ( either job or record )
     try:
+        job_error = db.get_harvest_job_error(error_id)
+        if job_error:
+            return job_error
         record_error = db.get_harvest_record_error(error_id)
-        return record_error if record_error else ("Not Found", 404)
+        if record_error:
+            return record_error
+        return ("Not Found", 404)
     except Exception:
         return "Please provide correct record_id and record_error_id"
 
