@@ -11,9 +11,9 @@ import requests
 from ckanapi import RemoteCKAN
 from jsonschema import Draft202012Validator
 
-from . import HarvesterDBInterface, db_interface
-from .ckan_utils import ckanify_dcatus
-from .exceptions import (
+from harvester import HarvesterDBInterface, db_interface
+from harvester.ckan_utils import ckanify_dcatus
+from harvester.exceptions import (
     CompareException,
     DCATUSToCKANException,
     ExtractExternalException,
@@ -21,7 +21,7 @@ from .exceptions import (
     SynchronizeException,
     ValidationException,
 )
-from .utils import (
+from harvester.utils import (
     dataset_to_hash,
     download_file,
     download_waf,
@@ -136,6 +136,7 @@ class HarvestSource:
 
     def external_records_to_id_hash(self, records: list[dict]) -> None:
         # ruff: noqa: F841
+
         logger.info("converting harvest records to id: hash")
         for record in records:
             try:
@@ -484,3 +485,26 @@ class Record:
             f"time to {self.action} {self.identifier} \
                 {datetime.now(timezone.utc)-start}"
         )
+
+
+def harvest(jobId):
+    logger.info(f"Harvest job starting for JobId: {jobId}")
+    harvest_source = HarvestSource(jobId)
+    harvest_source.get_record_changes()
+    harvest_source.write_compare_to_db()
+    harvest_source.synchronize_records()
+    harvest_source.report()
+
+
+if __name__ == "__main__":
+    import argparse
+    import sys
+
+    parser = argparse.ArgumentParser()
+    try:
+        parser.add_argument("jobId", help="job id for harvest job")
+        args = parser.parse_args()
+        harvest(args.jobId)
+    except SystemExit as e:
+        logger.error(f"Harvest has experienced an error :: {repr(e)}")
+        sys.exit(1)
