@@ -501,7 +501,7 @@ if __name__ == "__main__":
     import sys
 
     try:
-        args = parse_args()
+        args = parse_args(sys.argv[1:])
         harvest(args.jobId)
     except SystemExit as e:
         logger.error(f"Harvest has experienced an error :: {repr(e)}")
