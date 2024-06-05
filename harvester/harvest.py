@@ -118,7 +118,7 @@ class HarvestSource:
     def get_source_info_from_job_id(self, job_id: str) -> None:
         # TODO: validate values here?
         try:
-            source_data = self.db_interface.get_source_by_jobid(job_id)
+            source_data = self.db_interface.get_harvest_source_by_jobid(job_id)
             for attr in self.source_attrs:
                 setattr(self, attr, source_data[attr])
         except Exception as e:

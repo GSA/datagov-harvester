@@ -17,7 +17,7 @@ class TestHarvestFullFlow:
         interface.add_harvest_source(source_data_dcatus_single_record)
         harvest_job = interface.add_harvest_job(
             {
-                "status": "pending",
+                "status": "new",
                 "harvest_source_id": source_data_dcatus_single_record["id"],
             }
         )
@@ -56,16 +56,18 @@ class TestHarvestFullFlow:
         harvest_source.synchronize_records()
         harvest_source.report()
 
-        interface_errors = interface.get_harvest_errors_by_record_id(
+        interface_errors = interface.get_harvest_record_errors_by_record(
             harvest_source.internal_records_lookup_table[
                 single_internal_record["identifier"]
             ]
         )
 
+        job_errors = [
+            error for record in harvest_job.records for error in record.errors
+        ]
         assert harvest_job.status == "complete"
         assert len(interface_errors) == harvest_job.records_errored
-        assert len(interface_errors) == len(harvest_job.errors)
+        assert len(interface_errors) == len(job_errors)
         assert (
-            interface_errors[0]["harvest_record_id"]
-            == harvest_job.errors[0].harvest_record_id
+            interface_errors[0]["harvest_record_id"] == job_errors[0].harvest_record_id
         )

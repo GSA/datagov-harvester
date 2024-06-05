@@ -1,7 +1,7 @@
 import uuid
 
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import Enum, func, String, Column
+from sqlalchemy import Column, Enum, String, func
 from sqlalchemy.orm import DeclarativeBase
 
 
@@ -10,6 +10,7 @@ class Base(DeclarativeBase):
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
 
 
+# For ref: https://stackoverflow.com/questions/22698478/what-is-the-difference-between-the-declarative-base-and-db-model
 db = SQLAlchemy(model_class=Base)
 
 

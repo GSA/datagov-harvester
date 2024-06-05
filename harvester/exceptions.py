@@ -27,8 +27,7 @@ class HarvestCriticalException(Exception):
             "date_finished": datetime.now(timezone.utc),
         }
 
-        self.db_interface.add_harvest_error(error_data, "job")
-        self.db_interface.add_harvest_error(error_data)
+        self.db_interface.add_harvest_job_error(error_data)
         self.db_interface.update_harvest_job(harvest_job_id, job_status)
         self.logger.critical(self.msg, exc_info=True)
 
@@ -64,7 +63,7 @@ class HarvestNonCriticalException(Exception):
             "harvest_record_id": record_id,  # to-do
         }
 
-        self.db_interface.add_harvest_error(error_data, "record")
+        self.db_interface.add_harvest_record_error(error_data)
         self.db_interface.update_harvest_record(record_id, {"status": "error"})
         self.logger.error(self.msg, exc_info=True)
 

@@ -13,7 +13,7 @@ def download_mock(_, __):
     return dict({"dataset": []})
 
 
-class TestCriticalExceptionHandling:
+class TestHarvestJobExceptionHandling:
     def test_bad_harvest_source_url_exception(
         self,
         interface,
@@ -32,7 +32,7 @@ class TestCriticalExceptionHandling:
 
         assert harvest_job.status == "error"
 
-        harvest_error = interface.get_harvest_errors_by_job(harvest_job.id)[0]
+        harvest_error = interface.get_harvest_job_errors_by_job(harvest_job.id)[0]
         assert harvest_error["type"] == "ExtractExternalException"
 
     def test_extract_internal_exception(
@@ -56,7 +56,7 @@ class TestCriticalExceptionHandling:
 
         assert harvest_job.status == "error"
 
-        harvest_error = interface.get_harvest_errors_by_job(harvest_job.id)[0]
+        harvest_error = interface.get_harvest_job_errors_by_job(harvest_job.id)[0]
         assert harvest_error["type"] == "ExtractInternalException"
 
     def test_no_source_info_exception(self, job_data_dcatus):
@@ -64,7 +64,7 @@ class TestCriticalExceptionHandling:
             HarvestSource(job_data_dcatus["id"])
 
 
-class TestNonCritialExceptionHandling:
+class TestHarvestRecordExceptionHandling:
     @patch("harvester.harvest.ckan", ckanapi.RemoteCKAN("mock_address"))
     @patch("harvester.harvest.download_file", download_mock)
     def test_delete_exception(
@@ -91,7 +91,7 @@ class TestNonCritialExceptionHandling:
                 single_internal_record["identifier"]
             ]
         )
-        interface_errors = interface.get_harvest_record_errors(
+        interface_errors = interface.get_harvest_record_errors_by_record(
             harvest_source.internal_records_lookup_table[
                 single_internal_record["identifier"]
             ]
@@ -125,7 +125,7 @@ class TestNonCritialExceptionHandling:
         interface_record = interface.get_harvest_record(
             harvest_source.internal_records_lookup_table[test_record.identifier]
         )
-        interface_errors = interface.get_harvest_record_errors(
+        interface_errors = interface.get_harvest_record_errors_by_record(
             harvest_source.internal_records_lookup_table[test_record.identifier]
         )
         assert (
@@ -158,7 +158,7 @@ class TestNonCritialExceptionHandling:
         interface_record = interface.get_harvest_record(
             harvest_source.internal_records_lookup_table[test_record.identifier]
         )
-        interface_errors = interface.get_harvest_record_errors(
+        interface_errors = interface.get_harvest_record_errors_by_record(
             harvest_source.internal_records_lookup_table[test_record.identifier]
         )
 
@@ -194,7 +194,7 @@ class TestNonCritialExceptionHandling:
             harvest_source.internal_records_lookup_table[test_record.identifier]
         )
 
-        interface_errors = interface.get_harvest_record_errors(
+        interface_errors = interface.get_harvest_record_errors_by_record(
             harvest_source.internal_records_lookup_table[test_record.identifier]
         )
 
