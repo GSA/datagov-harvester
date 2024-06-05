@@ -1,6 +1,8 @@
-app_name: harvesting-logic
-route-external: harvester-dev-datagov.app.cloud.gov
-
+app_name: datagov-harvester
+route-external: datagov-harvester-admin-dev.app.cloud.gov
+cf-api-url: https://api.fr.cloud.gov
+ckan-api-url: https://catalog-dev.data.gov
+lm-runner-app-guid: f4ab7f86-bee0-44fd-8806-1dca7f8e215a
 CLIENT_ID: urn:gov:gsa:openidconnect.profiles:sp:sso:gsa:datagov-dev-harvest-admin
 ISSUER: https://idp.int.identitysandbox.gov
 REDIRECT_URI: https://harvester-dev-datagov.app.cloud.gov/callback

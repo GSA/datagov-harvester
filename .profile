@@ -27,4 +27,8 @@ export LM_RUNNER_APP_GUID=$(vcap_get_service secrets .credentials.LM_RUNNER_APP_
 export FLASK_APP_SECRET_KEY=$(vcap_get_service secrets .credentials.FLASK_APP_SECRET_KEY)
 export OPENID_PRIVATE_KEY=$(vcap_get_service secrets .credentials.OPENID_PRIVATE_KEY)
 
-flask db upgrade
+export CKAN_API_TOKEN=$(vcap_get_service secrets .credentials.CKAN_API_TOKEN)
+
+if [[ $APP_NAME = "datagov-harvester" ]]; then
+  flask db upgrade
+fi
