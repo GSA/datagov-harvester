@@ -497,13 +497,11 @@ def harvest(jobId):
 
 
 if __name__ == "__main__":
-    import argparse
+    from harvester.utils import parse_args
     import sys
 
-    parser = argparse.ArgumentParser()
     try:
-        parser.add_argument("jobId", help="job id for harvest job")
-        args = parser.parse_args()
+        args = parse_args()
         harvest(args.jobId)
     except SystemExit as e:
         logger.error(f"Harvest has experienced an error :: {repr(e)}")
