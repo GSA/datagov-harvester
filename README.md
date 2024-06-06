@@ -155,6 +155,10 @@ Accessing the service can be done with service keys. They can be created with `c
 
 `cf service-key <service-key-name>`.
 
+#### user management command 
+
+`cf run-task harvesting-logic --name "add new user" --command "flask user add xxx@gsa.gov --name xxx"`
+
 #### Manually Deploying the Flask Application to development
 
 1. Ensure you have a `manifest.yml` and `vars.development.yml` file configured for your Flask application. The vars file may include variables: 

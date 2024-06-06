@@ -21,6 +21,8 @@ jobs:
         CF_SERVICE_USER: ${{secrets.CF_SERVICE_USER}}
         CF_SERVICE_AUTH: ${{secrets.CF_SERVICE_AUTH}}
         LM_RUNNER_APP_GUID: ${{secrets.LM_RUNNER_APP_GUID}}
+        FLASK_APP_SECRET_KEY: ${{secrets.FLASK_APP_SECRET_KEY}}
+        OPENID_PRIVATE_KEY: ${{secrets.OPENID_PRIVATE_KEY}}
     runs-on: ubuntu-latest
     name: Pytests
     steps:

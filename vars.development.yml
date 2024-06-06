@@ -1,2 +1,6 @@
 app_name: harvesting-logic
 route-external: harvester-dev-datagov.app.cloud.gov
+
+CLIENT_ID: urn:gov:gsa:openidconnect.profiles:sp:sso:gsa:datagov-dev-harvest-admin
+ISSUER: https://idp.int.identitysandbox.gov
+REDIRECT_URI: https://harvester-dev-datagov.app.cloud.gov/callback

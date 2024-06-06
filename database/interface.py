@@ -12,6 +12,7 @@ from .models import (
     HarvestRecordError,
     HarvestSource,
     Organization,
+    HarvestUser,
 )
 
 DATABASE_URI = os.getenv("DATABASE_URI")
@@ -345,6 +346,72 @@ class HarvesterDBInterface:
             self.db.remove()
         elif hasattr(self.db, "close"):
             self.db.close()
+
+
+    # User management
+    def add_user(self, usr_data):
+        try:
+            if not usr_data['email'].endswith('.gov'):
+                return False, "Error: Email address must be a .gov address."
+
+            existing_user = self.db.query(HarvestUser). \
+                filter_by(email=usr_data['email']).first()
+
+            if existing_user:
+                return False, "User with this email already exists."
+
+            new_user = HarvestUser(**usr_data)
+            self.db.add(new_user)
+            self.db.commit()
+            self.db.refresh(new_user)
+            return True, new_user
+        except Exception as e:
+            print("Error:", e)
+            self.db.rollback()
+            return False, "An error occurred while adding the user."
+
+    def list_users(self):
+        try:
+            return self.db.query(HarvestUser).all()
+        except Exception as e:
+            print("Error:", e)
+            return []
+
+    def remove_user(self, email):
+        try:
+            user = self.db.query(HarvestUser).filter_by(email=email).first()
+            if user:
+                self.db.delete(user)
+                self.db.commit()
+                return True
+            return False
+        except Exception as e:
+            print("Error:", e)
+            self.db.rollback()
+            return False
+
+    def verify_user(self, usr_data):
+        try:
+            user_by_ssoid = self.db.query(HarvestUser).\
+                filter_by(ssoid=usr_data['ssoid']).first()
+            if user_by_ssoid:
+                if user_by_ssoid.email == usr_data['email']:
+                    return True
+                else:
+                    return False
+            else:
+                user_by_email = self.db.query(HarvestUser).\
+                    filter_by(email=usr_data['email']).first()
+                if user_by_email:
+                    user_by_email.ssoid = usr_data['ssoid']
+                    self.db.commit()
+                    self.db.refresh(user_by_email)
+                    return True           
+            return False
+        except Exception as e:
+            print("Error:", e)
+            return False
+
 
     ##### TEST INTERFACES BELOW #####
     ######## TO BE REMOVED ##########
