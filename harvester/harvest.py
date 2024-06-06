@@ -259,6 +259,7 @@ class HarvestSource:
                         self.external_records[i].action = action
                         try:
                             self.external_records[i].delete_record()
+                            self.external_records[i].update_self_in_db()
                         except Exception as e:
                             self.external_records[i].status = "error"
                             raise SynchronizeException(
@@ -294,18 +295,20 @@ class HarvestSource:
         logger.info({action: len(ids) for action, ids in self.compare_data.items()})
 
         # validation count and actual results
-        actual_results = {
-            "deleted": 0,
-            "updated": 0,
-            "created": 0,
-            "nothing": 0,
-            "error": 0,
+        actual_results_action = {
+            "delete": 0,
+            "update": 0,
+            "create": 0,
+            None: 0,
         }
+        actual_results_status = {"success": 0, "error": 0}
         validity = {"valid": 0, "invalid": 0}
 
         for record_id, record in self.external_records.items():
+            # action
+            actual_results_action[record.action] += 1
             # status
-            actual_results[record.status] += 1
+            actual_results_status[record.status] += 1
             # validity
             if record.valid:
                 validity["valid"] += 1
@@ -314,7 +317,11 @@ class HarvestSource:
 
         # what actually happened?
         logger.info("actual actions completed")
-        logger.info(actual_results)
+        logger.info(actual_results_action)
+
+        # what actually happened?
+        logger.info("actual status completed")
+        logger.info(actual_results_action)
 
         # what's our record validity count?
         logger.info("validity of the records")
@@ -323,11 +330,11 @@ class HarvestSource:
         job_status = {
             "status": "complete",
             "date_finished": datetime.now(timezone.utc),
-            "records_added": actual_results["created"],
-            "records_updated": actual_results["updated"],
-            "records_deleted": actual_results["deleted"],
-            "records_ignored": actual_results["nothing"],
-            "records_errored": actual_results["error"],
+            "records_added": actual_results_action["create"],
+            "records_updated": actual_results_action["update"],
+            "records_deleted": actual_results_action["delete"],
+            "records_ignored": actual_results_action[None],
+            "records_errored": actual_results_status["error"],
         }
         self.db_interface.update_harvest_job(self.job_id, job_status)
 
@@ -343,7 +350,7 @@ class Record:
     _action: str = None
     _valid: bool = None
     _validation_msg: str = ""
-    _status: str = "nothing"
+    _status: str = None
 
     ckanified_metadata: dict = field(default_factory=lambda: {})
 
@@ -430,15 +437,20 @@ class Record:
 
     def create_record(self):
         ckan.action.package_create(**self.ckanified_metadata)
-        self.status = "created"
 
     def update_record(self) -> dict:
         ckan.action.package_update(**self.ckanified_metadata)
-        self.status = "updated"
 
     def delete_record(self) -> None:
         ckan.action.dataset_purge(**{"id": self.identifier})
-        self.status = "deleted"
+
+    def update_self_in_db(self) -> bool:
+        self.status = "success"
+
+        self.harvest_source.db_interface.update_harvest_record(
+            self.harvest_source.internal_records_lookup_table[self.identifier],
+            {"status": "success", "date_finished": datetime.now(timezone.utc)},
+        )
 
     def ckanify_dcatus(self) -> None:
         try:
@@ -475,11 +487,7 @@ class Record:
                 self.harvest_source.job_id,
                 self.harvest_source.internal_records_lookup_table[self.identifier],
             )
-
-        self.harvest_source.db_interface.update_harvest_record(
-            self.harvest_source.internal_records_lookup_table[self.identifier],
-            {"status": "success", "date_finished": datetime.now(timezone.utc)},
-        )
+        self.update_self_in_db()
 
         logger.info(
             f"time to {self.action} {self.identifier} \
