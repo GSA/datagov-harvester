@@ -98,7 +98,7 @@ class TestDatabase:
         job_data_dcatus["harvest_source_id"] = source.id
 
         harvest_job = interface.add_harvest_job(job_data_dcatus)
-        harvest_source = interface.get_source_by_jobid(harvest_job.id)
+        harvest_source = interface.get_harvest_source_by_jobid(harvest_job.id)
 
         assert source.id == harvest_source["id"]
 
@@ -113,31 +113,10 @@ class TestDatabase:
         interface.add_organization(organization_data)
         interface.add_harvest_source(source_data_dcatus)
         interface.add_harvest_job(job_data_dcatus)
+        harvest_job_error = interface.add_harvest_job_error(job_error_data)
 
-        harvest_job_error = interface.add_harvest_error(job_error_data, "job")
         assert isinstance(harvest_job_error, HarvestJobError)
         assert harvest_job_error.message == job_error_data["message"]
-
-    def test_get_all_errors_of_job(
-        self,
-        interface,
-        organization_data,
-        source_data_dcatus,
-        job_data_dcatus,
-        job_error_data,
-    ):
-        interface.add_organization(organization_data)
-        interface.add_harvest_source(source_data_dcatus)
-        interface.add_harvest_job(job_data_dcatus)
-        interface.add_harvest_error(job_error_data, "job")
-
-        all_errors = interface.get_all_errors_of_job(job_data_dcatus["id"])
-
-        assert len(all_errors) == 2
-        assert len(all_errors[0]) == 1  # job error
-        assert len(all_errors[1]) == 0  # record errors
-        assert all_errors[0][0]["type"] == "ExtractInternalException"
-        assert len(all_errors[1]) == 0
 
     def test_add_harvest_record(
         self,
@@ -170,11 +149,11 @@ class TestDatabase:
         interface.add_harvest_job(job_data_dcatus)
         interface.add_harvest_record(record_data_dcatus)
 
-        harvest_record_error = interface.add_harvest_error(record_error_data, "record")
+        harvest_record_error = interface.add_harvest_record_error(record_error_data)
         assert isinstance(harvest_record_error, HarvestRecordError)
         assert harvest_record_error.message == record_error_data["message"]
 
-        harvest_record_error_from_db = interface.get_harvest_record_error(
+        harvest_record_error_from_db = interface.get_harvest_error(
             harvest_record_error.id
         )
         assert harvest_record_error.id == harvest_record_error_from_db["id"]
@@ -278,7 +257,7 @@ class TestDatabase:
         interface.add_harvest_job(job_data_dcatus_2)
         interface.add_harvest_records(latest_records)
 
-        latest_records = interface.get_latest_records_by_source(
+        latest_records = interface.get_latest_harvest_records_by_source(
             source_data_dcatus["id"]
         )
 
@@ -349,7 +328,6 @@ class TestDatabase:
         interface,
         internal_compare_data,
     ):
-
         # add the necessary records to satisfy FKs
         interface.add_organization(organization_data)
         interface.add_harvest_source(source_data_dcatus)

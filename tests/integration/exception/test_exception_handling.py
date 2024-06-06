@@ -1,6 +1,6 @@
 # ruff: noqa: F841
 
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import ckanapi
 import pytest
@@ -13,7 +13,7 @@ def download_mock(_, __):
     return dict({"dataset": []})
 
 
-class TestCriticalExceptionHandling:
+class TestHarvestJobExceptionHandling:
     def test_bad_harvest_source_url_exception(
         self,
         interface,
@@ -30,12 +30,41 @@ class TestCriticalExceptionHandling:
         with pytest.raises(ExtractExternalException) as e:
             harvest_source.prepare_external_data()
 
-    def test_no_source_info_exception(self, interface, job_data_dcatus):
+        assert harvest_job.status == "error"
+
+        harvest_error = interface.get_harvest_job_errors_by_job(harvest_job.id)[0]
+        assert harvest_error["type"] == "ExtractExternalException"
+
+    def test_extract_internal_exception(
+        self,
+        interface,
+        organization_data,
+        source_data_dcatus,
+        job_data_dcatus,
+    ):
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_dcatus)
+        harvest_job = interface.add_harvest_job(job_data_dcatus)
+
+        harvest_source = HarvestSource(harvest_job.id)
+
+        harvest_source.internal_records_to_id_hash = Mock()
+        harvest_source.internal_records_to_id_hash.side_effect = Exception("Broken")
+
         with pytest.raises(ExtractInternalException) as e:
-            HarvestSource(job_data_dcatus["id"], interface)
+            harvest_source.get_record_changes()
+
+        assert harvest_job.status == "error"
+
+        harvest_error = interface.get_harvest_job_errors_by_job(harvest_job.id)[0]
+        assert harvest_error["type"] == "ExtractInternalException"
+
+    def test_no_source_info_exception(self, job_data_dcatus):
+        with pytest.raises(ExtractInternalException) as e:
+            HarvestSource(job_data_dcatus["id"])
 
 
-class TestNonCritialExceptionHandling:
+class TestHarvestRecordExceptionHandling:
     @patch("harvester.harvest.ckan", ckanapi.RemoteCKAN("mock_address"))
     @patch("harvester.harvest.download_file", download_mock)
     def test_delete_exception(
@@ -62,7 +91,7 @@ class TestNonCritialExceptionHandling:
                 single_internal_record["identifier"]
             ]
         )
-        interface_errors = interface.get_harvest_record_errors(
+        interface_errors = interface.get_harvest_record_errors_by_record(
             harvest_source.internal_records_lookup_table[
                 single_internal_record["identifier"]
             ]
@@ -96,7 +125,7 @@ class TestNonCritialExceptionHandling:
         interface_record = interface.get_harvest_record(
             harvest_source.internal_records_lookup_table[test_record.identifier]
         )
-        interface_errors = interface.get_harvest_record_errors(
+        interface_errors = interface.get_harvest_record_errors_by_record(
             harvest_source.internal_records_lookup_table[test_record.identifier]
         )
         assert (
@@ -129,7 +158,7 @@ class TestNonCritialExceptionHandling:
         interface_record = interface.get_harvest_record(
             harvest_source.internal_records_lookup_table[test_record.identifier]
         )
-        interface_errors = interface.get_harvest_record_errors(
+        interface_errors = interface.get_harvest_record_errors_by_record(
             harvest_source.internal_records_lookup_table[test_record.identifier]
         )
 
@@ -165,7 +194,7 @@ class TestNonCritialExceptionHandling:
             harvest_source.internal_records_lookup_table[test_record.identifier]
         )
 
-        interface_errors = interface.get_harvest_record_errors(
+        interface_errors = interface.get_harvest_record_errors_by_record(
             harvest_source.internal_records_lookup_table[test_record.identifier]
         )
 

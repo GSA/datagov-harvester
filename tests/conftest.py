@@ -112,6 +112,21 @@ def source_data_dcatus_2(organization_data: dict) -> dict:
 
 
 @pytest.fixture
+def source_data_dcatus_single_record(organization_data: dict) -> dict:
+    return {
+        "id": "2f2652de-91df-4c63-8b53-bfced20b276b",
+        "name": "Single Record Test Source",
+        "notification_emails": "email@example.com",
+        "organization_id": organization_data["id"],
+        "frequency": "daily",
+        "url": f"{HARVEST_SOURCE_URL}/dcatus/dcatus_single_record.json",
+        "schema_type": "type1",
+        "source_type": "dcatus",
+        "status": "active",
+    }
+
+
+@pytest.fixture
 def source_data_waf(organization_data: dict) -> dict:
     return {
         "id": "55dca495-3b92-4fe4-b9c5-d433cbc3c82d",

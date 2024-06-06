@@ -29,7 +29,6 @@ class TestCKANLoad:
         interface,
         internal_compare_data,
     ):
-
         # add the necessary records to satisfy FKs
         interface.add_organization(organization_data)
         interface.add_harvest_source(source_data_dcatus)
@@ -47,6 +46,7 @@ class TestCKANLoad:
 
         harvest_source = HarvestSource(internal_compare_data["job_id"])
         harvest_source.get_record_changes()
+        harvest_source.write_compare_to_db()
         harvest_source.synchronize_records()
 
         created = sum(
@@ -71,7 +71,6 @@ class TestCKANLoad:
         source_data_dcatus,
         job_data_dcatus,
     ):
-
         interface.add_organization(organization_data)
         interface.add_harvest_source(source_data_dcatus)
         harvest_job = interface.add_harvest_job(job_data_dcatus)
