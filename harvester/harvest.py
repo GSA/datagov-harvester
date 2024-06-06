@@ -301,7 +301,7 @@ class HarvestSource:
             "create": 0,
             None: 0,
         }
-        actual_results_status = {"success": 0, "error": 0}
+        actual_results_status = {"success": 0, "error": 0, None: 0}
         validity = {"valid": 0, "invalid": 0}
 
         for record_id, record in self.external_records.items():
@@ -505,8 +505,9 @@ def harvest(jobId):
 
 
 if __name__ == "__main__":
-    from harvester.utils import parse_args
     import sys
+
+    from harvester.utils import parse_args
 
     try:
         args = parse_args(sys.argv[1:])
