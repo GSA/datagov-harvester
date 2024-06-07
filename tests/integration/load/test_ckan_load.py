@@ -10,13 +10,13 @@ from harvester.utils import dataset_to_hash, sort_dataset
 
 class TestCKANLoad:
     def delete_mock(self):
-        self.status = "deleted"
+        pass
 
     def update_mock(self):
-        self.status = "updated"
+        pass
 
     def create_mock(self):
-        self.status = "created"
+        pass
 
     @patch.object(Record, "create_record", create_mock)
     @patch.object(Record, "update_record", update_mock)
@@ -50,19 +50,27 @@ class TestCKANLoad:
         harvest_source.synchronize_records()
 
         created = sum(
-            r.status == "created" for rid, r in harvest_source.external_records.items()
+            r.action == "create" for rid, r in harvest_source.external_records.items()
         )
         updated = sum(
-            r.status == "updated" for rid, r in harvest_source.external_records.items()
+            r.action == "update" for rid, r in harvest_source.external_records.items()
         )
 
         deleted = sum(
-            r.status == "deleted" for rid, r in harvest_source.external_records.items()
+            r.action == "delete" for rid, r in harvest_source.external_records.items()
+        )
+        succeeded = sum(
+            r.status == "success" for rid, r in harvest_source.external_records.items()
+        )
+        errored = sum(
+            r.action == "error" for rid, r in harvest_source.external_records.items()
         )
 
         assert created == 6
         assert updated == 1
         assert deleted == 1
+        assert succeeded == 8
+        assert errored == 0
 
     def test_ckanify_dcatus(
         self,

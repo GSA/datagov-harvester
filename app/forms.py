@@ -33,7 +33,7 @@ class HarvestSourceForm(FlaskForm):
         "Schema Type", choices=["strict", "other"], validators=[DataRequired()]
     )
     source_type = SelectField(
-        "Source Type", choices=["Datajson", "WAF"], validators=[DataRequired()]
+        "Source Type", choices=["dcatus", "waf"], validators=[DataRequired()]
     )
 
 
