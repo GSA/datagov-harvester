@@ -1,0 +1,10 @@
+# Snyk (https://snyk.io) policy file, patches or ignores known vulnerabilities.
+version: v1.25.0
+# ignores vulnerabilities until expiry date; change duration by modifying expiry date
+ignore:
+  SNYK-PYTHON-CRYPTOGRAPHY-7161587:
+    - '*':
+        reason: >-
+           No remediation available yet. Issue tracked in github:
+           https://github.com/GSA/data.gov/issues/4781
+        expires: 2024-09-31T16:20:58.017Z
