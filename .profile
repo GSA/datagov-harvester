@@ -24,4 +24,7 @@ export CF_SERVICE_USER=$(vcap_get_service secrets .credentials.CF_SERVICE_USER)
 
 export LM_RUNNER_APP_GUID=$(vcap_get_service secrets .credentials.LM_RUNNER_APP_GUID)
 
+export FLASK_APP_SECRET_KEY=$(vcap_get_service secrets .credentials.FLASK_APP_SECRET_KEY)
+export OPENID_PRIVATE_KEY=$(vcap_get_service secrets .credentials.OPENID_PRIVATE_KEY)
+
 flask db upgrade

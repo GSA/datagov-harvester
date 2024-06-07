@@ -14,6 +14,12 @@
             <ul class="menu">
               <li><a href="{{ url_for('harvest.index') }}">Home</a></li>
               <li><a href="{{ url_for('harvest.get_data_sources') }}">Get Source/Org</a></li>
+              {% if session['user'] %}
+                <li>{{ session['user'] }}</li>
+                <li><a href="{{ url_for('harvest.logout') }}">Logout</a></li>
+              {% else %}
+                <li><a href="{{ url_for('harvest.login') }}">Login</a></li>
+              {% endif %}
             </ul>
           </nav></strong>
     </header>

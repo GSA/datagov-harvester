@@ -8,10 +8,15 @@
 <h2>Harvest Actions</h2>
 
 <ul class="list-unstyled">
-    <li class="mb-3"><a href="{{ url_for('harvest.add_organization')}}" class="btn btn-primary">
+    {% if session['user'] %}
+        <li class="mb-3"><a href="{{ url_for('harvest.add_organization') }}" class="btn btn-primary">
             Add Organization [Form]</a></li>
-    <li class="mb-3"><a href="{{ url_for('harvest.add_harvest_source')}}" class="btn btn-primary">
+        <li class="mb-3"><a href="{{ url_for('harvest.add_harvest_source') }}" class="btn btn-primary">
             Add Harvest Source [Form]</a></li>
+    {% else %}
+        <li class="mb-3"><span class="btn btn-primary disabled">Add Organization [Form]</span></li>
+        <li class="mb-3"><span class="btn btn-primary disabled">Add Harvest Source [Form]</span></li>
+    {% endif %}
 
     <li class="mb-3"><a href="{{ url_for('harvest.get_data_sources')}}" class="btn btn-primary">
             Get Harvest Source by id or org, Get Organizations</a></li>
