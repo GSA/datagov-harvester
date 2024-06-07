@@ -44,6 +44,9 @@ up: ## Sets up local flask and harvest runner docker environments. harvest runne
 	DATABASE_PORT=5433 docker compose up -d
 	docker compose -p harvest-app up db -d
 
+up-unified: ## For testing when you want a shared db between flask and harvester
+	docker compose up -d
+
 down: ## Tears down the flask and harvester containers
 	docker compose down
 	docker compose -p harvest-app down

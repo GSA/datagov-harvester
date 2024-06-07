@@ -50,5 +50,5 @@ class TestCKANUtils:
 
 class TestGeneralUtils:
     def test_args_parsing(self):
-        args = parse_args(["-j", "test-id"])
-        assert args.jobid == "test-id"
+        args = parse_args(["test-id"])
+        assert args.jobId == "test-id"

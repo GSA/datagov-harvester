@@ -20,6 +20,13 @@
             ],
             "justMyCode": false,
             "logToFile": true
+        },
+        {
+            "name": "Python: Run Harvest",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "harvester/harvest.py",
+            "args": ["3ba23321-b76f-470a-8035-25e47f06e995"]
         }
     ]
 }
