@@ -11,8 +11,8 @@ from .models import (
     HarvestRecord,
     HarvestRecordError,
     HarvestSource,
-    Organization,
     HarvestUser,
+    Organization,
 )
 
 DATABASE_URI = os.getenv("DATABASE_URI")
@@ -347,15 +347,15 @@ class HarvesterDBInterface:
         elif hasattr(self.db, "close"):
             self.db.close()
 
-
     # User management
     def add_user(self, usr_data):
         try:
-            if not usr_data['email'].endswith('.gov'):
+            if not usr_data["email"].endswith(".gov"):
                 return False, "Error: Email address must be a .gov address."
 
-            existing_user = self.db.query(HarvestUser). \
-                filter_by(email=usr_data['email']).first()
+            existing_user = (
+                self.db.query(HarvestUser).filter_by(email=usr_data["email"]).first()
+            )
 
             if existing_user:
                 return False, "User with this email already exists."
@@ -392,26 +392,29 @@ class HarvesterDBInterface:
 
     def verify_user(self, usr_data):
         try:
-            user_by_ssoid = self.db.query(HarvestUser).\
-                filter_by(ssoid=usr_data['ssoid']).first()
+            user_by_ssoid = (
+                self.db.query(HarvestUser).filter_by(ssoid=usr_data["ssoid"]).first()
+            )
             if user_by_ssoid:
-                if user_by_ssoid.email == usr_data['email']:
+                if user_by_ssoid.email == usr_data["email"]:
                     return True
                 else:
                     return False
             else:
-                user_by_email = self.db.query(HarvestUser).\
-                    filter_by(email=usr_data['email']).first()
+                user_by_email = (
+                    self.db.query(HarvestUser)
+                    .filter_by(email=usr_data["email"])
+                    .first()
+                )
                 if user_by_email:
-                    user_by_email.ssoid = usr_data['ssoid']
+                    user_by_email.ssoid = usr_data["ssoid"]
                     self.db.commit()
                     self.db.refresh(user_by_email)
-                    return True           
+                    return True
             return False
         except Exception as e:
             print("Error:", e)
             return False
-
 
     ##### TEST INTERFACES BELOW #####
     ######## TO BE REMOVED ##########

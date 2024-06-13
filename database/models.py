@@ -120,8 +120,9 @@ class HarvestRecordError(Error):
         db.String, db.ForeignKey("harvest_record.id"), nullable=False
     )
 
+
 class HarvestUser(db.Model):
-    __tablename__ = 'harvest_user'
+    __tablename__ = "harvest_user"
     email = db.Column(db.String(120), unique=True, nullable=False)
     name = db.Column(db.String(120), nullable=True)
     ssoid = db.Column(db.String(200), unique=True, nullable=True)
