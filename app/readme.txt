@@ -1,4 +1,4 @@
-DATAGOV-HARVESTING-LOGIC
+datagov-harvester
 ├── app/
 │   ├── __init__.py
 │   ├── models.py

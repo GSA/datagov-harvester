@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "datagov-harvesting-logic"
+name = "datagov-harvester"
 version = "0.5.0"
 description = ""
 # authors = [
@@ -15,7 +15,7 @@ maintainers = [
 readme = "README.md"
 packages = [{include = "harvester"}]
 license = "LICENSE.md" # TODO fix me
-repository = "https://github.com/GSA/datagov-harvesting-logic"
+repository = "https://github.com/GSA/datagov-harvester"
 
 [tool.poetry.dependencies]
 python = ">=3.10"
