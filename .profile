@@ -12,23 +12,26 @@ function vcap_get_service () {
 }
 
 export APP_NAME=$(echo $VCAP_APPLICATION | jq -r '.application_name')
+export REAL_NAME=$(echo $VCAP_APPLICATION | jq -r '.application_name')
+if [[ $APP_NAME = "datagov-harvest-admin" ]] || \
+   [[ $APP_NAME = "datagov-harvest-runner" ]]
+then
+  APP_NAME=datagov-harvest
+fi
 
 # POSTGRES DB CREDS
 export URI=$(vcap_get_service db .credentials.uri)
 export DATABASE_URI=$(echo $URI | sed 's/postgres:\/\//postgresql:\/\//g')
 
 # CF CREDS for CF TASKS API
-export CF_API_URL=$(vcap_get_service secrets .credentials.CF_API_URL)
 export CF_SERVICE_AUTH=$(vcap_get_service secrets .credentials.CF_SERVICE_AUTH)
 export CF_SERVICE_USER=$(vcap_get_service secrets .credentials.CF_SERVICE_USER)
-
-export LM_RUNNER_APP_GUID=$(vcap_get_service secrets .credentials.LM_RUNNER_APP_GUID)
 
 export FLASK_APP_SECRET_KEY=$(vcap_get_service secrets .credentials.FLASK_APP_SECRET_KEY)
 export OPENID_PRIVATE_KEY=$(vcap_get_service secrets .credentials.OPENID_PRIVATE_KEY)
 
 export CKAN_API_TOKEN=$(vcap_get_service secrets .credentials.CKAN_API_TOKEN)
 
-if [[ $APP_NAME = "datagov-harvester" ]]; then
+if [[ $REAL_NAME = "datagov-harvest-admin" ]]; then
   flask db upgrade
 fi

@@ -21,6 +21,18 @@
     <li class="mb-3"><a href="{{ url_for('harvest.get_data_sources')}}" class="btn btn-primary">
             Get Harvest Source by id or org, Get Organizations</a></li>
 
+    <li class="mb-3">Reference for testing:</li>
+    <li class="mb-3"><a href="/organization" class="btn btn-link">
+            Get All Organizations</a></li>
+    <li class="mb-3"><a href="/harvest_source" class="btn btn-link">
+            Get All Harvest Sources</a></li>
+    <li class="mb-3"><a href="/harvest_job/" class="btn btn-link">
+            Get All Harvest Jobs</a></li>
+    <li class="mb-3"><a href="/harvest_record/" class="btn btn-link">
+            Get All Harvest Records (for testing)</a></li>
+    <li class="mb-3"><a href="/harvest_error/" class="btn btn-link">
+            Get All Harvest Errors (for testing)</a></li>
+
     <li class="mb-3"><strong>Add Job/Record/Error:</strong></li>
     <textarea class="form-control mb-3" rows="10">
         curl -X POST https://{site}/harvest_job/add -H "Content-Type: application/json" -d '
@@ -39,7 +51,7 @@
         curl -X POST https://{site}/harvest_error/add -H "Content-Type: application/json" -d '
         {
             "harvest_job_id": "aac30640-bd76-46c2-8a64-cf8ee389b190",
-            "harvest_record_id": "", 
+            "harvest_record_id": "",
             "type": "Validation Error",
             "severity": "ERROR",
             "message": "Invalid data format."
@@ -87,17 +99,6 @@
         curl -X DELETE https://{site}/harvest_job/{job_id}
     </textarea>
 
-    <li class="mb-3">Reference for testing:</li>
-    <li class="mb-3"><a href="/organization" class="btn btn-link">
-            Get All Organizations</a></li>
-    <li class="mb-3"><a href="/harvest_source" class="btn btn-link">
-            Get All Harvest Sources</a></li>
-    <li class="mb-3"><a href="/harvest_job/" class="btn btn-link">
-            Get All Harvest Jobs</a></li>
-    <li class="mb-3"><a href="/harvest_record/" class="btn btn-link">
-            Get All Harvest Records (for testing)</a></li>
-    <li class="mb-3"><a href="/harvest_error/" class="btn btn-link">
-            Get All Harvest Errors (for testing)</a></li>
 </ul>
 </div>
 {% endblock %}

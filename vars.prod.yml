@@ -1,7 +1,8 @@
-app_name: datagov-harvester
-route-external: datagov-harvester-admin-prod.app.cloud.gov
-cf-api-url: https://api.fr.cloud.gov
-ckan-api-url: https://catalog.data.gov
+app_name: datagov-harvest
+route-external: datagov-harvest-admin-prod.app.cloud.gov
+CF_API_URL: https://api.fr.cloud.gov
+CKAN_API_URL: https://catalog.data.gov
+HARVEST_RUNNER_APP_GUID: null
 CLIENT_ID: urn:gov:gsa:openidconnect.profiles:sp:sso:gsa:datagov-prod-harvest-admin
 ISSUER: https://idp.int.identitysandbox.gov
-REDIRECT_URI: https://harvester-prod-datagov.app.cloud.gov/callback
+REDIRECT_URI: https://datagov-harvest-admin-prod.app.cloud.gov/callback

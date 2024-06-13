@@ -355,7 +355,6 @@ class TestDatabase:
 
         expected = sorted(
             [
-                "cftc-dc10",
                 "cftc-dc3",
                 "cftc-dc7",
                 "cftc-dc5",
@@ -365,6 +364,5 @@ class TestDatabase:
                 "cftc-dc2",
             ]
         )
-
-        assert len(harvest_source.internal_records_lookup_table) == 8
+        assert len(harvest_source.internal_records_lookup_table) == len(expected)
         assert sorted(list(harvest_source.internal_records_lookup_table)) == expected

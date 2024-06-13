@@ -8,7 +8,7 @@ cf_handler = CFHandler(
 )
 
 dhl_cf_task_data = {
-    "app_guuid": os.getenv("LM_RUNNER_APP_GUID"),
+    "app_guuid": os.getenv("HARVEST_RUNNER_APP_GUID"),
     "task_id": "cf_task_func_spec",
     "command": "/usr/bin/sleep 60",
 }

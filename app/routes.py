@@ -1,19 +1,32 @@
-from flask import Blueprint, flash, jsonify, redirect, render_template, \
-                  request, url_for, session
-from functools import wraps
-import secrets
-import requests
-import jwt
-import uuid
+import logging
 import os
+import secrets
 import time
-from database.interface import HarvesterDBInterface
-from cryptography.hazmat.primitives.serialization import load_pem_private_key
-from cryptography.hazmat.backends import default_backend
-from dotenv import load_dotenv
+import uuid
+from functools import wraps
+
 import click
+import jwt
+import requests
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives.serialization import load_pem_private_key
+from dotenv import load_dotenv
+from flask import (
+    Blueprint,
+    flash,
+    jsonify,
+    redirect,
+    render_template,
+    request,
+    session,
+    url_for,
+)
+
+from database.interface import HarvesterDBInterface
 
 from .forms import HarvestSourceForm, OrganizationForm
+
+logger = logging.getLogger("harvest_admin")
 
 user = Blueprint("user", __name__)
 mod = Blueprint("harvest", __name__)
@@ -24,17 +37,20 @@ load_dotenv()
 CLIENT_ID = os.getenv("CLIENT_ID")
 REDIRECT_URI = os.getenv("REDIRECT_URI")
 ISSUER = os.getenv("ISSUER")
-AUTH_URL = ISSUER + '/openid_connect/authorize'
-TOKEN_URL = ISSUER + '/api/openid_connect/token'
+AUTH_URL = ISSUER + "/openid_connect/authorize"
+TOKEN_URL = ISSUER + "/api/openid_connect/token"
+
 
 def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        if 'user' not in session:
-            session['next'] = request.url
-            return redirect(url_for('harvest.login'))
+        if "user" not in session:
+            session["next"] = request.url
+            return redirect(url_for("harvest.login"))
         return f(*args, **kwargs)
+
     return decorated_function
+
 
 def create_client_assertion():
     private_key_data = os.getenv("OPENID_PRIVATE_KEY")
@@ -42,29 +58,28 @@ def create_client_assertion():
         raise ValueError("No private key found in the environment variable")
 
     private_key = load_pem_private_key(
-        private_key_data.encode("utf-8"),
-        password=None,
-        backend=default_backend()
+        private_key_data.encode("utf-8"), password=None, backend=default_backend()
     )
 
     now = int(time.time())
     payload = {
-        'iss': CLIENT_ID,
-        'sub': CLIENT_ID,
-        'aud': TOKEN_URL,
-        'jti': uuid.uuid4().hex,
-        'exp': now + 900,  # Token is valid for 15 minutes
-        'iat': now
+        "iss": CLIENT_ID,
+        "sub": CLIENT_ID,
+        "aud": TOKEN_URL,
+        "jti": uuid.uuid4().hex,
+        "exp": now + 900,  # Token is valid for 15 minutes
+        "iat": now,
     }
 
-    return jwt.encode(payload, private_key, algorithm='RS256')
+    return jwt.encode(payload, private_key, algorithm="RS256")
 
-@mod.route('/login')
+
+@mod.route("/login")
 def login():
     state = secrets.token_urlsafe(32)
     nonce = secrets.token_urlsafe(32)
-    session['state'] = state
-    session['nonce'] = nonce
+    session["state"] = state
+    session["nonce"] = nonce
 
     auth_request_url = (
         f"{AUTH_URL}?response_type=code"
@@ -77,71 +92,70 @@ def login():
     )
     return redirect(auth_request_url)
 
-@mod.route('/logout')
+
+@mod.route("/logout")
 def logout():
-    session.pop('user', None)
-    return redirect(url_for('harvest.index'))
+    session.pop("user", None)
+    return redirect(url_for("harvest.index"))
 
-@mod.route('/callback')
+
+@mod.route("/callback")
 def callback():
-    code = request.args.get('code')
-    state = request.args.get('state')
+    code = request.args.get("code")
+    state = request.args.get("state")
 
-    if state != session.pop('state', None):
-        return 'State mismatch error', 400
+    if state != session.pop("state", None):
+        return "State mismatch error", 400
 
     client_assertion = create_client_assertion()
+    # ruff: noqa: E501
     token_payload = {
-        'grant_type': 'authorization_code',
-        'code': code,
-        'redirect_uri': REDIRECT_URI,
-        'client_id': CLIENT_ID,
-        'client_assertion_type': \
-            'urn:ietf:params:oauth:client-assertion-type:jwt-bearer',
-        'client_assertion': client_assertion
+        "grant_type": "authorization_code",
+        "code": code,
+        "redirect_uri": REDIRECT_URI,
+        "client_id": CLIENT_ID,
+        "client_assertion_type": "urn:ietf:params:oauth:client-assertion-type:jwt-bearer",
+        "client_assertion": client_assertion,
     }
 
     response = requests.post(TOKEN_URL, data=token_payload)
 
     if response.status_code != 200:
-        return 'Failed to fetch access token', 400
+        return "Failed to fetch access token", 400
 
     token_data = response.json()
-    id_token = token_data.get('id_token')
+    id_token = token_data.get("id_token")
 
     decoded_id_token = jwt.decode(id_token, options={"verify_signature": False})
 
-    usr_email = decoded_id_token['email'].lower()
+    usr_email = decoded_id_token["email"].lower()
 
-    usr_info = {
-        "email": usr_email,
-        "ssoid": decoded_id_token['sub']
-    }
+    usr_info = {"email": usr_email, "ssoid": decoded_id_token["sub"]}
     usr = db.verify_user(usr_info)
 
     if usr:
-        session['user'] = usr_email
-        next_url = session.pop('next', None)
+        session["user"] = usr_email
+        next_url = session.pop("next", None)
         if next_url:
             return redirect(url_for(next_url))
         else:
-            return redirect(url_for('harvest.index'))
+            return redirect(url_for("harvest.index"))
     else:
-        flash('Please request registration from the admin before proceeding.')
-        return redirect(url_for('harvest.index'))
+        flash("Please request registration from the admin before proceeding.")
+        return redirect(url_for("harvest.index"))
 
 
 # User management
-@user.cli.command('add')
-@click.argument('email')
-@click.option('--name', default='', help='Name of the user')
+@user.cli.command("add")
+@click.argument("email")
+@click.option("--name", default="", help="Name of the user")
 def add_user(email, name):
     """add new user with .gov email."""
 
     email = email.lower()
-    usr_data = {'email': email}
+    usr_data = {"email": email}
     if name:
-        usr_data['name'] = name
+        usr_data["name"] = name
 
     success, message = db.add_user(usr_data)
     if success:
@@ -149,7 +163,8 @@ def add_user(email, name):
     else:
         print("Error:", message)
 
-@user.cli.command('list')
+
+@user.cli.command("list")
 def list_users():
     """List all users' emails."""
     users = db.list_users()
@@ -159,8 +174,9 @@ def list_users():
     else:
         print("No users found.")
 
-@user.cli.command('remove')
-@click.argument('email')
+
+@user.cli.command("remove")
+@click.argument("email")
 def remove_user(email):
     """Remove a user with the given EMAIL."""
     email = email.lower()
@@ -168,6 +184,7 @@ def remove_user(email):
         print(f"Removed user with email: {email}")
     else:
         print("Failed to remove user or user not found.")
+
 
 # Helper Functions
 def make_new_source_contract(form):
@@ -208,7 +225,10 @@ def add_organization():
     else:
         form = OrganizationForm()
         if form.validate_on_submit():
-            new_org = {"name": form.name.data, "logo": form.logo.data}
+            new_org = {
+                "name": form.name.data,
+                "logo": form.logo.data,
+            }
             org = db.add_organization(new_org)
             if org:
                 flash(f"Added new organization with ID: {org.id}")
@@ -230,13 +250,16 @@ def add_organization():
 def get_organization(org_id=None):
     if org_id:
         org = db.get_organization(org_id)
-        return render_template(
-            "view_data.html",
-            data=org,
-            action="View",
-            data_type="Organization",
-            org_id=org_id,
-        )
+        if request.args.get("type") and request.args.get("type") == "json":
+            return jsonify(org)
+        else:
+            return render_template(
+                "view_data.html",
+                data=org,
+                action="View",
+                data_type="Organization",
+                org_id=org_id,
+            )
     else:
         org = db.get_all_organizations()
     return org
@@ -327,6 +350,8 @@ def add_harvest_source():
 def get_harvest_source(source_id=None):
     if source_id:
         source = db.get_harvest_source(source_id)
+        if request.args.get("type") and request.args.get("type") == "json":
+            return jsonify(source)
         return render_template(
             "view_data.html",
             data=source,
@@ -380,7 +405,6 @@ def edit_harvest_source(source_id=None):
 
 # Delete Source
 @mod.route("/harvest_source/delete/<source_id>", methods=["POST"])
-@login_required
 def delete_harvest_source(source_id):
     try:
         result = db.delete_harvest_source(source_id)
@@ -389,7 +413,8 @@ def delete_harvest_source(source_id):
             return {"message": "success"}
         else:
             raise Exception()
-    except Exception:
+    except Exception as e:
+        logger.error(f"Failed to delete harvest source :: {repr(e)}")
         flash("Failed to delete harvest source")
         return {"message": "failed"}
 
@@ -539,6 +564,13 @@ def get_data_sources():
     source = db.get_all_harvest_sources()
     org = db.get_all_organizations()
     return render_template("get_data_sources.html", sources=source, organizations=org)
+
+
+## Test interface, will remove later
+@mod.route("/delete_all_records", methods=["DELETE"])
+def delete_all_records():
+    db.delete_all_harvest_records()
+    return "All harvest records deleted"
 
 
 def register_routes(app):

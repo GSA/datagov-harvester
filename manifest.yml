@@ -11,8 +11,8 @@ applications:
     instances: 1
     env:
       FLASK_APP: run.py
-      CF_API_URL: ((cf-api-url))
-      LM_RUNNER_APP_GUID: ((lm-runner-app-guid))
+      CF_API_URL: ((CF_API_URL))
+      HARVEST_RUNNER_APP_GUID: ((HARVEST_RUNNER_APP_GUID))
       CLIENT_ID: ((CLIENT_ID))
       ISSUER: ((ISSUER))
       REDIRECT_URI: ((REDIRECT_URI))
@@ -23,7 +23,8 @@ applications:
     services:
       - ((app_name))-db
       - ((app_name))-secrets
-    instances: 1
+    instances: 0
     env:
-      CF_API_URL: ((cf-api-url))
-      CKAN_API_URL: ((ckan-api-url))
+      CF_API_URL: ((CF_API_URL))
+      CKAN_API_URL: ((CKAN_API_URL))
+    command: time.sleep(30)

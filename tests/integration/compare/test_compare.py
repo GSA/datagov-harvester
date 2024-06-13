@@ -11,7 +11,6 @@ class TestCompare:
         interface,
         internal_compare_data,
     ):
-
         # add the necessary records to satisfy FKs
         interface.add_organization(organization_data)
         interface.add_harvest_source(source_data_dcatus)
@@ -24,6 +23,8 @@ class TestCompare:
                 "harvest_job_id": internal_compare_data["job_id"],
                 "harvest_source_id": internal_compare_data["harvest_source_id"],
                 "source_hash": dataset_to_hash(sort_dataset(record)),
+                "status": "success",
+                "action": "create",
             }
             interface.add_harvest_record(data)
 
