@@ -11,8 +11,8 @@ from .models import (
     HarvestRecord,
     HarvestRecordError,
     HarvestSource,
-    Organization,
     HarvestUser,
+    Organization,
 )
 
 DATABASE_URI = os.getenv("DATABASE_URI")
@@ -124,13 +124,11 @@ class HarvesterDBInterface:
     def update_harvest_source(self, source_id, updates):
         try:
             source = self.db.get(HarvestSource, source_id)
-
             for key, value in updates.items():
                 if hasattr(source, key):
                     setattr(source, key, value)
                 else:
                     print(f"Warning: non-existing field '{key}' in HarvestSource")
-
             self.db.commit()
             return self._to_dict(source)
 
@@ -317,9 +315,9 @@ class HarvesterDBInterface:
         harvest_records = self.db.query(HarvestRecord).filter_by(harvest_job_id=job_id)
         return [HarvesterDBInterface._to_dict(rcd) for rcd in harvest_records]
 
-    def get_harvest_record_by_source(self, source_id):
+    def get_harvest_record_by_source(self, source_id, filters={}):
         harvest_records = self.db.query(HarvestRecord).filter_by(
-            harvest_source_id=source_id
+            harvest_source_id=source_id, **filters
         )
         return [HarvesterDBInterface._to_dict(rcd) for rcd in harvest_records]
 
@@ -347,15 +345,15 @@ class HarvesterDBInterface:
         elif hasattr(self.db, "close"):
             self.db.close()
 
-
     # User management
     def add_user(self, usr_data):
         try:
-            if not usr_data['email'].endswith('.gov'):
+            if not usr_data["email"].endswith(".gov"):
                 return False, "Error: Email address must be a .gov address."
 
-            existing_user = self.db.query(HarvestUser). \
-                filter_by(email=usr_data['email']).first()
+            existing_user = (
+                self.db.query(HarvestUser).filter_by(email=usr_data["email"]).first()
+            )
 
             if existing_user:
                 return False, "User with this email already exists."
@@ -392,26 +390,29 @@ class HarvesterDBInterface:
 
     def verify_user(self, usr_data):
         try:
-            user_by_ssoid = self.db.query(HarvestUser).\
-                filter_by(ssoid=usr_data['ssoid']).first()
+            user_by_ssoid = (
+                self.db.query(HarvestUser).filter_by(ssoid=usr_data["ssoid"]).first()
+            )
             if user_by_ssoid:
-                if user_by_ssoid.email == usr_data['email']:
+                if user_by_ssoid.email == usr_data["email"]:
                     return True
                 else:
                     return False
             else:
-                user_by_email = self.db.query(HarvestUser).\
-                    filter_by(email=usr_data['email']).first()
+                user_by_email = (
+                    self.db.query(HarvestUser)
+                    .filter_by(email=usr_data["email"])
+                    .first()
+                )
                 if user_by_email:
-                    user_by_email.ssoid = usr_data['ssoid']
+                    user_by_email.ssoid = usr_data["ssoid"]
                     self.db.commit()
                     self.db.refresh(user_by_email)
-                    return True           
+                    return True
             return False
         except Exception as e:
             print("Error:", e)
             return False
-
 
     ##### TEST INTERFACES BELOW #####
     ######## TO BE REMOVED ##########
@@ -426,3 +427,10 @@ class HarvesterDBInterface:
             HarvesterDBInterface._to_dict(err) for err in harvest_records
         ]
         return harvest_records_data
+
+    def delete_all_harvest_records(self):
+        harvest_records = self.db.query(HarvestRecord).all()
+        for record in harvest_records:
+            self.db.delete(record)
+        self.db.commit()
+        return "Records deleted successfully"

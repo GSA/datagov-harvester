@@ -7,7 +7,7 @@ DATABASE_URI = os.getenv("DATABASE_URI")
 CF_API_URL = os.getenv("CF_API_URL")
 CF_SERVICE_USER = os.getenv("CF_SERVICE_USER")
 CF_SERVICE_AUTH = os.getenv("CF_SERVICE_AUTH")
-LM_RUNNER_APP_GUID = os.getenv("LM_RUNNER_APP_GUID")
+HARVEST_RUNNER_APP_GUID = os.getenv("HARVEST_RUNNER_APP_GUID")
 CF_INSTANCE_INDEX = os.getenv("CF_INSTANCE_INDEX")
 
 LM_MAX_TASKS_COUNT = 3
@@ -17,8 +17,8 @@ interface = HarvesterDBInterface()
 
 def create_task(jobId):
     return {
-        "app_guuid": LM_RUNNER_APP_GUID,
-        "command": f"python harvest.py {jobId}",
+        "app_guuid": HARVEST_RUNNER_APP_GUID,
+        "command": f"python harvester/harvest.py {jobId}",
         "task_id": f"harvest-job-{jobId}",
     }
 
@@ -43,7 +43,7 @@ def load_manager():
     jobs = interface.get_harvest_jobs_by_faceted_filter("status", ["new", "manual"])
 
     # get current list of all tasks
-    current_tasks = cf_handler.get_all_app_tasks(LM_RUNNER_APP_GUID)
+    current_tasks = cf_handler.get_all_app_tasks(HARVEST_RUNNER_APP_GUID)
     # filter out in_process tasks
     running_tasks = cf_handler.get_all_running_tasks(current_tasks)
 

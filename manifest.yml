@@ -1,6 +1,6 @@
 ---
 applications:
-  - name: ((app_name))
+  - name: ((app_name))-admin
     buildpacks:
       - python_buildpack
     routes:
@@ -10,9 +10,21 @@ applications:
       - ((app_name))-secrets
     instances: 1
     env:
-      DATABASE_NAME: ((app_name))-db
       FLASK_APP: run.py
+      CF_API_URL: ((CF_API_URL))
+      HARVEST_RUNNER_APP_GUID: ((HARVEST_RUNNER_APP_GUID))
       CLIENT_ID: ((CLIENT_ID))
       ISSUER: ((ISSUER))
       REDIRECT_URI: ((REDIRECT_URI))
     command: flask run --host=0.0.0.0 --port=8080
+  - name: ((app_name))-runner
+    buildpacks:
+      - python_buildpack
+    services:
+      - ((app_name))-db
+      - ((app_name))-secrets
+    instances: 0
+    env:
+      CF_API_URL: ((CF_API_URL))
+      CKAN_API_URL: ((CKAN_API_URL))
+    command: time.sleep(30)

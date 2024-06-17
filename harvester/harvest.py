@@ -1,8 +1,9 @@
 # ruff: noqa: F841
-
+# ruff: noqa: E402
 import functools
 import logging
 import os
+import sys
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -10,6 +11,8 @@ from pathlib import Path
 import requests
 from ckanapi import RemoteCKAN
 from jsonschema import Draft202012Validator
+
+sys.path.insert(1, "/".join(os.path.realpath(__file__).split("/")[0:-2]))
 
 from harvester import HarvesterDBInterface, db_interface
 from harvester.ckan_utils import ckanify_dcatus
@@ -160,7 +163,7 @@ class HarvestSource:
     def prepare_internal_data(self) -> None:
         logger.info("retrieving and preparing internal records.")
         try:
-            records = self.db_interface.get_harvest_record_by_source(self.id)
+            records = self.db_interface.get_latest_harvest_records_by_source(self.id)
             self.internal_records_to_id_hash(records)
         except Exception as e:
             raise ExtractInternalException(

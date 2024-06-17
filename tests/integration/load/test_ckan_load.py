@@ -41,6 +41,8 @@ class TestCKANLoad:
                 "harvest_job_id": internal_compare_data["job_id"],
                 "harvest_source_id": internal_compare_data["harvest_source_id"],
                 "source_hash": dataset_to_hash(sort_dataset(record)),
+                "status": "success",
+                "action": "create",
             }
             interface.add_harvest_record(data)
 
