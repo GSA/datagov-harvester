@@ -134,7 +134,8 @@ class HarvestSource:
         for record in records:
             # TODO: don't pass None to original metadata
             self.internal_records[record["identifier"]] = Record(
-                self, record["identifier"], None, record["source_hash"]
+                self, record["identifier"], record["source_raw"],
+                record["source_hash"], _ckanid=record['ckanid']
             )
 
     def external_records_to_id_hash(self, records: list[dict]) -> None:
@@ -354,6 +355,7 @@ class Record:
     _valid: bool = None
     _validation_msg: str = ""
     _status: str = None
+    _ckanid: str = None
 
     ckanified_metadata: dict = field(default_factory=lambda: {})
 
@@ -368,6 +370,16 @@ class Record:
                 "harvest source must be either a HarvestSource instance or a string"
             )
         self._harvest_source = value
+
+    @property
+    def ckanid(self) -> str:
+        return self._ckanid
+
+    @ckanid.setter
+    def ckanid(self, value) -> None:
+        if not isinstance(value, str) :
+            raise ValueError("ckanid need to be string.")
+        self._ckanid = value
 
     @property
     def identifier(self) -> str:
@@ -439,20 +451,24 @@ class Record:
             )
 
     def create_record(self):
-        ckan.action.package_create(**self.ckanified_metadata)
+        result = ckan.action.package_create(**self.ckanified_metadata)
+        self.ckanid = result['id']
 
     def update_record(self) -> dict:
         ckan.action.package_update(**self.ckanified_metadata)
 
     def delete_record(self) -> None:
-        ckan.action.dataset_purge(**{"id": self.identifier})
+        ckan.action.dataset_purge(**{"id": self.ckanid})
 
     def update_self_in_db(self) -> bool:
         self.status = "success"
+        data = {"status": "success", "date_finished": datetime.now(timezone.utc)}
+        if self.ckanid is not None:
+            data['ckan_id'] = self.ckanid
 
         self.harvest_source.db_interface.update_harvest_record(
             self.harvest_source.internal_records_lookup_table[self.identifier],
-            {"status": "success", "date_finished": datetime.now(timezone.utc)},
+            data,
         )
 
     def ckanify_dcatus(self) -> None:
