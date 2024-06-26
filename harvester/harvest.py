@@ -382,8 +382,6 @@ class Record:
 
     @ckan_id.setter
     def ckan_id(self, value) -> None:
-        if not isinstance(value, str) :
-            raise ValueError("ckan_id need to be string.")
         self._ckan_id = value
 
     @property
