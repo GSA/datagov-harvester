@@ -40,6 +40,18 @@ class HarvestSource(db.Model):
         db.String(36), db.ForeignKey("organization.id"), nullable=False
     )
     frequency = db.Column(db.String, nullable=False)
+    frequency = db.Column(
+        Enum(
+            "manual",
+            "daily",
+            "weekly",
+            "biweekly",
+            "monthly",
+            name="frequency",
+        ),
+        nullable=False,
+        index=True,
+    )
     user_requested_frequency = db.Column(db.String)
     url = db.Column(db.String, nullable=False, unique=True)
     schema_type = db.Column(db.String, nullable=False)
@@ -61,7 +73,6 @@ class HarvestJob(db.Model):
             "in_progress",
             "complete",
             "new",
-            "manual",
             "error",
             name="job_status",
         ),

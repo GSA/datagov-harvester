@@ -10,9 +10,10 @@ from flask import Flask
 from sqlalchemy.orm import scoped_session, sessionmaker
 
 from app import create_app
+from app.scripts.load_manager import create_future_date
 from database.interface import HarvesterDBInterface
-from database.models import db
-from harvester.utils import dataset_to_hash, sort_dataset
+from database.models import HarvestJob, HarvestSource, Organization, db
+from harvester.utils.utils import dataset_to_hash, sort_dataset
 
 load_dotenv()
 
@@ -67,11 +68,12 @@ def default_function_fixture(interface):
     logger.info("Patching core.feature.service")
     with patch("harvester.harvest.db_interface", interface), patch(
         "harvester.exceptions.db_interface", interface
-    ):
+    ), patch("app.scripts.load_manager.interface", interface):
         yield
     logger.info("Patching complete. Unpatching")
 
 
+## ORGS
 @pytest.fixture
 def organization_data() -> dict:
     return {
@@ -81,6 +83,12 @@ def organization_data() -> dict:
     }
 
 
+@pytest.fixture
+def organization_orm(organization_data: dict) -> Organization:
+    return Organization(**organization_data)
+
+
+## HARVEST SOURCES
 @pytest.fixture
 def source_data_dcatus(organization_data: dict) -> dict:
     return {
@@ -100,7 +108,7 @@ def source_data_dcatus(organization_data: dict) -> dict:
 def source_data_dcatus_2(organization_data: dict) -> dict:
     return {
         "id": "3f2652de-91df-4c63-8b53-bfced20b276b",
-        "name": "Test Source",
+        "name": "Test Source 2",
         "notification_emails": "email@example.com",
         "organization_id": organization_data["id"],
         "frequency": "daily",
@@ -112,18 +120,8 @@ def source_data_dcatus_2(organization_data: dict) -> dict:
 
 
 @pytest.fixture
-def source_data_dcatus_single_record(organization_data: dict) -> dict:
-    return {
-        "id": "2f2652de-91df-4c63-8b53-bfced20b276b",
-        "name": "Single Record Test Source",
-        "notification_emails": "email@example.com",
-        "organization_id": organization_data["id"],
-        "frequency": "daily",
-        "url": f"{HARVEST_SOURCE_URL}/dcatus/dcatus_single_record.json",
-        "schema_type": "type1",
-        "source_type": "dcatus",
-        "status": "active",
-    }
+def harvest_source_orm_dcatus(source_data_dcatus: dict) -> HarvestSource:
+    return HarvestSource(**source_data_dcatus)
 
 
 @pytest.fixture
@@ -175,6 +173,11 @@ def job_data_dcatus_2(source_data_dcatus: dict) -> dict:
 
 
 @pytest.fixture
+def job_orm_dcatus(job_data_dcatus: dict) -> HarvestJob:
+    return HarvestJob(**job_data_dcatus)
+
+
+@pytest.fixture
 def job_data_waf(source_data_waf: dict) -> dict:
     return {
         "id": "963cdc51-94d5-425d-a688-e0a57e0c5dd2",
@@ -198,6 +201,22 @@ def job_data_dcatus_invalid(source_data_dcatus_invalid: dict) -> dict:
         "id": "59df7ba5-102d-4ae3-abd6-01b7eb26a338",
         "status": "new",
         "harvest_source_id": source_data_dcatus_invalid["id"],
+    }
+
+
+## HARVEST RECORDS
+@pytest.fixture
+def source_data_dcatus_single_record(organization_data: dict) -> dict:
+    return {
+        "id": "2f2652de-91df-4c63-8b53-bfced20b276b",
+        "name": "Single Record Test Source",
+        "notification_emails": "email@example.com",
+        "organization_id": organization_data["id"],
+        "frequency": "daily",
+        "url": f"{HARVEST_SOURCE_URL}/dcatus/dcatus_single_record.json",
+        "schema_type": "type1",
+        "source_type": "dcatus",
+        "status": "active",
     }
 
 
@@ -274,13 +293,38 @@ def source_data_dcatus_invalid_records_job(
 
 
 @pytest.fixture
+def interface_no_jobs(
+    interface, organization_data, source_data_dcatus, source_data_waf
+):
+    interface.add_organization(organization_data)
+    interface.add_harvest_source(source_data_dcatus)
+    interface.add_harvest_source(source_data_waf)
+
+    return interface
+
+
+@pytest.fixture
 def interface_with_multiple_jobs(
     interface, organization_data, source_data_dcatus, source_data_waf
 ):
-    statuses = ["new", "manual", "in_progress", "complete", "error"]
+    statuses = ["new", "in_progress", "complete", "error"]
+    frequencies = ["daily", "monthly"]
     source_ids = [source_data_dcatus["id"], source_data_waf["id"]]
     jobs = [
-        {"status": status, "harvest_source_id": source}
+        {
+            "status": status,
+            "harvest_source_id": source,
+            "date_created": create_future_date(frequency),
+        }
+        for status in statuses
+        for frequency in frequencies
+        for source in source_ids
+    ]
+    jobs_2 = [
+        {
+            "status": status,
+            "harvest_source_id": source,
+        }
         for status in statuses
         for source in source_ids
     ]
@@ -288,7 +332,7 @@ def interface_with_multiple_jobs(
     interface.add_harvest_source(source_data_dcatus)
     interface.add_harvest_source(source_data_waf)
 
-    for job in jobs:
+    for job in jobs + jobs_2:
         interface.add_harvest_job(job)
 
     return interface

@@ -1,10 +1,10 @@
 from unittest.mock import patch
 
-from harvester.utils import CFHandler
+from harvester.lib.cf_handler import CFHandler
 
 
-@patch("harvester.utils.CloudFoundryClient")
-@patch("harvester.utils.TaskManager")
+@patch("harvester.lib.cf_handler.CloudFoundryClient")
+@patch("harvester.lib.cf_handler.TaskManager")
 class TestCFTasking:
     def test_add_task(self, TMMock, CFClientMock, dhl_cf_task_data):
         CFUtil = CFHandler("url", "user", "password")
@@ -24,10 +24,13 @@ class TestCFTasking:
         tasks = CFUtil.get_all_app_tasks(dhl_cf_task_data["app_guuid"])
         assert len(tasks) > 0
 
-    def test_get_all_running_app_tasks(self, CFClientMock, TMMock):
+    def test_get_all_running_app_tasks(self, TMMock, CFClientMock, dhl_cf_task_data):
         CFUtil = CFHandler("url", "user", "password")
-        tasks = [{"state": "RUNNING"}, {"state": "SUCCEEDED"}]
-        running_tasks = CFUtil.get_all_running_tasks(tasks)
+        CFClientMock.return_value.v3.apps.__getitem__.return_value.tasks.return_value = [
+            {"state": "RUNNING"},
+            {"state": "SUCCEEDED"},
+        ]
+        running_tasks = CFUtil.get_all_running_app_tasks(dhl_cf_task_data["app_guuid"])
         assert running_tasks == 1
 
     def test_cancel_task(self, TMMock, CFClientMock, dhl_cf_task_data):

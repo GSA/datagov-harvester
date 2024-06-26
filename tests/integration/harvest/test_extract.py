@@ -9,7 +9,6 @@ class TestExtract:
         source_data_waf,
         job_data_waf,
     ):
-
         interface.add_organization(organization_data)
         interface.add_harvest_source(source_data_waf)
         harvest_job = interface.add_harvest_job(job_data_waf)
@@ -26,7 +25,6 @@ class TestExtract:
         source_data_dcatus,
         job_data_dcatus,
     ):
-
         interface.add_organization(organization_data)
         interface.add_harvest_source(source_data_dcatus)
         harvest_job = interface.add_harvest_job(job_data_dcatus)

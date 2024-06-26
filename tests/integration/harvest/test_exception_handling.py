@@ -33,7 +33,7 @@ class TestHarvestJobExceptionHandling:
         assert harvest_job.status == "error"
 
         harvest_error = interface.get_harvest_job_errors_by_job(harvest_job.id)[0]
-        assert harvest_error["type"] == "ExtractExternalException"
+        assert harvest_error.type == "ExtractExternalException"
 
     def test_extract_internal_exception(
         self,
@@ -57,7 +57,7 @@ class TestHarvestJobExceptionHandling:
         assert harvest_job.status == "error"
 
         harvest_error = interface.get_harvest_job_errors_by_job(harvest_job.id)[0]
-        assert harvest_error["type"] == "ExtractInternalException"
+        assert harvest_error.type == "ExtractInternalException"
 
     def test_no_source_info_exception(self, job_data_dcatus):
         with pytest.raises(ExtractInternalException) as e:
@@ -97,13 +97,13 @@ class TestHarvestRecordExceptionHandling:
             ]
         )
         assert (
-            interface_record["id"]
+            interface_record.id
             == harvest_source.internal_records_lookup_table[
                 single_internal_record["identifier"]
             ]
         )
-        assert interface_record["status"] == "error"
-        assert interface_errors[0]["type"] == "SynchronizeException"
+        assert interface_record.status == "error"
+        assert interface_errors[0].type == "SynchronizeException"
 
     def test_validation_exception(
         self,
@@ -129,11 +129,11 @@ class TestHarvestRecordExceptionHandling:
             harvest_source.internal_records_lookup_table[test_record.identifier]
         )
         assert (
-            interface_record["id"]
+            interface_record.id
             == harvest_source.internal_records_lookup_table[test_record.identifier]
         )
-        assert interface_record["status"] == "error"
-        assert interface_errors[0]["type"] == "ValidationException"
+        assert interface_record.status == "error"
+        assert interface_errors[0].type == "ValidationException"
 
     @patch("harvester.harvest.ckanify_dcatus", side_effect=Exception("Broken"))
     def test_dcatus_to_ckan_exception(
@@ -164,11 +164,11 @@ class TestHarvestRecordExceptionHandling:
 
         assert ckanify_dcatus_mock.call_count == len(harvest_source.external_records)
         assert (
-            interface_record["id"]
+            interface_record.id
             == harvest_source.internal_records_lookup_table[test_record.identifier]
         )
-        assert interface_record["status"] == "error"
-        assert interface_errors[0]["type"] == "DCATUSToCKANException"
+        assert interface_record.status == "error"
+        assert interface_errors[0].type == "DCATUSToCKANException"
 
     # ruff: noqa: F401
     @patch("harvester.harvest.ckan", ckanapi.RemoteCKAN("mock_address"))
@@ -199,8 +199,8 @@ class TestHarvestRecordExceptionHandling:
         )
 
         assert (
-            interface_record["id"]
+            interface_record.id
             == harvest_source.internal_records_lookup_table[test_record.identifier]
         )
-        assert interface_record["status"] == "error"
-        assert interface_errors[0]["type"] == "SynchronizeException"
+        assert interface_record.status == "error"
+        assert interface_errors[0].type == "SynchronizeException"

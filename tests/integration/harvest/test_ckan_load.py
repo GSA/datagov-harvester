@@ -3,7 +3,7 @@ from unittest.mock import patch
 from deepdiff import DeepDiff
 
 from harvester.harvest import HarvestSource, Record
-from harvester.utils import dataset_to_hash, sort_dataset
+from harvester.utils.utils import dataset_to_hash, sort_dataset
 
 # ruff: noqa: E501
 
