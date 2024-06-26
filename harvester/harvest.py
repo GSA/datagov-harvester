@@ -134,7 +134,8 @@ class HarvestSource:
         for record in records:
             # TODO: don't pass None to original metadata
             self.internal_records[record["identifier"]] = Record(
-                self, record["identifier"], None, record["source_hash"]
+                self, record["identifier"], record["source_raw"],
+                record["source_hash"], _ckan_id=record['ckan_id']
             )
 
     def external_records_to_id_hash(self, records: list[dict]) -> None:
@@ -237,6 +238,7 @@ class HarvestSource:
                         "source_hash": record.metadata_hash,
                         "source_raw": str(record.metadata),
                         "action": action,
+                        "ckan_id": record.ckan_id
                     }
                 )
 
@@ -257,7 +259,8 @@ class HarvestSource:
                         # we don't actually create a Record instance for deletions
                         # so creating it here as a sort of acknowledgement
                         self.external_records[i] = Record(
-                            self, self.internal_records[i].identifier
+                            self, self.internal_records[i].identifier,
+                            _ckan_id=self.internal_records[i].ckan_id
                         )
                         self.external_records[i].action = action
                         try:
@@ -277,6 +280,9 @@ class HarvestSource:
                         continue
 
                     record = self.external_records[i]
+                    if action == "update":
+                         record.ckan_id = self.internal_records[i].ckan_id
+
                     # no longer setting action in compare so setting it here...
                     record.action = action
 
@@ -354,6 +360,7 @@ class Record:
     _valid: bool = None
     _validation_msg: str = ""
     _status: str = None
+    _ckan_id: str = None
 
     ckanified_metadata: dict = field(default_factory=lambda: {})
 
@@ -368,6 +375,14 @@ class Record:
                 "harvest source must be either a HarvestSource instance or a string"
             )
         self._harvest_source = value
+
+    @property
+    def ckan_id(self) -> str:
+        return self._ckan_id
+
+    @ckan_id.setter
+    def ckan_id(self, value) -> None:
+        self._ckan_id = value
 
     @property
     def identifier(self) -> str:
@@ -439,20 +454,24 @@ class Record:
             )
 
     def create_record(self):
-        ckan.action.package_create(**self.ckanified_metadata)
+        result = ckan.action.package_create(**self.ckanified_metadata)
+        self.ckan_id = result['id']
 
     def update_record(self) -> dict:
-        ckan.action.package_update(**self.ckanified_metadata)
+        ckan.action.package_update(**self.ckanified_metadata, **{"id": self.ckan_id})
 
     def delete_record(self) -> None:
-        ckan.action.dataset_purge(**{"id": self.identifier})
+        ckan.action.dataset_purge(**{"id": self.ckan_id})
 
     def update_self_in_db(self) -> bool:
         self.status = "success"
+        data = {"status": "success", "date_finished": datetime.now(timezone.utc)}
+        if self.ckan_id is not None:
+            data['ckan_id'] = self.ckan_id
 
         self.harvest_source.db_interface.update_harvest_record(
             self.harvest_source.internal_records_lookup_table[self.identifier],
-            {"status": "success", "date_finished": datetime.now(timezone.utc)},
+            data,
         )
 
     def ckanify_dcatus(self) -> None:
