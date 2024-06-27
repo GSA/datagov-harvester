@@ -24,7 +24,7 @@ from harvester.exceptions import (
     ValidationException,
 )
 from harvester.utils.ckan_utils import ckanify_dcatus
-from harvester.utils.utils import (
+from harvester.utils.general_utils import (
     dataset_to_hash,
     download_file,
     download_waf,
@@ -510,7 +510,7 @@ def harvest(jobId):
 if __name__ == "__main__":
     import sys
 
-    from harvester.utils.utils import parse_args
+    from harvester.utils.general_utils import parse_args
 
     try:
         args = parse_args(sys.argv[1:])

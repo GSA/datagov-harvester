@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 
 from database.models import HarvestJobError, HarvestRecordError
 from harvester.harvest import HarvestSource
-from harvester.utils.utils import dataset_to_hash, sort_dataset
+from harvester.utils.general_utils import dataset_to_hash, sort_dataset
 
 
 class TestDatabase:

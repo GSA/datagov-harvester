@@ -39,7 +39,6 @@ class HarvestSource(db.Model):
     organization_id = db.Column(
         db.String(36), db.ForeignKey("organization.id"), nullable=False
     )
-    frequency = db.Column(db.String, nullable=False)
     frequency = db.Column(
         Enum(
             "manual",

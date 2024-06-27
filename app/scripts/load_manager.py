@@ -4,7 +4,7 @@ from datetime import datetime
 
 from database.interface import HarvesterDBInterface
 from harvester.lib.cf_handler import CFHandler
-from harvester.utils.utils import create_future_date
+from harvester.utils.general_utils import create_future_date
 
 CF_API_URL = os.getenv("CF_API_URL")
 CF_SERVICE_USER = os.getenv("CF_SERVICE_USER")

@@ -13,7 +13,7 @@ from app import create_app
 from app.scripts.load_manager import create_future_date
 from database.interface import HarvesterDBInterface
 from database.models import HarvestJob, HarvestSource, Organization, db
-from harvester.utils.utils import dataset_to_hash, sort_dataset
+from harvester.utils.general_utils import dataset_to_hash, sort_dataset
 
 load_dotenv()
 
