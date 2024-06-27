@@ -12,7 +12,9 @@ class TestHarvestFullFlow:
         organization_data,
         source_data_dcatus_single_record,
     ):
-        CKANMock.return_value.action = "ok"
+        CKANMock.action.package_create.return_value = {"id": 1234}
+        CKANMock.action.package_update = "ok"
+        CKANMock.action.dataset_purge = "ok"
         interface.add_organization(organization_data)
         interface.add_harvest_source(source_data_dcatus_single_record)
         harvest_job = interface.add_harvest_job(
@@ -31,7 +33,7 @@ class TestHarvestFullFlow:
         assert harvest_job.status == "complete"
         assert harvest_job.records_added == len(harvest_source.external_records)
 
-    @patch("harvester.harvest.RemoteCKAN")
+    @patch("harvester.harvest.ckan")
     @patch("harvester.harvest.download_file")
     def test_harvest_record_errors_reported(
         self,
@@ -43,7 +45,7 @@ class TestHarvestFullFlow:
         job_data_dcatus,
         single_internal_record,
     ):
-        CKANMock.return_value.action.dataset_purge.side_effect = Exception()
+        CKANMock.action.dataset_purge.side_effect = Exception()
         download_file_mock.return_value = dict({"dataset": []})
         interface.add_organization(organization_data)
         interface.add_harvest_source(source_data_dcatus)
