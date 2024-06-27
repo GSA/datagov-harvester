@@ -27,17 +27,17 @@ def create_cf_handler():
     return CFHandler(CF_API_URL, CF_SERVICE_USER, CF_SERVICE_AUTH)
 
 
-def create_task(jobId, cf_handler=None):
+def create_task(job_id, cf_handler=None):
     task_contract = {
         "app_guuid": HARVEST_RUNNER_APP_GUID,
-        "command": f"python harvester/harvest.py {jobId}",
-        "task_id": f"harvest-job-{jobId}",
+        "command": f"python harvester/harvest.py {job_id}",
+        "task_id": f"harvest-job-{job_id}",
     }
     if cf_handler is None:
         cf_handler = create_cf_handler()
 
     cf_handler.start_task(**task_contract)
-    updated_job = interface.update_harvest_job(jobId, {"status": "in_progress"})
+    updated_job = interface.update_harvest_job(job_id, {"status": "in_progress"})
     message = f"Updated job {updated_job.id} to in_progress"
     logger.info(message)
     return message
@@ -107,9 +107,9 @@ def load_manager():
     running_tasks = cf_handler.get_all_running_app_tasks(HARVEST_RUNNER_APP_GUID)
 
     # confirm tasks < MAX_JOBS_COUNT or bail
-    if running_tasks > MAX_TASKS_COUNT:
+    if running_tasks >= MAX_TASKS_COUNT:
         logger.info(
-            f"{running_tasks} running_tasks > max tasks count ({MAX_TASKS_COUNT})."
+            f"{running_tasks} running_tasks >= max tasks count ({MAX_TASKS_COUNT})."
         )
         return
     else:

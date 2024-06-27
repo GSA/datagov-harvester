@@ -120,7 +120,7 @@ def source_data_dcatus_2(organization_data: dict) -> dict:
 
 
 @pytest.fixture
-def harvest_source_orm_dcatus(source_data_dcatus: dict) -> HarvestSource:
+def source_orm_dcatus(source_data_dcatus: dict) -> HarvestSource:
     return HarvestSource(**source_data_dcatus)
 
 
@@ -305,7 +305,7 @@ def interface_no_jobs(
 
 @pytest.fixture
 def interface_with_multiple_jobs(
-    interface, organization_data, source_data_dcatus, source_data_waf
+    interface_no_jobs, source_data_dcatus, source_data_waf
 ):
     statuses = ["new", "in_progress", "complete", "error"]
     frequencies = ["daily", "monthly"]
@@ -328,14 +328,11 @@ def interface_with_multiple_jobs(
         for status in statuses
         for source in source_ids
     ]
-    interface.add_organization(organization_data)
-    interface.add_harvest_source(source_data_dcatus)
-    interface.add_harvest_source(source_data_waf)
 
     for job in jobs + jobs_2:
-        interface.add_harvest_job(job)
+        interface_no_jobs.add_harvest_job(job)
 
-    return interface
+    return interface_no_jobs
 
 
 @pytest.fixture

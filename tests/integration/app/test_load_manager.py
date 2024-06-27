@@ -1,4 +1,3 @@
-from copy import copy
 from datetime import datetime, timedelta
 from unittest.mock import patch
 
@@ -10,6 +9,7 @@ from app.scripts.load_manager import (
     schedule_first_job,
     trigger_manual_job,
 )
+from harvester.utils.general_utils import create_future_date
 
 
 @pytest.fixture
@@ -24,72 +24,83 @@ def mock_bad_cf_index(monkeypatch):
 
 @freeze_time("Jan 14th, 2012")
 class TestLoadManager:
-    @patch("app.scripts.load_manager.interface")
-    @patch("app.scripts.load_manager.CFHandler")
+    @patch("harvester.lib.cf_handler.CloudFoundryClient")
+    @patch("harvester.lib.cf_handler.TaskManager")
     def test_load_manager_invokes_tasks(
-        self,
-        CFHandlerMock,
-        interface_mock,
-        job_orm_dcatus,
-        harvest_source_orm_dcatus,
-        mock_good_cf_index,
+        self, TMMock, CFCMock, interface_no_jobs, source_orm_dcatus, mock_good_cf_index
     ):
-        job_orm_dcatus_in_progress = copy(job_orm_dcatus)
-        job_orm_dcatus_in_progress.status = "in_progress"
-        CFHandlerMock.return_value.get_all_running_app_tasks.return_value = 2
-        CFHandlerMock.return_value.start_task.return_value == "ok"
-        interface_mock.get_new_harvest_jobs_in_past.return_value = [job_orm_dcatus]
-        interface_mock.update_harvest_job.return_value = job_orm_dcatus_in_progress
-        interface_mock.get_harvest_source.return_value = harvest_source_orm_dcatus
+        intervals = [-1, -2]
+        jobs = [
+            {
+                "status": "new",
+                "harvest_source_id": source_orm_dcatus.id,
+                "date_created": datetime.now() + timedelta(days=interval),
+            }
+            for interval in intervals
+        ]
+        for job in jobs:
+            interface_no_jobs.add_harvest_job(job)
+
+        CFCMock.return_value.v3.apps.__getitem__.return_value.tasks.return_value = [
+            {"state": "RUNNING"},
+            {"state": "RUNNING"},
+            {"state": "DONE"},
+        ]
+
+        jobs = interface_no_jobs.get_new_harvest_jobs_in_past()
+        assert len(jobs) == 2
+        job = jobs[0]
+        assert job.status == "new"
 
         load_manager()
 
-        # assert get_all_running_app_tasks called once
-        assert CFHandlerMock.return_value.get_all_running_app_tasks.call_count == 1
-
-        # assert 1 slot available so one job created & scheduled
-        assert CFHandlerMock.return_value.start_task.call_count == 1
+        # assert create_task ops
+        start_task_mock = TMMock.return_value.create
+        assert start_task_mock.call_count == 1
+        ## assert command
         assert (
-            CFHandlerMock.return_value.start_task.call_args.kwargs["command"]
-            == f"python harvester/harvest.py {job_orm_dcatus.id}"
+            start_task_mock.call_args[0][1] == f"python harvester/harvest.py {job.id}"
         )
-        assert interface_mock.update_harvest_job.call_count == 1
-        assert interface_mock.update_harvest_job.call_args[0][0] == job_orm_dcatus.id
+        ## assert task_id
+        assert start_task_mock.call_args[0][2] == f"harvest-job-{job.id}"
+        assert job.status == "in_progress"
 
-        assert interface_mock.add_harvest_job.call_count == 1
-        assert (
-            interface_mock.add_harvest_job.call_args.args[0]["harvest_source_id"]
-            == harvest_source_orm_dcatus.id
-        )
-        assert interface_mock.add_harvest_job.call_args.args[0][
-            "date_created"
-        ] == datetime.now() + timedelta(days=1)
+        # assert schedule_next_job ops
+        # ruff: noqa: E501
+        future_job = interface_no_jobs.get_new_harvest_jobs_by_source_in_future(
+            job.harvest_source_id
+        )[0]
 
-    @patch("app.scripts.load_manager.interface")
-    @patch("app.scripts.load_manager.CFHandler")
+        harvest_source = interface_no_jobs.get_harvest_source(job.harvest_source_id)
+
+        assert future_job.harvest_source_id == job.harvest_source_id
+        assert future_job.date_created == create_future_date(harvest_source.frequency)
+
+    @patch("app.scripts.load_manager.logger")
+    @patch("harvester.lib.cf_handler.CloudFoundryClient")
+    @patch("harvester.lib.cf_handler.TaskManager")
     def test_load_manager_hits_task_limit(
         self,
-        CFHandlerMock,
-        interface_mock,
+        TMMock,
+        CFCMock,
+        logger_mock,
+        interface,
         mock_good_cf_index,
     ):
-        CFHandlerMock.return_value.get_all_running_app_tasks.return_value = 3
-        interface_mock.get_new_harvest_jobs_in_past.return_value = []
+        CFCMock.return_value.v3.apps.__getitem__.return_value.tasks.return_value = [
+            {"state": "RUNNING"},
+            {"state": "RUNNING"},
+            {"state": "RUNNING"},
+        ]
 
         load_manager()
 
-        # assert get_new_harvest_jobs_in_past called once
-        assert interface_mock.get_new_harvest_jobs_in_past.call_count == 1
-        # assert get_all_running_app_tasks called once
-        assert CFHandlerMock.return_value.get_all_running_app_tasks.call_count == 1
-
-        # assert create_task mocks were not called
-        assert not CFHandlerMock.return_value.start_task.called
-        assert not interface_mock.update_harvest_job.called
-
-        # assert schedule_next_job mocks were not called
-        assert not interface_mock.get_harvest_source.called
-        assert not interface_mock.add_harvest_job.called
+        # assert logger called with correct args
+        assert logger_mock.info.call_count == 1
+        assert (
+            logger_mock.info.call_args[0][0]
+            == "3 running_tasks >= max tasks count (3)."
+        )
 
     @patch("app.scripts.load_manager.logger")
     def test_load_manager_bails_on_incorrect_index(
@@ -106,16 +117,20 @@ class TestLoadManager:
             == "CF_INSTANCE_INDEX is not set or not equal to zero"
         )
 
-    @patch("app.scripts.load_manager.CFHandler")
+    @patch("harvester.lib.cf_handler.CloudFoundryClient")
+    @patch("harvester.lib.cf_handler.TaskManager")
     def test_load_manager_schedules_first_job(
         self,
-        CFHandlerMock,
+        TMMock,
+        CFCMock,
         interface_with_multiple_jobs,
         source_data_dcatus,
         mock_good_cf_index,
     ):
-        CFHandlerMock.return_value.get_all_running_app_tasks.return_value = 2
-        CFHandlerMock.return_value.start_task.return_value == "ok"
+        CFCMock.return_value.v3.apps.__getitem__.return_value.tasks.return_value = [
+            {"state": "RUNNING"},
+            {"state": "RUNNING"},
+        ]
         jobs = interface_with_multiple_jobs.get_new_harvest_jobs_by_source_in_future(
             source_data_dcatus["id"]
         )
@@ -130,9 +145,10 @@ class TestLoadManager:
         assert source_data_dcatus["frequency"] == "daily"
         assert new_jobs[0].date_created == datetime.now() + timedelta(days=1)
 
-    @patch("app.scripts.load_manager.CFHandler")
+    @patch("harvester.lib.cf_handler.CloudFoundryClient")
+    @patch("harvester.lib.cf_handler.TaskManager")
     def test_manual_job_doesnt_affect_scheduled_jobs(
-        self, CFHandlerMock, source_data_dcatus, interface_no_jobs
+        self, TMMock, CFCMock, interface_no_jobs, source_data_dcatus
     ):
         jobs = interface_no_jobs.get_new_harvest_jobs_by_source_in_future(
             source_data_dcatus["id"]
@@ -166,9 +182,14 @@ class TestLoadManager:
         assert jobs[1].date_created == datetime.now()
         assert jobs[1].status == "in_progress"
 
-    @patch("app.scripts.load_manager.CFHandler")
+    @patch("harvester.lib.cf_handler.CloudFoundryClient")
+    @patch("harvester.lib.cf_handler.TaskManager")
     def test_dont_create_new_job_if_job_already_in_progress(
-        self, CFHandlerMock, source_data_dcatus, interface_no_jobs
+        self,
+        TMMock,
+        CFCMock,
+        interface_no_jobs,
+        source_data_dcatus,
     ):
         schedule_first_job(source_data_dcatus["id"])
         message = trigger_manual_job(source_data_dcatus["id"])
