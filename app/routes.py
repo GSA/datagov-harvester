@@ -246,8 +246,7 @@ def add_organization():
 
 
 # View Org
-@mod.route("/organization", methods=["GET"])
-@mod.route("/organization/<org_id>", methods=["GET"])
+@mod.route("/organization/admin/<org_id>", methods=["GET"])
 def get_organization(org_id=None):
     if org_id:
         org = db._to_dict(db.get_organization(org_id))
@@ -264,6 +263,40 @@ def get_organization(org_id=None):
     else:
         org = db.get_all_organizations()
     return db._to_dict(org)
+
+
+@mod.route("/organization", methods=["GET"])
+def view_all_orgs():
+    org = db.get_all_organizations()
+    return db._to_dict(org)
+
+
+@mod.route("/organization/", methods=["GET"])
+@mod.route("/organizations/", methods=["GET"])
+def view_organizations():
+    organizations = db.get_all_organizations()
+    if request.args.get("type") and request.args.get("type") == "json":
+        return db._to_dict(organizations)
+    else:
+        data = {"organizations": organizations}
+        return render_template("view_org_list.html", data=data)
+
+
+@mod.route("/organization/<org_id>", methods=["GET"])
+def view_org_data(org_id: str):
+    if org_id:
+        sources = db.get_harvest_source_by_org(org_id)
+        harvest_jobs = {}
+        for source in sources:
+            job = db.get_first_harvest_jobs_by_filter({"harvest_source_id": source.id})
+            if job:
+                harvest_jobs[source.id] = job
+        data = {
+            "organization": {"id": org_id},
+            "harvest_sources": sources,
+            "harvest_jobs": harvest_jobs,
+        }
+        return render_template("view_org_data.html", data=data)
 
 
 # Edit Org
@@ -371,6 +404,13 @@ def get_harvest_source(source_id: str = None):
         return db._to_dict(source)
 
 
+@mod.route("/harvest_sources/", methods=["GET"])
+def view_harvest_sources():
+    sources = db.get_all_harvest_sources()
+    data = {"harvest_sources": sources}
+    return render_template("view_source_list.html", data=data)
+
+
 # Edit Source
 @mod.route("/harvest_source/edit/<source_id>", methods=["GET", "POST"])
 @login_required
@@ -454,7 +494,11 @@ def add_harvest_job():
 def get_harvest_job(job_id=None):
     if job_id:
         job = db.get_harvest_job(job_id)
-        return jsonify(job) if job else ("Not Found", 404)
+        if request.args.get("type") and request.args.get("type") == "json":
+            return jsonify(job) if job else ("Not Found", 404)
+        else:
+            data = {"harvest_job": job, "harvest_job_errors": []}
+            return render_template("view_job_data.html", data=data)
 
     source_id = request.args.get("harvest_source_id")
     if source_id:

@@ -45,7 +45,7 @@ def create_task(job_id, cf_handler=None):
 
 def trigger_manual_job(source_id):
     source = interface.get_harvest_source(source_id)
-    jobs_in_progress = interface.get_harvest_jobs_by_filter(
+    jobs_in_progress = interface.get_all_harvest_jobs_by_filter(
         {"harvest_source_id": source.id, "status": "in_progress"}
     )
     if len(jobs_in_progress):
@@ -60,7 +60,9 @@ def trigger_manual_job(source_id):
         }
     )
     if job_data:
-        logger.info(f"Created new manual harvest job: for {job_data.harvest_source_id}")
+        logger.info(
+            f"Created new manual harvest job: for {job_data.harvest_source_id}."
+        )
         return create_task(job_data.id)
 
 
@@ -69,14 +71,14 @@ def schedule_first_job(source_id):
     # delete any future scheduled jobs
     for job in future_jobs:
         interface.delete_harvest_job(job.id)
-        logger.info(f"Deleted harvest job: {job.id} for source {source_id}")
+        logger.info(f"Deleted harvest job: {job.id} for source {source_id}.")
     # then schedule next job
     return schedule_next_job(source_id)
 
 
 def schedule_next_job(source_id):
     source = interface.get_harvest_source(source_id)
-    if source.frequency != "Manual":
+    if source.frequency != "manual":
         # schedule new future job
         job_data = interface.add_harvest_job(
             {
@@ -85,11 +87,11 @@ def schedule_next_job(source_id):
                 "date_created": create_future_date(source.frequency),
             }
         )
-        message = f"Scheduled new harvest job: for {job_data.harvest_source_id} at {job_data.date_created}"  # noqa E501
+        message = f"Scheduled new harvest job: for {job_data.harvest_source_id} at {job_data.date_created}."  # noqa E501
         logger.info(message)
         return message
     else:
-        return "No job scheduled for manual source"
+        return "No job scheduled for manual source."
 
 
 def load_manager():

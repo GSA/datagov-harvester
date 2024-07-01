@@ -10,10 +10,13 @@
     <script src="{{ url_for('static', filename='assets/uswds/js/uswds-init.js') }}"></script>
 </head>
 <body>
+  {% include '/snippets/banner.html' %}
     <header>
         <strong><nav>
             <ul class="menu">
               <li><a href="{{ url_for('harvest.index') }}">Home</a></li>
+              <li><a href="{{ url_for('harvest.view_organizations') }}">Orgs</a></li>
+              <li><a href="{{ url_for('harvest.view_harvest_sources') }}">Sources</a></li>
               <li><a href="{{ url_for('harvest.get_data_sources') }}">Get Source/Org</a></li>
               {% if session['user'] %}
                 <li>{{ session['user'] }}</li>
@@ -34,7 +37,7 @@
 
         <div id="content">{% block content %}{% endblock %}</div>
     </div>
-
+    {% include '/snippets/footer.html' %}
     <script src="https://code.jquery.com/jquery-3.7.1.min.js" integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
     <script src="{{ url_for('static', filename='assets/uswds/js/uswds.js') }}"></script>
     <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.bundle.min.js"></script>

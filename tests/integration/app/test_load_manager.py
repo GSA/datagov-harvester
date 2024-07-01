@@ -173,7 +173,9 @@ class TestLoadManager:
         assert source_data_dcatus["frequency"] == "daily"
         assert jobs[0].date_created == datetime.now() + timedelta(days=1)
 
-        jobs = interface_no_jobs.get_harvest_job_by_source(source_data_dcatus["id"])
+        jobs = interface_no_jobs.get_all_harvest_jobs_by_filter(
+            {"harvest_source_id": source_data_dcatus["id"]}
+        )
 
         assert len(jobs) == 2
         assert jobs[0].date_created == datetime.now() + timedelta(days=1)
@@ -193,7 +195,7 @@ class TestLoadManager:
     ):
         schedule_first_job(source_data_dcatus["id"])
         message = trigger_manual_job(source_data_dcatus["id"])
-        new_job = interface_no_jobs.get_harvest_jobs_by_filter(
+        new_job = interface_no_jobs.get_all_harvest_jobs_by_filter(
             {"harvest_source_id": source_data_dcatus["id"], "status": "in_progress"}
         )
         assert message == f"Updated job {new_job[0].id} to in_progress"
@@ -203,7 +205,9 @@ class TestLoadManager:
             == f"Can't trigger harvest. Job {new_job[0].id} already in progress."
         )
 
-        jobs = interface_no_jobs.get_harvest_job_by_source(source_data_dcatus["id"])
+        jobs = interface_no_jobs.get_all_harvest_jobs_by_filter(
+            {"harvest_source_id": source_data_dcatus["id"]}
+        )
 
         assert len(jobs) == 2
         assert jobs[0].date_created == datetime.now() + timedelta(days=1)

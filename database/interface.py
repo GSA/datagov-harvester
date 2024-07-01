@@ -166,10 +166,19 @@ class HarvesterDBInterface:
     def get_harvest_job(self, job_id):
         return self.db.query(HarvestJob).filter_by(id=job_id).first()
 
-    def get_harvest_jobs_by_filter(self, filter):
+    def get_all_harvest_jobs_by_filter(self, filter):
         harvest_jobs = self.db.query(HarvestJob).filter_by(**filter).all()
-        harvest_jobs_data = [job for job in harvest_jobs]
+        harvest_jobs_data = [job for job in harvest_jobs or []]
         return harvest_jobs_data
+
+    def get_first_harvest_jobs_by_filter(self, filter):
+        harvest_job = (
+            self.db.query(HarvestJob)
+            .filter_by(**filter)
+            .order_by(HarvestJob.date_created.desc())
+            .first()
+        )
+        return harvest_job
 
     def get_new_harvest_jobs_in_past(self):
         harvest_jobs = (
@@ -192,18 +201,12 @@ class HarvesterDBInterface:
             )
             .all()
         )
-        return [job for job in harvest_jobs]
+        return [job for job in harvest_jobs or []]
 
     def get_harvest_jobs_by_faceted_filter(self, attr, values):
         query_list = [getattr(HarvestJob, attr) == value for value in values]
         harvest_jobs = self.db.query(HarvestJob).filter(or_(*query_list)).all()
         return [job for job in harvest_jobs]
-
-    def get_harvest_job_by_source(self, source_id):
-        harvest_job = (
-            self.db.query(HarvestJob).filter_by(harvest_source_id=source_id).all()
-        )
-        return [job for job in harvest_job]
 
     def update_harvest_job(self, job_id, updates):
         try:

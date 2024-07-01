@@ -22,6 +22,11 @@ build-dev:  ## build Flask app w/ dev dependencies
 clean-dist:  ## Cleans dist dir
 	rm -rf dist/*
 
+install-static: ## Installs static assets
+	cd app/static; \
+	npm install; \
+	npm run build
+
 test-unit: ## Runs unit tests. Compatible with dev environment / `make up`
 	poetry run pytest --junitxml=pytest.xml --cov=harvester ./tests/unit
 
