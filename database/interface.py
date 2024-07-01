@@ -1,5 +1,6 @@
 import os
 import uuid
+from datetime import datetime, timezone
 
 from sqlalchemy import create_engine, inspect, or_, text
 from sqlalchemy.exc import NoResultFound
@@ -37,9 +38,15 @@ class HarvesterDBInterface:
 
     @staticmethod
     def _to_dict(obj):
-        if obj is None:
-            return None
-        return {c.key: getattr(obj, c.key) for c in inspect(obj).mapper.column_attrs}
+        def to_dict_helper(obj):
+            return {
+                c.key: getattr(obj, c.key) for c in inspect(obj).mapper.column_attrs
+            }
+
+        if isinstance(obj, list):
+            return [to_dict_helper(x) for x in obj]
+        else:
+            return to_dict_helper(obj)
 
     ## ORGANIZATIONS
     def add_organization(self, org_data):
@@ -55,12 +62,11 @@ class HarvesterDBInterface:
             return None
 
     def get_organization(self, org_id):
-        result = self.db.query(Organization).filter_by(id=org_id).first()
-        return HarvesterDBInterface._to_dict(result)
+        return self.db.query(Organization).filter_by(id=org_id).first()
 
     def get_all_organizations(self):
         orgs = self.db.query(Organization).all()
-        return [HarvesterDBInterface._to_dict(org) for org in orgs]
+        return [org for org in orgs]
 
     def update_organization(self, org_id, updates):
         try:
@@ -73,7 +79,7 @@ class HarvesterDBInterface:
                     print(f"Warning: non-existing field '{key}' in organization")
 
             self.db.commit()
-            return self._to_dict(org)
+            return org
 
         except NoResultFound:
             self.db.rollback()
@@ -102,24 +108,24 @@ class HarvesterDBInterface:
 
     def get_harvest_source(self, source_id):
         result = self.db.query(HarvestSource).filter_by(id=source_id).first()
-        return HarvesterDBInterface._to_dict(result)
+        return result
 
     def get_harvest_source_by_org(self, org_id):
         harvest_source = (
             self.db.query(HarvestSource).filter_by(organization_id=org_id).all()
         )
-        return [HarvesterDBInterface._to_dict(src) for src in harvest_source]
+        return [src for src in harvest_source]
 
     def get_harvest_source_by_jobid(self, jobid):
         harvest_job = self.db.query(HarvestJob).filter_by(id=jobid).first()
         if harvest_job is None:
             return None
         else:
-            return HarvesterDBInterface._to_dict(harvest_job.source)
+            return harvest_job.source
 
     def get_all_harvest_sources(self):
         harvest_sources = self.db.query(HarvestSource).all()
-        return [HarvesterDBInterface._to_dict(source) for source in harvest_sources]
+        return [source for source in harvest_sources]
 
     def update_harvest_source(self, source_id, updates):
         try:
@@ -130,7 +136,7 @@ class HarvesterDBInterface:
                 else:
                     print(f"Warning: non-existing field '{key}' in HarvestSource")
             self.db.commit()
-            return self._to_dict(source)
+            return source
 
         except NoResultFound:
             self.db.rollback()
@@ -162,20 +168,42 @@ class HarvesterDBInterface:
 
     def get_harvest_jobs_by_filter(self, filter):
         harvest_jobs = self.db.query(HarvestJob).filter_by(**filter).all()
-        harvest_jobs_data = [HarvesterDBInterface._to_dict(job) for job in harvest_jobs]
+        harvest_jobs_data = [job for job in harvest_jobs]
         return harvest_jobs_data
+
+    def get_new_harvest_jobs_in_past(self):
+        harvest_jobs = (
+            self.db.query(HarvestJob)
+            .filter(
+                HarvestJob.date_created < datetime.now(timezone.utc),
+                HarvestJob.status == "new",
+            )
+            .all()
+        )
+        return [job for job in harvest_jobs]
+
+    def get_new_harvest_jobs_by_source_in_future(self, source_id):
+        harvest_jobs = (
+            self.db.query(HarvestJob)
+            .filter(
+                HarvestJob.date_created > datetime.now(timezone.utc),
+                HarvestJob.harvest_source_id == source_id,
+                HarvestJob.status == "new",
+            )
+            .all()
+        )
+        return [job for job in harvest_jobs]
 
     def get_harvest_jobs_by_faceted_filter(self, attr, values):
         query_list = [getattr(HarvestJob, attr) == value for value in values]
         harvest_jobs = self.db.query(HarvestJob).filter(or_(*query_list)).all()
-        harvest_jobs_data = [HarvesterDBInterface._to_dict(job) for job in harvest_jobs]
-        return harvest_jobs_data
+        return [job for job in harvest_jobs]
 
     def get_harvest_job_by_source(self, source_id):
         harvest_job = (
             self.db.query(HarvestJob).filter_by(harvest_source_id=source_id).all()
         )
-        return [HarvesterDBInterface._to_dict(job) for job in harvest_job]
+        return [job for job in harvest_job]
 
     def update_harvest_job(self, job_id, updates):
         try:
@@ -188,7 +216,7 @@ class HarvesterDBInterface:
                     print(f"Warning: non-existing field '{key}' in HarvestJob")
 
             self.db.commit()
-            return self._to_dict(job)
+            return job
 
         except NoResultFound:
             self.db.rollback()
@@ -230,7 +258,7 @@ class HarvesterDBInterface:
     def get_harvest_job_errors_by_job(self, job_id: str) -> list[dict]:
         job = self.get_harvest_job(job_id)
         if job:
-            return list(map(HarvesterDBInterface._to_dict, job.errors))
+            return list(job.errors)
         else:
             return []
 
@@ -244,15 +272,14 @@ class HarvesterDBInterface:
     def get_harvest_error(self, error_id: str) -> dict:
         job_query = self.db.query(HarvestJobError).filter_by(id=error_id)
         record_query = self.db.query(HarvestRecordError).filter_by(id=error_id)
-        result = job_query.union(record_query).first()
-        return HarvesterDBInterface._to_dict(result)
+        return job_query.union(record_query).first()
 
     def get_harvest_record_errors_by_record(self, record_id: str):
         # TODO: paginate this
         errors = self.db.query(HarvestRecordError).filter_by(
             harvest_record_id=record_id
         )
-        return [HarvesterDBInterface._to_dict(err) for err in errors]
+        return [err for err in errors]
 
     ## HARVEST RECORD
     def add_harvest_record(self, record_data):
@@ -301,25 +328,24 @@ class HarvesterDBInterface:
                     print(f"Warning: non-existing field '{key}' in HarvestRecord")
 
             self.db.commit()
-            return self._to_dict(source)
+            return source
 
         except NoResultFound:
             self.db.rollback()
             return None
 
     def get_harvest_record(self, record_id):
-        result = self.db.query(HarvestRecord).filter_by(id=record_id).first()
-        return HarvesterDBInterface._to_dict(result)
+        return self.db.query(HarvestRecord).filter_by(id=record_id).first()
 
     def get_harvest_record_by_job(self, job_id):
         harvest_records = self.db.query(HarvestRecord).filter_by(harvest_job_id=job_id)
-        return [HarvesterDBInterface._to_dict(rcd) for rcd in harvest_records]
+        return [rcd for rcd in harvest_records]
 
     def get_harvest_record_by_source(self, source_id, filters={}):
         harvest_records = self.db.query(HarvestRecord).filter_by(
             harvest_source_id=source_id, **filters
         )
-        return [HarvesterDBInterface._to_dict(rcd) for rcd in harvest_records]
+        return [rcd for rcd in harvest_records]
 
     def get_latest_harvest_records_by_source(self, source_id):
         # datetimes are returned as datetime objs not strs
@@ -418,15 +444,16 @@ class HarvesterDBInterface:
     ######## TO BE REMOVED ##########
     def get_all_harvest_jobs(self):
         harvest_jobs = self.db.query(HarvestJob).all()
-        harvest_jobs_data = [HarvesterDBInterface._to_dict(job) for job in harvest_jobs]
+        harvest_jobs_data = [job for job in harvest_jobs]
         return harvest_jobs_data
 
     def get_all_harvest_records(self):
         harvest_records = self.db.query(HarvestRecord).all()
-        harvest_records_data = [
-            HarvesterDBInterface._to_dict(err) for err in harvest_records
-        ]
-        return harvest_records_data
+        return [record for record in harvest_records]
+
+    def get_all_harvest_errors(self):
+        harvest_errors = self.db.query(HarvestJobError).all()
+        return [err for err in harvest_errors]
 
     def delete_all_harvest_records(self):
         harvest_records = self.db.query(HarvestRecord).all()

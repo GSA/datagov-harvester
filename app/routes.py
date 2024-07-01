@@ -22,6 +22,7 @@ from flask import (
     url_for,
 )
 
+from app.scripts.load_manager import schedule_first_job, trigger_manual_job
 from database.interface import HarvesterDBInterface
 
 from .forms import HarvestSourceForm, OrganizationForm
@@ -249,9 +250,9 @@ def add_organization():
 @mod.route("/organization/<org_id>", methods=["GET"])
 def get_organization(org_id=None):
     if org_id:
-        org = db.get_organization(org_id)
+        org = db._to_dict(db.get_organization(org_id))
         if request.args.get("type") and request.args.get("type") == "json":
-            return jsonify(org)
+            return org
         else:
             return render_template(
                 "view_data.html",
@@ -262,7 +263,7 @@ def get_organization(org_id=None):
             )
     else:
         org = db.get_all_organizations()
-    return org
+    return db._to_dict(org)
 
 
 # Edit Org
@@ -270,13 +271,13 @@ def get_organization(org_id=None):
 @login_required
 def edit_organization(org_id=None):
     if org_id:
-        org = db.get_organization(org_id)
+        org = db._to_dict(db.get_organization(org_id))
         form = OrganizationForm(data=org)
         if form.validate_on_submit():
             new_org_data = make_new_org_contract(form)
             org = db.update_organization(org_id, new_org_data)
             if org:
-                flash(f"Updated org with ID: {org['id']}")
+                flash(f"Updated org with ID: {org.id}")
             else:
                 flash("Failed to update organization.")
             return redirect(f"/organization/{org_id}")
@@ -316,22 +317,28 @@ def add_harvest_source():
     form = HarvestSourceForm()
     organizations = db.get_all_organizations()
     organization_choices = [
-        (str(org["id"]), f'{org["name"]} - {org["id"]}') for org in organizations
+        (str(org.id), f"{org.name} - {org.id}") for org in organizations
     ]
     form.organization_id.choices = organization_choices
 
     if request.is_json:
-        org = db.add_harvest_source(request.json)
-        if org:
-            return jsonify({"message": f"Added new harvest source with ID: {org.id}"})
+        source = db.add_harvest_source(request.json)
+        job_message = schedule_first_job(source.id)
+        if source and job_message:
+            return jsonify(
+                {
+                    "message": f"Added new harvest source with ID: {source.id}. {job_message}"
+                }
+            )
         else:
             return jsonify({"error": "Failed to add harvest source."}), 400
     else:
         if form.validate_on_submit():
             new_source = make_new_source_contract(form)
             source = db.add_harvest_source(new_source)
-            if source:
-                flash(f"Updated source with ID: {source.id}")
+            job_message = schedule_first_job(source.id)
+            if source and job_message:
+                flash(f"Updated source with ID: {source.id}. {job_message}")
             else:
                 flash("Failed to add harvest source.")
             return redirect("/")
@@ -347,11 +354,11 @@ def add_harvest_source():
 # View Source
 @mod.route("/harvest_source/", methods=["GET"])
 @mod.route("/harvest_source/<source_id>", methods=["GET", "POST"])
-def get_harvest_source(source_id=None):
+def get_harvest_source(source_id: str = None):
     if source_id:
-        source = db.get_harvest_source(source_id)
+        source = db._to_dict(db.get_harvest_source(source_id))
         if request.args.get("type") and request.args.get("type") == "json":
-            return jsonify(source)
+            return source
         return render_template(
             "view_data.html",
             data=source,
@@ -361,16 +368,16 @@ def get_harvest_source(source_id=None):
         )
     else:
         source = db.get_all_harvest_sources()
-    return source
+        return db._to_dict(source)
 
 
 # Edit Source
 @mod.route("/harvest_source/edit/<source_id>", methods=["GET", "POST"])
 @login_required
-def edit_harvest_source(source_id=None):
+def edit_harvest_source(source_id: str = None):
     if source_id:
-        source = db.get_harvest_source(source_id)
-        organizations = db.get_all_organizations()
+        source = db._to_dict(db.get_harvest_source(source_id))
+        organizations = db._to_dict(db.get_all_organizations())
         organization_choices = [
             (str(org["id"]), f'{org["name"]} - {org["id"]}') for org in organizations
         ]
@@ -378,7 +385,7 @@ def edit_harvest_source(source_id=None):
         form.organization_id.choices = organization_choices
         if form.validate_on_submit():
             new_source_data = make_new_source_contract(form)
-            source = db.update_harvest_source(source_id, new_source_data)
+            source = db._to_dict(db.update_harvest_source(source_id, new_source_data))
             if source:
                 flash(f"Updated source with ID: {source['id']}")
             else:
@@ -400,7 +407,7 @@ def edit_harvest_source(source_id=None):
             return "No harvest sources found for this organization", 404
     else:
         source = db.get_all_harvest_sources()
-    return jsonify(source)
+    return db._to_dict(source)
 
 
 # Delete Source
@@ -422,11 +429,8 @@ def delete_harvest_source(source_id):
 # Trigger Harvest
 @mod.route("/harvest_source/harvest/<source_id>", methods=["GET"])
 def trigger_harvest_source(source_id):
-    job = db.add_harvest_job({"harvest_source_id": source_id, "status": "manual"})
-    if job:
-        flash(f"Triggered harvest of source with ID: {source_id}")
-    else:
-        flash("Failed to add harvest job.")
+    message = trigger_manual_job(source_id)
+    flash(message)
     return redirect(f"/harvest_source/{source_id}")
 
 
@@ -448,22 +452,18 @@ def add_harvest_job():
 @mod.route("/harvest_job/", methods=["GET"])
 @mod.route("/harvest_job/<job_id>", methods=["GET"])
 def get_harvest_job(job_id=None):
-    try:
-        if job_id:
-            job = HarvesterDBInterface._to_dict(db.get_harvest_job(job_id))
-            return jsonify(job) if job else ("Not Found", 404)
+    if job_id:
+        job = db.get_harvest_job(job_id)
+        return jsonify(job) if job else ("Not Found", 404)
 
-        source_id = request.args.get("harvest_source_id")
-        if source_id:
-            job = db.get_harvest_job_by_source(source_id)
-            if not job:
-                return "No harvest jobs found for this harvest source", 404
-        else:
-            job = db.get_all_harvest_jobs()
-
-        return jsonify(job)
-    except Exception:
-        return "Please provide correct job_id or harvest_source_id"
+    source_id = request.args.get("harvest_source_id")
+    if source_id:
+        job = db.get_harvest_job_by_source(source_id)
+        if not job:
+            return "No harvest jobs found for this harvest source", 404
+    else:
+        job = db.get_all_harvest_jobs()
+        return db._to_dict(job)
 
 
 # Update Job
@@ -547,14 +547,16 @@ def get_all_harvest_record_errors(record_id: str) -> list:
 
 ## Harvest Error
 # Get error by id
+@mod.route("/harvest_error/", methods=["GET"])
 @mod.route("/harvest_error/<error_id>", methods=["GET"])
-def get_harvest_error(error_id: str) -> dict:
+def get_harvest_error(error_id: str = None) -> dict:
     # retrieves the given error ( either job or record )
-    try:
+    if error_id:
         error = db.get_harvest_error(error_id)
         return error if error else ("Not Found", 404)
-    except Exception:
-        return "Please provide correct error_id"
+    else:
+        errors = db.get_all_harvest_errors()
+        return db._to_dict(errors)
 
 
 ## Test interface, will remove later

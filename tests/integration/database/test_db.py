@@ -1,8 +1,8 @@
-import datetime
+from datetime import datetime, timezone
 
 from database.models import HarvestJobError, HarvestRecordError
 from harvester.harvest import HarvestSource
-from harvester.utils import dataset_to_hash, sort_dataset
+from harvester.utils.general_utils import dataset_to_hash, sort_dataset
 
 
 class TestDatabase:
@@ -17,14 +17,14 @@ class TestDatabase:
 
         orgs = interface.get_all_organizations()
         assert len(orgs) > 0
-        assert orgs[0]["name"] == "Test Org"
+        assert orgs[0].name == "Test Org"
 
     def test_update_organization(self, interface, organization_data):
         org = interface.add_organization(organization_data)
 
         updates = {"name": "Updated Org"}
         updated_org = interface.update_organization(org.id, updates)
-        assert updated_org["name"] == "Updated Org"
+        assert updated_org.name == "Updated Org"
 
     def test_delete_organization(self, interface, organization_data):
         org = interface.add_organization(organization_data)
@@ -47,7 +47,7 @@ class TestDatabase:
 
         sources = interface.get_all_harvest_sources()
         assert len(sources) > 0
-        assert sources[0]["name"] == source_data_dcatus["name"]
+        assert sources[0].name == source_data_dcatus["name"]
 
     def test_get_harvest_source(self, interface, organization_data, source_data_dcatus):
         interface.add_organization(organization_data)
@@ -55,7 +55,7 @@ class TestDatabase:
 
         fetched_source = interface.get_harvest_source(source.id)
         assert fetched_source is not None
-        assert fetched_source["name"] == source_data_dcatus["name"]
+        assert fetched_source.name == source_data_dcatus["name"]
 
     def test_update_harvest_source(
         self, interface, organization_data, source_data_dcatus
@@ -70,8 +70,8 @@ class TestDatabase:
 
         updated_source = interface.update_harvest_source(source.id, updates)
         assert updated_source is not None
-        assert updated_source["name"] == updates["name"]
-        assert updated_source["notification_emails"] == [
+        assert updated_source.name == updates["name"]
+        assert updated_source.notification_emails == [
             "example@gmail.com",
             "another@yahoo.com",
         ]
@@ -100,7 +100,7 @@ class TestDatabase:
         harvest_job = interface.add_harvest_job(job_data_dcatus)
         harvest_source = interface.get_harvest_source_by_jobid(harvest_job.id)
 
-        assert source.id == harvest_source["id"]
+        assert source.id == harvest_source.id
 
     def test_add_harvest_job_error(
         self,
@@ -156,7 +156,7 @@ class TestDatabase:
         harvest_record_error_from_db = interface.get_harvest_error(
             harvest_record_error.id
         )
-        assert harvest_record_error.id == harvest_record_error_from_db["id"]
+        assert harvest_record_error.id == harvest_record_error_from_db.id
 
     def test_add_harvest_records(
         self,
@@ -181,7 +181,7 @@ class TestDatabase:
         db_records = interface.get_all_harvest_records()
         assert len(id_lookup_table) == 10
         assert len(db_records) == 10
-        assert id_lookup_table[db_records[0]["identifier"]] == db_records[0]["id"]
+        assert id_lookup_table[db_records[0].identifier] == db_records[0].id
 
     def test_add_harvest_job_with_id(
         self, interface, organization_data, source_data_dcatus, job_data_dcatus
@@ -215,27 +215,75 @@ class TestDatabase:
             "harvest_source_id": f"{source_data_dcatus['id']}",
         }
         filtered_list = interface_with_multiple_jobs.get_harvest_jobs_by_filter(filters)
-        assert len(filtered_list) == 1
-        assert filtered_list[0]["status"] == "new"
-        assert filtered_list[0]["harvest_source_id"] == source_data_dcatus["id"]
+        assert len(filtered_list) == 3
+        assert filtered_list[0].status == "new"
+        assert filtered_list[0].harvest_source_id == source_data_dcatus["id"]
+
+    def get_new_harvest_jobs_in_past(self, interface_with_multiple_jobs):
+        filtered_job_list = interface_with_multiple_jobs.get_new_harvest_jobs_in_past()
+        all_jobs_list = interface_with_multiple_jobs.get_all_harvest_jobs()
+        assert len(all_jobs_list) == 24
+        assert len(filtered_job_list) == 2
+        assert (
+            len(
+                [
+                    x
+                    for x in all_jobs_list
+                    if x["status"] == "new"
+                    and x["date_created"].replace(
+                        tzinfo=timezone.utc
+                    )  # TODO should we be pushing to UTC in db?
+                    < datetime.now(timezone.utc)
+                ]
+            )
+            == 2
+        )
+
+    def test_get_new_harvest_jobs_by_source_in_future(
+        self, interface_with_multiple_jobs
+    ):
+        all_jobs_list = interface_with_multiple_jobs.get_all_harvest_jobs()
+        source_id = all_jobs_list[0].harvest_source_id
+        filtered_job_list = (
+            interface_with_multiple_jobs.get_new_harvest_jobs_by_source_in_future(
+                source_id
+            )
+        )
+        assert len(all_jobs_list) == 24
+        assert len(filtered_job_list) == 2
+        assert (
+            len(
+                [
+                    x
+                    for x in all_jobs_list
+                    if x.status == "new"
+                    and x.date_created.replace(
+                        tzinfo=timezone.utc
+                    )  # TODO should we be pushing to UTC in db?
+                    > datetime.now(timezone.utc)
+                    and x.harvest_source_id == source_id
+                ]
+            )
+            == 2
+        )
 
     def test_filter_jobs_by_faceted_filter(
         self, source_data_dcatus, interface_with_multiple_jobs
     ):
         faceted_list = interface_with_multiple_jobs.get_harvest_jobs_by_faceted_filter(
-            "status", ["new", "manual"]
+            "status", ["new", "in_progress"]
         )
-        assert len(faceted_list) == 4
-        assert len([x for x in faceted_list if x["status"] == "new"]) == 2
+        assert len(faceted_list) == 12
+        assert len([x for x in faceted_list if x.status == "new"]) == 6
         assert (
             len(
                 [
                     x
                     for x in faceted_list
-                    if x["harvest_source_id"] == source_data_dcatus["id"]
+                    if x.harvest_source_id == source_data_dcatus["id"]
                 ]
             )
-            == 2
+            == 6
         )
 
     def test_get_latest_harvest_records(
@@ -272,7 +320,7 @@ class TestDatabase:
                 "harvest_source_id": "2f2652de-91df-4c63-8b53-bfced20b276b",
                 "source_hash": None,
                 "source_raw": "data_1",
-                "date_created": datetime.datetime(2024, 3, 1, 0, 0, 0, 1000),
+                "date_created": datetime(2024, 3, 1, 0, 0, 0, 1000),
                 "date_finished": None,
                 "ckan_id": None,
                 "action": "update",
@@ -284,7 +332,7 @@ class TestDatabase:
                 "harvest_source_id": "2f2652de-91df-4c63-8b53-bfced20b276b",
                 "source_hash": None,
                 "source_raw": "data_10",
-                "date_created": datetime.datetime(2024, 3, 1, 0, 0, 0, 1000),
+                "date_created": datetime(2024, 3, 1, 0, 0, 0, 1000),
                 "date_finished": None,
                 "ckan_id": None,
                 "action": "create",
@@ -296,7 +344,7 @@ class TestDatabase:
                 "harvest_source_id": "2f2652de-91df-4c63-8b53-bfced20b276b",
                 "source_hash": None,
                 "source_raw": "data_12",
-                "date_created": datetime.datetime(2024, 5, 1, 0, 0, 0, 1000),
+                "date_created": datetime(2024, 5, 1, 0, 0, 0, 1000),
                 "date_finished": None,
                 "ckan_id": None,
                 "action": "create",
@@ -308,7 +356,7 @@ class TestDatabase:
                 "harvest_source_id": "2f2652de-91df-4c63-8b53-bfced20b276b",
                 "source_hash": None,
                 "source_raw": "data_123",
-                "date_created": datetime.datetime(2024, 4, 3, 0, 0, 0, 1000),
+                "date_created": datetime(2024, 4, 3, 0, 0, 0, 1000),
                 "date_finished": None,
                 "ckan_id": None,
                 "action": "create",

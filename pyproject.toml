@@ -2,10 +2,6 @@
 name = "datagov-harvester"
 version = "0.5.0"
 description = ""
-# authors = [
-#     {name = "Jin Sun", email = "jin.sun@gsa.gov"},
-#     {name = "Tyler Burton", email = "tyler.burton@gsa.gov"},
-# ]
 authors = [
     "Datagov Team <datagov@gsa.gov>",
 ]
@@ -44,6 +40,7 @@ debugpy = "^1.8.1"
 isort = "^5.13.2"
 black = "^24.4.2"
 pre-commit = "^3.7.1"
+freezegun = "^1.5.1"
 
 [tool.ruff]
 # Enable pycodestyle (`E`) and Pyflakes (`F`) codes by default.
