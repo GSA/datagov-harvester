@@ -5,8 +5,9 @@
     {% block title %}
         <title>{{action}} {{data_type}}</title>
     {% endblock %}
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='assets/uswds/css/styles.css') }}">
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <script src="{{ url_for('static', filename='assets/uswds/js/uswds-init.js') }}"></script>
 </head>
 <body>
     <header>
@@ -30,11 +31,12 @@
             {{ message }}
         </div>
         {% endfor %}
-    
+
         <div id="content">{% block content %}{% endblock %}</div>
     </div>
 
     <script src="https://code.jquery.com/jquery-3.7.1.min.js" integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
+    <script src="{{ url_for('static', filename='assets/uswds/js/uswds.js') }}"></script>
     <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.bundle.min.js"></script>
     {% block scripts %}
     {% endblock %}

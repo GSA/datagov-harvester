@@ -1,0 +1,39 @@
+{
+  "name": "datagov-harvester",
+  "version": "1.0.0",
+  "description": "Front-end UI components for Datagov Harvester app",
+  "main": "index.js",
+  "homepage": "https://github.com/GSA/datagov-harvester#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/GSA/datagov-harvester.git"
+  },
+  "author": "datagovteam@gsa.gov",
+  "license": "CC0-1.0",
+  "bugs": {
+    "url": "https://github.com/GSA/datagov-harvester/issues"
+  },
+  "engines": {
+    "node": ">20.0.0"
+  },
+  "scripts": {
+    "build": "gulp",
+    "test": "test"
+  },
+  "dependencies": {
+    "@uswds/uswds": "3.8.0",
+    "chart.js": "^4.4.2"
+  },
+  "devDependencies": {
+    "@uswds/compile": "^1.1.0",
+    "concurrently": "^8.2.2",
+    "gulp": "^5.0.0",
+    "rollup-plugin-copy": "^3.5.0",
+    "sass": "^1.72.0",
+    "typescript": "^5.4.5",
+    "vite": "^5.2.8"
+  },
+  "optionalDependencies": {
+    "@rollup/rollup-linux-x64-gnu": "^4.13.2"
+  }
+}
