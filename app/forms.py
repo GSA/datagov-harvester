@@ -4,13 +4,19 @@ from flask_wtf import FlaskForm
 from wtforms import SelectField, StringField, TextAreaField
 from wtforms.validators import URL, DataRequired, ValidationError
 
-
 def validate_email_list(form, field):
-    emails = field.data.split(",")
+    emails = field.data
     for email in emails:
         if not re.match(r"[^@]+@[^@]+\.[^@]+", email.strip()):
             raise ValidationError("Invalid email address: {}".format(email))
 
+class EmailListField(TextAreaField):
+    def process_formdata(self, valuelist):
+        if valuelist:
+            raw_data = valuelist[0].replace("\r\n", ", ")
+            self.data = [email.strip() for email in raw_data .split(',')]
+        else:
+            self.data = []
 
 class HarvestSourceForm(FlaskForm):
     organization_id = SelectField(
@@ -18,7 +24,7 @@ class HarvestSourceForm(FlaskForm):
     )
     name = StringField("Name", validators=[DataRequired()])
     url = StringField("URL", validators=[DataRequired(), URL()])
-    notification_emails = TextAreaField(
+    notification_emails = EmailListField(
         "Notification_emails", validators=[DataRequired(), validate_email_list]
     )
     frequency = SelectField(

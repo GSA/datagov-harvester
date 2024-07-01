@@ -191,7 +191,7 @@ def remove_user(email):
 def make_new_source_contract(form):
     return {
         "name": form.name.data,
-        "notification_emails": form.notification_emails.data.replace("\r\n", ", "),
+        "notification_emails": form.notification_emails.data,
         "frequency": form.frequency.data,
         "user_requested_frequency": form.frequency.data,
         "url": form.url.data,
