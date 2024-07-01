@@ -59,7 +59,7 @@ clean: ## Cleans docker images
 	docker compose -p harvest-app down -v --remove-orphans
 
 lint:  ## Lints wtih ruff, isort, black
-	ruff .
+	ruff check .
 	isort .
 	black .
 

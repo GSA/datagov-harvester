@@ -15,7 +15,6 @@ from jsonschema import Draft202012Validator
 sys.path.insert(1, "/".join(os.path.realpath(__file__).split("/")[0:-2]))
 
 from harvester import HarvesterDBInterface, db_interface
-from harvester.ckan_utils import ckanify_dcatus
 from harvester.exceptions import (
     CompareException,
     DCATUSToCKANException,
@@ -24,7 +23,8 @@ from harvester.exceptions import (
     SynchronizeException,
     ValidationException,
 )
-from harvester.utils import (
+from harvester.utils.ckan_utils import ckanify_dcatus
+from harvester.utils.general_utils import (
     dataset_to_hash,
     download_file,
     download_waf,
@@ -123,7 +123,7 @@ class HarvestSource:
         try:
             source_data = self.db_interface.get_harvest_source_by_jobid(job_id)
             for attr in self.source_attrs:
-                setattr(self, attr, source_data[attr])
+                setattr(self, attr, getattr(source_data, attr))
         except Exception as e:
             raise ExtractInternalException(
                 f"failed to extract source info from {job_id}. exiting",
@@ -529,7 +529,7 @@ def harvest(jobId):
 if __name__ == "__main__":
     import sys
 
-    from harvester.utils import parse_args
+    from harvester.utils.general_utils import parse_args
 
     try:
         args = parse_args(sys.argv[1:])

@@ -23,12 +23,13 @@ class TestHarvestFullFlow:
                 "harvest_source_id": source_data_dcatus_single_record["id"],
             }
         )
-        harvest_source = HarvestSource(harvest_job.id)
+        job_id = harvest_job.id
+        harvest_source = HarvestSource(job_id)
         harvest_source.get_record_changes()
         harvest_source.write_compare_to_db()
         harvest_source.synchronize_records()
         harvest_source.report()
-
+        harvest_job = interface.get_harvest_job(job_id)
         assert harvest_job.status == "complete"
         assert harvest_job.records_added == len(harvest_source.external_records)
 
@@ -70,6 +71,4 @@ class TestHarvestFullFlow:
         assert harvest_job.status == "complete"
         assert len(interface_errors) == harvest_job.records_errored
         assert len(interface_errors) == len(job_errors)
-        assert (
-            interface_errors[0]["harvest_record_id"] == job_errors[0].harvest_record_id
-        )
+        assert interface_errors[0].harvest_record_id == job_errors[0].harvest_record_id

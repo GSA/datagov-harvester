@@ -1,7 +1,7 @@
 import os
 from time import sleep
 
-from harvester.utils import CFHandler
+from harvester.lib.cf_handler import CFHandler
 
 cf_handler = CFHandler(
     os.getenv("CF_API_URL"), os.getenv("CF_SERVICE_USER"), os.getenv("CF_SERVICE_AUTH")

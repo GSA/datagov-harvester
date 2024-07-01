@@ -29,7 +29,7 @@ class HarvestSourceForm(FlaskForm):
     )
     frequency = SelectField(
         "Frequency",
-        choices=["Manual", "Daily", "Weekly", "Biweekly", "Monthly"],
+        choices=["manual", "daily", "weekly", "biweekly", "monthly"],
         validators=[DataRequired()],
     )
     user_requested_frequency = StringField(
