@@ -1,0 +1,154 @@
+{% extends 'base.html' %}
+
+{% block script_head %}
+<script src="/assets/chartjs/chart.umd.js"></script>
+{% endblock %}
+
+{% block title %}
+<title>View Harvest Source</title>
+{% endblock %}
+
+{% block content %}
+<div class="wrapper source-data">
+    {% if not data.harvest_source %}
+    <h2>Whooops!</h2>
+    <p>Looks like you navigated to a source that doesn't exist.</p>
+    {% else %}
+    <h1>{{data.harvest_source.name}}</h1>
+    <h2>Harvest Source Config Table</h2>
+    <div class="config-table">
+        <table class="table">
+            {% for key, value in data.harvest_source_dict.items() %}
+            <tr>
+                <td>{{key}}:</td>
+                <td>{{value}}</td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+    {% if session['user'] %}
+    <div class="config-actions">
+        <ul class="usa-button-group">
+            <li class="usa-button-group__item">
+                <a href="{{ url_for('harvest.edit_harvest_source', source_id=data.harvest_source.id)}}">
+                    <button class="usa-button">Edit</button>
+                </a>
+            </li>
+            <li class="usa-button-group__item">
+                <a href="{{ url_for('harvest.trigger_harvest_source', source_id=data.harvest_source.id)}}">
+                    <button class="usa-button usa-button--base">Harvest</button>
+                </a>
+            </li>
+            <li class="usa-button-group__item">
+                <button class="usa-button usa-button--secondary"
+                    onclick="confirmDelete('/harvest_source/delete/{{data.harvest_source.id}}')">Delete</button>
+            </li>
+        </ul>
+    </div>
+    {% endif %}
+    <div class="section mt-3">
+        <h2>Harvest Jobs</h2>
+        {% if not data.harvest_jobs %}
+        No harvest jobs found
+        {% else %}
+        <p>
+            {% set last_job_index = (data.harvest_jobs | length) - 1 %}
+            <a href="{{ url_for('harvest.get_harvest_job', job_id=data.harvest_jobs[last_job_index].id) }}">Last Job
+                Status:</a>
+            <svg class="usa-icon align-middle {% if data.harvest_jobs[last_job_index].records_errored == 0 %}check{%else%}cancel{%endif%}"
+                aria-hidden="true" focusable="false" role="img">
+                <use
+                    xlink:href="/assets/uswds/img/sprite.svg#{% if data.harvest_jobs[last_job_index].records_errored == 0 %}check{%else%}cancel{%endif%}">
+                </use>
+            </svg>
+        </p>
+        <canvas id="datagov-line-chart" height="200"></canvas>
+        <!-- <Line data={data.chartData} /> -->
+        <div class="usa-table-container--scrollable" tabindex="0">
+            <table class="usa-table usa-table--striped">
+                <caption> Harvest Jobs for Harvest Source Id: {data.harvest_source.id} </caption>
+                <thead>
+                    <tr>
+                        <th data-sortable scope="col" role="columnheader">Id</th>
+                        <th data-sortable scope="col" role="columnheader">Date Created</th>
+                        <th data-sortable scope="col" role="columnheader">Date Finished</th>
+                        <th data-sortable scope="col" role="columnheader">Records Added</th>
+                        <th data-sortable scope="col" role="columnheader">Records Deleted</th>
+                        <th data-sortable scope="col" role="columnheader">Records Errored</th>
+                        <th data-sortable scope="col" role="columnheader">Records Ignored</th>
+                        <th data-sortable scope="col" role="columnheader">Records Updated</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for job in data.harvest_jobs %}
+                    <tr>
+                        <th scope="row"><a href="{{ url_for('harvest.get_harvest_job', job_id=job.id) }}">{{job.id}}</a>
+                        </th>
+                        <td data-sort-value={jobs.date_created}> {{job.date_created}}</td>
+                        <td data-sort-value={jobs.date_finished}>{{job.date_finished}} </td>
+                        <td data-sort-value={jobs.records_added}>{{job.records_added}}</td>
+                        <td data-sort-value={jobs.records_deleted}>{{job.records_deleted}}</td>
+                        <td data-sort-value={jobs.records_errored}>{{job.records_errored}}</td>
+                        <td data-sort-value={jobs.records_ignored}>{{job.records_ignored}}</td>
+                        <td data-sort-value={jobs.records_updated}>{{job.records_updated}}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            <div class="usa-sr-only usa-table__announcement-region" aria-live="polite"></div>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // force confirmation dialog for delete of harvest source
+    async function confirmDelete(route) {
+        let choice = window.confirm(`Do you want to delete this Harvest Source?`)
+        if (choice) {
+            const rawResponse = await fetch(route, {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json'
+                },
+                body: {}
+            });
+            let res = await rawResponse.json()
+            if (res.message && res.message == 'success') {
+                return window.location.replace('/')
+            } else {
+                return window.location.reload()
+            }
+        }
+    }
+
+    // build harvest jobs chart
+    const buildLineChart = (el) => {
+        let chart = {
+            type: 'line',
+            data: {{ data.chart | tojson
+    }},
+    options: {
+        responsive: true,
+            plugins: {
+            legend: {
+                position: 'top',
+                },
+            title: {
+                display: true,
+                    text: 'Harvest Job History'
+            }
+        }
+    }
+        };
+    return chart
+    }
+    const lineEl = document.getElementById('datagov-line-chart');
+    new Chart(lineEl, buildLineChart(lineEl));
+</script>
+{% endblock %}

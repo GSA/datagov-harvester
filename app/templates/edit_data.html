@@ -5,16 +5,16 @@
 {% endblock %}
 
 {% block content %}
-        <h2>{{action}} {{data_type}}</h2>
-        <form action="{{ form_action }}" method="{{ method | d('POST') }}">
-            {{ form.hidden_tag() }}
-            {% for field in form if field.widget.input_type != 'hidden' %}
-            <div class="form-group">
-                {{field.label(class_='form-control-label')}}
-                {{field(class_='form-control')}}
-            </div>
-            {% endfor %}
-        
-            <button type="submit" class="btn btn-primary">{{button}}</button>
-        </form>
+<h2>{{action}} {{data_type}}</h2>
+<form action="{{ form_action }}" method="{{ method | d('POST') }}">
+    {{ form.hidden_tag() }}
+    {% for field in form if field.widget.input_type != 'hidden' %}
+    <div class="form-group">
+        {{field.label(class_='form-control-label')}}
+        {{field(class_='form-control')}}
+    </div>
+    {% endfor %}
+
+    <button type="submit" class="btn btn-primary">{{button}}</button>
+</form>
 {% endblock %}

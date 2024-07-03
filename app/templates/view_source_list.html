@@ -1,0 +1,94 @@
+{% extends 'base.html' %}
+
+{% block title %}
+<title>Harvest Source List</title>
+{% endblock %}
+
+{% block content %}
+<h1> Harvest Source List </h1>
+<div class="bg-base-lighter padding-2 radius-md">
+    <h2 class="font-lang-lg margin-top-0 margin-bottom-0">Find a Harvest Source</h2>
+    <div role="region" aria-label="Component search" aria-atomic="true" class="margin-top-1">
+        <label for="icon-filter">Filter by name and keyword</label>
+        <input class="usa-input" id="icon-filter" type="text" onkeyup="filter(this)">
+        <p class="text-base-darker margin-top-1 margin-bottom-0" aria-live="polite"><span id="component-count"></span>
+        </p>
+    </div>
+</div>
+
+<ul class="usa-card-group flex-row margin-top-3">
+    {% for source in data.harvest_sources %}
+    <li class="usa-card site-component-card grid-col-6 tablet:grid-col-4" data-meta="{{source.name}}">
+        <div class="usa-card__container">
+            <div class="usa-card__header">
+                <h2 class="usa-card__heading">{{source.name}}</h2>
+            </div>
+            <div class="usa-card__body">
+            </div>
+            <div class="usa-card__footer">
+                <ul class="usa-button-group">
+                    <li class="usa-button-group__item">
+                        <a href="{{ url_for('harvest.view_harvest_source_data', source_id=source.id) }}"
+                            class="usa-button usa-button--outline">Details</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </li>
+    {% endfor %}
+</ul>
+
+<!-- <div class="usa-table-container--scrollable" tabindex="0">
+    <table class="usa-table usa-table--striped">
+        <caption> All Harvest Sources </caption>
+        <thead>
+            <tr>
+                <th data-sortable scope="col" role="columnheader">Name</th>
+                <th data-sortable scope="col" role="columnheader">Url</th>
+                <th data-sortable scope="col" role="columnheader">Id</th>
+                <th data-sortable scope="col" role="columnheader">Notification Emails</th>
+                <th data-sortable scope="col" role="columnheader">Organization Id</th>
+                <th data-sortable scope="col" role="columnheader">Frequency</th>
+                <th data-sortable scope="col" role="columnheader">Schema Type</th>
+                <th data-sortable scope="col" role="columnheader">Source Type</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for source in data.harvest_sources %}
+                <tr>
+                    <td data-sort-value={{source.date_created}}
+                        ><a href="{{ url_for('harvest.view_harvest_source_config', source_id=source.id) }}">{{source.name}}</a></td
+                    >
+                    <td data-sort-value={{source.records_errored}}><a href={{source.url}}>{{source.url}}</a></td>
+                    <td data-sort-value={{source.id}}>{{source.id}}</td>
+                    <td data-sort-value={{source.date_finished}}>{{source.notification_emails}} </td>
+                    <td data-sort-value={{source.records_added}}><a href="{{ url_for('harvest.view_org_data', org_id=source.organization_id) }}">{{source.organization_id}}</a></td>
+                    <td data-sort-value={{source.records_deleted}}>{{source.frequency}}</td>
+                    <td data-sort-value={{source.records_ignored}}>{{source.schema_type}}</td>
+                    <td data-sort-value={{source.records_updated}}>{{source.source_type}}</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <div class="usa-sr-only usa-table__announcement-region" aria-live="polite"></div>
+</div> -->
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function filter(e) {
+        search = e.value.toLowerCase();
+        document.querySelectorAll('.site-component-card').forEach(function (row) {
+            text = row.getAttribute("data-meta").toLowerCase();
+            if (text.match(search)) {
+                row.classList.remove("display-none");
+            } else {
+                row.classList.add("display-none");
+            }
+        });
+        componentCount = document.querySelectorAll('.site-component-card:not(.display-none)').length;
+        var word = (componentCount === 1) ? "source" : "sources";
+        document.getElementById("component-count").innerHTML = `<strong>${componentCount}</strong> ${word} found`
+    }
+</script>
+{% endblock %}

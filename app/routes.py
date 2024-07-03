@@ -245,9 +245,9 @@ def add_organization():
     )
 
 
-# View Org
-@mod.route("/organization/admin/<org_id>", methods=["GET"])
-def get_organization(org_id=None):
+# View Org Config
+@mod.route("/organization/config/<org_id>", methods=["GET"])
+def view_org_config(org_id=None):
     if org_id:
         org = db._to_dict(db.get_organization(org_id))
         if request.args.get("type") and request.args.get("type") == "json":
@@ -265,10 +265,10 @@ def get_organization(org_id=None):
     return db._to_dict(org)
 
 
-@mod.route("/organization", methods=["GET"])
-def view_all_orgs():
-    org = db.get_all_organizations()
-    return db._to_dict(org)
+# @mod.route("/organization", methods=["GET"])
+# def view_all_orgs():
+#     org = db.get_all_organizations()
+#     return db._to_dict(org)
 
 
 @mod.route("/organization/", methods=["GET"])
@@ -284,50 +284,47 @@ def view_organizations():
 
 @mod.route("/organization/<org_id>", methods=["GET"])
 def view_org_data(org_id: str):
-    if org_id:
-        sources = db.get_harvest_source_by_org(org_id)
-        harvest_jobs = {}
-        for source in sources:
-            job = db.get_first_harvest_jobs_by_filter({"harvest_source_id": source.id})
-            if job:
-                harvest_jobs[source.id] = job
-        data = {
-            "organization": {"id": org_id},
-            "harvest_sources": sources,
-            "harvest_jobs": harvest_jobs,
-        }
-        return render_template("view_org_data.html", data=data)
+    org = db.get_organization(org_id)
+    sources = db.get_harvest_source_by_org(org_id)
+    harvest_jobs = {}
+    for source in sources:
+        job = db.get_first_harvest_jobs_by_filter({"harvest_source_id": source.id})
+        if job:
+            harvest_jobs[source.id] = job
+    data = {
+        "organization": org,
+        "organization_dict": db._to_dict(org),
+        "harvest_sources": sources,
+        "harvest_jobs": harvest_jobs,
+    }
+    return render_template("view_org_data.html", data=data)
 
 
 # Edit Org
-@mod.route("/organization/edit/<org_id>", methods=["GET", "POST"])
+@mod.route("/organization/config/edit/<org_id>", methods=["GET", "POST"])
 @login_required
-def edit_organization(org_id=None):
-    if org_id:
-        org = db._to_dict(db.get_organization(org_id))
-        form = OrganizationForm(data=org)
-        if form.validate_on_submit():
-            new_org_data = make_new_org_contract(form)
-            org = db.update_organization(org_id, new_org_data)
-            if org:
-                flash(f"Updated org with ID: {org.id}")
-            else:
-                flash("Failed to update organization.")
-            return redirect(f"/organization/{org_id}")
-        return render_template(
-            "edit_data.html",
-            form=form,
-            action="Edit",
-            data_type="Organization",
-            button="Update",
-        )
-    else:
-        org = db.get_all_organizations()
-    return org
+def edit_organization(org_id):
+    org = db._to_dict(db.get_organization(org_id))
+    form = OrganizationForm(data=org)
+    if form.validate_on_submit():
+        new_org_data = make_new_org_contract(form)
+        org = db.update_organization(org_id, new_org_data)
+        if org:
+            flash(f"Updated org with ID: {org.id}")
+        else:
+            flash("Failed to update organization.")
+        return redirect(f"/organization/config/{org_id}")
+    return render_template(
+        "edit_data.html",
+        form=form,
+        action="Edit",
+        data_type="Organization",
+        button="Update",
+    )
 
 
 # Delete Org
-@mod.route("/organization/delete/<org_id>", methods=["POST"])
+@mod.route("/organization/config/delete/<org_id>", methods=["POST"])
 @login_required
 def delete_organization(org_id):
     try:
@@ -384,26 +381,66 @@ def add_harvest_source():
     )
 
 
-# View Source
+# View Source Config
+@mod.route("/harvest_source/config/<source_id>", methods=["GET", "POST"])
+def view_harvest_source_config(source_id: str):
+    source = db._to_dict(db.get_harvest_source(source_id))
+    if request.args.get("type") and request.args.get("type") == "json":
+        return source
+    return render_template(
+        "view_data.html",
+        data=source,
+        action="View",
+        data_type="Harvest Source",
+        source_id=source_id,
+    )
+
+
+@mod.route("/harvest_source/<source_id>", methods=["GET"])
+def view_harvest_source_data(source_id: str):
+    source = db.get_harvest_source(source_id)
+    jobs = db.get_all_harvest_jobs_by_filter(
+        {"harvest_source_id": source.id, "status": "complete"}
+    )
+    chartdata = {
+        "labels": [job.date_finished for job in jobs],
+        "datasets": [
+            {
+                "label": "Added",
+                "data": [job.records_added for job in jobs],
+                "borderColor": "green",
+                "backgroundColor": "green",
+            },
+            {
+                "label": "Deleted",
+                "data": [job.records_deleted for job in jobs],
+                "borderColor": "black",
+                "backgroundColor": "black",
+            },
+            {
+                "label": "Errored",
+                "data": [job.records_errored for job in jobs],
+                "borderColor": "red",
+                "backgroundColor": "red",
+            },
+            {
+                "label": "Igrored",
+                "data": [job.records_ignored for job in jobs],
+                "borderColor": "grey",
+                "backgroundColor": "grey",
+            },
+        ],
+    }
+    data = {
+        "harvest_source": source,
+        "harvest_source_dict": db._to_dict(source),
+        "harvest_jobs": jobs,
+        "chart": chartdata,
+    }
+    return render_template("view_source_data.html", data=data)
+
+
 @mod.route("/harvest_source/", methods=["GET"])
-@mod.route("/harvest_source/<source_id>", methods=["GET", "POST"])
-def get_harvest_source(source_id: str = None):
-    if source_id:
-        source = db._to_dict(db.get_harvest_source(source_id))
-        if request.args.get("type") and request.args.get("type") == "json":
-            return source
-        return render_template(
-            "view_data.html",
-            data=source,
-            action="View",
-            data_type="Harvest Source",
-            source_id=source_id,
-        )
-    else:
-        source = db.get_all_harvest_sources()
-        return db._to_dict(source)
-
-
 @mod.route("/harvest_sources/", methods=["GET"])
 def view_harvest_sources():
     sources = db.get_all_harvest_sources()
@@ -514,14 +551,14 @@ def get_harvest_job(job_id=None):
 @mod.route("/harvest_job/<job_id>", methods=["PUT"])
 def update_harvest_job(job_id):
     result = db.update_harvest_job(job_id, request.json)
-    return result
+    return db._to_dict(result)
 
 
 # Delete Job
 @mod.route("/harvest_job/<job_id>", methods=["DELETE"])
 def delete_harvest_job(job_id):
     result = db.delete_harvest_job(job_id)
-    return result
+    return db._to_dict(result)
 
 
 # Get Job Errors by Type

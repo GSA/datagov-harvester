@@ -24,6 +24,7 @@ i.e.
 
 /* DATAGOV CUSTOM STYLES */
 ul.menu {
+  padding-inline-start: 0;
   li {
     display: inline-block;
     &::after {
@@ -47,4 +48,8 @@ ul.menu {
   &.cancel {
       color: red;
   }
+}
+
+.usa-table tbody {
+  text-align: center;
 }
