@@ -23,16 +23,18 @@
         </table>
     </div>
     {% if session['user'] %}
-    <ul class="usa-button-group">
-        <li class="usa-button-group__item">
-            <a href="{{ url_for('harvest.edit_organization', org_id=data.organization.id) }}"
-                class="usa-button">Edit</a>
-        </li>
-        <li class="usa-button-group__item">
-            <button class="usa-button usa-button--secondary"
-                onclick="confirmDelete('/organization/delete/{{data.organization.id}}')">Delete</button>
-        </li>
-    </ul>
+    <div class="config-actions">
+        <ul class="usa-button-group">
+            <li class="usa-button-group__item">
+                <a href="{{ url_for('harvest.edit_organization', org_id=data.organization.id) }}"
+                    class="usa-button">Edit</a>
+            </li>
+            <li class="usa-button-group__item">
+                <button class="usa-button usa-button--secondary"
+                    onclick="confirmDelete('/organization/delete/{{data.organization.id}}')">Delete</button>
+            </li>
+        </ul>
+    </div>
     {% endif %}
     <div class="section margin-top-5">
         <h2> Harvest Sources for {{data.organization.name}} </h2>
@@ -45,25 +47,20 @@
                 <thead>
                     <tr>
                         <th data-sortable scope="col" role="columnheader">Name</th>
-                        <th data-sortable scope="col" role="columnheader">Status</th>
                         <th data-sortable scope="col" role="columnheader">Last Job</th>
-                        <th data-sortable scope="col" role="columnheader">Url</th>
-                        <th data-sortable scope="col" role="columnheader">Id</th>
-                        <th data-sortable scope="col" role="columnheader">Notification Emails</th>
-                        <th data-sortable scope="col" role="columnheader">Organization Id</th>
-                        <th data-sortable scope="col" role="columnheader">Frequency</th>
-                        <th data-sortable scope="col" role="columnheader">Schema Type</th>
+                        <th data-sortable scope="col" role="columnheader">Next Job</th>
                         <th data-sortable scope="col" role="columnheader">Source Type</th>
+                        <th data-sortable scope="col" role="columnheader">Frequency</th>
+                        <th data-sortable scope="col" role="columnheader">Notification Emails</th>
+                        <th data-sortable scope="col" role="columnheader">Url</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for source in data.harvest_sources %}
                     <tr>
-                        <td data-sort-value={{source.date_created}}>{{source.name}}</td>
                         <td data-sort-value={{source.date_created}}><a
-                                href="{{ url_for('harvest.view_harvest_source_data', source_id=source.id) }}">Landing Page</a>
-                        </td>
-                        <td scope="row">
+                            href="{{ url_for('harvest.view_harvest_source_data', source_id=source.id) }}">{{source.name}}</a></td>
+                        <td scope="row" class="text-center">
                             {% if data.harvest_jobs[source.id] %}
                             <a href="{{ url_for('harvest.get_harvest_job', job_id=data.harvest_jobs[source.id].id) }}">
                                 <svg class="usa-icon align-middle {% if data.harvest_jobs[source.id].records_errored == 0 %}check{%else%}cancel{%endif%}"
@@ -74,17 +71,20 @@
                                 </svg>
                             </a>
                             {% else %}
-                            <button type="button" class="usa-button usa-button--outline"
-                                title="No jobs found">N/A</button>
+                            N/A
                             {% endif %}
                         </td>
-                        <td data-sort-value={{source.records_errored}}><a href={{source.url}}>{{source.url}}</a></td>
-                        <td data-sort-value={{source.id}}>{{source.id}}</td>
-                        <td data-sort-value={{source.date_finished}}>{{source.notification_emails}} </td>
-                        <td data-sort-value={{source.records_added}}>{{source.organization_id}}</td>
-                        <td data-sort-value={{source.records_deleted}}>{{source.frequency}}</td>
-                        <td data-sort-value={{source.records_ignored}}>{{source.schema_type}}</td>
+                        <td scope="row" class="text-center">
+                            {% if data.future_harvest_jobs[source.id] %}
+                                {{data.future_harvest_jobs[source.id]}}
+                            {% else %}
+                            N/A
+                            {% endif %}
+                        </td>
                         <td data-sort-value={{source.records_updated}}>{{source.source_type}}</td>
+                        <td data-sort-value={{source.records_deleted}}>{{source.frequency}}</td>
+                        <td data-sort-value={{source.date_finished}}>{{source.notification_emails}} </td>
+                        <td data-sort-value={{source.records_errored}}><a href={{source.url}}>{{source.url}}</a></td>
                     </tr>
                     {% endfor %}
                 </tbody>

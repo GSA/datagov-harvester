@@ -54,19 +54,20 @@
         <p>
             {% set last_job_index = (data.harvest_jobs | length) - 1 %}
             <a href="{{ url_for('harvest.get_harvest_job', job_id=data.harvest_jobs[last_job_index].id) }}">Last Job
-                Status:</a>
-            <svg class="usa-icon align-middle {% if data.harvest_jobs[last_job_index].records_errored == 0 %}check{%else%}cancel{%endif%}"
-                aria-hidden="true" focusable="false" role="img">
-                <use
-                    xlink:href="/assets/uswds/img/sprite.svg#{% if data.harvest_jobs[last_job_index].records_errored == 0 %}check{%else%}cancel{%endif%}">
-                </use>
-            </svg>
+                Status:
+                <svg class="usa-icon align-middle {% if data.harvest_jobs[last_job_index].records_errored == 0 %}check{%else%}cancel{%endif%}"
+                    aria-hidden="true" focusable="false" role="img">
+                    <use
+                        xlink:href="/assets/uswds/img/sprite.svg#{% if data.harvest_jobs[last_job_index].records_errored == 0 %}check{%else%}cancel{%endif%}">
+                    </use>
+                </svg></a>
         </p>
+        <p>Next Job Scheduled: {{data.next_job}}</p>
         <canvas id="datagov-line-chart" height="200"></canvas>
         <!-- <Line data={data.chartData} /> -->
         <div class="usa-table-container--scrollable" tabindex="0">
             <table class="usa-table usa-table--striped">
-                <caption> Harvest Jobs for Harvest Source Id: {data.harvest_source.id} </caption>
+                <caption> Harvest Jobs for Harvest Source Id: {{data.harvest_source.id}} </caption>
                 <thead>
                     <tr>
                         <th data-sortable scope="col" role="columnheader">Id</th>

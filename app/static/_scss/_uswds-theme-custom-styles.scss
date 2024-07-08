@@ -22,7 +22,6 @@ i.e.
 
 @use "uswds-core" as *;
 
-/* DATAGOV CUSTOM STYLES */
 ul.menu {
   padding-inline-start: 0;
   li {
@@ -50,6 +49,10 @@ ul.menu {
   }
 }
 
-.usa-table tbody {
+.text-center {
   text-align: center;
+}
+
+.usa-card__img img {
+  padding: 10px;
 }

@@ -19,19 +19,23 @@
     {% for org in data.organizations %}
         <li class="usa-card site-component-card grid-col-6 tablet:grid-col-4" data-meta="{{org.name}}">
             <div class="usa-card__container">
-                <div class="usa-card__header">
-                    <h2 class="usa-card__heading">{{org.name}}</h2>
+              <div class="usa-card__header">
+                <h4 class="usa-card__heading">{{org.name}}</h4>
+              </div>
+              <div class="usa-card__media">
+                <div class="usa-card__img">
+                  <img
+                    src="{{org.logo}}"
+                    alt="{{org.name}} logo"
+                  />
                 </div>
-                <div class="usa-card__body"></div>
-                <div class="usa-card__footer">
-                    <ul class="usa-button-group">
-                        <li class="usa-button-group__item">
-                            <a href="{{ url_for('harvest.view_org_data', org_id=org.id) }}" class="usa-button usa-button--outline">Details</a>
-                        </li>
-                      </ul>
-                </div>
+              </div>
+              <div class="usa-card__body"></div>
+              <div class="usa-card__footer">
+                <a href="{{ url_for('harvest.view_org_data', org_id=org.id) }}" class="usa-button usa-button--outline">Details</a>
             </div>
-        </li>
+            </div>
+          </li>
     {% endfor %}
 </ul>
 {% endblock %}

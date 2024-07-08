@@ -1,5 +1,6 @@
-@forward "uswds-theme";
+@use "uswds-core" with (
+    $theme-show-notifications: false,
+);
+
 @forward "uswds";
 @forward "uswds-theme-custom-styles";
-// @forward "helpers";
-// @forward "datagov-custom-styles";
