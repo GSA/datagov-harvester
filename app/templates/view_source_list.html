@@ -38,40 +38,6 @@
     {% endfor %}
 </ul>
 
-<!-- <div class="usa-table-container--scrollable" tabindex="0">
-    <table class="usa-table usa-table--striped">
-        <caption> All Harvest Sources </caption>
-        <thead>
-            <tr>
-                <th data-sortable scope="col" role="columnheader">Name</th>
-                <th data-sortable scope="col" role="columnheader">Url</th>
-                <th data-sortable scope="col" role="columnheader">Id</th>
-                <th data-sortable scope="col" role="columnheader">Notification Emails</th>
-                <th data-sortable scope="col" role="columnheader">Organization Id</th>
-                <th data-sortable scope="col" role="columnheader">Frequency</th>
-                <th data-sortable scope="col" role="columnheader">Schema Type</th>
-                <th data-sortable scope="col" role="columnheader">Source Type</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for source in data.harvest_sources %}
-                <tr>
-                    <td data-sort-value={{source.date_created}}
-                        ><a href="{{ url_for('harvest.view_harvest_source_config', source_id=source.id) }}">{{source.name}}</a></td
-                    >
-                    <td data-sort-value={{source.records_errored}}><a href={{source.url}}>{{source.url}}</a></td>
-                    <td data-sort-value={{source.id}}>{{source.id}}</td>
-                    <td data-sort-value={{source.date_finished}}>{{source.notification_emails}} </td>
-                    <td data-sort-value={{source.records_added}}><a href="{{ url_for('harvest.view_org_data', org_id=source.organization_id) }}">{{source.organization_id}}</a></td>
-                    <td data-sort-value={{source.records_deleted}}>{{source.frequency}}</td>
-                    <td data-sort-value={{source.records_ignored}}>{{source.schema_type}}</td>
-                    <td data-sort-value={{source.records_updated}}>{{source.source_type}}</td>
-                </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-    <div class="usa-sr-only usa-table__announcement-region" aria-live="polite"></div>
-</div> -->
 {% endblock %}
 
 {% block scripts %}

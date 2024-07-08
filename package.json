@@ -1,7 +1,7 @@
 {
   "name": "datagov-harvester",
   "version": "1.0.0",
-  "description": "This is a library that will be utilized for metadata extraction, validation, transformation, and loading into the data.gov catalog.",
+  "description": "This is a library that will be utilized for metadata extraction, validation, transformation, and loading into the data.gov catalog.",
   "main": "index.js",
   "directories": {
     "doc": "docs",

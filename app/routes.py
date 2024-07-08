@@ -184,7 +184,6 @@ def make_new_source_contract(form):
         "name": form.name.data,
         "notification_emails": form.notification_emails.data,
         "frequency": form.frequency.data,
-        "user_requested_frequency": form.frequency.data,
         "url": form.url.data,
         "schema_type": form.schema_type.data,
         "source_type": form.source_type.data,
@@ -236,32 +235,6 @@ def add_organization():
     )
 
 
-# View Org Config
-@mod.route("/organization/config/<org_id>", methods=["GET"])
-def view_org_config(org_id=None):
-    if org_id:
-        org = db._to_dict(db.get_organization(org_id))
-        if request.args.get("type") and request.args.get("type") == "json":
-            return org
-        else:
-            return render_template(
-                "view_data.html",
-                data=org,
-                action="View",
-                data_type="Organization",
-                org_id=org_id,
-            )
-    else:
-        org = db.get_all_organizations()
-    return db._to_dict(org)
-
-
-# @mod.route("/organization", methods=["GET"])
-# def view_all_orgs():
-#     org = db.get_all_organizations()
-#     return db._to_dict(org)
-
-
 @mod.route("/organization/", methods=["GET"])
 @mod.route("/organizations/", methods=["GET"])
 def view_organizations():
@@ -310,7 +283,7 @@ def edit_organization(org_id):
             flash(f"Updated org with ID: {org.id}")
         else:
             flash("Failed to update organization.")
-        return redirect(f"/organization/config/{org_id}")
+        return redirect(f"/organization/{org_id}")
     return render_template(
         "edit_data.html",
         form=form,
@@ -373,21 +346,6 @@ def add_harvest_source():
         action="Add",
         data_type="Harvest Source",
         button="Submit",
-    )
-
-
-# View Source Config
-@mod.route("/harvest_source/config/<source_id>", methods=["GET", "POST"])
-def view_harvest_source_config(source_id: str):
-    source = db._to_dict(db.get_harvest_source(source_id))
-    if request.args.get("type") and request.args.get("type") == "json":
-        return source
-    return render_template(
-        "view_data.html",
-        data=source,
-        action="View",
-        data_type="Harvest Source",
-        source_id=source_id,
     )
 
 
@@ -460,18 +418,20 @@ def edit_harvest_source(source_id: str):
                 (str(org["id"]), f'{org["name"]} - {org["id"]}')
                 for org in db._to_dict(organizations)
             ]
+            source.notification_emails = ", ".join(source.notification_emails)
             form = HarvestSourceForm(data=db._to_dict(source))
             form.organization_id.choices = organization_choices
             if form.validate_on_submit():
                 new_source_data = make_new_source_contract(form)
-                source = db._to_dict(
-                    db.update_harvest_source(source_id, new_source_data)
-                )
-                if source:
-                    flash(f"Updated source with ID: {source['id']}")
+                source = db.update_harvest_source(source_id, new_source_data)
+                job_message = schedule_first_job(source.id)
+                if source and job_message:
+                    flash(f"Updated source with ID: {source.id}. {job_message}")
                 else:
                     flash("Failed to update harvest source.")
-                return redirect(f"/harvest_source/{source['id']}")
+                return redirect(
+                    url_for("harvest.view_harvest_source_data", source_id=source.id)
+                )
             return render_template(
                 "edit_data.html",
                 form=form,
