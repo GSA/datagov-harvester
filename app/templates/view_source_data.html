@@ -53,12 +53,13 @@
         {% else %}
         <p>
             {% set last_job_index = (data.harvest_jobs | length) - 1 %}
+            {% set last_job_no_errors = (data.harvest_jobs[last_job_index].errors | length) == 0 %}
             <a href="{{ url_for('harvest.get_harvest_job', job_id=data.harvest_jobs[last_job_index].id) }}">Last Job
                 Status:
-                <svg class="usa-icon align-middle {% if data.harvest_jobs[last_job_index].records_errored == 0 %}check{%else%}cancel{%endif%}"
+                <svg class="usa-icon align-middle {% if last_job_no_errors %}check{%else%}cancel{%endif%}"
                     aria-hidden="true" focusable="false" role="img">
                     <use
-                        xlink:href="/assets/uswds/img/sprite.svg#{% if data.harvest_jobs[last_job_index].records_errored == 0 %}check{%else%}cancel{%endif%}">
+                        xlink:href="/assets/uswds/img/sprite.svg#{% if last_job_no_errors %}check{%else%}cancel{%endif%}">
                     </use>
                 </svg></a>
         </p>

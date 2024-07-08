@@ -17,7 +17,11 @@
             {% for key, value in data.organization_dict.items() %}
             <tr>
                 <td>{{key}}:</td>
-                <td>{{value}}</td>
+                {% if key == 'logo' %}
+                    <td><a href="{{value}}">{{value}}</a></td>
+                {% else %}
+                    <td>{{value}}</td>
+                {% endif %}
             </tr>
             {% endfor %}
         </table>
@@ -62,11 +66,12 @@
                             href="{{ url_for('harvest.view_harvest_source_data', source_id=source.id) }}">{{source.name}}</a></td>
                         <td scope="row" class="text-center">
                             {% if data.harvest_jobs[source.id] %}
+                            {% set last_job_has_errors = (data.harvest_jobs[source.id].errors | length) == 0 %}
                             <a href="{{ url_for('harvest.get_harvest_job', job_id=data.harvest_jobs[source.id].id) }}">
-                                <svg class="usa-icon align-middle {% if data.harvest_jobs[source.id].records_errored == 0 %}check{%else%}cancel{%endif%}"
+                                <svg class="usa-icon align-middle {% if last_job_has_errors %}check{%else%}cancel{%endif%}"
                                     aria-hidden="true" focusable="false" role="img">
                                     <use
-                                        xlink:href="/assets/uswds/img/sprite.svg#{% if data.harvest_jobs[source.id].records_errored == 0 %}check{%else%}cancel{%endif%}">
+                                        xlink:href="/assets/uswds/img/sprite.svg#{% if last_job_has_errors %}check{%else%}cancel{%endif%}">
                                     </use>
                                 </svg>
                             </a>
