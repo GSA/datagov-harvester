@@ -8,6 +8,7 @@ import pytest
 from dotenv import load_dotenv
 from flask import Flask
 from sqlalchemy.orm import scoped_session, sessionmaker
+from sqlalchemy import event
 
 from app import create_app
 from app.scripts.load_manager import create_future_date
@@ -54,12 +55,25 @@ def session(app) -> Generator[Any, scoped_session, Any]:
         connection = db.engine.connect()
         transaction = connection.begin()
 
-        SessionLocal = sessionmaker(bind=connection, autocommit=False, autoflush=False)
-        session = scoped_session(SessionLocal)
+        SessionLocal = sessionmaker(autocommit=False, autoflush=False)
+        session = SessionLocal(bind=connection)
+        session.begin_nested()
+        already_rolled_back = False
+
+        @event.listens_for(session, "after_rollback")
+        def mark_rolled_back(_):
+            """
+            The DB session is designed to rollback upon an exception, so no need to
+            repeat a rollback if one has already been performed.
+            """
+            nonlocal already_rolled_back
+            already_rolled_back = True
+
         yield session
 
-        session.remove()
-        transaction.rollback()
+        session.close()
+        if not already_rolled_back:
+            transaction.rollback()
         connection.close()
 
 
