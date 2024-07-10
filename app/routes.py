@@ -383,7 +383,7 @@ def view_harvest_source_data(source_id: str):
                 "backgroundColor": "red",
             },
             {
-                "label": "Igrored",
+                "label": "Ignored",
                 "data": [job.records_ignored for job in jobs],
                 "borderColor": "grey",
                 "backgroundColor": "grey",
