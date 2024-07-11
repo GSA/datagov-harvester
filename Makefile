@@ -39,7 +39,7 @@ test-functional: ## Runs integration tests. Compatible with dev environment / `m
 test: up test-unit test-integration ## Runs all tests. Compatible with dev environment / `make up`
 
 test-ci: ## Runs all tests using only db and required test resources. NOT compatible with dev environment / `make up`
-	docker-compose up -d db nginx-harvest-source
+	docker compose up -d db nginx-harvest-source
 	make test-unit
 	make test-integration
 	make test-functional
