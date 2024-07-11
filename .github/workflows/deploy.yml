@@ -1,13 +1,13 @@
 ---
   name: Deploy to cloud.gov
-  
+
   on:
     workflow_dispatch:
       inputs:
         version_no:
           description: 'Release Version:'
           required: true
-  
+
   env:
     POETRY_VERSION: "1.7.1"
 
@@ -19,6 +19,16 @@
       steps:
         - name: checkout
           uses: actions/checkout@v4
+        - name: Install node.js
+          uses: actions/setup-node@v4
+          with:
+            node-version: "20"
+        - name: Build static assets
+          shell: bash
+          run: |
+            cd app/static
+            npm install
+            npm run build
         - name: Install Poetry
           uses: abatilo/actions-poetry@v2
           with:
@@ -77,6 +87,16 @@
       steps:
         - name: checkout
           uses: actions/checkout@v4
+        - name: Install node.js
+          uses: actions/setup-node@v4
+          with:
+            node-version: "20"
+        - name: Build static assets
+          shell: bash
+          run: |
+            cd app/static
+            npm install
+            npm run build
         - name: Install Poetry
           uses: abatilo/actions-poetry@v2
           with:
@@ -87,7 +107,7 @@
             echo "Generated requirements.txt:"
             cat requirements.txt
         - name: deploy DHL
-          uses: cloud-gov/cg-cli-tools@main         
+          uses: cloud-gov/cg-cli-tools@main
           with:
             command: cf push --vars-file vars.prod.yml --strategy rolling --no-wait
             cf_org: gsa-datagov
@@ -122,7 +142,7 @@
             LAST_COMMIT: ${{ github.sha }}
             LAST_RUN_BY: ${{ github.actor }}
             RUN_ID: ${{ github.run_id }}
-            REPO: ${{ github.repository }}         
+            REPO: ${{ github.repository }}
           with:
             filename: .github/deploy_failure.md
             update_existing: true
