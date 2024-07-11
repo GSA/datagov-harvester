@@ -226,6 +226,9 @@ def add_organization():
             else:
                 flash("Failed to add organization.")
             return redirect("/")
+        elif form.errors:
+            flash(form.errors)
+            return redirect(url_for("harvest.add_organization"))
     return render_template(
         "edit_data.html",
         form=form,
@@ -286,6 +289,10 @@ def edit_organization(org_id):
         else:
             flash("Failed to update organization.")
         return redirect(f"/organization/{org_id}")
+    elif form.errors:
+        flash(form.errors)
+        return redirect(url_for("harvest.edit_organization", org_id=org_id))
+
     return render_template(
         "edit_data.html",
         form=form,
@@ -342,6 +349,9 @@ def add_harvest_source():
             else:
                 flash("Failed to add harvest source.")
             return redirect("/")
+        elif form.errors:
+            flash(form.errors)
+            return redirect(url_for("harvest.add_harvest_source"))
     return render_template(
         "edit_data.html",
         form=form,
@@ -433,6 +443,11 @@ def edit_harvest_source(source_id: str):
                     flash("Failed to update harvest source.")
                 return redirect(
                     url_for("harvest.view_harvest_source_data", source_id=source.id)
+                )
+            elif form.errors:
+                flash(form.errors)
+                return redirect(
+                    url_for("harvest.edit_harvest_source", source_id=source_id)
                 )
             return render_template(
                 "edit_data.html",

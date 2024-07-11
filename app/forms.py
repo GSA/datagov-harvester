@@ -45,4 +45,4 @@ class HarvestSourceForm(FlaskForm):
 
 class OrganizationForm(FlaskForm):
     name = StringField("Name", validators=[DataRequired()])
-    logo = StringField("Logo", validators=[DataRequired()])
+    logo = StringField("Logo", validators=[DataRequired(), URL()])
