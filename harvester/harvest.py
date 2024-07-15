@@ -134,8 +134,11 @@ class HarvestSource:
         for record in records:
             # TODO: don't pass None to original metadata
             self.internal_records[record["identifier"]] = Record(
-                self, record["identifier"], record["source_raw"],
-                record["source_hash"], _ckan_id=record['ckan_id']
+                self,
+                record["identifier"],
+                record["source_raw"],
+                record["source_hash"],
+                _ckan_id=record["ckan_id"],
             )
 
     def external_records_to_id_hash(self, records: list[dict]) -> None:
@@ -238,7 +241,7 @@ class HarvestSource:
                         "source_hash": record.metadata_hash,
                         "source_raw": str(record.metadata),
                         "action": action,
-                        "ckan_id": record.ckan_id
+                        "ckan_id": record.ckan_id,
                     }
                 )
 
@@ -259,8 +262,9 @@ class HarvestSource:
                         # we don't actually create a Record instance for deletions
                         # so creating it here as a sort of acknowledgement
                         self.external_records[i] = Record(
-                            self, self.internal_records[i].identifier,
-                            _ckan_id=self.internal_records[i].ckan_id
+                            self,
+                            self.internal_records[i].identifier,
+                            _ckan_id=self.internal_records[i].ckan_id,
                         )
                         self.external_records[i].action = action
                         try:
@@ -281,7 +285,7 @@ class HarvestSource:
 
                     record = self.external_records[i]
                     if action == "update":
-                         record.ckan_id = self.internal_records[i].ckan_id
+                        record.ckan_id = self.internal_records[i].ckan_id
 
                     # no longer setting action in compare so setting it here...
                     record.action = action
@@ -455,7 +459,7 @@ class Record:
 
     def create_record(self):
         result = ckan.action.package_create(**self.ckanified_metadata)
-        self.ckan_id = result['id']
+        self.ckan_id = result["id"]
 
     def update_record(self) -> dict:
         ckan.action.package_update(**self.ckanified_metadata, **{"id": self.ckan_id})
@@ -467,7 +471,7 @@ class Record:
         self.status = "success"
         data = {"status": "success", "date_finished": datetime.now(timezone.utc)}
         if self.ckan_id is not None:
-            data['ckan_id'] = self.ckan_id
+            data["ckan_id"] = self.ckan_id
 
         self.harvest_source.db_interface.update_harvest_record(
             self.harvest_source.internal_records_lookup_table[self.identifier],

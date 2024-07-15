@@ -5,15 +5,22 @@
     {% block title %}
         <title>{{action}} {{data_type}}</title>
     {% endblock %}
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='assets/uswds/css/styles.css') }}">
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <script src="{{ url_for('static', filename='assets/uswds/js/uswds-init.js') }}"></script>
+    {% block script_head %}
+    {% endblock %}
 </head>
 <body>
+  {% include '/snippets/banner.html' %}
     <header>
-        <strong><nav>
+      <div class="container">
+        <strong>
+          <nav>
             <ul class="menu">
               <li><a href="{{ url_for('harvest.index') }}">Home</a></li>
-              <li><a href="{{ url_for('harvest.get_data_sources') }}">Get Source/Org</a></li>
+              <li><a href="{{ url_for('harvest.view_organizations') }}">Orgs</a></li>
+              <li><a href="{{ url_for('harvest.view_harvest_sources') }}">Sources</a></li>
               {% if session['user'] %}
                 <li>{{ session['user'] }}</li>
                 <li><a href="{{ url_for('harvest.logout') }}">Logout</a></li>
@@ -21,20 +28,23 @@
                 <li><a href="{{ url_for('harvest.login') }}">Login</a></li>
               {% endif %}
             </ul>
-          </nav></strong>
+          </nav>
+        </strong>
+      </div>
     </header>
-    <div class="container mt-3">
+    <div class="container my-3">
         {% for message in get_flashed_messages() %}
         <div class="alert alert-warning">
             <button type="button" class="close" data-dismiss="alert">&times;</button>
             {{ message }}
         </div>
         {% endfor %}
-    
+
         <div id="content">{% block content %}{% endblock %}</div>
     </div>
-
+    {% include '/snippets/footer.html' %}
     <script src="https://code.jquery.com/jquery-3.7.1.min.js" integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
+    <script src="{{ url_for('static', filename='assets/uswds/js/uswds.js') }}"></script>
     <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.bundle.min.js"></script>
     {% block scripts %}
     {% endblock %}

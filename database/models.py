@@ -51,7 +51,6 @@ class HarvestSource(db.Model):
         nullable=False,
         index=True,
     )
-    user_requested_frequency = db.Column(db.String)
     url = db.Column(db.String, nullable=False, unique=True)
     schema_type = db.Column(db.String, nullable=False)
     source_type = db.Column(db.String, nullable=False)

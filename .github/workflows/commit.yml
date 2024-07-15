@@ -22,7 +22,6 @@ jobs:
         CF_SERVICE_AUTH: ${{secrets.CF_SERVICE_AUTH}}
         HARVEST_RUNNER_APP_GUID: ${{secrets.HARVEST_RUNNER_APP_GUID}}
         FLASK_APP_SECRET_KEY: ${{secrets.FLASK_APP_SECRET_KEY}}
-        OPENID_PRIVATE_KEY: ${{secrets.OPENID_PRIVATE_KEY}}
     runs-on: ubuntu-latest
     name: Pytests
     steps:
@@ -30,7 +29,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 1
-
       - name: Set up Python ${{ env.PY_VERSION }}
         uses: actions/setup-python@v5
         with:
@@ -65,6 +63,16 @@ jobs:
     steps:
       - name: checkout
         uses: actions/checkout@v4
+      - name: Install node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Build static assets
+        shell: bash
+        run: |
+          cd app/static
+          npm install
+          npm run build
       - name: Install Poetry
         uses: abatilo/actions-poetry@v2
         with:

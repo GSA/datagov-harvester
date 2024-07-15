@@ -22,6 +22,11 @@ build-dev:  ## build Flask app w/ dev dependencies
 clean-dist:  ## Cleans dist dir
 	rm -rf dist/*
 
+install-static: ## Installs static assets
+	cd app/static; \
+	npm install; \
+	npm run build
+
 test-unit: ## Runs unit tests. Compatible with dev environment / `make up`
 	poetry run pytest --junitxml=pytest.xml --cov=harvester ./tests/unit
 
@@ -34,7 +39,7 @@ test-functional: ## Runs integration tests. Compatible with dev environment / `m
 test: up test-unit test-integration ## Runs all tests. Compatible with dev environment / `make up`
 
 test-ci: ## Runs all tests using only db and required test resources. NOT compatible with dev environment / `make up`
-	docker-compose up -d db nginx-harvest-source
+	docker compose up -d db nginx-harvest-source
 	make test-unit
 	make test-integration
 	make test-functional

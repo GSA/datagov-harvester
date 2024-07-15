@@ -12,8 +12,9 @@ dist/
 # harvest load test log
 harvest_load.log
 
-# node 
+# node
 node_modules/
+
 # any previous versions of schemas
 **/dataset_**.json
 **/catalog_**.json
@@ -21,10 +22,13 @@ node_modules/
 # openstack ( s3 mock )
 tmp/
 
-# env 
+# env
 .env.secret
 requirements.txt
 
 # vscode debugger
 .vscode/*
 !.vscode/launch.json
+
+# uswds assets
+app/static/assets

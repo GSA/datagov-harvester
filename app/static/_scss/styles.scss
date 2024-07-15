@@ -1,0 +1,6 @@
+@use "uswds-core" with (
+    $theme-show-notifications: false,
+);
+
+@forward "uswds";
+@forward "uswds-theme-custom-styles";

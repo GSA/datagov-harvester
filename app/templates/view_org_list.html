@@ -1,0 +1,60 @@
+{% extends 'base.html' %}
+
+{% block title %}
+<title>Organization List</title>
+{% endblock %}
+
+{% block content %}
+<h1> Organization List </h1>
+<div class="bg-base-lighter padding-2 radius-md">
+    <h2 class="font-lang-lg margin-top-0 margin-bottom-0">Find an Organization</h2>
+    <div role="region" aria-label="Component search" aria-atomic="true" class="margin-top-1">
+      <label for="icon-filter">Filter by name and keyword</label>
+      <input class="usa-input" id="icon-filter" type="text" onkeyup="filter(this)">
+      <p class="text-base-darker margin-top-1 margin-bottom-0" aria-live="polite"><span id="component-count"></span></p>
+    </div>
+</div>
+
+<ul class="usa-card-group flex-row margin-top-3">
+    {% for org in data.organizations %}
+        <li class="usa-card site-component-card grid-col-6 tablet:grid-col-4" data-meta="{{org.name}}">
+            <div class="usa-card__container">
+              <div class="usa-card__header">
+                <h4 class="usa-card__heading">{{org.name}}</h4>
+              </div>
+              <div class="usa-card__media">
+                <div class="usa-card__img">
+                  <img
+                    src="{{org.logo}}"
+                    alt="{{org.name}} logo"
+                  />
+                </div>
+              </div>
+              <div class="usa-card__body"></div>
+              <div class="usa-card__footer">
+                <a href="{{ url_for('harvest.view_org_data', org_id=org.id) }}" class="usa-button usa-button--outline">Details</a>
+            </div>
+            </div>
+          </li>
+    {% endfor %}
+</ul>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function filter(e){
+        search = e.value.toLowerCase();
+        document.querySelectorAll('.site-component-card').forEach(function(row){
+            text = row.getAttribute("data-meta").toLowerCase();
+            if(text.match(search)){
+                row.classList.remove("display-none");
+            } else {
+                row.classList.add("display-none");
+            }
+        });
+        componentCount = document.querySelectorAll('.site-component-card:not(.display-none)').length;
+        var word = (componentCount === 1) ? "organization" : "organizations";
+        document.getElementById("component-count").innerHTML = `<strong>${componentCount}</strong> ${word} found`
+    }
+</script>
+{% endblock %}

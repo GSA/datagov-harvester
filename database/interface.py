@@ -166,10 +166,18 @@ class HarvesterDBInterface:
     def get_harvest_job(self, job_id):
         return self.db.query(HarvestJob).filter_by(id=job_id).first()
 
-    def get_harvest_jobs_by_filter(self, filter):
+    def get_all_harvest_jobs_by_filter(self, filter):
         harvest_jobs = self.db.query(HarvestJob).filter_by(**filter).all()
-        harvest_jobs_data = [job for job in harvest_jobs]
-        return harvest_jobs_data
+        return [job for job in harvest_jobs or []]
+
+    def get_first_harvest_jobs_by_filter(self, filter):
+        harvest_job = (
+            self.db.query(HarvestJob)
+            .filter_by(**filter)
+            .order_by(HarvestJob.date_created.desc())
+            .first()
+        )
+        return harvest_job
 
     def get_new_harvest_jobs_in_past(self):
         harvest_jobs = (
@@ -192,18 +200,12 @@ class HarvesterDBInterface:
             )
             .all()
         )
-        return [job for job in harvest_jobs]
+        return [job for job in harvest_jobs or []]
 
     def get_harvest_jobs_by_faceted_filter(self, attr, values):
         query_list = [getattr(HarvestJob, attr) == value for value in values]
         harvest_jobs = self.db.query(HarvestJob).filter(or_(*query_list)).all()
         return [job for job in harvest_jobs]
-
-    def get_harvest_job_by_source(self, source_id):
-        harvest_job = (
-            self.db.query(HarvestJob).filter_by(harvest_source_id=source_id).all()
-        )
-        return [job for job in harvest_job]
 
     def update_harvest_job(self, job_id, updates):
         try:
@@ -257,29 +259,28 @@ class HarvesterDBInterface:
 
     def get_harvest_job_errors_by_job(self, job_id: str) -> list[dict]:
         job = self.get_harvest_job(job_id)
-        if job:
-            return list(job.errors)
-        else:
-            return []
+        return [error for error in job.errors or []]
 
     def get_harvest_record_errors_by_job(self, job_id: str):
         job = self.get_harvest_job(job_id)
-        if job:
-            return [error for record in job.records for error in record.errors]
-        else:
-            return []
+        return [error for record in job.records or [] for error in record.errors or []]
 
     def get_harvest_error(self, error_id: str) -> dict:
-        job_query = self.db.query(HarvestJobError).filter_by(id=error_id)
-        record_query = self.db.query(HarvestRecordError).filter_by(id=error_id)
-        return job_query.union(record_query).first()
+        job_query = self.db.query(HarvestJobError).filter_by(id=error_id).first()
+        record_query = self.db.query(HarvestRecordError).filter_by(id=error_id).first()
+        if job_query is not None:
+            return job_query
+        elif record_query is not None:
+            return record_query
+        else:
+            return None
 
     def get_harvest_record_errors_by_record(self, record_id: str):
         # TODO: paginate this
         errors = self.db.query(HarvestRecordError).filter_by(
             harvest_record_id=record_id
         )
-        return [err for err in errors]
+        return [err for err in errors or []]
 
     ## HARVEST RECORD
     def add_harvest_record(self, record_data):
@@ -449,11 +450,12 @@ class HarvesterDBInterface:
 
     def get_all_harvest_records(self):
         harvest_records = self.db.query(HarvestRecord).all()
-        return [record for record in harvest_records]
+        return [record for record in harvest_records or []]
 
     def get_all_harvest_errors(self):
-        harvest_errors = self.db.query(HarvestJobError).all()
-        return [err for err in harvest_errors]
+        job_errors = self.db.query(HarvestJobError).all()
+        record_errors = self.db.query(HarvestRecordError).all()
+        return [*job_errors, *record_errors]
 
     def delete_all_harvest_records(self):
         harvest_records = self.db.query(HarvestRecord).all()

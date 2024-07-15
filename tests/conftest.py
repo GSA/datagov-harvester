@@ -36,11 +36,16 @@ def default_session_fixture():
 @pytest.fixture(scope="session")
 def app() -> Generator[Any, Flask, Any]:
     app = create_app()
-
+    app.config.update({"TESTING": True})
     with app.app_context():
         db.create_all()
         yield app
         db.drop_all()
+
+
+@pytest.fixture(scope="function")
+def client(app):
+    return app.test_client()
 
 
 @pytest.fixture(scope="function")
@@ -68,7 +73,9 @@ def default_function_fixture(interface):
     logger.info("Patching core.feature.service")
     with patch("harvester.harvest.db_interface", interface), patch(
         "harvester.exceptions.db_interface", interface
-    ), patch("app.scripts.load_manager.interface", interface):
+    ), patch("app.scripts.load_manager.interface", interface), patch(
+        "app.routes.db", interface
+    ):
         yield
     logger.info("Patching complete. Unpatching")
 
@@ -293,40 +300,32 @@ def source_data_dcatus_invalid_records_job(
 
 
 @pytest.fixture
-def interface_no_jobs(
-    interface, organization_data, source_data_dcatus, source_data_waf
-):
+def interface_no_jobs(interface, organization_data, source_data_dcatus):
     interface.add_organization(organization_data)
     interface.add_harvest_source(source_data_dcatus)
-    interface.add_harvest_source(source_data_waf)
 
     return interface
 
 
 @pytest.fixture
-def interface_with_multiple_jobs(
-    interface_no_jobs, source_data_dcatus, source_data_waf
-):
+def interface_with_multiple_jobs(interface_no_jobs, source_data_dcatus):
     statuses = ["new", "in_progress", "complete", "error"]
     frequencies = ["daily", "monthly"]
-    source_ids = [source_data_dcatus["id"], source_data_waf["id"]]
     jobs = [
         {
             "status": status,
-            "harvest_source_id": source,
+            "harvest_source_id": source_data_dcatus["id"],
             "date_created": create_future_date(frequency),
         }
         for status in statuses
         for frequency in frequencies
-        for source in source_ids
     ]
     jobs_2 = [
         {
             "status": status,
-            "harvest_source_id": source,
+            "harvest_source_id": source_data_dcatus["id"],
         }
         for status in statuses
-        for source in source_ids
     ]
 
     for job in jobs + jobs_2:

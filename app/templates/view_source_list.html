@@ -1,0 +1,60 @@
+{% extends 'base.html' %}
+
+{% block title %}
+<title>Harvest Source List</title>
+{% endblock %}
+
+{% block content %}
+<h1> Harvest Source List </h1>
+<div class="bg-base-lighter padding-2 radius-md">
+    <h2 class="font-lang-lg margin-top-0 margin-bottom-0">Find a Harvest Source</h2>
+    <div role="region" aria-label="Component search" aria-atomic="true" class="margin-top-1">
+        <label for="icon-filter">Filter by name and keyword</label>
+        <input class="usa-input" id="icon-filter" type="text" onkeyup="filter(this)">
+        <p class="text-base-darker margin-top-1 margin-bottom-0" aria-live="polite"><span id="component-count"></span>
+        </p>
+    </div>
+</div>
+
+<ul class="usa-card-group flex-row margin-top-3">
+    {% for source in data.harvest_sources %}
+    <li class="usa-card site-component-card grid-col-6 tablet:grid-col-4" data-meta="{{source.name}}">
+        <div class="usa-card__container">
+            <div class="usa-card__header">
+                <h2 class="usa-card__heading">{{source.name}}</h2>
+            </div>
+            <div class="usa-card__body">
+            </div>
+            <div class="usa-card__footer">
+                <ul class="usa-button-group">
+                    <li class="usa-button-group__item">
+                        <a href="{{ url_for('harvest.view_harvest_source_data', source_id=source.id) }}"
+                            class="usa-button usa-button--outline">Details</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </li>
+    {% endfor %}
+</ul>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function filter(e) {
+        search = e.value.toLowerCase();
+        document.querySelectorAll('.site-component-card').forEach(function (row) {
+            text = row.getAttribute("data-meta").toLowerCase();
+            if (text.match(search)) {
+                row.classList.remove("display-none");
+            } else {
+                row.classList.add("display-none");
+            }
+        });
+        componentCount = document.querySelectorAll('.site-component-card:not(.display-none)').length;
+        var word = (componentCount === 1) ? "source" : "sources";
+        document.getElementById("component-count").innerHTML = `<strong>${componentCount}</strong> ${word} found`
+    }
+</script>
+{% endblock %}

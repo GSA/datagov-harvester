@@ -157,6 +157,10 @@ class TestDatabase:
             harvest_record_error.id
         )
         assert harvest_record_error.id == harvest_record_error_from_db.id
+        assert (
+            harvest_record_error.harvest_record_id
+            == harvest_record_error_from_db.harvest_record_id
+        )
 
     def test_add_harvest_records(
         self,
@@ -207,14 +211,16 @@ class TestDatabase:
         assert job.status == job_data_dcatus["status"]
         assert job.harvest_source_id == job_data_dcatus["harvest_source_id"]
 
-    def test_get_harvest_jobs_by_filter(
+    def test_get_all_harvest_jobs_by_filter(
         self, source_data_dcatus, interface_with_multiple_jobs
     ):
         filters = {
             "status": "new",
             "harvest_source_id": f"{source_data_dcatus['id']}",
         }
-        filtered_list = interface_with_multiple_jobs.get_harvest_jobs_by_filter(filters)
+        filtered_list = interface_with_multiple_jobs.get_all_harvest_jobs_by_filter(
+            filters
+        )
         assert len(filtered_list) == 3
         assert filtered_list[0].status == "new"
         assert filtered_list[0].harvest_source_id == source_data_dcatus["id"]
@@ -249,7 +255,7 @@ class TestDatabase:
                 source_id
             )
         )
-        assert len(all_jobs_list) == 24
+        assert len(all_jobs_list) == 12
         assert len(filtered_job_list) == 2
         assert (
             len(
@@ -273,8 +279,8 @@ class TestDatabase:
         faceted_list = interface_with_multiple_jobs.get_harvest_jobs_by_faceted_filter(
             "status", ["new", "in_progress"]
         )
-        assert len(faceted_list) == 12
-        assert len([x for x in faceted_list if x.status == "new"]) == 6
+        assert len(faceted_list) == 6
+        assert len([x for x in faceted_list if x.status == "new"]) == 3
         assert (
             len(
                 [

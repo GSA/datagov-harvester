@@ -46,12 +46,12 @@ class CompareException(HarvestCriticalException):
 
 # non-critical exceptions
 class HarvestNonCriticalException(Exception):
-    def __init__(self, msg, harvest_job_id, record_id):
-        super().__init__(msg, harvest_job_id, record_id)
+    def __init__(self, msg, harvest_job_id, harvest_record_id):
+        super().__init__(msg, harvest_job_id, harvest_record_id)
 
         self.msg = msg
         self.harvest_job_id = harvest_job_id
-        self.harvest_record_id = record_id
+        self.harvest_record_id = harvest_record_id
 
         self.db_interface: HarvesterDBInterface = db_interface
         self.logger = logging.getLogger("harvest_runner")
@@ -60,11 +60,11 @@ class HarvestNonCriticalException(Exception):
             "message": self.msg,
             "type": self.__class__.__name__,
             "date_created": datetime.now(timezone.utc),
-            "harvest_record_id": record_id,  # to-do
+            "harvest_record_id": harvest_record_id,  # to-do
         }
 
         self.db_interface.add_harvest_record_error(error_data)
-        self.db_interface.update_harvest_record(record_id, {"status": "error"})
+        self.db_interface.update_harvest_record(harvest_record_id, {"status": "error"})
         self.logger.error(self.msg, exc_info=True)
 
 

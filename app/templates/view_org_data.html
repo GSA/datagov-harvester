@@ -1,0 +1,129 @@
+{% extends 'base.html' %}
+
+{% block title %}
+<title>View Org Data</title>
+{% endblock %}
+
+{% block content %}
+<div class="wrapper org-data">
+    {% if not data.organization %}
+    <h2>Whooops!</h2>
+    <p>Looks like you navigated to an organization that doesn't exist.</p>
+    {% else %}
+    <h1>{{data.organization.name}}</h1>
+    <h2>Organization Config Table</h2>
+    <div class="config-table">
+        <table class="table">
+            {% for key, value in data.organization_dict.items() %}
+            <tr>
+                <td>{{key}}:</td>
+                {% if key == 'logo' %}
+                    <td><a href="{{value}}">{{value}}</a></td>
+                {% else %}
+                    <td>{{value}}</td>
+                {% endif %}
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+    {% if session['user'] %}
+    <div class="config-actions">
+        <ul class="usa-button-group">
+            <li class="usa-button-group__item">
+                <a href="{{ url_for('harvest.edit_organization', org_id=data.organization.id) }}"
+                    class="usa-button">Edit</a>
+            </li>
+            <li class="usa-button-group__item">
+                <button class="usa-button usa-button--secondary"
+                    onclick="confirmDelete('/organization/delete/{{data.organization.id}}')">Delete</button>
+            </li>
+        </ul>
+    </div>
+    {% endif %}
+    <div class="section margin-top-5">
+        <h2> Harvest Sources for {{data.organization.name}} </h2>
+        {% if not data.harvest_sources %}
+        No harvest sources found
+        {% else %}
+        <div class="usa-table-container--scrollable" tabindex="0">
+            <table class="usa-table usa-table--striped">
+                <caption> Harvest Sources for {{data.organization.name}} </caption>
+                <thead>
+                    <tr>
+                        <th data-sortable scope="col" role="columnheader">Name</th>
+                        <th data-sortable scope="col" role="columnheader">Last Job</th>
+                        <th data-sortable scope="col" role="columnheader">Next Job</th>
+                        <th data-sortable scope="col" role="columnheader">Source Type</th>
+                        <th data-sortable scope="col" role="columnheader">Frequency</th>
+                        <th data-sortable scope="col" role="columnheader">Notification Emails</th>
+                        <th data-sortable scope="col" role="columnheader">Url</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for source in data.harvest_sources %}
+                    <tr>
+                        <td data-sort-value={{source.date_created}}><a
+                            href="{{ url_for('harvest.view_harvest_source_data', source_id=source.id) }}">{{source.name}}</a></td>
+                        <td scope="row" class="text-center">
+                            {% if data.harvest_jobs[source.id] %}
+                            {% set last_job_has_errors = (data.harvest_jobs[source.id].errors | length) == 0 %}
+                            <a href="{{ url_for('harvest.get_harvest_job', job_id=data.harvest_jobs[source.id].id) }}">
+                                <svg class="usa-icon align-middle {% if last_job_has_errors %}check{%else%}cancel{%endif%}"
+                                    aria-hidden="true" focusable="false" role="img">
+                                    <use
+                                        xlink:href="/assets/uswds/img/sprite.svg#{% if last_job_has_errors %}check{%else%}cancel{%endif%}">
+                                    </use>
+                                </svg>
+                            </a>
+                            {% else %}
+                            N/A
+                            {% endif %}
+                        </td>
+                        <td scope="row" class="text-center">
+                            {% if data.future_harvest_jobs[source.id] %}
+                                {{data.future_harvest_jobs[source.id]}}
+                            {% else %}
+                            N/A
+                            {% endif %}
+                        </td>
+                        <td data-sort-value={{source.records_updated}}>{{source.source_type}}</td>
+                        <td data-sort-value={{source.records_deleted}}>{{source.frequency}}</td>
+                        <td data-sort-value={{source.date_finished}}>{{source.notification_emails}} </td>
+                        <td data-sort-value={{source.records_errored}}><a href={{source.url}}>{{source.url}}</a></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            <div class="usa-sr-only usa-table__announcement-region" aria-live="polite"></div>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // force confirmation dialog for delete of organization
+    async function confirmDelete(route) {
+        let choice = window.confirm(`Do you want to delete this Harvest Source?`)
+        if (choice) {
+            const rawResponse = await fetch(route, {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json'
+                },
+                body: {}
+            });
+            let res = await rawResponse.json()
+            if (res.message && res.message == 'success') {
+                return window.location.replace('/')
+            } else {
+                return window.location.reload()
+            }
+        }
+    }
+
+</script>
+{% endblock %}
