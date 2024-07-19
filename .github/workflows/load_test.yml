@@ -9,27 +9,21 @@ jobs:
     steps:
       - name: checkout
         uses: actions/checkout@v4
-      - name: Setup python
+      - name: Set up Python ${{ env.PY_VERSION }}
         uses: actions/setup-python@v5
         with:
-            python-version: 3.9
-      - name: Display Python version
-        run: python -c "import sys; print(sys.version)"
+            python-version: ${{ env.PY_VERSION }}
+
       - name: Install Poetry
-        uses: snok/install-poetry@v1
+        uses: abatilo/actions-poetry@v2
         with:
-          virtualenvs-create: true
-          virtualenvs-in-project: true
-          installer-parallel: true
-      - name: Load cached venv
-        id: cached-poetry-dependencies
-        uses: actions/cache@v3
-        with:
-          path: .venv
-          key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}
-      - name: Install dependencies
-        if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
-        run: poetry install --no-interaction --no-root
+            poetry-version: ${{ env.POETRY_VERSION }}
+
+      - name: Install Dependencies
+        run: |
+            poetry env use ${{ env.PY_VERSION }}
+            poetry install
+
       - name: Run Load Test
         env:
             SRC_TITLE: 'EPA ScienceHub'
@@ -40,5 +34,4 @@ jobs:
             CKAN_API_TOKEN: ${{secrets.CKAN_API_TOKEN_STAGING}}
             FOO_VAR: ${{vars.FOO_VAR}}
         run: |
-            source .venv/bin/activate
             poetry run python scripts/fake.py
