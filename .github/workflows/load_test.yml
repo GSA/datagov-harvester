@@ -9,6 +9,8 @@ jobs:
   load-test:
     name: H2.0 Load Test
     runs-on: ubuntu-latest
+    env:
+      FOO_VAR: ${{vars.FOO_VAR}}
     steps:
       - name: checkout
         uses: actions/checkout@v4
@@ -35,6 +37,5 @@ jobs:
             SRC_SOURCE_TYPE: 'datajson'
             CKAN_URL: ${{secrets.CKAN_URL_STAGING}}
             CKAN_API_TOKEN: ${{secrets.CKAN_API_TOKEN_STAGING}}
-            FOO_VAR: ${{vars.FOO_VAR}}
         run: |
             poetry run python scripts/fake.py
