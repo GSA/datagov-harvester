@@ -33,7 +33,7 @@ jobs:
         with:
           path: ./.venv
           key: venv-${{ hashFiles('poetry.lock') }}      
-                
+
       - name: Install Dependencies
         run: |
             poetry env use ${{ env.PY_VERSION }}
@@ -47,5 +47,6 @@ jobs:
             SRC_SOURCE_TYPE: 'datajson'
             CKAN_URL: ${{secrets.CKAN_URL_STAGING}}
             CKAN_API_TOKEN: ${{secrets.CKAN_API_TOKEN_STAGING}}
+            FAKE_VAR: ${{secrets.FAKE_VAR}}
         run: |
             poetry run python scripts/fake.py
