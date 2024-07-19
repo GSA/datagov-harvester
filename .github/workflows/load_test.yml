@@ -1,6 +1,9 @@
 name: Load Test
 on:
   workflow_dispatch:
+env:
+  PY_VERSION: "3.10"
+  POETRY_VERSION: "1.7.1"
 
 jobs:
   load-test:
