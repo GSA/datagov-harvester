@@ -148,7 +148,11 @@ class HarvesterDBInterface:
             return "Harvest source not found"
 
         # Delete packages in the CKAN database associated with the same harvest source.
-        records = self.db.query(HarvestRecord).filter_by(harvest_source_id=source_id).all()
+        records = (
+            self.db.query(HarvestRecord)
+            .filter_by(harvest_source_id=source_id)
+            .all()
+        )
         ckan_ids = [record.ckan_id for record in records]
         if ckan_ids:
             ckan = RemoteCKAN(os.getenv("CKAN_API_URL"), apikey=os.getenv("CKAN_API_TOKEN"))
