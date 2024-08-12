@@ -155,7 +155,10 @@ class HarvesterDBInterface:
         )
         ckan_ids = [record.ckan_id for record in records]
         if ckan_ids:
-            ckan = RemoteCKAN(os.getenv("CKAN_API_URL"), apikey=os.getenv("CKAN_API_TOKEN"))
+            ckan = RemoteCKAN(
+                os.getenv("CKAN_API_URL"), 
+                apikey=os.getenv("CKAN_API_TOKEN")
+            )
             for pkg_id in ckan_ids:
                 try:
                     ckan.action.dataset_purge(id=pkg_id)
