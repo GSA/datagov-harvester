@@ -147,7 +147,7 @@ class HarvesterDBInterface:
         if source is None:
             return "Harvest source not found"
 
-        # Delete packages in the CKAN database associated with the same harvest source.
+        # Delete packages in the CKAN associated with the same harvest source.
         records = (
             self.db.query(HarvestRecord)
             .filter_by(harvest_source_id=source_id)
