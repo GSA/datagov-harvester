@@ -28,13 +28,13 @@
             <button class="btn btn-secondary">Harvest</button>
         </a>
         <button class="btn btn-danger"
-            onclick="confirmDelete('harvest source', '/harvest_source/delete/{{source_id}}')">Delete</button>
+            onclick="confirmDelete('harvest source', '/harvest_source/config/delete/{{source_id}}')">Delete</button>
         {% elif org_id %}
         <a href="{{ url_for('harvest.edit_organization', org_id=org_id)}}">
             <button class="btn btn-primary">Edit</button>
         </a>
         <button class="btn btn-danger"
-            onclick="confirmDelete('organization', '/organization/delete/{{org_id}}')">Delete</button>
+            onclick="confirmDelete('organization', '/organization/config/delete/{{org_id}}')">Delete</button>
         {% endif %}
     {% endif %}
 </div>

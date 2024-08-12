@@ -314,7 +314,7 @@ def delete_organization(org_id):
         else:
             raise Exception()
     except Exception:
-        flash("Failed to delete harvest source")
+        flash("Failed to delete organization")
         return {"message": "failed"}
 
 
@@ -473,6 +473,7 @@ def edit_harvest_source(source_id: str):
 
 # Delete Source
 @mod.route("/harvest_source/config/delete/<source_id>", methods=["POST"])
+@login_required
 def delete_harvest_source(source_id):
     try:
         result = db.delete_harvest_source(source_id)

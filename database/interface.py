@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from sqlalchemy import create_engine, inspect, or_, text
 from sqlalchemy.exc import NoResultFound
 from sqlalchemy.orm import scoped_session, sessionmaker
+from ckanapi import RemoteCKAN, NotFound
 
 from .models import (
     HarvestJob,
@@ -17,7 +18,6 @@ from .models import (
 )
 
 DATABASE_URI = os.getenv("DATABASE_URI")
-
 
 class HarvesterDBInterface:
     def __init__(self, session=None):
@@ -146,6 +146,20 @@ class HarvesterDBInterface:
         source = self.db.get(HarvestSource, source_id)
         if source is None:
             return "Harvest source not found"
+
+        # Delete packages in the CKAN database associated with the same harvest source.
+        records = self.db.query(HarvestRecord).filter_by(harvest_source_id=source_id).all()
+        ckan_ids = [record.ckan_id for record in records]
+        if ckan_ids:
+            ckan = RemoteCKAN(os.getenv("CKAN_API_URL"), apikey=os.getenv("CKAN_API_TOKEN"))
+            for pkg_id in ckan_ids:
+                try:
+                    ckan.action.dataset_purge(id=pkg_id)
+                except NotFound:
+                    print(f"Dataset with id {pkg_id} was not found.")
+                except Exception as e:
+                    print(f"An error occurred while deleting {pkg_id}: {e}")
+
         self.db.delete(source)
         self.db.commit()
         return "Harvest source deleted successfully"
