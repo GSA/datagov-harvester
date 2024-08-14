@@ -160,7 +160,7 @@ class HarvesterDBInterface:
         if not ckan_ids:
             self.db.delete(source)
             self.db.commit()
-            return "Harvest source deleted successfully, no records found."
+            return "Harvest source deleted successfully"
 
         ckan = RemoteCKAN(
             os.getenv("CKAN_API_URL"), apikey=os.getenv("CKAN_API_TOKEN"))
@@ -201,9 +201,9 @@ class HarvesterDBInterface:
             .all()
         )
         if remaining_records == 0:
-            return "Harvest source deleted successfully."
+            return "Harvest source deleted successfully"
         else:
-            return "Harvest source delete failed."
+            return "Harvest source delete failed"
 
 
 
