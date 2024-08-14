@@ -187,10 +187,10 @@ class HarvesterDBInterface:
                     ~HarvestRecord.ckan_id.in_(failed_delete),
                     HarvestRecord.harvest_source_id == source_id
                 ).delete(synchronize_session=False)
-
+            
             logger.warning(
-                f"Warning: Not all CKAN datasets could be deleted.
-                {len(failed_delete)} records remain."
+                f"Warning: Not all CKAN datasets could be deleted. "
+                f"{len(failed_delete)} records remain."
             )
 
         self.db.commit()
