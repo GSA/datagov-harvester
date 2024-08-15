@@ -41,6 +41,10 @@
             </li>
             <li class="usa-button-group__item">
                 <button class="usa-button usa-button--secondary"
+                    onclick="confirmClear('/harvest_source/config/clear/{{data.harvest_source.id}}')">Clear</button>
+            </li>
+            <li class="usa-button-group__item">
+                <button class="usa-button usa-button--secondary"
                     onclick="confirmDelete('/harvest_source/delete/{{data.harvest_source.id}}')">Delete</button>
             </li>
         </ul>

@@ -5,6 +5,8 @@ from datetime import datetime, timezone
 from sqlalchemy import create_engine, inspect, or_, text
 from sqlalchemy.exc import NoResultFound
 from sqlalchemy.orm import scoped_session, sessionmaker
+from ckanapi import RemoteCKAN, NotFound
+import logging
 
 from .models import (
     HarvestJob,
@@ -17,6 +19,8 @@ from .models import (
 )
 
 DATABASE_URI = os.getenv("DATABASE_URI")
+
+logger = logging.getLogger("harvest_admin")
 
 
 class HarvesterDBInterface:
@@ -141,6 +145,69 @@ class HarvesterDBInterface:
         except NoResultFound:
             self.db.rollback()
             return None
+
+    def clear_harvest_source(self, source_id):
+        """
+        Clear all datasets related to a harvest source in CKAN, and clean up the
+        harvest_record and harvest_record_error tables.
+
+        :param source_id: ID of the harvest source to clear
+        """
+
+        # Fetch the source
+        source = self.db.get(HarvestSource, source_id)
+        if source is None:
+            return "Harvest source not found"
+
+        # Fetch all associated harvest records
+        records = (
+            self.db.query(HarvestRecord)
+            .filter_by(harvest_source_id=source_id).all()
+        )
+        ckan_ids = [record.ckan_id for record in records]
+
+        # If no CKAN datasets are associated, clean up the source
+        if not ckan_ids:            
+            self.db.query(HarvestRecord).filter_by(harvest_source_id=source_id).delete(synchronize_session=False)
+            self.db.commit()
+            return "Harvest records cleared successfully"
+
+        # Connect to CKAN
+        ckan = RemoteCKAN(
+            os.getenv("CKAN_API_URL"), apikey=os.getenv("CKAN_API_TOKEN")
+        )
+
+        failed_delete = []
+
+        # Try to delete each dataset in CKAN
+        for pkg_id in ckan_ids:
+            try:
+                ckan.action.dataset_purge(id=pkg_id)
+            except NotFound:
+                logger.warning(f"Dataset with id {pkg_id} was not found.")
+            except Exception as e:
+                failed_delete.append(pkg_id)
+                logger.error(f"An error occurred while deleting {pkg_id}: {e}")
+
+        # If all CKAN datasets were successfully deleted
+        if len(failed_delete) == 0:
+            self.db.query(HarvestRecord).filter_by(harvest_source_id=source_id).delete(synchronize_session=False)
+            logger.info("Harvest records cleared successfully")
+        else:
+            # Only delete records that were successfully purged from CKAN
+            self.db.query(HarvestRecord).filter(
+                HarvestRecord.ckan_id.notin_(failed_delete),
+                HarvestRecord.harvest_source_id == source_id
+            ).delete(synchronize_session=False)
+            
+            logger.warning(
+                f"Warning: Not all CKAN datasets could be deleted. "
+                f"{len(failed_delete)} records remain."
+            )
+
+        self.db.commit()
+
+        return "Harvest source cleared successfully"
 
     def delete_harvest_source(self, source_id):
         source = self.db.get(HarvestSource, source_id)

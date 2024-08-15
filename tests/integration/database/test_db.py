@@ -90,6 +90,20 @@ class TestDatabase:
         deleted_source = interface.get_harvest_source(source.id)
         assert deleted_source is None
 
+    def test_clear_harvest_source(
+        self, interface, organization_data, source_data_dcatus
+    ):
+        interface.add_organization(organization_data)
+        source = interface.add_harvest_source(source_data_dcatus)
+
+        assert source is not None
+
+        response = interface.clear_harvest_source(source.id)
+        assert response == "Harvest source cleared successfully"
+
+        deleted_records = interface.get_harvest_record_by_source(source.id)
+        assert deleted_records is None
+
     def test_harvest_source_by_jobid(
         self, interface, organization_data, source_data_dcatus, job_data_dcatus
     ):

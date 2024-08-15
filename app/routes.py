@@ -487,6 +487,22 @@ def delete_harvest_source(source_id):
         return {"message": "failed"}
 
 
+# Clear Source
+@mod.route("/harvest_source/config/clear/<source_id>", methods=["POST"])
+def clear_harvest_source(source_id):
+    try:
+        result = db.clear_harvest_source(source_id)
+        if result:
+            flash(f"Triggered clear of source with ID: {source_id}")
+            return {"message": "success"}
+        else:
+            raise Exception()
+    except Exception as e:
+        logger.error(f"Failed to clear harvest source :: {repr(e)}")
+        flash("Failed to clear harvest source")
+        return {"message": "failed"}
+
+
 # Trigger Harvest
 @mod.route("/harvest_source/harvest/<source_id>", methods=["GET"])
 def trigger_harvest_source(source_id):

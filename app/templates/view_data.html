@@ -28,6 +28,8 @@
             <button class="btn btn-secondary">Harvest</button>
         </a>
         <button class="btn btn-danger"
+            onclick="confirmClear('harvest source', '/harvest_source/config/clear/{{source_id}}')">Clear</button>
+        <button class="btn btn-danger"
             onclick="confirmDelete('harvest source', '/harvest_source/delete/{{source_id}}')">Delete</button>
         {% elif org_id %}
         <a href="{{ url_for('harvest.edit_organization', org_id=org_id)}}">
