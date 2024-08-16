@@ -92,7 +92,7 @@
       "systemOfRecords": "http://as0d1028h3.associated.org/10/F7DV1H10",
       "primaryITInvestmentUII": "023-000000001",
       "describedBy": "http://test.something.org/10/F7DV1H10",
-      "describedByType": "https"
+      "describedByType": "application/schema+json"
     }
   ]
 }
