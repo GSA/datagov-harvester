@@ -194,9 +194,9 @@ def cli_add_org(name, logo, id):
         org_contract["id"] = id
     org = db.add_organization(org_contract)
     if org:
-        return {"message": f"Added new organization with ID: {org.id}"}
+        print(f"Added new organization with ID: {org.id}")
     else:
-        return {"error": "Failed to add organization."}, 400
+        print("Failed to add organization.")
 
 
 # Helper Functions
