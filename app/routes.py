@@ -547,7 +547,7 @@ def update_harvest_job(job_id):
 @mod.route("/harvest_job/<job_id>", methods=["DELETE"])
 def delete_harvest_job(job_id):
     result = db.delete_harvest_job(job_id)
-    return db._to_dict(result)
+    return result
 
 
 # Get Job Errors by Type

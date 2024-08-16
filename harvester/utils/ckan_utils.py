@@ -1,4 +1,5 @@
 import re
+import uuid
 
 # all of these are copy/pasted from ckan core
 # https://github.com/ckan/ckan/blob/master/ckan/lib/munge.py
@@ -292,3 +293,7 @@ def ckanify_dcatus(metadata: dict, owner_org: str) -> dict:
     ckanified_metadata["extras"] = create_ckan_extras(metadata)
 
     return ckanified_metadata
+
+
+def add_uuid_to_package_name(name: str) -> str:
+    return name + "-" + str(uuid.uuid4())[:5]

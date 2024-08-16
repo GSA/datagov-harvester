@@ -127,6 +127,21 @@ def source_data_dcatus_2(organization_data: dict) -> dict:
 
 
 @pytest.fixture
+def source_data_dcatus_same_title(organization_data: dict) -> dict:
+    return {
+        "id": "50301cdb-5766-46ed-8f46-ca63844315a2",
+        "name": "Test Source Same Title",
+        "notification_emails": "email@example.com",
+        "organization_id": organization_data["id"],
+        "frequency": "daily",
+        "url": f"{HARVEST_SOURCE_URL}/dcatus/dcatus_same_title.json",
+        "schema_type": "type1",
+        "source_type": "dcatus",
+        "status": "active",
+    }
+
+
+@pytest.fixture
 def source_orm_dcatus(source_data_dcatus: dict) -> HarvestSource:
     return HarvestSource(**source_data_dcatus)
 
