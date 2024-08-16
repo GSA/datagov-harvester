@@ -57,33 +57,40 @@
       "contactPoint": {
         "@type": "vcard:Contact",
         "fn": "Robert G Test",
-        "hasEmail": "email@address.com"
+        "hasEmail": "mailto:no-reply@data.wa.gov"
       },
       "identifier": "http://dx.doi.org/10.5066/F7DV1H10",
       "accessLevel": "non-public",
-      "bureauCode": [],
-      "programCode": [],
+
       "distribution": [
         {
           "@type": "dcat:Distribution",
-          "description": "distribution description",
-          "downloadURL": "https://distributiontransfer.com/onlineresource.png",
-          "mediaType": "format specification",
-          "title": "name test 123"
+          "describedBy": "https://data.wa.gov/api/views/f6w7-q2d2/columns.xml",
+          "describedByType": "application/xml",
+          "downloadURL": "https://data.wa.gov/api/views/f6w7-q2d2/rows.xml?accessType=DOWNLOAD",
+          "mediaType": "application/xml"
         }
       ],
-      "license": "MD ID common constraint licence title",
+      "license": "http://creativecommons.org/publicdomain/zero/1.0/",
       "rights": "this is a releasability statement. it's important topSecret superSecret",
       "spatial": "-83.0573307815185,41.7553570685206,-96.8589114267623,48.7289513243629",
       "temporal": "1980-01-01T00:00:00+00:00/1995-12-31T00:00:00+00:00",
       "issued": "2016-09-14T15:56:49+00:00",
-      "accrualPeriodicity": "R/P2M or R/P0.5M",
-      "language": ["eng", "test_lang_code", "test_lang_code2"],
-      "theme": "United States US Illinois IL Indiana IN Iowa IA Michigan MI Minnesota MN South Dakota SD Wisconsin WI",
-      "references": "http://resource.associated.org/10/F7DV1H10,http://as0d1028h3.associated.org/10/F7DV1H10,http://dx.doi.org/10.5066/F7DV1H10,http://additional.doc/10/F7DV1H10,http://additional.doc/56/data.json",
+      "accrualPeriodicity": "R/P3M",
+      "language": ["en-US"],
+      "theme": [
+        "United States US Illinois IL Indiana IN Iowa IA Michigan MI Minnesota MN South Dakota SD Wisconsin WI"
+      ],
+      "references": [
+        "http://resource.associated.org/10/F7DV1H10",
+        "http://as0d1028h3.associated.org/10/F7DV1H10",
+        "http://dx.doi.org/10.5066/F7DV1H10",
+        "http://additional.doc/10/F7DV1H10",
+        "http://additional.doc/56/data.json"
+      ],
       "landingPage": "http://dx.doi.org/10.5066/F7DV1H10",
       "systemOfRecords": "http://as0d1028h3.associated.org/10/F7DV1H10",
-      "primaryITInvestmentUII": "57d97341e4b090824ffb0e6f",
+      "primaryITInvestmentUII": "023-000000001",
       "describedBy": "http://test.something.org/10/F7DV1H10",
       "describedByType": "https"
     }
