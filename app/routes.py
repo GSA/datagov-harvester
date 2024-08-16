@@ -22,6 +22,8 @@ logger = logging.getLogger("harvest_admin")
 
 user = Blueprint("user", __name__)
 mod = Blueprint("harvest", __name__)
+org = Blueprint("org", __name__)
+
 db = HarvesterDBInterface()
 
 # Login authentication
@@ -137,7 +139,8 @@ def callback():
         return redirect(url_for("harvest.index"))
 
 
-# User management
+# CLI commands
+## User management
 @user.cli.command("add")
 @click.argument("email")
 @click.option("--name", default="", help="Name of the user")
@@ -178,6 +181,24 @@ def remove_user(email):
         print("Failed to remove user or user not found.")
 
 
+## Org management
+@org.cli.command("add")
+@click.argument("name")
+@click.option("--logo", default="", help="Org Logo")
+@click.option("--id", default="", help="Org ID: should correspond to CKAN ORG ID")
+def cli_add_org(name, logo, id):
+    org_contract = {"name": name}
+    if logo:
+        org_contract["logo"] = logo
+    if id:
+        org_contract["id"] = id
+    org = db.add_organization(org_contract)
+    if org:
+        return {"message": f"Added new organization with ID: {org.id}"}
+    else:
+        return {"error": "Failed to add organization."}, 400
+
+
 # Helper Functions
 def make_new_source_contract(form):
     return {
@@ -202,7 +223,7 @@ def index():
 
 
 ## Organizations
-# Add Org
+### Add Org
 @mod.route("/organization/add", methods=["POST", "GET"])
 @login_required
 def add_organization():
@@ -275,7 +296,7 @@ def view_org_data(org_id: str):
     return render_template("view_org_data.html", data=data)
 
 
-# Edit Org
+### Edit Org
 @mod.route("/organization/config/edit/<org_id>", methods=["GET", "POST"])
 @login_required
 def edit_organization(org_id):
@@ -302,7 +323,7 @@ def edit_organization(org_id):
     )
 
 
-# Delete Org
+### Delete Org
 @mod.route("/organization/config/delete/<org_id>", methods=["POST"])
 @login_required
 def delete_organization(org_id):
@@ -319,7 +340,7 @@ def delete_organization(org_id):
 
 
 ## Harvest Source
-# Add Source
+### Add Source
 @mod.route("/harvest_source/add", methods=["POST", "GET"])
 @login_required
 def add_harvest_source():
@@ -418,7 +439,7 @@ def view_harvest_sources():
     return render_template("view_source_list.html", data=data)
 
 
-# Edit Source
+### Edit Source
 @mod.route("/harvest_source/config/edit/<source_id>", methods=["GET", "POST"])
 @login_required
 def edit_harvest_source(source_id: str):
@@ -471,7 +492,7 @@ def edit_harvest_source(source_id: str):
     return db._to_dict(source)
 
 
-# Delete Source
+### Delete Source
 @mod.route("/harvest_source/config/delete/<source_id>", methods=["POST"])
 def delete_harvest_source(source_id):
     try:
@@ -487,7 +508,7 @@ def delete_harvest_source(source_id):
         return {"message": "failed"}
 
 
-# Trigger Harvest
+### Trigger Harvest
 @mod.route("/harvest_source/harvest/<source_id>", methods=["GET"])
 def trigger_harvest_source(source_id):
     message = trigger_manual_job(source_id)
@@ -496,7 +517,7 @@ def trigger_harvest_source(source_id):
 
 
 ## Harvest Job
-# Add Job
+### Add Job
 @mod.route("/harvest_job/add", methods=["POST"])
 def add_harvest_job():
     if request.is_json:
@@ -509,7 +530,7 @@ def add_harvest_job():
         return {"Please provide harvest job with json format."}
 
 
-# Get Job
+### Get Job
 @mod.route("/harvest_job/", methods=["GET"])
 @mod.route("/harvest_job/<job_id>", methods=["GET"])
 def get_harvest_job(job_id=None):
@@ -536,21 +557,21 @@ def get_harvest_job(job_id=None):
         return db._to_dict(job)
 
 
-# Update Job
+### Update Job
 @mod.route("/harvest_job/<job_id>", methods=["PUT"])
 def update_harvest_job(job_id):
     result = db.update_harvest_job(job_id, request.json)
     return db._to_dict(result)
 
 
-# Delete Job
+### Delete Job
 @mod.route("/harvest_job/<job_id>", methods=["DELETE"])
 def delete_harvest_job(job_id):
     result = db.delete_harvest_job(job_id)
     return db._to_dict(result)
 
 
-# Get Job Errors by Type
+### Get Job Errors by Type
 @mod.route("/harvest_job/<job_id>/errors/<error_type>", methods=["GET"])
 def get_harvest_errors_by_job(job_id, error_type):
     try:
@@ -564,7 +585,7 @@ def get_harvest_errors_by_job(job_id, error_type):
 
 
 ## Harvest Record
-# Get record
+### Get record
 @mod.route("/harvest_record/", methods=["GET"])
 @mod.route("/harvest_record/<record_id>", methods=["GET"])
 def get_harvest_record(record_id=None):
@@ -589,7 +610,7 @@ def get_harvest_record(record_id=None):
     return db._to_dict(record)
 
 
-# Add record
+### Add record
 @mod.route("/harvest_record/add", methods=["POST", "GET"])
 def add_harvest_record():
     if request.is_json:
@@ -602,7 +623,7 @@ def add_harvest_record():
         return {"Please provide harvest record with json format."}
 
 
-# Get record errors by record id
+### Get record errors by record id
 @mod.route("/harvest_record/<record_id>/errors", methods=["GET"])
 def get_all_harvest_record_errors(record_id: str) -> list:
     try:
@@ -613,7 +634,7 @@ def get_all_harvest_record_errors(record_id: str) -> list:
 
 
 ## Harvest Error
-# Get error by id
+### Get error by id
 @mod.route("/harvest_error/", methods=["GET"])
 @mod.route("/harvest_error/<error_id>", methods=["GET"])
 def get_harvest_error(error_id: str = None) -> dict:
@@ -627,7 +648,7 @@ def get_harvest_error(error_id: str = None) -> dict:
 
 
 ## Test interface, will remove later
-# TODO: remove with completion of https://github.com/GSA/data.gov/issues/4741
+## TODO: remove with completion of https://github.com/GSA/data.gov/issues/4741
 @mod.route("/get_data_sources", methods=["GET"])
 def get_data_sources():
     source = db.get_all_harvest_sources()
@@ -659,3 +680,4 @@ def add_harvest_record_error():
 def register_routes(app):
     app.register_blueprint(mod)
     app.register_blueprint(user)
+    app.register_blueprint(org)
