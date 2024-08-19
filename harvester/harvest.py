@@ -48,10 +48,7 @@ ckan = RemoteCKAN(
     session=session,
 )
 
-CKAN_ERRORS = {"URL_IN_USE": "That URL is already in use"}
-
 # logging data
-# logging.getLogger(name) follows a singleton pattern
 logger = logging.getLogger("harvest_runner")
 
 ROOT_DIR = Path(__file__).parents[1]
@@ -473,10 +470,21 @@ class Record:
                 self.harvest_source.internal_records_lookup_table[self.identifier],
             )
 
-    def create_record(self):
-        result = ckan.action.package_create(**self.ckanified_metadata)
-        self.ckan_id = result["id"]
-        self.ckan_name = self.ckanified_metadata["name"]
+    def create_record(self, retry=False):
+        try:
+            result = ckan.action.package_create(**self.ckanified_metadata)
+            self.ckan_id = result["id"]
+            self.ckan_name = self.ckanified_metadata["name"]
+        except Exception as e:
+            if retry is False:
+                self.ckanified_metadata["name"] = add_uuid_to_package_name(
+                    self.ckanified_metadata["name"]
+                )
+                self.ckan_name = self.ckanified_metadata["name"]
+                return self.create_record(retry=True)
+            else:
+                raise e
+                # will be caught by outer SynchronizeException
 
     def update_record(self) -> dict:
         updated_metadata = {
@@ -514,14 +522,12 @@ class Record:
                 self.harvest_source.internal_records_lookup_table[self.identifier],
             )
 
-    def sync(self, iter_count=0) -> None:
-        # ruff: noqa: F841
+    def sync(self) -> None:
         if self.valid is False:
             logger.warning(f"{self.identifier} is invalid. bypassing {self.action}")
             return
 
-        if iter_count == 0:
-            self.ckanify_dcatus()
+        self.ckanify_dcatus()
 
         start = datetime.now(timezone.utc)
 
@@ -531,19 +537,12 @@ class Record:
             if self.action == "update":
                 self.update_record()
         except Exception as e:
-            if iter_count == 0 and CKAN_ERRORS["URL_IN_USE"] in repr(e):
-                self.ckanified_metadata["name"] = add_uuid_to_package_name(
-                    self.ckanified_metadata["name"]
-                )
-                self.ckan_name = self.ckanified_metadata["name"]
-                return self.sync(iter_count=1)
-            else:
-                self.status = "error"
-                raise SynchronizeException(
-                    f"failed to {self.action} for {self.identifier} :: {repr(e)}",
-                    self.harvest_source.job_id,
-                    self.harvest_source.internal_records_lookup_table[self.identifier],
-                )
+            self.status = "error"
+            raise SynchronizeException(
+                f"failed to {self.action} for {self.identifier} :: {repr(e)}",
+                self.harvest_source.job_id,
+                self.harvest_source.internal_records_lookup_table[self.identifier],
+            )
         self.update_self_in_db()
 
         logger.info(
