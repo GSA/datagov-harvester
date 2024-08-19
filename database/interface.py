@@ -190,22 +190,11 @@ class HarvesterDBInterface:
             
             logger.warning(
                 f"Warning: Not all CKAN datasets could be deleted. "
-                f"{len(failed_delete)} records remain."
+                f"{len(failed_delete)} records remain: {failed_delete}"
             )
 
         self.db.commit()
-
-        remaining_records = (
-            self.db.query(HarvestRecord)
-            .filter_by(harvest_source_id=source_id)
-            .all()
-        )
-        if remaining_records == 0:
-            return "Harvest source deleted successfully"
-        else:
-            return "Harvest source delete failed"
-
-
+        return "Harvest source deleted successfully"
 
     ## HARVEST JOB
     def add_harvest_job(self, job_data):
