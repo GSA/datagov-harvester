@@ -107,6 +107,7 @@ class HarvestRecord(db.Model):
     date_created = db.Column(db.DateTime, index=True, default=func.now())
     date_finished = db.Column(db.DateTime, index=True)
     ckan_id = db.Column(db.String, index=True)
+    ckan_name = db.Column(db.String, index=True)
     action = db.Column(
         Enum("create", "update", "delete", name="record_action"), index=True
     )

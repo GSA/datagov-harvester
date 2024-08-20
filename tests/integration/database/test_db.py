@@ -1,3 +1,4 @@
+import json
 from datetime import datetime, timezone
 
 from database.models import HarvestJobError, HarvestRecordError
@@ -292,6 +293,16 @@ class TestDatabase:
             == 6
         )
 
+    def test_delete_harvest_job(
+        self,
+        interface_no_jobs,
+        job_data_dcatus,
+    ):
+        interface_no_jobs.add_harvest_job(job_data_dcatus)
+        res = interface_no_jobs.delete_harvest_job(job_data_dcatus["id"])
+        assert isinstance(res, str)
+        assert res == "Harvest job deleted successfully"
+
     def test_get_latest_harvest_records(
         self,
         interface,
@@ -329,6 +340,7 @@ class TestDatabase:
                 "date_created": datetime(2024, 3, 1, 0, 0, 0, 1000),
                 "date_finished": None,
                 "ckan_id": None,
+                "ckan_name": None,
                 "action": "update",
                 "status": "success",
             },
@@ -341,6 +353,7 @@ class TestDatabase:
                 "date_created": datetime(2024, 3, 1, 0, 0, 0, 1000),
                 "date_finished": None,
                 "ckan_id": None,
+                "ckan_name": None,
                 "action": "create",
                 "status": "success",
             },
@@ -353,6 +366,7 @@ class TestDatabase:
                 "date_created": datetime(2024, 5, 1, 0, 0, 0, 1000),
                 "date_finished": None,
                 "ckan_id": None,
+                "ckan_name": None,
                 "action": "create",
                 "status": "success",
             },
@@ -365,6 +379,7 @@ class TestDatabase:
                 "date_created": datetime(2024, 4, 3, 0, 0, 0, 1000),
                 "date_finished": None,
                 "ckan_id": None,
+                "ckan_name": None,
                 "action": "create",
                 "status": "success",
             },
@@ -396,7 +411,7 @@ class TestDatabase:
                     "harvest_job_id": job_data_dcatus["id"],
                     "harvest_source_id": job_data_dcatus["harvest_source_id"],
                     "source_hash": dataset_to_hash(sort_dataset(record)),
-                    "source_raw": str(record),
+                    "source_raw": json.dumps(record),
                 }
             )
 

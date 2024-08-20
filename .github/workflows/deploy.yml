@@ -2,6 +2,9 @@
   name: Deploy to cloud.gov
 
   on:
+    push:
+      branches:
+        - main
     workflow_dispatch:
       inputs:
         version_no:

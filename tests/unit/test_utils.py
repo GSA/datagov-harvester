@@ -34,8 +34,8 @@ class TestCKANUtils:
             ("s", "s_"),  # too short
             ("random:other%character&", "random-othercharacter"),
             ("u with umlaut \xfc", "u-with-umlaut-u"),
-            ("reallylong" * 12, "reallylong" * 9 + "reall"),
-            ("reallylong" * 12 + " - 2012", "reallylong" * 9 + "-2012"),
+            ("reallylong" * 12, "reallylong" * 9),
+            ("reallylong" * 12 + " - 2012", "reallylong" * 8 + "reall" + "-2012"),
             (
                 "10cm - 50cm Near InfraRed (NI) Digital Aerial Photography (AfA142)",
                 "10cm-50cm-near-infrared-ni-digital-aerial-photography-afa142",
