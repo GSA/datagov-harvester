@@ -88,7 +88,7 @@ class HarvesterDBInterface:
     def delete_organization(self, org_id):
         org = self.db.get(Organization, org_id)
         if org is None:
-            return "Organization not found"
+            return None
         self.db.delete(org)
         self.db.commit()
         return "Organization deleted successfully"
@@ -145,7 +145,7 @@ class HarvesterDBInterface:
     def delete_harvest_source(self, source_id):
         source = self.db.get(HarvestSource, source_id)
         if source is None:
-            return "Harvest source not found"
+            return None
         self.db.delete(source)
         self.db.commit()
         return "Harvest source deleted successfully"

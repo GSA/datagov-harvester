@@ -22,6 +22,7 @@ logger = logging.getLogger("harvest_admin")
 
 user = Blueprint("user", __name__)
 mod = Blueprint("harvest", __name__)
+source = Blueprint("harvest_source", __name__)
 org = Blueprint("org", __name__)
 
 db = HarvesterDBInterface()
@@ -197,6 +198,51 @@ def cli_add_org(name, logo, id):
         print(f"Added new organization with ID: {org.id}")
     else:
         print("Failed to add organization.")
+
+
+@org.cli.command("list")
+def cli_list_org():
+    """List all organizations"""
+    organizations = db.get_all_organizations()
+    if organizations:
+        for org in organizations:
+            print(f"{org.name} : {org.id}")
+    else:
+        print("No organizations found.")
+
+
+@org.cli.command("delete")
+@click.argument("id")
+def cli_remove_org(id):
+    """Remove an organization with a given id."""
+    result = db.delete_organization(id)
+    if result:
+        print(f"Triggered delete of organization with ID: {id}")
+    else:
+        print("Failed to delete organization")
+
+
+## Harvest Source Management
+@source.cli.command("list")
+def cli_list_harvest_source():
+    """List all harvest sources"""
+    harvest_sources = db.get_all_harvest_sources()
+    if harvest_sources:
+        for source in harvest_sources:
+            print(f"{source.name} : {source.id}")
+    else:
+        print("No harvest sources found.")
+
+
+@source.cli.command("delete")
+@click.argument("id")
+def cli_remove_harvest_source(id):
+    """Remove a harvest source with a given id."""
+    result = db.delete_harvest_source(id)
+    if result:
+        print(f"Triggered delete of harvest source with ID: {id}")
+    else:
+        print("Failed to delete harvest source")
 
 
 # Helper Functions
@@ -498,7 +544,7 @@ def delete_harvest_source(source_id):
     try:
         result = db.delete_harvest_source(source_id)
         if result:
-            flash(f"Triggered delete of source with ID: {source_id}")
+            flash(f"Triggered delete of harvest source with ID: {source_id}")
             return {"message": "success"}
         else:
             raise Exception()
@@ -681,3 +727,4 @@ def register_routes(app):
     app.register_blueprint(mod)
     app.register_blueprint(user)
     app.register_blueprint(org)
+    app.register_blueprint(source)
