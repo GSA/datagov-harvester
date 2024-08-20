@@ -4,7 +4,7 @@ import uuid
 # all of these are copy/pasted from ckan core
 # https://github.com/ckan/ckan/blob/master/ckan/lib/munge.py
 
-PACKAGE_NAME_MAX_LENGTH = 100
+PACKAGE_NAME_MAX_LENGTH = 90
 PACKAGE_NAME_MIN_LENGTH = 2
 
 MAX_TAG_LENGTH = 100
@@ -129,7 +129,7 @@ def munge_title_to_name(name: str) -> str:
     # remove leading or trailing hyphens
     name = name.strip("-")
     # if longer than max_length, keep last word if a year
-    max_length = PACKAGE_NAME_MAX_LENGTH - 5
+    max_length = PACKAGE_NAME_MAX_LENGTH
     # (make length less than max, in case we need a few for '_' chars
     # to de-clash names.)
     if len(name) > max_length:
