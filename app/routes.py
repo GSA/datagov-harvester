@@ -431,9 +431,7 @@ def add_harvest_source():
 @mod.route("/harvest_source/<source_id>", methods=["GET"])
 def view_harvest_source_data(source_id: str):
     source = db.get_harvest_source(source_id)
-    jobs = db.get_all_harvest_jobs_by_filter(
-        {"harvest_source_id": source.id, "status": "complete"}
-    )
+    jobs = db.get_all_harvest_jobs_by_filter({"harvest_source_id": source.id})
     next_job = "N/A"
     future_jobs = db.get_new_harvest_jobs_by_source_in_future(source.id)
     if len(future_jobs):
@@ -623,9 +621,9 @@ def get_harvest_errors_by_job(job_id, error_type):
     try:
         match error_type:
             case "job":
-                return db.get_harvest_job_errors_by_job(job_id)
+                return db._to_dict(db.get_harvest_job_errors_by_job(job_id))
             case "record":
-                return db.get_harvest_record_errors_by_job(job_id)
+                return db._to_dict(db.get_harvest_record_errors_by_job(job_id))
     except Exception:
         return "Please provide correct job_id"
 

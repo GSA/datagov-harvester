@@ -221,8 +221,8 @@ class HarvestSource:
     def get_record_changes(self) -> None:
         """determine which records needs to be updated, deleted, or created"""
         logger.info(f"getting records changes for {self.name} using {self.url}")
-        self.prepare_internal_data()
         self.prepare_external_data()
+        self.prepare_internal_data()
         self.compare()
 
     def write_compare_to_db(self) -> dict:
@@ -319,7 +319,7 @@ class HarvestSource:
             None: 0,
         }
         actual_results_status = {"success": 0, "error": 0, None: 0}
-        validity = {"valid": 0, "invalid": 0}
+        validity = {"valid": 0, "invalid": 0, "ignored": 0}
 
         for record_id, record in self.external_records.items():
             # action
@@ -329,8 +329,10 @@ class HarvestSource:
             # validity
             if record.valid:
                 validity["valid"] += 1
-            else:
+            elif not record.valid:
                 validity["invalid"] += 1
+            else:
+                validity["ignored"] += 1
 
         # what actually happened?
         logger.info("actual actions completed")

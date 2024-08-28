@@ -59,7 +59,8 @@ class TestLoadManager:
         assert start_task_mock.call_count == 1
         ## assert command
         assert (
-            start_task_mock.call_args[0][1] == f"python harvester/harvest.py {job.id}"
+            start_task_mock.call_args[0][1]
+            == f"python harvester/harvest.py {job.id} -m 3G -k 1.5G"
         )
         ## assert task_id
         assert start_task_mock.call_args[0][2] == f"harvest-job-{job.id}"
