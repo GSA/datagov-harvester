@@ -9,6 +9,9 @@
 {% endblock %}
 
 {% block content %}
+<div id="flash-message" style="display:none; position:fixed; top:10px; left:50%; transform:translateX(-50%); background-color:#ffcc00; color:black; padding:10px; border:1px solid #000; z-index:1000;">
+    Action in progress...
+</div>
 <div class="wrapper source-data">
     {% if not data.harvest_source %}
     <h2>Whooops!</h2>
@@ -41,11 +44,33 @@
             </li>
             <li class="usa-button-group__item">
                 <button class="usa-button usa-button--secondary"
-                    onclick="confirmDelete('/harvest_source/config/delete/{{data.harvest_source.id}}')">Delete</button>
+                    onclick="confirmAction('clear', '/harvest_source/config/clear/{{data.harvest_source.id}}')">Clear</button>
+            </li>
+            <li class="usa-button-group__item">
+                <button class="usa-button usa-button--secondary"
+                    onclick="confirmAction('delete', '/harvest_source/config/delete/{{data.harvest_source.id}}')">Delete</button>
             </li>
         </ul>
     </div>
     {% endif %}
+    <br>
+    <h2>Harvest Records: </h2>
+    <div class="config-table">
+        <table class="table">
+            <tr>
+                <td>total_records: </td>
+                <td>{{data.total_records}}</td>
+            </tr>
+            <tr>
+                <td>records_with_ckan_id: </td>
+                <td>{{data.records_with_ckan_id}}</td>
+            </tr>
+            <tr>
+                <td>records_with_error: </td>
+                <td>{{data.records_with_error}}</td>
+            </tr>
+        </table>
+    </div>
     <div class="section mt-3">
         <h2>Harvest Jobs</h2>
         {% if not data.harvest_jobs %}
@@ -107,10 +132,14 @@
 
 {% block scripts %}
 <script>
-    // force confirmation dialog for delete of harvest source
-    async function confirmDelete(route) {
-        let choice = window.confirm(`Do you want to delete this Harvest Source?`)
+    // force confirmation dialog for delete or clear of harvest source
+    async function confirmAction(action, route) {
+        let choice = window.confirm(`Do you want to ${action} Harvest Source?`)
         if (choice) {
+            let flashMessage = document.getElementById('flash-message');
+            flashMessage.style.display = 'block';
+            flashMessage.innerHTML = `${action.charAt(0).toUpperCase() + action.slice(1)} in progress...`;
+
             const rawResponse = await fetch(route, {
                 method: 'POST',
                 headers: {
@@ -120,8 +149,15 @@
                 body: {}
             });
             let res = await rawResponse.json()
+
+            flashMessage.style.display = 'none';
+
             if (res.message && res.message == 'success') {
-                return window.location.replace('/')
+                if (action === 'delete') {
+                    return window.location.replace('/');
+                } else {
+                    return window.location.reload();
+                }
             } else {
                 return window.location.reload()
             }

@@ -367,6 +367,9 @@ def view_harvest_source_data(source_id: str):
     jobs = db.get_all_harvest_jobs_by_filter(
         {"harvest_source_id": source.id, "status": "complete"}
     )
+    records = db.get_harvest_record_by_source(source.id)
+    ckan_records = [record for record in records if record.ckan_id is not None]
+    error_records = [record for record in records if record.status == 'error']
     next_job = "N/A"
     future_jobs = db.get_new_harvest_jobs_by_source_in_future(source.id)
     if len(future_jobs):
@@ -403,6 +406,9 @@ def view_harvest_source_data(source_id: str):
     data = {
         "harvest_source": source,
         "harvest_source_dict": db._to_dict(source),
+        "total_records": len(records),
+        "records_with_ckan_id": len(ckan_records),
+        "records_with_error": len(error_records),
         "harvest_jobs": jobs,
         "chart": chartdata,
         "next_job": next_job,
@@ -471,20 +477,31 @@ def edit_harvest_source(source_id: str):
     return db._to_dict(source)
 
 
+# Clear Source
+@mod.route("/harvest_source/config/clear/<source_id>", methods=["POST"])
+def clear_harvest_source(source_id):
+    # flash(f"Triggered clear of source with ID: {source_id}")
+    try:
+        result = db.clear_harvest_source(source_id)
+        flash(result)
+        return {"message": "success"}
+    except Exception as e:
+        logger.error(f"Failed to clear harvest source :: {repr(e)}")
+        flash("Failed to clear harvest source")
+        return {"message": "failed"}
+
 # Delete Source
 @mod.route("/harvest_source/config/delete/<source_id>", methods=["POST"])
 @login_required
 def delete_harvest_source(source_id):
+    flash(f"Triggered delete of source with ID: {source_id}")
     try:
         result = db.delete_harvest_source(source_id)
-        if result:
-            flash(f"Triggered delete of source with ID: {source_id}")
-            return {"message": "success"}
-        else:
-            raise Exception()
+        flash(result)
+        return {"message": "success"}
     except Exception as e:
         logger.error(f"Failed to delete harvest source :: {repr(e)}")
-        flash("Failed to delete harvest source")
+        flash("Failed to delete harvest source with ID: {source_id}")
         return {"message": "failed"}
 
 

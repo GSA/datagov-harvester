@@ -28,7 +28,9 @@
             <button class="btn btn-secondary">Harvest</button>
         </a>
         <button class="btn btn-danger"
-            onclick="confirmDelete('harvest source', '/harvest_source/config/delete/{{source_id}}')">Delete</button>
+            onclick="confirmAction('harvest source', 'clear', '/harvest_source/config/clear/{{source_id}}')">Clear</button>
+        <button class="btn btn-danger"
+            onclick="confirmAction('harvest source', 'delete', '/harvest_source/config/delete/{{source_id}}')">Delete</button>
         {% elif org_id %}
         <a href="{{ url_for('harvest.edit_organization', org_id=org_id)}}">
             <button class="btn btn-primary">Edit</button>
@@ -42,8 +44,8 @@
 
 {% block scripts %}
 <script>
-    async function confirmDelete(type, route) {
-        let choice = window.confirm(`Do you want to delete this ${type}?`)
+    async function confirmAction(type, action, route) {
+        let choice = window.confirm(`Do you want to ${action} this ${type}?`)
         if (choice) {
             const rawResponse = await fetch(route, {
                 method: 'POST',
