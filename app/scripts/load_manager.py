@@ -41,7 +41,7 @@ def create_task(job_id, size, cf_handler=None):
     if cf_handler is None:
         cf_handler = create_cf_handler()
 
-    if size != "small":
+    if size != "small" and size in TASK_SIZE_ENUM:
         task_contract["memory_in_mb"] = TASK_SIZE_ENUM[size][0]
         task_contract["disk_in_mb"] = TASK_SIZE_ENUM[size][1]
 
