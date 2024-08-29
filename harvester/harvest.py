@@ -340,7 +340,7 @@ class HarvestSource:
 
         # what actually happened?
         logger.info("actual status completed")
-        logger.info(actual_results_action)
+        logger.info(actual_results_status)
 
         # what's our record validity count?
         logger.info("validity of the records")

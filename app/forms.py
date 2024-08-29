@@ -35,6 +35,11 @@ class HarvestSourceForm(FlaskForm):
         choices=["manual", "daily", "weekly", "biweekly", "monthly"],
         validators=[DataRequired()],
     )
+    size = SelectField(
+        "Size",
+        choices=["small", "medium", "large"],
+        validators=[DataRequired()],
+    )
     schema_type = SelectField(
         "Schema Type", choices=["strict", "other"], validators=[DataRequired()]
     )
