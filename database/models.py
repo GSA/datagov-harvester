@@ -52,6 +52,7 @@ class HarvestSource(db.Model):
         index=True,
     )
     url = db.Column(db.String, nullable=False, unique=True)
+    size = db.Column(Enum("small", "medium", "large", name="size"))
     schema_type = db.Column(db.String, nullable=False)
     source_type = db.Column(db.String, nullable=False)
     status = db.Column(db.String)

@@ -29,6 +29,9 @@ class HarvestCriticalException(Exception):
 
         self.db_interface.add_harvest_job_error(error_data)
         self.db_interface.update_harvest_job(harvest_job_id, job_status)
+        self.log_err()
+
+    def log_err(self):
         self.logger.critical(self.msg, exc_info=True)
 
 
@@ -65,11 +68,15 @@ class HarvestNonCriticalException(Exception):
 
         self.db_interface.add_harvest_record_error(error_data)
         self.db_interface.update_harvest_record(harvest_record_id, {"status": "error"})
+        self.log_err()
+
+    def log_err(self):
         self.logger.error(self.msg, exc_info=True)
 
 
 class ValidationException(HarvestNonCriticalException):
-    pass
+    def log_err(self):
+        pass
 
 
 class TranformationException(HarvestNonCriticalException):

@@ -136,7 +136,7 @@ When there are database DDL changes, use following to do the database update:
     ```bash
     app_name: harvesting-logic
     database_name: harvesting-logic-db
-    route-external: harvester-dev-datagov.app.cloud.gov
+    route_external: harvester-dev-datagov.app.cloud.gov
     ```
 
 2. Deploy the application using Cloud Foundry's `cf push` command with the variable file:

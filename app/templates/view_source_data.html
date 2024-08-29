@@ -71,6 +71,7 @@
                 <thead>
                     <tr>
                         <th data-sortable scope="col" role="columnheader">Id</th>
+                        <th data-sortable scope="col" role="columnheader">Status</th>
                         <th data-sortable scope="col" role="columnheader">Date Created</th>
                         <th data-sortable scope="col" role="columnheader">Date Finished</th>
                         <th data-sortable scope="col" role="columnheader">Records Added</th>
@@ -85,6 +86,7 @@
                     <tr>
                         <th scope="row"><a href="{{ url_for('harvest.get_harvest_job', job_id=job.id) }}">{{job.id}}</a>
                         </th>
+                        <td data-sort-value={jobs.date_created}> {{job.status}}</td>
                         <td data-sort-value={jobs.date_created}> {{job.date_created}}</td>
                         <td data-sort-value={jobs.date_finished}>{{job.date_finished}} </td>
                         <td data-sort-value={jobs.records_added}>{{job.records_added}}</td>
