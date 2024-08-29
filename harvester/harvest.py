@@ -323,7 +323,8 @@ class HarvestSource:
 
         for record_id, record in self.external_records.items():
             # action
-            actual_results_action[record.action] += 1
+            if record.status != "error":
+                actual_results_action[record.action] += 1
             # status
             actual_results_status[record.status] += 1
             # validity
@@ -332,7 +333,7 @@ class HarvestSource:
             elif not record.valid:
                 validity["invalid"] += 1
             else:
-                validity["ignored"] += 1
+                validity["not_validated"] += 1
 
         # what actually happened?
         logger.info("actual actions completed")
