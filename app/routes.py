@@ -248,13 +248,13 @@ def cli_remove_harvest_source(id):
 # Helper Functions
 def make_new_source_contract(form):
     return {
+        "organization_id": form.organization_id.data,
         "name": form.name.data,
+        "url": form.url.data,
         "notification_emails": form.notification_emails.data,
         "frequency": form.frequency.data,
-        "url": form.url.data,
         "schema_type": form.schema_type.data,
         "source_type": form.source_type.data,
-        "organization_id": form.organization_id.data,
     }
 
 

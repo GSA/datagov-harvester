@@ -104,11 +104,9 @@ def source_data_dcatus(organization_data: dict) -> dict:
         "notification_emails": "email@example.com",
         "organization_id": organization_data["id"],
         "frequency": "daily",
-        "size": "small",
         "url": f"{HARVEST_SOURCE_URL}/dcatus/dcatus.json",
         "schema_type": "type1",
         "source_type": "dcatus",
-        "status": "active",
     }
 
 
@@ -120,11 +118,9 @@ def source_data_dcatus_2(organization_data: dict) -> dict:
         "notification_emails": "email@example.com",
         "organization_id": organization_data["id"],
         "frequency": "daily",
-        "size": "medium",
         "url": f"{HARVEST_SOURCE_URL}/dcatus/dcatus_2.json",
         "schema_type": "type1",
         "source_type": "dcatus",
-        "status": "active",
     }
 
 
@@ -136,11 +132,9 @@ def source_data_dcatus_same_title(organization_data: dict) -> dict:
         "notification_emails": "email@example.com",
         "organization_id": organization_data["id"],
         "frequency": "daily",
-        "size": "small",
         "url": f"{HARVEST_SOURCE_URL}/dcatus/dcatus_same_title.json",
         "schema_type": "type1",
         "source_type": "dcatus",
-        "status": "active",
     }
 
 
@@ -157,11 +151,9 @@ def source_data_waf(organization_data: dict) -> dict:
         "notification_emails": "wafl@example.com",
         "organization_id": organization_data["id"],
         "frequency": "daily",
-        "size": "small",
         "url": f"{HARVEST_SOURCE_URL}/waf/",
         "schema_type": "type1",
         "source_type": "waf",
-        "status": "active",
     }
 
 
@@ -176,7 +168,6 @@ def source_data_dcatus_invalid(organization_data: dict) -> dict:
         "url": f"{HARVEST_SOURCE_URL}/dcatus/missing_title.json",
         "schema_type": "type1",
         "source_type": "dcatus",
-        "status": "active",
     }
 
 
@@ -242,7 +233,6 @@ def source_data_dcatus_single_record(organization_data: dict) -> dict:
         "url": f"{HARVEST_SOURCE_URL}/dcatus/dcatus_single_record.json",
         "schema_type": "type1",
         "source_type": "dcatus",
-        "status": "active",
     }
 
 
@@ -279,7 +269,6 @@ def source_data_dcatus_bad_url(organization_data: dict) -> dict:
         "url": f"{HARVEST_SOURCE_URL}/dcatus/bad_url.json",
         "schema_type": "type1",
         "source_type": "dcatus",
-        "status": "active",
     }
 
 
@@ -303,7 +292,6 @@ def source_data_dcatus_invalid_records(organization_data) -> dict:
         "url": "http://localhost/dcatus/missing_title.json",
         "schema_type": "type1",
         "source_type": "dcatus",
-        "status": "active",
     }
 
 
