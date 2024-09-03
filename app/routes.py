@@ -431,9 +431,7 @@ def add_harvest_source():
 @mod.route("/harvest_source/<source_id>", methods=["GET"])
 def view_harvest_source_data(source_id: str):
     source = db.get_harvest_source(source_id)
-    jobs = db.get_all_harvest_jobs_by_filter(
-        {"harvest_source_id": source.id, "status": "complete"}
-    )
+    jobs = db.get_all_harvest_jobs_by_filter({"harvest_source_id": source.id})
     records = db.get_harvest_record_by_source(source.id)
     ckan_records = [record for record in records if record.ckan_id is not None]
     error_records = [record for record in records if record.status == 'error']

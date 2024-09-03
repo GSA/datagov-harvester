@@ -5,8 +5,7 @@ from datetime import datetime, timezone
 from sqlalchemy import create_engine, inspect, or_, text
 from sqlalchemy.exc import NoResultFound
 from sqlalchemy.orm import scoped_session, sessionmaker
-from ckanapi import RemoteCKAN, NotFound
-import logging
+from ckanapi import RemoteCKAN
 import time
 
 from .models import (
@@ -20,13 +19,6 @@ from .models import (
 )
 
 DATABASE_URI = os.getenv("DATABASE_URI")
-
-logger = logging.getLogger("harvest_admin")
-# logging.basicConfig(
-#     filename='/var/log/harvest_admin_test.log',
-#     level=logging.INFO,
-#     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-# )
 
 class HarvesterDBInterface:
     def __init__(self, session=None):
