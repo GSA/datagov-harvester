@@ -1,6 +1,7 @@
 # ruff: noqa: F841
 # ruff: noqa: E402
 import functools
+import json
 import logging
 import os
 import sys
@@ -9,6 +10,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import requests
+from boltons.setutils import IndexedSet
 from ckanapi import RemoteCKAN
 from jsonschema import Draft202012Validator
 
@@ -23,7 +25,7 @@ from harvester.exceptions import (
     SynchronizeException,
     ValidationException,
 )
-from harvester.utils.ckan_utils import ckanify_dcatus
+from harvester.utils.ckan_utils import add_uuid_to_package_name, ckanify_dcatus
 from harvester.utils.general_utils import (
     dataset_to_hash,
     download_file,
@@ -47,7 +49,6 @@ ckan = RemoteCKAN(
 )
 
 # logging data
-# logging.getLogger(name) follows a singleton pattern
 logger = logging.getLogger("harvest_runner")
 
 ROOT_DIR = Path(__file__).parents[1]
@@ -139,6 +140,7 @@ class HarvestSource:
                 record["source_raw"],
                 record["source_hash"],
                 _ckan_id=record["ckan_id"],
+                _ckan_name=record["ckan_name"],
             )
 
     def external_records_to_id_hash(self, records: list[dict]) -> None:
@@ -197,8 +199,8 @@ class HarvestSource:
         logger.info("comparing our records with theirs")
 
         try:
-            external_ids = set(self.external_records.keys())
-            internal_ids = set(self.internal_records.keys())
+            external_ids = IndexedSet(self.external_records.keys())
+            internal_ids = IndexedSet(self.internal_records.keys())
             same_ids = external_ids & internal_ids
 
             self.compare_data["delete"] = internal_ids - external_ids
@@ -219,8 +221,8 @@ class HarvestSource:
     def get_record_changes(self) -> None:
         """determine which records needs to be updated, deleted, or created"""
         logger.info(f"getting records changes for {self.name} using {self.url}")
-        self.prepare_internal_data()
         self.prepare_external_data()
+        self.prepare_internal_data()
         self.compare()
 
     def write_compare_to_db(self) -> dict:
@@ -239,9 +241,10 @@ class HarvestSource:
                         "harvest_job_id": record.harvest_source.job_id,
                         "harvest_source_id": record.harvest_source.id,
                         "source_hash": record.metadata_hash,
-                        "source_raw": str(record.metadata),
+                        "source_raw": json.dumps(record.metadata),
                         "action": action,
                         "ckan_id": record.ckan_id,
+                        "ckan_name": record.ckan_name,
                     }
                 )
 
@@ -251,7 +254,7 @@ class HarvestSource:
 
     def synchronize_records(self) -> None:
         """runs the delete, update, and create
-        - self.compare can be empty becuase there was no harvest source response
+        - self.compare can be empty because there was no harvest source response
         or there's truly nothing to process
         """
         logger.info("synchronizing records")
@@ -286,6 +289,7 @@ class HarvestSource:
                     record = self.external_records[i]
                     if action == "update":
                         record.ckan_id = self.internal_records[i].ckan_id
+                        record.ckan_name = self.internal_records[i].ckan_name
 
                     # no longer setting action in compare so setting it here...
                     record.action = action
@@ -315,18 +319,21 @@ class HarvestSource:
             None: 0,
         }
         actual_results_status = {"success": 0, "error": 0, None: 0}
-        validity = {"valid": 0, "invalid": 0}
+        validity = {"valid": 0, "invalid": 0, "ignored": 0}
 
         for record_id, record in self.external_records.items():
             # action
-            actual_results_action[record.action] += 1
+            if record.status != "error":
+                actual_results_action[record.action] += 1
             # status
             actual_results_status[record.status] += 1
             # validity
             if record.valid:
                 validity["valid"] += 1
-            else:
+            elif not record.valid:
                 validity["invalid"] += 1
+            else:
+                validity["not_validated"] += 1
 
         # what actually happened?
         logger.info("actual actions completed")
@@ -334,7 +341,7 @@ class HarvestSource:
 
         # what actually happened?
         logger.info("actual status completed")
-        logger.info(actual_results_action)
+        logger.info(actual_results_status)
 
         # what's our record validity count?
         logger.info("validity of the records")
@@ -365,6 +372,7 @@ class Record:
     _validation_msg: str = ""
     _status: str = None
     _ckan_id: str = None
+    _ckan_name: str = None
 
     ckanified_metadata: dict = field(default_factory=lambda: {})
 
@@ -387,6 +395,14 @@ class Record:
     @ckan_id.setter
     def ckan_id(self, value) -> None:
         self._ckan_id = value
+
+    @property
+    def ckan_name(self) -> str:
+        return self._ckan_name
+
+    @ckan_name.setter
+    def ckan_name(self, value) -> None:
+        self._ckan_name = value
 
     @property
     def identifier(self) -> str:
@@ -457,12 +473,28 @@ class Record:
                 self.harvest_source.internal_records_lookup_table[self.identifier],
             )
 
-    def create_record(self):
-        result = ckan.action.package_create(**self.ckanified_metadata)
-        self.ckan_id = result["id"]
+    def create_record(self, retry=False):
+        try:
+            result = ckan.action.package_create(**self.ckanified_metadata)
+            self.ckan_id = result["id"]
+            self.ckan_name = self.ckanified_metadata["name"]
+        except Exception as e:
+            if retry is False:
+                self.ckanified_metadata["name"] = add_uuid_to_package_name(
+                    self.ckanified_metadata["name"]
+                )
+                self.ckan_name = self.ckanified_metadata["name"]
+                return self.create_record(retry=True)
+            else:
+                raise e
+                # will be caught by outer SynchronizeException
 
     def update_record(self) -> dict:
-        ckan.action.package_update(**self.ckanified_metadata, **{"id": self.ckan_id})
+        updated_metadata = {
+            **self.ckanified_metadata,
+            **{"id": self.ckan_id, "name": self.ckan_name},
+        }
+        ckan.action.package_update(**updated_metadata)
 
     def delete_record(self) -> None:
         ckan.action.dataset_purge(**{"id": self.ckan_id})
@@ -472,6 +504,8 @@ class Record:
         data = {"status": "success", "date_finished": datetime.now(timezone.utc)}
         if self.ckan_id is not None:
             data["ckan_id"] = self.ckan_id
+        if self.ckan_name is not None:
+            data["ckan_name"] = self.ckan_name
 
         self.harvest_source.db_interface.update_harvest_record(
             self.harvest_source.internal_records_lookup_table[self.identifier],
@@ -492,7 +526,6 @@ class Record:
             )
 
     def sync(self) -> None:
-        # ruff: noqa: F841
         if self.valid is False:
             logger.warning(f"{self.identifier} is invalid. bypassing {self.action}")
             return

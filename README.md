@@ -125,6 +125,10 @@ When there are database DDL changes, use following to do the database update:
 
 `cf run-task datagov-harvest-admin --name "add new user" --command "flask user add xxx@gsa.gov --name xxx"`
 
+#### add organizations
+
+`cf run-task datagov-harvest-admin --name "add new org" --command "flask org add 'Name of Org' --log https://some-url.png --id 1234"`
+
 ### Manually Deploying the Flask Application to development
 
 1. Ensure you have a `manifest.yml` and `vars.development.yml` file configured for your Flask application. The vars file may include variables:
@@ -132,7 +136,7 @@ When there are database DDL changes, use following to do the database update:
     ```bash
     app_name: harvesting-logic
     database_name: harvesting-logic-db
-    route-external: harvester-dev-datagov.app.cloud.gov
+    route_external: harvester-dev-datagov.app.cloud.gov
     ```
 
 2. Deploy the application using Cloud Foundry's `cf push` command with the variable file:

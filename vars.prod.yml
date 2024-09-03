@@ -1,5 +1,5 @@
 app_name: datagov-harvest
-route-external: datagov-harvest-admin-prod.app.cloud.gov
+route_external: datagov-harvest-admin-prod.app.cloud.gov
 CF_API_URL: https://api.fr.cloud.gov
 CKAN_API_URL: https://catalog.data.gov
 HARVEST_RUNNER_APP_GUID: null

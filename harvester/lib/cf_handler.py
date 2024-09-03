@@ -14,8 +14,10 @@ class CFHandler:
         self.client.init_with_user_credentials(self.user, self.password)
         self.task_mgr = TaskManager(self.url, self.client)
 
-    def start_task(self, app_guuid, command, task_id):
-        return self.task_mgr.create(app_guuid, command, task_id)
+    def start_task(self, app_guuid, command, task_id, memory_in_mb=512, disk_in_mb=512):
+        return self.task_mgr.create(
+            app_guuid, command, task_id, memory_in_mb, disk_in_mb
+        )
 
     def stop_task(self, task_id):
         return self.task_mgr.cancel(task_id)

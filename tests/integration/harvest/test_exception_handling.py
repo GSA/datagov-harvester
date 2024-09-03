@@ -1,5 +1,6 @@
 # ruff: noqa: F841
 
+import json
 from unittest.mock import Mock, patch
 
 import ckanapi
@@ -204,3 +205,51 @@ class TestHarvestRecordExceptionHandling:
         )
         assert interface_record.status == "error"
         assert interface_errors[0].type == "SynchronizeException"
+
+    @patch("harvester.harvest.ckan")
+    @patch("harvester.utils.ckan_utils.uuid")
+    def test_validate_nested_exception_handling(
+        self,
+        UUIDMock,
+        CKANMock,
+        interface,
+        organization_data,
+        source_data_dcatus_same_title,
+    ):
+        UUIDMock.uuid4.return_value = 12345
+        # ruff: noqa: E501
+        CKANMock.action.package_create.side_effect = [
+            {"id": 1234},
+            Exception(
+                "ValidationError({'name': ['That URL is already in use.'], '__type': 'Validation Error'}"
+            ),
+            Exception("Some other error occurred"),
+        ]
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_dcatus_same_title)
+        harvest_job = interface.add_harvest_job(
+            {
+                "status": "new",
+                "harvest_source_id": source_data_dcatus_same_title["id"],
+            }
+        )
+        job_id = harvest_job.id
+        harvest_source = HarvestSource(job_id)
+        harvest_source.get_record_changes()
+        harvest_source.write_compare_to_db()
+        harvest_source.synchronize_records()
+        harvest_source.report()
+
+        harvest_records = interface.get_harvest_record_by_job(job_id)
+        records_with_errors = [
+            record for record in harvest_records if record.status == "error"
+        ]
+        job_err = interface.get_harvest_job_errors_by_job(job_id)
+        record_err = interface.get_harvest_record_errors_by_job(job_id)
+        assert len(job_err) == 0
+        assert len(record_err) == 1
+        assert record_err[0].type == "SynchronizeException"
+        assert record_err[0].harvest_record_id == records_with_errors[0].id
+        assert (
+            harvest_records[1].id == records_with_errors[0].id
+        )  ## assert it's the second record that threw the exception, which validates our package_create mock

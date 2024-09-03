@@ -97,7 +97,7 @@ class HarvesterDBInterface:
     def delete_organization(self, org_id):
         org = self.db.get(Organization, org_id)
         if org is None:
-            return "Organization not found"
+            return None
         self.db.delete(org)
         self.db.commit()
         return "Organization deleted successfully"

@@ -52,6 +52,7 @@ class HarvestSource(db.Model):
         index=True,
     )
     url = db.Column(db.String, nullable=False, unique=True)
+    size = db.Column(Enum("small", "medium", "large", name="size"))
     schema_type = db.Column(db.String, nullable=False)
     source_type = db.Column(db.String, nullable=False)
     status = db.Column(db.String)
@@ -107,6 +108,7 @@ class HarvestRecord(db.Model):
     date_created = db.Column(db.DateTime, index=True, default=func.now())
     date_finished = db.Column(db.DateTime, index=True)
     ckan_id = db.Column(db.String, index=True)
+    ckan_name = db.Column(db.String, index=True)
     action = db.Column(
         Enum("create", "update", "delete", name="record_action"), index=True
     )

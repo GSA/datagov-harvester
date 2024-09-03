@@ -4,7 +4,7 @@ applications:
     buildpacks:
       - python_buildpack
     routes:
-      - route: ((route-external))
+      - route: ((route_external))
     services:
       - ((app_name))-db
       - ((app_name))-secrets

@@ -22,6 +22,9 @@ logger = logging.getLogger("harvest_admin")
 
 user = Blueprint("user", __name__)
 mod = Blueprint("harvest", __name__)
+source = Blueprint("harvest_source", __name__)
+org = Blueprint("org", __name__)
+
 db = HarvesterDBInterface()
 
 # Login authentication
@@ -137,7 +140,8 @@ def callback():
         return redirect(url_for("harvest.index"))
 
 
-# User management
+# CLI commands
+## User management
 @user.cli.command("add")
 @click.argument("email")
 @click.option("--name", default="", help="Name of the user")
@@ -178,6 +182,69 @@ def remove_user(email):
         print("Failed to remove user or user not found.")
 
 
+## Org management
+@org.cli.command("add")
+@click.argument("name")
+@click.option("--logo", default="", help="Org Logo")
+@click.option("--id", default="", help="Org ID: should correspond to CKAN ORG ID")
+def cli_add_org(name, logo, id):
+    org_contract = {"name": name}
+    if logo:
+        org_contract["logo"] = logo
+    if id:
+        org_contract["id"] = id
+    org = db.add_organization(org_contract)
+    if org:
+        print(f"Added new organization with ID: {org.id}")
+    else:
+        print("Failed to add organization.")
+
+
+@org.cli.command("list")
+def cli_list_org():
+    """List all organizations"""
+    organizations = db.get_all_organizations()
+    if organizations:
+        for org in organizations:
+            print(f"{org.name} : {org.id}")
+    else:
+        print("No organizations found.")
+
+
+@org.cli.command("delete")
+@click.argument("id")
+def cli_remove_org(id):
+    """Remove an organization with a given id."""
+    result = db.delete_organization(id)
+    if result:
+        print(f"Triggered delete of organization with ID: {id}")
+    else:
+        print("Failed to delete organization")
+
+
+## Harvest Source Management
+@source.cli.command("list")
+def cli_list_harvest_source():
+    """List all harvest sources"""
+    harvest_sources = db.get_all_harvest_sources()
+    if harvest_sources:
+        for source in harvest_sources:
+            print(f"{source.name} : {source.id}")
+    else:
+        print("No harvest sources found.")
+
+
+@source.cli.command("delete")
+@click.argument("id")
+def cli_remove_harvest_source(id):
+    """Remove a harvest source with a given id."""
+    result = db.delete_harvest_source(id)
+    if result:
+        print(f"Triggered delete of harvest source with ID: {id}")
+    else:
+        print("Failed to delete harvest source")
+
+
 # Helper Functions
 def make_new_source_contract(form):
     return {
@@ -202,7 +269,7 @@ def index():
 
 
 ## Organizations
-# Add Org
+### Add Org
 @mod.route("/organization/add", methods=["POST", "GET"])
 @login_required
 def add_organization():
@@ -275,7 +342,7 @@ def view_org_data(org_id: str):
     return render_template("view_org_data.html", data=data)
 
 
-# Edit Org
+### Edit Org
 @mod.route("/organization/config/edit/<org_id>", methods=["GET", "POST"])
 @login_required
 def edit_organization(org_id):
@@ -302,7 +369,7 @@ def edit_organization(org_id):
     )
 
 
-# Delete Org
+### Delete Org
 @mod.route("/organization/config/delete/<org_id>", methods=["POST"])
 @login_required
 def delete_organization(org_id):
@@ -319,7 +386,7 @@ def delete_organization(org_id):
 
 
 ## Harvest Source
-# Add Source
+### Add Source
 @mod.route("/harvest_source/add", methods=["POST", "GET"])
 @login_required
 def add_harvest_source():
@@ -370,6 +437,7 @@ def view_harvest_source_data(source_id: str):
     records = db.get_harvest_record_by_source(source.id)
     ckan_records = [record for record in records if record.ckan_id is not None]
     error_records = [record for record in records if record.status == 'error']
+    jobs = db.get_all_harvest_jobs_by_filter({"harvest_source_id": source.id})
     next_job = "N/A"
     future_jobs = db.get_new_harvest_jobs_by_source_in_future(source.id)
     if len(future_jobs):
@@ -424,7 +492,7 @@ def view_harvest_sources():
     return render_template("view_source_list.html", data=data)
 
 
-# Edit Source
+### Edit Source
 @mod.route("/harvest_source/config/edit/<source_id>", methods=["GET", "POST"])
 @login_required
 def edit_harvest_source(source_id: str):
@@ -496,15 +564,18 @@ def clear_harvest_source(source_id):
 def delete_harvest_source(source_id):
     try:
         result = db.delete_harvest_source(source_id)
-        flash(result)
-        return {"message": "success"}
+        if result:
+            flash(f"Triggered delete of source with ID: {source_id}")
+            return {"message": "success"}
+        else:
+            raise Exception()
     except Exception as e:
         logger.error(f"Failed to delete harvest source :: {repr(e)}")
         flash("Failed to delete harvest source with ID: {source_id}")
         return {"message": "failed"}
 
 
-# Trigger Harvest
+### Trigger Harvest
 @mod.route("/harvest_source/harvest/<source_id>", methods=["GET"])
 def trigger_harvest_source(source_id):
     message = trigger_manual_job(source_id)
@@ -513,7 +584,7 @@ def trigger_harvest_source(source_id):
 
 
 ## Harvest Job
-# Add Job
+### Add Job
 @mod.route("/harvest_job/add", methods=["POST"])
 def add_harvest_job():
     if request.is_json:
@@ -526,7 +597,7 @@ def add_harvest_job():
         return {"Please provide harvest job with json format."}
 
 
-# Get Job
+### Get Job
 @mod.route("/harvest_job/", methods=["GET"])
 @mod.route("/harvest_job/<job_id>", methods=["GET"])
 def get_harvest_job(job_id=None):
@@ -553,35 +624,35 @@ def get_harvest_job(job_id=None):
         return db._to_dict(job)
 
 
-# Update Job
+### Update Job
 @mod.route("/harvest_job/<job_id>", methods=["PUT"])
 def update_harvest_job(job_id):
     result = db.update_harvest_job(job_id, request.json)
     return db._to_dict(result)
 
 
-# Delete Job
+### Delete Job
 @mod.route("/harvest_job/<job_id>", methods=["DELETE"])
 def delete_harvest_job(job_id):
     result = db.delete_harvest_job(job_id)
-    return db._to_dict(result)
+    return result
 
 
-# Get Job Errors by Type
+### Get Job Errors by Type
 @mod.route("/harvest_job/<job_id>/errors/<error_type>", methods=["GET"])
 def get_harvest_errors_by_job(job_id, error_type):
     try:
         match error_type:
             case "job":
-                return db.get_harvest_job_errors_by_job(job_id)
+                return db._to_dict(db.get_harvest_job_errors_by_job(job_id))
             case "record":
-                return db.get_harvest_record_errors_by_job(job_id)
+                return db._to_dict(db.get_harvest_record_errors_by_job(job_id))
     except Exception:
         return "Please provide correct job_id"
 
 
 ## Harvest Record
-# Get record
+### Get record
 @mod.route("/harvest_record/", methods=["GET"])
 @mod.route("/harvest_record/<record_id>", methods=["GET"])
 def get_harvest_record(record_id=None):
@@ -606,7 +677,7 @@ def get_harvest_record(record_id=None):
     return db._to_dict(record)
 
 
-# Add record
+### Add record
 @mod.route("/harvest_record/add", methods=["POST", "GET"])
 def add_harvest_record():
     if request.is_json:
@@ -619,7 +690,7 @@ def add_harvest_record():
         return {"Please provide harvest record with json format."}
 
 
-# Get record errors by record id
+### Get record errors by record id
 @mod.route("/harvest_record/<record_id>/errors", methods=["GET"])
 def get_all_harvest_record_errors(record_id: str) -> list:
     try:
@@ -630,7 +701,7 @@ def get_all_harvest_record_errors(record_id: str) -> list:
 
 
 ## Harvest Error
-# Get error by id
+### Get error by id
 @mod.route("/harvest_error/", methods=["GET"])
 @mod.route("/harvest_error/<error_id>", methods=["GET"])
 def get_harvest_error(error_id: str = None) -> dict:
@@ -644,7 +715,7 @@ def get_harvest_error(error_id: str = None) -> dict:
 
 
 ## Test interface, will remove later
-# TODO: remove with completion of https://github.com/GSA/data.gov/issues/4741
+## TODO: remove with completion of https://github.com/GSA/data.gov/issues/4741
 @mod.route("/get_data_sources", methods=["GET"])
 def get_data_sources():
     source = db.get_all_harvest_sources()
@@ -676,3 +747,5 @@ def add_harvest_record_error():
 def register_routes(app):
     app.register_blueprint(mod)
     app.register_blueprint(user)
+    app.register_blueprint(org)
+    app.register_blueprint(source)
