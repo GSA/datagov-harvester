@@ -169,14 +169,12 @@ class HarvesterDBInterface:
 
         print('##### testing from clear harvest source ....', flush=True)
 
-        # Fetch the source
         source = self.db.get(HarvestSource, source_id)
-        # if source is None:
-            # return "Harvest source not found"
+        if source is None:
+            return "Harvest source not found"
 
         organization_id = source.organization_id
 
-        # Fetch all associated harvest records
         records = (
             self.db.query(HarvestRecord)
             .filter_by(harvest_source_id=source_id).all()
@@ -187,73 +185,54 @@ class HarvesterDBInterface:
         ckan_ids = [record.ckan_id for record in records if record.ckan_id is not None]
         print(f"{len(records)}  records and {len(ckan_ids)} with ckan_id ", flush=True)
 
-        # If no CKAN datasets are associated, clean up the source
         if not ckan_ids:  
             _clear_harvest_records()
             return "Harvest source clear process started."
 
-        # Connect to CKAN
         ckan = RemoteCKAN(
             os.getenv("CKAN_API_URL"), apikey=os.getenv("CKAN_API_TOKEN")
         )
 
-        start = datetime.now(timezone.utc)
-
-        print(f"start bulk-update-delete from CKAN ....{start}", flush=True)
+        print(f"{datetime.now(timezone.utc)} start bulk-update-delete from CKAN ....", flush=True)
 
         retry_count = 0
 
         result = ckan.action.package_search(fq=f'owner_org:{organization_id}')
         ckan_datasets = result['count']
 
-        print(f"### ckan_dataset: {ckan_datasets}", flush=True)
+        print(f"### Initial ckan_dataset count: {ckan_datasets}", flush=True)
 
-        while ckan_datasets > 0 and retry_count < 5:
+        while ckan_datasets > 0 and retry_count < 20:
             try:
-                # Attempt to delete datasets
-                print(f"ckan_dataset: {ckan_datasets}", flush=True)
+                print(f"{datetime.now(timezone.utc)} Attempting to delete, ckan_dataset count before deletion: {ckan_datasets}", flush=True)
                 ckan.action.bulk_update_delete(datasets=ckan_ids, org_id=organization_id)
+
                 result = ckan.action.package_search(fq=f'owner_org:{organization_id}')
                 ckan_datasets = result['count']
-                print(f"after ckan_dataset: {ckan_datasets}", flush=True)
-                return "Harvest source clear in progress."
+                print(f"{datetime.now(timezone.utc)} ckan_dataset count after deletion: {ckan_datasets}", flush=True)
+
+                if ckan_datasets == 0:
+                    _clear_harvest_records()
+                    return "Harvest source cleared successfully."
+                else:
+                    print(f"Retry {retry_count + 1}: {ckan_datasets} datasets remaining, retrying...", flush=True)
+
             except Exception as e:
-                print(f"in exception ckan_dataset: {ckan_datasets}", flush=True)
-                time.sleep(5)
+                print(f"{datetime.now(timezone.utc)} Exception occurred during deletion attempt {retry_count + 1}: {e}", flush=True)
                 result = ckan.action.package_search(fq=f'owner_org:{organization_id}')
                 ckan_datasets = result['count']
-                print(f"Attempt {retry_count + 1}: {ckan_datasets} datasets remaining in CKAN", flush=True)
-                return f"An error occurred during deletion attempt {retry_count + 1}: {e}"
-            
-                # if retry_count == max_retries - 1:
-                #     return f"Error to clear harvest source, please retry... error: {e}"
+                print(f"{datetime.now(timezone.utc)} ckan_dataset count in the exception: {ckan_datasets}", flush=True)
+                if retry_count == 19:
+                    return f"Error to clear harvest source after {retry_count + 1} attempts, please retry..."
 
             retry_count += 1
+            time.sleep(5)
 
-        if ckan_datasets == 0:
-            _clear_harvest_records()
-            return "Harvest source clear in progress."
+        if ckan_datasets > 0:
+            return f"Harvest source clearance failed after {retry_count} attempts. {ckan_datasets} datasets still exist in CKAN."
+        else:
+            return "Harvest source cleared successfully."
 
-        # try:
-        #     ckan.action.bulk_update_delete(datasets=ckan_ids, org_id=organization_id)
-        # except Exception as e:
-        #     logger.error(f"An error occurred while deleting : {e}")
-        #     return f"Error to clear harvest source, please retry... error:{e}"
-
-        # print(f"#### Time taken to bulk_update_delete {len(ckan_ids)} datasets: {datetime.now(timezone.utc)-start}", flush=True)
-
-        # _clear_harvest_records()
-        # return "Harvest source clear in progress."
-
-        # result = ckan.action.package_search(fq=f'owner_org:{organization_id}')
-        # ckan_datasets = result['count']
-        # print(f"total packages in CKAN db: {ckan_datasets}", flush=True)
-
-        # if ckan_datasets == 0:
-        #     _clear_harvest_records()
-        #     return "Harvest source cleared successfully"
-        # else:
-        #     return f"Harvest source cleared failed - {ckan_datasets} datasets in CKAN"
 
     def delete_harvest_source(self, source_id):
         source = self.db.get(HarvestSource, source_id)

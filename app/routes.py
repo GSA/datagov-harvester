@@ -479,8 +479,8 @@ def edit_harvest_source(source_id: str):
 
 # Clear Source
 @mod.route("/harvest_source/config/clear/<source_id>", methods=["POST"])
+@login_required
 def clear_harvest_source(source_id):
-    # flash(f"Triggered clear of source with ID: {source_id}")
     try:
         result = db.clear_harvest_source(source_id)
         flash(result)
@@ -494,7 +494,6 @@ def clear_harvest_source(source_id):
 @mod.route("/harvest_source/config/delete/<source_id>", methods=["POST"])
 @login_required
 def delete_harvest_source(source_id):
-    flash(f"Triggered delete of source with ID: {source_id}")
     try:
         result = db.delete_harvest_source(source_id)
         flash(result)
