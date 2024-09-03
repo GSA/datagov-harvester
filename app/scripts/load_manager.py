@@ -10,18 +10,12 @@ CF_API_URL = os.getenv("CF_API_URL")
 CF_SERVICE_USER = os.getenv("CF_SERVICE_USER")
 CF_SERVICE_AUTH = os.getenv("CF_SERVICE_AUTH")
 HARVEST_RUNNER_APP_GUID = os.getenv("HARVEST_RUNNER_APP_GUID")
-CF_INSTANCE_INDEX = os.getenv("CF_INSTANCE_INDEX")
 
 MAX_TASKS_COUNT = 3
 
 interface = HarvesterDBInterface()
 
 logger = logging.getLogger("harvest_admin")
-
-TASK_SIZE_ENUM = {
-    "medium": (2048, 768),
-    "large": (4096, 1536),
-}
 
 
 def create_cf_handler():
@@ -32,7 +26,7 @@ def create_cf_handler():
     return CFHandler(CF_API_URL, CF_SERVICE_USER, CF_SERVICE_AUTH)
 
 
-def create_task(job_id, size, cf_handler=None):
+def create_task(job_id, cf_handler=None):
     task_contract = {
         "app_guuid": HARVEST_RUNNER_APP_GUID,
         "command": f"python harvester/harvest.py {job_id}",
@@ -40,10 +34,6 @@ def create_task(job_id, size, cf_handler=None):
     }
     if cf_handler is None:
         cf_handler = create_cf_handler()
-
-    if size != "small" and size in TASK_SIZE_ENUM:
-        task_contract["memory_in_mb"] = TASK_SIZE_ENUM[size][0]
-        task_contract["disk_in_mb"] = TASK_SIZE_ENUM[size][1]
 
     cf_handler.start_task(**task_contract)
     updated_job = interface.update_harvest_job(job_id, {"status": "in_progress"})
@@ -72,7 +62,7 @@ def trigger_manual_job(source_id):
         logger.info(
             f"Created new manual harvest job: for {job_data.harvest_source_id}."
         )
-        return create_task(job_data.id, source.size)
+        return create_task(job_data.id)
 
 
 def schedule_first_job(source_id):
@@ -130,6 +120,5 @@ def load_manager():
     # then mark that job(s) as running in the DB
     logger.info("Load Manager :: Updated Harvest Jobs")
     for job in jobs[:slots]:
-        source = interface.get_harvest_source(job.harvest_source_id)
-        create_task(job.id, source.size, cf_handler)
+        create_task(job.id, cf_handler)
         schedule_next_job(job.harvest_source_id)
