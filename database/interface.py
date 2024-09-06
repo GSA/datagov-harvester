@@ -7,6 +7,7 @@ from sqlalchemy.exc import NoResultFound
 from sqlalchemy.orm import scoped_session, sessionmaker
 from ckanapi import RemoteCKAN
 import time
+import logging
 
 from .models import (
     HarvestJob,
@@ -19,6 +20,10 @@ from .models import (
 )
 
 DATABASE_URI = os.getenv("DATABASE_URI")
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("harvest_admin")
+
 
 class HarvesterDBInterface:
     def __init__(self, session=None):
@@ -159,8 +164,6 @@ class HarvesterDBInterface:
                 self.db.query(HarvestRecord).filter_by(harvest_source_id=source_id).delete()
                 self.db.commit()
 
-        print('##### testing from clear harvest source ....', flush=True)
-
         source = self.db.get(HarvestSource, source_id)
         if source is None:
             return "Harvest source not found"
@@ -175,53 +178,50 @@ class HarvesterDBInterface:
             return "Harvest source has no records to clear."
 
         ckan_ids = [record.ckan_id for record in records if record.ckan_id is not None]
-        print(f"{len(records)}  records and {len(ckan_ids)} with ckan_id ", flush=True)
 
         if not ckan_ids:  
             _clear_harvest_records()
-            return "Harvest source clear process started."
+            return "Harvest source cleared successfully."
 
         ckan = RemoteCKAN(
             os.getenv("CKAN_API_URL"), apikey=os.getenv("CKAN_API_TOKEN")
         )
 
-        print(f"{datetime.now(timezone.utc)} start bulk-update-delete from CKAN ....", flush=True)
-
         retry_count = 0
-
         result = ckan.action.package_search(fq=f'owner_org:{organization_id}')
         ckan_datasets = result['count']
-
-        print(f"### Initial ckan_dataset count: {ckan_datasets}", flush=True)
+        start = datetime.now(timezone.utc)
+        logger.info(f"Attempting to delete {ckan_datasets} datasets at {start}")
 
         while ckan_datasets > 0 and retry_count < 20:
             try:
-                print(f"{datetime.now(timezone.utc)} Attempting to delete, ckan_dataset count before deletion: {ckan_datasets}", flush=True)
-                ckan.action.bulk_update_delete(datasets=ckan_ids, org_id=organization_id)
-
+                ckan.action.bulk_update_delete(
+                    datasets=ckan_ids, org_id=organization_id
+                )
                 result = ckan.action.package_search(fq=f'owner_org:{organization_id}')
                 ckan_datasets = result['count']
-                print(f"{datetime.now(timezone.utc)} ckan_dataset count after deletion: {ckan_datasets}", flush=True)
 
                 if ckan_datasets == 0:
                     _clear_harvest_records()
+                    logger.info(f"Total time: {datetime.now(timezone.utc) - start}")
                     return "Harvest source cleared successfully."
                 else:
-                    print(f"Retry {retry_count + 1}: {ckan_datasets} datasets remaining, retrying...", flush=True)
-
-            except Exception as e:
-                print(f"{datetime.now(timezone.utc)} Exception occurred during deletion attempt {retry_count + 1}: {e}", flush=True)
+                    logger.info(f"Retry {retry_count + 1}: "
+                                "{ckan_datasets} datasets remaining, retrying...")
+            except Exception:
                 result = ckan.action.package_search(fq=f'owner_org:{organization_id}')
                 ckan_datasets = result['count']
-                print(f"{datetime.now(timezone.utc)} ckan_dataset count in the exception: {ckan_datasets}", flush=True)
                 if retry_count == 19:
-                    return f"Error to clear harvest source after {retry_count + 1} attempts, please retry..."
-
+                    return (f"Error to clear harvest source after "
+                            f"{ckan_datasets} datasets remaining, please clear again.")
             retry_count += 1
             time.sleep(5)
 
         if ckan_datasets > 0:
-            return f"Harvest source clearance failed after {retry_count} attempts. {ckan_datasets} datasets still exist in CKAN."
+            message = (f"Harvest source clearance failed after {retry_count} attempts. "
+                    f"{ckan_datasets} datasets still exist in CKAN.")
+            logger.error(message)
+            return message
         else:
             return "Harvest source cleared successfully."
 
@@ -241,7 +241,8 @@ class HarvesterDBInterface:
             self.db.commit()
             return "Harvest source deleted successfully"
         else:
-            return f"Failed: {len(records)} records in the Harvest source, pleaes Clear it first."
+            return (f"Failed: {len(records)} records in the Harvest source, "
+                    "please Clear it first.")
 
 
     ## HARVEST JOB

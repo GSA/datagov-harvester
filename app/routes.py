@@ -562,11 +562,8 @@ def clear_harvest_source(source_id):
 def delete_harvest_source(source_id):
     try:
         result = db.delete_harvest_source(source_id)
-        if result:
-            flash(f"Triggered delete of source with ID: {source_id}")
-            return {"message": "success"}
-        else:
-            raise Exception()
+        flash(result)
+        return {"message": "success"}
     except Exception as e:
         logger.error(f"Failed to delete harvest source :: {repr(e)}")
         flash("Failed to delete harvest source with ID: {source_id}")

@@ -89,12 +89,16 @@ def test_harvest_data_edit_buttons__logged_in(
     source_edit_text = (
         f'<a href="/harvest_source/config/edit/{source_data_dcatus["id"]}"'
     )
+    source_clear_text = (
+        f"onclick=\"confirmAction('clear', '/harvest_source/config/clear/{source_data_dcatus['id']}')"
+    )
     source_delete_text = (
-        f"onclick=\"confirmDelete('/harvest_source/config/delete/{source_data_dcatus['id']}')"
+        f"onclick=\"confirmAction('delete', '/harvest_source/config/delete/{source_data_dcatus['id']}')"
     )
     assert res.status_code == 200
     assert res.text.find(button_string_text) != -1
     assert res.text.find(source_edit_text) != -1
+    assert res.text.find(source_clear_text) != -1
     assert res.text.find(source_delete_text) != -1
 
 
@@ -107,10 +111,14 @@ def test_harvest_data_edit_buttons__logged_out(
     source_edit_text = (
         f'<a href="/harvest_source/config/edit/{source_data_dcatus["id"]}"'
     )
+    source_clear_text = (
+        f"onclick=\"confirmAction('clear', '/harvest_source/config/clear/{source_data_dcatus['id']}')"
+    )
     source_delete_text = (
-        f"onclick=\"confirmDelete('/harvest_source/config/delete/{source_data_dcatus['id']}')"
+        f"onclick=\"confirmAction('delete', '/harvest_source/config/delete/{source_data_dcatus['id']}')"
     )
     assert res.status_code == 200
     assert res.text.find(button_string_text) == -1
     assert res.text.find(source_edit_text) == -1
+    assert res.text.find(source_clear_text) == -1
     assert res.text.find(source_delete_text) == -1

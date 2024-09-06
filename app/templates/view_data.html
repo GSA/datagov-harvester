@@ -36,7 +36,7 @@
             <button class="btn btn-primary">Edit</button>
         </a>
         <button class="btn btn-danger"
-            onclick="confirmDelete('organization', '/organization/config/delete/{{org_id}}')">Delete</button>
+            onclick="confirmAction('organization', 'delete', '/organization/config/delete/{{org_id}}')">Delete</button>
         {% endif %}
     {% endif %}
 </div>

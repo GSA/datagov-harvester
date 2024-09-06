@@ -38,8 +38,8 @@ def create_task(job_id, size, cf_handler=None):
         "command": f"python harvester/harvest.py {job_id}",
         "task_id": f"harvest-job-{job_id}",
     }
-    # if cf_handler is None:
-    #     cf_handler = create_cf_handler()
+    if cf_handler is None:
+        cf_handler = create_cf_handler()
 
     if size != "small" and size in TASK_SIZE_ENUM:
         task_contract["memory_in_mb"] = TASK_SIZE_ENUM[size][0]
