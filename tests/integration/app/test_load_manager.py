@@ -168,7 +168,6 @@ class TestLoadManager:
         jobs = interface_no_jobs.get_new_harvest_jobs_by_source_in_future(
             source_data_dcatus["id"]
         )
-
         assert len(jobs) == 1
         assert source_data_dcatus["frequency"] == "daily"
         assert jobs[0].date_created == datetime.now() + timedelta(days=1)
@@ -176,7 +175,6 @@ class TestLoadManager:
         jobs = interface_no_jobs.get_all_harvest_jobs_by_filter(
             {"harvest_source_id": source_data_dcatus["id"]}
         )
-
         assert len(jobs) == 2
         assert jobs[0].date_created == datetime.now() + timedelta(days=1)
         assert jobs[0].status == "new"
@@ -215,3 +213,28 @@ class TestLoadManager:
 
         assert jobs[1].date_created == datetime.now()
         assert jobs[1].status == "in_progress"
+
+    @patch("harvester.lib.cf_handler.CloudFoundryClient")
+    @patch("harvester.lib.cf_handler.TaskManager")
+    def test_assert_env_var_changes_task_size(
+        self, TMMock, CFCMock, interface_no_jobs, source_data_dcatus, monkeypatch
+    ):
+        trigger_manual_job(source_data_dcatus["id"])
+        start_task_mock = TMMock.return_value.create
+        assert start_task_mock.call_args[0][3] == "4096"
+        assert start_task_mock.call_args[0][4] == "1536"
+
+        # clear out in progress jobs
+        jobs = interface_no_jobs.get_all_harvest_jobs_by_filter(
+            {"harvest_source_id": source_data_dcatus["id"]}
+        )
+        interface_no_jobs.delete_harvest_job(jobs[0].id)
+
+        # set custom env vars
+        monkeypatch.setenv("HARVEST_RUNNER_TASK_MEM", "1234")
+        monkeypatch.setenv("HARVEST_RUNNER_TASK_DISK", "1234")
+
+        trigger_manual_job(source_data_dcatus["id"])
+        start_task_mock = TMMock.return_value.create
+        assert start_task_mock.call_args[0][3] == "1234"
+        assert start_task_mock.call_args[0][4] == "1234"

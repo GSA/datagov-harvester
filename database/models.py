@@ -34,11 +34,12 @@ class Organization(db.Model):
 class HarvestSource(db.Model):
     __tablename__ = "harvest_source"
 
-    name = db.Column(db.String, nullable=False)
-    notification_emails = db.Column(db.ARRAY(db.String))
     organization_id = db.Column(
         db.String(36), db.ForeignKey("organization.id"), nullable=False
     )
+    name = db.Column(db.String, nullable=False)
+    url = db.Column(db.String, nullable=False, unique=True)
+    notification_emails = db.Column(db.ARRAY(db.String))
     frequency = db.Column(
         Enum(
             "manual",
@@ -51,11 +52,8 @@ class HarvestSource(db.Model):
         nullable=False,
         index=True,
     )
-    url = db.Column(db.String, nullable=False, unique=True)
-    size = db.Column(Enum("small", "medium", "large", name="size"))
     schema_type = db.Column(db.String, nullable=False)
     source_type = db.Column(db.String, nullable=False)
-    status = db.Column(db.String)
     jobs = db.relationship(
         "HarvestJob", backref="source", cascade="all, delete-orphan", lazy=True
     )
