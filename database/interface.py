@@ -194,7 +194,7 @@ class HarvesterDBInterface:
         # Ensure (error_records + ckan_ids) = total records
         if len(error_records) + len(ckan_ids) != len(records):
             return ("Error: Not all records are either in an error state "
-                    "or have a CKAN ID. Cannot proceed with clearing the dataset.")
+                    "or have a CKAN ID. Cannot proceed without clearing the dataset.")
 
         if not ckan_ids:  
             _clear_harvest_records()
@@ -232,6 +232,7 @@ class HarvesterDBInterface:
 
         # If all datasets are deleted from CKAN, clear harvest records
         if ckan_datasets == 0:
+            logger.info(f"All datasets cleared from CKAN, clearing harvest records.")
             _clear_harvest_records()
             logger.info(f"Total time: {datetime.now(timezone.utc) - start}")
             return "Harvest source cleared successfully."
