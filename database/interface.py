@@ -232,7 +232,7 @@ class HarvesterDBInterface:
 
         # If all datasets are deleted from CKAN, clear harvest records
         if ckan_datasets == 0:
-            logger.info(f"All datasets cleared from CKAN, clearing harvest records.")
+            logger.info("All datasets cleared from CKAN, clearing harvest records.")
             _clear_harvest_records()
             logger.info(f"Total time: {datetime.now(timezone.utc) - start}")
             return "Harvest source cleared successfully."
