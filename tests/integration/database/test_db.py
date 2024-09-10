@@ -78,20 +78,6 @@ class TestDatabase:
         ]
 
     def test_delete_harvest_source(
-        self, interface, organization_data, source_data_dcatus
-    ):
-        interface.add_organization(organization_data)
-        source = interface.add_harvest_source(source_data_dcatus)
-
-        assert source is not None
-
-        response = interface.delete_harvest_source(source.id)
-        assert response == "Harvest source deleted successfully"
-
-        deleted_source = interface.get_harvest_source(source.id)
-        assert deleted_source is None
-
-    def test_delete_harvest_source(
         self, interface, organization_data, source_data_dcatus, record_data_dcatus
     ):
         # Add an organization
@@ -106,7 +92,7 @@ class TestDatabase:
         assert response == "Harvest source deleted successfully"
 
         # Refresh the session to avoid ObjectDeletedError
-        interface.db.session.expire_all()
+        interface.db.expire_all()
 
         deleted_source = interface.get_harvest_source(source.id)
         assert deleted_source is None
