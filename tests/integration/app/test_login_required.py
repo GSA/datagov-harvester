@@ -57,7 +57,7 @@ def test_org_edit_buttons__logged_in(
     button_string_text = '<div class="config-actions">'
     org_edit_text = f'<a href="/organization/config/edit/{organization_data["id"]}"'
     org_delete_text = (
-        f"onclick=\"confirmDelete('/organization/delete/{organization_data['id']}')"
+        f"onclick=\"confirmDelete('/organization/config/delete/{organization_data['id']}')"
     )
     assert res.status_code == 200
     assert res.text.find(button_string_text) != -1
@@ -71,7 +71,7 @@ def test_org_edit_buttons__logged_out(client, interface_no_jobs, organization_da
     button_string_text = '<div class="config-actions">'
     org_edit_text = f'<a href="/organization/config/edit/{organization_data["id"]}"'
     org_delete_text = (
-        f"onclick=\"confirmDelete('/organization/delete/{organization_data['id']}')"
+        f"onclick=\"confirmDelete('/organization/config/delete/{organization_data['id']}')"
     )
     assert res.status_code == 200
     assert res.text.find(button_string_text) == -1
@@ -89,12 +89,16 @@ def test_harvest_data_edit_buttons__logged_in(
     source_edit_text = (
         f'<a href="/harvest_source/config/edit/{source_data_dcatus["id"]}"'
     )
+    source_clear_text = (
+        f"onclick=\"confirmAction('clear', '/harvest_source/config/clear/{source_data_dcatus['id']}')"
+    )
     source_delete_text = (
-        f"onclick=\"confirmDelete('/harvest_source/delete/{source_data_dcatus['id']}')"
+        f"onclick=\"confirmAction('delete', '/harvest_source/config/delete/{source_data_dcatus['id']}')"
     )
     assert res.status_code == 200
     assert res.text.find(button_string_text) != -1
     assert res.text.find(source_edit_text) != -1
+    assert res.text.find(source_clear_text) != -1
     assert res.text.find(source_delete_text) != -1
 
 
@@ -107,10 +111,14 @@ def test_harvest_data_edit_buttons__logged_out(
     source_edit_text = (
         f'<a href="/harvest_source/config/edit/{source_data_dcatus["id"]}"'
     )
+    source_clear_text = (
+        f"onclick=\"confirmAction('clear', '/harvest_source/config/clear/{source_data_dcatus['id']}')"
+    )
     source_delete_text = (
-        f"onclick=\"confirmDelete('/harvest_source/delete/{source_data_dcatus['id']}')"
+        f"onclick=\"confirmAction('delete', '/harvest_source/config/delete/{source_data_dcatus['id']}')"
     )
     assert res.status_code == 200
     assert res.text.find(button_string_text) == -1
     assert res.text.find(source_edit_text) == -1
+    assert res.text.find(source_clear_text) == -1
     assert res.text.find(source_delete_text) == -1
