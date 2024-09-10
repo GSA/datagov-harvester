@@ -186,12 +186,12 @@ class HarvesterDBInterface:
             {"harvest_source_id": source.id, "status": "in_progress"}
         )
 
-        ### Ensure no jobs are in progress ###
+        # Ensure no jobs are in progress
         if jobs_in_progress:
             return ("Error: A harvest job is currently in progress. "
                     "Cannot clear datasets.")
 
-        ### Ensure (error_records + ckan_ids) = total records ###
+        # Ensure (error_records + ckan_ids) = total records
         if len(error_records) + len(ckan_ids) != len(records):
             return ("Error: Not all records are either in an error state "
                     "or have a CKAN ID. Cannot proceed with clearing the dataset.")
