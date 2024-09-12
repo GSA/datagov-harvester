@@ -463,7 +463,7 @@ def view_harvest_source_data(source_id: str):
     jobs = db.get_all_harvest_jobs_by_filter({"harvest_source_id": source.id})
     records = db.get_harvest_record_by_source(source.id)
     ckan_records = [record for record in records if record.ckan_id is not None]
-    error_records = [record for record in records if record.status == 'error']
+    error_records = [record for record in records if record.status == "error"]
     jobs = db.get_all_harvest_jobs_by_filter({"harvest_source_id": source.id})
     next_job = "N/A"
     future_jobs = db.get_new_harvest_jobs_by_source_in_future(source.id)
@@ -584,6 +584,7 @@ def clear_harvest_source(source_id):
         logger.error(f"Failed to clear harvest source :: {repr(e)}")
         flash("Failed to clear harvest source")
         return {"message": "failed"}
+
 
 # Delete Source
 @mod.route("/harvest_source/config/delete/<source_id>", methods=["POST"])

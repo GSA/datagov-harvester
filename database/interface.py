@@ -1,15 +1,15 @@
+import logging
 import os
+import time
 import uuid
 from datetime import datetime, timezone
 from functools import wraps
 
+import ckanapi
+from ckanapi import RemoteCKAN
 from sqlalchemy import create_engine, func, inspect, or_, select, text
 from sqlalchemy.exc import NoResultFound
 from sqlalchemy.orm import scoped_session, sessionmaker
-from ckanapi import RemoteCKAN
-import ckanapi
-import time
-import logging
 
 from .models import (
     HarvestJob,

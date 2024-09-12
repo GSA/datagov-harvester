@@ -80,8 +80,12 @@ class TestDatabase:
         ]
 
     def test_delete_harvest_source(
-        self, interface, organization_data, source_data_dcatus, 
-        job_data_dcatus, record_data_dcatus
+        self,
+        interface,
+        organization_data,
+        source_data_dcatus,
+        job_data_dcatus,
+        record_data_dcatus,
     ):
         # Add an organization
         interface.add_organization(organization_data)
@@ -104,7 +108,7 @@ class TestDatabase:
         # Add the harvest source again
         source = interface.add_harvest_source(source_data_dcatus)
         interface.add_harvest_job(job_data_dcatus)
-        interface.add_harvest_record(record_data_dcatus)
+        interface.add_harvest_record(record_data_dcatus[0])
 
         response = interface.delete_harvest_source(source.id)
         assert response == (
