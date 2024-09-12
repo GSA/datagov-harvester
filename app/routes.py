@@ -12,11 +12,14 @@ from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.serialization import load_pem_private_key
 from dotenv import load_dotenv
 from flask import Blueprint, flash, redirect, render_template, request, session, url_for
+from jinja2_fragments.flask import render_block
 
 from app.scripts.load_manager import schedule_first_job, trigger_manual_job
 from database.interface import HarvesterDBInterface
 
+from . import htmx
 from .forms import HarvestSourceForm, OrganizationForm
+from .paginate import Pagination
 
 logger = logging.getLogger("harvest_admin")
 
@@ -24,6 +27,7 @@ user = Blueprint("user", __name__)
 mod = Blueprint("harvest", __name__)
 source = Blueprint("harvest_source", __name__)
 org = Blueprint("org", __name__)
+testdata = Blueprint("testdata", __name__)
 
 db = HarvesterDBInterface()
 
@@ -243,6 +247,31 @@ def cli_remove_harvest_source(id):
         print(f"Triggered delete of harvest source with ID: {id}")
     else:
         print("Failed to delete harvest source")
+
+
+## Load Test Data
+# TODO move this into its own file when you break up routes
+@testdata.cli.command("load")
+def fixtures():
+    """Load database fixtures from JSON."""
+    import json
+
+    file = "./tests/fixtures.json"
+    click.echo(f"Loading fixtures at `{file}`.")
+    with open(file, "r") as file:
+        fixture = json.load(file)
+        for item in fixture["organization"]:
+            db.add_organization(item)
+        for item in fixture["source"]:
+            db.add_harvest_source(item)
+        for item in fixture["job"]:
+            db.add_harvest_job(item)
+        for item in fixture["record"]:
+            db.add_harvest_record(item)
+        for item in fixture["record_error"]:
+            db.add_harvest_record_error(item)
+
+    click.echo("Done.")
 
 
 # Helper Functions
@@ -596,6 +625,32 @@ def add_harvest_job():
 @mod.route("/harvest_job/", methods=["GET"])
 @mod.route("/harvest_job/<job_id>", methods=["GET"])
 def get_harvest_job(job_id=None):
+    record_error_count = db.get_harvest_record_errors_by_job(
+        job_id, count=True, skip_pagination=True
+    )
+    htmx_vars = {
+        "target_div": "#error_results_pagination",
+        "endpoint_url": f"/harvest_job/{job_id}",
+    }
+
+    pagination = Pagination(count=record_error_count)
+
+    if htmx:
+        page = request.args.get("page")
+        db_page = int(page) - 1
+        record_errors = db.get_harvest_record_errors_by_job(job_id, page=db_page)
+        data = {
+            "harvest_job_id": job_id,
+            "record_errors": db._to_dict(record_errors),
+            "htmx_vars": htmx_vars,
+        }
+        pagination.update_current(page)
+        return render_block(
+            "view_job_data.html",
+            "record_errors_table",
+            data=data,
+            pagination=pagination.to_dict(),
+        )
     if job_id:
         job = db.get_harvest_job(job_id)
         record_errors = db.get_harvest_record_errors_by_job(job_id)
@@ -603,11 +658,15 @@ def get_harvest_job(job_id=None):
             return db._to_dict(job) if job else ("Not Found", 404)
         else:
             data = {
+                "harvest_job_id": job_id,
                 "harvest_job": job,
                 "harvest_job_dict": db._to_dict(job),
                 "record_errors": db._to_dict(record_errors),
+                "htmx_vars": htmx_vars,
             }
-            return render_template("view_job_data.html", data=data)
+            return render_template(
+                "view_job_data.html", data=data, pagination=pagination.to_dict()
+            )
 
     source_id = request.args.get("harvest_source_id")
     if source_id:
@@ -667,7 +726,7 @@ def get_harvest_record(record_id=None):
             return "No harvest records found for this harvest source", 404
     else:
         # TODO for test, will remove later
-        record = db.get_all_harvest_records()
+        record = db.pget_harvest_records()
 
     return db._to_dict(record)
 
@@ -744,3 +803,4 @@ def register_routes(app):
     app.register_blueprint(user)
     app.register_blueprint(org)
     app.register_blueprint(source)
+    app.register_blueprint(testdata)

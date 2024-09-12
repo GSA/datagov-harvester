@@ -1,7 +1,8 @@
+import json
 import logging
 import os
 from pathlib import Path
-from typing import Any, Generator
+from typing import Any, Generator, List
 from unittest.mock import patch
 
 import pytest
@@ -80,34 +81,33 @@ def default_function_fixture(interface):
     logger.info("Patching complete. Unpatching")
 
 
+@pytest.fixture
+def fixtures_json():
+    file = Path(__file__).parents[0] / "fixtures.json"
+    with open(file, "r") as file:
+        return json.load(file)
+
+
 ## ORGS
 @pytest.fixture
-def organization_data() -> dict:
-    return {
-        "name": "Test Org",
-        "logo": "https://example.com/logo.png",
-        "id": "d925f84d-955b-4cb7-812f-dcfd6681a18f",
-    }
+def organization_data(fixtures_json) -> dict:
+    return fixtures_json["organization"][0]
 
 
 @pytest.fixture
-def organization_orm(organization_data: dict) -> Organization:
+def organization_data_orm(organization_data: dict) -> Organization:
     return Organization(**organization_data)
 
 
 ## HARVEST SOURCES
 @pytest.fixture
-def source_data_dcatus(organization_data: dict) -> dict:
-    return {
-        "id": "2f2652de-91df-4c63-8b53-bfced20b276b",
-        "name": "Test Source",
-        "notification_emails": "email@example.com",
-        "organization_id": organization_data["id"],
-        "frequency": "daily",
-        "url": f"{HARVEST_SOURCE_URL}/dcatus/dcatus.json",
-        "schema_type": "type1",
-        "source_type": "dcatus",
-    }
+def source_data_dcatus(fixtures_json) -> dict:
+    return fixtures_json["source"][0]
+
+
+@pytest.fixture
+def source_data_dcatus_orm(source_data_dcatus: dict) -> HarvestSource:
+    return HarvestSource(**source_data_dcatus)
 
 
 @pytest.fixture
@@ -139,11 +139,6 @@ def source_data_dcatus_same_title(organization_data: dict) -> dict:
 
 
 @pytest.fixture
-def source_orm_dcatus(source_data_dcatus: dict) -> HarvestSource:
-    return HarvestSource(**source_data_dcatus)
-
-
-@pytest.fixture
 def source_data_waf(organization_data: dict) -> dict:
     return {
         "id": "55dca495-3b92-4fe4-b9c5-d433cbc3c82d",
@@ -172,57 +167,6 @@ def source_data_dcatus_invalid(organization_data: dict) -> dict:
 
 
 @pytest.fixture
-def job_data_dcatus(source_data_dcatus: dict) -> dict:
-    return {
-        "id": "6bce761c-7a39-41c1-ac73-94234c139c76",
-        "status": "new",
-        "harvest_source_id": source_data_dcatus["id"],
-    }
-
-
-@pytest.fixture
-def job_data_dcatus_2(source_data_dcatus: dict) -> dict:
-    return {
-        "id": "392ac4b3-79a6-414b-a2b3-d6c607d3b8d4",
-        "status": "new",
-        "harvest_source_id": source_data_dcatus["id"],
-    }
-
-
-@pytest.fixture
-def job_orm_dcatus(job_data_dcatus: dict) -> HarvestJob:
-    return HarvestJob(**job_data_dcatus)
-
-
-@pytest.fixture
-def job_data_waf(source_data_waf: dict) -> dict:
-    return {
-        "id": "963cdc51-94d5-425d-a688-e0a57e0c5dd2",
-        "status": "new",
-        "harvest_source_id": source_data_waf["id"],
-    }
-
-
-@pytest.fixture
-def job_error_data(job_data_dcatus) -> dict:
-    return {
-        "harvest_job_id": job_data_dcatus["id"],
-        "message": "error reading records from harvest database",
-        "type": "ExtractInternalException",
-    }
-
-
-@pytest.fixture
-def job_data_dcatus_invalid(source_data_dcatus_invalid: dict) -> dict:
-    return {
-        "id": "59df7ba5-102d-4ae3-abd6-01b7eb26a338",
-        "status": "new",
-        "harvest_source_id": source_data_dcatus_invalid["id"],
-    }
-
-
-## HARVEST RECORDS
-@pytest.fixture
 def source_data_dcatus_single_record(organization_data: dict) -> dict:
     return {
         "id": "2f2652de-91df-4c63-8b53-bfced20b276b",
@@ -233,28 +177,6 @@ def source_data_dcatus_single_record(organization_data: dict) -> dict:
         "url": f"{HARVEST_SOURCE_URL}/dcatus/dcatus_single_record.json",
         "schema_type": "type1",
         "source_type": "dcatus",
-    }
-
-
-@pytest.fixture
-def record_data_dcatus(job_data_dcatus: dict) -> dict:
-    return {
-        "id": "0779c855-df20-49c8-9108-66359d82b77c",
-        "identifier": "test_identifier",
-        "harvest_job_id": job_data_dcatus["id"],
-        "harvest_source_id": job_data_dcatus["harvest_source_id"],
-        "action": "create",
-        "status": "success",
-        "source_raw": "example data",
-    }
-
-
-@pytest.fixture
-def record_error_data(record_data_dcatus) -> dict:
-    return {
-        "harvest_record_id": record_data_dcatus["id"],
-        "message": "record is invalid",
-        "type": "ValidationException",
     }
 
 
@@ -273,15 +195,6 @@ def source_data_dcatus_bad_url(organization_data: dict) -> dict:
 
 
 @pytest.fixture
-def job_data_dcatus_bad_url(source_data_dcatus_bad_url: dict) -> dict:
-    return {
-        "id": "707aee7b-bf72-4e07-a5fc-68980765b214",
-        "status": "new",
-        "harvest_source_id": source_data_dcatus_bad_url["id"],
-    }
-
-
-@pytest.fixture
 def source_data_dcatus_invalid_records(organization_data) -> dict:
     return {
         "id": "8e7f539b-0a83-43ad-950e-3976bb11a425",
@@ -292,6 +205,53 @@ def source_data_dcatus_invalid_records(organization_data) -> dict:
         "url": "http://localhost/dcatus/missing_title.json",
         "schema_type": "type1",
         "source_type": "dcatus",
+    }
+
+
+## HARVEST JOBS
+@pytest.fixture
+def job_data_dcatus(fixtures_json) -> dict:
+    return fixtures_json["job"][0]
+
+
+@pytest.fixture
+def job_data_dcatus_orm(job_data_dcatus: dict) -> HarvestJob:
+    return HarvestJob(**job_data_dcatus)
+
+
+@pytest.fixture
+def job_data_dcatus_2(source_data_dcatus: dict) -> dict:
+    return {
+        "id": "392ac4b3-79a6-414b-a2b3-d6c607d3b8d4",
+        "status": "new",
+        "harvest_source_id": source_data_dcatus["id"],
+    }
+
+
+@pytest.fixture
+def job_data_waf(source_data_waf: dict) -> dict:
+    return {
+        "id": "963cdc51-94d5-425d-a688-e0a57e0c5dd2",
+        "status": "new",
+        "harvest_source_id": source_data_waf["id"],
+    }
+
+
+@pytest.fixture
+def job_data_dcatus_invalid(source_data_dcatus_invalid: dict) -> dict:
+    return {
+        "id": "59df7ba5-102d-4ae3-abd6-01b7eb26a338",
+        "status": "new",
+        "harvest_source_id": source_data_dcatus_invalid["id"],
+    }
+
+
+@pytest.fixture
+def job_data_dcatus_bad_url(source_data_dcatus_bad_url: dict) -> dict:
+    return {
+        "id": "707aee7b-bf72-4e07-a5fc-68980765b214",
+        "status": "new",
+        "harvest_source_id": source_data_dcatus_bad_url["id"],
     }
 
 
@@ -306,6 +266,24 @@ def source_data_dcatus_invalid_records_job(
     }
 
 
+## HARVEST JOB ERRORS
+@pytest.fixture
+def job_error_data(fixtures_json) -> dict:
+    return fixtures_json["job_error"][0]
+
+
+## HARVEST RECORDS
+@pytest.fixture
+def record_data_dcatus(fixtures_json) -> List[dict]:
+    return fixtures_json["record"]
+
+
+## HARVEST RECORD ERRORS
+@pytest.fixture
+def record_error_data(fixtures_json) -> List[dict]:
+    return fixtures_json["record_error"]
+
+
 @pytest.fixture
 def interface_no_jobs(interface, organization_data, source_data_dcatus):
     interface.add_organization(organization_data)
@@ -314,6 +292,25 @@ def interface_no_jobs(interface, organization_data, source_data_dcatus):
     return interface
 
 
+@pytest.fixture
+def interface_with_fixture_json(
+    interface_no_jobs,
+    job_data_dcatus,
+    job_error_data,
+    record_data_dcatus,
+    record_error_data,
+):
+    interface_no_jobs.add_harvest_job(job_data_dcatus)
+    interface_no_jobs.add_harvest_job_error(job_error_data)
+    for record in record_data_dcatus:
+        interface_no_jobs.add_harvest_record(record)
+    for error in record_error_data:
+        interface_no_jobs.add_harvest_record_error(error)
+
+    return interface_no_jobs
+
+
+## MISC
 @pytest.fixture
 def interface_with_multiple_jobs(interface_no_jobs, source_data_dcatus):
     statuses = ["new", "in_progress", "complete", "error"]

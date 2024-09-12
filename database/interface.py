@@ -1,8 +1,9 @@
 import os
 import uuid
 from datetime import datetime, timezone
+from functools import wraps
 
-from sqlalchemy import create_engine, inspect, or_, text
+from sqlalchemy import create_engine, func, inspect, or_, select, text
 from sqlalchemy.exc import NoResultFound
 from sqlalchemy.orm import scoped_session, sessionmaker
 from ckanapi import RemoteCKAN
@@ -21,6 +22,41 @@ from .models import (
 )
 
 DATABASE_URI = os.getenv("DATABASE_URI")
+PAGINATE_ENTRIES_PER_PAGE = 20
+PAGINATE_START_PAGE = 0
+
+
+def paginate(fn):
+    @wraps(fn)
+    def _impl(self, *args, **kwargs):
+        query = fn(self, *args, **kwargs)
+        if kwargs.get("skip_pagination") is True:
+            return query
+        elif kwargs.get("paginate") is False:
+            return query.all()
+        else:
+            per_page = kwargs.get("per_page") or PAGINATE_ENTRIES_PER_PAGE
+            page = kwargs.get("page") or PAGINATE_START_PAGE
+            query = query.limit(per_page)
+            query = query.offset(page * per_page)
+            return query.all()
+
+    return _impl
+
+
+def count(fn):
+    @wraps(fn)
+    def _impl(self, *args, **kwargs):
+        query = fn(self, *args, **kwargs)
+        if kwargs.get("count") is True:
+            count_q = query.statement.with_only_columns(*[func.count()]).order_by(None)
+            count = query.session.execute(count_q).scalar()
+            return count
+        else:
+            return query
+
+    return _impl
+
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger()
@@ -158,13 +194,15 @@ class HarvesterDBInterface:
 
         # delete all HarvestRecords and related HarvestRecordErrors
         def _clear_harvest_records():
-                self.db.query(HarvestRecordError).filter(
-                    HarvestRecordError.harvest_record_id.in_(
-                        self.db.query(HarvestRecord.id).filter_by(harvest_source_id=source_id)
+            self.db.query(HarvestRecordError).filter(
+                HarvestRecordError.harvest_record_id.in_(
+                    self.db.query(HarvestRecord.id).filter_by(
+                        harvest_source_id=source_id
                     )
-                ).delete(synchronize_session=False)
-                self.db.query(HarvestRecord).filter_by(harvest_source_id=source_id).delete()
-                self.db.commit()
+                )
+            ).delete(synchronize_session=False)
+            self.db.query(HarvestRecord).filter_by(harvest_source_id=source_id).delete()
+            self.db.commit()
 
         source = self.db.get(HarvestSource, source_id)
         if source is None:
@@ -173,50 +211,53 @@ class HarvesterDBInterface:
         organization_id = source.organization_id
 
         records = (
-            self.db.query(HarvestRecord)
-            .filter_by(harvest_source_id=source_id).all()
+            self.db.query(HarvestRecord).filter_by(harvest_source_id=source_id).all()
         )
 
         if not records:
             return "Harvest source has no records to clear."
 
         ckan_ids = [record.ckan_id for record in records if record.ckan_id is not None]
-        error_records = [record for record in records if record.status == 'error']
+        error_records = [record for record in records if record.status == "error"]
         jobs_in_progress = self.get_all_harvest_jobs_by_filter(
             {"harvest_source_id": source.id, "status": "in_progress"}
         )
 
         # Ensure no jobs are in progress
         if jobs_in_progress:
-            return ("Error: A harvest job is currently in progress. "
-                    "Cannot clear datasets.")
+            return (
+                "Error: A harvest job is currently in progress. "
+                "Cannot clear datasets."
+            )
 
         # Ensure (error_records + ckan_ids) = total records
         if len(error_records) + len(ckan_ids) != len(records):
-            return ("Error: Not all records are either in an error state "
-                    "or have a CKAN ID. Cannot proceed without clearing the dataset.")
+            return (
+                "Error: Not all records are either in an error state "
+                "or have a CKAN ID. Cannot proceed without clearing the dataset."
+            )
 
-        if not ckan_ids:  
+        if not ckan_ids:
             _clear_harvest_records()
             return "Harvest source cleared successfully."
 
-        ckan = RemoteCKAN(
-            os.getenv("CKAN_API_URL"), apikey=os.getenv("CKAN_API_TOKEN")
-        )
+        ckan = RemoteCKAN(os.getenv("CKAN_API_URL"), apikey=os.getenv("CKAN_API_TOKEN"))
 
-        result = ckan.action.package_search(fq=f'owner_org:{organization_id}')
-        ckan_datasets = result['count']
+        result = ckan.action.package_search(fq=f"owner_org:{organization_id}")
+        ckan_datasets = result["count"]
         start = datetime.now(timezone.utc)
         retry_count = 0
         retry_max = 20
 
-        # Retry loop to handle timeouts from cloud.gov and CKAN's Solr backend, 
+        # Retry loop to handle timeouts from cloud.gov and CKAN's Solr backend,
         # ensuring datasets are cleared despite possible interruptions.
         while ckan_datasets > 0 and retry_count < retry_max:
-            result = ckan.action.package_search(fq=f'owner_org:{organization_id}')
-            ckan_datasets = result['count']
-            logger.info(f"Attempt {retry_count + 1}: "
-                        f"{ckan_datasets} datasets remaining in CKAN")
+            result = ckan.action.package_search(fq=f"owner_org:{organization_id}")
+            ckan_datasets = result["count"]
+            logger.info(
+                f"Attempt {retry_count + 1}: "
+                f"{ckan_datasets} datasets remaining in CKAN"
+            )
             try:
                 ckan.action.bulk_update_delete(
                     datasets=ckan_ids, org_id=organization_id
@@ -237,8 +278,10 @@ class HarvesterDBInterface:
             logger.info(f"Total time: {datetime.now(timezone.utc) - start}")
             return "Harvest source cleared successfully."
         else:
-            fail_message = (f"Harvest source clearance failed after {retry_count} "
-                            f"attempts. {ckan_datasets} datasets still exist in CKAN.")
+            fail_message = (
+                f"Harvest source clearance failed after {retry_count} "
+                f"attempts. {ckan_datasets} datasets still exist in CKAN."
+            )
             logger.error(fail_message)
             return fail_message
 
@@ -248,18 +291,18 @@ class HarvesterDBInterface:
             return "Harvest source not found"
 
         records = (
-            self.db.query(HarvestRecord)
-            .filter_by(harvest_source_id=source_id).all()
+            self.db.query(HarvestRecord).filter_by(harvest_source_id=source_id).all()
         )
-       
+
         if len(records) == 0:
             self.db.delete(source)
             self.db.commit()
             return "Harvest source deleted successfully"
         else:
-            return (f"Failed: {len(records)} records in the Harvest source, "
-                    "please Clear it first.")
-
+            return (
+                f"Failed: {len(records)} records in the Harvest source, "
+                "please Clear it first."
+            )
 
     ## HARVEST JOB
     def add_harvest_job(self, job_data):
@@ -372,9 +415,18 @@ class HarvesterDBInterface:
         job = self.get_harvest_job(job_id)
         return [error for error in job.errors or []]
 
-    def get_harvest_record_errors_by_job(self, job_id: str):
-        job = self.get_harvest_job(job_id)
-        return [error for record in job.records or [] for error in record.errors or []]
+    @count
+    @paginate
+    def get_harvest_record_errors_by_job(self, job_id: str, **kwargs):
+        subquery = (
+            self.db.query(HarvestRecord.id)
+            .filter(HarvestRecord.status == "error")
+            .subquery()
+        )
+        query = self.db.query(HarvestRecordError).filter(
+            HarvestRecordError.harvest_record_id.in_(select(subquery))
+        )
+        return query
 
     def get_harvest_error(self, error_id: str) -> dict:
         job_query = self.db.query(HarvestJobError).filter_by(id=error_id).first()
@@ -387,7 +439,6 @@ class HarvesterDBInterface:
             return None
 
     def get_harvest_record_errors_by_record(self, record_id: str):
-        # TODO: paginate this
         errors = self.db.query(HarvestRecordError).filter_by(
             harvest_record_id=record_id
         )
@@ -552,16 +603,30 @@ class HarvesterDBInterface:
             print("Error:", e)
             return False
 
+    #### PAGINATED QUERIES
+
+    @paginate
+    def pget_harvest_jobs(self, filter=text(""), **kwargs):
+        return self.db.query(HarvestJob).filter(filter)
+
+    @paginate
+    def pget_harvest_records(self, filter=text(""), **kwargs):
+        return self.db.query(HarvestRecord).filter(filter)
+
+    @paginate
+    def pget_harvest_job_errors(self, filter=text(""), **kwargs):
+        return self.db.query(HarvestJobError).filter(filter)
+
+    @paginate
+    def pget_harvest_record_errors(self, filter=text(""), **kwargs):
+        return self.db.query(HarvestRecordError).filter(filter)
+
     ##### TEST INTERFACES BELOW #####
     ######## TO BE REMOVED ##########
     def get_all_harvest_jobs(self):
         harvest_jobs = self.db.query(HarvestJob).all()
         harvest_jobs_data = [job for job in harvest_jobs]
         return harvest_jobs_data
-
-    def get_all_harvest_records(self):
-        harvest_records = self.db.query(HarvestRecord).all()
-        return [record for record in harvest_records or []]
 
     def get_all_harvest_errors(self):
         job_errors = self.db.query(HarvestJobError).all()
