@@ -276,11 +276,31 @@ class TestDatabase:
         self, interface_with_fixture_json, job_data_dcatus, record_data_dcatus
     ):
         interface = interface_with_fixture_json
-        job_id = job_data_dcatus
+        job_id = job_data_dcatus["id"]
         count = interface.get_harvest_record_errors_by_job(
             job_id, count=True, skip_pagination=True
         )
         assert count == len(record_data_dcatus)
+
+    def test_errors_by_job(
+        self,
+        interface_with_multiple_sources,
+        job_data_dcatus,
+        job_data_dcatus_2,
+        record_error_data,
+        record_error_data_2,
+    ):
+        interface = interface_with_multiple_sources
+        job_id = job_data_dcatus["id"]
+        count = interface.get_harvest_record_errors_by_job(
+            job_id, count=True, skip_pagination=True
+        )
+        all_errors_count = interface.pget_harvest_record_errors(
+            count=True,
+            skip_pagination=True,
+        )
+        assert count == len(record_error_data)
+        assert all_errors_count == len(record_error_data) + len(record_error_data_2)
 
     def test_add_harvest_job_with_id(
         self, interface, organization_data, source_data_dcatus, job_data_dcatus

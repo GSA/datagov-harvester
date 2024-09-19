@@ -44,12 +44,18 @@ def paginate(fn):
     return _impl
 
 
+# notes on the flag `maintain_column_froms`:
+# https://github.com/sqlalchemy/sqlalchemy/discussions/6807#discussioncomment-1043732
+# docs: https://docs.sqlalchemy.org/en/14/core/selectable.html#sqlalchemy.sql.expression.Select.with_only_columns.params.maintain_column_froms
+#
 def count(fn):
     @wraps(fn)
     def _impl(self, *args, **kwargs):
         query = fn(self, *args, **kwargs)
         if kwargs.get("count") is True:
-            count_q = query.statement.with_only_columns(*[func.count()]).order_by(None)
+            count_q = query.statement.with_only_columns(
+                func.count(), maintain_column_froms=True
+            ).order_by(None)
             count = query.session.execute(count_q).scalar()
             return count
         else:
@@ -421,6 +427,7 @@ class HarvesterDBInterface:
         subquery = (
             self.db.query(HarvestRecord.id)
             .filter(HarvestRecord.status == "error")
+            .filter(HarvestRecord.harvest_job_id == job_id)
             .subquery()
         )
         query = self.db.query(HarvestRecordError).filter(
@@ -604,19 +611,22 @@ class HarvesterDBInterface:
             return False
 
     #### PAGINATED QUERIES
-
+    @count
     @paginate
     def pget_harvest_jobs(self, filter=text(""), **kwargs):
         return self.db.query(HarvestJob).filter(filter)
 
+    @count
     @paginate
     def pget_harvest_records(self, filter=text(""), **kwargs):
         return self.db.query(HarvestRecord).filter(filter)
 
+    @count
     @paginate
     def pget_harvest_job_errors(self, filter=text(""), **kwargs):
         return self.db.query(HarvestJobError).filter(filter)
 
+    @count
     @paginate
     def pget_harvest_record_errors(self, filter=text(""), **kwargs):
         return self.db.query(HarvestRecordError).filter(filter)

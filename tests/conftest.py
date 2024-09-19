@@ -220,11 +220,11 @@ def job_data_dcatus_orm(job_data_dcatus: dict) -> HarvestJob:
 
 
 @pytest.fixture
-def job_data_dcatus_2(source_data_dcatus: dict) -> dict:
+def job_data_dcatus_2(source_data_dcatus_2: dict) -> dict:
     return {
         "id": "392ac4b3-79a6-414b-a2b3-d6c607d3b8d4",
         "status": "new",
-        "harvest_source_id": source_data_dcatus["id"],
+        "harvest_source_id": source_data_dcatus_2["id"],
     }
 
 
@@ -278,10 +278,41 @@ def record_data_dcatus(fixtures_json) -> List[dict]:
     return fixtures_json["record"]
 
 
+@pytest.fixture
+def record_data_dcatus_2(job_data_dcatus_2):
+    return [
+        {
+            "id": "72bae4b2-336e-49df-bc4c-410dc73dc316",
+            "identifier": "test_identifier-2",
+            "harvest_job_id": job_data_dcatus_2["id"],
+            "harvest_source_id": job_data_dcatus_2["harvest_source_id"],
+            "action": "create",
+            "status": "error",
+            "source_raw": "example data 2",
+        }
+    ]
+
+
 ## HARVEST RECORD ERRORS
 @pytest.fixture
 def record_error_data(fixtures_json) -> List[dict]:
     return fixtures_json["record_error"]
+
+
+@pytest.fixture
+def record_error_data_2(record_data_dcatus_2) -> dict:
+    return [
+        {
+            "harvest_record_id": record_data_dcatus_2[0]["id"],
+            "message": "record is invalid",
+            "type": "ValidationException",
+        },
+        {
+            "harvest_record_id": record_data_dcatus_2[0]["id"],
+            "message": "record is invalid_2",
+            "type": "ValidationException",
+        },
+    ]
 
 
 @pytest.fixture
@@ -308,6 +339,24 @@ def interface_with_fixture_json(
         interface_no_jobs.add_harvest_record_error(error)
 
     return interface_no_jobs
+
+
+@pytest.fixture
+def interface_with_multiple_sources(
+    interface_with_fixture_json,
+    source_data_dcatus_2,
+    job_data_dcatus_2,
+    record_data_dcatus_2,
+    record_error_data_2,
+):
+    interface_with_fixture_json.add_harvest_source(source_data_dcatus_2)
+    interface_with_fixture_json.add_harvest_job(job_data_dcatus_2)
+    for record in record_data_dcatus_2:
+        interface_with_fixture_json.add_harvest_record(record)
+    for error in record_error_data_2:
+        interface_with_fixture_json.add_harvest_record_error(error)
+
+    return interface_with_fixture_json
 
 
 ## MISC
