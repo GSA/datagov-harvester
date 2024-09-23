@@ -1,0 +1,23 @@
+{% from 'components/pagination/pagination_arrow.html' import pagination_arrow %}
+
+{% set overflow %}
+  <li class="usa-pagination__item usa-pagination__overflow" aria-label="ellipsis indicating non-visible pages">
+    <span>
+      …
+    </span>
+  </li>
+{% endset %}
+
+<nav aria-label="Pagination" class="usa-pagination">
+    <ul class="usa-pagination__list">
+        {% if pagination['page_count'] > 7 and pagination['current'] > 1 %}
+            {{ pagination_arrow('previous', pagination, data.htmx_vars) }}
+        {% endif %}
+
+        {% include "components/pagination/pagination_numbers.html" %}
+
+        {% if pagination['page_count'] > 7 and pagination['current'] < pagination['page_count'] %}
+            {{ pagination_arrow('next', pagination, data.htmx_vars) }}
+        {% endif %}
+    </ul>
+</nav>

@@ -3,6 +3,7 @@ import os
 from dotenv import load_dotenv
 from flask import Flask
 from flask_bootstrap import Bootstrap
+from flask_htmx import HTMX
 from flask_migrate import Migrate
 
 from app.filters import usa_icon
@@ -19,6 +20,8 @@ def create_app():
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
     app.config["SECRET_KEY"] = os.getenv("FLASK_APP_SECRET_KEY")
     Bootstrap(app)
+    global htmx
+    htmx = HTMX(app)
 
     db.init_app(app)
 

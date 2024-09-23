@@ -6,11 +6,11 @@
 
 {% block content %}
 <div class="wrapper job-data">
-    {% if not data.harvest_job.id %}
+    {% if not data.harvest_job_id %}
     <h2>Whooops!</h2>
     <p>Looks like you navigated to a job that doesn't exist.</p>
     {% else %}
-    <h1>Details for Harvest Job Id: {{data.harvest_job.id}}</h1>
+    <h1>Details for Harvest Job Id: {{data.harvest_job_id}}</h1>
     <p>For Harvest Source Id: <a
             href="{{ url_for('harvest.view_harvest_source_data', source_id=data.harvest_job.harvest_source_id) }}">
             {{data.harvest_job.harvest_source_id}}
@@ -34,7 +34,7 @@
         {% else %}
         <div class="usa-table-container--scrollable" tabindex="0">
             <table class="usa-table usa-table--striped">
-                <caption> Harvest Job Errors for {{data.harvest_job.id}} </caption>
+                <caption> Harvest Job Errors for {{data.harvest_job_id}} </caption>
                 <thead>
                     <tr>
                         <th data-sortable scope="col" role="columnheader">Date Created</th>
@@ -64,32 +64,50 @@
         No record errors found
         {% else %}
         <div class="usa-table-container--scrollable" tabindex="0">
-            <table class="usa-table usa-table--striped">
-                <caption> Harvest Error Info for {{data.harvest_job.id}} </caption>
-                <thead>
-                    <tr>
-                        <th data-sortable scope="col" role="columnheader">Date Created</th>
-                        <th data-sortable scope="col" role="columnheader">Id</th>
-                        <th data-sortable scope="col" role="columnheader">Harvest Record Id</th>
-                        <th data-sortable scope="col" role="columnheader">Message</th>
-                        <th data-sortable scope="col" role="columnheader">Type</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for errors in data.record_errors %}
-                    <tr>
-                        <td data-sort-value={errors.date_created}> {{errors.date_created}}</td>
-                        <td data-sort-value={errors.id}>{{errors.id}}</td>
-                        <td data-sort-value={errors.harvest_record_id}>
-                            <a
-            href="{{ url_for('harvest.get_harvest_record', record_id=errors.harvest_record_id) }}">
-                        {{errors.harvest_record_id}} </td>
-                        <td data-sort-value={errors.message}>{{errors.message}}</td>
-                        <td data-sort-value={errors.type}>{{errors.type}}</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+            {% block record_errors_table %}
+            <div id="error_results_pagination">
+
+                <table class="usa-table usa-table--striped">
+                    <caption> Harvest Record Errors for {{data.harvest_job_id}}</caption>
+                    <thead>
+                        <tr>
+                            <th data-sortable scope="col" role="columnheader">Date Created</th>
+                            <th data-sortable scope="col" role="columnheader">Id</th>
+                            <th data-sortable scope="col" role="columnheader">Harvest Record Id</th>
+                            <th data-sortable scope="col" role="columnheader">Message</th>
+                            <th data-sortable scope="col" role="columnheader">Type</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for errors in data.record_errors %}
+                        <tr>
+                            <td data-sort-value={errors.date_created}> {{errors.date_created}}</td>
+                            <td data-sort-value={errors.id}>{{errors.id}}</td>
+                            <td data-sort-value={errors.harvest_record_id}>
+                                <a
+                href="{{ url_for('harvest.get_harvest_record', record_id=errors.harvest_record_id) }}">
+                            {{errors.harvest_record_id}} </td>
+                            <td data-sort-value={errors.message}>{{errors.message}}</td>
+                            <td data-sort-value={errors.type}>{{errors.type}}</td>
+                        </tr>
+                        {% endfor %}
+                        {% if pagination.per_page > data.record_errors|count and pagination.count > data.record_errors|count %}
+                            {% for number in range(pagination.per_page - data.record_errors|count) %}
+                            <tr>
+                                {% for number in range(5) %}
+                                    <td>&nbsp;</td>
+                                {% endfor %}
+                            </tr>
+                            {% endfor %}
+                        {% endif %}
+                    </tbody>
+                </table>
+                {% if pagination.count > data.record_errors|count %}
+                    {% include '/components/pagination/pagination.html' %}
+                {%endif%}
+            </div>
+
+            {% endblock %}
             <div class="usa-sr-only usa-table__announcement-region" aria-live="polite"></div>
         </div>
         {% endif %}

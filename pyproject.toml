@@ -14,7 +14,7 @@ license = "LICENSE.md" # TODO fix me
 repository = "https://github.com/GSA/datagov-harvester"
 
 [tool.poetry.dependencies]
-python = ">=3.10"
+python = ">=3.10,<4.0"
 jsonschema = ">=4"
 python-dotenv = ">=1"
 deepdiff = ">=6"
@@ -32,6 +32,8 @@ cloudfoundry-client = "^1.36.0"
 pyjwt = "^2.8.0"
 cryptography = "^42.0.8"
 boltons = "^24.0.0"
+jinja2-fragments = "^1.6.0"
+flask-htmx = "^0.3.2"
 
 [tool.poetry.group.dev.dependencies]
 pytest = ">=7.3.2"

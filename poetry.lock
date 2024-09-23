@@ -770,6 +770,20 @@ Flask = ">=0.8"
 visitor = "*"
 
 [[package]]
+name = "flask-htmx"
+version = "0.3.2"
+description = "A Flask extension to work with HTMX."
+optional = false
+python-versions = ">=3.8,<4.0"
+files = [
+    {file = "flask_htmx-0.3.2-py3-none-any.whl", hash = "sha256:a1e0071216349197d6669662c2c35a1ab849b6fca28c89dc90932761f7e73c05"},
+    {file = "flask_htmx-0.3.2.tar.gz", hash = "sha256:8def77bb292369ff77513ff7b76d27b06f83e1d8c21165b6714c06c1cc2b9275"},
+]
+
+[package.dependencies]
+Flask = ">=2.0.2,<4.0.0"
+
+[[package]]
 name = "flask-migrate"
 version = "4.0.7"
 description = "SQLAlchemy database migrations for Flask applications using Alembic."
@@ -1067,6 +1081,24 @@ MarkupSafe = ">=2.0"
 
 [package.extras]
 i18n = ["Babel (>=2.7)"]
+
+[[package]]
+name = "jinja2-fragments"
+version = "1.6.0"
+description = "Render Jinja2 template block as HTML page fragments on Python web frameworks."
+optional = false
+python-versions = "*"
+files = [
+    {file = "jinja2_fragments-1.6.0-py3-none-any.whl", hash = "sha256:49a5815cd7210edf234bf137b6005abf1ad336ff93c65519deddc41d91713986"},
+    {file = "jinja2_fragments-1.6.0.tar.gz", hash = "sha256:5bd7dd49b7dbfa174d45d6a991cfe3cba4a08a4b66f87cf248aa739eebc435f8"},
+]
+
+[package.dependencies]
+jinja2 = ">=3.1.0"
+
+[package.extras]
+dev = ["pre-commit"]
+tests = ["fastapi", "flask (>=2.1.0)", "litestar[standard]", "pytest", "pytest-asyncio", "quart (>=0.18.0)", "sanic", "sanic-ext", "sanic-testing", "starlette[full]"]
 
 [[package]]
 name = "jsonschema"
@@ -2347,5 +2379,5 @@ multidict = ">=4.0"
 
 [metadata]
 lock-version = "2.0"
-python-versions = ">=3.10"
-content-hash = "d81c4af263f6891c477453ddc74ed90cc7da9d3cdac3e945c1ced15930a757ff"
+python-versions = ">=3.10,<4.0"
+content-hash = "998c720a492a425387d626eaa210b0c479e6683e2a977c0f6f598c239dcb2df6"

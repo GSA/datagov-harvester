@@ -56,3 +56,9 @@ ul.menu {
 .usa-card__img img {
   padding: 10px;
 }
+
+.usa-pagination {
+  &__item {
+    cursor: pointer;
+  }
+}

@@ -1,6 +1,8 @@
 import json
 from datetime import datetime, timezone
 
+from sqlalchemy import text
+
 from database.models import HarvestJobError, HarvestRecordError
 from harvester.harvest import HarvestSource
 from harvester.utils.general_utils import dataset_to_hash, sort_dataset
@@ -78,8 +80,12 @@ class TestDatabase:
         ]
 
     def test_delete_harvest_source(
-        self, interface, organization_data, source_data_dcatus, 
-        job_data_dcatus, record_data_dcatus
+        self,
+        interface,
+        organization_data,
+        source_data_dcatus,
+        job_data_dcatus,
+        record_data_dcatus,
     ):
         # Add an organization
         interface.add_organization(organization_data)
@@ -102,7 +108,7 @@ class TestDatabase:
         # Add the harvest source again
         source = interface.add_harvest_source(source_data_dcatus)
         interface.add_harvest_job(job_data_dcatus)
-        interface.add_harvest_record(record_data_dcatus)
+        interface.add_harvest_record(record_data_dcatus[0])
 
         response = interface.delete_harvest_source(source.id)
         assert response == (
@@ -141,22 +147,11 @@ class TestDatabase:
         assert isinstance(harvest_job_error, HarvestJobError)
         assert harvest_job_error.message == job_error_data["message"]
 
-    def test_add_harvest_record(
-        self,
-        interface,
-        organization_data,
-        source_data_dcatus,
-        job_data_dcatus,
-        record_data_dcatus,
-    ):
-        interface.add_organization(organization_data)
-        source = interface.add_harvest_source(source_data_dcatus)
-        harvest_job = interface.add_harvest_job(job_data_dcatus)
-
-        record = interface.add_harvest_record(record_data_dcatus)
-
-        assert record.harvest_source_id == source.id
-        assert record.harvest_job_id == harvest_job.id
+        db_harvest_job_error = interface.pget_harvest_job_errors(
+            filter=text(f"harvest_job_id = '{job_data_dcatus['id']}'")
+        )
+        assert db_harvest_job_error[0].type == job_error_data["type"]
+        assert db_harvest_job_error[0].id == harvest_job_error.id
 
     def test_add_harvest_record_error(
         self,
@@ -170,11 +165,11 @@ class TestDatabase:
         interface.add_organization(organization_data)
         interface.add_harvest_source(source_data_dcatus)
         interface.add_harvest_job(job_data_dcatus)
-        interface.add_harvest_record(record_data_dcatus)
+        interface.add_harvest_record(record_data_dcatus[0])
 
-        harvest_record_error = interface.add_harvest_record_error(record_error_data)
+        harvest_record_error = interface.add_harvest_record_error(record_error_data[0])
         assert isinstance(harvest_record_error, HarvestRecordError)
-        assert harvest_record_error.message == record_error_data["message"]
+        assert harvest_record_error.message == record_error_data[0]["message"]
 
         harvest_record_error_from_db = interface.get_harvest_error(
             harvest_record_error.id
@@ -184,6 +179,23 @@ class TestDatabase:
             harvest_record_error.harvest_record_id
             == harvest_record_error_from_db.harvest_record_id
         )
+
+    def test_add_harvest_record(
+        self,
+        interface,
+        organization_data,
+        source_data_dcatus,
+        job_data_dcatus,
+        record_data_dcatus,
+    ):
+        interface.add_organization(organization_data)
+        source = interface.add_harvest_source(source_data_dcatus)
+        harvest_job = interface.add_harvest_job(job_data_dcatus)
+
+        record = interface.add_harvest_record(record_data_dcatus[0])
+
+        assert record.harvest_source_id == source.id
+        assert record.harvest_job_id == harvest_job.id
 
     def test_add_harvest_records(
         self,
@@ -197,18 +209,98 @@ class TestDatabase:
         interface.add_harvest_source(source_data_dcatus)
         interface.add_harvest_job(job_data_dcatus)
 
+        for record in record_data_dcatus:
+            del record["id"]
+
+        id_lookup_table = interface.add_harvest_records(record_data_dcatus)
+        db_records = interface.pget_harvest_records()
+        assert len(id_lookup_table) == 10
+        assert len(db_records) == 10
+        assert id_lookup_table[db_records[0].identifier] == db_records[0].id
+
+    def test_endpoint_pagnation(
+        self,
+        interface,
+        organization_data,
+        source_data_dcatus,
+        job_data_dcatus,
+        record_data_dcatus,
+    ):
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_dcatus)
+        interface.add_harvest_job(job_data_dcatus)
+
         records = []
-        for i in range(10):
-            new_record = record_data_dcatus.copy()
+        for i in range(100):
+            new_record = record_data_dcatus[0].copy()
             del new_record["id"]
             new_record["identifier"] = f"test-identifier-{i}"
             records.append(new_record)
 
         id_lookup_table = interface.add_harvest_records(records)
-        db_records = interface.get_all_harvest_records()
-        assert len(id_lookup_table) == 10
-        assert len(db_records) == 10
+
+        # get first page
+        db_records = interface.pget_harvest_records(page=0)
+        assert len(db_records) == 20
+        assert db_records[0].identifier == "test-identifier-0"
         assert id_lookup_table[db_records[0].identifier] == db_records[0].id
+
+        # get second page
+        db_records = interface.pget_harvest_records(page=1)
+        assert len(db_records) == 20
+        assert db_records[0].identifier == "test-identifier-20"
+        assert id_lookup_table[db_records[0].identifier] == db_records[0].id
+
+        # get first page again
+        db_records = interface.pget_harvest_records(page=0)
+        assert len(db_records) == 20
+        assert db_records[0].identifier == "test-identifier-0"
+        assert id_lookup_table[db_records[0].identifier] == db_records[0].id
+
+        # don't paginate via feature flag
+        db_records = interface.pget_harvest_records(paginate=False)
+        assert len(db_records) == 100
+        assert id_lookup_table[db_records[50].identifier] == db_records[50].id
+
+        # get page 6 (r. 100 - 119), which is out of bounds / empty
+        db_records = interface.pget_harvest_records(page=6)
+        assert len(db_records) == 0
+
+        db_records = interface.pget_harvest_records(
+            filter=text(f"id = '{id_lookup_table['test-identifier-0']}'")
+        )
+        assert len(db_records) == 1
+        assert db_records[0].harvest_job_id == job_data_dcatus["id"]
+
+    def test_endpoint_count(
+        self, interface_with_fixture_json, job_data_dcatus, record_data_dcatus
+    ):
+        interface = interface_with_fixture_json
+        job_id = job_data_dcatus["id"]
+        count = interface.get_harvest_record_errors_by_job(
+            job_id, count=True, skip_pagination=True
+        )
+        assert count == len(record_data_dcatus)
+
+    def test_errors_by_job(
+        self,
+        interface_with_multiple_sources,
+        job_data_dcatus,
+        job_data_dcatus_2,
+        record_error_data,
+        record_error_data_2,
+    ):
+        interface = interface_with_multiple_sources
+        job_id = job_data_dcatus["id"]
+        count = interface.get_harvest_record_errors_by_job(
+            job_id, count=True, skip_pagination=True
+        )
+        all_errors_count = interface.pget_harvest_record_errors(
+            count=True,
+            skip_pagination=True,
+        )
+        assert count == len(record_error_data)
+        assert all_errors_count == len(record_error_data) + len(record_error_data_2)
 
     def test_add_harvest_job_with_id(
         self, interface, organization_data, source_data_dcatus, job_data_dcatus

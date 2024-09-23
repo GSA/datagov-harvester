@@ -1,5 +1,7 @@
 app_name: datagov-harvest
 route_external: datagov-harvest-admin-stage.app.cloud.gov
+admin_instances: 2
+admin_memory_quota: 3G
 CF_API_URL: https://api.fr.cloud.gov
 CKAN_API_URL: https://catalog-stage.data.gov
 HARVEST_RUNNER_APP_GUID: null

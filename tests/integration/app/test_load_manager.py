@@ -27,13 +27,18 @@ class TestLoadManager:
     @patch("harvester.lib.cf_handler.CloudFoundryClient")
     @patch("harvester.lib.cf_handler.TaskManager")
     def test_load_manager_invokes_tasks(
-        self, TMMock, CFCMock, interface_no_jobs, source_orm_dcatus, mock_good_cf_index
+        self,
+        TMMock,
+        CFCMock,
+        interface_no_jobs,
+        source_data_dcatus_orm,
+        mock_good_cf_index,
     ):
         intervals = [-1, -2]
         jobs = [
             {
                 "status": "new",
-                "harvest_source_id": source_orm_dcatus.id,
+                "harvest_source_id": source_data_dcatus_orm.id,
                 "date_created": datetime.now() + timedelta(days=interval),
             }
             for interval in intervals
