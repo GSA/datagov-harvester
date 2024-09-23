@@ -251,7 +251,7 @@ def cli_remove_harvest_source(id):
 
 ## Load Test Data
 # TODO move this into its own file when you break up routes
-@testdata.cli.command("load")
+@testdata.cli.command("load_test_data")
 def fixtures():
     """Load database fixtures from JSON."""
     import json
