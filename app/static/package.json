@@ -24,7 +24,7 @@
   },
   "dependencies": {
     "@uswds/uswds": "3.8.0",
-    "chart.js": "^4.4.2",
+    "chart.js": "^4.4.4",
     "htmx.org": "^2.0.2",
     "rollup": "^4.18.0"
   },
