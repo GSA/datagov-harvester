@@ -247,7 +247,6 @@ class HarvestSource:
                         "ckan_name": record.ckan_name,
                     }
                 )
-
         self.internal_records_lookup_table = self.db_interface.add_harvest_records(
             records
         )
@@ -515,7 +514,7 @@ class Record:
     def ckanify_dcatus(self) -> None:
         try:
             self.ckanified_metadata = ckanify_dcatus(
-                self.metadata, self.harvest_source.organization_id
+                self.metadata, self.harvest_source
             )
         except Exception as e:
             self.status = "error"
