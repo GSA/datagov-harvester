@@ -732,7 +732,7 @@ def get_harvest_record(record_id=None):
 
     return db._to_dict(record)
 
-@mod.route("/harvest_record/raw/<record_id>", methods=["GET"])
+@mod.route("/harvest_record/<record_id>/raw", methods=["GET"])
 def get_harvest_record_raw(record_id=None):
     record = db.get_harvest_record(record_id)
     if record:
