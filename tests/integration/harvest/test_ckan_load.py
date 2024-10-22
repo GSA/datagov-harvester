@@ -88,6 +88,18 @@ class TestCKANLoad:
         harvest_source = HarvestSource(harvest_job.id)
         harvest_source.prepare_external_data()
 
+        records = [(
+            {
+                "identifier": 'cftc-dc1',
+                "harvest_job_id": job_data_dcatus["id"],
+                "harvest_source_id": job_data_dcatus["harvest_source_id"]
+            }
+        )]
+        interface.add_harvest_records(records)
+        harvest_source.get_record_changes()
+        harvest_source.write_compare_to_db()
+        record_id = harvest_source.internal_records_lookup_table['cftc-dc1']
+
         expected_result = {
             "name": "commitment-of-traders",
             "owner_org": "d925f84d-955b-4cb7-812f-dcfd6681a18f",
@@ -110,6 +122,9 @@ class TestCKANLoad:
             ],
             "extras": [
                 {"key": "resource-type", "value": "Dataset"},
+                {"key": "harvest_object_id", "value": record_id},
+                {"key": "harvest_source_id", "value": "2f2652de-91df-4c63-8b53-bfced20b276b"},
+                {"key": "harvest_source_title", "value": "Test Source"},
                 {"key": "accessLevel", "value": "public"},
                 {"key": "bureauCode", "value": "339:00"},
                 {"key": "identifier", "value": "cftc-dc1"},
