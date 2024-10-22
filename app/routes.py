@@ -20,6 +20,7 @@ from database.interface import HarvesterDBInterface
 from . import htmx
 from .forms import HarvestSourceForm, OrganizationForm
 from .paginate import Pagination
+import json
 
 logger = logging.getLogger("harvest_admin")
 
@@ -731,6 +732,17 @@ def get_harvest_record(record_id=None):
 
     return db._to_dict(record)
 
+@mod.route("/harvest_record/raw/<record_id>", methods=["GET"])
+def get_harvest_record_raw(record_id=None):
+    record = db.get_harvest_record(record_id)
+    if record:
+        try:
+            source_raw_json = json.loads(record.source_raw)
+            return source_raw_json, 200
+        except json.JSONDecodeError:
+            return {"error": "Invalid JSON format in source_raw"}, 500
+    else:
+        return {"error": "Not Found"}, 404
 
 ### Add record
 @mod.route("/harvest_record/add", methods=["POST", "GET"])
