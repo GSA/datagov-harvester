@@ -172,6 +172,10 @@ def create_ckan_extras(metadata: dict, harvest_source) -> list[dict]:
                                         metadata["identifier"]]
         },
         {
+            "key": "source_datajson_identifier", # dataset is datajson format or not
+            "value": True,
+        },
+        {
             "key": "harvest_source_id",
             "value": harvest_source.id,
         },
