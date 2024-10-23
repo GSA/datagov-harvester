@@ -123,6 +123,7 @@ class TestCKANLoad:
             "extras": [
                 {"key": "resource-type", "value": "Dataset"},
                 {"key": "harvest_object_id", "value": record_id},
+                {"key": "source_datajson_identifier", "value": True},
                 {"key": "harvest_source_id", "value": "2f2652de-91df-4c63-8b53-bfced20b276b"},
                 {"key": "harvest_source_title", "value": "Test Source"},
                 {"key": "accessLevel", "value": "public"},
