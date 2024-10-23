@@ -1,5 +1,6 @@
 import re
 import uuid
+from harvester.harvest import HarvestSource
 
 # all of these are copy/pasted from ckan core
 # https://github.com/ckan/ckan/blob/master/ckan/lib/munge.py
@@ -151,7 +152,7 @@ def munge_tag(tag: str) -> str:
     return tag
 
 
-def create_ckan_extras(metadata: dict, harvest_source) -> list[dict]:
+def create_ckan_extras(metadata: dict, harvest_source: HarvestSource) -> list[dict]:
     extras = [
         "accessLevel",
         "bureauCode",
@@ -305,7 +306,7 @@ def simple_transform(metadata: dict, owner_org: str) -> dict:
     return output
 
 
-def ckanify_dcatus(metadata: dict, harvest_source) -> dict:
+def ckanify_dcatus(metadata: dict, harvest_source: HarvestSource) -> dict:
     ckanified_metadata = simple_transform(metadata, harvest_source.organization_id)
 
     ckanified_metadata["resources"] = create_ckan_resources(metadata)
