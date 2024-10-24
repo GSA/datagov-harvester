@@ -25,7 +25,6 @@ from harvester.exceptions import (
     SynchronizeException,
     ValidationException,
 )
-from harvester.utils.ckan_utils import add_uuid_to_package_name, ckanify_dcatus
 from harvester.utils.general_utils import (
     dataset_to_hash,
     download_file,
@@ -247,7 +246,6 @@ class HarvestSource:
                         "ckan_name": record.ckan_name,
                     }
                 )
-
         self.internal_records_lookup_table = self.db_interface.add_harvest_records(
             records
         )
@@ -474,6 +472,7 @@ class Record:
             )
 
     def create_record(self, retry=False):
+        from harvester.utils.ckan_utils import add_uuid_to_package_name
         try:
             result = ckan.action.package_create(**self.ckanified_metadata)
             self.ckan_id = result["id"]
@@ -513,9 +512,10 @@ class Record:
         )
 
     def ckanify_dcatus(self) -> None:
+        from harvester.utils.ckan_utils import ckanify_dcatus
         try:
             self.ckanified_metadata = ckanify_dcatus(
-                self.metadata, self.harvest_source.organization_id
+                self.metadata, self.harvest_source
             )
         except Exception as e:
             self.status = "error"
