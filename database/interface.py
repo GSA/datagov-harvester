@@ -249,7 +249,7 @@ class HarvesterDBInterface:
 
         ckan = RemoteCKAN(os.getenv("CKAN_API_URL"), apikey=os.getenv("CKAN_API_TOKEN"))
 
-        result = ckan.action.package_search(fq=f"owner_org:{organization_id}")
+        result = ckan.action.package_search(fq=f"harvest_source_id:{source_id}")
         ckan_datasets = result["count"]
         start = datetime.now(timezone.utc)
         retry_count = 0
@@ -258,7 +258,7 @@ class HarvesterDBInterface:
         # Retry loop to handle timeouts from cloud.gov and CKAN's Solr backend,
         # ensuring datasets are cleared despite possible interruptions.
         while ckan_datasets > 0 and retry_count < retry_max:
-            result = ckan.action.package_search(fq=f"owner_org:{organization_id}")
+            result = ckan.action.package_search(fq=f"harvest_source_id:{source_id}")
             ckan_datasets = result["count"]
             logger.info(
                 f"Attempt {retry_count + 1}: "
