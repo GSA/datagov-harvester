@@ -136,7 +136,7 @@ class TestHarvestRecordExceptionHandling:
         assert interface_record.status == "error"
         assert interface_errors[0].type == "ValidationException"
 
-    @patch("harvester.harvest.ckanify_dcatus", side_effect=Exception("Broken"))
+    @patch("harvester.utils.ckan_utils.ckanify_dcatus", side_effect=Exception("Broken"))
     def test_dcatus_to_ckan_exception(
         self,
         ckanify_dcatus_mock,
