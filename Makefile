@@ -3,7 +3,7 @@ all: help
 pypi-upload: build-dist  ## Uploads new package to PyPi after clean, build
 	poetry publish
 
-deps-update: ## Updates requirements.txt and requirements_dev.txt from pyproject.toml
+update-dependencies: ## Updates requirements.txt and requirements_dev.txt from pyproject.toml
 	poetry export --without-hashes --without=dev --format=requirements.txt > requirements.txt
 	poetry export --without-hashes --only=dev --format=requirements.txt > requirements-dev.txt
 
@@ -56,8 +56,11 @@ down: ## Tears down the flask and harvester containers
 	docker compose down
 	docker compose -p harvest-app down
 
-up-debug: ## Sets up local docker environment
+up-debug: ## Sets up local docker environment with VSCODE debug support enabled
 	docker compose -f docker-compose.yml -f docker-compose_debug.yml up -d
+
+up-prod: ## Sets up local flask env running gunicorn instead of standard dev server
+	docker compose -f docker-compose.yml -f docker-compose_prod.yml up -d
 
 clean: ## Cleans docker images
 	docker compose down -v --remove-orphans
