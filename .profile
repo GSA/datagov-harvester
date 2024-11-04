@@ -32,6 +32,10 @@ export OPENID_PRIVATE_KEY=$(vcap_get_service secrets .credentials.OPENID_PRIVATE
 
 export CKAN_API_TOKEN=$(vcap_get_service secrets .credentials.CKAN_API_TOKEN)
 
+# New Relic
+export NEW_RELIC_LICENSE_KEY=$(vcap_get_service secrets .credentials.NEW_RELIC_LICENSE_KEY)
+
+
 if [[ $REAL_NAME = "datagov-harvest-admin" ]]; then
   flask db upgrade
 fi

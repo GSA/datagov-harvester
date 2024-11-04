@@ -461,10 +461,24 @@ def add_harvest_source():
 @mod.route("/harvest_source/<source_id>", methods=["GET"])
 def view_harvest_source_data(source_id: str):
     source = db.get_harvest_source(source_id)
-    jobs = db.get_all_harvest_jobs_by_filter({"harvest_source_id": source.id})
-    records = db.get_harvest_record_by_source(source.id)
-    ckan_records = [record for record in records if record.ckan_id is not None]
-    error_records = [record for record in records if record.status == "error"]
+    records_count = db.get_harvest_records_by_source(
+        count=True,
+        skip_pagination=True,
+        source_id=source.id,
+    )
+    ckan_records_count = db.get_harvest_records_by_source(
+        count=True,
+        skip_pagination=True,
+        source_id=source.id,
+        facets=["ckan_id != null"],
+    )
+    error_records_count = db.get_harvest_records_by_source(
+        count=True,
+        skip_pagination=True,
+        source_id=source.id,
+        facets=["status = 'error'"],
+    )
+    # TODO: wire in paginated jobs query
     jobs = db.get_all_harvest_jobs_by_filter({"harvest_source_id": source.id})
     next_job = "N/A"
     future_jobs = db.get_new_harvest_jobs_by_source_in_future(source.id)
@@ -502,9 +516,9 @@ def view_harvest_source_data(source_id: str):
     data = {
         "harvest_source": source,
         "harvest_source_dict": db._to_dict(source),
-        "total_records": len(records),
-        "records_with_ckan_id": len(ckan_records),
-        "records_with_error": len(error_records),
+        "total_records": records_count,
+        "records_with_ckan_id": ckan_records_count,
+        "records_with_error": error_records_count,
         "harvest_jobs": jobs,
         "chart": chartdata,
         "next_job": next_job,
@@ -709,28 +723,29 @@ def get_harvest_errors_by_job(job_id, error_type):
 
 ## Harvest Record
 ### Get record
-@mod.route("/harvest_record/", methods=["GET"])
 @mod.route("/harvest_record/<record_id>", methods=["GET"])
-def get_harvest_record(record_id=None):
-    if record_id:
-        record = db.get_harvest_record(record_id)
-        return db._to_dict(record) if record else ("Not Found", 404)
+def get_harvest_record(record_id):
+    record = db.get_harvest_record(record_id)
+    return db._to_dict(record) if record else ("Not Found", 404)
 
+
+### Get records
+@mod.route("/harvest_records/", methods=["GET"])
+def get_harvest_records():
     job_id = request.args.get("harvest_job_id")
     source_id = request.args.get("harvest_source_id")
+    page = request.args.get("page")
     if job_id:
-        record = db.get_harvest_record_by_job(job_id)
-        if not record:
+        records = db.get_harvest_records_by_job(job_id, page)
+        if not records:
             return "No harvest records found for this harvest job", 404
     elif source_id:
-        record = db.get_harvest_record_by_source(source_id)
-        if not record:
+        records = db.get_harvest_records_by_source(source_id, page)
+        if not records:
             return "No harvest records found for this harvest source", 404
     else:
-        # TODO for test, will remove later
-        record = db.pget_harvest_records()
-
-    return db._to_dict(record)
+        records = db.pget_harvest_records(page)
+    return db._to_dict(records)
 
 @mod.route("/harvest_record/<record_id>/raw", methods=["GET"])
 def get_harvest_record_raw(record_id=None):

@@ -240,7 +240,7 @@ class TestHarvestRecordExceptionHandling:
         harvest_source.synchronize_records()
         harvest_source.report()
 
-        harvest_records = interface.get_harvest_record_by_job(job_id)
+        harvest_records = interface.get_harvest_records_by_job(job_id)
         records_with_errors = [
             record for record in harvest_records if record.status == "error"
         ]

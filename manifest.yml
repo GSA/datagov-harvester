@@ -18,7 +18,11 @@ applications:
       CLIENT_ID: ((CLIENT_ID))
       ISSUER: ((ISSUER))
       REDIRECT_URI: ((REDIRECT_URI))
-    command: flask run --host=0.0.0.0 --port=8080
+      NEW_RELIC_APP_NAME: ((app_name))-admin-((space_name))
+      NEW_RELIC_HOST: gov-collector.newrelic.com
+      NEW_RELIC_MONITOR_MODE: ((new_relic_monitor_mode))
+      NEW_RELIC_CONFIG_FILE: /home/vcap/app/config/newrelic.ini
+    command: ./harvest-admin-start.sh
   - name: ((app_name))-runner
     buildpacks:
       - python_buildpack

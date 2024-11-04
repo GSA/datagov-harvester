@@ -1,11 +1,6 @@
-import json
 from datetime import datetime, timezone
-
 from sqlalchemy import text
-
 from database.models import HarvestJobError, HarvestRecordError
-from harvester.harvest import HarvestSource
-from harvester.utils.general_utils import dataset_to_hash, sort_dataset
 
 
 class TestDatabase:
@@ -363,7 +358,7 @@ class TestDatabase:
     def test_get_new_harvest_jobs_by_source_in_future(
         self, interface_with_multiple_jobs
     ):
-        all_jobs_list = interface_with_multiple_jobs.get_all_harvest_jobs()
+        all_jobs_list = interface_with_multiple_jobs.pget_harvest_jobs(paginate=False)
         source_id = all_jobs_list[0].harvest_source_id
         filtered_job_list = (
             interface_with_multiple_jobs.get_new_harvest_jobs_by_source_in_future(
@@ -503,49 +498,62 @@ class TestDatabase:
         # make sure there aren't records that are different
         assert not any(x != y for x, y in zip(latest_records, expected_records))
 
-    def test_write_compare_to_db(
+    def test_faceted_builder_queries(
         self,
+        interface,
         organization_data,
         source_data_dcatus,
         job_data_dcatus,
-        interface,
-        internal_compare_data,
+        record_data_dcatus,
     ):
-        # add the necessary records to satisfy FKs
         interface.add_organization(organization_data)
         interface.add_harvest_source(source_data_dcatus)
         interface.add_harvest_job(job_data_dcatus)
 
-        # prefill with records
         records = []
-        for record in internal_compare_data["records"]:
-            records.append(
-                {
-                    "identifier": record["identifier"],
-                    "harvest_job_id": job_data_dcatus["id"],
-                    "harvest_source_id": job_data_dcatus["harvest_source_id"],
-                    "source_hash": dataset_to_hash(sort_dataset(record)),
-                    "source_raw": json.dumps(record),
-                }
-            )
+        for i in range(100):
+            new_record = record_data_dcatus[0].copy()
+            del new_record["id"]
+            new_record["identifier"] = f"test-identifier-{i}"
+            records.append(new_record)
 
-        interface.add_harvest_records(records)
+        id_lookup_table = interface.add_harvest_records(records)
 
-        harvest_source = HarvestSource(job_data_dcatus["id"])
-        harvest_source.get_record_changes()
+        # # source id, no facets
+        db_records = interface.get_harvest_records_by_source(source_data_dcatus["id"])
+        assert len(db_records) == 20
 
-        harvest_source.write_compare_to_db()
-
-        expected = sorted(
-            [
-                "cftc-dc3",
-                "cftc-dc7",
-                "cftc-dc5",
-                "cftc-dc4",
-                "cftc-dc6",
-                "cftc-dc1",
-                "cftc-dc2",
-            ]
+        # source id, plus page kwarg
+        db_records = interface.get_harvest_records_by_source(
+            source_data_dcatus["id"], page=1
         )
-        assert len(harvest_source.internal_records_lookup_table) == len(expected)
-        assert sorted(list(harvest_source.internal_records_lookup_table)) == expected
+        assert len(db_records) == 20
+        assert db_records[0].identifier == "test-identifier-20"
+
+        # source id, plus pagination flag
+        db_records = interface.get_harvest_records_by_source(
+            source_data_dcatus["id"], paginate=False
+        )
+        assert len(db_records) == 100
+
+        # source id, plus kwargs to return only count
+        db_records = interface.get_harvest_records_by_source(
+            source_data_dcatus["id"], skip_pagination=True, count=True
+        )
+        assert db_records == 100
+
+        # source id, plus extra filter_text facet
+        db_records = interface.get_harvest_records_by_source(
+            source_data_dcatus["id"],
+            facets=[f"id = '{id_lookup_table['test-identifier-0']}'"],
+        )
+        assert len(db_records) == 1
+
+        # source id, plus extra filter_text facet, plus kwargs to return only count
+        db_records = interface.get_harvest_records_by_source(
+            source_data_dcatus["id"],
+            facets=[f"id = '{id_lookup_table['test-identifier-0']}'"],
+            skip_pagination=True,
+            count=True,
+        )
+        assert db_records == 1
