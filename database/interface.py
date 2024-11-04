@@ -507,16 +507,6 @@ class HarvesterDBInterface:
     def get_harvest_record(self, record_id):
         return self.db.query(HarvestRecord).filter_by(id=record_id).first()
 
-    def get_harvest_record_by_job(self, job_id):
-        harvest_records = self.db.query(HarvestRecord).filter_by(harvest_job_id=job_id)
-        return [rcd for rcd in harvest_records]
-
-    def get_harvest_record_by_source(self, source_id, filters={}):
-        harvest_records = self.db.query(HarvestRecord).filter_by(
-            harvest_source_id=source_id, **filters
-        )
-        return [rcd for rcd in harvest_records]
-
     def get_latest_harvest_records_by_source(self, source_id):
         # datetimes are returned as datetime objs not strs
         sql = text(
@@ -610,7 +600,7 @@ class HarvesterDBInterface:
             print("Error:", e)
             return False
 
-    #### PAGINATED QUERIES
+    #### PAGINATED QUERIES ####
     @count
     @paginate
     def pget_harvest_jobs(self, filter=text(""), **kwargs):
@@ -631,21 +621,11 @@ class HarvesterDBInterface:
     def pget_harvest_record_errors(self, filter=text(""), **kwargs):
         return self.db.query(HarvestRecordError).filter(filter)
 
-    ##### TEST INTERFACES BELOW #####
-    ######## TO BE REMOVED ##########
-    def get_all_harvest_jobs(self):
-        harvest_jobs = self.db.query(HarvestJob).all()
-        harvest_jobs_data = [job for job in harvest_jobs]
-        return harvest_jobs_data
+    #### FACETED BUILDER QUERIES ####
+    def get_harvest_records_by_job(self, job_id, facets=[], **kwargs):
+        filter_string = " AND ".join([f"harvest_job_id = '{job_id}'"] + facets)
+        return self.pget_harvest_records(filter=text(filter_string), **kwargs)
 
-    def get_all_harvest_errors(self):
-        job_errors = self.db.query(HarvestJobError).all()
-        record_errors = self.db.query(HarvestRecordError).all()
-        return [*job_errors, *record_errors]
-
-    def delete_all_harvest_records(self):
-        harvest_records = self.db.query(HarvestRecord).all()
-        for record in harvest_records:
-            self.db.delete(record)
-        self.db.commit()
-        return "Records deleted successfully"
+    def get_harvest_records_by_source(self, source_id, facets=[], **kwargs):
+        filter_string = " AND ".join([f"harvest_source_id = '{source_id}'"] + facets)
+        return self.pget_harvest_records(filter=text(filter_string), **kwargs)

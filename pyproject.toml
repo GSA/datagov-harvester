@@ -34,6 +34,9 @@ cryptography = "^42.0.8"
 boltons = "^24.0.0"
 jinja2-fragments = "^1.6.0"
 flask-htmx = "^0.3.2"
+gunicorn = "^23.0.0"
+newrelic = "^10.2.0"
+gevent = "^24.10.3"
 
 [tool.poetry.group.dev.dependencies]
 pytest = ">=7.3.2"
