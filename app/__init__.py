@@ -7,8 +7,10 @@ from flask_htmx import HTMX
 from flask_migrate import Migrate
 
 from app.filters import usa_icon
-from app.scripts.load_manager import load_manager
+from harvester.lib.load_manager import LoadManager
 from database.models import db
+
+load_manager = LoadManager()
 
 load_dotenv()
 
@@ -35,7 +37,7 @@ def create_app():
 
     with app.app_context():
         db.create_all()
-        load_manager()
+        load_manager.start()
 
     return app
 

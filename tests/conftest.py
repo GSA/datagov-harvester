@@ -11,7 +11,7 @@ from flask import Flask
 from sqlalchemy.orm import scoped_session, sessionmaker
 
 from app import create_app
-from app.scripts.load_manager import create_future_date
+from harvester.lib.load_manager import create_future_date
 from database.interface import HarvesterDBInterface
 from database.models import HarvestJob, HarvestSource, Organization, db
 from harvester.utils.general_utils import dataset_to_hash, sort_dataset
@@ -30,7 +30,9 @@ collect_ignore_glob = ["functional/*"]
 
 @pytest.fixture(scope="session", autouse=True)
 def default_session_fixture():
-    with patch("app.load_manager", lambda: True):
+    with patch("harvester.lib.cf_handler.CloudFoundryClient"), patch(
+        "harvester.lib.cf_handler.TaskManager"
+    ), patch("app.load_manager.start", lambda: True):
         yield
 
 
@@ -74,7 +76,7 @@ def default_function_fixture(interface):
     logger.info("Patching core.feature.service")
     with patch("harvester.harvest.db_interface", interface), patch(
         "harvester.exceptions.db_interface", interface
-    ), patch("app.scripts.load_manager.interface", interface), patch(
+    ), patch("harvester.lib.load_manager.interface", interface), patch(
         "app.routes.db", interface
     ):
         yield
