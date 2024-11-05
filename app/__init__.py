@@ -7,8 +7,8 @@ from flask_htmx import HTMX
 from flask_migrate import Migrate
 
 from app.filters import usa_icon
-from harvester.lib.load_manager import LoadManager
 from database.models import db
+from harvester.lib.load_manager import LoadManager
 
 load_manager = LoadManager()
 
