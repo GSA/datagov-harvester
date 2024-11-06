@@ -1,0 +1,44 @@
+[
+    {
+        "guid": "5ef94fea-eb7b-4eeb-9f45-645cedd3d93b",
+        "created_at": "2024-10-18T16:35:58Z",
+        "updated_at": "2024-10-18T16:36:33Z",
+        "sequence_id": 198,
+        "name": "harvest-job-b22a8e9b-4906-4515-97ab-3a24b55a02b0",
+        "command": "python harvester/harvest.py 47442c62-716d-4678-947c-61990106685f",
+        "state": "SUCCEEDED",
+        "memory_in_mb": 1536,
+        "disk_in_mb": 4096,
+        "log_rate_limit_in_bytes_per_second": -1,
+        "result": {
+            "failure_reason": "None"
+        },
+        "droplet_guid": "4fddb9e8-7092-4fde-8835-87dd6a5fc61a",
+        "relationships": {
+            "app": {
+                "data": {
+                    "guid": "e6a8bba8-ed6d-4200-8280-67b46cebdc63"
+                }
+            }
+        },
+        "metadata": {
+            "labels": {},
+            "annotations": {}
+        },
+        "links": {
+            "self": {
+                "href": "https://api.fr.cloud.gov/v3/tasks/5ef94fea-eb7b-4eeb-9f45-645cedd3d93b"
+            },
+            "app": {
+                "href": "https://api.fr.cloud.gov/v3/apps/e6a8bba8-ed6d-4200-8280-67b46cebdc63"
+            },
+            "cancel": {
+                "href": "https://api.fr.cloud.gov/v3/tasks/5ef94fea-eb7b-4eeb-9f45-645cedd3d93b/actions/cancel",
+                "method": "POST"
+            },
+            "droplet": {
+                "href": "https://api.fr.cloud.gov/v3/droplets/4fddb9e8-7092-4fde-8835-87dd6a5fc61a"
+            }
+        }
+    }
+]

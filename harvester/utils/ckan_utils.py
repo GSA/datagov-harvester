@@ -1,5 +1,6 @@
 import re
 import uuid
+
 from harvester.harvest import HarvestSource
 
 # all of these are copy/pasted from ckan core
@@ -163,17 +164,15 @@ def create_ckan_extras(metadata: dict, harvest_source: HarvestSource) -> list[di
     ]
 
     output = [
-        {
-            "key": "resource-type",
-            "value": "Dataset"
-        },
+        {"key": "resource-type", "value": "Dataset"},
         {
             "key": "harvest_object_id",
             "value": harvest_source.internal_records_lookup_table[
-                                        metadata["identifier"]]
+                metadata["identifier"]
+            ],
         },
         {
-            "key": "source_datajson_identifier", # dataset is datajson format or not
+            "key": "source_datajson_identifier",  # dataset is datajson format or not
             "value": True,
         },
         {
@@ -183,7 +182,7 @@ def create_ckan_extras(metadata: dict, harvest_source: HarvestSource) -> list[di
         {
             "key": "harvest_source_title",
             "value": harvest_source.name,
-        }
+        },
     ]
 
     for extra in extras:

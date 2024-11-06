@@ -27,7 +27,18 @@
             {% endfor %}
         </table>
     </div>
-    <div class="section mb-3">
+    {% if session['user'] and data.harvest_job.status == "in_progress" %}
+    <div class="config-actions">
+        <ul class="usa-button-group">
+            <li class="usa-button-group__item">
+                <a href="{{ url_for('harvest.cancel_harvest_job', job_id=data.harvest_job_id)}}">
+                    <button class="usa-button usa-button--secondary">Cancel</button>
+                </a>
+            </li>
+        </ul>
+    </div>
+    {% endif %}
+    <div class="section my-3">
         <h2>Job Error Table</h2>
         {% if not data.harvest_job.errors %}
         No job errors found
