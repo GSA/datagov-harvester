@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 import secrets
@@ -14,13 +15,12 @@ from dotenv import load_dotenv
 from flask import Blueprint, flash, redirect, render_template, request, session, url_for
 from jinja2_fragments.flask import render_block
 
-from app.scripts.load_manager import schedule_first_job, trigger_manual_job
 from database.interface import HarvesterDBInterface
+from harvester.lib.load_manager import LoadManager
 
 from . import htmx
 from .forms import HarvestSourceForm, OrganizationForm
 from .paginate import Pagination
-import json
 
 logger = logging.getLogger("harvest_admin")
 
@@ -31,6 +31,8 @@ org = Blueprint("org", __name__)
 testdata = Blueprint("testdata", __name__)
 
 db = HarvesterDBInterface()
+
+load_manager = LoadManager()
 
 # Login authentication
 load_dotenv()
@@ -429,7 +431,7 @@ def add_harvest_source():
 
     if request.is_json:
         source = db.add_harvest_source(request.json)
-        job_message = schedule_first_job(source.id)
+        job_message = load_manager.schedule_first_job(source.id)
         if source and job_message:
             return {
                 "message": f"Added new harvest source with ID: {source.id}. {job_message}"
@@ -440,7 +442,7 @@ def add_harvest_source():
         if form.validate_on_submit():
             new_source = make_new_source_contract(form)
             source = db.add_harvest_source(new_source)
-            job_message = schedule_first_job(source.id)
+            job_message = load_manager.schedule_first_job(source.id)
             if source and job_message:
                 flash(f"Updated source with ID: {source.id}. {job_message}")
             else:
@@ -552,7 +554,7 @@ def edit_harvest_source(source_id: str):
             if form.validate_on_submit():
                 new_source_data = make_new_source_contract(form)
                 source = db.update_harvest_source(source_id, new_source_data)
-                job_message = schedule_first_job(source.id)
+                job_message = load_manager.schedule_first_job(source.id)
                 if source and job_message:
                     flash(f"Updated source with ID: {source.id}. {job_message}")
                 else:
@@ -618,7 +620,7 @@ def delete_harvest_source(source_id):
 ### Trigger Harvest
 @mod.route("/harvest_source/harvest/<source_id>", methods=["GET"])
 def trigger_harvest_source(source_id):
-    message = trigger_manual_job(source_id)
+    message = load_manager.trigger_manual_job(source_id)
     flash(message)
     return redirect(f"/harvest_source/{source_id}")
 
@@ -708,6 +710,15 @@ def delete_harvest_job(job_id):
     return result
 
 
+@mod.route("/harvest_job/cancel/<job_id>", methods=["GET", "POST"])
+@login_required
+def cancel_harvest_job(job_id):
+    """Cancels a harvest job"""
+    message = load_manager.stop_job(job_id)
+    flash(message)
+    return redirect(f"/harvest_job/{job_id}")
+
+
 ### Get Job Errors by Type
 @mod.route("/harvest_job/<job_id>/errors/<error_type>", methods=["GET"])
 def get_harvest_errors_by_job(job_id, error_type):
@@ -747,6 +758,7 @@ def get_harvest_records():
         records = db.pget_harvest_records(page)
     return db._to_dict(records)
 
+
 @mod.route("/harvest_record/<record_id>/raw", methods=["GET"])
 def get_harvest_record_raw(record_id=None):
     record = db.get_harvest_record(record_id)
@@ -758,6 +770,7 @@ def get_harvest_record_raw(record_id=None):
             return {"error": "Invalid JSON format in source_raw"}, 500
     else:
         return {"error": "Not Found"}, 404
+
 
 ### Add record
 @mod.route("/harvest_record/add", methods=["POST", "GET"])
