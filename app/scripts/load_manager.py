@@ -32,10 +32,10 @@ def create_task(job_id, cf_handler=None):
         "command": f"python harvester/harvest.py {job_id}",
         "task_id": f"harvest-job-{job_id}",
     }
-    if cf_handler is None:
-        cf_handler = create_cf_handler()
+    # if cf_handler is None:
+    #     cf_handler = create_cf_handler()
 
-    cf_handler.start_task(**task_contract)
+    # cf_handler.start_task(**task_contract)
     updated_job = interface.update_harvest_job(job_id, {"status": "in_progress"})
     message = f"Updated job {updated_job.id} to in_progress"
     logger.info(message)
