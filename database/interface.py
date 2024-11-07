@@ -73,14 +73,13 @@ class HarvesterDBInterface:
         if session is None:
             engine = create_engine(
                 DATABASE_URI,
+                isolation_level="AUTOCOMMIT",
                 pool_size=10,
                 max_overflow=20,
                 pool_timeout=60,
                 pool_recycle=1800,
             )
-            session_factory = sessionmaker(
-                bind=engine, autocommit=False, autoflush=False
-            )
+            session_factory = sessionmaker(bind=engine, autoflush=True)
             self.db = scoped_session(session_factory)
         else:
             self.db = session
