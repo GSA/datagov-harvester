@@ -356,7 +356,6 @@ def interface_with_multiple_sources(
     return interface_with_fixture_json
 
 
-## MISC
 @pytest.fixture
 def interface_with_multiple_jobs(interface_no_jobs, source_data_dcatus):
     statuses = ["new", "in_progress", "complete", "error"]

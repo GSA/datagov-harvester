@@ -7,9 +7,10 @@ from functools import wraps
 
 import ckanapi
 from ckanapi import RemoteCKAN
-from sqlalchemy import create_engine, func, inspect, or_, select, text
+from sqlalchemy import create_engine, func, inspect, select, text
 from sqlalchemy.exc import NoResultFound
 from sqlalchemy.orm import scoped_session, sessionmaker
+from harvester.utils.general_utils import query_filter_builder
 
 from .models import (
     HarvestJob,
@@ -224,8 +225,9 @@ class HarvesterDBInterface:
 
         ckan_ids = [record.ckan_id for record in records if record.ckan_id is not None]
         error_records = [record for record in records if record.status == "error"]
-        jobs_in_progress = self.get_all_harvest_jobs_by_filter(
-            {"harvest_source_id": source.id, "status": "in_progress"}
+        jobs_in_progress = self.pget_harvest_jobs(
+            facets=f"harvest_source_id = '{source.id}', 'status' = 'in_progress'",
+            paginate=False,
         )
 
         # Ensure no jobs are in progress
@@ -325,10 +327,6 @@ class HarvesterDBInterface:
     def get_harvest_job(self, job_id):
         return self.db.query(HarvestJob).filter_by(id=job_id).first()
 
-    def get_all_harvest_jobs_by_filter(self, filter):
-        harvest_jobs = self.db.query(HarvestJob).filter_by(**filter).all()
-        return [job for job in harvest_jobs or []]
-
     def get_first_harvest_jobs_by_filter(self, filter):
         harvest_job = (
             self.db.query(HarvestJob)
@@ -360,11 +358,6 @@ class HarvesterDBInterface:
             .all()
         )
         return [job for job in harvest_jobs or []]
-
-    def get_harvest_jobs_by_faceted_filter(self, attr, values):
-        query_list = [getattr(HarvestJob, attr) == value for value in values]
-        harvest_jobs = self.db.query(HarvestJob).filter(or_(*query_list)).all()
-        return [job for job in harvest_jobs]
 
     def update_harvest_job(self, job_id, updates):
         try:
@@ -602,29 +595,32 @@ class HarvesterDBInterface:
     #### PAGINATED QUERIES ####
     @count
     @paginate
-    def pget_harvest_jobs(self, filter=text(""), **kwargs):
-        return self.db.query(HarvestJob).filter(filter)
+    def pget_harvest_jobs(self, facets="", **kwargs):
+        facet_string = query_filter_builder(None, facets)
+        return self.db.query(HarvestJob).filter(text(facet_string))
 
     @count
     @paginate
-    def pget_harvest_records(self, filter=text(""), **kwargs):
-        return self.db.query(HarvestRecord).filter(filter)
+    def pget_harvest_records(self, facets="", **kwargs):
+        return self.db.query(HarvestRecord).filter(text(facets))
 
     @count
     @paginate
-    def pget_harvest_job_errors(self, filter=text(""), **kwargs):
-        return self.db.query(HarvestJobError).filter(filter)
+    def pget_harvest_job_errors(self, facets="", **kwargs):
+        return self.db.query(HarvestJobError).filter(text(facets))
 
     @count
     @paginate
-    def pget_harvest_record_errors(self, filter=text(""), **kwargs):
-        return self.db.query(HarvestRecordError).filter(filter)
+    def pget_harvest_record_errors(self, facets="", **kwargs):
+        return self.db.query(HarvestRecordError).filter(text(facets))
 
-    #### FACETED BUILDER QUERIES ####
-    def get_harvest_records_by_job(self, job_id, facets=[], **kwargs):
-        filter_string = " AND ".join([f"harvest_job_id = '{job_id}'"] + facets)
-        return self.pget_harvest_records(filter=text(filter_string), **kwargs)
+    #### FILTERED BUILDER QUERIES ####
+    def get_harvest_records_by_job(self, job_id, facets="", **kwargs):
+        facet_string = query_filter_builder(f"harvest_job_id = '{job_id}'", facets)
+        return self.pget_harvest_records(facets=facet_string, **kwargs)
 
-    def get_harvest_records_by_source(self, source_id, facets=[], **kwargs):
-        filter_string = " AND ".join([f"harvest_source_id = '{source_id}'"] + facets)
-        return self.pget_harvest_records(filter=text(filter_string), **kwargs)
+    def get_harvest_records_by_source(self, source_id, facets="", **kwargs):
+        facet_string = query_filter_builder(
+            f"harvest_source_id = '{source_id}'", facets
+        )
+        return self.pget_harvest_records(facets=facet_string, **kwargs)
