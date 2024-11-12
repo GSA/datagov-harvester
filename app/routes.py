@@ -337,7 +337,6 @@ def add_organization():
     )
 
 
-@mod.route("/organization/", methods=["GET"])
 @mod.route("/organizations/", methods=["GET"])
 def view_organizations():
     organizations = db.get_all_organizations()
@@ -472,16 +471,16 @@ def view_harvest_source_data(source_id: str):
         count=True,
         skip_pagination=True,
         source_id=source.id,
-        facets=["ckan_id is not null"],
+        facets="ckan_id is not null",
     )
     error_records_count = db.get_harvest_records_by_source(
         count=True,
         skip_pagination=True,
         source_id=source.id,
-        facets=["status = 'error'"],
+        facets="status = 'error'",
     )
-    # TODO: wire in paginated jobs query
-    jobs = db.get_all_harvest_jobs_by_filter({"harvest_source_id": source.id})
+    # TODO: wire in paginated jobs htmx refresh ui & route
+    jobs = db.pget_harvest_jobs(facets=f"harvest_source_id = '{source.id}'")
     next_job = "N/A"
     future_jobs = db.get_new_harvest_jobs_by_source_in_future(source.id)
     if len(future_jobs):
@@ -528,7 +527,6 @@ def view_harvest_source_data(source_id: str):
     return render_template("view_source_data.html", data=data)
 
 
-@mod.route("/harvest_source/", methods=["GET"])
 @mod.route("/harvest_sources/", methods=["GET"])
 def view_harvest_sources():
     sources = db.get_all_harvest_sources()
@@ -731,18 +729,45 @@ def get_harvest_record(record_id):
 def get_harvest_records():
     job_id = request.args.get("harvest_job_id")
     source_id = request.args.get("harvest_source_id")
-    page = request.args.get("page")
+    paginate = request.args.get("paginate", type=bool)
+    skip_pagination = request.args.get("skip_pagination", type=bool)
+    count = request.args.get("count", type=bool)
+    page = request.args.get("page", type=int)
+    facets = request.args.get("facets", "")
     if job_id:
-        records = db.get_harvest_records_by_job(job_id, page)
-        if not records:
-            return "No harvest records found for this harvest job", 404
+        records = db.get_harvest_records_by_job(
+            job_id,
+            page=page,
+            paginate=paginate,
+            skip_pagination=skip_pagination,
+            facets=facets,
+        )
+
     elif source_id:
-        records = db.get_harvest_records_by_source(source_id, page)
+        records = db.get_harvest_records_by_source(
+            source_id,
+            page=page,
+            paginate=paginate,
+            skip_pagination=skip_pagination,
+            count=count,
+            facets=facets,
+        )
         if not records:
             return "No harvest records found for this harvest source", 404
     else:
-        records = db.pget_harvest_records(page)
-    return db._to_dict(records)
+        records = db.pget_harvest_records(
+            page=page,
+            paginate=paginate,
+            skip_pagination=skip_pagination,
+            facets=facets,
+        )
+
+    if not records:
+        return "No harvest records found for this query", 404
+    elif isinstance(records, int):
+        return f"{records} records found", 200
+    else:
+        return db._to_dict(records)
 
 
 @mod.route("/harvest_record/<record_id>/raw", methods=["GET"])
@@ -802,27 +827,6 @@ def get_data_sources():
     source = db.get_all_harvest_sources()
     org = db.get_all_organizations()
     return render_template("get_data_sources.html", sources=source, organizations=org)
-
-
-## Test interface, will remove later
-@mod.route("/delete_all_records", methods=["DELETE"])
-def delete_all_records():
-    db.delete_all_harvest_records()
-    return "All harvest records deleted"
-
-
-## Test interface, will remove later
-@mod.route("/add_harvest_job_error", methods=["POST"])
-def add_harvest_job_error():
-    db.add_harvest_job_error(request.json)
-    return "Added harvest job error"
-
-
-## Test interface, will remove later
-@mod.route("/add_harvest_record_error", methods=["POST"])
-def add_harvest_record_error():
-    err = db.add_harvest_record_error(request.json)
-    return db._to_dict(err)
 
 
 def register_routes(app):

@@ -2,6 +2,20 @@ import json
 from unittest.mock import patch
 
 from harvester.harvest import HarvestSource
+from harvester.utils.general_utils import download_file, dataset_to_hash, sort_dataset
+
+
+# reusable fixture for making db record
+def make_db_record_contract(record):
+    return {
+        "identifier": record.identifier,
+        "id": record.id,
+        "harvest_job_id": record.harvest_source.job_id,
+        "harvest_source_id": record.harvest_source.id,
+        "source_hash": record.metadata_hash,
+        "source_raw": json.dumps(record.metadata),
+        "action": record.action,
+    }
 
 
 class TestHarvestFullFlow:
@@ -25,15 +39,21 @@ class TestHarvestFullFlow:
                 "harvest_source_id": source_data_dcatus_single_record["id"],
             }
         )
+
         job_id = harvest_job.id
         harvest_source = HarvestSource(job_id)
-        harvest_source.get_record_changes()
-        harvest_source.write_compare_to_db()
-        harvest_source.synchronize_records()
-        harvest_source.report()
+        harvest_source.extract()
+        harvest_source.transform()
+        harvest_source.validate()
+        harvest_source.load()
+        harvest_source.do_report()
+
+        records_to_add = download_file(
+            source_data_dcatus_single_record["url"], ".json"
+        )["dataset"]
         harvest_job = interface.get_harvest_job(job_id)
         assert harvest_job.status == "complete"
-        assert harvest_job.records_added == len(harvest_source.external_records)
+        assert harvest_job.records_added == len(records_to_add)
 
     @patch("harvester.harvest.ckan")
     @patch("harvester.harvest.download_file")
@@ -57,15 +77,14 @@ class TestHarvestFullFlow:
         interface.add_harvest_record(single_internal_record)
 
         harvest_source = HarvestSource(harvest_job.id)
-        harvest_source.get_record_changes()
-        harvest_source.write_compare_to_db()
-        harvest_source.synchronize_records()
-        harvest_source.report()
+        harvest_source.extract()
+        harvest_source.transform()
+        harvest_source.validate()
+        harvest_source.load()
+        harvest_source.do_report()
 
         interface_errors = interface.get_harvest_record_errors_by_record(
-            harvest_source.internal_records_lookup_table[
-                single_internal_record["identifier"]
-            ]
+            harvest_source.records[0].id
         )
 
         job_errors = [
@@ -106,10 +125,11 @@ class TestHarvestFullFlow:
         )
         job_id = harvest_job.id
         harvest_source = HarvestSource(job_id)
-        harvest_source.get_record_changes()
-        harvest_source.write_compare_to_db()
-        harvest_source.synchronize_records()
-        harvest_source.report()
+        harvest_source.extract()
+        harvest_source.transform()
+        harvest_source.validate()
+        harvest_source.load()
+        harvest_source.do_report()
 
         harvest_job = interface.get_harvest_job(job_id)
         assert harvest_job.status == "complete"
@@ -138,10 +158,11 @@ class TestHarvestFullFlow:
         job_id = harvest_job.id
         harvest_source = HarvestSource(job_id)
         harvest_source.url = "http://localhost:80/dcatus/dcatus_same_title_step_2.json"
-        harvest_source.get_record_changes()
-        harvest_source.write_compare_to_db()
-        harvest_source.synchronize_records()
-        harvest_source.report()
+        harvest_source.extract()
+        harvest_source.transform()
+        harvest_source.validate()
+        harvest_source.load()
+        harvest_source.do_report()
 
         # assert job reports correct metrics
         harvest_job = interface.get_harvest_job(job_id)
@@ -164,15 +185,12 @@ class TestHarvestFullFlow:
         assert kwargs["identifier"] == "cftc-dc2"
 
     @patch("harvester.harvest.ckan")
-    @patch("harvester.harvest.smtplib.SMTP")
-    def test_send_notification_emails(
+    def test_pickup_sync_again(
         self,
-        mock_smtp,
         CKANMock,
         interface,
         organization_data,
         source_data_dcatus_single_record,
-        caplog,
     ):
         CKANMock.action.package_create.return_value = {"id": 1234}
         CKANMock.action.package_update = "ok"
@@ -185,19 +203,89 @@ class TestHarvestFullFlow:
                 "harvest_source_id": source_data_dcatus_single_record["id"],
             }
         )
+
         job_id = harvest_job.id
         harvest_source = HarvestSource(job_id)
-        harvest_source.notification_emails = [
-            source_data_dcatus_single_record["notification_emails"]
-        ]
+        harvest_source.extract()
+        harvest_source.validate()
 
-        results = {"create": 10, "update": 5, "delete": 3, None: 2}
+        assert harvest_job.status == "new"
 
-        # Test Success Case
-        harvest_source.send_notification_emails(results)
-        assert "Notification email sent to" in caplog.text
+        new_harvest_source = HarvestSource(job_id)
+        new_harvest_source.restart_job()
+        new_harvest_source.transform()
+        new_harvest_source.validate()
+        new_harvest_source.load()
+        new_harvest_source.do_report()
 
-        # Test Failure Case
-        mock_smtp.side_effect = Exception("SMTP failed")
-        harvest_source.send_notification_emails(results)
-        assert "Failed to send notification email: SMTP failed" in caplog.text
+        assert harvest_job.status == "complete"
+
+        # assert our records are the same
+        assert dataset_to_hash(
+            sort_dataset(make_db_record_contract(harvest_source.records[0]))
+        ) == dataset_to_hash(
+            sort_dataset(make_db_record_contract(new_harvest_source.records[0]))
+        )
+
+        # assert against
+        assert harvest_source.records[0].ckan_id is None
+        assert new_harvest_source.records[0].ckan_id == 1234
+
+        assert harvest_source.records[0].ckan_name is None
+        assert new_harvest_source.records[0].ckan_name == "commitment-of-traders"
+
+    @patch("harvester.harvest.ckan")
+    def test_pickup_sync_after_partially_complete(
+        self,
+        CKANMock,
+        interface,
+        organization_data,
+        source_data_dcatus,
+        job_data_dcatus,
+        record_data_dcatus,
+    ):
+        CKANMock.action.package_create.return_value = {"id": 1234}
+
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_dcatus)
+        harvest_job = interface.add_harvest_job(job_data_dcatus)
+
+        # this is all to simulate a failed job
+        for idx, record in enumerate(record_data_dcatus):
+            if idx in range(0, 5):
+                record["status"] = "success"
+            elif idx in range(5, 10):
+                record["status"] = "error"
+            interface.add_harvest_record(record)
+
+        job_id = harvest_job.id
+        harvest_source = HarvestSource(job_id)
+        harvest_source.restart_job()
+        harvest_source.do_report()
+
+        # even though we have record level errors, the job is marked as complete
+        assert harvest_source.report["status"] == "complete"
+        assert harvest_source.report["records_added"] == 5
+        assert harvest_source.report["records_ignored"] == 0
+        assert harvest_source.report["records_errored"] == 5
+
+        harvest_job = interface.add_harvest_job(
+            {
+                "status": "new",
+                "harvest_source_id": source_data_dcatus["id"],
+            }
+        )
+
+        job_id = harvest_job.id
+        harvest_source = HarvestSource(job_id)
+        harvest_source.follow_up_job()
+        harvest_source.load()
+        harvest_source.do_report()
+
+        # assert that we're not calling package_create on records with status:success
+        assert CKANMock.action.package_create.call_count == 5
+
+        assert harvest_source.report["status"] == "complete"
+        assert harvest_source.report["records_added"] == 10
+        assert harvest_source.report["records_ignored"] == 0
+        assert harvest_source.report["records_errored"] == 0

@@ -4,6 +4,7 @@ from deepdiff import DeepDiff
 
 from harvester.harvest import HarvestSource, Record
 from harvester.utils.general_utils import dataset_to_hash, sort_dataset
+from itertools import groupby
 
 # ruff: noqa: E501
 
@@ -47,32 +48,39 @@ class TestCKANLoad:
             interface.add_harvest_record(data)
 
         harvest_source = HarvestSource(internal_compare_data["job_id"])
-        harvest_source.get_record_changes()
-        harvest_source.write_compare_to_db()
-        harvest_source.synchronize_records()
+        harvest_source.extract()
+        harvest_source.load()
+        harvest_source.do_report()
 
-        created = sum(
-            r.action == "create" for rid, r in harvest_source.external_records.items()
-        )
-        updated = sum(
-            r.action == "update" for rid, r in harvest_source.external_records.items()
-        )
+        results = {
+            "action": {"create": 0, "update": 0, "delete": 0, None: 0},
+            "status": {"success": 0, "error": 0, None: 0},
+            "validity": {True: 0, False: 0},
+        }
+        for key, group in groupby(
+            harvest_source.records, lambda x: x.action if x.status != "error" else None
+        ):
+            results["action"][key] = sum(1 for _ in group)
 
-        deleted = sum(
-            r.action == "delete" for rid, r in harvest_source.external_records.items()
-        )
-        succeeded = sum(
-            r.status == "success" for rid, r in harvest_source.external_records.items()
-        )
-        errored = sum(
-            r.action == "error" for rid, r in harvest_source.external_records.items()
-        )
+        for key, group in groupby(harvest_source.records, lambda x: x.status):
+            results["status"][key] = sum(1 for _ in group)
 
-        assert created == 6
-        assert updated == 1
-        assert deleted == 1
-        assert succeeded == 7
-        assert errored == 0
+        assert results["action"]["create"] == 6
+        assert harvest_source.report["records_added"] == 6
+
+        assert results["action"]["update"] == 1
+        assert harvest_source.report["records_updated"] == 1
+
+        assert results["action"]["delete"] == 1
+        assert harvest_source.report["records_deleted"] == 1
+
+        assert results["status"]["error"] == 0
+        assert harvest_source.report["records_errored"] == 0
+
+        assert results["status"]["success"] == 8
+        assert (
+            len(harvest_source.records) - harvest_source.report["records_errored"] == 8
+        )
 
     def test_ckanify_dcatus(
         self,
@@ -88,7 +96,7 @@ class TestCKANLoad:
         harvest_source = HarvestSource(harvest_job.id)
         harvest_source.prepare_external_data()
 
-        records = [
+        record = [
             (
                 {
                     "identifier": "cftc-dc1",
@@ -97,10 +105,11 @@ class TestCKANLoad:
                 }
             )
         ]
-        interface.add_harvest_records(records)
-        harvest_source.get_record_changes()
-        harvest_source.write_compare_to_db()
-        record_id = harvest_source.internal_records_lookup_table["cftc-dc1"]
+        interface.add_harvest_records(record)
+        harvest_source.extract()
+        test_record = [x for x in harvest_source.records if x.identifier == "cftc-dc1"][
+            0
+        ]
 
         expected_result = {
             "name": "commitment-of-traders",
@@ -124,7 +133,7 @@ class TestCKANLoad:
             ],
             "extras": [
                 {"key": "resource-type", "value": "Dataset"},
-                {"key": "harvest_object_id", "value": record_id},
+                {"key": "harvest_object_id", "value": test_record.id},
                 {"key": "source_datajson_identifier", "value": True},
                 {
                     "key": "harvest_source_id",
@@ -153,7 +162,6 @@ class TestCKANLoad:
             ],
         }
 
-        test_record = harvest_source.external_records["cftc-dc1"]
         test_record.ckanify_dcatus()
         assert DeepDiff(test_record.ckanified_metadata, expected_result) == {}
 

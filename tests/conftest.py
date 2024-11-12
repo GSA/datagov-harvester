@@ -31,7 +31,7 @@ collect_ignore_glob = ["functional/*"]
 @pytest.fixture(scope="session", autouse=True)
 def default_session_fixture():
     with patch("harvester.lib.cf_handler.CloudFoundryClient"), patch(
-        "harvester.lib.cf_handler.TaskManager"
+        "harvester.harvest.smtplib"
     ), patch("app.load_manager.start", lambda: True):
         yield
 
@@ -404,7 +404,6 @@ def interface_with_multiple_sources(
     return interface_with_fixture_json
 
 
-## MISC
 @pytest.fixture
 def interface_with_multiple_jobs(interface_no_jobs, source_data_dcatus):
     statuses = ["new", "in_progress", "complete", "error"]

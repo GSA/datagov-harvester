@@ -123,3 +123,21 @@ def download_waf(files):
         output.append({"url": file, "content": download_file(file, ".xml")})
 
     return output
+
+
+def query_filter_builder(base, facets):
+    """Builds filter strings from base and comma separated string of filters
+    :param base str - base filter query
+    :param facets str - extra facets
+
+    """
+    if base is None:
+        facet_string = facets.split(",")[0]
+        facet_list = facets.split(",")[1:]
+    else:
+        facet_string = base
+        facet_list = facets.split(",")
+    for facet in facet_list:
+        if facet != "":
+            facet_string += f" AND {facet}"
+    return facet_string
