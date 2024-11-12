@@ -1,5 +1,3 @@
-# ruff: noqa: F841
-# ruff: noqa: E402
 import functools
 import json
 import logging
@@ -8,13 +6,13 @@ import sys
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-
+from typing import List
 import requests
 from boltons.setutils import IndexedSet
 from ckanapi import RemoteCKAN
 from jsonschema import Draft202012Validator
 
-sys.path.insert(1, "/".join(os.path.realpath(__file__).split("/")[0:-2]))
+from itertools import groupby
 
 from harvester import SMTP_CONFIG
 import smtplib
@@ -40,6 +38,8 @@ from harvester.utils.general_utils import (
     sort_dataset,
     traverse_waf,
 )
+
+sys.path.insert(1, "/".join(os.path.realpath(__file__).split("/")[0:-2]))
 
 # requests data
 session = requests.Session()
@@ -73,7 +73,7 @@ class HarvestSource:
             "schema_type",
             "source_type",
             "id",  # db guuid
-            "notification_emails"
+            "notification_emails",
         ],
         repr=False,
     )
@@ -90,7 +90,12 @@ class HarvestSource:
     # worth it? not sure...
     # since python 3.7 dicts are insertion ordered so deletions will occur first
     compare_data: dict = field(
-        default_factory=lambda: {"delete": set(), "create": set(), "update": set()},
+        default_factory=lambda: {
+            "delete": set(),
+            "create": set(),
+            "update": set(),
+            None: set(),
+        },
         repr=False,
     )
     external_records: dict = field(default_factory=lambda: {}, repr=False)
@@ -98,6 +103,7 @@ class HarvestSource:
 
     def __post_init__(self) -> None:
         self._db_interface: HarvesterDBInterface = db_interface
+        self._validator = Draft202012Validator(self.dataset_schema)
         self.get_source_info_from_job_id(self.job_id)
 
     @property
@@ -109,7 +115,19 @@ class HarvestSource:
         return self._db_interface
 
     @property
-    def source_attrs(self) -> list:
+    def validator(self):
+        return self._validator
+
+    @property
+    def records(self):
+        return self._records
+
+    @property
+    def report(self):
+        return self._report
+
+    @property
+    def source_attrs(self) -> List:
         return self._source_attrs
 
     @property
@@ -138,7 +156,7 @@ class HarvestSource:
                 self.job_id,
             )
 
-    def internal_records_to_id_hash(self, records: list[dict]) -> None:
+    def internal_records_to_id_hash(self, records: List[dict]) -> None:
         for record in records:
             self.internal_records[record["identifier"]] = Record(
                 self,
@@ -150,7 +168,6 @@ class HarvestSource:
             )
 
     def get_record_identifier(self, record: dict) -> str:
-
         record_id = "identifier" if self.schema_type == "dcatus1.1" else "url"
 
         if record_id not in record:
@@ -163,13 +180,12 @@ class HarvestSource:
 
         return record_id
 
-    def external_records_to_id_hash(self, records: list[dict]) -> None:
+    def external_records_to_id_hash(self, records: List[dict]) -> None:
         # ruff: noqa: F841
 
         logger.info("converting harvest records to id: hash")
         for record in records:
             try:
-
                 identifier = self.get_record_identifier(record)
 
                 if self.source_type == "document":
@@ -188,17 +204,6 @@ class HarvestSource:
                     self.job_id,
                 )
 
-    def prepare_internal_data(self) -> None:
-        logger.info("retrieving and preparing internal records.")
-        try:
-            records = self.db_interface.get_latest_harvest_records_by_source(self.id)
-            self.internal_records_to_id_hash(records)
-        except Exception as e:
-            raise ExtractInternalException(
-                f"{self.name} {self.url} failed to extract internal records. exiting",
-                self.job_id,
-            )
-
     def prepare_external_data(self) -> None:
         logger.info("retrieving and preparing external records.")
         try:
@@ -212,6 +217,17 @@ class HarvestSource:
         except Exception as e:
             raise ExtractExternalException(
                 f"{self.name} {self.url} failed to extract harvest source. exiting",
+                self.job_id,
+            )
+
+    def prepare_internal_data(self) -> None:
+        logger.info("retrieving and preparing internal records.")
+        try:
+            records = self.db_interface.get_latest_harvest_records_by_source(self.id)
+            self.internal_records_to_id_hash(records)
+        except Exception as e:
+            raise ExtractInternalException(
+                f"{self.name} {self.url} failed to extract internal records. exiting",
                 self.job_id,
             )
 
@@ -233,6 +249,8 @@ class HarvestSource:
                 internal_hash = self.internal_records[i].metadata_hash
                 if external_hash != internal_hash:
                     self.compare_data["update"].add(i)
+                else:
+                    self.compare_data[None].add(i)
         except Exception as e:
             # TODO: do something with 'e'
             raise CompareException(
@@ -240,20 +258,16 @@ class HarvestSource:
                 self.job_id,
             )
 
-    def get_record_changes(self) -> None:
-        """determine which records needs to be updated, deleted, or created"""
-        logger.info(f"getting records changes for {self.name} using {self.url}")
-        self.prepare_external_data()
-        self.prepare_internal_data()
-        self.compare()
-
     def write_compare_to_db(self) -> dict:
         records = []
-
         for action, ids in self.compare_data.items():
             for record_id in ids:
                 if action == "delete":
                     record = self.internal_records[record_id]
+                elif action == "update":
+                    record = self.external_records[record_id]
+                    record.ckan_id = self.internal_records[record_id].ckan_id
+                    record.ckan_name = self.internal_records[record_id].ckan_name
                 else:
                     record = self.external_records[record_id]
 
@@ -262,132 +276,159 @@ class HarvestSource:
                 else:
                     source_raw = record.metadata["content"]
 
-                records.append(
-                    {
-                        "identifier": record.identifier,
-                        "harvest_job_id": record.harvest_source.job_id,
-                        "harvest_source_id": record.harvest_source.id,
-                        "source_hash": record.metadata_hash,
-                        "source_raw": source_raw,
-                        "action": action,
-                        "ckan_id": record.ckan_id,
-                        "ckan_name": record.ckan_name,
-                    }
-                )
-        self.internal_records_lookup_table = self.db_interface.add_harvest_records(
-            records
-        )
+                # set record action
+                record.action = action
+                db_record = {
+                    "identifier": record.identifier,
+                    "harvest_job_id": record.harvest_source.job_id,
+                    "harvest_source_id": record.harvest_source.id,
+                    "source_hash": record.metadata_hash,
+                    "source_raw": source_raw,
+                    "action": action,
+                    "ckan_id": record.ckan_id,
+                    "ckan_name": record.ckan_name,
+                }
+                if action is not None:
+                    db_record = self.db_interface.add_harvest_record(db_record)
+                    record.id = db_record.id
+                records.append(record)
 
-    def synchronize_records(self) -> None:
+        # set records on new
+        self._records = records
+
+    def extract_cleanup(self):
+        self.compare_data = {}
+        self.internal_records = {}
+        self.external_records = {}
+
+    def extract(self) -> None:
+        """determine which records needs to be updated, deleted, or created"""
+        logger.info(f"getting records changes for {self.name} using {self.url}")
+
+        self.prepare_external_data()
+        self.prepare_internal_data()
+        self.compare()
+        self.write_compare_to_db()
+        self.extract_cleanup()
+
+    def transform(self) -> None:
+        logger.info("transforming records")
+        for record in self.records:
+            pass
+
+    def validate(self) -> None:
+        logger.info("validating records")
+        for record in self.records:
+            try:
+                record.validate()
+            except ValidationException as e:
+                pass
+
+    def load(self) -> None:
         """runs the delete, update, and create
         - self.compare can be empty because there was no harvest source response
         or there's truly nothing to process
         """
         logger.info("synchronizing records")
-        for action, ids in self.compare_data.items():
-            for i in ids:
-                try:
-                    if action == "delete":
-                        # we don't actually create a Record instance for deletions
-                        # so creating it here as a sort of acknowledgement
-                        self.external_records[i] = Record(
-                            self,
-                            self.internal_records[i].identifier,
-                            _ckan_id=self.internal_records[i].ckan_id,
-                        )
-                        self.external_records[i].action = action
-                        try:
-                            self.external_records[i].delete_record()
-                            self.external_records[i].update_self_in_db()
-                        except Exception as e:
-                            self.external_records[i].status = "error"
-                            raise SynchronizeException(
-                                f"failed to {self.external_records[i].action} \
-                                    for {self.external_records[i].identifier} :: \
-                                        {repr(e)}",
-                                self.job_id,
-                                self.internal_records_lookup_table[
-                                    self.external_records[i].identifier
-                                ],
-                            )
-                        continue
+        for record in self.records:
+            try:
+                record.sync()
 
-                    record = self.external_records[i]
-                    if action == "update":
-                        record.ckan_id = self.internal_records[i].ckan_id
-                        record.ckan_name = self.internal_records[i].ckan_name
+            except (
+                DCATUSToCKANException,
+                SynchronizeException,
+                TransformationException,
+            ) as e:
+                pass
 
-                    # no longer setting action in compare so setting it here...
-                    record.action = action
-
-                    if self.schema_type != "dcatus1.1":
-                        record.transform()
-                    record.validate()
-                    record.sync()
-
-                except (
-                    ValidationException,
-                    DCATUSToCKANException,
-                    SynchronizeException,
-                    TransformationException,
-                ) as e:
-                    pass
-
-    def report(self) -> None:
+    def do_report(self) -> None:
         logger.info("report results")
-        # log our original compare data
-        logger.info("expected actions to be done")
-        logger.info({action: len(ids) for action, ids in self.compare_data.items()})
-
-        # validation count and actual results
-        actual_results_action = {
-            "delete": 0,
-            "update": 0,
-            "create": 0,
-            None: 0,
+        results = {
+            "action": {"create": 0, "update": 0, "delete": 0, None: 0},
+            "status": {"success": 0, "error": 0, None: 0},
+            "validity": {True: 0, False: 0},
         }
-        actual_results_status = {"success": 0, "error": 0, None: 0}
-        validity = {"valid": 0, "invalid": 0, "ignored": 0}
+        for key, group in groupby(
+            self.records, lambda x: x.action if x.status != "error" else False
+        ):
+            results["action"][key] = sum(1 for _ in group)
 
-        for record_id, record in self.external_records.items():
-            # action
-            if record.status != "error":
-                actual_results_action[record.action] += 1
-            # status
-            actual_results_status[record.status] += 1
-            # validity
-            if record.valid:
-                validity["valid"] += 1
-            elif not record.valid:
-                validity["invalid"] += 1
-            else:
-                validity["not_validated"] += 1
+        for key, group in groupby(self.records, lambda x: x.status):
+            results["status"][key] = sum(1 for _ in group)
 
-        # what actually happened?
-        logger.info("actual actions completed")
-        logger.info(actual_results_action)
+        for key, group in groupby(self.records, lambda x: x.valid):
+            results["validity"][key] = sum(1 for _ in group)
 
-        # what actually happened?
-        logger.info("actual status completed")
-        logger.info(actual_results_status)
+        logger.info("actions completed")
+        logger.info(results["action"])
 
-        # what's our record validity count?
-        logger.info("validity of the records")
-        logger.info(validity)
+        logger.info("status completed")
+        logger.info(results["status"])
+
+        logger.info("validity of records")
+        logger.info(results["validity"])
 
         job_status = {
             "status": "complete",
             "date_finished": datetime.now(timezone.utc),
-            "records_added": actual_results_action["create"],
-            "records_updated": actual_results_action["update"],
-            "records_deleted": actual_results_action["delete"],
-            "records_ignored": actual_results_action[None],
-            "records_errored": actual_results_status["error"],
+            "records_added": results["action"]["create"],
+            "records_updated": results["action"]["update"],
+            "records_deleted": results["action"]["delete"],
+            "records_ignored": results["action"][None],
+            "records_errored": results["status"]["error"],
         }
         self.db_interface.update_harvest_job(self.job_id, job_status)
+        self._report = job_status
 
         if hasattr(self, "notification_emails") and self.notification_emails:
-            self.send_notification_emails(actual_results_action)
+            self.send_notification_emails(results)
+
+    def restart_job(self):
+        logger.info(f"restarting failed job for {self.name}")
+        job = self.db_interface.get_harvest_job(self.job_id)
+        updated_job = self.db_interface.update_harvest_job(
+            job.id, {"status": "in_progress"}
+        )
+        print(f"Updated job {updated_job.id} to in_progress")
+        db_records = []
+        for db_record in job.records:
+            new_record = Record(
+                self,
+                db_record.identifier,
+                json.loads(db_record.source_raw),
+                db_record.source_hash,
+                db_record.action,
+                _status=db_record.status,
+                _ckan_id=db_record.ckan_id,
+                _ckan_name=db_record.ckan_name,
+                _id=db_record.id,
+            )
+            db_records.append(new_record)
+        self._records = db_records
+
+    def follow_up_job(self):
+        logger.info(f"kicking off pickup job for {self.name}")
+        db_records = self.db_interface.get_all_latest_harvest_records_by_source(self.id)
+        job = self.db_interface.get_harvest_job(self.job_id)
+        updated_job = self.db_interface.update_harvest_job(
+            job.id, {"status": "in_progress"}
+        )
+        print(f"Updated job {updated_job.id} to in_progress")
+        new_records = []
+        for db_record in db_records:
+            new_record = Record(
+                self,
+                db_record["identifier"],
+                json.loads(db_record["source_raw"]),
+                db_record["source_hash"],
+                db_record["action"],
+                _status=db_record["status"],
+                _ckan_id=db_record["ckan_id"],
+                _ckan_name=db_record["ckan_name"],
+                _id=db_record["id"],
+            )
+            new_records.append(new_record)
+        self._records = new_records
 
     def send_notification_emails(self, results: dict) -> None:
         try:
@@ -398,10 +439,11 @@ class HarvestSource:
                 f"The harvest job ({self.job_id}) has been successfully completed.\n"
                 f"You can view the details here: {job_url}\n\n"
                 "Summary of the job:\n"
-                f"- Records Added: {results['create']}\n"
-                f"- Records Updated: {results['update']}\n"
-                f"- Records Deleted: {results['delete']}\n"
-                f"- Records Ignored: {results[None]}\n\n"
+                f"- Records Added: {results['action']['create']}\n"
+                f"- Records Updated: {results['action']['update']}\n"
+                f"- Records Deleted: {results['action']['delete']}\n"
+                f"- Records Ignored: {results['action'][None]}\n"
+                f"- Records Errored: {results['status']['error']}\n\n"
                 "====\n"
                 "You received this email because you subscribed to harvester updates.\n"
                 "Please do not reply to this email, as it is not monitored."
@@ -423,8 +465,9 @@ class HarvestSource:
                     msg["Subject"] = subject
                     msg.attach(MIMEText(body, "plain"))
 
-                    server.sendmail(SMTP_CONFIG["default_sender"], [recipient],
-                                    msg.as_string())
+                    server.sendmail(
+                        SMTP_CONFIG["default_sender"], [recipient], msg.as_string()
+                    )
                     logger.info(f"Notification email sent to: {recipient}")
 
         except Exception as e:
@@ -447,6 +490,7 @@ class Record:
     _ckan_name: str = None
     _mdt_writer: str = "dcat_us"
     _mdt_msgs: str = ""
+    _id: str = None
 
     transformed_data: dict = None
     ckanified_metadata: dict = field(default_factory=lambda: {})
@@ -478,6 +522,14 @@ class Record:
     @ckan_id.setter
     def ckan_id(self, value) -> None:
         self._ckan_id = value
+
+    @property
+    def id(self) -> str:
+        return self._id
+
+    @id.setter
+    def id(self, value) -> None:
+        self._id = value
 
     @property
     def ckan_name(self) -> str:
@@ -540,7 +592,7 @@ class Record:
     @validation_msg.setter
     def validation_msg(self, value) -> None:
         if not isinstance(value, str):
-            raise ValueError("status must be a string")
+            raise ValueError("validation_msg must be a string")
         self._validation_msg = value
 
     @property
@@ -554,7 +606,6 @@ class Record:
         self._status = value
 
     def transform(self) -> None:
-
         data = {
             "file": self.metadata["content"],
             "reader": self.reader_map[self.harvest_source.schema_type],
@@ -570,7 +621,7 @@ class Record:
             raise TransformationException(
                 f"record failed to transform: {self.mdt_msgs}",
                 self.harvest_source.job_id,
-                self.harvest_source.internal_records_lookup_table[self.identifier],
+                self.id,
             )
 
         if 200 <= resp.status_code < 300:
@@ -578,24 +629,26 @@ class Record:
 
     def validate(self) -> None:
         logger.info(f"validating {self.identifier}")
-        # ruff: noqa: F841
-        validator = Draft202012Validator(self.harvest_source.dataset_schema)
         try:
+            if self.action == "delete":
+                return
+
             record = (
                 self.metadata
                 if self.transformed_data is None
                 else self.transformed_data
             )
-            validator.validate(record)
+
+            self.harvest_source.validator.validate(record)
             self.valid = True
         except Exception as e:
             self.status = "error"
-            self.validation_msg = str(e)  # TODO: verify this is what we want
+            self.validation_msg = str(e.message)
             self.valid = False
             raise ValidationException(
                 repr(e),
                 self.harvest_source.job_id,
-                self.harvest_source.internal_records_lookup_table[self.identifier],
+                self.id,
             )
 
     def create_record(self, retry=False):
@@ -635,7 +688,7 @@ class Record:
             data["ckan_name"] = self.ckan_name
 
         self.harvest_source.db_interface.update_harvest_record(
-            self.harvest_source.internal_records_lookup_table[self.identifier],
+            self.id,
             data,
         )
 
@@ -643,37 +696,44 @@ class Record:
         from harvester.utils.ckan_utils import ckanify_dcatus
 
         try:
-            self.ckanified_metadata = ckanify_dcatus(self.metadata, self.harvest_source)
+            self.ckanified_metadata = ckanify_dcatus(
+                self.metadata, self.harvest_source, self.id
+            )
         except Exception as e:
             self.status = "error"
-            raise DCATUSToCKANException(
-                repr(e),
-                self.harvest_source.job_id,
-                self.harvest_source.internal_records_lookup_table[self.identifier],
-            )
+            raise DCATUSToCKANException(repr(e), self.harvest_source.job_id, self.id)
 
     def sync(self) -> None:
         if self.valid is False:
             logger.warning(f"{self.identifier} is invalid. bypassing {self.action}")
             return
 
-        self.ckanify_dcatus()
+        if self.status == "success":
+            logger.info(
+                f"{self.identifier} has status 'success'. bypassing {self.action}"
+            )
+            return
 
         start = datetime.now(timezone.utc)
-
+        # todo:
         try:
+            if self.action == "delete":
+                self.delete_record()
             if self.action == "create":
+                self.ckanify_dcatus()
                 self.create_record()
             if self.action == "update":
+                self.ckanify_dcatus()
                 self.update_record()
         except Exception as e:
             self.status = "error"
             raise SynchronizeException(
                 f"failed to {self.action} for {self.identifier} :: {repr(e)}",
                 self.harvest_source.job_id,
-                self.harvest_source.internal_records_lookup_table[self.identifier],
+                self.id,
             )
-        self.update_self_in_db()
+        if self.action is not None:
+            self.update_self_in_db()
 
         logger.info(
             f"time to {self.action} {self.identifier} \
@@ -684,10 +744,19 @@ class Record:
 def harvest(jobId):
     logger.info(f"Harvest job starting for JobId: {jobId}")
     harvest_source = HarvestSource(jobId)
-    harvest_source.get_record_changes()
-    harvest_source.write_compare_to_db()
-    harvest_source.synchronize_records()
-    harvest_source.report()
+
+    # extract, compare, and save the results
+    harvest_source.extract()
+
+    # transform and validate the transform
+    harvest_source.transform()
+    harvest_source.validate()
+
+    # sync with CKAN
+    harvest_source.load()
+
+    # generate harvest job report
+    harvest_source.do_report()
 
 
 if __name__ == "__main__":

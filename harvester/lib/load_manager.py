@@ -129,8 +129,9 @@ class LoadManager:
         """manual trigger harvest job,
         takes a source_id"""
         source = interface.get_harvest_source(source_id)
-        jobs_in_progress = interface.get_all_harvest_jobs_by_filter(
-            {"harvest_source_id": source.id, "status": "in_progress"}
+        jobs_in_progress = interface.pget_harvest_jobs(
+            facets=f"harvest_source_id = '{source.id}', status = 'in_progress'",
+            paginate=False,
         )
         if len(jobs_in_progress):
             return f"Can't trigger harvest. Job {jobs_in_progress[0].id} already in progress."  # noqa E501

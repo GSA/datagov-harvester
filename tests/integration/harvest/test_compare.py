@@ -2,6 +2,7 @@ import json
 
 from harvester.harvest import HarvestSource
 from harvester.utils.general_utils import dataset_to_hash, sort_dataset
+from itertools import groupby
 
 
 class TestCompare:
@@ -31,11 +32,19 @@ class TestCompare:
             interface.add_harvest_record(data)
 
         harvest_source = HarvestSource(internal_compare_data["job_id"])
-        harvest_source.get_record_changes()
+        harvest_source.extract()
 
-        assert len(harvest_source.compare_data["create"]) == 6
-        assert len(harvest_source.compare_data["update"]) == 1
-        assert len(harvest_source.compare_data["delete"]) == 1
+        harvest_job_records = interface.get_harvest_records_by_job(
+            job_data_dcatus["id"], paginate=False
+        )
+        records = {}
+        for key, group in groupby(
+            harvest_job_records, lambda x: x.action if x.status != "error" else None
+        ):
+            records[key] = sum(1 for _ in group)
+        assert records["create"] == 6
+        assert records["update"] == 1
+        assert records["delete"] == 1
 
     # TODO: add sort test
 
@@ -68,9 +77,7 @@ class TestCompare:
         interface.add_harvest_records(records)
 
         harvest_source = HarvestSource(job_data_dcatus["id"])
-        harvest_source.get_record_changes()
-
-        harvest_source.write_compare_to_db()
+        harvest_source.extract()
 
         expected = sorted(
             [
@@ -83,5 +90,9 @@ class TestCompare:
                 "cftc-dc2",
             ]
         )
-        assert len(harvest_source.internal_records_lookup_table) == len(expected)
-        assert sorted(list(harvest_source.internal_records_lookup_table)) == expected
+        record_identifiers = []
+        for record in harvest_source.records:
+            record_identifiers.append(record.identifier)
+
+        assert len(record_identifiers) == len(expected)
+        assert sorted(list(record_identifiers)) == expected
