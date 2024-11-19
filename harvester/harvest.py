@@ -369,7 +369,7 @@ class HarvestSource:
         try:
             job_url = f'{SMTP_CONFIG["base_url"]}/{self.job_id}'
 
-            subject = f"Harvest Job Completed"
+            subject = "Harvest Job Completed"
             body = f"""
             The harvest job (ID: {self.job_id}) has been successfully completed.
             You can view the details here: {job_url}
@@ -381,8 +381,10 @@ class HarvestSource:
             - Records Ignored: {results[None]}
 
             ====
-            You are receiving this email because you are currently set-up as Administrator for https://catalog.data.gov/
-            Please do not reply to this email as it was sent from a non-monitored address.
+            You are receiving this email because you are currently set-up as
+            Administrator for https://catalog.data.gov/.
+            Please do not reply to this email as it was sent from a
+            non-monitored address.
             """
 
             recipient_list = self.notification_emails
