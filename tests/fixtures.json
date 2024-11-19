@@ -14,8 +14,8 @@
             "organization_id": "d925f84d-955b-4cb7-812f-dcfd6681a18f",
             "frequency": "daily",
             "url": "http://localhost:80/dcatus/dcatus.json",
-            "schema_type": "type1",
-            "source_type": "dcatus"
+            "schema_type": "dcatus",
+            "source_type": "document"
         }
     ],
     "job": [

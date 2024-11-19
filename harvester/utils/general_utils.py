@@ -2,7 +2,6 @@ import argparse
 import hashlib
 import json
 import os
-import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta
 from typing import Union
 
@@ -13,9 +12,21 @@ from bs4 import BeautifulSoup
 FREQUENCY_ENUM = {"daily": 1, "weekly": 7, "biweekly": 14, "monthly": 30}
 
 
-def get_title_from_fgdc(xml_str: str) -> str:
-    tree = ET.ElementTree(ET.fromstring(xml_str))
-    return tree.find(".//title").text
+def prepare_transform_msg(transform_data):
+
+    # ruff: noqa: E731
+    mask_info = lambda s: "WARNING" in s or "ERROR" in s
+
+    struct_msgs = ", ".join(
+        filter(mask_info, transform_data["readerStructureMessages"])
+    )
+    valid_msgs = ", ".join(
+        filter(mask_info, transform_data["readerValidationMessages"])
+    )
+    mdt_msgs = f"structure messages: {struct_msgs} \n"
+    mdt_msgs += f"validation messages: {valid_msgs}"
+
+    return mdt_msgs
 
 
 def parse_args(args):
