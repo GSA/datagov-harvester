@@ -15,3 +15,6 @@ if [ "$space" = "prod" ] || [ "$space" = "staging" ]; then
 else
     cf service "${app_name}-db"    > /dev/null 2>&1 || cf create-service aws-rds micro-psql "${app_name}-db" --wait&
 fi
+
+# create email service
+cf service "${app_name}-smtp"  > /dev/null 2>&1 || cf create-service datagov-smtp base "${app_name}-smtp" -b "ssb-smtp-gsa-datagov-${space}"

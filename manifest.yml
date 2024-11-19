@@ -29,8 +29,10 @@ applications:
     services:
       - ((app_name))-db
       - ((app_name))-secrets
+      - ((app_name))-smtp
     instances: 0
     env:
       CF_API_URL: ((CF_API_URL))
       CKAN_API_URL: ((CKAN_API_URL))
+      REDIRECT_URI: ((REDIRECT_URI))
     command: time.sleep(30)

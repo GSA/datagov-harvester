@@ -16,6 +16,11 @@ from jsonschema import Draft202012Validator
 
 sys.path.insert(1, "/".join(os.path.realpath(__file__).split("/")[0:-2]))
 
+from harvester import SMTP_CONFIG
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+
 from harvester import HarvesterDBInterface, db_interface
 from harvester.exceptions import (
     CompareException,
@@ -66,6 +71,7 @@ class HarvestSource:
             "organization_id",
             "source_type",
             "id",  # db guuid
+            "notification_emails"
         ],
         repr=False,
     )
@@ -355,6 +361,48 @@ class HarvestSource:
             "records_errored": actual_results_status["error"],
         }
         self.db_interface.update_harvest_job(self.job_id, job_status)
+
+        if hasattr(self, "notification_emails") and self.notification_emails:
+            self.send_notification_emails(actual_results_action)
+
+    def send_notification_emails(self, results: dict) -> None:
+        try:
+            job_url = f'{SMTP_CONFIG["base_url"]}/{self.job_id}'
+
+            subject = f"Harvest Job Completed"
+            body = f"""
+            The harvest job (ID: {self.job_id}) has been successfully completed.
+            You can view the details here: {job_url}
+
+            Summary of the job:
+            - Records Added: {results['create']}
+            - Records Updated: {results['update']}
+            - Records Deleted: {results['delete']}
+            - Records Ignored: {results[None]}
+
+            ====
+            You are receiving this email because you are currently set-up as Administrator for https://catalog.data.gov/
+            Please do not reply to this email as it was sent from a non-monitored address.
+            """
+
+            recipient_list = self.notification_emails
+            recipient_string = ", ".join(recipient_list)
+
+            msg = MIMEMultipart()
+            msg["From"] = SMTP_CONFIG["default_sender"]
+            msg["To"] = recipient_string
+            msg["Subject"] = subject
+            msg.attach(MIMEText(body, "plain"))
+
+            with smtplib.SMTP(SMTP_CONFIG["server"], SMTP_CONFIG["port"]) as server:
+                if SMTP_CONFIG["use_tls"]:
+                    server.starttls()
+                server.login(SMTP_CONFIG["username"], SMTP_CONFIG["password"])
+                server.sendmail(SMTP_CONFIG["default_sender"], recipient_list, msg.as_string())
+            logger.info(f"Notification email sent to: {recipient_string}")
+
+        except Exception as e:
+            logger.error(f"Error preparing or sending notification emails: {e}")
 
 
 @dataclass
