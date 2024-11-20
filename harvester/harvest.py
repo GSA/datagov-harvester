@@ -371,7 +371,7 @@ class HarvestSource:
 
             subject = "Harvest Job Completed"
             body = (
-                f"The harvest job (ID: {self.job_id}) has been successfully completed.\n"
+                f"The harvest job ({self.job_id}) has been successfully completed.\n"
                 f"You can view the details here: {job_url}\n\n"
                 "Summary of the job:\n"
                 f"- Records Added: {results['create']}\n"
