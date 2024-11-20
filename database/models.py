@@ -52,8 +52,13 @@ class HarvestSource(db.Model):
         nullable=False,
         index=True,
     )
-    schema_type = db.Column(db.String, nullable=False)
-    source_type = db.Column(db.String, nullable=False)
+    schema_type = db.Column(
+        db.Enum("iso19115_1", "iso19115_2", "csdgm", "dcatus1.1", name="schema_type"),
+        nullable=False,
+    )
+    source_type = db.Column(
+        db.Enum("document", "waf", name="source_type"), nullable=False
+    )
     jobs = db.relationship(
         "HarvestJob", backref="source", cascade="all, delete-orphan", lazy=True
     )

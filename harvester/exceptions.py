@@ -79,7 +79,7 @@ class ValidationException(HarvestNonCriticalException):
         pass
 
 
-class TranformationException(HarvestNonCriticalException):
+class TransformationException(HarvestNonCriticalException):
     pass
 
 

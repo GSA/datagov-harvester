@@ -1,179 +1,179 @@
 {
-    "organization": [
-        {
-            "name": "Test Org",
-            "logo": "https://example.com/logo.png",
-            "id": "d925f84d-955b-4cb7-812f-dcfd6681a18f"
-        }
-    ],
-    "source": [
-        {
-            "id": "2f2652de-91df-4c63-8b53-bfced20b276b",
-            "name": "Test Source",
-            "notification_emails": "email@example.com",
-            "organization_id": "d925f84d-955b-4cb7-812f-dcfd6681a18f",
-            "frequency": "daily",
-            "url": "http://localhost:80/dcatus/dcatus.json",
-            "schema_type": "type1",
-            "source_type": "dcatus"
-        }
-    ],
-    "job": [
-        {
-            "id": "6bce761c-7a39-41c1-ac73-94234c139c76",
-            "status": "new",
-            "harvest_source_id": "2f2652de-91df-4c63-8b53-bfced20b276b"
-        }
-    ],
-    "job_error": [
-        {
-            "harvest_job_id": "6bce761c-7a39-41c1-ac73-94234c139c76",
-            "message": "error reading records from harvest database",
-            "type": "ExtractInternalException"
-        }
-    ],
-    "record": [
-        {
-            "id": "0779c855-df20-49c8-9108-66359d82b77c",
-            "identifier": "test_identifier-1",
-            "harvest_job_id": "6bce761c-7a39-41c1-ac73-94234c139c76",
-            "harvest_source_id": "2f2652de-91df-4c63-8b53-bfced20b276b",
-            "action": "create",
-            "status": "error",
-            "source_raw": "example data"
-        },
-        {
-            "id": "c218c965-3670-45c8-bfcd-f852d71ed917",
-            "identifier": "test_identifier-2",
-            "harvest_job_id": "6bce761c-7a39-41c1-ac73-94234c139c76",
-            "harvest_source_id": "2f2652de-91df-4c63-8b53-bfced20b276b",
-            "action": "create",
-            "status": "error",
-            "source_raw": "example data"
-        },
-        {
-            "id": "e1f603cc-8b6b-483f-beb4-86bda5462b79",
-            "identifier": "test_identifier-3",
-            "harvest_job_id": "6bce761c-7a39-41c1-ac73-94234c139c76",
-            "harvest_source_id": "2f2652de-91df-4c63-8b53-bfced20b276b",
-            "action": "create",
-            "status": "error",
-            "source_raw": "example data"
-        },
-        {
-            "id": "1c004473-0802-4f22-a16d-7a2d7559719e",
-            "identifier": "test_identifier-4",
-            "harvest_job_id": "6bce761c-7a39-41c1-ac73-94234c139c76",
-            "harvest_source_id": "2f2652de-91df-4c63-8b53-bfced20b276b",
-            "action": "create",
-            "status": "error",
-            "source_raw": "example data"
-        },
-        {
-            "id": "deb12fa0-d812-4d6e-98f4-d4f7d776c6b3",
-            "identifier": "test_identifier-5",
-            "harvest_job_id": "6bce761c-7a39-41c1-ac73-94234c139c76",
-            "harvest_source_id": "2f2652de-91df-4c63-8b53-bfced20b276b",
-            "action": "create",
-            "status": "error",
-            "source_raw": "example data"
-        },
-        {
-            "id": "27b5d5d6-808b-4a8c-ae4a-99f118e282dd",
-            "identifier": "test_identifier-6",
-            "harvest_job_id": "6bce761c-7a39-41c1-ac73-94234c139c76",
-            "harvest_source_id": "2f2652de-91df-4c63-8b53-bfced20b276b",
-            "action": "create",
-            "status": "error",
-            "source_raw": "example data"
-        },
-        {
-            "id": "c232a2ca-6344-4692-adc2-29f618a2eff3",
-            "identifier": "test_identifier-7",
-            "harvest_job_id": "6bce761c-7a39-41c1-ac73-94234c139c76",
-            "harvest_source_id": "2f2652de-91df-4c63-8b53-bfced20b276b",
-            "action": "create",
-            "status": "error",
-            "source_raw": "example data"
-        },
-        {
-            "id": "95021355-bad0-442b-98e9-475ecd849033",
-            "identifier": "test_identifier-8",
-            "harvest_job_id": "6bce761c-7a39-41c1-ac73-94234c139c76",
-            "harvest_source_id": "2f2652de-91df-4c63-8b53-bfced20b276b",
-            "action": "create",
-            "status": "error",
-            "source_raw": "example data"
-        },
-        {
-            "id": "09f073b3-00e3-4147-ba69-a5d0fd7ce027",
-            "identifier": "test_identifier-9",
-            "harvest_job_id": "6bce761c-7a39-41c1-ac73-94234c139c76",
-            "harvest_source_id": "2f2652de-91df-4c63-8b53-bfced20b276b",
-            "action": "create",
-            "status": "error",
-            "source_raw": "example data"
-        },
-        {
-            "id": "97492788-5d62-4feb-8641-6f6692aec026",
-            "identifier": "test_identifier-10",
-            "harvest_job_id": "6bce761c-7a39-41c1-ac73-94234c139c76",
-            "harvest_source_id": "2f2652de-91df-4c63-8b53-bfced20b276b",
-            "action": "create",
-            "status": "error",
-            "source_raw": "example data"
-        }
-    ],
-    "record_error": [
-        {
-            "harvest_record_id": "0779c855-df20-49c8-9108-66359d82b77c",
-            "message": "record is invalid",
-            "type": "ValidationException"
-        },
-        {
-            "harvest_record_id": "c218c965-3670-45c8-bfcd-f852d71ed917",
-            "message": "record is invalid",
-            "type": "ValidationException"
-        },
-        {
-            "harvest_record_id": "e1f603cc-8b6b-483f-beb4-86bda5462b79",
-            "message": "record is invalid",
-            "type": "ValidationException"
-        },
-        {
-            "harvest_record_id": "1c004473-0802-4f22-a16d-7a2d7559719e",
-            "message": "record is invalid",
-            "type": "ValidationException"
-        },
-        {
-            "harvest_record_id": "deb12fa0-d812-4d6e-98f4-d4f7d776c6b3",
-            "message": "record is invalid",
-            "type": "ValidationException"
-        },
-        {
-            "harvest_record_id": "27b5d5d6-808b-4a8c-ae4a-99f118e282dd",
-            "message": "record is invalid",
-            "type": "ValidationException"
-        },
-        {
-            "harvest_record_id": "c232a2ca-6344-4692-adc2-29f618a2eff3",
-            "message": "record is invalid",
-            "type": "ValidationException"
-        },
-        {
-            "harvest_record_id": "95021355-bad0-442b-98e9-475ecd849033",
-            "message": "record is invalid",
-            "type": "ValidationException"
-        },
-        {
-            "harvest_record_id": "09f073b3-00e3-4147-ba69-a5d0fd7ce027",
-            "message": "record is invalid",
-            "type": "ValidationException"
-        },
-        {
-            "harvest_record_id": "97492788-5d62-4feb-8641-6f6692aec026",
-            "message": "record is invalid",
-            "type": "ValidationException"
-        }
-    ]
+  "organization": [
+    {
+      "name": "Test Org",
+      "logo": "https://example.com/logo.png",
+      "id": "d925f84d-955b-4cb7-812f-dcfd6681a18f"
+    }
+  ],
+  "source": [
+    {
+      "id": "2f2652de-91df-4c63-8b53-bfced20b276b",
+      "name": "Test Source",
+      "notification_emails": "email@example.com",
+      "organization_id": "d925f84d-955b-4cb7-812f-dcfd6681a18f",
+      "frequency": "daily",
+      "url": "http://localhost:80/dcatus/dcatus.json",
+      "schema_type": "dcatus1.1",
+      "source_type": "document"
+    }
+  ],
+  "job": [
+    {
+      "id": "6bce761c-7a39-41c1-ac73-94234c139c76",
+      "status": "new",
+      "harvest_source_id": "2f2652de-91df-4c63-8b53-bfced20b276b"
+    }
+  ],
+  "job_error": [
+    {
+      "harvest_job_id": "6bce761c-7a39-41c1-ac73-94234c139c76",
+      "message": "error reading records from harvest database",
+      "type": "ExtractInternalException"
+    }
+  ],
+  "record": [
+    {
+      "id": "0779c855-df20-49c8-9108-66359d82b77c",
+      "identifier": "test_identifier-1",
+      "harvest_job_id": "6bce761c-7a39-41c1-ac73-94234c139c76",
+      "harvest_source_id": "2f2652de-91df-4c63-8b53-bfced20b276b",
+      "action": "create",
+      "status": "error",
+      "source_raw": "example data"
+    },
+    {
+      "id": "c218c965-3670-45c8-bfcd-f852d71ed917",
+      "identifier": "test_identifier-2",
+      "harvest_job_id": "6bce761c-7a39-41c1-ac73-94234c139c76",
+      "harvest_source_id": "2f2652de-91df-4c63-8b53-bfced20b276b",
+      "action": "create",
+      "status": "error",
+      "source_raw": "example data"
+    },
+    {
+      "id": "e1f603cc-8b6b-483f-beb4-86bda5462b79",
+      "identifier": "test_identifier-3",
+      "harvest_job_id": "6bce761c-7a39-41c1-ac73-94234c139c76",
+      "harvest_source_id": "2f2652de-91df-4c63-8b53-bfced20b276b",
+      "action": "create",
+      "status": "error",
+      "source_raw": "example data"
+    },
+    {
+      "id": "1c004473-0802-4f22-a16d-7a2d7559719e",
+      "identifier": "test_identifier-4",
+      "harvest_job_id": "6bce761c-7a39-41c1-ac73-94234c139c76",
+      "harvest_source_id": "2f2652de-91df-4c63-8b53-bfced20b276b",
+      "action": "create",
+      "status": "error",
+      "source_raw": "example data"
+    },
+    {
+      "id": "deb12fa0-d812-4d6e-98f4-d4f7d776c6b3",
+      "identifier": "test_identifier-5",
+      "harvest_job_id": "6bce761c-7a39-41c1-ac73-94234c139c76",
+      "harvest_source_id": "2f2652de-91df-4c63-8b53-bfced20b276b",
+      "action": "create",
+      "status": "error",
+      "source_raw": "example data"
+    },
+    {
+      "id": "27b5d5d6-808b-4a8c-ae4a-99f118e282dd",
+      "identifier": "test_identifier-6",
+      "harvest_job_id": "6bce761c-7a39-41c1-ac73-94234c139c76",
+      "harvest_source_id": "2f2652de-91df-4c63-8b53-bfced20b276b",
+      "action": "create",
+      "status": "error",
+      "source_raw": "example data"
+    },
+    {
+      "id": "c232a2ca-6344-4692-adc2-29f618a2eff3",
+      "identifier": "test_identifier-7",
+      "harvest_job_id": "6bce761c-7a39-41c1-ac73-94234c139c76",
+      "harvest_source_id": "2f2652de-91df-4c63-8b53-bfced20b276b",
+      "action": "create",
+      "status": "error",
+      "source_raw": "example data"
+    },
+    {
+      "id": "95021355-bad0-442b-98e9-475ecd849033",
+      "identifier": "test_identifier-8",
+      "harvest_job_id": "6bce761c-7a39-41c1-ac73-94234c139c76",
+      "harvest_source_id": "2f2652de-91df-4c63-8b53-bfced20b276b",
+      "action": "create",
+      "status": "error",
+      "source_raw": "example data"
+    },
+    {
+      "id": "09f073b3-00e3-4147-ba69-a5d0fd7ce027",
+      "identifier": "test_identifier-9",
+      "harvest_job_id": "6bce761c-7a39-41c1-ac73-94234c139c76",
+      "harvest_source_id": "2f2652de-91df-4c63-8b53-bfced20b276b",
+      "action": "create",
+      "status": "error",
+      "source_raw": "example data"
+    },
+    {
+      "id": "97492788-5d62-4feb-8641-6f6692aec026",
+      "identifier": "test_identifier-10",
+      "harvest_job_id": "6bce761c-7a39-41c1-ac73-94234c139c76",
+      "harvest_source_id": "2f2652de-91df-4c63-8b53-bfced20b276b",
+      "action": "create",
+      "status": "error",
+      "source_raw": "example data"
+    }
+  ],
+  "record_error": [
+    {
+      "harvest_record_id": "0779c855-df20-49c8-9108-66359d82b77c",
+      "message": "record is invalid",
+      "type": "ValidationException"
+    },
+    {
+      "harvest_record_id": "c218c965-3670-45c8-bfcd-f852d71ed917",
+      "message": "record is invalid",
+      "type": "ValidationException"
+    },
+    {
+      "harvest_record_id": "e1f603cc-8b6b-483f-beb4-86bda5462b79",
+      "message": "record is invalid",
+      "type": "ValidationException"
+    },
+    {
+      "harvest_record_id": "1c004473-0802-4f22-a16d-7a2d7559719e",
+      "message": "record is invalid",
+      "type": "ValidationException"
+    },
+    {
+      "harvest_record_id": "deb12fa0-d812-4d6e-98f4-d4f7d776c6b3",
+      "message": "record is invalid",
+      "type": "ValidationException"
+    },
+    {
+      "harvest_record_id": "27b5d5d6-808b-4a8c-ae4a-99f118e282dd",
+      "message": "record is invalid",
+      "type": "ValidationException"
+    },
+    {
+      "harvest_record_id": "c232a2ca-6344-4692-adc2-29f618a2eff3",
+      "message": "record is invalid",
+      "type": "ValidationException"
+    },
+    {
+      "harvest_record_id": "95021355-bad0-442b-98e9-475ecd849033",
+      "message": "record is invalid",
+      "type": "ValidationException"
+    },
+    {
+      "harvest_record_id": "09f073b3-00e3-4147-ba69-a5d0fd7ce027",
+      "message": "record is invalid",
+      "type": "ValidationException"
+    },
+    {
+      "harvest_record_id": "97492788-5d62-4feb-8641-6f6692aec026",
+      "message": "record is invalid",
+      "type": "ValidationException"
+    }
+  ]
 }
