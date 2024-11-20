@@ -1,7 +1,7 @@
 import pytest
 
 from harvester.utils.ckan_utils import munge_tag, munge_title_to_name
-from harvester.utils.general_utils import parse_args
+from harvester.utils.general_utils import parse_args, prepare_transform_msg
 
 # these tests are copied from
 # https://github.com/ckan/ckan/blob/master/ckan/tests/lib/test_munge.py
@@ -52,3 +52,39 @@ class TestGeneralUtils:
     def test_args_parsing(self):
         args = parse_args(["test-id"])
         assert args.jobId == "test-id"
+
+    @pytest.mark.parametrize(
+        "original,expected",
+        [
+            (
+                {
+                    "readerStructureMessages": ["WARNING", "INFO"],
+                    "readerValidationMessages": ["ERROR", "INFO"],
+                },
+                "structure messages: WARNING \nvalidation messages: ERROR",
+            ),
+            (
+                {
+                    "readerStructureMessages": ["WARNING", "INFO"],
+                    "readerValidationMessages": ["INFO"],
+                },
+                "structure messages: WARNING \nvalidation messages: ",
+            ),
+            (
+                {
+                    "readerStructureMessages": [],
+                    "readerValidationMessages": ["ERROR"],
+                },
+                "structure messages:  \nvalidation messages: ERROR",
+            ),
+            (
+                {
+                    "readerStructureMessages": ["INFO"],
+                    "readerValidationMessages": [],
+                },
+                "structure messages:  \nvalidation messages: ",
+            ),
+        ],
+    )
+    def test_prepare_mdt_messages(self, original, expected):
+        assert prepare_transform_msg(original) == expected

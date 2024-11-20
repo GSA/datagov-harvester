@@ -121,8 +121,8 @@ def source_data_dcatus_2(organization_data: dict) -> dict:
         "organization_id": organization_data["id"],
         "frequency": "daily",
         "url": f"{HARVEST_SOURCE_URL}/dcatus/dcatus_2.json",
-        "schema_type": "type1",
-        "source_type": "dcatus",
+        "schema_type": "dcatus1.1",
+        "source_type": "document",
     }
 
 
@@ -135,21 +135,35 @@ def source_data_dcatus_same_title(organization_data: dict) -> dict:
         "organization_id": organization_data["id"],
         "frequency": "daily",
         "url": f"{HARVEST_SOURCE_URL}/dcatus/dcatus_same_title.json",
-        "schema_type": "type1",
-        "source_type": "dcatus",
+        "schema_type": "dcatus1.1",
+        "source_type": "document",
     }
 
 
 @pytest.fixture
-def source_data_waf(organization_data: dict) -> dict:
+def source_data_waf_csdgm(organization_data: dict) -> dict:
     return {
         "id": "55dca495-3b92-4fe4-b9c5-d433cbc3c82d",
-        "name": "Test Source (WAF)",
+        "name": "Test Source (WAF CSDGM)",
         "notification_emails": "wafl@example.com",
         "organization_id": organization_data["id"],
         "frequency": "daily",
         "url": f"{HARVEST_SOURCE_URL}/waf/",
-        "schema_type": "type1",
+        "schema_type": "csdgm",
+        "source_type": "waf",
+    }
+
+
+@pytest.fixture
+def source_data_waf_iso19115_2(organization_data: dict) -> dict:
+    return {
+        "id": "8c3cd8c5-6174-42ef-9512-10503533c3a9",
+        "name": "Test Source (WAF ISO19115_2)",
+        "notification_emails": "wafl@example.com",
+        "organization_id": organization_data["id"],
+        "frequency": "daily",
+        "url": f"{HARVEST_SOURCE_URL}/iso_2_waf/",
+        "schema_type": "iso19115_2",
         "source_type": "waf",
     }
 
@@ -163,8 +177,8 @@ def source_data_dcatus_invalid(organization_data: dict) -> dict:
         "organization_id": organization_data["id"],
         "frequency": "daily",
         "url": f"{HARVEST_SOURCE_URL}/dcatus/missing_title.json",
-        "schema_type": "type1",
-        "source_type": "dcatus",
+        "schema_type": "dcatus1.1",
+        "source_type": "document",
     }
 
 
@@ -177,8 +191,8 @@ def source_data_dcatus_single_record(organization_data: dict) -> dict:
         "organization_id": organization_data["id"],
         "frequency": "daily",
         "url": f"{HARVEST_SOURCE_URL}/dcatus/dcatus_single_record.json",
-        "schema_type": "type1",
-        "source_type": "dcatus",
+        "schema_type": "dcatus1.1",
+        "source_type": "document",
     }
 
 
@@ -191,8 +205,8 @@ def source_data_dcatus_bad_url(organization_data: dict) -> dict:
         "organization_id": organization_data["id"],
         "frequency": "daily",
         "url": f"{HARVEST_SOURCE_URL}/dcatus/bad_url.json",
-        "schema_type": "type1",
-        "source_type": "dcatus",
+        "schema_type": "dcatus1.1",
+        "source_type": "document",
     }
 
 
@@ -205,8 +219,8 @@ def source_data_dcatus_invalid_records(organization_data) -> dict:
         "organization_id": organization_data["id"],
         "frequency": "daily",
         "url": "http://localhost/dcatus/missing_title.json",
-        "schema_type": "type1",
-        "source_type": "dcatus",
+        "schema_type": "dcatus1.1",
+        "source_type": "document",
     }
 
 
@@ -231,11 +245,20 @@ def job_data_dcatus_2(source_data_dcatus_2: dict) -> dict:
 
 
 @pytest.fixture
-def job_data_waf(source_data_waf: dict) -> dict:
+def job_data_waf_csdgm(source_data_waf_csdgm: dict) -> dict:
     return {
         "id": "963cdc51-94d5-425d-a688-e0a57e0c5dd2",
         "status": "new",
-        "harvest_source_id": source_data_waf["id"],
+        "harvest_source_id": source_data_waf_csdgm["id"],
+    }
+
+
+@pytest.fixture
+def job_data_waf_iso19115_2(source_data_waf_iso19115_2: dict) -> dict:
+    return {
+        "id": "83c431e6-0f53-4471-8003-b6afc0541101",
+        "status": "new",
+        "harvest_source_id": source_data_waf_iso19115_2["id"],
     }
 
 
@@ -569,4 +592,37 @@ def dhl_cf_task_data() -> dict:
         "app_guuid": "f4ab7f86-bee0-44fd-8806-1dca7f8e215a",
         "task_id": "cf_task_integration",
         "command": "/usr/bin/sleep 60",
+    }
+
+
+@pytest.fixture
+def iso19115_2_transform() -> dict:
+    return {
+        "@type": "dcat:Dataset",
+        "title": "Bringing Wetlands to Market: Expanding Blue Carbon Implementation - NERRS/NSC(NERRS Science Collaborative)",
+        "keyword": [
+            "EARTH SCIENCE > BIOSPHERE > ECOSYSTEMS > MARINE ECOSYSTEMS > COASTAL",
+            "EARTH SCIENCE > HUMAN DIMENSIONS > ENVIRONMENTAL GOVERNANCE/MANAGEMENT",
+            "EARTH SCIENCE > LAND SURFACE > LANDSCAPE > RECLAMATION/REVEGETATION/RESTORATION",
+            "EARTH SCIENCE > BIOSPHERE > AQUATIC ECOSYSTEMS > WETLANDS > ESTUARINE WETLANDS",
+            "blue carbon",
+            "carbon sequestration",
+            "coastal wetlands",
+            "Waquoit Bay NERR, MA",
+            "DOC/NOAA/NOS/OCM > Office of Coastal Management, National Ocean Service, NOAA, U.S. Department of Commerce",
+            "NERRS",
+        ],
+        "contactPoint": {"@type": "vcard:Contact", "fn": "", "hasEmail": ""},
+        "accessLevel": "non-public",
+        "bureauCode": [],
+        "programCode": [],
+        "distribution": [],
+        "license": "https://creativecommons.org/publicdomain/zero/1.0/",
+        "spatial": "-70.482,41.544,-70.555,41.64",
+        "temporal": "2015-09-01T00:00:00+00:00/2019-09-01T00:00:00+00:00",
+        "language": [],
+        "theme": "",
+        "references": "https://www.fisheries.noaa.gov/inportserve/waf/noaa/nos/ocm/dmp/pdf/47598.pdf",
+        "primaryITInvestmentUII": "gov.noaa.nmfs.inport:47598",
+        "describedByType": "",
     }
