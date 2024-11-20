@@ -6,12 +6,12 @@ class TestExtract:
         self,
         interface,
         organization_data,
-        source_data_waf,
-        job_data_waf,
+        source_data_waf_csdgm,
+        job_data_waf_csdgm,
     ):
         interface.add_organization(organization_data)
-        interface.add_harvest_source(source_data_waf)
-        harvest_job = interface.add_harvest_job(job_data_waf)
+        interface.add_harvest_source(source_data_waf_csdgm)
+        harvest_job = interface.add_harvest_job(job_data_waf_csdgm)
 
         harvest_source = HarvestSource(harvest_job.id)
         harvest_source.prepare_external_data()
