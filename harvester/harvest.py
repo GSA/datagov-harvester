@@ -380,8 +380,8 @@ class HarvestSource:
                 f"- Records Ignored: {results[None]}\n\n"
                 "====\n"
                 "You received this email because you subscribed to harvester updates.\n"
-                "Please do not reply to this email, as it is not monitored."  
-            )   
+                "Please do not reply to this email, as it is not monitored."
+            )
             support_recipient = SMTP_CONFIG.get("recipient")
             user_recipients = self.notification_emails
             all_recipients = [support_recipient] + user_recipients
