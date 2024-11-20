@@ -25,10 +25,26 @@ services:
         interval: 5s
         timeout: 5s
         retries: 5
+  transformer:
+      image: ghcr.io/gsa/mdtranslator:latest
+      env_file:
+        - .env
+      environment:
+        MDTRANSLATOR_PORT: ${MDTRANSLATOR_PORT}
+        MDTRANSLATOR_URL: ${MDTRANSLATOR_URL}
+      ports:
+        - "${MDTRANSLATOR_PORT}:3000"
+      healthcheck:
+        test: "curl -I -X POST http://localhost:3000/translates | grep 422"
+        interval: 5s
+        timeout: 5s
+        retries: 5
   app:
     build: .
     depends_on:
       db:
+        condition: service_healthy
+      transformer:
         condition: service_healthy
     volumes:
       - .:/app

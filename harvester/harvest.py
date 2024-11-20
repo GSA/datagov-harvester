@@ -23,14 +23,15 @@ from harvester.exceptions import (
     ExtractExternalException,
     ExtractInternalException,
     SynchronizeException,
+    TransformationException,
     ValidationException,
 )
 from harvester.utils.general_utils import (
     dataset_to_hash,
     download_file,
     download_waf,
-    get_title_from_fgdc,
     open_json,
+    prepare_transform_msg,
     sort_dataset,
     traverse_waf,
 )
@@ -64,6 +65,7 @@ class HarvestSource:
             "name",
             "url",
             "organization_id",
+            "schema_type",
             "source_type",
             "id",  # db guuid
         ],
@@ -132,7 +134,6 @@ class HarvestSource:
 
     def internal_records_to_id_hash(self, records: list[dict]) -> None:
         for record in records:
-            # TODO: don't pass None to original metadata
             self.internal_records[record["identifier"]] = Record(
                 self,
                 record["identifier"],
@@ -142,17 +143,33 @@ class HarvestSource:
                 _ckan_name=record["ckan_name"],
             )
 
+    def get_record_identifier(self, record: dict) -> str:
+
+        record_id = "identifier" if self.schema_type == "dcatus1.1" else "url"
+
+        if record_id not in record:
+            raise Exception
+
+        record_id = record[record_id].strip()
+
+        if record_id == "":
+            raise Exception
+
+        return record_id
+
     def external_records_to_id_hash(self, records: list[dict]) -> None:
         # ruff: noqa: F841
 
         logger.info("converting harvest records to id: hash")
         for record in records:
             try:
-                if self.source_type == "dcatus":
-                    identifier = record["identifier"]
+
+                identifier = self.get_record_identifier(record)
+
+                if self.source_type == "document":
                     dataset_hash = dataset_to_hash(sort_dataset(record))
+
                 if self.source_type == "waf":
-                    identifier = get_title_from_fgdc(record["content"])
                     dataset_hash = dataset_to_hash(record["content"].decode("utf-8"))
 
                 self.external_records[identifier] = Record(
@@ -179,7 +196,7 @@ class HarvestSource:
     def prepare_external_data(self) -> None:
         logger.info("retrieving and preparing external records.")
         try:
-            if self.source_type == "dcatus":
+            if self.source_type == "document":
                 self.external_records_to_id_hash(
                     download_file(self.url, ".json")["dataset"]
                 )
@@ -234,13 +251,18 @@ class HarvestSource:
                 else:
                     record = self.external_records[record_id]
 
+                if self.schema_type == "dcatus1.1":
+                    source_raw = json.dumps(record.metadata)
+                else:
+                    source_raw = record.metadata["content"]
+
                 records.append(
                     {
                         "identifier": record.identifier,
                         "harvest_job_id": record.harvest_source.job_id,
                         "harvest_source_id": record.harvest_source.id,
                         "source_hash": record.metadata_hash,
-                        "source_raw": json.dumps(record.metadata),
+                        "source_raw": source_raw,
                         "action": action,
                         "ckan_id": record.ckan_id,
                         "ckan_name": record.ckan_name,
@@ -292,14 +314,16 @@ class HarvestSource:
                     # no longer setting action in compare so setting it here...
                     record.action = action
 
+                    if self.schema_type != "dcatus1.1":
+                        record.transform()
                     record.validate()
-                    # TODO: add transformation
                     record.sync()
 
                 except (
                     ValidationException,
                     DCATUSToCKANException,
                     SynchronizeException,
+                    TransformationException,
                 ) as e:
                     pass
 
@@ -371,8 +395,19 @@ class Record:
     _status: str = None
     _ckan_id: str = None
     _ckan_name: str = None
+    _mdt_writer: str = "dcat_us"
+    _mdt_msgs: str = ""
 
+    transformed_data: dict = None
     ckanified_metadata: dict = field(default_factory=lambda: {})
+    reader_map: dict = field(
+        default_factory=lambda: {
+            "iso19115_1": "iso19115_1",
+            "iso19115_2": "iso19115_2_datagov",
+            "dcatus1.1": "dcat_us",
+            "csdgm": "fgdc",
+        }
+    )
 
     @property
     def harvest_source(self) -> HarvestSource:
@@ -401,6 +436,20 @@ class Record:
     @ckan_name.setter
     def ckan_name(self, value) -> None:
         self._ckan_name = value
+
+    @property
+    def mdt_writer(self) -> str:
+        return self._mdt_writer
+
+    @property
+    def mdt_msgs(self) -> str:
+        return self._mdt_msgs
+
+    @mdt_msgs.setter
+    def mdt_msgs(self, value) -> str:
+        if not isinstance(value, str):
+            raise ValueError("MDTranslator messages must be a string")
+        self._mdt_msgs = value
 
     @property
     def identifier(self) -> str:
@@ -454,12 +503,40 @@ class Record:
             raise ValueError("status must be a string")
         self._status = value
 
+    def transform(self) -> None:
+
+        data = {
+            "file": self.metadata["content"],
+            "reader": self.reader_map[self.harvest_source.schema_type],
+            "writer": self.mdt_writer,
+        }
+
+        mdt_url = os.getenv("MDTRANSLATOR_URL")
+        resp = requests.post(mdt_url, json=data)
+        data = resp.json()
+
+        if resp.status_code == 422:
+            self.mdt_msgs = prepare_transform_msg(data)
+            raise TransformationException(
+                f"record failed to transform: {self.mdt_msgs}",
+                self.harvest_source.job_id,
+                self.harvest_source.internal_records_lookup_table[self.identifier],
+            )
+
+        if 200 <= resp.status_code < 300:
+            self.transformed_data = json.loads(data["writerOutput"])
+
     def validate(self) -> None:
         logger.info(f"validating {self.identifier}")
         # ruff: noqa: F841
         validator = Draft202012Validator(self.harvest_source.dataset_schema)
         try:
-            validator.validate(self.metadata)
+            record = (
+                self.metadata
+                if self.transformed_data is None
+                else self.transformed_data
+            )
+            validator.validate(record)
             self.valid = True
         except Exception as e:
             self.status = "error"
