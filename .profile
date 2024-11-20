@@ -41,7 +41,7 @@ export HARVEST_SMTP_STARTTLS=True
 export HARVEST_SMTP_USER=$(vcap_get_service smtp .credentials.smtp_user)
 export HARVEST_SMTP_PASSWORD=$(vcap_get_service smtp .credentials.smtp_password)
 export HARVEST_SMTP_MAIL_FROM=harvester@$(vcap_get_service smtp .credentials.domain_arn | grep -o "ses-[[:alnum:]]\+.ssb.data.gov")
-# export HARVEST_SMTP_REPLY_TO=datagovhelp@gsa.gov
+export HARVEST_SMTP_RECIPIENT=datagovhelp@gsa.gov
 
 
 if [[ $REAL_NAME = "datagov-harvest-admin" ]]; then

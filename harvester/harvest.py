@@ -388,6 +388,9 @@ class HarvestSource:
             """
 
             recipient_list = self.notification_emails
+            other_recipient = SMTP_CONFIG.get("recipient")
+            if other_recipient:
+                recipient_list.append(other_recipient)
             recipient_string = ", ".join(recipient_list)
 
             msg = MIMEMultipart()

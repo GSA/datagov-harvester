@@ -20,5 +20,6 @@ SMTP_CONFIG = {
     "username": os.getenv("HARVEST_SMTP_USER"),
     "password": os.getenv("HARVEST_SMTP_PASSWORD"),
     "default_sender": os.getenv("HARVEST_SMTP_MAIL_FROM"),
-    "base_url": os.getenv("REDIRECT_URI").rsplit("/", 1)[0]
+    "base_url": os.getenv("REDIRECT_URI").rsplit("/", 1)[0],
+    "recipient": os.getenv("HARVEST_SMTP_RECIPIENT")
 }
