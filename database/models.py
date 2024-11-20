@@ -53,7 +53,7 @@ class HarvestSource(db.Model):
         index=True,
     )
     schema_type = db.Column(
-        db.Enum("iso19115_1", "iso19115_2", "csdgm", "dcatus", name="schema_type"),
+        db.Enum("iso19115_1", "iso19115_2", "csdgm", "dcatus1.1", name="schema_type"),
         nullable=False,
     )
     source_type = db.Column(

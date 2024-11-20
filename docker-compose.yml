@@ -27,6 +27,11 @@ services:
         retries: 5
   transformer:
       image: ghcr.io/gsa/mdtranslator:latest
+      env_file:
+        - .env
+      environment:
+        MDTRANSLATOR_PORT: ${MDTRANSLATOR_PORT}
+        MDTRANSLATOR_URL: ${MDTRANSLATOR_URL}
       ports:
         - "${MDTRANSLATOR_PORT}:3000"
       healthcheck:

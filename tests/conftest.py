@@ -121,7 +121,7 @@ def source_data_dcatus_2(organization_data: dict) -> dict:
         "organization_id": organization_data["id"],
         "frequency": "daily",
         "url": f"{HARVEST_SOURCE_URL}/dcatus/dcatus_2.json",
-        "schema_type": "dcatus",
+        "schema_type": "dcatus1.1",
         "source_type": "document",
     }
 
@@ -135,7 +135,7 @@ def source_data_dcatus_same_title(organization_data: dict) -> dict:
         "organization_id": organization_data["id"],
         "frequency": "daily",
         "url": f"{HARVEST_SOURCE_URL}/dcatus/dcatus_same_title.json",
-        "schema_type": "dcatus",
+        "schema_type": "dcatus1.1",
         "source_type": "document",
     }
 
@@ -177,7 +177,7 @@ def source_data_dcatus_invalid(organization_data: dict) -> dict:
         "organization_id": organization_data["id"],
         "frequency": "daily",
         "url": f"{HARVEST_SOURCE_URL}/dcatus/missing_title.json",
-        "schema_type": "dcatus",
+        "schema_type": "dcatus1.1",
         "source_type": "document",
     }
 
@@ -191,7 +191,7 @@ def source_data_dcatus_single_record(organization_data: dict) -> dict:
         "organization_id": organization_data["id"],
         "frequency": "daily",
         "url": f"{HARVEST_SOURCE_URL}/dcatus/dcatus_single_record.json",
-        "schema_type": "dcatus",
+        "schema_type": "dcatus1.1",
         "source_type": "document",
     }
 
@@ -205,7 +205,7 @@ def source_data_dcatus_bad_url(organization_data: dict) -> dict:
         "organization_id": organization_data["id"],
         "frequency": "daily",
         "url": f"{HARVEST_SOURCE_URL}/dcatus/bad_url.json",
-        "schema_type": "dcatus",
+        "schema_type": "dcatus1.1",
         "source_type": "document",
     }
 
@@ -219,7 +219,7 @@ def source_data_dcatus_invalid_records(organization_data) -> dict:
         "organization_id": organization_data["id"],
         "frequency": "daily",
         "url": "http://localhost/dcatus/missing_title.json",
-        "schema_type": "dcatus",
+        "schema_type": "dcatus1.1",
         "source_type": "document",
     }
 

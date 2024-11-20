@@ -145,7 +145,7 @@ class HarvestSource:
 
     def get_record_identifier(self, record: dict) -> str:
 
-        record_id = "identifier" if self.schema_type == "dcatus" else "url"
+        record_id = "identifier" if self.schema_type == "dcatus1.1" else "url"
 
         if record_id not in record:
             raise Exception
@@ -251,7 +251,7 @@ class HarvestSource:
                 else:
                     record = self.external_records[record_id]
 
-                if self.schema_type == "dcatus":
+                if self.schema_type == "dcatus1.1":
                     source_raw = json.dumps(record.metadata)
                 else:
                     source_raw = record.metadata["content"]
@@ -314,7 +314,7 @@ class HarvestSource:
                     # no longer setting action in compare so setting it here...
                     record.action = action
 
-                    if self.schema_type != "dcatus":
+                    if self.schema_type != "dcatus1.1":
                         record.transform()
                     record.validate()
                     record.sync()
@@ -404,7 +404,7 @@ class Record:
         default_factory=lambda: {
             "iso19115_1": "iso19115_1",
             "iso19115_2": "iso19115_2_datagov",
-            "dcatus": "dcat_us",
+            "dcatus1.1": "dcat_us",
             "csdgm": "fgdc",
         }
     )

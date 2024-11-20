@@ -43,7 +43,7 @@ curl -X POST http://{site}/harvest_source/add -H "Content-Type: application/json
     "notification_emails": "admin@example.com",
     "frequency": "daily",
     "url": "http://example2.com",
-    "schema_type": "dcatus",
+    "schema_type": "dcatus1.1",
     "source_type": "json"
 }
 '
