@@ -387,15 +387,14 @@ class HarvestSource:
             non-monitored address.
             """
 
-            recipient_list = self.notification_emails
-            other_recipient = SMTP_CONFIG.get("recipient")
-            if other_recipient:
-                recipient_list.append(other_recipient)
-            recipient_string = ", ".join(recipient_list)
+            support_recipient = SMTP_CONFIG.get("recipient")
+            user_recipients = ", ".join(self.notification_emails)
+            all_recipients = [support_recipient] + user_recipients
 
             msg = MIMEMultipart()
-            msg["From"] = SMTP_CONFIG["default_sender"]
-            msg["To"] = recipient_string
+            msg["From"] = support_recipient
+            msg["To"] = support_recipient
+            msg["Bcc"] = user_recipients
             msg["Subject"] = subject
             msg.attach(MIMEText(body, "plain"))
 
@@ -404,8 +403,8 @@ class HarvestSource:
                     server.starttls()
                 server.login(SMTP_CONFIG["username"], SMTP_CONFIG["password"])
                 server.sendmail(SMTP_CONFIG["default_sender"],
-                                recipient_list, msg.as_string())
-            logger.info(f"Notification email sent to: {recipient_string}")
+                                all_recipients, msg.as_string())
+            logger.info(f"Notification email sent to: {all_recipients}")
 
         except Exception as e:
             logger.error(f"Error preparing or sending notification emails: {e}")
