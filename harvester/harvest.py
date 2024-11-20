@@ -388,13 +388,13 @@ class HarvestSource:
             """
 
             support_recipient = SMTP_CONFIG.get("recipient")
-            user_recipients = ", ".join(self.notification_emails)
+            user_recipients = self.notification_emails
             all_recipients = [support_recipient] + user_recipients
 
             msg = MIMEMultipart()
             msg["From"] = support_recipient
             msg["To"] = support_recipient
-            msg["Bcc"] = user_recipients
+            msg["Bcc"] = ", ".join(user_recipients)
             msg["Subject"] = subject
             msg.attach(MIMEText(body, "plain"))
 
