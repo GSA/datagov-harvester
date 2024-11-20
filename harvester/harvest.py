@@ -367,44 +367,41 @@ class HarvestSource:
 
     def send_notification_emails(self, results: dict) -> None:
         try:
-            job_url = f'{SMTP_CONFIG["base_url"]}/{self.job_id}'
+            job_url = f'{SMTP_CONFIG["base_url"]}/harvest_job/{self.job_id}'
 
             subject = "Harvest Job Completed"
-            body = f"""
-            The harvest job (ID: {self.job_id}) has been successfully completed.
-            You can view the details here: {job_url}
-
-            Summary of the job:
-            - Records Added: {results['create']}
-            - Records Updated: {results['update']}
-            - Records Deleted: {results['delete']}
-            - Records Ignored: {results[None]}
-
-            ====
-            You are receiving this email because you are currently set-up as
-            Administrator for https://catalog.data.gov/.
-            Please do not reply to this email as it was sent from a
-            non-monitored address.
-            """
-
+            body = (
+                f"The harvest job (ID: {self.job_id}) has been successfully completed.\n"
+                f"You can view the details here: {job_url}\n\n"
+                "Summary of the job:\n"
+                f"- Records Added: {results['create']}\n"
+                f"- Records Updated: {results['update']}\n"
+                f"- Records Deleted: {results['delete']}\n"
+                f"- Records Ignored: {results[None]}\n\n"
+                "====\n"
+                "You received this email because you subscribed to harvester updates.\n"
+                "Please do not reply to this email, as it is not monitored."  
+            )   
             support_recipient = SMTP_CONFIG.get("recipient")
             user_recipients = self.notification_emails
             all_recipients = [support_recipient] + user_recipients
-
-            msg = MIMEMultipart()
-            msg["From"] = support_recipient
-            msg["To"] = support_recipient
-            msg["Bcc"] = ", ".join(user_recipients)
-            msg["Subject"] = subject
-            msg.attach(MIMEText(body, "plain"))
 
             with smtplib.SMTP(SMTP_CONFIG["server"], SMTP_CONFIG["port"]) as server:
                 if SMTP_CONFIG["use_tls"]:
                     server.starttls()
                 server.login(SMTP_CONFIG["username"], SMTP_CONFIG["password"])
-                server.sendmail(SMTP_CONFIG["default_sender"],
-                                all_recipients, msg.as_string())
-            logger.info(f"Notification email sent to: {all_recipients}")
+
+                for recipient in all_recipients:
+                    msg = MIMEMultipart()
+                    msg["From"] = SMTP_CONFIG["default_sender"]
+                    msg["To"] = recipient
+                    msg["Reply-To"] = "no-reply@gsa.gov"
+                    msg["Subject"] = subject
+                    msg.attach(MIMEText(body, "plain"))
+
+                    server.sendmail(SMTP_CONFIG["default_sender"], [recipient],
+                                    msg.as_string())
+                    logger.info(f"Notification email sent to: {recipient}")
 
         except Exception as e:
             logger.error(f"Error preparing or sending notification emails: {e}")
