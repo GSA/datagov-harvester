@@ -53,9 +53,17 @@ class HarvestSource(db.Model):
         index=True,
     )
     schema_type = db.Column(
-        db.Enum("iso19115_1", "iso19115_2", "csdgm", "dcatus1.1", name="schema_type"),
+        db.Enum(
+            "iso19115_1",
+            "iso19115_2",
+            "csdgm",
+            "dcatus1.1: federal",
+            "dcatus1.1: non-federal",
+            name="schema_type",
+        ),
         nullable=False,
     )
+
     source_type = db.Column(
         db.Enum("document", "waf", name="source_type"), nullable=False
     )
