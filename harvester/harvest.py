@@ -16,6 +16,11 @@ from jsonschema import Draft202012Validator
 
 sys.path.insert(1, "/".join(os.path.realpath(__file__).split("/")[0:-2]))
 
+from harvester import SMTP_CONFIG
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+
 from harvester import HarvesterDBInterface, db_interface
 from harvester.exceptions import (
     CompareException,
@@ -68,6 +73,7 @@ class HarvestSource:
             "schema_type",
             "source_type",
             "id",  # db guuid
+            "notification_emails"
         ],
         repr=False,
     )
@@ -379,6 +385,50 @@ class HarvestSource:
             "records_errored": actual_results_status["error"],
         }
         self.db_interface.update_harvest_job(self.job_id, job_status)
+
+        if hasattr(self, "notification_emails") and self.notification_emails:
+            self.send_notification_emails(actual_results_action)
+
+    def send_notification_emails(self, results: dict) -> None:
+        try:
+            job_url = f'{SMTP_CONFIG["base_url"]}/harvest_job/{self.job_id}'
+
+            subject = "Harvest Job Completed"
+            body = (
+                f"The harvest job ({self.job_id}) has been successfully completed.\n"
+                f"You can view the details here: {job_url}\n\n"
+                "Summary of the job:\n"
+                f"- Records Added: {results['create']}\n"
+                f"- Records Updated: {results['update']}\n"
+                f"- Records Deleted: {results['delete']}\n"
+                f"- Records Ignored: {results[None]}\n\n"
+                "====\n"
+                "You received this email because you subscribed to harvester updates.\n"
+                "Please do not reply to this email, as it is not monitored."
+            )
+            support_recipient = SMTP_CONFIG.get("recipient")
+            user_recipients = self.notification_emails
+            all_recipients = [support_recipient] + user_recipients
+
+            with smtplib.SMTP(SMTP_CONFIG["server"], SMTP_CONFIG["port"]) as server:
+                if SMTP_CONFIG["use_tls"]:
+                    server.starttls()
+                server.login(SMTP_CONFIG["username"], SMTP_CONFIG["password"])
+
+                for recipient in all_recipients:
+                    msg = MIMEMultipart()
+                    msg["From"] = SMTP_CONFIG["default_sender"]
+                    msg["To"] = recipient
+                    msg["Reply-To"] = "no-reply@gsa.gov"
+                    msg["Subject"] = subject
+                    msg.attach(MIMEText(body, "plain"))
+
+                    server.sendmail(SMTP_CONFIG["default_sender"], [recipient],
+                                    msg.as_string())
+                    logger.info(f"Notification email sent to: {recipient}")
+
+        except Exception as e:
+            logger.error(f"Error preparing or sending notification emails: {e}")
 
 
 @dataclass
