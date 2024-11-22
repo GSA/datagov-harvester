@@ -121,7 +121,7 @@ def source_data_dcatus_2(organization_data: dict) -> dict:
         "organization_id": organization_data["id"],
         "frequency": "daily",
         "url": f"{HARVEST_SOURCE_URL}/dcatus/dcatus_2.json",
-        "schema_type": "dcatus1.1",
+        "schema_type": "dcatus1.1: federal",
         "source_type": "document",
     }
 
@@ -135,7 +135,7 @@ def source_data_dcatus_same_title(organization_data: dict) -> dict:
         "organization_id": organization_data["id"],
         "frequency": "daily",
         "url": f"{HARVEST_SOURCE_URL}/dcatus/dcatus_same_title.json",
-        "schema_type": "dcatus1.1",
+        "schema_type": "dcatus1.1: federal",
         "source_type": "document",
     }
 
@@ -177,7 +177,7 @@ def source_data_dcatus_invalid(organization_data: dict) -> dict:
         "organization_id": organization_data["id"],
         "frequency": "daily",
         "url": f"{HARVEST_SOURCE_URL}/dcatus/missing_title.json",
-        "schema_type": "dcatus1.1",
+        "schema_type": "dcatus1.1: federal",
         "source_type": "document",
     }
 
@@ -191,7 +191,21 @@ def source_data_dcatus_single_record(organization_data: dict) -> dict:
         "organization_id": organization_data["id"],
         "frequency": "daily",
         "url": f"{HARVEST_SOURCE_URL}/dcatus/dcatus_single_record.json",
-        "schema_type": "dcatus1.1",
+        "schema_type": "dcatus1.1: federal",
+        "source_type": "document",
+    }
+
+
+@pytest.fixture
+def source_data_dcatus_single_record_non_federal(organization_data: dict) -> dict:
+    return {
+        "id": "2f2652de-91df-4c63-8b53-bfced20b276b",
+        "name": "Single Record Test Source",
+        "notification_emails": "email@example.com",
+        "organization_id": organization_data["id"],
+        "frequency": "daily",
+        "url": f"{HARVEST_SOURCE_URL}/dcatus/dcatus_single_record_non-federal.json",
+        "schema_type": "dcatus1.1: non-federal",
         "source_type": "document",
     }
 
@@ -205,7 +219,7 @@ def source_data_dcatus_bad_url(organization_data: dict) -> dict:
         "organization_id": organization_data["id"],
         "frequency": "daily",
         "url": f"{HARVEST_SOURCE_URL}/dcatus/bad_url.json",
-        "schema_type": "dcatus1.1",
+        "schema_type": "dcatus1.1: federal",
         "source_type": "document",
     }
 
@@ -219,7 +233,7 @@ def source_data_dcatus_invalid_records(organization_data) -> dict:
         "organization_id": organization_data["id"],
         "frequency": "daily",
         "url": "http://localhost/dcatus/missing_title.json",
-        "schema_type": "dcatus1.1",
+        "schema_type": "dcatus1.1: federal",
         "source_type": "document",
     }
 
@@ -277,6 +291,17 @@ def job_data_dcatus_bad_url(source_data_dcatus_bad_url: dict) -> dict:
         "id": "707aee7b-bf72-4e07-a5fc-68980765b214",
         "status": "new",
         "harvest_source_id": source_data_dcatus_bad_url["id"],
+    }
+
+
+@pytest.fixture
+def job_data_dcatus_non_federal(
+    source_data_dcatus_single_record_non_federal: dict,
+) -> dict:
+    return {
+        "id": "34dce1c4-dfab-4426-af11-21accfd0ef34",
+        "status": "new",
+        "harvest_source_id": source_data_dcatus_single_record_non_federal["id"],
     }
 
 
