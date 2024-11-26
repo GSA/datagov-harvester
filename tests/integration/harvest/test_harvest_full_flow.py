@@ -1,5 +1,5 @@
 import json
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 import pytest
 
 from harvester.harvest import HarvestSource
@@ -165,42 +165,28 @@ class TestHarvestFullFlow:
         assert kwargs["identifier"] == "cftc-dc2"
 
 
-    @patch("harvester.harvest.smtplib.SMTP")
-    def test_notification_email_smtp_error(
-        self,
-        SMTPMock,
-        interface,
-        organization_data,
-        source_data_dcatus_single_record,
-    ):
-        """Test that an SMTP error is raised and logged when sending notification emails."""
-        # Mock valid harvest job and source
-        interface.add_organization(organization_data)
-        interface.add_harvest_source(source_data_dcatus_single_record)
-        harvest_job = interface.add_harvest_job(
-            {
-                "status": "new",
-                "harvest_source_id": source_data_dcatus_single_record["id"],
-            }
+@patch("harvester.harvest.SMTP_CONFIG", {"server": "smtp.test.com", "port": 587})
+@patch("harvester.harvest.smtplib.SMTP")
+@patch("harvester.harvest.logger.error")
+def test_smtp_error_handling_with_logging(logger_mock, SMTPMock):
+    """Test that SMTP errors are handled and logged correctly."""
+
+    # Set up the mock SMTP server to raise an error
+    SMTPMock.return_value.starttls.side_effect = Exception("SMTP Error: Could not connect")
+
+    # Simulate sending notification emails
+    fake_results = {"create": 1, "update": 0, "delete": 0, None: 0}
+    fake_notification_emails = ["validemail@example.com"]
+
+    with pytest.raises(Exception, match="SMTP Error: Could not connect"):
+        HarvestSource.send_notification_emails(
+            self=MagicMock(notification_emails=fake_notification_emails),
+            results=fake_results,
         )
-        job_id = harvest_job.id
 
-        # Set up the mock SMTP server to raise an error
-        SMTPMock.return_value.starttls.side_effect = Exception("SMTP Error: Could not connect")
-        SMTPMock.return_value.sendmail.side_effect = Exception("SMTP Error: Invalid recipient")
+    # Verify SMTP behavior
+    SMTPMock.assert_called_once_with("smtp.test.com", 587)
 
-        # Initialize HarvestSource and simulate job flow
-        harvest_source = HarvestSource(job_id)
-        harvest_source.notification_emails = ["validemail@example.com"]  # Add notification recipients
-        # harvest_source.get_record_changes()
-        # harvest_source.write_compare_to_db()
-        # harvest_source.synchronize_records()
+    # Verify error logging
+    logger_mock.assert_any_call("Error preparing or sending notification emails: SMTP Error: Could not connect")
 
-        # Test the error during sending notification emails
-        with pytest.raises(Exception, match="SMTP Error: Could not connect"):
-            harvest_source.send_notification_emails({"create": 1, "update": 0, "delete": 0, None: 0})
-
-        # Verify that the SMTP mock was called
-        SMTPMock.assert_called_once_with("smtp.test.com", 587)
-        logger_mock = patch("harvester.harvest.logger.error").start()
-        logger_mock.assert_any_call("Error preparing or sending notification emails: SMTP Error: Could not connect")
