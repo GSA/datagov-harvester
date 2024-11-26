@@ -1,5 +1,6 @@
 import json
 from unittest.mock import patch
+import pytest
 
 from harvester.harvest import HarvestSource
 
@@ -162,3 +163,44 @@ class TestHarvestFullFlow:
         assert kwargs["title"] == "Commitment of Traders"
         assert kwargs["id"] == "5678"
         assert kwargs["identifier"] == "cftc-dc2"
+
+
+    @patch("harvester.harvest.smtplib.SMTP")
+    def test_notification_email_smtp_error(
+        self,
+        SMTPMock,
+        interface,
+        organization_data,
+        source_data_dcatus_single_record,
+    ):
+        """Test that an SMTP error is raised and logged when sending notification emails."""
+        # Mock valid harvest job and source
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_dcatus_single_record)
+        harvest_job = interface.add_harvest_job(
+            {
+                "status": "new",
+                "harvest_source_id": source_data_dcatus_single_record["id"],
+            }
+        )
+        job_id = harvest_job.id
+
+        # Set up the mock SMTP server to raise an error
+        SMTPMock.return_value.starttls.side_effect = Exception("SMTP Error: Could not connect")
+        SMTPMock.return_value.sendmail.side_effect = Exception("SMTP Error: Invalid recipient")
+
+        # Initialize HarvestSource and simulate job flow
+        harvest_source = HarvestSource(job_id)
+        harvest_source.notification_emails = ["validemail@example.com"]  # Add notification recipients
+        harvest_source.get_record_changes()
+        harvest_source.write_compare_to_db()
+        harvest_source.synchronize_records()
+
+        # Test the error during sending notification emails
+        with pytest.raises(Exception, match="SMTP Error: Could not connect"):
+            harvest_source.send_notification_emails({"create": 1, "update": 0, "delete": 0, None: 0})
+
+        # Verify that the SMTP mock was called
+        SMTPMock.assert_called_once_with("smtp.test.com", 587)
+        logger_mock = patch("harvester.harvest.logger.error").start()
+        logger_mock.assert_any_call("Error preparing or sending notification emails: SMTP Error: Could not connect")
