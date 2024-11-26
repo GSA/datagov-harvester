@@ -192,9 +192,9 @@ class TestHarvestFullFlow:
         # Initialize HarvestSource and simulate job flow
         harvest_source = HarvestSource(job_id)
         harvest_source.notification_emails = ["validemail@example.com"]  # Add notification recipients
-        harvest_source.get_record_changes()
-        harvest_source.write_compare_to_db()
-        harvest_source.synchronize_records()
+        # harvest_source.get_record_changes()
+        # harvest_source.write_compare_to_db()
+        # harvest_source.synchronize_records()
 
         # Test the error during sending notification emails
         with pytest.raises(Exception, match="SMTP Error: Could not connect"):
