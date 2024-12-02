@@ -175,6 +175,8 @@ class TestHarvestFullFlow:
         CKANMock.action.package_update = "ok"
         CKANMock.action.dataset_purge = "ok"
 
+        mock_smtp.side_effect = Exception("SMTP connection failed")
+
         interface.add_organization(organization_data)
         interface.add_harvest_source(source_data_dcatus_single_record)
         harvest_job = interface.add_harvest_job(
@@ -186,7 +188,7 @@ class TestHarvestFullFlow:
         job_id = harvest_job.id
 
         harvest_source = HarvestSource(job_id)
-        # harvest_source.notification_emails = ["user@example.com"]
+        harvest_source.notification_emails = ["user@example.com"]
         harvest_source.get_record_changes()
         harvest_source.write_compare_to_db()
         harvest_source.synchronize_records()
