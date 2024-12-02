@@ -195,8 +195,8 @@ class TestHarvestFullFlow:
         harvest_source.report()
 
         results = {"create": 10, "update": 5, "delete": 3, None: 2}
-        harvest_source.send_notification_emails(results)
-
         error_message = harvest_source.send_notification_emails(results)
+
         assert error_message == "Error preparing or sending notification emails"
+
 
