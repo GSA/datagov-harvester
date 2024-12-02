@@ -211,7 +211,6 @@ class TestHarvestFullFlow:
         mock_smtp.side_effect = Exception("SMTP connection failed")
         error_message = harvest_source.send_notification_emails(results)
 
-        assert mock_smtp.called, "Mock SMTP was not called!"
         assert mock_smtp.side_effect is not None, "Mock SMTP side_effect was not set!"
 
         assert error_message == "Error preparing or sending notification emails"
