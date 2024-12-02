@@ -426,6 +426,7 @@ class HarvestSource:
                     server.sendmail(SMTP_CONFIG["default_sender"], [recipient],
                                     msg.as_string())
                     logger.info(f"Notification email sent to: {recipient}")
+                    return "Emails sent successfully"
 
         except Exception as e:
             error_message = "Error preparing or sending notification emails"
