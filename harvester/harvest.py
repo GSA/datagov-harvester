@@ -428,8 +428,8 @@ class HarvestSource:
                     logger.info(f"Notification email sent to: {recipient}")
 
         except Exception as e:
-            error_message = f"Error preparing or sending notification emails: {e}"
-            logger.error(error_message)
+            error_message = "Error preparing or sending notification emails"
+            logger.error(error_message + f": {e}")
             return error_message
 
 

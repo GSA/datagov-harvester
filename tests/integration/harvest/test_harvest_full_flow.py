@@ -198,5 +198,5 @@ class TestHarvestFullFlow:
         harvest_source.send_notification_emails(results)
 
         error_message = harvest_source.send_notification_emails(results)
-        assert error_message == "Error preparing or sending notification emails: SMTP connection failed"
+        assert error_message == "Error preparing or sending notification emails"
 
