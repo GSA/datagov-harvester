@@ -1,7 +1,5 @@
 import json
-from unittest.mock import patch, MagicMock
-import pytest
-
+from unittest.mock import patch
 from harvester.harvest import HarvestSource
 
 
@@ -165,28 +163,36 @@ class TestHarvestFullFlow:
         assert kwargs["identifier"] == "cftc-dc2"
 
 
-@patch("harvester.harvest.SMTP_CONFIG", {"server": "smtp.test.com", "port": 587})
-@patch("harvester.harvest.smtplib.SMTP")
-@patch("harvester.harvest.logger.error")
-def test_smtp_error_handling_with_logging(logger_mock, SMTPMock):
-    """Test that SMTP errors are handled and logged correctly."""
+    @patch("harvester.harvest.smtplib.SMTP")
+    @patch("harvester.harvest.logger")
+    def test_harvest_send_notification_failure(
+        mock_smtp,
+        interface,
+        organization_data,
+        source_data_dcatus_single_record,
+    ):
+        mock_smtp.side_effect = Exception("SMTP connection failed")
 
-    # Set up the mock SMTP server to raise an error
-    SMTPMock.return_value.starttls.side_effect = Exception("SMTP Error: Could not connect")
-
-    # Simulate sending notification emails
-    fake_results = {"create": 1, "update": 0, "delete": 0, None: 0}
-    fake_notification_emails = ["validemail@example.com"]
-
-    with pytest.raises(Exception, match="SMTP Error: Could not connect"):
-        HarvestSource.send_notification_emails(
-            self=MagicMock(notification_emails=fake_notification_emails),
-            results=fake_results,
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_dcatus_single_record)
+        harvest_job = interface.add_harvest_job(
+            {
+                "status": "new",
+                "harvest_source_id": source_data_dcatus_single_record["id"],
+            }
         )
+        job_id = harvest_job.id
 
-    # Verify SMTP behavior
-    SMTPMock.assert_called_once_with("smtp.test.com", 587)
+        harvest_source = HarvestSource(job_id)
+        harvest_source.notification_emails = ["user@example.com"]
+        harvest_source.get_record_changes()
+        harvest_source.write_compare_to_db()
+        harvest_source.synchronize_records()
+        harvest_source.report()
 
-    # Verify error logging
-    logger_mock.assert_any_call("Error preparing or sending notification emails: SMTP Error: Could not connect")
+        results = {"create": 10, "update": 5, "delete": 3, None: 2}
+        harvest_source.send_notification_emails(results)
+
+        error_message = harvest_source.send_notification_emails(results)
+        assert error_message == "Error preparing or sending notification emails: SMTP connection failed"
 
