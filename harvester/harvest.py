@@ -401,7 +401,7 @@ class HarvestSource:
         if hasattr(self, "notification_emails") and self.notification_emails:
             self.send_notification_emails(actual_results_action)
 
-    def send_notification_emails(self, results: dict) -> None:
+    def send_notification_emails(self, results: dict) -> str:
         try:
             job_url = f'{SMTP_CONFIG["base_url"]}/harvest_job/{self.job_id}'
 
