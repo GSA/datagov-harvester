@@ -37,7 +37,13 @@ class HarvestSourceForm(FlaskForm):
     )
     schema_type = SelectField(
         "Schema Type",
-        choices=["iso19115_1", "iso19115_2", "csdgm", "dcatus1.1"],
+        choices=[
+            "iso19115_1",
+            "iso19115_2",
+            "csdgm",
+            "dcatus1.1: federal",
+            "dcatus1.1: non-federal",
+        ],
         validators=[DataRequired()],
     )
     source_type = SelectField(

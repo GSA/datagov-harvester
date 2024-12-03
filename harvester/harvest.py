@@ -78,10 +78,7 @@ class HarvestSource:
         repr=False,
     )
 
-    _dataset_schema: dict = field(
-        default_factory=lambda: open_json(ROOT_DIR / "schemas" / "dataset.json"),
-        repr=False,
-    )
+    _dataset_schema: dict = field(default_factory=lambda: {}, repr=False)
     _no_harvest_resp: bool = False
 
     # not read-only because these values are added after initialization
@@ -100,6 +97,15 @@ class HarvestSource:
         self._db_interface: HarvesterDBInterface = db_interface
         self.get_source_info_from_job_id(self.job_id)
 
+        if self.schema_type == "dcatus1.1: federal":
+            self.dataset_schema = open_json(
+                ROOT_DIR / "schemas" / "federal_dataset.json"
+            )
+        else:
+            self.dataset_schema = open_json(
+                ROOT_DIR / "schemas" / "non-federal_dataset.json"
+            )
+
     @property
     def job_id(self) -> str:
         return self._job_id
@@ -115,6 +121,12 @@ class HarvestSource:
     @property
     def dataset_schema(self) -> dict:
         return self._dataset_schema
+
+    @dataset_schema.setter
+    def dataset_schema(self, value) -> None:
+        if not isinstance(value, dict):
+            raise ValueError("dataset schema must be a dict")
+        self._dataset_schema = value
 
     @property
     def no_harvest_resp(self) -> bool:
@@ -151,7 +163,7 @@ class HarvestSource:
 
     def get_record_identifier(self, record: dict) -> str:
 
-        record_id = "identifier" if self.schema_type == "dcatus1.1" else "url"
+        record_id = "identifier" if self.schema_type.startswith("dcatus") else "url"
 
         if record_id not in record:
             raise Exception
@@ -257,7 +269,7 @@ class HarvestSource:
                 else:
                     record = self.external_records[record_id]
 
-                if self.schema_type == "dcatus1.1":
+                if self.schema_type.startswith("dcatus"):
                     source_raw = json.dumps(record.metadata)
                 else:
                     source_raw = record.metadata["content"]
@@ -320,7 +332,7 @@ class HarvestSource:
                     # no longer setting action in compare so setting it here...
                     record.action = action
 
-                    if self.schema_type != "dcatus1.1":
+                    if not self.schema_type.startswith("dcatus"):
                         record.transform()
                     record.validate()
                     record.sync()
@@ -457,7 +469,6 @@ class Record:
         default_factory=lambda: {
             "iso19115_1": "iso19115_1",
             "iso19115_2": "iso19115_2_datagov",
-            "dcatus1.1": "dcat_us",
             "csdgm": "fgdc",
         }
     )
