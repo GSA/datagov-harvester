@@ -2,6 +2,7 @@ import json
 from unittest.mock import patch
 from harvester.harvest import HarvestSource
 
+
 class TestHarvestFullFlow:
     @patch("harvester.harvest.ckan")
     def test_harvest_single_record_created(
