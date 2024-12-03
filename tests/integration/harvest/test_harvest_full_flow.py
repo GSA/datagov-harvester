@@ -2,7 +2,6 @@ import json
 from unittest.mock import patch
 from harvester.harvest import HarvestSource
 
-
 class TestHarvestFullFlow:
     @patch("harvester.harvest.ckan")
     def test_harvest_single_record_created(
@@ -162,22 +161,6 @@ class TestHarvestFullFlow:
         assert kwargs["id"] == "5678"
         assert kwargs["identifier"] == "cftc-dc2"
 
-
-    # @patch("harvester.harvest.smtplib.SMTP")
-    # def test_send_notification_emails_failure(self, mock_smtp):
-    #     mock_smtp.side_effect = Exception("SMTP connection failed")
-
-    #     harvest_source = HarvestSource(_job_id="12345")
-    #     harvest_source.notification_emails = ["user@example.com"]
-    #     results = {"create": 10, "update": 5, "delete": 3, None: 2}
-
-    #     assert mock_smtp.called, "Mock SMTP was not called!"
-    #     assert mock_smtp.side_effect is not None, "Mock SMTP side_effect was not set!"
-
-    #     error_message = harvest_source.send_notification_emails(results)
-
-    #     assert error_message == "Error preparing or sending notification emails"
-
     @patch("harvester.harvest.smtplib.SMTP")
     def test_harvest_send_notification_failure(
         mock_smtp,
@@ -189,7 +172,6 @@ class TestHarvestFullFlow:
         CKANMock.action.package_create.return_value = {"id": 1234}
         CKANMock.action.package_update = "ok"
         CKANMock.action.dataset_purge = "ok"
-
         interface.add_organization(organization_data)
         interface.add_harvest_source(source_data_dcatus_single_record)
         harvest_job = interface.add_harvest_job(
@@ -199,13 +181,10 @@ class TestHarvestFullFlow:
             }
         )
         job_id = harvest_job.id
-
         harvest_source = HarvestSource(job_id)
-        harvest_source.notification_emails = ["user@example.com"]
-        # harvest_source.get_record_changes()
-        # harvest_source.write_compare_to_db()
-        # harvest_source.synchronize_records()
-        # harvest_source.report()
+        harvest_source.notification_emails = source_data_dcatus_single_record[
+                                            "notification_emails"
+                                            ]
 
         results = {"create": 10, "update": 5, "delete": 3, None: 2}
         mock_smtp.side_effect = Exception("SMTP connection failed")
