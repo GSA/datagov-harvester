@@ -401,49 +401,45 @@ class HarvestSource:
         if hasattr(self, "notification_emails") and self.notification_emails:
             self.send_notification_emails(actual_results_action)
 
-    def send_notification_emails(self, results: dict) -> str:
+    def send_notification_emails(self, results: dict) -> None:
+        job_url = f'{SMTP_CONFIG["base_url"]}/harvest_job/{self.job_id}'
+
+        subject = "Harvest Job Completed"
+        body = (
+            f"The harvest job ({self.job_id}) has been successfully completed.\n"
+            f"You can view the details here: {job_url}\n\n"
+            "Summary of the job:\n"
+            f"- Records Added: {results['create']}\n"
+            f"- Records Updated: {results['update']}\n"
+            f"- Records Deleted: {results['delete']}\n"
+            f"- Records Ignored: {results[None]}\n\n"
+            "====\n"
+            "You received this email because you subscribed to harvester updates.\n"
+            "Please do not reply to this email, as it is not monitored."
+        )
+        support_recipient = SMTP_CONFIG.get("recipient")
+        user_recipients = self.notification_emails
+        all_recipients = [support_recipient] + user_recipients
+
+        msg = MIMEMultipart()
+        msg["From"] = SMTP_CONFIG["default_sender"]
+        msg["Reply-To"] = "no-reply@gsa.gov"
+        msg["Subject"] = subject
+        msg.attach(MIMEText(body, "plain"))
+
         try:
-            job_url = f'{SMTP_CONFIG["base_url"]}/harvest_job/{self.job_id}'
-
-            subject = "Harvest Job Completed"
-            body = (
-                f"The harvest job ({self.job_id}) has been successfully completed.\n"
-                f"You can view the details here: {job_url}\n\n"
-                "Summary of the job:\n"
-                f"- Records Added: {results['create']}\n"
-                f"- Records Updated: {results['update']}\n"
-                f"- Records Deleted: {results['delete']}\n"
-                f"- Records Ignored: {results[None]}\n\n"
-                "====\n"
-                "You received this email because you subscribed to harvester updates.\n"
-                "Please do not reply to this email, as it is not monitored."
-            )
-            support_recipient = SMTP_CONFIG.get("recipient")
-            user_recipients = self.notification_emails
-            all_recipients = [support_recipient] + user_recipients
-
             with smtplib.SMTP(SMTP_CONFIG["server"], SMTP_CONFIG["port"]) as server:
                 if SMTP_CONFIG["use_tls"]:
                     server.starttls()
                 server.login(SMTP_CONFIG["username"], SMTP_CONFIG["password"])
 
                 for recipient in all_recipients:
-                    msg = MIMEMultipart()
-                    msg["From"] = SMTP_CONFIG["default_sender"]
                     msg["To"] = recipient
-                    msg["Reply-To"] = "no-reply@gsa.gov"
-                    msg["Subject"] = subject
-                    msg.attach(MIMEText(body, "plain"))
-
                     server.sendmail(SMTP_CONFIG["default_sender"], [recipient],
                                     msg.as_string())
                     logger.info(f"Notification email sent to: {recipient}")
-                    return "Emails sent successfully"
-
         except Exception as e:
-            error_message = "Error preparing or sending notification emails"
-            logger.error(error_message + f": {e}")
-            return error_message
+            logger.error(f"Failed to send notification email: {e}")
 
 
 @dataclass

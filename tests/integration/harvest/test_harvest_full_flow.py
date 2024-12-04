@@ -162,13 +162,16 @@ class TestHarvestFullFlow:
         assert kwargs["id"] == "5678"
         assert kwargs["identifier"] == "cftc-dc2"
 
+    @patch("harvester.harvest.ckan")
     @patch("harvester.harvest.smtplib.SMTP")
-    def test_harvest_send_notification_failure(
+    def test_send_notification_emails(
+        self,
         mock_smtp,
         CKANMock,
         interface,
         organization_data,
         source_data_dcatus_single_record,
+        caplog
     ):
         CKANMock.action.package_create.return_value = {"id": 1234}
         CKANMock.action.package_update = "ok"
@@ -183,16 +186,17 @@ class TestHarvestFullFlow:
         )
         job_id = harvest_job.id
         harvest_source = HarvestSource(job_id)
-        harvest_source.notification_emails = source_data_dcatus_single_record[
-                                            "notification_emails"
-                                            ]
+        harvest_source.notification_emails = [source_data_dcatus_single_record[
+                                            "notification_emails"]]
 
         results = {"create": 10, "update": 5, "delete": 3, None: 2}
-        mock_smtp.side_effect = Exception("SMTP connection failed")
-        error_message = harvest_source.send_notification_emails(results)
 
-        assert mock_smtp.side_effect is not None, "Mock SMTP side_effect was not set!"
+        # Test Success Case
+        harvest_source.send_notification_emails(results)
+        assert "Notification email sent to" in caplog.text
 
-        assert error_message == "Error preparing or sending notification emails"
-
+        # Test Failure Case
+        mock_smtp.side_effect = Exception("SMTP failed")
+        harvest_source.send_notification_emails(results)
+        assert "Failed to send notification email: SMTP failed" in caplog.text
 
