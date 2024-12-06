@@ -199,4 +199,3 @@ class TestHarvestFullFlow:
         mock_smtp.side_effect = Exception("SMTP failed")
         harvest_source.send_notification_emails(results)
         assert "Failed to send notification email: SMTP failed" in caplog.text
-

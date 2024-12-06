@@ -45,6 +45,9 @@ test-ci: ## Runs all tests using only db and required test resources. NOT compat
 	make test-functional
 	make down
 
+test-pre-commit: ## Runs all pre-commit hooks manually
+	pre-commit run --all-files
+
 up: ## Sets up local flask and harvest runner docker environments. harvest runner gets DATABASE_PORT from .env
 	DATABASE_PORT=5433 docker compose up -d
 	docker compose -p harvest-app up db -d

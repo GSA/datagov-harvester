@@ -1,8 +1,8 @@
 #!/bin/sh
 
-set -e 
+set -e
 
-# If an argument was provided, use it as the service name prefix. 
+# If an argument was provided, use it as the service name prefix.
 # Otherwise default to "harvesting-logic".
 app_name=${1:-harvesting-logic}
 

@@ -19,15 +19,15 @@ end
   updateDataset([Update existing dataset])
 
 
-%% flow  
+%% flow
   getHarvest -- 1-to-N --> extractHarvest
   extractHarvest --> hashDataset
   hashDataset --> compareHash
-  
+
   queryCKAN -- 1-to-N --> extractHash
   extractHash --> compareHash
 
-  
+
   compareHash -- ID found; Hash not same --> updateDataset
   compareHash -- ID not found in Catalog --> createDataset
   compareHash -- ID not found in Harvest Source --> deleteDataset
