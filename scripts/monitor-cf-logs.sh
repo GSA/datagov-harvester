@@ -8,7 +8,7 @@ app_to_monitor=$1
 task_to_monitor=$2
 
 # install a better version of grep which supports --line-buffered
-apk add grep 
+apk add grep
 
 while read -r line ; do
   echo "$line"

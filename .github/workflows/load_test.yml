@@ -1,7 +1,7 @@
 name: Load Test
 on:
   workflow_dispatch:
-    
+
 jobs:
   load-test:
     name: H2.0 Load Test

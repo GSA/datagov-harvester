@@ -32,7 +32,7 @@ sequenceDiagram
         DHL->>+MD: MDTransform(dataset)
         MD-->>-DHL: Transformed Item
     end
-    DHL-->>HDB: Log failures as harvest_error with type: transform<br>update harvest_record status: error_transform    
+    DHL-->>HDB: Log failures as harvest_error with type: transform<br>update harvest_record status: error_transform
     note over DHL: PUT TO S3
     DHL->>S3: write source_metadata (plus transform artifact) to S3<br>S3://{BUCKET_PREFIX}/{HARVEST_SOURCE_ID}/{UNIQUE_IDENTIFIER}
     note over DHL: DELETE

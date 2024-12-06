@@ -136,7 +136,7 @@
                 <digtinfo>
                     <formname>ImageryOnly Base Map Service (ArcGIS)</formname>
                     <formvern>10.21</formvern>
-                    <formspec>https://www.geoplatform.gov/spec/</formspec>               
+                    <formspec>https://www.geoplatform.gov/spec/</formspec>
                 </digtinfo>
                 <digtopt>
                     <onlinopt>
@@ -152,7 +152,7 @@
                 <digtinfo>
                     <formname>ImageryOnly Base Map Service (WMS)</formname>
                     <formvern>1.3.0</formvern>
-                    <formspec>https://www.opengeospatial.org/standards/wms</formspec>              
+                    <formspec>https://www.opengeospatial.org/standards/wms</formspec>
                 </digtinfo>
                 <digtopt>
                     <onlinopt>

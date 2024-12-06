@@ -1,4 +1,4 @@
-@startuml harvester2.0 ERD 
+@startuml harvester2.0 ERD
 
 skinparam linetype ortho
 
@@ -12,7 +12,7 @@ card "Entity Relationship Diagram" as entities {
     organization_name: txt
     frequency: text
     config: json
-    urls: array( txt ) 
+    urls: array( txt )
     schema_validation_type: text
   }
 
@@ -30,7 +30,7 @@ card "Entity Relationship Diagram" as entities {
     --
     source_id: uuid (FK)
     status: text
-    date_created 
+    date_created
     date_finished: datetime
     extract_started: datetime
     extract_finished: datetime
@@ -59,7 +59,7 @@ card "Entity Relationship Diagram" as entities {
 
 ' lookup tables
 card "Lookup Tables" as lookup {
-  
+
   entity "data_format" as data_format {
     name: text (PK)
     --
@@ -91,7 +91,7 @@ card "Enumerators" as enumerators {
     ACTIVE
     INVALID
   }
-} 
+}
 
 ' relationships
 source ||--|{ job
