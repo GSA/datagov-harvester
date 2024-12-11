@@ -250,31 +250,45 @@ class HarvesterDBInterface:
 
         result = ckan.action.package_search(fq=f"harvest_source_id:{source_id}")
         ckan_datasets = result["count"]
+        logger.info(f"start cleaning {ckan_datasets} datasets .... ")
         start = datetime.now(timezone.utc)
-        retry_count = 0
-        retry_max = 20
 
-        # Retry loop to handle timeouts from cloud.gov and CKAN's Solr backend,
-        # ensuring datasets are cleared despite possible interruptions.
-        while ckan_datasets > 0 and retry_count < retry_max:
-            result = ckan.action.package_search(fq=f"harvest_source_id:{source_id}")
-            ckan_datasets = result["count"]
-            logger.info(
-                f"Attempt {retry_count + 1}: "
-                f"{ckan_datasets} datasets remaining in CKAN"
-            )
+        for id in ckan_ids:
             try:
-                ckan.action.bulk_update_delete(
-                    datasets=ckan_ids, org_id=organization_id
-                )
+                ckan.action.dataset_purge(**{"id": id})
             except ckanapi.errors.CKANAPIError as api_err:
                 logger.error(f"CKAN API error: {api_err}")
             except Exception as err:
                 logger.error(f"Error occurred: {err} \n error_type: {type(err)}")
                 return f"Error occurred: {err}"
 
-            retry_count += 1
-            time.sleep(5)
+        # retry_count = 0
+        # retry_max = 20
+
+        # # Retry loop to handle timeouts from cloud.gov and CKAN's Solr backend,
+        # # ensuring datasets are cleared despite possible interruptions.
+        # while ckan_datasets > 0 and retry_count < retry_max:
+        #     result = ckan.action.package_search(fq=f"harvest_source_id:{source_id}")
+        #     ckan_datasets = result["count"]
+        #     logger.info(
+        #         f"Attempt {retry_count + 1}: "
+        #         f"{ckan_datasets} datasets remaining in CKAN"
+        #     )
+        #     try:
+        #         ckan.action.bulk_update_delete(
+        #             datasets=ckan_ids, org_id=organization_id
+        #         )
+        #     except ckanapi.errors.CKANAPIError as api_err:
+        #         logger.error(f"CKAN API error: {api_err}")
+        #     except Exception as err:
+        #         logger.error(f"Error occurred: {err} \n error_type: {type(err)}")
+        #         return f"Error occurred: {err}"
+
+        #     retry_count += 1
+        #     time.sleep(5)
+
+        result = ckan.action.package_search(fq=f"harvest_source_id:{source_id}")
+        ckan_datasets = result["count"]
 
         # If all datasets are deleted from CKAN, clear harvest records
         if ckan_datasets == 0:
@@ -283,9 +297,13 @@ class HarvesterDBInterface:
             logger.info(f"Total time: {datetime.now(timezone.utc) - start}")
             return "Harvest source cleared successfully."
         else:
+            # fail_message = (
+            #     f"Harvest source clearance failed after {retry_count} "
+            #     f"attempts. {ckan_datasets} datasets still exist in CKAN."
+            # )
             fail_message = (
-                f"Harvest source clearance failed after {retry_count} "
-                f"attempts. {ckan_datasets} datasets still exist in CKAN."
+                f"Harvest source clearance failed. "
+                f"{ckan_datasets} datasets still exist in CKAN."
             )
             logger.error(fail_message)
             return fail_message
