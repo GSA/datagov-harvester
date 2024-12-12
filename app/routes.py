@@ -472,7 +472,7 @@ def view_harvest_source_data(source_id: str):
         count=True,
         skip_pagination=True,
         source_id=source.id,
-        facets=["ckan_id != null"],
+        facets=["ckan_id is not null"],
     )
     error_records_count = db.get_harvest_records_by_source(
         count=True,
