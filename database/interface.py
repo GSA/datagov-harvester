@@ -196,111 +196,121 @@ class HarvesterDBInterface:
         harvest_record and harvest_record_error tables.
         :param source_id: ID of the harvest source to clear
         """
-
-        # delete all HarvestRecords and related HarvestRecordErrors
+        # delete all harvest_record and related errors
         def _clear_harvest_records():
-            self.db.query(HarvestRecordError).filter(
-                HarvestRecordError.harvest_record_id.in_(
-                    self.db.query(HarvestRecord.id).filter_by(
-                        harvest_source_id=source_id
-                    )
+            logger.info("Deleting harvest records and related errors.")
+            while True:
+                subquery = (
+                    self.db.query(HarvestRecord.id)
+                    .filter_by(harvest_source_id=source_id)
+                    .limit(batch_size)
+                    .subquery()
                 )
-            ).delete(synchronize_session=False)
-            self.db.query(HarvestRecord).filter_by(harvest_source_id=source_id).delete()
-            self.db.commit()
+                rows_deleted = (
+                    self.db.query(HarvestRecordError)
+                    .filter(HarvestRecordError.harvest_record_id.in_(subquery))
+                    .delete(synchronize_session=False)
+                )
+                self.db.commit()
+                if rows_deleted == 0:
+                    break
+                logger.info(f"Deleted {rows_deleted} HarvestRecordError rows.")
+
+            while True:
+                rows_deleted = (
+                    self.db.query(HarvestRecord)
+                    .filter_by(harvest_source_id=source_id)
+                    .limit(batch_size)
+                    .delete(synchronize_session=False)
+                )
+                self.db.commit()
+                if rows_deleted == 0:
+                    break
+                logger.info(f"Deleted {rows_deleted} harvest record rows")
+
+            logger.info("Completed all records deletion")
+
+        logger.info(f"#### Starting the clear process for {source_id} ####")
+        start_time = datetime.now(timezone.utc)
+        batch_size = 1000
 
         source = self.db.get(HarvestSource, source_id)
         if source is None:
             return "Harvest source not found"
 
-        organization_id = source.organization_id
-
-        records = (
-            self.db.query(HarvestRecord).filter_by(harvest_source_id=source_id).all()
-        )
-
-        if not records:
-            return "Harvest source has no records to clear."
-
-        ckan_ids = [record.ckan_id for record in records if record.ckan_id is not None]
-        error_records = [record for record in records if record.status == "error"]
+        # Ensure no jobs are in progress
         jobs_in_progress = self.get_all_harvest_jobs_by_filter(
             {"harvest_source_id": source.id, "status": "in_progress"}
         )
-
-        # Ensure no jobs are in progress
         if jobs_in_progress:
             return (
                 "Error: A harvest job is currently in progress. "
                 "Cannot clear datasets."
             )
 
-        # Ensure (error_records + ckan_ids) = total records
-        if len(error_records) + len(ckan_ids) != len(records):
-            return (
-                "Error: Not all records are either in an error state "
-                "or have a CKAN ID. Cannot proceed without clearing the dataset."
-            )
+        ckan = RemoteCKAN(os.getenv("CKAN_API_URL"), apikey=os.getenv("CKAN_API_TOKEN"))
 
-        if not ckan_ids:
+        # Fetch all dataset IDs from CKAN related to the source_id in batches.
+        dataset_ids = []
+        start = 0
+        rows = 100
+        while True:
+            result = ckan.action.package_search(fq=f"harvest_source_id:{source_id}",
+                                                start=start, rows=rows)
+            if not result["results"]:
+                break
+            dataset_ids.extend([dataset["id"] for dataset in result["results"]])
+            start += rows
+
+        logger.info(f"Total datasets retrieved from CKAN: {len(dataset_ids)}")
+
+        total_ids = len(dataset_ids)
+        if total_ids == 0:
+            # If no datasets exist, clean up the harvest records directly
             _clear_harvest_records()
             return "Harvest source cleared successfully."
 
-        ckan = RemoteCKAN(os.getenv("CKAN_API_URL"), apikey=os.getenv("CKAN_API_TOKEN"))
+        # Process dataset deletion in batches
+        for start in range(0, total_ids, batch_size):
+            batch = dataset_ids[start:start + batch_size]
+            batch_start = start + 1
+            batch_end = start + len(batch)
+            logger.info(f"Processing batch {batch_start}-{batch_end} ({len(batch)} IDs)")
 
-        result = ckan.action.package_search(fq=f"harvest_source_id:{source_id}")
-        ckan_datasets = result["count"]
-        logger.info(f"start cleaning {ckan_datasets} datasets .... ")
-        start = datetime.now(timezone.utc)
+            failed_ids = []
+            for count, id in enumerate(batch, start=batch_start):
+                try:
+                    ckan.action.dataset_purge(**{"id": id})
+                    logger.info(f"Processed ID {id} ({count}/{total_ids})")
+                except ckanapi.errors.CKANAPIError as api_err:
+                    logger.error(f"CKAN API error for ID {id}: {api_err}")
+                    failed_ids.append(id)
+                except Exception as err:
+                    logger.error(f"Error occurred for ID {id}: {err}")
+                    failed_ids.append(id)
 
-        for id in ckan_ids:
-            try:
-                ckan.action.dataset_purge(**{"id": id})
-            except ckanapi.errors.CKANAPIError as api_err:
-                logger.error(f"CKAN API error: {api_err}")
-            except Exception as err:
-                logger.error(f"Error occurred: {err} \n error_type: {type(err)}")
-                return f"Error occurred: {err}"
+            logger.info(f"Completed batch {batch_start}-{batch_end}")
 
-        # retry_count = 0
-        # retry_max = 20
-
-        # # Retry loop to handle timeouts from cloud.gov and CKAN's Solr backend,
-        # # ensuring datasets are cleared despite possible interruptions.
-        # while ckan_datasets > 0 and retry_count < retry_max:
-        #     result = ckan.action.package_search(fq=f"harvest_source_id:{source_id}")
-        #     ckan_datasets = result["count"]
-        #     logger.info(
-        #         f"Attempt {retry_count + 1}: "
-        #         f"{ckan_datasets} datasets remaining in CKAN"
-        #     )
-        #     try:
-        #         ckan.action.bulk_update_delete(
-        #             datasets=ckan_ids, org_id=organization_id
-        #         )
-        #     except ckanapi.errors.CKANAPIError as api_err:
-        #         logger.error(f"CKAN API error: {api_err}")
-        #     except Exception as err:
-        #         logger.error(f"Error occurred: {err} \n error_type: {type(err)}")
-        #         return f"Error occurred: {err}"
-
-        #     retry_count += 1
-        #     time.sleep(5)
+        # Retry deletion for any failed IDs
+        if failed_ids:
+            logger.warning(f"Retrying failed IDs: {failed_ids}")
+            for id in failed_ids:
+                try:
+                    ckan.action.dataset_purge(**{"id": id})
+                except Exception as err:
+                    logger.error(f"Failed again for ID {id}: {err}")
 
         result = ckan.action.package_search(fq=f"harvest_source_id:{source_id}")
         ckan_datasets = result["count"]
 
         # If all datasets are deleted from CKAN, clear harvest records
         if ckan_datasets == 0:
-            logger.info("All datasets cleared from CKAN, clearing harvest records.")
+            logger.info("All datasets cleared from CKAN, clearing harvest records")
             _clear_harvest_records()
-            logger.info(f"Total time: {datetime.now(timezone.utc) - start}")
+            elapsed_time = datetime.now(timezone.utc) - start_time
+            logger.info(f"Successfully cleared {total_ids} datasets in {elapsed_time}")
             return "Harvest source cleared successfully."
         else:
-            # fail_message = (
-            #     f"Harvest source clearance failed after {retry_count} "
-            #     f"attempts. {ckan_datasets} datasets still exist in CKAN."
-            # )
             fail_message = (
                 f"Harvest source clearance failed. "
                 f"{ckan_datasets} datasets still exist in CKAN."
