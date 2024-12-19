@@ -423,7 +423,7 @@ class HarvestSource:
 
         msg = MIMEMultipart()
         msg["From"] = SMTP_CONFIG["default_sender"]
-        msg["Reply-To"] = "no-reply@gsa.gov"
+        msg["Reply-To"] = "datagov-noreply@gsa.gov"
         msg["Subject"] = subject
         msg.attach(MIMEText(body, "plain"))
 
