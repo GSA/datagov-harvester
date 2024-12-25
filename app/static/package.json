@@ -24,7 +24,7 @@
   },
   "dependencies": {
     "@uswds/uswds": "3.11.0",
-    "chart.js": "^4.4.5",
+    "chart.js": "^4.4.7",
     "glossary-panel": "^1.0.0",
     "htmx.org": "^2.0.3"
   },
