@@ -4,7 +4,7 @@ on: [push]
 
 env:
   PY_VERSION: "3.13"
-  POETRY_VERSION: "1.7.1"
+  POETRY_VERSION: "2.0.0"
 
 jobs:
   lint:
@@ -38,6 +38,7 @@ jobs:
         uses: abatilo/actions-poetry@v2
         with:
           poetry-version: ${{ env.POETRY_VERSION }}
+          poetry-plugins: "poetry-plugin-export"
 
       - name: Install Dependencies
         run: |
