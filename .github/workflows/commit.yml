@@ -3,7 +3,7 @@ name: Tests on Commit
 on: [push]
 
 env:
-  PY_VERSION: "3.10"
+  PY_VERSION: "3.13"
   POETRY_VERSION: "1.7.1"
 
 jobs:
