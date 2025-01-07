@@ -16,12 +16,11 @@ from jsonschema import Draft202012Validator
 
 sys.path.insert(1, "/".join(os.path.realpath(__file__).split("/")[0:-2]))
 
-from harvester import SMTP_CONFIG
 import smtplib
-from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 
-from harvester import HarvesterDBInterface, db_interface
+from harvester import SMTP_CONFIG, HarvesterDBInterface, db_interface
 from harvester.exceptions import (
     CompareException,
     DCATUSToCKANException,
@@ -73,7 +72,7 @@ class HarvestSource:
             "schema_type",
             "source_type",
             "id",  # db guuid
-            "notification_emails"
+            "notification_emails",
         ],
         repr=False,
     )
@@ -196,7 +195,7 @@ class HarvestSource:
             except Exception as e:
                 # TODO: do something with 'e'
                 raise ExtractExternalException(
-                    f"{self.title} {self.url} failed to convert to id:hash",
+                    f"{self.name} {self.url} failed to convert to id:hash",
                     self.job_id,
                 )
 
@@ -248,7 +247,7 @@ class HarvestSource:
         except Exception as e:
             # TODO: do something with 'e'
             raise CompareException(
-                f"{self.title} {self.url} failed to run compare. exiting.",
+                f"{self.name} {self.url} failed to run compare. exiting.",
                 self.job_id,
             )
 
@@ -435,8 +434,9 @@ class HarvestSource:
 
                 for recipient in all_recipients:
                     msg["To"] = recipient
-                    server.sendmail(SMTP_CONFIG["default_sender"], [recipient],
-                                    msg.as_string())
+                    server.sendmail(
+                        SMTP_CONFIG["default_sender"], [recipient], msg.as_string()
+                    )
                     logger.info(f"Notification email sent to: {recipient}")
         except Exception as e:
             logger.error(f"Failed to send notification email: {e}")
@@ -583,7 +583,13 @@ class Record:
                 self.harvest_source.internal_records_lookup_table[self.identifier],
             )
 
+        record_id = self.harvest_source.internal_records_lookup_table[self.identifier]
         if 200 <= resp.status_code < 300:
+
+            logger.info(
+                f"successfully transformed record: {self.name} of {self.url} \n"
+                f"db record id: {record_id}"
+            )
             self.transformed_data = json.loads(data["writerOutput"])
 
     def validate(self) -> None:
