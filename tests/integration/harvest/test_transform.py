@@ -37,6 +37,19 @@ class TestTransform:
 
         assert test_record.mdt_msgs == expected
 
+        expected_error_msg = (
+            "record failed to transform: structure messages:  \n"
+            "validation messages: WARNING: ISO19115-2 reader: element "
+            "'role' is missing valid nil reason within 'CI_ResponsibleParty'"
+        )
+
+        job_errors = interface.get_harvest_record_errors_by_job(harvest_job.id)
+        assert len(job_errors) == 1
+        assert job_errors[0].message == expected_error_msg
+
+        record = interface.get_harvest_record(job_errors[0].record.id)
+        assert record.status == "error"
+
     def test_valid_transform_iso19115_2(
         self,
         interface,
@@ -50,7 +63,8 @@ class TestTransform:
         harvest_job = interface.add_harvest_job(job_data_waf_iso19115_2)
 
         harvest_source = HarvestSource(harvest_job.id)
-        harvest_source.prepare_external_data()
+        harvest_source.get_record_changes()
+        harvest_source.write_compare_to_db()
 
         name = "http://localhost:80/iso_2_waf/valid_47598.xml"
         test_record = harvest_source.external_records[name]

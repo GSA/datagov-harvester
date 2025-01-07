@@ -1,5 +1,6 @@
 import json
 from unittest.mock import patch
+
 from harvester.harvest import HarvestSource
 
 
@@ -171,7 +172,7 @@ class TestHarvestFullFlow:
         interface,
         organization_data,
         source_data_dcatus_single_record,
-        caplog
+        caplog,
     ):
         CKANMock.action.package_create.return_value = {"id": 1234}
         CKANMock.action.package_update = "ok"
@@ -186,8 +187,9 @@ class TestHarvestFullFlow:
         )
         job_id = harvest_job.id
         harvest_source = HarvestSource(job_id)
-        harvest_source.notification_emails = [source_data_dcatus_single_record[
-                                            "notification_emails"]]
+        harvest_source.notification_emails = [
+            source_data_dcatus_single_record["notification_emails"]
+        ]
 
         results = {"create": 10, "update": 5, "delete": 3, None: 2}
 
@@ -199,4 +201,3 @@ class TestHarvestFullFlow:
         mock_smtp.side_effect = Exception("SMTP failed")
         harvest_source.send_notification_emails(results)
         assert "Failed to send notification email: SMTP failed" in caplog.text
-
