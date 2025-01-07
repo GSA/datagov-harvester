@@ -161,7 +161,6 @@ class HarvestSource:
             )
 
     def get_record_identifier(self, record: dict) -> str:
-
         record_id = "identifier" if self.schema_type.startswith("dcatus") else "url"
 
         if record_id not in record:
@@ -180,7 +179,6 @@ class HarvestSource:
         logger.info("converting harvest records to id: hash")
         for record in records:
             try:
-
                 identifier = self.get_record_identifier(record)
 
                 if self.source_type == "document":
@@ -564,7 +562,6 @@ class Record:
         self._status = value
 
     def transform(self) -> None:
-
         data = {
             "file": self.metadata["content"],
             "reader": self.reader_map[self.harvest_source.schema_type],
@@ -585,10 +582,8 @@ class Record:
 
         record_id = self.harvest_source.internal_records_lookup_table[self.identifier]
         if 200 <= resp.status_code < 300:
-
             logger.info(
-                f"successfully transformed record: {self.name} of {self.url} \n"
-                f"db record id: {record_id}"
+                f"successfully transformed record: {self.identifier} db id: {record_id}"
             )
             self.transformed_data = json.loads(data["writerOutput"])
 
