@@ -89,6 +89,7 @@ class HarvestJob(db.Model):
         nullable=False,
         index=True,
     )
+    job_type = db.Column(db.String(20), default="harvest")
     date_created = db.Column(db.DateTime, index=True, default=func.now())
     date_finished = db.Column(db.DateTime)
     records_added = db.Column(db.Integer)

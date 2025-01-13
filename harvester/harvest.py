@@ -214,10 +214,14 @@ class HarvestSource:
     def prepare_external_data(self) -> None:
         logger.info("retrieving and preparing external records.")
         try:
+            job = self.db_interface.get_harvest_job(self.job_id)
             if self.source_type == "document":
-                self.external_records_to_id_hash(
-                    download_file(self.url, ".json")["dataset"]
-                )
+                if job.job_type == 'clear':
+                    self.external_records_to_id_hash([])
+                else:
+                    self.external_records_to_id_hash(
+                        download_file(self.url, ".json")["dataset"]
+                    )
             if self.source_type == "waf":
                 # TODO
                 self.external_records_to_id_hash(download_waf(traverse_waf(self.url)))
@@ -310,7 +314,7 @@ class HarvestSource:
                         self.external_records[i].action = action
                         try:
                             self.external_records[i].delete_record()
-                            self.external_records[i].update_self_in_db()
+                            self.external_records[i].delete_self_in_db()
                         except Exception as e:
                             self.external_records[i].status = "error"
                             raise SynchronizeException(
@@ -648,6 +652,9 @@ class Record:
             self.harvest_source.internal_records_lookup_table[self.identifier],
             data,
         )
+
+    def delete_self_in_db(self) -> bool:
+        self.harvest_source.db_interface.delete_harvest_record(self.ckan_id)
 
     def ckanify_dcatus(self) -> None:
         from harvester.utils.ckan_utils import ckanify_dcatus

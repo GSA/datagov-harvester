@@ -472,7 +472,7 @@ def view_harvest_source_data(source_id: str):
         count=True,
         skip_pagination=True,
         source_id=source.id,
-        facets=["ckan_id != null"],
+        facets=["ckan_id is not null"],
     )
     error_records_count = db.get_harvest_records_by_source(
         count=True,
@@ -589,20 +589,6 @@ def edit_harvest_source(source_id: str):
     return db._to_dict(source)
 
 
-# Clear Source
-@mod.route("/harvest_source/config/clear/<source_id>", methods=["POST"])
-@login_required
-def clear_harvest_source(source_id):
-    try:
-        result = db.clear_harvest_source(source_id)
-        flash(result)
-        return {"message": "success"}
-    except Exception as e:
-        logger.error(f"Failed to clear harvest source :: {repr(e)}")
-        flash("Failed to clear harvest source")
-        return {"message": "failed"}
-
-
 # Delete Source
 @mod.route("/harvest_source/config/delete/<source_id>", methods=["POST"])
 @login_required
@@ -618,9 +604,9 @@ def delete_harvest_source(source_id):
 
 
 ### Trigger Harvest
-@mod.route("/harvest_source/harvest/<source_id>", methods=["GET"])
-def trigger_harvest_source(source_id):
-    message = load_manager.trigger_manual_job(source_id)
+@mod.route("/harvest_source/harvest/<source_id>/<job_type>", methods=["GET"])
+def trigger_harvest_source(source_id, job_type):
+    message = load_manager.trigger_manual_job(source_id, job_type)
     flash(message)
     return redirect(f"/harvest_source/{source_id}")
 

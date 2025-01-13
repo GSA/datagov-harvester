@@ -71,7 +71,7 @@ class TestCKANLoad:
         assert created == 6
         assert updated == 1
         assert deleted == 1
-        assert succeeded == 8
+        assert succeeded == 7
         assert errored == 0
 
     def test_ckanify_dcatus(
