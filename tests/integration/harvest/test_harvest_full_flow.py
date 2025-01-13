@@ -162,3 +162,42 @@ class TestHarvestFullFlow:
         assert kwargs["title"] == "Commitment of Traders"
         assert kwargs["id"] == "5678"
         assert kwargs["identifier"] == "cftc-dc2"
+
+    @patch("harvester.harvest.ckan")
+    @patch("harvester.harvest.smtplib.SMTP")
+    def test_send_notification_emails(
+        self,
+        mock_smtp,
+        CKANMock,
+        interface,
+        organization_data,
+        source_data_dcatus_single_record,
+        caplog,
+    ):
+        CKANMock.action.package_create.return_value = {"id": 1234}
+        CKANMock.action.package_update = "ok"
+        CKANMock.action.dataset_purge = "ok"
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_dcatus_single_record)
+        harvest_job = interface.add_harvest_job(
+            {
+                "status": "new",
+                "harvest_source_id": source_data_dcatus_single_record["id"],
+            }
+        )
+        job_id = harvest_job.id
+        harvest_source = HarvestSource(job_id)
+        harvest_source.notification_emails = [
+            source_data_dcatus_single_record["notification_emails"]
+        ]
+
+        results = {"create": 10, "update": 5, "delete": 3, None: 2}
+
+        # Test Success Case
+        harvest_source.send_notification_emails(results)
+        assert "Notification email sent to" in caplog.text
+
+        # Test Failure Case
+        mock_smtp.side_effect = Exception("SMTP failed")
+        harvest_source.send_notification_emails(results)
+        assert "Failed to send notification email: SMTP failed" in caplog.text

@@ -16,8 +16,6 @@ dhl_cf_task_data = {
 
 class TestCFTasking:
     def test_crud_task(self):
-        cf_handler.setup()
-
         # start a new task
         new_task = cf_handler.start_task(**dhl_cf_task_data)
         sleep(2)

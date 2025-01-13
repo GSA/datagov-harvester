@@ -1,11 +1,10 @@
 import logging.config
+import os
 
 from dotenv import load_dotenv
 
 from config.logger_config import LOGGING_CONFIG
 from database.interface import HarvesterDBInterface
-
-import os
 
 load_dotenv()
 
@@ -21,5 +20,5 @@ SMTP_CONFIG = {
     "password": os.getenv("HARVEST_SMTP_PASSWORD"),
     "default_sender": os.getenv("HARVEST_SMTP_SENDER"),
     "base_url": os.getenv("REDIRECT_URI").rsplit("/", 1)[0],
-    "recipient": os.getenv("HARVEST_SMTP_RECIPIENT")
+    "recipient": os.getenv("HARVEST_SMTP_RECIPIENT"),
 }

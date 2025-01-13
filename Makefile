@@ -34,7 +34,7 @@ test-integration: ## Runs integration tests. Compatible with dev environment / `
 	poetry run pytest --junitxml=pytest.xml --cov=harvester ./tests/integration
 
 test-functional: ## Runs integration tests. Compatible with dev environment / `make up`
-	poetry run pytest --noconftest --junitxml=pytest.xml --cov=harvester ./tests/functional
+	poetry run pytest --noconftest --junitxml=pytest.xml ./tests/functional
 
 test: up test-unit test-integration ## Runs all tests. Compatible with dev environment / `make up`
 
