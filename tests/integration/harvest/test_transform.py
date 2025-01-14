@@ -63,8 +63,7 @@ class TestTransform:
         harvest_job = interface.add_harvest_job(job_data_waf_iso19115_2)
 
         harvest_source = HarvestSource(harvest_job.id)
-        harvest_source.get_record_changes()
-        harvest_source.write_compare_to_db()
+        harvest_source.prepare_external_data()
 
         name = "http://localhost:80/iso_2_waf/valid_47598.xml"
         test_record = harvest_source.external_records[name]

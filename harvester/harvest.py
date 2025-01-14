@@ -99,7 +99,6 @@ class HarvestSource:
 
     def __post_init__(self) -> None:
         self._db_interface: HarvesterDBInterface = db_interface
-        self._validator = Draft202012Validator(self.dataset_schema)
         self.get_source_info_from_job_id(self.job_id)
 
         if self.schema_type == "dcatus1.1: federal":
@@ -110,6 +109,7 @@ class HarvestSource:
             self.dataset_schema = open_json(
                 ROOT_DIR / "schemas" / "non-federal_dataset.json"
             )
+        self._validator = Draft202012Validator(self.dataset_schema)
 
     @property
     def job_id(self) -> str:
@@ -179,7 +179,7 @@ class HarvestSource:
             )
 
     def get_record_identifier(self, record: dict) -> str:
-        record_id = "identifier" if self.schema_type == "dcatus1.1" else "url"
+        record_id = "identifier" if self.schema_type.startswith("dcatus") else "url"
 
         if record_id not in record:
             raise Exception
@@ -327,9 +327,13 @@ class HarvestSource:
         self.extract_cleanup()
 
     def transform(self) -> None:
-        logger.info("transforming records")
-        for record in self.records:
-            pass
+        if not self.schema_type.startswith("dcatus"):
+            logger.info("transforming records")
+            for record in self.records:
+                try:
+                    record.transform()
+                except TransformationException as e:
+                    pass
 
     def validate(self) -> None:
         logger.info("validating records")
@@ -638,10 +642,9 @@ class Record:
                 self.id,
             )
 
-        record_id = self.harvest_source.internal_records_lookup_table[self.identifier]
         if 200 <= resp.status_code < 300:
             logger.info(
-                f"successfully transformed record: {self.identifier} db id: {record_id}"
+                f"successfully transformed record: {self.identifier} db id: {self.id}"
             )
             self.transformed_data = json.loads(data["writerOutput"])
 

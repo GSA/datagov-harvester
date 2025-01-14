@@ -91,7 +91,9 @@ class TestLogin:
         source_edit_text = (
             f'<a href="/harvest_source/config/edit/{source_data_dcatus["id"]}"'
         )
-        source_clear_text = f"onclick=\"confirmAction('clear', '/harvest_source/config/clear/{source_data_dcatus['id']}')"
+        source_clear_text = (
+            f'<a href="/harvest_source/harvest/{source_data_dcatus["id"]}/clear"'
+        )
         source_delete_text = f"onclick=\"confirmAction('delete', '/harvest_source/config/delete/{source_data_dcatus['id']}')"
         assert res.status_code == 200
         assert res.text.find(button_string_text) != -1
