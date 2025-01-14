@@ -125,7 +125,7 @@ class LoadManager:
         logger.info(message)
         return message
 
-    def trigger_manual_job(self, source_id, job_type='harvest'):
+    def trigger_manual_job(self, source_id, job_type="harvest"):
         """manual trigger harvest job,
         takes a source_id"""
         source = interface.get_harvest_source(source_id)

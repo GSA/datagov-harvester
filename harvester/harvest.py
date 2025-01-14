@@ -2,21 +2,20 @@ import functools
 import json
 import logging
 import os
+import smtplib
 import sys
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from itertools import groupby
 from pathlib import Path
 from typing import List
+
 import requests
 from boltons.setutils import IndexedSet
 from ckanapi import RemoteCKAN
 from jsonschema import Draft202012Validator
-
-from itertools import groupby
-
-import smtplib
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
 
 from harvester import SMTP_CONFIG, HarvesterDBInterface, db_interface
 from harvester.exceptions import (
@@ -220,7 +219,7 @@ class HarvestSource:
         try:
             job = self.db_interface.get_harvest_job(self.job_id)
             if self.source_type == "document":
-                if job.job_type == 'clear':
+                if job.job_type == "clear":
                     self.external_records_to_id_hash([])
                 else:
                     self.external_records_to_id_hash(

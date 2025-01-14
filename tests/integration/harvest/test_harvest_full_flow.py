@@ -2,7 +2,7 @@ import json
 from unittest.mock import patch
 
 from harvester.harvest import HarvestSource
-from harvester.utils.general_utils import download_file, dataset_to_hash, sort_dataset
+from harvester.utils.general_utils import dataset_to_hash, download_file, sort_dataset
 
 
 # reusable fixture for making db record

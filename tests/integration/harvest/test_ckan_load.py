@@ -1,10 +1,10 @@
+from itertools import groupby
 from unittest.mock import patch
 
 from deepdiff import DeepDiff
 
 from harvester.harvest import HarvestSource, Record
 from harvester.utils.general_utils import dataset_to_hash, sort_dataset
-from itertools import groupby
 
 # ruff: noqa: E501
 

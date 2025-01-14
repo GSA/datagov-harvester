@@ -1,8 +1,8 @@
 import json
+from itertools import groupby
 
 from harvester.harvest import HarvestSource
 from harvester.utils.general_utils import dataset_to_hash, sort_dataset
-from itertools import groupby
 
 
 class TestCompare:

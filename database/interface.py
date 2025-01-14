@@ -195,9 +195,12 @@ class HarvesterDBInterface:
             return "Harvest source not found"
 
         records = (
-            self.db.query(HarvestRecord).filter(
-                    HarvestRecord.harvest_source_id==source_id,
-                    HarvestRecord.ckan_id.isnot(None)).all()
+            self.db.query(HarvestRecord)
+            .filter(
+                HarvestRecord.harvest_source_id == source_id,
+                HarvestRecord.ckan_id.isnot(None),
+            )
+            .all()
         )
 
         if len(records) == 0:
