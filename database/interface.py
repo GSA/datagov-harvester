@@ -404,6 +404,9 @@ class HarvesterDBInterface:
 
     def delete_harvest_record(self, ckan_id):
         records = self.db.query(HarvestRecord).filter_by(ckan_id=ckan_id).all()
+        # Log if there are multiple records with the same ckan_id
+        if len(records) > 1:
+            logger.warning(f"Multiple records found with ckan_id={ckan_id}")
         if records:
             for record in records:
                 self.db.delete(record)
