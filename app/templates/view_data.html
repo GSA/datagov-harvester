@@ -27,8 +27,10 @@
         <a href="{{ url_for('harvest.trigger_harvest_source', source_id=source_id)}}">
             <button class="btn btn-secondary">Harvest</button>
         </a>
-        <button class="btn btn-danger"
-            onclick="confirmAction('harvest source', 'clear', '/harvest_source/config/clear/{{source_id}}')">Clear</button>
+        <a href="{{ url_for('harvest.trigger_harvest_source', source_id=data.harvest_source.id, job_type='clear') }}"
+            onclick="return confirm('Are you sure you want to clear all datasets?');">
+            <button class="btn btn-primary">Clear</button>
+        </a>
         <button class="btn btn-danger"
             onclick="confirmAction('harvest source', 'delete', '/harvest_source/config/delete/{{source_id}}')">Delete</button>
         {% elif org_id %}

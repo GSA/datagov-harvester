@@ -40,13 +40,15 @@
                 </a>
             </li>
             <li class="usa-button-group__item">
-                <a href="{{ url_for('harvest.trigger_harvest_source', source_id=data.harvest_source.id)}}">
+                <a href="{{ url_for('harvest.trigger_harvest_source', source_id=data.harvest_source.id, job_type='harvest')}}">
                     <button class="usa-button usa-button--base">Harvest</button>
                 </a>
             </li>
             <li class="usa-button-group__item">
-                <button class="usa-button usa-button--secondary"
-                    onclick="confirmAction('clear', '/harvest_source/config/clear/{{data.harvest_source.id}}')">Clear</button>
+                <a href="{{ url_for('harvest.trigger_harvest_source', source_id=data.harvest_source.id, job_type='clear') }}"
+                    onclick="return confirm('Are you sure you want to clear all datasets?');">
+                    <button class="btn btn-primary">Clear</button>
+                </a>
             </li>
             <li class="usa-button-group__item">
                 <button class="usa-button usa-button--secondary"
@@ -57,6 +59,9 @@
     {% endif %}
     <br>
     <h2>Harvest Records: </h2>
+    {% if data.harvest_jobs and (data.harvest_jobs | selectattr('status', 'equalto', 'in_progress') | list | length > 0) %}
+    <span style="color: orange; font-weight: bold;">Active Job in Progress</span>
+    {% endif %}
     <div class="config-table">
         <table class="table">
             <tr>
@@ -98,6 +103,7 @@
                 <thead>
                     <tr>
                         <th data-sortable scope="col" role="columnheader">Id</th>
+                        <th data-sortable scope="col" role="columnheader">Type</th>
                         <th data-sortable scope="col" role="columnheader">Status</th>
                         <th data-sortable scope="col" role="columnheader">Date Created</th>
                         <th data-sortable scope="col" role="columnheader">Date Finished</th>
@@ -113,6 +119,7 @@
                     <tr>
                         <th scope="row"><a href="{{ url_for('harvest.get_harvest_job', job_id=job.id) }}">{{job.id}}</a>
                         </th>
+                        <td data-sort-value={jobs.job_type}> {{job.job_type}}</td>
                         <td data-sort-value={jobs.date_created}> {{job.status}}</td>
                         <td data-sort-value={jobs.date_created}> {{job.date_created}}</td>
                         <td data-sort-value={jobs.date_finished}>{{job.date_finished}} </td>

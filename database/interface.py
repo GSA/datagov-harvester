@@ -1,12 +1,9 @@
 import logging
 import os
-import time
 import uuid
 from datetime import datetime, timezone
 from functools import wraps
 
-import ckanapi
-from ckanapi import RemoteCKAN
 from sqlalchemy import create_engine, func, inspect, or_, select, text
 from sqlalchemy.exc import NoResultFound
 from sqlalchemy.orm import scoped_session, sessionmaker
@@ -190,113 +187,15 @@ class HarvesterDBInterface:
             self.db.rollback()
             return None
 
-    def clear_harvest_source(self, source_id):
-        """
-        Clear all datasets related to a harvest source in CKAN, and clean up the
-        harvest_record and harvest_record_error tables.
-        :param source_id: ID of the harvest source to clear
-        """
-
-        # delete all HarvestRecords and related HarvestRecordErrors
-        def _clear_harvest_records():
-            self.db.query(HarvestRecordError).filter(
-                HarvestRecordError.harvest_record_id.in_(
-                    self.db.query(HarvestRecord.id).filter_by(
-                        harvest_source_id=source_id
-                    )
-                )
-            ).delete(synchronize_session=False)
-            self.db.query(HarvestRecord).filter_by(harvest_source_id=source_id).delete()
-            self.db.commit()
-
-        source = self.db.get(HarvestSource, source_id)
-        if source is None:
-            return "Harvest source not found"
-
-        organization_id = source.organization_id
-
-        records = (
-            self.db.query(HarvestRecord).filter_by(harvest_source_id=source_id).all()
-        )
-
-        if not records:
-            return "Harvest source has no records to clear."
-
-        ckan_ids = [record.ckan_id for record in records if record.ckan_id is not None]
-        error_records = [record for record in records if record.status == "error"]
-        jobs_in_progress = self.get_all_harvest_jobs_by_filter(
-            {"harvest_source_id": source.id, "status": "in_progress"}
-        )
-
-        # Ensure no jobs are in progress
-        if jobs_in_progress:
-            return (
-                "Error: A harvest job is currently in progress. "
-                "Cannot clear datasets."
-            )
-
-        # Ensure (error_records + ckan_ids) = total records
-        if len(error_records) + len(ckan_ids) != len(records):
-            return (
-                "Error: Not all records are either in an error state "
-                "or have a CKAN ID. Cannot proceed without clearing the dataset."
-            )
-
-        if not ckan_ids:
-            _clear_harvest_records()
-            return "Harvest source cleared successfully."
-
-        ckan = RemoteCKAN(os.getenv("CKAN_API_URL"), apikey=os.getenv("CKAN_API_TOKEN"))
-
-        result = ckan.action.package_search(fq=f"harvest_source_id:{source_id}")
-        ckan_datasets = result["count"]
-        start = datetime.now(timezone.utc)
-        retry_count = 0
-        retry_max = 20
-
-        # Retry loop to handle timeouts from cloud.gov and CKAN's Solr backend,
-        # ensuring datasets are cleared despite possible interruptions.
-        while ckan_datasets > 0 and retry_count < retry_max:
-            result = ckan.action.package_search(fq=f"harvest_source_id:{source_id}")
-            ckan_datasets = result["count"]
-            logger.info(
-                f"Attempt {retry_count + 1}: "
-                f"{ckan_datasets} datasets remaining in CKAN"
-            )
-            try:
-                ckan.action.bulk_update_delete(
-                    datasets=ckan_ids, org_id=organization_id
-                )
-            except ckanapi.errors.CKANAPIError as api_err:
-                logger.error(f"CKAN API error: {api_err}")
-            except Exception as err:
-                logger.error(f"Error occurred: {err} \n error_type: {type(err)}")
-                return f"Error occurred: {err}"
-
-            retry_count += 1
-            time.sleep(5)
-
-        # If all datasets are deleted from CKAN, clear harvest records
-        if ckan_datasets == 0:
-            logger.info("All datasets cleared from CKAN, clearing harvest records.")
-            _clear_harvest_records()
-            logger.info(f"Total time: {datetime.now(timezone.utc) - start}")
-            return "Harvest source cleared successfully."
-        else:
-            fail_message = (
-                f"Harvest source clearance failed after {retry_count} "
-                f"attempts. {ckan_datasets} datasets still exist in CKAN."
-            )
-            logger.error(fail_message)
-            return fail_message
-
     def delete_harvest_source(self, source_id):
         source = self.db.get(HarvestSource, source_id)
         if source is None:
             return "Harvest source not found"
 
         records = (
-            self.db.query(HarvestRecord).filter_by(harvest_source_id=source_id).all()
+            self.db.query(HarvestRecord).filter(
+                    HarvestRecord.harvest_source_id==source_id,
+                    HarvestRecord.ckan_id.isnot(None)).all()
         )
 
         if len(records) == 0:
@@ -503,6 +402,18 @@ class HarvesterDBInterface:
             self.db.rollback()
             return None
 
+    def delete_harvest_record(self, ckan_id):
+        records = self.db.query(HarvestRecord).filter_by(ckan_id=ckan_id).all()
+        # Log if there are multiple records with the same ckan_id
+        if len(records) > 1:
+            logger.warning(f"Multiple records found with ckan_id={ckan_id}")
+        if records:
+            for record in records:
+                self.db.delete(record)
+            self.db.commit()
+            return True
+        return False
+
     def get_harvest_record(self, record_id):
         return self.db.query(HarvestRecord).filter_by(id=record_id).first()
 
@@ -626,5 +537,6 @@ class HarvesterDBInterface:
         return self.pget_harvest_records(filter=text(filter_string), **kwargs)
 
     def get_harvest_records_by_source(self, source_id, facets=[], **kwargs):
-        filter_string = " AND ".join([f"harvest_source_id = '{source_id}'"] + facets)
+        filter_string = " AND ".join([f"harvest_source_id = '{source_id}'"] 
+                        + ["action != 'delete'"]+ facets)
         return self.pget_harvest_records(filter=text(filter_string), **kwargs)
