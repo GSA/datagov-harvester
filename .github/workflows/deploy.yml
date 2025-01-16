@@ -16,6 +16,7 @@
 
   jobs:
     deploy-staging:
+      if: false
       name: deploy staging
       environment: staging
       runs-on: ubuntu-latest
@@ -83,6 +84,7 @@
             update_existing: true
 
     deploy-prod:
+      if: false
       name: deploy prod
       needs: deploy-staging
       environment: prod
