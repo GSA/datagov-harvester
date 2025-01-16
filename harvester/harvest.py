@@ -96,6 +96,8 @@ class HarvestSource:
     external_records: dict = field(default_factory=lambda: {}, repr=False)
     internal_records: dict = field(default_factory=lambda: {}, repr=False)
 
+    _report: dict = field(default_factory=lambda: {})
+
     def __post_init__(self) -> None:
         self._db_interface: HarvesterDBInterface = db_interface
         self.get_source_info_from_job_id(self.job_id)
@@ -395,6 +397,12 @@ class HarvestSource:
             "records_ignored": results["action"][None],
             "records_errored": results["status"]["error"],
         }
+        # account for follow-up job's previous status in report count
+        if "previous_job_results" in self.report:
+            for key in self.report["previous_job_results"].keys():
+                job_status[key] = max(
+                    job_status[key] - self.report["previous_job_results"][key], 0
+                )  # don't allow for negative values based on previous results
         self.db_interface.update_harvest_job(self.job_id, job_status)
         self._report = job_status
 
@@ -444,13 +452,13 @@ class HarvestSource:
         except Exception as e:
             logger.error(f"Error preparing or sending notification emails: {e}")
 
-    def restart_job(self):
+    def restart_job_helper(self):
         logger.info(f"restarting failed job for {self.name}")
         job = self.db_interface.get_harvest_job(self.job_id)
         updated_job = self.db_interface.update_harvest_job(
             job.id, {"status": "in_progress"}
         )
-        print(f"Updated job {updated_job.id} to in_progress")
+        logger.info(f"Updated job {updated_job.id} to in_progress")
         db_records = []
         for db_record in job.records:
             new_record = Record(
@@ -467,14 +475,26 @@ class HarvestSource:
             db_records.append(new_record)
         self._records = db_records
 
-    def follow_up_job(self):
+    def follow_up_job_helper(self):
         logger.info(f"kicking off pickup job for {self.name}")
         db_records = self.db_interface.get_all_latest_harvest_records_by_source(self.id)
+        jobs = self.db_interface.get_harvest_jobs_by_source_id(self.id)
+        previous_job = jobs[-2]  # get second to last job in list
+        results = {
+            "previous_job_results": {
+                "records_added": previous_job.records_added,
+                "records_updated": previous_job.records_updated,
+                "records_deleted": previous_job.records_deleted,
+                "records_ignored": previous_job.records_ignored,
+                "records_errored": previous_job.records_errored,
+            }
+        }
+        self._report = results
         job = self.db_interface.get_harvest_job(self.job_id)
         updated_job = self.db_interface.update_harvest_job(
             job.id, {"status": "in_progress"}
         )
-        print(f"Updated job {updated_job.id} to in_progress")
+        logger.info(f"Updated job {updated_job.id} to in_progress")
         new_records = []
         for db_record in db_records:
             new_record = Record(

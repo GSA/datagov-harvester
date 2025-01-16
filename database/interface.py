@@ -238,6 +238,16 @@ class HarvesterDBInterface:
         )
         return harvest_job
 
+    def get_harvest_jobs_by_source_id(self, source_id):
+        harvest_jobs = (
+            self.db.query(HarvestJob)
+            .filter_by(harvest_source_id=source_id)
+            .order_by(HarvestJob.date_created.desc())
+            .limit(2)
+            .all()
+        )
+        return harvest_jobs
+
     def get_new_harvest_jobs_in_past(self):
         harvest_jobs = (
             self.db.query(HarvestJob)

@@ -119,15 +119,13 @@ class HarvestRecord(db.Model):
     source_raw = db.Column(db.String)
     date_created = db.Column(db.DateTime, index=True, default=func.now())
     date_finished = db.Column(db.DateTime, index=True)
-    ckan_id = db.Column(db.String, index=True)
+    ckan_id = db.Column(db.Integer, index=True)
     ckan_name = db.Column(db.String, index=True)
     action = db.Column(
         Enum("create", "update", "delete", name="record_action"), index=True
     )
     status = db.Column(Enum("error", "success", name="record_status"), index=True)
-    errors = db.relationship(
-        "HarvestRecordError", backref="record", cascade="all, delete-orphan", lazy=True
-    )
+    errors = db.relationship("HarvestRecordError", backref="record")
 
 
 class HarvestJobError(Error):

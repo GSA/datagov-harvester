@@ -1,4 +1,4 @@
-pytest.xml
+pytest-**.xml
 pytest-coverage.txt
 .coverage
 .pytest_cache

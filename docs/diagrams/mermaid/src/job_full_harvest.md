@@ -1,4 +1,7 @@
 ```mermaid
+---
+title: Harvest Job - Full Harvest (default)
+---
 sequenceDiagram
     autonumber
     participant FA as Flask App
@@ -8,8 +11,8 @@ sequenceDiagram
     participant HS as Agency<br>Harvest Source
     participant CKAN
     participant SES
-    note over FA: TRIGGER <br> via GH Action,<br>or manually via Flask app
-    FA->>+HDB: create harvest_job
+    note over FA: TRIGGER <br> via scheduled Harvest DB,<br>or manually via Flask Admin app
+    FA->>+HDB: create harvest_job<br>(type: harvest)
     HDB-->>-FA: returns harvest_job obj
     FA->>+DHR: invoke harvest.py<br> with corresponding harvest_source config & <<job_id>>
     DHR-->>-FA: returns OK

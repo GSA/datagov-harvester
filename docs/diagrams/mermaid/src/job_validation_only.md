@@ -1,4 +1,7 @@
 ```mermaid
+---
+title: Harvest Job - Validation Only
+---
 sequenceDiagram
     autonumber
     participant FA as Flask App
@@ -9,7 +12,7 @@ sequenceDiagram
     participant CKAN
     participant SES
     note over FA: TRIGGER <br> via GH Action,<br>or manually via Flask app
-    FA->>+HDB: create harvest_job
+    FA->>+HDB: create harvest_job<br>(type: validation)
     HDB-->>-FA: returns harvest_job obj
     FA->>+DHR: invoke harvest.py<br> with corresponding harvest_source config & <<job_id>>
     DHR-->>-FA: returns OK
@@ -40,13 +43,7 @@ sequenceDiagram
         end
     end
 
-    note over DHR: LOAD
-    loop SYNC items to create/update/delete
-        DHR->>CKAN: CKAN package_create (create), <br>package_update (update), <br>dataset_purge (delete)
-        alt Sync fails
-            DHR-->>HDB: Log failures as harvest_error with type: sync<br>UPDATE harvest_record to status: error_sync
-        end
-    end
+    note over DHR: LOAD<br>(SKIPPED)
     note over DHR: REPORT
     DHR->>HDB: POST harvest job metrics <br> UPDATE harvest_job to status: complete
     DHR->>SES: Email job metrics (jobMetrics, notification_emails)

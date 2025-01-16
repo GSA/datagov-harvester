@@ -105,6 +105,7 @@ class TestHarvestFullFlow:
         organization_data,
         source_data_dcatus_same_title,
     ):
+        """Validates that a harvest source with two same titled datasets will munge the second title and resolve with a different ckan_id"""
         UUIDMock.uuid4.return_value = 12345
         # ruff: noqa: E501
         CKANMock.action.package_create.side_effect = [
@@ -173,7 +174,7 @@ class TestHarvestFullFlow:
         # assert db record retains correct ckan_id & ckan_name
         db_record = interface.get_harvest_record(harvest_job.records[0].id)
         assert db_record.action == "update"
-        assert db_record.ckan_id == "5678"
+        assert db_record.ckan_id == 5678
         assert db_record.ckan_name == "commitment-of-traders-12345"
         assert db_record.identifier == "cftc-dc2"
 
@@ -181,111 +182,180 @@ class TestHarvestFullFlow:
         args, kwargs = CKANMock.action.package_update.call_args_list[0]
         assert kwargs["name"] == "commitment-of-traders-12345"
         assert kwargs["title"] == "Commitment of Traders"
-        assert kwargs["id"] == "5678"
+        assert kwargs["id"] == 5678
         assert kwargs["identifier"] == "cftc-dc2"
 
     @patch("harvester.harvest.ckan")
-    def test_pickup_sync_again(
+    @patch("harvester.utils.ckan_utils.uuid")
+    def test_harvest_restart_job(
         self,
+        UUIDMock,
         CKANMock,
         interface,
         organization_data,
-        source_data_dcatus_single_record,
+        source_data_dcatus_same_title,
     ):
-        CKANMock.action.package_create.return_value = {"id": 1234}
-        CKANMock.action.package_update = "ok"
-        CKANMock.action.dataset_purge = "ok"
+        """Rerun a harvest with same job id in case of errors"""
+        UUIDMock.uuid4.return_value = 12345
+        # ruff: noqa: E501
+        CKANMock.action.package_create.side_effect = [
+            {"id": 1234},
+            Exception(
+                "ValidationError({'name': ['That URL is already in use.'], '__type': 'Validation Error'}"
+            ),
+            Exception("Some other error occurred"),
+            {"id": 5678},
+        ]
+
         interface.add_organization(organization_data)
-        interface.add_harvest_source(source_data_dcatus_single_record)
+        interface.add_harvest_source(source_data_dcatus_same_title)
+
         harvest_job = interface.add_harvest_job(
             {
                 "status": "new",
-                "harvest_source_id": source_data_dcatus_single_record["id"],
+                "harvest_source_id": source_data_dcatus_same_title["id"],
             }
         )
 
         job_id = harvest_job.id
         harvest_source = HarvestSource(job_id)
         harvest_source.extract()
-        harvest_source.validate()
-
-        assert harvest_job.status == "new"
-
-        new_harvest_source = HarvestSource(job_id)
-        new_harvest_source.restart_job()
-        new_harvest_source.transform()
-        new_harvest_source.validate()
-        new_harvest_source.load()
-        new_harvest_source.do_report()
-
-        assert harvest_job.status == "complete"
-
-        # assert our records are the same
-        assert dataset_to_hash(
-            sort_dataset(make_db_record_contract(harvest_source.records[0]))
-        ) == dataset_to_hash(
-            sort_dataset(make_db_record_contract(new_harvest_source.records[0]))
-        )
-
-        # assert against
-        assert harvest_source.records[0].ckan_id is None
-        assert new_harvest_source.records[0].ckan_id == 1234
-
-        assert harvest_source.records[0].ckan_name is None
-        assert new_harvest_source.records[0].ckan_name == "commitment-of-traders"
-
-    @patch("harvester.harvest.ckan")
-    def test_pickup_sync_after_partially_complete(
-        self,
-        CKANMock,
-        interface,
-        organization_data,
-        source_data_dcatus,
-        job_data_dcatus,
-        record_data_dcatus,
-    ):
-        CKANMock.action.package_create.return_value = {"id": 1234}
-
-        interface.add_organization(organization_data)
-        interface.add_harvest_source(source_data_dcatus)
-        harvest_job = interface.add_harvest_job(job_data_dcatus)
-
-        # this is all to simulate a failed job
-        for idx, record in enumerate(record_data_dcatus):
-            if idx in range(0, 5):
-                record["status"] = "success"
-            elif idx in range(5, 10):
-                record["status"] = "error"
-            interface.add_harvest_record(record)
-
-        job_id = harvest_job.id
-        harvest_source = HarvestSource(job_id)
-        harvest_source.restart_job()
+        harvest_source.load()
         harvest_source.do_report()
+
+        harvest_records = interface.get_harvest_records_by_job(job_id)
+        records_with_errors = [
+            record for record in harvest_records if record.status == "error"
+        ]
+        job_err = interface.get_harvest_job_errors_by_job(job_id)
+        record_err = interface.get_harvest_record_errors_by_job(job_id)
+        assert len(job_err) == 0
+        assert len(record_err) == 1
+        assert record_err[0].type == "SynchronizeException"
+        assert record_err[0].harvest_record_id == records_with_errors[0].id
+        assert (
+            harvest_records[1].id
+            == records_with_errors[0].id
+            == harvest_source.records[1].id
+        )  ## assert it's the second record that threw the exception, which validates our package_create mock
 
         # even though we have record level errors, the job is marked as complete
         assert harvest_source.report["status"] == "complete"
-        assert harvest_source.report["records_added"] == 5
+        assert harvest_source.report["records_added"] == 1
         assert harvest_source.report["records_ignored"] == 0
-        assert harvest_source.report["records_errored"] == 5
+        assert harvest_source.report["records_errored"] == 1
+
+        assert harvest_source.records[0].ckan_id == 1234
+        assert harvest_source.records[0].status == "success"
+        assert harvest_source.records[1].ckan_id == None
+        assert harvest_source.records[1].status == "error"
+
+        job_id = harvest_job.id
+        harvest_source = HarvestSource(job_id)
+        harvest_source.restart_job_helper()
+        harvest_source.load()
+        harvest_source.do_report()
+
+        # assert that we're not calling package_create on records with status:success
+        assert CKANMock.action.package_create.call_count == 4
+
+        assert harvest_source.report["status"] == "complete"
+        assert harvest_source.report["records_added"] == 2
+        assert harvest_source.report["records_ignored"] == 0
+        assert harvest_source.report["records_errored"] == 0
+
+        assert harvest_source.records[0].ckan_id == 1234
+        assert harvest_source.records[0].status == "success"
+        assert harvest_source.records[1].ckan_id == 5678
+        assert harvest_source.records[1].status == "success"
+
+    @patch("harvester.harvest.ckan")
+    @patch("harvester.utils.ckan_utils.uuid")
+    def test_harvest_follow_up_job(
+        self,
+        UUIDMock,
+        CKANMock,
+        interface,
+        organization_data,
+        source_data_dcatus_same_title,
+    ):
+        """Create a new follow-up job and rerun against a harvest source in case of errors"""
+        UUIDMock.uuid4.return_value = 12345
+        # ruff: noqa: E501
+        CKANMock.action.package_create.side_effect = [
+            {"id": 1234},
+            Exception(
+                "ValidationError({'name': ['That URL is already in use.'], '__type': 'Validation Error'}"
+            ),
+            Exception("Some other error occurred"),
+            {"id": 5678},
+        ]
+
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_dcatus_same_title)
 
         harvest_job = interface.add_harvest_job(
             {
                 "status": "new",
-                "harvest_source_id": source_data_dcatus["id"],
+                "harvest_source_id": source_data_dcatus_same_title["id"],
             }
         )
 
         job_id = harvest_job.id
         harvest_source = HarvestSource(job_id)
-        harvest_source.follow_up_job()
+        harvest_source.extract()
+        harvest_source.load()
+        harvest_source.do_report()
+
+        harvest_records = interface.get_harvest_records_by_job(job_id)
+        records_with_errors = [
+            record for record in harvest_records if record.status == "error"
+        ]
+        job_err = interface.get_harvest_job_errors_by_job(job_id)
+        record_err = interface.get_harvest_record_errors_by_job(job_id)
+        assert len(job_err) == 0
+        assert len(record_err) == 1
+        assert record_err[0].type == "SynchronizeException"
+        assert record_err[0].harvest_record_id == records_with_errors[0].id
+        assert (
+            harvest_records[1].id
+            == records_with_errors[0].id
+            == harvest_source.records[1].id
+        )  ## assert it's the second record that threw the exception, which validates our package_create mock
+
+        # even though we have record level errors, the job is marked as complete
+        assert harvest_source.report["status"] == "complete"
+        assert harvest_source.report["records_added"] == 1
+        assert harvest_source.report["records_ignored"] == 0
+        assert harvest_source.report["records_errored"] == 1
+
+        assert harvest_source.records[0].ckan_id == 1234
+        assert harvest_source.records[0].status == "success"
+        assert harvest_source.records[1].ckan_id == None
+        assert harvest_source.records[1].status == "error"
+
+        harvest_job = interface.add_harvest_job(
+            {
+                "status": "new",
+                "harvest_source_id": source_data_dcatus_same_title["id"],
+            }
+        )
+
+        job_id = harvest_job.id
+        harvest_source = HarvestSource(job_id)
+        harvest_source.follow_up_job_helper()
         harvest_source.load()
         harvest_source.do_report()
 
         # assert that we're not calling package_create on records with status:success
-        assert CKANMock.action.package_create.call_count == 5
+        assert CKANMock.action.package_create.call_count == 4
 
         assert harvest_source.report["status"] == "complete"
-        assert harvest_source.report["records_added"] == 10
+        assert harvest_source.report["records_added"] == 1
         assert harvest_source.report["records_ignored"] == 0
         assert harvest_source.report["records_errored"] == 0
+
+        assert harvest_source.records[0].ckan_id == 1234
+        assert harvest_source.records[0].status == "success"
+        assert harvest_source.records[1].ckan_id == 5678
+        assert harvest_source.records[1].status == "success"
