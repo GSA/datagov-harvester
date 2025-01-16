@@ -2,7 +2,7 @@ import json
 from unittest.mock import patch
 
 from harvester.harvest import HarvestSource
-from harvester.utils.general_utils import dataset_to_hash, download_file, sort_dataset
+from harvester.utils.general_utils import download_file
 
 
 # reusable fixture for making db record
@@ -247,7 +247,7 @@ class TestHarvestFullFlow:
 
         assert harvest_source.records[0].ckan_id == 1234
         assert harvest_source.records[0].status == "success"
-        assert harvest_source.records[1].ckan_id == None
+        assert harvest_source.records[1].ckan_id is None
         assert harvest_source.records[1].status == "error"
 
         job_id = harvest_job.id
@@ -331,7 +331,7 @@ class TestHarvestFullFlow:
 
         assert harvest_source.records[0].ckan_id == 1234
         assert harvest_source.records[0].status == "success"
-        assert harvest_source.records[1].ckan_id == None
+        assert harvest_source.records[1].ckan_id is None
         assert harvest_source.records[1].status == "error"
 
         harvest_job = interface.add_harvest_job(
