@@ -1,0 +1,34 @@
+[
+  {
+    "term": "Frequency",
+    "definition": "how often the harvest source is harvested ( i.e. extracted, transformed, and loaded into our catalog ). examples include \"weekly\", \"daily\", and \"manual\""
+  },
+  {
+    "term": "Source Type",
+    "definition": "either a single document ( e.g. data.json ) or a web-accessible folder with many documents"
+  },
+  {
+    "term": "Schema Type",
+    "definition": "the metadata standard of the document(s). examples include ISO19115-1, ISO19115-2, CSDGM, and DCAT-US. only 1 schema can be used per harvest source."
+  },
+  {
+    "term": "Records With CKAN ID",
+    "definition": "we use a combination of open source and in-house software in our harvesting. currently, our records are synchronized between these 2 systems by pairing the id of the record in our in-house database with our open source (i.e. CKAN) database. this term describes the number of records which have been synchronized between the 2 systems."
+  },
+  {
+    "term": "Notification Emails",
+    "definition": "email addresses to receive harvesting information"
+  },
+  {
+    "term": "Record Ignored",
+    "definition": "our harvesting process pulls data from our internal database and your external source and compares them to determine which records need to be created, updated, deleted, or ignored on our end. \"ignored\" means nothing needs to be done. we have the most recent copy of your record. in comparison to \"created\", let's say, where we don't have a copy of your record and need to create it on our end."
+  },
+  {
+    "term": "Job Errors",
+    "definition": "also known as \"critical\" errors are ones which prevent the harvester from determining which operations to run on records. for example, if the harvester receives a 404 http error code when attempting to download your document this would produce a \"Job Error\"."
+  },
+  {
+    "term": "Record Error",
+    "definition": "also known as \"non-critical\" errors are ones which occur at the record level after the harvester has determined which operations to run. examples include validation and transformation failure."
+  }
+]
