@@ -62,6 +62,7 @@ class HarvestSource:
     """Class for Harvest Sources"""
 
     _job_id: str
+    _job_type: str = "harvest"
 
     _source_attrs: dict = field(
         default_factory=lambda: [
@@ -115,6 +116,10 @@ class HarvestSource:
     @property
     def job_id(self) -> str:
         return self._job_id
+
+    @property
+    def job_type(self) -> str:
+        return self._job_type
 
     @property
     def db_interface(self) -> HarvesterDBInterface:
@@ -220,16 +225,17 @@ class HarvestSource:
         logger.info("retrieving and preparing external records.")
         try:
             job = self.db_interface.get_harvest_job(self.job_id)
-            if self.source_type == "document":
-                if job.job_type == "clear":
-                    self.external_records_to_id_hash([])
-                else:
+            if job.job_type == "clear":
+                self.external_records_to_id_hash([])
+            else:
+                if self.source_type == "document":
                     self.external_records_to_id_hash(
                         download_file(self.url, ".json")["dataset"]
                     )
-            if self.source_type == "waf":
-                # TODO
-                self.external_records_to_id_hash(download_waf(traverse_waf(self.url)))
+                if self.source_type == "waf":
+                    self.external_records_to_id_hash(
+                        download_waf(traverse_waf(self.url))
+                    )
         except Exception as e:
             raise ExtractExternalException(
                 f"{self.name} {self.url} failed to extract harvest source. exiting",
@@ -344,7 +350,7 @@ class HarvestSource:
             except ValidationException as e:
                 pass
 
-    def load(self) -> None:
+    def sync(self) -> None:
         """runs the delete, update, and create
         - self.compare can be empty because there was no harvest source response
         or there's truly nothing to process
@@ -363,6 +369,9 @@ class HarvestSource:
 
     def do_report(self) -> None:
         logger.info("report results")
+        # TODO: rewrite reporter
+        # pin result counter to harvest source
+        # instead of using records to self-report
         results = {
             "action": {"create": 0, "update": 0, "delete": 0, None: 0},
             "status": {"success": 0, "error": 0, None: 0},
@@ -403,6 +412,7 @@ class HarvestSource:
                 job_status[key] = max(
                     job_status[key] - self.report["previous_job_results"][key], 0
                 )  # don't allow for negative values based on previous results
+
         self.db_interface.update_harvest_job(self.job_id, job_status)
         self._report = job_status
 
@@ -691,6 +701,47 @@ class Record:
                 self.id,
             )
 
+    def sync(self) -> None:
+        if self.valid is False:
+            logger.warning(f"{self.identifier} is invalid. bypassing {self.action}")
+            return
+
+        if self.status == "success":
+            logger.info(
+                f"{self.identifier} has status 'success'. bypassing {self.action}"
+            )
+            return
+
+        start = datetime.now(timezone.utc)
+        # todo:
+        try:
+            if self.action == "delete":
+                self.delete_record()
+            if self.action == "create":
+                self.ckanify_dcatus()
+                self.create_record()
+            if self.action == "update":
+                self.ckanify_dcatus()
+                self.update_record()
+        except Exception as e:
+            self.status = "error"
+            raise SynchronizeException(
+                f"failed to {self.action} for {self.identifier} :: {repr(e)}",
+                self.harvest_source.job_id,
+                self.id,
+            )
+
+        if self.action == "delete":
+            self.delete_self_in_db()
+
+        if self.action is not None:
+            self.update_self_in_db()
+
+        logger.info(
+            f"time to {self.action} {self.identifier} \
+                {datetime.now(timezone.utc)-start}"
+        )
+
     def create_record(self, retry=False):
         from harvester.utils.ckan_utils import add_uuid_to_package_name
 
@@ -721,11 +772,17 @@ class Record:
 
     def update_self_in_db(self) -> bool:
         self.status = "success"
-        data = {"status": "success", "date_finished": datetime.now(timezone.utc)}
+        data = {
+            "status": "success",
+            "date_finished": datetime.now(timezone.utc),
+        }
         if self.ckan_id is not None:
             data["ckan_id"] = self.ckan_id
         if self.ckan_name is not None:
             data["ckan_name"] = self.ckan_name
+
+        if self.harvest_source.job_type == "follow_up":
+            data["harvest_job_id"] = self.harvest_source.job_id
 
         self.harvest_source.db_interface.update_harvest_record(
             self.id,
@@ -733,7 +790,7 @@ class Record:
         )
 
     def delete_self_in_db(self) -> bool:
-        self.harvest_source.db_interface.delete_harvest_record(self.ckan_id)
+        self.harvest_source.db_interface.delete_harvest_record(self.identifier)
 
     def ckanify_dcatus(self) -> None:
         from harvester.utils.ckan_utils import ckanify_dcatus
@@ -746,57 +803,29 @@ class Record:
             self.status = "error"
             raise DCATUSToCKANException(repr(e), self.harvest_source.job_id, self.id)
 
-    def sync(self) -> None:
-        if self.valid is False:
-            logger.warning(f"{self.identifier} is invalid. bypassing {self.action}")
-            return
 
-        if self.status == "success":
-            logger.info(
-                f"{self.identifier} has status 'success'. bypassing {self.action}"
-            )
-            return
+def harvest_job_starter(job_id, job_type="harvest"):
+    logger.info(f"Harvest job starting for JobId: {job_id}")
+    harvest_source = HarvestSource(job_id, job_type)
 
-        start = datetime.now(timezone.utc)
-        # todo:
-        try:
-            if self.action == "delete":
-                self.delete_record()
-            if self.action == "create":
-                self.ckanify_dcatus()
-                self.create_record()
-            if self.action == "update":
-                self.ckanify_dcatus()
-                self.update_record()
-        except Exception as e:
-            self.status = "error"
-            raise SynchronizeException(
-                f"failed to {self.action} for {self.identifier} :: {repr(e)}",
-                self.harvest_source.job_id,
-                self.id,
-            )
-        if self.action is not None:
-            self.update_self_in_db()
+    if job_type in ["harvest", "validate", "clear"]:
+        # extract, compare, and save the results
+        harvest_source.extract()
 
-        logger.info(
-            f"time to {self.action} {self.identifier} \
-                {datetime.now(timezone.utc)-start}"
-        )
+    if job_type in ["harvest", "validate"]:
+        # transform and validate the transform
+        harvest_source.transform()
+        harvest_source.validate()
 
+    if job_type == "restart":
+        harvest_source.restart_job_helper()
 
-def harvest(jobId):
-    logger.info(f"Harvest job starting for JobId: {jobId}")
-    harvest_source = HarvestSource(jobId)
+    if job_type == "follow_up":
+        harvest_source.follow_up_job_helper()
 
-    # extract, compare, and save the results
-    harvest_source.extract()
-
-    # transform and validate the transform
-    harvest_source.transform()
-    harvest_source.validate()
-
-    # sync with CKAN
-    harvest_source.load()
+    if job_type in ["harvest", "clear", "restart", "follow_up"]:
+        # sync with CKAN
+        harvest_source.sync()
 
     # generate harvest job report
     harvest_source.do_report()
@@ -809,7 +838,7 @@ if __name__ == "__main__":
 
     try:
         args = parse_args(sys.argv[1:])
-        harvest(args.jobId)
+        harvest_job_starter(args.jobId, args.jobType)
     except SystemExit as e:
         logger.error(f"Harvest has experienced an error :: {repr(e)}")
         sys.exit(1)

@@ -291,7 +291,7 @@ class HarvesterDBInterface:
     def delete_harvest_job(self, job_id):
         job = self.db.get(HarvestJob, job_id)
         if job is None:
-            return "Harvest job not found"
+            return f"Harvest job {job_id} not found"
         self.db.delete(job)
         self.db.commit()
         return "Harvest job deleted successfully"
@@ -395,12 +395,11 @@ class HarvesterDBInterface:
     def update_harvest_record(self, record_id, updates):
         try:
             source = self.db.get(HarvestRecord, record_id)
-
             for key, value in updates.items():
                 if hasattr(source, key):
                     setattr(source, key, value)
                 else:
-                    print(f"Warning: non-existing field '{key}' in HarvestRecord")
+                    logger.error(f"Non-existing field '{key}' in HarvestRecord")
 
             self.db.commit()
             return source
@@ -409,17 +408,13 @@ class HarvesterDBInterface:
             self.db.rollback()
             return None
 
-    def delete_harvest_record(self, ckan_id):
-        records = self.db.query(HarvestRecord).filter_by(ckan_id=ckan_id).all()
-        # Log if there are multiple records with the same ckan_id
-        if len(records) > 1:
-            logger.warning(f"Multiple records found with ckan_id={ckan_id}")
-        if records:
-            for record in records:
-                self.db.delete(record)
-            self.db.commit()
-            return True
-        return False
+    def delete_harvest_record(self, identifier):
+        record = self.db.query(HarvestRecord).filter_by(identifier=identifier).first()
+        if record is None:
+            logger.warning(f"Harvest record with identifier {identifier} not found")
+        self.db.delete(record)
+        self.db.commit()
+        return "Harvest record deleted successfully"
 
     def get_harvest_record(self, record_id):
         return self.db.query(HarvestRecord).filter_by(id=record_id).first()
@@ -562,6 +557,6 @@ class HarvesterDBInterface:
 
     def get_harvest_records_by_source(self, source_id, facets="", **kwargs):
         facet_string = query_filter_builder(
-            f"harvest_source_id = '{source_id}' AND action != 'delete'", facets
+            f"harvest_source_id = '{source_id}'", facets
         )
         return self.pget_harvest_records(facets=facet_string, **kwargs)

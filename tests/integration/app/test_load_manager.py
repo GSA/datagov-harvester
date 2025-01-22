@@ -70,10 +70,11 @@ class TestLoadManager:
         assert start_task_mock.call_count == 1
         ## assert command
         assert (
-            start_task_mock.call_args[0][1] == f"python harvester/harvest.py {job.id}"
+            start_task_mock.call_args[0][1]
+            == f"python harvester/harvest.py {job.id} harvest"  # using default job type
         )
         ## assert task_id
-        assert start_task_mock.call_args[0][2] == f"harvest-job-{job.id}"
+        assert start_task_mock.call_args[0][2] == f"harvest-job-{job.id}-harvest"
         assert job.status == "in_progress"
 
         # assert schedule_next_job ops
@@ -298,8 +299,8 @@ class TestLoadManager:
             {
                 "guid": task_guid_val,
                 "sequence_id": 197,
-                "name": f"harvest-job-{jobs[0].id}",
-                "command": "python harvester/harvest.py 47442c62-716d-4678-947c-61990106685f",
+                "name": f"harvest-job-{jobs[0].id}-harvest",
+                "command": "python harvester/harvest.py 47442c62-716d-4678-947c-61990106685f harvest",
                 "state": "RUNNING",
                 "memory_in_mb": 1536,
                 "disk_in_mb": 4096,

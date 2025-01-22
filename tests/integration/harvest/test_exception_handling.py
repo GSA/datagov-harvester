@@ -84,7 +84,7 @@ class TestHarvestRecordExceptionHandling:
 
         harvest_source = HarvestSource(harvest_job.id)
         harvest_source.extract()
-        harvest_source.load()
+        harvest_source.sync()
 
         interface_record = interface.get_harvest_record(harvest_source.records[0].id)
         interface_errors = interface.get_harvest_record_errors_by_record(
@@ -133,7 +133,7 @@ class TestHarvestRecordExceptionHandling:
 
         harvest_source = HarvestSource(harvest_job.id)
         harvest_source.extract()
-        harvest_source.load()
+        harvest_source.sync()
 
         test_record = [x for x in harvest_source.records if x.identifier == "cftc-dc1"][
             0
@@ -162,7 +162,7 @@ class TestHarvestRecordExceptionHandling:
 
         harvest_source = HarvestSource(harvest_job.id)
         harvest_source.extract()
-        harvest_source.load()
+        harvest_source.sync()
 
         test_record = [x for x in harvest_source.records if x.identifier == "cftc-dc1"][
             0
@@ -206,7 +206,7 @@ class TestHarvestRecordExceptionHandling:
         job_id = harvest_job.id
         harvest_source = HarvestSource(job_id)
         harvest_source.extract()
-        harvest_source.load()
+        harvest_source.sync()
         harvest_source.do_report()
 
         harvest_records = interface.get_harvest_records_by_job(job_id)

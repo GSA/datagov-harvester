@@ -30,26 +30,30 @@ class TestCKANLoad:
         interface,
         internal_compare_data,
     ):
-        # add the necessary records to satisfy FKs
         interface.add_organization(organization_data)
         interface.add_harvest_source(source_data_dcatus)
         interface.add_harvest_job(job_data_dcatus)
+
+        job_id = job_data_dcatus["id"]
+        source_id = source_data_dcatus["id"]
 
         # prefill with records
         for record in internal_compare_data["records"]:
             data = {
                 "identifier": record["identifier"],
-                "harvest_job_id": internal_compare_data["job_id"],
-                "harvest_source_id": internal_compare_data["harvest_source_id"],
+                "harvest_job_id": job_id,
+                "harvest_source_id": source_id,
                 "source_hash": dataset_to_hash(sort_dataset(record)),
                 "status": "success",
                 "action": "create",
             }
             interface.add_harvest_record(data)
 
-        harvest_source = HarvestSource(internal_compare_data["job_id"])
+        harvest_source = HarvestSource(job_id)
         harvest_source.extract()
-        harvest_source.load()
+        harvest_source.transform()
+        harvest_source.validate()
+        harvest_source.sync()
         harvest_source.do_report()
 
         results = {
@@ -153,17 +157,9 @@ class TestCKANLoad:
                     "key": "publisher",
                     "value": "U.S. Commodity Futures Trading Commission",
                 },
-                # {
-                #     "key": "dcat_metadata",
-                #     "value": "{'accessLevel': 'public', 'bureauCode': ['339:00'], 'contactPoint': {'fn': 'Harold W. Hild', 'hasEmail': 'mailto:hhild@CFTC.GOV'}, 'describedBy': 'https://www.cftc.gov/MarketReports/CommitmentsofTraders/ExplanatoryNotes/index.htm', 'description': \"COT reports provide a breakdown of each Tuesday's open interest for futures and options on futures market in which 20 or more traders hold positions equal to or above the reporting levels established by CFTC\", 'distribution': [{'accessURL': 'https://www.cftc.gov/MarketReports/CommitmentsofTraders/index.htm'}], 'identifier': 'cftc-dc1', 'keyword': ['commitment of traders', 'cot', 'open interest'], 'modified': 'R/P1W', 'programCode': ['000:000'], 'publisher': {'name': 'U.S. Commodity Futures Trading Commission', 'subOrganizationOf': {'name': 'U.S. Government'}}, 'title': 'Commitment of Traders'}",
-                # },
-                # {"key": "harvest_source_name", "value": "test_harvest_source_name"},
                 {"key": "identifier", "value": "cftc-dc1"},
             ],
         }
 
         test_record.ckanify_dcatus()
         assert DeepDiff(test_record.ckanified_metadata, expected_result) == {}
-
-
-#     # TODO: add sort test
