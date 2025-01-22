@@ -17,6 +17,9 @@ from boltons.setutils import IndexedSet
 from ckanapi import RemoteCKAN
 from jsonschema import Draft202012Validator
 
+sys.path.insert(1, "/".join(os.path.realpath(__file__).split("/")[0:-2]))
+
+# ruff: noqa: E402
 from harvester import SMTP_CONFIG, HarvesterDBInterface, db_interface
 from harvester.exceptions import (
     CompareException,
@@ -36,8 +39,6 @@ from harvester.utils.general_utils import (
     sort_dataset,
     traverse_waf,
 )
-
-sys.path.insert(1, "/".join(os.path.realpath(__file__).split("/")[0:-2]))
 
 # requests data
 session = requests.Session()
