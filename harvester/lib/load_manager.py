@@ -147,4 +147,4 @@ class LoadManager:
             logger.info(
                 f"Created new manual harvest job: for {job_data.harvest_source_id}."
             )
-            return self.start_job(job_data.id)
+            return self.start_job(job_data.id, job_type)
