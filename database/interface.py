@@ -239,6 +239,7 @@ class HarvesterDBInterface:
         return harvest_job
 
     def get_harvest_jobs_by_source_id(self, source_id):
+        """used by follow-up job helper"""
         harvest_jobs = (
             self.db.query(HarvestJob)
             .filter_by(harvest_source_id=source_id)
@@ -438,6 +439,7 @@ class HarvesterDBInterface:
         return [dict(zip(fields, record)) for record in records]
 
     def get_all_latest_harvest_records_by_source(self, source_id):
+        """used by follow-up job helper"""
         # datetimes are returned as datetime objs not strs
         sql = text(
             f"""SELECT DISTINCT ON (identifier) *
