@@ -18,12 +18,12 @@ class TestHarvestJobFollowUp:
         UUIDMock.uuid4.return_value = 12345
         # ruff: noqa: E501
         CKANMock.action.package_create.side_effect = [
-            {"id": 1234},
+            {"id": '1234'},
             Exception(
                 "ValidationError({'name': ['That URL is already in use.'], '__type': 'Validation Error'}"
             ),
             Exception("Some other error occurred"),
-            {"id": 5678},
+            {"id": '5678'},
         ]
 
         interface.add_organization(organization_data)
@@ -61,7 +61,7 @@ class TestHarvestJobFollowUp:
         assert harvest_job.records_ignored == 0
         assert harvest_job.records_errored == 1
 
-        assert harvest_job.records[0].ckan_id == 1234
+        assert harvest_job.records[0].ckan_id == '1234'
         assert harvest_job.records[0].status == "success"
         assert harvest_job.records[1].ckan_id is None
         assert harvest_job.records[1].status == "error"
@@ -85,7 +85,7 @@ class TestHarvestJobFollowUp:
         assert harvest_job.records_ignored == 0
         assert harvest_job.records_errored == 0
 
-        assert harvest_job.records[0].ckan_id == 5678
+        assert harvest_job.records[0].ckan_id == '5678'
         assert harvest_job.records[0].status == "success"
         # TODO: should we be ignoring records from the previous job instead of just skipping them?
 

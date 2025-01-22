@@ -143,11 +143,11 @@ class TestHarvestJobFullFlow:
         UUIDMock.uuid4.return_value = 12345
         # ruff: noqa: E501
         CKANMock.action.package_create.side_effect = [
-            {"id": 1234},
+            {"id": '1234'},
             Exception(
                 "ValidationError({'name': ['That URL is already in use.'], '__type': 'Validation Error'}"
             ),
-            {"id": 5678},
+            {"id": '5678'},
         ]
         CKANMock.action.package_update.return_value = "ok"
         interface.add_organization(organization_data)
@@ -202,7 +202,7 @@ class TestHarvestJobFullFlow:
         # assert db record retains correct ckan_id & ckan_name
         db_record = interface.get_harvest_record(harvest_job.records[0].id)
         assert db_record.action == "update"
-        assert db_record.ckan_id == 5678
+        assert db_record.ckan_id == '5678'
         assert db_record.ckan_name == "commitment-of-traders-12345"
         assert db_record.identifier == "cftc-dc2"
 
@@ -210,5 +210,5 @@ class TestHarvestJobFullFlow:
         args, kwargs = CKANMock.action.package_update.call_args_list[0]
         assert kwargs["name"] == "commitment-of-traders-12345"
         assert kwargs["title"] == "Commitment of Traders"
-        assert kwargs["id"] == 5678
+        assert kwargs["id"] == '5678'
         assert kwargs["identifier"] == "cftc-dc2"

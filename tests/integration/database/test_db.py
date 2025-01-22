@@ -105,7 +105,7 @@ class TestDatabase:
         # Add the harvest source again
         source = interface.add_harvest_source(source_data_dcatus)
         interface.add_harvest_job(job_data_dcatus)
-        record_data_dcatus[0]["ckan_id"] = 1234
+        record_data_dcatus[0]["ckan_id"] = '1234'
         interface.add_harvest_record(record_data_dcatus[0])
 
         response = interface.delete_harvest_source(source.id)
