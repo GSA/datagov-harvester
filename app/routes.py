@@ -5,6 +5,8 @@ import secrets
 import time
 import uuid
 from functools import wraps
+from io import StringIO
+import csv
 
 import click
 import jwt
@@ -12,7 +14,16 @@ import requests
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.serialization import load_pem_private_key
 from dotenv import load_dotenv
-from flask import Blueprint, flash, redirect, render_template, request, session, url_for
+from flask import (
+    Blueprint,
+    flash,
+    redirect,
+    render_template,
+    request,
+    session,
+    url_for,
+    make_response,
+)
 from jinja2_fragments.flask import render_block
 
 from database.interface import HarvesterDBInterface
@@ -705,15 +716,45 @@ def cancel_harvest_job(job_id):
     return redirect(f"/harvest_job/{job_id}")
 
 
-### Get Job Errors by Type
+### Download all errors for a given job
 @mod.route("/harvest_job/<job_id>/errors/<error_type>", methods=["GET"])
-def get_harvest_errors_by_job(job_id, error_type):
+def download_harvest_errors_by_job(job_id, error_type):
     try:
+        # TODO: verify pagination isn't happening. all records need to be returned.
         match error_type:
             case "job":
-                return db._to_dict(db.get_harvest_job_errors_by_job(job_id))
+                errors = db._to_list(db.get_harvest_job_errors_by_job(job_id))
+                header = [
+                    [
+                        "harvest_job_id",
+                        "date_created",
+                        "job_error_type",
+                        "message",
+                        "harvest_job_error_id",
+                    ]
+                ]
             case "record":
-                return db._to_dict(db.get_harvest_record_errors_by_job(job_id))
+                errors = db._to_list(db.get_harvest_record_errors_by_job(job_id))
+                header = [
+                    [
+                        "harvest_record_id",
+                        "date_created",
+                        "record_error_type",
+                        "message",
+                        "record_error_id",
+                    ]
+                ]
+
+        si = StringIO()
+        cw = csv.writer(si)
+        cw.writerows(header + errors)
+
+        output = make_response(si.getvalue())
+        output.headers["Content-Disposition"] = f"attachment; filename={job_id}.csv"
+        output.headers["Content-type"] = "text/csv"
+
+        return output
+
     except Exception:
         return "Please provide correct job_id"
 

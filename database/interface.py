@@ -93,6 +93,16 @@ class HarvesterDBInterface:
         else:
             return to_dict_helper(obj)
 
+    @staticmethod
+    def _to_list(obj):
+        def to_list_helper(obj):
+            return [getattr(obj, c.key) for c in inspect(obj).mapper.column_attrs]
+
+        if isinstance(obj, list):
+            return [to_list_helper(x) for x in obj]
+        else:
+            return to_list_helper(obj)
+
     ## ORGANIZATIONS
     def add_organization(self, org_data):
         try:
