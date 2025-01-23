@@ -54,8 +54,9 @@ class TestCKANUtils:
 
 class TestGeneralUtils:
     def test_args_parsing(self):
-        args = parse_args(["test-id"])
+        args = parse_args(["test-id", "test-type"])
         assert args.jobId == "test-id"
+        assert args.jobType == "test-type"
 
     @pytest.mark.parametrize(
         "base,facets,expected",

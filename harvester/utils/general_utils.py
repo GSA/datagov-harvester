@@ -34,6 +34,7 @@ def parse_args(args):
         prog="Harvest Runner", description="etl harvest sources"
     )
     parser.add_argument("jobId", help="job id for harvest job")
+    parser.add_argument("jobType", help="job type for harvest job")
 
     return parser.parse_args(args)
 

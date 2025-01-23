@@ -125,7 +125,9 @@ class HarvestRecord(db.Model):
         Enum("create", "update", "delete", name="record_action"), index=True
     )
     status = db.Column(Enum("error", "success", name="record_status"), index=True)
-    errors = db.relationship("HarvestRecordError", backref="record")
+    errors = db.relationship(
+        "HarvestRecordError", backref="record", cascade="all, delete-orphan", lazy=True
+    )
 
 
 class HarvestJobError(Error):
