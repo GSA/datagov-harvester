@@ -30,7 +30,9 @@ collect_ignore_glob = ["functional/*"]
 
 @pytest.fixture(scope="session", autouse=True)
 def default_session_fixture():
-    with patch("harvester.lib.cf_handler.CloudFoundryClient"), patch("app.load_manager.start", lambda: True):
+    with patch("harvester.lib.cf_handler.CloudFoundryClient"), patch(
+        "harvester.lib.cf_handler.TaskManager"
+    ), patch("app.load_manager.start", lambda: True):
         yield
 
 

@@ -64,22 +64,6 @@ jobs:
     steps:
       - name: checkout
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 1
-      - name: Set up Python ${{ env.PY_VERSION }}
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PY_VERSION }}
-      - name: Install Poetry
-        uses: abatilo/actions-poetry@v2
-        with:
-          poetry-version: ${{ env.POETRY_VERSION }}
-          poetry-plugins: "poetry-plugin-export"
-      - name: Add requirement.txt
-        run: |
-          poetry export -f requirements.txt --output requirements.txt --without-hashes
-          echo "Generated requirements.txt:"
-          cat requirements.txt
       - name: Install node.js
         uses: actions/setup-node@v4
         with:
@@ -90,10 +74,20 @@ jobs:
           cd app/static
           npm install
           npm run build
+      - name: Install Poetry
+        uses: abatilo/actions-poetry@v2
+        with:
+          poetry-version: ${{ env.POETRY_VERSION }}
+          poetry-plugins: "poetry-plugin-export"
+      - name: Add requirement.txt
+        run: |
+          poetry export -f requirements.txt --output requirements.txt --without-hashes
+          echo "Generated requirements.txt:"
+          cat requirements.txt
       - name: deploy DHL
         uses: cloud-gov/cg-cli-tools@main
         with:
-          command: cf push --vars-file vars.development.yml
+          command: cf push --vars-file vars.development.yml --strategy rolling --no-wait
           cf_org: gsa-datagov
           cf_space: ${{vars.ENVIRONMENT_NAME}}
           cf_username: ${{secrets.CF_SERVICE_USER}}
