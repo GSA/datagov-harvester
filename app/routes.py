@@ -720,7 +720,6 @@ def cancel_harvest_job(job_id):
 @mod.route("/harvest_job/<job_id>/errors/<error_type>", methods=["GET"])
 def download_harvest_errors_by_job(job_id, error_type):
     try:
-        # TODO: verify pagination isn't happening. all records need to be returned.
         match error_type:
             case "job":
                 errors = db._to_list(db.get_harvest_job_errors_by_job(job_id))
@@ -734,7 +733,11 @@ def download_harvest_errors_by_job(job_id, error_type):
                     ]
                 ]
             case "record":
-                errors = db._to_list(db.get_harvest_record_errors_by_job(job_id))
+                errors = db._to_list(
+                    db.get_harvest_record_errors_by_job(
+                        job_id, skip_pagination=True
+                    ).all()
+                )
                 header = [
                     [
                         "harvest_record_id",
