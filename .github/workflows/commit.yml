@@ -51,8 +51,10 @@ jobs:
       - name: Report test coverage
         uses: MishaKav/pytest-coverage-comment@main
         with:
-          pytest-coverage-path: pytest-coverage.txt
-          junitxml-path: pytest.xml
+          multiple-files: |
+            Unit tests, ./pytest-unit.txt, ./pytest-unit.xml
+            Integration Tests, ./pytest-integration.txt, ./pytest-integration.xml
+            Functional Tests, ./pytest-functional.txt, ./pytest-functional.xml
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
   deploy-development:
