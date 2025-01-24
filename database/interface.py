@@ -29,7 +29,7 @@ def paginate(fn):
     @wraps(fn)
     def _impl(self, *args, **kwargs):
         query = fn(self, *args, **kwargs)
-        if kwargs.get("skip_pagination") is True:
+        if kwargs.get("count") is True:
             return query
         elif kwargs.get("paginate") is False:
             return query.all()

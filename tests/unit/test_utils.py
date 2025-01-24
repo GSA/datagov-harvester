@@ -7,11 +7,12 @@ from harvester.utils.general_utils import (
     query_filter_builder,
 )
 
-# these tests are copied from
-# https://github.com/ckan/ckan/blob/master/ckan/tests/lib/test_munge.py
-
 
 class TestCKANUtils:
+    """These tests are copied from
+    # https://github.com/ckan/ckan/blob/master/ckan/tests/lib/test_munge.py
+    """
+
     @pytest.mark.parametrize(
         "original,expected",
         [
@@ -66,6 +67,7 @@ class TestGeneralUtils:
             ("1", "2,3,4", "1 AND 2 AND 3 AND 4"),
             ("1", "2,3,4,", "1 AND 2 AND 3 AND 4"),
             ("1", "2 != 3,3 <= 4,", "1 AND 2 != 3 AND 3 <= 4"),
+            (None, "1,", "1"),
             (None, "1 AND 2", "1 AND 2"),
             (None, "1,2", "1 AND 2"),
             (None, "1 , 2", "1  AND  2"),

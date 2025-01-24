@@ -276,7 +276,8 @@ class TestDatabase:
         interface = interface_with_fixture_json
         job_id = job_data_dcatus["id"]
         count = interface.get_harvest_record_errors_by_job(
-            job_id, count=True, skip_pagination=True
+            job_id,
+            count=True,
         )
         assert count == len(record_data_dcatus)
 
@@ -291,11 +292,11 @@ class TestDatabase:
         interface = interface_with_multiple_sources
         job_id = job_data_dcatus["id"]
         count = interface.get_harvest_record_errors_by_job(
-            job_id, count=True, skip_pagination=True
+            job_id,
+            count=True,
         )
         all_errors_count = interface.pget_harvest_record_errors(
             count=True,
-            skip_pagination=True,
         )
         assert count == len(record_error_data)
         assert all_errors_count == len(record_error_data) + len(record_error_data_2)
@@ -539,7 +540,8 @@ class TestDatabase:
 
         # source id, plus kwargs to return only count
         db_records = interface.get_harvest_records_by_source(
-            source_data_dcatus["id"], skip_pagination=True, count=True
+            source_data_dcatus["id"],
+            count=True,
         )
         assert db_records == 100
 
@@ -554,7 +556,6 @@ class TestDatabase:
         db_records = interface.get_harvest_records_by_source(
             source_data_dcatus["id"],
             facets=f"id = '{id_lookup_table['test-identifier-0']}'",
-            skip_pagination=True,
             count=True,
         )
         assert db_records == 1
@@ -563,7 +564,6 @@ class TestDatabase:
         db_records = interface.get_harvest_records_by_source(
             source_data_dcatus["id"],
             facets=f"id = '{id_lookup_table['test-identifier-4']}',identifier = 'test-identifier-4'",  # noqa E501
-            skip_pagination=True,
             count=True,
         )
         assert db_records == 1

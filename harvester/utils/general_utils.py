@@ -142,3 +142,11 @@ def query_filter_builder(base, facets):
         if facet != "":
             facet_string += f" AND {facet}"
     return facet_string
+
+
+def is_it_true(value):
+    return value.lower() == "true"
+
+
+def convert_to_int(value):
+    return int(value)

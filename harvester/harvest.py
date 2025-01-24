@@ -370,14 +370,15 @@ class HarvestSource:
 
     def do_report(self) -> None:
         logger.info("report results")
-        # TODO: rewrite reporter
-        # pin result counter to harvest source
+        # TODO: rewrite reporter as counter on harvest source
         # instead of using records to self-report
         results = {
             "action": {"create": 0, "update": 0, "delete": 0, None: 0},
             "status": {"success": 0, "error": 0, None: 0},
             "validity": {True: 0, False: 0},
         }
+        # TODO: confirm status: None only accounts for harvest records that were deleted
+
         for key, group in groupby(
             self.records, lambda x: x.action if x.status != "error" else False
         ):
@@ -470,24 +471,14 @@ class HarvestSource:
             job.id, {"status": "in_progress"}
         )
         logger.info(f"Updated job {updated_job.id} to in_progress")
-        db_records = []
+        new_records = []
         for db_record in job.records:
-            new_record = Record(
-                self,
-                db_record.identifier,
-                json.loads(db_record.source_raw),
-                db_record.source_hash,
-                db_record.action,
-                _status=db_record.status,
-                _ckan_id=db_record.ckan_id,
-                _ckan_name=db_record.ckan_name,
-                _id=db_record.id,
-            )
-            db_records.append(new_record)
-        self._records = db_records
+            new_record = self.make_record_contract(db_record, "orm")
+            new_records.append(new_record)
+        self._records = new_records
 
     def follow_up_job_helper(self):
-        logger.info(f"kicking off pickup job for {self.name}")
+        logger.info(f"kicking off follow up job for {self.name}")
         db_records = self.db_interface.get_all_latest_harvest_records_by_source(self.id)
         jobs = self.db_interface.get_harvest_jobs_by_source_id(self.id)
         previous_job = jobs[-2]  # get second to last job in list
@@ -508,7 +499,30 @@ class HarvestSource:
         logger.info(f"Updated job {updated_job.id} to in_progress")
         new_records = []
         for db_record in db_records:
-            new_record = Record(
+            new_records.append(self.make_record_contract(db_record, input_type="dict"))
+        self._records = new_records
+
+    def clear_helper(self):
+        logger.info(f"running clear helper for {self.name}")
+        ## get remaining records in db
+        db_records = self.db_interface.get_harvest_records_by_source(
+            paginate=False,
+            source_id=self.id,
+        )
+        # TODO: figure out why a clean test system has dirty records in it?
+        # reference tests/integration/harvest_job_flows/test_harvest_job_clear.py
+        records = []
+        for db_record in db_records:
+            records.append(self.make_record_contract(db_record, input_type="orm"))
+        self._records.extend(records)
+        logger.info(f"uncleared incoming db records: {len(db_records)}")
+        for record in db_records:
+            self.db_interface.delete_harvest_record(record.identifier)
+
+    def make_record_contract(self, db_record, input_type="dict"):
+        """Helper to hydrate a record from db"""
+        if input_type == "dict":
+            return Record(
                 self,
                 db_record["identifier"],
                 json.loads(db_record["source_raw"]),
@@ -519,8 +533,18 @@ class HarvestSource:
                 _ckan_name=db_record["ckan_name"],
                 _id=db_record["id"],
             )
-            new_records.append(new_record)
-        self._records = new_records
+        elif input_type == "orm":
+            return Record(
+                self,
+                db_record.identifier,
+                json.loads(db_record.source_raw),
+                db_record.source_hash,
+                db_record.action,
+                _status=db_record.status,
+                _ckan_id=db_record.ckan_id,
+                _ckan_name=db_record.ckan_name,
+                _id=db_record.id,
+            )
 
 
 @dataclass
@@ -734,8 +758,9 @@ class Record:
 
         if self.action == "delete":
             self.delete_self_in_db()
-
-        if self.action is not None:
+        # re: elif - we don't want our record to be
+        # re-created immediately after deletion
+        elif self.action is not None:
             self.update_self_in_db()
 
         logger.info(
@@ -825,8 +850,10 @@ def harvest_job_starter(job_id, job_type="harvest"):
         harvest_source.follow_up_job_helper()
 
     if job_type in ["harvest", "clear", "restart", "follow_up"]:
-        # sync with CKAN
         harvest_source.sync()
+
+    if job_type in ["clear"]:
+        harvest_source.clear_helper()
 
     # generate harvest job report
     harvest_source.do_report()

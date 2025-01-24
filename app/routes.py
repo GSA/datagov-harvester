@@ -17,6 +17,7 @@ from jinja2_fragments.flask import render_block
 
 from database.interface import HarvesterDBInterface
 from harvester.lib.load_manager import LoadManager
+from harvester.utils.general_utils import is_it_true, convert_to_int
 
 from . import htmx
 from .forms import HarvestSourceForm, OrganizationForm
@@ -464,23 +465,22 @@ def view_harvest_source_data(source_id: str):
     source = db.get_harvest_source(source_id)
     records_count = db.get_harvest_records_by_source(
         count=True,
-        skip_pagination=True,
         source_id=source.id,
     )
     ckan_records_count = db.get_harvest_records_by_source(
         count=True,
-        skip_pagination=True,
         source_id=source.id,
         facets="ckan_id is not null",
     )
     error_records_count = db.get_harvest_records_by_source(
         count=True,
-        skip_pagination=True,
         source_id=source.id,
         facets="status = 'error'",
     )
     # TODO: wire in paginated jobs htmx refresh ui & route
-    jobs = db.pget_harvest_jobs(facets=f"harvest_source_id = '{source.id}'")
+    jobs = db.pget_harvest_jobs(
+        paginate=False, facets=f"harvest_source_id = '{source.id}'"
+    )
     next_job = "N/A"
     future_jobs = db.get_new_harvest_jobs_by_source_in_future(source.id)
     if len(future_jobs):
@@ -628,7 +628,8 @@ def add_harvest_job():
 @mod.route("/harvest_job/<job_id>", methods=["GET"])
 def get_harvest_job(job_id=None):
     record_error_count = db.get_harvest_record_errors_by_job(
-        job_id, count=True, skip_pagination=True
+        job_id,
+        count=True,
     )
     htmx_vars = {
         "target_div": "#error_results_pagination",
@@ -729,38 +730,20 @@ def get_harvest_record(record_id):
 def get_harvest_records():
     job_id = request.args.get("harvest_job_id")
     source_id = request.args.get("harvest_source_id")
-    paginate = request.args.get("paginate", type=bool)
-    skip_pagination = request.args.get("skip_pagination", type=bool)
-    count = request.args.get("count", type=bool)
-    page = request.args.get("page", type=int)
-    facets = request.args.get("facets", "")
-    if job_id:
-        records = db.get_harvest_records_by_job(
-            job_id,
-            page=page,
-            paginate=paginate,
-            skip_pagination=skip_pagination,
-            facets=facets,
-        )
+    facets = request.args.get("facets", default="")
 
-    elif source_id:
-        records = db.get_harvest_records_by_source(
-            source_id,
-            page=page,
-            paginate=paginate,
-            skip_pagination=skip_pagination,
-            count=count,
-            facets=facets,
-        )
-        if not records:
-            return "No harvest records found for this harvest source", 404
-    else:
-        records = db.pget_harvest_records(
-            page=page,
-            paginate=paginate,
-            skip_pagination=skip_pagination,
-            facets=facets,
-        )
+    if job_id:
+        facets += f", harvest_job_id = '{job_id}'"
+    if source_id:
+        facets += f", harvest_source_id = '{source_id}'"
+
+    records = db.pget_harvest_records(
+        page=request.args.get("page", type=convert_to_int),
+        per_page=request.args.get("per_page", type=convert_to_int),
+        paginate=request.args.get("paginate", type=is_it_true),
+        count=request.args.get("count", type=is_it_true),
+        facets=facets,
+    )
 
     if not records:
         return "No harvest records found for this query", 404
