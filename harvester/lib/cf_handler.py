@@ -4,7 +4,6 @@ from cloudfoundry_client.client import CloudFoundryClient
 from cloudfoundry_client.v3.tasks import TaskManager
 
 
-
 class CFHandler:
     def __init__(self, url: str, user: str, password: str):
         self.url = url

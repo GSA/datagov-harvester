@@ -418,7 +418,8 @@ class HarvesterDBInterface:
             logger.warning(f"Harvest records with identifier {identifier} not found")
             return
         logger.info(
-            f"{len(records)} records with idenitifier {identifier} found in datagov-harvest-db"
+            f"{len(records)} records with idenitifier {identifier}\
+                  found in datagov-harvest-db"
         )
         for record in records:
             self.db.delete(record)
