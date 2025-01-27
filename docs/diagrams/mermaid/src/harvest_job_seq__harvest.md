@@ -32,22 +32,24 @@ sequenceDiagram
         DHR->>+MD: MDTransform(dataset)
         MD-->>-DHR: Transformed Item
         alt Transform fails
-            DHR-->>HDB: Log failures as harvest_error with type: transform<br>update harvest_record status: error_transform
+            DHR-->>HDB: Log failures as harvest_error with type: TransformationException<br>update harvest_record status: error_transform
         end
     end
     note over DHR: VALIDATE
     loop VALIDATE items to create/update
         DHR->>DHR: Validate against schema
         alt Validation fails
-            DHR-->>HDB: Log failures as harvest_error with type: validation<br>update harvest_record status: error_validation
+            DHR-->>HDB: Log failures as harvest_error with type: ValidationException<br>update harvest_record status: error_validation
         end
     end
 
     note over DHR: LOAD
     loop SYNC items to create/update/delete
-        DHR->>CKAN: CKAN package_create (create), <br>package_update (update), <br>dataset_purge (delete)
-        alt Sync fails
-            DHR-->>HDB: Log failures as harvest_error with type: sync<br>UPDATE harvest_record to status: error_sync
+        DHR->>+CKAN: CKAN package_create (create), <br>package_update (update), <br>dataset_purge (delete)
+        CKAN-->>-DHR: (create) returns ckan_id & ckan_name
+        DHR->>HDB: UPDATE record with ckan_id & ckan_name
+        alt SYNC fails
+            DHR-->>HDB: Log as harvest_error with type: SynchronizeException <br>UPDATE harvest_record to status: error_sync
         end
     end
     note over DHR: REPORT

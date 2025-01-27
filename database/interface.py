@@ -95,6 +95,9 @@ class HarvesterDBInterface:
         else:
             return to_dict_helper(obj)
 
+    # def close(self):
+    #     self.db.close()
+
     ## ORGANIZATIONS
     def add_organization(self, org_data):
         try:
@@ -410,10 +413,15 @@ class HarvesterDBInterface:
             return None
 
     def delete_harvest_record(self, identifier):
-        record = self.db.query(HarvestRecord).filter_by(identifier=identifier).first()
-        if record is None:
-            logger.warning(f"Harvest record with identifier {identifier} not found")
-        self.db.delete(record)
+        records = self.db.query(HarvestRecord).filter_by(identifier=identifier).all()
+        if not records:
+            logger.warning(f"Harvest records with identifier {identifier} not found")
+            return
+        logger.info(
+            f"{len(records)} records with idenitifier {identifier} found in datagov-harvest-db"
+        )
+        for record in records:
+            self.db.delete(record)
         self.db.commit()
         return "Harvest record deleted successfully"
 

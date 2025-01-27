@@ -15,6 +15,7 @@ from typing import List
 import requests
 from boltons.setutils import IndexedSet
 from ckanapi import RemoteCKAN
+from flask import current_app
 from jsonschema import Draft202012Validator
 
 sys.path.insert(1, "/".join(os.path.realpath(__file__).split("/")[0:-2]))
@@ -509,13 +510,11 @@ class HarvestSource:
             paginate=False,
             source_id=self.id,
         )
-        # TODO: figure out why a clean test system has dirty records in it?
-        # reference tests/integration/harvest_job_flows/test_harvest_job_clear.py
         records = []
         for db_record in db_records:
             records.append(self.make_record_contract(db_record, input_type="orm"))
         self._records.extend(records)
-        logger.info(f"uncleared incoming db records: {len(db_records)}")
+        logger.info(f"{len(db_records)} uncleared incoming db records")
         for record in db_records:
             self.db_interface.delete_harvest_record(record.identifier)
 
@@ -857,6 +856,14 @@ def harvest_job_starter(job_id, job_type="harvest"):
 
     # generate harvest job report
     harvest_source.do_report()
+
+    if not current_app.config["TESTING"]:
+        # close the db connection if it's not running in local dev mode
+        harvest_source.db_interface.close()
+        # ruff: noqa: E501
+        # NOTE: this is temp to see if running this in dev solves our DB connection problems
+        # if it helps we fix the conditional in conftest where it is destroying the session prior to the test being run
+        # tests/conftest.py#L54-L71
 
 
 if __name__ == "__main__":

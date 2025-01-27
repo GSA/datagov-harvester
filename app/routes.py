@@ -17,7 +17,7 @@ from jinja2_fragments.flask import render_block
 
 from database.interface import HarvesterDBInterface
 from harvester.lib.load_manager import LoadManager
-from harvester.utils.general_utils import is_it_true, convert_to_int
+from harvester.utils.general_utils import convert_to_int, is_it_true
 
 from . import htmx
 from .forms import HarvestSourceForm, OrganizationForm
