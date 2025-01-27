@@ -52,9 +52,9 @@ jobs:
         uses: MishaKav/pytest-coverage-comment@main
         with:
           multiple-files: |
-            Unit tests, pytest-unit.xml
-            Integration Tests, pytest-integration.xml
-            Functional Tests, pytest-functional.xml
+            Unit tests, pytest-coverage-unit.txt, pytest-unit.xml
+            Integration Tests, pytest-coverage-integration.txt, pytest-integration.xml
+            Functional Tests, pytest-coverage-functional.txt, pytest-functional.xml
 
       - name: Update Readme with Coverage Html
         if: ${{ github.ref == 'refs/heads/main' }}
