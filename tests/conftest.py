@@ -46,12 +46,12 @@ def app() -> Generator[Any, Flask, Any]:
         db.drop_all()
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture()
 def client(app):
     return app.test_client()
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture()
 def session(app) -> Generator[Any, scoped_session, Any]:
     with app.app_context():
         connection = db.engine.connect()
@@ -66,12 +66,12 @@ def session(app) -> Generator[Any, scoped_session, Any]:
         connection.close()
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture()
 def interface(session) -> HarvesterDBInterface:
     return HarvesterDBInterface(session=session)
 
 
-@pytest.fixture(scope="function", autouse=True)
+@pytest.fixture(autouse=True)
 def default_function_fixture(interface):
     logger.info("Patching core.feature.service")
     with patch("harvester.harvest.db_interface", interface), patch(

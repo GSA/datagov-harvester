@@ -15,7 +15,7 @@ from typing import List
 import requests
 from boltons.setutils import IndexedSet
 from ckanapi import RemoteCKAN
-from flask import current_app
+from flask import current_app as app
 from jsonschema import Draft202012Validator
 
 sys.path.insert(1, "/".join(os.path.realpath(__file__).split("/")[0:-2]))
@@ -857,13 +857,14 @@ def harvest_job_starter(job_id, job_type="harvest"):
     # generate harvest job report
     harvest_source.do_report()
 
-    if not current_app.config["TESTING"]:
-        # close the db connection if it's not running in local dev mode
-        harvest_source.db_interface.close()
-        # ruff: noqa: E501
-        # NOTE: this is temp to see if running this in dev solves our DB connection problems
-        # if it helps we fix the conditional in conftest where it is destroying the session prior to the test being run
-        # tests/conftest.py#L54-L71
+    with app.app_context():
+        if not app.config["TESTING"]:
+            # close the db connection if it's not running in local dev mode
+            harvest_source.db_interface.close()
+            # ruff: noqa: E501
+            # NOTE: this is temp to see if running this in dev solves our DB connection problems
+            # if it helps we fix the conditional in conftest where it is destroying the session prior to the test being run
+            # tests/conftest.py#L54-L71
 
 
 if __name__ == "__main__":
