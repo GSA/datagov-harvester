@@ -62,3 +62,9 @@ ul.menu {
     cursor: pointer;
   }
 }
+
+div.job-data {
+  .usa-table-container--scrollable {
+    overflow: scroll;
+  }
+}
