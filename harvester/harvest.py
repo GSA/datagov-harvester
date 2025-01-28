@@ -78,7 +78,8 @@ class HarvestSource:
         ],
         repr=False,
     )
-
+    _records: list = field(default_factory=lambda: [], repr=False)
+    _report: dict = field(default_factory=lambda: {}, repr=False)
     _dataset_schema: dict = field(default_factory=lambda: {}, repr=False)
     _no_harvest_resp: bool = False
 
@@ -135,9 +136,17 @@ class HarvestSource:
     def records(self):
         return self._records
 
+    @records.setter
+    def records(self, value) -> None:
+        self._records = value
+
     @property
     def report(self):
         return self._report
+
+    @report.setter
+    def report(self, value) -> None:
+        self._report = value
 
     @property
     def source_attrs(self) -> List:
@@ -302,23 +311,15 @@ class HarvestSource:
 
                 # set record action
                 record.action = action
-                db_record = {
-                    "identifier": record.identifier,
-                    "harvest_job_id": record.harvest_source.job_id,
-                    "harvest_source_id": record.harvest_source.id,
-                    "source_hash": record.metadata_hash,
-                    "source_raw": source_raw,
-                    "action": action,
-                    "ckan_id": record.ckan_id,
-                    "ckan_name": record.ckan_name,
-                }
+                record.source_raw = source_raw
+                record_mapping = self.make_record_mapping(record)
                 if action is not None:
-                    db_record = self.db_interface.add_harvest_record(db_record)
+                    db_record = self.db_interface.add_harvest_record(record_mapping)
                     record.id = db_record.id
                 records.append(record)
 
         # set records on new
-        self._records = records
+        self.records = records
 
     def extract_cleanup(self):
         self.compare_data = {}
@@ -408,8 +409,9 @@ class HarvestSource:
             "records_deleted": results["action"]["delete"],
             "records_ignored": results["action"][None],
             "records_errored": results["status"]["error"],
+            "records_validated": results["validity"][True],
         }
-        # account for follow-up job's previous status in report count
+        # account for sync job's previous status in report count
         if "previous_job_results" in self.report:
             for key in self.report["previous_job_results"].keys():
                 job_status[key] = max(
@@ -435,7 +437,8 @@ class HarvestSource:
                 f"- Records Updated: {results['action']['update']}\n"
                 f"- Records Deleted: {results['action']['delete']}\n"
                 f"- Records Ignored: {results['action'][None]}\n"
-                f"- Records Errored: {results['status']['error']}\n\n"
+                f"- Records Errored: {results['status']['error']}\n"
+                f"- Records Validated: {results['validity'][True]}\n\n"
                 "====\n"
                 "You received this email because you subscribed to harvester updates.\n"
                 "Please do not reply to this email, as it is not monitored."
@@ -462,46 +465,39 @@ class HarvestSource:
                     )
                     logger.info(f"Notification email sent to: {recipient}")
 
+        # TODO: create a custom CriticalException and throw that instead
         except Exception as e:
             logger.error(f"Error preparing or sending notification emails: {e}")
 
-    def restart_job_helper(self):
-        logger.info(f"restarting failed job for {self.name}")
-        job = self.db_interface.get_harvest_job(self.job_id)
-        updated_job = self.db_interface.update_harvest_job(
-            job.id, {"status": "in_progress"}
+    def sync_job_helper(self):
+        """Kickstart a sync job where we're just syncing records"""
+        logger.info(f"starting sync job for {self.name}")
+        job = self.db_interface.get_first_harvest_job_by_filter(
+            {"harvest_source_id": self.id}
         )
-        logger.info(f"Updated job {updated_job.id} to in_progress")
-        new_records = []
-        for db_record in job.records:
-            new_record = self.make_record_contract(db_record, "orm")
-            new_records.append(new_record)
-        self._records = new_records
-
-    def follow_up_job_helper(self):
-        logger.info(f"kicking off follow up job for {self.name}")
-        db_records = self.db_interface.get_all_latest_harvest_records_by_source(self.id)
-        jobs = self.db_interface.get_harvest_jobs_by_source_id(self.id)
-        previous_job = jobs[-2]  # get second to last job in list
         results = {
             "previous_job_results": {
-                "records_added": previous_job.records_added,
-                "records_updated": previous_job.records_updated,
-                "records_deleted": previous_job.records_deleted,
-                "records_ignored": previous_job.records_ignored,
-                "records_errored": previous_job.records_errored,
+                "records_added": job.records_added,
+                "records_updated": job.records_updated,
+                "records_deleted": job.records_deleted,
+                "records_ignored": job.records_ignored,
+                "records_errored": job.records_errored,
             }
         }
         self._report = results
-        job = self.db_interface.get_harvest_job(self.job_id)
-        updated_job = self.db_interface.update_harvest_job(
-            job.id, {"status": "in_progress"}
-        )
-        logger.info(f"Updated job {updated_job.id} to in_progress")
         new_records = []
-        for db_record in db_records:
-            new_records.append(self.make_record_contract(db_record, input_type="dict"))
-        self._records = new_records
+        for job_record in job.records:
+            record = self.make_record_contract(job_record)
+            if self.schema_type.startswith("dcatus"):
+                record.source_raw = json.dumps(record.metadata)
+            else:
+                record.source_raw = record.metadata["content"]
+            record_mapping = self.make_record_mapping(record)
+            if record.action is not None:
+                db_record = self.db_interface.add_harvest_record(record_mapping)
+                record.id = db_record.id
+            new_records.append(record)
+        self.records = new_records
 
     def clear_helper(self):
         logger.info(f"running clear helper for {self.name}")
@@ -512,38 +508,37 @@ class HarvestSource:
         )
         records = []
         for db_record in db_records:
-            records.append(self.make_record_contract(db_record, input_type="orm"))
-        self._records.extend(records)
+            records.append(self.make_record_contract(db_record))
+        self.records.extend(records)
         logger.info(f"{len(db_records)} uncleared incoming db records")
         for record in db_records:
             self.db_interface.delete_harvest_record(record.identifier)
 
-    def make_record_contract(self, db_record, input_type="dict"):
-        """Helper to hydrate a record from db"""
-        if input_type == "dict":
-            return Record(
-                self,
-                db_record["identifier"],
-                json.loads(db_record["source_raw"]),
-                db_record["source_hash"],
-                db_record["action"],
-                _status=db_record["status"],
-                _ckan_id=db_record["ckan_id"],
-                _ckan_name=db_record["ckan_name"],
-                _id=db_record["id"],
-            )
-        elif input_type == "orm":
-            return Record(
-                self,
-                db_record.identifier,
-                json.loads(db_record.source_raw),
-                db_record.source_hash,
-                db_record.action,
-                _status=db_record.status,
-                _ckan_id=db_record.ckan_id,
-                _ckan_name=db_record.ckan_name,
-                _id=db_record.id,
-            )
+    def make_record_contract(self, db_record):
+        """Helper to hydrate a db record"""
+        return Record(
+            self,
+            db_record.identifier,
+            json.loads(db_record.source_raw),
+            db_record.source_hash,
+            db_record.action,
+            _status=db_record.status,
+            _ckan_id=db_record.ckan_id,
+            _ckan_name=db_record.ckan_name,
+        )
+
+    def make_record_mapping(self, record):
+        """Helper to make a Harvest record dict"""
+        return {
+            "identifier": record.identifier,
+            "harvest_job_id": record.harvest_source.job_id,
+            "harvest_source_id": record.harvest_source.id,
+            "source_hash": record.metadata_hash,
+            "source_raw": record.source_raw,
+            "action": record.action,
+            "ckan_id": record.ckan_id,
+            "ckan_name": record.ckan_name,
+        }
 
 
 @dataclass
@@ -842,13 +837,10 @@ def harvest_job_starter(job_id, job_type="harvest"):
         harvest_source.transform()
         harvest_source.validate()
 
-    if job_type == "restart":
-        harvest_source.restart_job_helper()
+    if job_type == "sync":
+        harvest_source.sync_job_helper()
 
-    if job_type == "follow_up":
-        harvest_source.follow_up_job_helper()
-
-    if job_type in ["harvest", "clear", "restart", "follow_up"]:
+    if job_type in ["harvest", "clear", "sync"]:
         harvest_source.sync()
 
     if job_type in ["clear"]:
@@ -857,14 +849,8 @@ def harvest_job_starter(job_id, job_type="harvest"):
     # generate harvest job report
     harvest_source.do_report()
 
-    with app.app_context():
-        if not app.config["TESTING"]:
-            # close the db connection if it's not running in local dev mode
-            harvest_source.db_interface.close()
-            # ruff: noqa: E501
-            # NOTE: this is temp to see if running this in dev solves our DB connection problems
-            # if it helps we fix the conditional in conftest where it is destroying the session prior to the test being run
-            # tests/conftest.py#L54-L71
+    # close the db connection after job to prevent persistent open connections
+    harvest_source.db_interface.close()
 
 
 if __name__ == "__main__":

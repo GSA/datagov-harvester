@@ -232,7 +232,7 @@ class HarvesterDBInterface:
     def get_harvest_job(self, job_id):
         return self.db.query(HarvestJob).filter_by(id=job_id).first()
 
-    def get_first_harvest_jobs_by_filter(self, filter):
+    def get_first_harvest_job_by_filter(self, filter):
         harvest_job = (
             self.db.query(HarvestJob)
             .filter_by(**filter)

@@ -116,10 +116,8 @@ class TestHarvestJobFullFlow:
         job_id = harvest_job.id
         harvest_job_starter(job_id, "harvest")
 
-        interface_errors = interface.get_harvest_record_errors_by_record(
-            harvest_job.records[1].id
-        )
-
+        interface_errors = interface.get_harvest_record_errors_by_job(job_id)
+        harvest_job = interface.get_harvest_job(job_id)
         job_errors = [
             error for record in harvest_job.records for error in record.errors
         ]

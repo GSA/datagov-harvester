@@ -9,7 +9,6 @@ sequenceDiagram
     participant DHR as Datagov Harvest Runner
     participant MD as MDTranslator
     participant HS as Agency<br>Harvest Source
-    participant CKAN
     participant SES
     note over FA: TRIGGER <br> via GH Action,<br>or manually via Flask app
     FA->>+HDB: create harvest_job<br>(type: validation)

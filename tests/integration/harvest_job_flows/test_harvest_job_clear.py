@@ -29,6 +29,7 @@ class TestHarvestJobClear:
         job_type = harvest_job.job_type  # harvest
         harvest_job_starter(job_id, job_type)
 
+        harvest_job = interface.get_harvest_job(job_id)
         assert harvest_job.status == "complete"
         assert harvest_job.records_added == 7
 

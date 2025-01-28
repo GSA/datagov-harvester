@@ -359,7 +359,7 @@ def view_org_data(org_id: str):
             future_harvest_jobs[source.id] = job[0].date_created
     harvest_jobs = {}
     for source in sources:
-        job = db.get_first_harvest_jobs_by_filter(
+        job = db.get_first_harvest_job_by_filter(
             {"harvest_source_id": source.id, "status": "complete"}
         )
         if job:

@@ -26,12 +26,12 @@
         - name: Install node.js
           uses: actions/setup-node@v4
           with:
-            node-version: "20"
+            node-version: "package.json"
         - name: Build static assets
           shell: bash
           run: |
             cd app/static
-            npm install
+            npm ci
             npm run build
         - name: Install Poetry
           uses: abatilo/actions-poetry@v2
@@ -95,12 +95,12 @@
         - name: Install node.js
           uses: actions/setup-node@v4
           with:
-            node-version: "20"
+            node-version: "package.json"
         - name: Build static assets
           shell: bash
           run: |
             cd app/static
-            npm install
+            npm ci
             npm run build
         - name: Install Poetry
           uses: abatilo/actions-poetry@v2
