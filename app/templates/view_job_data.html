@@ -69,37 +69,61 @@
         </div>
         {% endif %}
     </div>
+
     <div class="section">
-        <h2>Record Error Table</h2>
+        <h2>Record Error Details</h2>
         {% if not data.record_errors %}
-        No record errors found
+            <p>No record errors found</p>
         {% else %}
+        <button id="toggleViewBtn" onclick="toggleView()">Switch to Table View</button>
         <div class="usa-table-container--scrollable" tabindex="0">
             {% block record_errors_table %}
             <div id="error_results_pagination">
+                <div id="blockView" class="error-list">
+                    {% for record_error in data.record_errors %}
+                        <div class="error-block">
+                            <h3>{{ record_error.error.id }}</h3>
+                            <p><strong>Identifier:</strong> {{ record_error.identifier }}</p>
+                            <p><strong>Title:</strong> {{ record_error.title }}</p>
+                            <p><strong>Harvest Record ID:</strong>
+                                <a href="{{ url_for('harvest.get_harvest_record', record_id=record_error.error.harvest_record_id) }}">
+                                    {{ record_error.error.harvest_record_id }}
+                                </a>
+                            </p>
+                            <p><strong>Error Message:</strong> {{ record_error.error.message }}</p>
+                            <p><strong>Type:</strong> {{ record_error.error.type }}</p>
+                            <p><strong>Date Created:</strong> {{ record_error.error.date_created }}</p>
 
-                <table class="usa-table usa-table--striped">
+                        </div>
+                    {% endfor %}
+                </div>
+                <table id="tableView" class="usa-table usa-table--striped" style="display: none;">
                     <caption> Harvest Record Errors for {{data.harvest_job_id}}</caption>
                     <thead>
                         <tr>
                             <th data-sortable scope="col" role="columnheader">Date Created</th>
-                            <th data-sortable scope="col" role="columnheader">Id</th>
+                            <th data-sortable scope="col" role="columnheader">ID</th>
+                            <th data-sortable scope="col" role="columnheader">Title</th>
+                            <th data-sortable scope="col" role="columnheader">Identifier</th>
                             <th data-sortable scope="col" role="columnheader">Harvest Record Id</th>
                             <th data-sortable scope="col" role="columnheader">Message</th>
                             <th data-sortable scope="col" role="columnheader">Type</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {% for errors in data.record_errors %}
+                        {% for record_error in data.record_errors %}
                         <tr>
-                            <td data-sort-value={errors.date_created}> {{errors.date_created}}</td>
-                            <td data-sort-value={errors.id}>{{errors.id}}</td>
-                            <td data-sort-value={errors.harvest_record_id}>
-                                <a
-                href="{{ url_for('harvest.get_harvest_record', record_id=errors.harvest_record_id) }}">
-                            {{errors.harvest_record_id}} </td>
-                            <td data-sort-value={errors.message}>{{errors.message}}</td>
-                            <td data-sort-value={errors.type}>{{errors.type}}</td>
+                            <td data-sort-value="{{ record_error.error.date_created }}"> {{ record_error.error.date_created }}</td>
+                            <td>{{ record_error.error.id }}</td>
+                            <td>{{ record_error.title }}</td>
+                            <td>{{ record_error.identifier }}</td>
+                            <td data-sort-value="{{ record_error.error.harvest_record_id }}">
+                                <a href="{{ url_for('harvest.get_harvest_record', record_id=record_error.error.harvest_record_id) }}">
+                                    {{ record_error.error.harvest_record_id }}
+                                </a>
+                            </td>
+                            <td data-sort-value="{{ record_error.error.message }}"> {{ record_error.error.message }}</td>
+                            <td data-sort-value="{{ record_error.error.type }}"> {{ record_error.error.type }}</td>
                         </tr>
                         {% endfor %}
                         {% if pagination.per_page > data.record_errors|count and pagination.count > data.record_errors|count %}
@@ -116,11 +140,58 @@
                 {% if pagination.count > data.record_errors|count %}
                     {% include '/components/pagination/pagination.html' %}
                 {%endif%}
+                <script>
+                    function toggleView() {
+                        var blockView = document.getElementById("blockView");
+                        var tableView = document.getElementById("tableView");
+                        var toggleBtn = document.getElementById("toggleViewBtn");
+
+                        if (blockView.style.display === "none") {
+                            blockView.style.display = "block";
+                            tableView.style.display = "none";
+                            toggleBtn.textContent = "Switch to Table View";
+                        } else {
+                            blockView.style.display = "none";
+                            tableView.style.display = "block";
+                            toggleBtn.textContent = "Switch to Block View";
+                        }
+                    }
+                </script>
+                <style>
+                    .error-list {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 15px;
+                    }
+                    .error-block {
+                        border: 1px solid #ccc;
+                        padding: 15px;
+                        border-radius: 5px;
+                        background-color: #f9f9f9;
+                    }
+                    .error-block h3 {
+                        margin: 0;
+                        font-size: 1.2em;
+                        font-weight: 900;
+                    }
+                    .error-block p {
+                        margin: 5px 0;
+                        font-size: 1em;
+                        text-indent: 20px;
+                    }
+                    .error-block a {
+                        color: #0071bc;
+                        text-decoration: none;
+                    }
+                    .error-block a:hover {
+                        text-decoration: underline;
+                    }
+                </style>
             </div>
 
             {% endblock %}
-            <div class="usa-sr-only usa-table__announcement-region" aria-live="polite"></div>
-        </div>
+                <div class="usa-sr-only usa-table__announcement-region" aria-live="polite"></div>
+            </div>
         {% endif %}
     </div>
     {% endif %}
