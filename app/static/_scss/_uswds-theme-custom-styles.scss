@@ -70,3 +70,7 @@ ul.menu {
   display: flex; 
   justify-content: space-between;
 }
+
+.usa-table-container--scrollable {
+  overflow: scroll;
+}
