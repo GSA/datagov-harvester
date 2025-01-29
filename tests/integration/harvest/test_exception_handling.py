@@ -248,8 +248,8 @@ class TestHarvestRecordExceptionHandling:
         record_err = interface.get_harvest_record_errors_by_job(job_id)
         assert len(job_err) == 0
         assert len(record_err) == 1
-        assert record_err[0].error.type == "SynchronizeException"
-        assert record_err[0].error.harvest_record_id == records_with_errors[0].id
+        assert record_err[0].type == "SynchronizeException"
+        assert record_err[0].harvest_record_id == records_with_errors[0].id
         assert (
             harvest_records[1].id == records_with_errors[0].id
         )  ## assert it's the second record that threw the exception, which validates our package_create mock

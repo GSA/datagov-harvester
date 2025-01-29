@@ -330,7 +330,11 @@ class HarvesterDBInterface:
         )
         query = (
             self.db.query(
-                HarvestRecordError,
+                HarvestRecordError.id,
+                HarvestRecordError.harvest_record_id,
+                HarvestRecordError.message,
+                HarvestRecordError.type,
+                HarvestRecordError.date_created,
                 HarvestRecord.identifier,
                 HarvestRecord.source_raw
             )

@@ -82,17 +82,17 @@
                 <div id="blockView" class="error-list">
                     {% for record_error in data.record_errors %}
                         <div class="error-block">
-                            <h3>{{ record_error.error.id }}</h3>
+                            <h3>{{ record_error.id }}</h3>
                             <p><strong>Identifier:</strong> {{ record_error.identifier }}</p>
                             <p><strong>Title:</strong> {{ record_error.title }}</p>
                             <p><strong>Harvest Record ID:</strong>
-                                <a href="{{ url_for('harvest.get_harvest_record', record_id=record_error.error.harvest_record_id) }}">
-                                    {{ record_error.error.harvest_record_id }}
+                                <a href="{{ url_for('harvest.get_harvest_record', record_id=record_error.harvest_record_id) }}">
+                                    {{ record_error.harvest_record_id }}
                                 </a>
                             </p>
-                            <p><strong>Error Message:</strong> {{ record_error.error.message }}</p>
-                            <p><strong>Type:</strong> {{ record_error.error.type }}</p>
-                            <p><strong>Date Created:</strong> {{ record_error.error.date_created }}</p>
+                            <p><strong>Error Message:</strong> {{ record_error.message }}</p>
+                            <p><strong>Type:</strong> {{ record_error.type }}</p>
+                            <p><strong>Date Created:</strong> {{ record_error.date_created }}</p>
 
                         </div>
                     {% endfor %}
@@ -113,17 +113,17 @@
                     <tbody>
                         {% for record_error in data.record_errors %}
                         <tr>
-                            <td data-sort-value="{{ record_error.error.date_created }}"> {{ record_error.error.date_created }}</td>
-                            <td>{{ record_error.error.id }}</td>
+                            <td data-sort-value="{{ record_error.date_created }}"> {{ record_error.date_created }}</td>
+                            <td>{{ record_error.id }}</td>
                             <td>{{ record_error.title }}</td>
                             <td>{{ record_error.identifier }}</td>
-                            <td data-sort-value="{{ record_error.error.harvest_record_id }}">
-                                <a href="{{ url_for('harvest.get_harvest_record', record_id=record_error.error.harvest_record_id) }}">
-                                    {{ record_error.error.harvest_record_id }}
+                            <td data-sort-value="{{ record_error.harvest_record_id }}">
+                                <a href="{{ url_for('harvest.get_harvest_record', record_id=record_error.harvest_record_id) }}">
+                                    {{ record_error.harvest_record_id }}
                                 </a>
                             </td>
-                            <td data-sort-value="{{ record_error.error.message }}"> {{ record_error.error.message }}</td>
-                            <td data-sort-value="{{ record_error.error.type }}"> {{ record_error.error.type }}</td>
+                            <td data-sort-value="{{ record_error.message }}"> {{ record_error.message }}</td>
+                            <td data-sort-value="{{ record_error.type }}"> {{ record_error.type }}</td>
                         </tr>
                         {% endfor %}
                         {% if pagination.per_page > data.record_errors|count and pagination.count > data.record_errors|count %}
