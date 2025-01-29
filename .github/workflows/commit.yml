@@ -1,125 +1,124 @@
----
-  name: Tests on Commit
-  on: [push]
+name: Tests on Commit
+on: [push]
 
-  env:
-    PY_VERSION: "3.13"
-    POETRY_VERSION: "2.0.0"
+env:
+  PY_VERSION: "3.13"
+  POETRY_VERSION: "2.0.0"
 
-  jobs:
-    lint:
-      runs-on: ubuntu-latest
-      name: Python Lint
-      steps:
-        - uses: actions/checkout@v4
-        - uses: chartboost/ruff-action@v1
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    name: Python Lint
+    steps:
+      - uses: actions/checkout@v4
+      - uses: chartboost/ruff-action@v1
 
-    test:
-      environment: development
-      env:
-          CKAN_API_TOKEN_DEV: ${{secrets.CKAN_API_TOKEN_DEV}}
-          CF_SERVICE_USER: ${{secrets.CF_SERVICE_USER}}
-          CF_SERVICE_AUTH: ${{secrets.CF_SERVICE_AUTH}}
-          HARVEST_RUNNER_APP_GUID: ${{secrets.HARVEST_RUNNER_APP_GUID}}
-          FLASK_APP_SECRET_KEY: ${{secrets.FLASK_APP_SECRET_KEY}}
-      runs-on: ubuntu-latest
-      name: Pytests
-      steps:
-        - name: Check out the code
-          uses: actions/checkout@v4
-          with:
-            fetch-depth: 1
-        - name: Set up Python ${{ env.PY_VERSION }}
-          uses: actions/setup-python@v5
-          with:
-            python-version: ${{ env.PY_VERSION }}
+  test:
+    environment: development
+    env:
+        CKAN_API_TOKEN_DEV: ${{secrets.CKAN_API_TOKEN_DEV}}
+        CF_SERVICE_USER: ${{secrets.CF_SERVICE_USER}}
+        CF_SERVICE_AUTH: ${{secrets.CF_SERVICE_AUTH}}
+        HARVEST_RUNNER_APP_GUID: ${{secrets.HARVEST_RUNNER_APP_GUID}}
+        FLASK_APP_SECRET_KEY: ${{secrets.FLASK_APP_SECRET_KEY}}
+    runs-on: ubuntu-latest
+    name: Pytests
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Set up Python ${{ env.PY_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PY_VERSION }}
 
-        - name: Install Poetry
-          uses: abatilo/actions-poetry@v2
-          with:
-            poetry-version: ${{ env.POETRY_VERSION }}
-            poetry-plugins: "poetry-plugin-export"
+      - name: Install Poetry
+        uses: abatilo/actions-poetry@v2
+        with:
+          poetry-version: ${{ env.POETRY_VERSION }}
+          poetry-plugins: "poetry-plugin-export"
 
-        - name: Install Dependencies
-          run: |
-            poetry env use ${{ env.PY_VERSION }}
-            poetry install
+      - name: Install Dependencies
+        run: |
+          poetry env use ${{ env.PY_VERSION }}
+          poetry install
 
-        - name: Run Pytest
-          run: make test-ci
+      - name: Run Pytest
+        run: make test-ci
 
-        - name: Report test coverage
-          uses: MishaKav/pytest-coverage-comment@main
-          with:
-            multiple-files: |
-              Unit tests, pytest-coverage-unit.txt, pytest-unit.xml
-              Integration Tests, pytest-coverage-integration.txt, pytest-integration.xml
-              Functional Tests, pytest-coverage-functional.txt, pytest-functional.xml
+      - name: Report test coverage
+        uses: MishaKav/pytest-coverage-comment@main
+        with:
+          multiple-files: |
+            Unit tests, pytest-coverage-unit.txt, pytest-unit.xml
+            Integration Tests, pytest-coverage-integration.txt, pytest-integration.xml
+            Functional Tests, pytest-coverage-functional.txt, pytest-functional.xml
 
-        - name: Update Readme with Coverage Html
-          if: ${{ github.ref == 'refs/heads/main' }}
-          run: |
-            sed -i '/<!-- Pytest Coverage Comment:Begin -->/,/<!-- Pytest Coverage Comment:End -->/c\<!-- Pytest Coverage Comment:Begin -->\n\${{ steps.coverageComment.outputs.coverageHtml }}\n<!-- Pytest Coverage Comment:End -->' ./README.md
+      - name: Update Readme with Coverage Html
+        if: ${{ github.ref == 'refs/heads/main' }}
+        run: |
+          sed -i '/<!-- Pytest Coverage Comment:Begin -->/,/<!-- Pytest Coverage Comment:End -->/c\<!-- Pytest Coverage Comment:Begin -->\n\${{ steps.coverageComment.outputs.coverageHtml }}\n<!-- Pytest Coverage Comment:End -->' ./README.md
 
-        - name: Commit & Push changes to Readme
-          if: ${{ github.ref == 'refs/heads/main' }}
-          uses: actions-js/push@master
-          with:
-            message: Update coverage on Readme
-            github_token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Commit & Push changes to Readme
+        if: ${{ github.ref == 'refs/heads/main' }}
+        uses: actions-js/push@master
+        with:
+          message: Update coverage on Readme
+          github_token: ${{ secrets.GITHUB_TOKEN }}
 
-    deploy-development:
-      if: github.ref == 'refs/heads/develop'
-      name: deploy development
-      needs: test
-      environment: development
-      runs-on: ubuntu-latest
-      steps:
-        - name: checkout
-          uses: actions/checkout@v4
-        - name: Install node.js
-          uses: actions/setup-node@v4
-          with:
-            node-version: "package.json"
-        - name: Build static assets
-          shell: bash
-          run: |
-            cd app/static
-            npm ci
-            npm run build
-        - name: Install Poetry
-          uses: abatilo/actions-poetry@v2
-          with:
-            poetry-version: ${{ env.POETRY_VERSION }}
-            poetry-plugins: "poetry-plugin-export"
-        - name: Add requirement.txt
-          run: |
-            poetry export -f requirements.txt --output requirements.txt --without-hashes
-            echo "Generated requirements.txt:"
-            cat requirements.txt
-        - name: deploy DHL
-          uses: cloud-gov/cg-cli-tools@main
-          with:
-            command: cf push --vars-file vars.development.yml --strategy rolling --no-wait
-            cf_org: gsa-datagov
-            cf_space: ${{vars.ENVIRONMENT_NAME}}
-            cf_username: ${{secrets.CF_SERVICE_USER}}
-            cf_password: ${{secrets.CF_SERVICE_AUTH}}
-        # to-do
-        # - name: smoke test
-        #   uses: cloud-gov/cg-cli-tools@main
-        #   with:
-        #     command: cf run-task harvesting-logic -c "/home/vcap/app/scripts/smoke-test.py" --name smoke-test
-        #     cf_org: gsa-datagov
-        #     cf_space: ${{vars.ENVIRONMENT_NAME}}
-        #     cf_username: ${{secrets.CF_SERVICE_USER}}
-        #     cf_password: ${{secrets.CF_SERVICE_AUTH}}
-        # - name: monitor task output
-        #   uses: cloud-gov/cg-cli-tools@main
-        #   with:
-        #     command: >
-        #       scripts/monitor-cf-logs.sh harvesting-logic smoke-test
-        #     cf_org: gsa-datagov
-        #     cf_space: ${{vars.ENVIRONMENT_NAME}}
-        #     cf_username: ${{secrets.CF_SERVICE_USER}}
-        #     cf_password: ${{secrets.CF_SERVICE_AUTH}}
+  deploy-development:
+    if: github.ref == 'refs/heads/develop'
+    name: deploy development
+    needs: test
+    environment: development
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+      - name: Install node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "package.json"
+      - name: Build static assets
+        shell: bash
+        run: |
+          cd app/static
+          npm ci
+          npm run build
+      - name: Install Poetry
+        uses: abatilo/actions-poetry@v2
+        with:
+          poetry-version: ${{ env.POETRY_VERSION }}
+          poetry-plugins: "poetry-plugin-export"
+      - name: Add requirement.txt
+        run: |
+          poetry export -f requirements.txt --output requirements.txt --without-hashes
+          echo "Generated requirements.txt:"
+          cat requirements.txt
+      - name: deploy DHL
+        uses: cloud-gov/cg-cli-tools@main
+        with:
+          command: cf push --vars-file vars.development.yml --strategy rolling --no-wait
+          cf_org: gsa-datagov
+          cf_space: ${{vars.ENVIRONMENT_NAME}}
+          cf_username: ${{secrets.CF_SERVICE_USER}}
+          cf_password: ${{secrets.CF_SERVICE_AUTH}}
+      # to-do
+      # - name: smoke test
+      #   uses: cloud-gov/cg-cli-tools@main
+      #   with:
+      #     command: cf run-task harvesting-logic -c "/home/vcap/app/scripts/smoke-test.py" --name smoke-test
+      #     cf_org: gsa-datagov
+      #     cf_space: ${{vars.ENVIRONMENT_NAME}}
+      #     cf_username: ${{secrets.CF_SERVICE_USER}}
+      #     cf_password: ${{secrets.CF_SERVICE_AUTH}}
+      # - name: monitor task output
+      #   uses: cloud-gov/cg-cli-tools@main
+      #   with:
+      #     command: >
+      #       scripts/monitor-cf-logs.sh harvesting-logic smoke-test
+      #     cf_org: gsa-datagov
+      #     cf_space: ${{vars.ENVIRONMENT_NAME}}
+      #     cf_username: ${{secrets.CF_SERVICE_USER}}
+      #     cf_password: ${{secrets.CF_SERVICE_AUTH}}
