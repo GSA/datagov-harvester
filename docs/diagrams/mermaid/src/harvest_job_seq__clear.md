@@ -20,14 +20,14 @@ sequenceDiagram
     note over DHR: COMPARE<br>(SKIPPED)
     note over DHR: TRANSFORM<br>(SKIPPED)
     note over DHR: VALIDATE<br>(SKIPPED)
-    note over DHR: LOAD
+    note over DHR: SYNC
     loop SYNC items to delete
         DHR->>CKAN: CKAN dataset_purge (delete)
         alt Sync fails
-            DHR-->>HDB: Log failures as harvest_error with type: SynchronizeException<br>UPDATE harvest_record to status: error_sync
+            DHR-->>HDB: Log failures as harvest_error with {type: SynchronizeException}<br>UPDATE harvest_record to {status: error}
         end
     end
     note over DHR: REPORT
-    DHR->>HDB: POST harvest job metrics <br> UPDATE harvest_job to status: complete
-    DHR->>SES: Email job metrics (jobMetrics, notification_emails)
+    DHR->>HDB: POST harvest job metrics <br> UPDATE harvest_job to {status: complete}
+    DHR->>SES: Email job metrics to harvest_source notification_emails
 ```

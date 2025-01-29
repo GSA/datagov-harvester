@@ -42,8 +42,8 @@ sequenceDiagram
         end
     end
 
-    note over DHR: LOAD<br>(SKIPPED)
+    note over DHR: SYNC<br>(SKIPPED)
     note over DHR: REPORT
     DHR->>HDB: POST harvest job metrics <br> UPDATE harvest_job to status: complete
-    DHR->>SES: Email job metrics (jobMetrics, notification_emails)
+    DHR->>SES: Email job metrics to harvest_source notification_emails
 ```

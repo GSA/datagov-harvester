@@ -22,18 +22,18 @@ sequenceDiagram
     note over DHR: COMPARE<br>(SKIPPED)
     note over DHR: TRANSFORM<br>(SKIPPED)
     note over DHR: VALIDATE<br>(SKIPPED)
-    note over DHR: LOAD
+    note over DHR: SYNC
     loop SYNC items to create/update/delete
         DHR->>+CKAN: CKAN package_create (create), <br>package_update (update), <br>dataset_purge (delete)
-        note over DHR,CKAN: skip records with {status:success}
-        CKAN-->>-DHR: (create) returns ckan_id & ckan_name
-        DHR->>HDB: UPDATE record with ckan_id & ckan_name
+        note over DHR,CKAN: skips records with {status:success}
+        CKAN-->>-DHR: (create) returns {ckan_id, ckan_name}
+        DHR->>HDB: UPDATE record with {ckan_id, ckan_name, status: success}
         alt SYNC fails
-            DHR-->>HDB: Log as harvest_error with type: SynchronizeException <br>UPDATE harvest_record to {status: error}
+            DHR-->>HDB: Log as harvest_error with {type: SynchronizeException} <br>UPDATE harvest_record to {status: error}
         end
     end
     note over DHR: REPORT
     DHR->>HDB: POST harvest job metrics <br> UPDATE harvest_job to {status: complete}
     note over DHR,HDB: NOTE: currently we just subtract<br>previous job's results from count
-    DHR->>SES: Email job metrics (jobMetrics, notification_emails)
+    DHR->>SES: Email job metrics to harvest_source notification_emails
 ```

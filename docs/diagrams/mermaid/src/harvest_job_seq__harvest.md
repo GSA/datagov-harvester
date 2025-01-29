@@ -43,16 +43,16 @@ sequenceDiagram
         end
     end
 
-    note over DHR: LOAD
+    note over DHR: SYNC
     loop SYNC items to create/update/delete
         DHR->>+CKAN: CKAN package_create (create), <br>package_update (update), <br>dataset_purge (delete)
-        CKAN-->>-DHR: (create) returns ckan_id & ckan_name
-        DHR->>HDB: UPDATE record with ckan_id & ckan_name
+        CKAN-->>-DHR: (create) returns {ckan_id, ckan_name}
+        DHR->>HDB: UPDATE record with {ckan_id, ckan_name, status: success}
         alt SYNC fails
-            DHR-->>HDB: Log as harvest_error with type: SynchronizeException <br>UPDATE harvest_record to status: error_sync
+            DHR-->>HDB: Log as harvest_error with {type: SynchronizeException}<br>UPDATE harvest_record to {status: error}
         end
     end
     note over DHR: REPORT
-    DHR->>HDB: POST harvest job metrics <br> UPDATE harvest_job to status: complete
-    DHR->>SES: Email job metrics (jobMetrics, notification_emails)
+    DHR->>HDB: POST harvest job metrics <br> UPDATE harvest_job to {status: complete}
+    DHR->>SES: Email job metrics to harvest_source notification_emails
 ```
