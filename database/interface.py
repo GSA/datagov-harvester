@@ -334,7 +334,8 @@ class HarvesterDBInterface:
                 HarvestRecord.identifier,
                 HarvestRecord.source_raw
             )
-            .join(HarvestRecord, HarvestRecord.id == HarvestRecordError.harvest_record_id)
+            .join(HarvestRecord, 
+                HarvestRecord.id == HarvestRecordError.harvest_record_id)
             .filter(HarvestRecord.id.in_(select(subquery)))
         )
         return query
