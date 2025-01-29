@@ -1,7 +1,6 @@
 import os
 
 from cloudfoundry_client.client import CloudFoundryClient
-from cloudfoundry_client.v3.tasks import TaskManager
 
 
 class CFHandler:
@@ -14,7 +13,7 @@ class CFHandler:
     def setup(self):
         self.client = CloudFoundryClient(self.url)
         self.client.init_with_user_credentials(self.user, self.password)
-        self.task_mgr = TaskManager(self.url, self.client)
+        self.task_mgr = self.client.v3.tasks
 
     def start_task(self, app_guuid, command, task_id):
         TASK_MEMORY = os.getenv("HARVEST_RUNNER_TASK_MEM", "4096")
