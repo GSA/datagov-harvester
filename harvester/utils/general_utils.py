@@ -132,6 +132,7 @@ def query_filter_builder(base, facets):
     :param facets str - extra facets
 
     """
+    facets = facets.removeprefix(", ")
     if base is None:
         facet_string = facets.split(",")[0]
         facet_list = facets.split(",")[1:]

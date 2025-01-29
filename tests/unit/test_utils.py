@@ -72,6 +72,7 @@ class TestGeneralUtils:
             (None, "1,2", "1 AND 2"),
             (None, "1 , 2", "1  AND  2"),
             (None, "1 OR 2", "1 OR 2"),
+            (None, ", facet_key = 'facet_val'", "facet_key = 'facet_val'"),
         ],
     )
     def test_facet_builder(self, base, facets, expected):

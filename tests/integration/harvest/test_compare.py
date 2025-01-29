@@ -33,6 +33,7 @@ class TestCompare:
 
         harvest_source = HarvestSource(internal_compare_data["job_id"])
         harvest_source.extract()
+        harvest_source.compare()
 
         harvest_job_records = interface.get_harvest_records_by_job(
             job_data_dcatus["id"], paginate=False
@@ -78,6 +79,7 @@ class TestCompare:
 
         harvest_source = HarvestSource(job_data_dcatus["id"])
         harvest_source.extract()
+        harvest_source.compare()
 
         expected = sorted(
             [

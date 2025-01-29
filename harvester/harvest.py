@@ -15,7 +15,6 @@ from typing import List
 import requests
 from boltons.setutils import IndexedSet
 from ckanapi import RemoteCKAN
-from flask import current_app as app
 from jsonschema import Draft202012Validator
 
 sys.path.insert(1, "/".join(os.path.realpath(__file__).split("/")[0:-2]))
@@ -235,18 +234,12 @@ class HarvestSource:
     def prepare_external_data(self) -> None:
         logger.info("retrieving and preparing external records.")
         try:
-            job = self.db_interface.get_harvest_job(self.job_id)
-            if job.job_type == "clear":
-                self.external_records_to_id_hash([])
-            else:
-                if self.source_type == "document":
-                    self.external_records_to_id_hash(
-                        download_file(self.url, ".json")["dataset"]
-                    )
-                if self.source_type == "waf":
-                    self.external_records_to_id_hash(
-                        download_waf(traverse_waf(self.url))
-                    )
+            if self.source_type == "document":
+                self.external_records_to_id_hash(
+                    download_file(self.url, ".json")["dataset"]
+                )
+            if self.source_type == "waf":
+                self.external_records_to_id_hash(download_waf(traverse_waf(self.url)))
         except Exception as e:
             raise ExtractExternalException(
                 f"{self.name} {self.url} failed to extract harvest source. exiting",
@@ -264,7 +257,7 @@ class HarvestSource:
                 self.job_id,
             )
 
-    def compare(self) -> None:
+    def compare_sources(self) -> None:
         """Compares records"""
         # ruff: noqa: F841
         logger.info("comparing our records with theirs")
@@ -321,22 +314,26 @@ class HarvestSource:
         # set records on new
         self.records = records
 
-    def extract_cleanup(self):
+    def compare_cleanup(self):
         self.compare_data = {}
         self.internal_records = {}
         self.external_records = {}
 
     def extract(self) -> None:
-        """determine which records needs to be updated, deleted, or created"""
+        """Extract records for compare"""
         logger.info(f"getting records changes for {self.name} using {self.url}")
 
         self.prepare_external_data()
         self.prepare_internal_data()
-        self.compare()
+
+    def compare(self) -> None:
+        """Determine which records needs to be updated, deleted, or created"""
+        self.compare_sources()
         self.write_compare_to_db()
-        self.extract_cleanup()
+        self.compare_cleanup()
 
     def transform(self) -> None:
+        """Transform records to DCAT-US 1.1"""
         if not self.schema_type.startswith("dcatus"):
             logger.info("transforming records")
             for record in self.records:
@@ -346,6 +343,7 @@ class HarvestSource:
                     pass
 
     def validate(self) -> None:
+        """Validate records against DCAT-US 1.1 schema"""
         logger.info("validating records")
         for record in self.records:
             try:
@@ -354,10 +352,7 @@ class HarvestSource:
                 pass
 
     def sync(self) -> None:
-        """runs the delete, update, and create
-        - self.compare can be empty because there was no harvest source response
-        or there's truly nothing to process
-        """
+        """Sync records to external CKAN catalog"""
         logger.info("synchronizing records")
         for record in self.records:
             try:
@@ -371,6 +366,7 @@ class HarvestSource:
                 pass
 
     def do_report(self) -> None:
+        """Assemble and record report for harvest job"""
         logger.info("report results")
         # TODO: rewrite reporter as counter on harvest source
         # instead of using records to self-report
@@ -425,6 +421,7 @@ class HarvestSource:
             self.send_notification_emails(results)
 
     def send_notification_emails(self, results: dict) -> None:
+        """Send harvest report emails to havest source POCs"""
         try:
             job_url = f'{SMTP_CONFIG["base_url"]}/harvest_job/{self.job_id}'
 
@@ -510,7 +507,7 @@ class HarvestSource:
         for db_record in db_records:
             records.append(self.make_record_contract(db_record))
         self.records.extend(records)
-        logger.info(f"{len(db_records)} uncleared incoming db records")
+        logger.warning(f"{len(db_records)} uncleared incoming db records")
         for record in db_records:
             self.db_interface.delete_harvest_record(record.identifier)
 
@@ -828,12 +825,18 @@ def harvest_job_starter(job_id, job_type="harvest"):
     logger.info(f"Harvest job starting for JobId: {job_id}")
     harvest_source = HarvestSource(job_id, job_type)
 
-    if job_type in ["harvest", "validate", "clear"]:
-        # extract, compare, and save the results
+    if job_type in ["harvest", "validate"]:
         harvest_source.extract()
 
+    if job_type == "clear":
+        # simulate harvesting an empty external source
+        harvest_source.external_records = {}
+        harvest_source.prepare_internal_data()
+
+    if job_type in ["harvest", "validate", "clear"]:
+        harvest_source.compare()
+
     if job_type in ["harvest", "validate"]:
-        # transform and validate the transform
         harvest_source.transform()
         harvest_source.validate()
 

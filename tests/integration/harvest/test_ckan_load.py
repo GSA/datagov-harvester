@@ -51,6 +51,7 @@ class TestCKANLoad:
 
         harvest_source = HarvestSource(job_id)
         harvest_source.extract()
+        harvest_source.compare()
         harvest_source.transform()
         harvest_source.validate()
         harvest_source.sync()
@@ -112,6 +113,7 @@ class TestCKANLoad:
         ]
         interface.add_harvest_records(record)
         harvest_source.extract()
+        harvest_source.compare()
         test_record = [x for x in harvest_source.records if x.identifier == "cftc-dc1"][
             0
         ]

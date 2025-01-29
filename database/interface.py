@@ -95,9 +95,6 @@ class HarvesterDBInterface:
         else:
             return to_dict_helper(obj)
 
-    # def close(self):
-    #     self.db.close()
-
     ## ORGANIZATIONS
     def add_organization(self, org_data):
         try:
@@ -549,17 +546,20 @@ class HarvesterDBInterface:
     @count
     @paginate
     def pget_harvest_records(self, facets="", **kwargs):
-        return self.db.query(HarvestRecord).filter(text(facets))
+        facet_string = query_filter_builder(None, facets)
+        return self.db.query(HarvestRecord).filter(text(facet_string))
 
     @count
     @paginate
     def pget_harvest_job_errors(self, facets="", **kwargs):
-        return self.db.query(HarvestJobError).filter(text(facets))
+        facet_string = query_filter_builder(None, facets)
+        return self.db.query(HarvestJobError).filter(text(facet_string))
 
     @count
     @paginate
     def pget_harvest_record_errors(self, facets="", **kwargs):
-        return self.db.query(HarvestRecordError).filter(text(facets))
+        facet_string = query_filter_builder(None, facets)
+        return self.db.query(HarvestRecordError).filter(text(facet_string))
 
     #### FILTERED BUILDER QUERIES ####
     def get_harvest_records_by_job(self, job_id, facets="", **kwargs):

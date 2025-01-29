@@ -18,6 +18,7 @@ class TestTransform:
 
         harvest_source = HarvestSource(harvest_job.id)
         harvest_source.extract()
+        harvest_source.compare()
 
         for record in harvest_source.records:
             if record.identifier == "http://localhost:80/iso_2_waf/invalid_47662.xml":

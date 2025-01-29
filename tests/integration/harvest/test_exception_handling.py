@@ -84,6 +84,7 @@ class TestHarvestRecordExceptionHandling:
 
         harvest_source = HarvestSource(harvest_job.id)
         harvest_source.extract()
+        harvest_source.compare()
         harvest_source.sync()
 
         interface_record = interface.get_harvest_record(harvest_source.records[0].id)
@@ -107,6 +108,7 @@ class TestHarvestRecordExceptionHandling:
 
         harvest_source = HarvestSource(harvest_job.id)
         harvest_source.extract()
+        harvest_source.compare()
         harvest_source.validate()
         test_record = [
             x for x in harvest_source.records if x.identifier == "null-spatial"
@@ -133,6 +135,7 @@ class TestHarvestRecordExceptionHandling:
 
         harvest_source = HarvestSource(harvest_job.id)
         harvest_source.extract()
+        harvest_source.compare()
         harvest_source.sync()
 
         test_record = [x for x in harvest_source.records if x.identifier == "cftc-dc1"][
@@ -162,6 +165,7 @@ class TestHarvestRecordExceptionHandling:
 
         harvest_source = HarvestSource(harvest_job.id)
         harvest_source.extract()
+        harvest_source.compare()
         harvest_source.sync()
 
         test_record = [x for x in harvest_source.records if x.identifier == "cftc-dc1"][
@@ -206,6 +210,7 @@ class TestHarvestRecordExceptionHandling:
         job_id = harvest_job.id
         harvest_source = HarvestSource(job_id)
         harvest_source.extract()
+        harvest_source.compare()
         harvest_source.sync()
         harvest_source.do_report()
 
