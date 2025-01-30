@@ -1,8 +1,33 @@
 const { src, pipe, dest, series, parallel, watch } = require('gulp');
 const uswds = require("@uswds/compile");
 
+var browserify = require('browserify');
+var source = require('vinyl-source-stream');
+var buffer = require('vinyl-buffer');
+
+// file path vars
+const paths = {
+    js: {
+        src: './js/index.js',
+        dest: 'assets/js/bundle.js'
+    }
+}
+
+function jsTask() {
+    return browserify(`${paths.js.src}`)
+        .transform('babelify', {
+            presets: ['@babel/preset-env'],
+            plugins: ['@babel/plugin-transform-runtime']
+        })
+        .bundle()
+        .pipe(source(paths.js.dest))
+        .pipe(buffer())
+        .pipe(dest("./"));
+};
+
 const defaultTask = parallel(
     series(
+        jsTask,
         uswds.compile,
         uswds.copyAssets,
     )
