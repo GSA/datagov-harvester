@@ -252,6 +252,8 @@ class TestHarvestRecordExceptionHandling:
         assert len(job_err) == 0
         assert len(record_err) == 1
         assert record_error.type == "SynchronizeException"
+        assert identifier == "cftc-dc2"
+        assert title == "Commitment of Traders"
         assert record_error.harvest_record_id == records_with_errors[0].id
         assert (
             harvest_records[1].id == records_with_errors[0].id

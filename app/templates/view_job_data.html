@@ -141,22 +141,43 @@
                     {% include '/components/pagination/pagination.html' %}
                 {%endif%}
                 <script>
+                    document.addEventListener("DOMContentLoaded", function() {
+                        setTimeout(function() {
+                            let savedView = localStorage.getItem("errorView");
+                            console.log("Applying saved view:", savedView);
+                            if (!savedView) {
+                                localStorage.setItem("errorView", "block");
+                            }
+                            applyView(savedView || "block");
+                        }, 100);
+                    });
+
                     function toggleView() {
+                        var currentView = localStorage.getItem("errorView") === "table" ? "block" : "table";
+                        localStorage.setItem("errorView", currentView);
+                        console.log("View changed to:", currentView);
+                        applyView(currentView);
+                    }
+
+                    function applyView(view) {
+                        console.log("Applying view:", view);
+
                         var blockView = document.getElementById("blockView");
                         var tableView = document.getElementById("tableView");
                         var toggleBtn = document.getElementById("toggleViewBtn");
 
-                        if (blockView.style.display === "none") {
-                            blockView.style.display = "block";
-                            tableView.style.display = "none";
-                            toggleBtn.textContent = "Switch to Table View";
-                        } else {
+                        if (view === "table") {
                             blockView.style.display = "none";
                             tableView.style.display = "block";
                             toggleBtn.textContent = "Switch to Block View";
+                        } else {
+                            blockView.style.display = "block";
+                            tableView.style.display = "none";
+                            toggleBtn.textContent = "Switch to Table View";
                         }
                     }
                 </script>
+                
 
                 <style>
                     .error-list {
