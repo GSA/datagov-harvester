@@ -490,7 +490,7 @@ class HarvestSource:
             else:
                 record.source_raw = record.metadata["content"]
             record_mapping = self.make_record_mapping(record)
-            if record.action is not None:
+            if record.action is not None and record.status != "success":
                 db_record = self.db_interface.add_harvest_record(record_mapping)
                 record.id = db_record.id
             new_records.append(record)
