@@ -328,19 +328,11 @@ class HarvesterDBInterface:
             .filter(HarvestRecord.harvest_job_id == job_id)
             .subquery()
         )
-        # query = (
-        #     self.db.query(
-        #         HarvestRecordError,
-        #         HarvestRecord.identifier,
-        #         HarvestRecord.source_raw
-        #     )
-        #     .join(HarvestRecord, 
-        #         HarvestRecord.id == HarvestRecordError.harvest_record_id)
-        #     .filter(HarvestRecord.id.in_(select(subquery)))
-        # )
         query = (
             self.db.query(
-                HarvestRecordError
+                HarvestRecordError,
+                HarvestRecord.identifier,
+                HarvestRecord.source_raw
             )
             .join(HarvestRecord, 
                 HarvestRecord.id == HarvestRecordError.harvest_record_id)

@@ -643,15 +643,14 @@ def get_harvest_job(job_id=None):
         page = request.args.get("page")
         db_page = int(page) - 1
         record_errors = db.get_harvest_record_errors_by_job(job_id, page=db_page)
-        record_errors_dict = db._to_dict(record_errors)
-        # record_errors_dict = [
-        #     {
-        #         "error": db._to_dict(row.HarvestRecordError),
-        #         "identifier": row.identifier,
-        #         "title": json.loads(row.source_raw).get("title", None),
-        #     }
-        #     for row in record_errors
-        # ]
+        record_errors_dict = [
+            {
+                "error": db._to_dict(row.HarvestRecordError),
+                "identifier": row.identifier,
+                "title": json.loads(row.source_raw).get("title", None),
+            }
+            for row in record_errors
+        ]
         data = {
             "harvest_job_id": job_id,
             "record_errors": record_errors_dict,
@@ -667,15 +666,14 @@ def get_harvest_job(job_id=None):
     if job_id:
         job = db.get_harvest_job(job_id)
         record_errors = db.get_harvest_record_errors_by_job(job_id)
-        record_errors_dict = db._to_dict(record_errors)
-        # record_errors_dict = [
-        #     {
-        #         "error": db._to_dict(row.HarvestRecordError),
-        #         "identifier": row.identifier,
-        #         "title": json.loads(row.source_raw).get("title", None),
-        #     }
-        #     for row in record_errors
-        # ]
+        record_errors_dict = [
+            {
+                "error": db._to_dict(row.HarvestRecordError),
+                "identifier": row.identifier,
+                "title": json.loads(row.source_raw).get("title", None),
+            }
+            for row in record_errors
+        ]
 
         if request.args.get("type") and request.args.get("type") == "json":
             return db._to_dict(job) if job else ("Not Found", 404)
