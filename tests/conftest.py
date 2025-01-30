@@ -30,7 +30,9 @@ collect_ignore_glob = ["functional/*"]
 
 @pytest.fixture(scope="session", autouse=True)
 def default_session_fixture():
-    with patch("harvester.lib.cf_handler.CloudFoundryClient"), patch("app.load_manager.start", lambda: True):
+    with patch("harvester.lib.cf_handler.CloudFoundryClient"), patch(
+        "harvester.harvest.smtplib"
+    ), patch("app.load_manager.start", lambda: True):
         yield
 
 
@@ -44,12 +46,12 @@ def app() -> Generator[Any, Flask, Any]:
         db.drop_all()
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture()
 def client(app):
     return app.test_client()
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture()
 def session(app) -> Generator[Any, scoped_session, Any]:
     with app.app_context():
         connection = db.engine.connect()
@@ -64,12 +66,12 @@ def session(app) -> Generator[Any, scoped_session, Any]:
         connection.close()
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture()
 def interface(session) -> HarvesterDBInterface:
     return HarvesterDBInterface(session=session)
 
 
-@pytest.fixture(scope="function", autouse=True)
+@pytest.fixture(autouse=True)
 def default_function_fixture(interface):
     logger.info("Patching core.feature.service")
     with patch("harvester.harvest.db_interface", interface), patch(
@@ -402,7 +404,6 @@ def interface_with_multiple_sources(
     return interface_with_fixture_json
 
 
-## MISC
 @pytest.fixture
 def interface_with_multiple_jobs(interface_no_jobs, source_data_dcatus):
     statuses = ["new", "in_progress", "complete", "error"]

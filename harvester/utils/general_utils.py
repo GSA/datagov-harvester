@@ -34,6 +34,7 @@ def parse_args(args):
         prog="Harvest Runner", description="etl harvest sources"
     )
     parser.add_argument("jobId", help="job id for harvest job")
+    parser.add_argument("jobType", help="job type for harvest job")
 
     return parser.parse_args(args)
 
@@ -123,3 +124,30 @@ def download_waf(files):
         output.append({"url": file, "content": download_file(file, ".xml")})
 
     return output
+
+
+def query_filter_builder(base, facets):
+    """Builds filter strings from base and comma separated string of filters
+    :param base str - base filter query
+    :param facets str - extra facets
+
+    """
+    facets = facets.removeprefix(", ")
+    if base is None:
+        facet_string = facets.split(",")[0]
+        facet_list = facets.split(",")[1:]
+    else:
+        facet_string = base
+        facet_list = facets.split(",")
+    for facet in facet_list:
+        if facet != "":
+            facet_string += f" AND {facet}"
+    return facet_string
+
+
+def is_it_true(value):
+    return value.lower() == "true"
+
+
+def convert_to_int(value):
+    return int(value)
