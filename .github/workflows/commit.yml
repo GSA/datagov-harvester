@@ -82,13 +82,17 @@ jobs:
       - name: Install node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "package.json"
+          node-version-file: "app/static/package.json"
       - name: Build static assets
         shell: bash
         run: |
-          cd app/static
-          npm ci
-          npm run build
+            cd app/static
+            npm ci
+            npm run build
+      - name: Set up Python ${{ env.PY_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PY_VERSION }}
       - name: Install Poetry
         uses: abatilo/actions-poetry@v2
         with:
@@ -102,7 +106,7 @@ jobs:
       - name: deploy DHL
         uses: cloud-gov/cg-cli-tools@main
         with:
-          command: cf push --vars-file vars.development.yml --strategy rolling --no-wait
+          command: cf push --vars-file vars.development.yml
           cf_org: gsa-datagov
           cf_space: ${{vars.ENVIRONMENT_NAME}}
           cf_username: ${{secrets.CF_SERVICE_USER}}
