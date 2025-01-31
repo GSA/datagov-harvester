@@ -1,13 +1,18 @@
 import pytest
 
 from harvester.utils.ckan_utils import munge_tag, munge_title_to_name
-from harvester.utils.general_utils import parse_args, prepare_transform_msg
-
-# these tests are copied from
-# https://github.com/ckan/ckan/blob/master/ckan/tests/lib/test_munge.py
+from harvester.utils.general_utils import (
+    parse_args,
+    prepare_transform_msg,
+    query_filter_builder,
+)
 
 
 class TestCKANUtils:
+    """These tests are copied from
+    # https://github.com/ckan/ckan/blob/master/ckan/tests/lib/test_munge.py
+    """
+
     @pytest.mark.parametrize(
         "original,expected",
         [
@@ -50,8 +55,28 @@ class TestCKANUtils:
 
 class TestGeneralUtils:
     def test_args_parsing(self):
-        args = parse_args(["test-id"])
+        args = parse_args(["test-id", "test-type"])
         assert args.jobId == "test-id"
+        assert args.jobType == "test-type"
+
+    @pytest.mark.parametrize(
+        "base,facets,expected",
+        [
+            ("1", "", "1"),
+            ("1", "234", "1 AND 234"),
+            ("1", "2,3,4", "1 AND 2 AND 3 AND 4"),
+            ("1", "2,3,4,", "1 AND 2 AND 3 AND 4"),
+            ("1", "2 != 3,3 <= 4,", "1 AND 2 != 3 AND 3 <= 4"),
+            (None, "1,", "1"),
+            (None, "1 AND 2", "1 AND 2"),
+            (None, "1,2", "1 AND 2"),
+            (None, "1 , 2", "1  AND  2"),
+            (None, "1 OR 2", "1 OR 2"),
+            (None, ", facet_key = 'facet_val'", "facet_key = 'facet_val'"),
+        ],
+    )
+    def test_facet_builder(self, base, facets, expected):
+        assert expected == query_filter_builder(base, facets)
 
     @pytest.mark.parametrize(
         "original,expected",

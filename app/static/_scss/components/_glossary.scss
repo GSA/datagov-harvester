@@ -1,6 +1,6 @@
 #glossary {
   transition: right 0.2s;
-  background-color: #112f4e;
+  background-color: color('primary-dark');
 
   &[aria-hidden="true"] {
     right: -20rem;

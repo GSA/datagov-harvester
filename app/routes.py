@@ -28,6 +28,7 @@ from jinja2_fragments.flask import render_block
 
 from database.interface import HarvesterDBInterface
 from harvester.lib.load_manager import LoadManager
+from harvester.utils.general_utils import convert_to_int, is_it_true
 
 from . import htmx
 from .forms import HarvestSourceForm, OrganizationForm
@@ -348,7 +349,6 @@ def add_organization():
     )
 
 
-@mod.route("/organization/", methods=["GET"])
 @mod.route("/organizations/", methods=["GET"])
 def view_organizations():
     organizations = db.get_all_organizations()
@@ -370,7 +370,7 @@ def view_org_data(org_id: str):
             future_harvest_jobs[source.id] = job[0].date_created
     harvest_jobs = {}
     for source in sources:
-        job = db.get_first_harvest_jobs_by_filter(
+        job = db.get_first_harvest_job_by_filter(
             {"harvest_source_id": source.id, "status": "complete"}
         )
         if job:
@@ -476,23 +476,22 @@ def view_harvest_source_data(source_id: str):
     source = db.get_harvest_source(source_id)
     records_count = db.get_harvest_records_by_source(
         count=True,
-        skip_pagination=True,
         source_id=source.id,
     )
     ckan_records_count = db.get_harvest_records_by_source(
         count=True,
-        skip_pagination=True,
         source_id=source.id,
-        facets=["ckan_id is not null"],
+        facets="ckan_id is not null",
     )
     error_records_count = db.get_harvest_records_by_source(
         count=True,
-        skip_pagination=True,
         source_id=source.id,
-        facets=["status = 'error'"],
+        facets="status = 'error'",
     )
-    # TODO: wire in paginated jobs query
-    jobs = db.get_all_harvest_jobs_by_filter({"harvest_source_id": source.id})
+    # TODO: wire in paginated jobs htmx refresh ui & route
+    jobs = db.pget_harvest_jobs(
+        paginate=False, facets=f"harvest_source_id = '{source.id}'"
+    )
     next_job = "N/A"
     future_jobs = db.get_new_harvest_jobs_by_source_in_future(source.id)
     if len(future_jobs):
@@ -539,7 +538,6 @@ def view_harvest_source_data(source_id: str):
     return render_template("view_source_data.html", data=data)
 
 
-@mod.route("/harvest_source/", methods=["GET"])
 @mod.route("/harvest_sources/", methods=["GET"])
 def view_harvest_sources():
     sources = db.get_all_harvest_sources()
@@ -641,7 +639,8 @@ def add_harvest_job():
 @mod.route("/harvest_job/<job_id>", methods=["GET"])
 def get_harvest_job(job_id=None):
     record_error_count = db.get_harvest_record_errors_by_job(
-        job_id, count=True, skip_pagination=True
+        job_id,
+        count=True,
     )
     htmx_vars = {
         "target_div": "#error_results_pagination",
@@ -775,18 +774,27 @@ def get_harvest_record(record_id):
 def get_harvest_records():
     job_id = request.args.get("harvest_job_id")
     source_id = request.args.get("harvest_source_id")
-    page = request.args.get("page")
+    facets = request.args.get("facets", default="")
+
     if job_id:
-        records = db.get_harvest_records_by_job(job_id, page)
-        if not records:
-            return "No harvest records found for this harvest job", 404
-    elif source_id:
-        records = db.get_harvest_records_by_source(source_id, page)
-        if not records:
-            return "No harvest records found for this harvest source", 404
+        facets += f", harvest_job_id = '{job_id}'"
+    if source_id:
+        facets += f", harvest_source_id = '{source_id}'"
+
+    records = db.pget_harvest_records(
+        page=request.args.get("page", type=convert_to_int),
+        per_page=request.args.get("per_page", type=convert_to_int),
+        paginate=request.args.get("paginate", type=is_it_true),
+        count=request.args.get("count", type=is_it_true),
+        facets=facets,
+    )
+
+    if not records:
+        return "No harvest records found for this query", 404
+    elif isinstance(records, int):
+        return f"{records} records found", 200
     else:
-        records = db.pget_harvest_records(page)
-    return db._to_dict(records)
+        return db._to_dict(records)
 
 
 @mod.route("/harvest_record/<record_id>/raw", methods=["GET"])
@@ -846,27 +854,6 @@ def get_data_sources():
     source = db.get_all_harvest_sources()
     org = db.get_all_organizations()
     return render_template("get_data_sources.html", sources=source, organizations=org)
-
-
-## Test interface, will remove later
-@mod.route("/delete_all_records", methods=["DELETE"])
-def delete_all_records():
-    db.delete_all_harvest_records()
-    return "All harvest records deleted"
-
-
-## Test interface, will remove later
-@mod.route("/add_harvest_job_error", methods=["POST"])
-def add_harvest_job_error():
-    db.add_harvest_job_error(request.json)
-    return "Added harvest job error"
-
-
-## Test interface, will remove later
-@mod.route("/add_harvest_record_error", methods=["POST"])
-def add_harvest_record_error():
-    err = db.add_harvest_record_error(request.json)
-    return db._to_dict(err)
 
 
 def register_routes(app):

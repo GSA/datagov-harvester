@@ -97,6 +97,7 @@ class HarvestJob(db.Model):
     records_deleted = db.Column(db.Integer)
     records_errored = db.Column(db.Integer)
     records_ignored = db.Column(db.Integer)
+    records_validated = db.Column(db.Integer)
     errors = db.relationship(
         "HarvestJobError", backref="job", cascade="all, delete-orphan", lazy=True
     )

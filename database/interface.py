@@ -4,9 +4,11 @@ import uuid
 from datetime import datetime, timezone
 from functools import wraps
 
-from sqlalchemy import create_engine, func, inspect, or_, select, text
+from sqlalchemy import create_engine, func, inspect, select, text
 from sqlalchemy.exc import NoResultFound
 from sqlalchemy.orm import scoped_session, sessionmaker
+
+from harvester.utils.general_utils import query_filter_builder
 
 from .models import (
     HarvestJob,
@@ -27,7 +29,7 @@ def paginate(fn):
     @wraps(fn)
     def _impl(self, *args, **kwargs):
         query = fn(self, *args, **kwargs)
-        if kwargs.get("skip_pagination") is True:
+        if kwargs.get("count") is True:
             return query
         elif kwargs.get("paginate") is False:
             return query.all()
@@ -203,9 +205,12 @@ class HarvesterDBInterface:
             return "Harvest source not found"
 
         records = (
-            self.db.query(HarvestRecord).filter(
-                    HarvestRecord.harvest_source_id==source_id,
-                    HarvestRecord.ckan_id.isnot(None)).all()
+            self.db.query(HarvestRecord)
+            .filter(
+                HarvestRecord.harvest_source_id == source_id,
+                HarvestRecord.ckan_id.isnot(None),
+            )
+            .all()
         )
 
         if len(records) == 0:
@@ -234,11 +239,7 @@ class HarvesterDBInterface:
     def get_harvest_job(self, job_id):
         return self.db.query(HarvestJob).filter_by(id=job_id).first()
 
-    def get_all_harvest_jobs_by_filter(self, filter):
-        harvest_jobs = self.db.query(HarvestJob).filter_by(**filter).all()
-        return [job for job in harvest_jobs or []]
-
-    def get_first_harvest_jobs_by_filter(self, filter):
+    def get_first_harvest_job_by_filter(self, filter):
         harvest_job = (
             self.db.query(HarvestJob)
             .filter_by(**filter)
@@ -246,6 +247,17 @@ class HarvesterDBInterface:
             .first()
         )
         return harvest_job
+
+    def get_harvest_jobs_by_source_id(self, source_id):
+        """used by follow-up job helper"""
+        harvest_jobs = (
+            self.db.query(HarvestJob)
+            .filter_by(harvest_source_id=source_id)
+            .order_by(HarvestJob.date_created.desc())
+            .limit(2)
+            .all()
+        )
+        return harvest_jobs
 
     def get_new_harvest_jobs_in_past(self):
         harvest_jobs = (
@@ -270,11 +282,6 @@ class HarvesterDBInterface:
         )
         return [job for job in harvest_jobs or []]
 
-    def get_harvest_jobs_by_faceted_filter(self, attr, values):
-        query_list = [getattr(HarvestJob, attr) == value for value in values]
-        harvest_jobs = self.db.query(HarvestJob).filter(or_(*query_list)).all()
-        return [job for job in harvest_jobs]
-
     def update_harvest_job(self, job_id, updates):
         try:
             job = self.db.get(HarvestJob, job_id)
@@ -295,7 +302,7 @@ class HarvesterDBInterface:
     def delete_harvest_job(self, job_id):
         job = self.db.get(HarvestJob, job_id)
         if job is None:
-            return "Harvest job not found"
+            return f"Harvest job {job_id} not found"
         self.db.delete(job)
         self.db.commit()
         return "Harvest job deleted successfully"
@@ -372,6 +379,7 @@ class HarvesterDBInterface:
             self.db.rollback()
             return None
 
+    # TODO: should we delete this if it's not used in code.
     def add_harvest_records(self, records_data: list) -> dict:
         """
         Add many records at once
@@ -398,12 +406,11 @@ class HarvesterDBInterface:
     def update_harvest_record(self, record_id, updates):
         try:
             source = self.db.get(HarvestRecord, record_id)
-
             for key, value in updates.items():
                 if hasattr(source, key):
                     setattr(source, key, value)
                 else:
-                    print(f"Warning: non-existing field '{key}' in HarvestRecord")
+                    logger.error(f"Non-existing field '{key}' in HarvestRecord")
 
             self.db.commit()
             return source
@@ -412,17 +419,19 @@ class HarvesterDBInterface:
             self.db.rollback()
             return None
 
-    def delete_harvest_record(self, ckan_id):
-        records = self.db.query(HarvestRecord).filter_by(ckan_id=ckan_id).all()
-        # Log if there are multiple records with the same ckan_id
-        if len(records) > 1:
-            logger.warning(f"Multiple records found with ckan_id={ckan_id}")
-        if records:
-            for record in records:
-                self.db.delete(record)
-            self.db.commit()
-            return True
-        return False
+    def delete_harvest_record(self, identifier):
+        records = self.db.query(HarvestRecord).filter_by(identifier=identifier).all()
+        if not records:
+            logger.warning(f"Harvest records with identifier {identifier} not found")
+            return
+        logger.info(
+            f"{len(records)} records with idenitifier {identifier}\
+                  found in datagov-harvest-db"
+        )
+        for record in records:
+            self.db.delete(record)
+        self.db.commit()
+        return "Harvest record deleted successfully"
 
     def get_harvest_record(self, record_id):
         return self.db.query(HarvestRecord).filter_by(id=record_id).first()
@@ -436,6 +445,23 @@ class HarvesterDBInterface:
                 WHERE status = 'success' AND harvest_source_id = '{source_id}'
                 ORDER BY identifier, date_created DESC ) sq
                 WHERE sq.action != 'delete';"""
+        )
+
+        res = self.db.execute(sql)
+
+        fields = list(res.keys())
+        records = res.fetchall()
+
+        return [dict(zip(fields, record)) for record in records]
+
+    def get_all_latest_harvest_records_by_source(self, source_id):
+        """used by follow-up job helper"""
+        # datetimes are returned as datetime objs not strs
+        sql = text(
+            f"""SELECT DISTINCT ON (identifier) *
+                FROM harvest_record
+                WHERE harvest_source_id = '{source_id}'
+                ORDER BY identifier, date_created DESC"""
         )
 
         res = self.db.execute(sql)
@@ -523,30 +549,35 @@ class HarvesterDBInterface:
     #### PAGINATED QUERIES ####
     @count
     @paginate
-    def pget_harvest_jobs(self, filter=text(""), **kwargs):
-        return self.db.query(HarvestJob).filter(filter)
+    def pget_harvest_jobs(self, facets="", **kwargs):
+        facet_string = query_filter_builder(None, facets)
+        return self.db.query(HarvestJob).filter(text(facet_string))
 
     @count
     @paginate
-    def pget_harvest_records(self, filter=text(""), **kwargs):
-        return self.db.query(HarvestRecord).filter(filter)
+    def pget_harvest_records(self, facets="", **kwargs):
+        facet_string = query_filter_builder(None, facets)
+        return self.db.query(HarvestRecord).filter(text(facet_string))
 
     @count
     @paginate
-    def pget_harvest_job_errors(self, filter=text(""), **kwargs):
-        return self.db.query(HarvestJobError).filter(filter)
+    def pget_harvest_job_errors(self, facets="", **kwargs):
+        facet_string = query_filter_builder(None, facets)
+        return self.db.query(HarvestJobError).filter(text(facet_string))
 
     @count
     @paginate
-    def pget_harvest_record_errors(self, filter=text(""), **kwargs):
-        return self.db.query(HarvestRecordError).filter(filter)
+    def pget_harvest_record_errors(self, facets="", **kwargs):
+        facet_string = query_filter_builder(None, facets)
+        return self.db.query(HarvestRecordError).filter(text(facet_string))
 
-    #### FACETED BUILDER QUERIES ####
-    def get_harvest_records_by_job(self, job_id, facets=[], **kwargs):
-        filter_string = " AND ".join([f"harvest_job_id = '{job_id}'"] + facets)
-        return self.pget_harvest_records(filter=text(filter_string), **kwargs)
+    #### FILTERED BUILDER QUERIES ####
+    def get_harvest_records_by_job(self, job_id, facets="", **kwargs):
+        facet_string = query_filter_builder(f"harvest_job_id = '{job_id}'", facets)
+        return self.pget_harvest_records(facets=facet_string, **kwargs)
 
-    def get_harvest_records_by_source(self, source_id, facets=[], **kwargs):
-        filter_string = " AND ".join([f"harvest_source_id = '{source_id}'"] 
-                        + ["action != 'delete'"]+ facets)
-        return self.pget_harvest_records(filter=text(filter_string), **kwargs)
+    def get_harvest_records_by_source(self, source_id, facets="", **kwargs):
+        facet_string = query_filter_builder(
+            f"harvest_source_id = '{source_id}'", facets
+        )
+        return self.pget_harvest_records(facets=facet_string, **kwargs)
