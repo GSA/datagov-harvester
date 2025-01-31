@@ -1,8 +1,11 @@
 import re
+import os
 
 from flask_wtf import FlaskForm
 from wtforms import SelectField, StringField, TextAreaField
 from wtforms.validators import URL, DataRequired, ValidationError
+
+is_prod = os.getenv("FLASK_ENV") == "production"
 
 
 def validate_email_list(form, field):
@@ -26,7 +29,7 @@ class HarvestSourceForm(FlaskForm):
         "Organization", choices=[], validators=[DataRequired()]
     )
     name = StringField("Name", validators=[DataRequired()])
-    url = StringField("URL", validators=[DataRequired(), URL()])
+    url = StringField("URL", validators=[DataRequired(), URL(require_tld=is_prod)])
     notification_emails = EmailListField(
         "Notification_emails", validators=[DataRequired(), validate_email_list]
     )
