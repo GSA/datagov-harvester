@@ -60,12 +60,15 @@ jobs:
         run: |
           sed -i '/<!-- Pytest Coverage Comment:Begin -->/,/<!-- Pytest Coverage Comment:End -->/c\<!-- Pytest Coverage Comment:Begin -->\n\${{ steps.coverageComment.outputs.coverageHtml }}\n<!-- Pytest Coverage Comment:End -->' ./README.md
 
-      - name: Commit & Push changes to Readme
+      - name: Create Pull Request
         if: ${{ github.ref == 'refs/heads/main' }}
-        uses: actions-js/push@master
+        uses: peter-evans/create-pull-request@v7
         with:
-          message: Update coverage on Readme
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: Update coverage report
+          title: 'Update coverage report'
+          branch: github-bot-coverage-report-update
+          delete-branch: true
+          sign-commits: true
 
   deploy-development:
     if: github.ref == 'refs/heads/develop'
