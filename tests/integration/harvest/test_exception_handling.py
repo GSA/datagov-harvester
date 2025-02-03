@@ -53,7 +53,7 @@ class TestHarvestJobExceptionHandling:
         harvest_source.internal_records_to_id_hash.side_effect = Exception("Broken")
 
         with pytest.raises(ExtractInternalException) as e:
-            harvest_source.get_record_changes()
+            harvest_source.extract()
 
         assert harvest_job.status == "error"
 
@@ -83,26 +83,15 @@ class TestHarvestRecordExceptionHandling:
         interface.add_harvest_record(single_internal_record)
 
         harvest_source = HarvestSource(harvest_job.id)
-        harvest_source.get_record_changes()
-        harvest_source.write_compare_to_db()
-        harvest_source.synchronize_records()
+        harvest_source.extract()
+        harvest_source.compare()
+        harvest_source.sync()
 
-        interface_record = interface.get_harvest_record(
-            harvest_source.internal_records_lookup_table[
-                single_internal_record["identifier"]
-            ]
-        )
+        interface_record = interface.get_harvest_record(harvest_source.records[0].id)
         interface_errors = interface.get_harvest_record_errors_by_record(
-            harvest_source.internal_records_lookup_table[
-                single_internal_record["identifier"]
-            ]
+            harvest_source.records[0].id
         )
-        assert (
-            interface_record.id
-            == harvest_source.internal_records_lookup_table[
-                single_internal_record["identifier"]
-            ]
-        )
+        assert interface_record.id == harvest_source.records[0].id
         assert interface_record.status == "error"
         assert interface_errors[0].type == "SynchronizeException"
 
@@ -118,21 +107,16 @@ class TestHarvestRecordExceptionHandling:
         harvest_job = interface.add_harvest_job(job_data_dcatus_invalid)
 
         harvest_source = HarvestSource(harvest_job.id)
-        harvest_source.get_record_changes()
-        harvest_source.write_compare_to_db()
-        harvest_source.synchronize_records()
-        test_record = harvest_source.external_records["null-spatial"]
+        harvest_source.extract()
+        harvest_source.compare()
+        harvest_source.validate()
+        test_record = [
+            x for x in harvest_source.records if x.identifier == "null-spatial"
+        ][0]
 
-        interface_record = interface.get_harvest_record(
-            harvest_source.internal_records_lookup_table[test_record.identifier]
-        )
-        interface_errors = interface.get_harvest_record_errors_by_record(
-            harvest_source.internal_records_lookup_table[test_record.identifier]
-        )
-        assert (
-            interface_record.id
-            == harvest_source.internal_records_lookup_table[test_record.identifier]
-        )
+        interface_record = interface.get_harvest_record(test_record.id)
+        interface_errors = interface.get_harvest_record_errors_by_record(test_record.id)
+        assert interface_record.id == interface_errors[0].harvest_record_id
         assert interface_record.status == "error"
         assert interface_errors[0].type == "ValidationException"
 
@@ -150,24 +134,19 @@ class TestHarvestRecordExceptionHandling:
         harvest_job = interface.add_harvest_job(job_data_dcatus)
 
         harvest_source = HarvestSource(harvest_job.id)
-        harvest_source.get_record_changes()
-        harvest_source.write_compare_to_db()
-        harvest_source.synchronize_records()
+        harvest_source.extract()
+        harvest_source.compare()
+        harvest_source.sync()
 
-        test_record = harvest_source.external_records["cftc-dc1"]
+        test_record = [x for x in harvest_source.records if x.identifier == "cftc-dc1"][
+            0
+        ]
 
-        interface_record = interface.get_harvest_record(
-            harvest_source.internal_records_lookup_table[test_record.identifier]
-        )
-        interface_errors = interface.get_harvest_record_errors_by_record(
-            harvest_source.internal_records_lookup_table[test_record.identifier]
-        )
+        interface_record = interface.get_harvest_record(test_record.id)
+        interface_errors = interface.get_harvest_record_errors_by_record(test_record.id)
 
-        assert ckanify_dcatus_mock.call_count == len(harvest_source.external_records)
-        assert (
-            interface_record.id
-            == harvest_source.internal_records_lookup_table[test_record.identifier]
-        )
+        assert ckanify_dcatus_mock.call_count == len(harvest_source.records)
+        assert interface_record.id == test_record.id
         assert interface_record.status == "error"
         assert interface_errors[0].type == "DCATUSToCKANException"
 
@@ -185,24 +164,19 @@ class TestHarvestRecordExceptionHandling:
         harvest_job = interface.add_harvest_job(job_data_dcatus)
 
         harvest_source = HarvestSource(harvest_job.id)
-        harvest_source.get_record_changes()
-        harvest_source.write_compare_to_db()
-        harvest_source.synchronize_records()
+        harvest_source.extract()
+        harvest_source.compare()
+        harvest_source.sync()
 
-        test_record = harvest_source.external_records["cftc-dc1"]
+        test_record = [x for x in harvest_source.records if x.identifier == "cftc-dc1"][
+            0
+        ]
 
-        interface_record = interface.get_harvest_record(
-            harvest_source.internal_records_lookup_table[test_record.identifier]
-        )
+        interface_record = interface.get_harvest_record(test_record.id)
 
-        interface_errors = interface.get_harvest_record_errors_by_record(
-            harvest_source.internal_records_lookup_table[test_record.identifier]
-        )
+        interface_errors = interface.get_harvest_record_errors_by_record(test_record.id)
 
-        assert (
-            interface_record.id
-            == harvest_source.internal_records_lookup_table[test_record.identifier]
-        )
+        assert interface_record.id == test_record.id
         assert interface_record.status == "error"
         assert interface_errors[0].type == "SynchronizeException"
 
@@ -235,10 +209,10 @@ class TestHarvestRecordExceptionHandling:
         )
         job_id = harvest_job.id
         harvest_source = HarvestSource(job_id)
-        harvest_source.get_record_changes()
-        harvest_source.write_compare_to_db()
-        harvest_source.synchronize_records()
-        harvest_source.report()
+        harvest_source.extract()
+        harvest_source.compare()
+        harvest_source.sync()
+        harvest_source.do_report()
 
         harvest_records = interface.get_harvest_records_by_job(job_id)
         records_with_errors = [

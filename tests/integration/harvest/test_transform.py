@@ -17,11 +17,12 @@ class TestTransform:
         harvest_job = interface.add_harvest_job(job_data_waf_iso19115_2)
 
         harvest_source = HarvestSource(harvest_job.id)
-        harvest_source.get_record_changes()
-        harvest_source.write_compare_to_db()
+        harvest_source.extract()
+        harvest_source.compare()
 
-        name = "http://localhost:80/iso_2_waf/invalid_47662.xml"
-        test_record = harvest_source.external_records[name]
+        for record in harvest_source.records:
+            if record.identifier == "http://localhost:80/iso_2_waf/invalid_47662.xml":
+                test_record = record
 
         # ruff: noqa: F841
         with pytest.raises(TransformationException) as e:
@@ -63,8 +64,7 @@ class TestTransform:
         harvest_job = interface.add_harvest_job(job_data_waf_iso19115_2)
 
         harvest_source = HarvestSource(harvest_job.id)
-        harvest_source.get_record_changes()
-        harvest_source.write_compare_to_db()
+        harvest_source.prepare_external_data()
 
         name = "http://localhost:80/iso_2_waf/valid_47598.xml"
         test_record = harvest_source.external_records[name]

@@ -1,18 +1,36 @@
 # datagov-harvester
 
-This repository holds the source code the Data.gov Harvester 2.0, which consiste of two applications:
+This repository holds the source code the Data.gov Harvester 2.0, which consists of two applications:
+
 - [datagov-harvest-admin](#datagov-harvest-admin)
 - [datagov-harvest-runner](#datagov-harvest-runner)
 
+## Coverage
+
+<!-- Pytest Coverage Comment:Begin -->
+<!-- Pytest Coverage Comment:End -->
+
+## Documentation
+
+Current sequence diagrams are availale in the the `/docs/diagrams/dest` folder.
+
+Documentation for the Harvseter 2.0 project is found in Google Drive: [Harvester 2.0 folder](https://drive.google.com/drive/folders/11mhCBb9vWxrTHV_s_S4pZhhI2fGHmxrq)
+
+Historic documentation can be found in the `Archive` [folder](https://drive.google.com/drive/folders/1DG1oxSCoeru2-bbmSfcBnIiCZUg-N1Az), along with historic diagrams [here](https://drive.google.com/drive/folders/1GJZYVVMubGG54d5yCZY9zoea3xjZ9HNI)
+
+Application specific documentation [below](#applications).
+
 ## Setup
 
-This project is using `poetry` to manage this project. Install [here](https://python-poetry.org/docs/#installation).
+This project is using `poetry` to manage this project. Install poetry [here](https://python-poetry.org/docs/#installation).
 
 Once installed, `poetry install` installs dependencies into a local virtual environment.
 
 We use [Ruff](https://github.com/astral-sh/ruff) to format and lint our Python files. If you use VS Code, you can install the formatter [here](https://marketplace.visualstudio.com/items?itemName=charliermarsh.ruff).
 
-### Local development
+This repo contains pre-commit actions. Learn how to configure your IDE to run those [here](https://pre-commit.com/)
+
+## Local development
 
 Set these environment variables in your shell:
 
@@ -24,7 +42,9 @@ CF_SERVICE_* variables can be extracted from from service-keys by running `cf se
 
 CKAN_API_TOKEN should be extracted from `cf env datagov-harvest-runner` in the `user-provided` service `datagov-harvest-secrets` with the same key name.
 
-#### Flask Debugging
+### Flask Debugging
+If absolutely need to hit a breakpoint in your Flask app, you can setup local Flask debugging in your IDE.
+
 *NOTE: To use the VS-Code debugger, you will first need to sacrifice the reloading support for flask*
 
 1. Build new containers with development requirements by running `make build-dev`
@@ -37,15 +57,37 @@ CKAN_API_TOKEN should be extracted from `cf env datagov-harvest-runner` in the `
 
 5. Visit the site at `http://localhost:8080` and invoke the route which contains the code you've set the breakpoint on.
 
+### Local Flask to CKAN workflow
+You can configure a local instance of the Flask application to push datasets to a local CKAN instance. This dramatically cuts development time and is a huge increase to efficiency.
+
+!NOTE: Currenly this process is not user-friendly but is expected to be improved in the future.
+
+To setup:
+
+  1. Launch a local instance of the datagov-harvest-admin app,
+    a. Create an organization, and grab the org id
+    b. Create a harvest source with a valid harvest url
+    c. This [test source](https://raw.githubusercontent.com/GSA/catalog.data.gov/refs/heads/main/tests/harvest-sources/data.json) is a good one to use to test integration
+  2. Launch a local instance of catalog.data.gov, aka CKAN
+  3. Login to CKAN as admin and generate an API token. Copy that token.
+  4. Install ckanapi via pip so that it's available in your local shell, `pip install python`
+  5. use ckanapi to create an organization with same id as the organization in flask app, ex.
+    `ckanapi action organization_create -r http://localhost:5000 name=test-org id=5cf8d5a1-12be-4300-a249-20ca584681cf`
+  6. Get internal IP for your machine.
+    a. On Mac's this can be derived by running `ifconfig | grep inet` and grabbing the first `192.168.xxx.xxx` address you find.
+  7. Add two new values to the local `.env` file:
+    ```
+      CKAN_API_URL=`ip-address-from-step-4a`:5000
+      CKAN_API_TOKEN=`api-token-from-step-3`:5000
+    ```
+  8. Restart datagov-harvest-admin, `make up`
+  9. GoTo your previously configured harvest source
+  10. Click "Harvest" button. This will fail.
+  11. `docker exec` into local datagov-harvest-admin and run same job command from Step 8.
+    a. this is usually `python harvester/harvest.py {job_id} {job_type}`
+  12. You should now see successful harvest of your datasets 🎉
+
 ## Testing
-
-### CKAN load testing
-
-- CKAN load testing doesn't require the services provided in the `docker-compose.yml`.
-- [catalog-dev](https://catalog-dev.data.gov/) is used for ckan load testing.
-- Create an api-key by signing into catalog-dev.
-- Create a `credentials.py` file at the root of the project containing the variable `ckan_catalog_dev_api_key` assigned to the api-key.
-- Run tests with the command `poetry run pytest ./tests/load/ckan`
 
 ### Harvester testing
 
@@ -57,28 +99,6 @@ If you followed the instructions for `CKAN load testing` and `Harvester testing`
 - to run integration tests locally add the following env variables to your .env file in addition to their appropriate values
   - CF_SERVICE_USER = "put username here"
   - CF_SERVICE_AUTH = "put password here"
-
-## Apps
-### datagov-harvest-admin
-This is a Flask app which manages the configuration of harvest sources, organizations, and the creation of harvest jobs.
-
-
-### datagov-harvest-runner
-This is a python application, chiefy comprised of files in the `harvester` directory.
-
-#### Features
-
-- Extract
-  - General purpose fetching and downloading of web resources.
-  - Catered extraction to the following data formats:
-    - DCAT-US
-- Validation
-  - DCAT-US
-    - `jsonschema` validation using draft 2020-12.
-- Load
-  - DCAT-US
-    - Conversion of dcat-us catalog into ckan dataset schema
-    - Create, delete, update, and patch of ckan package/dataset
 
 ## Deployment to cloud.gov
 
@@ -111,24 +131,6 @@ A user provided service by the name of `datagov-harvest-secrets` is also expecte
 - FLASK_APP_SECRET_KEY
 - OPENID_PRIVATE_KEY
 
-### Commands
-
-#### database migrations
-
-When there are database DDL changes, use following to do the database update:
-
-    ```bash
-    cf run-task harvesting-logic --command "flask db upgrade" --name database-upgrade
-    ```
-
-#### user management
-
-`cf run-task datagov-harvest-admin --name "add new user" --command "flask user add xxx@gsa.gov --name xxx"`
-
-#### add organizations
-
-`cf run-task datagov-harvest-admin --name "add new org" --command "flask org add 'Name of Org' --log https://some-url.png --id 1234"`
-
 ### Manually Deploying the Flask Application to development
 
 1. Ensure you have a `manifest.yml` and `vars.development.yml` file configured for your Flask application. The vars file may include variables:
@@ -145,3 +147,45 @@ When there are database DDL changes, use following to do the database update:
    poetry export -f requirements.txt --output requirements.txt --without-hashes
    cf push --vars-file vars.development.yml
    ```
+
+## Applications
+
+### datagov-harvest-admin
+This is a Flask app which manages the configuration of harvest sources, organizations, and the creation of harvest jobs.
+
+### datagov-harvest-runner
+This is a python application, chiefy comprised of files in the `harvester` directory.
+
+#### Features
+- Extract
+  - General purpose fetching and downloading of web resources.
+  - Catered extraction to the following data formats:
+    - DCAT-US
+- Validation
+  - DCAT-US
+    - `jsonschema` validation using draft 2020-12.
+- Load
+  - DCAT-US
+    - Conversion of dcat-us catalog into ckan dataset schema
+    - Create, delete, update, and patch of ckan package/dataset
+- Report
+  - Update harvest job db record with job results
+  - Email results using SMTP client
+
+### Flask Commands
+
+#### database migrations
+
+When there are database DDL changes, use following to do the database update:
+
+    ```bash
+    cf run-task datagov-harvest-admin --command "flask db upgrade" --name database-upgrade
+    ```
+
+#### user management
+
+`cf run-task datagov-harvest-admin --name "add new user" --command "flask user add xxx@gsa.gov --name xxx"`
+
+#### add organizations
+
+`cf run-task datagov-harvest-admin --name "add new org" --command "flask org add 'Name of Org' --log https://some-url.png --id 1234"`

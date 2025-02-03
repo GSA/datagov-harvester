@@ -20,4 +20,4 @@ harvest_source = HarvestSource(title, url, owner_org, source_type)
 
 harvest_source.get_record_changes()
 harvest_source.synchronize_records()
-harvest_source.report()
+harvest_source.do_report()

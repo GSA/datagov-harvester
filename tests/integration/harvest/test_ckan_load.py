@@ -1,3 +1,4 @@
+from itertools import groupby
 from unittest.mock import patch
 
 from deepdiff import DeepDiff
@@ -29,50 +30,63 @@ class TestCKANLoad:
         interface,
         internal_compare_data,
     ):
-        # add the necessary records to satisfy FKs
         interface.add_organization(organization_data)
         interface.add_harvest_source(source_data_dcatus)
         interface.add_harvest_job(job_data_dcatus)
+
+        job_id = job_data_dcatus["id"]
+        source_id = source_data_dcatus["id"]
 
         # prefill with records
         for record in internal_compare_data["records"]:
             data = {
                 "identifier": record["identifier"],
-                "harvest_job_id": internal_compare_data["job_id"],
-                "harvest_source_id": internal_compare_data["harvest_source_id"],
+                "harvest_job_id": job_id,
+                "harvest_source_id": source_id,
                 "source_hash": dataset_to_hash(sort_dataset(record)),
                 "status": "success",
                 "action": "create",
             }
             interface.add_harvest_record(data)
 
-        harvest_source = HarvestSource(internal_compare_data["job_id"])
-        harvest_source.get_record_changes()
-        harvest_source.write_compare_to_db()
-        harvest_source.synchronize_records()
+        harvest_source = HarvestSource(job_id)
+        harvest_source.extract()
+        harvest_source.compare()
+        harvest_source.transform()
+        harvest_source.validate()
+        harvest_source.sync()
+        harvest_source.do_report()
 
-        created = sum(
-            r.action == "create" for rid, r in harvest_source.external_records.items()
-        )
-        updated = sum(
-            r.action == "update" for rid, r in harvest_source.external_records.items()
-        )
+        results = {
+            "action": {"create": 0, "update": 0, "delete": 0, None: 0},
+            "status": {"success": 0, "error": 0, None: 0},
+            "validity": {True: 0, False: 0},
+        }
+        for key, group in groupby(
+            harvest_source.records, lambda x: x.action if x.status != "error" else None
+        ):
+            results["action"][key] = sum(1 for _ in group)
 
-        deleted = sum(
-            r.action == "delete" for rid, r in harvest_source.external_records.items()
-        )
-        succeeded = sum(
-            r.status == "success" for rid, r in harvest_source.external_records.items()
-        )
-        errored = sum(
-            r.action == "error" for rid, r in harvest_source.external_records.items()
-        )
+        for key, group in groupby(harvest_source.records, lambda x: x.status):
+            results["status"][key] = sum(1 for _ in group)
 
-        assert created == 6
-        assert updated == 1
-        assert deleted == 1
-        assert succeeded == 7
-        assert errored == 0
+        assert results["action"]["create"] == 6
+        assert harvest_source.report["records_added"] == 6
+
+        assert results["action"]["update"] == 1
+        assert harvest_source.report["records_updated"] == 1
+
+        assert results["action"]["delete"] == 1
+        assert harvest_source.report["records_deleted"] == 1
+
+        assert results["status"]["error"] == 0
+        assert harvest_source.report["records_errored"] == 0
+
+        # NOTE: we don't report this status, but it is not in sync b/c deletes aren't counted correctly
+        assert results["status"]["success"] == 7
+        assert (
+            len(harvest_source.records) - harvest_source.report["records_errored"] == 8
+        )
 
     def test_ckanify_dcatus(
         self,
@@ -88,7 +102,7 @@ class TestCKANLoad:
         harvest_source = HarvestSource(harvest_job.id)
         harvest_source.prepare_external_data()
 
-        records = [
+        record = [
             (
                 {
                     "identifier": "cftc-dc1",
@@ -97,10 +111,12 @@ class TestCKANLoad:
                 }
             )
         ]
-        interface.add_harvest_records(records)
-        harvest_source.get_record_changes()
-        harvest_source.write_compare_to_db()
-        record_id = harvest_source.internal_records_lookup_table["cftc-dc1"]
+        interface.add_harvest_records(record)
+        harvest_source.extract()
+        harvest_source.compare()
+        test_record = [x for x in harvest_source.records if x.identifier == "cftc-dc1"][
+            0
+        ]
 
         expected_result = {
             "name": "commitment-of-traders",
@@ -124,7 +140,7 @@ class TestCKANLoad:
             ],
             "extras": [
                 {"key": "resource-type", "value": "Dataset"},
-                {"key": "harvest_object_id", "value": record_id},
+                {"key": "harvest_object_id", "value": test_record.id},
                 {"key": "source_datajson_identifier", "value": True},
                 {
                     "key": "harvest_source_id",
@@ -144,18 +160,9 @@ class TestCKANLoad:
                     "key": "publisher",
                     "value": "U.S. Commodity Futures Trading Commission",
                 },
-                # {
-                #     "key": "dcat_metadata",
-                #     "value": "{'accessLevel': 'public', 'bureauCode': ['339:00'], 'contactPoint': {'fn': 'Harold W. Hild', 'hasEmail': 'mailto:hhild@CFTC.GOV'}, 'describedBy': 'https://www.cftc.gov/MarketReports/CommitmentsofTraders/ExplanatoryNotes/index.htm', 'description': \"COT reports provide a breakdown of each Tuesday's open interest for futures and options on futures market in which 20 or more traders hold positions equal to or above the reporting levels established by CFTC\", 'distribution': [{'accessURL': 'https://www.cftc.gov/MarketReports/CommitmentsofTraders/index.htm'}], 'identifier': 'cftc-dc1', 'keyword': ['commitment of traders', 'cot', 'open interest'], 'modified': 'R/P1W', 'programCode': ['000:000'], 'publisher': {'name': 'U.S. Commodity Futures Trading Commission', 'subOrganizationOf': {'name': 'U.S. Government'}}, 'title': 'Commitment of Traders'}",
-                # },
-                # {"key": "harvest_source_name", "value": "test_harvest_source_name"},
                 {"key": "identifier", "value": "cftc-dc1"},
             ],
         }
 
-        test_record = harvest_source.external_records["cftc-dc1"]
         test_record.ckanify_dcatus()
         assert DeepDiff(test_record.ckanified_metadata, expected_result) == {}
-
-
-#     # TODO: add sort test

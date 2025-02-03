@@ -1,0 +1,110 @@
+{
+    "@context": "https://project-open-data.cio.gov/v1.1/schema/catalog.jsonld",
+    "@id": "http://www.cftc.gov/data.json",
+    "@type": "dcat:Catalog",
+    "conformsTo": "https://project-open-data.cio.gov/v1.1/schema",
+    "describedBy": "https://project-open-data.cio.gov/v1.1/schema/catalog.json",
+    "dataset": [
+        {
+            "contactPoint": {
+                "fn": "Harold W. Hild",
+                "hasEmail": "mailto:hhild@CFTC.GOV"
+            },
+            "describedBy": "https://www.cftc.gov/MarketReports/CommitmentsofTraders/ExplanatoryNotes/index.htm",
+            "description": "COT reports provide a breakdown of each Tuesday's open interest for futures and options on futures market in which 20 or more traders hold positions equal to or above the reporting levels established by CFTC",
+            "distribution": [
+                {
+                    "accessURL": "https://www.cftc.gov/MarketReports/CommitmentsofTraders/index.htm"
+                }
+            ],
+            "modified": "R/P1W",
+            "programCode": [
+                "000:000"
+            ],
+            "publisher": {
+                "name": "U.S. Commodity Futures Trading Commission",
+                "subOrganizationOf": {
+                    "name": "U.S. Government"
+                }
+            },
+            "title": "Commitment of Traders",
+            "accessLevel": "public",
+            "bureauCode": [
+                "339:00"
+            ],
+            "identifier": "cftc-dc1",
+            "keyword": [
+                "commitment of traders",
+                "cot",
+                "open interest"
+            ]
+        },
+        {
+            "accessLevel": "public",
+            "bureauCode": [
+                "339:00"
+            ],
+            "contactPoint": {
+                "fn": "Harold W. Hild",
+                "hasEmail": "mailto:hhild@CFTC.GOV"
+            },
+            "describedBy": "https://www.cftc.gov/MarketReports/BankParticipationReports/ExplanatoryNotes/index.htm",
+            "description": "The Bank Participation Report (BPR), developed by the Division of Market Oversight to provide the U.S. banking authorities and the Bank for International Settlements (BIS, located in Basel, Switzerland) aggregate large-trader positions of banks participating in various financial and non-financial commodity futures.",
+            "distribution": [
+                {
+                    "accessURL": "https://www.cftc.gov/MarketReports/BankParticipationReports/index.htm"
+                }
+            ],
+            "identifier": "cftc-dc2",
+            "keyword": [
+                "bank participation report",
+                "bpr",
+                "banking"
+            ],
+            "modified": "R/P1M",
+            "programCode": [
+                "000:000"
+            ],
+            "publisher": {
+                "name": "U.S. Commodity Futures Trading Commission",
+                "subOrganizationOf": {
+                    "name": "U.S. Government"
+                }
+            },
+            "title": "Bank Participation Reports"
+        },
+        {
+            "accessLevel": "public",
+            "bureauCode": [
+                "339:00"
+            ],
+            "contactPoint": {
+                "fn": "Harold W. Hild",
+                "hasEmail": "mailto:hhild@CFTC.gov"
+            },
+            "describedBy": "https://www.cftc.gov/MarketReports/CottonOnCall/index.htm",
+            "description": "Cotton On-Call Report shows the quantity of call cotton bought or sold on which the price has not been fixed, together with the respective futures on which the purchase or sale is based on.",
+            "distribution": [
+                {
+                    "accessURL": "https://www.cftc.gov/MarketReports/CottonOnCall/index.htm"
+                }
+            ],
+            "identifier": "cftc-dc3",
+            "keyword": [
+                "cotton on call",
+                "cotton on-call"
+            ],
+            "modified": "R/P1W",
+            "programCode": [
+                "000:000"
+            ],
+            "publisher": {
+                "name": "U.S. Commodity Futures Trading Commission",
+                "subOrganizationOf": {
+                    "name": "U.S. Government"
+                }
+            },
+            "title": "Cotton On Call"
+        }
+    ]
+}
