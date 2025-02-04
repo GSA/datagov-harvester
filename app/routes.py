@@ -749,18 +749,30 @@ def download_harvest_errors_by_job(job_id, error_type):
                     ]
                 ]
             case "record":
-                errors = db._to_list(
-                    db.get_harvest_record_errors_by_job(
+                errors = [
+                    [
+                        error.id,
+                        identifier,
+                        json.loads(source_raw).get("title", None) if source_raw else None,
+                        error.harvest_record_id,
+                        error.type,
+                        error.message,
+                        error.date_created
+
+                    ]
+                    for error, identifier, source_raw in db.get_harvest_record_errors_by_job(
                         job_id, skip_pagination=True
-                    ).all()
-                )
+                    )
+                ]
                 header = [
                     [
+                        "record_error_id",
+                        "identifier",
+                        "title",
                         "harvest_record_id",
-                        "date_created",
                         "record_error_type",
                         "message",
-                        "record_error_id",
+                        "date_created"
                     ]
                 ]
 

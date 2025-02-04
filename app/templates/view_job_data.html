@@ -79,11 +79,14 @@
         {% if not data.record_errors %}
             <p>No record errors found</p>
         {% else %}
-        <button id="toggleViewBtn" onclick="toggleView()">Switch to Table View</button>
+        {% set error_type = "record" %}
+        <a href="{{ url_for('harvest.download_harvest_errors_by_job', job_id=data.harvest_job_id, error_type=error_type)}}">
+            <button class="btn btn-primary">download record errors as .csv</button>
+        </a>
         <div class="usa-table-container--scrollable" tabindex="0">
             {% block record_errors_table %}
             <div id="error_results_pagination">
-                <div id="blockView" class="error-list">
+                <div class="error-list">
                     {% for record_error in data.record_errors %}
                         <div class="error-block">
                             <h3>{{ record_error.error.id }}</h3>
@@ -97,96 +100,12 @@
                             <p><strong>Error Message:</strong> {{ record_error.error.message }}</p>
                             <p><strong>Type:</strong> {{ record_error.error.type }}</p>
                             <p><strong>Date Created:</strong> {{ record_error.error.date_created }}</p>
-
                         </div>
                     {% endfor %}
                 </div>
-                <table id="tableView" class="usa-table usa-table--striped" style="display: none;">
-                    {% set error_type = "record" %}
-                    <a href="{{ url_for('harvest.download_harvest_errors_by_job', job_id=data.harvest_job_id, error_type=error_type)}}">
-                        <button class="btn btn-primary">download record errors as .csv</button>
-                    </a>
-                    <caption> Harvest Record Errors for {{data.harvest_job_id}}</caption>
-                    <thead>
-                        <tr>
-                            <th data-sortable scope="col" role="columnheader">Date Created</th>
-                            <th data-sortable scope="col" role="columnheader">ID</th>
-                            <th data-sortable scope="col" role="columnheader">Title</th>
-                            <th data-sortable scope="col" role="columnheader">Identifier</th>
-                            <th data-sortable scope="col" role="columnheader">Harvest Record Id</th>
-                            <th data-sortable scope="col" role="columnheader">Message</th>
-                            <th data-sortable scope="col" role="columnheader">Type</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for record_error in data.record_errors %}
-                        <tr>
-                            <td data-sort-value="{{ record_error.error.date_created }}"> {{ record_error.error.date_created }}</td>
-                            <td>{{ record_error.error.id }}</td>
-                            <td>{{ record_error.title }}</td>
-                            <td>{{ record_error.identifier }}</td>
-                            <td data-sort-value="{{ record_error.error.harvest_record_id }}">
-                                <a href="{{ url_for('harvest.get_harvest_record', record_id=record_error.error.harvest_record_id) }}">
-                                    {{ record_error.error.harvest_record_id }}
-                                </a>
-                            </td>
-                            <td data-sort-value="{{ record_error.error.message }}"> {{ record_error.error.message }}</td>
-                            <td data-sort-value="{{ record_error.error.type }}"> {{ record_error.error.type }}</td>
-                        </tr>
-                        {% endfor %}
-                        {% if pagination.per_page > data.record_errors|count and pagination.count > data.record_errors|count %}
-                            {% for number in range(pagination.per_page - data.record_errors|count) %}
-                            <tr>
-                                {% for number in range(5) %}
-                                    <td>&nbsp;</td>
-                                {% endfor %}
-                            </tr>
-                            {% endfor %}
-                        {% endif %}
-                    </tbody>
-                </table>
                 {% if pagination.count > data.record_errors|count %}
                     {% include '/components/pagination/pagination.html' %}
                 {%endif%}
-                <script>
-                    document.addEventListener("DOMContentLoaded", function() {
-                        setTimeout(function() {
-                            let savedView = localStorage.getItem("errorView");
-                            console.log("Applying saved view:", savedView);
-                            if (!savedView) {
-                                localStorage.setItem("errorView", "block");
-                            }
-                            applyView(savedView || "block");
-                        }, 100);
-                    });
-
-                    function toggleView() {
-                        var currentView = localStorage.getItem("errorView") === "table" ? "block" : "table";
-                        localStorage.setItem("errorView", currentView);
-                        console.log("View changed to:", currentView);
-                        applyView(currentView);
-                    }
-
-                    function applyView(view) {
-                        console.log("Applying view:", view);
-
-                        var blockView = document.getElementById("blockView");
-                        var tableView = document.getElementById("tableView");
-                        var toggleBtn = document.getElementById("toggleViewBtn");
-
-                        if (view === "table") {
-                            blockView.style.display = "none";
-                            tableView.style.display = "block";
-                            toggleBtn.textContent = "Switch to Block View";
-                        } else {
-                            blockView.style.display = "block";
-                            tableView.style.display = "none";
-                            toggleBtn.textContent = "Switch to Table View";
-                        }
-                    }
-                </script>
-                
-
                 <style>
                     .error-list {
                         display: flex;
