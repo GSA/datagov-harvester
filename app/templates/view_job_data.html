@@ -106,36 +106,6 @@
                 {% if pagination.count > data.record_errors|count %}
                     {% include '/components/pagination/pagination.html' %}
                 {%endif%}
-                <style>
-                    .error-list {
-                        display: flex;
-                        flex-direction: column;
-                        gap: 15px;
-                    }
-                    .error-block {
-                        border: 1px solid #ccc;
-                        padding: 15px;
-                        border-radius: 5px;
-                        background-color: #f9f9f9;
-                    }
-                    .error-block h3 {
-                        margin: 0;
-                        font-size: 1.2em;
-                        font-weight: 900;
-                    }
-                    .error-block p {
-                        margin: 5px 0;
-                        font-size: 1em;
-                        text-indent: 20px;
-                    }
-                    .error-block a {
-                        color: #0071bc;
-                        text-decoration: none;
-                    }
-                    .error-block a:hover {
-                        text-decoration: underline;
-                    }
-                </style>
             </div>
 
             {% endblock %}
