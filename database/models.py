@@ -70,7 +70,14 @@ class HarvestSource(db.Model):
     jobs = db.relationship(
         "HarvestJob", backref="source", cascade="all, delete-orphan", lazy=True
     )
-
+    notification_frequency = db.Column(
+        db.Enum(
+            "on_error",
+            "always",
+            name="notification_frequency",
+        ),
+        nullable=False,
+    )
 
 class HarvestJob(db.Model):
     __tablename__ = "harvest_job"

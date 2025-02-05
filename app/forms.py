@@ -52,6 +52,14 @@ class HarvestSourceForm(FlaskForm):
     source_type = SelectField(
         "Source Type", choices=["document", "waf"], validators=[DataRequired()]
     )
+    notification_frequency = SelectField(
+        "Notification Frequency",
+        choices=[
+            "on_error",
+            "always",
+        ],
+        validators=[DataRequired()],
+    )
 
 
 class OrganizationForm(FlaskForm):
