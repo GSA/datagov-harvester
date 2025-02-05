@@ -74,6 +74,7 @@ class HarvestSource:
             "source_type",
             "id",  # db guuid
             "notification_emails",
+            "notification_frequency",
         ],
         repr=False,
     )
@@ -418,7 +419,10 @@ class HarvestSource:
         self._report = job_status
 
         if hasattr(self, "notification_emails") and self.notification_emails:
-            self.send_notification_emails(results)
+            if self.notification_frequency == "always" or (
+                self.notification_frequency == "on_error" and results["status"]["error"]
+            ):
+                self.send_notification_emails(results)
 
     def send_notification_emails(self, results: dict) -> None:
         """Send harvest report emails to havest source POCs"""
