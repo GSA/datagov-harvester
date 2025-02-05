@@ -198,7 +198,7 @@ def source_data_dcatus_single_record(organization_data: dict) -> dict:
         "url": f"{HARVEST_SOURCE_URL}/dcatus/dcatus_single_record.json",
         "schema_type": "dcatus1.1: federal",
         "source_type": "document",
-        "notification_frequency": "always",
+        "notification_frequency": "on_error",
     }
 
 
