@@ -1,0 +1,50 @@
+
+<svg
+    xmlns="http://www.w3.org/2000/svg"
+    xmlns:xlink="http://www.w3.org/1999/xlink"
+    width="85.0"
+    height="20"
+    role="img"
+    aria-label="coverage: 8%"
+>
+    <style>
+        rect {
+            height: 20px;
+        }
+
+        text {
+            text-rendering: geometricPrecision;
+            dominant-baseline: middle;
+            text-anchor: middle;
+            font-family: Verdana,Geneva,DejaVu Sans,sans-serif;
+            font-size: 11.4px;
+            fill: #fff;
+        }
+
+        .shadow {
+            transform: translate(1px, 1px);
+            fill: #010101;
+        }
+    </style>
+    <title>coverage: 8%</title>
+    <linearGradient id="s" x2="0" y2="100%">
+        <stop offset="0" stop-color="#bbb" stop-opacity=".1"/>
+        <stop offset="1" stop-opacity=".1"/>
+    </linearGradient>
+    <clipPath id="r">
+        <rect width="100%" rx="3" fill="#fff"/>
+    </clipPath>
+    <g clip-path="url(#r)" >
+        <g>
+            <rect width="60.0" fill="#555"/>
+            <text x="30.0" y="10.0" class="shadow">coverage</text>
+            <text x="30.0" y="10.0">coverage</text>
+        </g>
+        <g transform="translate(60.0 0)">
+            <rect width="25.0" fill="#e05d44"/>
+            <text x="12.5" y="10.0" class="shadow">8%</text>
+            <text x="12.5" y="10.0">8%</text>
+        </g>
+        <rect width="100%" height="100%" fill="url(#s)"/>
+    </g>
+</svg>
