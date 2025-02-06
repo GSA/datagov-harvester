@@ -30,5 +30,9 @@
   {
     "term": "Record Error",
     "definition": "also known as \"non-critical\" errors are ones which occur at the record level after the harvester has determined which operations to run. examples include validation and transformation failure."
+  },
+  {
+    "term": "Notification Frequency",
+    "definition": "when notification emails are sent out. Choices being \"on_error\", and \"always\"."
   }
 ]

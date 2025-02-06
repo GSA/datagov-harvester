@@ -44,8 +44,10 @@ class TestHarvestJobFullFlow:
         assert send_notification_emails_mock.called is False
 
     @patch("harvester.harvest.ckan")
+    @patch("harvester.harvest.HarvestSource.send_notification_emails")
     def test_multiple_harvest_jobs(
         self,
+        send_notification_emails_mock: MagicMock,
         CKANMock,
         interface,
         organization_data,
@@ -56,6 +58,7 @@ class TestHarvestJobFullFlow:
         CKANMock.action.package_update.return_value = {"ok"}
 
         interface.add_organization(organization_data)
+
         interface.add_harvest_source(source_data_dcatus)
         harvest_job = interface.add_harvest_job(
             {
@@ -72,6 +75,7 @@ class TestHarvestJobFullFlow:
         )
 
         assert len(records_from_db) == 7
+        assert send_notification_emails_mock.called
 
         ## create follow-up job
         interface.update_harvest_source(
@@ -94,6 +98,7 @@ class TestHarvestJobFullFlow:
         )
 
         assert len(records_from_db) == 3
+        assert send_notification_emails_mock.called
 
     @patch("harvester.harvest.ckan")
     @patch("harvester.harvest.download_file")
