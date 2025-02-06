@@ -55,18 +55,6 @@ jobs:
             Integration Tests, pytest-coverage-integration.txt, pytest-integration.xml
             Functional Tests, pytest-coverage-functional.txt, pytest-functional.xml
 
-      - name: Update Readme with Coverage Html
-        if: ${{ github.ref == 'refs/heads/main' }}
-        run: |
-          sed -i '/<!-- Pytest Coverage Comment:Begin -->/,/<!-- Pytest Coverage Comment:End -->/c\<!-- Pytest Coverage Comment:Begin -->\n\${{ steps.coverageComment.outputs.coverageHtml }}\n<!-- Pytest Coverage Comment:End -->' ./README.md
-
-      - name: Commit & Push changes to Readme
-        if: ${{ github.ref == 'refs/heads/main' }}
-        uses: actions-js/push@master
-        with:
-          message: Update coverage on Readme
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-
   deploy-development:
     if: github.ref == 'refs/heads/develop'
     name: deploy development
@@ -79,13 +67,17 @@ jobs:
       - name: Install node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "package.json"
+          node-version-file: "app/static/package.json"
       - name: Build static assets
         shell: bash
         run: |
-          cd app/static
-          npm ci
-          npm run build
+            cd app/static
+            npm ci
+            npm run build
+      - name: Set up Python ${{ env.PY_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PY_VERSION }}
       - name: Install Poetry
         uses: abatilo/actions-poetry@v2
         with:
@@ -99,7 +91,7 @@ jobs:
       - name: deploy DHL
         uses: cloud-gov/cg-cli-tools@main
         with:
-          command: cf push --vars-file vars.development.yml --strategy rolling --no-wait
+          command: cf push datagov-harvest-admin --vars-file vars.development.yml --strategy rolling --no-wait && cf push datagov-harvest-runner --vars-file vars.development.yml --strategy rolling --no-wait
           cf_org: gsa-datagov
           cf_space: ${{vars.ENVIRONMENT_NAME}}
           cf_username: ${{secrets.CF_SERVICE_USER}}

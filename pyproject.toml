@@ -50,6 +50,7 @@ isort = "^5.13.2"
 black = "^24.4.2"
 pre-commit = "^3.7.1"
 freezegun = "^1.5.1"
+pytest-local-badge = "^1.0.3"
 
 [tool.ruff]
 # Enable pycodestyle (`E`) and Pyflakes (`F`) codes by default.

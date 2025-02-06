@@ -1,14 +1,15 @@
 # datagov-harvester
 
+| Test Suite | Count | Coverage |
+| --- | --- | --- |
+| Unit | [![Unit Test Count](./tests/badges/unit/tests.svg)](./tests/unit)| [![Unit Test Coverage](./tests/badges/unit/coverage.svg)](./tests/unit)|
+| Integration | [![Unit Test Count](./tests/badges/integration/tests.svg)](./tests/integration)| [![Unit Test Coverage](./tests/badges/integration/coverage.svg)](./tests/integration)|
+| Functional | [![Functional Test Count](tests/badges/functional/tests.svg)](./tests/functional)| [![Unit Test Coverage](./tests/badges/functional/coverage.svg)](./tests/functional/)|
+
 This repository holds the source code the Data.gov Harvester 2.0, which consists of two applications:
 
 - [datagov-harvest-admin](#datagov-harvest-admin)
 - [datagov-harvest-runner](#datagov-harvest-runner)
-
-## Coverage
-
-<!-- Pytest Coverage Comment:Begin -->
-<!-- Pytest Coverage Comment:End -->
 
 ## Documentation
 
