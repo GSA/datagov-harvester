@@ -10,12 +10,14 @@
         {
             "id": "2f2652de-91df-4c63-8b53-bfced20b276b",
             "name": "Test Source",
-            "notification_emails": "email@example.com",
+            "notification_emails": [
+                "email@example.com"
+            ],
             "organization_id": "d925f84d-955b-4cb7-812f-dcfd6681a18f",
             "frequency": "daily",
             "url": "http://localhost:80/dcatus/dcatus.json",
             "schema_type": "dcatus1.1: federal",
-            "source_type": "document"
+            "source_type": "document",
         }
     ],
     "job": [
