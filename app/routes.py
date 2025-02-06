@@ -1,3 +1,4 @@
+import csv
 import json
 import logging
 import os
@@ -6,7 +7,6 @@ import time
 import uuid
 from functools import wraps
 from io import StringIO
-import csv
 
 import click
 import jwt
@@ -17,12 +17,12 @@ from dotenv import load_dotenv
 from flask import (
     Blueprint,
     flash,
+    make_response,
     redirect,
     render_template,
     request,
     session,
     url_for,
-    make_response,
 )
 from jinja2_fragments.flask import render_block
 
