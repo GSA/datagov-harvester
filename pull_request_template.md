@@ -8,6 +8,6 @@ Related to [LINK TO ISSUE]
 
 ## PR TASKS
 
-- [ ] The actual code changes.
-- [ ] Tests written and passed.
-- [ ] Any changes to docs?
+- [ ] Code well documented
+- [ ] Tests written, run and passed
+- [ ] Files linted
