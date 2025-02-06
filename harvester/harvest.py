@@ -469,9 +469,8 @@ class HarvestSource:
     def sync_job_helper(self):
         """Kickstart a sync job where we're just syncing records"""
         logger.info(f"starting sync job for {self.name}")
-        job = self.db_interface.get_first_harvest_job_by_filter(
-            {"harvest_source_id": self.id}
-        )
+        # get the job before this one to pick up where it left off
+        job = self.db_interface.get_harvest_jobs_by_source_id(self.id)[1]
         results = {
             "previous_job_results": {
                 "records_added": job.records_added,
@@ -509,7 +508,9 @@ class HarvestSource:
         self.records.extend(records)
         logger.warning(f"{len(db_records)} uncleared incoming db records")
         for record in db_records:
-            self.db_interface.delete_harvest_record(record.identifier)
+            self.db_interface.delete_harvest_record(
+                identifier=record.identifier, harvest_source_id=self.id
+            )
 
     def make_record_contract(self, db_record):
         """Helper to hydrate a db record"""
@@ -739,6 +740,8 @@ class Record:
             if self.action == "update":
                 self.ckanify_dcatus()
                 self.update_record()
+            if self.action is not None:
+                self.update_self_in_db()
         except Exception as e:
             self.status = "error"
             raise SynchronizeException(
@@ -749,10 +752,6 @@ class Record:
 
         if self.action == "delete":
             self.delete_self_in_db()
-        # re: elif - we don't want our record to be
-        # re-created immediately after deletion
-        elif self.action is not None:
-            self.update_self_in_db()
 
         logger.info(
             f"time to {self.action} {self.identifier} \
@@ -807,7 +806,9 @@ class Record:
         )
 
     def delete_self_in_db(self) -> bool:
-        self.harvest_source.db_interface.delete_harvest_record(self.identifier)
+        self.harvest_source.db_interface.delete_harvest_record(
+            identifier=self.identifier, harvest_source_id=self.harvest_source.id
+        )
 
     def ckanify_dcatus(self) -> None:
         from harvester.utils.ckan_utils import ckanify_dcatus

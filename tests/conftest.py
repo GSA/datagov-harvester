@@ -532,8 +532,18 @@ def latest_records(
             "source_raw": "data_123",
             "status": "success",
             "action": "create",
+            # different harvest source and job
             "harvest_source_id": source_data_dcatus_2["id"],
-            "harvest_job_id": job_data_dcatus_2["id"],  #
+            "harvest_job_id": job_data_dcatus_2["id"],
+        },
+        {
+            "identifier": "f",
+            "date_created": "2024-04-04T00:00:00.001Z",
+            "source_raw": "data_123456",
+            "status": "success",
+            "action": "update",
+            "harvest_source_id": source_data_dcatus_2["id"],
+            "harvest_job_id": job_data_dcatus_2["id"],
         },
     ]
 
