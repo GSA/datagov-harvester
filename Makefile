@@ -28,13 +28,13 @@ install-static: ## Installs static assets
 	npm run build
 
 test-unit: ## Runs unit tests. Compatible with dev environment / `make up`
-	poetry run pytest --junitxml=pytest.xml --cov=harvester ./tests/unit
+	poetry run pytest  --cov-report term-missing --junitxml=pytest-unit.xml --cov=harvester ./tests/unit | tee pytest-coverage-unit.txt
 
 test-integration: ## Runs integration tests. Compatible with dev environment / `make up`
-	poetry run pytest --junitxml=pytest.xml --cov=harvester ./tests/integration
+	poetry run pytest --cov-report term-missing --junitxml=pytest-integration.xml --cov=harvester ./tests/integration | tee pytest-coverage-integration.txt
 
 test-functional: ## Runs integration tests. Compatible with dev environment / `make up`
-	poetry run pytest --noconftest --junitxml=pytest.xml ./tests/functional
+	poetry run pytest --noconftest --cov-report term-missing --junitxml=pytest-functional.xml --cov=harvester ./tests/functional | tee pytest-coverage-functional.txt
 
 test: up test-unit test-integration ## Runs all tests. Compatible with dev environment / `make up`
 

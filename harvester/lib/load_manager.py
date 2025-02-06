@@ -55,13 +55,13 @@ class LoadManager:
 
         logger.info("Load Manager :: Updated Harvest Jobs")
 
-    def start_job(self, job_id):
+    def start_job(self, job_id, job_type="harvest"):
         """task manager start interface,
         takes a job_id"""
         task_contract = {
             "app_guuid": HARVEST_RUNNER_APP_GUID,
-            "command": f"python harvester/harvest.py {job_id}",
-            "task_id": f"harvest-job-{job_id}",
+            "command": f"python harvester/harvest.py {job_id} {job_type}",
+            "task_id": f"harvest-job-{job_id}-{job_type}",
         }
 
         self.handler.start_task(**task_contract)
@@ -70,14 +70,14 @@ class LoadManager:
         logger.info(message)
         return message
 
-    def stop_job(self, job_id):
+    def stop_job(self, job_id, job_type="harvest"):
         """task manager stop interface,
         takes a job_id"""
         tasks = self.handler.get_all_app_tasks(HARVEST_RUNNER_APP_GUID)
         job_task = [
             (t["guid"], t["state"])
             for t in tasks
-            if t["name"] == f"harvest-job-{job_id}"
+            if t["name"] == f"harvest-job-{job_id}-{job_type}"
         ]
 
         if len(job_task) == 0:
@@ -125,12 +125,13 @@ class LoadManager:
         logger.info(message)
         return message
 
-    def trigger_manual_job(self, source_id):
+    def trigger_manual_job(self, source_id, job_type="harvest"):
         """manual trigger harvest job,
         takes a source_id"""
         source = interface.get_harvest_source(source_id)
-        jobs_in_progress = interface.get_all_harvest_jobs_by_filter(
-            {"harvest_source_id": source.id, "status": "in_progress"}
+        jobs_in_progress = interface.pget_harvest_jobs(
+            facets=f"harvest_source_id = '{source.id}', status = 'in_progress'",
+            paginate=False,
         )
         if len(jobs_in_progress):
             return f"Can't trigger harvest. Job {jobs_in_progress[0].id} already in progress."  # noqa E501
@@ -138,6 +139,7 @@ class LoadManager:
             {
                 "harvest_source_id": source.id,
                 "status": "new",
+                "job_type": job_type,
                 "date_created": datetime.now(),
             }
         )
@@ -145,4 +147,4 @@ class LoadManager:
             logger.info(
                 f"Created new manual harvest job: for {job_data.harvest_source_id}."
             )
-            return self.start_job(job_data.id)
+            return self.start_job(job_data.id, job_type)

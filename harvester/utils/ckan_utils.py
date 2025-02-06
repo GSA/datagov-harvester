@@ -153,7 +153,9 @@ def munge_tag(tag: str) -> str:
     return tag
 
 
-def create_ckan_extras(metadata: dict, harvest_source: HarvestSource) -> list[dict]:
+def create_ckan_extras(
+    metadata: dict, harvest_source: HarvestSource, record_id: str
+) -> list[dict]:
     extras = [
         "accessLevel",
         "bureauCode",
@@ -165,12 +167,7 @@ def create_ckan_extras(metadata: dict, harvest_source: HarvestSource) -> list[di
 
     output = [
         {"key": "resource-type", "value": "Dataset"},
-        {
-            "key": "harvest_object_id",
-            "value": harvest_source.internal_records_lookup_table[
-                metadata["identifier"]
-            ],
-        },
+        {"key": "harvest_object_id", "value": record_id},
         {
             "key": "source_datajson_identifier",  # dataset is datajson format or not
             "value": True,
@@ -305,14 +302,18 @@ def simple_transform(metadata: dict, owner_org: str) -> dict:
     return output
 
 
-def ckanify_dcatus(metadata: dict, harvest_source: HarvestSource) -> dict:
+def ckanify_dcatus(
+    metadata: dict, harvest_source: HarvestSource, record_id: str
+) -> dict:
     ckanified_metadata = simple_transform(metadata, harvest_source.organization_id)
 
     ckanified_metadata["resources"] = create_ckan_resources(metadata)
     ckanified_metadata["tags"] = (
         create_ckan_tags(metadata["keyword"]) if "keyword" in metadata else []
     )
-    ckanified_metadata["extras"] = create_ckan_extras(metadata, harvest_source)
+    ckanified_metadata["extras"] = create_ckan_extras(
+        metadata, harvest_source, record_id
+    )
 
     return ckanified_metadata
 

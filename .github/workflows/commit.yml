@@ -1,4 +1,3 @@
----
 name: Tests on Commit
 on: [push]
 
@@ -51,9 +50,22 @@ jobs:
       - name: Report test coverage
         uses: MishaKav/pytest-coverage-comment@main
         with:
-          pytest-coverage-path: pytest-coverage.txt
-          junitxml-path: pytest.xml
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          multiple-files: |
+            Unit tests, pytest-coverage-unit.txt, pytest-unit.xml
+            Integration Tests, pytest-coverage-integration.txt, pytest-integration.xml
+            Functional Tests, pytest-coverage-functional.txt, pytest-functional.xml
+
+      - name: Update Readme with Coverage Html
+        if: ${{ github.ref == 'refs/heads/main' }}
+        run: |
+          sed -i '/<!-- Pytest Coverage Comment:Begin -->/,/<!-- Pytest Coverage Comment:End -->/c\<!-- Pytest Coverage Comment:Begin -->\n\${{ steps.coverageComment.outputs.coverageHtml }}\n<!-- Pytest Coverage Comment:End -->' ./README.md
+
+      - name: Commit & Push changes to Readme
+        if: ${{ github.ref == 'refs/heads/main' }}
+        uses: actions-js/push@master
+        with:
+          message: Update coverage on Readme
+          github_token: ${{ secrets.GITHUB_TOKEN }}
 
   deploy-development:
     if: github.ref == 'refs/heads/develop'
@@ -67,12 +79,12 @@ jobs:
       - name: Install node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "package.json"
       - name: Build static assets
         shell: bash
         run: |
           cd app/static
-          npm install
+          npm ci
           npm run build
       - name: Install Poetry
         uses: abatilo/actions-poetry@v2

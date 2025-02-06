@@ -43,6 +43,10 @@
         {% if not data.harvest_job.errors %}
         No job errors found
         {% else %}
+        {% set error_type = "job" %}
+        <a href="{{ url_for('harvest.download_harvest_errors_by_job', job_id=data.harvest_job_id, error_type=error_type)}}">
+            <button class="btn btn-primary">download job errors as .csv</button>
+        </a>
         <div class="usa-table-container--scrollable" tabindex="0">
             <table class="usa-table usa-table--striped">
                 <caption> Harvest Job Errors for {{data.harvest_job_id}} </caption>
@@ -74,6 +78,10 @@
         {% if not data.record_errors %}
         No record errors found
         {% else %}
+        {% set error_type = "record" %}
+        <a href="{{ url_for('harvest.download_harvest_errors_by_job', job_id=data.harvest_job_id, error_type=error_type)}}">
+            <button class="btn btn-primary">download record errors as .csv</button>
+        </a>
         <div class="usa-table-container--scrollable" tabindex="0">
             {% block record_errors_table %}
             <div id="error_results_pagination">

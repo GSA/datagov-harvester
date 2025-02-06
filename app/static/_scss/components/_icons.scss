@@ -1,0 +1,21 @@
+.icon-glossary {
+  position: relative;
+  color: color('primary');
+  text-decoration: none;
+
+  svg {
+    @include u-text("primary-vivid");
+    fill: currentColor;
+    left: -20px;
+    position: absolute;
+    top: 5px;
+  }
+  
+  &:hover {
+    text-decoration: none;
+  }
+
+  &:hover svg {
+    @include u-text("primary");
+  }
+}

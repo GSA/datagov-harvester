@@ -89,6 +89,7 @@ class HarvestJob(db.Model):
         nullable=False,
         index=True,
     )
+    job_type = db.Column(db.String(20), default="harvest")
     date_created = db.Column(db.DateTime, index=True, default=func.now())
     date_finished = db.Column(db.DateTime)
     records_added = db.Column(db.Integer)
@@ -96,6 +97,7 @@ class HarvestJob(db.Model):
     records_deleted = db.Column(db.Integer)
     records_errored = db.Column(db.Integer)
     records_ignored = db.Column(db.Integer)
+    records_validated = db.Column(db.Integer)
     errors = db.relationship(
         "HarvestJobError", backref="job", cascade="all, delete-orphan", lazy=True
     )

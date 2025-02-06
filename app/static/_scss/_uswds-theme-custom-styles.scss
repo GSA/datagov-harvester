@@ -22,6 +22,9 @@ i.e.
 
 @use "uswds-core" as *;
 
+@import "components/glossary";
+@import "components/icons";
+
 ul.menu {
   padding-inline-start: 0;
   li {
@@ -61,4 +64,13 @@ ul.menu {
   &__item {
     cursor: pointer;
   }
+}
+
+.container:first-child {
+  display: flex; 
+  justify-content: space-between;
+}
+
+.usa-table-container--scrollable {
+  overflow: scroll;
 }
