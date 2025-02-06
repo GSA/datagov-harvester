@@ -17,7 +17,7 @@
             "frequency": "daily",
             "url": "http://localhost:80/dcatus/dcatus.json",
             "schema_type": "dcatus1.1: federal",
-            "source_type": "document",
+            "source_type": "document"
         }
     ],
     "job": [
