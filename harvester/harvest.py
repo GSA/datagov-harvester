@@ -740,8 +740,6 @@ class Record:
             if self.action == "update":
                 self.ckanify_dcatus()
                 self.update_record()
-            if self.action is not None:
-                self.update_self_in_db()
         except Exception as e:
             self.status = "error"
             raise SynchronizeException(
@@ -752,6 +750,10 @@ class Record:
 
         if self.action == "delete":
             self.delete_self_in_db()
+        # re: elif - we don't want our record to be
+        # re-created immediately after deletion
+        elif self.action is not None:
+            self.update_self_in_db()
 
         logger.info(
             f"time to {self.action} {self.identifier} \
@@ -806,9 +808,10 @@ class Record:
         )
 
     def delete_self_in_db(self) -> bool:
-        self.harvest_source.db_interface.delete_harvest_record(
-            identifier=self.identifier, harvest_source_id=self.harvest_source.id
-        )
+        if self.status == "success":
+            self.harvest_source.db_interface.delete_harvest_record(
+                identifier=self.identifier, harvest_source_id=self.harvest_source.id
+            )
 
     def ckanify_dcatus(self) -> None:
         from harvester.utils.ckan_utils import ckanify_dcatus

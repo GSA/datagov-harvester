@@ -431,7 +431,7 @@ class HarvesterDBInterface:
                     )
                     .all()
                 )
-            # delete this exact one (used withn cleaning)
+            # delete this exact one (used with cleaning)
             if ID is not None:
                 records = self.db.query(HarvestRecord).filter_by(id=ID).all()
             if len(records) == 0:
@@ -439,6 +439,10 @@ class HarvesterDBInterface:
                     f"Harvest records with identifier {identifier} or {ID} not found"
                 )
                 return
+            logger.info(
+                f"{len(records)} records with identifier {identifier} or {ID}\
+                  found in datagov-harvest-db"
+            )
             for record in records:
                 self.db.delete(record)
             self.db.commit()
