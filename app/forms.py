@@ -1,5 +1,5 @@
-import re
 import os
+import re
 
 from flask_wtf import FlaskForm
 from wtforms import SelectField, StringField, TextAreaField
