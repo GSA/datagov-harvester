@@ -761,7 +761,7 @@ def download_harvest_errors_by_job(job_id, error_type):
 
                     ]
                     for error, identifier, source_raw in db.get_harvest_record_errors_by_job(
-                        job_id, skip_pagination=True
+                        job_id, paginate=False
                     )
                 ]
                 header = [
