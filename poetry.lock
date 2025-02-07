@@ -1951,6 +1951,24 @@ pytest = ">=4.6"
 testing = ["fields", "hunter", "process-tests", "pytest-xdist", "six", "virtualenv"]
 
 [[package]]
+name = "pytest-local-badge"
+version = "1.0.3"
+description = "Generate local badges (shields) reporting your test suite status."
+optional = false
+python-versions = ">=3.7"
+groups = ["dev"]
+files = [
+    {file = "pytest-local-badge-1.0.3.tar.gz", hash = "sha256:e13274cc9cadf91a1e3fa290d0bbbd371a365f9d719411e475596f722c2725a5"},
+    {file = "pytest_local_badge-1.0.3-py3-none-any.whl", hash = "sha256:e14dc79922598e5b27ef4398a3537535ad115df2229ebba0259f6c6d92c6047b"},
+]
+
+[package.dependencies]
+pytest = ">=6.1.0"
+
+[package.extras]
+develop = ["black (>=22.12.0)", "build", "flake8-bugbear", "flake8-comprehensions", "flake8-import-order", "flake8-print", "pep8-naming", "pytest (>=7.1.0,<8)", "pytest-cov", "pytest-mock"]
+
+[[package]]
 name = "python-dateutil"
 version = "2.9.0.post0"
 description = "Extensions to the standard Python datetime module"
@@ -2813,4 +2831,4 @@ testing = ["coverage[toml]", "zope.event", "zope.testing"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.13,<4.0"
-content-hash = "b230ef21ab053ea69ac6f621f4ce610be0c9d48008943ef37d43f4ccf64b1377"
+content-hash = "9ed43596d20312ea03954f47b2ecc150b03d29bdb0a5d5656eecda0e87aa915a"
