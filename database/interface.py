@@ -338,7 +338,20 @@ class HarvesterDBInterface:
 
     @count
     @paginate
-    def get_harvest_record_errors_by_job(self, job_id: str, **kwargs):
+    def get_harvest_record_errors_by_job(self, job_id: str, **kwargs) --> Query:
+        """
+            Retrieves harvest record errors for a given job.
+
+            This function fetches all records where the harvest status is 'error' and
+            belongs to the specified job. The query returns a tuple containing:
+                - HarvestRecordError object
+                - identifier (retrieved from HarvestRecord)
+                - source_raw (retrieved from HarvestRecord, containing 'title')
+
+            Returns:
+                Query: A SQLAlchemy Query object that, when executed, yields tuples of:
+                    (HarvestRecordError, identifier, source_raw).
+        """
         subquery = (
             self.db.query(HarvestRecord.id)
             .filter(HarvestRecord.status == "error")
