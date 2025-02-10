@@ -4,9 +4,9 @@ import uuid
 from datetime import datetime, timezone
 from functools import wraps
 
-from sqlalchemy import create_engine, func, inspect, select, text
+from sqlalchemy import create_engine, desc, func, inspect, select, text
 from sqlalchemy.exc import NoResultFound
-from sqlalchemy.orm import scoped_session, sessionmaker
+from sqlalchemy.orm import aliased, scoped_session, sessionmaker
 
 from harvester.utils.general_utils import query_filter_builder
 
@@ -439,57 +439,92 @@ class HarvesterDBInterface:
             self.db.rollback()
             return None
 
-    def delete_harvest_record(self, identifier):
-        records = self.db.query(HarvestRecord).filter_by(identifier=identifier).all()
-        if not records:
-            logger.warning(f"Harvest records with identifier {identifier} not found")
-            return
-        logger.info(
-            f"{len(records)} records with idenitifier {identifier}\
+    def delete_harvest_record(
+        self, identifier=None, record_id=None, harvest_source_id=None
+    ):
+        try:
+            # delete all versions of the record within the given harvest source
+            if harvest_source_id is not None and identifier is not None:
+                records = (
+                    self.db.query(HarvestRecord)
+                    .filter_by(
+                        identifier=identifier, harvest_source_id=harvest_source_id
+                    )
+                    .all()
+                )
+            # delete this exact one (used with cleaning)
+            if record_id is not None:
+                records = self.db.query(HarvestRecord).filter_by(id=record_id).all()
+            if len(records) == 0:
+                logger.warning(
+                    f"Harvest records with identifier {identifier} or {record_id} "
+                    "not found"
+                )
+                return
+            logger.info(
+                f"{len(records)} records with identifier {identifier} or {record_id}\
                   found in datagov-harvest-db"
-        )
-        for record in records:
-            self.db.delete(record)
-        self.db.commit()
-        return "Harvest record deleted successfully"
+            )
+            for record in records:
+                self.db.delete(record)
+            self.db.commit()
+            return "Harvest record deleted successfully"
+        except:  # noqa E722
+            self.db.rollback()
+            return None
 
     def get_harvest_record(self, record_id):
         return self.db.query(HarvestRecord).filter_by(id=record_id).first()
 
+    def get_all_outdated_records(self, days=365):
+        """
+        gets all outdated versions of records older than [days] ago
+        for all harvest sources. "outdated" simply means not the latest
+        or the opposite of 'get_latest_harvest_records_by_source'
+        """
+
+        old_records_query = self.db.query(HarvestRecord).filter(
+            func.extract("days", (func.now() - HarvestRecord.date_created)) > days
+        )
+
+        subq = (
+            self.db.query(HarvestRecord)
+            .filter(HarvestRecord.status == "success")
+            .order_by(
+                HarvestRecord.identifier,
+                HarvestRecord.harvest_source_id,
+                desc(HarvestRecord.date_created),
+            )
+            .distinct(HarvestRecord.identifier, HarvestRecord.harvest_source_id)
+            .subquery()
+        )
+
+        sq_alias = aliased(HarvestRecord, subq)
+        latest_successful_records_query = self.db.query(sq_alias).filter(
+            sq_alias.action != "delete"
+        )
+
+        return old_records_query.except_all(latest_successful_records_query).all()
+
     def get_latest_harvest_records_by_source(self, source_id):
         # datetimes are returned as datetime objs not strs
-        sql = text(
-            f"""SELECT * FROM (
-                SELECT DISTINCT ON (identifier) *
-                FROM harvest_record
-                WHERE status = 'success' AND harvest_source_id = '{source_id}'
-                ORDER BY identifier, date_created DESC ) sq
-                WHERE sq.action != 'delete';"""
+        subq = (
+            self.db.query(HarvestRecord)
+            .filter(
+                HarvestRecord.status == "success",
+                HarvestRecord.harvest_source_id == source_id,
+            )
+            .order_by(HarvestRecord.identifier, desc(HarvestRecord.date_created))
+            .distinct(HarvestRecord.identifier)
+            .subquery()
         )
 
-        res = self.db.execute(sql)
+        sq_alias = aliased(HarvestRecord, subq)
+        query = self.db.query(sq_alias).filter(sq_alias.action != "delete")
 
-        fields = list(res.keys())
-        records = res.fetchall()
+        records = query.all()
 
-        return [dict(zip(fields, record)) for record in records]
-
-    def get_all_latest_harvest_records_by_source(self, source_id):
-        """used by follow-up job helper"""
-        # datetimes are returned as datetime objs not strs
-        sql = text(
-            f"""SELECT DISTINCT ON (identifier) *
-                FROM harvest_record
-                WHERE harvest_source_id = '{source_id}'
-                ORDER BY identifier, date_created DESC"""
-        )
-
-        res = self.db.execute(sql)
-
-        fields = list(res.keys())
-        records = res.fetchall()
-
-        return [dict(zip(fields, record)) for record in records]
+        return self._to_dict(records)
 
     def close(self):
         if hasattr(self.db, "remove"):

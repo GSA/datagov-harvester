@@ -500,6 +500,70 @@ class TestDatabase:
         # make sure there aren't records that are different
         assert not any(x != y for x, y in zip(latest_records, expected_records))
 
+    def test_delete_outdated_records_and_errors(
+        self,
+        interface,
+        organization_data,
+        source_data_dcatus,
+        source_data_dcatus_2,
+        job_data_dcatus,
+        job_data_dcatus_2,
+        latest_records,
+    ):
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_dcatus)
+        # another source for querying against. see last records in
+        # `latest_records` fixture
+        interface.add_harvest_source(source_data_dcatus_2)
+        interface.add_harvest_job(job_data_dcatus)
+        interface.add_harvest_job(job_data_dcatus_2)
+        records = [interface.add_harvest_record(record) for record in latest_records]
+
+        # only adding 1 record error for simplicity
+        # we have access to all record errors via relationship in HarvestRecord
+        error_data = {
+            "message": "record is invalid",
+            "type": "ValidationException",
+            "date_created": datetime.now(timezone.utc),
+            "harvest_record_id": records[-2].id,
+        }
+        interface.add_harvest_record_error(error_data)
+
+        latest_records_from_db1 = interface.get_latest_harvest_records_by_source(
+            source_data_dcatus["id"]
+        )
+
+        latest_records_from_db2 = interface.get_latest_harvest_records_by_source(
+            source_data_dcatus_2["id"]
+        )
+
+        outdated_records = interface.get_all_outdated_records(90)
+        assert len(outdated_records) == 7
+
+        all_records = (
+            len(latest_records_from_db1)
+            + len(latest_records_from_db2)
+            + len(outdated_records)
+        )
+
+        # latest records for all harvest sources (2) and all outdated records
+        # should be equal to the original fixture count
+        assert all_records == len(latest_records)
+
+        # we want outdated records for ALL harvest sources. this is harvest source 2
+        hs2_outdated = next(r for r in outdated_records if r.identifier == "f")
+        assert len(hs2_outdated.errors) == 1
+
+        for record in outdated_records:
+            interface.delete_harvest_record(ID=record.id)
+
+        # make sure only the outdated records and associated errors were deleted
+        db_records = interface.pget_harvest_records(count=True)
+        assert db_records == len(latest_records_from_db1) + len(latest_records_from_db2)
+
+        db_record_errors = interface.pget_harvest_record_errors(count=True)
+        assert db_record_errors == 0
+
     def test_faceted_builder_queries(
         self,
         interface,
