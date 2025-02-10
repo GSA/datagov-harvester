@@ -419,9 +419,10 @@ class HarvesterDBInterface:
             self.db.rollback()
             return None
 
-    def delete_harvest_record(self, identifier=None, ID=None, harvest_source_id=None):
+    def delete_harvest_record(
+        self, identifier=None, record_id=None, harvest_source_id=None
+    ):
         try:
-            # "id" is built-in function. don't reassign.
             # delete all versions of the record within the given harvest source
             if harvest_source_id is not None and identifier is not None:
                 records = (
@@ -432,15 +433,16 @@ class HarvesterDBInterface:
                     .all()
                 )
             # delete this exact one (used with cleaning)
-            if ID is not None:
-                records = self.db.query(HarvestRecord).filter_by(id=ID).all()
+            if record_id is not None:
+                records = self.db.query(HarvestRecord).filter_by(id=record_id).all()
             if len(records) == 0:
                 logger.warning(
-                    f"Harvest records with identifier {identifier} or {ID} not found"
+                    f"Harvest records with identifier {identifier} or {record_id} "
+                    "not found"
                 )
                 return
             logger.info(
-                f"{len(records)} records with identifier {identifier} or {ID}\
+                f"{len(records)} records with identifier {identifier} or {record_id}\
                   found in datagov-harvest-db"
             )
             for record in records:
@@ -454,7 +456,7 @@ class HarvesterDBInterface:
     def get_harvest_record(self, record_id):
         return self.db.query(HarvestRecord).filter_by(id=record_id).first()
 
-    def get_all_outdated_records(self, days):
+    def get_all_outdated_records(self, days=365):
         """
         gets all outdated versions of records older than [days] ago
         for all harvest sources. "outdated" simply means not the latest
