@@ -653,9 +653,17 @@ def get_harvest_job(job_id=None):
         page = request.args.get("page")
         db_page = int(page) - 1
         record_errors = db.get_harvest_record_errors_by_job(job_id, page=db_page)
+        record_errors_dict = [
+            {
+                "error": db._to_dict(row.HarvestRecordError),
+                "identifier": row.identifier,
+                "title": json.loads(row.source_raw).get("title", None),
+            }
+            for row in record_errors
+        ]
         data = {
             "harvest_job_id": job_id,
-            "record_errors": db._to_dict(record_errors),
+            "record_errors": record_errors_dict,
             "htmx_vars": htmx_vars,
         }
         pagination.update_current(page)
@@ -668,6 +676,15 @@ def get_harvest_job(job_id=None):
     if job_id:
         job = db.get_harvest_job(job_id)
         record_errors = db.get_harvest_record_errors_by_job(job_id)
+        record_errors_dict = [
+            {
+                "error": db._to_dict(row.HarvestRecordError),
+                "identifier": row.identifier,
+                "title": json.loads(row.source_raw).get("title", None),
+            }
+            for row in record_errors
+        ]
+
         if request.args.get("type") and request.args.get("type") == "json":
             return db._to_dict(job) if job else ("Not Found", 404)
         else:
@@ -675,7 +692,7 @@ def get_harvest_job(job_id=None):
                 "harvest_job_id": job_id,
                 "harvest_job": job,
                 "harvest_job_dict": db._to_dict(job),
-                "record_errors": db._to_dict(record_errors),
+                "record_errors": record_errors_dict,
                 "htmx_vars": htmx_vars,
             }
             return render_template(
@@ -732,18 +749,30 @@ def download_harvest_errors_by_job(job_id, error_type):
                     ]
                 ]
             case "record":
-                errors = db._to_list(
-                    db.get_harvest_record_errors_by_job(
-                        job_id, skip_pagination=True
-                    ).all()
-                )
+                errors = [
+                    [
+                        error.id,
+                        identifier,
+                        json.loads(source_raw).get("title", None) if source_raw else None,
+                        error.harvest_record_id,
+                        error.type,
+                        error.message,
+                        error.date_created
+
+                    ]
+                    for error, identifier, source_raw in db.get_harvest_record_errors_by_job(
+                        job_id, paginate=False
+                    )
+                ]
                 header = [
                     [
+                        "record_error_id",
+                        "identifier",
+                        "title",
                         "harvest_record_id",
-                        "date_created",
                         "record_error_type",
                         "message",
-                        "record_error_id",
+                        "date_created"
                     ]
                 ]
 

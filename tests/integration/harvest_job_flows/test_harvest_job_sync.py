@@ -46,9 +46,9 @@ class TestHarvestJobSync:
 
         assert len(job_err) == 0
         assert len(record_err) == 1
-        assert record_err[0].type == "SynchronizeException"
+        assert record_err[0][0].type == "SynchronizeException"
         ## assert it's the second record that threw the exception, which validates our package_create mock
-        assert record_err[0].harvest_record_id == harvest_job.records[1].id
+        assert record_err[0][0].harvest_record_id == harvest_job.records[1].id
 
         # pkg create called three times
         assert CKANMock.action.package_create.call_count == 3

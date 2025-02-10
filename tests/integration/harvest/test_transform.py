@@ -46,9 +46,9 @@ class TestTransform:
 
         job_errors = interface.get_harvest_record_errors_by_job(harvest_job.id)
         assert len(job_errors) == 1
-        assert job_errors[0].message == expected_error_msg
+        assert job_errors[0][0].message == expected_error_msg
 
-        record = interface.get_harvest_record(job_errors[0].record.id)
+        record = interface.get_harvest_record(job_errors[0][0].record.id)
         assert record.status == "error"
 
     def test_valid_transform_iso19115_2(
