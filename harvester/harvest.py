@@ -5,7 +5,6 @@ import os
 import smtplib
 import sys
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from itertools import groupby
@@ -34,6 +33,7 @@ from harvester.utils.general_utils import (
     dataset_to_hash,
     download_file,
     download_waf,
+    get_datetime,
     open_json,
     prepare_transform_msg,
     sort_dataset,
@@ -400,7 +400,7 @@ class HarvestSource:
 
         job_status = {
             "status": "complete",
-            "date_finished": datetime.now(timezone.utc),
+            "date_finished": get_datetime(),
             "records_added": results["action"]["create"],
             "records_updated": results["action"]["update"],
             "records_deleted": results["action"]["delete"],
@@ -733,7 +733,7 @@ class Record:
             )
             return
 
-        start = datetime.now(timezone.utc)
+        start = get_datetime()
         # todo:
         try:
             if self.action == "delete":
@@ -754,14 +754,13 @@ class Record:
 
         if self.action == "delete":
             self.delete_self_in_db()
-        # re: elif - we don't want our record to be
-        # re-created immediately after deletion
-        elif self.action is not None:
+
+        if self.action is not None and self.action != "delete":
             self.update_self_in_db()
 
         logger.info(
             f"time to {self.action} {self.identifier} \
-                {datetime.now(timezone.utc)-start}"
+                {get_datetime()-start}"
         )
 
     def create_record(self, retry=False):
@@ -796,7 +795,7 @@ class Record:
         self.status = "success"
         data = {
             "status": "success",
-            "date_finished": datetime.now(timezone.utc),
+            "date_finished": get_datetime(),
         }
         if self.ckan_id is not None:
             data["ckan_id"] = self.ckan_id
@@ -812,10 +811,9 @@ class Record:
         )
 
     def delete_self_in_db(self) -> bool:
-        if self.status == "success":
-            self.harvest_source.db_interface.delete_harvest_record(
-                identifier=self.identifier, harvest_source_id=self.harvest_source.id
-            )
+        return self.harvest_source.db_interface.delete_harvest_record(
+            identifier=self.identifier, harvest_source_id=self.harvest_source.id
+        )
 
     def ckanify_dcatus(self) -> None:
         from harvester.utils.ckan_utils import ckanify_dcatus

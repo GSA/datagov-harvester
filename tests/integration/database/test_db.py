@@ -279,7 +279,13 @@ class TestDatabase:
             job_id,
             count=True,
         )
-        assert count == len(record_data_dcatus) == 10
+        assert (
+            count
+            == len(
+                [record for record in record_data_dcatus if record["status"] == "error"]
+            )
+            == 8
+        )
 
     def test_endpoint_count_for_non_paginated_methods(
         self, interface_with_fixture_json, source_data_dcatus, record_data_dcatus
@@ -298,7 +304,7 @@ class TestDatabase:
                     if record["status"] == "success"
                 ]
             )
-            == 0
+            == 2
         )
 
     def test_errors_by_job(

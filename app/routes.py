@@ -5,6 +5,7 @@ import os
 import secrets
 import time
 import uuid
+from datetime import timedelta
 from functools import wraps
 from io import StringIO
 
@@ -28,7 +29,7 @@ from jinja2_fragments.flask import render_block
 
 from database.interface import HarvesterDBInterface
 from harvester.lib.load_manager import LoadManager
-from harvester.utils.general_utils import convert_to_int, is_it_true
+from harvester.utils.general_utils import convert_to_int, get_datetime, is_it_true
 
 from . import htmx
 from .forms import HarvestSourceForm, OrganizationForm
@@ -310,7 +311,7 @@ def make_new_org_contract(form):
 # Routes
 @mod.route("/", methods=["GET"])
 def index():
-    return render_template("index.html")
+    return redirect(url_for("harvest.view_organizations"))
 
 
 ## Organizations
@@ -337,7 +338,7 @@ def add_organization():
                 flash(f"Added new organization with ID: {org.id}")
             else:
                 flash("Failed to add organization.")
-            return redirect("/")
+            return redirect(url_for("harvest.view_organizations"))
         elif form.errors:
             flash(form.errors)
             return redirect(url_for("harvest.add_organization"))
@@ -459,7 +460,7 @@ def add_harvest_source():
                 flash(f"Updated source with ID: {source.id}. {job_message}")
             else:
                 flash("Failed to add harvest source.")
-            return redirect("/")
+            return redirect(url_for("harvest.view_harvest_sources"))
         elif form.errors:
             flash(form.errors)
             return redirect(url_for("harvest.add_harvest_source"))
@@ -475,28 +476,33 @@ def add_harvest_source():
 @mod.route("/harvest_source/<source_id>", methods=["GET"])
 def view_harvest_source_data(source_id: str):
     source = db.get_harvest_source(source_id)
-    records_count = db.get_harvest_records_by_source(
-        count=True,
+    records = db.get_latest_harvest_records_by_source(
         source_id=source.id,
     )
-    ckan_records_count = db.get_harvest_records_by_source(
-        count=True,
-        source_id=source.id,
-        facets="ckan_id is not null",
-    )
-    error_records_count = db.get_harvest_records_by_source(
-        count=True,
-        source_id=source.id,
-        facets="status = 'error'",
-    )
+    summary_data = {
+        "records_count": len(records),
+        "last_job_errors": "N/A",
+        "last_job_finished": "N/A",
+        "next_job_scheduled": "N/A",
+    }
+
     # TODO: wire in paginated jobs htmx refresh ui & route
     jobs = db.pget_harvest_jobs(
         paginate=False, facets=f"harvest_source_id = '{source.id}'"
     )
-    next_job = "N/A"
+    if len(jobs):
+        last_job = jobs[len(jobs) - 1]
+        last_job_error_count = db.get_harvest_record_errors_by_job(
+            count=True,
+            job_id=last_job.id,
+        )
+        summary_data["last_job_errors"] = last_job_error_count
+        summary_data["last_job_finished"] = last_job.date_finished
+
     future_jobs = db.get_new_harvest_jobs_by_source_in_future(source.id)
     if len(future_jobs):
-        next_job = future_jobs[0].date_created
+        summary_data["next_job_scheduled"] = future_jobs[0].date_created
+
     chartdata = {
         "labels": [job.date_finished for job in jobs],
         "datasets": [
@@ -527,14 +533,10 @@ def view_harvest_source_data(source_id: str):
         ],
     }
     data = {
-        "harvest_source": source,
-        "harvest_source_dict": db._to_dict(source),
-        "total_records": records_count,
-        "records_with_ckan_id": ckan_records_count,
-        "records_with_error": error_records_count,
+        "harvest_source": db._to_dict(source),
+        "summary_data": summary_data,
         "harvest_jobs": jobs,
         "chart": chartdata,
-        "next_job": next_job,
     }
     return render_template("view_source_data.html", data=data)
 
@@ -794,15 +796,15 @@ def download_harvest_errors_by_job(job_id, error_type):
         return "Please provide correct job_id"
 
 
-## Harvest Record
-### Get record
+# Records
+## Get record
 @mod.route("/harvest_record/<record_id>", methods=["GET"])
 def get_harvest_record(record_id):
     record = db.get_harvest_record(record_id)
     return db._to_dict(record) if record else ("Not Found", 404)
 
 
-### Get records
+## Get records
 @mod.route("/harvest_records/", methods=["GET"])
 def get_harvest_records():
     job_id = request.args.get("harvest_job_id")
@@ -830,6 +832,7 @@ def get_harvest_records():
         return db._to_dict(records)
 
 
+## Get records source raw
 @mod.route("/harvest_record/<record_id>/raw", methods=["GET"])
 def get_harvest_record_raw(record_id=None):
     record = db.get_harvest_record(record_id)
@@ -843,7 +846,7 @@ def get_harvest_record_raw(record_id=None):
         return {"error": "Not Found"}, 404
 
 
-### Add record
+## Add record
 @mod.route("/harvest_record/add", methods=["POST", "GET"])
 def add_harvest_record():
     if request.is_json:
@@ -880,13 +883,50 @@ def get_harvest_error(error_id: str = None) -> dict:
         return db._to_dict(errors)
 
 
-## Test interface, will remove later
-## TODO: remove with completion of https://github.com/GSA/data.gov/issues/4741
-@mod.route("/get_data_sources", methods=["GET"])
-def get_data_sources():
-    source = db.get_all_harvest_sources()
-    org = db.get_all_organizations()
-    return render_template("get_data_sources.html", sources=source, organizations=org)
+@mod.route("/metrics/", methods=["GET"])
+def view_metrics():
+    """Render index page with recent harvest jobs."""
+    # Get current time in UTC
+    current_time = get_datetime()
+    start_time = current_time - timedelta(hours=24)
+
+    # Format timestamps for SQL query
+    time_filter = f"date_created >= '{start_time.isoformat()}'"
+
+    # Get recent jobs with pagination
+    page = convert_to_int(request.args.get("page", 1))  # Start from page 1
+    per_page = convert_to_int(request.args.get("per_page", 10))
+
+    jobs = db.pget_harvest_jobs(
+        facets=time_filter,
+        page=page - 1,  # Convert to 0-based for DB
+        per_page=per_page,
+        paginate=True,
+    )
+
+    total = db.pget_harvest_jobs(facets=time_filter, count=True)
+
+    # Create pagination object matching the existing pattern
+    page_count = (total + per_page - 1) // per_page
+    pagination = {
+        "current": page,
+        "page_count": page_count,
+        "count": total,
+        "per_page": per_page,
+        "page_label": "Page",
+        "previous": {"label": "Previous", "page": page - 1 if page > 1 else None},
+        "next": {"label": "Next", "page": page + 1 if page < page_count else None},
+        "last_item": {"label": "Last page", "page": page_count},
+    }
+
+    return render_template(
+        "metrics_dashboard.html",
+        jobs=jobs,
+        pagination=pagination,
+        current_time=current_time,
+        window_start=start_time,
+        data={"htmx_vars": {}},  # Required for pagination template
+    )
 
 
 def register_routes(app):

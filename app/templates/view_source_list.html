@@ -7,13 +7,21 @@
 {% block content %}
 <h1> Harvest Source List </h1>
 <div class="bg-base-lighter padding-2 radius-md">
-    <h2 class="font-lang-lg margin-top-0 margin-bottom-0">Find a Harvest Source</h2>
+    <h2 class="font-lang-lg my-0">Find a Harvest Source</h2>
     <div role="region" aria-label="Component search" aria-atomic="true" class="margin-top-1">
         <label for="icon-filter">Filter by name and keyword</label>
         <input class="usa-input" id="icon-filter" type="text" onkeyup="filter(this)">
         <p class="text-base-darker margin-top-1 margin-bottom-0" aria-live="polite"><span id="component-count"></span>
         </p>
     </div>
+    {% if session['user'] %}
+    <div class="add-buttons-div mt-3">
+        <ul class="list-unstyled">
+            <li><a href="{{ url_for('harvest.add_harvest_source') }}" class="btn btn-primary">
+                    Add Harvest Source</a></li>
+        </ul>
+    </div>
+    {% endif %}
 </div>
 
 <ul class="usa-card-group flex-row margin-top-3">

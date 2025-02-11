@@ -19,11 +19,11 @@
     <h2>Whooops!</h2>
     <p>Looks like you navigated to a source that doesn't exist.</p>
     {% else %}
-    <h1>{{data.harvest_source.name}}</h1>
-    <h2>Harvest Source Config Table</h2>
+    <h1>{{data.harvest_source["name"]}}</h1>
+    <h2>Configuration:</h2>
     <div class="config-table">
         <table class="table">
-            {% for key, value in data.harvest_source_dict.items() %}
+            {% for key, value in data.harvest_source.items() %}
             <tr>
                 <td>{{key}}:</td>
                 <td>{{value}}</td>
@@ -40,7 +40,8 @@
                 </a>
             </li>
             <li class="usa-button-group__item">
-                <a href="{{ url_for('harvest.trigger_harvest_source', source_id=data.harvest_source.id, job_type='harvest')}}">
+                <a
+                    href="{{ url_for('harvest.trigger_harvest_source', source_id=data.harvest_source.id, job_type='harvest')}}">
                     <button class="usa-button usa-button--base">Harvest</button>
                 </a>
             </li>
@@ -58,48 +59,41 @@
     </div>
     {% endif %}
     <br>
-    <h2>Harvest Records: </h2>
-    {% if data.harvest_jobs and (data.harvest_jobs | selectattr('status', 'equalto', 'in_progress') | list | length > 0) %}
+    <h2>Summary: </h2>
+    {% if data.harvest_jobs and (data.harvest_jobs | selectattr('status', 'equalto', 'in_progress') | list | length > 0)
+    %}
     <span style="color: orange; font-weight: bold;">Active Job in Progress</span>
     {% endif %}
+
     <div class="config-table">
         <table class="table">
             <tr>
-                <td>total_records: </td>
-                <td>{{data.total_records}}</td>
+                <td>Records:</td>
+                <td>{{data.summary_data["records_count"]}}</td>
             </tr>
             <tr>
-                <td>records_with_ckan_id: </td>
-                <td>{{data.records_with_ckan_id}}</td>
+                <td>Last Job Records in Error:</td>
+                <td>{{data.summary_data["last_job_errors"]}}</td>
             </tr>
             <tr>
-                <td>records_with_error: </td>
-                <td>{{data.records_with_error}}</td>
+                <td>Last Job Ran:</td>
+                <td>{{data.summary_data["last_job_finished"]}}</td>
+            </tr>
+            <tr>
+                <td>Next Job Scheduled:</td>
+                <td>{{data.summary_data["next_job_scheduled"]}}</td>
             </tr>
         </table>
     </div>
     <div class="section mt-3">
-        <h2>Harvest Jobs</h2>
+        <h2>Harvest Job History:</h2>
         {% if not data.harvest_jobs %}
         No harvest jobs found
         {% else %}
-        <p>
-            {% set last_job_index = (data.harvest_jobs | length) - 1 %}
-            {% set last_job_no_errors = (data.harvest_jobs[last_job_index].errors | length) == 0 %}
-            <a href="{{ url_for('harvest.get_harvest_job', job_id=data.harvest_jobs[last_job_index].id) }}">Last Job
-                Status:
-                <svg class="usa-icon align-middle {% if last_job_no_errors %}check{%else%}cancel{%endif%}"
-                    aria-hidden="true" focusable="false" role="img">
-                    <use
-                        xlink:href="/assets/uswds/img/sprite.svg#{% if last_job_no_errors %}check{%else%}cancel{%endif%}">
-                    </use>
-                </svg></a>
-        </p>
-        <p>Next Job Scheduled: {{data.next_job}}</p>
         <canvas id="datagov-line-chart" height="200"></canvas>
         <div class="usa-table-container--scrollable" tabindex="0">
             <table class="usa-table usa-table--striped">
-                <caption> Harvest Jobs for Harvest Source Id: {{data.harvest_source.id}} </caption>
+                <caption> Harvest Jobs for Harvest Source Id: {{data.harvest_source["id"]}} </caption>
                 <thead>
                     <tr>
                         <th data-sortable scope="col" role="columnheader">Id</th>
