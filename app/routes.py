@@ -653,9 +653,8 @@ def get_harvest_job(job_id=None):
     pagination = Pagination(count=record_error_count)
 
     if htmx:
-        page = request.args.get("page")
-        db_page = int(page) - 1
-        record_errors = db.get_harvest_record_errors_by_job(job_id, page=db_page)
+        page = request.args.get("page", 1, type=convert_to_int)
+        record_errors = db.get_harvest_record_errors_by_job(job_id, page=page - 1)
         record_errors_dict = [
             {
                 "error": db._to_dict(row.HarvestRecordError),
@@ -687,7 +686,6 @@ def get_harvest_job(job_id=None):
             }
             for row in record_errors
         ]
-
         if request.args.get("type") and request.args.get("type") == "json":
             return db._to_dict(job) if job else ("Not Found", 404)
         else:
@@ -886,47 +884,51 @@ def get_harvest_error(error_id: str = None) -> dict:
 @mod.route("/metrics/", methods=["GET"])
 def view_metrics():
     """Render index page with recent harvest jobs."""
-    # Get current time in UTC
     current_time = get_datetime()
     start_time = current_time - timedelta(hours=24)
-
-    # Format timestamps for SQL query
     time_filter = f"date_created >= '{start_time.isoformat()}'"
 
-    # Get recent jobs with pagination
-    page = convert_to_int(request.args.get("page", 1))  # Start from page 1
-    per_page = convert_to_int(request.args.get("per_page", 10))
-
-    jobs = db.pget_harvest_jobs(
+    job_count = db.pget_harvest_jobs(
         facets=time_filter,
-        page=page - 1,  # Convert to 0-based for DB
-        per_page=per_page,
-        paginate=True,
+        count=True,
     )
-
-    total = db.pget_harvest_jobs(facets=time_filter, count=True)
-
-    # Create pagination object matching the existing pattern
-    page_count = (total + per_page - 1) // per_page
-    pagination = {
-        "current": page,
-        "page_count": page_count,
-        "count": total,
-        "per_page": per_page,
-        "page_label": "Page",
-        "previous": {"label": "Previous", "page": page - 1 if page > 1 else None},
-        "next": {"label": "Next", "page": page + 1 if page < page_count else None},
-        "last_item": {"label": "Last page", "page": page_count},
+    htmx_vars = {
+        "target_div": "#paginated__harvest-jobs",
+        "endpoint_url": "/metrics",
     }
+    pagination = Pagination(count=job_count, per_page=10)
 
-    return render_template(
-        "metrics_dashboard.html",
-        jobs=jobs,
-        pagination=pagination,
-        current_time=current_time,
-        window_start=start_time,
-        data={"htmx_vars": {}},  # Required for pagination template
-    )
+    if htmx:
+        page = request.args.get("page", 1, type=convert_to_int)
+        jobs = db.pget_harvest_jobs(facets=time_filter, page=page - 1, per_page=10)
+        data = {
+            "jobs": jobs,
+            "htmx_vars": htmx_vars,
+        }
+        pagination.update_current(page)
+        return render_block(
+            "metrics_dashboard.html",
+            "htmx_paginated",
+            data=data,
+            pagination=pagination.to_dict(),
+        )
+    else:
+        jobs = db.pget_harvest_jobs(
+            facets=time_filter,
+            page=request.args.get("page", type=convert_to_int),
+            per_page=10,
+        )
+        data = {
+            "htmx_vars": htmx_vars,
+            "jobs": jobs,
+            "current_time": current_time,
+            "window_start": start_time,
+        }
+        return render_template(
+            "metrics_dashboard.html",
+            pagination=pagination.to_dict(),
+            data=data,
+        )
 
 
 def register_routes(app):

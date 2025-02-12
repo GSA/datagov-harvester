@@ -33,8 +33,7 @@ class TestPagination:
         pagination.update_current(12)
         assert pagination.current == 12
 
-    @patch("app.paginate.PAGINATE_ENTRIES_PER_PAGE", 7)
     def test_change_pagination_val(self):
-        pagination = Pagination(count=40)
+        pagination = Pagination(count=40, per_page=7)
         assert pagination.count == 40
         assert pagination.page_count == 6
