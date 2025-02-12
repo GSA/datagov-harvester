@@ -24,9 +24,10 @@
   },
   "dependencies": {
     "@uswds/uswds": "3.9.0",
-    "chart.js": "^4.4.5",
-    "glossary-panel": "^1.0.0",
-    "htmx.org": "^2.0.3"
+    "chart.js": "^4.4.7",
+    "htmx.org": "^2.0.3",
+    "rollup": "^4.24.0",
+    "glossary-panel": "^1.0.0"
   },
   "devDependencies": {
     "@babel/core": "^7.26.0",
