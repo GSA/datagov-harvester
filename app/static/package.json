@@ -23,7 +23,7 @@
     "test": "test"
   },
   "dependencies": {
-    "@uswds/uswds": "3.9.0",
+    "@uswds/uswds": "3.11.0",
     "chart.js": "^4.4.5",
     "glossary-panel": "^1.0.0",
     "htmx.org": "^2.0.3"
