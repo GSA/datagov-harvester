@@ -97,8 +97,13 @@ class TestHarvestJobFullFlow:
             source_data_dcatus["id"]
         )
 
-        assert len(records_from_db) == 3
         assert send_notification_emails_mock.called
+        records_from_db_count = interface.get_latest_harvest_records_by_source_orm(
+            source_data_dcatus["id"],
+            count=True,
+        )
+
+        assert len(records_from_db) == records_from_db_count == 7
 
     @patch("harvester.harvest.ckan")
     @patch("harvester.harvest.download_file")
