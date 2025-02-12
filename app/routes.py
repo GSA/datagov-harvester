@@ -299,7 +299,7 @@ def make_new_source_contract(form):
         "frequency": form.frequency.data,
         "schema_type": form.schema_type.data,
         "source_type": form.source_type.data,
-        "notification_frequency": form.notification_frequency.data
+        "notification_frequency": form.notification_frequency.data,
     }
 
 
@@ -754,12 +754,15 @@ def download_harvest_errors_by_job(job_id, error_type):
                     [
                         error.id,
                         identifier,
-                        json.loads(source_raw).get("title", None) if source_raw else None,
+                        (
+                            json.loads(source_raw).get("title", None)
+                            if source_raw
+                            else None
+                        ),
                         error.harvest_record_id,
                         error.type,
                         error.message,
-                        error.date_created
-
+                        error.date_created,
                     ]
                     for error, identifier, source_raw in db.get_harvest_record_errors_by_job(
                         job_id, paginate=False
@@ -773,7 +776,7 @@ def download_harvest_errors_by_job(job_id, error_type):
                         "harvest_record_id",
                         "record_error_type",
                         "message",
-                        "date_created"
+                        "date_created",
                     ]
                 ]
 

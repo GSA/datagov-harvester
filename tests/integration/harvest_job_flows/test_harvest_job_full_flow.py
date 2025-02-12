@@ -1,6 +1,6 @@
 import json
 import os
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 from harvester.harvest import harvest_job_starter
 from harvester.utils.general_utils import download_file

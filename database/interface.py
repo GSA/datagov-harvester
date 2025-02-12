@@ -340,17 +340,17 @@ class HarvesterDBInterface:
     @paginate
     def get_harvest_record_errors_by_job(self, job_id: str, **kwargs):
         """
-            Retrieves harvest record errors for a given job.
+        Retrieves harvest record errors for a given job.
 
-            This function fetches all records where the harvest status is 'error' and
-            belongs to the specified job. The query returns a tuple containing:
-                - HarvestRecordError object
-                - identifier (retrieved from HarvestRecord)
-                - source_raw (retrieved from HarvestRecord, containing 'title')
+        This function fetches all records where the harvest status is 'error' and
+        belongs to the specified job. The query returns a tuple containing:
+            - HarvestRecordError object
+            - identifier (retrieved from HarvestRecord)
+            - source_raw (retrieved from HarvestRecord, containing 'title')
 
-            Returns:
-                Query: A SQLAlchemy Query object that, when executed, yields tuples of:
-                    (HarvestRecordError, identifier, source_raw).
+        Returns:
+            Query: A SQLAlchemy Query object that, when executed, yields tuples of:
+                (HarvestRecordError, identifier, source_raw).
         """
         subquery = (
             self.db.query(HarvestRecord.id)
@@ -360,12 +360,11 @@ class HarvesterDBInterface:
         )
         query = (
             self.db.query(
-                HarvestRecordError,
-                HarvestRecord.identifier,
-                HarvestRecord.source_raw
+                HarvestRecordError, HarvestRecord.identifier, HarvestRecord.source_raw
             )
-            .join(HarvestRecord, 
-                HarvestRecord.id == HarvestRecordError.harvest_record_id)
+            .join(
+                HarvestRecord, HarvestRecord.id == HarvestRecordError.harvest_record_id
+            )
             .filter(HarvestRecord.id.in_(select(subquery)))
         )
         return query

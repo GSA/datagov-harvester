@@ -79,6 +79,7 @@ class HarvestSource(db.Model):
         nullable=False,
     )
 
+
 class HarvestJob(db.Model):
     __tablename__ = "harvest_job"
 
