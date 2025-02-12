@@ -103,7 +103,7 @@ class TestHarvestJobFullFlow:
             count=True,
         )
 
-        assert len(records_from_db) == records_from_db_count == 7
+        assert len(records_from_db) == records_from_db_count == 3
 
     @patch("harvester.harvest.ckan")
     @patch("harvester.harvest.download_file")

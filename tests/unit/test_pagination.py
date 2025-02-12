@@ -1,5 +1,3 @@
-from unittest.mock import patch
-
 from app.paginate import Pagination
 from database.interface import PAGINATE_ENTRIES_PER_PAGE
 

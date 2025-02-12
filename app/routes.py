@@ -476,11 +476,11 @@ def add_harvest_source():
 @mod.route("/harvest_source/<source_id>", methods=["GET"])
 def view_harvest_source_data(source_id: str):
     source = db.get_harvest_source(source_id)
-    records = db.get_latest_harvest_records_by_source(
-        source_id=source.id,
+    records_count = db.get_latest_harvest_records_by_source_orm(
+        source_id=source.id, count=True
     )
     summary_data = {
-        "records_count": len(records),
+        "records_count": records_count,
         "last_job_errors": "N/A",
         "last_job_finished": "N/A",
         "next_job_scheduled": "N/A",
