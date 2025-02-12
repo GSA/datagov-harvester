@@ -23,7 +23,7 @@
     "test": "test"
   },
   "dependencies": {
-    "@uswds/uswds": "3.9.0",
+    "@uswds/uswds": "3.11.0",
     "chart.js": "^4.4.5",
     "glossary-panel": "^1.0.0",
     "htmx.org": "^2.0.3"
@@ -32,14 +32,14 @@
     "@babel/core": "^7.26.0",
     "@babel/plugin-transform-runtime": "^7.25.9",
     "@babel/preset-env": "^7.26.0",
-    "@uswds/compile": "^1.2.0",
+    "@uswds/compile": "^1.2.1",
     "babelify": "^10.0.0",
     "browserify": "^17.0.1",
     "concurrently": "^8.2.2",
     "gulp": "^5.0.0",
     "rollup": "^4.31.0",
     "rollup-plugin-copy": "^3.5.0",
-    "sass": "^1.72.0",
+    "sass": "^1.83.4",
     "typescript": "^5.7.3",
     "vinyl-buffer": "^1.0.1",
     "vinyl-source-stream": "^2.0.0",
