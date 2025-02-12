@@ -220,10 +220,15 @@ class TestHarvestRecordExceptionHandling:
         ]
         job_err = interface.get_harvest_job_errors_by_job(job_id)
         record_err = interface.get_harvest_record_errors_by_job(job_id)
+
+        record_error, identifier, source_raw = record_err[0]
+        title = json.loads(source_raw).get("title", None)
         assert len(job_err) == 0
         assert len(record_err) == 1
-        assert record_err[0].type == "SynchronizeException"
-        assert record_err[0].harvest_record_id == records_with_errors[0].id
+        assert record_error.type == "SynchronizeException"
+        assert identifier == "cftc-dc2"
+        assert title == "Commitment of Traders"
+        assert record_error.harvest_record_id == records_with_errors[0].id
         assert (
             harvest_records[1].id == records_with_errors[0].id
         )  ## assert it's the second record that threw the exception, which validates our package_create mock

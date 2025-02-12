@@ -16,7 +16,7 @@ db = SQLAlchemy(model_class=Base)
 
 class Error(db.Model):
     __abstract__ = True
-    date_created = db.Column(db.DateTime, default=func.now())
+    date_created = db.Column(db.DateTime, default=func.statement_timestamp())
     type = db.Column(db.String)
     message = db.Column(db.String)
 
@@ -97,7 +97,9 @@ class HarvestJob(db.Model):
         index=True,
     )
     job_type = db.Column(db.String(20), default="harvest")
-    date_created = db.Column(db.DateTime, index=True, default=func.now())
+    date_created = db.Column(
+        db.DateTime, index=True, default=func.statement_timestamp()
+    )
     date_finished = db.Column(db.DateTime)
     records_added = db.Column(db.Integer)
     records_updated = db.Column(db.Integer)
@@ -125,7 +127,9 @@ class HarvestRecord(db.Model):
     )
     source_hash = db.Column(db.String)
     source_raw = db.Column(db.String)
-    date_created = db.Column(db.DateTime, index=True, default=func.now())
+    date_created = db.Column(
+        db.DateTime, index=True, default=func.statement_timestamp()
+    )
     date_finished = db.Column(db.DateTime, index=True)
     ckan_id = db.Column(db.String, index=True)
     ckan_name = db.Column(db.String, index=True)

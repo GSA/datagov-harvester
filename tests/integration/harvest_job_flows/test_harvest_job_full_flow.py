@@ -134,7 +134,9 @@ class TestHarvestJobFullFlow:
         assert harvest_job.status == "complete"
         assert len(interface_errors) == harvest_job.records_errored
         assert len(interface_errors) == len(job_errors)
-        assert interface_errors[0].harvest_record_id == job_errors[0].harvest_record_id
+        assert (
+            interface_errors[0][0].harvest_record_id == job_errors[0].harvest_record_id
+        )
         # assert that send_notification_emails is called because of errors
         assert send_notification_emails_mock.called
 
