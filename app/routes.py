@@ -490,8 +490,8 @@ def view_harvest_source_data(source_id: str):
     jobs = db.pget_harvest_jobs(
         paginate=False, facets=f"harvest_source_id = '{source.id}'"
     )
-    if len(jobs):
-        last_job = jobs[len(jobs) - 1]
+    if jobs:
+        last_job = jobs[-1]
         last_job_error_count = db.get_harvest_record_errors_by_job(
             count=True,
             job_id=last_job.id,
