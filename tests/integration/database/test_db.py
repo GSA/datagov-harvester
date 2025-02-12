@@ -279,7 +279,27 @@ class TestDatabase:
             job_id,
             count=True,
         )
-        assert count == len(record_data_dcatus)
+        assert count == len(record_data_dcatus) == 10
+
+    def test_endpoint_count_for_non_paginated_methods(
+        self, interface_with_fixture_json, source_data_dcatus, record_data_dcatus
+    ):
+        interface = interface_with_fixture_json
+        count = interface.get_latest_harvest_records_by_source_orm(
+            source_data_dcatus["id"],
+            count=True,
+        )
+        assert (
+            count
+            == len(
+                [
+                    record
+                    for record in record_data_dcatus
+                    if record["status"] == "success"
+                ]
+            )
+            == 0
+        )
 
     def test_errors_by_job(
         self,
@@ -555,7 +575,7 @@ class TestDatabase:
         assert len(hs2_outdated.errors) == 1
 
         for record in outdated_records:
-            interface.delete_harvest_record(ID=record.id)
+            interface.delete_harvest_record(record_id=record.id)
 
         # make sure only the outdated records and associated errors were deleted
         db_records = interface.pget_harvest_records(count=True)
