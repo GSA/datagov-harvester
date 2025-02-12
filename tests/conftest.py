@@ -123,6 +123,7 @@ def source_data_dcatus_2(organization_data: dict) -> dict:
         "url": f"{HARVEST_SOURCE_URL}/dcatus/dcatus_2.json",
         "schema_type": "dcatus1.1: federal",
         "source_type": "document",
+        "notification_frequency": "always",
     }
 
 
@@ -137,6 +138,7 @@ def source_data_dcatus_same_title(organization_data: dict) -> dict:
         "url": f"{HARVEST_SOURCE_URL}/dcatus/dcatus_same_title.json",
         "schema_type": "dcatus1.1: federal",
         "source_type": "document",
+        "notification_frequency": "always",
     }
 
 
@@ -151,6 +153,7 @@ def source_data_waf_csdgm(organization_data: dict) -> dict:
         "url": f"{HARVEST_SOURCE_URL}/waf/",
         "schema_type": "csdgm",
         "source_type": "waf",
+        "notification_frequency": "always",
     }
 
 
@@ -165,6 +168,7 @@ def source_data_waf_iso19115_2(organization_data: dict) -> dict:
         "url": f"{HARVEST_SOURCE_URL}/iso_2_waf/",
         "schema_type": "iso19115_2",
         "source_type": "waf",
+        "notification_frequency": "always",
     }
 
 
@@ -179,6 +183,7 @@ def source_data_dcatus_invalid(organization_data: dict) -> dict:
         "url": f"{HARVEST_SOURCE_URL}/dcatus/missing_title.json",
         "schema_type": "dcatus1.1: federal",
         "source_type": "document",
+        "notification_frequency": "always",
     }
 
 
@@ -193,6 +198,7 @@ def source_data_dcatus_single_record(organization_data: dict) -> dict:
         "url": f"{HARVEST_SOURCE_URL}/dcatus/dcatus_single_record.json",
         "schema_type": "dcatus1.1: federal",
         "source_type": "document",
+        "notification_frequency": "on_error",
     }
 
 
@@ -207,6 +213,7 @@ def source_data_dcatus_single_record_non_federal(organization_data: dict) -> dic
         "url": f"{HARVEST_SOURCE_URL}/dcatus/dcatus_single_record_non-federal.json",
         "schema_type": "dcatus1.1: non-federal",
         "source_type": "document",
+        "notification_frequency": "always",
     }
 
 
@@ -221,6 +228,7 @@ def source_data_dcatus_bad_url(organization_data: dict) -> dict:
         "url": f"{HARVEST_SOURCE_URL}/dcatus/bad_url.json",
         "schema_type": "dcatus1.1: federal",
         "source_type": "document",
+        "notification_frequency": "always",
     }
 
 
@@ -235,6 +243,7 @@ def source_data_dcatus_invalid_records(organization_data) -> dict:
         "url": "http://localhost/dcatus/missing_title.json",
         "schema_type": "dcatus1.1: federal",
         "source_type": "document",
+        "notification_frequency": "always",
     }
 
 

@@ -1,6 +1,6 @@
 import json
 import os
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from harvester.harvest import harvest_job_starter
 from harvester.utils.general_utils import download_file
@@ -10,8 +10,10 @@ HARVEST_SOURCE_URL = os.getenv("HARVEST_SOURCE_URL")
 
 class TestHarvestJobFullFlow:
     @patch("harvester.harvest.ckan")
+    @patch("harvester.harvest.HarvestSource.send_notification_emails")
     def test_harvest_single_record_created(
         self,
+        send_notification_emails_mock: MagicMock,
         CKANMock,
         interface,
         organization_data,
@@ -38,21 +40,25 @@ class TestHarvestJobFullFlow:
         harvest_job = interface.get_harvest_job(job_id)
         assert harvest_job.status == "complete"
         assert harvest_job.records_added == len(records_to_add)
+        # assert that send_notification_emails is not called because email has no errors
+        assert send_notification_emails_mock.called is False
 
     @patch("harvester.harvest.ckan")
+    @patch("harvester.harvest.HarvestSource.send_notification_emails")
     def test_multiple_harvest_jobs(
         self,
+        send_notification_emails_mock: MagicMock,
         CKANMock,
         interface,
         organization_data,
         source_data_dcatus,
     ):
-
         CKANMock.action.package_create.return_value = {"id": 1234}
         CKANMock.action.dataset_purge.return_value = {"ok"}
         CKANMock.action.package_update.return_value = {"ok"}
 
         interface.add_organization(organization_data)
+
         interface.add_harvest_source(source_data_dcatus)
         harvest_job = interface.add_harvest_job(
             {
@@ -69,6 +75,7 @@ class TestHarvestJobFullFlow:
         )
 
         assert len(records_from_db) == 7
+        assert send_notification_emails_mock.called
 
         ## create follow-up job
         interface.update_harvest_source(
@@ -90,6 +97,7 @@ class TestHarvestJobFullFlow:
             source_data_dcatus["id"]
         )
 
+        assert send_notification_emails_mock.called
         records_from_db_count = interface.get_latest_harvest_records_by_source_orm(
             source_data_dcatus["id"],
             count=True,
@@ -99,8 +107,10 @@ class TestHarvestJobFullFlow:
 
     @patch("harvester.harvest.ckan")
     @patch("harvester.harvest.download_file")
+    @patch("harvester.harvest.HarvestSource.send_notification_emails")
     def test_harvest_record_errors_reported(
         self,
+        send_notification_emails_mock: MagicMock,
         download_file_mock,
         CKANMock,
         interface,
@@ -132,6 +142,8 @@ class TestHarvestJobFullFlow:
         assert (
             interface_errors[0][0].harvest_record_id == job_errors[0].harvest_record_id
         )
+        # assert that send_notification_emails is called because of errors
+        assert send_notification_emails_mock.called
 
     @patch("harvester.harvest.ckan")
     @patch("harvester.utils.ckan_utils.uuid")

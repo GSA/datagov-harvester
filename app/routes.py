@@ -299,6 +299,7 @@ def make_new_source_contract(form):
         "frequency": form.frequency.data,
         "schema_type": form.schema_type.data,
         "source_type": form.source_type.data,
+        "notification_frequency": form.notification_frequency.data,
     }
 
 
