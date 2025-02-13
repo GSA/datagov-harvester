@@ -205,8 +205,10 @@ def remove_user(email):
 ## Org management
 @org.cli.command("add")
 @click.argument("name")
-@click.option("--logo", default="", help="Org Logo")
-@click.option("--id", default="", help="Org ID: should correspond to CKAN ORG ID")
+@click.option(
+    "--logo", default="/assets/img/placeholder-organization.png", help="Org Logo"
+)
+@click.option("--id", help="Org ID: should correspond to CKAN ORG ID")
 def cli_add_org(name, logo, id):
     org_contract = {"name": name}
     if logo:
@@ -475,25 +477,24 @@ def add_harvest_source():
 
 @mod.route("/harvest_source/<source_id>", methods=["GET"])
 def view_harvest_source_data(source_id: str):
-    facets = f"harvest_source_id = '{source_id}'"
     htmx_vars = {
         "target_div": "#paginated__harvest-jobs",
         "endpoint_url": f"/harvest_source/{source_id}",
     }
 
-    records_count = db.pget_harvest_records(
-        facets=facets,
+    jobs_count = db.pget_harvest_jobs(
+        facets=f"harvest_source_id = '{source_id}'",
         count=True,
     )
 
     pagination = Pagination(
-        count=records_count,
+        count=jobs_count,
         current=request.args.get("page", 1, type=convert_to_int),
     )
 
     if htmx:
         jobs = db.pget_harvest_jobs(
-            facets=facets,
+            facets=f"harvest_source_id = '{source_id}'",
             page=pagination.db_current,
         )
         data = {
@@ -508,15 +509,24 @@ def view_harvest_source_data(source_id: str):
             pagination=pagination.to_dict(),
         )
     else:
+        records_count = db.pget_harvest_records(
+            facets=f"harvest_source_id = '{source_id}'",
+            count=True,
+        )
+        synced_records_count = db.pget_harvest_records(
+            facets=f"harvest_source_id = '{source_id}', ckan_id is not null",
+            count=True,
+        )
         summary_data = {
             "records_count": records_count,
+            "synced_records_count": synced_records_count,
             "last_job_errors": "N/A",
             "last_job_finished": "N/A",
             "next_job_scheduled": "N/A",
         }
 
         jobs = db.pget_harvest_jobs(
-            facets=facets,
+            facets=f"harvest_source_id = '{source_id}'",
             page=pagination.db_current,
         )
 

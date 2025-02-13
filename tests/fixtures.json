@@ -2,7 +2,7 @@
     "organization": [
         {
             "name": "Test Org",
-            "logo": "https://example.com/logo.png",
+            "logo": "/assets/img/placeholder-organization.png",
             "id": "d925f84d-955b-4cb7-812f-dcfd6681a18f"
         }
     ],
@@ -118,6 +118,7 @@
         },
         {
             "id": "09f073b3-00e3-4147-ba69-a5d0fd7ce027",
+            "ckan_id": "1234",
             "identifier": "test_identifier-9",
             "harvest_job_id": "6bce761c-7a39-41c1-ac73-94234c139c76",
             "harvest_source_id": "2f2652de-91df-4c63-8b53-bfced20b276b",
@@ -127,6 +128,7 @@
         },
         {
             "id": "97492788-5d62-4feb-8641-6f6692aec026",
+            "ckan_id": "5678",
             "identifier": "test_identifier-10",
             "harvest_job_id": "6bce761c-7a39-41c1-ac73-94234c139c76",
             "harvest_source_id": "2f2652de-91df-4c63-8b53-bfced20b276b",
