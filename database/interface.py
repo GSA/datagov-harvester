@@ -21,7 +21,7 @@ from .models import (
 )
 
 DATABASE_URI = os.getenv("DATABASE_URI")
-PAGINATE_ENTRIES_PER_PAGE = 20
+PAGINATE_ENTRIES_PER_PAGE = 10
 PAGINATE_START_PAGE = 0
 
 logging.basicConfig(level=logging.INFO)

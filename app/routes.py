@@ -475,70 +475,107 @@ def add_harvest_source():
 
 @mod.route("/harvest_source/<source_id>", methods=["GET"])
 def view_harvest_source_data(source_id: str):
-    source = db.get_harvest_source(source_id)
-    records_count = db.get_latest_harvest_records_by_source_orm(
-        source_id=source.id, count=True
-    )
-    summary_data = {
-        "records_count": records_count,
-        "last_job_errors": "N/A",
-        "last_job_finished": "N/A",
-        "next_job_scheduled": "N/A",
+    facets = f"harvest_source_id = '{source_id}'"
+    htmx_vars = {
+        "target_div": "#paginated__harvest-jobs",
+        "endpoint_url": f"/harvest_source/{source_id}",
     }
 
-    # TODO: wire in paginated jobs htmx refresh ui & route
-    jobs = db.pget_harvest_jobs(
-        paginate=False, facets=f"harvest_source_id = '{source.id}'"
+    count = db.pget_harvest_jobs(
+        facets=facets,
+        count=True,
     )
-    if jobs:
-        last_job = jobs[-1]
-        last_job_error_count = db.get_harvest_record_errors_by_job(
-            count=True,
-            job_id=last_job.id,
+
+    pagination = Pagination(
+        count=count,
+        current=request.args.get("page", 1, type=convert_to_int),
+    )
+
+    if htmx:
+        jobs = db.pget_harvest_jobs(
+            facets=facets,
+            page=pagination.db_current,
         )
-        summary_data["last_job_errors"] = last_job_error_count
-        summary_data["last_job_finished"] = last_job.date_finished
+        data = {
+            "source": {"id": source_id},
+            "jobs": jobs,
+            "htmx_vars": htmx_vars,
+        }
+        return render_block(
+            "view_source_data.html",
+            "htmx_paginated",
+            data=data,
+            pagination=pagination.to_dict(),
+        )
+    else:
+        summary_data = {
+            "records_count": count,
+            "last_job_errors": "N/A",
+            "last_job_finished": "N/A",
+            "next_job_scheduled": "N/A",
+        }
 
-    future_jobs = db.get_new_harvest_jobs_by_source_in_future(source.id)
-    if len(future_jobs):
-        summary_data["next_job_scheduled"] = future_jobs[0].date_created
+        jobs = db.pget_harvest_jobs(
+            facets=facets,
+            page=pagination.db_current,
+        )
 
-    chartdata = {
-        "labels": [job.date_finished for job in jobs],
-        "datasets": [
-            {
-                "label": "Added",
-                "data": [job.records_added for job in jobs],
-                "borderColor": "green",
-                "backgroundColor": "green",
-            },
-            {
-                "label": "Deleted",
-                "data": [job.records_deleted for job in jobs],
-                "borderColor": "black",
-                "backgroundColor": "black",
-            },
-            {
-                "label": "Errored",
-                "data": [job.records_errored for job in jobs],
-                "borderColor": "red",
-                "backgroundColor": "red",
-            },
-            {
-                "label": "Ignored",
-                "data": [job.records_ignored for job in jobs],
-                "borderColor": "grey",
-                "backgroundColor": "grey",
-            },
-        ],
-    }
-    data = {
-        "harvest_source": db._to_dict(source),
-        "summary_data": summary_data,
-        "harvest_jobs": jobs,
-        "chart": chartdata,
-    }
-    return render_template("view_source_data.html", data=data)
+        if jobs:
+            last_job = jobs[-1]
+            last_job_error_count = db.get_harvest_record_errors_by_job(
+                count=True,
+                job_id=last_job.id,
+            )
+            summary_data["last_job_errors"] = last_job_error_count
+            summary_data["last_job_finished"] = last_job.date_finished
+
+        future_jobs = db.get_new_harvest_jobs_by_source_in_future(source_id)
+
+        if future_jobs:
+            summary_data["next_job_scheduled"] = future_jobs[0].date_created
+
+        chartdata = {
+            "labels": [job.date_finished for job in jobs],
+            "datasets": [
+                {
+                    "label": "Added",
+                    "data": [job.records_added for job in jobs],
+                    "borderColor": "green",
+                    "backgroundColor": "green",
+                },
+                {
+                    "label": "Deleted",
+                    "data": [job.records_deleted for job in jobs],
+                    "borderColor": "black",
+                    "backgroundColor": "black",
+                },
+                {
+                    "label": "Errored",
+                    "data": [job.records_errored for job in jobs],
+                    "borderColor": "red",
+                    "backgroundColor": "red",
+                },
+                {
+                    "label": "Ignored",
+                    "data": [job.records_ignored for job in jobs],
+                    "borderColor": "grey",
+                    "backgroundColor": "grey",
+                },
+            ],
+        }
+        source = db.get_harvest_source(source_id)
+        data = {
+            "source": db._to_dict(source),
+            "summary_data": summary_data,
+            "jobs": jobs,
+            "chart_data": chartdata,
+            "htmx_vars": htmx_vars,
+        }
+        return render_template(
+            "view_source_data.html",
+            pagination=pagination.to_dict(),
+            data=data,
+        )
 
 
 @mod.route("/harvest_sources/", methods=["GET"])
@@ -656,7 +693,10 @@ def get_harvest_job(job_id=None):
     )
 
     if htmx:
-        record_errors = db.get_harvest_record_errors_by_job(job_id, page=pagination.db_current)
+        record_errors = db.get_harvest_record_errors_by_job(
+            job_id,
+            page=pagination.db_current,
+        )
         record_errors_dict = [
             {
                 "error": db._to_dict(row.HarvestRecordError),
@@ -889,18 +929,19 @@ def view_metrics():
     start_time = current_time - timedelta(hours=24)
     time_filter = f"date_created >= '{start_time.isoformat()}'"
 
-    job_count = db.pget_harvest_jobs(
-        facets=time_filter,
-        count=True,
-    )
     htmx_vars = {
         "target_div": "#paginated__harvest-jobs",
         "endpoint_url": "/metrics",
     }
+
+    count = db.pget_harvest_jobs(
+        facets=time_filter,
+        count=True,
+    )
+
     pagination = Pagination(
-        count=job_count,
+        count=count,
         current=request.args.get("page", 1, type=convert_to_int),
-        per_page=10,
     )
 
     if htmx:

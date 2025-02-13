@@ -15,15 +15,15 @@
     Action in progress...
 </div>
 <div class="wrapper source-data">
-    {% if not data.harvest_source %}
+    {% if not data.source %}
     <h2>Whooops!</h2>
     <p>Looks like you navigated to a source that doesn't exist.</p>
     {% else %}
-    <h1>{{data.harvest_source["name"]}}</h1>
+    <h1>{{data.source["name"]}}</h1>
     <h2>Configuration:</h2>
     <div class="config-table">
         <table class="table">
-            {% for key, value in data.harvest_source.items() %}
+            {% for key, value in data.source.items() %}
             <tr>
                 <td>{{key}}:</td>
                 <td>{{value}}</td>
@@ -35,32 +35,31 @@
     <div class="config-actions">
         <ul class="usa-button-group">
             <li class="usa-button-group__item">
-                <a href="{{ url_for('harvest.edit_harvest_source', source_id=data.harvest_source.id)}}">
+                <a href="{{ url_for('harvest.edit_harvest_source', source_id=data.source.id)}}">
                     <button class="usa-button">Edit</button>
                 </a>
             </li>
             <li class="usa-button-group__item">
-                <a
-                    href="{{ url_for('harvest.trigger_harvest_source', source_id=data.harvest_source.id, job_type='harvest')}}">
+                <a href="{{ url_for('harvest.trigger_harvest_source', source_id=data.source.id, job_type='harvest')}}">
                     <button class="usa-button usa-button--base">Harvest</button>
                 </a>
             </li>
             <li class="usa-button-group__item">
-                <a href="{{ url_for('harvest.trigger_harvest_source', source_id=data.harvest_source.id, job_type='clear') }}"
+                <a href="{{ url_for('harvest.trigger_harvest_source', source_id=data.source.id, job_type='clear') }}"
                     onclick="return confirm('Are you sure you want to clear all datasets?');">
                     <button class="btn btn-primary">Clear</button>
                 </a>
             </li>
             <li class="usa-button-group__item">
                 <button class="usa-button usa-button--secondary"
-                    onclick="confirmAction('delete', '/harvest_source/config/delete/{{data.harvest_source.id}}')">Delete</button>
+                    onclick="confirmAction('delete', '/harvest_source/config/delete/{{data.source.id}}')">Delete</button>
             </li>
         </ul>
     </div>
     {% endif %}
     <br>
     <h2>Summary: </h2>
-    {% if data.harvest_jobs and (data.harvest_jobs | selectattr('status', 'equalto', 'in_progress') | list | length > 0)
+    {% if data.jobs and (data.jobs | selectattr('status', 'equalto', 'in_progress') | list | length > 0)
     %}
     <span style="color: orange; font-weight: bold;">Active Job in Progress</span>
     {% endif %}
@@ -87,50 +86,60 @@
     </div>
     <div class="section mt-3">
         <h2>Harvest Job History:</h2>
-        {% if not data.harvest_jobs %}
+        {% if not data.jobs %}
         No harvest jobs found
         {% else %}
         <canvas id="datagov-line-chart" height="200"></canvas>
-        <div class="usa-table-container--scrollable" tabindex="0">
-            <table class="usa-table usa-table--striped">
-                <caption> Harvest Jobs for Harvest Source Id: {{data.harvest_source["id"]}} </caption>
-                <thead>
-                    <tr>
-                        <th data-sortable scope="col" role="columnheader">Id</th>
-                        <th data-sortable scope="col" role="columnheader">Type</th>
-                        <th data-sortable scope="col" role="columnheader">Status</th>
-                        <th data-sortable scope="col" role="columnheader">Date Created</th>
-                        <th data-sortable scope="col" role="columnheader">Date Finished</th>
-                        <th data-sortable scope="col" role="columnheader">Records Added</th>
-                        <th data-sortable scope="col" role="columnheader">Records Deleted</th>
-                        <th data-sortable scope="col" role="columnheader">Records Errored</th>
-                        <th data-sortable scope="col" role="columnheader">Records Ignored</th>
-                        <th data-sortable scope="col" role="columnheader">Records Updated</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for job in data.harvest_jobs %}
-                    <tr>
-                        <th scope="row"><a href="{{ url_for('harvest.get_harvest_job', job_id=job.id) }}">{{job.id}}</a>
-                        </th>
-                        <td data-sort-value={jobs.job_type}> {{job.job_type}}</td>
-                        <td data-sort-value={jobs.date_created}> {{job.status}}</td>
-                        <td data-sort-value={jobs.date_created}> {{job.date_created}}</td>
-                        <td data-sort-value={jobs.date_finished}>{{job.date_finished}} </td>
-                        <td data-sort-value={jobs.records_added}>{{job.records_added}}</td>
-                        <td data-sort-value={jobs.records_deleted}>{{job.records_deleted}}</td>
-                        <td data-sort-value={jobs.records_errored}>{{job.records_errored}}</td>
-                        <td data-sort-value={jobs.records_ignored}>{{job.records_ignored}}</td>
-                        <td data-sort-value={jobs.records_updated}>{{job.records_updated}}</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-            <div class="usa-sr-only usa-table__announcement-region" aria-live="polite"></div>
+        {% block htmx_paginated %}
+        <div id="paginated__harvest-jobs">
+
+            <div class="usa-table-container--scrollable" tabindex="0">
+                <table class="usa-table usa-table--striped">
+                    <caption> Harvest Jobs for Harvest Source Id: {{data.source["id"]}} </caption>
+                    <thead>
+                        <tr>
+                            <th data-sortable scope="col" role="columnheader">Id</th>
+                            <th data-sortable scope="col" role="columnheader">Type</th>
+                            <th data-sortable scope="col" role="columnheader">Status</th>
+                            <th data-sortable scope="col" role="columnheader">Date Created</th>
+                            <th data-sortable scope="col" role="columnheader">Date Finished</th>
+                            <th data-sortable scope="col" role="columnheader">Records Added</th>
+                            <th data-sortable scope="col" role="columnheader">Records Deleted</th>
+                            <th data-sortable scope="col" role="columnheader">Records Errored</th>
+                            <th data-sortable scope="col" role="columnheader">Records Ignored</th>
+                            <th data-sortable scope="col" role="columnheader">Records Updated</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for job in data.jobs %}
+                        <tr>
+                            <th scope="row"><a
+                                    href="{{ url_for('harvest.get_harvest_job', job_id=job.id) }}">{{job.id[:8]}}</a>
+                            </th>
+                            <td data-sort-value={jobs.job_type}> {{job.job_type}}</td>
+                            <td data-sort-value={jobs.date_created}> {{job.status}}</td>
+                            <td data-sort-value={jobs.date_created}> {{job.date_created}}</td>
+                            <td data-sort-value={jobs.date_finished}>{{job.date_finished}} </td>
+                            <td data-sort-value={jobs.records_added}>{{job.records_added}}</td>
+                            <td data-sort-value={jobs.records_deleted}>{{job.records_deleted}}</td>
+                            <td data-sort-value={jobs.records_errored}>{{job.records_errored}}</td>
+                            <td data-sort-value={jobs.records_ignored}>{{job.records_ignored}}</td>
+                            <td data-sort-value={jobs.records_updated}>{{job.records_updated}}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                <div class="usa-sr-only usa-table__announcement-region" aria-live="polite"></div>
+            </div>
+            {% if pagination.count > data.jobs|count %}
+            {% include '/components/pagination/pagination.html' %}
+            {% endif %}
         </div>
+        {% endblock %}
+
         {% endif %}
     </div>
-    {% endif %}
+    {% endif %} <!-- line 21 -->
 </div>
 
 {% endblock %}
@@ -173,7 +182,7 @@
     const buildLineChart = (el) => {
         let chart = {
             type: 'line',
-            data: {{ data.chart | tojson
+            data: {{ data.chart_data | tojson
     }},
     options: {
         responsive: true,

@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 
 from sqlalchemy import text
 
+from database.interface import PAGINATE_ENTRIES_PER_PAGE
 from database.models import HarvestJobError, HarvestRecordError
 
 
@@ -239,19 +240,19 @@ class TestDatabase:
 
         # get first page
         db_records = interface.pget_harvest_records(page=0)
-        assert len(db_records) == 20
+        assert len(db_records) == PAGINATE_ENTRIES_PER_PAGE
         assert db_records[0].identifier == "test-identifier-0"
         assert id_lookup_table[db_records[0].identifier] == db_records[0].id
 
         # get second page
         db_records = interface.pget_harvest_records(page=1)
-        assert len(db_records) == 20
-        assert db_records[0].identifier == "test-identifier-20"
+        assert len(db_records) == PAGINATE_ENTRIES_PER_PAGE
+        assert db_records[0].identifier == "test-identifier-10"
         assert id_lookup_table[db_records[0].identifier] == db_records[0].id
 
         # get first page again
         db_records = interface.pget_harvest_records(page=0)
-        assert len(db_records) == 20
+        assert len(db_records) == PAGINATE_ENTRIES_PER_PAGE
         assert db_records[0].identifier == "test-identifier-0"
         assert id_lookup_table[db_records[0].identifier] == db_records[0].id
 
@@ -261,7 +262,7 @@ class TestDatabase:
         assert id_lookup_table[db_records[50].identifier] == db_records[50].id
 
         # get page 6 (r. 100 - 119), which is out of bounds / empty
-        db_records = interface.pget_harvest_records(page=6)
+        db_records = interface.pget_harvest_records(page=11)
         assert len(db_records) == 0
 
         db_records = interface.pget_harvest_records(
@@ -613,14 +614,14 @@ class TestDatabase:
 
         # source id, no facets
         db_records = interface.get_harvest_records_by_source(source_data_dcatus["id"])
-        assert len(db_records) == 20
+        assert len(db_records) == PAGINATE_ENTRIES_PER_PAGE
 
         # source id, plus page kwarg
         db_records = interface.get_harvest_records_by_source(
             source_data_dcatus["id"], page=1
         )
-        assert len(db_records) == 20
-        assert db_records[0].identifier == "test-identifier-20"
+        assert len(db_records) == PAGINATE_ENTRIES_PER_PAGE
+        assert db_records[0].identifier == "test-identifier-10"
 
         # source id, plus pagination flag
         db_records = interface.get_harvest_records_by_source(
