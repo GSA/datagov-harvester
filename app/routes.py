@@ -650,11 +650,13 @@ def get_harvest_job(job_id=None):
         "endpoint_url": f"/harvest_job/{job_id}",
     }
 
-    pagination = Pagination(count=record_error_count)
+    pagination = Pagination(
+        count=record_error_count,
+        current=request.args.get("page", 1, type=convert_to_int),
+    )
 
     if htmx:
-        page = request.args.get("page", 1, type=convert_to_int)
-        record_errors = db.get_harvest_record_errors_by_job(job_id, page=page - 1)
+        record_errors = db.get_harvest_record_errors_by_job(job_id, page=pagination.db_current)
         record_errors_dict = [
             {
                 "error": db._to_dict(row.HarvestRecordError),
@@ -668,7 +670,6 @@ def get_harvest_job(job_id=None):
             "record_errors": record_errors_dict,
             "htmx_vars": htmx_vars,
         }
-        pagination.update_current(page)
         return render_block(
             "view_job_data.html",
             "record_errors_table",
@@ -896,16 +897,22 @@ def view_metrics():
         "target_div": "#paginated__harvest-jobs",
         "endpoint_url": "/metrics",
     }
-    pagination = Pagination(count=job_count, per_page=10)
+    pagination = Pagination(
+        count=job_count,
+        current=request.args.get("page", 1, type=convert_to_int),
+        per_page=10,
+    )
 
     if htmx:
-        page = request.args.get("page", 1, type=convert_to_int)
-        jobs = db.pget_harvest_jobs(facets=time_filter, page=page - 1, per_page=10)
+        jobs = db.pget_harvest_jobs(
+            facets=time_filter,
+            page=pagination.db_current,
+            per_page=pagination.per_page,
+        )
         data = {
             "jobs": jobs,
             "htmx_vars": htmx_vars,
         }
-        pagination.update_current(page)
         return render_block(
             "metrics_dashboard.html",
             "htmx_paginated",
@@ -915,8 +922,8 @@ def view_metrics():
     else:
         jobs = db.pget_harvest_jobs(
             facets=time_filter,
-            page=request.args.get("page", type=convert_to_int),
-            per_page=10,
+            page=pagination.db_current,
+            per_page=pagination.per_page,
         )
         data = {
             "htmx_vars": htmx_vars,

@@ -12,9 +12,14 @@ class Pagination:
         self.page_count = math.ceil(count / per_page)
         self.per_page = per_page
 
+    @property
+    def db_current(self):
+        return self.current - 1
+
     def to_dict(self):
         return {
             "current": self.current,
+            "db_current": self.db_current,
             "count": self.count,
             "page_count": self.page_count,
             "page_label": "Page",
@@ -25,6 +30,3 @@ class Pagination:
                 "label": "Last page",
             },
         }
-
-    def update_current(self, current: int) -> dict:
-        self.current = int(current)
