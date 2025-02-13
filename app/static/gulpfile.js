@@ -28,8 +28,8 @@ function jsTask() {
 const defaultTask = parallel(
     series(
         jsTask,
-        uswds.compile,
         uswds.copyAssets,
+        uswds.compile,
     )
 )
 
