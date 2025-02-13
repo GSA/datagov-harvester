@@ -481,13 +481,13 @@ def view_harvest_source_data(source_id: str):
         "endpoint_url": f"/harvest_source/{source_id}",
     }
 
-    count = db.pget_harvest_jobs(
+    records_count = db.pget_harvest_records(
         facets=facets,
         count=True,
     )
 
     pagination = Pagination(
-        count=count,
+        count=records_count,
         current=request.args.get("page", 1, type=convert_to_int),
     )
 
@@ -509,7 +509,7 @@ def view_harvest_source_data(source_id: str):
         )
     else:
         summary_data = {
-            "records_count": count,
+            "records_count": records_count,
             "last_job_errors": "N/A",
             "last_job_finished": "N/A",
             "next_job_scheduled": "N/A",
