@@ -157,6 +157,9 @@ class HarvestRecordError(Error):
     harvest_record_id = db.Column(
         db.String, db.ForeignKey("harvest_record.id"), nullable=False
     )
+    harvest_job_id = db.Column(
+        db.String(36), db.ForeignKey("harvest_job.id"), nullable=False
+    )
 
 
 class HarvestUser(db.Model):

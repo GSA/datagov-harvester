@@ -546,6 +546,7 @@ class TestDatabase:
             "type": "ValidationException",
             "date_created": datetime.now(timezone.utc),
             "harvest_record_id": records[-2].id,
+            "harvest_job_id": records[-2].harvest_job_id,
         }
         interface.add_harvest_record_error(error_data)
 

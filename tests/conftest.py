@@ -363,6 +363,7 @@ def record_error_data_2(record_data_dcatus_2) -> dict:
     return [
         {
             "harvest_record_id": record_data_dcatus_2[0]["id"],
+            "harvest_job_id": record_data_dcatus_2[0]["harvest_job_id"],
             "message": "record is invalid",
             "type": "ValidationException",
         }
