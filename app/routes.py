@@ -481,9 +481,11 @@ def view_harvest_source_data(source_id: str):
         "target_div": "#paginated__harvest-jobs",
         "endpoint_url": f"/harvest_source/{source_id}",
     }
-
+    harvest_jobs_facets = (
+        f"harvest_source_id = '{source_id}' AND date_created <= '{get_datetime()}'"
+    )
     jobs_count = db.pget_harvest_jobs(
-        facets=f"harvest_source_id = '{source_id}'",
+        facets=harvest_jobs_facets,
         count=True,
     )
 
@@ -494,7 +496,7 @@ def view_harvest_source_data(source_id: str):
 
     if htmx:
         jobs = db.pget_harvest_jobs(
-            facets=f"harvest_source_id = '{source_id}'",
+            facets=harvest_jobs_facets,
             page=pagination.db_current,
         )
         data = {
@@ -526,7 +528,7 @@ def view_harvest_source_data(source_id: str):
         }
 
         jobs = db.pget_harvest_jobs(
-            facets=f"harvest_source_id = '{source_id}'",
+            facets=harvest_jobs_facets,
             page=pagination.db_current,
         )
 
@@ -937,7 +939,7 @@ def view_metrics():
     """Render index page with recent harvest jobs."""
     current_time = get_datetime()
     start_time = current_time - timedelta(hours=24)
-    time_filter = f"date_created >= '{start_time.isoformat()}'"
+    time_filter = f"date_created >= '{start_time.isoformat()}' AND date_created <= '{current_time}'"
 
     htmx_vars = {
         "target_div": "#paginated__harvest-jobs",
