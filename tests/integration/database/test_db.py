@@ -308,6 +308,33 @@ class TestDatabase:
             == 2
         )
 
+    def test_sync_count_for_non_paginated_methods(
+        self, interface_with_fixture_json, source_data_dcatus, record_data_dcatus
+    ):
+        interface = interface_with_fixture_json
+
+        # test sync count by adding a valid record without a ckan_id
+        interface.add_harvest_record(
+            {
+                "identifier": "test_identifier-11",
+                "harvest_job_id": "6bce761c-7a39-41c1-ac73-94234c139c76",
+                "harvest_source_id": "2f2652de-91df-4c63-8b53-bfced20b276b",
+                "action": "create",
+                "status": "success",
+            }
+        )
+
+        count = interface.get_latest_harvest_records_by_source_orm(
+            source_data_dcatus["id"],
+            count=True,
+        )
+
+        sync_count = interface.get_latest_harvest_records_by_source_orm(
+            source_data_dcatus["id"], count=True, synced=True
+        )
+
+        assert (count - 1) == sync_count == 2
+
     def test_errors_by_job(
         self,
         interface_with_multiple_sources,

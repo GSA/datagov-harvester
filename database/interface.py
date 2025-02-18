@@ -519,14 +519,26 @@ class HarvesterDBInterface:
 
     @count_wrapper
     @count
-    def get_latest_harvest_records_by_source_orm(self, source_id, **kwargs):
+    def get_latest_harvest_records_by_source_orm(
+        self, source_id, synced=False, **kwargs
+    ):
+        """Get latest records for each harvest source
+
+        :param string source_id - id for harvest source
+        :param bool synced - only return records with ckan_id
+
+        """
         # datetimes are returned as datetime objs not strs
+        queries = [
+            HarvestRecord.status == "success",
+            HarvestRecord.harvest_source_id == source_id,
+        ]
+        if synced:
+            queries.append(HarvestRecord.ckan_id.isnot(None))
+
         subq = (
             self.db.query(HarvestRecord)
-            .filter(
-                HarvestRecord.status == "success",
-                HarvestRecord.harvest_source_id == source_id,
-            )
+            .filter(*queries)
             .order_by(HarvestRecord.identifier, desc(HarvestRecord.date_created))
             .distinct(HarvestRecord.identifier)
             .subquery()

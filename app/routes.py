@@ -511,13 +511,14 @@ def view_harvest_source_data(source_id: str):
             pagination=pagination.to_dict(),
         )
     else:
-        records_count = db.pget_harvest_records(
-            facets=f"harvest_source_id = '{source_id}'",
+        records_count = db.get_latest_harvest_records_by_source_orm(
+            source_id=source_id,
             count=True,
         )
-        synced_records_count = db.pget_harvest_records(
-            facets=f"harvest_source_id = '{source_id}', ckan_id is not null",
+        synced_records_count = db.get_latest_harvest_records_by_source_orm(
+            source_id=source_id,
             count=True,
+            synced=True,
         )
         summary_data = {
             "records_count": records_count,
