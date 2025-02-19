@@ -36,7 +36,7 @@ def default_session_fixture():
         yield
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture()
 def app() -> Generator[Any, Flask, Any]:
     app = create_app()
     app.config.update({"TESTING": True})
