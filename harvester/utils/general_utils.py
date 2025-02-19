@@ -71,7 +71,11 @@ def open_json(file_path):
 
 
 def download_file(url: str, file_type: str) -> Union[str, dict]:
-    resp = requests.get(url)
+    # ruff: noqa: E501
+    headers = {
+        "User-Agent": "HarvesterBot/0.0 (https://data.gov; datagovhelp@gsa.gov) Data.gov/2.0"
+    }
+    resp = requests.get(url, headers=headers)
     if 200 <= resp.status_code < 300:
         if file_type == ".xml":
             return resp.content
