@@ -2,7 +2,7 @@
     "organization": [
         {
             "name": "Test Org",
-            "logo": "https://example.com/logo.png",
+            "logo": "/assets/img/placeholder-organization.png",
             "id": "d925f84d-955b-4cb7-812f-dcfd6681a18f"
         }
     ],
@@ -24,8 +24,16 @@
     "job": [
         {
             "id": "6bce761c-7a39-41c1-ac73-94234c139c76",
-            "status": "new",
-            "harvest_source_id": "2f2652de-91df-4c63-8b53-bfced20b276b"
+            "status": "complete",
+            "harvest_source_id": "2f2652de-91df-4c63-8b53-bfced20b276b",
+            "date_created": "2025-02-11 22:41:03.716252",
+            "date_finished": "2025-02-11 22:41:03.715310",
+            "records_added": 2,
+            "records_updated": 0,
+            "records_deleted": 0,
+            "records_errored": 8,
+            "records_ignored": 0,
+            "records_validated": 0
         }
     ],
     "job_error": [
@@ -110,20 +118,22 @@
         },
         {
             "id": "09f073b3-00e3-4147-ba69-a5d0fd7ce027",
+            "ckan_id": "1234",
             "identifier": "test_identifier-9",
             "harvest_job_id": "6bce761c-7a39-41c1-ac73-94234c139c76",
             "harvest_source_id": "2f2652de-91df-4c63-8b53-bfced20b276b",
             "action": "create",
-            "status": "error",
+            "status": "success",
             "source_raw": "{\"title\": \"test-8\", \"identifier\": \"test-8\"}"
         },
         {
             "id": "97492788-5d62-4feb-8641-6f6692aec026",
+            "ckan_id": "5678",
             "identifier": "test_identifier-10",
             "harvest_job_id": "6bce761c-7a39-41c1-ac73-94234c139c76",
             "harvest_source_id": "2f2652de-91df-4c63-8b53-bfced20b276b",
             "action": "create",
-            "status": "error",
+            "status": "success",
             "source_raw": "{\"title\": \"test-9\", \"identifier\": \"test-9\"}"
         }
     ],
@@ -172,18 +182,6 @@
         },
         {
             "harvest_record_id": "95021355-bad0-442b-98e9-475ecd849033",
-            "harvest_job_id": "6bce761c-7a39-41c1-ac73-94234c139c76",
-            "message": "record is invalid",
-            "type": "ValidationException"
-        },
-        {
-            "harvest_record_id": "09f073b3-00e3-4147-ba69-a5d0fd7ce027",
-            "harvest_job_id": "6bce761c-7a39-41c1-ac73-94234c139c76",
-            "message": "record is invalid",
-            "type": "ValidationException"
-        },
-        {
-            "harvest_record_id": "97492788-5d62-4feb-8641-6f6692aec026",
             "harvest_job_id": "6bce761c-7a39-41c1-ac73-94234c139c76",
             "message": "record is invalid",
             "type": "ValidationException"

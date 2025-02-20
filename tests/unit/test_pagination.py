@@ -1,5 +1,3 @@
-from unittest.mock import patch
-
 from app.paginate import Pagination
 from database.interface import PAGINATE_ENTRIES_PER_PAGE
 
@@ -8,6 +6,7 @@ class TestPagination:
     def test_return_defaults(self):
         pagination = Pagination()
         assert pagination.current == 1
+        assert pagination.db_current == 0
         assert pagination.count == 1
         assert pagination.page_count == 1
         assert pagination.per_page == PAGINATE_ENTRIES_PER_PAGE
@@ -17,6 +16,7 @@ class TestPagination:
 
         expected = {
             "current": 1,
+            "db_current": 0,
             "count": 1,
             "page_count": 1,
             "page_label": "Page",
@@ -30,11 +30,11 @@ class TestPagination:
     def test_update_current(self):
         pagination = Pagination()
         assert pagination.current == 1
-        pagination.update_current(12)
+        pagination.current = 12
         assert pagination.current == 12
+        assert pagination.db_current == 11
 
-    @patch("app.paginate.PAGINATE_ENTRIES_PER_PAGE", 7)
     def test_change_pagination_val(self):
-        pagination = Pagination(count=40)
+        pagination = Pagination(count=40, per_page=7)
         assert pagination.count == 40
         assert pagination.page_count == 6

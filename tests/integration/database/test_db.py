@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 
 from sqlalchemy import text
 
+from database.interface import PAGINATE_ENTRIES_PER_PAGE
 from database.models import HarvestJobError, HarvestRecordError
 
 
@@ -239,19 +240,19 @@ class TestDatabase:
 
         # get first page
         db_records = interface.pget_harvest_records(page=0)
-        assert len(db_records) == 20
+        assert len(db_records) == PAGINATE_ENTRIES_PER_PAGE
         assert db_records[0].identifier == "test-identifier-0"
         assert id_lookup_table[db_records[0].identifier] == db_records[0].id
 
         # get second page
         db_records = interface.pget_harvest_records(page=1)
-        assert len(db_records) == 20
-        assert db_records[0].identifier == "test-identifier-20"
+        assert len(db_records) == PAGINATE_ENTRIES_PER_PAGE
+        assert db_records[0].identifier == "test-identifier-10"
         assert id_lookup_table[db_records[0].identifier] == db_records[0].id
 
         # get first page again
         db_records = interface.pget_harvest_records(page=0)
-        assert len(db_records) == 20
+        assert len(db_records) == PAGINATE_ENTRIES_PER_PAGE
         assert db_records[0].identifier == "test-identifier-0"
         assert id_lookup_table[db_records[0].identifier] == db_records[0].id
 
@@ -261,7 +262,7 @@ class TestDatabase:
         assert id_lookup_table[db_records[50].identifier] == db_records[50].id
 
         # get page 6 (r. 100 - 119), which is out of bounds / empty
-        db_records = interface.pget_harvest_records(page=6)
+        db_records = interface.pget_harvest_records(page=11)
         assert len(db_records) == 0
 
         db_records = interface.pget_harvest_records(
@@ -279,7 +280,13 @@ class TestDatabase:
             job_id,
             count=True,
         )
-        assert count == len(record_data_dcatus) == 10
+        assert (
+            count
+            == len(
+                [record for record in record_data_dcatus if record["status"] == "error"]
+            )
+            == 8
+        )
 
     def test_endpoint_count_for_non_paginated_methods(
         self, interface_with_fixture_json, source_data_dcatus, record_data_dcatus
@@ -298,8 +305,35 @@ class TestDatabase:
                     if record["status"] == "success"
                 ]
             )
-            == 0
+            == 2
         )
+
+    def test_sync_count_for_non_paginated_methods(
+        self, interface_with_fixture_json, source_data_dcatus, record_data_dcatus
+    ):
+        interface = interface_with_fixture_json
+
+        # test sync count by adding a valid record without a ckan_id
+        interface.add_harvest_record(
+            {
+                "identifier": "test_identifier-11",
+                "harvest_job_id": "6bce761c-7a39-41c1-ac73-94234c139c76",
+                "harvest_source_id": "2f2652de-91df-4c63-8b53-bfced20b276b",
+                "action": "create",
+                "status": "success",
+            }
+        )
+
+        count = interface.get_latest_harvest_records_by_source_orm(
+            source_data_dcatus["id"],
+            count=True,
+        )
+
+        sync_count = interface.get_latest_harvest_records_by_source_orm(
+            source_data_dcatus["id"], count=True, synced=True
+        )
+
+        assert (count - 1) == sync_count == 2
 
     def test_errors_by_job(
         self,
@@ -677,14 +711,14 @@ class TestDatabase:
 
         # source id, no facets
         db_records = interface.get_harvest_records_by_source(source_data_dcatus["id"])
-        assert len(db_records) == 20
+        assert len(db_records) == PAGINATE_ENTRIES_PER_PAGE
 
         # source id, plus page kwarg
         db_records = interface.get_harvest_records_by_source(
             source_data_dcatus["id"], page=1
         )
-        assert len(db_records) == 20
-        assert db_records[0].identifier == "test-identifier-20"
+        assert len(db_records) == PAGINATE_ENTRIES_PER_PAGE
+        assert db_records[0].identifier == "test-identifier-10"
 
         # source id, plus pagination flag
         db_records = interface.get_harvest_records_by_source(

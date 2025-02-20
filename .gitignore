@@ -31,4 +31,6 @@ requirements.txt
 !.vscode/launch.json
 
 # uswds assets
-app/static/assets
+app/static/assets/*
+# for our placeholder image
+!app/static/assets/img

@@ -2,7 +2,7 @@ import argparse
 import hashlib
 import json
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Union
 
 import requests
@@ -71,7 +71,11 @@ def open_json(file_path):
 
 
 def download_file(url: str, file_type: str) -> Union[str, dict]:
-    resp = requests.get(url)
+    # ruff: noqa: E501
+    headers = {
+        "User-Agent": "HarvesterBot/0.0 (https://data.gov; datagovhelp@gsa.gov) Data.gov/2.0"
+    }
+    resp = requests.get(url, headers=headers)
     if 200 <= resp.status_code < 300:
         if file_type == ".xml":
             return resp.content
@@ -151,3 +155,7 @@ def is_it_true(value):
 
 def convert_to_int(value):
     return int(value)
+
+
+def get_datetime():
+    return datetime.now(timezone.utc)

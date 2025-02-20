@@ -23,7 +23,7 @@
 {# Page numbers #}
 {# List all items if less than 7 #}
 {% if pagination.page_count <= 7 %}
-  {% for item in range(1, pagination.page_count)  %}
+  {% for item in range(1, pagination.page_count + 1)  %}
     {{ pagination_button(item, pager_button_opts, data.htmx_vars) }}
   {% endfor %}
 {# User is at the start of a long dataset #}
