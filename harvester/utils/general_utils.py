@@ -2,7 +2,7 @@ import argparse
 import hashlib
 import json
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Union
 
 import requests
@@ -151,3 +151,7 @@ def is_it_true(value):
 
 def convert_to_int(value):
     return int(value)
+
+
+def get_datetime():
+    return datetime.now(timezone.utc)

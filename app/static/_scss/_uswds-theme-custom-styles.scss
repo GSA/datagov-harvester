@@ -28,8 +28,10 @@ i.e.
 
 ul.menu {
   padding-inline-start: 0;
+
   li {
     display: inline-block;
+
     &::after {
       content: '  |'
     }
@@ -45,11 +47,13 @@ ul.menu {
 .align-middle {
   vertical-align: middle;
   top: -1px;
+
   &.check {
-      color: green;
+    color: green;
   }
+
   &.cancel {
-      color: red;
+    color: red;
   }
 }
 
@@ -68,7 +72,7 @@ ul.menu {
 }
 
 .container:first-child {
-  display: flex; 
+  display: flex;
   justify-content: space-between;
 }
 

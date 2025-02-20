@@ -1,0 +1,98 @@
+{% extends 'base.html' %}
+
+{% block title %}
+<title>Metrics Dashboard</title>
+{% endblock %}
+
+{% block content %}
+<div class="wrapper job-data">
+    <div class="section my-3">
+        <h2>Recent Harvest Jobs</h2>
+        <p class="text-muted">
+            Showing jobs from {{ data.window_start.strftime('%Y-%m-%d %H:%M:%S UTC') }}
+            to {{ data.current_time.strftime('%Y-%m-%d %H:%M:%S UTC') }}
+        </p>
+
+        {% if data.jobs %}
+        {% block htmx_paginated %}
+        <div id="paginated__harvest-jobs">
+            <div class="usa-table-container--scrollable" tabindex="0">
+                <table class="usa-table usa-table--striped">
+                    <caption>Recent Harvest Jobs</caption>
+                    <thead>
+                        <tr>
+                            <th scope="col">Source ID</th>
+                            <th scope="col">Status</th>
+                            <th scope="col">Created</th>
+                            <th scope="col">Records Added</th>
+                            <th scope="col">Records Updated</th>
+                            <th scope="col">Records Deleted</th>
+                            <th scope="col">Records Errored</th>
+                            <th scope="col">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="paginated_harvest_jobs">
+                        {% for job in data.jobs %}
+                        <tr>
+                            <td data-sort-value="{{ job.harvest_source_id }}">
+                                <a
+                                    href="{{ url_for('harvest.view_harvest_source_data', source_id=job.harvest_source_id) }}">
+                                    {{ job.harvest_source_id[:8] }}...
+                                </a>
+                            </td>
+                            <td>
+                                <span class="usa-tag {% if job.status == 'error' %}usa-tag--error
+                                                  {% elif job.status == 'in_progress' %}usa-tag--warning
+                                                  {% elif job.status == 'complete' %}usa-tag--success
+                                                  {% else %}usa-tag--base{% endif %}">
+                                    {{ job.status }}
+                                </span>
+                            </td>
+                            <td>{{ job.date_created.strftime('%Y-%m-%d %H:%M:%S')
+                                }}</td>
+                            <td>{{ job.records_added}}</td>
+                            <td>{{ job.records_updated}}</td>
+                            <td>{{ job.records_deleted}}</td>
+                            <td>{{ job.records_errored}}</td>
+                            <td>
+                                <ul class="usa-button-group">
+                                    <li class="usa-button-group__item">
+                                        <a href="{{ url_for('harvest.get_harvest_job', job_id=job.id) }}"
+                                            class="usa-button usa-button--outline">
+                                            View
+                                        </a>
+                                    </li>
+                                    {% if job.status == 'in_progress' %}
+                                    <li class="usa-button-group__item">
+                                        <a href="{{ url_for('harvest.cancel_harvest_job', job_id=job.id) }}"
+                                            class="usa-button usa-button--secondary">
+                                            Cancel
+                                        </a>
+                                    </li>
+                                    {% endif %}
+                                </ul>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                <div class="usa-sr-only usa-table__announcement-region" aria-live="polite"></div>
+            </div>
+            {% if pagination.count > jobs|count %}
+            {% include '/components/pagination/pagination.html' %}
+            {% endif %}
+        </div>
+        {% endblock %}
+
+
+        {% else %}
+        <div class="usa-alert usa-alert--info">
+            <div class="usa-alert__body">
+                <p class="usa-alert__text">
+                    No harvest jobs found in the last 24 hours.
+                </p>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+    {% endblock %}
