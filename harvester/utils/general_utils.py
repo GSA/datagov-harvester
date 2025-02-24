@@ -159,3 +159,13 @@ def convert_to_int(value):
 
 def get_datetime():
     return datetime.now(timezone.utc)
+
+
+def make_jobs_chart_data(jobs, fields):
+    chart_data = {}
+    for field in fields:
+        chart_data[field] = []
+    for job in jobs:
+        for field in fields:
+            chart_data[field].append(job[field])
+    return chart_data

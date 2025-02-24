@@ -196,27 +196,6 @@ class TestDatabase:
         assert record.harvest_source_id == source.id
         assert record.harvest_job_id == harvest_job.id
 
-    def test_add_harvest_records(
-        self,
-        interface,
-        organization_data,
-        source_data_dcatus,
-        job_data_dcatus,
-        record_data_dcatus,
-    ):
-        interface.add_organization(organization_data)
-        interface.add_harvest_source(source_data_dcatus)
-        interface.add_harvest_job(job_data_dcatus)
-
-        for record in record_data_dcatus:
-            del record["id"]
-
-        id_lookup_table = interface.add_harvest_records(record_data_dcatus)
-        db_records = interface.pget_harvest_records()
-        assert len(id_lookup_table) == 10
-        assert len(db_records) == 10
-        assert id_lookup_table[db_records[0].identifier] == db_records[0].id
-
     def test_endpoint_pagnation(
         self,
         interface,
@@ -229,14 +208,13 @@ class TestDatabase:
         interface.add_harvest_source(source_data_dcatus)
         interface.add_harvest_job(job_data_dcatus)
 
-        records = []
+        id_lookup_table = {}
         for i in range(100):
-            new_record = record_data_dcatus[0].copy()
-            del new_record["id"]
-            new_record["identifier"] = f"test-identifier-{i}"
-            records.append(new_record)
-
-        id_lookup_table = interface.add_harvest_records(records)
+            record = record_data_dcatus[0].copy()
+            del record["id"]
+            record["identifier"] = f"test-identifier-{i}"
+            db_record = interface.add_harvest_record(record)
+            id_lookup_table[db_record.identifier] = db_record.id
 
         # get first page
         db_records = interface.pget_harvest_records(page=0)
@@ -260,6 +238,11 @@ class TestDatabase:
         db_records = interface.pget_harvest_records(paginate=False)
         assert len(db_records) == 100
         assert id_lookup_table[db_records[50].identifier] == db_records[50].id
+
+        # get results in descending order
+        db_records = interface.pget_harvest_records(order_by="desc")
+        assert db_records[0].identifier == "test-identifier-99"
+        assert id_lookup_table[db_records[0].identifier] == db_records[0].id
 
         # get page 6 (r. 100 - 119), which is out of bounds / empty
         db_records = interface.pget_harvest_records(page=11)
@@ -485,7 +468,9 @@ class TestDatabase:
         interface.add_harvest_source(source_data_dcatus_2)
         interface.add_harvest_job(job_data_dcatus)
         interface.add_harvest_job(job_data_dcatus_2)
-        interface.add_harvest_records(latest_records)
+
+        for record in latest_records:
+            interface.add_harvest_record(record)
 
         latest_records = interface.get_latest_harvest_records_by_source(
             source_data_dcatus["id"]
@@ -630,22 +615,24 @@ class TestDatabase:
         interface.add_harvest_source(source_data_dcatus)
         interface.add_harvest_job(job_data_dcatus)
 
-        records = []
+        id_lookup_table = {}
         for i in range(100):
-            new_record = record_data_dcatus[0].copy()
-            del new_record["id"]
-            new_record["identifier"] = f"test-identifier-{i}"
-            records.append(new_record)
-
-        id_lookup_table = interface.add_harvest_records(records)
+            record = record_data_dcatus[0].copy()
+            del record["id"]
+            record["identifier"] = f"test-identifier-{i}"
+            db_record = interface.add_harvest_record(record)
+            id_lookup_table[db_record.identifier] = db_record.id
 
         # source id, no facets
         db_records = interface.get_harvest_records_by_source(source_data_dcatus["id"])
         assert len(db_records) == PAGINATE_ENTRIES_PER_PAGE
+        assert db_records[0].identifier == "test-identifier-0"
+        assert id_lookup_table[db_records[0].identifier] == db_records[0].id
 
         # source id, plus page kwarg
         db_records = interface.get_harvest_records_by_source(
-            source_data_dcatus["id"], page=1
+            source_data_dcatus["id"],
+            page=1,
         )
         assert len(db_records) == PAGINATE_ENTRIES_PER_PAGE
         assert db_records[0].identifier == "test-identifier-10"
