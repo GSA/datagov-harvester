@@ -59,7 +59,14 @@ TOKEN_URL = ISSUER + "/api/openid_connect/token"
 def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        if "user" not in session:
+        provided_token = request.headers.get("Authorization")
+        if request.is_json or provided_token:
+            api_token = os.getenv("FLASK_APP_SECRET_KEY")
+            if not provided_token or provided_token != f"{api_token}":
+                return "error: Unauthorized"
+
+        # check session-based authentication for web users
+        elif "user" not in session:
             session["next"] = request.url
             return redirect(url_for("harvest.login"))
         return f(*args, **kwargs)
@@ -393,6 +400,13 @@ def view_org_data(org_id: str):
 @mod.route("/organization/config/edit/<org_id>", methods=["GET", "POST"])
 @login_required
 def edit_organization(org_id):
+    if request.is_json:
+        org = db.update_organization(org_id, request.json)
+        if org:
+            return {"message": f"Updated org with ID: {org.id}"}
+        else:
+            return {"error": "Failed to update organization."}, 400
+
     org = db._to_dict(db.get_organization(org_id))
     form = OrganizationForm(data=org)
     if form.validate_on_submit():
@@ -437,13 +451,6 @@ def delete_organization(org_id):
 @mod.route("/harvest_source/add", methods=["POST", "GET"])
 @login_required
 def add_harvest_source():
-    form = HarvestSourceForm()
-    organizations = db.get_all_organizations()
-    organization_choices = [
-        (str(org.id), f"{org.name} - {org.id}") for org in organizations
-    ]
-    form.organization_id.choices = organization_choices
-
     if request.is_json:
         source = db.add_harvest_source(request.json)
         job_message = load_manager.schedule_first_job(source.id)
@@ -454,6 +461,12 @@ def add_harvest_source():
         else:
             return {"error": "Failed to add harvest source."}, 400
     else:
+        form = HarvestSourceForm()
+        organizations = db.get_all_organizations()
+        organization_choices = [
+            (str(org.id), f"{org.name} - {org.id}") for org in organizations
+        ]
+        form.organization_id.choices = organization_choices
         if form.validate_on_submit():
             new_source = make_new_source_contract(form)
             source = db.add_harvest_source(new_source)
@@ -602,6 +615,19 @@ def view_harvest_sources():
 @mod.route("/harvest_source/config/edit/<source_id>", methods=["GET", "POST"])
 @login_required
 def edit_harvest_source(source_id: str):
+    if request.is_json:
+        source = db.get_harvest_source(source_id)
+        if not source:
+            return ({"error": f"No source found with ID: {source_id}"}), 404
+
+        updated_source = db.update_harvest_source(source_id, request.json)
+        job_message = load_manager.schedule_first_job(updated_source.id)
+
+        if updated_source and job_message:
+            return {"message": f"Updated source with ID: {updated_source.id}. {job_message}"}, 200
+        else:
+            return {"error": "Failed to update harvest source"}, 400
+
     if source_id:
         source = db.get_harvest_source(source_id)
         organizations = db.get_all_organizations()
