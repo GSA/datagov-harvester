@@ -239,11 +239,6 @@ class TestDatabase:
         assert len(db_records) == 100
         assert id_lookup_table[db_records[50].identifier] == db_records[50].id
 
-        # get results in descending order
-        db_records = interface.pget_harvest_records(order_by="desc")
-        assert db_records[0].identifier == "test-identifier-99"
-        assert id_lookup_table[db_records[0].identifier] == db_records[0].id
-
         # get page 6 (r. 100 - 119), which is out of bounds / empty
         db_records = interface.pget_harvest_records(page=11)
         assert len(db_records) == 0
@@ -253,6 +248,36 @@ class TestDatabase:
         )
         assert len(db_records) == 1
         assert db_records[0].harvest_job_id == job_data_dcatus["id"]
+
+    def test_endpoint_order_by(
+        self,
+        interface,
+        organization_data,
+        source_data_dcatus,
+        job_data_dcatus,
+        record_data_dcatus,
+    ):
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_dcatus)
+        interface.add_harvest_job(job_data_dcatus)
+
+        id_lookup_table = {}
+        for i in range(100):
+            record = record_data_dcatus[0].copy()
+            del record["id"]
+            record["identifier"] = f"test-identifier-{i}"
+            db_record = interface.add_harvest_record(record)
+            id_lookup_table[db_record.identifier] = db_record.id
+
+        # get results in ascending order, and confirm it is default
+        db_records = interface.pget_harvest_records()
+        assert db_records[0].identifier == "test-identifier-0"
+        assert id_lookup_table[db_records[0].identifier] == db_records[0].id
+
+        # get results in descending order
+        db_records = interface.pget_harvest_records(order_by="desc")
+        assert db_records[0].identifier == "test-identifier-99"
+        assert id_lookup_table[db_records[0].identifier] == db_records[0].id
 
     def test_endpoint_count(
         self, interface_with_fixture_json, job_data_dcatus, record_data_dcatus

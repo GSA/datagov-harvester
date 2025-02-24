@@ -553,8 +553,8 @@ def view_harvest_source_data(source_id: str):
         if future_jobs:
             summary_data["next_job_scheduled"] = future_jobs[0].date_created
 
-        chart_data = make_jobs_chart_data(
-            db._to_dict(jobs[::-1]),
+        chart_data_values = make_jobs_chart_data(
+            db._to_dict(jobs[::-1]),  # reverse the list order for the chart
             [
                 "date_finished",
                 "records_added",
@@ -563,30 +563,30 @@ def view_harvest_source_data(source_id: str):
                 "records_ignored",
             ],
         )
-        chartdata = {
-            "labels": chart_data["date_finished"],
+        chart_data = {
+            "labels": chart_data_values["date_finished"],
             "datasets": [
                 {
                     "label": "Added",
-                    "data": chart_data["records_added"],
+                    "data": chart_data_values["records_added"],
                     "borderColor": "green",
                     "backgroundColor": "green",
                 },
                 {
                     "label": "Deleted",
-                    "data": chart_data["records_deleted"],
+                    "data": chart_data_values["records_deleted"],
                     "borderColor": "black",
                     "backgroundColor": "black",
                 },
                 {
                     "label": "Errored",
-                    "data": chart_data["records_errored"],
+                    "data": chart_data_values["records_errored"],
                     "borderColor": "red",
                     "backgroundColor": "red",
                 },
                 {
                     "label": "Ignored",
-                    "data": chart_data["records_ignored"],
+                    "data": chart_data_values["records_ignored"],
                     "borderColor": "grey",
                     "backgroundColor": "grey",
                 },
@@ -597,7 +597,7 @@ def view_harvest_source_data(source_id: str):
             "source": db._to_dict(source),
             "summary_data": summary_data,
             "jobs": jobs,
-            "chart_data": chartdata,
+            "chart_data": chart_data,
             "htmx_vars": htmx_vars,
         }
         return render_template(
