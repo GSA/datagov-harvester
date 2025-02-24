@@ -1,3 +1,5 @@
+SHELL=/bin/bash -o pipefail
+
 all: help
 
 pypi-upload: build-dist  ## Uploads new package to PyPi after clean, build

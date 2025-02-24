@@ -565,7 +565,7 @@ class Record:
     ckanified_metadata: dict = field(default_factory=lambda: {})
     reader_map: dict = field(
         default_factory=lambda: {
-            "iso19115_1": "iso19115_1",
+            "iso19115_1": "iso19115_2_datagov",
             "iso19115_2": "iso19115_2_datagov",
             "csdgm": "fgdc",
         }
