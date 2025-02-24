@@ -23,7 +23,7 @@ class TestTransform:
         harvest_source.compare()
 
         for record in harvest_source.records:
-            if record.identifier == "http://localhost:80/iso_2_waf/invalid_47662.xml":
+            if record.identifier == "http://localhost:80/iso_2_waf/invalid_iso2.xml":
                 test_record = record
 
         # ruff: noqa: F841
