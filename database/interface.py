@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime, timezone
 from functools import wraps
 
-from sqlalchemy import create_engine, desc, func, inspect, select, text
+from sqlalchemy import create_engine, desc, func, inspect, text
 from sqlalchemy.exc import NoResultFound
 from sqlalchemy.orm import aliased, scoped_session, sessionmaker
 
