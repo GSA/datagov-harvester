@@ -429,6 +429,7 @@ class TestDatabase:
             )
         )
         assert len(all_jobs_list) == 12
+        assert len(filtered_job_list) == 2
         assert (
             len(
                 [
@@ -442,7 +443,6 @@ class TestDatabase:
                     and x.harvest_source_id == source_id
                 ]
             )
-            == len(filtered_job_list)
             == 2
         )
 

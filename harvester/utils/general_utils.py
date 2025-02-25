@@ -161,9 +161,15 @@ def get_datetime():
     return datetime.now(timezone.utc)
 
 
-def make_jobs_chart_data(jobs, fields):
-    chart_data = {field: [] for field in fields}
-    for job in jobs:
+def dynamic_map_list_items_to_dict(list, fields):
+    """
+    Accept a list of items and the fields to map and return a dict of lists with those values appended
+    @param list [list] - a list of items to map over
+    @param fields [list] - a list of fields to extract from our list
+    returns data_dict [dict] - a dict of lists with values extracted from items
+    """
+    data_dict = {field: [] for field in fields}
+    for item in list:
         for field in fields:
-            chart_data[field].append(job[field])
-    return chart_data
+            data_dict[field].append(item.get(field))
+    return data_dict

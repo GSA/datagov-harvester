@@ -2,7 +2,7 @@ import pytest
 
 from harvester.utils.ckan_utils import munge_tag, munge_title_to_name
 from harvester.utils.general_utils import (
-    make_jobs_chart_data,
+    dynamic_map_list_items_to_dict,
     parse_args,
     prepare_transform_msg,
     query_filter_builder,
@@ -139,7 +139,7 @@ class TestGeneralUtils:
                 "records_ignored": 3,
             },
         ]
-        chart_data = make_jobs_chart_data(
+        chart_data = dynamic_map_list_items_to_dict(
             jobs_data, ["records_added", "records_errored", "records_ignored"]
         )
         chart_data_fixture = {

@@ -33,7 +33,7 @@ from harvester.utils.general_utils import (
     convert_to_int,
     get_datetime,
     is_it_true,
-    make_jobs_chart_data,
+    dynamic_map_list_items_to_dict,
 )
 
 from . import htmx
@@ -553,7 +553,7 @@ def view_harvest_source_data(source_id: str):
         if future_jobs:
             summary_data["next_job_scheduled"] = future_jobs[0].date_created
 
-        chart_data_values = make_jobs_chart_data(
+        chart_data_values = dynamic_map_list_items_to_dict(
             db._to_dict(jobs[::-1]),  # reverse the list order for the chart
             [
                 "date_finished",
