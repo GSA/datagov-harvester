@@ -53,8 +53,6 @@ class LoadManager:
             self.start_job(job.id)
             self.schedule_next_job(job.harvest_source_id)
 
-        logger.info("Load Manager :: Updated Harvest Jobs")
-
     def start_job(self, job_id, job_type="harvest"):
         """task manager start interface,
         takes a job_id"""
