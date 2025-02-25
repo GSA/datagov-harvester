@@ -31,8 +31,11 @@ applications:
       - ((app_name))-secrets
       - ((app_name))-smtp
     instances: 0
+    health-check-type: process
+    no-route: true
     env:
       CF_API_URL: ((CF_API_URL))
       CKAN_API_URL: ((CKAN_API_URL))
       REDIRECT_URI: ((REDIRECT_URI))
-    command: time.sleep(30)
+      MDTRANSLATOR_URL: ((MDTRANSLATOR_URL))
+    command: sleep infinity
