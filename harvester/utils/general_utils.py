@@ -8,6 +8,7 @@ from typing import Union
 import requests
 import sansjson
 from bs4 import BeautifulSoup
+from operator import itemgetter
 
 FREQUENCY_ENUM = {"daily": 1, "weekly": 7, "biweekly": 14, "monthly": 30}
 
@@ -162,9 +163,7 @@ def get_datetime():
 
 
 def make_jobs_chart_data(jobs, fields):
-    chart_data = {}
-    for field in fields:
-        chart_data[field] = []
+    chart_data = {field: [] for field in fields}
     for job in jobs:
         for field in fields:
             chart_data[field].append(job[field])
