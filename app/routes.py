@@ -736,9 +736,11 @@ def get_harvest_job(job_id=None):
             {
                 "error": db._to_dict(row.HarvestRecordError),
                 "identifier": row.identifier if row.identifier else "N/A",
-                "title": json.loads(row.source_raw).get("title", "")
-                if row.source_raw
-                else "N/A",
+                "title": (
+                    json.loads(row.source_raw).get("title", "")
+                    if row.source_raw
+                    else "N/A"
+                ),
             }
             for row in record_errors
         ]
