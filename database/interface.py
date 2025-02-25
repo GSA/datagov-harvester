@@ -605,7 +605,7 @@ class HarvesterDBInterface:
     @paginate
     def pget_harvest_jobs(self, facets="", order_by="asc", **kwargs):
         facet_string = query_filter_builder(None, facets)
-        order_by_val = order_by_helper("HarvestJob", order_by)
+        order_by_val = order_by_helper(HarvestJob, order_by)
         return (
             self.db.query(HarvestJob).filter(text(facet_string)).order_by(order_by_val)
         )
@@ -614,7 +614,7 @@ class HarvesterDBInterface:
     @paginate
     def pget_harvest_records(self, facets="", order_by="asc", **kwargs):
         facet_string = query_filter_builder(None, facets)
-        order_by_val = order_by_helper("HarvestRecord", order_by)
+        order_by_val = order_by_helper(HarvestRecord, order_by)
         return (
             self.db.query(HarvestRecord)
             .filter(text(facet_string))
@@ -625,7 +625,7 @@ class HarvesterDBInterface:
     @paginate
     def pget_harvest_job_errors(self, facets="", order_by="asc", **kwargs):
         facet_string = query_filter_builder(None, facets)
-        order_by_val = order_by_helper("HarvestJobError", order_by)
+        order_by_val = order_by_helper(HarvestJobError, order_by)
         return (
             self.db.query(HarvestJobError)
             .filter(text(facet_string))
@@ -636,7 +636,7 @@ class HarvesterDBInterface:
     @paginate
     def pget_harvest_record_errors(self, facets="", order_by="asc", **kwargs):
         facet_string = query_filter_builder(None, facets)
-        order_by_val = order_by_helper("HarvestRecordError", order_by)
+        order_by_val = order_by_helper(HarvestRecordError, order_by)
         return (
             self.db.query(HarvestRecordError)
             .filter(text(facet_string))
@@ -661,14 +661,5 @@ class HarvesterDBInterface:
         )
 
 
-def order_by_helper(model_type, order_by):
-    model_enum = {
-        "HarvestJob": HarvestJob,
-        "HarvestRecord": HarvestRecord,
-        "HarvestJobError": HarvestJobError,
-        "HarvestRecordError": HarvestRecordError,
-    }
-    if order_by == "asc":
-        return model_enum[model_type].date_created.asc()
-    else:
-        return model_enum[model_type].date_created.desc()
+def order_by_helper(model, order_by):
+    return model.date_created.asc() if order_by == "asc" else model.date_created.desc()
