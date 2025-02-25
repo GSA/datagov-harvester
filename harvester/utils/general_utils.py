@@ -8,7 +8,6 @@ from typing import Union
 import requests
 import sansjson
 from bs4 import BeautifulSoup
-from operator import itemgetter
 
 FREQUENCY_ENUM = {"daily": 1, "weekly": 7, "biweekly": 14, "monthly": 30}
 
