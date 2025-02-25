@@ -364,20 +364,14 @@ class HarvesterDBInterface:
             Query: A SQLAlchemy Query object that, when executed, yields tuples of:
                 (HarvestRecordError, identifier, source_raw).
         """
-        subquery = (
-            self.db.query(HarvestRecord.id)
-            .filter(HarvestRecord.status == "error")
-            .filter(HarvestRecord.harvest_job_id == job_id)
-            .subquery()
-        )
         query = (
             self.db.query(
                 HarvestRecordError, HarvestRecord.identifier, HarvestRecord.source_raw
             )
-            .join(
+            .outerjoin(
                 HarvestRecord, HarvestRecord.id == HarvestRecordError.harvest_record_id
             )
-            .filter(HarvestRecord.id.in_(select(subquery)))
+            .filter(HarvestRecordError.harvest_job_id == job_id)
         )
         return query
 
