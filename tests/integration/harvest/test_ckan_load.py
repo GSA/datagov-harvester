@@ -102,16 +102,12 @@ class TestCKANLoad:
         harvest_source = HarvestSource(harvest_job.id)
         harvest_source.prepare_external_data()
 
-        record = [
-            (
-                {
-                    "identifier": "cftc-dc1",
-                    "harvest_job_id": job_data_dcatus["id"],
-                    "harvest_source_id": job_data_dcatus["harvest_source_id"],
-                }
-            )
-        ]
-        interface.add_harvest_records(record)
+        record = {
+            "identifier": "cftc-dc1",
+            "harvest_job_id": job_data_dcatus["id"],
+            "harvest_source_id": job_data_dcatus["harvest_source_id"],
+        }
+        interface.add_harvest_record(record)
         harvest_source.extract()
         harvest_source.compare()
         test_record = [x for x in harvest_source.records if x.identifier == "cftc-dc1"][

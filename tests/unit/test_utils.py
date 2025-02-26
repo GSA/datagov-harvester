@@ -2,6 +2,7 @@ import pytest
 
 from harvester.utils.ckan_utils import munge_tag, munge_title_to_name
 from harvester.utils.general_utils import (
+    dynamic_map_list_items_to_dict,
     parse_args,
     prepare_transform_msg,
     query_filter_builder,
@@ -113,3 +114,37 @@ class TestGeneralUtils:
     )
     def test_prepare_mdt_messages(self, original, expected):
         assert prepare_transform_msg(original) == expected
+
+    def test_make_jobs_chart_data(self):
+        jobs_data = [
+            {
+                "records_added": 1,
+                "records_updated": 1,
+                "records_deleted": 1,
+                "records_errored": 1,
+                "records_ignored": 1,
+            },
+            {
+                "records_added": 2,
+                "records_updated": 2,
+                "records_deleted": 2,
+                "records_errored": 2,
+                "records_ignored": 2,
+            },
+            {
+                "records_added": 3,
+                "records_updated": 3,
+                "records_deleted": 3,
+                "records_errored": 3,
+                "records_ignored": 3,
+            },
+        ]
+        chart_data = dynamic_map_list_items_to_dict(
+            jobs_data, ["records_added", "records_errored", "records_ignored"]
+        )
+        chart_data_fixture = {
+            "records_added": [1, 2, 3],
+            "records_errored": [1, 2, 3],
+            "records_ignored": [1, 2, 3],
+        }
+        assert chart_data == chart_data_fixture

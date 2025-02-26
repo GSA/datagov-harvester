@@ -74,8 +74,8 @@ class TestCompare:
                     "source_raw": json.dumps(record),
                 }
             )
-
-        interface.add_harvest_records(records)
+        for record in records:
+            interface.add_harvest_record(record)
 
         harvest_source = HarvestSource(job_data_dcatus["id"])
         harvest_source.extract()
