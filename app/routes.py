@@ -31,9 +31,10 @@ from database.interface import HarvesterDBInterface
 from harvester.lib.load_manager import LoadManager
 from harvester.utils.general_utils import (
     convert_to_int,
+    dynamic_map_list_items_to_dict,
     get_datetime,
     is_it_true,
-    dynamic_map_list_items_to_dict,
+    process_job_complete_percentage,
 )
 
 from . import htmx
@@ -77,7 +78,7 @@ def login_required(f):
         if "user" not in session:
             session["next"] = request.url
             return redirect(url_for("harvest.login"))
-        return f(*args, **kwargs)   
+        return f(*args, **kwargs)
 
     return decorated_function
 
@@ -516,11 +517,13 @@ def view_harvest_source_data(source_id: str):
         current=request.args.get("page", 1, type=convert_to_int),
     )
 
+    jobs = db.pget_harvest_jobs(
+        facets=harvest_jobs_facets,
+        page=pagination.db_current,
+        order_by="desc",
+    )
+
     if htmx:
-        jobs = db.pget_harvest_jobs(
-            facets=harvest_jobs_facets,
-            page=pagination.db_current,
-        )
         data = {
             "source": {"id": source_id},
             "jobs": jobs,
@@ -545,19 +548,17 @@ def view_harvest_source_data(source_id: str):
         summary_data = {
             "records_count": records_count,
             "synced_records_count": synced_records_count,
-            "last_job_errors": "N/A",
-            "last_job_finished": "N/A",
-            "next_job_scheduled": "N/A",
+            "last_job_errors": None,
+            "last_job_finished": None,
+            "next_job_scheduled": None,
+            "active_job_in_progress": False,
         }
-
-        jobs = db.pget_harvest_jobs(
-            facets=harvest_jobs_facets,
-            page=pagination.db_current,
-            order_by="desc",
-        )
 
         if jobs:
             last_job = jobs[0]
+            if last_job.status == "in_progress":
+                summary_data["active_job_in_progress"] = True
+
             last_job_error_count = db.get_harvest_record_errors_by_job(
                 count=True,
                 job_id=last_job.id,
@@ -640,7 +641,9 @@ def edit_harvest_source(source_id: str):
         job_message = load_manager.schedule_first_job(updated_source.id)
 
         if updated_source and job_message:
-            return {"message": f"Updated source with ID: {updated_source.id}. {job_message}"}, 200
+            return {
+                "message": f"Updated source with ID: {updated_source.id}. {job_message}"
+            }, 200
         else:
             return {"error": "Failed to update harvest source"}, 400
 
@@ -733,7 +736,7 @@ def add_harvest_job():
 ### Get Job
 @mod.route("/harvest_job/", methods=["GET"])
 @mod.route("/harvest_job/<job_id>", methods=["GET"])
-def get_harvest_job(job_id=None):
+def view_harvest_job(job_id=None):
     record_error_count = db.get_harvest_record_errors_by_job(
         job_id,
         count=True,
@@ -747,20 +750,23 @@ def get_harvest_job(job_id=None):
         count=record_error_count,
         current=request.args.get("page", 1, type=convert_to_int),
     )
-
+    record_errors = db.get_harvest_record_errors_by_job(
+        job_id,
+        page=pagination.db_current,
+    )
+    record_errors_dict = [
+        {
+            "error": db._to_dict(row.HarvestRecordError),
+            "identifier": row.identifier,
+            "title": (
+                json.loads(row.source_raw).get("title", None)
+                if row.source_raw
+                else None
+            ),
+        }
+        for row in record_errors
+    ]
     if htmx:
-        record_errors = db.get_harvest_record_errors_by_job(
-            job_id,
-            page=pagination.db_current,
-        )
-        record_errors_dict = [
-            {
-                "error": db._to_dict(row.HarvestRecordError),
-                "identifier": row.identifier,
-                "title": json.loads(row.source_raw).get("title", None),
-            }
-            for row in record_errors
-        ]
         data = {
             "harvest_job_id": job_id,
             "record_errors": record_errors_dict,
@@ -772,43 +778,25 @@ def get_harvest_job(job_id=None):
             data=data,
             pagination=pagination.to_dict(),
         )
-    if job_id:
+    else:
         job = db.get_harvest_job(job_id)
-        record_errors = db.get_harvest_record_errors_by_job(job_id)
-        record_errors_dict = [
-            {
-                "error": db._to_dict(row.HarvestRecordError),
-                "identifier": row.identifier,
-                "title": (
-                    json.loads(row.source_raw).get("title", None)
-                    if row.source_raw
-                    else None
-                ),
-            }
-            for row in record_errors
-        ]
         if request.args.get("type") and request.args.get("type") == "json":
             return db._to_dict(job) if job else ("Not Found", 404)
         else:
             data = {
-                "harvest_job_id": job_id,
-                "harvest_job": job,
-                "harvest_job_dict": db._to_dict(job),
+                "job": job,
+                "job_dict": db._to_dict(job),
                 "record_errors": record_errors_dict,
                 "htmx_vars": htmx_vars,
             }
+            if job and job.status == "in_progress":
+                data["percent_complete"] = process_job_complete_percentage(
+                    data["job_dict"]
+                )
+
             return render_template(
                 "view_job_data.html", data=data, pagination=pagination.to_dict()
             )
-
-    source_id = request.args.get("harvest_source_id")
-    if source_id:
-        job = db.get_harvest_job_by_source(source_id)
-        if not job:
-            return "No harvest jobs found for this harvest source", 404
-    else:
-        job = db.get_all_harvest_jobs()
-        return db._to_dict(job)
 
 
 ### Update Job

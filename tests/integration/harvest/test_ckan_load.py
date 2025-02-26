@@ -55,7 +55,7 @@ class TestCKANLoad:
         harvest_source.transform()
         harvest_source.validate()
         harvest_source.sync()
-        harvest_source.do_report()
+        harvest_source.report()
 
         results = {
             "action": {"create": 0, "update": 0, "delete": 0, None: 0},
@@ -70,23 +70,22 @@ class TestCKANLoad:
         for key, group in groupby(harvest_source.records, lambda x: x.status):
             results["status"][key] = sum(1 for _ in group)
 
+        harvest_reporter = harvest_source.reporter.report()
         assert results["action"]["create"] == 6
-        assert harvest_source.report["records_added"] == 6
+        assert harvest_reporter["records_added"] == 6
 
         assert results["action"]["update"] == 1
-        assert harvest_source.report["records_updated"] == 1
+        assert harvest_reporter["records_updated"] == 1
 
         assert results["action"]["delete"] == 1
-        assert harvest_source.report["records_deleted"] == 1
+        assert harvest_reporter["records_deleted"] == 1
 
         assert results["status"]["error"] == 0
-        assert harvest_source.report["records_errored"] == 0
+        assert harvest_reporter["records_errored"] == 0
 
         # NOTE: we don't report this status, but it is not in sync b/c deletes aren't counted correctly
         assert results["status"]["success"] == 7
-        assert (
-            len(harvest_source.records) - harvest_source.report["records_errored"] == 8
-        )
+        assert len(harvest_source.records) - harvest_reporter["records_errored"] == 8
 
     def test_ckanify_dcatus(
         self,

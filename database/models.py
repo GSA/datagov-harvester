@@ -102,6 +102,7 @@ class HarvestJob(db.Model):
         db.DateTime, index=True, default=func.statement_timestamp()
     )
     date_finished = db.Column(db.DateTime)
+    records_total = db.Column(db.Integer)
     records_added = db.Column(db.Integer)
     records_updated = db.Column(db.Integer)
     records_deleted = db.Column(db.Integer)
