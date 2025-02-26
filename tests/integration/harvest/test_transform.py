@@ -1,9 +1,8 @@
 import pytest
+from deepdiff import DeepDiff
 
 from harvester.exceptions import TransformationException
 from harvester.harvest import HarvestSource
-
-from deepdiff import DeepDiff
 
 
 class TestTransform:

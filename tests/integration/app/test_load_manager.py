@@ -189,7 +189,8 @@ class TestLoadManager:
 
         source_id = source_data_dcatus["id"]
         jobs = interface_no_jobs.pget_harvest_jobs(
-            facets=f"harvest_source_id = '{source_id}'"
+            facets=f"harvest_source_id = '{source_id}'",
+            order_by="desc",
         )
         assert len(jobs) == 2
         assert jobs[0].date_created == datetime.now() + timedelta(days=1)
@@ -221,7 +222,8 @@ class TestLoadManager:
         )
 
         jobs = interface_no_jobs.pget_harvest_jobs(
-            facets=f"harvest_source_id = '{source_id}'"
+            facets=f"harvest_source_id = '{source_id}'",
+            order_by="desc",
         )
 
         assert len(jobs) == 2
