@@ -77,7 +77,7 @@ def login_required(f):
         if "user" not in session:
             session["next"] = request.url
             return redirect(url_for("harvest.login"))
-        return f(*args, **kwargs)
+        return f(*args, **kwargs)   
 
     return decorated_function
 
@@ -411,7 +411,7 @@ def edit_organization(org_id):
     if request.is_json:
         org = db.update_organization(org_id, request.json)
         if org:
-            return {"message": f"Updated org with ID: {org.id}"}
+            return {"message": f"Updated org with ID: {org.id}"}, 200
         else:
             return {"error": "Failed to update organization."}, 400
 
@@ -446,7 +446,7 @@ def delete_organization(org_id):
         result = db.delete_organization(org_id)
         if result:
             flash(f"Triggered delete of organization with ID: {org_id}")
-            return {"message": "success"}
+            return {"message": "success"}, 200
         else:
             raise Exception()
     except Exception:
@@ -464,7 +464,7 @@ def add_harvest_source():
         job_message = load_manager.schedule_first_job(source.id)
         if source and job_message:
             return {
-                "message": f"Added new harvest source with ID: {source.id}. {job_message}"
+                "message": f"Added new harvest source with ID: {source.id}. {job_message}", 200
             }
         else:
             return {"error": "Failed to add harvest source."}, 400
@@ -722,7 +722,7 @@ def add_harvest_job():
     if request.is_json:
         job = db.add_harvest_job(request.json)
         if job:
-            return {"message": f"Added new harvest job with ID: {job.id}"}
+            return {"message": f"Added new harvest job with ID: {job.id}"}, 200
         else:
             return {"error": "Failed to add harvest job."}, 400
     else:
@@ -947,7 +947,7 @@ def add_harvest_record():
     if request.is_json:
         record = db.add_harvest_record(request.json)
         if record:
-            return {"message": f"Added new record with ID: {record.id}"}
+            return {"message": f"Added new record with ID: {record.id}"}, 200
         else:
             return {"error": "Failed to add harvest record."}, 400
     else:
