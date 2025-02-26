@@ -60,13 +60,16 @@ def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
         provided_token = request.headers.get("Authorization")
-        if request.is_json or provided_token:
+        if request.is_json or provided_token is not None:
+            if provided_token is None:
+                return "error: Authorization header missing", 401
             api_token = os.getenv("FLASK_APP_SECRET_KEY")
-            if not provided_token or provided_token != f"{api_token}":
-                return "error: Unauthorized"
+            if provided_token != api_token:
+                return "error: Unauthorized", 401
+            return "message: success authorized", 200
 
         # check session-based authentication for web users
-        elif "user" not in session:
+        if "user" not in session:
             session["next"] = request.url
             return redirect(url_for("harvest.login"))
         return f(*args, **kwargs)
@@ -702,6 +705,7 @@ def trigger_harvest_source(source_id, job_type):
 ## Harvest Job
 ### Add Job
 @mod.route("/harvest_job/add", methods=["POST"])
+@login_required
 def add_harvest_job():
     if request.is_json:
         job = db.add_harvest_job(request.json)
@@ -926,6 +930,7 @@ def get_harvest_record_raw(record_id=None):
 
 ## Add record
 @mod.route("/harvest_record/add", methods=["POST", "GET"])
+@login_required
 def add_harvest_record():
     if request.is_json:
         record = db.add_harvest_record(request.json)
