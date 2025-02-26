@@ -92,8 +92,9 @@
                     {% for record_error in data.record_errors %}
                     <div class="error-block">
                         <h3>{{ record_error.error.id }}</h3>
-                        <p><strong>Identifier:</strong> {{ record_error.identifier }}</p>
-                        <p><strong>Title:</strong> {{ record_error.title }}</p>
+                        <p><strong>Identifier:</strong> {{ record_error.identifier if record_error.identifier else "N/A"
+                            }}</p>
+                        <p><strong>Title:</strong> {{ record_error.title if record_error.title else "N/A" }}</p>
                         <p><strong>Harvest Record ID:</strong>
                             {% if record_error.error.harvest_record_id %}
                             <a

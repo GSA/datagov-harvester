@@ -619,7 +619,7 @@ class TestDatabase:
         # It should be expected the 1 error is still present
         assert db_record_errors == 1
 
-    def test_delete_job(
+    def test_deleting_job_deletes_errors(
         self,
         interface_with_fixture_json,
         job_data_dcatus,
@@ -666,7 +666,6 @@ class TestDatabase:
             count=True,
         )
         assert error_count == len(record_error_data)
-        # Delete harvest job with errors
         harvest_job_records = interface.get_harvest_records_by_job(
             job_id, paginate=False
         )
@@ -678,7 +677,7 @@ class TestDatabase:
         for record in harvest_job_records:
             interface.delete_harvest_record(record_id=record.id)
 
-        # Confirm no more HarvestRecords exist but we do haev HarvestRecordErrors
+        # Confirm no more HarvestRecords exist but we do have HarvestRecordErrors
         harvest_job_records = interface.get_harvest_records_by_job(
             job_id, paginate=False
         )
