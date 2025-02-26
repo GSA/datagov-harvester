@@ -77,7 +77,7 @@ def login_required(f):
         if "user" not in session:
             session["next"] = request.url
             return redirect(url_for("harvest.login"))
-        return f(*args, **kwargs)
+        return f(*args, **kwargs)   
 
     return decorated_function
 
@@ -411,6 +411,7 @@ def edit_organization(org_id):
     if request.is_json:
         org = db.update_organization(org_id, request.json)
         if org:
+            return {"message": f"Updated org with ID: {org.id}"}, 200
             return {"message": f"Updated org with ID: {org.id}"}, 200
         else:
             return {"error": "Failed to update organization."}, 400
