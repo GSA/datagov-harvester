@@ -29,7 +29,12 @@ from jinja2_fragments.flask import render_block
 
 from database.interface import HarvesterDBInterface
 from harvester.lib.load_manager import LoadManager
-from harvester.utils.general_utils import convert_to_int, get_datetime, is_it_true
+from harvester.utils.general_utils import (
+    convert_to_int,
+    get_datetime,
+    is_it_true,
+    dynamic_map_list_items_to_dict,
+)
 
 from . import htmx
 from .forms import HarvestSourceForm, OrganizationForm
@@ -531,10 +536,11 @@ def view_harvest_source_data(source_id: str):
         jobs = db.pget_harvest_jobs(
             facets=harvest_jobs_facets,
             page=pagination.db_current,
+            order_by="desc",
         )
 
         if jobs:
-            last_job = jobs[-1]
+            last_job = jobs[0]
             last_job_error_count = db.get_harvest_record_errors_by_job(
                 count=True,
                 job_id=last_job.id,
@@ -547,30 +553,40 @@ def view_harvest_source_data(source_id: str):
         if future_jobs:
             summary_data["next_job_scheduled"] = future_jobs[0].date_created
 
-        chartdata = {
-            "labels": [job.date_finished for job in jobs],
+        chart_data_values = dynamic_map_list_items_to_dict(
+            db._to_dict(jobs[::-1]),  # reverse the list order for the chart
+            [
+                "date_finished",
+                "records_added",
+                "records_deleted",
+                "records_errored",
+                "records_ignored",
+            ],
+        )
+        chart_data = {
+            "labels": chart_data_values["date_finished"],
             "datasets": [
                 {
                     "label": "Added",
-                    "data": [job.records_added for job in jobs],
+                    "data": chart_data_values["records_added"],
                     "borderColor": "green",
                     "backgroundColor": "green",
                 },
                 {
                     "label": "Deleted",
-                    "data": [job.records_deleted for job in jobs],
+                    "data": chart_data_values["records_deleted"],
                     "borderColor": "black",
                     "backgroundColor": "black",
                 },
                 {
                     "label": "Errored",
-                    "data": [job.records_errored for job in jobs],
+                    "data": chart_data_values["records_errored"],
                     "borderColor": "red",
                     "backgroundColor": "red",
                 },
                 {
                     "label": "Ignored",
-                    "data": [job.records_ignored for job in jobs],
+                    "data": chart_data_values["records_ignored"],
                     "borderColor": "grey",
                     "backgroundColor": "grey",
                 },
@@ -581,7 +597,7 @@ def view_harvest_source_data(source_id: str):
             "source": db._to_dict(source),
             "summary_data": summary_data,
             "jobs": jobs,
-            "chart_data": chartdata,
+            "chart_data": chart_data,
             "htmx_vars": htmx_vars,
         }
         return render_template(
