@@ -3,6 +3,8 @@ import pytest
 from harvester.exceptions import TransformationException
 from harvester.harvest import HarvestSource
 
+from deepdiff import DeepDiff
+
 
 class TestTransform:
     def test_invalid_transform_iso19115_2(
@@ -21,7 +23,7 @@ class TestTransform:
         harvest_source.compare()
 
         for record in harvest_source.records:
-            if record.identifier == "http://localhost:80/iso_2_waf/invalid_47662.xml":
+            if record.identifier == "http://localhost:80/iso_2_waf/invalid_iso2.xml":
                 test_record = record
 
         # ruff: noqa: F841
@@ -51,14 +53,16 @@ class TestTransform:
         record = interface.get_harvest_record(job_errors[0][0].record.id)
         assert record.status == "error"
 
-    def test_valid_transform_iso19115_2(
+    def test_valid_transform_iso19115_docs(
         self,
         interface,
         organization_data,
         source_data_waf_iso19115_2,
         job_data_waf_iso19115_2,
         iso19115_2_transform,
+        iso19115_1_transform,
     ):
+        # this test transforms ISO19115-1 & ISO19115-2 docs into DCATUS
         interface.add_organization(organization_data)
         interface.add_harvest_source(source_data_waf_iso19115_2)
         harvest_job = interface.add_harvest_job(job_data_waf_iso19115_2)
@@ -66,9 +70,16 @@ class TestTransform:
         harvest_source = HarvestSource(harvest_job.id)
         harvest_source.prepare_external_data()
 
-        name = "http://localhost:80/iso_2_waf/valid_47598.xml"
-        test_record = harvest_source.external_records[name]
-        test_record.transform()
+        iso2_name = "http://localhost:80/iso_2_waf/valid_iso2.xml"
+        iso2_test_record = harvest_source.external_records[iso2_name]
+        iso2_test_record.transform()
 
-        assert test_record.mdt_msgs == ""
-        assert test_record.transformed_data == iso19115_2_transform
+        assert iso2_test_record.mdt_msgs == ""
+        assert DeepDiff(iso2_test_record.transformed_data, iso19115_2_transform) == {}
+
+        iso1_name = "http://localhost:80/iso_2_waf/valid_iso1.xml"
+        iso1_test_record = harvest_source.external_records[iso1_name]
+        iso1_test_record.transform()
+
+        assert iso1_test_record.mdt_msgs == ""
+        assert DeepDiff(iso1_test_record.transformed_data, iso19115_1_transform) == {}
