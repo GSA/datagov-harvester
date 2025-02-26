@@ -64,7 +64,6 @@ class TestRoutes:
         data = {"name": "Test Org", "logo": "test_logo.png"}
         response = client.get("/organization/add", json=data, headers=headers)
         assert response.status_code == 200
-        assert response.data.decode() == "message: success authorized"
 
     def test_login_required_invalid_token(self, client):
         headers = {

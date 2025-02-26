@@ -71,7 +71,7 @@ def login_required(f):
             api_token = os.getenv("FLASK_APP_SECRET_KEY")
             if provided_token != api_token:
                 return "error: Unauthorized", 401
-            return "message: success authorized", 200
+            return f(*args, **kwargs)
 
         # check session-based authentication for web users
         if "user" not in session:
@@ -340,7 +340,7 @@ def add_organization():
     if request.is_json:
         org = db.add_organization(request.json)
         if org:
-            return {"message": f"Added new organization with ID: {org.id}"}
+            return {"message": f"Added new organization with ID: {org.id}"}, 200
         else:
             return {"error": "Failed to add organization."}, 400
     else:
@@ -635,10 +635,6 @@ def view_harvest_sources():
 @login_required
 def edit_harvest_source(source_id: str):
     if request.is_json:
-        source = db.get_harvest_source(source_id)
-        if not source:
-            return ({"error": f"No source found with ID: {source_id}"}), 404
-
         updated_source = db.update_harvest_source(source_id, request.json)
         job_message = load_manager.schedule_first_job(updated_source.id)
 
