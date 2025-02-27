@@ -176,7 +176,7 @@ def dynamic_map_list_items_to_dict(list, fields):
 
 
 def process_job_complete_percentage(job):
-    if not "records_total" in job or job["records_total"] == 0:
+    if "records_total" not in job or job["records_total"] == 0:
         return "0%"
     percent_val = int(
         (
