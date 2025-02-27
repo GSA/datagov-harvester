@@ -114,6 +114,9 @@ class HarvestJob(db.Model):
     records = db.relationship(
         "HarvestRecord", backref="job", cascade="all, delete-orphan", lazy=True
     )
+    record_errors = db.relationship(
+        "HarvestRecordError", backref="job", cascade="all, delete-orphan", lazy=True
+    )
 
 
 class HarvestRecord(db.Model):
@@ -138,9 +141,7 @@ class HarvestRecord(db.Model):
         Enum("create", "update", "delete", name="record_action"), index=True
     )
     status = db.Column(Enum("error", "success", name="record_status"), index=True)
-    errors = db.relationship(
-        "HarvestRecordError", backref="record", cascade="all, delete-orphan", lazy=True
-    )
+    errors = db.relationship("HarvestRecordError", backref="record", lazy=True)
 
 
 class HarvestJobError(Error):
@@ -155,7 +156,10 @@ class HarvestRecordError(Error):
     __tablename__ = "harvest_record_error"
 
     harvest_record_id = db.Column(
-        db.String, db.ForeignKey("harvest_record.id"), nullable=False
+        db.String, db.ForeignKey("harvest_record.id"), nullable=True
+    )
+    harvest_job_id = db.Column(
+        db.String(36), db.ForeignKey("harvest_job.id"), nullable=False
     )
 
 

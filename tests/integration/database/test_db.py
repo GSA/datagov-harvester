@@ -564,7 +564,7 @@ class TestDatabase:
         # make sure there aren't records that are different
         assert not any(x != y for x, y in zip(latest_records, expected_records))
 
-    def test_delete_outdated_records_and_errors(
+    def test_delete_outdated_records(
         self,
         interface,
         organization_data,
@@ -590,6 +590,7 @@ class TestDatabase:
             "type": "ValidationException",
             "date_created": datetime.now(timezone.utc),
             "harvest_record_id": records[-2].id,
+            "harvest_job_id": records[-2].harvest_job_id,
         }
         interface.add_harvest_record_error(error_data)
 
@@ -609,7 +610,6 @@ class TestDatabase:
             + len(latest_records_from_db2)
             + len(outdated_records)
         )
-
         # latest records for all harvest sources (2) and all outdated records
         # should be equal to the original fixture count
         assert all_records == len(latest_records)
@@ -617,7 +617,6 @@ class TestDatabase:
         # we want outdated records for ALL harvest sources. this is harvest source 2
         hs2_outdated = next(r for r in outdated_records if r.identifier == "f")
         assert len(hs2_outdated.errors) == 1
-
         for record in outdated_records:
             interface.delete_harvest_record(record_id=record.id)
 
@@ -626,7 +625,77 @@ class TestDatabase:
         assert db_records == len(latest_records_from_db1) + len(latest_records_from_db2)
 
         db_record_errors = interface.pget_harvest_record_errors(count=True)
-        assert db_record_errors == 0
+
+        # It should be expected the 1 error is still present
+        assert db_record_errors == 1
+
+    def test_deleting_job_deletes_errors(
+        self,
+        interface_with_fixture_json,
+        job_data_dcatus,
+        record_error_data,
+    ):
+        """
+        Test that confirms that HarvestRecordErrors are deleted on
+        associated HarvestJob deletion.
+        """
+        interface = interface_with_fixture_json
+        job_id = job_data_dcatus["id"]
+        # Confirm that errors are created
+        count = interface.get_harvest_record_errors_by_job(
+            job_id,
+            count=True,
+        )
+        assert count == len(record_error_data)
+
+        # Delete harvest job with errors
+        interface.delete_harvest_job(job_id)
+        count = interface.get_harvest_record_errors_by_job(
+            job_id,
+            count=True,
+        )
+        # Confirm that HarvestRecordErrors are deleted
+        # with the HarvestJob
+        assert count == 0
+
+    def test_harvest_record_error_remains(
+        self,
+        interface_with_fixture_json,
+        job_data_dcatus,
+        record_data_dcatus,
+        record_error_data,
+    ):
+        """
+        Test to confirm that HarvestRecordErrors are not deleted when
+        associated HarvestRecord is deleted.
+        """
+        interface = interface_with_fixture_json
+        job_id = job_data_dcatus["id"]
+        # Confirm that errors are created
+        error_count = interface.pget_harvest_record_errors(
+            count=True,
+        )
+        assert error_count == len(record_error_data)
+        harvest_job_records = interface.get_harvest_records_by_job(
+            job_id, paginate=False
+        )
+
+        # Confirm we have existing records and that they equal
+        # the number from our baseline
+        assert len(harvest_job_records) == len(record_data_dcatus)
+        # Delete HarvestRecords
+        for record in harvest_job_records:
+            interface.delete_harvest_record(record_id=record.id)
+
+        # Confirm no more HarvestRecords exist but we do have HarvestRecordErrors
+        harvest_job_records = interface.get_harvest_records_by_job(
+            job_id, paginate=False
+        )
+        error_count = interface.pget_harvest_record_errors(
+            count=True,
+        )
+        assert len(harvest_job_records) != len(record_data_dcatus)
+        assert error_count == len(record_error_data)
 
     def test_faceted_builder_queries(
         self,

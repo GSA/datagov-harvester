@@ -64,6 +64,7 @@ class HarvestNonCriticalException(Exception):
             "type": self.__class__.__name__,
             "date_created": datetime.now(timezone.utc),
             "harvest_record_id": harvest_record_id,  # to-do
+            "harvest_job_id": harvest_job_id,
         }
 
         self.db_interface.add_harvest_record_error(error_data)

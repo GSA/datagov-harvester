@@ -3,7 +3,7 @@ import os
 from datetime import datetime, timezone
 from functools import wraps
 
-from sqlalchemy import create_engine, desc, func, inspect, select, text
+from sqlalchemy import create_engine, desc, func, inspect, text
 from sqlalchemy.exc import NoResultFound
 from sqlalchemy.orm import aliased, scoped_session, sessionmaker
 
@@ -353,30 +353,25 @@ class HarvesterDBInterface:
         """
         Retrieves harvest record errors for a given job.
 
-        This function fetches all records where the harvest status is 'error' and
-        belongs to the specified job. The query returns a tuple containing:
+        This function fetches all harvest record errors that belong to a specified job,
+        and joins them with their harvest record, if one exists.
+        The query returns a tuple containing:
             - HarvestRecordError object
-            - identifier (retrieved from HarvestRecord)
-            - source_raw (retrieved from HarvestRecord, containing 'title')
+            - identifier (retrieved from HarvestRecord, can be None)
+            - source_raw (retrieved from HarvestRecord, containing 'title', can be None)
 
         Returns:
             Query: A SQLAlchemy Query object that, when executed, yields tuples of:
                 (HarvestRecordError, identifier, source_raw).
         """
-        subquery = (
-            self.db.query(HarvestRecord.id)
-            .filter(HarvestRecord.status == "error")
-            .filter(HarvestRecord.harvest_job_id == job_id)
-            .subquery()
-        )
         query = (
             self.db.query(
                 HarvestRecordError, HarvestRecord.identifier, HarvestRecord.source_raw
             )
-            .join(
+            .outerjoin(
                 HarvestRecord, HarvestRecord.id == HarvestRecordError.harvest_record_id
             )
-            .filter(HarvestRecord.id.in_(select(subquery)))
+            .filter(HarvestRecordError.harvest_job_id == job_id)
         )
         return query
 

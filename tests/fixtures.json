@@ -140,41 +140,49 @@
     "record_error": [
         {
             "harvest_record_id": "0779c855-df20-49c8-9108-66359d82b77c",
+            "harvest_job_id": "6bce761c-7a39-41c1-ac73-94234c139c76",
             "message": "record is invalid",
             "type": "ValidationException"
         },
         {
             "harvest_record_id": "c218c965-3670-45c8-bfcd-f852d71ed917",
+            "harvest_job_id": "6bce761c-7a39-41c1-ac73-94234c139c76",
             "message": "record is invalid",
             "type": "ValidationException"
         },
         {
             "harvest_record_id": "e1f603cc-8b6b-483f-beb4-86bda5462b79",
+            "harvest_job_id": "6bce761c-7a39-41c1-ac73-94234c139c76",
             "message": "record is invalid",
             "type": "ValidationException"
         },
         {
             "harvest_record_id": "1c004473-0802-4f22-a16d-7a2d7559719e",
+            "harvest_job_id": "6bce761c-7a39-41c1-ac73-94234c139c76",
             "message": "record is invalid",
             "type": "ValidationException"
         },
         {
             "harvest_record_id": "deb12fa0-d812-4d6e-98f4-d4f7d776c6b3",
+            "harvest_job_id": "6bce761c-7a39-41c1-ac73-94234c139c76",
             "message": "record is invalid",
             "type": "ValidationException"
         },
         {
             "harvest_record_id": "27b5d5d6-808b-4a8c-ae4a-99f118e282dd",
+            "harvest_job_id": "6bce761c-7a39-41c1-ac73-94234c139c76",
             "message": "record is invalid",
             "type": "ValidationException"
         },
         {
             "harvest_record_id": "c232a2ca-6344-4692-adc2-29f618a2eff3",
+            "harvest_job_id": "6bce761c-7a39-41c1-ac73-94234c139c76",
             "message": "record is invalid",
             "type": "ValidationException"
         },
         {
             "harvest_record_id": "95021355-bad0-442b-98e9-475ecd849033",
+            "harvest_job_id": "6bce761c-7a39-41c1-ac73-94234c139c76",
             "message": "record is invalid",
             "type": "ValidationException"
         }
