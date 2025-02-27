@@ -785,7 +785,7 @@ def view_harvest_job(job_id=None):
         else:
             data = {
                 "job": job,
-                "job_dict": db._to_dict(job),
+                "job_dict": db._to_dict(job) if job else {},
                 "record_errors": record_errors_dict,
                 "htmx_vars": htmx_vars,
             }

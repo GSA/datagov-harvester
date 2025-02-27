@@ -150,13 +150,42 @@ class TestGeneralUtils:
         }
         assert chart_data == chart_data_fixture
 
-    def test_process_job_complete_percentage(self):
-        job_data = {
-            "records_total": 11,
-            "records_added": 1,
-            "records_updated": 1,
-            "records_deleted": 1,
-            "records_errored": 1,
-            "records_ignored": 1,
-        }
-        assert process_job_complete_percentage(job_data) == "45%"
+    @pytest.mark.parametrize(
+        "job_data,result",
+        [
+            (
+                {
+                    "records_total": 11,
+                    "records_added": 1,
+                    "records_updated": 1,
+                    "records_deleted": 1,
+                    "records_errored": 1,
+                    "records_ignored": 1,
+                },
+                "45%",
+            ),
+            (
+                {
+                    "records_added": 1,
+                    "records_updated": 1,
+                    "records_deleted": 1,
+                    "records_errored": 1,
+                    "records_ignored": 1,
+                },
+                "0%",  # no job["records_total"]
+            ),
+            (
+                {
+                    "records_total": 0,
+                    "records_added": 1,
+                    "records_updated": 1,
+                    "records_deleted": 1,
+                    "records_errored": 1,
+                    "records_ignored": 1,
+                },
+                "0%",  # records_total == 0
+            ),
+        ],
+    )
+    def test_process_job_complete_percentage(self, job_data, result):
+        assert process_job_complete_percentage(job_data) == result
