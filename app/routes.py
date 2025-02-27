@@ -64,10 +64,20 @@ TOKEN_URL = ISSUER + "/api/openid_connect/token"
 def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
+        provided_token = request.headers.get("Authorization")
+        if request.is_json or provided_token is not None:
+            if provided_token is None:
+                return "error: Authorization header missing", 401
+            api_token = os.getenv("FLASK_APP_SECRET_KEY")
+            if provided_token != api_token:
+                return "error: Unauthorized", 401
+            return f(*args, **kwargs)
+
+        # check session-based authentication for web users
         if "user" not in session:
             session["next"] = request.url
             return redirect(url_for("harvest.login"))
-        return f(*args, **kwargs)
+        return f(*args, **kwargs)   
 
     return decorated_function
 
@@ -330,7 +340,7 @@ def add_organization():
     if request.is_json:
         org = db.add_organization(request.json)
         if org:
-            return {"message": f"Added new organization with ID: {org.id}"}
+            return {"message": f"Added new organization with ID: {org.id}"}, 200
         else:
             return {"error": "Failed to add organization."}, 400
     else:
@@ -398,6 +408,14 @@ def view_org_data(org_id: str):
 @mod.route("/organization/config/edit/<org_id>", methods=["GET", "POST"])
 @login_required
 def edit_organization(org_id):
+    if request.is_json:
+        org = db.update_organization(org_id, request.json)
+        if org:
+            return {"message": f"Updated org with ID: {org.id}"}, 200
+            return {"message": f"Updated org with ID: {org.id}"}, 200
+        else:
+            return {"error": "Failed to update organization."}, 400
+
     org = db._to_dict(db.get_organization(org_id))
     form = OrganizationForm(data=org)
     if form.validate_on_submit():
@@ -429,7 +447,7 @@ def delete_organization(org_id):
         result = db.delete_organization(org_id)
         if result:
             flash(f"Triggered delete of organization with ID: {org_id}")
-            return {"message": "success"}
+            return {"message": "success"}, 200
         else:
             raise Exception()
     except Exception:
@@ -442,23 +460,22 @@ def delete_organization(org_id):
 @mod.route("/harvest_source/add", methods=["POST", "GET"])
 @login_required
 def add_harvest_source():
-    form = HarvestSourceForm()
-    organizations = db.get_all_organizations()
-    organization_choices = [
-        (str(org.id), f"{org.name} - {org.id}") for org in organizations
-    ]
-    form.organization_id.choices = organization_choices
-
     if request.is_json:
         source = db.add_harvest_source(request.json)
         job_message = load_manager.schedule_first_job(source.id)
         if source and job_message:
             return {
                 "message": f"Added new harvest source with ID: {source.id}. {job_message}"
-            }
+            }, 200
         else:
             return {"error": "Failed to add harvest source."}, 400
     else:
+        form = HarvestSourceForm()
+        organizations = db.get_all_organizations()
+        organization_choices = [
+            (str(org.id), f"{org.name} - {org.id}") for org in organizations
+        ]
+        form.organization_id.choices = organization_choices
         if form.validate_on_submit():
             new_source = make_new_source_contract(form)
             source = db.add_harvest_source(new_source)
@@ -618,6 +635,15 @@ def view_harvest_sources():
 @mod.route("/harvest_source/config/edit/<source_id>", methods=["GET", "POST"])
 @login_required
 def edit_harvest_source(source_id: str):
+    if request.is_json:
+        updated_source = db.update_harvest_source(source_id, request.json)
+        job_message = load_manager.schedule_first_job(updated_source.id)
+
+        if updated_source and job_message:
+            return {"message": f"Updated source with ID: {updated_source.id}. {job_message}"}, 200
+        else:
+            return {"error": "Failed to update harvest source"}, 400
+
     if source_id:
         source = db.get_harvest_source(source_id)
         organizations = db.get_all_organizations()
@@ -674,7 +700,7 @@ def delete_harvest_source(source_id):
     try:
         result = db.delete_harvest_source(source_id)
         flash(result)
-        return {"message": "success"}
+        return {"message": "success"}, 200
     except Exception as e:
         logger.error(f"Failed to delete harvest source :: {repr(e)}")
         flash("Failed to delete harvest source with ID: {source_id}")
@@ -692,11 +718,12 @@ def trigger_harvest_source(source_id, job_type):
 ## Harvest Job
 ### Add Job
 @mod.route("/harvest_job/add", methods=["POST"])
+@login_required
 def add_harvest_job():
     if request.is_json:
         job = db.add_harvest_job(request.json)
         if job:
-            return {"message": f"Added new harvest job with ID: {job.id}"}
+            return {"message": f"Added new harvest job with ID: {job.id}"}, 200
         else:
             return {"error": "Failed to add harvest job."}, 400
     else:
@@ -920,11 +947,12 @@ def get_harvest_record_raw(record_id=None):
 
 ## Add record
 @mod.route("/harvest_record/add", methods=["POST", "GET"])
+@login_required
 def add_harvest_record():
     if request.is_json:
         record = db.add_harvest_record(request.json)
         if record:
-            return {"message": f"Added new record with ID: {record.id}"}
+            return {"message": f"Added new record with ID: {record.id}"}, 200
         else:
             return {"error": "Failed to add harvest record."}, 400
     else:
