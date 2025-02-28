@@ -1,10 +1,11 @@
 import pytest
 
-from harvester.utils.ckan_utils import munge_tag, munge_title_to_name
+from harvester.utils.ckan_utils import munge_tag, munge_title_to_name, munge_spatial
 from harvester.utils.general_utils import (
     parse_args,
     prepare_transform_msg,
     query_filter_builder,
+    validate_geojson,
 )
 
 
@@ -51,6 +52,13 @@ class TestCKANUtils:
         """Munge a list of names gives expected results."""
         munge = munge_title_to_name(original)
         assert munge == expected
+
+    def test_munge_spatial(self):
+        assert munge_spatial("1.0,2.0,3.5,5.5") == (
+            '{"type": "Polygon", "coordinates": '
+            "[[[1.0, 2.0], [1.0, 5.5], [3.5, 5.5], "
+            "[3.5, 2.0], [1.0, 2.0]]]}"
+        )
 
 
 class TestGeneralUtils:
@@ -113,3 +121,7 @@ class TestGeneralUtils:
     )
     def test_prepare_mdt_messages(self, original, expected):
         assert prepare_transform_msg(original) == expected
+
+    def test_validate_geojson(self, invalid_envelope_geojson, named_location_ca):
+        assert validate_geojson(invalid_envelope_geojson) is False
+        assert validate_geojson(named_location_ca) is True

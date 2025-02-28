@@ -763,3 +763,24 @@ def iso19115_1_transform() -> dict:
         "references": "",
         "primaryITInvestmentUII": "{4c6928d8-6ac2-4909-8b3d-a29e2805ce2d}",
     }
+
+
+@pytest.fixture
+def named_location_us():
+    return (
+        '{"type":"Polygon","coordinates":[[[-124.733253,24.544245],[-124.733253,49.388611],'
+        "[-66.954811,49.388611],[-66.954811,24.544245],[-124.733253,24.544245]]]}"
+    )
+
+
+@pytest.fixture
+def named_location_ca():
+    return (
+        '{"type":"Polygon","coordinates":[[[-124.3926,32.5358],[-124.3926,42.0022],'
+        "[-114.1252,42.0022],[-114.1252,32.5358],[-124.3926,32.5358]]]}"
+    )
+
+
+@pytest.fixture
+def invalid_envelope_geojson():
+    return '{"type": "envelope", "coordinates": [[-81.0563, 34.9991], [-80.6033, 35.4024]]}'

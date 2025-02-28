@@ -1,7 +1,10 @@
 import re
 import uuid
+import json
 
 from harvester.harvest import HarvestSource
+from harvester.utils.general_utils import validate_geojson, is_number
+from database.interface import HarvesterDBInterface
 
 # all of these are copy/pasted from ckan core
 # https://github.com/ckan/ckan/blob/master/ckan/lib/munge.py
@@ -320,3 +323,77 @@ def ckanify_dcatus(
 
 def add_uuid_to_package_name(name: str) -> str:
     return name + "-" + str(uuid.uuid4())[:5]
+
+
+def munge_spatial(spatial_value: str) -> str:
+    # all of this is copy/pasted from
+    # https://github.com/GSA/ckanext-geodatagov/blob/ac752b30fbd916e9a078d732231edb8f81914d9c/ckanext/geodatagov/logic.py#L445
+    geojson_tpl = (
+        '{{"type": "Polygon", '
+        '"coordinates": [[[{minx}, {miny}], [{minx}, {maxy}], '
+        "[{maxx}, {maxy}], [{maxx}, {miny}], [{minx}, {miny}]]]}}"
+    )
+
+    # Replace all things that create bad JSON, https://github.com/GSA/data.gov/issues/3549
+    # all instances of '+', '[+23, -1]' is not valid, but '[23, -1]' is valid
+    old_spatial_transformed = spatial_value.replace("+", "")
+    # all trailing decimals, '[34., 2]' is not valid, but '[34.0, 2]' and '[34, 2]'
+    # are valid
+    old_spatial_transformed = old_spatial_transformed.replace(".,", ",").replace(
+        ".]", "]"
+    )
+    # '-98, 29, -83, 35.' is not valid
+    if old_spatial_transformed != "" and old_spatial_transformed[-1] == ".":
+        old_spatial_transformed = old_spatial_transformed[0:-1]
+    # all leading 0s, '[-089.63,  30.36]' is not valid, '[-89.63,  30.36]' is valid
+    old_spatial_transformed = re.sub(
+        r"(^|\s)(-?)0+((0|[1-9][0-9]*)(\.[0-9]*)?)", r"\1\2\3", old_spatial_transformed
+    )
+    # if spatial is a space-separated number list, set the new spatial to 'null'
+    try:
+        numbers_with_spaces = [int(i) for i in old_spatial_transformed.split(" ")]
+        if all(isinstance(x, int) for x in numbers_with_spaces):
+            old_spatial_transformed = ""
+    except ValueError:
+        pass
+
+    # If we have 4 numbers separated by commas, transform them as GeoJSON
+    parts = old_spatial_transformed.strip().split(",")
+    if len(parts) == 4 and all(is_number(x) for x in parts):
+        minx, miny, maxx, maxy = parts
+        params = {"minx": minx, "miny": miny, "maxx": maxx, "maxy": maxy}
+        new_spatial = geojson_tpl.format(**params)
+        return new_spatial
+
+    # Analyze with type of data is JSON valid
+    try:
+        geometry = json.loads(old_spatial_transformed)  # NOQA F841
+        # If we have 2 lists of 2 numbers, transform them as GeoJSON
+        if isinstance(geometry, list) and len(geometry) == 2:
+            min, max = geometry
+            params = {"minx": min[0], "miny": min[1], "maxx": max[0], "maxy": max[1]}
+            new_spatial = geojson_tpl.format(**params)
+            return new_spatial
+        else:
+            # If we already have a good geometry, use it
+            return old_spatial_transformed
+    # ruff: noqa: E722
+    except:
+        pass
+
+    return ""
+
+
+def translate_spatial(spatial_value: str, db_interface: HarvesterDBInterface) -> str:
+    # is it already valid geojson?
+    res = validate_geojson(spatial_value)
+    if res is True:
+        return spatial_value
+
+    # is it a named location?
+    res = db_interface.get_geo_from_string(spatial_value)
+    if res is not None:
+        return res
+
+    # can we reasonably extract a polygon from it?
+    return munge_spatial(spatial_value)

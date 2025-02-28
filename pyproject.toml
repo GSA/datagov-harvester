@@ -40,6 +40,7 @@ flask-htmx = "^0.3.2"
 gunicorn = "^23.0.0"
 newrelic = "^10.2.0"
 gevent = "^24.10.3"
+geojson-validator = "^0.6.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = ">=7.3.2"

@@ -685,3 +685,13 @@ class TestDatabase:
             count=True,
         )
         assert db_records == 1
+
+    def test_get_geo_from_string(self, interface, named_location_us, named_location_ca):
+        geojson_str = interface.get_geo_from_string("United States")
+        assert geojson_str == named_location_us
+
+        geojson_str = interface.get_geo_from_string("California")
+        assert geojson_str == named_location_ca
+
+        assert interface.get_geo_from_string("not exists") is None
+        assert interface.get_geo_from_string("US, Virginia, Fairfax, Reston") is None

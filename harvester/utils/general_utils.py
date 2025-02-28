@@ -4,6 +4,7 @@ import json
 import os
 from datetime import datetime, timedelta, timezone
 from typing import Union
+import geojson_validator
 
 import requests
 import sansjson
@@ -13,7 +14,6 @@ FREQUENCY_ENUM = {"daily": 1, "weekly": 7, "biweekly": 14, "monthly": 30}
 
 
 def prepare_transform_msg(transform_data):
-
     # ruff: noqa: E731
     mask_info = lambda s: "WARNING" in s or "ERROR" in s
 
@@ -159,3 +159,23 @@ def convert_to_int(value):
 
 def get_datetime():
     return datetime.now(timezone.utc)
+
+
+def is_number(s):
+    try:
+        float(s)
+        return True
+    except ValueError:
+        return False
+
+
+def validate_geojson(geojson_str: str) -> bool:
+    try:
+        res = geojson_validator.validate_structure(json.loads(geojson_str))
+        if res == {}:
+            return True
+        # TODO: what do we want to do with the details of why it's invalid?
+    # ruff: noqa: E722
+    except:
+        pass
+    return False
