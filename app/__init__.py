@@ -6,7 +6,7 @@ from flask_bootstrap import Bootstrap
 from flask_htmx import HTMX
 from flask_migrate import Migrate
 
-from app.filters import usa_icon
+from app.filters import else_na, usa_icon
 from database.models import db
 from harvester.lib.load_manager import LoadManager
 
@@ -43,5 +43,5 @@ def create_app():
 
 
 def add_template_filters(app):
-    for fn in [usa_icon]:
+    for fn in [usa_icon, else_na]:
         app.add_template_filter(fn)

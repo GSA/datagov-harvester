@@ -1,5 +1,6 @@
 import os
 
+
 class TestRoutes:
     def test_get_home(
         self,

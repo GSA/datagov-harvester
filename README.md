@@ -177,11 +177,30 @@ This is a python application, chiefy comprised of files in the `harvester` direc
 
 #### database migrations
 
-When there are database DDL changes, use following to do the database update:
+When altering the db during development, you first want to stamp the db before making any changes to the model.
 
-    ```bash
-    cf run-task datagov-harvest-admin --command "flask db upgrade" --name database-upgrade
-    ```
+```bash
+make clean up
+docker compose exec app bash
+```
+
+Once inside the container, you run:
+
+```bash
+flask db stamp head
+```
+
+Apply your changes to the model file, then run:
+
+```bash
+flask db migrate -m "your migration message here"
+```
+
+Then, finally, to apply your changes in place to the local db, run:
+
+```bash
+flask db upgrade
+```
 
 #### user management
 

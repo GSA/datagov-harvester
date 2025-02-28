@@ -1,11 +1,13 @@
 from datetime import datetime, timezone
 
+from freezegun import freeze_time
 from sqlalchemy import text
 
 from database.interface import PAGINATE_ENTRIES_PER_PAGE
 from database.models import HarvestJobError, HarvestRecordError
 
 
+@freeze_time("Jan 14th, 2012")
 class TestDatabase:
     def test_add_organization(self, interface, organization_data):
         org = interface.add_organization(organization_data)
@@ -429,7 +431,7 @@ class TestDatabase:
             )
         )
         assert len(all_jobs_list) == 12
-        assert len(filtered_job_list) == 2
+        assert len(filtered_job_list) == 3
         assert (
             len(
                 [
@@ -443,7 +445,7 @@ class TestDatabase:
                     and x.harvest_source_id == source_id
                 ]
             )
-            == 2
+            == 3
         )
 
     def test_filter_jobs_by_faceted_filter(

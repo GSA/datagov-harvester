@@ -6,20 +6,26 @@
 
 {% block content %}
 <div class="wrapper job-data">
-    {% if not data.harvest_job_id %}
+    {% if not data.job %}
     <h2>Whooops!</h2>
     <p>Looks like you navigated to a job that doesn't exist.</p>
     {% else %}
-    <h1>Details for Harvest Job Id: {{data.harvest_job_id}}</h1>
+    <h1>Details for Harvest Job Id: {{data.job.id}}</h1>
     <p>For Harvest Source Id: <a
-            href="{{ url_for('harvest.view_harvest_source_data', source_id=data.harvest_job.harvest_source_id) }}">
-            {{data.harvest_job.harvest_source_id}}
+            href="{{ url_for('harvest.view_harvest_source_data', source_id=data.job.harvest_source_id) }}">
+            {{data.job.harvest_source_id}}
         </a>
     </p>
     <h2>Job Info</h2>
     <div class="config-table">
         <table class="table">
-            {% for key, value in data.harvest_job_dict.items() %}
+            {% if data['percent_complete'] %}
+            <tr class="bg-error-light">
+                <td>Percent complete:</td>
+                <td>{{data['percent_complete']}}</td>
+            </tr>
+            {% endif %}
+            {% for key, value in data.job_dict.items() %}
             <tr>
                 <td>{{key}}:</td>
                 <td>{{value}}</td>
@@ -27,11 +33,11 @@
             {% endfor %}
         </table>
     </div>
-    {% if session['user'] and data.harvest_job.status == "in_progress" %}
+    {% if session['user'] and data.job.status == "in_progress" %}
     <div class="config-actions">
         <ul class="usa-button-group">
             <li class="usa-button-group__item">
-                <a href="{{ url_for('harvest.cancel_harvest_job', job_id=data.harvest_job_id)}}">
+                <a href="{{ url_for('harvest.cancel_harvest_job', job_id=data.job.id)}}">
                     <button class="usa-button usa-button--secondary">Cancel</button>
                 </a>
             </li>
@@ -40,17 +46,16 @@
     {% endif %}
     <div class="section my-3">
         <h2>Job Error Table</h2>
-        {% if not data.harvest_job.errors %}
+        {% if not data.job.errors %}
         No job errors found
         {% else %}
         {% set error_type = "job" %}
-        <a
-            href="{{ url_for('harvest.download_harvest_errors_by_job', job_id=data.harvest_job_id, error_type=error_type)}}">
+        <a href="{{ url_for('harvest.download_harvest_errors_by_job', job_id=data.job.id, error_type=error_type)}}">
             <button class="btn btn-primary">download job errors as .csv</button>
         </a>
         <div class="usa-table-container--scrollable" tabindex="0">
             <table class="usa-table usa-table--striped">
-                <caption> Harvest Job Errors for {{data.harvest_job_id}} </caption>
+                <caption> Harvest Job Errors for {{data.job.id}} </caption>
                 <thead>
                     <tr>
                         <th scope="col">Date Created</th>
@@ -60,7 +65,7 @@
                     </tr>
                 </thead>
                 <tbody>
-                    {% for errors in data.harvest_job.errors %}
+                    {% for errors in data.job.errors %}
                     <tr>
                         <td> {{errors.date_created}}</td>
                         <td>{{errors.id}}</td>
@@ -81,8 +86,7 @@
         <p>No record errors found</p>
         {% else %}
         {% set error_type = "record" %}
-        <a
-            href="{{ url_for('harvest.download_harvest_errors_by_job', job_id=data.harvest_job_id, error_type=error_type)}}">
+        <a href="{{ url_for('harvest.download_harvest_errors_by_job', job_id=data.job.id, error_type=error_type)}}">
             <button class="btn btn-primary">download record errors as .csv</button>
         </a>
         <div class="usa-table-container--scrollable" tabindex="0">

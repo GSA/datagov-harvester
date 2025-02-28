@@ -5,6 +5,7 @@ from harvester.utils.general_utils import (
     dynamic_map_list_items_to_dict,
     parse_args,
     prepare_transform_msg,
+    process_job_complete_percentage,
     query_filter_builder,
 )
 
@@ -148,3 +149,43 @@ class TestGeneralUtils:
             "records_ignored": [1, 2, 3],
         }
         assert chart_data == chart_data_fixture
+
+    @pytest.mark.parametrize(
+        "job_data,result",
+        [
+            (
+                {
+                    "records_total": 11,
+                    "records_added": 1,
+                    "records_updated": 1,
+                    "records_deleted": 1,
+                    "records_errored": 1,
+                    "records_ignored": 1,
+                },
+                "45%",
+            ),
+            (
+                {
+                    "records_added": 1,
+                    "records_updated": 1,
+                    "records_deleted": 1,
+                    "records_errored": 1,
+                    "records_ignored": 1,
+                },
+                "0%",  # no job["records_total"]
+            ),
+            (
+                {
+                    "records_total": 0,
+                    "records_added": 1,
+                    "records_updated": 1,
+                    "records_deleted": 1,
+                    "records_errored": 1,
+                    "records_ignored": 1,
+                },
+                "0%",  # records_total == 0
+            ),
+        ],
+    )
+    def test_process_job_complete_percentage(self, job_data, result):
+        assert process_job_complete_percentage(job_data) == result

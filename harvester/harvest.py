@@ -7,7 +7,6 @@ import sys
 from dataclasses import dataclass, field
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-from itertools import groupby
 from pathlib import Path
 from typing import List
 
@@ -29,6 +28,7 @@ from harvester.exceptions import (
     TransformationException,
     ValidationException,
 )
+from harvester.lib.harvest_reporter import HarvestReporter
 from harvester.utils.general_utils import (
     dataset_to_hash,
     download_file,
@@ -79,7 +79,6 @@ class HarvestSource:
         repr=False,
     )
     _records: list = field(default_factory=lambda: [], repr=False)
-    _report: dict = field(default_factory=lambda: {}, repr=False)
     _dataset_schema: dict = field(default_factory=lambda: {}, repr=False)
     _no_harvest_resp: bool = False
 
@@ -100,8 +99,6 @@ class HarvestSource:
     external_records: dict = field(default_factory=lambda: {}, repr=False)
     internal_records: dict = field(default_factory=lambda: {}, repr=False)
 
-    _report: dict = field(default_factory=lambda: {})
-
     def __post_init__(self) -> None:
         self._db_interface: HarvesterDBInterface = db_interface
         self.get_source_info_from_job_id(self.job_id)
@@ -115,6 +112,7 @@ class HarvestSource:
                 ROOT_DIR / "schemas" / "non-federal_dataset.json"
             )
         self._validator = Draft202012Validator(self.dataset_schema)
+        self._reporter = HarvestReporter()
 
     @property
     def job_id(self) -> str:
@@ -141,12 +139,8 @@ class HarvestSource:
         self._records = value
 
     @property
-    def report(self):
-        return self._report
-
-    @report.setter
-    def report(self, value) -> None:
-        self._report = value
+    def reporter(self):
+        return self._reporter
 
     @property
     def source_attrs(self) -> List:
@@ -226,9 +220,8 @@ class HarvestSource:
                     self, identifier, record, dataset_hash
                 )
             except Exception as e:
-                # TODO: do something with 'e'
                 raise ExtractExternalException(
-                    f"{self.name} {self.url} failed to convert to id:hash",
+                    f"{self.name} {self.url} failed to convert to id:hash :: {repr(e)}",
                     self.job_id,
                 )
 
@@ -242,8 +235,9 @@ class HarvestSource:
             if self.source_type == "waf":
                 self.external_records_to_id_hash(download_waf(traverse_waf(self.url)))
         except Exception as e:
+            # ruff: noqa: E501
             raise ExtractExternalException(
-                f"{self.name} {self.url} failed to extract harvest source. exiting",
+                f"{self.name} {self.url} failed to extract harvest source. exiting :: {repr(e)}",
                 self.job_id,
             )
 
@@ -253,8 +247,9 @@ class HarvestSource:
             records = self.db_interface.get_latest_harvest_records_by_source(self.id)
             self.internal_records_to_id_hash(records)
         except Exception as e:
+            # ruff: noqa: E501
             raise ExtractInternalException(
-                f"{self.name} {self.url} failed to extract internal records. exiting",
+                f"{self.name} {self.url} failed to extract internal records. exiting :: {repr(e)}",
                 self.job_id,
             )
 
@@ -279,9 +274,8 @@ class HarvestSource:
                 else:
                     self.compare_data[None].add(i)
         except Exception as e:
-            # TODO: do something with 'e'
             raise CompareException(
-                f"{self.name} {self.url} failed to run compare. exiting.",
+                f"{self.name} {self.url} failed to run compare. exiting.  :: {repr(e)}",
                 self.job_id,
             )
 
@@ -315,6 +309,9 @@ class HarvestSource:
         # set records on new
         self.records = records
 
+        # set record count on reporter
+        self.reporter.total = len(records)
+
     def compare_cleanup(self):
         self.compare_data = {}
         self.internal_records = {}
@@ -340,8 +337,8 @@ class HarvestSource:
             for record in self.records:
                 try:
                     record.transform()
-                except TransformationException as e:
-                    pass
+                except TransformationException:
+                    self.reporter.update("errored")
 
     def validate(self) -> None:
         """Validate records against DCAT-US 1.1 schema"""
@@ -349,8 +346,8 @@ class HarvestSource:
         for record in self.records:
             try:
                 record.validate()
-            except ValidationException as e:
-                pass
+            except ValidationException:
+                self.reporter.update("errored")
 
     def sync(self) -> None:
         """Sync records to external CKAN catalog"""
@@ -362,69 +359,25 @@ class HarvestSource:
             except (
                 DCATUSToCKANException,
                 SynchronizeException,
-                TransformationException,
-            ) as e:
-                pass
+            ):
+                self.reporter.update("errored")
 
-    def do_report(self) -> None:
+    def report(self) -> None:
         """Assemble and record report for harvest job"""
-        logger.info("report results")
-        # TODO: rewrite reporter as counter on harvest source
-        # instead of using records to self-report
-        results = {
-            "action": {"create": 0, "update": 0, "delete": 0, None: 0},
-            "status": {"success": 0, "error": 0, None: 0},
-            "validity": {True: 0, False: 0},
-        }
-        # TODO: confirm status: None only accounts for harvest records that were deleted
-
-        for key, group in groupby(
-            self.records, lambda x: x.action if x.status != "error" else False
-        ):
-            results["action"][key] = sum(1 for _ in group)
-
-        for key, group in groupby(self.records, lambda x: x.status):
-            results["status"][key] = sum(1 for _ in group)
-
-        for key, group in groupby(self.records, lambda x: x.valid):
-            results["validity"][key] = sum(1 for _ in group)
-
-        logger.info("actions completed")
-        logger.info(results["action"])
-
-        logger.info("status completed")
-        logger.info(results["status"])
-
-        logger.info("validity of records")
-        logger.info(results["validity"])
-
-        job_status = {
-            "status": "complete",
-            "date_finished": get_datetime(),
-            "records_added": results["action"]["create"],
-            "records_updated": results["action"]["update"],
-            "records_deleted": results["action"]["delete"],
-            "records_ignored": results["action"][None],
-            "records_errored": results["status"]["error"],
-            "records_validated": results["validity"][True],
-        }
-        # account for sync job's previous status in report count
-        if "previous_job_results" in self.report:
-            for key in self.report["previous_job_results"].keys():
-                job_status[key] = max(
-                    job_status[key] - self.report["previous_job_results"][key], 0
-                )  # don't allow for negative values based on previous results
+        job_status = {"status": "complete", "date_finished": get_datetime()}
+        job_results = self.reporter.report()
+        job_status.update(job_results)
 
         self.db_interface.update_harvest_job(self.job_id, job_status)
-        self._report = job_status
 
         if hasattr(self, "notification_emails") and self.notification_emails:
             if self.notification_frequency == "always" or (
-                self.notification_frequency == "on_error" and results["status"]["error"]
+                self.notification_frequency == "on_error"
+                and job_results["records_errored"]
             ):
-                self.send_notification_emails(results)
+                self.send_notification_emails(job_results)
 
-    def send_notification_emails(self, results: dict) -> None:
+    def send_notification_emails(self, job_results: dict) -> None:
         """Send harvest report emails to havest source POCs"""
         try:
             job_url = f'{SMTP_CONFIG["base_url"]}/harvest_job/{self.job_id}'
@@ -434,12 +387,12 @@ class HarvestSource:
                 f"The harvest job ({self.job_id}) has been successfully completed.\n"
                 f"You can view the details here: {job_url}\n\n"
                 "Summary of the job:\n"
-                f"- Records Added: {results['action']['create']}\n"
-                f"- Records Updated: {results['action']['update']}\n"
-                f"- Records Deleted: {results['action']['delete']}\n"
-                f"- Records Ignored: {results['action'][None]}\n"
-                f"- Records Errored: {results['status']['error']}\n"
-                f"- Records Validated: {results['validity'][True]}\n\n"
+                f"- Records Added: {job_results['records_added']}\n"
+                f"- Records Updated: {job_results['records_updated']}\n"
+                f"- Records Deleted: {job_results['records_deleted']}\n"
+                f"- Records Ignored: {job_results['records_ignored']}\n"
+                f"- Records Errored: {job_results['records_errored']}\n"
+                f"- Records Validated: {job_results['records_validated']}\n\n"
                 "====\n"
                 "You received this email because you subscribed to harvester updates.\n"
                 "Please do not reply to this email, as it is not monitored."
@@ -475,16 +428,6 @@ class HarvestSource:
         logger.info(f"starting sync job for {self.name}")
         # get the job before this one to pick up where it left off
         job = self.db_interface.get_harvest_jobs_by_source_id(self.id)[1]
-        results = {
-            "previous_job_results": {
-                "records_added": job.records_added,
-                "records_updated": job.records_updated,
-                "records_deleted": job.records_deleted,
-                "records_ignored": job.records_ignored,
-                "records_errored": job.records_errored,
-            }
-        }
-        self._report = results
         new_records = []
         for job_record in job.records:
             record = self.make_record_contract(job_record)
@@ -712,6 +655,7 @@ class Record:
 
             self.harvest_source.validator.validate(record)
             self.valid = True
+            self.harvest_source.reporter.update("validated")
         except Exception as e:
             self.status = "error"
             self.validation_msg = str(e.message)
@@ -734,7 +678,6 @@ class Record:
             return
 
         start = get_datetime()
-        # todo:
         try:
             if self.action == "delete":
                 self.delete_record()
@@ -757,6 +700,14 @@ class Record:
 
         if self.action is not None and self.action != "delete":
             self.update_self_in_db()
+
+        # update harvest reporter
+        self.harvest_source.reporter.update(self.action)
+
+        # update harvest job stats
+        self.harvest_source.db_interface.update_harvest_job(
+            self.harvest_source.job_id, self.harvest_source.reporter.report()
+        )
 
         logger.info(
             f"time to {self.action} {self.identifier} \
@@ -811,7 +762,7 @@ class Record:
         )
 
     def delete_self_in_db(self) -> bool:
-        return self.harvest_source.db_interface.delete_harvest_record(
+        self.harvest_source.db_interface.delete_harvest_record(
             identifier=self.identifier, harvest_source_id=self.harvest_source.id
         )
 
@@ -856,7 +807,7 @@ def harvest_job_starter(job_id, job_type="harvest"):
         harvest_source.clear_helper()
 
     # generate harvest job report
-    harvest_source.do_report()
+    harvest_source.report()
 
     # close the db connection after job to prevent persistent open connections
     harvest_source.db_interface.close()

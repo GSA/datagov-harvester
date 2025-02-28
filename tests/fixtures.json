@@ -28,12 +28,18 @@
             "harvest_source_id": "2f2652de-91df-4c63-8b53-bfced20b276b",
             "date_created": "2025-02-11 22:41:03.716252",
             "date_finished": "2025-02-11 22:41:03.715310",
+            "records_total": 10,
             "records_added": 2,
             "records_updated": 0,
             "records_deleted": 0,
             "records_errored": 8,
             "records_ignored": 0,
             "records_validated": 0
+        },
+        {
+            "status": "new",
+            "harvest_source_id": "2f2652de-91df-4c63-8b53-bfced20b276b",
+            "date_created": "2025-02-27 00:00:00"
         }
     ],
     "job_error": [

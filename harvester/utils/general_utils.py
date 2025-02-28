@@ -173,3 +173,22 @@ def dynamic_map_list_items_to_dict(list, fields):
         for field in fields:
             data_dict[field].append(item.get(field))
     return data_dict
+
+
+def process_job_complete_percentage(job):
+    if "records_total" not in job or job["records_total"] == 0:
+        return "0%"
+    percent_val = int(
+        (
+            (
+                job["records_added"]
+                + job["records_updated"]
+                + job["records_deleted"]
+                + job["records_ignored"]
+                + job["records_errored"]
+            )
+            / job["records_total"]
+        )
+        * 100
+    )
+    return f"{percent_val}%"

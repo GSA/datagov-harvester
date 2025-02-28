@@ -38,9 +38,7 @@ class TestHarvestJobValidate:
         )["dataset"]
         harvest_job = interface.get_harvest_job(job_id)
         assert harvest_job.status == "complete"
-        assert (
-            harvest_job.records_added == 1
-        )  # TODO: this should be 0 after we change count reporter
+        assert harvest_job.records_added == 0
         assert harvest_job.records_validated == 1
         assert harvest_job.records_validated == len(records_to_add) == 1
 
