@@ -195,6 +195,13 @@ Apply your changes to the model file, then run:
 ```bash
 flask db migrate -m "your migration message here"
 ```
+
+Then, finally, to apply your changes in place to the local db, run:
+
+```bash
+flask db upgrade
+```
+
 #### user management
 
 `cf run-task datagov-harvest-admin --name "add new user" --command "flask user add xxx@gsa.gov --name xxx"`
