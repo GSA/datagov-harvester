@@ -15,7 +15,7 @@ jobs:
     - name: Install node.js
       uses: actions/setup-node@v4
       with:
-        node-version: "app/static/package.json"
+        node-version-file: "app/static/package.json"
     - name: Build static assets
       shell: bash
       run: |
