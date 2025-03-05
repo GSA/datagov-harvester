@@ -52,7 +52,7 @@ jobs:
     - name: Write Playwright Auth File
       run: |
         cat << EOF > ./pytest_state.json
-        ${{ secrets.PLAYWRIGHT_AUTH_JSON }}
+        echo '${{ secrets.PLAYWRIGHT_AUTH_JSON }}' | base64 --decode
         EOF
     - name: Setup tmate session
       uses: mxschmitt/action-tmate@v3
