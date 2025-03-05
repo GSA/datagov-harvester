@@ -34,3 +34,6 @@ requirements.txt
 app/static/assets/*
 # for our placeholder image
 !app/static/assets/img
+
+#pytest file
+pytest_auth_state.json
