@@ -2,7 +2,6 @@ name: E2E Tests
 on:
   pull_request:
     branches: [ main ]
-  workflow_dispatch:
 jobs:
   test:
     timeout-minutes: 60
@@ -22,7 +21,7 @@ jobs:
         ${{ secrets.PLAYWRIGHT_AUTH_JSON }}
         EOF
     - name: Run E2E tests
-      run: make test-e2e
+      run: make test-ci
     - uses: actions/upload-artifact@v4
       if: ${{ !cancelled() }}
       with:

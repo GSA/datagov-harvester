@@ -35,17 +35,25 @@ test-unit: ## Runs unit tests. Compatible with dev environment / `make up`
 test-integration: ## Runs integration tests. Compatible with dev environment / `make up`
 	poetry run pytest --local-badge-output-dir tests/badges/integration/ --cov-report term-missing --junitxml=pytest-integration.xml --cov=harvester ./tests/integration | tee pytest-coverage-integration.txt
 
-test-functional: ## Runs integration tests. Compatible with dev environment / `make up`
+test-functional: ## Runs functional tests. Compatible with dev environment / `make up`
 	poetry run pytest --local-badge-output-dir tests/badges/functional/ --noconftest --cov-report term-missing --junitxml=pytest-functional.xml --cov=harvester ./tests/functional | tee pytest-coverage-functional.txt
+
+test-playwright: ## Runs playwright tests. Compatible with dev environment / `make up`
+	poetry run pytest --local-badge-output-dir tests/badges/playwright/ --cov-report term-missing --junitxml=pytest-playwright.xml --cov=app ./tests/playwright | tee pytest-coverage-playwright.txt
 
 test: up test-unit test-integration ## Runs all tests. Compatible with dev environment / `make up`
 
-test-ci: ## Runs all tests using only db and required test resources. NOT compatible with dev environment / `make up`
+test-e2e: ## Runs all e2e tests. NOT compatible with dev environment / `make up`
+	docker compose up -d
+	make test-playwright
+	make test-functional
+	docker compose down
+
+test-ci: ## Runs all simulated tests using only db and required test resources. NOT compatible with dev environment / `make up`
 	docker compose up -d db nginx-harvest-source transformer
 	make test-unit
 	make test-integration
-	make test-functional
-	make down
+	docker compose down
 
 up: ## Sets up local flask and harvest runner docker environments. harvest runner gets DATABASE_PORT from .env
 	DATABASE_PORT=5433 docker compose up -d

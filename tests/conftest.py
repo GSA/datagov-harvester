@@ -24,8 +24,9 @@ EXAMPLE_DATA = Path(__file__).parents[1] / "example_data"
 
 HARVEST_SOURCE_URL = os.getenv("HARVEST_SOURCE_URL")
 
-# ignore tests in the functional dir
-collect_ignore_glob = ["functional/*"]
+# ignore tests in the functional & playwright dir
+# comment out to see all in sidebar
+collect_ignore_glob = ["functional/*", "playwright/*"]
 
 
 @pytest.fixture(scope="session", autouse=True)
