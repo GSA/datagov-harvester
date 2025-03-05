@@ -54,6 +54,8 @@ jobs:
         cat << EOF > ./pytest_state.json
         ${{ secrets.PLAYWRIGHT_AUTH_JSON }}
         EOF
+    - name: Setup tmate session
+      uses: mxschmitt/action-tmate@v3
     - name: Run E2E tests
       run: make test-e2e
     - uses: actions/upload-artifact@v4
