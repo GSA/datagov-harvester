@@ -3,7 +3,9 @@ import logging
 import os
 from pathlib import Path
 from typing import Any, Generator, List
-from unittest.mock import patch
+from unittest.mock import patch, Mock
+import requests
+
 
 import pytest
 from dotenv import load_dotenv
@@ -155,7 +157,6 @@ def source_data_waf_csdgm(organization_data: dict) -> dict:
         "source_type": "waf",
         "notification_frequency": "always",
     }
-
 
 @pytest.fixture
 def source_data_waf_iso19115_2(organization_data: dict) -> dict:
@@ -764,3 +765,30 @@ def iso19115_1_transform() -> dict:
         "references": "",
         "primaryITInvestmentUII": "{4c6928d8-6ac2-4909-8b3d-a29e2805ce2d}",
     }
+
+
+@pytest.fixture()
+def mock_requests_get_ms_iis_waf_once():
+    """Fixture to mock requests.get only once per test session to use the ms-iis-waf."""
+    has_run = False
+
+    def mock_get(url, *args, **kwargs):
+        nonlocal has_run
+        if has_run:
+            return requests.get(url, *args, **kwargs)
+        
+        has_run = True  # Mark as used
+        mock_response = Mock()
+        mock_response.status_code = 200
+        file = Path(__file__).parents[0] / "waf-html-examples/ms-iis-waf.html"
+        with open(file, "r") as file:
+            mock_response.text = file.read()
+        mock_response.content = mock_response.text.encode('utf-8')
+        return mock_response
+
+    return mock_get
+
+@pytest.fixture(autouse=False)
+def apply_mock_requests_get_ms_iis_once(monkeypatch, mock_requests_get_ms_iis_waf_once):
+    """Apply the requests.get mock, ensuring monkeypatch is available."""
+    monkeypatch.setattr(requests, "get", mock_requests_get_ms_iis_waf_once)
