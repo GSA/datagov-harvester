@@ -18,6 +18,7 @@ from .models import (
     HarvestSource,
     HarvestUser,
     Organization,
+    Locations,
 )
 
 DATABASE_URI = os.getenv("DATABASE_URI")
@@ -553,21 +554,16 @@ class HarvesterDBInterface:
     def get_geo_from_string(self, location_name):
         """get a geometry from the locations table using the location name
         (e.g. California, New York)"""
-
-        sql = f"""SELECT ST_AsGeoJSON(the_geom) AS geom 
-            FROM locations 
-            WHERE name = \'{location_name}\';"""
-
         try:
-            row = self.db.execute(text(sql)).first()
-            if row is not None:
-                return row[0]
+            location = self.db.query(func.ST_AsGeoJSON(Locations.the_geom)).filter(Locations.display_name.ilike(f'%{location_name}%')).scalar()
+            return location
         except Exception as e:
             logger.error(
-                'Error querying "{}" locations table {}:\n\t"{}"'.format(
-                    location_name, e, sql
+                'Error querying "{}" locations table {}'.format(
+                    location_name, e
                 )
             )
+            return None
 
     def close(self):
         if hasattr(self.db, "remove"):

@@ -8,8 +8,7 @@ services:
       - "${HARVEST_SOURCE_PORT}:80"
   db:
       restart: always
-      build: 
-        context: postgresql/
+      image: postgis/postgis:latest
       env_file:
         - .env
       environment:
