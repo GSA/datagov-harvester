@@ -233,7 +233,7 @@ class HarvestSource:
                     download_file(self.url, ".json")["dataset"]
                 )
             if self.source_type == "waf":
-                self.external_records_to_id_hash(download_waf(traverse_waf(self.url)))
+                self.external_records_to_id_hash(download_waf(traverse_waf(url=self.url, files=[])))
         except Exception as e:
             # ruff: noqa: E501
             raise ExtractExternalException(

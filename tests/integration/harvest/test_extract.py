@@ -2,7 +2,7 @@ from harvester.harvest import HarvestSource
 from harvester.utils.general_utils import traverse_waf
 
 class TestExtract:
-    def test_traverse_waf_ms_iis(self, apply_mock_requests_get_ms_iis_once):
+    def test_traverse_waf_ms_iis(self, mock_requests_get_ms_iis_waf):
         """Test to ensure that we're able to traverse the ms-iis-waf"""
         files = traverse_waf(url="https://example.com")
         assert len(files) == 2
