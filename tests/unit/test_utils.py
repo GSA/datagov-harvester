@@ -124,9 +124,9 @@ class TestGeneralUtils:
     def test_prepare_mdt_messages(self, original, expected):
         assert prepare_transform_msg(original) == expected
 
-    def test_validate_geojson(self, invalid_envelope_geojson, named_location_ca):
+    def test_validate_geojson(self, invalid_envelope_geojson, named_location_stoneham):
         assert validate_geojson(invalid_envelope_geojson) is False
-        assert validate_geojson(named_location_ca) is True
+        assert validate_geojson(named_location_stoneham) is True
 
     def test_make_jobs_chart_data(self):
         jobs_data = [
