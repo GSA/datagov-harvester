@@ -84,7 +84,7 @@ def download_file(url: str, file_type: str) -> Union[str, dict]:
 
 
 def traverse_waf(
-    url, files=[], file_ext=".xml", folder="/", filters=["../", "dcatus/"]
+    url, files=None, file_ext=".xml", folder="/", filters=["../", "dcatus/"]
 ):
     """
     Transverses WAF
@@ -95,6 +95,10 @@ def traverse_waf(
 
     folders = []
     res = requests.get(url)
+    
+    if files is None:
+        files = []
+
     if res.status_code == 200:
         soup = BeautifulSoup(res.content, "html.parser")
         anchors = soup.find_all("a", href=True)
