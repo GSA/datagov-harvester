@@ -16,8 +16,8 @@ from .models import (
     HarvestRecordError,
     HarvestSource,
     HarvestUser,
-    Organization,
     Locations,
+    Organization,
 )
 
 DATABASE_URI = os.getenv("DATABASE_URI")
@@ -525,13 +525,15 @@ class HarvesterDBInterface:
         """get a geometry from the locations table using the location name
         (e.g. California, New York)"""
         try:
-            location = self.db.query(func.ST_AsGeoJSON(Locations.the_geom)).filter(Locations.display_name.ilike(f'%{location_name}%')).scalar()
+            location = (
+                self.db.query(func.ST_AsGeoJSON(Locations.the_geom))
+                .filter(Locations.display_name.ilike(f"%{location_name}%"))
+                .scalar()
+            )
             return location
         except Exception as e:
             logger.error(
-                'Error querying "{}" locations table {}'.format(
-                    location_name, e
-                )
+                'Error querying "{}" locations table {}'.format(location_name, e)
             )
             return None
 

@@ -5,13 +5,13 @@ Revises: c8fc36510d0b
 Create Date: 2025-03-06 10:27:32.366470
 
 """
-from alembic import op
-import sqlalchemy as sa
 
+import sqlalchemy as sa
+from alembic import op
 
 # revision identifiers, used by Alembic.
-revision = '350eec1fadff'
-down_revision = 'c8fc36510d0b'
+revision = "350eec1fadff"
+down_revision = "c8fc36510d0b"
 branch_labels = None
 depends_on = None
 
@@ -29,4 +29,4 @@ def upgrade():
 
 
 def downgrade():
-    op.drop_table('locations')
+    op.drop_table("locations")

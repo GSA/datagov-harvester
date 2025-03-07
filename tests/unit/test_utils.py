@@ -1,6 +1,6 @@
 import pytest
 
-from harvester.utils.ckan_utils import munge_tag, munge_title_to_name, munge_spatial
+from harvester.utils.ckan_utils import munge_spatial, munge_tag, munge_title_to_name
 from harvester.utils.general_utils import (
     dynamic_map_list_items_to_dict,
     parse_args,
@@ -127,7 +127,7 @@ class TestGeneralUtils:
     def test_validate_geojson(self, invalid_envelope_geojson, named_location_ca):
         assert validate_geojson(invalid_envelope_geojson) is False
         assert validate_geojson(named_location_ca) is True
-        
+
     def test_make_jobs_chart_data(self):
         jobs_data = [
             {

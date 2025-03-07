@@ -1,10 +1,10 @@
+import json
 import re
 import uuid
-import json
 
-from harvester.harvest import HarvestSource
-from harvester.utils.general_utils import validate_geojson, is_number
 from database.interface import HarvesterDBInterface
+from harvester.harvest import HarvestSource
+from harvester.utils.general_utils import is_number, validate_geojson
 
 # all of these are copy/pasted from ckan core
 # https://github.com/ckan/ckan/blob/master/ckan/lib/munge.py

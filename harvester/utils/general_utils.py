@@ -4,8 +4,8 @@ import json
 import os
 from datetime import datetime, timedelta, timezone
 from typing import Union
-import geojson_validator
 
+import geojson_validator
 import requests
 import sansjson
 from bs4 import BeautifulSoup
@@ -180,7 +180,7 @@ def validate_geojson(geojson_str: str) -> bool:
         pass
     return False
 
-  
+
 def dynamic_map_list_items_to_dict(list, fields):
     """
     Accept a list of items and the fields to map and return a dict of lists with those values appended

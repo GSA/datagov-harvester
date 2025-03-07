@@ -769,10 +769,30 @@ class TestDatabase:
         )
         assert db_records == 1
 
-    def test_get_geo_from_string(self, interface, named_location_us, named_location_stoneham):
-        us = Locations(**{"id": "34315", "type": "country", "name": "United States", "display_name": "United States", "the_geom": "0103000020E6100000010000000500000069ACFD9DED2E5FC0F302ECA3538B384069ACFD9DED2E5FC0D4EE5701BEB148401CB7989F1BBD50C0D4EE5701BEB148401CB7989F1BBD50C0F302ECA3538B384069ACFD9DED2E5FC0F302ECA3538B3840", "type_order": "1"})
+    def test_get_geo_from_string(
+        self, interface, named_location_us, named_location_stoneham
+    ):
+        us = Locations(
+            **{
+                "id": "34315",
+                "type": "country",
+                "name": "United States",
+                "display_name": "United States",
+                "the_geom": "0103000020E6100000010000000500000069ACFD9DED2E5FC0F302ECA3538B384069ACFD9DED2E5FC0D4EE5701BEB148401CB7989F1BBD50C0D4EE5701BEB148401CB7989F1BBD50C0F302ECA3538B384069ACFD9DED2E5FC0F302ECA3538B3840",  # noqa E501
+                "type_order": "1",
+            }
+        )
         interface.db.add(us)
-        stoneham = Locations(**{"id": "34333", "type": "us_postalcode", "name": "2180", "display_name": "Stoneham, MA (02180)", "the_geom": "0103000020E61000000100000005000000BA6B09F9A0C751C046B6F3FDD4384540BA6B09F9A0C751C08E06F016484045401B9E5E29CBC451C08E06F016484045401B9E5E29CBC451C046B6F3FDD4384540BA6B09F9A0C751C046B6F3FDD4384540", "type_order": "4"})
+        stoneham = Locations(
+            **{
+                "id": "34333",
+                "type": "us_postalcode",
+                "name": "2180",
+                "display_name": "Stoneham, MA (02180)",
+                "the_geom": "0103000020E61000000100000005000000BA6B09F9A0C751C046B6F3FDD4384540BA6B09F9A0C751C08E06F016484045401B9E5E29CBC451C08E06F016484045401B9E5E29CBC451C046B6F3FDD4384540BA6B09F9A0C751C046B6F3FDD4384540",  # noqa E501
+                "type_order": "4",
+            }
+        )
         interface.db.add(stoneham)
         interface.db.commit()
 
