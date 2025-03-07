@@ -1,10 +1,9 @@
 import logging
 import os
-import uuid
 from datetime import datetime, timezone
 from functools import wraps
 
-from sqlalchemy import create_engine, desc, func, inspect, select, text
+from sqlalchemy import create_engine, desc, func, inspect, text
 from sqlalchemy.exc import NoResultFound
 from sqlalchemy.orm import aliased, scoped_session, sessionmaker
 
@@ -355,30 +354,25 @@ class HarvesterDBInterface:
         """
         Retrieves harvest record errors for a given job.
 
-        This function fetches all records where the harvest status is 'error' and
-        belongs to the specified job. The query returns a tuple containing:
+        This function fetches all harvest record errors that belong to a specified job,
+        and joins them with their harvest record, if one exists.
+        The query returns a tuple containing:
             - HarvestRecordError object
-            - identifier (retrieved from HarvestRecord)
-            - source_raw (retrieved from HarvestRecord, containing 'title')
+            - identifier (retrieved from HarvestRecord, can be None)
+            - source_raw (retrieved from HarvestRecord, containing 'title', can be None)
 
         Returns:
             Query: A SQLAlchemy Query object that, when executed, yields tuples of:
                 (HarvestRecordError, identifier, source_raw).
         """
-        subquery = (
-            self.db.query(HarvestRecord.id)
-            .filter(HarvestRecord.status == "error")
-            .filter(HarvestRecord.harvest_job_id == job_id)
-            .subquery()
-        )
         query = (
             self.db.query(
                 HarvestRecordError, HarvestRecord.identifier, HarvestRecord.source_raw
             )
-            .join(
+            .outerjoin(
                 HarvestRecord, HarvestRecord.id == HarvestRecordError.harvest_record_id
             )
-            .filter(HarvestRecord.id.in_(select(subquery)))
+            .filter(HarvestRecordError.harvest_job_id == job_id)
         )
         return query
 
@@ -406,30 +400,6 @@ class HarvesterDBInterface:
             self.db.commit()
             self.db.refresh(new_record)
             return new_record
-        except Exception as e:
-            print("Error:", e)
-            self.db.rollback()
-            return None
-
-    # TODO: should we delete this if it's not used in code.
-    def add_harvest_records(self, records_data: list) -> dict:
-        """
-        Add many records at once
-
-        :param list records_data: List of records with unique UUIDs
-        :return dict id_lookup_table: identifiers -> ids
-        :raises Exception: if the records_data contains records with errors
-        """
-        try:
-            id_lookup_table = {}
-            for i, record_data in enumerate(records_data):
-                new_record = HarvestRecord(id=str(uuid.uuid4()), **record_data)
-                id_lookup_table[new_record.identifier] = new_record.id
-                self.db.add(new_record)
-                if i % 1000 == 0:
-                    self.db.flush()
-            self.db.commit()
-            return id_lookup_table
         except Exception as e:
             print("Error:", e)
             self.db.rollback()
@@ -643,35 +613,63 @@ class HarvesterDBInterface:
     #### PAGINATED QUERIES ####
     @count
     @paginate
-    def pget_harvest_jobs(self, facets="", **kwargs):
+    def pget_harvest_jobs(self, facets="", order_by="asc", **kwargs):
         facet_string = query_filter_builder(None, facets)
-        return self.db.query(HarvestJob).filter(text(facet_string))
+        order_by_val = order_by_helper(HarvestJob, order_by)
+        return (
+            self.db.query(HarvestJob).filter(text(facet_string)).order_by(order_by_val)
+        )
 
     @count
     @paginate
-    def pget_harvest_records(self, facets="", **kwargs):
+    def pget_harvest_records(self, facets="", order_by="asc", **kwargs):
         facet_string = query_filter_builder(None, facets)
-        return self.db.query(HarvestRecord).filter(text(facet_string))
+        order_by_val = order_by_helper(HarvestRecord, order_by)
+        return (
+            self.db.query(HarvestRecord)
+            .filter(text(facet_string))
+            .order_by(order_by_val)
+        )
 
     @count
     @paginate
-    def pget_harvest_job_errors(self, facets="", **kwargs):
+    def pget_harvest_job_errors(self, facets="", order_by="asc", **kwargs):
         facet_string = query_filter_builder(None, facets)
-        return self.db.query(HarvestJobError).filter(text(facet_string))
+        order_by_val = order_by_helper(HarvestJobError, order_by)
+        return (
+            self.db.query(HarvestJobError)
+            .filter(text(facet_string))
+            .order_by(order_by_val)
+        )
 
     @count
     @paginate
-    def pget_harvest_record_errors(self, facets="", **kwargs):
+    def pget_harvest_record_errors(self, facets="", order_by="asc", **kwargs):
         facet_string = query_filter_builder(None, facets)
-        return self.db.query(HarvestRecordError).filter(text(facet_string))
+        order_by_val = order_by_helper(HarvestRecordError, order_by)
+        return (
+            self.db.query(HarvestRecordError)
+            .filter(text(facet_string))
+            .order_by(order_by_val)
+        )
 
     #### FILTERED BUILDER QUERIES ####
-    def get_harvest_records_by_job(self, job_id, facets="", **kwargs):
+    def get_harvest_records_by_job(self, job_id, facets="", order_by="asc", **kwargs):
         facet_string = query_filter_builder(f"harvest_job_id = '{job_id}'", facets)
-        return self.pget_harvest_records(facets=facet_string, **kwargs)
+        return self.pget_harvest_records(
+            facets=facet_string, order_by=order_by, **kwargs
+        )
 
-    def get_harvest_records_by_source(self, source_id, facets="", **kwargs):
+    def get_harvest_records_by_source(
+        self, source_id, facets="", order_by="asc", **kwargs
+    ):
         facet_string = query_filter_builder(
             f"harvest_source_id = '{source_id}'", facets
         )
-        return self.pget_harvest_records(facets=facet_string, **kwargs)
+        return self.pget_harvest_records(
+            facets=facet_string, order_by=order_by, **kwargs
+        )
+
+
+def order_by_helper(model, order_by):
+    return model.date_created.asc() if order_by == "asc" else model.date_created.desc()

@@ -1,5 +1,6 @@
-import os
 import logging
+import os
+
 from cloudfoundry_client.client import CloudFoundryClient
 
 logger = logging.getLogger("harvest_admin")

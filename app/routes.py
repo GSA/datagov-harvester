@@ -29,7 +29,13 @@ from jinja2_fragments.flask import render_block
 
 from database.interface import HarvesterDBInterface
 from harvester.lib.load_manager import LoadManager
-from harvester.utils.general_utils import convert_to_int, get_datetime, is_it_true
+from harvester.utils.general_utils import (
+    convert_to_int,
+    dynamic_map_list_items_to_dict,
+    get_datetime,
+    is_it_true,
+    process_job_complete_percentage,
+)
 
 from . import htmx
 from .forms import HarvestSourceForm, OrganizationForm
@@ -59,6 +65,16 @@ TOKEN_URL = ISSUER + "/api/openid_connect/token"
 def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
+        provided_token = request.headers.get("Authorization")
+        if request.is_json or provided_token is not None:
+            if provided_token is None:
+                return "error: Authorization header missing", 401
+            api_token = os.getenv("FLASK_APP_SECRET_KEY")
+            if provided_token != api_token:
+                return "error: Unauthorized", 401
+            return f(*args, **kwargs)
+
+        # check session-based authentication for web users
         if "user" not in session:
             session["next"] = request.url
             return redirect(url_for("harvest.login"))
@@ -325,7 +341,7 @@ def add_organization():
     if request.is_json:
         org = db.add_organization(request.json)
         if org:
-            return {"message": f"Added new organization with ID: {org.id}"}
+            return {"message": f"Added new organization with ID: {org.id}"}, 200
         else:
             return {"error": "Failed to add organization."}, 400
     else:
@@ -393,6 +409,14 @@ def view_org_data(org_id: str):
 @mod.route("/organization/config/edit/<org_id>", methods=["GET", "POST"])
 @login_required
 def edit_organization(org_id):
+    if request.is_json:
+        org = db.update_organization(org_id, request.json)
+        if org:
+            return {"message": f"Updated org with ID: {org.id}"}, 200
+            return {"message": f"Updated org with ID: {org.id}"}, 200
+        else:
+            return {"error": "Failed to update organization."}, 400
+
     org = db._to_dict(db.get_organization(org_id))
     form = OrganizationForm(data=org)
     if form.validate_on_submit():
@@ -424,7 +448,7 @@ def delete_organization(org_id):
         result = db.delete_organization(org_id)
         if result:
             flash(f"Triggered delete of organization with ID: {org_id}")
-            return {"message": "success"}
+            return {"message": "success"}, 200
         else:
             raise Exception()
     except Exception:
@@ -437,23 +461,22 @@ def delete_organization(org_id):
 @mod.route("/harvest_source/add", methods=["POST", "GET"])
 @login_required
 def add_harvest_source():
-    form = HarvestSourceForm()
-    organizations = db.get_all_organizations()
-    organization_choices = [
-        (str(org.id), f"{org.name} - {org.id}") for org in organizations
-    ]
-    form.organization_id.choices = organization_choices
-
     if request.is_json:
         source = db.add_harvest_source(request.json)
         job_message = load_manager.schedule_first_job(source.id)
         if source and job_message:
             return {
                 "message": f"Added new harvest source with ID: {source.id}. {job_message}"
-            }
+            }, 200
         else:
             return {"error": "Failed to add harvest source."}, 400
     else:
+        form = HarvestSourceForm()
+        organizations = db.get_all_organizations()
+        organization_choices = [
+            (str(org.id), f"{org.name} - {org.id}") for org in organizations
+        ]
+        form.organization_id.choices = organization_choices
         if form.validate_on_submit():
             new_source = make_new_source_contract(form)
             source = db.add_harvest_source(new_source)
@@ -494,11 +517,13 @@ def view_harvest_source_data(source_id: str):
         current=request.args.get("page", 1, type=convert_to_int),
     )
 
+    jobs = db.pget_harvest_jobs(
+        facets=harvest_jobs_facets,
+        page=pagination.db_current,
+        order_by="desc",
+    )
+
     if htmx:
-        jobs = db.pget_harvest_jobs(
-            facets=harvest_jobs_facets,
-            page=pagination.db_current,
-        )
         data = {
             "source": {"id": source_id},
             "jobs": jobs,
@@ -523,18 +548,17 @@ def view_harvest_source_data(source_id: str):
         summary_data = {
             "records_count": records_count,
             "synced_records_count": synced_records_count,
-            "last_job_errors": "N/A",
-            "last_job_finished": "N/A",
-            "next_job_scheduled": "N/A",
+            "last_job_errors": None,
+            "last_job_finished": None,
+            "next_job_scheduled": None,
+            "active_job_in_progress": False,
         }
 
-        jobs = db.pget_harvest_jobs(
-            facets=harvest_jobs_facets,
-            page=pagination.db_current,
-        )
-
         if jobs:
-            last_job = jobs[-1]
+            last_job = jobs[0]
+            if last_job.status == "in_progress":
+                summary_data["active_job_in_progress"] = True
+
             last_job_error_count = db.get_harvest_record_errors_by_job(
                 count=True,
                 job_id=last_job.id,
@@ -547,30 +571,40 @@ def view_harvest_source_data(source_id: str):
         if future_jobs:
             summary_data["next_job_scheduled"] = future_jobs[0].date_created
 
-        chartdata = {
-            "labels": [job.date_finished for job in jobs],
+        chart_data_values = dynamic_map_list_items_to_dict(
+            db._to_dict(jobs[::-1]),  # reverse the list order for the chart
+            [
+                "date_finished",
+                "records_added",
+                "records_deleted",
+                "records_errored",
+                "records_ignored",
+            ],
+        )
+        chart_data = {
+            "labels": chart_data_values["date_finished"],
             "datasets": [
                 {
                     "label": "Added",
-                    "data": [job.records_added for job in jobs],
+                    "data": chart_data_values["records_added"],
                     "borderColor": "green",
                     "backgroundColor": "green",
                 },
                 {
                     "label": "Deleted",
-                    "data": [job.records_deleted for job in jobs],
+                    "data": chart_data_values["records_deleted"],
                     "borderColor": "black",
                     "backgroundColor": "black",
                 },
                 {
                     "label": "Errored",
-                    "data": [job.records_errored for job in jobs],
+                    "data": chart_data_values["records_errored"],
                     "borderColor": "red",
                     "backgroundColor": "red",
                 },
                 {
                     "label": "Ignored",
-                    "data": [job.records_ignored for job in jobs],
+                    "data": chart_data_values["records_ignored"],
                     "borderColor": "grey",
                     "backgroundColor": "grey",
                 },
@@ -581,7 +615,7 @@ def view_harvest_source_data(source_id: str):
             "source": db._to_dict(source),
             "summary_data": summary_data,
             "jobs": jobs,
-            "chart_data": chartdata,
+            "chart_data": chart_data,
             "htmx_vars": htmx_vars,
         }
         return render_template(
@@ -602,6 +636,17 @@ def view_harvest_sources():
 @mod.route("/harvest_source/config/edit/<source_id>", methods=["GET", "POST"])
 @login_required
 def edit_harvest_source(source_id: str):
+    if request.is_json:
+        updated_source = db.update_harvest_source(source_id, request.json)
+        job_message = load_manager.schedule_first_job(updated_source.id)
+
+        if updated_source and job_message:
+            return {
+                "message": f"Updated source with ID: {updated_source.id}. {job_message}"
+            }, 200
+        else:
+            return {"error": "Failed to update harvest source"}, 400
+
     if source_id:
         source = db.get_harvest_source(source_id)
         organizations = db.get_all_organizations()
@@ -658,7 +703,7 @@ def delete_harvest_source(source_id):
     try:
         result = db.delete_harvest_source(source_id)
         flash(result)
-        return {"message": "success"}
+        return {"message": "success"}, 200
     except Exception as e:
         logger.error(f"Failed to delete harvest source :: {repr(e)}")
         flash("Failed to delete harvest source with ID: {source_id}")
@@ -676,11 +721,12 @@ def trigger_harvest_source(source_id, job_type):
 ## Harvest Job
 ### Add Job
 @mod.route("/harvest_job/add", methods=["POST"])
+@login_required
 def add_harvest_job():
     if request.is_json:
         job = db.add_harvest_job(request.json)
         if job:
-            return {"message": f"Added new harvest job with ID: {job.id}"}
+            return {"message": f"Added new harvest job with ID: {job.id}"}, 200
         else:
             return {"error": "Failed to add harvest job."}, 400
     else:
@@ -690,7 +736,7 @@ def add_harvest_job():
 ### Get Job
 @mod.route("/harvest_job/", methods=["GET"])
 @mod.route("/harvest_job/<job_id>", methods=["GET"])
-def get_harvest_job(job_id=None):
+def view_harvest_job(job_id=None):
     record_error_count = db.get_harvest_record_errors_by_job(
         job_id,
         count=True,
@@ -704,20 +750,23 @@ def get_harvest_job(job_id=None):
         count=record_error_count,
         current=request.args.get("page", 1, type=convert_to_int),
     )
-
+    record_errors = db.get_harvest_record_errors_by_job(
+        job_id,
+        page=pagination.db_current,
+    )
+    record_errors_dict = [
+        {
+            "error": db._to_dict(row.HarvestRecordError),
+            "identifier": row.identifier,
+            "title": (
+                json.loads(row.source_raw).get("title", None)
+                if row.source_raw
+                else None
+            ),
+        }
+        for row in record_errors
+    ]
     if htmx:
-        record_errors = db.get_harvest_record_errors_by_job(
-            job_id,
-            page=pagination.db_current,
-        )
-        record_errors_dict = [
-            {
-                "error": db._to_dict(row.HarvestRecordError),
-                "identifier": row.identifier,
-                "title": json.loads(row.source_raw).get("title", None),
-            }
-            for row in record_errors
-        ]
         data = {
             "harvest_job_id": job_id,
             "record_errors": record_errors_dict,
@@ -729,39 +778,25 @@ def get_harvest_job(job_id=None):
             data=data,
             pagination=pagination.to_dict(),
         )
-    if job_id:
+    else:
         job = db.get_harvest_job(job_id)
-        record_errors = db.get_harvest_record_errors_by_job(job_id)
-        record_errors_dict = [
-            {
-                "error": db._to_dict(row.HarvestRecordError),
-                "identifier": row.identifier,
-                "title": json.loads(row.source_raw).get("title", None),
-            }
-            for row in record_errors
-        ]
         if request.args.get("type") and request.args.get("type") == "json":
             return db._to_dict(job) if job else ("Not Found", 404)
         else:
             data = {
-                "harvest_job_id": job_id,
-                "harvest_job": job,
-                "harvest_job_dict": db._to_dict(job),
+                "job": job,
+                "job_dict": db._to_dict(job) if job else {},
                 "record_errors": record_errors_dict,
                 "htmx_vars": htmx_vars,
             }
+            if job and job.status == "in_progress":
+                data["percent_complete"] = process_job_complete_percentage(
+                    data["job_dict"]
+                )
+
             return render_template(
                 "view_job_data.html", data=data, pagination=pagination.to_dict()
             )
-
-    source_id = request.args.get("harvest_source_id")
-    if source_id:
-        job = db.get_harvest_job_by_source(source_id)
-        if not job:
-            return "No harvest jobs found for this harvest source", 404
-    else:
-        job = db.get_all_harvest_jobs()
-        return db._to_dict(job)
 
 
 ### Update Job
@@ -900,11 +935,12 @@ def get_harvest_record_raw(record_id=None):
 
 ## Add record
 @mod.route("/harvest_record/add", methods=["POST", "GET"])
+@login_required
 def add_harvest_record():
     if request.is_json:
         record = db.add_harvest_record(request.json)
         if record:
-            return {"message": f"Added new record with ID: {record.id}"}
+            return {"message": f"Added new record with ID: {record.id}"}, 200
         else:
             return {"error": "Failed to add harvest record."}, 400
     else:

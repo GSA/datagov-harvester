@@ -18,9 +18,9 @@
             <tr>
                 <td>{{key}}:</td>
                 {% if key == 'logo' %}
-                    <td><a href="{{value}}">{{value}}</a></td>
+                <td><a href="{{value}}">{{value}}</a></td>
                 {% else %}
-                    <td>{{value}}</td>
+                <td>{{value}}</td>
                 {% endif %}
             </tr>
             {% endfor %}
@@ -63,11 +63,12 @@
                     {% for source in data.harvest_sources %}
                     <tr>
                         <td data-sort-value={{source.date_created}}><a
-                            href="{{ url_for('harvest.view_harvest_source_data', source_id=source.id) }}">{{source.name}}</a></td>
+                                href="{{ url_for('harvest.view_harvest_source_data', source_id=source.id) }}">{{source.name}}</a>
+                        </td>
                         <td scope="row" class="text-center">
                             {% if data.harvest_jobs[source.id] %}
                             {% set last_job_has_errors = (data.harvest_jobs[source.id].errors | length) == 0 %}
-                            <a href="{{ url_for('harvest.get_harvest_job', job_id=data.harvest_jobs[source.id].id) }}">
+                            <a href="{{ url_for('harvest.view_harvest_job', job_id=data.harvest_jobs[source.id].id) }}">
                                 <svg class="usa-icon align-middle {% if last_job_has_errors %}check{%else%}cancel{%endif%}"
                                     aria-hidden="true" focusable="false" role="img">
                                     <use
@@ -79,13 +80,7 @@
                             N/A
                             {% endif %}
                         </td>
-                        <td scope="row" class="text-center">
-                            {% if data.future_harvest_jobs[source.id] %}
-                                {{data.future_harvest_jobs[source.id]}}
-                            {% else %}
-                            N/A
-                            {% endif %}
-                        </td>
+                        <td scope="row" class="text-center">{{data.future_harvest_jobs[source.id] | else_na}}</td>
                         <td data-sort-value={{source.records_updated}}>{{source.source_type}}</td>
                         <td data-sort-value={{source.records_deleted}}>{{source.frequency}}</td>
                         <td data-sort-value={{source.date_finished}}>{{source.notification_emails}} </td>

@@ -1,11 +1,13 @@
 from datetime import datetime, timezone
 
+from freezegun import freeze_time
 from sqlalchemy import text
 
 from database.interface import PAGINATE_ENTRIES_PER_PAGE
 from database.models import HarvestJobError, HarvestRecordError, Locations
 
 
+@freeze_time("Jan 14th, 2012")
 class TestDatabase:
     def test_add_organization(self, interface, organization_data):
         org = interface.add_organization(organization_data)
@@ -196,27 +198,6 @@ class TestDatabase:
         assert record.harvest_source_id == source.id
         assert record.harvest_job_id == harvest_job.id
 
-    def test_add_harvest_records(
-        self,
-        interface,
-        organization_data,
-        source_data_dcatus,
-        job_data_dcatus,
-        record_data_dcatus,
-    ):
-        interface.add_organization(organization_data)
-        interface.add_harvest_source(source_data_dcatus)
-        interface.add_harvest_job(job_data_dcatus)
-
-        for record in record_data_dcatus:
-            del record["id"]
-
-        id_lookup_table = interface.add_harvest_records(record_data_dcatus)
-        db_records = interface.pget_harvest_records()
-        assert len(id_lookup_table) == 10
-        assert len(db_records) == 10
-        assert id_lookup_table[db_records[0].identifier] == db_records[0].id
-
     def test_endpoint_pagnation(
         self,
         interface,
@@ -229,14 +210,13 @@ class TestDatabase:
         interface.add_harvest_source(source_data_dcatus)
         interface.add_harvest_job(job_data_dcatus)
 
-        records = []
+        id_lookup_table = {}
         for i in range(100):
-            new_record = record_data_dcatus[0].copy()
-            del new_record["id"]
-            new_record["identifier"] = f"test-identifier-{i}"
-            records.append(new_record)
-
-        id_lookup_table = interface.add_harvest_records(records)
+            record = record_data_dcatus[0].copy()
+            del record["id"]
+            record["identifier"] = f"test-identifier-{i}"
+            db_record = interface.add_harvest_record(record)
+            id_lookup_table[db_record.identifier] = db_record.id
 
         # get first page
         db_records = interface.pget_harvest_records(page=0)
@@ -270,6 +250,36 @@ class TestDatabase:
         )
         assert len(db_records) == 1
         assert db_records[0].harvest_job_id == job_data_dcatus["id"]
+
+    def test_endpoint_order_by(
+        self,
+        interface,
+        organization_data,
+        source_data_dcatus,
+        job_data_dcatus,
+        record_data_dcatus,
+    ):
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_dcatus)
+        interface.add_harvest_job(job_data_dcatus)
+
+        id_lookup_table = {}
+        for i in range(100):
+            record = record_data_dcatus[0].copy()
+            del record["id"]
+            record["identifier"] = f"test-identifier-{i}"
+            db_record = interface.add_harvest_record(record)
+            id_lookup_table[db_record.identifier] = db_record.id
+
+        # get results in ascending order, and confirm it is default
+        db_records = interface.pget_harvest_records()
+        assert db_records[0].identifier == "test-identifier-0"
+        assert id_lookup_table[db_records[0].identifier] == db_records[0].id
+
+        # get results in descending order
+        db_records = interface.pget_harvest_records(order_by="desc")
+        assert db_records[0].identifier == "test-identifier-99"
+        assert id_lookup_table[db_records[0].identifier] == db_records[0].id
 
     def test_endpoint_count(
         self, interface_with_fixture_json, job_data_dcatus, record_data_dcatus
@@ -421,7 +431,7 @@ class TestDatabase:
             )
         )
         assert len(all_jobs_list) == 12
-        assert len(filtered_job_list) == 2
+        assert len(filtered_job_list) == 3
         assert (
             len(
                 [
@@ -435,7 +445,7 @@ class TestDatabase:
                     and x.harvest_source_id == source_id
                 ]
             )
-            == 2
+            == 3
         )
 
     def test_filter_jobs_by_faceted_filter(
@@ -485,7 +495,9 @@ class TestDatabase:
         interface.add_harvest_source(source_data_dcatus_2)
         interface.add_harvest_job(job_data_dcatus)
         interface.add_harvest_job(job_data_dcatus_2)
-        interface.add_harvest_records(latest_records)
+
+        for record in latest_records:
+            interface.add_harvest_record(record)
 
         latest_records = interface.get_latest_harvest_records_by_source(
             source_data_dcatus["id"]
@@ -554,7 +566,7 @@ class TestDatabase:
         # make sure there aren't records that are different
         assert not any(x != y for x, y in zip(latest_records, expected_records))
 
-    def test_delete_outdated_records_and_errors(
+    def test_delete_outdated_records(
         self,
         interface,
         organization_data,
@@ -580,6 +592,7 @@ class TestDatabase:
             "type": "ValidationException",
             "date_created": datetime.now(timezone.utc),
             "harvest_record_id": records[-2].id,
+            "harvest_job_id": records[-2].harvest_job_id,
         }
         interface.add_harvest_record_error(error_data)
 
@@ -599,7 +612,6 @@ class TestDatabase:
             + len(latest_records_from_db2)
             + len(outdated_records)
         )
-
         # latest records for all harvest sources (2) and all outdated records
         # should be equal to the original fixture count
         assert all_records == len(latest_records)
@@ -607,7 +619,6 @@ class TestDatabase:
         # we want outdated records for ALL harvest sources. this is harvest source 2
         hs2_outdated = next(r for r in outdated_records if r.identifier == "f")
         assert len(hs2_outdated.errors) == 1
-
         for record in outdated_records:
             interface.delete_harvest_record(record_id=record.id)
 
@@ -616,7 +627,77 @@ class TestDatabase:
         assert db_records == len(latest_records_from_db1) + len(latest_records_from_db2)
 
         db_record_errors = interface.pget_harvest_record_errors(count=True)
-        assert db_record_errors == 0
+
+        # It should be expected the 1 error is still present
+        assert db_record_errors == 1
+
+    def test_deleting_job_deletes_errors(
+        self,
+        interface_with_fixture_json,
+        job_data_dcatus,
+        record_error_data,
+    ):
+        """
+        Test that confirms that HarvestRecordErrors are deleted on
+        associated HarvestJob deletion.
+        """
+        interface = interface_with_fixture_json
+        job_id = job_data_dcatus["id"]
+        # Confirm that errors are created
+        count = interface.get_harvest_record_errors_by_job(
+            job_id,
+            count=True,
+        )
+        assert count == len(record_error_data)
+
+        # Delete harvest job with errors
+        interface.delete_harvest_job(job_id)
+        count = interface.get_harvest_record_errors_by_job(
+            job_id,
+            count=True,
+        )
+        # Confirm that HarvestRecordErrors are deleted
+        # with the HarvestJob
+        assert count == 0
+
+    def test_harvest_record_error_remains(
+        self,
+        interface_with_fixture_json,
+        job_data_dcatus,
+        record_data_dcatus,
+        record_error_data,
+    ):
+        """
+        Test to confirm that HarvestRecordErrors are not deleted when
+        associated HarvestRecord is deleted.
+        """
+        interface = interface_with_fixture_json
+        job_id = job_data_dcatus["id"]
+        # Confirm that errors are created
+        error_count = interface.pget_harvest_record_errors(
+            count=True,
+        )
+        assert error_count == len(record_error_data)
+        harvest_job_records = interface.get_harvest_records_by_job(
+            job_id, paginate=False
+        )
+
+        # Confirm we have existing records and that they equal
+        # the number from our baseline
+        assert len(harvest_job_records) == len(record_data_dcatus)
+        # Delete HarvestRecords
+        for record in harvest_job_records:
+            interface.delete_harvest_record(record_id=record.id)
+
+        # Confirm no more HarvestRecords exist but we do have HarvestRecordErrors
+        harvest_job_records = interface.get_harvest_records_by_job(
+            job_id, paginate=False
+        )
+        error_count = interface.pget_harvest_record_errors(
+            count=True,
+        )
+        assert len(harvest_job_records) != len(record_data_dcatus)
+        assert error_count == len(record_error_data)
 
     def test_faceted_builder_queries(
         self,
@@ -630,22 +711,24 @@ class TestDatabase:
         interface.add_harvest_source(source_data_dcatus)
         interface.add_harvest_job(job_data_dcatus)
 
-        records = []
+        id_lookup_table = {}
         for i in range(100):
-            new_record = record_data_dcatus[0].copy()
-            del new_record["id"]
-            new_record["identifier"] = f"test-identifier-{i}"
-            records.append(new_record)
-
-        id_lookup_table = interface.add_harvest_records(records)
+            record = record_data_dcatus[0].copy()
+            del record["id"]
+            record["identifier"] = f"test-identifier-{i}"
+            db_record = interface.add_harvest_record(record)
+            id_lookup_table[db_record.identifier] = db_record.id
 
         # source id, no facets
         db_records = interface.get_harvest_records_by_source(source_data_dcatus["id"])
         assert len(db_records) == PAGINATE_ENTRIES_PER_PAGE
+        assert db_records[0].identifier == "test-identifier-0"
+        assert id_lookup_table[db_records[0].identifier] == db_records[0].id
 
         # source id, plus page kwarg
         db_records = interface.get_harvest_records_by_source(
-            source_data_dcatus["id"], page=1
+            source_data_dcatus["id"],
+            page=1,
         )
         assert len(db_records) == PAGINATE_ENTRIES_PER_PAGE
         assert db_records[0].identifier == "test-identifier-10"

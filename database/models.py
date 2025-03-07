@@ -103,17 +103,21 @@ class HarvestJob(db.Model):
         db.DateTime, index=True, default=func.statement_timestamp()
     )
     date_finished = db.Column(db.DateTime)
-    records_added = db.Column(db.Integer)
-    records_updated = db.Column(db.Integer)
-    records_deleted = db.Column(db.Integer)
-    records_errored = db.Column(db.Integer)
-    records_ignored = db.Column(db.Integer)
-    records_validated = db.Column(db.Integer)
+    records_total = db.Column(db.Integer, default=0)
+    records_added = db.Column(db.Integer, default=0)
+    records_updated = db.Column(db.Integer, default=0)
+    records_deleted = db.Column(db.Integer, default=0)
+    records_errored = db.Column(db.Integer, default=0)
+    records_ignored = db.Column(db.Integer, default=0)
+    records_validated = db.Column(db.Integer, default=0)
     errors = db.relationship(
         "HarvestJobError", backref="job", cascade="all, delete-orphan", lazy=True
     )
     records = db.relationship(
         "HarvestRecord", backref="job", cascade="all, delete-orphan", lazy=True
+    )
+    record_errors = db.relationship(
+        "HarvestRecordError", backref="job", cascade="all, delete-orphan", lazy=True
     )
 
 
@@ -139,9 +143,7 @@ class HarvestRecord(db.Model):
         Enum("create", "update", "delete", name="record_action"), index=True
     )
     status = db.Column(Enum("error", "success", name="record_status"), index=True)
-    errors = db.relationship(
-        "HarvestRecordError", backref="record", cascade="all, delete-orphan", lazy=True
-    )
+    errors = db.relationship("HarvestRecordError", backref="record", lazy=True)
 
 
 class HarvestJobError(Error):
@@ -156,7 +158,10 @@ class HarvestRecordError(Error):
     __tablename__ = "harvest_record_error"
 
     harvest_record_id = db.Column(
-        db.String, db.ForeignKey("harvest_record.id"), nullable=False
+        db.String, db.ForeignKey("harvest_record.id"), nullable=True
+    )
+    harvest_job_id = db.Column(
+        db.String(36), db.ForeignKey("harvest_job.id"), nullable=False
     )
 
 

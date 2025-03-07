@@ -179,3 +179,36 @@ def validate_geojson(geojson_str: str) -> bool:
     except:
         pass
     return False
+
+  
+def dynamic_map_list_items_to_dict(list, fields):
+    """
+    Accept a list of items and the fields to map and return a dict of lists with those values appended
+    @param list [list] - a list of items to map over
+    @param fields [list] - a list of fields to extract from our list
+    returns data_dict [dict] - a dict of lists with values extracted from items
+    """
+    data_dict = {field: [] for field in fields}
+    for item in list:
+        for field in fields:
+            data_dict[field].append(item.get(field))
+    return data_dict
+
+
+def process_job_complete_percentage(job):
+    if "records_total" not in job or job["records_total"] == 0:
+        return "0%"
+    percent_val = int(
+        (
+            (
+                job["records_added"]
+                + job["records_updated"]
+                + job["records_deleted"]
+                + job["records_ignored"]
+                + job["records_errored"]
+            )
+            / job["records_total"]
+        )
+        * 100
+    )
+    return f"{percent_val}%"
