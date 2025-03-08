@@ -2,6 +2,8 @@ import json
 import re
 import uuid
 
+import geojson_validator
+
 from database.interface import HarvesterDBInterface
 from harvester.harvest import HarvestSource
 from harvester.utils.general_utils import is_number, validate_geojson
@@ -14,6 +16,8 @@ PACKAGE_NAME_MIN_LENGTH = 2
 
 MAX_TAG_LENGTH = 100
 MIN_TAG_LENGTH = 2
+
+db = HarvesterDBInterface()
 
 
 def _munge_to_length(string: str, min_length: int, max_length: int) -> str:
@@ -336,29 +340,27 @@ def munge_spatial(spatial_value: str) -> str:
 
     # Replace all things that create bad JSON, https://github.com/GSA/data.gov/issues/3549
     # all instances of '+', '[+23, -1]' is not valid, but '[23, -1]' is valid
-    old_spatial_transformed = spatial_value.replace("+", "")
+    spatial_value = spatial_value.replace("+", "")
     # all trailing decimals, '[34., 2]' is not valid, but '[34.0, 2]' and '[34, 2]'
     # are valid
-    old_spatial_transformed = old_spatial_transformed.replace(".,", ",").replace(
-        ".]", "]"
-    )
+    spatial_value = spatial_value.replace(".,", ",").replace(".]", "]")
     # '-98, 29, -83, 35.' is not valid
-    if old_spatial_transformed != "" and old_spatial_transformed[-1] == ".":
-        old_spatial_transformed = old_spatial_transformed[0:-1]
+    if spatial_value != "" and spatial_value[-1] == ".":
+        spatial_value = spatial_value[0:-1]
     # all leading 0s, '[-089.63,  30.36]' is not valid, '[-89.63,  30.36]' is valid
-    old_spatial_transformed = re.sub(
-        r"(^|\s)(-?)0+((0|[1-9][0-9]*)(\.[0-9]*)?)", r"\1\2\3", old_spatial_transformed
+    spatial_value = re.sub(
+        r"(^|\s)(-?)0+((0|[1-9][0-9]*)(\.[0-9]*)?)", r"\1\2\3", spatial_value
     )
     # if spatial is a space-separated number list, set the new spatial to 'null'
     try:
-        numbers_with_spaces = [int(i) for i in old_spatial_transformed.split(" ")]
+        numbers_with_spaces = [int(i) for i in spatial_value.split(" ")]
         if all(isinstance(x, int) for x in numbers_with_spaces):
-            old_spatial_transformed = ""
+            spatial_value = ""
     except ValueError:
         pass
 
     # If we have 4 numbers separated by commas, transform them as GeoJSON
-    parts = old_spatial_transformed.strip().split(",")
+    parts = spatial_value.strip().split(",")
     if len(parts) == 4 and all(is_number(x) for x in parts):
         minx, miny, maxx, maxy = parts
         params = {"minx": minx, "miny": miny, "maxx": maxx, "maxy": maxy}
@@ -367,16 +369,17 @@ def munge_spatial(spatial_value: str) -> str:
 
     # Analyze with type of data is JSON valid
     try:
-        geometry = json.loads(old_spatial_transformed)  # NOQA F841
+        geometry = json.loads(spatial_value)  # NOQA F841
         # If we have 2 lists of 2 numbers, transform them as GeoJSON
         if isinstance(geometry, list) and len(geometry) == 2:
             min, max = geometry
             params = {"minx": min[0], "miny": min[1], "maxx": max[0], "maxy": max[1]}
-            new_spatial = geojson_tpl.format(**params)
-            return new_spatial
-        else:
-            # If we already have a good geometry, use it
-            return old_spatial_transformed
+            spatial_value = geojson_tpl.format(**params)
+            return spatial_value
+
+        # If the string was a geojson, return it.
+        if validate_geojson(spatial_value):
+            return spatial_value
     # ruff: noqa: E722
     except:
         pass
@@ -384,16 +387,19 @@ def munge_spatial(spatial_value: str) -> str:
     return ""
 
 
-def translate_spatial(spatial_value: str, db_interface: HarvesterDBInterface) -> str:
-    # is it already valid geojson?
-    res = validate_geojson(spatial_value)
-    if res is True:
+def translate_spatial(spatial_value) -> str:
+    # is it already valid geojson in string format? If so pass it to CKAN.
+    if validate_geojson(spatial_value):
         return spatial_value
 
-    # is it a named location?
-    res = db_interface.get_geo_from_string(spatial_value)
+    # is it already valid geojson? if so stringify and pass to CKAN.
+    if geojson_validator.validate_structure(spatial_value) == {}:
+        return json.dumps(spatial_value)
+
+    # is it a name in the locations database?
+    res = db.get_geo_from_string(spatial_value)
     if res is not None:
         return res
 
-    # can we reasonably extract a polygon from it?
+    # can we reasonably create a polygon from the input?
     return munge_spatial(spatial_value)

@@ -5,13 +5,14 @@ Revises: 63a1161d69b7
 Create Date: 2025-03-07 22:50:36.784734
 
 """
+
+import sqlalchemy as sa
 from alembic import op
 from geoalchemy2 import Geometry
-import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
-revision = 'bd24037e625a'
-down_revision = '63a1161d69b7'
+revision = "bd24037e625a"
+down_revision = "63a1161d69b7"
 branch_labels = None
 depends_on = None
 

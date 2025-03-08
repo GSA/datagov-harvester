@@ -1,6 +1,11 @@
 import pytest
 
-from harvester.utils.ckan_utils import munge_spatial, munge_tag, munge_title_to_name
+from harvester.utils.ckan_utils import (
+    munge_spatial,
+    munge_tag,
+    munge_title_to_name,
+    translate_spatial,
+)
 from harvester.utils.general_utils import (
     dynamic_map_list_items_to_dict,
     parse_args,
@@ -62,7 +67,41 @@ class TestCKANUtils:
             "[3.5, 2.0], [1.0, 2.0]]]}"
         )
 
+    def test_translate_spatial_simple_bbox(self):
+        assert translate_spatial("1.0,2.0,3.5,5.5") == (
+            '{"type": "Polygon", "coordinates": '
+            "[[[1.0, 2.0], [1.0, 5.5], [3.5, 5.5], "
+            "[3.5, 2.0], [1.0, 2.0]]]}"
+        )
 
+    def test_translate_spatial_geojson_string(self):
+        assert translate_spatial(
+            '{"type": "Polygon", "coordinates": '
+            "[[[1.0, 2.0], [1.0, 5.5], [3.5, 5.5], "
+            "[3.5, 2.0], [1.0, 2.0]]]}"
+        ) == (
+            '{"type": "Polygon", "coordinates": '
+            "[[[1.0, 2.0], [1.0, 5.5], [3.5, 5.5], "
+            "[3.5, 2.0], [1.0, 2.0]]]}"
+        )
+
+    def test_translate_spatial_geojson(self):
+        assert translate_spatial(
+            {
+                "type": "Polygon",
+                "coordinates": [
+                    [[1.0, 2.0], [1.0, 5.5], [3.5, 5.5], [3.5, 2.0], [1.0, 2.0]]
+                ],
+            }
+        ) == (
+            '{"type": "Polygon", "coordinates": '
+            "[[[1.0, 2.0], [1.0, 5.5], [3.5, 5.5], "
+            "[3.5, 2.0], [1.0, 2.0]]]}"
+        )
+
+
+# Point example
+# "{\"type\": \"Point\", \"coordinates\": [-87.08258, 24.9579]}"
 class TestGeneralUtils:
     def test_args_parsing(self):
         args = parse_args(["test-id", "test-type"])
