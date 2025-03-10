@@ -393,8 +393,11 @@ def translate_spatial(spatial_value) -> str:
         return spatial_value
 
     # is it already valid geojson? if so stringify and pass to CKAN.
-    if geojson_validator.validate_structure(spatial_value) == {}:
-        return json.dumps(spatial_value)
+    try:
+      if geojson_validator.validate_structure(spatial_value) == {}:
+          return json.dumps(spatial_value)
+    except ValueError as e:
+      pass
 
     # is it a name in the locations database?
     res = db.get_geo_from_string(spatial_value)
