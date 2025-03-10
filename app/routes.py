@@ -761,8 +761,8 @@ def view_harvest_job(job_id=None):
             "error": db._to_dict(row.HarvestRecordError),
             "identifier": row.identifier,
             "title": (
-                json.loads(row.source_raw).get("title", None)
-                if row.source_raw
+                json.loads(row.source_raw).get("title")
+                if hasattr(row.source_raw, "title")
                 else None
             ),
         }
