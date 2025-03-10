@@ -96,6 +96,8 @@ To setup:
 
 If you followed the instructions for `CKAN load testing` and `Harvester testing` you can simply run `poetry run pytest` to run all tests.
 
+For tests to pass, you may have to pull the latest MDTranslator. Use `docker compose pull` to get the latest versions of the docker images.
+
 ### Integration testing
 - to run integration tests locally add the following env variables to your .env file in addition to their appropriate values
   - CF_SERVICE_USER = "put username here"
