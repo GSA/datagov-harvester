@@ -170,6 +170,7 @@ def create_ckan_extras(
         "modified",
         "programCode",
         "publisher",
+        "spatial",
     ]
 
     output = [
@@ -203,7 +204,9 @@ def create_ckan_extras(
                     "value": create_ckan_publisher_hierarchy(val, []),
                 }
             )
-
+        elif extra == "spatial":
+            data["value"] = translate_spatial(metadata["spatial"])
+            output.append({"key": "old-spatial", "value": metadata["spatial"]})
         else:
             if isinstance(val, list):  # TODO: confirm this is what we want.
                 val = val[0]
@@ -330,7 +333,7 @@ def add_uuid_to_package_name(name: str) -> str:
 
 
 def munge_spatial(spatial_value: str) -> str:
-    # all of this is copy/pasted from
+    # This function originally came from
     # https://github.com/GSA/ckanext-geodatagov/blob/ac752b30fbd916e9a078d732231edb8f81914d9c/ckanext/geodatagov/logic.py#L445
     geojson_tpl = (
         '{{"type": "Polygon", '
@@ -394,10 +397,10 @@ def translate_spatial(spatial_value) -> str:
 
     # is it already valid geojson? if so stringify and pass to CKAN.
     try:
-      if geojson_validator.validate_structure(spatial_value) == {}:
-          return json.dumps(spatial_value)
-    except ValueError as e:
-      pass
+        if geojson_validator.validate_structure(spatial_value) == {}:
+            return json.dumps(spatial_value)
+    except ValueError:
+        pass
 
     # is it a name in the locations database?
     res = db.get_geo_from_string(spatial_value)

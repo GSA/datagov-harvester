@@ -772,17 +772,6 @@ class TestDatabase:
     def test_get_geo_from_string(
         self, interface, named_location_us, named_location_stoneham
     ):
-        us = Locations(
-            **{
-                "id": "34315",
-                "type": "country",
-                "name": "United States",
-                "display_name": "United States",
-                "the_geom": "0103000020E6100000010000000500000069ACFD9DED2E5FC0F302ECA3538B384069ACFD9DED2E5FC0D4EE5701BEB148401CB7989F1BBD50C0D4EE5701BEB148401CB7989F1BBD50C0F302ECA3538B384069ACFD9DED2E5FC0F302ECA3538B3840",  # noqa E501
-                "type_order": "1",
-            }
-        )
-        interface.db.add(us)
         stoneham = Locations(
             **{
                 "id": "34333",

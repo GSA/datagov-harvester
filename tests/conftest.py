@@ -12,7 +12,7 @@ from sqlalchemy.orm import scoped_session, sessionmaker
 
 from app import create_app
 from database.interface import HarvesterDBInterface
-from database.models import HarvestJob, HarvestSource, Organization, db
+from database.models import HarvestJob, HarvestSource, Locations, Organization, db
 from harvester.lib.load_manager import create_future_date
 from harvester.utils.general_utils import dataset_to_hash, sort_dataset
 
@@ -42,6 +42,17 @@ def app() -> Generator[Any, Flask, Any]:
     app.config.update({"TESTING": True})
     with app.app_context():
         db.create_all()
+        us = Locations(
+            **{
+                "id": "34315",
+                "type": "country",
+                "name": "United States",
+                "display_name": "United States",
+                "the_geom": "0103000020E6100000010000000500000069ACFD9DED2E5FC0F302ECA3538B384069ACFD9DED2E5FC0D4EE5701BEB148401CB7989F1BBD50C0D4EE5701BEB148401CB7989F1BBD50C0F302ECA3538B384069ACFD9DED2E5FC0F302ECA3538B3840",  # noqa E501
+                "type_order": "1",
+            }
+        )
+        db.session.add(us)
         yield app
         db.drop_all()
 
