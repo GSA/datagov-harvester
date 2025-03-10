@@ -53,6 +53,7 @@ def app() -> Generator[Any, Flask, Any]:
             }
         )
         db.session.add(us)
+        db.session.commit()
         yield app
         db.drop_all()
 
