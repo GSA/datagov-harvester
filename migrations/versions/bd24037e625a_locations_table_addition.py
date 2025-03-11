@@ -18,7 +18,7 @@ depends_on = None
 
 
 def upgrade():
-    # op.execute("CREATE EXTENSION postgis;")
+    op.execute("CREATE EXTENSION postgis;")
     op.create_table(
         "locations",
         sa.Column("id", sa.Integer, primary_key=True),
@@ -28,7 +28,6 @@ def upgrade():
         sa.Column("the_geom", Geometry(geometry_type="MULTIPOLYGON")),
         sa.Column("type_order", sa.String),
     )
-    # pass
 
 
 def downgrade():
