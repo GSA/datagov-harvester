@@ -5,6 +5,7 @@ from deepdiff import DeepDiff
 
 from harvester.harvest import HarvestSource, Record
 from harvester.utils.general_utils import dataset_to_hash, sort_dataset
+from harvester.utils.ckan_utils import create_ckan_resources
 
 # ruff: noqa: E501
 
@@ -125,7 +126,12 @@ class TestCKANLoad:
             "title": "Commitment of Traders",
             "resources": [
                 {
-                    "url": "https://www.cftc.gov/MarketReports/CommitmentsofTraders/index.htm"
+                    "url": "https://www.cftc.gov/MarketReports/CommitmentsofTraders/index.htm",
+                    "mimetype": "text/html",
+                    "no_real_name": True,
+                    "format": "HTML",
+                    "name": "Web Page",
+                    "description": "index.htm",
                 }
             ],
             "tags": [
@@ -161,3 +167,37 @@ class TestCKANLoad:
 
         test_record.ckanify_dcatus()
         assert DeepDiff(test_record.ckanified_metadata, expected_result) == {}
+
+    def test_create_ckan_resources(self, dol_distribution_json):
+        """
+        Test that we are accurately parsing information from the
+        distribution sections.
+        """
+        expected_resources = [
+            {
+                "url": "https://data.wa.gov/api/views/f6w7-q2d2/rows.csv?accessType=DOWNLOAD",
+                "mimetype": "text/csv",
+                "no_real_name": True,
+                "name": "Web Resource",
+            },
+            {
+                "url": "https://data.wa.gov/api/views/f6w7-q2d2/rows.rdf?accessType=DOWNLOAD",
+                "mimetype": "application/rdf+xml",
+                "no_real_name": True,
+                "name": "Web Resource",
+            },
+            {
+                "url": "https://data.wa.gov/api/views/f6w7-q2d2/rows.json?accessType=DOWNLOAD",
+                "mimetype": "application/json",
+                "no_real_name": True,
+                "name": "Web Resource",
+            },
+            {
+                "url": "https://data.wa.gov/api/views/f6w7-q2d2/rows.xml?accessType=DOWNLOAD",
+                "mimetype": "application/xml",
+                "no_real_name": True,
+                "name": "Web Resource",
+            },
+        ]
+        resources = create_ckan_resources(dol_distribution_json)
+        assert resources == expected_resources

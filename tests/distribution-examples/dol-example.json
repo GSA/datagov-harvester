@@ -1,0 +1,88 @@
+{
+    "@type": "dcat:Dataset",
+    "accessLevel": "public",
+    "contactPoint": {
+        "@type": "vcard:Contact",
+        "fn": "Department of Licensing",
+        "hasEmail": "mailto:no-reply@data.wa.gov"
+    },
+    "description": "This dataset shows the Battery Electric Vehicles (BEVs) and Plug-in Hybrid Electric Vehicles (PHEVs) that are currently registered through Washington State Department of Licensing (DOL).",
+    "distribution": [
+        {
+            "@type": "dcat:Distribution",
+            "downloadURL": "https://data.wa.gov/api/views/f6w7-q2d2/rows.csv?accessType=DOWNLOAD",
+            "mediaType": "text/csv"
+        },
+        {
+            "@type": "dcat:Distribution",
+            "describedBy": "https://data.wa.gov/api/views/f6w7-q2d2/columns.rdf",
+            "describedByType": "application/rdf+xml",
+            "downloadURL": "https://data.wa.gov/api/views/f6w7-q2d2/rows.rdf?accessType=DOWNLOAD",
+            "mediaType": "application/rdf+xml"
+        },
+        {
+            "@type": "dcat:Distribution",
+            "describedBy": "https://data.wa.gov/api/views/f6w7-q2d2/columns.json",
+            "describedByType": "application/json",
+            "downloadURL": "https://data.wa.gov/api/views/f6w7-q2d2/rows.json?accessType=DOWNLOAD",
+            "mediaType": "application/json"
+        },
+        {
+            "@type": "dcat:Distribution",
+            "describedBy": "https://data.wa.gov/api/views/f6w7-q2d2/columns.xml",
+            "describedByType": "application/xml",
+            "downloadURL": "https://data.wa.gov/api/views/f6w7-q2d2/rows.xml?accessType=DOWNLOAD",
+            "mediaType": "application/xml"
+        }
+    ],
+    "identifier": "https://data.wa.gov/api/views/f6w7-q2d2",
+    "issued": "2023-10-19",
+    "keyword": [
+        "bev",
+        "bevs",
+        "bolt",
+        "car",
+        "cars",
+        "chevrolet",
+        "chevy",
+        "clean energy",
+        "department of licensing",
+        "dol",
+        "dol_open_data",
+        "electric",
+        "energy",
+        "environment",
+        "ev",
+        "evs",
+        "green report",
+        "hybrid",
+        "hybrids",
+        "leaf",
+        "model 3",
+        "nhtsa",
+        "nissan",
+        "phev",
+        "phevs",
+        "plug-in",
+        "plug-ins",
+        "population",
+        "rao_ev",
+        "rao_open_data",
+        "rao_veh",
+        "tesla",
+        "vehicle",
+        "vehicles",
+        "volt"
+    ],
+    "landingPage": "https://data.wa.gov/d/f6w7-q2d2",
+    "license": "http://opendatacommons.org/licenses/odbl/1.0/",
+    "modified": "2025-01-16",
+    "publisher": {
+        "@type": "org:Organization",
+        "name": "data.wa.gov"
+    },
+    "theme": [
+        "Transportation"
+    ],
+    "title": "Electric Vehicle Population Data"
+}
