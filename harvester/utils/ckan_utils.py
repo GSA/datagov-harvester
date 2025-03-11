@@ -1,8 +1,8 @@
-import re
-import uuid
 import mimetypes
-from typing import Union, Tuple
+import re
 import urllib
+import uuid
+from typing import Tuple, Union
 
 from harvester.harvest import HarvestSource
 

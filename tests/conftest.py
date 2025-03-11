@@ -3,8 +3,7 @@ import logging
 import os
 from pathlib import Path
 from typing import Any, Generator, List
-from unittest.mock import patch, Mock
-
+from unittest.mock import Mock, patch
 
 import pytest
 from dotenv import load_dotenv

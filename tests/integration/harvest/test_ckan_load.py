@@ -4,8 +4,8 @@ from unittest.mock import patch
 from deepdiff import DeepDiff
 
 from harvester.harvest import HarvestSource, Record
-from harvester.utils.general_utils import dataset_to_hash, sort_dataset
 from harvester.utils.ckan_utils import create_ckan_resources
+from harvester.utils.general_utils import dataset_to_hash, sort_dataset
 
 # ruff: noqa: E501
 
