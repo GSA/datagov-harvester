@@ -99,6 +99,16 @@ class TestCKANUtils:
             "[3.5, 2.0], [1.0, 2.0]]]}"
         )
 
+    def test_translate_spatial_point_geojson(self):
+        assert translate_spatial('{"type": "Point", "coordinates": [-55.1, 37.2]}') == (
+            '{"type": "Point", "coordinates": [-55.1, 37.2]}'
+        )
+
+    def test_translate_spatial_point_numbers(self):
+        assert translate_spatial("-88.9718,36.52033") == (
+            '{"type": "Point", "coordinates": [-88.9718, 36.52033]}'
+        )
+
 
 # Point example
 # "{\"type\": \"Point\", \"coordinates\": [-87.08258, 24.9579]}"

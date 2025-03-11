@@ -335,11 +335,12 @@ def add_uuid_to_package_name(name: str) -> str:
 def munge_spatial(spatial_value: str) -> str:
     # This function originally came from
     # https://github.com/GSA/ckanext-geodatagov/blob/ac752b30fbd916e9a078d732231edb8f81914d9c/ckanext/geodatagov/logic.py#L445
-    geojson_tpl = (
+    geojson_polygon_tpl = (
         '{{"type": "Polygon", '
         '"coordinates": [[[{minx}, {miny}], [{minx}, {maxy}], '
         "[{maxx}, {maxy}], [{maxx}, {miny}], [{minx}, {miny}]]]}}"
     )
+    geojson_point_tpl = '{{"type": "Point", "coordinates": [{x}, {y}]}}'
 
     # Replace all things that create bad JSON, https://github.com/GSA/data.gov/issues/3549
     # all instances of '+', '[+23, -1]' is not valid, but '[23, -1]' is valid
@@ -367,7 +368,12 @@ def munge_spatial(spatial_value: str) -> str:
     if len(parts) == 4 and all(is_number(x) for x in parts):
         minx, miny, maxx, maxy = parts
         params = {"minx": minx, "miny": miny, "maxx": maxx, "maxy": maxy}
-        new_spatial = geojson_tpl.format(**params)
+        new_spatial = geojson_polygon_tpl.format(**params)
+        return new_spatial
+    # If we have 2 numbers separated by commas, transform them as GeoJSON
+    elif len(parts) == 2 and all(is_number(x) for x in parts):
+        x, y = parts
+        new_spatial = geojson_point_tpl.format(**{"x": x, "y": y})
         return new_spatial
 
     # Analyze with type of data is JSON valid
@@ -377,11 +383,7 @@ def munge_spatial(spatial_value: str) -> str:
         if isinstance(geometry, list) and len(geometry) == 2:
             min, max = geometry
             params = {"minx": min[0], "miny": min[1], "maxx": max[0], "maxy": max[1]}
-            spatial_value = geojson_tpl.format(**params)
-            return spatial_value
-
-        # If the string was a geojson, return it.
-        if validate_geojson(spatial_value):
+            spatial_value = geojson_polygon_tpl.format(**params)
             return spatial_value
     # ruff: noqa: E722
     except:
@@ -407,5 +409,5 @@ def translate_spatial(spatial_value) -> str:
     if res is not None:
         return res
 
-    # can we reasonably create a polygon from the input?
+    # can we reasonably create a geojson from the input?
     return munge_spatial(spatial_value)
