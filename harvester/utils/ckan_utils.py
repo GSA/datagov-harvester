@@ -2,8 +2,6 @@ import json
 import re
 import uuid
 
-import geojson_validator
-
 from database.interface import HarvesterDBInterface
 from harvester.harvest import HarvestSource
 from harvester.utils.general_utils import is_number, validate_geojson
@@ -393,21 +391,23 @@ def munge_spatial(spatial_value: str) -> str:
 
 
 def translate_spatial(spatial_value) -> str:
-    # is it already valid geojson in string format? If so pass it to CKAN.
-    if validate_geojson(spatial_value):
-        return spatial_value
-
-    # is it already valid geojson? if so stringify and pass to CKAN.
-    try:
-        if geojson_validator.validate_structure(spatial_value) == {}:
-            return json.dumps(spatial_value)
-    except ValueError:
-        pass
+    # is it already JSON? If so stringify it
+    if isinstance(spatial_value, dict):
+        spatial_value = json.dumps(spatial_value)
+    # Is it already valid geojson (or geojson that can be cleaned up)?
+    # If so, return it.
+    validated_geojson = validate_geojson(spatial_value)
+    if validated_geojson:
+        return validated_geojson
 
     # is it a name in the locations database?
     res = db.get_geo_from_string(spatial_value)
     if res is not None:
         return res
 
-    # can we reasonably create a geojson from the input?
-    return munge_spatial(spatial_value)
+    # can we reasonably create a geojson from the string input?
+    if isinstance(spatial_value, str):
+        return munge_spatial(spatial_value)
+
+    # If unable to create a valid geojson, return an empty string
+    return ""

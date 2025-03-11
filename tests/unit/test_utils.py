@@ -1,3 +1,5 @@
+import json
+
 import pytest
 
 from harvester.utils.ckan_utils import (
@@ -77,15 +79,77 @@ class TestCKANUtils:
     def test_translate_spatial_geojson_string(self):
         assert translate_spatial(
             '{"type": "Polygon", "coordinates": '
-            "[[[1.0, 2.0], [1.0, 5.5], [3.5, 5.5], "
-            "[3.5, 2.0], [1.0, 2.0]]]}"
+            "[[[1.0, 2.0], [3.5, 2.0], [3.5, 5.5], "
+            "[1.0, 5.5], [1.0, 2.0]]]}"
         ) == (
-            '{"type": "Polygon", "coordinates": '
-            "[[[1.0, 2.0], [1.0, 5.5], [3.5, 5.5], "
-            "[3.5, 2.0], [1.0, 2.0]]]}"
+            '{"type": "Polygon", "coordinates": [[[1.0, 2.0], '
+            "[3.5, 2.0], [3.5, 5.5], [1.0, 5.5], [1.0, 2.0]]]}"
         )
 
-    def test_translate_spatial_geojson(self):
+    def test_translate_spatial_over_meridian_negative(self):
+        assert translate_spatial(
+            '{"type": "Polygon", "coordinates": '
+            "[[[-190, 40], [-190, 50], [-170, 50], "
+            "[-170, 40], [-190, 40]]]}"
+        ) == (
+            json.dumps(
+                {
+                    "type": "MultiPolygon",
+                    "coordinates": [
+                        [
+                            [
+                                [170.0, 40.0],
+                                [180.0, 40.0],
+                                [180.0, 50.0],
+                                [170.0, 50.0],
+                                [170.0, 40.0],
+                            ],
+                            [
+                                [-180.0, 40.0],
+                                [-180.0, 50.0],
+                                [-170.0, 50.0],
+                                [-170.0, 40.0],
+                                [-180.0, 40.0],
+                            ],
+                        ]
+                    ],
+                }
+            )
+        )
+
+    def test_translate_spatial_over_meridian_positive(self):
+        # Expected value tested with https://geojsonlint.com/
+        assert translate_spatial(
+            '{"type": "Polygon", "coordinates": '
+            "[[[190.0, 40.0], [190.0, 50.0], [170.0, 50.0], "
+            "[170.0, 40.0], [190.0, 40.0]]]}"
+        ) == (
+            json.dumps(
+                {
+                    "type": "MultiPolygon",
+                    "coordinates": [
+                        [
+                            [
+                                [-170.0, 40.0],
+                                [-170.0, 50.0],
+                                [-180.0, 50.0],
+                                [-180.0, 40.0],
+                                [-170.0, 40.0],
+                            ],
+                            [
+                                [180.0, 50.0],
+                                [180.0, 40.0],
+                                [170.0, 40.0],
+                                [170.0, 50.0],
+                                [180.0, 50.0],
+                            ],
+                        ]
+                    ],
+                }
+            )
+        )
+
+    def test_translate_spatial_geojson_fix(self):
         assert translate_spatial(
             {
                 "type": "Polygon",
@@ -94,9 +158,8 @@ class TestCKANUtils:
                 ],
             }
         ) == (
-            '{"type": "Polygon", "coordinates": '
-            "[[[1.0, 2.0], [1.0, 5.5], [3.5, 5.5], "
-            "[3.5, 2.0], [1.0, 2.0]]]}"
+            '{"type": "Polygon", "coordinates": [[[1.0, 2.0], '
+            "[3.5, 2.0], [3.5, 5.5], [1.0, 5.5], [1.0, 2.0]]]}"
         )
 
     def test_translate_spatial_point_geojson(self):
