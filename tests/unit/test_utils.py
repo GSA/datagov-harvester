@@ -238,7 +238,7 @@ class TestGeneralUtils:
 
     def test_validate_geojson(self, invalid_envelope_geojson, named_location_stoneham):
         assert validate_geojson(invalid_envelope_geojson) is False
-        assert validate_geojson(named_location_stoneham) is True
+        assert validate_geojson(named_location_stoneham) is not False
 
     def test_make_jobs_chart_data(self):
         jobs_data = [

@@ -228,7 +228,9 @@ def spatial_wrap_around_meridian(geom):
             # Calculate the percentage of the longitude to the meridian
             x_perc = abs(abs(new_long) - 180.0) / x_dist
             # Calculate the height at the meridian
-            height_at_meridian = (point_list[i + 1][1] - point_list[i][1]) * x_perc
+            height_at_meridian = (
+                point_list[i + 1][1] - point_list[i][1]
+            ) * x_perc + coord[1]
             # Add the point at the meridian
             new_geom["coordinates"][0][polygon_num].append(
                 [longs[0], height_at_meridian]
@@ -269,7 +271,16 @@ def validate_geojson(geojson_str: str) -> bool:
 
     # Try to fix the geometry
     try:
-        fixed_geom = geojson_validator.fix_geometries(json.loads(geojson_str))
+        geojson = json.loads(geojson_str)
+        # Multi-polygon doesn't get cleaned up well, if it's actually a polygon then change to that
+        if (
+            geojson.get("type") == "MultiPolygon"
+            and len(geojson.get("coordinates")) == 1
+            and len(geojson.get("coordinates")[0]) == 1
+        ):
+            geojson["type"] = "Polygon"
+            geojson["coordinates"] = geojson["coordinates"][0]
+        fixed_geom = geojson_validator.fix_geometries(geojson)
         fixed_geom = fixed_geom.get("features")[0].get("geometry")
         res = geojson_validator.validate_geometries(fixed_geom)
         if res.get("invalid") == {} and res.get("problematic") == {}:
