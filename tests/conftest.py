@@ -3,7 +3,8 @@ import logging
 import os
 from pathlib import Path
 from typing import Any, Generator, List
-from unittest.mock import patch
+from unittest.mock import patch, Mock
+
 
 import pytest
 from dotenv import load_dotenv
@@ -167,7 +168,6 @@ def source_data_waf_csdgm(organization_data: dict) -> dict:
         "source_type": "waf",
         "notification_frequency": "always",
     }
-
 
 @pytest.fixture
 def source_data_waf_iso19115_2(organization_data: dict) -> dict:
@@ -777,7 +777,7 @@ def iso19115_1_transform() -> dict:
         "primaryITInvestmentUII": "{4c6928d8-6ac2-4909-8b3d-a29e2805ce2d}",
     }
 
-
+  
 @pytest.fixture
 def named_location_us():
     return (
@@ -797,3 +797,28 @@ def named_location_stoneham():
 @pytest.fixture
 def invalid_envelope_geojson():
     return '{"type": "envelope", "coordinates": [[-81.0563, 34.9991], [-80.6033, 35.4024]]}'
+
+  
+@pytest.fixture
+def mock_requests_get_ms_iis_waf(monkeypatch):
+    """Fixture to mock requests.get with ms-iis-waf HTML content"""
+    import requests
+
+    
+    def mock_get(url, *args, **kwargs):
+        """Mock function to return a predefined HTML response"""
+        mock_response = Mock()
+        mock_response.status_code = 200
+
+        # Read mock HTML content from file
+        file_path = Path(__file__).parent / "waf-html-examples/ms-iis-waf.html"
+        with open(file_path, "r", encoding="utf-8") as file:
+            mock_response.text = file.read()
+        
+        # Set UTF-8 content
+        mock_response.content = mock_response.text.encode('utf-8')
+
+        return mock_response
+
+    # Apply the patch using monkeypatch
+    monkeypatch.setattr(requests, "get", mock_get)

@@ -1,7 +1,12 @@
 from harvester.harvest import HarvestSource
-
+from harvester.utils.general_utils import traverse_waf
 
 class TestExtract:
+    def test_traverse_waf_ms_iis(self, mock_requests_get_ms_iis_waf):
+        """Test to ensure that we're able to traverse the ms-iis-waf"""
+        files = traverse_waf(url="https://example.com")
+        assert len(files) == 2
+
     def test_extract_waf(
         self,
         interface,
@@ -9,6 +14,7 @@ class TestExtract:
         source_data_waf_csdgm,
         job_data_waf_csdgm,
     ):
+        
         interface.add_organization(organization_data)
         interface.add_harvest_source(source_data_waf_csdgm)
         harvest_job = interface.add_harvest_job(job_data_waf_csdgm)
@@ -17,6 +23,8 @@ class TestExtract:
         harvest_source.prepare_external_data()
 
         assert len(harvest_source.external_records) == 7
+
+
 
     def test_extract_dcatus(
         self,

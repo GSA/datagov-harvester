@@ -5,6 +5,7 @@ import logging
 import os
 from datetime import datetime, timedelta, timezone
 from typing import Union
+from urllib.parse import urljoin
 
 import geojson_validator
 import requests
@@ -87,17 +88,21 @@ def download_file(url: str, file_type: str) -> Union[str, dict]:
 
 
 def traverse_waf(
-    url, files=[], file_ext=".xml", folder="/", filters=["../", "dcatus/"]
+    url, files=None, file_ext=".xml", folder="/", filters=["../", "dcatus/"]
 ):
-    """Transverses WAF
+    """
+    Transverses WAF
     Please add docstrings
     """
     # TODO: add exception handling
     parent = os.path.dirname(url.rstrip("/"))
 
     folders = []
-
     res = requests.get(url)
+    
+    if files is None:
+        files = []
+
     if res.status_code == 200:
         soup = BeautifulSoup(res.content, "html.parser")
         anchors = soup.find_all("a", href=True)
@@ -110,16 +115,15 @@ def traverse_waf(
                 )  # it's not the parent folder right?
                 and anchor["href"] not in filters  # and it's not on our exclusion list?
             ):
-                folders.append(os.path.join(url, anchor["href"]))
+                folders.append(urljoin(url, anchor["href"]))
 
             if anchor["href"].endswith(file_ext):
                 # TODO: just download the file here
                 # instead of storing them and returning at the end.
-                files.append(os.path.join(url, anchor["href"]))
+                files.append(urljoin(url, anchor["href"]))
 
     for folder in folders:
         traverse_waf(folder, files=files, filters=filters)
-
     return files
 
 
