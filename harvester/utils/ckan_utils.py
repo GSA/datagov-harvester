@@ -492,6 +492,7 @@ def get_filename_and_extension(resource: dict) -> Tuple[str, str]:
 def change_resource_details(resource: dict) -> None:
     """
     Pull the provided file name, format, and description.
+    Note this function works by manipulating the original input.
     Original Code from:
     https://github.com/GSA/ckanext-geodatagov/blob/4510c5be2bb9ecc16de8bae082fef4d970f10f55/ckanext/geodatagov/plugin.py#L357
     """
