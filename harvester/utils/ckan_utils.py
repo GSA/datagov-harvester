@@ -16,6 +16,7 @@ MAX_TAG_LENGTH = 100
 MIN_TAG_LENGTH = 2
 
 # mapping of file formats and their respective names
+# taken from https://github.com/GSA/ckanext-geodatagov/blob/4510c5be2bb9ecc16de8bae082fef4d970f10f55/ckanext/geodatagov/plugin.py#L59-L282
 RESOURCE_MAPPING = {
     # ArcGIS File Types
     "esri rest": ("Esri REST", "Esri REST API Endpoint"),
@@ -471,6 +472,8 @@ def get_email_from_str(in_str: str) -> str:
 def get_filename_and_extension(resource: dict) -> Tuple[str, str]:
     """
     Attempt to extract a file name and extension from a provided resource.
+    Original Code from:
+    https://github.com/GSA/ckanext-geodatagov/blob/4510c5be2bb9ecc16de8bae082fef4d970f10f55/ckanext/geodatagov/plugin.py#L342
     """
     url = resource.get("url").rstrip("/")
     if "?" in url:
@@ -489,6 +492,8 @@ def get_filename_and_extension(resource: dict) -> Tuple[str, str]:
 def change_resource_details(resource: dict) -> None:
     """
     Pull the provided file name, format, and description.
+    Original Code from:
+    https://github.com/GSA/ckanext-geodatagov/blob/4510c5be2bb9ecc16de8bae082fef4d970f10f55/ckanext/geodatagov/plugin.py#L357
     """
     formats = list(RESOURCE_MAPPING.keys())
     resource_format = resource.get("format", "").lower().lstrip(".")
@@ -525,6 +530,8 @@ def guess_resource_format(url: str, use_mimetypes: bool = True) -> Union[str, No
 
     Returns None if no format could be guessed.
 
+    Original Code from:
+    https://github.com/GSA/ckanext-spatial/blob/418f0f9daaef4f5363525162fc42904ce954a467/ckanext/spatial/harvesters/base.py#L63
     """
     url = url.lower().strip()
 
@@ -571,8 +578,9 @@ def guess_resource_format(url: str, use_mimetypes: bool = True) -> Union[str, No
         if any(url.endswith(extension) for extension in extensions):
             return file_type
 
-    resource_format, encoding = mimetypes.guess_type(url)
-    if resource_format:
+    # to align with the comment I'm adding this code in case
+    if use_mimetypes:
+        resource_format, encoding = mimetypes.guess_type(url)
         return resource_format
 
     return None
