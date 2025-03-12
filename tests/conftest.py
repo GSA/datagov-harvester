@@ -3,8 +3,7 @@ import logging
 import os
 from pathlib import Path
 from typing import Any, Generator, List
-from unittest.mock import patch, Mock
-
+from unittest.mock import Mock, patch
 
 import pytest
 from dotenv import load_dotenv
@@ -103,6 +102,13 @@ def fixtures_json():
         return json.load(file)
 
 
+@pytest.fixture
+def dol_distribution_json():
+    file = Path(__file__).parents[0] / "distribution-examples/dol-example.json"
+    with open(file, "r") as file:
+        return json.load(file)
+
+
 ## ORGS
 @pytest.fixture
 def organization_data(fixtures_json) -> dict:
@@ -168,6 +174,7 @@ def source_data_waf_csdgm(organization_data: dict) -> dict:
         "source_type": "waf",
         "notification_frequency": "always",
     }
+
 
 @pytest.fixture
 def source_data_waf_iso19115_2(organization_data: dict) -> dict:
@@ -804,7 +811,6 @@ def mock_requests_get_ms_iis_waf(monkeypatch):
     """Fixture to mock requests.get with ms-iis-waf HTML content"""
     import requests
 
-    
     def mock_get(url, *args, **kwargs):
         """Mock function to return a predefined HTML response"""
         mock_response = Mock()
@@ -814,9 +820,9 @@ def mock_requests_get_ms_iis_waf(monkeypatch):
         file_path = Path(__file__).parent / "waf-html-examples/ms-iis-waf.html"
         with open(file_path, "r", encoding="utf-8") as file:
             mock_response.text = file.read()
-        
+
         # Set UTF-8 content
-        mock_response.content = mock_response.text.encode('utf-8')
+        mock_response.content = mock_response.text.encode("utf-8")
 
         return mock_response
 
