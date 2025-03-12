@@ -1,12 +1,20 @@
+import json
+
 import pytest
 
-from harvester.utils.ckan_utils import munge_tag, munge_title_to_name
+from harvester.utils.ckan_utils import (
+    munge_spatial,
+    munge_tag,
+    munge_title_to_name,
+    translate_spatial,
+)
 from harvester.utils.general_utils import (
     dynamic_map_list_items_to_dict,
     parse_args,
     prepare_transform_msg,
     process_job_complete_percentage,
     query_filter_builder,
+    validate_geojson,
 )
 
 
@@ -54,7 +62,119 @@ class TestCKANUtils:
         munge = munge_title_to_name(original)
         assert munge == expected
 
+    def test_munge_spatial(self):
+        assert munge_spatial("1.0,2.0,3.5,5.5") == (
+            '{"type": "Polygon", "coordinates": '
+            "[[[1.0, 2.0], [1.0, 5.5], [3.5, 5.5], "
+            "[3.5, 2.0], [1.0, 2.0]]]}"
+        )
 
+    def test_translate_spatial_simple_bbox(self):
+        assert translate_spatial("1.0,2.0,3.5,5.5") == (
+            '{"type": "Polygon", "coordinates": '
+            "[[[1.0, 2.0], [1.0, 5.5], [3.5, 5.5], "
+            "[3.5, 2.0], [1.0, 2.0]]]}"
+        )
+
+    def test_translate_spatial_geojson_string(self):
+        assert translate_spatial(
+            '{"type": "Polygon", "coordinates": '
+            "[[[1.0, 2.0], [3.5, 2.0], [3.5, 5.5], "
+            "[1.0, 5.5], [1.0, 2.0]]]}"
+        ) == (
+            '{"type": "Polygon", "coordinates": [[[1.0, 2.0], '
+            "[3.5, 2.0], [3.5, 5.5], [1.0, 5.5], [1.0, 2.0]]]}"
+        )
+
+    def test_translate_spatial_over_meridian_negative(self):
+        assert translate_spatial(
+            '{"type": "Polygon", "coordinates": '
+            "[[[-190, 40], [-190, 50], [-170, 50], "
+            "[-170, 40], [-190, 40]]]}"
+        ) == (
+            json.dumps(
+                {
+                    "type": "MultiPolygon",
+                    "coordinates": [
+                        [
+                            [
+                                [170.0, 40.0],
+                                [180.0, 40.0],
+                                [180.0, 50.0],
+                                [170.0, 50.0],
+                                [170.0, 40.0],
+                            ],
+                            [
+                                [-180.0, 40.0],
+                                [-180.0, 50.0],
+                                [-170.0, 50.0],
+                                [-170.0, 40.0],
+                                [-180.0, 40.0],
+                            ],
+                        ]
+                    ],
+                }
+            )
+        )
+
+    def test_translate_spatial_over_meridian_positive(self):
+        # Expected value tested with https://geojsonlint.com/
+        assert translate_spatial(
+            '{"type": "Polygon", "coordinates": '
+            "[[[190.0, 40.0], [190.0, 50.0], [170.0, 50.0], "
+            "[170.0, 40.0], [190.0, 40.0]]]}"
+        ) == (
+            json.dumps(
+                {
+                    "type": "MultiPolygon",
+                    "coordinates": [
+                        [
+                            [
+                                [-170.0, 40.0],
+                                [-170.0, 50.0],
+                                [-180.0, 50.0],
+                                [-180.0, 40.0],
+                                [-170.0, 40.0],
+                            ],
+                            [
+                                [180.0, 50.0],
+                                [180.0, 40.0],
+                                [170.0, 40.0],
+                                [170.0, 50.0],
+                                [180.0, 50.0],
+                            ],
+                        ]
+                    ],
+                }
+            )
+        )
+
+    def test_translate_spatial_geojson_fix(self):
+        assert translate_spatial(
+            {
+                "type": "Polygon",
+                "coordinates": [
+                    [[1.0, 2.0], [1.0, 5.5], [3.5, 5.5], [3.5, 2.0], [1.0, 2.0]]
+                ],
+            }
+        ) == (
+            '{"type": "Polygon", "coordinates": [[[1.0, 2.0], '
+            "[3.5, 2.0], [3.5, 5.5], [1.0, 5.5], [1.0, 2.0]]]}"
+        )
+
+    def test_translate_spatial_point_geojson(self):
+        assert translate_spatial('{"type": "Point", "coordinates": [-55.1, 37.2]}') == (
+            '{"type": "Point", "coordinates": [-55.1, 37.2]}'
+        )
+
+    def test_translate_spatial_point_numbers(self):
+        assert translate_spatial("-88.9718,36.52033") == (
+            '{"type": "Point", "coordinates": [-88.9718, 36.52033]}'
+        )
+
+
+# Point example
+# "{\"type\": \"Point\", \"coordinates\": [-87.08258, 24.9579]}"
 class TestGeneralUtils:
     def test_args_parsing(self):
         args = parse_args(["test-id", "test-type"])
@@ -115,6 +235,10 @@ class TestGeneralUtils:
     )
     def test_prepare_mdt_messages(self, original, expected):
         assert prepare_transform_msg(original) == expected
+
+    def test_validate_geojson(self, invalid_envelope_geojson, named_location_stoneham):
+        assert validate_geojson(invalid_envelope_geojson) is False
+        assert validate_geojson(named_location_stoneham) is not False
 
     def test_make_jobs_chart_data(self):
         jobs_data = [

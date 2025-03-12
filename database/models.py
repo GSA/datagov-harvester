@@ -1,6 +1,7 @@
 import uuid
 
 from flask_sqlalchemy import SQLAlchemy
+from geoalchemy2 import Geometry
 from sqlalchemy import Column, Enum, String, func
 from sqlalchemy.orm import DeclarativeBase
 
@@ -169,3 +170,13 @@ class HarvestUser(db.Model):
     email = db.Column(db.String(120), unique=True, nullable=False)
     name = db.Column(db.String(120), nullable=True)
     ssoid = db.Column(db.String(200), unique=True, nullable=True)
+
+
+class Locations(db.Model):
+    __tablename__ = "locations"
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String)
+    type = db.Column(db.String)
+    display_name = db.Column(db.String)
+    the_geom = db.Column(Geometry(geometry_type="MULTIPOLYGON"))
+    type_order = db.Column(db.Integer)

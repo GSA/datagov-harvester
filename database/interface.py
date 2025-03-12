@@ -16,6 +16,7 @@ from .models import (
     HarvestRecordError,
     HarvestSource,
     HarvestUser,
+    Locations,
     Organization,
 )
 
@@ -519,6 +520,22 @@ class HarvesterDBInterface:
 
     def get_latest_harvest_records_by_source(self, source_id):
         return self._to_dict(self.get_latest_harvest_records_by_source_orm(source_id))
+
+    def get_geo_from_string(self, location_name):
+        """get a geometry from the locations table using the location name
+        (e.g. California, New York)"""
+        try:
+            location = (
+                self.db.query(func.ST_AsGeoJSON(Locations.the_geom))
+                .filter(Locations.display_name.ilike(f"%{location_name}%"))
+                .scalar()
+            )
+            return location
+        except Exception as e:
+            logger.error(
+                'Error querying "{}" locations table {}'.format(location_name, e)
+            )
+            return None
 
     def close(self):
         if hasattr(self.db, "remove"):

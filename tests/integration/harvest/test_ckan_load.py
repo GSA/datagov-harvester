@@ -161,6 +161,12 @@ class TestCKANLoad:
                     "key": "publisher",
                     "value": "U.S. Commodity Futures Trading Commission",
                 },
+                {"key": "old-spatial", "value": "United States"},
+                {
+                    "key": "spatial",
+                    "value": '{"type":"MultiPolygon","coordinates":[[[[-124.733253,24.544245],[-124.733253,49.388611],'
+                    "[-66.954811,49.388611],[-66.954811,24.544245],[-124.733253,24.544245]]]]}",
+                },
                 {"key": "identifier", "value": "cftc-dc1"},
             ],
         }

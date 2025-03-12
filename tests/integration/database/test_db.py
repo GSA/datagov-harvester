@@ -4,7 +4,7 @@ from freezegun import freeze_time
 from sqlalchemy import text
 
 from database.interface import PAGINATE_ENTRIES_PER_PAGE
-from database.models import HarvestJobError, HarvestRecordError
+from database.models import HarvestJobError, HarvestRecordError, Locations
 
 
 @freeze_time("Jan 14th, 2012")
@@ -768,3 +768,28 @@ class TestDatabase:
             count=True,
         )
         assert db_records == 1
+
+    def test_get_geo_from_string(
+        self, interface, named_location_us, named_location_stoneham
+    ):
+        stoneham = Locations(
+            **{
+                "id": "34333",
+                "type": "us_postalcode",
+                "name": "2180",
+                "display_name": "Stoneham, MA (02180)",
+                "the_geom": "0103000020E61000000100000005000000BA6B09F9A0C751C046B6F3FDD4384540BA6B09F9A0C751C08E06F016484045401B9E5E29CBC451C08E06F016484045401B9E5E29CBC451C046B6F3FDD4384540BA6B09F9A0C751C046B6F3FDD4384540",  # noqa E501
+                "type_order": "4",
+            }
+        )
+        interface.db.add(stoneham)
+        interface.db.commit()
+
+        geojson_str = interface.get_geo_from_string("United States")
+        assert geojson_str == named_location_us
+
+        geojson_str = interface.get_geo_from_string("Stoneham")
+        assert geojson_str == named_location_stoneham
+
+        assert interface.get_geo_from_string("not exists") is None
+        assert interface.get_geo_from_string("US, Virginia, Fairfax, Reston") is None
