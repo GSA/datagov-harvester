@@ -3,7 +3,11 @@ import pytest
 
 @pytest.fixture()
 def ures(unauthed_page):
-    res = unauthed_page.goto("/harvest_error/04728898-237d-483a-be8c-b395bb21d199")
+    unauthed_page.goto("/harvest_job/6bce761c-7a39-41c1-ac73-94234c139c76")
+    err_id = unauthed_page.locator(
+        "#error_results_pagination .error-list .error-block:first-child h3"
+    ).inner_text()
+    res = unauthed_page.goto(f"/harvest_error/{err_id}")
     yield res
 
 

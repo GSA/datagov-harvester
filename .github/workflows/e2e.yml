@@ -38,7 +38,7 @@ jobs:
       uses: actions/setup-python@v5
       with:
         python-version: ${{ env.PY_VERSION }}
-    - name: Install Poetry
+    - name: Install Poetry ${{ env.POETRY_VERSION }}
       uses: abatilo/actions-poetry@v2
       with:
         poetry-version: ${{ env.POETRY_VERSION }}

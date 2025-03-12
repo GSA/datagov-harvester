@@ -29,33 +29,33 @@ install-static: ## Installs static assets
 	npm install; \
 	npm run build
 
-test-unit: ## Runs unit tests. Compatible with dev environment / `make up`
+test-unit: ## Runs unit tests.
 	poetry run pytest  --local-badge-output-dir tests/badges/unit/ --cov-report term-missing --junitxml=pytest-unit.xml --cov=harvester ./tests/unit | tee pytest-coverage-unit.txt
 
-test-integration: ## Runs integration tests. Compatible with dev environment / `make up`
+test-integration: ## Runs integration tests.
 	poetry run pytest --local-badge-output-dir tests/badges/integration/ --cov-report term-missing --junitxml=pytest-integration.xml --cov=harvester ./tests/integration | tee pytest-coverage-integration.txt
 
-test-functional: ## Runs functional tests. Compatible with dev environment / `make up`
+test-functional: ## Runs functional tests.
 	poetry run pytest --local-badge-output-dir tests/badges/functional/ --noconftest --cov-report term-missing --junitxml=pytest-functional.xml --cov=harvester ./tests/functional | tee pytest-coverage-functional.txt
 
-test-playwright: ## Runs playwright tests. Compatible with dev environment / `make up`
+test-playwright: ## Runs playwright tests.
 	poetry run pytest --local-badge-output-dir tests/badges/playwright/ --cov-report term-missing --junitxml=pytest-playwright.xml --cov=app ./tests/playwright | tee pytest-coverage-playwright.txt
 
-test: up test-unit test-integration test-playwright ## Runs all tests. Compatible with dev environment / `make up`
+test: up test-unit test-integration test-playwright ## Runs all local tests
 
-test-e2e-ci: ## Runs all e2e tests. NOT compatible with dev environment / `make up`
-	docker compose up -d
-	sleep 5
+test-e2e-ci: ## All e2e/expensive tests. Run on PR into main.
+	make up
+	sleep 2
 	docker compose exec app flask testdata load_test_data
 	make test-playwright
 	make test-functional
-	docker compose down
+	make clean
 
-test-ci: ## Runs all simulated tests using only db and required test resources. NOT compatible with dev environment / `make up`
-	docker compose up -d db nginx-harvest-source transformer
+test-ci: ## All simulated tests using only db and required test resources. Run on commit.
+	make up
 	make test-unit
 	make test-integration
-	docker compose down
+	make clean
 
 up: ## Sets up local flask and harvest runner docker environments. harvest runner gets DATABASE_PORT from .env
 	DATABASE_PORT=5433 docker compose up -d
