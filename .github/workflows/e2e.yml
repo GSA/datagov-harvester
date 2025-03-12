@@ -10,6 +10,7 @@ env:
 
 jobs:
   test:
+    name: Playwright
     environment: development
     env:
         CKAN_API_TOKEN_DEV: ${{secrets.CKAN_API_TOKEN_DEV}}
@@ -54,7 +55,7 @@ jobs:
       run: |
         echo "${{ secrets.PLAYWRIGHT_AUTH_JSON_BASE64 }}" | base64 --decode > ./pytest_auth_state.json
     - name: Run E2E tests
-      run: make test-e2e
+      run: make test-e2e-ci
     - uses: actions/upload-artifact@v4
       if: ${{ !cancelled() }}
       with:
