@@ -22,16 +22,13 @@ class TestBaseUnauthed:
 
 
 class TestBaseAuthed:
-    # ruff: noqa: E501
-    @pytest.mark.parametrize(
-        "text,index",
-        [
+    def test_nav_items(self, apage):
+        nav_items_expected = [
             ("Organizations", 0),
             ("Harvest Sources", 1),
             ("Metrics", 2),
             ("Logout", 4),
-        ],
-    )  # test is parameterized to remove the check for individual logged in user name in index 3
-    def test_nav_items(self, text, index, apage):
+        ]  # skip logged in user name in index 3
         nav_items = apage.locator("ul.menu > li")
-        assert nav_items.nth(index).inner_text() == text
+        for text, index in nav_items_expected:
+            assert nav_items.nth(index).inner_text() == text

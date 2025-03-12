@@ -1,3 +1,5 @@
+import csv
+
 import pytest
 from playwright.sync_api import expect
 
@@ -62,6 +64,47 @@ class TestHarvestSourceUnauthed:
             "href",
             "/harvest_record/0779c855-df20-49c8-9108-66359d82b77c",
         )
+
+    def test_download_harvest_errors_csv(self, upage):
+        pytest_harvest_errors_csv = "pytest_harvest_errors.csv"
+        with upage.expect_download() as download_info:
+            upage.get_by_text("download record errors as .csv").click()
+        download = download_info.value
+        download.save_as(pytest_harvest_errors_csv)
+        with open(pytest_harvest_errors_csv) as csvfile:
+            data = csv.reader(csvfile)
+            # assert row count
+            assert 9 == sum(1 for row in data)
+            for index, row in enumerate(data):
+                # assert headers
+                if index == 0:
+                    assert row == [
+                        "record_error_id",
+                        "identifier",
+                        "title",
+                        "harvest_record_id",
+                        "record_error_type",
+                        "message",
+                        "date_created",
+                    ]
+                # assert contents of first row
+                if index == 1:
+                    expected = [
+                        "04728898-237d-483a-be8c-b395bb21d199",
+                        "test_identifier-1",
+                        "test-0",
+                        "0779c855-df20-49c8-9108-66359d82b77c",
+                        "ValidationException",
+                        "record is invalid",
+                        "2025-03-12 16:55:01.716308",
+                    ]
+                    for index, item in enumerate(row):
+                        if index == 6:
+                            pass  # avoid date_created which is dynamic
+                        else:
+                            assert item == expected[index]
+        # clean up test resources
+        download.delete()
 
 
 class TestHarvestSourceAuthed:

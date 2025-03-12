@@ -22,7 +22,7 @@ def browser():
 def unauthed_page(browser, base_url):
     context = browser.new_context(base_url=base_url)
     page = context.new_page()
-    page.set_default_timeout(5000)
+    page.set_default_timeout(2500)
     yield page
 
 
@@ -32,5 +32,5 @@ def authed_page(browser, base_url):
         base_url=base_url, storage_state="pytest_auth_state.json"
     )
     page = context.new_page()
-    page.set_default_timeout(5000)
+    page.set_default_timeout(2500)
     yield page
