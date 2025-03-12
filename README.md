@@ -44,6 +44,8 @@ CF_SERVICE_* variables can be extracted from from service-keys by running `cf se
 
 CKAN_API_TOKEN should be extracted from `cf env datagov-harvest-runner` in the `user-provided` service `datagov-harvest-secrets` with the same key name.
 
+To make Playwright authenticated tests pass, copy the file `pytest_auth_state.json` [stored in Drive](https://drive.google.com/file/d/1_ItITwu3fbCNd5MzmoeOagD5tdPxXQe3/view?usp=drive_link) into the root of the project.
+
 ### Flask Debugging
 If absolutely need to hit a breakpoint in your Flask app, you can setup local Flask debugging in your IDE.
 

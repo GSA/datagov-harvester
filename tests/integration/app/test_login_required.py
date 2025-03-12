@@ -37,7 +37,7 @@ class TestLogin:
         organization_data,
     ):
         res = client.get(f"/organization/{organization_data['id']}")
-        button_string_text = '<div class="config-actions">'
+        button_string_text = '<div class="config-actions organization-config-actions">'
         org_edit_text = f'<a href="/organization/config/edit/{organization_data["id"]}"'
         org_delete_text = f"onclick=\"confirmDelete('/organization/config/delete/{organization_data['id']}')"
         assert res.status_code == 200
@@ -64,7 +64,9 @@ class TestLogin:
         self, client, interface_no_jobs, source_data_dcatus
     ):
         res = client.get(f"/harvest_source/{source_data_dcatus['id']}")
-        button_string_text = '<div class="config-actions">'
+        button_string_text = (
+            '<div class="config-actions harvest-source-config-actions">'
+        )
         source_edit_text = (
             f'<a href="/harvest_source/config/edit/{source_data_dcatus["id"]}"'
         )

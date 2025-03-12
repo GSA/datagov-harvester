@@ -41,10 +41,12 @@ test-functional: ## Runs functional tests. Compatible with dev environment / `ma
 test-playwright: ## Runs playwright tests. Compatible with dev environment / `make up`
 	poetry run pytest --local-badge-output-dir tests/badges/playwright/ --cov-report term-missing --junitxml=pytest-playwright.xml --cov=app ./tests/playwright | tee pytest-coverage-playwright.txt
 
-test: up test-unit test-integration ## Runs all tests. Compatible with dev environment / `make up`
+test: up test-unit test-integration test-playwright ## Runs all tests. Compatible with dev environment / `make up`
 
-test-e2e: ## Runs all e2e tests. NOT compatible with dev environment / `make up`
+test-e2e-ci: ## Runs all e2e tests. NOT compatible with dev environment / `make up`
 	docker compose up -d
+	sleep 5
+	docker compose exec app flask testdata load_test_data
 	make test-playwright
 	make test-functional
 	docker compose down

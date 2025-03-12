@@ -5,14 +5,14 @@
 {% endblock %}
 
 {% block content %}
-<div class="wrapper org-data">
+<div class="wrapper">
     {% if not data.organization %}
     <h2>Whooops!</h2>
     <p>Looks like you navigated to an organization that doesn't exist.</p>
     {% else %}
     <h1>{{data.organization.name}}</h1>
     <h2>Organization Config Table</h2>
-    <div class="config-table">
+    <div class="config-table organization-config-properties">
         <table class="table">
             {% for key, value in data.organization_dict.items() %}
             <tr>
@@ -27,11 +27,12 @@
         </table>
     </div>
     {% if session['user'] %}
-    <div class="config-actions">
+    <div class="config-actions organization-config-actions">
         <ul class="usa-button-group">
             <li class="usa-button-group__item">
-                <a href="{{ url_for('harvest.edit_organization', org_id=data.organization.id) }}"
-                    class="usa-button">Edit</a>
+                <a href="{{ url_for('harvest.edit_organization', org_id=data.organization.id) }}">
+                    <button class="usa-button">Edit</button>
+                </a>
             </li>
             <li class="usa-button-group__item">
                 <button class="usa-button usa-button--secondary"
@@ -40,7 +41,7 @@
         </ul>
     </div>
     {% endif %}
-    <div class="section margin-top-5">
+    <div class="section margin-top-5 organization-harvest-source-list">
         <h2> Harvest Sources for {{data.organization.name}} </h2>
         {% if not data.harvest_sources %}
         No harvest sources found
