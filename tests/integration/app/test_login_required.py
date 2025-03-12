@@ -15,6 +15,7 @@ class TestLogin:
         self, client, interface_no_jobs, source_data_dcatus
     ):
         res = client.get(f"/harvest_source/config/edit/{source_data_dcatus['id']}")
+        # ruff: noqa: E501
         redirect_str = 'You should be redirected automatically to the target URL: <a href="/login">/login</a>'
         assert res.status_code == 302
         assert res.text.find(redirect_str) != -1
@@ -23,6 +24,7 @@ class TestLogin:
     @force_login(email="test@data.gov")
     def test_harvest_edit_bad_source_url(self, client, interface_no_jobs):
         res = client.get("/harvest_source/config/edit/1234")
+        # ruff: noqa: E501
         redirect_str = 'You should be redirected automatically to the target URL: <a href="/harvest_sources/">/harvest_sources/</a>'
         assert res.status_code == 302
         assert res.text.find(redirect_str) != -1
@@ -37,6 +39,7 @@ class TestLogin:
         organization_data,
     ):
         res = client.get(f"/organization/{organization_data['id']}")
+        # ruff: noqa: E501
         button_string_text = '<div class="config-actions organization-config-actions">'
         org_edit_text = f'<a href="/organization/config/edit/{organization_data["id"]}"'
         org_delete_text = f"onclick=\"confirmDelete('/organization/config/delete/{organization_data['id']}')"

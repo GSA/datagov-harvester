@@ -22,6 +22,7 @@ class TestBaseUnauthed:
 
 
 class TestBaseAuthed:
+    # ruff: noqa: E501
     @pytest.mark.parametrize(
         "text,index",
         [

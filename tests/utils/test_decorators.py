@@ -1,4 +1,5 @@
 from functools import wraps
+
 from flask.testing import FlaskClient
 
 

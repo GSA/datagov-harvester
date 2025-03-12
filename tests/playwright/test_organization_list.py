@@ -25,9 +25,9 @@ class TestOrganizationListUnauthed:
         ).to_have_text(["Test Org"])
 
     def test_cant_add_org(self, upage):
-        expect(upage.locator(f"text=Add Organization")).to_have_count(0)
+        expect(upage.locator("text=Add Organization")).to_have_count(0)
 
 
 class TestOrganizationListAuthed:
     def test_can_add_org(self, apage):
-        expect(apage.locator(f"text=Add Organization")).to_have_count(1)
+        expect(apage.locator("text=Add Organization")).to_have_count(1)
