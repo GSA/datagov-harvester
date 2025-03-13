@@ -51,10 +51,21 @@
                 </a>
             </li>
             <li class="usa-button-group__item">
+                <a href="{{ url_for('harvest.trigger_harvest_source', source_id=data.source.id, job_type='clear') }}"
+                    onclick="return confirm('Are you sure you want to clear all datasets?');">
+                    <button class="btn btn-primary">Clear</button>
+                </a>
                 <button class="usa-button usa-button--secondary"
                     onclick="confirmAction('delete', '/harvest_source/config/delete/{{data.source.id}}')">Delete</button>
             </li>
         </ul>
+        <fieldset class="usa-fieldset">
+            <div class="usa-checkbox">
+                <input class="usa-checkbox__input" id="check-force-update" type="checkbox" name="force-update"
+                    value="force-update" />
+                <label class="usa-checkbox__label" for="check-force-update">Force Update</label>
+            </div>
+        </fieldset>
     </div>
     {% endif %}
     <br>
@@ -172,7 +183,7 @@
                 method: 'POST',
                 headers: {
                     'Accept': 'application/json',
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
                 },
                 body: {}
             });
