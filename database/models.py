@@ -5,9 +5,6 @@ from geoalchemy2 import Geometry
 from sqlalchemy import Column, Enum, String, func
 from sqlalchemy.orm import DeclarativeBase
 
-Base = DeclarativeBase()
-
-
 class Base(DeclarativeBase):
     __abstract__ = True  # Indicates that this class should not be created as a table
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
@@ -174,9 +171,8 @@ class HarvestUser(db.Model):
     ssoid = db.Column(db.String(200), unique=True, nullable=True)
 
 
-class Locations(Base):
+class Locations(db.Model):
     __tablename__ = "locations"
-    id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String)
     type = db.Column(db.String)
     display_name = db.Column(db.String)
