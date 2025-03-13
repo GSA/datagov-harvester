@@ -698,11 +698,13 @@ def munge_spatial(spatial_value: str) -> str:
     spatial_value = re.sub(
         r"(^|\s)(-?)0+((0|[1-9][0-9]*)(\.[0-9]*)?)", r"\1\2\3", spatial_value
     )
-    # if spatial is a space-separated number list, set the new spatial to 'null'
+
+    # if spatial is a space-separated number list, try replacing with commas
+    # for parsing later
     try:
         numbers_with_spaces = [int(i) for i in spatial_value.split(" ")]
         if all(isinstance(x, int) for x in numbers_with_spaces):
-            spatial_value = ""
+            spatial_value = spatial_value.replace(" ", ",")
     except ValueError:
         pass
 

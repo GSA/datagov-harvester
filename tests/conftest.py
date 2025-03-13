@@ -42,6 +42,7 @@ def app() -> Generator[Any, Flask, Any]:
     app.config.update({"TESTING": True})
     with app.app_context():
         db.create_all()
+        # Add US location, used in multiple tests
         us = Locations(
             **{
                 "id": "34315",
@@ -784,7 +785,7 @@ def iso19115_1_transform() -> dict:
         "primaryITInvestmentUII": "{4c6928d8-6ac2-4909-8b3d-a29e2805ce2d}",
     }
 
-  
+
 @pytest.fixture
 def named_location_us():
     return (
@@ -805,7 +806,7 @@ def named_location_stoneham():
 def invalid_envelope_geojson():
     return '{"type": "envelope", "coordinates": [[-81.0563, 34.9991], [-80.6033, 35.4024]]}'
 
-  
+
 @pytest.fixture
 def mock_requests_get_ms_iis_waf(monkeypatch):
     """Fixture to mock requests.get with ms-iis-waf HTML content"""

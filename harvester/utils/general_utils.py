@@ -99,7 +99,7 @@ def traverse_waf(
 
     folders = []
     res = requests.get(url)
-    
+
     if files is None:
         files = []
 

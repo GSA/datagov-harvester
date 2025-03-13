@@ -785,11 +785,14 @@ class TestDatabase:
         interface.db.add(stoneham)
         interface.db.commit()
 
+        # Expect to find th US, loaded on test setup
         geojson_str = interface.get_geo_from_string("United States")
         assert geojson_str == named_location_us
 
+        # Expect to find Stoneham, loaded in this test
         geojson_str = interface.get_geo_from_string("Stoneham")
         assert geojson_str == named_location_stoneham
 
+        # Do not expect the following strings to match
         assert interface.get_geo_from_string("not exists") is None
         assert interface.get_geo_from_string("US, Virginia, Fairfax, Reston") is None
