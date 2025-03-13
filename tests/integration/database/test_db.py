@@ -96,7 +96,7 @@ class TestDatabase:
 
         # Case 1: Harvest source has no records, so it can be deleted successfully
         response = interface.delete_harvest_source(source.id)
-        assert response == "Harvest source deleted successfully"
+        assert response == ("Harvest source deleted successfully", 200)
 
         # Refresh the session to avoid ObjectDeletedError
         interface.db.expire_all()
@@ -113,7 +113,8 @@ class TestDatabase:
 
         response = interface.delete_harvest_source(source.id)
         assert response == (
-            "Failed: 1 records in the Harvest source, please Clear it first."
+            "Failed: 1 records in the Harvest source, please clear it first.",
+            409,
         )
 
         # Ensure the source still exists after failed deletion attempt
@@ -475,8 +476,9 @@ class TestDatabase:
     ):
         interface_no_jobs.add_harvest_job(job_data_dcatus)
         res = interface_no_jobs.delete_harvest_job(job_data_dcatus["id"])
-        assert isinstance(res, str)
-        assert res == "Harvest job deleted successfully"
+        assert isinstance(res, tuple)
+        assert res[0] == "Harvest job deleted successfully"
+        assert res[1] == 200
 
     def test_get_latest_harvest_records(
         self,

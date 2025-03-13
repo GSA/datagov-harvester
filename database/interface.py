@@ -228,11 +228,14 @@ class HarvesterDBInterface:
         if len(records) == 0:
             self.db.delete(source)
             self.db.commit()
-            return "Harvest source deleted successfully"
+            return (
+                "Harvest source deleted successfully",
+                200,
+            )
         else:
             return (
-                f"Failed: {len(records)} records in the Harvest source, "
-                "please Clear it first."
+                f"Failed: {len(records)} records in the Harvest source, please clear it first.",
+                409,
             )
 
     ## HARVEST JOB
@@ -317,7 +320,7 @@ class HarvesterDBInterface:
             return f"Harvest job {job_id} not found"
         self.db.delete(job)
         self.db.commit()
-        return "Harvest job deleted successfully"
+        return "Harvest job deleted successfully", 200
 
     ## HARVEST ERROR
     def add_harvest_job_error(self, error_data: dict):

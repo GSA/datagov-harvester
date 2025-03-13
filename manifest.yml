@@ -10,6 +10,7 @@ applications:
       - ((app_name))-secrets
     instances: ((admin_instances))
     memory: ((admin_memory_quota))
+    disk_quota: ((admin_disk_quota))
     env:
       FLASK_APP: run.py
       CF_API_URL: ((CF_API_URL))

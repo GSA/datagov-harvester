@@ -45,8 +45,9 @@ logger = logging.getLogger("harvest_admin")
 
 user = Blueprint("user", __name__)
 mod = Blueprint("harvest", __name__)
-source = Blueprint("harvest_source", __name__)
 org = Blueprint("org", __name__)
+source = Blueprint("harvest_source", __name__)
+job = Blueprint("harvest_job", __name__)
 testdata = Blueprint("testdata", __name__)
 
 db = HarvesterDBInterface()
@@ -283,6 +284,18 @@ def cli_remove_harvest_source(id):
         print(f"Triggered delete of harvest source with ID: {id}")
     else:
         print("Failed to delete harvest source")
+
+
+## Harvet Job Management
+@job.cli.command("delete")
+@click.argument("id")
+def cli_remove_harvest_job(id):
+    """Remove a harvest source with a given id."""
+    result = db.delete_harvest_job(id)
+    if result:
+        print(f"Triggered delete of harvest job with ID: {id}")
+    else:
+        print("Failed to delete harvest job")
 
 
 ## Load Test Data
@@ -698,13 +711,17 @@ def edit_harvest_source(source_id: str):
 
 
 # Delete Source
-@mod.route("/harvest_source/config/delete/<source_id>", methods=["POST"])
+@mod.route("/harvest_source/config/delete/<source_id>", methods=["GET"])
 @login_required
 def delete_harvest_source(source_id):
     try:
-        result = db.delete_harvest_source(source_id)
-        flash(result)
-        return {"message": "success"}, 200
+        message, status = db.delete_harvest_source(source_id)
+        flash(message)
+        if status == 409:
+            return redirect(f"/harvest_source/{source_id}")
+        else:
+            return redirect("/")
+        # return {"message": "success"}, 200
     except Exception as e:
         logger.error(f"Failed to delete harvest source :: {repr(e)}")
         flash("Failed to delete harvest source with ID: {source_id}")
@@ -1034,4 +1051,5 @@ def register_routes(app):
     app.register_blueprint(user)
     app.register_blueprint(org)
     app.register_blueprint(source)
+    app.register_blueprint(job)
     app.register_blueprint(testdata)
