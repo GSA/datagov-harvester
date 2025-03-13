@@ -21,7 +21,7 @@
     {% else %}
     <h1>{{data.source["name"]}}</h1>
     <h2>Configuration:</h2>
-    <div class="config-table">
+    <div class="config-table harvest-source-config-properties">
         <table class="table">
             {% for key, value in data.source.items() %}
             <tr>
@@ -32,7 +32,7 @@
         </table>
     </div>
     {% if session['user'] %}
-    <div class="config-actions">
+    <div class="config-actions harvest-source-config-actions">
         <ul class="usa-button-group">
             <li class="usa-button-group__item">
                 <a href="{{ url_for('harvest.edit_harvest_source', source_id=data.source.id)}}">
@@ -68,7 +68,7 @@
     </a>
     {% endif %}
 
-    <div class="config-table">
+    <div class="config-table harvest-source-config-summary">
         <table class="table">
             <tr>
                 <td>Records:</td>

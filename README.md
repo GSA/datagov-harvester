@@ -4,6 +4,7 @@
 | --- | --- | --- |
 | Unit | [![Unit Test Count](./tests/badges/unit/tests.svg)](./tests/unit)| [![Unit Test Coverage](./tests/badges/unit/coverage.svg)](./tests/unit)|
 | Integration | [![Unit Test Count](./tests/badges/integration/tests.svg)](./tests/integration)| [![Unit Test Coverage](./tests/badges/integration/coverage.svg)](./tests/integration)|
+| Playwright | [![Playwright Test Count](./tests/badges/playwright/tests.svg)](./tests/playwright)| [![Playwright Test Coverage](./tests/badges/playwright/coverage.svg)](./tests/playwright)|
 | Functional | [![Functional Test Count](tests/badges/functional/tests.svg)](./tests/functional)| [![Unit Test Coverage](./tests/badges/functional/coverage.svg)](./tests/functional/)|
 
 This repository holds the source code the Data.gov Harvester 2.0, which consists of two applications:
@@ -42,6 +43,8 @@ Set these environment variables in your shell:
 CF_SERVICE_* variables can be extracted from from service-keys by running `cf service-key ci-deployer dhl-deployer` in the appropriate space.
 
 CKAN_API_TOKEN should be extracted from `cf env datagov-harvest-runner` in the `user-provided` service `datagov-harvest-secrets` with the same key name.
+
+To make Playwright authenticated tests pass, copy the file `pytest_auth_state.json` [stored in Drive](https://drive.google.com/file/d/1_ItITwu3fbCNd5MzmoeOagD5tdPxXQe3/view?usp=drive_link) into the root of the project.
 
 ### Flask Debugging
 If absolutely need to hit a breakpoint in your Flask app, you can setup local Flask debugging in your IDE.
