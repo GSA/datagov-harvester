@@ -415,7 +415,6 @@ def edit_organization(org_id):
         org = db.update_organization(org_id, request.json)
         if org:
             return {"message": f"Updated org with ID: {org.id}"}, 200
-            return {"message": f"Updated org with ID: {org.id}"}, 200
         else:
             return {"error": "Failed to update organization."}, 400
 
