@@ -47,14 +47,23 @@
             <li class="usa-button-group__item">
                 <a href="{{ url_for('harvest.trigger_harvest_source', source_id=data.source.id, job_type='clear') }}"
                     onclick="return confirm('Are you sure you want to clear all datasets?');">
-                    <button class="btn btn-primary">Clear</button>
+                    <button class="usa-button usa-button--accent-cool">Clear</button>
                 </a>
             </li>
             <li class="usa-button-group__item">
-                <button class="usa-button usa-button--secondary"
-                    onclick="confirmAction('delete', '/harvest_source/config/delete/{{data.source.id}}')">Delete</button>
+                <a href="{{ url_for('harvest.delete_harvest_source', source_id=data.source.id) }}"
+                    onclick="return confirm('Are you sure you want to delete this source?');">
+                    <button class="usa-button usa-button--secondary">Delete</button>
+                </a>
             </li>
         </ul>
+        <fieldset class="usa-fieldset">
+            <div class="usa-checkbox">
+                <input class="usa-checkbox__input" id="check-force-update" type="checkbox" name="force-update"
+                    value="force-update" />
+                <label class="usa-checkbox__label" for="check-force-update">Force Update</label>
+            </div>
+        </fieldset>
     </div>
     {% endif %}
     <br>
@@ -160,38 +169,6 @@
 
 {% block scripts %}
 <script>
-    // force confirmation dialog for delete or clear of harvest source
-    async function confirmAction(action, route) {
-        let choice = window.confirm(`Do you want to ${action} Harvest Source?`)
-        if (choice) {
-            let flashMessage = document.getElementById('flash-message');
-            flashMessage.style.display = 'block';
-            flashMessage.innerHTML = `${action.charAt(0).toUpperCase() + action.slice(1)} in progress...`;
-
-            const rawResponse = await fetch(route, {
-                method: 'POST',
-                headers: {
-                    'Accept': 'application/json',
-                    'Content-Type': 'application/json'
-                },
-                body: {}
-            });
-            let res = await rawResponse.json()
-
-            flashMessage.style.display = 'none';
-
-            if (res.message && res.message == 'success') {
-                if (action === 'delete') {
-                    return window.location.replace('/');
-                } else {
-                    return window.location.reload();
-                }
-            } else {
-                return window.location.reload()
-            }
-        }
-    }
-
     // build harvest jobs chart
     const buildLineChart = (el) => {
         let chart = {
