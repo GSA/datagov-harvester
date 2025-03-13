@@ -222,7 +222,9 @@ def remove_user(email):
 @org.cli.command("add")
 @click.argument("name")
 @click.option(
-    "--logo", default="/assets/img/placeholder-organization.png", help="Org Logo"
+    "--logo",
+    default="https://raw.githubusercontent.com/GSA/datagov-harvester/refs/heads/main/app/static/assets/img/placeholder-organization.png",
+    help="Org Logo",
 )
 @click.option("--id", help="Org ID: should correspond to CKAN ORG ID")
 def cli_add_org(name, logo, id):
