@@ -3,6 +3,7 @@ import json
 import pytest
 
 from harvester.utils.ckan_utils import (
+    create_ckan_extras,
     munge_spatial,
     munge_tag,
     munge_title_to_name,
@@ -171,13 +172,42 @@ class TestCKANUtils:
         assert translate_spatial("-88.9718,36.52033") == (
             '{"type": "Point", "coordinates": [-88.9718, 36.52033]}'
         )
-    
+
     def test_translate_spatial_input_unchanged(self):
         metadata = {
             "spatial": "1.0,2.0,3.5,5.5",
         }
         translate_spatial(metadata["spatial"])
         assert metadata["spatial"] == "1.0,2.0,3.5,5.5"
+
+    def test_create_ckan_extras(self, dol_distribution_json, source_data_dcatus_orm):
+        extras = create_ckan_extras(
+            dol_distribution_json, source_data_dcatus_orm, "1234"
+        )
+
+        assert extras == [
+            {"key": "resource-type", "value": "Dataset"},
+            {"key": "harvest_object_id", "value": "1234"},
+            {"key": "source_datajson_identifier", "value": True},
+            {
+                "key": "harvest_source_id",
+                "value": "2f2652de-91df-4c63-8b53-bfced20b276b",
+            },
+            {"key": "harvest_source_title", "value": "Test Source"},
+            {"key": "accessLevel", "value": "public"},
+            {"key": "identifier", "value": "https://data.wa.gov/api/views/f6w7-q2d2"},
+            {"key": "modified", "value": "2025-01-16"},
+            {"key": "publisher_hierarchy", "value": "data.wa.gov"},
+            {"key": "publisher", "value": "data.wa.gov"},
+            {"key": "old-spatial", "value": "United States"},
+            {
+                "key": "spatial",
+                "value": '{"type":"MultiPolygon","coordinates":'
+                "[[[[-124.733253,24.544245],[-124.733253,49.388611],"
+                "[-66.954811,49.388611],[-66.954811,24.544245],[-124.733253,24.544245]]]]}",
+            },
+            {"key": "identifier", "value": "https://data.wa.gov/api/views/f6w7-q2d2"},
+        ]
 
 
 # Point example
