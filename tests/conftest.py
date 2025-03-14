@@ -12,7 +12,7 @@ from sqlalchemy.orm import scoped_session, sessionmaker
 
 from app import create_app
 from database.interface import HarvesterDBInterface
-from database.models import HarvestJob, HarvestSource, Organization, db
+from database.models import HarvestJob, HarvestSource, Locations, Organization, db
 from harvester.lib.load_manager import create_future_date
 from harvester.utils.general_utils import dataset_to_hash, sort_dataset
 
@@ -42,6 +42,19 @@ def app() -> Generator[Any, Flask, Any]:
     app.config.update({"TESTING": True})
     with app.app_context():
         db.create_all()
+        # Add US location, used in multiple tests
+        us = Locations(
+            **{
+                "id": "34315",
+                "type": "country",
+                "name": "United States",
+                "display_name": "United States",
+                "the_geom": "0103000020E6100000010000000500000069ACFD9DED2E5FC0F302ECA3538B384069ACFD9DED2E5FC0D4EE5701BEB148401CB7989F1BBD50C0D4EE5701BEB148401CB7989F1BBD50C0F302ECA3538B384069ACFD9DED2E5FC0F302ECA3538B3840",  # noqa E501
+                "type_order": "1",
+            }
+        )
+        db.session.add(us)
+        db.session.commit()
         yield app
         db.drop_all()
 
@@ -771,6 +784,27 @@ def iso19115_1_transform() -> dict:
         "references": "",
         "primaryITInvestmentUII": "{4c6928d8-6ac2-4909-8b3d-a29e2805ce2d}",
     }
+
+
+@pytest.fixture
+def named_location_us():
+    return (
+        '{"type":"MultiPolygon","coordinates":[[[[-124.733253,24.544245],[-124.733253,49.388611],'
+        "[-66.954811,49.388611],[-66.954811,24.544245],[-124.733253,24.544245]]]]}"
+    )
+
+
+@pytest.fixture
+def named_location_stoneham():
+    return (
+        '{"type":"MultiPolygon","coordinates":[[[[-71.1192,42.444],[-71.1192,42.5022],'
+        "[-71.0749,42.5022],[-71.0749,42.444],[-71.1192,42.444]]]]}"
+    )
+
+
+@pytest.fixture
+def invalid_envelope_geojson():
+    return '{"type": "envelope", "coordinates": [[-81.0563, 34.9991], [-80.6033, 35.4024]]}'
 
 
 @pytest.fixture
