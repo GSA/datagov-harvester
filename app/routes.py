@@ -415,7 +415,6 @@ def edit_organization(org_id):
         org = db.update_organization(org_id, request.json)
         if org:
             return {"message": f"Updated org with ID: {org.id}"}, 200
-            return {"message": f"Updated org with ID: {org.id}"}, 200
         else:
             return {"error": "Failed to update organization."}, 400
 
@@ -761,8 +760,8 @@ def view_harvest_job(job_id=None):
             "error": db._to_dict(row.HarvestRecordError),
             "identifier": row.identifier,
             "title": (
-                json.loads(row.source_raw).get("title", None)
-                if row.source_raw
+                json.loads(row.source_raw).get("title")
+                if hasattr(row.source_raw, "title")
                 else None
             ),
         }
