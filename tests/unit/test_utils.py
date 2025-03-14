@@ -171,6 +171,13 @@ class TestCKANUtils:
         assert translate_spatial("-88.9718,36.52033") == (
             '{"type": "Point", "coordinates": [-88.9718, 36.52033]}'
         )
+    
+    def test_translate_spatial_input_unchanged(self):
+        metadata = {
+            "spatial": "1.0,2.0,3.5,5.5",
+        }
+        translate_spatial(metadata["spatial"])
+        assert metadata["spatial"] == "1.0,2.0,3.5,5.5"
 
 
 # Point example
