@@ -29,6 +29,9 @@ install-static: ## Installs static assets
 	npm install; \
 	npm run build
 
+load-test-data: ## Loads fixture test data
+	docker compose exec app flask testdata load_test_data
+
 test-unit: ## Runs unit tests.
 	poetry run pytest  --local-badge-output-dir tests/badges/unit/ --cov-report term-missing --junitxml=pytest-unit.xml --cov=harvester ./tests/unit | tee pytest-coverage-unit.txt
 
@@ -43,19 +46,14 @@ test-playwright: ## Runs playwright tests.
 
 test: up test-unit test-integration test-playwright ## Runs all local tests
 
-test-e2e-ci: ## All e2e/expensive tests. Run on PR into main.
-	make up
-	sleep 2
-	docker compose exec app flask testdata load_test_data
+test-e2e-ci: up load-test-data ## All e2e/expensive tests. Run on PR into main.
 	make test-playwright
 	make test-functional
 	make clean
 
-test-ci: ## All simulated tests using only db and required test resources. Run on commit.
-	make up
-	make test-unit
-	make test-integration
-	make clean
+test-ci: up test-unit test-integration clean ## All simulated tests using only db and required test resources. Run on commit.
+
+re-up: clean up load-test-data ## resets system to clean fixture status
 
 up: ## Sets up local flask and harvest runner docker environments. harvest runner gets DATABASE_PORT from .env
 	DATABASE_PORT=5433 docker compose up -d

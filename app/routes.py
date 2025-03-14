@@ -711,13 +711,17 @@ def edit_harvest_source(source_id: str):
 
 
 # Delete Source
-@mod.route("/harvest_source/config/delete/<source_id>", methods=["POST"])
+@mod.route("/harvest_source/config/delete/<source_id>", methods=["GET"])
 @login_required
 def delete_harvest_source(source_id):
     try:
-        result = db.delete_harvest_source(source_id)
-        flash(result)
-        return {"message": "success"}, 200
+        message, status = db.delete_harvest_source(source_id)
+        flash(message)
+        if status == 409:
+            return redirect(f"/harvest_source/{source_id}")
+        else:
+            return redirect("/")
+        # return {"message": "success"}, 200
     except Exception as e:
         logger.error(f"Failed to delete harvest source :: {repr(e)}")
         flash("Failed to delete harvest source with ID: {source_id}")

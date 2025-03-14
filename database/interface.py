@@ -228,11 +228,14 @@ class HarvesterDBInterface:
         if len(records) == 0:
             self.db.delete(source)
             self.db.commit()
-            return "Harvest source deleted successfully"
+            return (
+                "Harvest source deleted successfully",
+                200,
+            )
         else:
             return (
                 f"Failed: {len(records)} records in the Harvest source, please clear it first.",
-                401,
+                409,
             )
 
     ## HARVEST JOB
