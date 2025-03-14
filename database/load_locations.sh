@@ -20,7 +20,7 @@ SCRIPT_DIR=$(dirname "$0")
 
 echo "Loading CSV file into $TABLE_NAME..."
 
-psql "postgresql://$DB_USERNAME:$PGPASSWORD@localhost:15432/$DB_NAME" -c "\COPY $TABLE_NAME FROM '$SCRIPT_DIR/$CSV_FILE' WITH CSV HEADER"
+psql "postgresql://$DB_USERNAME:$PGPASSWORD@localhost:15432/$DB_NAME" -c "\COPY $TABLE_NAME FROM '$SCRIPT_DIR/$CSV_FILE' WITH CSV HEADER QUOTE '\"';"
 
 if [ $? -eq 0 ]; then
     echo "CSV file loaded successfully into $TABLE_NAME."
