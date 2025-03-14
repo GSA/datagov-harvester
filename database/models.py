@@ -5,6 +5,7 @@ from geoalchemy2 import Geometry
 from sqlalchemy import Column, Enum, String, func
 from sqlalchemy.orm import DeclarativeBase
 
+
 class Base(DeclarativeBase):
     __abstract__ = True  # Indicates that this class should not be created as a table
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))

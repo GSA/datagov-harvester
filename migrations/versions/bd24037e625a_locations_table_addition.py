@@ -18,7 +18,7 @@ depends_on = None
 
 
 def upgrade():
-    op.execute("CREATE EXTENSION postgis;")
+    op.execute("CREATE EXTENSION IF NOT EXISTS postgis;")
     op.create_table(
         "locations",
         sa.Column("id", sa.Integer, primary_key=True),
@@ -27,11 +27,12 @@ def upgrade():
         sa.Column("display_name", sa.String),
         sa.Column("the_geom", Geometry(geometry_type="MULTIPOLYGON")),
         sa.Column("type_order", sa.String),
+        if_not_exists=True,
     )
 
 
 def downgrade():
     op.drop_table("locations")
-    op.execute("DROP EXTENSION postgis_topology;")
-    op.execute("DROP EXTENSION postgis_tiger_geocoder;")
-    op.execute("DROP EXTENSION postgis;")
+    op.execute("DROP EXTENSION IF EXISTS postgis_topology;")
+    op.execute("DROP EXTENSION IF EXISTS postgis_tiger_geocoder;")
+    op.execute("DROP EXTENSION IF EXISTS postgis;")
