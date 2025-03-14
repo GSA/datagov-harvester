@@ -16,21 +16,20 @@ down_revision = "63a1161d69b7"
 branch_labels = None
 depends_on = None
 
+
 def upgrade():
     op.execute("CREATE EXTENSION IF NOT EXISTS postgis;")
     if "locations" not in tables:
-      op.create_table(
-        "locations",
-        sa.Column("id", sa.Integer, primary_key=True),
-        sa.Column("name", sa.String),
-        sa.Column("type", sa.String),
-        sa.Column("display_name", sa.String),
-        sa.Column("the_geom", Geometry(geometry_type="MULTIPOLYGON")),
-        sa.Column("type_order", sa.String),
-        if_not_exists=True,
-      )
-    
-       
+        op.create_table(
+            "locations",
+            sa.Column("id", sa.Integer, primary_key=True),
+            sa.Column("name", sa.String),
+            sa.Column("type", sa.String),
+            sa.Column("display_name", sa.String),
+            sa.Column("the_geom", Geometry(geometry_type="MULTIPOLYGON")),
+            sa.Column("type_order", sa.String),
+            if_not_exists=True,
+        )
 
 
 def downgrade():
