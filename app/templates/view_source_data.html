@@ -33,37 +33,30 @@
     </div>
     {% if session['user'] %}
     <div class="config-actions harvest-source-config-actions">
-        <ul class="usa-button-group">
-            <li class="usa-button-group__item">
-                <a href="{{ url_for('harvest.edit_harvest_source', source_id=data.source.id)}}">
-                    <button class="usa-button">Edit</button>
-                </a>
-            </li>
-            <li class="usa-button-group__item">
-                <a href="{{ url_for('harvest.trigger_harvest_source', source_id=data.source.id, job_type='harvest')}}">
-                    <button class="usa-button usa-button--base">Harvest</button>
-                </a>
-            </li>
-            <li class="usa-button-group__item">
-                <a href="{{ url_for('harvest.trigger_harvest_source', source_id=data.source.id, job_type='clear') }}"
-                    onclick="return confirm('Are you sure you want to clear all datasets?');">
-                    <button class="usa-button usa-button--accent-cool">Clear</button>
-                </a>
-            </li>
-            <li class="usa-button-group__item">
-                <a href="{{ url_for('harvest.delete_harvest_source', source_id=data.source.id) }}"
-                    onclick="return confirm('Are you sure you want to delete this source?');">
-                    <button class="usa-button usa-button--secondary">Delete</button>
-                </a>
-            </li>
-        </ul>
-        <fieldset class="usa-fieldset">
-            <div class="usa-checkbox">
-                <input class="usa-checkbox__input" id="check-force-update" type="checkbox" name="force-update"
-                    value="force-update" />
-                <label class="usa-checkbox__label" for="check-force-update">Force Update</label>
-            </div>
-        </fieldset>
+        <form method="POST" action>
+            {{ form.hidden_tag() }}
+            <ul class="usa-button-group">
+                <li class="usa-button-group__item">
+                    {{form.edit(class_='usa-button')}}
+                </li>
+                <li class="usa-button-group__item">
+                    {{form.harvest(class_='usa-button usa-button--base')}}
+                </li>
+                <li class="usa-button-group__item">
+                    {{form.clear(class_='usa-button usa-button--accent-cool', onclick="confirmSubmit(event, 'clear')")}}
+                </li>
+                <li class="usa-button-group__item">
+                    {{form.delete(class_='usa-button usa-button--secondary', onclick="confirmSubmit(event, 'delete')")}}
+
+                </li>
+            </ul>
+            <fieldset class="usa-fieldset">
+                <div class="usa-checkbox">
+                    {{form.force_check(class_='usa-checkbox__input')}}
+                    {{form.force_check.label(class_='usa-checkbox__label')}}
+                </div>
+            </fieldset>
+        </form>
     </div>
     {% endif %}
     <br>
@@ -169,6 +162,17 @@
 
 {% block scripts %}
 <script>
+    //
+    function confirmSubmit(event, type) {
+        let messageEnum = {
+            'clear': 'Are you sure you want to clear all datasets?',
+            'delete': 'Are you sure you want to delete this source?'
+        }
+        if (!confirm(messageEnum[type])) {
+            event.preventDefault(); // Prevents the form from submitting if the user cancels
+        }
+    }
+
     // build harvest jobs chart
     const buildLineChart = (el) => {
         let chart = {

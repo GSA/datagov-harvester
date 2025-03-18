@@ -271,7 +271,7 @@ class HarvestSource:
                 internal_hash = self.internal_records[i].metadata_hash
                 if external_hash != internal_hash:
                     self.compare_data["update"].add(i)
-                elif self.job_type == "follow_up":
+                elif self.job_type == "force_harvest":
                     self.compare_data["update"].add(i)
                 else:
                     self.compare_data[None].add(i)
@@ -755,7 +755,7 @@ class Record:
         if self.ckan_name is not None:
             data["ckan_name"] = self.ckan_name
 
-        if self.harvest_source.job_type == "follow_up":
+        if self.harvest_source.job_type == "force_harvest":
             data["harvest_job_id"] = self.harvest_source.job_id
 
         self.harvest_source.db_interface.update_harvest_record(
@@ -784,7 +784,7 @@ def harvest_job_starter(job_id, job_type="harvest"):
     logger.info(f"Harvest job starting for JobId: {job_id}")
     harvest_source = HarvestSource(job_id, job_type)
 
-    if job_type in ["harvest", "validate", "follow_up"]:
+    if job_type in ["harvest", "validate", "force_harvest"]:
         harvest_source.extract()
 
     if job_type == "clear":
@@ -792,17 +792,17 @@ def harvest_job_starter(job_id, job_type="harvest"):
         harvest_source.external_records = {}
         harvest_source.prepare_internal_data()
 
-    if job_type in ["harvest", "validate", "clear", "follow_up"]:
+    if job_type in ["harvest", "validate", "clear", "force_harvest"]:
         harvest_source.compare()
 
-    if job_type in ["harvest", "validate", "follow_up"]:
+    if job_type in ["harvest", "validate", "force_harvest"]:
         harvest_source.transform()
         harvest_source.validate()
 
     if job_type == "sync":
         harvest_source.sync_job_helper()
 
-    if job_type in ["harvest", "clear", "sync", "follow_up"]:
+    if job_type in ["harvest", "clear", "sync", "force_harvest"]:
         harvest_source.sync()
 
     if job_type in ["clear"]:

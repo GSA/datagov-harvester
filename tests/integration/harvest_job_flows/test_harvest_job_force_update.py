@@ -12,7 +12,11 @@ class TestHarvestJobSync:
         organization_data,
         source_data_dcatus,
     ):
-        """Force update exists to update jobs in case of code changes when we want to update all datasets, not just those that have changed"""
+        """
+        Force update exists to update jobs in case
+        of code changes when we want to update all datasets,
+        not just those that have changed
+        """
 
         CKANMock.action.package_create.return_value = {"id": 1234}
         CKANMock.action.package_update.return_value = "ok"
@@ -50,18 +54,18 @@ class TestHarvestJobSync:
         assert harvest_job.records_updated == 0
         assert harvest_job.records_validated == 7
 
-        ## create a second follow-up job to pickup sync
+        ## create a second force_harvest to pickup sync
         harvest_job = interface.add_harvest_job(
             {
                 "status": "new",
                 "harvest_source_id": source_data_dcatus["id"],
-                "job_type": "follow_up",
+                "job_type": "force_harvest",
             }
         )
 
         job_id = harvest_job.id
         job_type = harvest_job.job_type
-        assert job_type == "follow_up"
+        assert job_type == "force_harvest"
         harvest_job_starter(job_id, job_type)
 
         harvest_job = interface.get_harvest_job(job_id)

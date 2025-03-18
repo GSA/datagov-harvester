@@ -78,5 +78,5 @@ class TestHarvestSourceUnauthed:
 class TestHarvestSourceAuthed:
     def test_can_perform_actions(self, apage):
         expect(
-            apage.locator(".harvest-source-config-actions ul li button")
+            apage.locator(".harvest-source-config-actions ul li input")
         ).to_have_text(["Edit", "Harvest", "Clear", "Delete"])
