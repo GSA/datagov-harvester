@@ -33,7 +33,7 @@ class TestDatabase:
         org = interface.add_organization(organization_data)
 
         result = interface.delete_organization(org.id)
-        assert result ==  ('Organization deleted successfully', 200)
+        assert result == ("Organization deleted successfully", 200)
 
     def test_add_harvest_source(self, interface, organization_data, source_data_dcatus):
         interface.add_organization(organization_data)

@@ -480,13 +480,13 @@ def delete_organization(org_id):
         message, status = db.delete_organization(org_id)
         flash(message)
         if status == 409:
-            redirect(url_for("harvest.view_org_data"), org_id=org_id)
+            return redirect(url_for("harvest.view_org_data", org_id=org_id))
         else:
             return redirect(url_for("harvest.view_organizations"))
     except Exception as e:
         logger.error(f"Failed to delete organization :: {repr(e)}")
         flash(f"Failed to delete organization with ID: {org_id}")
-        return {"message": "failed"}
+        return redirect(url_for("harvest.view_org_data", org_id=org_id))
 
 
 ## Harvest Source
@@ -515,7 +515,9 @@ def add_harvest_source():
             source = db.add_harvest_source(new_source)
             job_message = load_manager.schedule_first_job(source.id)
             if source and job_message:
-                flash(f"Updated source with ID: {source.id}. {job_message}")
+                flash(
+                    f"Added new harvest source source with ID: {source.id}. {job_message}"
+                )
             else:
                 flash("Failed to add harvest source.")
             return redirect(url_for("harvest.view_harvest_sources"))
@@ -778,9 +780,11 @@ def delete_harvest_source(source_id):
         message, status = db.delete_harvest_source(source_id)
         flash(message)
         if status == 409:
-            return redirect(f"/harvest_source/{source_id}")
+            return redirect(
+                url_for("harvest.view_harvest_source_data", source_id=source_id)
+            )
         else:
-            return redirect("/")
+            return redirect(url_for("harvest.view_harvest_sources"))
         # return {"message": "success"}, 200
     except Exception as e:
         logger.error(f"Failed to delete harvest source :: {repr(e)}")

@@ -44,12 +44,9 @@ test-functional: ## Runs functional tests.
 test-playwright: ## Runs playwright tests.
 	poetry run pytest --local-badge-output-dir tests/badges/playwright/ --cov-report term-missing --junitxml=pytest-playwright.xml --cov=app ./tests/playwright | tee pytest-coverage-playwright.txt
 
-test: up test-unit test-integration test-playwright ## Runs all local tests
+test: up test-unit test-integration ## Runs all local tests
 
-test-e2e-ci: up load-test-data ## All e2e/expensive tests. Run on PR into main.
-	make test-playwright
-	make test-functional
-	make clean
+test-e2e-ci: up load-test-data test-playwright test-functional clean ## All e2e/expensive tests. Run on PR into main.
 
 test-ci: up test-unit test-integration clean ## All simulated tests using only db and required test resources. Run on commit.
 
@@ -64,15 +61,15 @@ up: ## Sets up local flask and harvest runner docker environments. harvest runne
 up-unified: ## For testing when you want a shared db between flask and harvester
 	docker compose up -d
 
-down: ## Tears down the flask and harvester containers
-	docker compose down
-	docker compose -p harvest-app down
-
 up-debug: ## Sets up local docker environment with VSCODE debug support enabled
 	docker compose -f docker-compose.yml -f docker-compose_debug.yml up -d
 
 up-prod: ## Sets up local flask env running gunicorn instead of standard dev server
 	docker compose -f docker-compose.yml -f docker-compose_prod.yml up -d
+
+down: ## Tears down the flask and harvester containers
+	docker compose down
+	docker compose -p harvest-app down
 
 clean: ## Cleans docker images
 	docker compose down -v --remove-orphans
