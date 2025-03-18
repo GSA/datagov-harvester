@@ -75,3 +75,8 @@ class HarvestTriggerForm(FlaskForm):
     )
     delete = SubmitField("Delete")
     force_check = BooleanField("Force Update")
+
+
+class OrganizationTriggerForm(FlaskForm):
+    edit = SubmitField("Edit")
+    delete = SubmitField("Delete")

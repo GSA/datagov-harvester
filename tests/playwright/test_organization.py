@@ -55,6 +55,6 @@ class TestOrganizationUnauthed:
 
 class TestOrganizationAuthed:
     def test_can_perform_actions(self, apage):
-        expect(apage.locator(".organization-config-actions ul li button")).to_have_text(
+        expect(apage.locator(".organization-config-actions ul li input")).to_have_text(
             ["Edit", "Delete"]
         )
