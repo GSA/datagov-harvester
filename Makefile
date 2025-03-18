@@ -55,6 +55,8 @@ test-ci: up test-unit test-integration clean ## All simulated tests using only d
 
 re-up: clean up load-test-data ## resets system to clean fixture status
 
+re-up-debug: clean up-debug load-test-data ## resets system to clean fixture status for flask debugging
+
 up: ## Sets up local flask and harvest runner docker environments. harvest runner gets DATABASE_PORT from .env
 	DATABASE_PORT=5433 docker compose up -d
 	docker compose -p harvest-app up db -d

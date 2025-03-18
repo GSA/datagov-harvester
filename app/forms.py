@@ -2,7 +2,7 @@ import os
 import re
 
 from flask_wtf import FlaskForm
-from wtforms import SelectField, StringField, TextAreaField
+from wtforms import BooleanField, SelectField, StringField, SubmitField, TextAreaField
 from wtforms.validators import URL, DataRequired, ValidationError
 
 is_prod = os.getenv("FLASK_ENV") == "production"
@@ -65,3 +65,13 @@ class HarvestSourceForm(FlaskForm):
 class OrganizationForm(FlaskForm):
     name = StringField("Name", validators=[DataRequired()])
     logo = StringField("Logo", validators=[DataRequired(), URL()])
+
+
+class HarvestTriggerForm(FlaskForm):
+    edit = SubmitField("Edit")
+    harvest = SubmitField("Harvest")
+    clear = SubmitField(
+        "Clear",
+    )
+    delete = SubmitField("Delete")
+    force_check = BooleanField("Force Update")

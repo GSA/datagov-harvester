@@ -38,7 +38,7 @@ from harvester.utils.general_utils import (
 )
 
 from . import htmx
-from .forms import HarvestSourceForm, OrganizationForm
+from .forms import HarvestSourceForm, HarvestTriggerForm, OrganizationForm
 from .paginate import Pagination
 
 logger = logging.getLogger("harvest_admin")
@@ -352,7 +352,6 @@ def index():
 @mod.route("/organization/add", methods=["POST", "GET"])
 @login_required
 def add_organization():
-    form = OrganizationForm()
     if request.is_json:
         org = db.add_organization(request.json)
         if org:
@@ -512,7 +511,7 @@ def add_harvest_source():
     )
 
 
-@mod.route("/harvest_source/<source_id>", methods=["GET"])
+@mod.route("/harvest_source/<source_id>", methods=["GET", "POST"])
 def view_harvest_source_data(source_id: str):
     htmx_vars = {
         "target_div": "#paginated__harvest-jobs",
@@ -549,7 +548,47 @@ def view_harvest_source_data(source_id: str):
             data=data,
             pagination=pagination.to_dict(),
         )
+    elif request.method == "POST":
+        form = HarvestTriggerForm(request.form)
+        if form.data["edit"]:
+            return redirect(url_for("harvest.edit_harvest_source", source_id=source_id))
+        elif form.data["harvest"]:
+            if form.data["force_check"]:
+                return redirect(
+                    url_for(
+                        "harvest.trigger_harvest_source",
+                        source_id=source_id,
+                        job_type="force_harvest",
+                    )
+                )
+            else:
+                return redirect(
+                    url_for(
+                        "harvest.trigger_harvest_source",
+                        source_id=source_id,
+                        job_type="harvest",
+                    )
+                )
+
+        elif form.data["clear"]:
+            return redirect(
+                url_for(
+                    "harvest.trigger_harvest_source",
+                    source_id=source_id,
+                    job_type="clear",
+                )
+            )
+        elif form.data["delete"]:
+            return redirect(
+                url_for("harvest.delete_harvest_source", source_id=source_id)
+            )
+        else:
+            return redirect(
+                url_for("harvest.view_harvest_source_data", source_id=source_id)
+            )
+
     else:
+        form = HarvestTriggerForm()
         records_count = db.get_latest_harvest_records_by_source_orm(
             source_id=source_id,
             count=True,
@@ -634,6 +673,7 @@ def view_harvest_source_data(source_id: str):
         }
         return render_template(
             "view_source_data.html",
+            form=form,
             pagination=pagination.to_dict(),
             data=data,
         )

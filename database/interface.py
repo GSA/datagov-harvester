@@ -233,6 +233,7 @@ class HarvesterDBInterface:
                 200,
             )
         else:
+            # ruff: noqa: E501
             return (
                 f"Failed: {len(records)} records in the Harvest source, please clear it first.",
                 409,

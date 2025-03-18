@@ -36,11 +36,17 @@ def default_session_fixture():
         yield
 
 
-@pytest.fixture()
+@pytest.fixture(scope="session", autouse=True)
 def app() -> Generator[Any, Flask, Any]:
     app = create_app()
     app.config.update({"TESTING": True})
+    return app
+
+
+@pytest.fixture(autouse=True)
+def dbapp(app):
     with app.app_context():
+        db.drop_all()  # drop unconditionally in case tests errored and the db isn't clean...
         db.create_all()
         # Add US location, used in multiple tests
         us = Locations(
@@ -60,12 +66,12 @@ def app() -> Generator[Any, Flask, Any]:
 
 
 @pytest.fixture()
-def client(app):
+def client(app: dbapp):
     return app.test_client()
 
 
 @pytest.fixture()
-def session(app) -> Generator[Any, scoped_session, Any]:
+def session(app: dbapp) -> Generator[Any, scoped_session, Any]:
     with app.app_context():
         connection = db.engine.connect()
         transaction = connection.begin()
