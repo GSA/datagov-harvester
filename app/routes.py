@@ -38,7 +38,12 @@ from harvester.utils.general_utils import (
 )
 
 from . import htmx
-from .forms import HarvestSourceForm, HarvestTriggerForm, OrganizationForm
+from .forms import (
+    HarvestSourceForm,
+    HarvestTriggerForm,
+    OrganizationForm,
+    OrganizationTriggerForm,
+)
 from .paginate import Pagination
 
 logger = logging.getLogger("harvest_admin")
@@ -393,30 +398,44 @@ def view_organizations():
         return render_template("view_org_list.html", data=data)
 
 
-@mod.route("/organization/<org_id>", methods=["GET"])
+@mod.route("/organization/<org_id>", methods=["GET", "POST"])
 def view_org_data(org_id: str):
-    org = db.get_organization(org_id)
-    sources = db.get_harvest_source_by_org(org_id)
-    future_harvest_jobs = {}
-    for source in sources:
-        job = db.get_new_harvest_jobs_by_source_in_future(source.id)
-        if len(job):
-            future_harvest_jobs[source.id] = job[0].date_created
-    harvest_jobs = {}
-    for source in sources:
-        job = db.get_first_harvest_job_by_filter(
-            {"harvest_source_id": source.id, "status": "complete"}
+    if request.method == "POST":
+        form = OrganizationTriggerForm(request.form)
+        if form.data["edit"]:
+            return redirect(url_for("harvest.edit_organization", org_id=org_id))
+        elif form.data["delete"]:
+            return redirect(url_for("harvest.delete_organization", org_id=org_id))
+        else:
+            return redirect(url_for("harvest.view_org_data"), org_id=org_id)
+    else:
+        form = OrganizationTriggerForm()
+        org = db.get_organization(org_id)
+        sources = db.get_harvest_source_by_org(org_id)
+        future_harvest_jobs = {}
+        for source in sources:
+            job = db.get_new_harvest_jobs_by_source_in_future(source.id)
+            if len(job):
+                future_harvest_jobs[source.id] = job[0].date_created
+        harvest_jobs = {}
+        for source in sources:
+            job = db.get_first_harvest_job_by_filter(
+                {"harvest_source_id": source.id, "status": "complete"}
+            )
+            if job:
+                harvest_jobs[source.id] = job
+        data = {
+            "organization": org,
+            "organization_dict": db._to_dict(org),
+            "harvest_sources": sources,
+            "harvest_jobs": harvest_jobs,
+            "future_harvest_jobs": future_harvest_jobs,
+        }
+        return render_template(
+            "view_org_data.html",
+            data=data,
+            form=form,
         )
-        if job:
-            harvest_jobs[source.id] = job
-    data = {
-        "organization": org,
-        "organization_dict": db._to_dict(org),
-        "harvest_sources": sources,
-        "harvest_jobs": harvest_jobs,
-        "future_harvest_jobs": future_harvest_jobs,
-    }
-    return render_template("view_org_data.html", data=data)
 
 
 ### Edit Org
@@ -439,7 +458,7 @@ def edit_organization(org_id):
             flash(f"Updated org with ID: {org.id}")
         else:
             flash("Failed to update organization.")
-        return redirect(f"/organization/{org_id}")
+        return redirect(url_for("harvest.view_org_data"), org_id=org_id)
     elif form.errors:
         flash(form.errors)
         return redirect(url_for("harvest.edit_organization", org_id=org_id))
@@ -454,18 +473,19 @@ def edit_organization(org_id):
 
 
 ### Delete Org
-@mod.route("/organization/config/delete/<org_id>", methods=["POST"])
+@mod.route("/organization/config/delete/<org_id>", methods=["GET"])
 @login_required
 def delete_organization(org_id):
     try:
-        result = db.delete_organization(org_id)
-        if result:
-            flash(f"Triggered delete of organization with ID: {org_id}")
-            return {"message": "success"}, 200
+        message, status = db.delete_organization(org_id)
+        flash(message)
+        if status == 409:
+            redirect(url_for("harvest.view_org_data"), org_id=org_id)
         else:
-            raise Exception()
-    except Exception:
-        flash("Failed to delete organization")
+            return redirect(url_for("harvest.view_organizations"))
+    except Exception as e:
+        logger.error(f"Failed to delete organization :: {repr(e)}")
+        flash(f"Failed to delete organization with ID: {org_id}")
         return {"message": "failed"}
 
 

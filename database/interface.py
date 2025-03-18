@@ -158,9 +158,23 @@ class HarvesterDBInterface:
         org = self.db.get(Organization, org_id)
         if org is None:
             return None
-        self.db.delete(org)
-        self.db.commit()
-        return "Organization deleted successfully"
+
+        harvest_sources = (
+            self.db.query(HarvestSource)
+            .filter(HarvestSource.organization_id == org_id)
+            .all()
+        )
+
+        if len(harvest_sources) == 0:
+            self.db.delete(org)
+            self.db.commit()
+            return ("Organization deleted successfully", 200)
+        else:
+            # ruff: noqa: E501
+            return (
+                f"Failed: {len(harvest_sources)} harvest sources in the organization, please delete those first.",
+                409,
+            )
 
     ## HARVEST SOURCES
     def add_harvest_source(self, source_data):
