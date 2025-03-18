@@ -424,8 +424,8 @@ def create_ckan_extras(
                 }
             )
         elif extra == "spatial":
-            data["value"] = translate_spatial(metadata["spatial"])
             output.append({"key": "old-spatial", "value": metadata["spatial"]})
+            data["value"] = translate_spatial(metadata["spatial"])
         else:
             if isinstance(val, list):  # TODO: confirm this is what we want.
                 val = val[0]
@@ -737,10 +737,15 @@ def munge_spatial(spatial_value: str) -> str:
     return ""
 
 
-def translate_spatial(spatial_value) -> str:
+def translate_spatial(input) -> str:
     # is it already JSON? If so stringify it
-    if isinstance(spatial_value, dict):
-        spatial_value = json.dumps(spatial_value)
+    if isinstance(input, dict):
+        spatial_value = json.dumps(input)
+    elif isinstance(input, str):
+        spatial_value = input
+    else:
+        # This shouldn't happen due to validation, but just in case
+        return ""
     # Is it already valid geojson (or geojson that can be cleaned up)?
     # If so, return it.
     validated_geojson = validate_geojson(spatial_value)
