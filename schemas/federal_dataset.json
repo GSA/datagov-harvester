@@ -379,6 +379,21 @@
           "minLength": 1
         },
         {
+          "type": "object",
+          "properties": {
+            "coordinates": {
+              "type": "array",
+              "items": {
+                "type": "number"
+              }
+            },
+            "type": {
+              "type": "string",
+              "pattern": "^(?!envelope$).+$"
+            }
+          }
+        },
+        {
           "type": "null"
         }
       ]
