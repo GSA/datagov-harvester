@@ -1,15 +1,14 @@
 from itertools import groupby
 from unittest.mock import patch
-import json
-import pytest
 
+import pytest
 from deepdiff import DeepDiff
+from jsonschema.exceptions import ValidationError
 
 from harvester.harvest import HarvestSource, Record
 from harvester.utils.ckan_utils import create_ckan_resources
 from harvester.utils.general_utils import dataset_to_hash, sort_dataset
 
-from jsonschema.exceptions import ValidationError
 # ruff: noqa: E501
 
 
