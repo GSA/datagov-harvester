@@ -65,7 +65,7 @@
                     {% for source in data.harvest_sources %}
                     <tr>
                         <td data-sort-value={{source.date_created}}><a
-                                href="{{ url_for('harvest.view_harvest_source_data', source_id=source.id) }}">{{source.name}}</a>
+                                href="{{ url_for('harvest.view_harvest_source', source_id=source.id) }}">{{source.name}}</a>
                         </td>
                         <td scope="row" class="text-center">
                             {% if data.harvest_jobs[source.id] %}

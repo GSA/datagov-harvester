@@ -1,5 +1,9 @@
+import os
+
 import pytest
 from playwright.sync_api import expect
+
+api_token = os.getenv("FLASK_APP_SECRET_KEY")
 
 
 @pytest.fixture()
@@ -27,7 +31,7 @@ class TestHarvestCreateAndDestroy:
         apage.once("dialog", lambda dialog: dialog.accept())
         apage.get_by_role("button", name="Delete", exact=True).click()
         expect(apage.locator(".alert-warning")).to_contain_text(
-            ["Organization deleted successfully"]
+            ["Deleted organization with ID:"]
         )
 
     def test_can_create_and_destroy_new_harvest_source(self, apage):
@@ -45,7 +49,7 @@ class TestHarvestCreateAndDestroy:
         apage.get_by_label("Frequency", exact=True).press("Tab")
         apage.get_by_role("button", name="Submit").click()
         expect(apage.locator(".alert-warning")).to_contain_text(
-            ["Added new harvest source"]
+            ["Added new harvest source with ID:"]
         )
 
         apage.get_by_role("listitem").filter(
@@ -54,5 +58,5 @@ class TestHarvestCreateAndDestroy:
         apage.once("dialog", lambda dialog: dialog.accept())
         apage.get_by_role("button", name="Delete", exact=True).click()
         expect(apage.locator(".alert-warning")).to_contain_text(
-            ["Harvest source deleted successfully"]
+            ["Deleted harvest source with ID:"]
         )

@@ -18,6 +18,7 @@ from dotenv import load_dotenv
 from flask import (
     Blueprint,
     flash,
+    jsonify,
     make_response,
     redirect,
     render_template,
@@ -53,6 +54,7 @@ mod = Blueprint("harvest", __name__)
 org = Blueprint("org", __name__)
 source = Blueprint("harvest_source", __name__)
 job = Blueprint("harvest_job", __name__)
+api = Blueprint("api", __name__)
 testdata = Blueprint("testdata", __name__)
 
 db = HarvesterDBInterface()
@@ -109,6 +111,15 @@ def create_client_assertion():
     }
 
     return jwt.encode(payload, private_key, algorithm="RS256")
+
+
+# HELPERS
+# TODO: when refactoring routes put them in their respective files
+## HARVEST SOURCE HELPERS
+def trigger_manual_job_helper(source_id, job_type="harvest"):
+    message = load_manager.trigger_manual_job(source_id, job_type)
+    flash(message)
+    return redirect(url_for("harvest.view_harvest_source", source_id=source_id))
 
 
 @mod.route("/login")
@@ -360,9 +371,11 @@ def add_organization():
     if request.is_json:
         org = db.add_organization(request.json)
         if org:
-            return {"message": f"Added new organization with ID: {org.id}"}, 200
+            return make_response(
+                jsonify({"message": f"Added new organization with ID: {org.id}"}), 200
+            )
         else:
-            return {"error": "Failed to add organization."}, 400
+            return make_response(jsonify({"error": "Failed to add organization."}), 400)
     else:
         form = OrganizationForm()
         if form.validate_on_submit():
@@ -399,15 +412,26 @@ def view_organizations():
 
 
 @mod.route("/organization/<org_id>", methods=["GET", "POST"])
-def view_org_data(org_id: str):
+def view_organization(org_id: str):
     if request.method == "POST":
         form = OrganizationTriggerForm(request.form)
         if form.data["edit"]:
             return redirect(url_for("harvest.edit_organization", org_id=org_id))
         elif form.data["delete"]:
-            return redirect(url_for("harvest.delete_organization", org_id=org_id))
+            try:
+                message, status = db.delete_organization(org_id)
+                flash(message)
+                if status == 409:
+                    return redirect(url_for("harvest.view_organization", org_id=org_id))
+                else:
+                    return redirect(url_for("harvest.view_organizations"))
+            except Exception as e:
+                message = f"Failed to delete organization :: {repr(e)}"
+                logger.error(message)
+                flash(message)
+                return redirect(url_for("harvest.view_organization", org_id=org_id))
         else:
-            return redirect(url_for("harvest.view_org_data"), org_id=org_id)
+            return redirect(url_for("harvest.view_organization"), org_id=org_id)
     else:
         form = OrganizationTriggerForm()
         org = db.get_organization(org_id)
@@ -458,7 +482,7 @@ def edit_organization(org_id):
             flash(f"Updated org with ID: {org.id}")
         else:
             flash("Failed to update organization.")
-        return redirect(url_for("harvest.view_org_data"), org_id=org_id)
+        return redirect(url_for("harvest.view_organization"), org_id=org_id)
     elif form.errors:
         flash(form.errors)
         return redirect(url_for("harvest.edit_organization", org_id=org_id))
@@ -473,20 +497,16 @@ def edit_organization(org_id):
 
 
 ### Delete Org
-@mod.route("/organization/config/delete/<org_id>", methods=["GET"])
+@api.route("/organization/<org_id>", methods=["DELETE"])
 @login_required
 def delete_organization(org_id):
     try:
         message, status = db.delete_organization(org_id)
-        flash(message)
-        if status == 409:
-            return redirect(url_for("harvest.view_org_data", org_id=org_id))
-        else:
-            return redirect(url_for("harvest.view_organizations"))
+        return make_response(jsonify({"message": message}), status)
     except Exception as e:
-        logger.error(f"Failed to delete organization :: {repr(e)}")
-        flash(f"Failed to delete organization with ID: {org_id}")
-        return redirect(url_for("harvest.view_org_data", org_id=org_id))
+        message = f"Failed to delete organization :: {repr(e)}"
+        logger.error(message)
+        return make_response(jsonify({"message": message}), 500)
 
 
 ## Harvest Source
@@ -495,14 +515,22 @@ def delete_organization(org_id):
 @login_required
 def add_harvest_source():
     if request.is_json:
-        source = db.add_harvest_source(request.json)
-        job_message = load_manager.schedule_first_job(source.id)
-        if source and job_message:
-            return {
-                "message": f"Added new harvest source with ID: {source.id}. {job_message}"
-            }, 200
-        else:
-            return {"error": "Failed to add harvest source."}, 400
+        try:
+            source = db.add_harvest_source(request.json)
+            job_message = load_manager.schedule_first_job(source.id)
+            if source and job_message:
+                return make_response(
+                    jsonify(
+                        {
+                            "message": f"Added new harvest source with ID: {source.id}. {job_message}"
+                        }
+                    ),
+                    200,
+                )
+        except Exception as e:
+            message = "Failed to add harvest source."
+            logger.error(f"{message} :: {repr(e)}")
+            return make_response(jsonify({"message": message}), 500)
     else:
         form = HarvestSourceForm()
         organizations = db.get_all_organizations()
@@ -515,9 +543,7 @@ def add_harvest_source():
             source = db.add_harvest_source(new_source)
             job_message = load_manager.schedule_first_job(source.id)
             if source and job_message:
-                flash(
-                    f"Added new harvest source source with ID: {source.id}. {job_message}"
-                )
+                flash(f"Added new harvest source with ID: {source.id}. {job_message}")
             else:
                 flash("Failed to add harvest source.")
             return redirect(url_for("harvest.view_harvest_sources"))
@@ -534,7 +560,7 @@ def add_harvest_source():
 
 
 @mod.route("/harvest_source/<source_id>", methods=["GET", "POST"])
-def view_harvest_source_data(source_id: str):
+def view_harvest_source(source_id: str):
     htmx_vars = {
         "target_div": "#paginated__harvest-jobs",
         "endpoint_url": f"/harvest_source/{source_id}",
@@ -576,38 +602,31 @@ def view_harvest_source_data(source_id: str):
             return redirect(url_for("harvest.edit_harvest_source", source_id=source_id))
         elif form.data["harvest"]:
             if form.data["force_check"]:
-                return redirect(
-                    url_for(
-                        "harvest.trigger_harvest_source",
-                        source_id=source_id,
-                        job_type="force_harvest",
-                    )
-                )
+                return trigger_manual_job_helper(source_id, "force_harvest")
             else:
-                return redirect(
-                    url_for(
-                        "harvest.trigger_harvest_source",
-                        source_id=source_id,
-                        job_type="harvest",
-                    )
-                )
+                return trigger_manual_job_helper(source_id)
 
         elif form.data["clear"]:
-            return redirect(
-                url_for(
-                    "harvest.trigger_harvest_source",
-                    source_id=source_id,
-                    job_type="clear",
-                )
-            )
+            return trigger_manual_job_helper(source_id, "clear")
         elif form.data["delete"]:
-            return redirect(
-                url_for("harvest.delete_harvest_source", source_id=source_id)
-            )
+            try:
+                message, status = db.delete_harvest_source(source_id)
+                flash(message)
+                if status == 409:
+                    return redirect(
+                        url_for("harvest.view_harvest_source", source_id=source_id)
+                    )
+                else:
+                    return redirect(url_for("harvest.view_harvest_sources"))
+            except Exception as e:
+                message = f"Failed to delete harvest source :: {repr(e)}"
+                logger.error(message)
+                flash(message)
+                return redirect(
+                    url_for("harvest.view_harvest_source", source_id=source_id)
+                )
         else:
-            return redirect(
-                url_for("harvest.view_harvest_source_data", source_id=source_id)
-            )
+            return redirect(url_for("harvest.view_harvest_source", source_id=source_id))
 
     else:
         form = HarvestTriggerForm()
@@ -743,7 +762,7 @@ def edit_harvest_source(source_id: str):
                 else:
                     flash("Failed to update harvest source.")
                 return redirect(
-                    url_for("harvest.view_harvest_source_data", source_id=source.id)
+                    url_for("harvest.view_harvest_source", source_id=source.id)
                 )
             elif form.errors:
                 flash(form.errors)
@@ -773,27 +792,20 @@ def edit_harvest_source(source_id: str):
 
 
 # Delete Source
-@mod.route("/harvest_source/config/delete/<source_id>", methods=["GET"])
+@api.route("/harvest_source/<source_id>", methods=["DELETE"])
 @login_required
 def delete_harvest_source(source_id):
     try:
         message, status = db.delete_harvest_source(source_id)
-        flash(message)
-        if status == 409:
-            return redirect(
-                url_for("harvest.view_harvest_source_data", source_id=source_id)
-            )
-        else:
-            return redirect(url_for("harvest.view_harvest_sources"))
-        # return {"message": "success"}, 200
+        return make_response(jsonify({"message": message}), status)
     except Exception as e:
-        logger.error(f"Failed to delete harvest source :: {repr(e)}")
-        flash("Failed to delete harvest source with ID: {source_id}")
-        return {"message": "failed"}
+        message = f"Failed to delete harvest source :: {repr(e)}"
+        logger.error(message)
+        return make_response(jsonify({"message": message}), 500)
 
 
 ### Trigger Harvest
-@mod.route("/harvest_source/harvest/<source_id>/<job_type>", methods=["GET"])
+@api.route("/harvest_source/harvest/<source_id>/<job_type>", methods=["GET"])
 def trigger_harvest_source(source_id, job_type):
     message = load_manager.trigger_manual_job(source_id, job_type)
     flash(message)
@@ -1116,4 +1128,5 @@ def register_routes(app):
     app.register_blueprint(org)
     app.register_blueprint(source)
     app.register_blueprint(job)
+    app.register_blueprint(api)
     app.register_blueprint(testdata)

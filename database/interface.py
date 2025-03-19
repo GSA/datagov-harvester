@@ -168,7 +168,7 @@ class HarvesterDBInterface:
         if len(harvest_sources) == 0:
             self.db.delete(org)
             self.db.commit()
-            return ("Organization deleted successfully", 200)
+            return (f"Deleted organization with ID:{org_id} successfully", 200)
         else:
             # ruff: noqa: E501
             return (
@@ -243,7 +243,7 @@ class HarvesterDBInterface:
             self.db.delete(source)
             self.db.commit()
             return (
-                "Harvest source deleted successfully",
+                f"Deleted harvest source with ID:{source_id} successfully",
                 200,
             )
         else:
