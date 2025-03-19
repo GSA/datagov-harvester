@@ -81,6 +81,7 @@
         "@type": "org:Organization",
         "name": "data.wa.gov"
     },
+    "spatial": "United States",
     "theme": [
         "Transportation"
     ],
