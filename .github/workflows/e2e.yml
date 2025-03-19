@@ -50,14 +50,14 @@ jobs:
         poetry install
     - name: Install Playwright Browsers
       run: poetry run playwright install
+    - name: Setup tmate session
+      uses: mxschmitt/action-tmate@v3
     - name: Write Playwright Auth File
       shell: bash
       run: |
         echo "${{ secrets.PLAYWRIGHT_AUTH_JSON_BASE64 }}" | base64 --decode > ./pytest_auth_state.json
     - name: Run E2E tests
       run: make test-e2e-ci
-    - name: Setup tmate session
-      uses: mxschmitt/action-tmate@v3
     - uses: actions/upload-artifact@v4
       if: ${{ !cancelled() }}
       with:
