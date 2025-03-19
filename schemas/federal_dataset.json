@@ -384,12 +384,14 @@
             "coordinates": {
               "type": "array",
               "items": {
-                "type": "number"
+                "type": "array",
+                "items": {
+                  "type": "number"
+                }
               }
             },
             "type": {
-              "type": "string",
-              "pattern": "^(?!envelope$).+$"
+              "type": "string"
             }
           }
         },
