@@ -306,7 +306,7 @@ def cli_remove_harvest_source(id):
 @job.cli.command("delete")
 @click.argument("id")
 def cli_remove_harvest_job(id):
-    """Remove a harvest source with a given id."""
+    """Remove a harvest job with a given id."""
     result = db.delete_harvest_job(id)
     if result:
         print(f"Triggered delete of harvest job with ID: {id}")
