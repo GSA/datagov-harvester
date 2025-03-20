@@ -235,11 +235,8 @@ class TestCKANLoad:
         record = internal_compare_data["records"][0]
         # force in "spatial" attr as string
         record["spatial"] = "United States"
-        try:
-            harvest_source.validator.validate(record)
-        except ValidationError as e:
-            print(e)
-            assert False
+        harvest_source.validator.validate(record)
+        assert True
 
     def test_dcatus1_1_federal_validator_success_spatial_object(
         self,
@@ -268,11 +265,8 @@ class TestCKANLoad:
             "coordinates": [[-81.0563, 34.9991], [-80.6033, 35.4024]],
             "type": "envelope",
         }
-        try:
-            harvest_source.validator.validate(record)
-        except ValidationError as e:
-            print(e)
-            assert False
+        harvest_source.validator.validate(record)
+        assert True
 
     def test_dcatus1_1_federal_validator_fails(
         self,
