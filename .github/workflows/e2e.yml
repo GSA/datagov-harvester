@@ -17,7 +17,6 @@ jobs:
         CF_SERVICE_USER: ${{secrets.CF_SERVICE_USER}}
         CF_SERVICE_AUTH: ${{secrets.CF_SERVICE_AUTH}}
         HARVEST_RUNNER_APP_GUID: ${{secrets.HARVEST_RUNNER_APP_GUID}}
-        FLASK_APP_SECRET_KEY: ${{secrets.FLASK_APP_SECRET_KEY}}
     timeout-minutes: 60
     runs-on: ubuntu-latest
     steps:
