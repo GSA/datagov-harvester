@@ -55,6 +55,16 @@ class TestOrganizationUnauthed:
 
 class TestOrganizationAuthed:
     def test_can_perform_actions(self, apage):
-        expect(apage.locator(".organization-config-actions ul li button")).to_have_text(
+        expect(apage.locator(".organization-config-actions ul li input")).to_have_text(
             ["Edit", "Delete"]
+        )
+
+    def test_cant_delete_org_with_harvest_sources(self, apage):
+        apage.once("dialog", lambda dialog: dialog.accept())
+        apage.get_by_role("button", name="Delete", exact=True).click()
+        # ruff: noqa: E501
+        expect(apage.locator(".alert-warning")).to_contain_text(
+            [
+                "Failed: 1 harvest sources in the organization, please delete those first."
+            ]
         )
