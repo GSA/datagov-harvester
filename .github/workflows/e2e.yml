@@ -1,8 +1,8 @@
 name: E2E Tests
 on:
+  workflow_dispatch:
   pull_request:
     branches: [ main ]
-  workflow_dispatch:
 
 env:
   PY_VERSION: "3.13"
@@ -50,8 +50,6 @@ jobs:
         poetry install
     - name: Install Playwright Browsers
       run: poetry run playwright install
-    - name: Setup tmate session
-      uses: mxschmitt/action-tmate@v3
     - name: Write Playwright Auth File
       shell: bash
       run: |

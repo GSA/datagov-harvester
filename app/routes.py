@@ -78,6 +78,9 @@ def login_required(f):
             if provided_token is None:
                 return "error: Authorization header missing", 401
             api_token = os.getenv("FLASK_APP_SECRET_KEY")
+            logger.info(
+                f">>>>> provided_token {provided_token} >>>>> api_token {api_token} >>>>>"
+            )
             if provided_token != api_token:
                 return "error: Unauthorized", 401
             return f(*args, **kwargs)
