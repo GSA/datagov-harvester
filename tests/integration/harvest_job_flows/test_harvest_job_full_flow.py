@@ -2,6 +2,8 @@ import json
 import os
 from unittest.mock import MagicMock, patch
 
+from deepdiff import DeepDiff
+
 from harvester.harvest import harvest_job_starter
 from harvester.utils.general_utils import download_file
 
@@ -20,8 +22,6 @@ class TestHarvestJobFullFlow:
         source_data_dcatus_single_record,
     ):
         CKANMock.action.package_create.return_value = {"id": 1234}
-        CKANMock.action.package_update = "ok"
-        CKANMock.action.dataset_purge = "ok"
 
         interface.add_organization(organization_data)
         interface.add_harvest_source(source_data_dcatus_single_record)
@@ -54,8 +54,6 @@ class TestHarvestJobFullFlow:
         source_data_dcatus,
     ):
         CKANMock.action.package_create.return_value = {"id": 1234}
-        CKANMock.action.dataset_purge.return_value = {"ok"}
-        CKANMock.action.package_update.return_value = {"ok"}
 
         interface.add_organization(organization_data)
 
@@ -228,3 +226,93 @@ class TestHarvestJobFullFlow:
         assert kwargs["title"] == "Commitment of Traders"
         assert kwargs["id"] == "5678"
         assert kwargs["identifier"] == "cftc-dc2"
+
+    @patch("harvester.harvest.ckan")
+    def test_validate_ckan_export(
+        self,
+        CKANMock,
+        interface,
+        organization_data,
+        source_data_dcatus_single_record,
+    ):
+        CKANMock.action.package_create.return_value = {"id": 1234}
+
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_dcatus_single_record)
+        harvest_job = interface.add_harvest_job(
+            {
+                "status": "new",
+                "harvest_source_id": source_data_dcatus_single_record["id"],
+            }
+        )
+
+        job_id = harvest_job.id
+        harvest_job_starter(job_id, "harvest")
+
+        harvest_job = interface.get_harvest_job(job_id)
+        ckan_package_create_args = {
+            "name": "commitment-of-traders",
+            "owner_org": "d925f84d-955b-4cb7-812f-dcfd6681a18f",
+            "identifier": "cftc-dc1",
+            "author": None,
+            "author_email": None,
+            "maintainer": "Harold W. Hild",
+            "maintainer_email": "hhild@CFTC.GOV",
+            "notes": "COT reports provide a breakdown of each Tuesday's open interest for futures and options on futures market in which 20 or more traders hold positions equal to or above the reporting levels established by CFTC",
+            "title": "Commitment of Traders",
+            "resources": [
+                {
+                    "url": "https://www.cftc.gov/MarketReports/CommitmentsofTraders/index.htm",
+                    "mimetype": "text/html",
+                    "no_real_name": True,
+                    "format": "HTML",
+                    "name": "Web Page",
+                    "description": "index.htm",
+                }
+            ],
+            "tags": [
+                {"name": "commitment-of-traders"},
+                {"name": "cot"},
+                {"name": "open-interest"},
+            ],
+            "extras": [
+                {"key": "resource-type", "value": "Dataset"},
+                {
+                    "key": "harvest_object_id",
+                    "value": harvest_job.records[0].id,
+                },
+                {"key": "source_datajson_identifier", "value": True},
+                {
+                    "key": "harvest_source_id",
+                    "value": "2f2652de-91df-4c63-8b53-bfced20b276b",
+                },
+                {"key": "harvest_source_title", "value": "Single Record Test Source"},
+                {"key": "accessLevel", "value": "public"},
+                {"key": "bureauCode", "value": "339:00"},
+                {"key": "identifier", "value": "cftc-dc1"},
+                {"key": "modified", "value": "R/P1W"},
+                {"key": "programCode", "value": "000:000"},
+                {
+                    "key": "publisher_hierarchy",
+                    "value": "U.S. Government > U.S. Commodity Futures Trading Commission",
+                },
+                {
+                    "key": "publisher",
+                    "value": "U.S. Commodity Futures Trading Commission",
+                },
+                {"key": "old-spatial", "value": "United States"},
+                {
+                    "key": "spatial",
+                    "value": '{"type":"MultiPolygon","coordinates":[[[[-124.733253,24.544245],[-124.733253,49.388611],[-66.954811,49.388611],[-66.954811,24.544245],[-124.733253,24.544245]]]]}',
+                },
+                {"key": "identifier", "value": "cftc-dc1"},
+            ],
+        }
+        assert CKANMock.action.package_create.call_count == 1
+        assert (
+            DeepDiff(
+                CKANMock.action.package_create.call_args.kwargs,
+                ckan_package_create_args,
+            )
+            == {}
+        )
