@@ -228,7 +228,6 @@ class TestCKANLoad:
         record = internal_compare_data["records"][0]
         # force in "spatial" attr as string
         record["spatial"] = "United States"
-        harvest_source.validator.is_valid(record)
         assert harvest_source.validator.is_valid(record)
 
     def test_dcatus1_1_federal_validator_success_spatial_object(
