@@ -20,7 +20,7 @@ it is.
 
 
 - `/organizations/`: Lists organizations, GET only, no login required
-- `/organization/add`: Add a new organization. Should be login-required. POST
+- `/organization/add`: Add a new organization. Login-required. POST
   with JSON updates in the DB. POST with form data adds or checks for errors. 
   GET should load the `edit_data` template.
 - `/organization/<id>`: Detail page for a single org, GET only, no login
@@ -45,15 +45,13 @@ it is.
 - `/harvest_source/config/delete/<id>`: Delete a harvest source. POST only,
   login-required
 - `/harvest_source/harvest/<id>/<type>`: trigger a harvest of this source.
-  GET only. **Login should be required but is not**.
+  GET only. Login required.
 
 
 - `/harvest_job/add`: Add a new harvest job. POST only. Login is required
 - `/harvest_job/<id>`: Details on a job, GET, no login required
-- `/harvest_job/<id>`: PUT, update an existing harvest job, **Login should be
-  required but is not**.
-- `/harvest_job/<id>`: DELETE, delete a harvest job, **Login should be required
-  but is not**.
+- `/harvest_job/<id>`: PUT, update an existing harvest job, Login required.
+- `/harvest_job/<id>`: DELETE, delete a harvest job, Login required.
 - `/harvest_job/cancel/<id>`: cancel a given job, GET and POST, login required 
 - `/harvest_job/`: Details on every job that has errors???, GET only, no login
   required
@@ -77,21 +75,15 @@ it is.
 
 ## Notes
 
-- `/organization/<id>/edit` and `/organization/<id>/delete` might be more
-  natural
-- `/organization/<id>/delete` could take `GET` and render a delete item
-  template with a form.
-- `/harvest_source/<id>/edit` and `/harvest_source/<id>/delete` might be more
-  natural
-- `/harvest_source/<id>/delete` could take `GET` and render a delete item
-  template with a form.
-- `/harvest_source/<id>/harvest/` is a bit weird. Can we make this a method
+- TODO: `/organization/<id>/edit` might be more natural
+- TODO: Use DELETE verb instead of `/organization/delete/<id>`
+- TODO: `/harvest_source/<id>/edit` might be more natural
+- TODO: Use DELETE verb instead of `/harvest_source/delete/<id>`
+- TODO: `/harvest_job/<id>/cancel` might be more natural
+- Probably don't need a `/harvest_job/<id>/delete` endpoint?
+
+- `/harvest_source/<id>/harvest/<type>` is a bit weird. Can we make this a method
   under `/harvest_job/` like `/harvest_job/add/<source_id>`?
-- Do we want to add a GET method for `/harvest_job/add` to render a form for
-  starting a new job?
-- `/harvest_job/<id>/cancel` might be more natural
-- What is the difference between deleting and canceling a harvest job? Does
-  the delete need to talk to the load manager at all?
 - `/harvest_job/<id>/errors/<type>` seems weird for specifying just a single
   error type. If type is missing, should we show return all the error types?
   Is there a page for showing errors in web/HTML instead of CSV? Would

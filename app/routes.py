@@ -712,6 +712,7 @@ def delete_harvest_source(source_id):
 
 ### Trigger Harvest
 @mod.route("/harvest_source/harvest/<source_id>/<job_type>", methods=["GET"])
+@login_required
 def trigger_harvest_source(source_id, job_type):
     message = load_manager.trigger_manual_job(source_id, job_type)
     flash(message)
@@ -801,6 +802,7 @@ def view_harvest_job(job_id=None):
 
 ### Update Job
 @mod.route("/harvest_job/<job_id>", methods=["PUT"])
+@login_required
 def update_harvest_job(job_id):
     result = db.update_harvest_job(job_id, request.json)
     return db._to_dict(result)
@@ -808,6 +810,7 @@ def update_harvest_job(job_id):
 
 ### Delete Job
 @mod.route("/harvest_job/<job_id>", methods=["DELETE"])
+@login_required
 def delete_harvest_job(job_id):
     result = db.delete_harvest_job(job_id)
     return result
