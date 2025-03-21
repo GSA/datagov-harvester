@@ -1,0 +1,63 @@
+name: E2E Tests
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [ main ]
+
+env:
+  PY_VERSION: "3.13"
+  POETRY_VERSION: "2.0.0"
+
+jobs:
+  test:
+    name: Playwright
+    environment: development
+    env:
+        CKAN_API_TOKEN_DEV: ${{secrets.CKAN_API_TOKEN_DEV}}
+        CF_SERVICE_USER: ${{secrets.CF_SERVICE_USER}}
+        CF_SERVICE_AUTH: ${{secrets.CF_SERVICE_AUTH}}
+        HARVEST_RUNNER_APP_GUID: ${{secrets.HARVEST_RUNNER_APP_GUID}}
+    timeout-minutes: 60
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 1
+    - name: Install node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version-file: "app/static/package.json"
+    - name: Build static assets
+      shell: bash
+      run: |
+        cd app/static
+        npm ci
+        npm run build
+    - name: Set up Python ${{ env.PY_VERSION }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ env.PY_VERSION }}
+    - name: Install Poetry ${{ env.POETRY_VERSION }}
+      uses: abatilo/actions-poetry@v2
+      with:
+        poetry-version: ${{ env.POETRY_VERSION }}
+        poetry-plugins: "poetry-plugin-export"
+    - name: Install Dependencies
+      run: |
+        poetry env use ${{ env.PY_VERSION }}
+        poetry install
+    - name: Install Playwright Browsers
+      run: poetry run playwright install
+    - name: Write Playwright Auth File
+      shell: bash
+      run: |
+        echo "${{ secrets.PLAYWRIGHT_AUTH_JSON_BASE64 }}" | base64 --decode > ./pytest_auth_state.json
+    - name: Run E2E tests
+      run: make test-e2e-ci
+    - uses: actions/upload-artifact@v4
+      if: ${{ !cancelled() }}
+      with:
+        name: e2e-report
+        path: e2e-report/
+        retention-days: 30

@@ -29,23 +29,30 @@ install-static: ## Installs static assets
 	npm install; \
 	npm run build
 
-test-unit: ## Runs unit tests. Compatible with dev environment / `make up`
+load-test-data: ## Loads fixture test data
+	docker compose exec app flask testdata load_test_data
+
+test-unit: ## Runs unit tests.
 	poetry run pytest  --local-badge-output-dir tests/badges/unit/ --cov-report term-missing --junitxml=pytest-unit.xml --cov=harvester ./tests/unit | tee pytest-coverage-unit.txt
 
-test-integration: ## Runs integration tests. Compatible with dev environment / `make up`
+test-integration: ## Runs integration tests.
 	poetry run pytest --local-badge-output-dir tests/badges/integration/ --cov-report term-missing --junitxml=pytest-integration.xml --cov=harvester ./tests/integration | tee pytest-coverage-integration.txt
 
-test-functional: ## Runs integration tests. Compatible with dev environment / `make up`
+test-functional: ## Runs functional tests.
 	poetry run pytest --local-badge-output-dir tests/badges/functional/ --noconftest --cov-report term-missing --junitxml=pytest-functional.xml --cov=harvester ./tests/functional | tee pytest-coverage-functional.txt
 
-test: up test-unit test-integration ## Runs all tests. Compatible with dev environment / `make up`
+test-playwright: ## Runs playwright tests.
+	poetry run pytest --local-badge-output-dir tests/badges/playwright/ --cov-report term-missing --junitxml=pytest-playwright.xml --cov=app ./tests/playwright | tee pytest-coverage-playwright.txt
 
-test-ci: ## Runs all tests using only db and required test resources. NOT compatible with dev environment / `make up`
-	docker compose up -d db nginx-harvest-source transformer
-	make test-unit
-	make test-integration
-	make test-functional
-	make down
+test: clean up test-unit test-integration ## Runs all local tests
+
+test-e2e-ci: re-up test-playwright test-functional clean ## All e2e/expensive tests. Run on PR into main.
+
+test-ci: up test-unit test-integration clean ## All simulated tests using only db and required test resources. Run on commit.
+
+re-up: clean up load-test-data ## resets system to clean fixture status
+
+re-up-debug: clean up-debug load-test-data ## resets system to clean fixture status for flask debugging
 
 up: ## Sets up local flask and harvest runner docker environments. harvest runner gets DATABASE_PORT from .env
 	DATABASE_PORT=5433 docker compose up -d
@@ -54,15 +61,15 @@ up: ## Sets up local flask and harvest runner docker environments. harvest runne
 up-unified: ## For testing when you want a shared db between flask and harvester
 	docker compose up -d
 
-down: ## Tears down the flask and harvester containers
-	docker compose down
-	docker compose -p harvest-app down
-
 up-debug: ## Sets up local docker environment with VSCODE debug support enabled
 	docker compose -f docker-compose.yml -f docker-compose_debug.yml up -d
 
 up-prod: ## Sets up local flask env running gunicorn instead of standard dev server
 	docker compose -f docker-compose.yml -f docker-compose_prod.yml up -d
+
+down: ## Tears down the flask and harvester containers
+	docker compose down
+	docker compose -p harvest-app down
 
 clean: ## Cleans docker images
 	docker compose down -v --remove-orphans

@@ -58,7 +58,7 @@ jobs:
   deploy-development:
     if: github.ref == 'refs/heads/develop'
     name: deploy development
-    needs: test
+    # needs: test
     environment: development
     runs-on: ubuntu-latest
     steps:

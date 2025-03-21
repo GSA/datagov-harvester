@@ -3,8 +3,7 @@ import logging
 import os
 from pathlib import Path
 from typing import Any, Generator, List
-from unittest.mock import patch, Mock
-
+from unittest.mock import Mock, patch
 
 import pytest
 from dotenv import load_dotenv
@@ -13,7 +12,7 @@ from sqlalchemy.orm import scoped_session, sessionmaker
 
 from app import create_app
 from database.interface import HarvesterDBInterface
-from database.models import HarvestJob, HarvestSource, Organization, db
+from database.models import HarvestJob, HarvestSource, Locations, Organization, db
 from harvester.lib.load_manager import create_future_date
 from harvester.utils.general_utils import dataset_to_hash, sort_dataset
 
@@ -37,23 +36,42 @@ def default_session_fixture():
         yield
 
 
-@pytest.fixture()
+@pytest.fixture(scope="session", autouse=True)
 def app() -> Generator[Any, Flask, Any]:
     app = create_app()
     app.config.update({"TESTING": True})
+    return app
+
+
+@pytest.fixture(autouse=True)
+def dbapp(app):
     with app.app_context():
+        db.drop_all()  # drop unconditionally in case tests errored and the db isn't clean...
         db.create_all()
+        # Add US location, used in multiple tests
+        us = Locations(
+            **{
+                "id": "34315",
+                "type": "country",
+                "name": "United States",
+                "display_name": "United States",
+                "the_geom": "0103000020E6100000010000000500000069ACFD9DED2E5FC0F302ECA3538B384069ACFD9DED2E5FC0D4EE5701BEB148401CB7989F1BBD50C0D4EE5701BEB148401CB7989F1BBD50C0F302ECA3538B384069ACFD9DED2E5FC0F302ECA3538B3840",  # noqa E501
+                "type_order": "1",
+            }
+        )
+        db.session.add(us)
+        db.session.commit()
         yield app
         db.drop_all()
 
 
 @pytest.fixture()
-def client(app):
+def client(app: dbapp):
     return app.test_client()
 
 
 @pytest.fixture()
-def session(app) -> Generator[Any, scoped_session, Any]:
+def session(app: dbapp) -> Generator[Any, scoped_session, Any]:
     with app.app_context():
         connection = db.engine.connect()
         transaction = connection.begin()
@@ -87,6 +105,13 @@ def default_function_fixture(interface):
 @pytest.fixture
 def fixtures_json():
     file = Path(__file__).parents[0] / "fixtures.json"
+    with open(file, "r") as file:
+        return json.load(file)
+
+
+@pytest.fixture
+def dol_distribution_json():
+    file = Path(__file__).parents[0] / "distribution-examples/dol-example.json"
     with open(file, "r") as file:
         return json.load(file)
 
@@ -156,6 +181,7 @@ def source_data_waf_csdgm(organization_data: dict) -> dict:
         "source_type": "waf",
         "notification_frequency": "always",
     }
+
 
 @pytest.fixture
 def source_data_waf_iso19115_2(organization_data: dict) -> dict:
@@ -765,12 +791,33 @@ def iso19115_1_transform() -> dict:
         "primaryITInvestmentUII": "{4c6928d8-6ac2-4909-8b3d-a29e2805ce2d}",
     }
 
+
+@pytest.fixture
+def named_location_us():
+    return (
+        '{"type":"MultiPolygon","coordinates":[[[[-124.733253,24.544245],[-124.733253,49.388611],'
+        "[-66.954811,49.388611],[-66.954811,24.544245],[-124.733253,24.544245]]]]}"
+    )
+
+
+@pytest.fixture
+def named_location_stoneham():
+    return (
+        '{"type":"MultiPolygon","coordinates":[[[[-71.1192,42.444],[-71.1192,42.5022],'
+        "[-71.0749,42.5022],[-71.0749,42.444],[-71.1192,42.444]]]]}"
+    )
+
+
+@pytest.fixture
+def invalid_envelope_geojson():
+    return '{"type": "envelope", "coordinates": [[-81.0563, 34.9991], [-80.6033, 35.4024]]}'
+
+
 @pytest.fixture
 def mock_requests_get_ms_iis_waf(monkeypatch):
     """Fixture to mock requests.get with ms-iis-waf HTML content"""
     import requests
 
-    
     def mock_get(url, *args, **kwargs):
         """Mock function to return a predefined HTML response"""
         mock_response = Mock()
@@ -780,9 +827,9 @@ def mock_requests_get_ms_iis_waf(monkeypatch):
         file_path = Path(__file__).parent / "waf-html-examples/ms-iis-waf.html"
         with open(file_path, "r", encoding="utf-8") as file:
             mock_response.text = file.read()
-        
+
         # Set UTF-8 content
-        mock_response.content = mock_response.text.encode('utf-8')
+        mock_response.content = mock_response.text.encode("utf-8")
 
         return mock_response
 
