@@ -251,7 +251,6 @@ class TestCKANLoad:
             "coordinates": [[-81.0563, 34.9991], [-80.6033, 35.4024]],
             "type": "envelope",
         }
-        harvest_source.validator.validate(record)
         assert harvest_source.validator.is_valid(record)
 
     def test_dcatus1_1_federal_validator_fails(
