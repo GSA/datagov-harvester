@@ -158,9 +158,23 @@ class HarvesterDBInterface:
         org = self.db.get(Organization, org_id)
         if org is None:
             return None
-        self.db.delete(org)
-        self.db.commit()
-        return "Organization deleted successfully"
+
+        harvest_sources = (
+            self.db.query(HarvestSource)
+            .filter(HarvestSource.organization_id == org_id)
+            .all()
+        )
+
+        if len(harvest_sources) == 0:
+            self.db.delete(org)
+            self.db.commit()
+            return (f"Deleted organization with ID:{org_id} successfully", 200)
+        else:
+            # ruff: noqa: E501
+            return (
+                f"Failed: {len(harvest_sources)} harvest sources in the organization, please delete those first.",
+                409,
+            )
 
     ## HARVEST SOURCES
     def add_harvest_source(self, source_data):
@@ -228,11 +242,15 @@ class HarvesterDBInterface:
         if len(records) == 0:
             self.db.delete(source)
             self.db.commit()
-            return "Harvest source deleted successfully"
-        else:
             return (
-                f"Failed: {len(records)} records in the Harvest source, "
-                "please Clear it first."
+                f"Deleted harvest source with ID:{source_id} successfully",
+                200,
+            )
+        else:
+            # ruff: noqa: E501
+            return (
+                f"Failed: {len(records)} records in the Harvest source, please clear it first.",
+                409,
             )
 
     ## HARVEST JOB
@@ -317,7 +335,7 @@ class HarvesterDBInterface:
             return f"Harvest job {job_id} not found"
         self.db.delete(job)
         self.db.commit()
-        return "Harvest job deleted successfully"
+        return "Harvest job deleted successfully", 200
 
     ## HARVEST ERROR
     def add_harvest_job_error(self, error_data: dict):

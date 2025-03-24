@@ -1,7 +1,9 @@
 from itertools import groupby
 from unittest.mock import patch
 
+import pytest
 from deepdiff import DeepDiff
+from jsonschema.exceptions import ValidationError
 
 from harvester.harvest import HarvestSource, Record
 from harvester.utils.ckan_utils import create_ckan_resources
@@ -207,3 +209,68 @@ class TestCKANLoad:
         ]
         resources = create_ckan_resources(dol_distribution_json)
         assert resources == expected_resources
+
+    def test_dcatus1_1_federal_validator_success_spatial_string(
+        self,
+        interface_with_fixture_json,
+        job_data_dcatus,
+        internal_compare_data,
+    ):
+        """
+        This test is used to ensure that sources that use
+        dcatus1.1: federal as their schema and contains a "spatial"
+        attribute as a string that it passes validation.
+        """
+        # Set up the harvest source
+        harvest_source = HarvestSource(job_data_dcatus["id"])
+        # Confirm the correct schema type is used in the example
+        assert harvest_source.schema_type == "dcatus1.1: federal"
+        record = internal_compare_data["records"][0]
+        # force in "spatial" attr as string
+        record["spatial"] = "United States"
+        assert harvest_source.validator.is_valid(record)
+
+    def test_dcatus1_1_federal_validator_success_spatial_object(
+        self,
+        interface_with_fixture_json,
+        job_data_dcatus,
+        internal_compare_data,
+    ):
+        """
+        This test is used to ensure that sources that use
+        dcatus1.1: federal as their schema and contains a "spatial"
+        attribute as a object with a "type" as a string
+        and "coordinates" as an array of numbers
+        that it passes validation.
+        """
+        harvest_source = HarvestSource(job_data_dcatus["id"])
+        assert harvest_source.schema_type == "dcatus1.1: federal"
+        record = internal_compare_data["records"][0]
+        # force in "spatial" attr as json object
+        record["spatial"] = {
+            "coordinates": [[-81.0563, 34.9991], [-80.6033, 35.4024]],
+            "type": "envelope",
+        }
+        assert harvest_source.validator.is_valid(record)
+
+    def test_dcatus1_1_federal_validator_fails(
+        self,
+        interface_with_fixture_json,
+        job_data_dcatus,
+        internal_compare_data,
+    ):
+        """
+        This test is used to ensure that sources that use
+        dcatus1.1: federal as their schema and contains a "spatial"
+        attribute that isn't a string or json object that meets
+        the defined criteria, fails validation.
+        """
+        harvest_source = HarvestSource(job_data_dcatus["id"])
+        assert harvest_source.schema_type == "dcatus1.1: federal"
+
+        record = internal_compare_data["records"][0]
+        # force in "spatial" attr as array of strings
+        record["spatial"] = ["United States"]
+        assert harvest_source.validator.is_valid(record) is False
+        with pytest.raises(ValidationError):
+            harvest_source.validator.validate(record)

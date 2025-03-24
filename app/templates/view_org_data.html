@@ -28,17 +28,18 @@
     </div>
     {% if session['user'] %}
     <div class="config-actions organization-config-actions">
-        <ul class="usa-button-group">
-            <li class="usa-button-group__item">
-                <a href="{{ url_for('harvest.edit_organization', org_id=data.organization.id) }}">
-                    <button class="usa-button">Edit</button>
-                </a>
-            </li>
-            <li class="usa-button-group__item">
-                <button class="usa-button usa-button--secondary"
-                    onclick="confirmDelete('/organization/config/delete/{{data.organization.id}}')">Delete</button>
-            </li>
-        </ul>
+        <form method="POST" action>
+            {{ form.hidden_tag() }}
+            <ul class="usa-button-group">
+                <li class="usa-button-group__item">
+                    {{form.edit(class_='usa-button')}}
+                </li>
+
+                <li class="usa-button-group__item">
+                    {{form.delete(class_='usa-button usa-button--secondary', onclick="confirmSubmit(event, 'delete')")}}
+                </li>
+            </ul>
+        </form>
     </div>
     {% endif %}
     <div class="section margin-top-5 organization-harvest-source-list">
@@ -64,7 +65,7 @@
                     {% for source in data.harvest_sources %}
                     <tr>
                         <td data-sort-value={{source.date_created}}><a
-                                href="{{ url_for('harvest.view_harvest_source_data', source_id=source.id) }}">{{source.name}}</a>
+                                href="{{ url_for('harvest.view_harvest_source', source_id=source.id) }}">{{source.name}}</a>
                         </td>
                         <td scope="row" class="text-center">
                             {% if data.harvest_jobs[source.id] %}
@@ -100,24 +101,12 @@
 
 {% block scripts %}
 <script>
-    // force confirmation dialog for delete of organization
-    async function confirmDelete(route) {
-        let choice = window.confirm(`Do you want to delete this Harvest Source?`)
-        if (choice) {
-            const rawResponse = await fetch(route, {
-                method: 'POST',
-                headers: {
-                    'Accept': 'application/json',
-                    'Content-Type': 'application/json'
-                },
-                body: {}
-            });
-            let res = await rawResponse.json()
-            if (res.message && res.message == 'success') {
-                return window.location.replace('/')
-            } else {
-                return window.location.reload()
-            }
+    function confirmSubmit(event, type) {
+        let messageEnum = {
+            'delete': 'Are you sure you want to delete this organization?'
+        }
+        if (!confirm(messageEnum[type])) {
+            event.preventDefault(); // Prevents the form from submitting if the user cancels
         }
     }
 

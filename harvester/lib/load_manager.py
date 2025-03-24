@@ -126,23 +126,28 @@ class LoadManager:
     def trigger_manual_job(self, source_id, job_type="harvest"):
         """manual trigger harvest job,
         takes a source_id"""
-        source = interface.get_harvest_source(source_id)
-        jobs_in_progress = interface.pget_harvest_jobs(
-            facets=f"harvest_source_id = '{source.id}', status = 'in_progress'",
-            paginate=False,
-        )
-        if len(jobs_in_progress):
-            return f"Can't trigger harvest. Job {jobs_in_progress[0].id} already in progress."  # noqa E501
-        job_data = interface.add_harvest_job(
-            {
-                "harvest_source_id": source.id,
-                "status": "new",
-                "job_type": job_type,
-                "date_created": datetime.now(),
-            }
-        )
-        if job_data:
-            logger.info(
-                f"Created new manual harvest job: for {job_data.harvest_source_id}."
+        try:
+            source = interface.get_harvest_source(source_id)
+            jobs_in_progress = interface.pget_harvest_jobs(
+                facets=f"harvest_source_id = '{source.id}', status = 'in_progress'",
+                paginate=False,
             )
-            return self.start_job(job_data.id, job_type)
+            if len(jobs_in_progress):
+                return f"Can't trigger harvest. Job {jobs_in_progress[0].id} already in progress."  # noqa E501
+            job_data = interface.add_harvest_job(
+                {
+                    "harvest_source_id": source.id,
+                    "status": "new",
+                    "job_type": job_type,
+                    "date_created": datetime.now(),
+                }
+            )
+            if job_data:
+                logger.info(
+                    f"Created new manual harvest job: for {job_data.harvest_source_id}."
+                )
+                return self.start_job(job_data.id, job_type)
+        except Exception as e:
+            message = f"LoadManager: trigger_manual_job failed :: {repr(e)}"
+            logger.error(message)
+            return message
