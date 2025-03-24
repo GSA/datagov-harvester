@@ -12,12 +12,12 @@
     {% else %}
     <h1>Details for Harvest Job Id: {{data.job.id}}</h1>
     <p>For Harvest Source Id: <a
-            href="{{ url_for('harvest.view_harvest_source_data', source_id=data.job.harvest_source_id) }}">
+            href="{{ url_for('harvest.view_harvest_source', source_id=data.job.harvest_source_id) }}">
             {{data.job.harvest_source_id}}
         </a>
     </p>
     <h2>Job Info</h2>
-    <div class="config-table">
+    <div class="config-table harvest-job-config-properties">
         <table class="table">
             {% if data['percent_complete'] %}
             <tr class="bg-error-light">
