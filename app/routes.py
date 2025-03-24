@@ -482,7 +482,7 @@ def edit_organization(org_id):
             flash(f"Updated org with ID: {org.id}")
         else:
             flash("Failed to update organization.")
-        return redirect(url_for("harvest.view_organization"), org_id=org_id)
+        return redirect(url_for("harvest.view_organization", org_id=org_id))
     elif form.errors:
         flash(form.errors)
         return redirect(url_for("harvest.edit_organization", org_id=org_id))
