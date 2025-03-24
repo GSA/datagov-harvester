@@ -1,27 +1,4 @@
-from functools import wraps
-
-from flask.testing import FlaskClient
-
-# ruff: noqa: E501
-
-
-# decorator to spoof login in session
-def force_login(email=None):
-    def inner(f):
-        @wraps(f)
-        def wrapper(*args, **kwargs):
-            if email:
-                for key, val in kwargs.items():
-                    if isinstance(val, FlaskClient):
-                        with val:
-                            with val.session_transaction() as sess:
-                                sess["user"] = email
-                            return f(*args, **kwargs)
-            return f(*args, **kwargs)
-
-        return wrapper
-
-    return inner
+from tests.utils.test_decorators import force_login
 
 
 class TestLogin:
@@ -38,6 +15,7 @@ class TestLogin:
         self, client, interface_no_jobs, source_data_dcatus
     ):
         res = client.get(f"/harvest_source/config/edit/{source_data_dcatus['id']}")
+        # ruff: noqa: E501
         redirect_str = 'You should be redirected automatically to the target URL: <a href="/login">/login</a>'
         assert res.status_code == 302
         assert res.text.find(redirect_str) != -1
@@ -46,6 +24,7 @@ class TestLogin:
     @force_login(email="test@data.gov")
     def test_harvest_edit_bad_source_url(self, client, interface_no_jobs):
         res = client.get("/harvest_source/config/edit/1234")
+        # ruff: noqa: E501
         redirect_str = 'You should be redirected automatically to the target URL: <a href="/harvest_sources/">/harvest_sources/</a>'
         assert res.status_code == 302
         assert res.text.find(redirect_str) != -1
@@ -55,14 +34,14 @@ class TestLogin:
     def test_org_edit_buttons__logged_in(
         self,
         client,
-        interface_with_multiple_jobs,
-        source_data_dcatus,
+        interface_no_jobs,
         organization_data,
     ):
         res = client.get(f"/organization/{organization_data['id']}")
-        button_string_text = '<div class="config-actions">'
-        org_edit_text = f'<a href="/organization/config/edit/{organization_data["id"]}"'
-        org_delete_text = f"onclick=\"confirmDelete('/organization/config/delete/{organization_data['id']}')"
+        # ruff: noqa: E501
+        button_string_text = '<div class="config-actions organization-config-actions">'
+        org_edit_text = '<input class="usa-button" id="edit" name="edit" type="submit" value="Edit">'
+        org_delete_text = '<input class="usa-button usa-button--secondary" id="delete" name="delete" onclick="confirmSubmit(event, &#39;delete&#39;)" type="submit" value="Delete">'
         assert res.status_code == 200
         assert res.text.find(button_string_text) != -1
         assert res.text.find(org_edit_text) != -1
@@ -74,8 +53,8 @@ class TestLogin:
     ):
         res = client.get(f"/organization/{organization_data['id']}")
         button_string_text = '<div class="config-actions">'
-        org_edit_text = f'<a href="/organization/config/edit/{organization_data["id"]}"'
-        org_delete_text = f"onclick=\"confirmDelete('/organization/config/delete/{organization_data['id']}')"
+        org_edit_text = '<input class="usa-button" id="edit" name="edit" type="submit" value="Edit">'
+        org_delete_text = '<input class="usa-button usa-button--secondary" id="delete" name="delete" onclick="confirmSubmit(event, &#39;delete&#39;)" type="submit" value="Delete">'
         assert res.status_code == 200
         assert res.text.find(button_string_text) == -1
         assert res.text.find(org_edit_text) == -1
@@ -87,17 +66,17 @@ class TestLogin:
         self, client, interface_no_jobs, source_data_dcatus
     ):
         res = client.get(f"/harvest_source/{source_data_dcatus['id']}")
-        button_string_text = '<div class="config-actions">'
-        source_edit_text = (
-            f'<a href="/harvest_source/config/edit/{source_data_dcatus["id"]}"'
+        button_string_text = (
+            '<div class="config-actions harvest-source-config-actions">'
         )
-        source_clear_text = (
-            f'<a href="/harvest_source/harvest/{source_data_dcatus["id"]}/clear"'
-        )
-        source_delete_text = f"onclick=\"confirmAction('delete', '/harvest_source/config/delete/{source_data_dcatus['id']}')"
+        source_edit_text = '<input class="usa-button" id="edit" name="edit" type="submit" value="Edit">'
+        source_harvest_text = '<input class="usa-button usa-button--base" id="harvest" name="harvest" type="submit" value="Harvest">'
+        source_clear_text = ' <input class="usa-button usa-button--accent-cool" id="clear" name="clear" onclick="confirmSubmit(event, &#39;clear&#39;)" type="submit" value="Clear">'
+        source_delete_text = '<input class="usa-button usa-button--secondary" id="delete" name="delete" onclick="confirmSubmit(event, &#39;delete&#39;)" type="submit" value="Delete">'
         assert res.status_code == 200
         assert res.text.find(button_string_text) != -1
         assert res.text.find(source_edit_text) != -1
+        assert res.text.find(source_harvest_text) != -1
         assert res.text.find(source_clear_text) != -1
         assert res.text.find(source_delete_text) != -1
 
@@ -106,14 +85,16 @@ class TestLogin:
         self, client, interface_no_jobs, source_data_dcatus
     ):
         res = client.get(f"/harvest_source/{source_data_dcatus['id']}")
-        button_string_text = '<div class="config-actions">'
-        source_edit_text = (
-            f'<a href="/harvest_source/config/edit/{source_data_dcatus["id"]}"'
+        button_string_text = (
+            '<div class="config-actions harvest-source-config-actions">'
         )
-        source_clear_text = f"onclick=\"confirmAction('clear', '/harvest_source/config/clear/{source_data_dcatus['id']}')"
-        source_delete_text = f"onclick=\"confirmAction('delete', '/harvest_source/config/delete/{source_data_dcatus['id']}')"
+        source_edit_text = '<input class="usa-button" id="edit" name="edit" type="submit" value="Edit">'
+        source_harvest_text = '<input class="usa-button usa-button--base" id="harvest" name="harvest" type="submit" value="Harvest">'
+        source_clear_text = ' <input class="usa-button usa-button--accent-cool" id="clear" name="clear" onclick="confirmSubmit(event, &#39;clear&#39;)" type="submit" value="Clear">'
+        source_delete_text = '<input class="usa-button usa-button--secondary" id="delete" name="delete" onclick="confirmSubmit(event, &#39;delete&#39;)" type="submit" value="Delete">'
         assert res.status_code == 200
         assert res.text.find(button_string_text) == -1
         assert res.text.find(source_edit_text) == -1
+        assert res.text.find(source_harvest_text) == -1
         assert res.text.find(source_clear_text) == -1
         assert res.text.find(source_delete_text) == -1

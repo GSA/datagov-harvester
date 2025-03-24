@@ -3,6 +3,7 @@ space_name: development
 route_external: datagov-harvest-admin-dev.app.cloud.gov
 admin_instances: 2
 admin_memory_quota: 1G
+admin_disk_quota: 4G
 
 CF_API_URL: https://api.fr.cloud.gov
 CKAN_API_URL: https://catalog-next-dev-admin-datagov.app.cloud.gov

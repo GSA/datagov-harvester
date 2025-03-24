@@ -1,19 +1,24 @@
 import argparse
 import hashlib
 import json
+import logging
 import os
 from datetime import datetime, timedelta, timezone
 from typing import Union
+from urllib.parse import urljoin
 
+import geojson_validator
 import requests
 import sansjson
 from bs4 import BeautifulSoup
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger()
 
 FREQUENCY_ENUM = {"daily": 1, "weekly": 7, "biweekly": 14, "monthly": 30}
 
 
 def prepare_transform_msg(transform_data):
-
     # ruff: noqa: E731
     mask_info = lambda s: "WARNING" in s or "ERROR" in s
 
@@ -83,17 +88,21 @@ def download_file(url: str, file_type: str) -> Union[str, dict]:
 
 
 def traverse_waf(
-    url, files=[], file_ext=".xml", folder="/", filters=["../", "dcatus/"]
+    url, files=None, file_ext=".xml", folder="/", filters=["../", "dcatus/"]
 ):
-    """Transverses WAF
+    """
+    Transverses WAF
     Please add docstrings
     """
     # TODO: add exception handling
     parent = os.path.dirname(url.rstrip("/"))
 
     folders = []
-
     res = requests.get(url)
+
+    if files is None:
+        files = []
+
     if res.status_code == 200:
         soup = BeautifulSoup(res.content, "html.parser")
         anchors = soup.find_all("a", href=True)
@@ -106,16 +115,15 @@ def traverse_waf(
                 )  # it's not the parent folder right?
                 and anchor["href"] not in filters  # and it's not on our exclusion list?
             ):
-                folders.append(os.path.join(url, anchor["href"]))
+                folders.append(urljoin(url, anchor["href"]))
 
             if anchor["href"].endswith(file_ext):
                 # TODO: just download the file here
                 # instead of storing them and returning at the end.
-                files.append(os.path.join(url, anchor["href"]))
+                files.append(urljoin(url, anchor["href"]))
 
     for folder in folders:
         traverse_waf(folder, files=files, filters=filters)
-
     return files
 
 
@@ -159,6 +167,143 @@ def convert_to_int(value):
 
 def get_datetime():
     return datetime.now(timezone.utc)
+
+
+def is_number(s):
+    try:
+        float(s)
+        return True
+    except ValueError:
+        return False
+
+
+# Find if a line between 2 x coordinates would cross the meridian
+def crosses_meridian(val1, val2):
+    longs = [val1, val2]
+    longs.sort()
+    if longs[1] > 180 and longs[0] <= 180:
+        return True, val1 - val2 > 0
+    if longs[0] < -180 and longs[1] >= -180:
+        return True, val1 - val2 > 0
+    return False, None
+
+
+# Change value to valid x coordinate, no matter how far afield
+def fix_longitude(val):
+    if val > 180:
+        return fix_longitude(val - 360)
+    if val < -180:
+        return fix_longitude(val + 360)
+    return val
+
+
+# https://www.rfc-editor.org/rfc/rfc7946#section-3.1.9
+# Changes polygon to multi-polygon around the antimeridian
+# We can assume this is a counter-clockwise list creating a polygon
+def spatial_wrap_around_meridian(geom):
+    # Place our new geometry here
+    new_geom = {"type": "MultiPolygon", "coordinates": [[[], []]]}
+    # We will switch between the two polygons as we cross the meridian
+    polygon_num = 0
+
+    # Find where we cross, and fill the multi-polygon
+    point_list = geom.get("coordinates")[0]
+    for i, coord in enumerate(point_list):
+        # If we are at the last point, then we can just save it and break
+        if i == len(point_list) - 1:
+            new_geom["coordinates"][0][polygon_num].append(
+                [fix_longitude(coord[0]), coord[1]]
+            )
+            break
+        # Am I going to cross the meridian on the next point?
+        crossing_meridian, is_positive = crosses_meridian(
+            coord[0], point_list[i + 1][0]
+        )
+        if crossing_meridian:
+            new_long = fix_longitude(coord[0])
+            new_geom["coordinates"][0][polygon_num].append([new_long, coord[1]])
+            # Assume we start on the left side of the meridian
+            longs = [180.0, -180.0]
+            if is_positive:
+                # If not, we started on the right side
+                longs = [-180.0, 180.0]
+            # Calculate the distance longitude between the 2 points
+            x_dist = abs(coord[0] - point_list[i + 1][0])
+            # Calculate the percentage of the longitude to the meridian
+            x_perc = abs(abs(new_long) - 180.0) / x_dist
+            # Calculate the height at the meridian
+            height_at_meridian = (
+                point_list[i + 1][1] - point_list[i][1]
+            ) * x_perc + coord[1]
+            # Add the point at the meridian
+            new_geom["coordinates"][0][polygon_num].append(
+                [longs[0], height_at_meridian]
+            )
+            # Wrap up the "middle" polygon, it ends where it begins.
+            if polygon_num == 1:
+                new_geom["coordinates"][0][polygon_num].append(
+                    new_geom["coordinates"][0][polygon_num][0]
+                )
+            polygon_num = (polygon_num + 1) % 2
+            # Start the next polygon at the same point, just on the other side.
+            new_geom["coordinates"][0][polygon_num].append([longs[1], coord[1]])
+        # If not, continue to add to the current polygon
+        else:
+            new_geom["coordinates"][0][polygon_num].append(
+                [fix_longitude(coord[0]), coord[1]]
+            )
+    # Unclear why this is needed, but to work with the right hand rule.
+    # https://medium.com/@jinagamvasubabu/solution-polygons-and-multipolygons-should-follow-the-right-hand-rule-27b96fa61c6
+    new_geom["coordinates"][0][1].reverse()
+    return new_geom
+
+
+def validate_geojson(geojson_str: str) -> bool:
+    try:
+        res = geojson_validator.validate_geometries(json.loads(geojson_str))
+        # If the geometry is valid, return the string
+        if res.get("invalid") == {} and res.get("problematic") == {}:
+            return geojson_str
+        else:
+            logger.warning(
+                f"This spatial value has problems: {geojson_str}, we will attempt a fix and revalidate"
+            )
+    # ruff: noqa: E722
+    except:
+        logger.warning(f"This spatial value was unable be validated: {geojson_str}")
+        pass
+
+    # Try to fix the geometry
+    try:
+        geojson = json.loads(geojson_str)
+        # Multi-polygon doesn't get cleaned up well, if it's actually a polygon then change to that
+        if (
+            geojson.get("type") == "MultiPolygon"
+            and len(geojson.get("coordinates")) == 1
+            and len(geojson.get("coordinates")[0]) == 1
+        ):
+            geojson["type"] = "Polygon"
+            geojson["coordinates"] = geojson["coordinates"][0]
+        fixed_geom = geojson_validator.fix_geometries(geojson)
+        fixed_geom = fixed_geom.get("features")[0].get("geometry")
+        res = geojson_validator.validate_geometries(fixed_geom)
+        if res.get("invalid") == {} and res.get("problematic") == {}:
+            return json.dumps(fixed_geom)
+        elif (
+            res.get("problematic").get("crosses_antimeridian") is not None
+            and fixed_geom.get("type") == "Polygon"
+        ):
+            fixed_geom = spatial_wrap_around_meridian(fixed_geom)
+            return json.dumps(fixed_geom)
+        else:
+            logger.warning(
+                f"This spatial value will be ignored: {geojson_str}, for the following reasons: {res}"
+            )
+    # ruff: noqa: E722
+    except:
+        logger.warning(f"This spatial value was unable be fixed: {geojson_str}")
+        pass
+    return False
 
 
 def dynamic_map_list_items_to_dict(list, fields):

@@ -18,7 +18,9 @@
                 }
             ],
             "modified": "R/P1W",
-            "programCode": ["000:000"],
+            "programCode": [
+                "000:000"
+            ],
             "publisher": {
                 "name": "U.S. Commodity Futures Trading Commission",
                 "subOrganizationOf": {
@@ -27,9 +29,16 @@
             },
             "title": "Commitment of Traders",
             "accessLevel": "public",
-            "bureauCode": ["339:00"],
+            "bureauCode": [
+                "339:00"
+            ],
             "identifier": "cftc-dc1",
-            "keyword": ["commitment of traders", "cot", "open interest"]
+            "keyword": [
+                "commitment of traders",
+                "cot",
+                "open interest"
+            ],
+            "spatial": "United States"
         }
     ]
 }

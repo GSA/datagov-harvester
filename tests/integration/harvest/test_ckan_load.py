@@ -1,9 +1,12 @@
 from itertools import groupby
 from unittest.mock import patch
 
+import pytest
 from deepdiff import DeepDiff
+from jsonschema.exceptions import ValidationError
 
 from harvester.harvest import HarvestSource, Record
+from harvester.utils.ckan_utils import create_ckan_resources
 from harvester.utils.general_utils import dataset_to_hash, sort_dataset
 
 # ruff: noqa: E501
@@ -125,7 +128,12 @@ class TestCKANLoad:
             "title": "Commitment of Traders",
             "resources": [
                 {
-                    "url": "https://www.cftc.gov/MarketReports/CommitmentsofTraders/index.htm"
+                    "url": "https://www.cftc.gov/MarketReports/CommitmentsofTraders/index.htm",
+                    "mimetype": "text/html",
+                    "no_real_name": True,
+                    "format": "HTML",
+                    "name": "Web Page",
+                    "description": "index.htm",
                 }
             ],
             "tags": [
@@ -155,9 +163,114 @@ class TestCKANLoad:
                     "key": "publisher",
                     "value": "U.S. Commodity Futures Trading Commission",
                 },
+                {"key": "old-spatial", "value": "United States"},
+                {
+                    "key": "spatial",
+                    "value": '{"type":"MultiPolygon","coordinates":[[[[-124.733253,24.544245],[-124.733253,49.388611],'
+                    "[-66.954811,49.388611],[-66.954811,24.544245],[-124.733253,24.544245]]]]}",
+                },
                 {"key": "identifier", "value": "cftc-dc1"},
             ],
         }
 
         test_record.ckanify_dcatus()
         assert DeepDiff(test_record.ckanified_metadata, expected_result) == {}
+
+    def test_create_ckan_resources(self, dol_distribution_json):
+        """
+        Test that we are accurately parsing information from the
+        distribution sections.
+        """
+        expected_resources = [
+            {
+                "url": "https://data.wa.gov/api/views/f6w7-q2d2/rows.csv?accessType=DOWNLOAD",
+                "mimetype": "text/csv",
+                "no_real_name": True,
+                "name": "Web Resource",
+            },
+            {
+                "url": "https://data.wa.gov/api/views/f6w7-q2d2/rows.rdf?accessType=DOWNLOAD",
+                "mimetype": "application/rdf+xml",
+                "no_real_name": True,
+                "name": "Web Resource",
+            },
+            {
+                "url": "https://data.wa.gov/api/views/f6w7-q2d2/rows.json?accessType=DOWNLOAD",
+                "mimetype": "application/json",
+                "no_real_name": True,
+                "name": "Web Resource",
+            },
+            {
+                "url": "https://data.wa.gov/api/views/f6w7-q2d2/rows.xml?accessType=DOWNLOAD",
+                "mimetype": "application/xml",
+                "no_real_name": True,
+                "name": "Web Resource",
+            },
+        ]
+        resources = create_ckan_resources(dol_distribution_json)
+        assert resources == expected_resources
+
+    def test_dcatus1_1_federal_validator_success_spatial_string(
+        self,
+        interface_with_fixture_json,
+        job_data_dcatus,
+        internal_compare_data,
+    ):
+        """
+        This test is used to ensure that sources that use
+        dcatus1.1: federal as their schema and contains a "spatial"
+        attribute as a string that it passes validation.
+        """
+        # Set up the harvest source
+        harvest_source = HarvestSource(job_data_dcatus["id"])
+        # Confirm the correct schema type is used in the example
+        assert harvest_source.schema_type == "dcatus1.1: federal"
+        record = internal_compare_data["records"][0]
+        # force in "spatial" attr as string
+        record["spatial"] = "United States"
+        assert harvest_source.validator.is_valid(record)
+
+    def test_dcatus1_1_federal_validator_success_spatial_object(
+        self,
+        interface_with_fixture_json,
+        job_data_dcatus,
+        internal_compare_data,
+    ):
+        """
+        This test is used to ensure that sources that use
+        dcatus1.1: federal as their schema and contains a "spatial"
+        attribute as a object with a "type" as a string
+        and "coordinates" as an array of numbers
+        that it passes validation.
+        """
+        harvest_source = HarvestSource(job_data_dcatus["id"])
+        assert harvest_source.schema_type == "dcatus1.1: federal"
+        record = internal_compare_data["records"][0]
+        # force in "spatial" attr as json object
+        record["spatial"] = {
+            "coordinates": [[-81.0563, 34.9991], [-80.6033, 35.4024]],
+            "type": "envelope",
+        }
+        assert harvest_source.validator.is_valid(record)
+
+    def test_dcatus1_1_federal_validator_fails(
+        self,
+        interface_with_fixture_json,
+        job_data_dcatus,
+        internal_compare_data,
+    ):
+        """
+        This test is used to ensure that sources that use
+        dcatus1.1: federal as their schema and contains a "spatial"
+        attribute that isn't a string or json object that meets
+        the defined criteria, fails validation.
+        """
+        harvest_source = HarvestSource(job_data_dcatus["id"])
+        assert harvest_source.schema_type == "dcatus1.1: federal"
+
+        record = internal_compare_data["records"][0]
+        # force in "spatial" attr as array of strings
+        record["spatial"] = ["United States"]
+        assert harvest_source.validator.is_valid(record) is False
+        with pytest.raises(ValidationError):
+            harvest_source.validator.validate(record)

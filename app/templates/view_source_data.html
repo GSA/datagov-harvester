@@ -10,10 +10,6 @@
 {% endblock %}
 
 {% block content %}
-<div id="flash-message"
-    style="display:none; position:fixed; top:10px; left:50%; transform:translateX(-50%); background-color:#ffcc00; color:black; padding:10px; border:1px solid #000; z-index:1000;">
-    Action in progress...
-</div>
 <div class="wrapper source-data">
     {% if not data.source %}
     <h2>Whooops!</h2>
@@ -21,7 +17,7 @@
     {% else %}
     <h1>{{data.source["name"]}}</h1>
     <h2>Configuration:</h2>
-    <div class="config-table">
+    <div class="config-table harvest-source-config-properties">
         <table class="table">
             {% for key, value in data.source.items() %}
             <tr>
@@ -32,29 +28,31 @@
         </table>
     </div>
     {% if session['user'] %}
-    <div class="config-actions">
-        <ul class="usa-button-group">
-            <li class="usa-button-group__item">
-                <a href="{{ url_for('harvest.edit_harvest_source', source_id=data.source.id)}}">
-                    <button class="usa-button">Edit</button>
-                </a>
-            </li>
-            <li class="usa-button-group__item">
-                <a href="{{ url_for('harvest.trigger_harvest_source', source_id=data.source.id, job_type='harvest')}}">
-                    <button class="usa-button usa-button--base">Harvest</button>
-                </a>
-            </li>
-            <li class="usa-button-group__item">
-                <a href="{{ url_for('harvest.trigger_harvest_source', source_id=data.source.id, job_type='clear') }}"
-                    onclick="return confirm('Are you sure you want to clear all datasets?');">
-                    <button class="btn btn-primary">Clear</button>
-                </a>
-            </li>
-            <li class="usa-button-group__item">
-                <button class="usa-button usa-button--secondary"
-                    onclick="confirmAction('delete', '/harvest_source/config/delete/{{data.source.id}}')">Delete</button>
-            </li>
-        </ul>
+    <div class="config-actions harvest-source-config-actions">
+        <form method="POST" action>
+            {{ form.hidden_tag() }}
+            <ul class="usa-button-group">
+                <li class="usa-button-group__item">
+                    {{form.edit(class_='usa-button')}}
+                </li>
+                <li class="usa-button-group__item">
+                    {{form.harvest(class_='usa-button usa-button--base')}}
+                </li>
+                <li class="usa-button-group__item">
+                    {{form.clear(class_='usa-button usa-button--accent-cool', onclick="confirmSubmit(event, 'clear')")}}
+                </li>
+                <li class="usa-button-group__item">
+                    {{form.delete(class_='usa-button usa-button--secondary', onclick="confirmSubmit(event, 'delete')")}}
+
+                </li>
+            </ul>
+            <fieldset class="usa-fieldset">
+                <div class="usa-checkbox">
+                    {{form.force_check(class_='usa-checkbox__input')}}
+                    {{form.force_check.label(class_='usa-checkbox__label')}}
+                </div>
+            </fieldset>
+        </form>
     </div>
     {% endif %}
     <br>
@@ -68,7 +66,7 @@
     </a>
     {% endif %}
 
-    <div class="config-table">
+    <div class="config-table harvest-source-config-summary">
         <table class="table">
             <tr>
                 <td>Records:</td>
@@ -160,35 +158,14 @@
 
 {% block scripts %}
 <script>
-    // force confirmation dialog for delete or clear of harvest source
-    async function confirmAction(action, route) {
-        let choice = window.confirm(`Do you want to ${action} Harvest Source?`)
-        if (choice) {
-            let flashMessage = document.getElementById('flash-message');
-            flashMessage.style.display = 'block';
-            flashMessage.innerHTML = `${action.charAt(0).toUpperCase() + action.slice(1)} in progress...`;
-
-            const rawResponse = await fetch(route, {
-                method: 'POST',
-                headers: {
-                    'Accept': 'application/json',
-                    'Content-Type': 'application/json'
-                },
-                body: {}
-            });
-            let res = await rawResponse.json()
-
-            flashMessage.style.display = 'none';
-
-            if (res.message && res.message == 'success') {
-                if (action === 'delete') {
-                    return window.location.replace('/');
-                } else {
-                    return window.location.reload();
-                }
-            } else {
-                return window.location.reload()
-            }
+    //
+    function confirmSubmit(event, type) {
+        let messageEnum = {
+            'clear': 'Are you sure you want to clear all datasets?',
+            'delete': 'Are you sure you want to delete this source?'
+        }
+        if (!confirm(messageEnum[type])) {
+            event.preventDefault(); // Prevents the form from submitting if the user cancels
         }
     }
 
