@@ -75,3 +75,7 @@ class TestRoutes:
         response = client.get("/organization/add", json=data, headers=headers)
         assert response.status_code == 401
         assert response.data.decode() == "error: Unauthorized"
+
+    def test_all_routes(self, client):
+        for route in client.application.url_map.iter_rules():
+            print(route)

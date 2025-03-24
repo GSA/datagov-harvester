@@ -11,8 +11,7 @@
     <p>Looks like you navigated to a job that doesn't exist.</p>
     {% else %}
     <h1>Details for Harvest Job Id: {{data.job.id}}</h1>
-    <p>For Harvest Source Id: <a
-            href="{{ url_for('harvest.view_harvest_source', source_id=data.job.harvest_source_id) }}">
+    <p>For Harvest Source Id: <a href="{{ url_for('main.view_harvest_source', source_id=data.job.harvest_source_id) }}">
             {{data.job.harvest_source_id}}
         </a>
     </p>
@@ -37,7 +36,7 @@
     <div class="config-actions">
         <ul class="usa-button-group">
             <li class="usa-button-group__item">
-                <a href="{{ url_for('harvest.cancel_harvest_job', job_id=data.job.id)}}">
+                <a href="{{ url_for('main.cancel_harvest_job', job_id=data.job.id)}}">
                     <button class="usa-button usa-button--secondary">Cancel</button>
                 </a>
             </li>
@@ -50,7 +49,7 @@
         No job errors found
         {% else %}
         {% set error_type = "job" %}
-        <a href="{{ url_for('harvest.download_harvest_errors_by_job', job_id=data.job.id, error_type=error_type)}}">
+        <a href="{{ url_for('main.download_harvest_errors_by_job', job_id=data.job.id, error_type=error_type)}}">
             <button class="btn btn-primary">download job errors as .csv</button>
         </a>
         <div class="usa-table-container--scrollable" tabindex="0">
@@ -86,7 +85,7 @@
         <p>No record errors found</p>
         {% else %}
         {% set error_type = "record" %}
-        <a href="{{ url_for('harvest.download_harvest_errors_by_job', job_id=data.job.id, error_type=error_type)}}">
+        <a href="{{ url_for('main.download_harvest_errors_by_job', job_id=data.job.id, error_type=error_type)}}">
             <button class="btn btn-primary">download record errors as .csv</button>
         </a>
         <div class="usa-table-container--scrollable" tabindex="0">
@@ -102,7 +101,7 @@
                         <p><strong>Harvest Record ID:</strong>
                             {% if record_error.error.harvest_record_id %}
                             <a
-                                href="{{ url_for('harvest.get_harvest_record', record_id=record_error.error.harvest_record_id) }}">
+                                href="{{ url_for('main.get_harvest_record', record_id=record_error.error.harvest_record_id) }}">
                                 {{ record_error.error.harvest_record_id }}
                             </a>
                             {% else %}

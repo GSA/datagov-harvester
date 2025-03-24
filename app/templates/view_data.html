@@ -20,26 +20,26 @@
 </table>
 <div class="view-buttons">
     {% if session['user'] %}
-        {% if source_id %}
-        <a href="{{ url_for('harvest.edit_harvest_source', source_id=source_id)}}">
-            <button class="btn btn-primary">Edit</button>
-        </a>
-        <a href="{{ url_for('harvest.trigger_harvest_source', source_id=source_id)}}">
-            <button class="btn btn-secondary">Harvest</button>
-        </a>
-        <a href="{{ url_for('harvest.trigger_harvest_source', source_id=data.harvest_source.id, job_type='clear') }}"
-            onclick="return confirm('Are you sure you want to clear all datasets?');">
-            <button class="btn btn-primary">Clear</button>
-        </a>
-        <button class="btn btn-danger"
-            onclick="confirmAction('harvest source', 'delete', '/harvest_source/config/delete/{{source_id}}')">Delete</button>
-        {% elif org_id %}
-        <a href="{{ url_for('harvest.edit_organization', org_id=org_id)}}">
-            <button class="btn btn-primary">Edit</button>
-        </a>
-        <button class="btn btn-danger"
-            onclick="confirmAction('organization', 'delete', '/organization/config/delete/{{org_id}}')">Delete</button>
-        {% endif %}
+    {% if source_id %}
+    <a href="{{ url_for('main.edit_harvest_source', source_id=source_id)}}">
+        <button class="btn btn-primary">Edit</button>
+    </a>
+    <a href="{{ url_for('main.trigger_harvest_source', source_id=source_id)}}">
+        <button class="btn btn-secondary">Harvest</button>
+    </a>
+    <a href="{{ url_for('main.trigger_harvest_source', source_id=data.harvest_source.id, job_type='clear') }}"
+        onclick="return confirm('Are you sure you want to clear all datasets?');">
+        <button class="btn btn-primary">Clear</button>
+    </a>
+    <button class="btn btn-danger"
+        onclick="confirmAction('harvest source', 'delete', '/harvest_source/config/delete/{{source_id}}')">Delete</button>
+    {% elif org_id %}
+    <a href="{{ url_for('main.edit_organization', org_id=org_id)}}">
+        <button class="btn btn-primary">Edit</button>
+    </a>
+    <button class="btn btn-danger"
+        onclick="confirmAction('organization', 'delete', '/organization/config/delete/{{org_id}}')">Delete</button>
+    {% endif %}
     {% endif %}
 </div>
 {% endblock %}

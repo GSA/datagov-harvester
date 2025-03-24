@@ -35,7 +35,7 @@
                         {% for job in data.jobs %}
                         <tr>
                             <td data-sort-value="{{ job.harvest_source_id }}">
-                                <a href="{{ url_for('harvest.view_harvest_source', source_id=job.harvest_source_id) }}">
+                                <a href="{{ url_for('main.view_harvest_source', source_id=job.harvest_source_id) }}">
                                     {{ job.harvest_source_id[:8] }}...
                                 </a>
                             </td>
@@ -56,14 +56,14 @@
                             <td>
                                 <ul class="usa-button-group">
                                     <li class="usa-button-group__item">
-                                        <a href="{{ url_for('harvest.view_harvest_job', job_id=job.id) }}"
+                                        <a href="{{ url_for('main.view_harvest_job', job_id=job.id) }}"
                                             class="usa-button usa-button--outline">
                                             View
                                         </a>
                                     </li>
                                     {% if job.status == 'in_progress' %}
                                     <li class="usa-button-group__item">
-                                        <a href="{{ url_for('harvest.cancel_harvest_job', job_id=job.id) }}"
+                                        <a href="{{ url_for('main.cancel_harvest_job', job_id=job.id) }}"
                                             class="usa-button usa-button--secondary">
                                             Cancel
                                         </a>
