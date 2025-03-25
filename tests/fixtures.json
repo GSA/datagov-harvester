@@ -145,48 +145,56 @@
     ],
     "record_error": [
         {
+            "id": "3ccb48db-21fc-427a-9ec7-36b0d0f621d2",
             "harvest_record_id": "0779c855-df20-49c8-9108-66359d82b77c",
             "harvest_job_id": "6bce761c-7a39-41c1-ac73-94234c139c76",
             "message": "record is invalid",
             "type": "ValidationException"
         },
         {
+            "id": "05b8a956-e859-40fe-9ffb-cc066dec41c7",
             "harvest_record_id": "c218c965-3670-45c8-bfcd-f852d71ed917",
             "harvest_job_id": "6bce761c-7a39-41c1-ac73-94234c139c76",
             "message": "record is invalid",
             "type": "ValidationException"
         },
         {
+            "id": "6e27aa5c-3368-49cc-9b17-b59d3b47177d",
             "harvest_record_id": "e1f603cc-8b6b-483f-beb4-86bda5462b79",
             "harvest_job_id": "6bce761c-7a39-41c1-ac73-94234c139c76",
             "message": "record is invalid",
             "type": "ValidationException"
         },
         {
+            "id": "ec326f77-38cd-4a7b-9526-034177115e75",
             "harvest_record_id": "1c004473-0802-4f22-a16d-7a2d7559719e",
             "harvest_job_id": "6bce761c-7a39-41c1-ac73-94234c139c76",
             "message": "record is invalid",
             "type": "ValidationException"
         },
         {
+            "id": "16da0742-0208-4532-86af-788a83795e38",
             "harvest_record_id": "deb12fa0-d812-4d6e-98f4-d4f7d776c6b3",
             "harvest_job_id": "6bce761c-7a39-41c1-ac73-94234c139c76",
             "message": "record is invalid",
             "type": "ValidationException"
         },
         {
+            "id": "0def5b48-2b5f-4fce-a450-7ab378fd1e4c",
             "harvest_record_id": "27b5d5d6-808b-4a8c-ae4a-99f118e282dd",
             "harvest_job_id": "6bce761c-7a39-41c1-ac73-94234c139c76",
             "message": "record is invalid",
             "type": "ValidationException"
         },
         {
+            "id": "bde75861-a57f-4d1e-b712-2b8302cd9a25",
             "harvest_record_id": "c232a2ca-6344-4692-adc2-29f618a2eff3",
             "harvest_job_id": "6bce761c-7a39-41c1-ac73-94234c139c76",
             "message": "record is invalid",
             "type": "ValidationException"
         },
         {
+            "id": "00e1f3c7-959f-4d0c-b604-5338dbb88664",
             "harvest_record_id": "95021355-bad0-442b-98e9-475ecd849033",
             "harvest_job_id": "6bce761c-7a39-41c1-ac73-94234c139c76",
             "message": "record is invalid",

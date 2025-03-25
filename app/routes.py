@@ -70,6 +70,8 @@ ISSUER = os.getenv("ISSUER")
 AUTH_URL = ISSUER + "/openid_connect/authorize"
 TOKEN_URL = ISSUER + "/api/openid_connect/token"
 
+STATUS_STRINGS_ENUM = {"404": "Not Found"}
+
 
 def login_required(f):
     @wraps(f)
@@ -830,7 +832,6 @@ def add_harvest_job():
 
 
 ### Get Job
-@main.route("/harvest_job/", methods=["GET"])
 @main.route("/harvest_job/<job_id>", methods=["GET"])
 def view_harvest_job(job_id=None):
     record_error_count = db.get_harvest_record_errors_by_job(
@@ -877,7 +878,7 @@ def view_harvest_job(job_id=None):
     else:
         job = db.get_harvest_job(job_id)
         if request.args.get("type") and request.args.get("type") == "json":
-            return db._to_dict(job) if job else ("Not Found", 404)
+            return db._to_dict(job) if job else (STATUS_STRINGS_ENUM["404"], 404)
         else:
             data = {
                 "job": job,
@@ -986,7 +987,7 @@ def download_harvest_errors_by_job(job_id, error_type):
 @main.route("/harvest_record/<record_id>", methods=["GET"])
 def get_harvest_record(record_id):
     record = db.get_harvest_record(record_id)
-    return db._to_dict(record) if record else ("Not Found", 404)
+    return db._to_dict(record) if record else (STATUS_STRINGS_ENUM["404"], 404)
 
 
 ## Get records
@@ -1028,7 +1029,7 @@ def get_harvest_record_raw(record_id=None):
         except json.JSONDecodeError:
             return {"error": "Invalid JSON format in source_raw"}, 500
     else:
-        return {"error": "Not Found"}, 404
+        return {"error": STATUS_STRINGS_ENUM["404"]}, 404
 
 
 ## Add record
@@ -1050,23 +1051,25 @@ def add_harvest_record():
 def get_all_harvest_record_errors(record_id: str) -> list:
     try:
         record_errors = db.get_harvest_errors_by_record(record_id)
-        return db._to_dict(record_errors) if record_errors else ("Not Found", 404)
+        return (
+            db._to_dict(record_errors)
+            if record_errors
+            else (STATUS_STRINGS_ENUM["404"], 404)
+        )
     except Exception:
-        return "Please provide correct record_id"
+        return "Please provide a valid record_id"
 
 
 ## Harvest Error
 ### Get error by id
-@main.route("/harvest_error/", methods=["GET"])
 @main.route("/harvest_error/<error_id>", methods=["GET"])
 def get_harvest_error(error_id: str = None) -> dict:
     # retrieves the given error ( either job or record )
-    if error_id:
+    try:
         error = db.get_harvest_error(error_id)
-        return db._to_dict(error) if error else ("Not Found", 404)
-    else:
-        errors = db.get_all_harvest_errors()
-        return db._to_dict(errors)
+        return db._to_dict(error) if error else (STATUS_STRINGS_ENUM["404"], 404)
+    except Exception:
+        return "Please provide a valid record_id"
 
 
 @main.route("/metrics/", methods=["GET"])
