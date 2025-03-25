@@ -1,6 +1,8 @@
 import os
 import re
 
+# ruff: noqa: F401
+
 
 class TestDynamicRouteTable:
     """
@@ -62,7 +64,8 @@ class TestDynamicRouteTable:
                         )
                     except Exception as e:
                         raise Exception(
-                            f"{route.endpoint} fails to get {cleaned_route_rule} for {repr(e)} reason"
+                            f"{route.endpoint} fails to get {cleaned_route_rule} \
+                                for {repr(e)} reason"
                         )
 
     def test_bad_id_get_responses(self, client):
@@ -100,6 +103,7 @@ class TestDynamicRouteTable:
             "main.get_harvest_error": "Not Found",
         }
         # some respond with a template
+        # ruff: noqa: E501
         templated_responses_map = {
             "main.view_organization": "Looks like you navigated to an organization that doesn't exist",
             "main.view_harvest_source": "Looks like you navigated to a source that doesn't exist",
@@ -115,7 +119,7 @@ class TestDynamicRouteTable:
                     try:
                         # assert against a decoded byte-string
                         assert res.data.decode() == json_responses_map[route.endpoint]
-                    except Exception as e:
+                    except Exception:
                         raise Exception(
                             f"{route.endpoint} fails to map {res.data.decode()} to json_responses_map"
                         )
@@ -125,7 +129,7 @@ class TestDynamicRouteTable:
                         assert (
                             templated_responses_map[route.endpoint].encode() in res.data
                         )
-                    except Exception as e:
+                    except Exception:
                         raise Exception(
                             f"{route.endpoint} fails to map {templated_responses_map[route.endpoint]} substring to response"
                         )
