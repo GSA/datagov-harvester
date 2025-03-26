@@ -46,6 +46,7 @@ from .forms import (
     OrganizationTriggerForm,
 )
 from .paginate import Pagination
+from .commands.evaluate_sources import evaluate_sources
 
 logger = logging.getLogger("harvest_admin")
 
@@ -300,6 +301,15 @@ def cli_remove_harvest_source(id):
         print(f"Triggered delete of harvest source with ID: {id}")
     else:
         print("Failed to delete harvest source")
+
+
+@source.cli.command("evaluate_sources")
+def cli_evaluate_sources():
+    """
+    Evaluates existing sources to see if they are still availible,
+    captures the response code, and schema type.
+    """
+    evaluate_sources()
 
 
 ## Harvet Job Management
