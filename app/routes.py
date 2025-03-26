@@ -39,6 +39,7 @@ from harvester.utils.general_utils import (
 )
 
 from . import htmx
+from .commands.evaluate_sources import evaluate_sources
 from .forms import (
     HarvestSourceForm,
     HarvestTriggerForm,
@@ -46,7 +47,6 @@ from .forms import (
     OrganizationTriggerForm,
 )
 from .paginate import Pagination
-from .commands.evaluate_sources import evaluate_sources
 
 logger = logging.getLogger("harvest_admin")
 

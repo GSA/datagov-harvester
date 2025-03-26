@@ -1,18 +1,22 @@
-import requests
 import csv
-from typing import Dict, List
 import logging
-from requests.models import Response
 import xml.etree.ElementTree as ET
-from harvester.utils.general_utils import traverse_waf
-from requests.exceptions import Timeout
+from typing import Dict, List
 
+import requests
+from requests.exceptions import JSONDecodeError, Timeout
+from requests.models import Response
+
+from harvester.utils.general_utils import traverse_waf
 
 logger = logging.getLogger(__name__)
 
 CATALOG_SOURCE_URL = "https://catalog.data.gov/api/action/package_search"
 HEADERS = {
-    "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36"
+    "User-Agent": (
+        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/91.0 Safari/537.36"
+    )
 }
 
 
@@ -77,7 +81,7 @@ def determine_metadata_type(response: Response) -> str:
     json = None
     try:
         json = response.json()
-    except:
+    except JSONDecodeError:
         pass
 
     # if it's JSON it's going to be DCAT-US
