@@ -8,7 +8,7 @@
 <div class="wrapper job-data">
     {% if not data.job %}
     <h2>Whooops!</h2>
-    <p>Looks like you navigated to a job that doesn't exist.</p>
+    <p>Looks like you navigated to a harvest job that doesn't exist.</p>
     {% else %}
     <h1>Details for Harvest Job Id: {{data.job.id}}</h1>
     <p>For Harvest Source Id: <a href="{{ url_for('main.view_harvest_source', source_id=data.job.harvest_source_id) }}">

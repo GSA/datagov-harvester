@@ -750,7 +750,7 @@ def edit_harvest_source(source_id: str):
         organizations = db.get_all_organizations()
         if source and organizations:
             organization_choices = [
-                (str(org["id"]), f'{org["name"]} - {org["id"]}')
+                (str(org["id"]), f"{org['name']} - {org['id']}")
                 for org in db._to_dict(organizations)
             ]
             source.notification_emails = ", ".join(source.notification_emails)
@@ -1050,7 +1050,7 @@ def add_harvest_record():
 @main.route("/harvest_record/<record_id>/errors", methods=["GET"])
 def get_all_harvest_record_errors(record_id: str) -> list:
     try:
-        record_errors = db.get_harvest_errors_by_record(record_id)
+        record_errors = db.get_harvest_record_errors_by_record(record_id)
         return (
             db._to_dict(record_errors)
             if record_errors

@@ -3,6 +3,11 @@ import re
 
 # ruff: noqa: F401
 
+LOCATION_ENUMS = {
+    "LOGIN": "/login",
+    "NONE": None,
+}
+
 
 class TestDynamicRouteTable:
     """
@@ -28,93 +33,151 @@ class TestDynamicRouteTable:
             "main.logout",
             "main.callback",
         ]
-        # provide a simple map for MOST other routes
-        simple_assertion_map = {"200": None, "302": "/login"}
-        # provide a special assertions map for routes which do something special
+        # provide a special assertions regex map for routes which do something special
         special_assertion_map = {
-            "main.index": {"status_code": 302, "location": "/organizations/"},
+            "(main\.index)": {
+                "(GET|HEAD)": {
+                    "status_code": 302,
+                    "location": "/organizations/",
+                },
+            },
+            "((main|api)\.(add|edit|cancel|update|delete|trigger)_(organization|harvest_source|harvest_job|harvest_record))": {
+                "(POST|HEAD|PUT|DELETE)": {
+                    "status_code": 302,
+                    "location": LOCATION_ENUMS["LOGIN"],
+                }
+            },
+        }
+        # provide a simple map for MOST other routes
+        default_assertion_map = {
+            "GET": {"200": LOCATION_ENUMS["NONE"], "302": LOCATION_ENUMS["LOGIN"]},
+            "POST": {"302": "<cleaned_route_rule>"},
+            "OPTIONS": {"200": LOCATION_ENUMS["NONE"]},
+            "HEAD": {"200": LOCATION_ENUMS["NONE"]},
         }
         for route in client.application.url_map.iter_rules():
-            if route.endpoint not in whitelisted_routes:
-                # replace arg values with real data
-                replacements = [
-                    ("<org_id>", organization_data["id"]),
-                    ("<source_id>", source_data_dcatus["id"]),
-                    ("<job_id>", job_data_dcatus["id"]),
-                    ("<error_type>", "record"),
-                    ("<record_id>", record_data_dcatus[0]["id"]),
-                    ("<error_id>", record_error_data[0]["id"]),
-                ]
-                cleaned_route_rule = route.rule
-                for old, new in replacements:
-                    cleaned_route_rule = re.sub(old, new, cleaned_route_rule)
+            if route.endpoint in whitelisted_routes:
+                continue
 
-                res = client.get(cleaned_route_rule)
+            # replace arg values with real data
+            replacements = [
+                ("<org_id>", organization_data["id"]),
+                ("<source_id>", source_data_dcatus["id"]),
+                ("<job_id>", job_data_dcatus["id"]),
+                ("<error_type>", "record"),
+                ("<record_id>", record_data_dcatus[0]["id"]),
+                ("<error_id>", record_error_data[0]["id"]),
+            ]
+            cleaned_route_rule = route.rule
+            for old, new in replacements:
+                cleaned_route_rule = re.sub(old, new, cleaned_route_rule)
 
-                # test special assertions first
-                if route.endpoint in special_assertion_map:
-                    for key, val in special_assertion_map[route.endpoint].items():
-                        assert getattr(res, key) == val
-                else:
-                    try:
-                        # test ALL other non-whitelisted routes
-                        assert (
-                            simple_assertion_map[str(getattr(res, "status_code"))]
-                            == res.location
+            for method in route.methods:
+                client_method = getattr(client, method.lower(), None)
+                res = client_method(cleaned_route_rule)
+
+                # check if route.endpoint matches any regex in special_assertion_map
+                re_match_route_list = list(
+                    filter(lambda x: re.match(x, route.endpoint), special_assertion_map)
+                )
+
+                # throw exception if route endpoint matches more than one regex in special_assertion_map
+                if len(re_match_route_list) > 1:
+                    raise Exception(
+                        f"Regex error: more than one match for {route.endpoint} :: {re_match_route_list}"
+                    )
+
+                # check our method regex next if we have a match to the route endpoint
+                if len(re_match_route_list):
+                    re_match_method_list = list(
+                        filter(
+                            lambda x: re.match(x, method),
+                            special_assertion_map[re_match_route_list[0]],
                         )
+                    )
+
+                # if route matches a regex in special_assertion_map
+                if len(re_match_route_list) and len(re_match_method_list):
+                    for key, val in special_assertion_map[re_match_route_list[0]][
+                        re_match_method_list[0]
+                    ].items():
+                        try:
+                            assert getattr(res, key) == val
+                        except Exception as e:
+                            raise Exception(
+                                f"{re_match_route_list[0]} fails {re_match_method_list[0]} on {cleaned_route_rule} \
+                                        for {repr(e)} reason"
+                            )
+
+                # test other non-whitelisted routes
+                else:
+                    if not default_assertion_map.get(method):
+                        continue  # throw away METHODS we don't explicitly test for
+                    try:
+                        # replace res assertion values with real data
+                        replacements = [
+                            ("<cleaned_route_rule>", cleaned_route_rule),
+                        ]
+
+                        expected_location = default_assertion_map[method][
+                            str(getattr(res, "status_code"))
+                        ]
+
+                        if expected_location is None:
+                            assert expected_location == res.location
+                            continue
+
+                        for old, new in replacements:
+                            expected_location = re.sub(old, new, expected_location)
+
+                        assert expected_location == res.location
                     except Exception as e:
                         raise Exception(
-                            f"{route.endpoint} fails to get {cleaned_route_rule} \
+                            f"{route.endpoint} fails {method} on {cleaned_route_rule} \
                                 for {repr(e)} reason"
                         )
 
-    def test_bad_id_get_responses(self, client):
+    def test_client_response_on_error(self, client):
         # ignore routes which aren't public GETS and don't accept args
-        whitelisted_routes = [
-            "static",
-            "bootstrap.static",
-            "main.login",
-            "main.logout",
-            "main.callback",
-            "main.index",
-            "main.add_organization",
-            "main.edit_organization",
-            "main.view_organizations",
-            "main.add_harvest_source",
-            "main.edit_harvest_source",
-            "main.view_harvest_sources",
-            "main.add_harvest_job",
-            "main.update_harvest_job",
-            "main.delete_harvest_job",
-            "main.cancel_harvest_job",
-            "main.add_harvest_record",
-            "main.get_harvest_records",
-            "main.view_metrics",
-            "api.delete_organization",
-            "api.delete_harvest_source",
-            "api.trigger_harvest_source",
-        ]
+        whitelisted_route_regex = "((main|api|bootstrap)?(?:\.)?(add|edit|cancel|update|delete|trigger|view)?(?:_)?(static|index|callback|get_harvest_records|view_metrics|log(in|out)|organization(?:s)?|harvest_source|harvest_job|harvest_record))"
 
         # some endpoints respond with JSON
         json_responses_map = {
             "main.get_harvest_record": "Not Found",
             "main.get_harvest_record_raw": '{"error":"Not Found"}\n',
-            "main.get_all_harvest_record_errors": "Please provide a valid record_id",
+            "main.get_all_harvest_record_errors": "Not Found",
             "main.get_harvest_error": "Not Found",
         }
         # some respond with a template
         # ruff: noqa: E501
         templated_responses_map = {
-            "main.view_organization": "Looks like you navigated to an organization that doesn't exist",
-            "main.view_harvest_source": "Looks like you navigated to a source that doesn't exist",
-            "main.view_harvest_job": "Looks like you navigated to a job that doesn't exist",
-            "main.download_harvest_errors_by_job": "Please provide correct job_id",
+            "main.view_organization": {
+                "GET": "Looks like you navigated to an organization that doesn't exist",
+                "POST": 'You should be redirected automatically to the target URL: <a href="/organization/1234">/organization/1234</a>',
+            },
+            "main.view_harvest_source": {
+                "GET": "Looks like you navigated to a harvest source that doesn't exist",
+                "POST": 'You should be redirected automatically to the target URL: <a href="/harvest_source/1234">/harvest_source/1234</a>',
+            },
+            "main.view_harvest_job": {
+                "GET": "Looks like you navigated to a harvest job that doesn't exist"
+            },
+            "main.download_harvest_errors_by_job": {
+                "GET": "Please provide correct job_id"
+            },
         }
         for route in client.application.url_map.iter_rules():
-            if route.endpoint not in whitelisted_routes:
-                cleaned_route_rule = re.sub("(\<.*?\>)", "1234", route.rule)
+            if re.match(whitelisted_route_regex, route.endpoint):
+                continue
 
-                res = client.get(cleaned_route_rule)
+            cleaned_route_rule = re.sub("(\<.*?\>)", "1234", route.rule)
+
+            for method in route.methods:
+                if method in ["HEAD", "OPTIONS"]:
+                    continue  # we get no response body from these methods, so skip them
+                client_method = getattr(client, method.lower(), None)
+                res = client_method(cleaned_route_rule)
+
                 if route.endpoint in json_responses_map:
                     try:
                         # assert against a decoded byte-string
@@ -127,7 +190,8 @@ class TestDynamicRouteTable:
                     try:
                         # assert against a substring in the byte-string response
                         assert (
-                            templated_responses_map[route.endpoint].encode() in res.data
+                            templated_responses_map[route.endpoint][method].encode()
+                            in res.data
                         )
                     except Exception:
                         raise Exception(
