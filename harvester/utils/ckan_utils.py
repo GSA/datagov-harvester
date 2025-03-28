@@ -20,6 +20,16 @@ MIN_TAG_LENGTH = 2
 
 db = HarvesterDBInterface()
 
+
+def trim_tag(tag):
+    # deal with something like
+    # EARTH   SCIENCE > ATMOSPHERE > ATMOSPHERIC ELECTRICITY > ATMOSPHERIC CONDUCTIVITY
+    # Truncate individual keywords to 100 characters since DB fields is varchar 100
+    trimmed = re.split(r"[;,>]", tag)
+    trimmed = [t.lower().strip() for t in trimmed]
+    return set([" ".join(t.split())[:100] for t in trimmed if t != ""])
+
+
 # mapping of file formats and their respective names
 # taken from https://github.com/GSA/ckanext-geodatagov/blob/4510c5be2bb9ecc16de8bae082fef4d970f10f55/ckanext/geodatagov/plugin.py#L59-L282
 RESOURCE_MAPPING = {
@@ -456,8 +466,10 @@ def create_ckan_tags(keywords: list[str]) -> list:
     output = []
 
     for keyword in keywords:
-        output.append({"name": munge_tag(keyword)})
-
+        for tag in trim_tag(keyword):
+            data = {"name": munge_tag(tag)}
+            if data not in output:
+                output.append(data)
     return output
 
 

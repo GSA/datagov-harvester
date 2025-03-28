@@ -835,3 +835,14 @@ def mock_requests_get_ms_iis_waf(monkeypatch):
 
     # Apply the patch using monkeypatch
     monkeypatch.setattr(requests, "get", mock_get)
+
+
+@pytest.fixture
+def dcatus_keywords():
+    return [
+        "EARTH         SCIENCE > BIOSPHERE > ECOSYSTEMS > MARINE ECOSYSTEMS > COASTAL",
+        "earth science",
+        "Waquoit Bay NERR, MA",
+        "DOC/NOAA/NOS/OCM > Office of Coastal Management, National Ocean Service, NOAA, U.S. Department of Commerce",
+        "NERRS",
+    ]
