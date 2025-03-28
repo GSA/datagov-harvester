@@ -11,28 +11,36 @@
         {
             "@type": "dcat:Distribution",
             "downloadURL": "https://data.wa.gov/api/views/f6w7-q2d2/rows.csv?accessType=DOWNLOAD",
-            "mediaType": "text/csv"
+            "mediaType": "text/csv",
+            "description": "CSV resource for battery electric vehicles in WA",
+            "title": "Battery Electric Vehicle CSV File"
         },
         {
             "@type": "dcat:Distribution",
             "describedBy": "https://data.wa.gov/api/views/f6w7-q2d2/columns.rdf",
             "describedByType": "application/rdf+xml",
             "downloadURL": "https://data.wa.gov/api/views/f6w7-q2d2/rows.rdf?accessType=DOWNLOAD",
-            "mediaType": "application/rdf+xml"
+            "mediaType": "application/rdf+xml",
+            "description": "RDF resource for plug-in hybrid electric vehicles in WA",
+            "title": "Plug-in Hybrid Electric Vehicles RDF file"
         },
         {
             "@type": "dcat:Distribution",
             "describedBy": "https://data.wa.gov/api/views/f6w7-q2d2/columns.json",
             "describedByType": "application/json",
             "downloadURL": "https://data.wa.gov/api/views/f6w7-q2d2/rows.json?accessType=DOWNLOAD",
-            "mediaType": "application/json"
+            "mediaType": "application/json",
+            "description": "JSON resource for BEVs & PHEVs in WA",
+            "title": "BEVs & PHEVs JSON file"
         },
         {
             "@type": "dcat:Distribution",
             "describedBy": "https://data.wa.gov/api/views/f6w7-q2d2/columns.xml",
             "describedByType": "application/xml",
             "downloadURL": "https://data.wa.gov/api/views/f6w7-q2d2/rows.xml?accessType=DOWNLOAD",
-            "mediaType": "application/xml"
+            "mediaType": "application/xml",
+            "description": "XML resource for electric and hybrid vehicles in WA",
+            "title": "Electric and Hybrid Vehicles XML file"
         }
     ],
     "identifier": "https://data.wa.gov/api/views/f6w7-q2d2",
