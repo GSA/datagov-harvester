@@ -615,10 +615,11 @@ def create_ckan_resources(metadata: dict) -> list[dict]:
         return output
 
     for dist in metadata["distribution"]:
-        resource = {
-            "description": dist.get("description", ""),
-            "name": dist.get("title", ""),
-        }
+        resource = {}
+        if "description" in dist:
+            resource["description"] = dist["description"]
+        if "title" in dist:
+            resource["name"] = dist["title"]
         url_keys = ["downloadURL", "accessURL"]
         for url_key in url_keys:
             if dist.get(url_key, None) is None:
