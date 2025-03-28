@@ -183,28 +183,28 @@ class TestCKANLoad:
         """
         expected_resources = [
             {
+                "description": "CSV resource for battery electric vehicles in WA",
+                "name": "Battery Electric Vehicle CSV File",
                 "url": "https://data.wa.gov/api/views/f6w7-q2d2/rows.csv?accessType=DOWNLOAD",
                 "mimetype": "text/csv",
-                "no_real_name": True,
-                "name": "Web Resource",
             },
             {
+                "description": "RDF resource for plug-in hybrid electric vehicles in WA",
+                "name": "Plug-in Hybrid Electric Vehicles RDF file",
                 "url": "https://data.wa.gov/api/views/f6w7-q2d2/rows.rdf?accessType=DOWNLOAD",
                 "mimetype": "application/rdf+xml",
-                "no_real_name": True,
-                "name": "Web Resource",
             },
             {
+                "description": "JSON resource for BEVs & PHEVs in WA",
+                "name": "BEVs & PHEVs JSON file",
                 "url": "https://data.wa.gov/api/views/f6w7-q2d2/rows.json?accessType=DOWNLOAD",
                 "mimetype": "application/json",
-                "no_real_name": True,
-                "name": "Web Resource",
             },
             {
+                "description": "XML resource for electric and hybrid vehicles in WA",
+                "name": "Electric and Hybrid Vehicles XML file",
                 "url": "https://data.wa.gov/api/views/f6w7-q2d2/rows.xml?accessType=DOWNLOAD",
                 "mimetype": "application/xml",
-                "no_real_name": True,
-                "name": "Web Resource",
             },
         ]
         resources = create_ckan_resources(dol_distribution_json)

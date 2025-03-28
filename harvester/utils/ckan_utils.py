@@ -437,7 +437,8 @@ def create_ckan_extras(
             output.append({"key": "old-spatial", "value": metadata["spatial"]})
             data["value"] = translate_spatial(metadata["spatial"])
         else:
-            if isinstance(val, list):  # TODO: confirm this is what we want.
+            # TODO: confirm this is what we want.
+            if isinstance(val, list) and len(val) > 0:
                 val = val[0]
             data["value"] = val
         output.append(data)
@@ -614,11 +615,15 @@ def create_ckan_resources(metadata: dict) -> list[dict]:
         return output
 
     for dist in metadata["distribution"]:
+        resource = {
+            "description": dist.get("description", ""),
+            "name": dist.get("title", ""),
+        }
         url_keys = ["downloadURL", "accessURL"]
         for url_key in url_keys:
             if dist.get(url_key, None) is None:
                 continue
-            resource = {"url": dist[url_key]}
+            resource["url"] = dist[url_key]
             # set mimetype if provided or discover it
             if "mimetype" in dist:
                 resource["mimetype"] = dist["mediaType"]
