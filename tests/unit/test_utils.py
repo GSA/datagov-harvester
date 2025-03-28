@@ -4,6 +4,7 @@ import pytest
 
 from harvester.utils.ckan_utils import (
     create_ckan_extras,
+    create_ckan_tags,
     munge_spatial,
     munge_tag,
     munge_title_to_name,
@@ -20,9 +21,30 @@ from harvester.utils.general_utils import (
 
 
 class TestCKANUtils:
-    """These tests are copied from
+    """Some of these tests are copied from
     # https://github.com/ckan/ckan/blob/master/ckan/tests/lib/test_munge.py
     """
+
+    def test_create_ckan_tags(self, dcatus_keywords):
+        expected = [
+            {"name": "biosphere"},
+            {"name": "coastal"},
+            {"name": "docnoaanosocm"},
+            {"name": "earth-science"},
+            {"name": "ecosystems"},
+            {"name": "ma"},
+            {"name": "marine-ecosystems"},
+            {"name": "national-ocean-service"},
+            {"name": "nerrs"},
+            {"name": "noaa"},
+            {"name": "office-of-coastal-management"},
+            {"name": "us-department-of-commerce"},
+            {"name": "waquoit-bay-nerr"},
+        ]
+
+        tags = sorted(create_ckan_tags(dcatus_keywords), key=lambda t: t["name"])
+        for i in range(len(tags)):
+            assert tags[i] == expected[i]
 
     @pytest.mark.parametrize(
         "original,expected",
