@@ -383,6 +383,23 @@
           "minLength": 1
         },
         {
+          "type": "object",
+          "properties": {
+            "coordinates": {
+              "type": "array",
+              "items": {
+                "type": "array",
+                "items": {
+                  "type": "number"
+                }
+              }
+            },
+            "type": {
+              "type": "string"
+            }
+          }
+        },
+        {
           "type": "null"
         }
       ]
