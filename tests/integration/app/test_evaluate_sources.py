@@ -1,18 +1,17 @@
+import csv
 import unittest
-from unittest.mock import Mock, patch
+from unittest.mock import MagicMock, Mock, mock_open, patch
 
 import pytest
+from requests.exceptions import ConnectionError, JSONDecodeError, Timeout
+
 from app.commands.evaluate_sources import (
-    handled_request,
     CATALOG_SOURCE_URL,
     HEADERS,
-    get_sources,
     evaluate_sources,
+    get_sources,
+    handled_request,
 )
-from requests.exceptions import ConnectionError, JSONDecodeError, Timeout
-from unittest.mock import patch, mock_open, MagicMock
-import csv
-
 
 CATALOG_SUCCESS_JSON = {
     "help": "https://catalog.data.gov/api/3/action/help_show?name=package_search",
