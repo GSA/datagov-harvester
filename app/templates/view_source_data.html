@@ -13,7 +13,7 @@
 <div class="wrapper source-data">
     {% if not data.source %}
     <h2>Whooops!</h2>
-    <p>Looks like you navigated to a source that doesn't exist.</p>
+    <p>Looks like you navigated to a harvest source that doesn't exist.</p>
     {% else %}
     <h1>{{data.source["name"]}}</h1>
     <h2>Configuration:</h2>
@@ -58,7 +58,7 @@
     <br>
     <h2>Summary: </h2>
     {% if data.summary_data["active_job_in_progress"] %}
-    <a class="text-error" href="{{ url_for('harvest.view_harvest_job', job_id=data.jobs[0].id)}}">
+    <a class="text-error" href="{{ url_for('main.view_harvest_job', job_id=data.jobs[0].id)}}">
         <svg class="usa-icon" aria-hidden="true" focusable="false" role="img">
             <use href="/assets/uswds/img/sprite.svg#alarm"></use>
         </svg>
@@ -126,7 +126,7 @@
                         {% for job in data.jobs %}
                         <tr>
                             <th scope="row"><a
-                                    href="{{ url_for('harvest.view_harvest_job', job_id=job.id) }}">{{job.id[:8]}}</a>
+                                    href="{{ url_for('main.view_harvest_job', job_id=job.id) }}">{{job.id[:8]}}</a>
                             </th>
                             <td data-sort-value={jobs.job_type}> {{job.job_type}}</td>
                             <td data-sort-value={jobs.date_created}> {{job.status}}</td>
