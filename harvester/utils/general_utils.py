@@ -337,3 +337,19 @@ def process_job_complete_percentage(job):
         * 100
     )
     return f"{percent_val}%"
+
+
+def get_server_type(server: str) -> str:
+    """
+    Takes in the the "SERVER" header from the response and returns the
+    server type string we accomadate.
+    Original code from https://github.com/ckan/ckanext-spatial/blob/master/ckanext/spatial/harvesters/waf.py#L277
+    """
+    if not server or "apache" in server.lower():
+        return "apache"
+    if "nginx" in server.lower():
+        return "nginx"
+    if "Microsoft-IIS" in server:
+        return "iis"
+    else:
+        return "other"
