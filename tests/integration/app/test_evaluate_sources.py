@@ -1,9 +1,6 @@
-import csv
-import unittest
 from unittest.mock import MagicMock, Mock, mock_open, patch
 
 import pytest
-from requests.exceptions import ConnectionError, JSONDecodeError, Timeout
 
 from app.commands.evaluate_sources import (
     CATALOG_SOURCE_URL,
@@ -313,7 +310,6 @@ class TestEvaluateSources:
         Test the success of evaluate_sources
         """
         # Mock the CSV writer
-        mock_file = mock_csv_writer["mock_file"]
         mock_writer_instance = mock_csv_writer["mock_writer_instance"]
 
         # Call the function to test

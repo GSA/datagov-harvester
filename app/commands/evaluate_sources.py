@@ -133,7 +133,7 @@ def determine_metadata_type(response: Response) -> str:
                         == "FGDC-STD-001-1998"
                     ):
                         return "FGDC"
-                except AttributeError as e:
+                except AttributeError:
                     # possibly there is no "metainfo"
                     return "N/A"
         # means it may be an ISO19115-X format
