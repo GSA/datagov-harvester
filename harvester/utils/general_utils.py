@@ -352,4 +352,4 @@ def get_server_type(server: str) -> str:
     if "Microsoft-IIS" in server:
         return "iis"
     else:
-        return "other"
+        return server
