@@ -4,6 +4,7 @@ from unittest.mock import patch
 import pytest
 from deepdiff import DeepDiff
 from jsonschema.exceptions import ValidationError
+from harvester.exceptions import ExtractExternalException
 
 from harvester.harvest import HarvestSource, Record
 from harvester.utils.ckan_utils import create_ckan_resources
@@ -102,7 +103,6 @@ class TestCKANLoad:
         harvest_job = interface.add_harvest_job(job_data_dcatus)
 
         harvest_source = HarvestSource(harvest_job.id)
-        harvest_source.prepare_external_data()
 
         record = {
             "identifier": "cftc-dc1",
@@ -274,3 +274,25 @@ class TestCKANLoad:
         assert harvest_source.validator.is_valid(record) is False
         with pytest.raises(ValidationError):
             harvest_source.validator.validate(record)
+
+    def test_duplicate_identifier_raises_extract_exception(
+        self,
+        interface,
+        organization_data,
+        source_data_dcatus,
+        job_data_dcatus,
+    ):
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_dcatus)
+        job = interface.add_harvest_job(job_data_dcatus)
+
+        harvest_source = HarvestSource(job.id)
+        harvest_source.prepare_external_data()
+        record = list(harvest_source.external_records.values())[0].metadata
+
+        # Attempt to load the same record again (simulate duplicate)
+        with pytest.raises(ExtractExternalException) as exc_info:
+            harvest_source.external_records_to_id_hash([record])
+
+        # Assert that the raised exception contains a duplicate identifier message
+        assert "Duplicate identifier" in str(exc_info.value)

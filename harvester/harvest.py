@@ -209,11 +209,11 @@ class HarvestSource:
         for record in records:
             try:
                 identifier = self.get_record_identifier(record)
-                # if identifier in self.external_records:
-                #     raise ExtractExternalException(
-                #         f"Duplicate identifier '{identifier}' found for source: {self.name}",
-                #         self.job_id,
-                #     )
+                if identifier in self.external_records:
+                    raise ExtractExternalException(
+                        f"Duplicate identifier '{identifier}' found for source: {self.name}",
+                        self.job_id,
+                    )
 
                 if self.source_type == "document":
                     dataset_hash = dataset_to_hash(sort_dataset(record))
