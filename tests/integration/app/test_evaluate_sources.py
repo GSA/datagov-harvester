@@ -163,24 +163,6 @@ def mock_csv_writer():
 
 
 @pytest.fixture
-def mock_catalog_request():
-    def _mock_catalog_request(mock_json, status_code=200, ok=True):
-        with patch("requests.get") as mock_get:
-            mock_response = Mock()
-            mock_response.json.return_value = mock_json
-            mock_response.status_code = status_code
-            mock_response.ok = ok
-            mock_response.headers = {
-                "Content-Type": "application/json",
-                "Server": "nginx/1.18.0",
-            }
-            mock_get.return_value = mock_response
-            yield {"mock_get": mock_get, "mock_response": mock_response}
-
-    return _mock_catalog_request
-
-
-@pytest.fixture
 def mock_catalog_request_success():
     with patch("requests.get") as mock_get:
         # Create a mock response object
