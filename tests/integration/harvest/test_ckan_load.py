@@ -281,18 +281,16 @@ class TestCKANLoad:
         organization_data,
         source_data_dcatus,
         job_data_dcatus,
+        duplicated_identifier_records,
     ):
         interface.add_organization(organization_data)
         interface.add_harvest_source(source_data_dcatus)
         job = interface.add_harvest_job(job_data_dcatus)
 
         harvest_source = HarvestSource(job.id)
-        harvest_source.prepare_external_data()
-        record = list(harvest_source.external_records.values())[0].metadata
 
-        # Attempt to load the same record again (simulate duplicate)
         with pytest.raises(ExtractExternalException) as exc_info:
-            harvest_source.external_records_to_id_hash([record])
+            harvest_source.external_records_to_id_hash(duplicated_identifier_records)
 
         # Assert that the raised exception contains a duplicate identifier message
         assert "Duplicate identifier" in str(exc_info.value)
