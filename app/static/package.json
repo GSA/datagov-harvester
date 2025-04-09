@@ -39,7 +39,7 @@
     "gulp": "^5.0.0",
     "rollup": "^4.34.6",
     "rollup-plugin-copy": "^3.5.0",
-    "sass": "^1.83.4",
+    "sass": "^1.86.0",
     "typescript": "^5.7.3",
     "vinyl-buffer": "^1.0.1",
     "vinyl-source-stream": "^2.0.0",
