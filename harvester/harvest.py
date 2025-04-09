@@ -627,9 +627,9 @@ class Record:
 
         mdt_url = os.getenv("MDTRANSLATOR_URL")
         resp = requests.post(mdt_url, json=data)
-        data = resp.json()
 
         if resp.status_code == 422:
+            data = resp.json()
             self.mdt_msgs = prepare_transform_msg(data)
             raise TransformationException(
                 f"record failed to transform: {self.mdt_msgs}",
@@ -637,11 +637,18 @@ class Record:
                 self.id,
             )
 
-        if 200 <= resp.status_code < 300:
+        elif 200 <= resp.status_code < 300:
+            data = resp.json()
             logger.info(
                 f"successfully transformed record: {self.identifier} db id: {self.id}"
             )
             self.transformed_data = json.loads(data["writerOutput"])
+        else:
+            raise TransformationException(
+                f"record failed to transform because of unexpected status code: {resp.status_code}",
+                self.harvest_source.job_id,
+                self.id,
+            )
 
     def validate(self) -> None:
         logger.info(f"validating {self.identifier}")
