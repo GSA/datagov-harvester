@@ -95,8 +95,7 @@ def determine_metadata_type(response: Response) -> str:
     Determine metadata type based on the response.
     Returns: DCAT-US, FGDC, ISO19115-2, ISO19115-1,
     INDETERMINATE (if a parsing error is occured),
-    N/A (if the file is not reachable),
-    None (if the file type is not supported)
+    N/A (if the file is not reachable)
     """
     # does some minor clean up wher `utf-8` will be a part of the header
     content_type = response.headers.get("Content-Type", "").split(";")[0]
@@ -205,9 +204,7 @@ def evaluate_sources() -> None:
                                         xml_response.headers.get("Last-Modified")
                                     )
                                 metadata_type = determine_metadata_type(xml_response)
-                                # if None, it's a type we don't currently work with.
-                                if metadata_type is not None:
-                                    metadata_types.append(metadata_type)
+                                metadata_types.append(metadata_type)
                             else:
                                 logger.error(
                                     "Failed to fetch %s from %s",
