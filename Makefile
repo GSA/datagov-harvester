@@ -44,7 +44,7 @@ test-functional: ## Runs functional tests.
 test-playwright: ## Runs playwright tests.
 	poetry run pytest --local-badge-output-dir tests/badges/playwright/ --cov-report term-missing --junitxml=pytest-playwright.xml --cov=app ./tests/playwright | tee pytest-coverage-playwright.txt
 
-test: clean up test-unit test-integration ## Runs all local tests
+test: up test-unit test-integration ## Runs all local tests
 
 test-e2e-ci: re-up test-playwright test-functional clean ## All e2e/expensive tests. Run on PR into main.
 

@@ -1,7 +1,10 @@
 from itertools import groupby
 from unittest.mock import patch
 
+import pytest
 from deepdiff import DeepDiff
+from jsonschema.exceptions import ValidationError
+from harvester.exceptions import ExtractExternalException
 
 from harvester.harvest import HarvestSource, Record
 from harvester.utils.ckan_utils import create_ckan_resources
@@ -100,7 +103,6 @@ class TestCKANLoad:
         harvest_job = interface.add_harvest_job(job_data_dcatus)
 
         harvest_source = HarvestSource(harvest_job.id)
-        harvest_source.prepare_external_data()
 
         record = {
             "identifier": "cftc-dc1",
@@ -181,29 +183,114 @@ class TestCKANLoad:
         """
         expected_resources = [
             {
+                "description": "CSV resource for battery electric vehicles in WA",
+                "name": "Battery Electric Vehicle CSV File",
                 "url": "https://data.wa.gov/api/views/f6w7-q2d2/rows.csv?accessType=DOWNLOAD",
                 "mimetype": "text/csv",
-                "no_real_name": True,
-                "name": "Web Resource",
             },
             {
+                "description": "RDF resource for plug-in hybrid electric vehicles in WA",
+                "name": "Plug-in Hybrid Electric Vehicles RDF file",
                 "url": "https://data.wa.gov/api/views/f6w7-q2d2/rows.rdf?accessType=DOWNLOAD",
                 "mimetype": "application/rdf+xml",
-                "no_real_name": True,
-                "name": "Web Resource",
             },
             {
+                "description": "JSON resource for BEVs & PHEVs in WA",
+                "name": "BEVs & PHEVs JSON file",
                 "url": "https://data.wa.gov/api/views/f6w7-q2d2/rows.json?accessType=DOWNLOAD",
                 "mimetype": "application/json",
-                "no_real_name": True,
-                "name": "Web Resource",
             },
             {
+                "description": "XML resource for electric and hybrid vehicles in WA",
+                "name": "Electric and Hybrid Vehicles XML file",
                 "url": "https://data.wa.gov/api/views/f6w7-q2d2/rows.xml?accessType=DOWNLOAD",
                 "mimetype": "application/xml",
-                "no_real_name": True,
-                "name": "Web Resource",
             },
         ]
         resources = create_ckan_resources(dol_distribution_json)
         assert resources == expected_resources
+
+    def test_dcatus1_1_federal_validator_success_spatial_string(
+        self,
+        interface_with_fixture_json,
+        job_data_dcatus,
+        internal_compare_data,
+    ):
+        """
+        This test is used to ensure that sources that use
+        dcatus1.1: federal as their schema and contains a "spatial"
+        attribute as a string that it passes validation.
+        """
+        # Set up the harvest source
+        harvest_source = HarvestSource(job_data_dcatus["id"])
+        # Confirm the correct schema type is used in the example
+        assert harvest_source.schema_type == "dcatus1.1: federal"
+        record = internal_compare_data["records"][0]
+        # force in "spatial" attr as string
+        record["spatial"] = "United States"
+        assert harvest_source.validator.is_valid(record)
+
+    def test_dcatus1_1_federal_validator_success_spatial_object(
+        self,
+        interface_with_fixture_json,
+        job_data_dcatus,
+        internal_compare_data,
+    ):
+        """
+        This test is used to ensure that sources that use
+        dcatus1.1: federal as their schema and contains a "spatial"
+        attribute as a object with a "type" as a string
+        and "coordinates" as an array of numbers
+        that it passes validation.
+        """
+        harvest_source = HarvestSource(job_data_dcatus["id"])
+        assert harvest_source.schema_type == "dcatus1.1: federal"
+        record = internal_compare_data["records"][0]
+        # force in "spatial" attr as json object
+        record["spatial"] = {
+            "coordinates": [[-81.0563, 34.9991], [-80.6033, 35.4024]],
+            "type": "envelope",
+        }
+        assert harvest_source.validator.is_valid(record)
+
+    def test_dcatus1_1_federal_validator_fails(
+        self,
+        interface_with_fixture_json,
+        job_data_dcatus,
+        internal_compare_data,
+    ):
+        """
+        This test is used to ensure that sources that use
+        dcatus1.1: federal as their schema and contains a "spatial"
+        attribute that isn't a string or json object that meets
+        the defined criteria, fails validation.
+        """
+        harvest_source = HarvestSource(job_data_dcatus["id"])
+        assert harvest_source.schema_type == "dcatus1.1: federal"
+
+        record = internal_compare_data["records"][0]
+        # force in "spatial" attr as array of strings
+        record["spatial"] = ["United States"]
+        assert harvest_source.validator.is_valid(record) is False
+        with pytest.raises(ValidationError):
+            harvest_source.validator.validate(record)
+
+    def test_duplicate_identifier_raises_extract_exception(
+        self,
+        interface,
+        organization_data,
+        source_data_dcatus,
+        job_data_dcatus,
+        duplicated_identifier_records,
+    ):
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_dcatus)
+        job = interface.add_harvest_job(job_data_dcatus)
+
+        harvest_source = HarvestSource(job.id)
+
+        with pytest.raises(ExtractExternalException) as exc_info:
+            harvest_source.external_records_to_id_hash(duplicated_identifier_records)
+
+        # Assert that the raised exception contains a duplicate identifier message
+        assert "Duplicate identifier" in str(exc_info.value)

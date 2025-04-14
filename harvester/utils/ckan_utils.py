@@ -20,6 +20,16 @@ MIN_TAG_LENGTH = 2
 
 db = HarvesterDBInterface()
 
+
+def trim_tag(tag):
+    # deal with something like
+    # EARTH   SCIENCE > ATMOSPHERE > ATMOSPHERIC ELECTRICITY > ATMOSPHERIC CONDUCTIVITY
+    # Truncate individual keywords to 100 characters since DB fields is varchar 100
+    trimmed = re.split(r"[;,>]", tag)
+    trimmed = [t.lower().strip() for t in trimmed]
+    return set([" ".join(t.split())[:100] for t in trimmed if t != ""])
+
+
 # mapping of file formats and their respective names
 # taken from https://github.com/GSA/ckanext-geodatagov/blob/4510c5be2bb9ecc16de8bae082fef4d970f10f55/ckanext/geodatagov/plugin.py#L59-L282
 RESOURCE_MAPPING = {
@@ -427,7 +437,8 @@ def create_ckan_extras(
             output.append({"key": "old-spatial", "value": metadata["spatial"]})
             data["value"] = translate_spatial(metadata["spatial"])
         else:
-            if isinstance(val, list):  # TODO: confirm this is what we want.
+            # TODO: confirm this is what we want.
+            if isinstance(val, list) and len(val) > 0:
                 val = val[0]
             data["value"] = val
         output.append(data)
@@ -456,8 +467,10 @@ def create_ckan_tags(keywords: list[str]) -> list:
     output = []
 
     for keyword in keywords:
-        output.append({"name": munge_tag(keyword)})
-
+        for tag in trim_tag(keyword):
+            data = {"name": munge_tag(tag)}
+            if data not in output:
+                output.append(data)
     return output
 
 
@@ -602,11 +615,16 @@ def create_ckan_resources(metadata: dict) -> list[dict]:
         return output
 
     for dist in metadata["distribution"]:
+        resource = {}
+        if "description" in dist:
+            resource["description"] = dist["description"]
+        if "title" in dist:
+            resource["name"] = dist["title"]
         url_keys = ["downloadURL", "accessURL"]
         for url_key in url_keys:
             if dist.get(url_key, None) is None:
                 continue
-            resource = {"url": dist[url_key]}
+            resource["url"] = dist[url_key]
             # set mimetype if provided or discover it
             if "mimetype" in dist:
                 resource["mimetype"] = dist["mediaType"]

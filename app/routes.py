@@ -39,6 +39,7 @@ from harvester.utils.general_utils import (
 )
 
 from . import htmx
+from .commands.evaluate_sources import evaluate_sources
 from .forms import (
     HarvestSourceForm,
     HarvestTriggerForm,
@@ -50,7 +51,8 @@ from .paginate import Pagination
 logger = logging.getLogger("harvest_admin")
 
 user = Blueprint("user", __name__)
-mod = Blueprint("harvest", __name__)
+auth = Blueprint("auth", __name__)
+main = Blueprint("main", __name__)
 org = Blueprint("org", __name__)
 source = Blueprint("harvest_source", __name__)
 job = Blueprint("harvest_job", __name__)
@@ -69,6 +71,8 @@ ISSUER = os.getenv("ISSUER")
 AUTH_URL = ISSUER + "/openid_connect/authorize"
 TOKEN_URL = ISSUER + "/api/openid_connect/token"
 
+STATUS_STRINGS_ENUM = {"404": "Not Found"}
+
 
 def login_required(f):
     @wraps(f)
@@ -85,7 +89,7 @@ def login_required(f):
         # check session-based authentication for web users
         if "user" not in session:
             session["next"] = request.url
-            return redirect(url_for("harvest.login"))
+            return redirect(url_for("main.login"))
         return f(*args, **kwargs)
 
     return decorated_function
@@ -119,10 +123,10 @@ def create_client_assertion():
 def trigger_manual_job_helper(source_id, job_type="harvest"):
     message = load_manager.trigger_manual_job(source_id, job_type)
     flash(message)
-    return redirect(url_for("harvest.view_harvest_source", source_id=source_id))
+    return redirect(url_for("main.view_harvest_source", source_id=source_id))
 
 
-@mod.route("/login")
+@main.route("/login")
 def login():
     state = secrets.token_urlsafe(32)
     nonce = secrets.token_urlsafe(32)
@@ -141,13 +145,13 @@ def login():
     return redirect(auth_request_url)
 
 
-@mod.route("/logout")
+@main.route("/logout")
 def logout():
     session.pop("user", None)
-    return redirect(url_for("harvest.index"))
+    return redirect(url_for("main.index"))
 
 
-@mod.route("/callback")
+@main.route("/callback")
 def callback():
     code = request.args.get("code")
     state = request.args.get("state")
@@ -187,10 +191,10 @@ def callback():
         if next_url:
             return redirect(url_for(next_url))
         else:
-            return redirect(url_for("harvest.index"))
+            return redirect(url_for("main.index"))
     else:
         flash("Please request registration from the admin before proceeding.")
-        return redirect(url_for("harvest.index"))
+        return redirect(url_for("main.index"))
 
 
 # CLI commands
@@ -302,6 +306,15 @@ def cli_remove_harvest_source(id):
         print("Failed to delete harvest source")
 
 
+@source.cli.command("evaluate_sources")
+def cli_evaluate_sources():
+    """
+    Evaluates existing sources to see if they are still availible,
+    captures the response code, and schema type.
+    """
+    evaluate_sources()
+
+
 ## Harvet Job Management
 @job.cli.command("delete")
 @click.argument("id")
@@ -358,14 +371,14 @@ def make_new_org_contract(form):
 
 
 # Routes
-@mod.route("/", methods=["GET"])
+@main.route("/", methods=["GET"])
 def index():
-    return redirect(url_for("harvest.view_organizations"))
+    return redirect(url_for("main.view_organizations"))
 
 
 ## Organizations
 ### Add Org
-@mod.route("/organization/add", methods=["POST", "GET"])
+@main.route("/organization/add", methods=["POST", "GET"])
 @login_required
 def add_organization():
     if request.is_json:
@@ -388,10 +401,10 @@ def add_organization():
                 flash(f"Added new organization with ID: {org.id}")
             else:
                 flash("Failed to add organization.")
-            return redirect(url_for("harvest.view_organizations"))
+            return redirect(url_for("main.view_organizations"))
         elif form.errors:
             flash(form.errors)
-            return redirect(url_for("harvest.add_organization"))
+            return redirect(url_for("main.add_organization"))
     return render_template(
         "edit_data.html",
         form=form,
@@ -401,7 +414,7 @@ def add_organization():
     )
 
 
-@mod.route("/organizations/", methods=["GET"])
+@main.route("/organizations/", methods=["GET"])
 def view_organizations():
     organizations = db.get_all_organizations()
     if request.args.get("type") and request.args.get("type") == "json":
@@ -411,27 +424,27 @@ def view_organizations():
         return render_template("view_org_list.html", data=data)
 
 
-@mod.route("/organization/<org_id>", methods=["GET", "POST"])
+@main.route("/organization/<org_id>", methods=["GET", "POST"])
 def view_organization(org_id: str):
     if request.method == "POST":
         form = OrganizationTriggerForm(request.form)
         if form.data["edit"]:
-            return redirect(url_for("harvest.edit_organization", org_id=org_id))
+            return redirect(url_for("main.edit_organization", org_id=org_id))
         elif form.data["delete"]:
             try:
                 message, status = db.delete_organization(org_id)
                 flash(message)
                 if status == 409:
-                    return redirect(url_for("harvest.view_organization", org_id=org_id))
+                    return redirect(url_for("main.view_organization", org_id=org_id))
                 else:
-                    return redirect(url_for("harvest.view_organizations"))
+                    return redirect(url_for("main.view_organizations"))
             except Exception as e:
                 message = f"Failed to delete organization :: {repr(e)}"
                 logger.error(message)
                 flash(message)
-                return redirect(url_for("harvest.view_organization", org_id=org_id))
+                return redirect(url_for("main.view_organization", org_id=org_id))
         else:
-            return redirect(url_for("harvest.view_organization"), org_id=org_id)
+            return redirect(url_for("main.view_organization", org_id=org_id))
     else:
         org = db.get_organization(org_id)
         if request.is_json:
@@ -465,7 +478,7 @@ def view_organization(org_id: str):
 
 
 ### Edit Org
-@mod.route("/organization/config/edit/<org_id>", methods=["GET", "POST"])
+@main.route("/organization/config/edit/<org_id>", methods=["GET", "POST"])
 @login_required
 def edit_organization(org_id):
     if request.is_json:
@@ -484,10 +497,10 @@ def edit_organization(org_id):
             flash(f"Updated org with ID: {org.id}")
         else:
             flash("Failed to update organization.")
-        return redirect(url_for("harvest.view_organization"), org_id=org_id)
+        return redirect(url_for("main.view_organization", org_id=org_id))
     elif form.errors:
         flash(form.errors)
-        return redirect(url_for("harvest.edit_organization", org_id=org_id))
+        return redirect(url_for("main.edit_organization", org_id=org_id))
 
     return render_template(
         "edit_data.html",
@@ -513,7 +526,7 @@ def delete_organization(org_id):
 
 ## Harvest Source
 ### Add Source
-@mod.route("/harvest_source/add", methods=["POST", "GET"])
+@main.route("/harvest_source/add", methods=["POST", "GET"])
 @login_required
 def add_harvest_source():
     if request.is_json:
@@ -548,10 +561,10 @@ def add_harvest_source():
                 flash(f"Added new harvest source with ID: {source.id}. {job_message}")
             else:
                 flash("Failed to add harvest source.")
-            return redirect(url_for("harvest.view_harvest_sources"))
+            return redirect(url_for("main.view_harvest_sources"))
         elif form.errors:
             flash(form.errors)
-            return redirect(url_for("harvest.add_harvest_source"))
+            return redirect(url_for("main.add_harvest_source"))
     return render_template(
         "edit_data.html",
         form=form,
@@ -561,7 +574,7 @@ def add_harvest_source():
     )
 
 
-@mod.route("/harvest_source/<source_id>", methods=["GET", "POST"])
+@main.route("/harvest_source/<source_id>", methods=["GET", "POST"])
 def view_harvest_source(source_id: str):
     htmx_vars = {
         "target_div": "#paginated__harvest-jobs",
@@ -601,7 +614,7 @@ def view_harvest_source(source_id: str):
     elif request.method == "POST":
         form = HarvestTriggerForm(request.form)
         if form.data["edit"]:
-            return redirect(url_for("harvest.edit_harvest_source", source_id=source_id))
+            return redirect(url_for("main.edit_harvest_source", source_id=source_id))
         elif form.data["harvest"]:
             if form.data["force_check"]:
                 return trigger_manual_job_helper(source_id, "force_harvest")
@@ -616,19 +629,19 @@ def view_harvest_source(source_id: str):
                 flash(message)
                 if status == 409:
                     return redirect(
-                        url_for("harvest.view_harvest_source", source_id=source_id)
+                        url_for("main.view_harvest_source", source_id=source_id)
                     )
                 else:
-                    return redirect(url_for("harvest.view_harvest_sources"))
+                    return redirect(url_for("main.view_harvest_sources"))
             except Exception as e:
                 message = f"Failed to delete harvest source :: {repr(e)}"
                 logger.error(message)
                 flash(message)
                 return redirect(
-                    url_for("harvest.view_harvest_source", source_id=source_id)
+                    url_for("main.view_harvest_source", source_id=source_id)
                 )
         else:
-            return redirect(url_for("harvest.view_harvest_source", source_id=source_id))
+            return redirect(url_for("main.view_harvest_source", source_id=source_id))
 
     else:
         form = HarvestTriggerForm()
@@ -722,7 +735,7 @@ def view_harvest_source(source_id: str):
         )
 
 
-@mod.route("/harvest_sources/", methods=["GET"])
+@main.route("/harvest_sources/", methods=["GET"])
 def view_harvest_sources():
     sources = db.get_all_harvest_sources()
     data = {"harvest_sources": sources}
@@ -730,7 +743,7 @@ def view_harvest_sources():
 
 
 ### Edit Source
-@mod.route("/harvest_source/config/edit/<source_id>", methods=["GET", "POST"])
+@main.route("/harvest_source/config/edit/<source_id>", methods=["GET", "POST"])
 @login_required
 def edit_harvest_source(source_id: str):
     if request.is_json:
@@ -749,7 +762,7 @@ def edit_harvest_source(source_id: str):
         organizations = db.get_all_organizations()
         if source and organizations:
             organization_choices = [
-                (str(org["id"]), f'{org["name"]} - {org["id"]}')
+                (str(org["id"]), f"{org['name']} - {org['id']}")
                 for org in db._to_dict(organizations)
             ]
             source.notification_emails = ", ".join(source.notification_emails)
@@ -764,12 +777,12 @@ def edit_harvest_source(source_id: str):
                 else:
                     flash("Failed to update harvest source.")
                 return redirect(
-                    url_for("harvest.view_harvest_source", source_id=source.id)
+                    url_for("main.view_harvest_source", source_id=source.id)
                 )
             elif form.errors:
                 flash(form.errors)
                 return redirect(
-                    url_for("harvest.edit_harvest_source", source_id=source_id)
+                    url_for("main.edit_harvest_source", source_id=source_id)
                 )
             return render_template(
                 "edit_data.html",
@@ -781,7 +794,7 @@ def edit_harvest_source(source_id: str):
             )
         else:
             flash(f"No source with id: {source_id}")
-            return redirect(url_for("harvest.view_harvest_sources"))
+            return redirect(url_for("main.view_harvest_sources"))
 
     organization_id = request.args.get("organization_id")
     if organization_id:
@@ -817,7 +830,7 @@ def trigger_harvest_source(source_id, job_type):
 
 ## Harvest Job
 ### Add Job
-@mod.route("/harvest_job/add", methods=["POST"])
+@main.route("/harvest_job/add", methods=["POST"])
 @login_required
 def add_harvest_job():
     if request.is_json:
@@ -831,8 +844,7 @@ def add_harvest_job():
 
 
 ### Get Job
-@mod.route("/harvest_job/", methods=["GET"])
-@mod.route("/harvest_job/<job_id>", methods=["GET"])
+@main.route("/harvest_job/<job_id>", methods=["GET"])
 def view_harvest_job(job_id=None):
     record_error_count = db.get_harvest_record_errors_by_job(
         job_id,
@@ -878,7 +890,7 @@ def view_harvest_job(job_id=None):
     else:
         job = db.get_harvest_job(job_id)
         if request.args.get("type") and request.args.get("type") == "json":
-            return db._to_dict(job) if job else ("Not Found", 404)
+            return db._to_dict(job) if job else (STATUS_STRINGS_ENUM["404"], 404)
         else:
             data = {
                 "job": job,
@@ -897,7 +909,7 @@ def view_harvest_job(job_id=None):
 
 
 ### Update Job
-@mod.route("/harvest_job/<job_id>", methods=["PUT"])
+@main.route("/harvest_job/<job_id>", methods=["PUT"])
 @login_required
 def update_harvest_job(job_id):
     result = db.update_harvest_job(job_id, request.json)
@@ -905,14 +917,14 @@ def update_harvest_job(job_id):
 
 
 ### Delete Job
-@mod.route("/harvest_job/<job_id>", methods=["DELETE"])
+@main.route("/harvest_job/<job_id>", methods=["DELETE"])
 @login_required
 def delete_harvest_job(job_id):
     result = db.delete_harvest_job(job_id)
     return result
 
 
-@mod.route("/harvest_job/cancel/<job_id>", methods=["GET", "POST"])
+@main.route("/harvest_job/cancel/<job_id>", methods=["GET", "POST"])
 @login_required
 def cancel_harvest_job(job_id):
     """Cancels a harvest job"""
@@ -922,7 +934,7 @@ def cancel_harvest_job(job_id):
 
 
 ### Download all errors for a given job
-@mod.route("/harvest_job/<job_id>/errors/<error_type>", methods=["GET"])
+@main.route("/harvest_job/<job_id>/errors/<error_type>", methods=["GET"])
 def download_harvest_errors_by_job(job_id, error_type):
     try:
         match error_type:
@@ -984,14 +996,14 @@ def download_harvest_errors_by_job(job_id, error_type):
 
 # Records
 ## Get record
-@mod.route("/harvest_record/<record_id>", methods=["GET"])
+@main.route("/harvest_record/<record_id>", methods=["GET"])
 def get_harvest_record(record_id):
     record = db.get_harvest_record(record_id)
-    return db._to_dict(record) if record else ("Not Found", 404)
+    return db._to_dict(record) if record else (STATUS_STRINGS_ENUM["404"], 404)
 
 
 ## Get records
-@mod.route("/harvest_records/", methods=["GET"])
+@main.route("/harvest_records/", methods=["GET"])
 def get_harvest_records():
     job_id = request.args.get("harvest_job_id")
     source_id = request.args.get("harvest_source_id")
@@ -1019,7 +1031,7 @@ def get_harvest_records():
 
 
 ## Get records source raw
-@mod.route("/harvest_record/<record_id>/raw", methods=["GET"])
+@main.route("/harvest_record/<record_id>/raw", methods=["GET"])
 def get_harvest_record_raw(record_id=None):
     record = db.get_harvest_record(record_id)
     if record:
@@ -1029,11 +1041,11 @@ def get_harvest_record_raw(record_id=None):
         except json.JSONDecodeError:
             return {"error": "Invalid JSON format in source_raw"}, 500
     else:
-        return {"error": "Not Found"}, 404
+        return {"error": STATUS_STRINGS_ENUM["404"]}, 404
 
 
 ## Add record
-@mod.route("/harvest_record/add", methods=["POST", "GET"])
+@main.route("/harvest_record/add", methods=["POST", "GET"])
 @login_required
 def add_harvest_record():
     if request.is_json:
@@ -1047,30 +1059,32 @@ def add_harvest_record():
 
 
 ### Get record errors by record id
-@mod.route("/harvest_record/<record_id>/errors", methods=["GET"])
+@main.route("/harvest_record/<record_id>/errors", methods=["GET"])
 def get_all_harvest_record_errors(record_id: str) -> list:
     try:
-        record_errors = db.get_harvest_errors_by_record(record_id)
-        return db._to_dict(record_errors) if record_errors else ("Not Found", 404)
+        record_errors = db.get_harvest_record_errors_by_record(record_id)
+        return (
+            db._to_dict(record_errors)
+            if record_errors
+            else (STATUS_STRINGS_ENUM["404"], 404)
+        )
     except Exception:
-        return "Please provide correct record_id"
+        return "Please provide a valid record_id"
 
 
 ## Harvest Error
 ### Get error by id
-@mod.route("/harvest_error/", methods=["GET"])
-@mod.route("/harvest_error/<error_id>", methods=["GET"])
+@main.route("/harvest_error/<error_id>", methods=["GET"])
 def get_harvest_error(error_id: str = None) -> dict:
     # retrieves the given error ( either job or record )
-    if error_id:
+    try:
         error = db.get_harvest_error(error_id)
-        return db._to_dict(error) if error else ("Not Found", 404)
-    else:
-        errors = db.get_all_harvest_errors()
-        return db._to_dict(errors)
+        return db._to_dict(error) if error else (STATUS_STRINGS_ENUM["404"], 404)
+    except Exception:
+        return "Please provide a valid record_id"
 
 
-@mod.route("/metrics/", methods=["GET"])
+@main.route("/metrics/", methods=["GET"])
 def view_metrics():
     """Render index page with recent harvest jobs."""
     current_time = get_datetime()
@@ -1128,7 +1142,8 @@ def view_metrics():
 
 
 def register_routes(app):
-    app.register_blueprint(mod)
+    app.register_blueprint(main)
+    app.register_blueprint(auth)
     app.register_blueprint(user)
     app.register_blueprint(org)
     app.register_blueprint(source)

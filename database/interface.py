@@ -97,6 +97,9 @@ class HarvesterDBInterface:
 
     @staticmethod
     def _to_dict(obj):
+        if obj is None:
+            return {}
+
         def to_dict_helper(obj):
             return {
                 c.key: getattr(obj, c.key) for c in inspect(obj).mapper.column_attrs

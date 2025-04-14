@@ -21,14 +21,14 @@
       <strong>
         <nav>
           <ul class="menu">
-            <li><a href="{{ url_for('harvest.view_organizations') }}">Organizations</a></li>
-            <li><a href="{{ url_for('harvest.view_harvest_sources') }}">Harvest Sources</a></li>
-            <li><a href="{{ url_for('harvest.view_metrics') }}">Metrics</a></li>
+            <li><a href="{{ url_for('main.view_organizations') }}">Organizations</a></li>
+            <li><a href="{{ url_for('main.view_harvest_sources') }}">Harvest Sources</a></li>
+            <li><a href="{{ url_for('main.view_metrics') }}">Metrics</a></li>
             {% if session['user'] %}
             <li>{{ session['user'] }}</li>
-            <li><a href="{{ url_for('harvest.logout') }}">Logout</a></li>
+            <li><a href="{{ url_for('main.logout') }}">Logout</a></li>
             {% else %}
-            <li><a href="{{ url_for('harvest.login') }}">Login</a></li>
+            <li><a href="{{ url_for('main.login') }}">Login</a></li>
             {% endif %}
           </ul>
         </nav>

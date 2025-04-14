@@ -397,6 +397,26 @@ def record_error_data_2(record_data_dcatus_2) -> dict:
 
 
 @pytest.fixture
+def duplicated_identifier_records():
+    return [
+        {
+            "identifier": "GSA-2015-02-26-1",
+            "title": "Networx Business Volume FY2013, 3rd Qtr",
+            "description": "Original dataset",
+            "accessLevel": "public",
+            "modified": "2019-06-12",
+        },
+        {
+            "identifier": "GSA-2015-02-26-1",
+            "title": "Duplicate Dataset",
+            "description": "This is a duplicate of the dataset above.",
+            "accessLevel": "public",
+            "modified": "2019-07-01",
+        },
+    ]
+
+
+@pytest.fixture
 def interface_no_jobs(interface, organization_data, source_data_dcatus):
     interface.add_organization(organization_data)
     interface.add_harvest_source(source_data_dcatus)
@@ -835,3 +855,14 @@ def mock_requests_get_ms_iis_waf(monkeypatch):
 
     # Apply the patch using monkeypatch
     monkeypatch.setattr(requests, "get", mock_get)
+
+
+@pytest.fixture
+def dcatus_keywords():
+    return [
+        "EARTH         SCIENCE > BIOSPHERE > ECOSYSTEMS > MARINE ECOSYSTEMS > COASTAL",
+        "earth science",
+        "Waquoit Bay NERR, MA",
+        "DOC/NOAA/NOS/OCM > Office of Coastal Management, National Ocean Service, NOAA, U.S. Department of Commerce",
+        "NERRS",
+    ]
