@@ -433,8 +433,10 @@ def view_organization(org_id: str):
         else:
             return redirect(url_for("harvest.view_organization"), org_id=org_id)
     else:
-        form = OrganizationTriggerForm()
         org = db.get_organization(org_id)
+        if request.is_json:
+            return jsonify(org.to_dict())
+        form = OrganizationTriggerForm()
         sources = db.get_harvest_source_by_org(org_id)
         future_harvest_jobs = {}
         for source in sources:

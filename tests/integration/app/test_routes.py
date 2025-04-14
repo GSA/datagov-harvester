@@ -25,6 +25,16 @@ class TestRoutes:
         res = client.get(f"/organization/{organization_data['id']}")
         assert res.status_code == 200
 
+    def test_get_organization_json(
+        self,
+        client,
+        organization_data,
+    ):
+        res = client.get(f"/organization/{organization_data['id']}",
+                         headers={"Content-type": "application/json"})
+        assert res.status_code == 200
+        assert res.is_json
+
     def test_get_harvest_sources(
         self,
         client,
