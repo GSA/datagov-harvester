@@ -4,8 +4,8 @@ from unittest.mock import patch
 import pytest
 from deepdiff import DeepDiff
 from jsonschema.exceptions import ValidationError
-from harvester.exceptions import ExtractExternalException
 
+from harvester.exceptions import ExtractExternalException
 from harvester.harvest import HarvestSource, Record
 from harvester.utils.ckan_utils import create_ckan_resources
 from harvester.utils.general_utils import dataset_to_hash, sort_dataset

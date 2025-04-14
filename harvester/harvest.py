@@ -302,7 +302,11 @@ class HarvestSource:
                 if self.schema_type.startswith("dcatus"):
                     source_raw = json.dumps(record.metadata)
                 else:
-                    source_raw = record.metadata["content"]
+                    try:
+                        source_raw = record.metadata["content"].decode()
+                    except Exception as e:
+                        logger.warning(f"Decode from bytestring failed :: {repr(e)}")
+                        source_raw = record.metadata["content"]
 
                 # set record action
                 record.action = action
@@ -387,7 +391,7 @@ class HarvestSource:
     def send_notification_emails(self, job_results: dict) -> None:
         """Send harvest report emails to havest source POCs"""
         try:
-            job_url = f'{SMTP_CONFIG["base_url"]}/harvest_job/{self.job_id}'
+            job_url = f"{SMTP_CONFIG['base_url']}/harvest_job/{self.job_id}"
 
             subject = "Harvest Job Completed"
             body = (
@@ -725,7 +729,7 @@ class Record:
 
         logger.info(
             f"time to {self.action} {self.identifier} \
-                {get_datetime()-start}"
+                {get_datetime() - start}"
         )
 
     def create_record(self, retry=False):
