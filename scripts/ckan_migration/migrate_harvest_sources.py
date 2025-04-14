@@ -1,15 +1,16 @@
+#!/usr/bin/env python3
 """Migrate harvest sources from CKAN to Harvester.
 
-CKAN query URL and the harvest admin URL are saved here as constants.
-The harvest admin API requires an API token. It's loaded here from an
-environment variable API_TOKEN.
+The CKAN URL is hardcoded here as a constant.  The harvester instance that is
+being targeted can be specified with the `--harvester-url` option and defaults
+to "https://datagov-harvest-admin-dev.app.cloud.gov/".  The harvest admin API
+requires an API token which must be provided with the `--api-token` argument.
 
-The harvester instance that is being targeted can be set with the environment
-variable HARVESTER_BASE_URL with a default value of "https://datagov-harvest-admin-dev.app.cloud.gov/"
 """
 
 import logging
 import os
+from types import SimpleNamespace
 
 import click
 from requests import get, post
@@ -18,31 +19,27 @@ from requests.exceptions import RequestException
 logging.basicConfig(format="%(levelname)s:%(message)s", level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-HARVEST_QUERY = (
+# global config object here so we can set the values from the CLI and then use
+# them in our methods.
+CONFIG = SimpleNamespace()
+
+CONFIG.ckan_harvest_source_query = (
     "https://catalog.data.gov/api/action/package_search?fq=(dataset_type:harvest)"
 )
-HARVESTER_BASE_URL = os.environ.get(
-    "HARVESTER_BASE_URL", "https://datagov-harvest-admin-dev.app.cloud.gov/"
-)
-UPLOAD_QUERY = HARVESTER_BASE_URL + "harvest_source/add"
-ORGANIZATION_ADD_QUERY = HARVESTER_BASE_URL + "organization/add"
-ORGANIZATION_QUERY = HARVESTER_BASE_URL + "organization/"
-
-_API_TOKEN = os.environ.get("API_TOKEN")
-AUTH_HEADERS = {"Authorization": _API_TOKEN}
+CONFIG.harvester_url = "https://datagov-harvest-admin-dev.app.cloud.gov/"
 
 
 def get_count():
     """Get the count of harvest sources."""
     click.echo("Getting number of harvest sources...")
-    data = get(HARVEST_QUERY + "&rows=0").json()
+    data = get(CONFIG.ckan_harvest_source_query + "&rows=0").json()
     return data["result"]["count"]
 
 
 def get_sources(count):
     """Get the harvest source information."""
     click.echo("Getting harvest source information...")
-    data = get(HARVEST_QUERY + f"&rows={count}&start=0").json()
+    data = get(CONFIG.ckan_harvest_source_query + f"&rows={count}&start=0").json()
     return data["result"]["results"]
 
 
@@ -67,7 +64,11 @@ def ensure_organization(org_data):
     )
     upload_data = _org_to_upload(org_data)
     logger.debug("Creating organization with data %s", upload_data)
-    result = post(ORGANIZATION_ADD_QUERY, json=upload_data, headers=AUTH_HEADERS)
+    result = post(
+        CONFIG.harvester_url + "organization/add",
+        json=upload_data,
+        headers=CONFIG.auth_headers,
+    )
     logger.debug("%s: %s", result.status_code, result.text)
     if result.status_code == 200:
         # add succeeded, return the data we used
@@ -76,8 +77,8 @@ def ensure_organization(org_data):
         # add failed, figure out what's going on
         logger.debug("Failed to add organization...")
         result = get(
-            ORGANIZATION_QUERY + f"{upload_data['id']}",
-            headers=AUTH_HEADERS | {"Content-type": "application/json"},
+            CONFIG.harvester_url + f"organization/{upload_data['id']}",
+            headers=CONFIG.auth_headers | {"Content-type": "application/json"},
         )
         logger.debug("%s: %s", result.status_code, result.text)
         return result.json()
@@ -156,12 +157,16 @@ def _upload_source(source):
     logger.debug("Creating harvest source with data: %s", upload_data)
 
     try:
-        result = post(UPLOAD_QUERY, json=upload_data, headers=AUTH_HEADERS)
+        result = post(
+            CONFIG.harvester_url + "harvest_source/add",
+            json=upload_data,
+            headers=CONFIG.auth_headers,
+        )
     except RequestException as e:
         logger.error(e)
         return False
 
-    click.echo(f"{result.status_code}: {result.text}")
+    logger.debug(f"{result.status_code}: {result.text}")
     if result.status_code != 200:
         return False
 
@@ -182,9 +187,22 @@ def upload_sources(sources):
 @click.command()
 @click.option("-l", "--limit", default=0)
 @click.option("-d", "--debug", is_flag=True, default=False)
-def migrate_source(limit=0, debug=False):
+@click.option("--harvester-url", default=None)
+@click.option("--api-token", required=True)
+def migrate_source(api_token, limit=0, debug=False, harvester_url=None):
+    if api_token:
+        CONFIG.auth_headers = {"Authorization": api_token}
+    else:
+        logger.error("Please set a non-empty api_token.")
+        return 1
+
     if debug:
         logger.setLevel(logging.DEBUG)
+
+    if harvester_url is not None:
+        CONFIG.harvester_url = harvester_url
+    if not CONFIG.harvester_url.endswith("/"):
+        CONFIG.harvester_url += "/"
 
     if not limit:
         count = get_count()
