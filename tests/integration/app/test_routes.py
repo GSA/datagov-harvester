@@ -28,6 +28,7 @@ class TestRoutes:
     def test_get_organization_json(
         self,
         client,
+        interface_with_multiple_jobs,
         organization_data,
     ):
         res = client.get(
