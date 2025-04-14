@@ -12,9 +12,11 @@ import logging
 import os
 
 import click
-
 from requests import get, post
 from requests.exceptions import RequestException
+
+logging.basicConfig(format="%(levelname)s:%(message)s", level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 HARVEST_QUERY = (
     "https://catalog.data.gov/api/action/package_search?fq=(dataset_type:harvest)"
@@ -28,11 +30,6 @@ ORGANIZATION_QUERY = HARVESTER_BASE_URL + "organization/"
 
 _API_TOKEN = os.environ.get("API_TOKEN")
 AUTH_HEADERS = {"Authorization": _API_TOKEN}
-
-import logging
-
-logging.basicConfig(format="%(levelname)s:%(message)s", level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 
 def get_count():
@@ -139,13 +136,14 @@ def _source_to_upload(source, org=None):
         "frequency": source["frequency"].lower(),
         "source_type": mapper["source_type"](source),
         "schema_type": mapper["schema_type"](source, org),
-        "notification_frequency": "always",  # no equivalent in CKAN, choose a sane default
+        # no equivalent in CKAN, choose a sane default
+        "notification_frequency": "always",
     }
 
 
 def _upload_source(source):
     """Upload a single source to the harvester."""
-    click.echo(f"Uploading source data for url {source["url"]}")
+    click.echo(f"Uploading source data for url {source['url']}")
     logger.debug("Source data: %s", source)
 
     # sources need organizations to exist in order to be created
@@ -160,7 +158,7 @@ def _upload_source(source):
     try:
         result = post(UPLOAD_QUERY, json=upload_data, headers=AUTH_HEADERS)
     except RequestException as e:
-        click.echo(e)
+        logger.error(e)
         return False
 
     click.echo(f"{result.status_code}: {result.text}")
@@ -197,7 +195,7 @@ def migrate_source(limit=0, debug=False):
     sources = get_sources(count)
     click.echo(f"Got {len(sources)} harvest sources.")
     results = upload_sources(sources)
-    click.echo(f"Successfully uploaded {sum(results)}/{len(results)} sources")
+    click.echo(f"Uploaded {sum(results)}/{len(results)} sources")
 
 
 if __name__ == "__main__":

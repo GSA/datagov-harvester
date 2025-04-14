@@ -145,7 +145,7 @@ class HarvesterDBInterface:
                 if hasattr(org, key):
                     setattr(org, key, value)
                 else:
-                    logger.warn(f"Warning: non-existing field '%s' in organization", key)
+                    logger.warn("Warning: non-existing field '%s' in organization", key)
 
             self.db.commit()
             return org
@@ -217,7 +217,9 @@ class HarvesterDBInterface:
                 if hasattr(source, key):
                     setattr(source, key, value)
                 else:
-                    logger.warn("Warning: non-existing field '%s' in HarvestSource", key)
+                    logger.warn(
+                        "Warning: non-existing field '%s' in HarvestSource", key
+                    )
             self.db.commit()
             return source
 

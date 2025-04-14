@@ -30,8 +30,10 @@ class TestRoutes:
         client,
         organization_data,
     ):
-        res = client.get(f"/organization/{organization_data['id']}",
-                         headers={"Content-type": "application/json"})
+        res = client.get(
+            f"/organization/{organization_data['id']}",
+            headers={"Content-type": "application/json"},
+        )
         assert res.status_code == 200
         assert res.is_json
 

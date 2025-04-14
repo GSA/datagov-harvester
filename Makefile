@@ -76,9 +76,9 @@ clean: ## Cleans docker images
 	docker compose -p harvest-app down -v --remove-orphans
 
 lint:  ## Lints wtih ruff, isort, black
-	ruff check .
-	isort .
-	black .
+	poetry run ruff check .
+	poetry run isort --check --diff .
+	poetry run black --check --diff .
 
 # Output documentation for top-level targets
 # Thanks to https://marmelab.com/blog/2016/02/29/auto-documented-makefile.html
