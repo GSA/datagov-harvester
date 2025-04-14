@@ -9,7 +9,6 @@ requires an API token which must be provided with the `--api-token` argument.
 """
 
 import logging
-import os
 from types import SimpleNamespace
 
 import click
