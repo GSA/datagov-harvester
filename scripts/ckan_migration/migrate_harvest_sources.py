@@ -11,6 +11,7 @@ requires an API token which must be provided with the `--api-token` argument.
 import logging
 from types import SimpleNamespace
 from functools import cache
+from concurrent.futures import ThreadPoolExecutor
 
 import click
 from requests import get, post
@@ -236,7 +237,8 @@ def upload_sources(sources):
     markers.
     """
     click.echo("Uploading sources...")
-    results = list(map(_upload_source, sources))
+    with ThreadPoolExecutor() as executor:
+        results = list(executor.map(_upload_source, sources))
     return results
 
 
