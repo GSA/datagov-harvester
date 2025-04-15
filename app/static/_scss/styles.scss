@@ -1,3 +1,10 @@
-@forward "uswds-theme";
+@use "uswds-core" with (
+    $theme-show-notifications: false,
+    $theme-color-base-light: "gray-cool-5",
+    $theme-color-primary: "blue-70v",
+    $theme-color-primary-vivid: "blue-60v",
+    $theme-color-primary-dark: "blue-warm-70v",
+);
+
 @forward "uswds";
 @forward "uswds-theme-custom-styles";

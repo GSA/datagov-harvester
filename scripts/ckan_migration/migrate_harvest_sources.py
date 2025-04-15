@@ -25,6 +25,7 @@ CONFIG = SimpleNamespace()
 CONFIG.ckan_harvest_source_query = (
     "https://catalog.data.gov/api/action/package_search?fq=(dataset_type:harvest)"
 )
+CONFIG.ckan_organization_show = "https://catalog.data.gov/api/action/organization_show"
 CONFIG.harvester_url = "https://datagov-harvest-admin-dev.app.cloud.gov/"
 
 
@@ -56,7 +57,8 @@ def ensure_organization(org_data):
     We won't look before we leap. Try to add the organization and
     handle any failures.
 
-    Return any organization information we got from queries.
+    Returns True if the organization now exists or False if something went
+    wrong.
     """
     logger.debug(
         "Ensuring organization %s(%s) exists", org_data["title"], org_data["id"]
@@ -71,7 +73,7 @@ def ensure_organization(org_data):
     logger.debug("%s: %s", result.status_code, result.text)
     if result.status_code == 200:
         # add succeeded, return the data we used
-        return result.json()
+        return True
     else:
         # add failed, figure out what's going on
         logger.debug("Failed to add organization...")
@@ -80,7 +82,29 @@ def ensure_organization(org_data):
             headers=CONFIG.auth_headers | {"Content-type": "application/json"},
         )
         logger.debug("%s: %s", result.status_code, result.text)
-        return result.json()
+        if result.status_code == 200:
+            # organization existed
+            return True
+        else:
+            return False
+
+
+def _get_extra_named(org_dict, name):
+    """Get the value of an extra by name.
+
+    Extras are a list of dicts inside of org_dict each with a "key" and a
+    corresponding "value". This gets the value for a corresponding key
+    if it exists. If the key occurs multiple times we return the first value.
+
+    If the key doesn't exist, we return None.
+    """
+    values = [
+        extra["value"] for extra in org_dict.get("extras", []) if extra["key"] == name
+    ]
+    if values:
+        return values[0]
+    else:
+        return None
 
 
 def _derive_source_fields():
@@ -99,24 +123,24 @@ def _derive_source_fields():
         return "document"
 
     def _schema_type(source, org):
-        # TODO: can we actually determine this now?
-        organization_types = [
-            extra["value"]
-            for extra in org.get("extras", [])
-            if extra["key"] == "organization_type"
-        ]
-        if organization_types:
-            organization_type = organization_types[0]
-        else:
-            organization_type = None
+        organization_type = _get_extra_named(org, "organization_type")
 
         if organization_type == "Federal Government":
             return "dcatus1.1: federal"
         return "dcatus1.1: non-federal"
 
+    def _notification_emails(source, org):
+        email_list = _get_extra_named(org, "email_list")
+        if email_list is None:
+            return []
+        # email_list is whitespace (\r\n) delimited in CKAN. We want a real
+        # list.
+        return email_list.split()
+
     return {
         "source_type": _source_type,
         "schema_type": _schema_type,
+        "notification_emails": _notification_emails,
     }
 
 
@@ -136,22 +160,33 @@ def _source_to_upload(source, org=None):
         "frequency": source["frequency"].lower(),
         "source_type": mapper["source_type"](source),
         "schema_type": mapper["schema_type"](source, org),
+        "notification_emails": mapper["notification_emails"](source, org),
         # no equivalent in CKAN, choose a sane default
         "notification_frequency": "always",
     }
 
 
 def _upload_source(source):
-    """Upload a single source to the harvester."""
+    """Upload a single source to the harvester.
+
+    Returns True if upload was successful, False if not.
+    """
     click.echo(f"Uploading source data for url {source['url']}")
     logger.debug("Source data: %s", source)
 
     # sources need organizations to exist in order to be created
-    # save the organization details we got so that we can use them
-    org_details = ensure_organization(source["organization"])
+    org_exists = ensure_organization(source["organization"])
+    if not org_exists:
+        return False
 
     # We need information about the organization to create the correct harvest
     # source (federal or not and email notification list)
+    org_details = post(
+        CONFIG.ckan_organization_show, json={"id": source["owner_org"]}
+    ).json()[
+        "result"
+    ]  # if this fails CKAN data has problems, let the exception happen
+    logger.debug("CKAN organization info: %s", org_details)
     upload_data = _source_to_upload(source, org=org_details)
     logger.debug("Creating harvest source with data: %s", upload_data)
 
