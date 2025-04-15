@@ -3,9 +3,9 @@ import os
 from datetime import datetime, timezone
 from functools import wraps
 
-from sqlalchemy import create_engine, desc, func, inspect, text
+from sqlalchemy import desc, func, inspect, text
 from sqlalchemy.exc import NoResultFound
-from sqlalchemy.orm import aliased, scoped_session, sessionmaker
+from sqlalchemy.orm import aliased
 
 from harvester.utils.general_utils import query_filter_builder
 
@@ -18,6 +18,7 @@ from .models import (
     HarvestUser,
     Locations,
     Organization,
+    db,
 )
 
 DATABASE_URI = os.getenv("DATABASE_URI")
@@ -80,20 +81,11 @@ def count_wrapper(fn):
 
 
 class HarvesterDBInterface:
+
     def __init__(self, session=None):
-        if session is None:
-            engine = create_engine(
-                DATABASE_URI,
-                isolation_level="AUTOCOMMIT",
-                pool_size=10,
-                max_overflow=20,
-                pool_timeout=60,
-                pool_recycle=1800,
-            )
-            session_factory = sessionmaker(bind=engine, autoflush=True)
-            self.db = scoped_session(session_factory)
-        else:
-            self.db = session
+        # Flask-SQLAlchemy provides a request-scoped database session
+        # so use it here
+        self.db = db.session
 
     @staticmethod
     def _to_dict(obj):
@@ -129,7 +121,7 @@ class HarvesterDBInterface:
             self.db.refresh(new_org)
             return new_org
         except Exception as e:
-            print("Error:", e)
+            logger.error("Error: %s", e)
             self.db.rollback()
             return None
 
@@ -148,7 +140,9 @@ class HarvesterDBInterface:
                 if hasattr(org, key):
                     setattr(org, key, value)
                 else:
-                    print(f"Warning: non-existing field '{key}' in organization")
+                    logger.warning(
+                        "Warning: non-existing field '%s' in organization", key
+                    )
 
             self.db.commit()
             return org
@@ -188,7 +182,7 @@ class HarvesterDBInterface:
             self.db.refresh(new_source)
             return new_source
         except Exception as e:
-            print("Error:", e)
+            logger.error("Error: %s", e)
             self.db.rollback()
             return None
 
@@ -220,7 +214,9 @@ class HarvesterDBInterface:
                 if hasattr(source, key):
                     setattr(source, key, value)
                 else:
-                    print(f"Warning: non-existing field '{key}' in HarvestSource")
+                    logger.warning(
+                        "Warning: non-existing field '%s' in HarvestSource", key
+                    )
             self.db.commit()
             return source
 
@@ -265,7 +261,7 @@ class HarvesterDBInterface:
             self.db.refresh(new_job)
             return new_job
         except Exception as e:
-            print("Error:", e)
+            logger.error("Error: %s", e)
             self.db.rollback()
             return None
 
@@ -323,7 +319,9 @@ class HarvesterDBInterface:
                 if hasattr(job, key):
                     setattr(job, key, value)
                 else:
-                    print(f"Warning: non-existing field '{key}' in HarvestJob")
+                    logger.warning(
+                        "Warning: non-existing field '%s' in HarvestJob", key
+                    )
 
             self.db.commit()
             return job
@@ -349,7 +347,7 @@ class HarvesterDBInterface:
             self.db.refresh(new_error)
             return new_error
         except Exception as e:
-            print("Error:", e)
+            logger.error("Error: %s", e)
             self.db.rollback()
             return None
 
@@ -361,7 +359,7 @@ class HarvesterDBInterface:
             self.db.refresh(new_error)
             return new_error
         except Exception as e:
-            print("Error:", e)
+            logger.error("Error: %s", e)
             self.db.rollback()
             return None
 
@@ -422,7 +420,7 @@ class HarvesterDBInterface:
             self.db.refresh(new_record)
             return new_record
         except Exception as e:
-            print("Error:", e)
+            logger.error("Error: %s", e)
             self.db.rollback()
             return None
 
@@ -583,7 +581,7 @@ class HarvesterDBInterface:
             self.db.refresh(new_user)
             return True, new_user
         except Exception as e:
-            print("Error:", e)
+            logger.error("Error: %s", e)
             self.db.rollback()
             return False, "An error occurred while adding the user."
 
@@ -591,7 +589,7 @@ class HarvesterDBInterface:
         try:
             return self.db.query(HarvestUser).all()
         except Exception as e:
-            print("Error:", e)
+            logger.error("Error: %s", e)
             return []
 
     def remove_user(self, email):
@@ -603,7 +601,7 @@ class HarvesterDBInterface:
                 return True
             return False
         except Exception as e:
-            print("Error:", e)
+            logger.error("Error: %s", e)
             self.db.rollback()
             return False
 
@@ -630,7 +628,7 @@ class HarvesterDBInterface:
                     return True
             return False
         except Exception as e:
-            print("Error:", e)
+            logger.error("Error: %s", e)
             return False
 
     #### PAGINATED QUERIES ####
