@@ -3,9 +3,9 @@ import os
 from datetime import datetime, timezone
 from functools import wraps
 
-from sqlalchemy import create_engine, desc, func, inspect, text
+from sqlalchemy import desc, func, inspect, text
 from sqlalchemy.exc import NoResultFound
-from sqlalchemy.orm import aliased, scoped_session, sessionmaker
+from sqlalchemy.orm import aliased
 
 from harvester.utils.general_utils import query_filter_builder
 
@@ -18,7 +18,7 @@ from .models import (
     HarvestUser,
     Locations,
     Organization,
-    db
+    db,
 )
 
 DATABASE_URI = os.getenv("DATABASE_URI")

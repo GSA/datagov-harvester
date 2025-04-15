@@ -182,9 +182,7 @@ def _get_org_details(org_id):
     We memo-ize this function so we don't have to repeat slow calls to CKAN.
     """
     try:
-        org_details = post(
-            CONFIG.ckan_organization_show, json={"id": org_id}
-        ).json()[
+        org_details = post(CONFIG.ckan_organization_show, json={"id": org_id}).json()[
             "result"
         ]  # if this fails CKAN data has problems, let the exception happen
         logger.debug("CKAN organization info: %s", org_details)
