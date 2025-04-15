@@ -46,9 +46,9 @@ test-playwright: ## Runs playwright tests.
 
 test: up test-unit test-integration ## Runs all local tests
 
-test-e2e-ci: re-up test-playwright test-functional clean ## All e2e/expensive tests. Run on PR into main.
+test-e2e-ci: re-up test-playwright test-functional ## All e2e/expensive tests. Run on PR into main.
 
-test-ci: up test-unit test-integration clean ## All simulated tests using only db and required test resources. Run on commit.
+test-ci: up test-unit test-integration ## All simulated tests using only db and required test resources. Run on commit.
 
 re-up: clean up load-test-data ## resets system to clean fixture status
 
