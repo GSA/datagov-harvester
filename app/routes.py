@@ -39,6 +39,7 @@ from harvester.utils.general_utils import (
 )
 
 from . import htmx
+from .commands.evaluate_sources import evaluate_sources
 from .forms import (
     HarvestSourceForm,
     HarvestTriggerForm,
@@ -303,6 +304,15 @@ def cli_remove_harvest_source(id):
         print(f"Triggered delete of harvest source with ID: {id}")
     else:
         print("Failed to delete harvest source")
+
+
+@source.cli.command("evaluate_sources")
+def cli_evaluate_sources():
+    """
+    Evaluates existing sources to see if they are still availible,
+    captures the response code, and schema type.
+    """
+    evaluate_sources()
 
 
 ## Harvet Job Management
