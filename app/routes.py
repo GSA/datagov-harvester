@@ -448,6 +448,11 @@ def view_organization(org_id: str):
     else:
         org = db.get_organization(org_id)
         if request.is_json:
+            if org is None:
+                # org_id wasn't found
+                return make_response(
+                    jsonify({"message": "Organization not found"}), 404
+                )
             return jsonify(org.to_dict())
         form = OrganizationTriggerForm()
         sources = db.get_harvest_source_by_org(org_id)
@@ -474,7 +479,7 @@ def view_organization(org_id: str):
             "view_org_data.html",
             data=data,
             form=form,
-        )
+        ), (200 if org is not None else 404)
 
 
 ### Edit Org
