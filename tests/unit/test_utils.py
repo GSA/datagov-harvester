@@ -51,7 +51,7 @@ class TestCKANUtils:
         [
             ("unchanged", "unchanged"),
             ("s", "s_"),  # too short
-            ("some spaces  here", "some-spaces--here"),
+            ("some spaces  here", "some-spaces-here"),
             ("random:other%characters&_.here", "randomothercharactershere"),
             ("river-water-dashes", "river-water-dashes"),
         ],

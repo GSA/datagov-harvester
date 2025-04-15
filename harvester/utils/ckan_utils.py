@@ -385,6 +385,10 @@ def munge_tag(tag: str) -> str:
     tag = substitute_ascii_equivalents(tag)
     tag = tag.lower().strip()
     tag = re.sub(r"[^a-zA-Z0-9\- ]", "", tag).replace(" ", "-")
+    # remove doubles
+    tag = re.sub("-+", "-", tag)
+    # remove leading or trailing hyphens
+    tag = tag.strip("-")
     tag = _munge_to_length(tag, MIN_TAG_LENGTH, MAX_TAG_LENGTH)
     return tag
 

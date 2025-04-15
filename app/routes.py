@@ -851,6 +851,13 @@ def add_harvest_job():
 ### Get Job
 @main.route("/harvest_job/<job_id>", methods=["GET"])
 def view_harvest_job(job_id=None):
+    def _load_json_title(json_string):
+        try:
+            return json.loads(json_string).get("title", None)
+        except Exception as e:
+            logger.error(f"Error loading json source_raw: {repr(e)}")
+            return None
+
     record_error_count = db.get_harvest_record_errors_by_job(
         job_id,
         count=True,
@@ -872,11 +879,7 @@ def view_harvest_job(job_id=None):
         {
             "error": db._to_dict(row.HarvestRecordError),
             "identifier": row.identifier,
-            "title": (
-                json.loads(row.source_raw).get("title")
-                if hasattr(row.source_raw, "title")
-                else None
-            ),
+            "title": _load_json_title(row.source_raw),
         }
         for row in record_errors
     ]
