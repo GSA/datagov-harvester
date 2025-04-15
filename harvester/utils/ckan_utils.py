@@ -667,6 +667,7 @@ def simple_transform(metadata: dict, owner_org: str) -> dict:
             for k2, v2 in v.items():
                 if k2 == "hasEmail":
                     v2 = get_email_from_str(v2)
+                    v2 = "mailto:" + v2
                 if k2 in to_skip:
                     continue
                 temp[mapping[k][k2]] = v2
