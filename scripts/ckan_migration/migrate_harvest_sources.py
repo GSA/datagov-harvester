@@ -10,6 +10,7 @@ requires an API token which must be provided with the `--api-token` argument.
 
 import logging
 from types import SimpleNamespace
+from functools import cache
 
 import click
 from requests import get, post
@@ -54,8 +55,8 @@ def _org_to_upload(org_data):
 def ensure_organization(org_data):
     """Ensure that the organization from a harvest source exists.
 
-    We won't look before we leap. Try to add the organization and
-    handle any failures.
+    There are many sources with the same organization, so check first if
+    the org exists and only add it if it doesn't exist.
 
     Returns True if the organization now exists or False if something went
     wrong.
@@ -63,29 +64,29 @@ def ensure_organization(org_data):
     logger.debug(
         "Ensuring organization %s(%s) exists", org_data["title"], org_data["id"]
     )
-    upload_data = _org_to_upload(org_data)
-    logger.debug("Creating organization with data %s", upload_data)
-    result = post(
-        CONFIG.harvester_url + "organization/add",
-        json=upload_data,
-        headers=CONFIG.auth_headers,
+    result = get(
+        CONFIG.harvester_url + f"organization/{org_data['id']}",
+        headers=CONFIG.auth_headers | {"Content-type": "application/json"},
     )
     logger.debug("%s: %s", result.status_code, result.text)
     if result.status_code == 200:
-        # add succeeded, return the data we used
+        # organization existed
         return True
     else:
-        # add failed, figure out what's going on
-        logger.debug("Failed to add organization...")
-        result = get(
-            CONFIG.harvester_url + f"organization/{upload_data['id']}",
-            headers=CONFIG.auth_headers | {"Content-type": "application/json"},
+        upload_data = _org_to_upload(org_data)
+        logger.debug("Creating organization with data %s", upload_data)
+        result = post(
+            CONFIG.harvester_url + "organization/add",
+            json=upload_data,
+            headers=CONFIG.auth_headers,
         )
         logger.debug("%s: %s", result.status_code, result.text)
         if result.status_code == 200:
-            # organization existed
+            # add succeeded, return the data we used
             return True
         else:
+            # add failed, figure out what's going on
+            logger.debug("Failed to add organization.")
             return False
 
 
@@ -125,9 +126,17 @@ def _derive_source_fields():
     def _schema_type(source, org):
         organization_type = _get_extra_named(org, "organization_type")
 
-        if organization_type == "Federal Government":
-            return "dcatus1.1: federal"
-        return "dcatus1.1: non-federal"
+        if source["source_type"] == "datajson":
+            if organization_type == "Federal Government":
+                return "dcatus1.1: federal"
+            return "dcatus1.1: non-federal"
+        elif source["source_type"].startswith("waf"):
+            # WAF sources have auto-detected schemas in CKAN, so just choose
+            # this is our most common WAF schema
+            return "iso19115_2"
+        else:
+            # this cannot be empty, so choose a default
+            return "dcatus1.1: non-federal"
 
     def _notification_emails(source, org):
         email_list = _get_extra_named(org, "email_list")
@@ -166,6 +175,25 @@ def _source_to_upload(source, org=None):
     }
 
 
+@cache
+def _get_org_details(org_id):
+    """Get additional information from CKAN for an organization.
+
+    We memo-ize this function so we don't have to repeat slow calls to CKAN.
+    """
+    try:
+        org_details = post(
+            CONFIG.ckan_organization_show, json={"id": org_id}
+        ).json()[
+            "result"
+        ]  # if this fails CKAN data has problems, let the exception happen
+        logger.debug("CKAN organization info: %s", org_details)
+    except Exception as e:
+        logger.error("Failed to get CKAN organization info: %s", e)
+        org_details = {}
+    return org_details
+
+
 def _upload_source(source):
     """Upload a single source to the harvester.
 
@@ -181,12 +209,8 @@ def _upload_source(source):
 
     # We need information about the organization to create the correct harvest
     # source (federal or not and email notification list)
-    org_details = post(
-        CONFIG.ckan_organization_show, json={"id": source["owner_org"]}
-    ).json()[
-        "result"
-    ]  # if this fails CKAN data has problems, let the exception happen
-    logger.debug("CKAN organization info: %s", org_details)
+    org_details = _get_org_details(source["owner_org"])
+
     upload_data = _source_to_upload(source, org=org_details)
     logger.debug("Creating harvest source with data: %s", upload_data)
 

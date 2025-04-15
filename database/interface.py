@@ -18,6 +18,7 @@ from .models import (
     HarvestUser,
     Locations,
     Organization,
+    db
 )
 
 DATABASE_URI = os.getenv("DATABASE_URI")
@@ -80,20 +81,11 @@ def count_wrapper(fn):
 
 
 class HarvesterDBInterface:
+
     def __init__(self, session=None):
-        if session is None:
-            engine = create_engine(
-                DATABASE_URI,
-                isolation_level="AUTOCOMMIT",
-                pool_size=10,
-                max_overflow=20,
-                pool_timeout=60,
-                pool_recycle=1800,
-            )
-            session_factory = sessionmaker(bind=engine, autoflush=True)
-            self.db = scoped_session(session_factory)
-        else:
-            self.db = session
+        # Flask-SQLAlchemy provides a request-scoped database session
+        # so use it here
+        self.db = db.session
 
     @staticmethod
     def _to_dict(obj):
