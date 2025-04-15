@@ -257,7 +257,7 @@ class TestHarvestJobFullFlow:
             "author": None,
             "author_email": None,
             "maintainer": "Harold W. Hild",
-            "maintainer_email": "hhild@CFTC.GOV",
+            "maintainer_email": "mailto:hhild@CFTC.GOV",
             "notes": "COT reports provide a breakdown of each Tuesday's open interest for futures and options on futures market in which 20 or more traders hold positions equal to or above the reporting levels established by CFTC",
             "title": "Commitment of Traders",
             "resources": [
