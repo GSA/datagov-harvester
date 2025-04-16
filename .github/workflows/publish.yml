@@ -1,37 +1,14 @@
-name: Publish to PyPI
+name: Publish & Deploy
 on:
   workflow_dispatch:
-    inputs:
-      version_no:
-        description: 'Release Version:'
-        required: true
-
-env:
-  POETRY_VERSION: "2.0.0"
+  push:
+    branches:
+      - main
 
 jobs:
-  publish:
-    name: Publish to PyPI
-    runs-on: ubuntu-latest
-    environment:
-      name: pypi
-      url: https://pypi.org/project/datagov-harvester/
-    steps:
-      - name: checkout
-        uses: actions/checkout@v4
-      - name: Update setup.py if manual release
-        if: github.event_name == 'workflow_dispatch'
-        run: |
-          sed -i "s/version='[0-9]\{1,2\}.[0-9]\{1,4\}.[0-9]\{1,4\}',/version='${{github.event.inputs.version_no}}',/g" pyproject.toml
-      - name: Install Poetry
-        uses: abatilo/actions-poetry@v2
-        with:
-          poetry-version: ${{ env.POETRY_VERSION }}
-      - name: Create packages
-        run: |
-          poetry build --verbose
-      - name: pypi-publish
-        uses: pypa/gh-action-pypi-publish@v1.8.11
-        with:
-          user: __token__
-          password: ${{ secrets.PYPI_API_TOKEN }}
+  create-cloudgov-services-staging:
+    name: create services (staging)
+    uses: gsa/data.gov/.github/workflows/create-services-template.yml@main
+    with:
+      environ: staging
+    secrets: inherit
