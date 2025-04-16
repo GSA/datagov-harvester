@@ -40,6 +40,15 @@ DEFAULT_OUTPUT_JSON_NEXT = "catalog_next_orgs.json"
 DEFAULT_OUTPUT_CSV = "catalog_orgs_comparison.csv"
 
 def fetch_all_organizations(base_url):
+    """
+    Fetch all organizations and their dataset counts from a catalog.
+
+    Args:
+        base_url (str): Base URL of the catalog.
+
+    Returns:
+        list: A list of organization dictionaries with dataset counts.
+    """
     organizations = []
     limit = 25
     offset = 0
@@ -69,14 +78,44 @@ def fetch_all_organizations(base_url):
     return organizations
 
 def save_orgs_to_json(orgs, filename):
+    """
+    Save a list of organizations with datasets count to a JSON file.
+
+    Args:
+        orgs (list): List of organization dictionaries.
+        filename (str): Output filename for the JSON file.
+
+    Returns:
+        None
+    """
     with open(filename, "w", encoding="utf-8") as jsonfile:
         json.dump(orgs, jsonfile, indent=2)
 
-def load_orgs(json_path):
-    with open(json_path, "r", encoding="utf-8") as file:
+def load_orgs(filename):
+    """
+    Load organization data from a JSON file.
+
+    Args:
+        filename (str): Path to the JSON file.
+
+    Returns:
+        list: A list of organization data loaded from the file.
+    """
+    with open(filename, "r", encoding="utf-8") as file:
         return json.load(file)
 
 def compare_orgs(catalog_orgs, catalog_next_orgs, output_csv_path):
+    """
+    Compare dataset counts between two catalogs and write a CSV report.
+
+    Args:
+        catalog_orgs (list): Current catalog organization data.
+        catalog_next_orgs (list): Next catalog organization data.
+        output_csv_path (str): Path to the CSV file to be written.
+
+    Returns:
+        None
+    """
     next_orgs_dict = {
         org['name']: org['package_count'] for org in catalog_next_orgs
     }
