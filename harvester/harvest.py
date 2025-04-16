@@ -788,8 +788,14 @@ class Record:
         from harvester.utils.ckan_utils import ckanify_dcatus
 
         try:
+            record = (
+                self.metadata
+                if self.transformed_data is None
+                else self.transformed_data
+            )
+
             self.ckanified_metadata = ckanify_dcatus(
-                self.metadata, self.harvest_source, self.id
+                record, self.harvest_source, self.id
             )
         except Exception as e:
             self.status = "error"
