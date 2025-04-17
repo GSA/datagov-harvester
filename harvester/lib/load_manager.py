@@ -82,7 +82,8 @@ class LoadManager:
             return f"No task with job_id: {job_id}"
 
         if job_task[0][1] != "RUNNING":
-            return f"Harvest job {job_id} is not running"
+            updated_job = interface.update_harvest_job(job_id, {"status": "complete"})
+            return f"Task for job {job_id} is not running. Job marked as complete."
 
         self.handler.stop_task(job_task[0][0])
 

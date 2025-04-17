@@ -104,6 +104,45 @@ class TestHarvestJobFullFlow:
         assert len(records_from_db) == records_from_db_count == 3
 
     @patch("harvester.harvest.ckan")
+    @patch("harvester.harvest.HarvestSource.send_notification_emails")
+    def test_harvest_waf_iso19115_2(
+        self,
+        send_notification_emails_mock: MagicMock,
+        CKANMock,
+        interface,
+        organization_data,
+        source_data_waf_iso19115_2,
+    ):
+        CKANMock.action.package_create.return_value = {"id": 1234}
+
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_waf_iso19115_2)
+        harvest_job = interface.add_harvest_job(
+            {
+                "status": "new",
+                "harvest_source_id": source_data_waf_iso19115_2["id"],
+            }
+        )
+
+        job_id = harvest_job.id
+        harvest_job_starter(job_id, "harvest")
+        harvest_job = interface.get_harvest_job(job_id)
+
+        # assert job rollup
+        assert harvest_job.status == "complete"
+        assert harvest_job.records_total == 3
+        assert len(harvest_job.record_errors) == 3
+        assert harvest_job.records_errored == 3
+
+        ## assert errors
+        assert harvest_job.records[0].errors[0].type == "TransformationException"
+        assert harvest_job.records[1].errors[0].type == "ValidationException"
+        assert harvest_job.records[2].errors[0].type == "ValidationException"
+
+        ## assert call_args to package_create
+        ## TODO this test wil eventually succeed. we can then assert call_args
+
+    @patch("harvester.harvest.ckan")
     @patch("harvester.harvest.download_file")
     @patch("harvester.harvest.HarvestSource.send_notification_emails")
     def test_harvest_record_errors_reported(

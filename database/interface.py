@@ -1,5 +1,4 @@
 import logging
-import os
 from datetime import datetime, timezone
 from functools import wraps
 
@@ -21,7 +20,6 @@ from .models import (
     db,
 )
 
-DATABASE_URI = os.getenv("DATABASE_URI")
 PAGINATE_ENTRIES_PER_PAGE = 10
 PAGINATE_START_PAGE = 0
 
@@ -81,11 +79,14 @@ def count_wrapper(fn):
 
 
 class HarvesterDBInterface:
-
     def __init__(self, session=None):
-        # Flask-SQLAlchemy provides a request-scoped database session
-        # so use it here
-        self.db = db.session
+        if session:
+            ## For the Harvest Runner we create our own session and pass it in
+            self.db = session
+        else:
+            # Flask-SQLAlchemy provides a request-scoped database session
+            # so use it here
+            self.db = db.session
 
     @staticmethod
     def _to_dict(obj):
