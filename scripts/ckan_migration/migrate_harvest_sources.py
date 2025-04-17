@@ -4,14 +4,15 @@
 The CKAN URL is hardcoded here as a constant.  The harvester instance that is
 being targeted can be specified with the `--harvester-url` option and defaults
 to "https://datagov-harvest-admin-dev.app.cloud.gov/".  The harvest admin API
-requires an API token which must be provided with the `--api-token` argument.
+and new CKAN  API require API tokens which must be provided with the
+`--harvester-api-token` and `--new-catalog-api-token` arguments.
 
 """
 
 import logging
-from types import SimpleNamespace
-from functools import cache
 from concurrent.futures import ThreadPoolExecutor
+from functools import cache
+from types import SimpleNamespace
 
 import click
 from requests import get, post
@@ -29,6 +30,7 @@ CONFIG.ckan_harvest_source_query = (
 )
 CONFIG.ckan_organization_show = "https://catalog.data.gov/api/action/organization_show"
 CONFIG.harvester_url = "https://datagov-harvest-admin-dev.app.cloud.gov/"
+CONFIG.new_catalog_url = "https://catalog-next-dev-datagov.app.cloud.gov/"
 
 
 def get_count():
@@ -53,33 +55,23 @@ def _org_to_upload(org_data):
     }
 
 
-def ensure_organization(org_data):
-    """Ensure that the organization from a harvest source exists.
-
-    There are many sources with the same organization, so check first if
-    the org exists and only add it if it doesn't exist.
-
-    Returns True if the organization now exists or False if something went
-    wrong.
-    """
-    logger.debug(
-        "Ensuring organization %s(%s) exists", org_data["title"], org_data["id"]
-    )
+def _ensure_org_harvester(org_data):
+    """Ensure organization exists in harvester."""
     result = get(
         CONFIG.harvester_url + f"organization/{org_data['id']}",
-        headers=CONFIG.auth_headers | {"Content-type": "application/json"},
+        headers=CONFIG.harvester_auth_headers | {"Content-type": "application/json"},
     )
     logger.debug("%s: %s", result.status_code, result.text)
     if result.status_code == 200:
-        # organization existed
+        # organization existed in harvester
         return True
     else:
         upload_data = _org_to_upload(org_data)
-        logger.debug("Creating organization with data %s", upload_data)
+        logger.debug("Creating harvester organization with data %s", upload_data)
         result = post(
             CONFIG.harvester_url + "organization/add",
             json=upload_data,
-            headers=CONFIG.auth_headers,
+            headers=CONFIG.harvester_auth_headers,
         )
         logger.debug("%s: %s", result.status_code, result.text)
         if result.status_code == 200:
@@ -89,6 +81,50 @@ def ensure_organization(org_data):
             # add failed, figure out what's going on
             logger.debug("Failed to add organization.")
             return False
+
+
+def _ensure_org_new_catalog(org_data):
+    """Ensure organization exists in new CKAN catalog."""
+    result = post(
+        CONFIG.new_catalog_url + "api/action/organization_show",
+        headers=CONFIG.new_catalog_auth_headers,
+        json={"id": org_data["id"]},
+    )
+    logger.debug("%s: %s", result.status_code, result.text)
+    if result.status_code == 200:
+        # organization existed in new catalog
+        return True
+    else:
+        logger.debug("Creating new CKAN organization with data %s", org_data)
+        result = post(
+            CONFIG.new_catalog_url + "api/action/organization_create",
+            json=org_data,
+            headers=CONFIG.new_catalog_auth_headers,
+        )
+        logger.debug("%s: %s", result.status_code, result.text)
+        if result.status_code == 200:
+            # add succeeded, return the data we used
+            return True
+        else:
+            # add failed, figure out what's going on
+            logger.debug("Failed to add organization to new catalog.")
+            return False
+
+
+def ensure_organization(org_data):
+    """Ensure that the organization from a harvest source exists.
+
+    There are many sources with the same organization, so check first if
+    the org exists and only add it if it doesn't exist. Organizations need
+    to exist in both the harvester and the new CKAN catalog.
+
+    Returns True if the organization now exists or False if something went
+    wrong.
+    """
+    logger.debug(
+        "Ensuring organization %s(%s) exists", org_data["title"], org_data["id"]
+    )
+    return _ensure_org_harvester(org_data) and _ensure_org_new_catalog(org_data)
 
 
 def _get_extra_named(org_dict, name):
@@ -217,7 +253,7 @@ def _upload_source(source):
         result = post(
             CONFIG.harvester_url + "harvest_source/add",
             json=upload_data,
-            headers=CONFIG.auth_headers,
+            headers=CONFIG.harvester_auth_headers,
         )
     except RequestException as e:
         logger.error(e)
@@ -237,19 +273,46 @@ def upload_sources(sources):
     markers.
     """
     click.echo("Uploading sources...")
-    with ThreadPoolExecutor() as executor:
+    with ThreadPoolExecutor(max_workers=CONFIG.workers) as executor:
         results = list(executor.map(_upload_source, sources))
     return results
 
 
 @click.command()
-@click.option("-l", "--limit", default=0)
+@click.option("-l", "--limit", default=0, help="Migrate only this many sources")
 @click.option("-d", "--debug", is_flag=True, default=False)
-@click.option("--harvester-url", default=None)
-@click.option("--api-token", required=True)
-def migrate_source(api_token, limit=0, debug=False, harvester_url=None):
-    if api_token:
-        CONFIG.auth_headers = {"Authorization": api_token}
+@click.option(
+    "--harvester-url", default=None, help="Base URL for the Harvester to migrate to"
+)
+@click.option(
+    "--new-catalog-url", default=None, help="Base URL for the new CKAN catalog"
+)
+@click.option(
+    "--harvester-api-token", required=True, help="API token for the Harvester"
+)
+@click.option(
+    "--new-catalog-api-token", required=True, help="API token for the new CKAN catalog"
+)
+@click.option(
+    "-w", "--workers", default=None, type=int, help="Number of thread workers to use"
+)
+def migrate_source(
+    harvester_api_token,
+    new_catalog_api_token,
+    limit=0,
+    debug=False,
+    harvester_url=None,
+    new_catalog_url=None,
+    workers=None,
+):
+    if harvester_api_token:
+        CONFIG.harvester_auth_headers = {"Authorization": harvester_api_token}
+    else:
+        logger.error("Please set a non-empty api_token.")
+        return 1
+
+    if new_catalog_api_token:
+        CONFIG.new_catalog_auth_headers = {"Authorization": new_catalog_api_token}
     else:
         logger.error("Please set a non-empty api_token.")
         return 1
@@ -262,10 +325,17 @@ def migrate_source(api_token, limit=0, debug=False, harvester_url=None):
     if not CONFIG.harvester_url.endswith("/"):
         CONFIG.harvester_url += "/"
 
+    if new_catalog_url is not None:
+        CONFIG.new_catalog_url = new_catalog_url
+    if not CONFIG.new_catalog_url.endswith("/"):
+        CONFIG.new_catalog_url += "/"
+
     if not limit:
         count = get_count()
     else:
         count = limit
+
+    CONFIG.workers = workers
 
     click.echo(f"Looking for {count} harvest sources.")
     sources = get_sources(count)
