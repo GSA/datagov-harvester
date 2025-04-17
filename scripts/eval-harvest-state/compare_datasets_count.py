@@ -56,7 +56,6 @@ def fetch_all_organizations(base_url):
     while True:
         url = f"{base_url}/api/3/action/organization_list"
         params = {
-            'sort': 'package_count',
             'include_dataset_count': 'true',
             'all_fields': 'true',
             'limit': limit,
