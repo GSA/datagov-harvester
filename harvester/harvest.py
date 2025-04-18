@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from pathlib import Path
-from typing import List
+from typing import List, Union
 
 import requests
 from boltons.setutils import IndexedSet
@@ -219,7 +219,8 @@ class HarvestSource:
                     dataset_hash = dataset_to_hash(sort_dataset(record))
 
                 if self.source_type == "waf":
-                    dataset_hash = dataset_to_hash(record["content"].decode("utf-8"))
+                    record = record["content"]
+                    dataset_hash = dataset_to_hash(record)
 
                 self.external_records[identifier] = Record(
                     self, identifier, record, dataset_hash
@@ -299,18 +300,13 @@ class HarvestSource:
                 else:
                     record = self.external_records[record_id]
 
-                if self.schema_type.startswith("dcatus"):
-                    source_raw = json.dumps(record.metadata)
-                else:
-                    try:
-                        source_raw = record.metadata["content"].decode()
-                    except Exception as e:
-                        logger.warning(f"Decode from bytestring failed :: {repr(e)}")
-                        source_raw = record.metadata["content"]
-
                 # set record action
                 record.action = action
-                record.source_raw = source_raw
+                record.source_raw = (
+                    json.dumps(record.metadata)
+                    if self.schema_type.startswith("dcatus")
+                    else record.metadata
+                )
                 record_mapping = self.make_record_mapping(record)
                 if action is not None:
                     db_record = self.db_interface.add_harvest_record(record_mapping)
@@ -442,10 +438,6 @@ class HarvestSource:
         new_records = []
         for job_record in job.records:
             record = self.make_record_contract(job_record)
-            if self.schema_type.startswith("dcatus"):
-                record.source_raw = json.dumps(record.metadata)
-            else:
-                record.source_raw = record.metadata["content"]
             record_mapping = self.make_record_mapping(record)
             if record.action is not None and record.status != "success":
                 db_record = self.db_interface.add_harvest_record(record_mapping)
@@ -472,10 +464,17 @@ class HarvestSource:
 
     def make_record_contract(self, db_record):
         """Helper to hydrate a db record"""
+
+        source_raw = (
+            json.loads(db_record.source_raw)
+            if self.schema_type.startswith("dcatus")
+            else db_record.source_raw
+        )
+
         return Record(
             self,
             db_record.identifier,
-            json.loads(db_record.source_raw),
+            source_raw,
             db_record.source_hash,
             db_record.action,
             _status=db_record.status,
@@ -485,12 +484,19 @@ class HarvestSource:
 
     def make_record_mapping(self, record):
         """Helper to make a Harvest record dict"""
+
+        source_raw = (
+            record.source_raw if hasattr(record, "source_raw") else record.metadata
+        )
+        if isinstance(source_raw, dict):
+            source_raw = json.dumps(source_raw)
+
         return {
             "identifier": record.identifier,
             "harvest_job_id": record.harvest_source.job_id,
             "harvest_source_id": record.harvest_source.id,
             "source_hash": record.metadata_hash,
-            "source_raw": record.source_raw,
+            "source_raw": source_raw,
             "action": record.action,
             "ckan_id": record.ckan_id,
             "ckan_name": record.ckan_name,
@@ -503,7 +509,7 @@ class Record:
 
     _harvest_source: HarvestSource
     _identifier: str
-    _metadata: dict = field(default_factory=lambda: {})
+    _metadata: Union[dict, str] = None
     _metadata_hash: str = ""
     _action: str = None
     _valid: bool = None
@@ -629,7 +635,7 @@ class Record:
 
     def transform(self) -> None:
         data = {
-            "file": self.metadata["content"],
+            "file": self.metadata,
             "reader": self.reader_map[self.harvest_source.schema_type],
             "writer": self.mdt_writer,
         }
