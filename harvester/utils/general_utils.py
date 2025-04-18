@@ -83,8 +83,13 @@ def download_file(url: str, file_type: str) -> Union[str, dict]:
     resp = requests.get(url, headers=headers)
     if 200 <= resp.status_code < 300:
         if file_type == ".xml":
-            return resp.content
+            data = resp.content
+            if isinstance(data, bytes):
+                data = data.decode()
+            return data
         return resp.json()
+
+    raise Exception
 
 
 def traverse_waf(
