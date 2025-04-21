@@ -646,6 +646,7 @@ class Record:
         if resp.status_code == 422:
             data = resp.json()
             self.mdt_msgs = prepare_transform_msg(data)
+            self.valid = False
             raise TransformationException(
                 f"record failed to transform: {self.mdt_msgs}",
                 self.harvest_source.job_id,
@@ -659,6 +660,7 @@ class Record:
             )
             self.transformed_data = json.loads(data["writerOutput"])
         else:
+            self.valid = False
             raise TransformationException(
                 f"record failed to transform because of unexpected status code: {resp.status_code}",
                 self.harvest_source.job_id,
@@ -666,6 +668,14 @@ class Record:
             )
 
     def validate(self) -> None:
+        # TODO: create a different status for transformation exceptions
+        # so they aren't confused with validation issues
+        if self.valid is False:
+            logger.warning(
+                f"{self.identifier} is invalid due to a TransformationException"
+            )
+            return
+
         logger.info(f"validating {self.identifier}")
         try:
             if self.action == "delete":
@@ -794,8 +804,14 @@ class Record:
         from harvester.utils.ckan_utils import ckanify_dcatus
 
         try:
+            record = (
+                self.metadata
+                if self.transformed_data is None
+                else self.transformed_data
+            )
+
             self.ckanified_metadata = ckanify_dcatus(
-                self.metadata, self.harvest_source, self.id
+                record, self.harvest_source, self.id
             )
         except Exception as e:
             self.status = "error"
