@@ -80,7 +80,7 @@ def count_wrapper(fn):
 
 class HarvesterDBInterface:
     def __init__(self, session=None):
-        if session:
+        if session is not None:
             ## For the Harvest Runner we create our own session and pass it in
             self.db = session
         else:
