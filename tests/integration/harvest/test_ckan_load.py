@@ -1,96 +1,15 @@
-from itertools import groupby
-from unittest.mock import patch
-
 import pytest
 from deepdiff import DeepDiff
 from jsonschema.exceptions import ValidationError
 
 from harvester.exceptions import ExtractExternalException
-from harvester.harvest import HarvestSource, Record
+from harvester.harvest import HarvestSource
 from harvester.utils.ckan_utils import create_ckan_resources
-from harvester.utils.general_utils import dataset_to_hash, sort_dataset
 
 # ruff: noqa: E501
 
 
 class TestCKANLoad:
-    def delete_mock(self):
-        pass
-
-    def update_mock(self):
-        pass
-
-    def create_mock(self):
-        pass
-
-    @patch.object(Record, "create_record", create_mock)
-    @patch.object(Record, "update_record", update_mock)
-    @patch.object(Record, "delete_record", delete_mock)
-    def test_sync(
-        self,
-        organization_data,
-        source_data_dcatus,
-        job_data_dcatus,
-        interface,
-        internal_compare_data,
-    ):
-        interface.add_organization(organization_data)
-        interface.add_harvest_source(source_data_dcatus)
-        interface.add_harvest_job(job_data_dcatus)
-
-        job_id = job_data_dcatus["id"]
-        source_id = source_data_dcatus["id"]
-
-        # prefill with records
-        for record in internal_compare_data["records"]:
-            data = {
-                "identifier": record["identifier"],
-                "harvest_job_id": job_id,
-                "harvest_source_id": source_id,
-                "source_hash": dataset_to_hash(sort_dataset(record)),
-                "status": "success",
-                "action": "create",
-            }
-            interface.add_harvest_record(data)
-
-        harvest_source = HarvestSource(job_id)
-        harvest_source.extract()
-        harvest_source.compare()
-        harvest_source.transform()
-        harvest_source.validate()
-        harvest_source.sync()
-        harvest_source.report()
-
-        results = {
-            "action": {"create": 0, "update": 0, "delete": 0, None: 0},
-            "status": {"success": 0, "error": 0, None: 0},
-            "validity": {True: 0, False: 0},
-        }
-        for key, group in groupby(
-            harvest_source.records, lambda x: x.action if x.status != "error" else None
-        ):
-            results["action"][key] = sum(1 for _ in group)
-
-        for key, group in groupby(harvest_source.records, lambda x: x.status):
-            results["status"][key] = sum(1 for _ in group)
-
-        harvest_reporter = harvest_source.reporter.report()
-        assert results["action"]["create"] == 6
-        assert harvest_reporter["records_added"] == 6
-
-        assert results["action"]["update"] == 1
-        assert harvest_reporter["records_updated"] == 1
-
-        assert results["action"]["delete"] == 1
-        assert harvest_reporter["records_deleted"] == 1
-
-        assert results["status"]["error"] == 0
-        assert harvest_reporter["records_errored"] == 0
-
-        # NOTE: we don't report this status, but it is not in sync b/c deletes aren't counted correctly
-        assert results["status"]["success"] == 7
-        assert len(harvest_source.records) - harvest_reporter["records_errored"] == 8
-
     def test_ckanify_dcatus(
         self,
         interface,

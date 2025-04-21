@@ -6,7 +6,8 @@ import uuid
 from typing import Tuple, Union
 
 from database.interface import HarvesterDBInterface
-from harvester.harvest import HarvestSource
+
+# from harvester.harvest import HarvestSource
 from harvester.utils.general_utils import is_number, validate_geojson
 
 # all of these are copy/pasted from ckan core
@@ -393,9 +394,7 @@ def munge_tag(tag: str) -> str:
     return tag
 
 
-def create_ckan_extras(
-    metadata: dict, harvest_source: HarvestSource, record_id: str
-) -> list[dict]:
+def create_ckan_extras(metadata: dict, harvest_source, record_id: str) -> list[dict]:
     extras = [
         "accessLevel",
         "bureauCode",
@@ -677,9 +676,7 @@ def simple_transform(metadata: dict, owner_org: str) -> dict:
     return output
 
 
-def ckanify_dcatus(
-    metadata: dict, harvest_source: HarvestSource, record_id: str
-) -> dict:
+def ckanify_dcatus(metadata: dict, harvest_source, record_id: str) -> dict:
     ckanified_metadata = simple_transform(metadata, harvest_source.organization_id)
 
     ckanified_metadata["resources"] = create_ckan_resources(metadata)

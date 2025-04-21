@@ -156,7 +156,7 @@ class TestHarvestJobFullFlow:
         job_data_dcatus,
         single_internal_record,
     ):
-        CKANMock.action.dataset_purge.side_effect = Exception()
+        CKANMock.action.dataset_purge.side_effect = Exception("test exception")
         download_file_mock.return_value = dict({"dataset": []})
 
         interface.add_organization(organization_data)
