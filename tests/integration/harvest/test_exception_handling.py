@@ -88,9 +88,7 @@ class TestHarvestRecordExceptionHandling:
         harvest_source.sync()
 
         interface_record = interface.get_harvest_record(harvest_source.records[0].id)
-        interface_errors = interface.get_harvest_record_errors_by_record(
-            harvest_source.records[0].id
-        )
+        interface_errors = interface.get_harvest_record_errors_by_job(harvest_job.id)
         assert interface_record.id == harvest_source.records[0].id
         assert interface_record.status == "error"
         assert interface_errors[0].type == "SynchronizeException"
