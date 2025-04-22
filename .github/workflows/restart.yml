@@ -1,0 +1,41 @@
+---
+name: 3 - Restart Apps
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '11/30 * * * *'
+
+jobs:
+  restart:
+    name: restart (development)
+    environment: development
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout repo
+        uses: actions/checkout@v4
+        with:
+          repository: gsa/datagov-harvester
+          path: "./harvester"
+      - name: restart datagov-harvest-admin
+        uses: cloud-gov/cg-cli-tools@main
+        with:
+          command: harvester/bin/check-and-renew datagov-harvest-admin restart
+          cf_org: gsa-datagov
+          cf_space: development
+          cf_username: ${{secrets.CF_SERVICE_USER}}
+          cf_password: ${{secrets.CF_SERVICE_AUTH}}
+      - name: Create Issue if it fails 😢
+        if: ${{ failure() && github.ref == 'refs/heads/main' }}
+        uses: JasonEtco/create-an-issue@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.ADD_TO_PROJECT_PAT }}
+          GITHUB_JOB: ${{ toJson(github)['job'] }}
+          GITHUB_ATTEMPTS: ${{ github.run_attempt }}
+          LAST_COMMIT: ${{ github.sha }}
+          LAST_RUN_BY: ${{ github.actor }}
+          RUN_ID: ${{ github.run_id }}
+          REPO: ${{ github.repository }}
+        with:
+          filename: harvester/.github/restart_failure.md
+          update_existing: true
