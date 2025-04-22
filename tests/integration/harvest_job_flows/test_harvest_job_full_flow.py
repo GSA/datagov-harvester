@@ -134,10 +134,18 @@ class TestHarvestJobFullFlow:
         assert len(harvest_job.record_errors) == 3
         assert harvest_job.records_errored == 3
 
-        ## assert errors
-        assert harvest_job.records[0].errors[0].type == "TransformationException"
-        assert harvest_job.records[1].errors[0].type == "ValidationException"
-        assert harvest_job.records[2].errors[0].type == "ValidationException"
+        # assert error insertion order
+        errors = interface.get_harvest_record_errors_by_job(job_id)
+        assert errors[0][0].type == "TransformationException"
+        assert errors[1][0].type == "ValidationException"
+        assert errors[2][0].type == "ValidationException"
+
+        # assert harvest_record_id & type match
+        for error in errors:
+            harvest_record = interface.get_harvest_record(error[0].harvest_record_id)
+            assert len(harvest_record.errors) == 1
+            assert harvest_record.id == error[0].harvest_record_id
+            assert harvest_record.errors[0].type == error[0].type
 
         ## assert call_args to package_create
         ## TODO this test wil eventually succeed. we can then assert call_args

@@ -60,6 +60,9 @@ logger = logging.getLogger("harvest_runner")
 
 ROOT_DIR = Path(__file__).parents[1]
 
+# harvest worker count
+harvest_worker_sync_count = int(os.getenv("HARVEST_WORKER_SYNC_COUNT"))
+
 
 class CKANSyncTool:
     def sync(self, record):
@@ -450,7 +453,11 @@ class HarvestSource:
         # pre-sync transform before we hit CKAN threadpool executor
         for record in self.records:
             try:
-                if record.action is not None and record.action != "delete":
+                if (
+                    record.action is not None
+                    and record.action != "delete"
+                    and record.valid
+                ):
                     record.ckanify_dcatus()
             except DCATUSToCKANException:
                 self.reporter.update("errored")
@@ -468,7 +475,7 @@ class HarvestSource:
                 self.reporter.update("errored")
 
         sync_results = {}
-        with ThreadPoolExecutor(max_workers=25) as executor:
+        with ThreadPoolExecutor(max_workers=harvest_worker_sync_count) as executor:
             futures = [
                 executor.submit(ckan_sync_tool.sync, record) for record in self.records
             ]

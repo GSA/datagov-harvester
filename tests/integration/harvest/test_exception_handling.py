@@ -138,6 +138,7 @@ class TestHarvestRecordExceptionHandling:
         harvest_source = HarvestSource(harvest_job.id)
         harvest_source.extract()
         harvest_source.compare()
+        harvest_source.validate()
         harvest_source.sync()
 
         test_record = [x for x in harvest_source.records if x.identifier == "cftc-dc1"][
