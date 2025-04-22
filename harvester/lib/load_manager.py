@@ -11,7 +11,7 @@ CF_SERVICE_USER = os.getenv("CF_SERVICE_USER")
 CF_SERVICE_AUTH = os.getenv("CF_SERVICE_AUTH")
 HARVEST_RUNNER_APP_GUID = os.getenv("HARVEST_RUNNER_APP_GUID")
 
-MAX_TASKS_COUNT = 3
+MAX_TASKS_COUNT = 25
 
 interface = HarvesterDBInterface()
 

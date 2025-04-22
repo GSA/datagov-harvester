@@ -1,0 +1,108 @@
+#!/bin/bash
+
+ok_to_proceed="YES"
+
+function check_running_job {
+  [[ $# -eq 0 ]] && echo "Error: no app provided" && exit 1
+
+  # Get wait argument if supplied
+  if [[ -n $4 && $4 == '--wait' ]]; then
+    wait_for_app='true'
+  fi
+
+  # Input any app name
+  if [[ -n "$1" ]]; then
+    if [[ $1 == '--wait' ]]; then
+      echo "Error: no app provided"
+      exit 1
+    fi
+    app_to_check=$1
+  fi
+
+  # Input whether it's deploy or restart
+  if [[ -n "$2" ]]; then
+    if [[ ! $2 =~ ^(deploy|restart|scale)$ ]]; then
+      echo "Need to specify 'deploy', 'restart', or 'scale'."
+      exit 1
+    fi
+    action=$2
+  fi
+
+  # Input space for deployment
+  if [[ -n "$3" ]]; then
+    space=$3
+  fi
+
+  # Check jq
+  if ! command -v jq &> /dev/null
+  then
+      apt install -y jq
+  fi
+
+  # Check if deployment is happening, if so ignore
+  guid=$(cf app "$app_to_check" --guid)
+  running=$(\
+    cf curl "/v3/deployments?status_values=ACTIVE" \
+    | jq --arg guid "$guid" \
+      ".resources[] |
+      select(.relationships.app.data.guid == \$guid ) |
+      .relationships.app.data.guid" \
+  )
+  if [[ $running != "" ]]; then
+    if [[ $wait_for_app == 'true' ]]; then
+      echo "Waiting on currently running job $app_to_check.."
+      sleep 10
+      check_running_job "$app_to_check" "$wait"
+    else
+      echo "Deployment in progress for $app_to_check, not doing anything"
+      ok_to_proceed="NO"
+    fi
+  else
+      echo "No job running for app $app_to_check"
+  fi
+
+  # If there is more than one instance of 'instances', the app is already restarting
+  if [[ $(cf app "$app_to_check" | grep -c '^instances:') -gt 1 ]]; then
+    echo "Deployment or Restart in progress... not doing anything"
+    ok_to_proceed="NO"
+  fi
+}
+
+check_running_job "$@"
+
+if [[ "$action" == "restart" ]]; then
+  if [[ $ok_to_proceed == "YES" ]]; then
+    cf restart "$app_to_check" --strategy rolling
+  else
+    echo "Restart of $app_to_check cancelled."
+  fi
+fi
+
+if [[ "$action" == "scale" ]]; then
+  if [[ $ok_to_proceed == "YES" ]]; then
+    # call scale functions to get the scale_to value
+    source "$(dirname "$0")/scale_calculate.sh"
+    set_scale_number
+    if [[ -z $scale_to ]]; then
+      echo "Scale to value not set. Cancelling scale."
+      exit 1
+    fi
+    # get $scale_to from the environment vars
+    echo "Scaling $app_to_check to $scale_to"
+    cf scale "$app_to_check" -i "$scale_to"
+  else
+    echo "scaling of $app_to_check cancelled."
+  fi
+fi
+
+if [[ "$action" == "deploy" ]]; then
+  if [[ $ok_to_proceed == "YES" ]]; then
+    app_guid=$(cf app --guid "$app_to_check")
+    cf curl -X POST /v3/apps/${app_guid}/actions/clear_buildpack_cache
+    cf push "$app_to_check" --vars-file vars.$space.yml --strategy rolling
+  else
+    # Recursively call itself until Github Actions times out
+    sleep 600
+    $0 "$@"
+  fi
+fi
