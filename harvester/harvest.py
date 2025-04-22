@@ -73,6 +73,12 @@ class CKANSyncTool:
             )
             return
 
+        if record.status == "error":
+            logger.info(
+                f"{record.identifier} has status 'error'. bypassing {record.action}"
+            )
+            return
+
         start = get_datetime()
         result = {}
         try:
@@ -88,6 +94,7 @@ class CKANSyncTool:
             elif record.action == "update":
                 result = self.update_record(record)
         except Exception as e:
+            record.status = "error"
             raise SynchronizeException(
                 f"failed to {record.action} for {record.identifier} :: {repr(e)}",
                 record.harvest_source.job_id,
@@ -98,7 +105,7 @@ class CKANSyncTool:
             f"time to {record.action} {record.identifier} \
                 {get_datetime() - start}"
         )
-
+        record.status = "success"
         return result
 
     def create_record(self, record, retry=False):
@@ -472,11 +479,14 @@ class HarvestSource:
 
         # post-sync cleanup
         for record in self.records:
+            if record.status == "error":
+                continue
+
             if self.sync_results.get(record.identifier):
                 record.ckan_id = self.sync_results[record.identifier]["ckan_id"]
                 record.ckan_name = self.sync_results[record.identifier]["ckan_name"]
 
-            if record.action == "delete":
+            if record.action == "delete" and record.status == "success":
                 record.delete_self_in_db()
 
             if record.action is not None and record.action != "delete":

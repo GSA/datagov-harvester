@@ -87,8 +87,12 @@ class TestHarvestRecordExceptionHandling:
         harvest_source.compare()
         harvest_source.sync()
 
+        # NOTE: we should expect to see a record here as the sync failed
+        # and the record should not have been cleaned up
         interface_record = interface.get_harvest_record(harvest_source.records[0].id)
-        interface_errors = interface.get_harvest_record_errors_by_job(harvest_job.id)
+        interface_errors = interface.get_harvest_record_errors_by_record(
+            harvest_source.records[0].id
+        )
         assert interface_record.id == harvest_source.records[0].id
         assert interface_record.status == "error"
         assert interface_errors[0].type == "SynchronizeException"
@@ -118,7 +122,7 @@ class TestHarvestRecordExceptionHandling:
         assert interface_record.status == "error"
         assert interface_errors[0].type == "ValidationException"
 
-    @patch("harvester.utils.ckan_utils.ckanify_dcatus", side_effect=Exception("Broken"))
+    @patch("harvester.harvest.ckanify_dcatus", side_effect=Exception("Broken"))
     def test_dcatus_to_ckan_exception(
         self,
         ckanify_dcatus_mock,
@@ -143,7 +147,7 @@ class TestHarvestRecordExceptionHandling:
         interface_record = interface.get_harvest_record(test_record.id)
         interface_errors = interface.get_harvest_record_errors_by_record(test_record.id)
 
-        assert ckanify_dcatus_mock.call_count == len(harvest_source.records)
+        assert ckanify_dcatus_mock.call_count == len(harvest_source.records) == 7
         assert interface_record.id == test_record.id
         assert interface_record.status == "error"
         assert interface_errors[0].type == "DCATUSToCKANException"
