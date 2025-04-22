@@ -79,7 +79,12 @@ class CKANSyncTool:
             if record.action == "delete":
                 result = self.delete_record(record)
             elif record.action == "create":
-                result = self.create_record(record)
+                res = self.create_record(record)
+                result = {
+                    "identifier": record.identifier,
+                    "ckan_id": res["id"],
+                    "ckan_name": record.ckanified_metadata["name"],
+                }
             elif record.action == "update":
                 result = self.update_record(record)
         except Exception as e:
@@ -100,12 +105,7 @@ class CKANSyncTool:
         from harvester.utils.ckan_utils import add_uuid_to_package_name
 
         try:
-            result = ckan.action.package_create(**record.ckanified_metadata)
-            return {
-                "identifier": record.identifier,
-                "ckan_id": result["id"],
-                "ckan_name": record.ckanified_metadata["name"],
-            }
+            return ckan.action.package_create(**record.ckanified_metadata)
         except Exception as e:
             if retry is False:
                 record.ckanified_metadata["name"] = add_uuid_to_package_name(
@@ -449,24 +449,25 @@ class HarvestSource:
                 self.reporter.update("errored")
 
         # multi-threaded sync
+        def error_callback(future):
+            try:
+                result = future.result()
+                if isinstance(result, dict) and result.get("identifier"):
+                    sync_results[result["identifier"]] = {
+                        "ckan_id": result["ckan_id"],
+                        "ckan_name": result["ckan_name"],
+                    }
+            except SynchronizeException:
+                self.reporter.update("errored")
+
         sync_results = {}
         with ThreadPoolExecutor(max_workers=25) as executor:
             futures = [
                 executor.submit(ckan_sync_tool.sync, record) for record in self.records
             ]
             for future in futures:
-                try:
-                    result = future.result()
-                    if isinstance(result, dict) and result.get("identifier"):
-                        sync_results[result["identifier"]] = {
-                            "ckan_id": result["ckan_id"],
-                            "ckan_name": result["ckan_name"],
-                        }
-                except (
-                    DCATUSToCKANException,
-                    SynchronizeException,
-                ):
-                    self.reporter.update("errored")
+                future.add_done_callback(error_callback)
+
         self.sync_results = sync_results
 
         # post-sync cleanup

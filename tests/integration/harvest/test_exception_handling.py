@@ -173,7 +173,6 @@ class TestHarvestRecordExceptionHandling:
         ]
 
         interface_record = interface.get_harvest_record(test_record.id)
-
         interface_errors = interface.get_harvest_record_errors_by_record(test_record.id)
 
         assert interface_record.id == test_record.id
