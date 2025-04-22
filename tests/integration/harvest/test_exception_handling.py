@@ -213,6 +213,7 @@ class TestHarvestRecordExceptionHandling:
         harvest_source = HarvestSource(job_id)
         harvest_source.extract()
         harvest_source.compare()
+        harvest_source.validate()
         harvest_source.sync()
         harvest_source.report()
 
