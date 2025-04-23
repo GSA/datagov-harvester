@@ -450,9 +450,7 @@ class HarvestSource:
             except ValidationException:
                 self.reporter.update("errored")
 
-    def sync(self) -> None:
-        """Sync records to external CKAN catalog"""
-
+    def pre_sync(self) -> None:
         # pre-sync transform before we hit CKAN threadpool executor
         for record in self.records:
             try:
@@ -464,6 +462,9 @@ class HarvestSource:
                     record.ckanify_dcatus()
             except DCATUSToCKANException:
                 self.reporter.update("errored")
+
+    def sync(self) -> None:
+        """Sync records to external CKAN catalog"""
 
         # multi-threaded sync
         def error_callback(future):
@@ -489,6 +490,7 @@ class HarvestSource:
 
         self.sync_results = sync_results
 
+    def post_sync(self) -> None:
         # post-sync cleanup
         for record in self.records:
             if record.status == "error":
@@ -896,7 +898,9 @@ def harvest_job_starter(job_id, job_type="harvest"):
         harvest_source.sync_job_helper()
 
     if job_type in ["harvest", "clear", "sync", "force_harvest"]:
+        harvest_source.pre_sync()
         harvest_source.sync()
+        harvest_source.post_sync()
 
     if job_type in ["clear"]:
         harvest_source.clear_helper()
