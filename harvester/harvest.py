@@ -119,6 +119,11 @@ class CKANSyncTool:
         record.status = "success"
         record.harvest_source.reporter.update(record.action)
 
+        # # update harvest job stats
+        record.harvest_source.db_interface.update_harvest_job(
+            record.harvest_source.job_id, record.harvest_source.reporter.report()
+        )
+
         return result
 
     def create_record(self, record, retry=False):
@@ -515,8 +520,8 @@ class HarvestSource:
             elif record.action is not None:
                 record.update_self_in_db()
 
-        # update harvest job stats
-        self.db_interface.update_harvest_job(self.job_id, self.reporter.report())
+        # # update harvest job stats
+        # self.db_interface.update_harvest_job(self.job_id, self.reporter.report())
 
     def report(self) -> None:
         """Assemble and record report for harvest job"""
