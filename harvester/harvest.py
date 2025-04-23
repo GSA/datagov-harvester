@@ -109,6 +109,8 @@ class CKANSyncTool:
                 {get_datetime() - start}"
         )
         record.status = "success"
+        record.harvest_source.reporter.update(record.action)
+
         return result
 
     def create_record(self, record, retry=False):
@@ -443,7 +445,8 @@ class HarvestSource:
         logger.info("validating records")
         for record in self.records:
             try:
-                record.validate()
+                if record.status != "error":
+                    record.validate()
             except ValidationException:
                 self.reporter.update("errored")
 
@@ -456,7 +459,7 @@ class HarvestSource:
                 if (
                     record.action is not None
                     and record.action != "delete"
-                    and record.valid
+                    and record.status != "error"
                 ):
                     record.ckanify_dcatus()
             except DCATUSToCKANException:
@@ -471,6 +474,8 @@ class HarvestSource:
                         "ckan_id": result["ckan_id"],
                         "ckan_name": result["ckan_name"],
                     }
+                else:
+                    logger.warning(f"CKAN_SYNC: Unexpected sync payload :: {result}")
             except SynchronizeException:
                 self.reporter.update("errored")
 
@@ -499,11 +504,8 @@ class HarvestSource:
             if record.action is not None and record.action != "delete":
                 record.update_self_in_db()
 
-            # update harvest reporter
-            self.reporter.update(record.action)
-
-            # update harvest job stats
-            self.db_interface.update_harvest_job(self.job_id, self.reporter.report())
+        # update harvest job stats
+        self.db_interface.update_harvest_job(self.job_id, self.reporter.report())
 
     def report(self) -> None:
         """Assemble and record report for harvest job"""
@@ -578,6 +580,7 @@ class HarvestSource:
             if record.action is not None and record.status != "success":
                 db_record = self.db_interface.add_harvest_record(record_mapping)
                 record.id = db_record.id
+                record._status = None
             new_records.append(record)
         self.records = new_records
 
@@ -782,7 +785,7 @@ class Record:
         if resp.status_code == 422:
             data = resp.json()
             self.mdt_msgs = prepare_transform_msg(data)
-            self.valid = False
+            self.status = "error"
             raise TransformationException(
                 f"record failed to transform: {self.mdt_msgs}",
                 self.harvest_source.job_id,
@@ -796,7 +799,7 @@ class Record:
             )
             self.transformed_data = json.loads(data["writerOutput"])
         else:
-            self.valid = False
+            self.status = "error"
             raise TransformationException(
                 f"record failed to transform because of unexpected status code: {resp.status_code}",
                 self.harvest_source.job_id,
@@ -806,12 +809,6 @@ class Record:
     def validate(self) -> None:
         # TODO: create a different status for transformation exceptions
         # so they aren't confused with validation issues
-        if self.valid is False:
-            logger.warning(
-                f"{self.identifier} is invalid due to a TransformationException"
-            )
-            return
-
         logger.info(f"validating {self.identifier}")
         try:
             if self.action == "delete":
