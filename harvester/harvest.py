@@ -4,14 +4,12 @@ import logging
 import os
 import smtplib
 import sys
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from pathlib import Path
 from typing import List, Union
-from harvester.utils.ckan_utils import ckanify_dcatus
-
-from concurrent.futures import ThreadPoolExecutor
 
 import requests
 from boltons.setutils import IndexedSet
@@ -32,6 +30,7 @@ from harvester.exceptions import (
     ValidationException,
 )
 from harvester.lib.harvest_reporter import HarvestReporter
+from harvester.utils.ckan_utils import ckanify_dcatus
 from harvester.utils.general_utils import (
     dataset_to_hash,
     download_file,
@@ -65,20 +64,29 @@ harvest_worker_sync_count = int(os.getenv("HARVEST_WORKER_SYNC_COUNT"))
 
 
 class CKANSyncTool:
+    """A helper class used for parallelization of CKAN network calls.
+
+    Usage:
+        ckan_sync_tool = CKANSyncTool()
+        ckan_sync_tool.sync(record)
+    """
+
     def sync(self, record):
-        if record.valid is False:
-            logger.warning(f"{record.identifier} is invalid. bypassing {record.action}")
-            return
+        """General sync bus for all records to pass through.
 
-        if record.status == "success":
-            logger.info(
-                f"{record.identifier} has status 'success'. bypassing {record.action}"
-            )
-            return
+        Args:
+            self: CKANSyncTool class
+            record: An instance of HarvestRecord (Record) class
 
-        if record.status == "error":
+        Returns:
+            CKAN response dict
+
+        Raises:
+            SynchronizeException: Any issue
+        """
+        if record.status == "success" or record.status == "error":
             logger.info(
-                f"{record.identifier} has status 'error'. bypassing {record.action}"
+                f"{record.identifier} has status '{record.status}'. bypassing {record.action}"
             )
             return
 
@@ -464,7 +472,9 @@ class HarvestSource:
                 self.reporter.update("errored")
 
     def sync(self) -> None:
-        """Sync records to external CKAN catalog"""
+        """Sync records to external CKAN catalog. This uses ThreadPoolExecutor, so it has
+        been isolated, and pre- & post- sync actions have been broken out into their
+        own methods"""
 
         # multi-threaded sync
         def error_callback(future):
@@ -493,17 +503,16 @@ class HarvestSource:
     def post_sync(self) -> None:
         # post-sync cleanup
         for record in self.records:
-            if record.status == "error":
+            if record.status == "error" or record.status is None:
                 continue
 
             if self.sync_results.get(record.identifier):
                 record.ckan_id = self.sync_results[record.identifier]["ckan_id"]
                 record.ckan_name = self.sync_results[record.identifier]["ckan_name"]
 
-            if record.action == "delete" and record.status == "success":
+            if record.action == "delete":
                 record.delete_self_in_db()
-
-            if record.action is not None and record.action != "delete":
+            elif record.action is not None:
                 record.update_self_in_db()
 
         # update harvest job stats

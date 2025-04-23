@@ -2,11 +2,11 @@ import logging.config
 import os
 
 from dotenv import load_dotenv
+from sqlalchemy import create_engine
+from sqlalchemy.orm import scoped_session, sessionmaker
 
 from config.logger_config import LOGGING_CONFIG
 from database.interface import HarvesterDBInterface
-from sqlalchemy import create_engine
-from sqlalchemy.orm import scoped_session, sessionmaker
 
 load_dotenv()
 
