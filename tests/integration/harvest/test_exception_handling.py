@@ -122,7 +122,10 @@ class TestHarvestRecordExceptionHandling:
         assert interface_record.status == "error"
         assert interface_errors[0].type == "ValidationException"
 
-    @patch("harvester.harvest.ckanify_dcatus", side_effect=Exception("Broken"))
+    @patch(
+        "harvester.harvest.ckan_sync_tool.ckanify_record",
+        side_effect=Exception("Broken"),
+    )
     def test_dcatus_to_ckan_exception(
         self,
         ckanify_dcatus_mock,
@@ -139,9 +142,7 @@ class TestHarvestRecordExceptionHandling:
         harvest_source.extract()
         harvest_source.compare()
         harvest_source.validate()
-        harvest_source.pre_sync()
         harvest_source.sync()
-        harvest_source.post_sync()
 
         test_record = [x for x in harvest_source.records if x.identifier == "cftc-dc1"][
             0
@@ -216,9 +217,7 @@ class TestHarvestRecordExceptionHandling:
         harvest_source.extract()
         harvest_source.compare()
         harvest_source.validate()
-        harvest_source.pre_sync()
         harvest_source.sync()
-        harvest_source.post_sync()
         harvest_source.report()
 
         harvest_records = interface.get_harvest_records_by_job(job_id)

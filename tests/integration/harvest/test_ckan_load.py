@@ -3,7 +3,7 @@ from deepdiff import DeepDiff
 from jsonschema.exceptions import ValidationError
 
 from harvester.exceptions import ExtractExternalException
-from harvester.harvest import HarvestSource
+from harvester.harvest import HarvestSource, ckan_sync_tool
 from harvester.utils.ckan_utils import create_ckan_resources
 
 # ruff: noqa: E501
@@ -92,7 +92,7 @@ class TestCKANLoad:
             ],
         }
 
-        test_record.ckanify_dcatus()
+        ckan_sync_tool.ckanify_record(test_record)
         assert DeepDiff(test_record.ckanified_metadata, expected_result) == {}
 
     def test_create_ckan_resources(self, dol_distribution_json):

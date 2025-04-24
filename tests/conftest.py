@@ -30,9 +30,11 @@ collect_ignore_glob = ["functional/*"]
 
 @pytest.fixture(scope="session", autouse=True)
 def default_session_fixture():
-    with patch("harvester.lib.cf_handler.CloudFoundryClient"), patch(
-        "harvester.harvest.smtplib"
-    ), patch("app.load_manager.start", lambda: True):
+    with (
+        patch("harvester.lib.cf_handler.CloudFoundryClient"),
+        patch("harvester.harvest.smtplib"),
+        patch("app.load_manager.start", lambda: True),
+    ):
         yield
 
 
@@ -93,10 +95,12 @@ def interface(session) -> HarvesterDBInterface:
 @pytest.fixture(autouse=True)
 def default_function_fixture(interface):
     logger.info("Patching core.feature.service")
-    with patch("harvester.harvest.db_interface", interface), patch(
-        "harvester.exceptions.db_interface", interface
-    ), patch("harvester.lib.load_manager.interface", interface), patch(
-        "app.routes.db", interface
+    with (
+        patch("harvester.harvest.db_interface", interface),
+        patch("harvester.exceptions.db_interface", interface),
+        patch("harvester.lib.load_manager.interface", interface),
+        patch("app.routes.db", interface),
+        patch("harvester.utils.ckan_utils.db", interface),
     ):
         yield
     logger.info("Patching complete. Unpatching")
