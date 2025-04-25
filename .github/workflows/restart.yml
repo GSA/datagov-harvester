@@ -1,5 +1,5 @@
 ---
-name: 3 - Restart Apps
+name: Restart Apps
 
 on:
   workflow_dispatch:

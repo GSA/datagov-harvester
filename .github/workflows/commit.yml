@@ -91,26 +91,8 @@ jobs:
       - name: deploy DHL
         uses: cloud-gov/cg-cli-tools@main
         with:
-          command: cf push datagov-harvest-admin --vars-file vars.development.yml --strategy rolling --no-wait && cf push datagov-harvest-runner --vars-file vars.development.yml --strategy rolling --no-wait
+          command: ./bin/check-and-renew datagov-harvest-admin deploy
           cf_org: gsa-datagov
-          cf_space: ${{vars.ENVIRONMENT_NAME}}
+          cf_space: development
           cf_username: ${{secrets.CF_SERVICE_USER}}
           cf_password: ${{secrets.CF_SERVICE_AUTH}}
-      # to-do
-      # - name: smoke test
-      #   uses: cloud-gov/cg-cli-tools@main
-      #   with:
-      #     command: cf run-task harvesting-logic -c "/home/vcap/app/scripts/smoke-test.py" --name smoke-test
-      #     cf_org: gsa-datagov
-      #     cf_space: ${{vars.ENVIRONMENT_NAME}}
-      #     cf_username: ${{secrets.CF_SERVICE_USER}}
-      #     cf_password: ${{secrets.CF_SERVICE_AUTH}}
-      # - name: monitor task output
-      #   uses: cloud-gov/cg-cli-tools@main
-      #   with:
-      #     command: >
-      #       scripts/monitor-cf-logs.sh harvesting-logic smoke-test
-      #     cf_org: gsa-datagov
-      #     cf_space: ${{vars.ENVIRONMENT_NAME}}
-      #     cf_username: ${{secrets.CF_SERVICE_USER}}
-      #     cf_password: ${{secrets.CF_SERVICE_AUTH}}
