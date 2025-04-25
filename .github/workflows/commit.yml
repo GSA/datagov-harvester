@@ -58,7 +58,7 @@ jobs:
   deploy-development:
     if: github.ref == 'refs/heads/develop'
     name: deploy development
-    # needs: test
+    needs: test
     environment: development
     runs-on: ubuntu-latest
     steps:
@@ -91,7 +91,7 @@ jobs:
       - name: deploy DHL
         uses: cloud-gov/cg-cli-tools@main
         with:
-          command: ./bin/check-and-renew datagov-harvest-admin deploy
+          command: ./bin/check-and-renew datagov-harvest-admin deploy development
           cf_org: gsa-datagov
           cf_space: development
           cf_username: ${{secrets.CF_SERVICE_USER}}
