@@ -59,7 +59,7 @@ logger = logging.getLogger("harvest_runner")
 ROOT_DIR = Path(__file__).parents[1]
 
 # harvest worker count
-harvest_worker_sync_count = int(os.getenv("HARVEST_WORKER_SYNC_COUNT"))
+harvest_worker_sync_count = int(os.getenv("HARVEST_WORKER_SYNC_COUNT", 1))
 
 
 class CKANSyncTool:
@@ -160,7 +160,7 @@ class CKANSyncTool:
         return ckan.action.package_update(**updated_metadata)
 
     def delete_record(self, record) -> None:
-        return ckan.action.dataset_purge(**{"id": record.ckan_id})
+        return ckan.action.dataset_purge(id=record.ckan_id)
 
     def ckanify_record(self, record) -> None:
         from harvester.utils.ckan_utils import ckanify_dcatus
