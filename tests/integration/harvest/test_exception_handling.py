@@ -66,7 +66,7 @@ class TestHarvestJobExceptionHandling:
 
 
 class TestHarvestRecordExceptionHandling:
-    @patch("harvester.harvest.ckan", ckanapi.RemoteCKAN("mock_address"))
+    @patch("harvester.harvest.ckan_sync_tool.ckan", ckanapi.RemoteCKAN("mock_address"))
     @patch("harvester.harvest.download_file", download_mock)
     def test_delete_exception(
         self,
@@ -157,7 +157,7 @@ class TestHarvestRecordExceptionHandling:
         assert interface_errors[0].type == "DCATUSToCKANException"
 
     # ruff: noqa: F401
-    @patch("harvester.harvest.ckan", ckanapi.RemoteCKAN("mock_address"))
+    @patch("harvester.harvest.ckan_sync_tool.ckan", ckanapi.RemoteCKAN("mock_address"))
     def test_ckan_sync_exception(
         self,
         interface,
@@ -185,7 +185,7 @@ class TestHarvestRecordExceptionHandling:
         assert interface_record.status == "error"
         assert interface_errors[0].type == "SynchronizeException"
 
-    @patch("harvester.harvest.ckan")
+    @patch("harvester.harvest.ckan_sync_tool.ckan")
     @patch("harvester.utils.ckan_utils.uuid")
     def test_validate_nested_exception_handling(
         self,

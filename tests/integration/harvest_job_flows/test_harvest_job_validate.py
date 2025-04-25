@@ -8,7 +8,7 @@ HARVEST_SOURCE_URL = os.getenv("HARVEST_SOURCE_URL")
 
 
 class TestHarvestJobValidate:
-    @patch("harvester.harvest.ckan")
+    @patch("harvester.harvest.ckan_sync_tool.ckan")
     def test_validate_single_valid_record(
         self,
         CKANMock,
@@ -42,7 +42,7 @@ class TestHarvestJobValidate:
         assert harvest_job.records_validated == 1
         assert harvest_job.records_validated == len(records_to_add) == 1
 
-    @patch("harvester.harvest.ckan")
+    @patch("harvester.harvest.ckan_sync_tool.ckan")
     def test_validate_single_invalid_record(
         self,
         CKANMock,

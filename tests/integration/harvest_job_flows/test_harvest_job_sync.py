@@ -4,7 +4,7 @@ from harvester.harvest import harvest_job_starter
 
 
 class TestHarvestJobSync:
-    @patch("harvester.harvest.ckan")
+    @patch("harvester.harvest.ckan_sync_tool.ckan")
     @patch("harvester.utils.ckan_utils.uuid")
     def test_harvest_job_sync(
         self,

@@ -11,7 +11,7 @@ HARVEST_SOURCE_URL = os.getenv("HARVEST_SOURCE_URL")
 
 
 class TestHarvestJobFullFlow:
-    @patch("harvester.harvest.ckan")
+    @patch("harvester.harvest.ckan_sync_tool.ckan")
     @patch("harvester.harvest.HarvestSource.send_notification_emails")
     def test_harvest_single_record_created(
         self,
@@ -43,7 +43,7 @@ class TestHarvestJobFullFlow:
         # assert that send_notification_emails is not called because email has no errors
         assert send_notification_emails_mock.called is False
 
-    @patch("harvester.harvest.ckan")
+    @patch("harvester.harvest.ckan_sync_tool.ckan")
     @patch("harvester.harvest.HarvestSource.send_notification_emails")
     def test_multiple_harvest_jobs(
         self,
@@ -103,7 +103,7 @@ class TestHarvestJobFullFlow:
 
         assert len(records_from_db) == records_from_db_count == 3
 
-    @patch("harvester.harvest.ckan")
+    @patch("harvester.harvest.ckan_sync_tool.ckan")
     @patch("harvester.harvest.HarvestSource.send_notification_emails")
     def test_harvest_waf_iso19115_2(
         self,
@@ -150,7 +150,7 @@ class TestHarvestJobFullFlow:
         ## assert call_args to package_create
         ## TODO this test wil eventually succeed. we can then assert call_args
 
-    @patch("harvester.harvest.ckan")
+    @patch("harvester.harvest.ckan_sync_tool.ckan")
     @patch("harvester.harvest.download_file")
     @patch("harvester.harvest.HarvestSource.send_notification_emails")
     def test_harvest_record_errors_reported(
@@ -190,7 +190,7 @@ class TestHarvestJobFullFlow:
         # assert that send_notification_emails is called because of errors
         assert send_notification_emails_mock.called
 
-    @patch("harvester.harvest.ckan")
+    @patch("harvester.harvest.ckan_sync_tool.ckan")
     @patch("harvester.utils.ckan_utils.uuid")
     def test_validate_same_title(
         self,
@@ -274,7 +274,7 @@ class TestHarvestJobFullFlow:
         assert kwargs["id"] == "5678"
         assert kwargs["identifier"] == "cftc-dc2"
 
-    @patch("harvester.harvest.ckan")
+    @patch("harvester.harvest.ckan_sync_tool.ckan")
     def test_validate_ckan_export(
         self,
         CKANMock,
