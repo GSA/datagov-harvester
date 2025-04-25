@@ -268,14 +268,6 @@ class HarvestSource:
         return self._source_attrs
 
     @property
-    def sync_results(self):
-        return self._sync_results
-
-    @sync_results.setter
-    def sync_results(self, value) -> None:
-        self._sync_results = value
-
-    @property
     def dataset_schema(self) -> dict:
         return self._dataset_schema
 

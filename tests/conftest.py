@@ -78,7 +78,7 @@ def session(app: dbapp) -> Generator[Any, scoped_session, Any]:
         connection = db.engine.connect()
         transaction = connection.begin()
 
-        SessionLocal = sessionmaker(bind=connection, autocommit=False, autoflush=False)
+        SessionLocal = sessionmaker(bind=connection, autoflush=True)
         session = scoped_session(SessionLocal)
         yield session
 

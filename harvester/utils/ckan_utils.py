@@ -6,7 +6,6 @@ import uuid
 from typing import Tuple, Union
 
 from database.interface import HarvesterDBInterface
-
 from harvester.harvest import HarvestSource
 from harvester.utils.general_utils import is_number, validate_geojson
 

@@ -1107,6 +1107,7 @@ def view_metrics():
     count = db.pget_harvest_jobs(
         facets=time_filter,
         count=True,
+        order_by="desc",
     )
 
     pagination = Pagination(
