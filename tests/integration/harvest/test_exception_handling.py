@@ -66,7 +66,7 @@ class TestHarvestJobExceptionHandling:
 
 
 class TestHarvestRecordExceptionHandling:
-    @patch("harvester.harvest.ckan", ckanapi.RemoteCKAN("mock_address"))
+    @patch("harvester.harvest.ckan_sync_tool.ckan", ckanapi.RemoteCKAN("mock_address"))
     @patch("harvester.harvest.download_file", download_mock)
     def test_delete_exception(
         self,
@@ -87,6 +87,8 @@ class TestHarvestRecordExceptionHandling:
         harvest_source.compare()
         harvest_source.sync()
 
+        # NOTE: we should expect to see a record here as the sync failed
+        # and the record should not have been cleaned up
         interface_record = interface.get_harvest_record(harvest_source.records[0].id)
         interface_errors = interface.get_harvest_record_errors_by_record(
             harvest_source.records[0].id
@@ -120,7 +122,10 @@ class TestHarvestRecordExceptionHandling:
         assert interface_record.status == "error"
         assert interface_errors[0].type == "ValidationException"
 
-    @patch("harvester.utils.ckan_utils.ckanify_dcatus", side_effect=Exception("Broken"))
+    @patch(
+        "harvester.harvest.ckan_sync_tool.ckanify_record",
+        side_effect=Exception("Broken"),
+    )
     def test_dcatus_to_ckan_exception(
         self,
         ckanify_dcatus_mock,
@@ -136,6 +141,7 @@ class TestHarvestRecordExceptionHandling:
         harvest_source = HarvestSource(harvest_job.id)
         harvest_source.extract()
         harvest_source.compare()
+        harvest_source.validate()
         harvest_source.sync()
 
         test_record = [x for x in harvest_source.records if x.identifier == "cftc-dc1"][
@@ -145,13 +151,13 @@ class TestHarvestRecordExceptionHandling:
         interface_record = interface.get_harvest_record(test_record.id)
         interface_errors = interface.get_harvest_record_errors_by_record(test_record.id)
 
-        assert ckanify_dcatus_mock.call_count == len(harvest_source.records)
+        assert ckanify_dcatus_mock.call_count == len(harvest_source.records) == 7
         assert interface_record.id == test_record.id
         assert interface_record.status == "error"
         assert interface_errors[0].type == "DCATUSToCKANException"
 
     # ruff: noqa: F401
-    @patch("harvester.harvest.ckan", ckanapi.RemoteCKAN("mock_address"))
+    @patch("harvester.harvest.ckan_sync_tool.ckan", ckanapi.RemoteCKAN("mock_address"))
     def test_ckan_sync_exception(
         self,
         interface,
@@ -173,14 +179,13 @@ class TestHarvestRecordExceptionHandling:
         ]
 
         interface_record = interface.get_harvest_record(test_record.id)
-
         interface_errors = interface.get_harvest_record_errors_by_record(test_record.id)
 
         assert interface_record.id == test_record.id
         assert interface_record.status == "error"
         assert interface_errors[0].type == "SynchronizeException"
 
-    @patch("harvester.harvest.ckan")
+    @patch("harvester.harvest.ckan_sync_tool.ckan")
     @patch("harvester.utils.ckan_utils.uuid")
     def test_validate_nested_exception_handling(
         self,
@@ -211,6 +216,7 @@ class TestHarvestRecordExceptionHandling:
         harvest_source = HarvestSource(job_id)
         harvest_source.extract()
         harvest_source.compare()
+        harvest_source.validate()
         harvest_source.sync()
         harvest_source.report()
 

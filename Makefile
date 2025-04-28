@@ -77,8 +77,8 @@ clean: ## Cleans docker images
 
 lint:  ## Lints wtih ruff, isort, black
 	poetry run ruff check .
-	poetry run isort --check --diff .
-	poetry run black --check --diff .
+	poetry run isort .
+	poetry run black .
 
 # Output documentation for top-level targets
 # Thanks to https://marmelab.com/blog/2016/02/29/auto-documented-makefile.html

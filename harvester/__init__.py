@@ -2,11 +2,11 @@ import logging.config
 import os
 
 from dotenv import load_dotenv
+from sqlalchemy import create_engine
+from sqlalchemy.orm import scoped_session, sessionmaker
 
 from config.logger_config import LOGGING_CONFIG
 from database.interface import HarvesterDBInterface
-from sqlalchemy import create_engine
-from sqlalchemy.orm import scoped_session, sessionmaker
 
 load_dotenv()
 
@@ -15,13 +15,7 @@ logging.config.dictConfig(LOGGING_CONFIG)
 DATABASE_URI = os.getenv("DATABASE_URI")
 
 # create a scopedsession for our harvest runner
-engine = create_engine(
-    DATABASE_URI,
-    pool_size=10,
-    max_overflow=20,
-    pool_timeout=60,
-    pool_recycle=1800,
-)
+engine = create_engine(DATABASE_URI)
 session_factory = sessionmaker(bind=engine, autoflush=True)
 session = scoped_session(session_factory)
 
