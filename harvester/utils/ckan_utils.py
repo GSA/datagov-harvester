@@ -1,13 +1,22 @@
 import json
+import logging
 import mimetypes
+import os
 import re
+import typing
 import urllib
 import uuid
 from typing import Tuple, Union
 
+from ckanapi import RemoteCKAN
+
 from database.interface import HarvesterDBInterface
-from harvester.harvest import HarvestSource
-from harvester.utils.general_utils import is_number, validate_geojson
+from harvester.exceptions import DCATUSToCKANException, SynchronizeException
+
+if typing.TYPE_CHECKING:
+    from harvester.harvest import HarvestSource
+
+from harvester.utils.general_utils import get_datetime, is_number, validate_geojson
 
 # all of these are copy/pasted from ckan core
 # https://github.com/ckan/ckan/blob/master/ckan/lib/munge.py
@@ -18,7 +27,129 @@ PACKAGE_NAME_MIN_LENGTH = 2
 MAX_TAG_LENGTH = 100
 MIN_TAG_LENGTH = 2
 
+# logging data
+logger = logging.getLogger("ckan_utils")
+
 db = HarvesterDBInterface()
+
+
+class CKANSyncTool:
+    """A helper class used for parallelization of CKAN network calls.
+
+    Args:
+        session: requires a pre-existing DB session connection
+
+    Usage:
+        ckan_sync_tool = CKANSyncTool(session=session)
+        ckan_sync_tool.sync(record)
+    """
+
+    def __init__(self, session):
+        if not session:
+            raise ValueError("No session provided")
+        self.ckan = self.open_connection(session)
+
+    def open_connection(self, session):
+        return RemoteCKAN(
+            os.getenv("CKAN_API_URL"),
+            apikey=os.getenv("CKAN_API_TOKEN"),
+            session=session,
+        )
+
+    def sync(self, record):
+        """General sync bus for all records to pass through.
+
+        Args:
+            record: An instance of HarvestRecord (Record) class
+
+        Returns:
+            True (bool): on record success
+
+        Raises:
+            DCATUSToCKANException: Any DCAT-US to CKAN metadata transform issue
+            SynchronizeException: Any ckan sync issue
+        """
+        # pre-sync to ckanify record metadata
+        try:
+            if record.action == "create" or record.action == "update":
+                self.ckanify_record(record)
+        except Exception as e:
+            record.status = "error"
+            raise DCATUSToCKANException(
+                repr(e), record.harvest_source.job_id, record.id
+            )
+
+        # begin ckanpi sync
+        start = get_datetime()
+        try:
+            if record.action == "delete":
+                self.delete_record(record)
+            elif record.action == "create":
+                res = self.create_record(record)
+                record.ckan_id = res["id"]
+                record.ckan_name = record.ckanified_metadata["name"]
+            elif record.action == "update":
+                self.update_record(record)
+        except Exception as e:
+            record.status = "error"
+            raise SynchronizeException(
+                f"failed to {record.action} for {record.identifier} :: {repr(e)}",
+                record.harvest_source.job_id,
+                record.id,
+            )
+
+        logger.info(
+            f"time to {record.action} {record.identifier} \
+                {get_datetime() - start}"
+        )
+        record.status = "success"
+
+        # update harvest reporter
+        record.harvest_source.reporter.update(record.action)
+
+        # # update harvest job
+        record.harvest_source.db_interface.update_harvest_job(
+            record.harvest_source.job_id, record.harvest_source.reporter.report()
+        )
+
+        return True
+
+    def create_record(self, record, retry=False) -> dict:
+        try:
+            return self.ckan.action.package_create(**record.ckanified_metadata)
+        except Exception as e:
+            if retry is False:
+                record.ckanified_metadata["name"] = add_uuid_to_package_name(
+                    record.ckanified_metadata["name"]
+                )
+                return self.create_record(record, retry=True)
+            else:
+                raise e
+                # will be caught by outer SynchronizeException
+
+    def update_record(self, record) -> dict:
+        updated_metadata = {
+            **record.ckanified_metadata,
+            **{"id": record.ckan_id, "name": record.ckan_name},
+        }
+        return self.ckan.action.package_update(**updated_metadata)
+
+    def delete_record(self, record) -> None:
+        return self.ckan.action.dataset_purge(id=record.ckan_id)
+
+    def ckanify_record(self, record) -> None:
+        metadata = (
+            record.metadata
+            if record.transformed_data is None
+            else record.transformed_data
+        )
+
+        record.ckanified_metadata = ckanify_dcatus(
+            metadata, record.harvest_source, record.id
+        )
+
+    def close_conection(self) -> None:
+        self.ckan.close()
 
 
 def trim_tag(tag):
@@ -385,12 +516,16 @@ def munge_tag(tag: str) -> str:
     tag = substitute_ascii_equivalents(tag)
     tag = tag.lower().strip()
     tag = re.sub(r"[^a-zA-Z0-9\- ]", "", tag).replace(" ", "-")
+    # remove doubles
+    tag = re.sub("-+", "-", tag)
+    # remove leading or trailing hyphens
+    tag = tag.strip("-")
     tag = _munge_to_length(tag, MIN_TAG_LENGTH, MAX_TAG_LENGTH)
     return tag
 
 
 def create_ckan_extras(
-    metadata: dict, harvest_source: HarvestSource, record_id: str
+    metadata: dict, harvest_source: "HarvestSource", record_id: str
 ) -> list[dict]:
     extras = [
         "accessLevel",
@@ -674,7 +809,7 @@ def simple_transform(metadata: dict, owner_org: str) -> dict:
 
 
 def ckanify_dcatus(
-    metadata: dict, harvest_source: HarvestSource, record_id: str
+    metadata: dict, harvest_source: "HarvestSource", record_id: str
 ) -> dict:
     ckanified_metadata = simple_transform(metadata, harvest_source.organization_id)
 
