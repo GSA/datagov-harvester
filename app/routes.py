@@ -414,7 +414,7 @@ def add_organization():
     )
 
 
-@main.route("/organization/", methods=["GET"])
+@main.route("/organizations/", methods=["GET"])
 def organization_list():
     organizations = db.get_all_organizations()
     if request.args.get("type") and request.args.get("type") == "json":
@@ -740,7 +740,7 @@ def view_harvest_source(source_id: str):
         )
 
 
-@main.route("/harvest_source/", methods=["GET"])
+@main.route("/harvest_sources/", methods=["GET"])
 def harvest_source_list():
     sources = db.get_all_harvest_sources()
     data = {"harvest_sources": sources}
@@ -748,7 +748,7 @@ def harvest_source_list():
 
 
 ### Edit Source
-@main.route("/harvest_source/edit/<source_id>", methods=["GET", "POST"])
+@main.route("/harvest_source/config/edit/<source_id>", methods=["GET", "POST"])
 @login_required
 def edit_harvest_source(source_id: str):
     if request.is_json:
@@ -1010,146 +1010,6 @@ def get_harvest_record(record_id):
     return db._to_dict(record) if record else (STATUS_STRINGS_ENUM["404"], 404)
 
 
-## Get records
-@main.route("/harvest_records/", methods=["GET"])
-def get_harvest_records():
-    job_id = request.args.get("harvest_job_id")
-    source_id = request.args.get("harvest_source_id")
-    facets = request.args.get("facets", default="")
-
-    if job_id:
-        facets += f", harvest_job_id = '{job_id}'"
-    if source_id:
-        facets += f", harvest_source_id = '{source_id}'"
-
-    records = db.pget_harvest_records(
-        page=request.args.get("page", type=convert_to_int),
-        per_page=request.args.get("per_page", type=convert_to_int),
-        paginate=request.args.get("paginate", type=is_it_true),
-        count=request.args.get("count", type=is_it_true),
-        facets=facets,
-    )
-
-    if not records:
-        return "No harvest records found for this query", 404
-    elif isinstance(records, int):
-        return f"{records} records found", 200
-    else:
-        return db._to_dict(records)
-
-
-# ## Get records
-# @main.route("/harvest_sources/", methods=["GET"])
-# def get_harvest_records():
-#     job_id = request.args.get("harvest_job_id")
-#     source_id = request.args.get("harvest_source_id")
-#     facets = request.args.get("facets", default="")
-
-#     if job_id:
-#         facets += f", harvest_job_id = '{job_id}'"
-#     if source_id:
-#         facets += f", harvest_source_id = '{source_id}'"
-
-#     records = db.pget_harvest_records(
-#         page=request.args.get("page", type=convert_to_int),
-#         per_page=request.args.get("per_page", type=convert_to_int),
-#         paginate=request.args.get("paginate", type=is_it_true),
-#         count=request.args.get("count", type=is_it_true),
-#         facets=facets,
-#     )
-
-#     if not records:
-#         return "No harvest records found for this query", 404
-#     elif isinstance(records, int):
-#         return f"{records} records found", 200
-#     else:
-#         return db._to_dict(records)
-
-
-# ## Get records
-# @main.route("/harvest_records/", methods=["GET"])
-# def get_harvest_records():
-#     job_id = request.args.get("harvest_job_id")
-#     source_id = request.args.get("harvest_source_id")
-#     facets = request.args.get("facets", default="")
-
-#     if job_id:
-#         facets += f", harvest_job_id = '{job_id}'"
-#     if source_id:
-#         facets += f", harvest_source_id = '{source_id}'"
-
-#     records = db.pget_harvest_records(
-#         page=request.args.get("page", type=convert_to_int),
-#         per_page=request.args.get("per_page", type=convert_to_int),
-#         paginate=request.args.get("paginate", type=is_it_true),
-#         count=request.args.get("count", type=is_it_true),
-#         facets=facets,
-#     )
-
-#     if not records:
-#         return "No harvest records found for this query", 404
-#     elif isinstance(records, int):
-#         return f"{records} records found", 200
-#     else:
-#         return db._to_dict(records)
-
-
-# ## Get records
-# @main.route("/harvest_records/", methods=["GET"])
-# def get_harvest_records():
-#     job_id = request.args.get("harvest_job_id")
-#     source_id = request.args.get("harvest_source_id")
-#     facets = request.args.get("facets", default="")
-
-#     if job_id:
-#         facets += f", harvest_job_id = '{job_id}'"
-#     if source_id:
-#         facets += f", harvest_source_id = '{source_id}'"
-
-#     records = db.pget_harvest_records(
-#         page=request.args.get("page", type=convert_to_int),
-#         per_page=request.args.get("per_page", type=convert_to_int),
-#         paginate=request.args.get("paginate", type=is_it_true),
-#         count=request.args.get("count", type=is_it_true),
-#         facets=facets,
-#     )
-
-#     if not records:
-#         return "No harvest records found for this query", 404
-#     elif isinstance(records, int):
-#         return f"{records} records found", 200
-#     else:
-#         return db._to_dict(records)
-
-
-# ## Get records
-# @main.route("/harvest_records/", methods=["GET"])
-# def get_harvest_records():
-#     job_id = request.args.get("harvest_job_id")
-#     source_id = request.args.get("harvest_source_id")
-#     facets = request.args.get("facets", default="")
-
-#     if job_id:
-#         facets += f", harvest_job_id = '{job_id}'"
-#     if source_id:
-#         facets += f", harvest_source_id = '{source_id}'"
-
-#     records = db.pget_harvest_records(
-#         page=request.args.get("page", type=convert_to_int),
-#         per_page=request.args.get("per_page", type=convert_to_int),
-#         paginate=request.args.get("paginate", type=is_it_true),
-#         count=request.args.get("count", type=is_it_true),
-#         facets=facets,
-#     )
-
-#     if not records:
-#         return "No harvest records found for this query", 404
-#     elif isinstance(records, int):
-#         return f"{records} records found", 200
-#     else:
-#         return db._to_dict(records)
-
-
 ## Get records source raw
 @main.route("/harvest_record/<record_id>/raw", methods=["GET"])
 def get_harvest_record_raw(record_id=None):
@@ -1261,6 +1121,43 @@ def view_metrics():
             pagination=pagination.to_dict(),
             data=data,
         )
+
+
+# Builder Query for JSON feed
+@main.route("/harvest_records/", methods=["GET"])
+@main.route("/harvest_jobs/", methods=["GET"])
+@main.route("/harvest_job_errors/", methods=["GET"])
+@main.route("/harvest_record_errors/", methods=["GET"])
+def json_builder_query():
+    job_id = request.args.get("harvest_job_id")
+    source_id = request.args.get("harvest_source_id")
+    facets = request.args.get("facets", default="")
+
+    if job_id:
+        facets += f", harvest_job_id = '{job_id}'"
+    if source_id:
+        facets += f", harvest_source_id = '{source_id}'"
+
+    model = request.path.replace("/", "")
+    try:
+        res = db.pget_db_query(
+            model=model,
+            page=request.args.get("page", type=convert_to_int),
+            per_page=request.args.get("per_page", type=convert_to_int),
+            paginate=request.args.get("paginate", type=is_it_true),
+            count=request.args.get("count", type=is_it_true),
+            order_by=request.args.get("order_by"),
+            facets=facets,
+        )
+        if not res:
+            return f"No {request.path} found for this query", 404
+        elif isinstance(res, int):
+            return f"{res} {request.path} found", 200
+        else:
+            return db._to_dict(res)
+    except Exception as e:
+        logger.debug(f"Failed json_builder_query :: {repr(e)} ")
+        return "Error with query", 400
 
 
 def register_routes(app):

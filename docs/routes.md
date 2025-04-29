@@ -40,7 +40,7 @@ it is.
 - `/harvest_source/<id>`: Details for a single harvest source. GET only, no
   login required
 - `/harvest_sources/`: List of harvest sources, GET only, no login required
-- `/harvest_source/edit/<id>`: edit an existing source. POST takes JSON
+- `/harvest_source/config/edit/<id>`: edit an existing source. POST takes JSON
   or form data and GET renders `edit_data` template. Login required
 - `/harvest_source/config/delete/<id>`: Delete a harvest source. POST only,
   login-required

@@ -635,51 +635,48 @@ class HarvesterDBInterface:
     #### PAGINATED QUERIES ####
     @count
     @paginate
-    def pget_harvest_jobs(self, facets="", order_by="asc", **kwargs):
-        facet_string = query_filter_builder(None, facets)
-        order_by_val = order_by_helper(HarvestJob, order_by)
-        return (
-            self.db.query(HarvestJob).filter(text(facet_string)).order_by(order_by_val)
-        )
+    def pget_db_query(self, model=None, facets="", order_by="asc", **kwargs):
+        model_map = {
+            "harvest_records": HarvestRecord,
+            "harvest_jobs": HarvestJob,
+            "harvest_job_errors": HarvestJobError,
+            "harvest_record_errors": HarvestRecordError,
+        }
+        model_name = model_map[model]
+        if not model_name:
+            return f"Incorrect model arg {model}", 400
 
-    @count
-    @paginate
-    def pget_harvest_records(self, facets="", order_by="asc", **kwargs):
         facet_string = query_filter_builder(None, facets)
-        order_by_val = order_by_helper(HarvestRecord, order_by)
+        order_by_val = order_by_helper(model_name, order_by)
         return (
-            self.db.query(HarvestRecord)
-            .filter(text(facet_string))
-            .order_by(order_by_val)
-        )
-
-    @count
-    @paginate
-    def pget_harvest_job_errors(self, facets="", order_by="asc", **kwargs):
-        facet_string = query_filter_builder(None, facets)
-        order_by_val = order_by_helper(HarvestJobError, order_by)
-        return (
-            self.db.query(HarvestJobError)
-            .filter(text(facet_string))
-            .order_by(order_by_val)
-        )
-
-    @count
-    @paginate
-    def pget_harvest_record_errors(self, facets="", order_by="asc", **kwargs):
-        facet_string = query_filter_builder(None, facets)
-        order_by_val = order_by_helper(HarvestRecordError, order_by)
-        return (
-            self.db.query(HarvestRecordError)
-            .filter(text(facet_string))
-            .order_by(order_by_val)
+            self.db.query(model_name).filter(text(facet_string)).order_by(order_by_val)
         )
 
     #### FILTERED BUILDER QUERIES ####
+    def pget_harvest_records(self, facets="", order_by="asc", **kwargs):
+        return self.pget_db_query(
+            model="harvest_records", facets=facets, order_by=order_by, **kwargs
+        )
+
+    def pget_harvest_jobs(self, facets="", order_by="asc", **kwargs):
+        return self.pget_db_query(
+            model="harvest_jobs", facets=facets, order_by=order_by, **kwargs
+        )
+
+    def pget_harvest_job_errors(self, facets="", order_by="asc", **kwargs):
+        return self.pget_db_query(
+            model="harvest_job_errors", facets=facets, order_by=order_by, **kwargs
+        )
+
+    def pget_harvest_record_errors(self, facets="", order_by="asc", **kwargs):
+        return self.pget_db_query(
+            model="harvest_record_errors", facets=facets, order_by=order_by, **kwargs
+        )
+
     def get_harvest_records_by_job(self, job_id, facets="", order_by="asc", **kwargs):
         facet_string = query_filter_builder(f"harvest_job_id = '{job_id}'", facets)
-        return self.pget_harvest_records(
-            facets=facet_string, order_by=order_by, **kwargs
+        return self.pget_db_query(
+            model="harvest_records", facets=facet_string, order_by=order_by, **kwargs
         )
 
     def get_harvest_records_by_source(
@@ -688,8 +685,8 @@ class HarvesterDBInterface:
         facet_string = query_filter_builder(
             f"harvest_source_id = '{source_id}'", facets
         )
-        return self.pget_harvest_records(
-            facets=facet_string, order_by=order_by, **kwargs
+        return self.pget_db_query(
+            model="harvest_records", facets=facet_string, order_by=order_by, **kwargs
         )
 
 
