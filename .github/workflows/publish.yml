@@ -1,37 +1,69 @@
-name: Publish to PyPI
-on:
-  workflow_dispatch:
-    inputs:
-      version_no:
-        description: 'Release Version:'
-        required: true
+name: Publish & Deploy
 
-env:
-  POETRY_VERSION: "2.0.0"
+on:
+  push:
+    branches:
+      - main
 
 jobs:
-  publish:
-    name: Publish to PyPI
+  create-cloudgov-services-staging:
+    name: create services (staging)
+    uses: gsa/datagov-harvester/.github/workflows/create-services-template.yml@main
+    with:
+      environ: staging
+    secrets: inherit
+
+  create-cloudgov-services-prod:
+    name: create services (prod)
+    uses: gsa/datagov-harvester/.github/workflows/create-services-template.yml@main
+    with:
+      environ: prod
+    secrets: inherit
+
+  deploy-staging:
+    name: deploy (staging)
+    needs:
+      - create-cloudgov-services-staging
+    uses: gsa/datagov-harvester/.github/workflows/deploy-template.yml@main
+    with:
+      environ: staging
+      app_url: https://catalog-stage-datagov.app.cloud.gov
+      app_names: "{\"include\":[{\"app\":\"catalog-web\",\"smoketest\":true},{\"app\":\"catalog-admin\"},{\"app\":\"catalog-fetch\"},{\"app\":\"catalog-gather\"},{\"app\":\"catalog-proxy\"}]}"
+    secrets: inherit
+
+  deploy-prod:
+    name: deploy (prod)
+    needs:
+      - create-cloudgov-services-prod
+      - deploy-staging
+    uses: gsa/datagov-harvester/.github/workflows/create-services-template.yml
+    with:
+      environ: prod
+      app_url: https://catalog.data.gov
+      app_names: "{\"include\":[{\"app\":\"catalog-web\",\"smoketest\":true},{\"app\":\"catalog-admin\"},{\"app\":\"catalog-fetch\"},{\"app\":\"catalog-gather\"},{\"app\":\"catalog-proxy\"}]}"
+    secrets: inherit
+
+  network-policies:
+    name: Add network-policies
+    needs:
+      - deploy-staging
+      - deploy-prod
     runs-on: ubuntu-latest
-    environment:
-      name: pypi
-      url: https://pypi.org/project/datagov-harvester/
+    environment: ${{ matrix.environ }}
+    strategy:
+      fail-fast: false
+      matrix:
+        command: [
+          "cf add-network-policy catalog-proxy catalog-web --protocol tcp --port 61443",
+          "cf add-network-policy catalog-proxy catalog-admin --protocol tcp --port 61443"
+        ]
+        environ: ["staging", "prod"]
     steps:
-      - name: checkout
-        uses: actions/checkout@v4
-      - name: Update setup.py if manual release
-        if: github.event_name == 'workflow_dispatch'
-        run: |
-          sed -i "s/version='[0-9]\{1,2\}.[0-9]\{1,4\}.[0-9]\{1,4\}',/version='${{github.event.inputs.version_no}}',/g" pyproject.toml
-      - name: Install Poetry
-        uses: abatilo/actions-poetry@v2
+      - name: proxy to web
+        uses: cloud-gov/cg-cli-tools@main
         with:
-          poetry-version: ${{ env.POETRY_VERSION }}
-      - name: Create packages
-        run: |
-          poetry build --verbose
-      - name: pypi-publish
-        uses: pypa/gh-action-pypi-publish@v1.8.11
-        with:
-          user: __token__
-          password: ${{ secrets.PYPI_API_TOKEN }}
+          command: ${{ matrix.command }}
+          cf_org: gsa-datagov
+          cf_space: ${{ matrix.environ }}
+          cf_username: ${{secrets.CF_SERVICE_USER}}
+          cf_password: ${{secrets.CF_SERVICE_AUTH}}
