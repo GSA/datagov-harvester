@@ -102,14 +102,18 @@ class HarvestSource:
         self._db_interface: HarvesterDBInterface = db_interface
         self.get_source_info_from_job_id(self.job_id)
 
+        self.schemas_root = ROOT_DIR / "schemas"
+
         if self.schema_type == "dcatus1.1: federal":
-            self.dataset_schema = open_json(
-                ROOT_DIR / "schemas" / "federal_dataset.json"
-            )
+            self.schema_file = self.schemas_root / "federal_dataset.json"
+        elif self.schema_type == "dcatus1.1: non-federal":
+            self.schema_file = self.schemas_root / "non-federal_dataset.json"
+        elif self.schema_type.startswith("iso19115"):
+            self.schema_file = self.schemas_root / "iso-non-federal_dataset.json"
         else:
-            self.dataset_schema = open_json(
-                ROOT_DIR / "schemas" / "non-federal_dataset.json"
-            )
+            self.schema_file = self.schemas_root / "non-federal_dataset.json"
+
+        self.dataset_schema = open_json(self.schema_file)
         self._validator = Draft202012Validator(self.dataset_schema)
         self._reporter = HarvestReporter()
 
