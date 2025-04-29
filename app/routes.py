@@ -26,6 +26,7 @@ from flask import (
     session,
     url_for,
 )
+from markupsafe import escape
 from jinja2_fragments.flask import render_block
 
 from database.interface import HarvesterDBInterface
@@ -1138,7 +1139,7 @@ def json_builder_query():
     if source_id:
         facets += f", harvest_source_id = '{source_id}'"
 
-    model = request.path.replace("/", "")
+    model = escape(request.path).replace("/", "")
     try:
         res = db.pget_db_query(
             model=model,
@@ -1150,9 +1151,9 @@ def json_builder_query():
             facets=facets,
         )
         if not res:
-            return f"No {request.path} found for this query", 404
+            return f"No {model} found for this query", 404
         elif isinstance(res, int):
-            return f"{res} {request.path} found", 200
+            return f"{res} {model} found", 200
         else:
             return db._to_dict(res)
     except Exception as e:
