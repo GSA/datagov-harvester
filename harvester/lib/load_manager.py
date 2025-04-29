@@ -4,7 +4,7 @@ from datetime import datetime
 
 from database.interface import HarvesterDBInterface
 from harvester.lib.cf_handler import CFHandler
-from harvester.utils.general_utils import create_future_date
+from harvester.utils.general_utils import create_future_date, get_datetime
 
 CF_API_URL = os.getenv("CF_API_URL")
 CF_SERVICE_USER = os.getenv("CF_SERVICE_USER")
@@ -63,7 +63,9 @@ class LoadManager:
         }
 
         self.handler.start_task(**task_contract)
-        updated_job = interface.update_harvest_job(job_id, {"status": "in_progress"})
+        updated_job = interface.update_harvest_job(
+            job_id, {"status": "in_progress", "date_created": get_datetime()}
+        )
         message = f"Updated job {updated_job.id} to in_progress"
         logger.info(message)
         return message
@@ -82,14 +84,18 @@ class LoadManager:
             return f"No task with job_id: {job_id}"
 
         if job_task[0][1] != "RUNNING":
-            updated_job = interface.update_harvest_job(job_id, {"status": "complete"})
+            updated_job = interface.update_harvest_job(
+                job_id, {"status": "complete", "date_finished": get_datetime()}
+            )
             return (
                 f"Task for job {updated_job.id} is not running. Job marked as complete."
             )
 
         self.handler.stop_task(job_task[0][0])
 
-        updated_job = interface.update_harvest_job(job_id, {"status": "complete"})
+        updated_job = interface.update_harvest_job(
+            job_id, {"status": "complete", "date_finished": get_datetime()}
+        )
         message = f"Updated job {updated_job.id} to complete"
         logger.info(message)
         return message
