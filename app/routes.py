@@ -483,7 +483,7 @@ def view_organization(org_id: str):
 
 
 ### Edit Org
-@main.route("/organization/config/edit/<org_id>", methods=["GET", "POST"])
+@main.route("/organization/edit/<org_id>", methods=["GET", "POST"])
 @login_required
 def edit_organization(org_id):
     if request.is_json:
@@ -748,7 +748,7 @@ def harvest_source_list():
 
 
 ### Edit Source
-@main.route("/harvest_source/config/edit/<source_id>", methods=["GET", "POST"])
+@main.route("/harvest_source/edit/<source_id>", methods=["GET", "POST"])
 @login_required
 def edit_harvest_source(source_id: str):
     if request.is_json:

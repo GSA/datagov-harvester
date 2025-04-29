@@ -7,14 +7,14 @@ class TestLogin:
     def test_harvest_edit__logged_in(
         self, client, interface_no_jobs, source_data_dcatus
     ):
-        res = client.get(f"/harvest_source/config/edit/{source_data_dcatus['id']}")
+        res = client.get(f"/harvest_source/edit/{source_data_dcatus['id']}")
         assert res.status_code == 200
 
     # Logged out user cannot see protected page
     def test_harvest_edit__logged_out(
         self, client, interface_no_jobs, source_data_dcatus
     ):
-        res = client.get(f"/harvest_source/config/edit/{source_data_dcatus['id']}")
+        res = client.get(f"/harvest_source/edit/{source_data_dcatus['id']}")
         # ruff: noqa: E501
         redirect_str = 'You should be redirected automatically to the target URL: <a href="/login">/login</a>'
         assert res.status_code == 302
@@ -23,7 +23,7 @@ class TestLogin:
     # Logged in user is redirected away from bad url
     @force_login(email="test@data.gov")
     def test_harvest_edit_bad_source_url(self, client, interface_no_jobs):
-        res = client.get("/harvest_source/config/edit/1234")
+        res = client.get("/harvest_source/edit/1234")
         # ruff: noqa: E501
         redirect_str = 'You should be redirected automatically to the target URL: <a href="/harvest_sources/">/harvest_sources/</a>'
         assert res.status_code == 302
