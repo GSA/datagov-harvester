@@ -637,6 +637,8 @@ class HarvesterDBInterface:
     @paginate
     def pget_db_query(self, model=None, facets="", order_by="asc", **kwargs):
         model_map = {
+            "organizations": Organization,
+            "harvest_sources": HarvestSource,
             "harvest_records": HarvestRecord,
             "harvest_jobs": HarvestJob,
             "harvest_job_errors": HarvestJobError,
@@ -647,12 +649,24 @@ class HarvesterDBInterface:
             return f"Incorrect model arg {model}", 400
 
         facet_string = query_filter_builder(None, facets)
+
+        # TODO: should we add date_created to these models??
+        if model in ["organizations", "harvest_sources"]:
+            return self.db.query(model_name).filter(text(facet_string))
+
         order_by_val = order_by_helper(model_name, order_by)
+
         return (
             self.db.query(model_name).filter(text(facet_string)).order_by(order_by_val)
         )
 
     #### FILTERED BUILDER QUERIES ####
+    def pget_organizations(self, facets="", **kwargs):
+        return self.pget_db_query(model="organizations", facets=facets, **kwargs)
+
+    def pget_harvest_sources(self, facets="", **kwargs):
+        return self.pget_db_query(model="harvest_sources", facets=facets, **kwargs)
+
     def pget_harvest_records(self, facets="", order_by="asc", **kwargs):
         return self.pget_db_query(
             model="harvest_records", facets=facets, order_by=order_by, **kwargs

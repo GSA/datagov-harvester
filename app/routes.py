@@ -415,7 +415,7 @@ def add_organization():
     )
 
 
-@main.route("/organizations/", methods=["GET"])
+@main.route("/organization_list/", methods=["GET"])
 def organization_list():
     organizations = db.get_all_organizations()
     if request.args.get("type") and request.args.get("type") == "json":
@@ -741,7 +741,7 @@ def view_harvest_source(source_id: str):
         )
 
 
-@main.route("/harvest_sources/", methods=["GET"])
+@main.route("/harvest_source_list/", methods=["GET"])
 def harvest_source_list():
     sources = db.get_all_harvest_sources()
     data = {"harvest_sources": sources}
@@ -1125,6 +1125,8 @@ def view_metrics():
 
 
 # Builder Query for JSON feed
+@main.route("/organizations/", methods=["GET"])
+@main.route("/harvest_sources/", methods=["GET"])
 @main.route("/harvest_records/", methods=["GET"])
 @main.route("/harvest_jobs/", methods=["GET"])
 @main.route("/harvest_job_errors/", methods=["GET"])
@@ -1158,7 +1160,7 @@ def json_builder_query():
         else:
             return db._to_dict(res)
     except Exception as e:
-        logger.debug(f"Failed json_builder_query :: {repr(e)} ")
+        logger.info(f"Failed json_builder_query :: {repr(e)} ")
         return "Error with query", 400
 
 

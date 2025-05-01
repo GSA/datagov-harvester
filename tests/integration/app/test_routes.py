@@ -40,7 +40,7 @@ class TestDynamicRouteTable:
             r"(main\.index)": {
                 "(GET|HEAD)": {
                     "status_code": 302,
-                    "location": "/organizations/",
+                    "location": "/organization_list/",
                 },
             },
             r"((main|api)\.(add|edit|cancel|update|delete|trigger)_(organization|harvest_source|harvest_job|harvest_record))": {
@@ -283,6 +283,21 @@ class TestJSONResponses:
                 "/harvest_records/?harvest_source_id=2f2652de-91df-4c63-8b53-bfced20b276b&facets=status='not_status'",
                 400,
                 "Error with query",
+            ),
+            (
+                "/organizations/",
+                200,
+                1,
+            ),
+            (
+                "/harvest_sources/",
+                200,
+                1,
+            ),
+            (
+                "/harvest_sources/?facets=schema_type='dcatus1.1: non-federal'",
+                404,
+                "No harvest_sources found for this query",
             ),
         ],
     )

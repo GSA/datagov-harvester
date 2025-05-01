@@ -25,7 +25,7 @@ class TestLogin:
     def test_harvest_edit_bad_source_url(self, client, interface_no_jobs):
         res = client.get("/harvest_source/edit/1234")
         # ruff: noqa: E501
-        redirect_str = 'You should be redirected automatically to the target URL: <a href="/harvest_sources/">/harvest_sources/</a>'
+        redirect_str = 'You should be redirected automatically to the target URL: <a href="/harvest_source_list/">/harvest_source_list/</a>'
         assert res.status_code == 302
         assert res.text.find(redirect_str) != -1
 
