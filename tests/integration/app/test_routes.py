@@ -275,6 +275,11 @@ class TestJSONResponses:
                 1,
             ),
             (
+                "/harvest_records/?harvest_source_id=2f2652de-91df-4c63-8b53-bfced20b276b&facets=status='success'&count=True",
+                200,
+                2,
+            ),
+            (
                 "/harvest_records/?harvest_source_id=2f2652de-91df-4c63-8b53-bfced20b276b&facets=status='not_status'",
                 400,
                 "Error with query",
@@ -284,10 +289,14 @@ class TestJSONResponses:
     def test_json_builder_query(
         self, client, interface_with_fixture_json, route, status_code, response
     ):
+        """Tests against seeded content in `interface_with_fixture_json`"""
         res = client.get(route)
         assert res.status_code == status_code
         try:
             json_res = json.loads(res.data)
-            assert len(json_res) == response
+            if "count" in json_res:
+                assert json_res["count"] == response
+            else:
+                assert len(json_res) == response
         except Exception:
             assert res.data.decode() == response

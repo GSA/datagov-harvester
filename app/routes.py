@@ -1153,7 +1153,8 @@ def json_builder_query():
         if not res:
             return f"No {model} found for this query", 404
         elif isinstance(res, int):
-            return f"{res} {model} found", 200
+            # in case we are just returning a count from db query
+            return {"count": res, "type": model}
         else:
             return db._to_dict(res)
     except Exception as e:
