@@ -694,7 +694,7 @@ def iso19115_2_transform() -> dict:
     return {
         "@type": "dcat:Dataset",
         "title": "Bringing Wetlands to Market: Expanding Blue Carbon Implementation - NERRS/NSC(NERRS Science Collaborative)",
-        "description": "Blue carbon storage \u2013 carbon sequestration in coastal wetlands \u2013 can help coastal managers and policymakers achieve broader wetlands management, restoration, and conservation goals, in part by securing payment for carbon credits. Despite considerable interest in bringing wetland restoration projects to market, the transaction costs related to quantifying greenhouse gas fluxes and carbon storage in restored marsh has been a significant limiting factor to realizing these projects. The Waquoit Bay National Estuarine Research Reserve has been at the forefront of blue carbon research and end user engagement. Building on the efforts of a previous project, Bringing Wetlands to Market in Massachusetts, this project developed a verified and generalized model that can be used across New England and the mid-Atlantic East Coast to assess and predict greenhouse gas fluxes and potential wetland carbon across a wide\nenvironmental gradient using a small set of readily available data. Using this model, the project conducted a first-of-its-kind market feasibility assessment for the Herring River Restoration Project, one of the largest potential wetland restoration projects in New England. The project team developed targeted tools and education programs for coastal managers, decision makers, and teachers. These efforts have built an understanding of blue carbon and the capacity to integrate blue carbon considerations into restoration and management decisions.",
+        "description": "Blue carbon storage – carbon sequestration in coastal wetlands – can help coastal managers and policymakers achieve broader wetlands management, restoration, and conservation goals, in part by securing payment for carbon credits. Despite considerable interest in bringing wetland restoration projects to market, the transaction costs related to quantifying greenhouse gas fluxes and carbon storage in restored marsh has been a significant limiting factor to realizing these projects. The Waquoit Bay National Estuarine Research Reserve has been at the forefront of blue carbon research and end user engagement. Building on the efforts of a previous project, Bringing Wetlands to Market in Massachusetts, this project developed a verified and generalized model that can be used across New England and the mid-Atlantic East Coast to assess and predict greenhouse gas fluxes and potential wetland carbon across a wide\nenvironmental gradient using a small set of readily available data. Using this model, the project conducted a first-of-its-kind market feasibility assessment for the Herring River Restoration Project, one of the largest potential wetland restoration projects in New England. The project team developed targeted tools and education programs for coastal managers, decision makers, and teachers. These efforts have built an understanding of blue carbon and the capacity to integrate blue carbon considerations into restoration and management decisions.",
         "keyword": [
             "EARTH SCIENCE > BIOSPHERE > ECOSYSTEMS > MARINE ECOSYSTEMS > COASTAL",
             "EARTH SCIENCE > HUMAN DIMENSIONS > ENVIRONMENTAL GOVERNANCE/MANAGEMENT",
@@ -707,21 +707,28 @@ def iso19115_2_transform() -> dict:
             "DOC/NOAA/NOS/OCM > Office of Coastal Management, National Ocean Service, NOAA, U.S. Department of Commerce",
             "NERRS",
         ],
-        "contactPoint": {"@type": "vcard:Contact", "fn": "", "hasEmail": ""},
+        "modified": "2024-02-29T00:00:00.000+00:00",
+        "publisher": {
+            "@type": "org:Organization",
+            "name": "Office for Coastal Management",
+        },
+        "contactPoint": {
+            "@type": "vcard:Contact",
+            "fn": "Office for Coastal Management",
+            "hasEmail": "mailto:test@gmail.com",
+        },
         "identifier": "gov.noaa.nmfs.inport:47598",
         "accessLevel": "non-public",
-        "bureauCode": [],
-        "programCode": [],
         "distribution": [],
         "license": "https://creativecommons.org/publicdomain/zero/1.0/",
         "rights": "otherRestrictions, unclassified",
         "spatial": "-70.482,41.544,-70.555,41.64",
         "temporal": "2015-09-01T00:00:00+00:00/2019-09-01T00:00:00+00:00",
         "language": [],
-        "theme": "",
-        "references": "https://www.fisheries.noaa.gov/inportserve/waf/noaa/nos/ocm/dmp/pdf/47598.pdf",
+        "references": [
+            "https://www.fisheries.noaa.gov/inportserve/waf/noaa/nos/ocm/dmp/pdf/47598.pdf"
+        ],
         "landingPage": "https://www.fisheries.noaa.gov/inport/item/47598",
-        "primaryITInvestmentUII": "gov.noaa.nmfs.inport:47598",
     }
 
 
@@ -790,19 +797,13 @@ def iso19115_1_transform() -> dict:
             "Wisconsin",
             "Wyoming",
         ],
+        "modified": "2017-05-23T00:00:00.000+00:00",
         "publisher": {
             "@type": "org:Organization",
             "name": "U.S. EPA Office of Environmental Information (OEI) - Office of Information Analysis and Access (OIAA)",
         },
-        "contactPoint": {
-            "@type": "vcard:Contact",
-            "fn": "U.S. Environmental Protection Agency, Office of Research and Development-Sustainable and Healthy Communities Research Program, EnviroAtlas",
-            "hasEmail": "EnviroAtlas@epa.gov",
-        },
         "identifier": "{4c6928d8-6ac2-4909-8b3d-a29e2805ce2d}",
         "accessLevel": "non-public",
-        "bureauCode": [],
-        "programCode": [],
         "distribution": [],
         "license": "https://creativecommons.org/publicdomain/zero/1.0/",
         "rights": "otherRestrictions, PUBLIC",
@@ -810,9 +811,6 @@ def iso19115_1_transform() -> dict:
         "temporal": "2008-01-01T00:00:00+00:00/2012-01-01T00:00:00+00:00",
         "issued": "2017-05-23T00:00:00.000+00:00",
         "language": [],
-        "theme": "",
-        "references": "",
-        "primaryITInvestmentUII": "{4c6928d8-6ac2-4909-8b3d-a29e2805ce2d}",
     }
 
 
