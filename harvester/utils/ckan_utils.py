@@ -535,6 +535,7 @@ def create_ckan_extras(
         "programCode",
         "publisher",
         "spatial",
+        "isPartOf",
     ]
 
     output = [

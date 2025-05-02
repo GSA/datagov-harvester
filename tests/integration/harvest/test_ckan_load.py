@@ -170,6 +170,7 @@ class TestCKANLoad:
                     "value": '{"type":"MultiPolygon","coordinates":[[[[-124.733253,24.544245],[-124.733253,49.388611],'
                     "[-66.954811,49.388611],[-66.954811,24.544245],[-124.733253,24.544245]]]]}",
                 },
+                {"key": "isPartOf", "value": "some-collection-id"},
                 {"key": "identifier", "value": "cftc-dc1"},
             ],
         }
