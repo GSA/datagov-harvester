@@ -27,6 +27,7 @@ from harvester.exceptions import (
     SynchronizeException,
     TransformationException,
     ValidationException,
+    DuplicateIdentifierException
 )
 from harvester.lib.harvest_reporter import HarvestReporter
 from harvester.utils.ckan_utils import CKANSyncTool
@@ -218,10 +219,26 @@ class HarvestSource:
         for record in records:
             try:
                 identifier = self.get_record_identifier(record)
+
+                # Check if this identifier has already been processed (duplicate)
                 if identifier in self.external_records:
-                    raise ExtractExternalException(
+                    # Create a minimal harvest_record for error tracking purposes only
+                    record_data = {
+                        "harvest_job_id": self.job_id,
+                        "harvest_source_id": self.id,
+                        "identifier": identifier,
+                        "status": "error"
+                    }
+
+                    # Insert the record so it can be referenced in the error table
+                    new_record = self.db_interface.add_harvest_record(record_data)
+                    harvest_record_id = new_record.id if new_record else None
+
+                    # Raise a non-critical exception to log the error and continue processing
+                    raise DuplicateIdentifierException(
                         f"Duplicate identifier '{identifier}' found for source: {self.name}",
                         self.job_id,
+                        harvest_record_id,
                     )
 
                 if self.source_type == "document":
@@ -234,6 +251,10 @@ class HarvestSource:
                 self.external_records[identifier] = Record(
                     self, identifier, record, dataset_hash
                 )
+
+            except DuplicateIdentifierException:
+                self.reporter.update("errored")
+                continue
             except Exception as e:
                 raise ExtractExternalException(
                     f"{self.name} {self.url} failed to convert to id:hash :: {repr(e)}",

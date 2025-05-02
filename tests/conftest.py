@@ -413,9 +413,16 @@ def duplicated_identifier_records():
         {
             "identifier": "GSA-2015-02-26-1",
             "title": "Duplicate Dataset",
-            "description": "This is a duplicate of the dataset above.",
+            "description": "This is first duplicate of the dataset above.",
             "accessLevel": "public",
             "modified": "2019-07-01",
+        },
+        {
+            "identifier": "GSA-2015-02-26-1",
+            "title": "Duplicate Dataset",
+            "description": "This is second duplicate of the dataset above.",
+            "accessLevel": "public",
+            "modified": "2019-08-01",
         },
     ]
 
