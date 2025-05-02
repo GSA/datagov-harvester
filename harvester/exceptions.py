@@ -79,6 +79,8 @@ class ValidationException(HarvestNonCriticalException):
     def log_err(self):
         pass
 
+class DuplicateIdentifierException(HarvestNonCriticalException):
+    pass
 
 class TransformationException(HarvestNonCriticalException):
     pass

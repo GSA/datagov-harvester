@@ -24,7 +24,26 @@
             </gmd:CI_Telephone>
           </gmd:phone>
           <gmd:address>
-            <gmd:CI_Address />
+            <gmd:CI_Address>
+              <gmd:deliveryPoint>
+                <gco:CharacterString>address line 1</gco:CharacterString>
+              </gmd:deliveryPoint>
+              <gmd:city>
+                <gco:CharacterString>city</gco:CharacterString>
+              </gmd:city>
+              <gmd:administrativeArea>
+                <gco:CharacterString>administrative area</gco:CharacterString>
+              </gmd:administrativeArea>
+              <gmd:postalCode>
+                <gco:CharacterString>postal code</gco:CharacterString>
+              </gmd:postalCode>
+              <gmd:country>
+                <gco:CharacterString>country</gco:CharacterString>
+              </gmd:country>
+              <gmd:electronicMailAddress>
+                <gco:CharacterString>test@gmail.com</gco:CharacterString>
+              </gmd:electronicMailAddress>
+            </gmd:CI_Address>
           </gmd:address>
         </gmd:CI_Contact>
       </gmd:contactInfo>
