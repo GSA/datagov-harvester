@@ -31,7 +31,7 @@
   "devDependencies": {
     "@babel/core": "^7.26.10",
     "@babel/plugin-transform-runtime": "^7.26.10",
-    "@babel/preset-env": "^7.26.8",
+    "@babel/preset-env": "^7.26.9",
     "@uswds/compile": "^1.2.2",
     "babelify": "^10.0.0",
     "browserify": "^17.0.1",
@@ -39,7 +39,7 @@
     "gulp": "^5.0.0",
     "rollup": "^4.36.0",
     "rollup-plugin-copy": "^3.5.0",
-    "sass": "^1.83.4",
+    "sass": "^1.86.0",
     "typescript": "^5.8.2",
     "vinyl-buffer": "^1.0.1",
     "vinyl-source-stream": "^2.0.0",
