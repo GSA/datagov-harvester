@@ -27,6 +27,7 @@ from harvester.exceptions import (
     SynchronizeException,
     TransformationException,
     ValidationException,
+    DuplicateIdentifierException
 )
 from harvester.lib.harvest_reporter import HarvestReporter
 from harvester.utils.ckan_utils import CKANSyncTool
@@ -102,14 +103,24 @@ class HarvestSource:
         self._db_interface: HarvesterDBInterface = db_interface
         self.get_source_info_from_job_id(self.job_id)
 
+        self.schemas_root = ROOT_DIR / "schemas"
+
         if self.schema_type == "dcatus1.1: federal":
-            self.dataset_schema = open_json(
-                ROOT_DIR / "schemas" / "federal_dataset.json"
-            )
+            self.schema_file = self.schemas_root / "federal_dataset.json"
+        elif self.schema_type in ["dcatus1.1: non-federal", "csdgm"]:
+            self.schema_file = self.schemas_root / "non-federal_dataset.json"
+        elif self.schema_type.startswith("iso19115"):
+            self.schema_file = self.schemas_root / "iso-non-federal_dataset.json"
         else:
-            self.dataset_schema = open_json(
-                ROOT_DIR / "schemas" / "non-federal_dataset.json"
+            # this can't happen because we apply an enum in our model but just in case.
+            logger.error(
+                f"unacceptable schema type: {self.schema_type}. exiting harvest."
             )
+            job_status = {"status": "error", "date_finished": get_datetime()}
+            self._db_interface.update_harvest_job(self.job_id, job_status)
+            raise Exception
+
+        self.dataset_schema = open_json(self.schema_file)
         self._validator = Draft202012Validator(self.dataset_schema)
         self._reporter = HarvestReporter()
 
@@ -208,10 +219,26 @@ class HarvestSource:
         for record in records:
             try:
                 identifier = self.get_record_identifier(record)
+
+                # Check if this identifier has already been processed (duplicate)
                 if identifier in self.external_records:
-                    raise ExtractExternalException(
+                    # Create a minimal harvest_record for error tracking purposes only
+                    record_data = {
+                        "harvest_job_id": self.job_id,
+                        "harvest_source_id": self.id,
+                        "identifier": identifier,
+                        "status": "error"
+                    }
+
+                    # Insert the record so it can be referenced in the error table
+                    new_record = self.db_interface.add_harvest_record(record_data)
+                    harvest_record_id = new_record.id if new_record else None
+
+                    # Raise a non-critical exception to log the error and continue processing
+                    raise DuplicateIdentifierException(
                         f"Duplicate identifier '{identifier}' found for source: {self.name}",
                         self.job_id,
+                        harvest_record_id,
                     )
 
                 if self.source_type == "document":
@@ -224,6 +251,10 @@ class HarvestSource:
                 self.external_records[identifier] = Record(
                     self, identifier, record, dataset_hash
                 )
+
+            except DuplicateIdentifierException:
+                self.reporter.update("errored")
+                continue
             except Exception as e:
                 raise ExtractExternalException(
                     f"{self.name} {self.url} failed to convert to id:hash :: {repr(e)}",

@@ -5,7 +5,6 @@ import pytest
 from deepdiff import DeepDiff
 from jsonschema.exceptions import ValidationError
 
-from harvester.exceptions import ExtractExternalException
 from harvester.harvest import HarvestSource, ckan_sync_tool
 from harvester.utils.ckan_utils import create_ckan_resources
 from harvester.utils.general_utils import dataset_to_hash, sort_dataset
@@ -170,6 +169,7 @@ class TestCKANLoad:
                     "value": '{"type":"MultiPolygon","coordinates":[[[[-124.733253,24.544245],[-124.733253,49.388611],'
                     "[-66.954811,49.388611],[-66.954811,24.544245],[-124.733253,24.544245]]]]}",
                 },
+                {"key": "isPartOf", "value": "some-collection-id"},
                 {"key": "identifier", "value": "cftc-dc1"},
             ],
         }
@@ -276,7 +276,7 @@ class TestCKANLoad:
         with pytest.raises(ValidationError):
             harvest_source.validator.validate(record)
 
-    def test_duplicate_identifier_raises_extract_exception(
+    def test_duplicate_identifier_handled_as_error_record(
         self,
         interface,
         organization_data,
@@ -290,8 +290,17 @@ class TestCKANLoad:
 
         harvest_source = HarvestSource(job.id)
 
-        with pytest.raises(ExtractExternalException) as exc_info:
-            harvest_source.external_records_to_id_hash(duplicated_identifier_records)
+        # Should not raise an exception
+        harvest_source.external_records_to_id_hash(duplicated_identifier_records)
 
-        # Assert that the raised exception contains a duplicate identifier message
-        assert "Duplicate identifier" in str(exc_info.value)
+        # Only one unique record should be added to external_records
+        assert len(harvest_source.external_records) == 1
+
+        # Assert that errors was logged (the duplicate identifier)
+        record_err = interface.get_harvest_record_errors_by_job(job.id)
+        assert len(record_err) == 2
+
+        # Check that each error message includes "Duplicate identifier"
+        for error_entry in record_err:
+            error_obj, identifier, _ = error_entry
+            assert "Duplicate identifier" in error_obj.message
