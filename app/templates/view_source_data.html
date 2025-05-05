@@ -22,7 +22,11 @@
             {% for key, value in data.source.items() %}
             <tr>
                 <td>{{key}}:</td>
+                {% if key == 'organization_id' %}
+                <td><a href="{{ url_for('main.view_organization', org_id=value) }}">{{value}}</a></td>
+                {% else %}
                 <td>{{value}}</td>
+                {% endif %}
             </tr>
             {% endfor %}
         </table>

@@ -11,10 +11,6 @@
     <p>Looks like you navigated to a harvest job that doesn't exist.</p>
     {% else %}
     <h1>Details for Harvest Job Id: {{data.job.id}}</h1>
-    <p>For Harvest Source Id: <a href="{{ url_for('main.view_harvest_source', source_id=data.job.harvest_source_id) }}">
-            {{data.job.harvest_source_id}}
-        </a>
-    </p>
     <h2>Job Info</h2>
     <div class="config-table harvest-job-config-properties">
         <table class="table">
@@ -27,7 +23,12 @@
             {% for key, value in data.job_dict.items() %}
             <tr>
                 <td>{{key}}:</td>
+                {% if key == 'harvest_source_id' %}
+                <td><a href="{{ url_for('main.view_harvest_source', source_id=value) }}">{{value}}</a>
+                </td>
+                {% else %}
                 <td>{{value}}</td>
+                {% endif %}
             </tr>
             {% endfor %}
         </table>

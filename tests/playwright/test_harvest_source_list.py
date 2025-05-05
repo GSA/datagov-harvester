@@ -4,13 +4,13 @@ from playwright.sync_api import expect
 
 @pytest.fixture()
 def upage(unauthed_page):
-    unauthed_page.goto("/harvest_sources")
+    unauthed_page.goto("/harvest_source_list")
     yield unauthed_page
 
 
 @pytest.fixture()
 def apage(authed_page):
-    authed_page.goto("/harvest_sources")
+    authed_page.goto("/harvest_source_list")
     yield authed_page
 
 

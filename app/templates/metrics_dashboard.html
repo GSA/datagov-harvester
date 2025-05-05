@@ -21,19 +21,24 @@
                     <caption>Recent Harvest Jobs</caption>
                     <thead>
                         <tr>
-                            <th scope="col">Source ID</th>
+                            <th scope="col">Job Id</th>
+                            <th scope="col">Source Id</th>
                             <th scope="col">Status</th>
                             <th scope="col">Created</th>
                             <th scope="col">Records Added</th>
                             <th scope="col">Records Updated</th>
                             <th scope="col">Records Deleted</th>
                             <th scope="col">Records Errored</th>
-                            <th scope="col">Actions</th>
                         </tr>
                     </thead>
                     <tbody id="paginated_harvest_jobs">
                         {% for job in data.jobs %}
                         <tr>
+                            <td data-sort-value="{{ job.id }}">
+                                <a href="{{ url_for('main.view_harvest_job', source_id=job.id) }}">
+                                    {{ job.id[:8] }}...
+                                </a>
+                            </td>
                             <td data-sort-value="{{ job.harvest_source_id }}">
                                 <a href="{{ url_for('main.view_harvest_source', source_id=job.harvest_source_id) }}">
                                     {{ job.harvest_source_id[:8] }}...
@@ -53,24 +58,6 @@
                             <td>{{ job.records_updated}}</td>
                             <td>{{ job.records_deleted}}</td>
                             <td>{{ job.records_errored}}</td>
-                            <td>
-                                <ul class="usa-button-group">
-                                    <li class="usa-button-group__item">
-                                        <a href="{{ url_for('main.view_harvest_job', job_id=job.id) }}"
-                                            class="usa-button usa-button--outline">
-                                            View
-                                        </a>
-                                    </li>
-                                    {% if job.status == 'in_progress' %}
-                                    <li class="usa-button-group__item">
-                                        <a href="{{ url_for('main.cancel_harvest_job', job_id=job.id) }}"
-                                            class="usa-button usa-button--secondary">
-                                            Cancel
-                                        </a>
-                                    </li>
-                                    {% endif %}
-                                </ul>
-                            </td>
                         </tr>
                         {% endfor %}
                     </tbody>

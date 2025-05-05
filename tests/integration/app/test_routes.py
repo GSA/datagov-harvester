@@ -1,5 +1,7 @@
 import os
 import re
+import json
+import pytest
 
 # ruff: noqa: F401
 
@@ -38,7 +40,7 @@ class TestDynamicRouteTable:
             r"(main\.index)": {
                 "(GET|HEAD)": {
                     "status_code": 302,
-                    "location": "/organizations/",
+                    "location": "/organization_list/",
                 },
             },
             r"((main|api)\.(add|edit|cancel|update|delete|trigger)_(organization|harvest_source|harvest_job|harvest_record))": {
@@ -138,7 +140,7 @@ class TestDynamicRouteTable:
 
     def test_client_response_on_error(self, client):
         # ignore routes which aren't public GETS and don't accept args
-        whitelisted_route_regex = r"((main|api|bootstrap)?(?:\.)?(add|edit|cancel|update|delete|trigger|view)?(?:_)?(static|index|callback|get_harvest_records|view_metrics|log(in|out)|organization(?:s)?|harvest_source|harvest_job|harvest_record))"
+        whitelisted_route_regex = r"((main|api|bootstrap)?(?:\.)?(add|edit|cancel|update|delete|trigger|view)?(?:_)?(static|index|callback|json_builder_query|view_metrics|log(in|out)|organization(?:s)?|harvest_source|harvest_job|harvest_record))"
 
         # some endpoints respond with JSON
         json_responses_map = {
@@ -228,7 +230,6 @@ class TestLoginAuthHeaders:
 
 
 class TestJSONResponses:
-
     def test_get_organization_json(
         self,
         client,
@@ -254,3 +255,63 @@ class TestJSONResponses:
         )
         assert res.status_code == 404
         assert res.is_json
+
+    @pytest.mark.parametrize(
+        "route,status_code,response",
+        [
+            (
+                "/harvest_records/?harvest_source_id=2f2652de-91df-4c63-8b53-bfced20b276b",
+                200,
+                10,
+            ),
+            (
+                "/harvest_records/?harvest_source_id=2f2652de-91df-4c63-8b53-bfced20b276b&facets=status='success'",
+                200,
+                2,
+            ),
+            (
+                "/harvest_records/?harvest_source_id=2f2652de-91df-4c63-8b53-bfced20b276b&facets=ckan_id='1234'",
+                200,
+                1,
+            ),
+            (
+                "/harvest_records/?harvest_source_id=2f2652de-91df-4c63-8b53-bfced20b276b&facets=status='success'&count=True",
+                200,
+                2,
+            ),
+            (
+                "/harvest_records/?harvest_source_id=2f2652de-91df-4c63-8b53-bfced20b276b&facets=status='not_status'",
+                400,
+                "Error with query",
+            ),
+            (
+                "/organizations/",
+                200,
+                1,
+            ),
+            (
+                "/harvest_sources/",
+                200,
+                1,
+            ),
+            (
+                "/harvest_sources/?facets=schema_type='dcatus1.1: non-federal'",
+                404,
+                "No harvest_sources found for this query",
+            ),
+        ],
+    )
+    def test_json_builder_query(
+        self, client, interface_with_fixture_json, route, status_code, response
+    ):
+        """Tests against seeded content in `interface_with_fixture_json`"""
+        res = client.get(route)
+        assert res.status_code == status_code
+        try:
+            json_res = json.loads(res.data)
+            if "count" in json_res:
+                assert json_res["count"] == response
+            else:
+                assert len(json_res) == response
+        except Exception:
+            assert res.data.decode() == response
