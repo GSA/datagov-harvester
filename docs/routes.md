@@ -2,7 +2,7 @@
 
 This document tries to list the URL structure for this web app.
 
-This web app multiplexes the API routes and the web frontend onto the 
+This web app multiplexes the API routes and the web frontend onto the
 same URLs using Flask's `is_json` to differentiate what type of request
 it is.
 
@@ -21,7 +21,7 @@ it is.
 
 - `/organizations/`: Lists organizations, GET only, no login required
 - `/organization/add`: Add a new organization. Login-required. POST
-  with JSON updates in the DB. POST with form data adds or checks for errors. 
+  with JSON updates in the DB. POST with form data adds or checks for errors.
   GET should load the `edit_data` template.
 - `/organization/<id>`: Detail page for a single org, GET only, no login
   required
@@ -52,7 +52,7 @@ it is.
 - `/harvest_job/<id>`: Details on a job, GET, no login required
 - `/harvest_job/<id>`: PUT, update an existing harvest job, Login required.
 - `/harvest_job/<id>`: DELETE, delete a harvest job, Login required.
-- `/harvest_job/cancel/<id>`: cancel a given job, GET and POST, login required 
+- `/harvest_job/cancel/<id>`: cancel a given job, GET and POST, login required
 - `/harvest_job/`: Details on every job that has errors???, GET only, no login
   required
 - `harvest_job/<id>/errors/<type>`: CSV download errors for this job, GET only, no
@@ -92,4 +92,3 @@ it is.
   Should we add HTML web versions of these?
 - `/harvest_error` and `/harvest_error/<id>` appear to be JSON only. Should we
   add HTML web versions of these?
-
