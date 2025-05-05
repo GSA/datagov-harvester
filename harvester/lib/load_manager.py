@@ -11,7 +11,7 @@ CF_SERVICE_USER = os.getenv("CF_SERVICE_USER")
 CF_SERVICE_AUTH = os.getenv("CF_SERVICE_AUTH")
 HARVEST_RUNNER_APP_GUID = os.getenv("HARVEST_RUNNER_APP_GUID")
 
-MAX_TASKS_COUNT = 3
+MAX_TASKS_COUNT = 25
 
 interface = HarvesterDBInterface()
 
@@ -82,7 +82,10 @@ class LoadManager:
             return f"No task with job_id: {job_id}"
 
         if job_task[0][1] != "RUNNING":
-            return f"Harvest job {job_id} is not running"
+            updated_job = interface.update_harvest_job(job_id, {"status": "complete"})
+            return (
+                f"Task for job {updated_job.id} is not running. Job marked as complete."
+            )
 
         self.handler.stop_task(job_task[0][0])
 

@@ -4,15 +4,15 @@ import logging
 import os
 import smtplib
 import sys
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from pathlib import Path
-from typing import List
+from typing import List, Union
 
 import requests
 from boltons.setutils import IndexedSet
-from ckanapi import RemoteCKAN
 from jsonschema import Draft202012Validator
 
 sys.path.insert(1, "/".join(os.path.realpath(__file__).split("/")[0:-2]))
@@ -27,8 +27,10 @@ from harvester.exceptions import (
     SynchronizeException,
     TransformationException,
     ValidationException,
+    DuplicateIdentifierException
 )
 from harvester.lib.harvest_reporter import HarvestReporter
+from harvester.utils.ckan_utils import CKANSyncTool
 from harvester.utils.general_utils import (
     dataset_to_hash,
     download_file,
@@ -45,17 +47,15 @@ session = requests.Session()
 # TODD: make sure this timeout config doesn't change all requests!
 session.request = functools.partial(session.request, timeout=15)
 
-# ckan entrypoint
-ckan = RemoteCKAN(
-    os.getenv("CKAN_API_URL"),
-    apikey=os.getenv("CKAN_API_TOKEN"),
-    session=session,
-)
+ckan_sync_tool = CKANSyncTool(session=session)
 
 # logging data
 logger = logging.getLogger("harvest_runner")
 
 ROOT_DIR = Path(__file__).parents[1]
+
+# harvest worker count
+harvest_worker_sync_count = int(os.getenv("HARVEST_WORKER_SYNC_COUNT", 1))
 
 
 @dataclass
@@ -103,14 +103,24 @@ class HarvestSource:
         self._db_interface: HarvesterDBInterface = db_interface
         self.get_source_info_from_job_id(self.job_id)
 
+        self.schemas_root = ROOT_DIR / "schemas"
+
         if self.schema_type == "dcatus1.1: federal":
-            self.dataset_schema = open_json(
-                ROOT_DIR / "schemas" / "federal_dataset.json"
-            )
+            self.schema_file = self.schemas_root / "federal_dataset.json"
+        elif self.schema_type in ["dcatus1.1: non-federal", "csdgm"]:
+            self.schema_file = self.schemas_root / "non-federal_dataset.json"
+        elif self.schema_type.startswith("iso19115"):
+            self.schema_file = self.schemas_root / "iso-non-federal_dataset.json"
         else:
-            self.dataset_schema = open_json(
-                ROOT_DIR / "schemas" / "non-federal_dataset.json"
+            # this can't happen because we apply an enum in our model but just in case.
+            logger.error(
+                f"unacceptable schema type: {self.schema_type}. exiting harvest."
             )
+            job_status = {"status": "error", "date_finished": get_datetime()}
+            self._db_interface.update_harvest_job(self.job_id, job_status)
+            raise Exception
+
+        self.dataset_schema = open_json(self.schema_file)
         self._validator = Draft202012Validator(self.dataset_schema)
         self._reporter = HarvestReporter()
 
@@ -210,15 +220,41 @@ class HarvestSource:
             try:
                 identifier = self.get_record_identifier(record)
 
+                # Check if this identifier has already been processed (duplicate)
+                if identifier in self.external_records:
+                    # Create a minimal harvest_record for error tracking purposes only
+                    record_data = {
+                        "harvest_job_id": self.job_id,
+                        "harvest_source_id": self.id,
+                        "identifier": identifier,
+                        "status": "error"
+                    }
+
+                    # Insert the record so it can be referenced in the error table
+                    new_record = self.db_interface.add_harvest_record(record_data)
+                    harvest_record_id = new_record.id if new_record else None
+
+                    # Raise a non-critical exception to log the error and continue processing
+                    raise DuplicateIdentifierException(
+                        f"Duplicate identifier '{identifier}' found for source: {self.name}",
+                        self.job_id,
+                        harvest_record_id,
+                    )
+
                 if self.source_type == "document":
                     dataset_hash = dataset_to_hash(sort_dataset(record))
 
                 if self.source_type == "waf":
-                    dataset_hash = dataset_to_hash(record["content"].decode("utf-8"))
+                    record = record["content"]
+                    dataset_hash = dataset_to_hash(record)
 
                 self.external_records[identifier] = Record(
                     self, identifier, record, dataset_hash
                 )
+
+            except DuplicateIdentifierException:
+                self.reporter.update("errored")
+                continue
             except Exception as e:
                 raise ExtractExternalException(
                     f"{self.name} {self.url} failed to convert to id:hash :: {repr(e)}",
@@ -294,14 +330,13 @@ class HarvestSource:
                 else:
                     record = self.external_records[record_id]
 
-                if self.schema_type.startswith("dcatus"):
-                    source_raw = json.dumps(record.metadata)
-                else:
-                    source_raw = record.metadata["content"]
-
                 # set record action
                 record.action = action
-                record.source_raw = source_raw
+                record.source_raw = (
+                    json.dumps(record.metadata)
+                    if self.schema_type.startswith("dcatus")
+                    else record.metadata
+                )
                 record_mapping = self.make_record_mapping(record)
                 if action is not None:
                     db_record = self.db_interface.add_harvest_record(record_mapping)
@@ -347,22 +382,46 @@ class HarvestSource:
         logger.info("validating records")
         for record in self.records:
             try:
-                record.validate()
+                if record.status != "error":
+                    record.validate()
             except ValidationException:
                 self.reporter.update("errored")
 
     def sync(self) -> None:
-        """Sync records to external CKAN catalog"""
-        logger.info("synchronizing records")
-        for record in self.records:
-            try:
-                record.sync()
+        """Sync records to external CKAN catalog."""
 
+        # multi-threaded sync
+        def error_callback(future):
+            try:
+                future.result()
             except (
                 DCATUSToCKANException,
                 SynchronizeException,
             ):
                 self.reporter.update("errored")
+
+        with ThreadPoolExecutor(max_workers=harvest_worker_sync_count) as executor:
+            [
+                executor.submit(ckan_sync_tool.sync, record).add_done_callback(
+                    error_callback
+                )
+                for record in self.records
+                if record.status
+                not in (
+                    "success",
+                    "error",
+                )  # dont sync records in error, or those which have already been synced (success)
+            ]
+
+        # post-sync cleanup
+        for record in self.records:
+            if record.status == "error" or record.status is None:
+                continue
+
+            if record.action == "delete":
+                record.delete_self_in_db()
+            elif record.action is not None:
+                record.update_self_in_db()
 
     def report(self) -> None:
         """Assemble and record report for harvest job"""
@@ -382,7 +441,7 @@ class HarvestSource:
     def send_notification_emails(self, job_results: dict) -> None:
         """Send harvest report emails to havest source POCs"""
         try:
-            job_url = f'{SMTP_CONFIG["base_url"]}/harvest_job/{self.job_id}'
+            job_url = f"{SMTP_CONFIG['base_url']}/harvest_job/{self.job_id}"
 
             subject = "Harvest Job Completed"
             body = (
@@ -433,14 +492,11 @@ class HarvestSource:
         new_records = []
         for job_record in job.records:
             record = self.make_record_contract(job_record)
-            if self.schema_type.startswith("dcatus"):
-                record.source_raw = json.dumps(record.metadata)
-            else:
-                record.source_raw = record.metadata["content"]
             record_mapping = self.make_record_mapping(record)
             if record.action is not None and record.status != "success":
                 db_record = self.db_interface.add_harvest_record(record_mapping)
                 record.id = db_record.id
+                record._status = None
             new_records.append(record)
         self.records = new_records
 
@@ -463,10 +519,17 @@ class HarvestSource:
 
     def make_record_contract(self, db_record):
         """Helper to hydrate a db record"""
+
+        source_raw = (
+            json.loads(db_record.source_raw)
+            if self.schema_type.startswith("dcatus")
+            else db_record.source_raw
+        )
+
         return Record(
             self,
             db_record.identifier,
-            json.loads(db_record.source_raw),
+            source_raw,
             db_record.source_hash,
             db_record.action,
             _status=db_record.status,
@@ -476,12 +539,19 @@ class HarvestSource:
 
     def make_record_mapping(self, record):
         """Helper to make a Harvest record dict"""
+
+        source_raw = (
+            record.source_raw if hasattr(record, "source_raw") else record.metadata
+        )
+        if isinstance(source_raw, dict):
+            source_raw = json.dumps(source_raw)
+
         return {
             "identifier": record.identifier,
             "harvest_job_id": record.harvest_source.job_id,
             "harvest_source_id": record.harvest_source.id,
             "source_hash": record.metadata_hash,
-            "source_raw": record.source_raw,
+            "source_raw": source_raw,
             "action": record.action,
             "ckan_id": record.ckan_id,
             "ckan_name": record.ckan_name,
@@ -494,7 +564,7 @@ class Record:
 
     _harvest_source: HarvestSource
     _identifier: str
-    _metadata: dict = field(default_factory=lambda: {})
+    _metadata: Union[dict, str] = None
     _metadata_hash: str = ""
     _action: str = None
     _valid: bool = None
@@ -620,30 +690,41 @@ class Record:
 
     def transform(self) -> None:
         data = {
-            "file": self.metadata["content"],
+            "file": self.metadata,
             "reader": self.reader_map[self.harvest_source.schema_type],
             "writer": self.mdt_writer,
         }
 
         mdt_url = os.getenv("MDTRANSLATOR_URL")
         resp = requests.post(mdt_url, json=data)
-        data = resp.json()
 
         if resp.status_code == 422:
+            data = resp.json()
             self.mdt_msgs = prepare_transform_msg(data)
+            self.status = "error"
             raise TransformationException(
                 f"record failed to transform: {self.mdt_msgs}",
                 self.harvest_source.job_id,
                 self.id,
             )
 
-        if 200 <= resp.status_code < 300:
+        elif 200 <= resp.status_code < 300:
+            data = resp.json()
             logger.info(
                 f"successfully transformed record: {self.identifier} db id: {self.id}"
             )
             self.transformed_data = json.loads(data["writerOutput"])
+        else:
+            self.status = "error"
+            raise TransformationException(
+                f"record failed to transform because of unexpected status code: {resp.status_code}",
+                self.harvest_source.job_id,
+                self.id,
+            )
 
     def validate(self) -> None:
+        # TODO: create a different status for transformation exceptions
+        # so they aren't confused with validation issues
         logger.info(f"validating {self.identifier}")
         try:
             if self.action == "delete":
@@ -668,82 +749,6 @@ class Record:
                 self.id,
             )
 
-    def sync(self) -> None:
-        if self.valid is False:
-            logger.warning(f"{self.identifier} is invalid. bypassing {self.action}")
-            return
-
-        if self.status == "success":
-            logger.info(
-                f"{self.identifier} has status 'success'. bypassing {self.action}"
-            )
-            return
-
-        start = get_datetime()
-        try:
-            if self.action == "delete":
-                self.delete_record()
-            if self.action == "create":
-                self.ckanify_dcatus()
-                self.create_record()
-            if self.action == "update":
-                self.ckanify_dcatus()
-                self.update_record()
-        except Exception as e:
-            self.status = "error"
-            raise SynchronizeException(
-                f"failed to {self.action} for {self.identifier} :: {repr(e)}",
-                self.harvest_source.job_id,
-                self.id,
-            )
-
-        if self.action == "delete":
-            self.delete_self_in_db()
-
-        if self.action is not None and self.action != "delete":
-            self.update_self_in_db()
-
-        # update harvest reporter
-        self.harvest_source.reporter.update(self.action)
-
-        # update harvest job stats
-        self.harvest_source.db_interface.update_harvest_job(
-            self.harvest_source.job_id, self.harvest_source.reporter.report()
-        )
-
-        logger.info(
-            f"time to {self.action} {self.identifier} \
-                {get_datetime()-start}"
-        )
-
-    def create_record(self, retry=False):
-        from harvester.utils.ckan_utils import add_uuid_to_package_name
-
-        try:
-            result = ckan.action.package_create(**self.ckanified_metadata)
-            self.ckan_id = result["id"]
-            self.ckan_name = self.ckanified_metadata["name"]
-        except Exception as e:
-            if retry is False:
-                self.ckanified_metadata["name"] = add_uuid_to_package_name(
-                    self.ckanified_metadata["name"]
-                )
-                self.ckan_name = self.ckanified_metadata["name"]
-                return self.create_record(retry=True)
-            else:
-                raise e
-                # will be caught by outer SynchronizeException
-
-    def update_record(self) -> dict:
-        updated_metadata = {
-            **self.ckanified_metadata,
-            **{"id": self.ckan_id, "name": self.ckan_name},
-        }
-        ckan.action.package_update(**updated_metadata)
-
-    def delete_record(self) -> None:
-        ckan.action.dataset_purge(**{"id": self.ckan_id})
-
     def update_self_in_db(self) -> bool:
         self.status = "success"
         data = {
@@ -767,17 +772,6 @@ class Record:
         self.harvest_source.db_interface.delete_harvest_record(
             identifier=self.identifier, harvest_source_id=self.harvest_source.id
         )
-
-    def ckanify_dcatus(self) -> None:
-        from harvester.utils.ckan_utils import ckanify_dcatus
-
-        try:
-            self.ckanified_metadata = ckanify_dcatus(
-                self.metadata, self.harvest_source, self.id
-            )
-        except Exception as e:
-            self.status = "error"
-            raise DCATUSToCKANException(repr(e), self.harvest_source.job_id, self.id)
 
 
 def harvest_job_starter(job_id, job_type="harvest"):
@@ -813,6 +807,9 @@ def harvest_job_starter(job_id, job_type="harvest"):
 
     # close the db connection after job to prevent persistent open connections
     harvest_source.db_interface.close()
+
+    # close the connection to RemoteCKAN
+    ckan_sync_tool.close_conection()
 
 
 if __name__ == "__main__":

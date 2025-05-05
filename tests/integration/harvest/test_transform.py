@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 import pytest
 from deepdiff import DeepDiff
 
@@ -82,3 +84,32 @@ class TestTransform:
 
         assert iso1_test_record.mdt_msgs == ""
         assert DeepDiff(iso1_test_record.transformed_data, iso19115_1_transform) == {}
+
+    def test_mdtranslator_down(
+        self,
+        interface,
+        organization_data,
+        source_data_waf_iso19115_2,
+        job_data_waf_iso19115_2,
+    ):
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_waf_iso19115_2)
+        harvest_job = interface.add_harvest_job(job_data_waf_iso19115_2)
+
+        harvest_source = HarvestSource(harvest_job.id)
+        harvest_source.extract()
+        harvest_source.compare()
+
+        for record in harvest_source.records:
+            if record.identifier == "http://localhost:80/iso_2_waf/invalid_iso2.xml":
+                test_record = record
+
+        with patch("requests.post") as mock_get:
+            mock_get.return_value.status_code = 404
+            with pytest.raises(TransformationException) as e:
+                test_record.transform()
+
+            assert (
+                str(e.value.msg)
+                == "record failed to transform because of unexpected status code: 404"
+            )

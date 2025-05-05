@@ -4,7 +4,7 @@ from harvester.harvest import harvest_job_starter
 
 
 class TestHarvestJobSync:
-    @patch("harvester.harvest.ckan")
+    @patch("harvester.harvest.ckan_sync_tool.ckan")
     @patch("harvester.utils.ckan_utils.uuid")
     def test_harvest_job_sync(
         self,
@@ -43,12 +43,13 @@ class TestHarvestJobSync:
         harvest_job = interface.get_harvest_job(job_id)
         job_err = interface.get_harvest_job_errors_by_job(job_id)
         record_err = interface.get_harvest_record_errors_by_job(job_id)
+        records = interface.get_harvest_records_by_job(job_id)
 
         assert len(job_err) == 0
         assert len(record_err) == 1
         assert record_err[0][0].type == "SynchronizeException"
         ## assert it's the second record that threw the exception, which validates our package_create mock
-        assert record_err[0][0].harvest_record_id == harvest_job.records[1].id
+        assert record_err[0][0].harvest_record_id == records[1].id
 
         # pkg create called three times
         assert CKANMock.action.package_create.call_count == 3
@@ -59,10 +60,10 @@ class TestHarvestJobSync:
         assert harvest_job.records_ignored == 0
         assert harvest_job.records_errored == 1
 
-        assert harvest_job.records[0].ckan_id == "1234"
-        assert harvest_job.records[0].status == "success"
-        assert harvest_job.records[1].ckan_id is None
-        assert harvest_job.records[1].status == "error"
+        assert records[0].ckan_id == "1234"
+        assert records[0].status == "success"
+        assert records[1].ckan_id is None
+        assert records[1].status == "error"
 
         ## create a second follow-up job to pickup sync
         harvest_job = interface.add_harvest_job(
