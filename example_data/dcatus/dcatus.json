@@ -33,6 +33,7 @@
         "339:00"
       ],
       "identifier": "cftc-dc1",
+      "isPartOf": "some-collection-id",
       "keyword": [
         "commitment of traders",
         "cot",

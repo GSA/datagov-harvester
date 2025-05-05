@@ -806,3 +806,16 @@ class TestDatabase:
         # Do not expect the following strings to match
         assert interface.get_geo_from_string("not exists") is None
         assert interface.get_geo_from_string("US, Virginia, Fairfax, Reston") is None
+
+    def test_extract_unsupported_schema(
+        self,
+        interface,
+        organization_data,
+        source_data_waf_csdgm,
+    ):
+        source_data_waf_csdgm["schema_type"] = "unsupported_schema"
+
+        interface.add_organization(organization_data)
+
+        # we can't add the source because we use an enum for schema type
+        assert interface.add_harvest_source(source_data_waf_csdgm) is None

@@ -35,13 +35,13 @@ class TestDynamicRouteTable:
         ]
         # provide a special assertions regex map for routes which do something special
         special_assertion_map = {
-            "(main\.index)": {
+            r"(main\.index)": {
                 "(GET|HEAD)": {
                     "status_code": 302,
                     "location": "/organizations/",
                 },
             },
-            "((main|api)\.(add|edit|cancel|update|delete|trigger)_(organization|harvest_source|harvest_job|harvest_record))": {
+            r"((main|api)\.(add|edit|cancel|update|delete|trigger)_(organization|harvest_source|harvest_job|harvest_record))": {
                 "(POST|HEAD|PUT|DELETE)": {
                     "status_code": 302,
                     "location": LOCATION_ENUMS["LOGIN"],
@@ -58,7 +58,6 @@ class TestDynamicRouteTable:
         for route in client.application.url_map.iter_rules():
             if route.endpoint in whitelisted_routes:
                 continue
-
             # replace arg values with real data
             replacements = [
                 ("<org_id>", organization_data["id"]),
@@ -139,7 +138,7 @@ class TestDynamicRouteTable:
 
     def test_client_response_on_error(self, client):
         # ignore routes which aren't public GETS and don't accept args
-        whitelisted_route_regex = "((main|api|bootstrap)?(?:\.)?(add|edit|cancel|update|delete|trigger|view)?(?:_)?(static|index|callback|get_harvest_records|view_metrics|log(in|out)|organization(?:s)?|harvest_source|harvest_job|harvest_record))"
+        whitelisted_route_regex = r"((main|api|bootstrap)?(?:\.)?(add|edit|cancel|update|delete|trigger|view)?(?:_)?(static|index|callback|get_harvest_records|view_metrics|log(in|out)|organization(?:s)?|harvest_source|harvest_job|harvest_record))"
 
         # some endpoints respond with JSON
         json_responses_map = {
@@ -170,7 +169,7 @@ class TestDynamicRouteTable:
             if re.match(whitelisted_route_regex, route.endpoint):
                 continue
 
-            cleaned_route_rule = re.sub("(\<.*?\>)", "1234", route.rule)
+            cleaned_route_rule = re.sub(r"(\<.*?\>)", "1234", route.rule)
 
             for method in route.methods:
                 if method in ["HEAD", "OPTIONS"]:
@@ -226,3 +225,32 @@ class TestLoginAuthHeaders:
         response = client.get("/organization/add", json=data, headers=headers)
         assert response.status_code == 401
         assert response.data.decode() == "error: Unauthorized"
+
+
+class TestJSONResponses:
+
+    def test_get_organization_json(
+        self,
+        client,
+        interface_with_multiple_jobs,
+        organization_data,
+    ):
+        res = client.get(
+            f"/organization/{organization_data['id']}",
+            headers={"Content-type": "application/json"},
+        )
+        assert res.status_code == 200
+        assert res.is_json
+
+    def test_get_missing_organization(
+        self,
+        client,
+        interface_with_multiple_jobs,
+        organization_data,
+    ):
+        res = client.get(
+            f"/organization/{organization_data['id']}-missing",
+            headers={"Content-type": "application/json"},
+        )
+        assert res.status_code == 404
+        assert res.is_json
