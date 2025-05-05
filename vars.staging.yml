@@ -4,6 +4,7 @@ admin_instances: 2
 admin_memory_quota: 3G
 CF_API_URL: https://api.fr.cloud.gov
 CKAN_API_URL: https://catalog-stage.data.gov
+MDTRANSLATOR_URL: http://mdtranslator-staging.apps.internal:8080/translates
 HARVEST_RUNNER_APP_GUID: null
 CLIENT_ID: urn:gov:gsa:openidconnect.profiles:sp:sso:gsa:datagov-staging-harvest-admin
 ISSUER: https://idp.int.identitysandbox.gov

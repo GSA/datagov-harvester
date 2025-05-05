@@ -45,9 +45,6 @@
                      <gmd:postalCode>
                         <gco:CharacterString>27709</gco:CharacterString>
                      </gmd:postalCode>
-                     <gmd:electronicMailAddress>
-                        <gco:CharacterString>EnviroAtlas@epa.gov</gco:CharacterString>
-                     </gmd:electronicMailAddress>
                   </gmd:CI_Address>
                </gmd:address>
                <gmd:contactInstructions>
