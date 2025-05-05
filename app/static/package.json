@@ -43,7 +43,7 @@
     "typescript": "^5.8.2",
     "vinyl-buffer": "^1.0.1",
     "vinyl-source-stream": "^2.0.0",
-    "vite": "^6.1.5"
+    "vite": "^6.1.6"
   },
   "optionalDependencies": {
     "@rollup/rollup-linux-x64-gnu": "^4.13.2"
