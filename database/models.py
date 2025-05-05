@@ -10,6 +10,9 @@ class Base(DeclarativeBase):
     __abstract__ = True  # Indicates that this class should not be created as a table
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
 
+    def to_dict(self):
+        return {c.name: getattr(self, c.name) for c in self.__table__.columns}
+
 
 # For ref: https://stackoverflow.com/questions/22698478/what-is-the-difference-between-the-declarative-base-and-db-model
 db = SQLAlchemy(model_class=Base)

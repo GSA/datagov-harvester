@@ -5,7 +5,7 @@ import pytest
 from deepdiff import DeepDiff
 from jsonschema.exceptions import ValidationError
 
-from harvester.harvest import HarvestSource, Record
+from harvester.harvest import HarvestSource, ckan_sync_tool
 from harvester.utils.ckan_utils import create_ckan_resources
 from harvester.utils.general_utils import dataset_to_hash, sort_dataset
 
@@ -13,26 +13,17 @@ from harvester.utils.general_utils import dataset_to_hash, sort_dataset
 
 
 class TestCKANLoad:
-    def delete_mock(self):
-        pass
-
-    def update_mock(self):
-        pass
-
-    def create_mock(self):
-        pass
-
-    @patch.object(Record, "create_record", create_mock)
-    @patch.object(Record, "update_record", update_mock)
-    @patch.object(Record, "delete_record", delete_mock)
+    @patch("harvester.harvest.ckan_sync_tool.ckan")
     def test_sync(
         self,
+        CKANMock,
         organization_data,
         source_data_dcatus,
         job_data_dcatus,
         interface,
         internal_compare_data,
     ):
+        CKANMock.action.package_create.return_value = {"id": 1234}
         interface.add_organization(organization_data)
         interface.add_harvest_source(source_data_dcatus)
         interface.add_harvest_job(job_data_dcatus)
@@ -63,7 +54,7 @@ class TestCKANLoad:
         results = {
             "action": {"create": 0, "update": 0, "delete": 0, None: 0},
             "status": {"success": 0, "error": 0, None: 0},
-            "validity": {True: 0, False: 0},
+            "validity": {True: 0, None: 0},
         }
         for key, group in groupby(
             harvest_source.records, lambda x: x.action if x.status != "error" else None
@@ -73,22 +64,32 @@ class TestCKANLoad:
         for key, group in groupby(harvest_source.records, lambda x: x.status):
             results["status"][key] = sum(1 for _ in group)
 
+        for key, group in groupby(harvest_source.records, lambda x: x.valid):
+            results["validity"][key] = sum(1 for _ in group)
+
         harvest_reporter = harvest_source.reporter.report()
         assert results["action"]["create"] == 6
         assert harvest_reporter["records_added"] == 6
 
-        assert results["action"]["update"] == 1
-        assert harvest_reporter["records_updated"] == 1
+        assert results["action"]["update"] == harvest_reporter["records_updated"] == 1
 
-        assert results["action"]["delete"] == 1
-        assert harvest_reporter["records_deleted"] == 1
+        assert results["action"]["delete"] == harvest_reporter["records_deleted"] == 1
 
-        assert results["status"]["error"] == 0
-        assert harvest_reporter["records_errored"] == 0
+        assert results["status"]["error"] == harvest_reporter["records_errored"] == 0
 
-        # NOTE: we don't report this status, but it is not in sync b/c deletes aren't counted correctly
-        assert results["status"]["success"] == 7
-        assert len(harvest_source.records) - harvest_reporter["records_errored"] == 8
+        assert (
+            results["status"]["success"]
+            == len(harvest_source.records) - harvest_reporter["records_errored"]
+            == 8
+        )
+
+        assert results["validity"][True] == harvest_reporter["records_validated"] == 7
+
+        assert (
+            results["validity"][None]
+            == len(harvest_source.records) - harvest_reporter["records_validated"]
+            == 1
+        )
 
     def test_ckanify_dcatus(
         self,
@@ -102,7 +103,6 @@ class TestCKANLoad:
         harvest_job = interface.add_harvest_job(job_data_dcatus)
 
         harvest_source = HarvestSource(harvest_job.id)
-        harvest_source.prepare_external_data()
 
         record = {
             "identifier": "cftc-dc1",
@@ -169,11 +169,12 @@ class TestCKANLoad:
                     "value": '{"type":"MultiPolygon","coordinates":[[[[-124.733253,24.544245],[-124.733253,49.388611],'
                     "[-66.954811,49.388611],[-66.954811,24.544245],[-124.733253,24.544245]]]]}",
                 },
+                {"key": "isPartOf", "value": "some-collection-id"},
                 {"key": "identifier", "value": "cftc-dc1"},
             ],
         }
 
-        test_record.ckanify_dcatus()
+        ckan_sync_tool.ckanify_record(test_record)
         assert DeepDiff(test_record.ckanified_metadata, expected_result) == {}
 
     def test_create_ckan_resources(self, dol_distribution_json):
@@ -274,3 +275,32 @@ class TestCKANLoad:
         assert harvest_source.validator.is_valid(record) is False
         with pytest.raises(ValidationError):
             harvest_source.validator.validate(record)
+
+    def test_duplicate_identifier_handled_as_error_record(
+        self,
+        interface,
+        organization_data,
+        source_data_dcatus,
+        job_data_dcatus,
+        duplicated_identifier_records,
+    ):
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_dcatus)
+        job = interface.add_harvest_job(job_data_dcatus)
+
+        harvest_source = HarvestSource(job.id)
+
+        # Should not raise an exception
+        harvest_source.external_records_to_id_hash(duplicated_identifier_records)
+
+        # Only one unique record should be added to external_records
+        assert len(harvest_source.external_records) == 1
+
+        # Assert that errors was logged (the duplicate identifier)
+        record_err = interface.get_harvest_record_errors_by_job(job.id)
+        assert len(record_err) == 2
+
+        # Check that each error message includes "Duplicate identifier"
+        for error_entry in record_err:
+            error_obj, identifier, _ = error_entry
+            assert "Duplicate identifier" in error_obj.message
