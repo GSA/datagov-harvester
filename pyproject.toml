@@ -38,6 +38,7 @@ newrelic = "^10.2.0"
 gevent = "^24.10.3"
 geojson-validator = "^0.6.0"
 GeoAlchemy2 = "^0.17.1"
+protobuf = "5.29.4" #pinned due to cloudfoundry-client needing <6.0.0
 
 [tool.poetry.group.dev.dependencies]
 pytest = ">=7.3.2"
