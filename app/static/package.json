@@ -37,7 +37,7 @@
     "browserify": "^17.0.1",
     "concurrently": "^8.2.2",
     "gulp": "^5.0.0",
-    "rollup": "^4.34.6",
+    "rollup": "^4.36.0",
     "rollup-plugin-copy": "^3.5.0",
     "sass": "^1.83.4",
     "typescript": "^5.8.2",
