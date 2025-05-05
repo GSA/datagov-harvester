@@ -35,7 +35,7 @@
                         {% for job in data.jobs %}
                         <tr>
                             <td data-sort-value="{{ job.id }}">
-                                <a href="{{ url_for('main.view_harvest_job', source_id=job.id) }}">
+                                <a href="{{ url_for('main.view_harvest_job', job_id=job.id) }}">
                                     {{ job.id[:8] }}...
                                 </a>
                             </td>
