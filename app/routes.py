@@ -26,6 +26,7 @@ from flask import (
     session,
     url_for,
 )
+from markupsafe import escape
 from jinja2_fragments.flask import render_block
 
 from database.interface import HarvesterDBInterface
@@ -373,7 +374,7 @@ def make_new_org_contract(form):
 # Routes
 @main.route("/", methods=["GET"])
 def index():
-    return redirect(url_for("main.view_organizations"))
+    return redirect(url_for("main.organization_list"))
 
 
 ## Organizations
@@ -401,7 +402,7 @@ def add_organization():
                 flash(f"Added new organization with ID: {org.id}")
             else:
                 flash("Failed to add organization.")
-            return redirect(url_for("main.view_organizations"))
+            return redirect(url_for("main.organization_list"))
         elif form.errors:
             flash(form.errors)
             return redirect(url_for("main.add_organization"))
@@ -414,8 +415,8 @@ def add_organization():
     )
 
 
-@main.route("/organizations/", methods=["GET"])
-def view_organizations():
+@main.route("/organization_list/", methods=["GET"])
+def organization_list():
     organizations = db.get_all_organizations()
     if request.args.get("type") and request.args.get("type") == "json":
         return db._to_dict(organizations)
@@ -437,7 +438,7 @@ def view_organization(org_id: str):
                 if status == 409:
                     return redirect(url_for("main.view_organization", org_id=org_id))
                 else:
-                    return redirect(url_for("main.view_organizations"))
+                    return redirect(url_for("main.organization_list"))
             except Exception as e:
                 message = f"Failed to delete organization :: {repr(e)}"
                 logger.error(message)
@@ -483,7 +484,7 @@ def view_organization(org_id: str):
 
 
 ### Edit Org
-@main.route("/organization/config/edit/<org_id>", methods=["GET", "POST"])
+@main.route("/organization/edit/<org_id>", methods=["GET", "POST"])
 @login_required
 def edit_organization(org_id):
     if request.is_json:
@@ -566,7 +567,7 @@ def add_harvest_source():
                 flash(f"Added new harvest source with ID: {source.id}. {job_message}")
             else:
                 flash("Failed to add harvest source.")
-            return redirect(url_for("main.view_harvest_sources"))
+            return redirect(url_for("main.harvest_source_list"))
         elif form.errors:
             flash(form.errors)
             return redirect(url_for("main.add_harvest_source"))
@@ -637,7 +638,7 @@ def view_harvest_source(source_id: str):
                         url_for("main.view_harvest_source", source_id=source_id)
                     )
                 else:
-                    return redirect(url_for("main.view_harvest_sources"))
+                    return redirect(url_for("main.harvest_source_list"))
             except Exception as e:
                 message = f"Failed to delete harvest source :: {repr(e)}"
                 logger.error(message)
@@ -740,15 +741,15 @@ def view_harvest_source(source_id: str):
         )
 
 
-@main.route("/harvest_sources/", methods=["GET"])
-def view_harvest_sources():
+@main.route("/harvest_source_list/", methods=["GET"])
+def harvest_source_list():
     sources = db.get_all_harvest_sources()
     data = {"harvest_sources": sources}
     return render_template("view_source_list.html", data=data)
 
 
 ### Edit Source
-@main.route("/harvest_source/config/edit/<source_id>", methods=["GET", "POST"])
+@main.route("/harvest_source/edit/<source_id>", methods=["GET", "POST"])
 @login_required
 def edit_harvest_source(source_id: str):
     if request.is_json:
@@ -799,7 +800,7 @@ def edit_harvest_source(source_id: str):
             )
         else:
             flash(f"No source with id: {source_id}")
-            return redirect(url_for("main.view_harvest_sources"))
+            return redirect(url_for("main.harvest_source_list"))
 
     organization_id = request.args.get("organization_id")
     if organization_id:
@@ -1010,34 +1011,6 @@ def get_harvest_record(record_id):
     return db._to_dict(record) if record else (STATUS_STRINGS_ENUM["404"], 404)
 
 
-## Get records
-@main.route("/harvest_records/", methods=["GET"])
-def get_harvest_records():
-    job_id = request.args.get("harvest_job_id")
-    source_id = request.args.get("harvest_source_id")
-    facets = request.args.get("facets", default="")
-
-    if job_id:
-        facets += f", harvest_job_id = '{job_id}'"
-    if source_id:
-        facets += f", harvest_source_id = '{source_id}'"
-
-    records = db.pget_harvest_records(
-        page=request.args.get("page", type=convert_to_int),
-        per_page=request.args.get("per_page", type=convert_to_int),
-        paginate=request.args.get("paginate", type=is_it_true),
-        count=request.args.get("count", type=is_it_true),
-        facets=facets,
-    )
-
-    if not records:
-        return "No harvest records found for this query", 404
-    elif isinstance(records, int):
-        return f"{records} records found", 200
-    else:
-        return db._to_dict(records)
-
-
 ## Get records source raw
 @main.route("/harvest_record/<record_id>/raw", methods=["GET"])
 def get_harvest_record_raw(record_id=None):
@@ -1107,7 +1080,6 @@ def view_metrics():
     count = db.pget_harvest_jobs(
         facets=time_filter,
         count=True,
-        order_by="desc",
     )
 
     pagination = Pagination(
@@ -1120,6 +1092,7 @@ def view_metrics():
             facets=time_filter,
             page=pagination.db_current,
             per_page=pagination.per_page,
+            order_by="desc",
         )
         data = {
             "jobs": jobs,
@@ -1136,6 +1109,7 @@ def view_metrics():
             facets=time_filter,
             page=pagination.db_current,
             per_page=pagination.per_page,
+            order_by="desc",
         )
         data = {
             "htmx_vars": htmx_vars,
@@ -1148,6 +1122,46 @@ def view_metrics():
             pagination=pagination.to_dict(),
             data=data,
         )
+
+
+# Builder Query for JSON feed
+@main.route("/organizations/", methods=["GET"])
+@main.route("/harvest_sources/", methods=["GET"])
+@main.route("/harvest_records/", methods=["GET"])
+@main.route("/harvest_jobs/", methods=["GET"])
+@main.route("/harvest_job_errors/", methods=["GET"])
+@main.route("/harvest_record_errors/", methods=["GET"])
+def json_builder_query():
+    job_id = request.args.get("harvest_job_id")
+    source_id = request.args.get("harvest_source_id")
+    facets = request.args.get("facets", default="")
+
+    if job_id:
+        facets += f", harvest_job_id = '{job_id}'"
+    if source_id:
+        facets += f", harvest_source_id = '{source_id}'"
+
+    model = escape(request.path).replace("/", "")
+    try:
+        res = db.pget_db_query(
+            model=model,
+            page=request.args.get("page", type=convert_to_int),
+            per_page=request.args.get("per_page", type=convert_to_int),
+            paginate=request.args.get("paginate", type=is_it_true),
+            count=request.args.get("count", type=is_it_true),
+            order_by=request.args.get("order_by"),
+            facets=facets,
+        )
+        if not res:
+            return f"No {model} found for this query", 404
+        elif isinstance(res, int):
+            # in case we are just returning a count from db query
+            return {"count": res, "type": model}
+        else:
+            return db._to_dict(res)
+    except Exception as e:
+        logger.info(f"Failed json_builder_query :: {repr(e)} ")
+        return "Error with query", 400
 
 
 def register_routes(app):

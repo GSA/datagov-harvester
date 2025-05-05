@@ -21,8 +21,8 @@
       <strong>
         <nav>
           <ul class="menu">
-            <li><a href="{{ url_for('main.view_organizations') }}">Organizations</a></li>
-            <li><a href="{{ url_for('main.view_harvest_sources') }}">Harvest Sources</a></li>
+            <li><a href="{{ url_for('main.organization_list') }}">Organizations</a></li>
+            <li><a href="{{ url_for('main.harvest_source_list') }}">Harvest Sources</a></li>
             <li><a href="{{ url_for('main.view_metrics') }}">Metrics</a></li>
             {% if session['user'] %}
             <li>{{ session['user'] }}</li>
