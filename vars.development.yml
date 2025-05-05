@@ -10,7 +10,7 @@ CKAN_API_URL: https://catalog-next-dev-admin-datagov.app.cloud.gov
 
 HARVEST_RUNNER_APP_GUID: 40dba74b-4916-447e-914b-77525de5e608
 
-MDTRANSLATOR_URL: https://mdtranslator.app.cloud.gov/translates
+MDTRANSLATOR_URL: http://mdtranslator-development.apps.internal:8080/translates
 
 # Login.gov
 CLIENT_ID: urn:gov:gsa:openidconnect.profiles:sp:sso:gsa:datagov-dev-harvest-admin

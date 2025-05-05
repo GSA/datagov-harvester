@@ -30,6 +30,7 @@ def all_tasks_json_fixture():
 @freeze_time("Jan 14th, 2012")
 class TestLoadManager:
     @patch("harvester.lib.cf_handler.CloudFoundryClient")
+    @patch("harvester.lib.load_manager.MAX_TASKS_COUNT", 3)
     def test_load_manager_invokes_tasks(
         self,
         CFCMock,
@@ -88,6 +89,7 @@ class TestLoadManager:
 
     @patch("harvester.lib.load_manager.logger")
     @patch("harvester.lib.cf_handler.CloudFoundryClient")
+    @patch("harvester.lib.load_manager.MAX_TASKS_COUNT", 3)
     def test_load_manager_hits_task_limit(
         self,
         CFCMock,
