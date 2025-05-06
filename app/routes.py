@@ -930,13 +930,17 @@ def update_harvest_job(job_id):
 @login_required
 def delete_harvest_job(job_id):
     result = db.delete_harvest_job(job_id)
-    return result
+    return escape(result)
 
 
 @main.route("/harvest_job/cancel/<job_id>", methods=["GET", "POST"])
 @login_required
 def cancel_harvest_job(job_id):
     """Cancels a harvest job"""
+    # Validate job_id (e.g., ensure it is alphanumeric or a valid UUID)
+    if not job_id.isalnum():
+        flash("Invalid job ID.")
+        return redirect("/")
     message = load_manager.stop_job(job_id)
     flash(message)
     return redirect(f"/harvest_job/{job_id}")
