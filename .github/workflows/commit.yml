@@ -106,8 +106,8 @@ jobs:
       - name: deploy DHL
         uses: cloud-gov/cg-cli-tools@main
         with:
-          # command: cf push datagov-harvest-admin --vars-file vars.development.yml --strategy rolling --no-wait && cf push datagov-harvest-runner --vars-file vars.development.yml --strategy rolling --no-wait
-          command: ./bin/check-and-renew datagov-harvest-admin deploy development
+          command: cf push datagov-harvest-admin --vars-file vars.development.yml --strategy rolling --no-wait && cf push datagov-harvest-runner --vars-file vars.development.yml --strategy rolling --no-wait
+          # command: ./bin/check-and-renew datagov-harvest-admin deploy development
           cf_org: gsa-datagov
           cf_space: development
           cf_username: ${{secrets.CF_SERVICE_USER}}
