@@ -1,4 +1,4 @@
-name: Tests on Commit
+name: 1 - Commit
 on: [push]
 
 env:
@@ -13,7 +13,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: chartboost/ruff-action@v1
 
-  test:
+  test: 
     environment: development
     env:
         CKAN_API_TOKEN_DEV: ${{secrets.CKAN_API_TOKEN_DEV}}
@@ -55,10 +55,25 @@ jobs:
             Integration Tests, pytest-coverage-integration.txt, pytest-integration.xml
             Functional Tests, pytest-coverage-functional.txt, pytest-functional.xml
 
+  create-cloudgov-services-development:
+    name: create services (staging)
+    environment: development
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+      - name: create services
+        uses: cloud-gov/cg-cli-tools@main
+        with:
+          command: ./bin/create-cloudgov-services.sh
+          cf_org: gsa-datagov
+          cf_space: development
+          cf_username: ${{secrets.CF_SERVICE_USER}}
+          cf_password: ${{secrets.CF_SERVICE_AUTH}}
+
   deploy-development:
     if: github.ref == 'refs/heads/develop'
     name: deploy development
-    # needs: test
     environment: development
     runs-on: ubuntu-latest
     steps:
@@ -91,26 +106,32 @@ jobs:
       - name: deploy DHL
         uses: cloud-gov/cg-cli-tools@main
         with:
-          command: cf push datagov-harvest-admin --vars-file vars.development.yml --strategy rolling --no-wait && cf push datagov-harvest-runner --vars-file vars.development.yml --strategy rolling --no-wait
+          # command: cf push datagov-harvest-admin --vars-file vars.development.yml --strategy rolling --no-wait && cf push datagov-harvest-runner --vars-file vars.development.yml --strategy rolling --no-wait
+          command: ./bin/check-and-renew datagov-harvest-admin deploy development
           cf_org: gsa-datagov
-          cf_space: ${{vars.ENVIRONMENT_NAME}}
+          cf_space: development
           cf_username: ${{secrets.CF_SERVICE_USER}}
           cf_password: ${{secrets.CF_SERVICE_AUTH}}
-      # to-do
-      # - name: smoke test
-      #   uses: cloud-gov/cg-cli-tools@main
-      #   with:
-      #     command: cf run-task harvesting-logic -c "/home/vcap/app/scripts/smoke-test.py" --name smoke-test
-      #     cf_org: gsa-datagov
-      #     cf_space: ${{vars.ENVIRONMENT_NAME}}
-      #     cf_username: ${{secrets.CF_SERVICE_USER}}
-      #     cf_password: ${{secrets.CF_SERVICE_AUTH}}
-      # - name: monitor task output
-      #   uses: cloud-gov/cg-cli-tools@main
-      #   with:
-      #     command: >
-      #       scripts/monitor-cf-logs.sh harvesting-logic smoke-test
-      #     cf_org: gsa-datagov
-      #     cf_space: ${{vars.ENVIRONMENT_NAME}}
-      #     cf_username: ${{secrets.CF_SERVICE_USER}}
-      #     cf_password: ${{secrets.CF_SERVICE_AUTH}}
+
+  network-policies:
+    name: Add network-policies
+    needs:
+      - deploy-development
+    runs-on: ubuntu-latest
+    environment: ${{ matrix.environ }}
+    strategy:
+      fail-fast: false
+      matrix:
+        command: [
+          "cf add-network-policy datagov-harvest-runner mdtranslator --protocol tcp --port 8080",
+        ]
+        environ: ["staging", "prod"]
+    steps:
+      - name: proxy to web
+        uses: cloud-gov/cg-cli-tools@main
+        with:
+          command: ${{ matrix.command }}
+          cf_org: gsa-datagov
+          cf_space: ${{ matrix.environ }}
+          cf_username: ${{secrets.CF_SERVICE_USER}}
+          cf_password: ${{secrets.CF_SERVICE_AUTH}}

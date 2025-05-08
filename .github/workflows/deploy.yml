@@ -1,4 +1,4 @@
-name: Deploy to Cloud.gov
+name: 2 - Deploy
 on:
   push:
     branches:
@@ -13,9 +13,42 @@ env:
   POETRY_VERSION: "2.0.0"
 
 jobs:
+  create-cloudgov-services-staging:
+    name: create services (staging)
+    environment: staging
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+      - name: create services
+        uses: cloud-gov/cg-cli-tools@main
+        with:
+          command: ./bin/create-cloudgov-services.sh
+          cf_org: gsa-datagov
+          cf_space: staging
+          cf_username: ${{secrets.CF_SERVICE_USER}}
+          cf_password: ${{secrets.CF_SERVICE_AUTH}}
+
+  create-cloudgov-services-prod:
+    name: create services (prod)
+    environment: prod
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+      - name: create services
+        uses: cloud-gov/cg-cli-tools@main
+        with:
+          command: ./bin/create-cloudgov-services.sh
+          cf_org: gsa-datagov
+          cf_space: prod
+          cf_username: ${{secrets.CF_SERVICE_USER}}
+          cf_password: ${{secrets.CF_SERVICE_AUTH}}
+
   deploy-staging:
-    if: false
-    name: deploy staging
+    name: deploy (staging)
+    needs:
+      - create-cloudgov-services-staging
     environment: staging
     runs-on: ubuntu-latest
     steps:
@@ -24,17 +57,22 @@ jobs:
       - name: Install node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "package.json"
+          node-version-file: "app/static/package.json"
       - name: Build static assets
         shell: bash
         run: |
-          cd app/static
-          npm ci
-          npm run build
+            cd app/static
+            npm ci
+            npm run build
+      - name: Set up Python ${{ env.PY_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PY_VERSION }}
       - name: Install Poetry
         uses: abatilo/actions-poetry@v2
         with:
           poetry-version: ${{ env.POETRY_VERSION }}
+          poetry-plugins: "poetry-plugin-export"
       - name: Add requirement.txt
         run: |
           poetry export -f requirements.txt --output requirements.txt --without-hashes
@@ -43,48 +81,19 @@ jobs:
       - name: deploy DHL
         uses: cloud-gov/cg-cli-tools@main
         with:
-          command: cf push --vars-file vars.staging.yml --strategy rolling --no-wait
+          # command: cf push datagov-harvest-admin --vars-file vars.development.yml --strategy rolling --no-wait && cf push datagov-harvest-runner --vars-file vars.development.yml --strategy rolling --no-wait
+          command: ./bin/check-and-renew datagov-harvest-admin deploy staging
           cf_org: gsa-datagov
-          cf_space: ${{vars.ENVIRONMENT_NAME}}
+          cf_space: staging
           cf_username: ${{secrets.CF_SERVICE_USER}}
           cf_password: ${{secrets.CF_SERVICE_AUTH}}
-      # to-do
-      # - name: smoke test
-      #   uses: cloud-gov/cg-cli-tools@main
-      #   with:
-      #     command: cf run-task harvesting-logic -c "/home/vcap/app/scripts/smoke-test.py" --name smoke-test
-      #     cf_org: gsa-datagov
-      #     cf_space: ${{vars.ENVIRONMENT_NAME}}
-      #     cf_username: ${{secrets.CF_SERVICE_USER}}
-      #     cf_password: ${{secrets.CF_SERVICE_AUTH}}
-      # - name: monitor task output
-      #   uses: cloud-gov/cg-cli-tools@main
-      #   with:
-      #     command: >
-      #       scripts/monitor-cf-logs.sh harvesting-logic smoke-test
-      #     cf_org: gsa-datagov
-      #     cf_space: ${{vars.ENVIRONMENT_NAME}}
-      #     cf_username: ${{secrets.CF_SERVICE_USER}}
-      #     cf_password: ${{secrets.CF_SERVICE_AUTH}}
-      - name: Create Issue if it fails 😢
-        if: ${{ failure() && github.ref == 'refs/heads/main' }}
-        uses: JasonEtco/create-an-issue@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.ADD_TO_PROJECT_PAT }}
-          GITHUB_JOB: ${{ toJson(github)['job'] }}
-          GITHUB_ATTEMPTS: ${{ github.run_attempt }}
-          LAST_COMMIT: ${{ github.sha }}
-          LAST_RUN_BY: ${{ github.actor }}
-          RUN_ID: ${{ github.run_id }}
-          REPO: ${{ github.repository }}
-        with:
-          filename: .github/deploy_failure.md
-          update_existing: true
+
 
   deploy-prod:
-    if: false
-    name: deploy prod
-    needs: deploy-staging
+    name: deploy (prod)
+    needs:
+      - create-cloudgov-services-prod
+      - deploy-staging
     environment: prod
     runs-on: ubuntu-latest
     steps:
@@ -93,17 +102,22 @@ jobs:
       - name: Install node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "package.json"
+          node-version-file: "app/static/package.json"
       - name: Build static assets
         shell: bash
         run: |
-          cd app/static
-          npm ci
-          npm run build
+            cd app/static
+            npm ci
+            npm run build
+      - name: Set up Python ${{ env.PY_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PY_VERSION }}
       - name: Install Poetry
         uses: abatilo/actions-poetry@v2
         with:
           poetry-version: ${{ env.POETRY_VERSION }}
+          poetry-plugins: "poetry-plugin-export"
       - name: Add requirement.txt
         run: |
           poetry export -f requirements.txt --output requirements.txt --without-hashes
@@ -112,40 +126,33 @@ jobs:
       - name: deploy DHL
         uses: cloud-gov/cg-cli-tools@main
         with:
-          command: cf push --vars-file vars.prod.yml --strategy rolling --no-wait
+          # command: cf push datagov-harvest-admin --vars-file vars.development.yml --strategy rolling --no-wait && cf push datagov-harvest-runner --vars-file vars.development.yml --strategy rolling --no-wait
+          command: ./bin/check-and-renew datagov-harvest-admin deploy prod
           cf_org: gsa-datagov
-          cf_space: ${{vars.ENVIRONMENT_NAME}}
+          cf_space: prod
           cf_username: ${{secrets.CF_SERVICE_USER}}
           cf_password: ${{secrets.CF_SERVICE_AUTH}}
-      # to-do
-      # - name: smoke test
-      #   uses: cloud-gov/cg-cli-tools@main
-      #   with:
-      #     command: cf run-task harvesting-logic -c "/home/vcap/app/scripts/smoke-test.py" --name smoke-test
-      #     cf_org: gsa-datagov
-      #     cf_space: ${{vars.ENVIRONMENT_NAME}}
-      #     cf_username: ${{secrets.CF_SERVICE_USER}}
-      #     cf_password: ${{secrets.CF_SERVICE_AUTH}}
-      # - name: monitor task output
-      #   uses: cloud-gov/cg-cli-tools@main
-      #   with:
-      #     command: >
-      #       scripts/monitor-cf-logs.sh harvesting-logic smoke-test
-      #     cf_org: gsa-datagov
-      #     cf_space: ${{vars.ENVIRONMENT_NAME}}
-      #     cf_username: ${{secrets.CF_SERVICE_USER}}
-      #     cf_password: ${{secrets.CF_SERVICE_AUTH}}
-      - name: Create Issue if it fails 😢
-        if: ${{ failure() && github.ref == 'refs/heads/main' }}
-        uses: JasonEtco/create-an-issue@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.ADD_TO_PROJECT_PAT }}
-          GITHUB_JOB: ${{ toJson(github)['job'] }}
-          GITHUB_ATTEMPTS: ${{ github.run_attempt }}
-          LAST_COMMIT: ${{ github.sha }}
-          LAST_RUN_BY: ${{ github.actor }}
-          RUN_ID: ${{ github.run_id }}
-          REPO: ${{ github.repository }}
+
+  network-policies:
+    name: Add network-policies
+    needs:
+      - deploy-staging
+      - deploy-prod
+    runs-on: ubuntu-latest
+    environment: ${{ matrix.environ }}
+    strategy:
+      fail-fast: false
+      matrix:
+        command: [
+          "cf add-network-policy datagov-harvest-runner mdtranslator --protocol tcp --port 8080"
+        ]
+        environ: ["staging", "prod"]
+    steps:
+      - name: proxy to web
+        uses: cloud-gov/cg-cli-tools@main
         with:
-          filename: .github/deploy_failure.md
-          update_existing: true
+          command: ${{ matrix.command }}
+          cf_org: gsa-datagov
+          cf_space: ${{ matrix.environ }}
+          cf_username: ${{secrets.CF_SERVICE_USER}}
+          cf_password: ${{secrets.CF_SERVICE_AUTH}}
