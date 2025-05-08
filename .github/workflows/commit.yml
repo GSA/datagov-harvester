@@ -56,7 +56,7 @@ jobs:
             Functional Tests, pytest-coverage-functional.txt, pytest-functional.xml
 
   create-cloudgov-services-development:
-    name: create services (staging)
+    name: create services (development)
     environment: development
     runs-on: ubuntu-latest
     steps:
@@ -65,7 +65,7 @@ jobs:
       - name: create services
         uses: cloud-gov/cg-cli-tools@main
         with:
-          command: ./bin/create-cloudgov-services.sh
+          command: ./create-cloudgov-services.sh
           cf_org: gsa-datagov
           cf_space: development
           cf_username: ${{secrets.CF_SERVICE_USER}}
