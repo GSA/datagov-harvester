@@ -65,7 +65,7 @@ jobs:
       - name: create services
         uses: cloud-gov/cg-cli-tools@main
         with:
-          command: ./create-cloudgov-services.sh
+          command: ./create_cloudgov_services.sh
           cf_org: gsa-datagov
           cf_space: development
           cf_username: ${{secrets.CF_SERVICE_USER}}
@@ -73,7 +73,9 @@ jobs:
 
   deploy-development:
     if: github.ref == 'refs/heads/develop'
-    name: deploy development
+    name: deploy (development)
+    needs:
+      - create-cloudgov-services-development
     environment: development
     runs-on: ubuntu-latest
     steps:
@@ -125,7 +127,7 @@ jobs:
         command: [
           "cf add-network-policy datagov-harvest-runner mdtranslator --protocol tcp --port 8080",
         ]
-        environ: ["staging", "prod"]
+        environ: ["development"]
     steps:
       - name: proxy to web
         uses: cloud-gov/cg-cli-tools@main

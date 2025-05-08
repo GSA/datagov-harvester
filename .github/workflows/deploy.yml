@@ -23,7 +23,7 @@ jobs:
       - name: create services
         uses: cloud-gov/cg-cli-tools@main
         with:
-          command: ./create-cloudgov-services.sh
+          command: ./create_cloudgov_services.sh
           cf_org: gsa-datagov
           cf_space: staging
           cf_username: ${{secrets.CF_SERVICE_USER}}
@@ -39,7 +39,7 @@ jobs:
       - name: create services
         uses: cloud-gov/cg-cli-tools@main
         with:
-          command: ./create-cloudgov-services.sh
+          command: ./create_cloudgov_services.sh
           cf_org: gsa-datagov
           cf_space: prod
           cf_username: ${{secrets.CF_SERVICE_USER}}
