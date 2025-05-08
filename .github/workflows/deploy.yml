@@ -78,10 +78,10 @@ jobs:
           poetry export -f requirements.txt --output requirements.txt --without-hashes
           echo "Generated requirements.txt:"
           cat requirements.txt
-      - name: deploy DHL
+      - name: Deploy admin and runner apps
         uses: cloud-gov/cg-cli-tools@main
         with:
-          command: cf push --vars-file vars.staging.yml --strategy rolling --no-wait
+          command: cf push --vars-file vars.staging.yml
           cf_org: gsa-datagov
           cf_space: staging
           cf_username: ${{secrets.CF_SERVICE_USER}}
@@ -121,10 +121,10 @@ jobs:
           poetry export -f requirements.txt --output requirements.txt --without-hashes
           echo "Generated requirements.txt:"
           cat requirements.txt
-      - name: deploy DHL
+      - name: Deploy admin and runner apps
         uses: cloud-gov/cg-cli-tools@main
         with:
-          command: cf push --vars-file vars.staging.yml --strategy rolling --no-wait
+          command: cf push --vars-file vars.prod.yml
           cf_org: gsa-datagov
           cf_space: prod
           cf_username: ${{secrets.CF_SERVICE_USER}}
