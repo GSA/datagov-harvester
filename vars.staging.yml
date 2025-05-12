@@ -10,12 +10,12 @@ CKAN_API_URL: https://catalog-next-stage-admin-datagov.app.cloud.gov
 
 HARVEST_RUNNER_APP_GUID: null
 
-MDTRANSLATOR_URL: http://mdtranslator-stage.apps.internal:8080/translates
+MDTRANSLATOR_URL: http://mdtranslator-staging.apps.internal:8080/translates
 
 # Login.gov
-CLIENT_ID: urn:gov:gsa:openidconnect.profiles:sp:sso:gsa:datagov-stage-harvest-admin
+CLIENT_ID: urn:gov:gsa:openidconnect.profiles:sp:sso:gsa:datagov-staging-harvest-admin
 ISSUER: https://idp.int.identitysandbox.gov
-REDIRECT_URI: https://datagov-harvest-admin-stage.app.cloud.gov/callback
+REDIRECT_URI: https://datagov-harvest-admin-staging.app.cloud.gov/callback
 
 # New Relic
 new_relic_monitor_mode: false
