@@ -326,17 +326,20 @@ class TestHarvestJobFullFlow:
                     "key": "harvest_object_id",
                     "value": harvest_job.records[0].id,
                 },
-                {"key": "source_datajson_identifier", "value": True},
                 {
                     "key": "harvest_source_id",
                     "value": "2f2652de-91df-4c63-8b53-bfced20b276b",
                 },
                 {"key": "harvest_source_title", "value": "Single Record Test Source"},
-                {"key": "accessLevel", "value": "public"},
-                {"key": "bureauCode", "value": "339:00"},
                 {"key": "identifier", "value": "cftc-dc1"},
+                {"key": "source_datajson_identifier", "value": True},
+                {"key": "title", "value": "Commitment of Traders"},
+                {
+                    "key": "description",
+                    "value": "COT reports provide a breakdown of each Tuesday's open interest for futures and options on futures market in which 20 or more traders hold positions equal to or above the reporting levels established by CFTC",
+                },
+                {"key": "keyword", "value": "commitment of traders"},
                 {"key": "modified", "value": "R/P1W"},
-                {"key": "programCode", "value": "000:000"},
                 {
                     "key": "publisher_hierarchy",
                     "value": "U.S. Government > U.S. Commodity Futures Trading Commission",
@@ -345,14 +348,25 @@ class TestHarvestJobFullFlow:
                     "key": "publisher",
                     "value": "U.S. Commodity Futures Trading Commission",
                 },
+                {
+                    "key": "contactPoint",
+                    "value": {
+                        "fn": "Harold W. Hild",
+                        "hasEmail": "mailto:hhild@CFTC.GOV",
+                    },
+                },
+                {"key": "identifier", "value": "cftc-dc1"},
+                {"key": "accessLevel", "value": "public"},
                 {"key": "old-spatial", "value": "United States"},
                 {
                     "key": "spatial",
                     "value": '{"type":"MultiPolygon","coordinates":[[[[-124.733253,24.544245],[-124.733253,49.388611],[-66.954811,49.388611],[-66.954811,24.544245],[-124.733253,24.544245]]]]}',
                 },
-                {"key": "identifier", "value": "cftc-dc1"},
+                {"key": "bureauCode", "value": "339:00"},
+                {"key": "programCode", "value": "000:000"},
             ],
         }
+
         assert CKANMock.action.package_create.call_count == 1
         assert (
             DeepDiff(
