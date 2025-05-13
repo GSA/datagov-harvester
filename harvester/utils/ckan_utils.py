@@ -762,7 +762,7 @@ def create_ckan_resources(metadata: dict) -> list[dict]:
                 continue
             resource["url"] = dist[url_key]
             # set mimetype if provided or discover it
-            if "mimetype" in dist:
+            if "mediaType" in dist:
                 resource["mimetype"] = dist["mediaType"]
             else:
                 resource["mimetype"] = guess_resource_format(dist[url_key])
