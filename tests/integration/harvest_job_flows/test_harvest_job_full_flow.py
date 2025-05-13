@@ -131,13 +131,12 @@ class TestHarvestJobFullFlow:
         # assert job rollup
         assert harvest_job.status == "complete"
         assert harvest_job.records_total == 3
-        assert len(harvest_job.record_errors) == 2
-        assert harvest_job.records_errored == 2
+        assert len(harvest_job.record_errors) == 1
+        assert harvest_job.records_errored == 1
 
         # assert error insertion order
         errors = interface.get_harvest_record_errors_by_job(job_id)
         assert errors[0][0].type == "TransformationException"
-        assert errors[1][0].type == "ValidationException"
 
         # assert harvest_record_id & type match
         for error in errors:

@@ -726,7 +726,29 @@ def iso19115_2_transform() -> dict:
         },
         "identifier": "gov.noaa.nmfs.inport:47598",
         "accessLevel": "non-public",
-        "distribution": [],
+        "distribution": [
+            {
+                "@type": "dcat:Distribution",
+                "description": "NOAA Data Management Plan for this record on InPort.",
+                "downloadURL": "https://www.fisheries.noaa.gov/inportserve/waf/noaa/nos/ocm/dmp/pdf/47598.pdf",
+                "title": "NOAA Data Management Plan (DMP)",
+                "mediaType": "placeholder/value",
+            },
+            {
+                "@type": "dcat:Distribution",
+                "description": "Global Change Master Directory (GCMD). 2024. GCMD Keywords, Version 19. Greenbelt, MD: Earth Science Data and Information System, Earth Science Projects Division, Goddard Space Flight Center (GSFC), National Aeronautics and Space Administration (NASA). URL (GCMD Keyword Forum Page): https://forum.earthdata.nasa.gov/app.php/tag/GCMD+Keywords",
+                "downloadURL": "https://forum.earthdata.nasa.gov/app.php/tag/GCMD%2BKeywords",
+                "title": "GCMD Keyword Forum Page",
+                "mediaType": "placeholder/value",
+            },
+            {
+                "@type": "dcat:Distribution",
+                "description": "View the complete metadata record on InPort for more information about this dataset.",
+                "downloadURL": "https://www.fisheries.noaa.gov/inport/item/47598",
+                "title": "Full Metadata Record",
+                "mediaType": "placeholder/value",
+            },
+        ],
         "license": "https://creativecommons.org/publicdomain/zero/1.0/",
         "rights": "otherRestrictions, unclassified",
         "spatial": "-70.482,41.544,-70.555,41.64",
@@ -808,6 +830,11 @@ def iso19115_1_transform() -> dict:
         "publisher": {
             "@type": "org:Organization",
             "name": "U.S. EPA Office of Environmental Information (OEI) - Office of Information Analysis and Access (OIAA)",
+        },
+        "contactPoint": {
+            "@type": "vcard:Contact",
+            "fn": "U.S. Environmental Protection Agency, Office of Research and Development-Sustainable and Healthy Communities Research Program, EnviroAtlas",
+            "hasEmail": "mailto:EnviroAtlas@epa.gov",
         },
         "identifier": "{4c6928d8-6ac2-4909-8b3d-a29e2805ce2d}",
         "accessLevel": "non-public",
