@@ -203,6 +203,11 @@ def source_data_waf_iso19115_2(organization_data: dict) -> dict:
 
 
 @pytest.fixture
+def source_data_iso19115_2_orm(source_data_waf_iso19115_2: dict) -> HarvestSource:
+    return HarvestSource(**source_data_waf_iso19115_2)
+
+
+@pytest.fixture
 def source_data_dcatus_invalid(organization_data: dict) -> dict:
     return {
         "id": "2bfcb047-70dc-435a-a46c-4dec5df7532d",
