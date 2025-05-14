@@ -34,3 +34,22 @@ $ poetry run scripts/ckan_migration/migrate_harvest_sources.py \
     --harvester-url=https://datagov-harvest-admin-dev.app.cloud.gov/ \
     --new-catalog-url=https://catalog-next-dev-datagov.app.cloud.gov/
 ```
+## Post migration
+On the development and staging environments, we want to prevent harvest reports from
+being emailed to the recipients specified in the harvester's notification_emails.
+The following SQL script modifies all email addresses by appending `.local`, making
+them invalid and ensuring that no emails are sent.
+```sql
+UPDATE harvest_source
+SET notification_emails = (
+    SELECT array_agg(
+        CASE
+            WHEN email LIKE '%.local' THEN email
+            WHEN email LIKE '%@gsa.gov%' THEN email
+            ELSE email || '.local'
+        END
+    )
+    FROM unnest(notification_emails) AS email
+);
+
+```
