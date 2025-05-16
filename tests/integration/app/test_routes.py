@@ -1,6 +1,7 @@
+import json
 import os
 import re
-import json
+
 import pytest
 
 # ruff: noqa: F401

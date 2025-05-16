@@ -26,8 +26,8 @@ from flask import (
     session,
     url_for,
 )
-from markupsafe import escape
 from jinja2_fragments.flask import render_block
+from markupsafe import escape
 
 from database.interface import HarvesterDBInterface
 from harvester.lib.load_manager import LoadManager
