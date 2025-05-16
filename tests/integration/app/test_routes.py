@@ -353,8 +353,7 @@ class TestHarvestRecordRawAPI:
         response = client.get(f"/harvest_record/{iso2_test_record.id}/raw")
 
         assert response.status_code == 200
-        assert response.text == iso2_test_record.source_raw
-        assert response.json is None
+        assert response.json == {"raw": iso2_test_record.source_raw}
 
     def test_json_harvest_record_raw(
         self,
@@ -382,4 +381,4 @@ class TestHarvestRecordRawAPI:
         response = client.get(f"/harvest_record/{dcat_record.id}/raw")
 
         assert response.status_code == 200
-        assert response.json == json.loads(dcat_record.source_raw)
+        assert response.json == {"raw": json.loads(dcat_record.source_raw)}
