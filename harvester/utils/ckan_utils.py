@@ -581,6 +581,9 @@ def create_ckan_extras(
     for extra in extras:
         if extra not in metadata:
             continue
+        # setting all ISO records to be public
+        if extra == "accessLevel" and harvest_source.schema_type.startswith("iso"):
+            metadata[extra] = "public"
         data = {"key": extra, "value": None}
         val = metadata[extra]
         if extra == "publisher":

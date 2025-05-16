@@ -261,6 +261,18 @@ class TestCKANUtils:
             {"key": "programCode", "value": "015:001"},
         ]
 
+    def test_create_iso_ckan_extras(
+        self, iso19115_2_transform, source_data_iso19115_2_orm
+    ):
+        iso19115_2_transform["accessLevel"] = "non-public"
+
+        extras = create_ckan_extras(
+            iso19115_2_transform, source_data_iso19115_2_orm, "1234"
+        )
+
+        access_level = list(filter(lambda e: e["key"] == "accessLevel", extras))[0]
+        assert access_level["value"] == "public"
+
 
 # Point example
 # "{\"type\": \"Point\", \"coordinates\": [-87.08258, 24.9579]}"
