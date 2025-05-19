@@ -21,9 +21,15 @@ class CFHandler:
 
     def start_task(self, app_guuid, command, task_id):
         self.setup()
-        TASK_MEMORY = os.getenv("HARVEST_RUNNER_TASK_MEM", "4096")
-        TASK_DISK = os.getenv("HARVEST_RUNNER_TASK_DISK", "1536")
-        return self.task_mgr.create(app_guuid, command, task_id, TASK_MEMORY, TASK_DISK)
+        TASK_MEMORY = os.getenv("HARVEST_RUNNER_TASK_MEM", "1536")
+        TASK_DISK = os.getenv("HARVEST_RUNNER_TASK_DISK", "4096")
+        return self.task_mgr.create(
+            app_guuid,
+            command=command,
+            name=task_id,
+            memory_in_mb=TASK_MEMORY,
+            disk_in_mb=TASK_DISK,
+        )
 
     def stop_task(self, task_id):
         self.setup()
