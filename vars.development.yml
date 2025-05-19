@@ -9,6 +9,7 @@ CF_API_URL: https://api.fr.cloud.gov
 CKAN_API_URL: https://catalog-next-dev-admin-datagov.app.cloud.gov
 
 HARVEST_RUNNER_APP_GUID: 40dba74b-4916-447e-914b-77525de5e608
+HARVEST_RUNNER_MAX_TASKS: 2
 
 MDTRANSLATOR_URL: http://mdtranslator-development.apps.internal:8080/translates
 
