@@ -50,7 +50,7 @@ test-e2e-ci: re-up test-playwright test-functional ## All e2e/expensive tests. R
 
 test-ci: up test-unit test-integration ## All simulated tests using only db and required test resources. Run on commit.
 
-re-up: clean up load-test-data ## resets system to clean fixture status
+re-up: clean up sleep-5 load-test-data ## resets system to clean fixture status
 
 re-up-debug: clean up-debug load-test-data ## resets system to clean fixture status for flask debugging
 
@@ -74,6 +74,9 @@ down: ## Tears down the flask and harvester containers
 clean: ## Cleans docker images
 	docker compose down -v --remove-orphans
 	docker compose -p harvest-app down -v --remove-orphans
+	
+sleep-5:
+	sleep 5
 
 lint:  ## Lints wtih ruff, isort, black
 	poetry run ruff check .
