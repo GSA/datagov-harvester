@@ -32,7 +32,7 @@ applications:
     services:
       - ((app_name))-db
       - ((app_name))-secrets
-      - ((app_name))-smtp
+      # - ((app_name))-smtp
     instances: 0
     health-check-type: process
     no-route: true
