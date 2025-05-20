@@ -15,6 +15,7 @@ applications:
       FLASK_APP: run.py
       CF_API_URL: ((CF_API_URL))
       HARVEST_RUNNER_APP_GUID: ((HARVEST_RUNNER_APP_GUID))
+      HARVEST_RUNNER_MAX_TASKS: ((HARVEST_RUNNER_MAX_TASKS))
       CKAN_API_URL: ((CKAN_API_URL))
       CLIENT_ID: ((CLIENT_ID))
       ISSUER: ((ISSUER))
@@ -23,6 +24,7 @@ applications:
       NEW_RELIC_HOST: gov-collector.newrelic.com
       NEW_RELIC_MONITOR_MODE: ((new_relic_monitor_mode))
       NEW_RELIC_CONFIG_FILE: /home/vcap/app/config/newrelic.ini
+      HARVEST_RUNNER_TASK_MEM: "3146"
     command: ./harvest-admin-start.sh
   - name: ((app_name))-runner
     buildpacks:

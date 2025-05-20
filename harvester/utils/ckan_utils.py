@@ -527,24 +527,9 @@ def munge_tag(tag: str) -> str:
 def create_ckan_extras(
     metadata: dict, harvest_source: "HarvestSource", record_id: str
 ) -> list[dict]:
-    extras = [
-        "accessLevel",
-        "bureauCode",
-        "identifier",
-        "modified",
-        "programCode",
-        "publisher",
-        "spatial",
-        "isPartOf",
-    ]
-
     output = [
         {"key": "resource-type", "value": "Dataset"},
         {"key": "harvest_object_id", "value": record_id},
-        {
-            "key": "source_datajson_identifier",  # dataset is datajson format or not
-            "value": True,
-        },
         {
             "key": "harvest_source_id",
             "value": harvest_source.id,
@@ -553,11 +538,52 @@ def create_ckan_extras(
             "key": "harvest_source_title",
             "value": harvest_source.name,
         },
+        {"key": "identifier", "value": metadata["identifier"]},
     ]
+
+    # TODO: update this
+    # output.append(
+    #     {
+    #         "key": "dcat_metadata",
+    #         "value": str(sort_dataset(self.metadata)),
+    #     }
+    # )
+
+    # output.append(
+    #     {
+    #         "key": self.harvest_source.extra_source_name,
+    #         "value": self.harvest_source.title,
+    #     }
+    # )
+
+    # these base extras consist of non-federal, if-applicable, and some additional ones
+    extras = [
+        "title",
+        "description",
+        "keyword",
+        "modified",
+        "publisher",
+        "contactPoint",
+        "identifier",
+        "accessLevel",
+        "spatial",
+        "isPartOf",
+        "temporal",
+        "license",
+        "rights",
+    ]
+
+    if harvest_source.schema_type.startswith("dcatus"):
+        output.append({"key": "source_datajson_identifier", "value": True})
+        if harvest_source.schema_type == "dcatus1.1: federal":
+            extras += ["bureauCode", "programCode"]
 
     for extra in extras:
         if extra not in metadata:
             continue
+        # setting all ISO records to be public
+        if extra == "accessLevel" and harvest_source.schema_type.startswith("iso"):
+            metadata[extra] = "public"
         data = {"key": extra, "value": None}
         val = metadata[extra]
         if extra == "publisher":
@@ -578,23 +604,6 @@ def create_ckan_extras(
                 val = val[0]
             data["value"] = val
         output.append(data)
-
-    # TODO: update this
-    # output.append(
-    #     {
-    #         "key": "dcat_metadata",
-    #         "value": str(sort_dataset(self.metadata)),
-    #     }
-    # )
-
-    # output.append(
-    #     {
-    #         "key": self.harvest_source.extra_source_name,
-    #         "value": self.harvest_source.title,
-    #     }
-    # )
-
-    output.append({"key": "identifier", "value": metadata["identifier"]})
 
     return output
 
@@ -762,7 +771,7 @@ def create_ckan_resources(metadata: dict) -> list[dict]:
                 continue
             resource["url"] = dist[url_key]
             # set mimetype if provided or discover it
-            if "mimetype" in dist:
+            if "mediaType" in dist:
                 resource["mimetype"] = dist["mediaType"]
             else:
                 resource["mimetype"] = guess_resource_format(dist[url_key])

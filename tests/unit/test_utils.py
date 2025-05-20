@@ -210,26 +210,68 @@ class TestCKANUtils:
         assert extras == [
             {"key": "resource-type", "value": "Dataset"},
             {"key": "harvest_object_id", "value": "1234"},
-            {"key": "source_datajson_identifier", "value": True},
             {
                 "key": "harvest_source_id",
                 "value": "2f2652de-91df-4c63-8b53-bfced20b276b",
             },
             {"key": "harvest_source_title", "value": "Test Source"},
-            {"key": "accessLevel", "value": "public"},
             {"key": "identifier", "value": "https://data.wa.gov/api/views/f6w7-q2d2"},
+            {"key": "source_datajson_identifier", "value": True},
+            {"key": "title", "value": "Electric Vehicle Population Data"},
+            {
+                "key": "description",
+                "value": "This dataset shows the Battery Electric Vehicles (BEVs) and "
+                "Plug-in Hybrid Electric Vehicles (PHEVs) that are currently registered"
+                " through Washington State Department of Licensing (DOL).",
+            },
+            {"key": "keyword", "value": "bev"},
             {"key": "modified", "value": "2025-01-16"},
             {"key": "publisher_hierarchy", "value": "data.wa.gov"},
             {"key": "publisher", "value": "data.wa.gov"},
+            {
+                "key": "contactPoint",
+                "value": {
+                    "@type": "vcard:Contact",
+                    "fn": "Department of Licensing",
+                    "hasEmail": "mailto:no-reply@data.wa.gov",
+                },
+            },
+            {"key": "identifier", "value": "https://data.wa.gov/api/views/f6w7-q2d2"},
+            {"key": "accessLevel", "value": "public"},
             {"key": "old-spatial", "value": "United States"},
             {
                 "key": "spatial",
                 "value": '{"type":"MultiPolygon","coordinates":'
                 "[[[[-124.733253,24.544245],[-124.733253,49.388611],"
-                "[-66.954811,49.388611],[-66.954811,24.544245],[-124.733253,24.544245]]]]}",
+                "[-66.954811,49.388611],[-66.954811,24.544245],"
+                "[-124.733253,24.544245]]]]}",
             },
-            {"key": "identifier", "value": "https://data.wa.gov/api/views/f6w7-q2d2"},
+            {"key": "isPartOf", "value": "http://dx.doi.org/10.7927/H4PZ56R2"},
+            {"key": "temporal", "value": "2000-01-15T00:45:00Z/2010-01-15T00:06:00Z"},
+            {
+                "key": "license",
+                "value": "http://opendatacommons.org/licenses/odbl/1.0/",
+            },
+            {
+                "key": "rights",
+                "value": "This dataset contains Personally Identifiable Information and"
+                " could not be released for public access.",
+            },
+            {"key": "bureauCode", "value": "010:86"},
+            {"key": "programCode", "value": "015:001"},
         ]
+
+    def test_create_iso_ckan_extras(
+        self, iso19115_2_transform, source_data_iso19115_2_orm
+    ):
+        iso19115_2_transform["accessLevel"] = "non-public"
+
+        extras = create_ckan_extras(
+            iso19115_2_transform, source_data_iso19115_2_orm, "1234"
+        )
+
+        access_level = list(filter(lambda e: e["key"] == "accessLevel", extras))[0]
+        assert access_level["value"] == "public"
 
 
 # Point example

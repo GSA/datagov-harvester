@@ -5,6 +5,7 @@ admin_memory_quota: 3G
 CF_API_URL: https://api.fr.cloud.gov
 CKAN_API_URL: https://catalog.data.gov
 HARVEST_RUNNER_APP_GUID: null
+HARVEST_RUNNER_MAX_TASKS: 5
 CLIENT_ID: urn:gov:gsa:openidconnect.profiles:sp:sso:gsa:datagov-prod-harvest-admin
 ISSUER: https://idp.int.identitysandbox.gov
 REDIRECT_URI: https://datagov-harvest-admin-prod.app.cloud.gov/callback
