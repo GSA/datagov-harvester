@@ -1,7 +1,6 @@
 import json
 import os
 import re
-from unittest.mock import patch
 
 import pytest
 from deepdiff import DeepDiff
