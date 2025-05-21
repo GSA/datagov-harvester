@@ -759,6 +759,11 @@ def create_ckan_resources(metadata: dict) -> list[dict]:
     if "distribution" not in metadata or metadata["distribution"] is None:
         return output
 
+    if "landingPage" in metadata:
+        metadata["distribution"].append(
+            {"accessURL": metadata["landingPage"], "mediaType": "text/html"}
+        )
+
     for dist in metadata["distribution"]:
         resource = {}
         if "description" in dist:

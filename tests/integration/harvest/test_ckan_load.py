@@ -219,6 +219,12 @@ class TestCKANLoad:
                 "url": "https://data.wa.gov/api/views/f6w7-q2d2/rows.xml?accessType=DOWNLOAD",
                 "mimetype": "application/xml",
             },
+            {
+                "url": "https://data.wa.gov/d/f6w7-q2d2",
+                "mimetype": "text/html",
+                "no_real_name": True,
+                "name": "Web Resource",
+            },
         ]
         resources = create_ckan_resources(dol_distribution_json)
         assert resources == expected_resources
