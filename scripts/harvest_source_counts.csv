@@ -1,0 +1,673 @@
+harvest_source,catalog_next_counts,catalog_prod_counts
+116th Congressional District,,1.0
+2010 Census Public Use Microdata Area State-based,,1.0
+"2010 Census Urban Area for United States, 1:500,000",,1.0
+2014 American Indian Tribal Subdivision,,1.0
+2015TIGERUac10,,1.0
+2015TigerAnrc,,1.0
+2015TigerCSA,,1.0
+2015TigerCbsa,,1.0
+2015TigerCd114,,1.0
+2015TigerCnecta,,1.0
+2015TigerCoastline,,1.0
+2015TigerCounty,,1.0
+2015TigerEstate,,1.0
+2015TigerFacesmil,,1.0
+2015TigerFeatnames,,1.0
+2015TigerMetdiv,,1.0
+2015TigerNecta,,1.0
+2015TigerNectadiv,,1.0
+2015TigerPlace,,1.0
+2015TigerPuma10,,1.0
+2015TigerRails,,1.0
+2015TigerRoads,,1.0
+2015TigerSldu,,1.0
+2015TigerState,,1.0
+2015TigerSubbarrio,,1.0
+2015TigerTabblock,,1.0
+2015TigerTbg,,1.0
+2015TigerTract,,1.0
+2015TigerTtract,,1.0
+2015TigerUnsd,,1.0
+2015TigerZcta,,1.0
+2015Tigeraitsn,,1.0
+2015Tigersldl,,1.0
+2015tigeraiannh,,1.0
+2016_addr,,1.0
+2016_addrfeat,,1.0
+2016_addrfn,,1.0
+2016_aiannh,,1.0
+2016_aiannh_500,,1.0
+2016_aitsn,,1.0
+2016_anrc,,1.0
+2016_anrc_500,,1.0
+2016_areawater,,1.0
+2016_bg,,1.0
+2016_cbsa,,1.0
+2016_cbsa_20,,1.0
+2016_cbsa_5,,1.0
+2016_cbsa_500,,1.0
+2016_cd,,1.0
+2016_cd114_20,,1.0
+2016_cd114_5,,1.0
+2016_cnecta,,1.0
+2016_coastline,,1.0
+2016_concity,,1.0
+2016_concity_500,,1.0
+2016_county,,1.0
+2016_county_20,,1.0
+2016_county_5,,1.0
+2016_county_500,,1.0
+2016_county_within_cd114_500,,1.0
+2016_county_within_ua_500,,1.0
+2016_cousub,,1.0
+2016_csa,,1.0
+2016_edges,,1.0
+2016_elsd,,1.0
+2016_estate,,1.0
+2016_faces,,1.0
+2016_facesah,,1.0
+2016_facesal,,1.0
+2016_facesmil,,1.0
+2016_kml_county_within_ua_500,,1.0
+2016_kml_csa_20,,1.0
+2016_kml_csa_5,,1.0
+2016_kml_csa_500,,1.0
+2016_kml_nation,,1.0
+2016_kml_nation_5,,1.0
+2016_kml_necta_500,,1.0
+2016_kml_place_500,,1.0
+2016_kml_puma10_500,,1.0
+2016_kml_region_20,,1.0
+2016_kml_region_5,,1.0
+2016_kml_region_500,,1.0
+2016_metdiv,,1.0
+2016_mil,,1.0
+2016_necta,,1.0
+2016_nectadiv,,1.0
+2016_place,,1.0
+2016_pointlm,,1.0
+2016_primaryroads,,1.0
+2016_puma10,,1.0
+2016_rails,,1.0
+2016_scsd,,1.0
+2016_sldl,,1.0
+2016_sldu,,1.0
+2016_state,,1.0
+2016_subbario,,1.0
+2016_tabblock10,,1.0
+2016_tbg,,1.0
+2016_tract,,1.0
+2016_ttract,,1.0
+2016_uac10,,1.0
+2016_unsd,,1.0
+2016_zcta510,,1.0
+2016_zcta510_500,,1.0
+2017Cart_aiannh,,1.0
+2017Cart_anrc,,1.0
+2017_addr,,1.0
+2017_addrfeat,,1.0
+2017_addrfn,,1.0
+2017_aiannh,,1.0
+2017_aitsn,,1.0
+2017_anrc,,1.0
+2017_bg,,1.0
+2017_cbsa_20,,1.0
+2017_cbsa_5,,1.0
+2017_cd115,,1.0
+2017_cd115_500kml,,1.0
+2017_cnecta,,1.0
+2017_coastline,,1.0
+2017_concity,,1.0
+2017_county_20,,1.0
+2017_county_20kml,,1.0
+2017_county_5,,1.0
+2017_county_5kml,,1.0
+2017_cousub,,1.0
+2017_cousub_500kmla,,1.0
+2017_csa,,1.0
+2017_csa_20,,1.0
+2017_csa_5,,1.0
+2017_csa_500,,1.0
+2017_csa_5kml,,1.0
+2017_division_20,,1.0
+2017_edges,,1.0
+2017_elsd,,1.0
+2017_estate,,1.0
+2017_faces,,1.0
+2017_facesal,,1.0
+2017_facesmil,,1.0
+2017_metdiv,,1.0
+2017_mil,,1.0
+2017_necta,,1.0
+2017_nectadiv,,1.0
+2017_place,,1.0
+2017_pointlm,,1.0
+2017_primaryroads,,1.0
+2017_region_20,,1.0
+2017_region_20kml,,1.0
+2017_region_5,,1.0
+2017_region_500,,1.0
+2017_scsd,,1.0
+2017_sldl,,1.0
+2017_sldu,,1.0
+2017_state,,1.0
+2017_subbarrio,,1.0
+2017_tabblock10,,1.0
+2017_tbg,,1.0
+2017_tract,,1.0
+2017_ttract,,1.0
+2017_uac10,,1.0
+2017_unsd,,1.0
+2017_zcta510,,1.0
+2018-csa,,1.0
+2018-necta,,1.0
+2018_aiannh,,1.0
+2018_aitsn,,1.0
+2018_anrc,,1.0
+2018_arealm,,1.0
+2018_cbsa,,1.0
+2018_cnecta,,1.0
+2018_coastline,,1.0
+2018_concity,,1.0
+2018_county,,1.0
+2018_cousub,,1.0
+2018_elsd,,1.0
+2018_estate,,1.0
+2018_facesmil,,1.0
+2018_metdiv,,1.0
+2018_mil,,1.0
+2018_nectadiv,,1.0
+2018_place,,1.0
+2018_puma10,,1.0
+2018_roads,,1.0
+2018_scsd,,1.0
+2018_sldl,,1.0
+2018_sldu,,1.0
+2018_state,,1.0
+2018_subbarrio,,1.0
+2018_tabblock10,,1.0
+2018_tbg,,1.0
+2018_tract,,1.0
+2018_ttract,,1.0
+2018_uac,,1.0
+2018_unsd,,1.0
+2018_zcta,,1.0
+2019 PUMA10,,1.0
+2019_addr,,1.0
+2019_addrfeat,,1.0
+2019_addrfn,,1.0
+2019_arealm,,1.0
+2019_areawater,,1.0
+2019_bg,,1.0
+2019_coastline,,1.0
+2019_concity,,1.0
+2019_cousub,,1.0
+2019_edges,,1.0
+2019_elsd,,1.0
+2019_faces,,1.0
+2019_facesah,,1.0
+2019_facesal,,1.0
+2019_facesmil,,1.0
+2019_featnames,,1.0
+2019_linearwater,,1.0
+2019_mil,,1.0
+2019_place,,1.0
+2019_pointlm,,1.0
+2019_primaryroads,,1.0
+2019_prisecroads,,1.0
+2019_rails,,1.0
+2019_roads,,1.0
+2019_sldl,,1.0
+2019_sldu,,1.0
+2019_tabblock10,,1.0
+2019_tract,,1.0
+2019_unsd,,1.0
+2019cb_SCSD,,1.0
+2019cb_bgkml,,1.0
+2019cb_cbsa,,1.0
+2019cb_cbsakml,,1.0
+2019cb_cnecta,,1.0
+2019cb_cnectaKML,,1.0
+2019cb_concity,,1.0
+2019cb_concityKML,,1.0
+2019cb_county,,1.0
+2019cb_county-withn_ua,,1.0
+2019cb_county-withn_uaKML,,1.0
+2019cb_countyKML,,1.0
+2019cb_cousub,,1.0
+2019cb_cousubkml,,1.0
+2019cb_csa,,1.0
+2019cb_csakml,,1.0
+2019cb_division,,1.0
+2019cb_divisionKML,,1.0
+2019cb_elsd,,1.0
+2019cb_gbb,,1.0
+2019cb_necta,,1.0
+2019cb_nectaKML,,1.0
+2019cb_place,,1.0
+2019cb_placekml,,1.0
+2019cb_puma10,,1.0
+2019cb_puma10kml,,1.0
+2019cb_region,,1.0
+2019cb_regionkml,,1.0
+2019cb_scsdkml,,1.0
+2019cb_sldl,,1.0
+2019cb_sldlKML,,1.0
+2019cb_sldu,,1.0
+2019cb_sldukml,,1.0
+2019cb_state,,1.0
+2019cb_statekml,,1.0
+2019cb_subbario,,2.0
+2019cb_subbarioKML,,1.0
+2019cb_tract,,1.0
+2019cb_ua10,,1.0
+2019cb_ua10_kml,,1.0
+2019cb_unsd,,1.0
+2019cb_unsdKML,,1.0
+2019cb_zcta,,1.0
+2019cb_zctaKML,,1.0
+2019cd_aiannh,,1.0
+2019cd_aiannh_kml,,1.0
+2019cd_bg,,1.0
+2020 BG,,1.0
+2020 CONCITY,,1.0
+2020 COUSUB,,1.0
+2020 ELSD,,1.0
+2020 PLACE,,1.0
+2020 PUMA10,,1.0
+2020 ROADS,,1.0
+2020 SCSD,,1.0
+2020 TRACT,,1.0
+2020 UNSD,,1.0
+ARM data.json,,997.0
+"Alaska Department of Natural Resources, IRM",,10.0
+Alaska Division of Geological and Geophysical Surveys,,950.0
+Americorps,,47.0
+Archived NGDA Standalones,,40489.0
+Arkansas XML,,85.0
+Arlington County Data.json Harvest Source,,182.0
+BLS Data,,31.0
+Baltimore JSON,,41.0
+Bloomington Indiana Data.json,,254.0
+CFPB JSON,,11.0
+CFTC data,,7.0
+CSPC json file,,8.0
+Cartographic Boundary Files - 2020,,1130.0
+Cartographic Boundary Files - 2022,,934.0
+Cartographic Boundary Files - 2023,,1007.0
+Census Bureau Regional Office Boundaries,,1.0
+Census TIGER 2012 Address Data,,1.0
+Census TIGER 2012 Address Range-Feature,,1.0
+Census TIGER 2012 Address Range-Feature Name,,1.0
+Census TIGER 2012 Area Landmark,,1.0
+Census TIGER 2012 ComCounty Subdivision State-baseds,,1.0
+Census TIGER 2012 Current Block,,1.0
+Census TIGER 2012 Feature Names,,1.0
+Census TIGER 2012 Linear Hydrography,,1.0
+Census TIGER 2012 Other Identifiers,,1.0
+Census TIGER 2012 Place,,1.0
+Census TIGER 2012 Primary and Secondary Roads State-based,,1.0
+Census TIGER 2012 Roads County-based,,1.0
+Census TIGER 2012 Topological Faces-Area Landmark Relationship,,1.0
+Chapel Hill Open Data,,34.0
+Chicago JSON,,1031.0
+City of Austin Data.json,,3019.0
+City of Baton Rouge Data.json,,248.0
+City of Chesapeake Data.json,,26.0
+"City of Ferndale, Michigan Data.json Harvest Source",,285.0
+City of Providence Data.json Harvest Source,,208.0
+City of Sioux Falls Data.json,,234.0
+City of Tempe Data.json Harvest Source,,579.0
+CoRIS FGDC Metadata,,2891.0
+Commerce Non Spatial Data.json Harvest Source,,1632.0
+Connecticut Data.json,,1067.0
+Current NGDA Standalones,,33252.0
+DC data,,1804.0
+DHS datajson source,,1112.0
+DOD JSON,,175.0
+DOI EDI,,38940.0
+DOJ JSON,,1425.0
+DOL JSON,,453.0
+DOT Socrata Data.json,,680.0
+Data Act Harvest,,66.0
+EAC data,,6.0
+EEOC Data.json Harvest Source,,136.0
+EPA Pub Central,,1.0
+EPA ScienceHub,,3919.0
+Education JSON,,863.0
+Energy JSON,,222.0
+EnergyStar,,51.0
+Environmental Dataset Gateway ISO Geospatial Metadata,,2103.0
+Exim Data.json,,1.0
+FCC Data.json,,53.0
+FDIC data.json,,9.0
+FEC Open Data,,1.0
+FEMA-R10,,283.0
+FHFA JSON,,39.0
+FRS Non-Geo Records,,1.0
+FRTIB data,,6.0
+"Fairfax County, Virginia Data.json",,93.0
+Federal Laboratory Consortium Data.json,,200.0
+Federal Reserve,,166.0
+Florida Regional Offshore Sand Source Inventory (ROSSI),,3.0
+GSA JSON,,169.0
+HHS CAS JSON,,15.0
+HUD JSON,,220.0
+Hartford Data.json,,66.0
+Healthdata.gov,,2310.0
+IENC Metadata,,1.0
+IMLS JSON,,58.0
+Idaho Geospatial Data Clearinghouse,,111.0
+International Boundary Between United States and Mexico Approved in 2009 by Minute 315,,79.0
+Iowa metadata,,666.0
+LakeCat Harvest,,28.0
+Library of Congress Data.json,,9.0
+Los Angeles data.json,,373.0
+Loudoun County Virginia Data Source,,140.0
+Louisville Open Data,,635.0
+MCC Data.json,,184.0
+MO JSON,,165.0
+MSPB Data.json Harvest Source,,2.0
+My Source,1.0,
+NARA Data.json,,50.0
+NASA Data.json,55510.0,25709.0
+NCDDC OER,,227.0
+NCUA,,23.0
+NEH Data.json,,48.0
+NESDIS/NCEI/GIS,,208.0
+NESDIS/NGDC/MGG/NOS/B00001-B02000,,302.0
+NESDIS/NGDC/MGG/NOS/D00001-D02000,,214.0
+NESDIS/NGDC/MGG/NOS/F00001-F02000,,787.0
+NESDIS/NGDC/MGG/NOS/H00001-H02000,,2747.0
+NESDIS/NGDC/MGG/NOS/H02001-H04000,,2269.0
+NESDIS/NGDC/MGG/NOS/H04001-H06000,,2226.0
+NESDIS/NGDC/MGG/NOS/H06001-H08000,,2091.0
+NESDIS/NGDC/MGG/NOS/H08001-H10000,,2134.0
+NESDIS/NGDC/MGG/NOS/H10001-H12000,,1809.0
+NESDIS/NGDC/MGG/NOS/H12001-H14000,,1387.0
+NESDIS/NGDC/MGG/NOS/L00001-L02000,,2049.0
+NESDIS/NGDC/MGG/NOS/L02001-L04000,,424.0
+NESDIS/NGDC/MGG/NOS/T00001-T02000,,3.0
+NESDIS/NGDC/MGG/NOS/W00001-W02000,,573.0
+NGDA Harvest Source,,1.0
+NGDC Collection,,22.0
+NGDC MGG DEM,,406.0
+NGDC MGG Geology,,13.0
+NGDC MGG Geophysical Models,,27.0
+NGDC MGG Geophysics,,131.0
+NGDC MGG Hazard Photos,,109.0
+NGDC MGG Hazards WAF,,22.0
+NGDC MGG Multibeam,,3799.0
+NGDC MGG Passive Acoustic,,1993.0
+NGDC MGG Seismic,,94.0
+NGDC MGG Sonar Water Column,,1776.0
+NGDC Paleo,,12753.0
+NGDC STP DMSP,,8.0
+NGDC STP Geomag,,25.0
+NGDC STP Indices,,17.0
+NGDC STP Ionosonde,,10.0
+NGDC STP Ionosphere,,8.0
+NGDC STP Solar,,21.0
+NGDC STP Space Weather,,98.0
+NGDC Terrestrial,,1.0
+NGDC Tides,,265.0
+NGDC Well Logs,,3.0
+NIRTD JSON,,140.0
+NIST,,1169.0
+NMFS AFSC,,539.0
+NMFS AKRO,,30.0
+NMFS GARFO,,24.0
+NMFS NEFSC,,106.0
+NMFS NWFSC,,274.0
+NMFS OSF,,10.0
+NMFS OST,,68.0
+NMFS PIFSC,,437.0
+NMFS PIRO,,39.0
+NMFS SEFSC,,472.0
+NMFS SERO,,15.0
+NMFS SWFSC,,53.0
+NMFS WCRO,,90.0
+NOAA ATLAS 14 POINT PRECIPITATION FREQUENCY ESTIMATES,,23.0
+NOAA/ESRL/PSD,,44.0
+NOAA/NESDIS/ncei/accessions,,12464.0
+NOS CO-OPS,,9.0
+NOS NCCOS,,716.0
+NOS NGS,,3674.0
+NOS OCM,,938.0
+NOS OCS,,15.0
+NOS ONMS,,163.0
+NOS ORR,,1131.0
+NOS STP SEM,,1.0
+NRC Data.json Harvest Source,,126.0
+NSF JSON,,70.0
+NSIDC,,5.0
+NTIA data.json,,2.0
+NTSB json,,1.0
+NY State JSON,,1073.0
+NYC JSON,,2830.0
+National Transportation Atlas Database (NTAD) Metadata,,132.0
+New Mexico Resource Geographic Information System (NM RGIS),,5459.0
+New Orleans Data.json,,198.0
+OA Non Geo Harvest,,1.0
+OAR-OAP Non-Geo Records,,20.0
+OAR-OAQPS Non-Geo Records,,39.0
+OAR-ORIA Non-Geo Records,,17.0
+OAR-OTAQ Non-Geo Records,,10.0
+OARM Non-Geo Records,,1.0
+OCFO Non-Geo Records,,9.0
+OCSPP-OPP Non-Geo Records,,8.0
+OCSPP-OPPT ECO_EFCTS,,1.0
+OCSPP-OPPT Non-Geo Records,,16.0
+OCSPP-OPPT RSEI Records,,1.0
+OECA ECHO Records,,20.0
+OECA Non-Geo Records,,10.0
+OEI Non-Geo Records,,13.0
+OEI-OIAA Non-Geo Records,,2.0
+OEI-OIC Non-Geo Records,,19.0
+OGC Non-Geo Records,,2.0
+OK JSON,,341.0
+OMB,,3.0
+OPM JSON,,134.0
+ORD Non-Geo Records,,16.0
+ORD-NCEA Non-Geo Records,,3.0
+ORD-NERL-ESD Non-Geo Records,,2.0
+ORD-NHEERL-AED Non Geo Records,,1.0
+OW Non-Geo Records,,43.0
+"Open data from Lake County, Illinois",,1451.0
+OpenEI data.json,,2497.0
+OpenTopography CSW,,589.0
+PBGC Data.json Source,,10.0
+Pacific Fisheries Environmental Laboratory,,1680.0
+Pennsylvania Geospatial Data Clearinghouse,,2.0
+Phila data json,,368.0
+RRB JSON,,85.0
+Region 1 Non-Geo Records,,1.0
+Region 3 Non-Geo Records,,4.0
+Region 4 Non-Geo Records,,10.0
+Region 5 Non-Geo Records,,3.0
+Region 6 Non-Geo Records,,6.0
+Region 7 Non-Geo Records,,8.0
+SBA JSON,,57.0
+SEC Source,1.0,
+SEC data.json,,41.0
+SFO JSON,,628.0
+SSA JSON,,1037.0
+Seattle JSON,,758.0
+State JSON,,380.0
+State geodata,,1.0
+State of California,,3801.0
+StreamCat Harvest,,48.0
+TIGERWeb,,1.0
+Test Source,1.0,
+Test Source (WAF ISO19115_2),8.0,
+Test for ScienceHub,,1.0
+Tiger2015Mil,,1.0
+"Town of Cary, NC Data.json Harvest Source",,67.0
+Toxics Release Inventory Metadata,,1.0
+Treasury JSON,,233.0
+U.S. EPA Enterprise Data Inventory,,1.0
+UAF WAF,,1.0
+USACE new ,,2.0
+USAID JSON,,2027.0
+USDA JSON,,2806.0
+USDOT Geospatial Metadata,,1.0
+USITC Data.json Source,,99.0
+VA JSON,,1148.0
+Vermont Open Geodata Portal,,172.0
+WA JSON,,1417.0
+WPRDC data.json,,328.0
+WV GIS Technical Center,,1.0
+alaska-department-of-natural-resources-irm,1224.0,
+americorps,94.0,
+arm-data-json,2887.0,
+bloomington-indiana-data-json,222.0,
+bls-data,31.0,
+cfpb-json,11.0,
+cftc-data,9.0,
+chapel-hill-open-data,298.0,
+chicago-json,2684.0,
+city-of-austin-data-json,1692.0,
+city-of-baton-rouge-data-json,247.0,
+city-of-boise-data-json,162.0,
+city-of-chesapeake-data-json,54.0,
+city-of-ferndale-michigan-data-json,1230.0,
+city-of-providence-data-json-harvest-source,252.0,
+city-of-sioux-falls-data-json,425.0,
+city-of-tempe-data-json-harvest-source,933.0,
+commerce-non-spatial-data-json-harvest-source,1634.0,
+connecticut-data-json,1067.0,
+cookcountyil json,,498.0
+cookcountyil-json,1762.0,
+coris-fgdc-metadata,2384.0,
+cspc-json-file,16.0,
+data-act-harvest,111.0,
+data.json,,95.0
+dc-data,3529.0,
+dhs-datajson-source,1187.0,
+doj-json,4160.0,
+dol-json,1202.0,
+dot-socrata-data-json,1460.0,
+eac-data,6.0,
+education-json,1068.0,
+eeoc-data-json,312.0,
+elsdKml,,1.0
+energy-json,454.0,
+energystar,52.0,
+epa-pub-central,1.0,
+epa-sciencehub,4006.0,
+exim-data-json,1.0,
+fairfax-county-virginia-data-json,224.0,
+fcc,86.0,
+fec-open-data,1.0,
+federal-reserve,487.0,
+federal-trade-commission-data-json,219.0,
+fhfa-json,48.0,
+florida-regional-offshore-sand-source-inventory-rossi,3.0,
+frs-non-geo-records,2.0,
+frtib-data,12.0,
+geospatial-usace,694.0,
+gsa-json,169.0,
+hartford-data-json,143.0,
+hawaii json,,145.0
+hawaii-json,310.0,
+healthdata-gov,3668.0,
+honolulu json,,76.0
+honolulu-json,185.0,
+hud-json,366.0,
+idaho-geospatial-data-clearinghouse,323.0,
+imls-json,106.0,
+ioos,,35519.0
+iowa-metadata,917.0,
+kingcounty json,,306.0
+kingcounty-json,285.0,
+kml_division_20,,1.0
+kml_division_5,,1.0
+kml_division_500,,1.0
+lakecat-harvest,30.0,
+library-of-congress-data-json,13.0,
+los-angeles-data-json,1007.0,
+loudoun-county-virginia-data-source,123.0,
+louisville-open-data,710.0,
+mcc-data-json,481.0,
+md json,,1428.0
+md-json,1938.0,
+mo-json,157.0,
+montgomerycountymd json,,428.0
+montgomerycountymd-json,600.0,
+mspb-data-json-harvest-source,4.0,
+nara-data-json,144.0,
+national-transportation-atlas-database-ntad-metadata,156.0,
+ncdc,,422.0
+ncua,37.0,
+neh-data-json,48.0,
+ngdc-well-logs,2.0,
+nirtd-json,251.0,
+nist,3282.0,
+nmfs-garfo,47.0,
+nmfs-swfsc,80.0,
+nrc-data-json-harvest-source,257.0,
+nsf-json,93.0,
+ntia-data-json,2.0,
+ntsb-json,1.0,
+ny-state-json,1024.0,
+nyc-json,3844.0,
+oa-non-geo-harvest,1.0,
+oar-oap-non-geo-records,38.0,
+oar-oaqps-non-geo-records,74.0,
+oar-oria-non-geo-records,30.0,
+oar-otaq-non-geo-records,10.0,
+oarm-non-geo-records,2.0,
+ocfo-non-geo-records,17.0,
+ocspp-opp-non-geo-records,16.0,
+ocspp-oppt-eco-efcts,1.0,
+ocspp-oppt-non-geo-records,15.0,
+ocspp-oppt-rsei-records,3.0,
+oeca-echo-records,31.0,
+oeca-non-geo-records,20.0,
+oei-non-geo-records,18.0,
+oei-oiaa-non-geo-records,3.0,
+oei-oic-non-geo-records,30.0,
+ogc-non,4.0,
+ok-json,1214.0,
+omb,3.0,
+open-data-from-lake-county-illinois,2974.0,
+openei-data-json,6246.0,
+opm-json,352.0,
+ord-ncea-non-geo-records,7.0,
+ord-nerl-esd-non-geo-records,3.0,
+ord-nheerl-aed-non-geo-records,1.0,
+ord-non-geo-records,27.0,
+oregon json,,705.0
+oregon-json,1027.0,
+ow-non-geo-records,53.0,
+pbgc-data-json-source,10.0,
+region-3-non-geo-records,4.0,
+region-4-non-geo-records,14.0,
+region-5-non-geo-records,3.0,
+region-6-non-geo-records,11.0,
+region-7-non-geo-records,8.0,
+rrb-json,153.0,
+sba-json,94.0,
+seattle-json,864.0,
+sec-data-json,87.0,
+sfo-json,601.0,
+somervillema json,,42.0
+somervillema-json,33.0,
+state-json,1061.0,
+state-of-california,1957.0,
+streamcat-harvest,48.0,
+test-for-sciencehub,1.0,
+test-new-doi-datajson,12607.0,
+test-waf-noaa,473.0,
+testfiles-datajson,1.0,
+tractKML,,1.0
+treasury-json,246.0,
+u-s-epa-enterprise-data-inventory,1.0,
+usda-json,2919.0,
+usitc-data-json-source,101.0,
+va-json,895.0,
+vermont-open-geodata-portal,741.0,
+wa-json,2019.0,
+wake-county-open-data-json-harvest-source,336.0,
+zcta510_500k,,1.0
