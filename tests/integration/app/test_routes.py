@@ -1,7 +1,12 @@
+import json
 import os
 import re
-import json
+
 import pytest
+from deepdiff import DeepDiff
+
+from harvester.exceptions import TransformationException
+from harvester.harvest import HarvestSource
 
 # ruff: noqa: F401
 
@@ -315,3 +320,64 @@ class TestJSONResponses:
                 assert len(json_res) == response
         except Exception:
             assert res.data.decode() == response
+
+
+class TestHarvestRecordRawAPI:
+    """Test the HarvestRecord API Raw endpoint."""
+
+    def test_xml_harvest_record_raw(
+        self,
+        interface,
+        organization_data,
+        source_data_waf_iso19115_2,
+        job_data_waf_iso19115_2,
+        client,
+    ):
+        """
+        Test the Raw endpoint for a harvest record with XML source.
+        The expectaion is that the XML data is returned as it appears in the
+        source_raw of the record.
+        """
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_waf_iso19115_2)
+        harvest_job = interface.add_harvest_job(job_data_waf_iso19115_2)
+
+        harvest_source = HarvestSource(harvest_job.id)
+        harvest_source.prepare_external_data()
+        harvest_source.compare_sources()
+        harvest_source.write_compare_to_db()
+
+        iso2_name = "http://localhost:80/iso_2_waf/valid_iso2.xml"
+        iso2_test_record = harvest_source.external_records[iso2_name]
+        response = client.get(f"/harvest_record/{iso2_test_record.id}/raw")
+
+        assert response.status_code == 200
+        assert response.json == {"raw": iso2_test_record.source_raw}
+
+    def test_json_harvest_record_raw(
+        self,
+        interface,
+        organization_data,
+        source_data_dcatus,
+        job_data_dcatus,
+        client,
+    ):
+        """
+        Test the Raw endpoint for a harvest record with JSON source.
+        Expected result should display the JSON data as it appears in the
+        source_raw of the record.
+        """
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_dcatus)
+        harvest_job = interface.add_harvest_job(job_data_dcatus)
+
+        harvest_source = HarvestSource(harvest_job.id)
+        harvest_source.prepare_external_data()
+        harvest_source.compare_sources()
+        harvest_source.write_compare_to_db()
+
+        dcat_record = harvest_source.external_records["cftc-dc1"]
+        response = client.get(f"/harvest_record/{dcat_record.id}/raw")
+
+        assert response.status_code == 200
+        assert response.json == {"raw": json.loads(dcat_record.source_raw)}

@@ -26,8 +26,8 @@ from flask import (
     session,
     url_for,
 )
-from markupsafe import escape
 from jinja2_fragments.flask import render_block
+from markupsafe import escape
 
 from database.interface import HarvesterDBInterface
 from harvester.lib.load_manager import LoadManager
@@ -1021,10 +1021,11 @@ def get_harvest_record_raw(record_id=None):
     record = db.get_harvest_record(record_id)
     if record:
         try:
+            # if this fails, it's not JSON, but possibly XML
             source_raw_json = json.loads(record.source_raw)
-            return source_raw_json, 200
+            return {"raw": source_raw_json}, 200
         except json.JSONDecodeError:
-            return {"error": "Invalid JSON format in source_raw"}, 500
+            return {"raw": record.source_raw}, 200
     else:
         return {"error": STATUS_STRINGS_ENUM["404"]}, 404
 

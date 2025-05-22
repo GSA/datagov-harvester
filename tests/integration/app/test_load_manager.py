@@ -69,11 +69,13 @@ class TestLoadManager:
         assert start_task_mock.call_count == 1
         ## assert command
         assert (
-            start_task_mock.call_args[0][1]
+            start_task_mock.call_args.kwargs["command"]
             == f"python harvester/harvest.py {job.id} harvest"  # using default job type
         )
         ## assert task_id
-        assert start_task_mock.call_args[0][2] == f"harvest-job-{job.id}-harvest"
+        assert (
+            start_task_mock.call_args.kwargs["name"] == f"harvest-job-{job.id}-harvest"
+        )
         assert job.status == "in_progress"
 
         # assert schedule_next_job ops
@@ -247,8 +249,8 @@ class TestLoadManager:
         load_manager = LoadManager()
         load_manager.trigger_manual_job(source_data_dcatus["id"])
         start_task_mock = CFCMock.return_value.v3.tasks.create
-        assert start_task_mock.call_args[0][3] == "4096"
-        assert start_task_mock.call_args[0][4] == "1536"
+        assert start_task_mock.call_args.kwargs["memory_in_mb"] == "1536"
+        assert start_task_mock.call_args.kwargs["disk_in_mb"] == "4096"
 
         # clear out in progress jobs
         source_id = source_data_dcatus["id"]
@@ -263,8 +265,8 @@ class TestLoadManager:
 
         load_manager.trigger_manual_job(source_data_dcatus["id"])
         start_task_mock = CFCMock.return_value.v3.tasks.create
-        assert start_task_mock.call_args[0][3] == "1234"
-        assert start_task_mock.call_args[0][4] == "1234"
+        assert start_task_mock.call_args.kwargs["memory_in_mb"] == "1234"
+        assert start_task_mock.call_args.kwargs["disk_in_mb"] == "1234"
 
     @patch("harvester.lib.cf_handler.CloudFoundryClient")
     def test_trigger_cancel_job(
