@@ -49,6 +49,7 @@ jobs:
 
       - name: Report test coverage
         uses: MishaKav/pytest-coverage-comment@main
+        continue-on-error: true
         with:
           multiple-files: |
             Unit tests, pytest-coverage-unit.txt, pytest-unit.xml

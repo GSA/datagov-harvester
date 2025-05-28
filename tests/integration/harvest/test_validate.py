@@ -82,6 +82,10 @@ class TestValidateDataset:
         iso2_test_record = harvest_source.external_records[iso2_name]
         iso2_test_record.transform()
 
+        # we increased our contactPoint options in mdtranslator
+        # so this actually gets pulled so deleting it here
+        del iso2_test_record.transformed_data["contactPoint"]
+
         # validator throws an exception when the dataset is invalid
         with pytest.raises(ValidationException) as e:
             iso2_test_record.validate()

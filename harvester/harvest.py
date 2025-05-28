@@ -22,12 +22,12 @@ from harvester import SMTP_CONFIG, HarvesterDBInterface, db_interface
 from harvester.exceptions import (
     CompareException,
     DCATUSToCKANException,
+    DuplicateIdentifierException,
     ExtractExternalException,
     ExtractInternalException,
     SynchronizeException,
     TransformationException,
     ValidationException,
-    DuplicateIdentifierException
 )
 from harvester.lib.harvest_reporter import HarvestReporter
 from harvester.utils.ckan_utils import CKANSyncTool
@@ -227,7 +227,7 @@ class HarvestSource:
                         "harvest_job_id": self.job_id,
                         "harvest_source_id": self.id,
                         "identifier": identifier,
-                        "status": "error"
+                        "status": "error",
                     }
 
                     # Insert the record so it can be referenced in the error table

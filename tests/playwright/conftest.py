@@ -12,7 +12,7 @@ def browser():
     # Start Playwright
     playwright = sync_playwright().start()
     # Launch a browser (e.g., Chromium)
-    browser = playwright.chromium.launch(headless=True)
+    browser = playwright.chromium.launch(headless=True, channel="chrome")
     yield browser
     # Close the browser after tests are done
     browser.close()
@@ -24,6 +24,7 @@ def unauthed_page(browser, base_url):
     page = context.new_page()
     page.set_default_timeout(2500)
     yield page
+    context.close()
 
 
 @pytest.fixture()
@@ -34,3 +35,4 @@ def authed_page(browser, base_url):
     page = context.new_page()
     page.set_default_timeout(2500)
     yield page
+    context.close()
