@@ -22,9 +22,7 @@ class TestCFTasking:
         task = cf_handler.get_task(new_task["guid"])
 
         # read the recent logs of the task
-        logs = cf_handler.read_recent_app_logs(
-            task_id=task["guid"]
-        )
+        logs = cf_handler.read_recent_app_logs(task_id=task["guid"])
         assert logs is not None
 
         # cancel the task
