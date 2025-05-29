@@ -1,3 +1,4 @@
+import functools
 import json
 import logging
 import os
@@ -14,6 +15,7 @@ class CFHandler:
         self.password = password
         self.setup()
 
+    @functools.cache
     def _app_guuid(self):
         """Get the GUUID of the running app."""
         try:
