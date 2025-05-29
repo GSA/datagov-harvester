@@ -1,9 +1,9 @@
 #!/bin/sh
 
-set -e 
+set -e
 
-# If an argument was provided, use it as the service name prefix. 
-# Otherwise default to "harvesting-logic".
+# If an argument was provided, use it as the service name prefix.
+# Otherwise default to "datagov-harvest".
 app_name=${1:-datagov-harvest}
 
 # Get the current space and trim leading whitespace
