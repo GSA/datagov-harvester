@@ -1,6 +1,7 @@
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import pytest
+import requests
 from deepdiff import DeepDiff
 
 from harvester.exceptions import TransformationException
@@ -92,6 +93,10 @@ class TestTransform:
         source_data_waf_iso19115_2,
         job_data_waf_iso19115_2,
     ):
+        """
+        Test that the transformation fails when mdtranslator is down and
+        the domain is resolving to a 404 page.
+        """
         interface.add_organization(organization_data)
         interface.add_harvest_source(source_data_waf_iso19115_2)
         harvest_job = interface.add_harvest_job(job_data_waf_iso19115_2)
@@ -104,12 +109,136 @@ class TestTransform:
             if record.identifier == "http://localhost:80/iso_2_waf/invalid_iso2.xml":
                 test_record = record
 
-        with patch("requests.post") as mock_get:
-            mock_get.return_value.status_code = 404
+        with patch("requests.post") as mock_post:
+            mock_response = Mock()
+            mock_response.status_code = 404
+            mock_response.raise_for_status.side_effect = requests.exceptions.HTTPError(
+                "404 Client Error: Not Found for url: http://mdtranslator:5000/transform"
+            )
+            mock_post.return_value = mock_response
             with pytest.raises(TransformationException) as e:
                 test_record.transform()
 
             assert (
                 str(e.value.msg)
                 == "record failed to transform because of unexpected status code: 404"
+            )
+
+    def test_mdtranslator_bad_request(
+        self,
+        interface,
+        organization_data,
+        source_data_waf_iso19115_2,
+        job_data_waf_iso19115_2,
+    ):
+        """
+        Test that the transformation fails when mdtranslator returns a 422
+        status code with validation errors.
+        """
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_waf_iso19115_2)
+        harvest_job = interface.add_harvest_job(job_data_waf_iso19115_2)
+
+        harvest_source = HarvestSource(harvest_job.id)
+        harvest_source.extract()
+        harvest_source.compare()
+
+        for record in harvest_source.records:
+            if record.identifier == "http://localhost:80/iso_2_waf/invalid_iso2.xml":
+                test_record = record
+
+        with patch("requests.post") as mock_post:
+            mock_response = Mock()
+            mock_response.status_code = 422
+            mock_response.json.return_value = {
+                "readerStructureMessages": [
+                    "WARNING: Some warnings in the structure of the record",
+                    "ERROR: Invalid spatial representation type",
+                ],
+                "readerValidationMessages": [
+                    "WARNING: Some validation warnings in the record",
+                    "ERROR: Invalid spatial representation type",
+                ],
+            }
+            mock_response.raise_for_status.side_effect = requests.exceptions.HTTPError(
+                "422 Client Error: Unprocessable record for url: http://mdtranslator:5000/transform"
+            )
+            mock_post.return_value = mock_response
+            with pytest.raises(TransformationException) as e:
+                test_record.transform()
+
+            error_messages = (
+                "record failed to transform: structure messages: WARNING: "
+                "Some warnings in the structure of the record,"
+                " ERROR: Invalid spatial representation type \nvalidation "
+                "messages: WARNING: Some validation warnings"
+                " in the record, ERROR: Invalid spatial representation type"
+            )
+            assert str(e.value.msg) == error_messages
+
+    def test_mdtranslator_down_timeout(
+        self,
+        interface,
+        organization_data,
+        source_data_waf_iso19115_2,
+        job_data_waf_iso19115_2,
+    ):
+        """
+        Test that the transformation fails when mdtranslator is down and
+        the request times out."""
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_waf_iso19115_2)
+        harvest_job = interface.add_harvest_job(job_data_waf_iso19115_2)
+
+        harvest_source = HarvestSource(harvest_job.id)
+        harvest_source.extract()
+        harvest_source.compare()
+
+        for record in harvest_source.records:
+            if record.identifier == "http://localhost:80/iso_2_waf/invalid_iso2.xml":
+                test_record = record
+
+        with patch("requests.post") as mock_post:
+            mock_post.side_effect = requests.Timeout()
+
+            with pytest.raises(TransformationException) as e:
+                test_record.transform()
+
+            assert (
+                str(e.value.msg) == "record failed to transform due to request timeout"
+            )
+
+    def test_mdtranslator_unexpected_error(
+        self,
+        interface,
+        organization_data,
+        source_data_waf_iso19115_2,
+        job_data_waf_iso19115_2,
+    ):
+        """
+        Test to see if an unexpected error arises during transformation,
+        it raises a TransformationException with the error message."""
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_waf_iso19115_2)
+        harvest_job = interface.add_harvest_job(job_data_waf_iso19115_2)
+
+        harvest_source = HarvestSource(harvest_job.id)
+        harvest_source.extract()
+        harvest_source.compare()
+
+        for record in harvest_source.records:
+            if record.identifier == "http://localhost:80/iso_2_waf/invalid_iso2.xml":
+                test_record = record
+
+        with patch("requests.post") as mock_post:
+            mock_response = Mock()
+            mock_response.status_code = 200
+            mock_response.json.return_value = 1
+            mock_post.return_value = mock_response
+            with pytest.raises(TransformationException) as e:
+                test_record.transform()
+
+            assert str(e.value.msg) == (
+                "record failed to transform with error: 'int' object is not "
+                "subscriptable"
             )
