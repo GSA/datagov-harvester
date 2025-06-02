@@ -17,15 +17,13 @@ class TestCFTasking:
     def test_get_all_app_tasks(self, CFClientMock, dhl_cf_task_data):
         CFUtil = CFHandler("url", "user", "password")
         # ruff: noqa: E501
-        CFClientMock.return_value.v3.apps.__getitem__.return_value.tasks.return_value = [
-            1
-        ]
+        CFClientMock.return_value.v3.apps.get.return_value = [1]
         tasks = CFUtil.get_all_app_tasks()
         assert len(tasks) > 0
 
     def test_get_all_running_app_tasks(self, CFClientMock, dhl_cf_task_data):
         CFUtil = CFHandler("url", "user", "password")
-        CFClientMock.return_value.v3.apps.__getitem__.return_value.tasks.return_value = [
+        CFClientMock.return_value.v3.apps.get.return_value = [
             {"state": "RUNNING"},
             {"state": "SUCCEEDED"},
         ]
