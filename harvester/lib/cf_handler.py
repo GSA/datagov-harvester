@@ -21,8 +21,10 @@ class CFHandler:
         try:
             return json.loads(os.getenv("VCAP_APPLICATION", "{}"))["application_id"]
         except KeyError:
-            # No application id, return an empty string
-            return ""
+            # No application id, not running under Cloud Foundry
+            # go looking for an app with the right name.
+            possible_apps = list(self.client.v3.apps.list(names="datagov-harvest-admin,datagov-harvest"))
+            return possible_apps[0]["guid"]
 
     def setup(self):
         logger.debug("Running CFHandler setup")
@@ -60,7 +62,7 @@ class CFHandler:
         if app_guuid is None:
             app_guuid = self._app_guuid()
         self.setup()
-        return [task for task in self.client.v3.apps[app_guuid].tasks()]
+        return list(self.client.v3.apps.get(app_guuid, "tasks"))
 
     def num_running_app_tasks(self, app_guuid=None):
         """Count how many tasks are in the running state.
@@ -78,6 +80,6 @@ class CFHandler:
         if app_guuid is None:
             app_guuid = self._app_guuid()
         self.setup()
-        app = self.client.v3.apps[app_guuid]
+        app = self.client.v2.apps[app_guuid]
         logs = filter(lambda lg: task_id in lg, [str(log) for log in app.recent_logs()])
         return "\n".join(logs)
