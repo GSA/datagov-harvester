@@ -19,7 +19,6 @@ jobs:
         CKAN_API_TOKEN_DEV: ${{secrets.CKAN_API_TOKEN_DEV}}
         CF_SERVICE_USER: ${{secrets.CF_SERVICE_USER}}
         CF_SERVICE_AUTH: ${{secrets.CF_SERVICE_AUTH}}
-        HARVEST_RUNNER_APP_GUID: ${{secrets.HARVEST_RUNNER_APP_GUID}}
         FLASK_APP_SECRET_KEY: ${{secrets.FLASK_APP_SECRET_KEY}}
     runs-on: ubuntu-latest
     name: Pytests
@@ -90,9 +89,9 @@ jobs:
       - name: Build static assets
         shell: bash
         run: |
-            cd app/static
-            npm ci
-            npm run build
+          cd app/static
+          npm ci
+          npm run build
       - name: Set up Python ${{ env.PY_VERSION }}
         uses: actions/setup-python@v5
         with:
@@ -102,15 +101,15 @@ jobs:
         with:
           poetry-version: ${{ env.POETRY_VERSION }}
           poetry-plugins: "poetry-plugin-export"
-      - name: Add requirement.txt
+      - name: Add requirements.txt
         run: |
           poetry export -f requirements.txt --output requirements.txt --without-hashes
           echo "Generated requirements.txt:"
           cat requirements.txt
-      - name: Deploy admin and runner apps
+      - name: Deploy admin app
         uses: cloud-gov/cg-cli-tools@main
         with:
-          command: cf push --vars-file vars.development.yml
+          command: cf push --vars-file vars.development.yml --strategy rolling --no-wait
           cf_org: gsa-datagov
           cf_space: development
           cf_username: ${{secrets.CF_SERVICE_USER}}
@@ -126,7 +125,7 @@ jobs:
       fail-fast: false
       matrix:
         command: [
-          "cf add-network-policy datagov-harvest-runner mdtranslator --protocol tcp --port 8080",
+          "cf add-network-policy datagov-harvest mdtranslator --protocol tcp --port 8080",
         ]
         environ: ["development"]
     steps:
