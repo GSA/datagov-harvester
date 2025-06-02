@@ -699,6 +699,9 @@ class Record:
         mdt_url = os.getenv("MDTRANSLATOR_URL")
         try:
             resp = requests.post(mdt_url, json=data)
+            # this will raise an HTTPError for bad responses (4xx, 5xx)
+            # so we can handle them in the except block, we also will have
+            # access to the response object
             resp.raise_for_status()
             if 200 <= resp.status_code < 300:
                 data = resp.json()
