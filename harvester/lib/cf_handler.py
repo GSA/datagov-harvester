@@ -23,8 +23,14 @@ class CFHandler:
         except KeyError:
             # No application id, not running under Cloud Foundry
             # go looking for an app with the right name.
-            possible_apps = list(self.client.v3.apps.list(names="datagov-harvest-admin,datagov-harvest"))
-            return possible_apps[0]["guid"]
+            possible_apps = list(
+                self.client.v3.apps.list(names="datagov-harvest-admin,datagov-harvest")
+            )
+            try:
+                return possible_apps[0]["guid"]
+            except (IndexError, KeyError):
+                # no apps that work, just return an empty string
+                return ""
 
     def setup(self):
         logger.debug("Running CFHandler setup")
