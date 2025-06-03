@@ -42,7 +42,7 @@ jobs:
       with:
         python-version: ${{ env.PY_VERSION }}
     - name: Install Poetry ${{ env.POETRY_VERSION }}
-      uses: abatilo/actions-poetry@v2
+      uses: abatilo/actions-poetry@v3
       with:
         poetry-version: ${{ env.POETRY_VERSION }}
         poetry-plugins: "poetry-plugin-export"
