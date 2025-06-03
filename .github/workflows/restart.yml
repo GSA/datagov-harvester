@@ -22,10 +22,10 @@ jobs:
         with:
           repository: gsa/datagov-harvester
           path: "./harvester"
-      - name: restart datagov-harvest-admin
+      - name: restart datagov-harvest
         uses: cloud-gov/cg-cli-tools@main
         with:
-          command: harvester/bin/check-and-renew datagov-harvest-admin restart
+          command: harvester/bin/check-and-renew datagov-harvest restart
           cf_org: gsa-datagov
           cf_space: development
           cf_username: ${{secrets.CF_SERVICE_USER}}

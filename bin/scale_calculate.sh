@@ -7,7 +7,7 @@ SCALE_STEP=2
 CPU_BUSY_THRESHOLD=300
 CPU_IDLE_THRESHOLD=220
 
-app_status=$(cf app catalog-web)
+app_status=$(cf app datagov-harvest)
 scale_direction=""
 
 # This function will check the average CPU usage of all running instances of an app

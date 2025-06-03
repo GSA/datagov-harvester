@@ -1,6 +1,9 @@
 name: 1 - Commit
 on: [push]
 
+permissions:
+    contents: read
+
 env:
   PY_VERSION: "3.13"
   POETRY_VERSION: "2.0.0"

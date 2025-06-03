@@ -9,6 +9,10 @@ on:
         description: 'Release Version:'
         required: true
 
+# default minimal permissions for every job
+permissions:
+    contents: read
+
 env:
   POETRY_VERSION: "2.0.0"
 
@@ -51,6 +55,11 @@ jobs:
       - create-cloudgov-services-staging
     environment: staging
     runs-on: ubuntu-latest
+    permissions:
+      # issue creation needs more permissions
+      contents: read
+      id-token: write
+      actions: write
     steps:
       - name: checkout
         uses: actions/checkout@v4
@@ -86,6 +95,20 @@ jobs:
           cf_space: staging
           cf_username: ${{secrets.CF_SERVICE_USER}}
           cf_password: ${{secrets.CF_SERVICE_AUTH}}
+      - name: Create Issue if it fails 😢
+        if: ${{ failure() && github.ref == 'refs/heads/main' }}
+        uses: JasonEtco/create-an-issue@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.ADD_TO_PROJECT_PAT }}
+          GITHUB_JOB: ${{ toJson(github)['job'] }}
+          GITHUB_ATTEMPTS: ${{ github.run_attempt }}
+          LAST_COMMIT: ${{ github.sha }}
+          LAST_RUN_BY: ${{ github.actor }}
+          RUN_ID: ${{ github.run_id }}
+          REPO: ${{ github.repository }}
+        with:
+          filename: .github/deploy_failure.md
+          update_existing: true
 
   deploy-prod:
     name: deploy (prod)
@@ -94,6 +117,11 @@ jobs:
       - deploy-staging
     environment: prod
     runs-on: ubuntu-latest
+    permissions:
+      # issue creation needs more permissions
+      contents: read
+      id-token: write
+      actions: write
     steps:
       - name: checkout
         uses: actions/checkout@v4
@@ -129,6 +157,20 @@ jobs:
           cf_space: prod
           cf_username: ${{secrets.CF_SERVICE_USER}}
           cf_password: ${{secrets.CF_SERVICE_AUTH}}
+      - name: Create Issue if it fails 😢
+        if: ${{ failure() && github.ref == 'refs/heads/main' }}
+        uses: JasonEtco/create-an-issue@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.ADD_TO_PROJECT_PAT }}
+          GITHUB_JOB: ${{ toJson(github)['job'] }}
+          GITHUB_ATTEMPTS: ${{ github.run_attempt }}
+          LAST_COMMIT: ${{ github.sha }}
+          LAST_RUN_BY: ${{ github.actor }}
+          RUN_ID: ${{ github.run_id }}
+          REPO: ${{ github.repository }}
+        with:
+          filename: .github/deploy_failure.md
+          update_existing: true
 
   network-policies:
     name: Add network-policies
@@ -145,7 +187,7 @@ jobs:
         ]
         environ: ["staging", "prod"]
     steps:
-      - name: proxy to web
+      - name: harvester to internal mdtranslator
         uses: cloud-gov/cg-cli-tools@main
         with:
           command: ${{ matrix.command }}
