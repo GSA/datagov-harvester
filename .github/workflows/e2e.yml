@@ -4,6 +4,9 @@ on:
   pull_request:
     branches: [ main ]
 
+permissions:
+  contents: read
+
 env:
   PY_VERSION: "3.13"
   POETRY_VERSION: "2.0.0"
@@ -39,7 +42,7 @@ jobs:
       with:
         python-version: ${{ env.PY_VERSION }}
     - name: Install Poetry ${{ env.POETRY_VERSION }}
-      uses: abatilo/actions-poetry@v2
+      uses: abatilo/actions-poetry@v3
       with:
         poetry-version: ${{ env.POETRY_VERSION }}
         poetry-plugins: "poetry-plugin-export"

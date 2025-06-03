@@ -14,6 +14,7 @@ from typing import List, Union
 import requests
 from boltons.setutils import IndexedSet
 from jsonschema import Draft202012Validator, FormatChecker
+from requests.exceptions import HTTPError, Timeout
 
 sys.path.insert(1, "/".join(os.path.realpath(__file__).split("/")[0:-2]))
 
@@ -698,28 +699,52 @@ class Record:
         }
 
         mdt_url = os.getenv("MDTRANSLATOR_URL")
-        resp = requests.post(mdt_url, json=data)
+        try:
+            resp = requests.post(mdt_url, json=data)
+            # this will raise an HTTPError for bad responses (4xx, 5xx)
+            # so we can handle them in the except block, we also will have
+            # access to the response object
+            resp.raise_for_status()
+            if 200 <= resp.status_code < 300:
+                data = resp.json()
+                logger.info(
+                    f"successfully transformed record: {self.identifier} db id: {self.id}"
+                )
+                self.transformed_data = json.loads(data["writerOutput"])
 
-        if resp.status_code == 422:
-            data = resp.json()
-            self.mdt_msgs = prepare_transform_msg(data)
+        except HTTPError as err:
+            logger.error("Error: %s - Status Code: %s", err, resp.status_code)
+            if resp.status_code == 422:
+                data = resp.json()
+                self.mdt_msgs = prepare_transform_msg(data)
+                self.status = "error"
+                raise TransformationException(
+                    f"record failed to transform: {self.mdt_msgs}",
+                    self.harvest_source.job_id,
+                    self.id,
+                )
+            else:
+                self.status = "error"
+                raise TransformationException(
+                    f"record failed to transform because of unexpected status code: {resp.status_code}",
+                    self.harvest_source.job_id,
+                    self.id,
+                )
+
+        except Timeout:
+            logger.error("Request timed out")
             self.status = "error"
             raise TransformationException(
-                f"record failed to transform: {self.mdt_msgs}",
+                "record failed to transform due to request timeout",
                 self.harvest_source.job_id,
                 self.id,
             )
 
-        elif 200 <= resp.status_code < 300:
-            data = resp.json()
-            logger.info(
-                f"successfully transformed record: {self.identifier} db id: {self.id}"
-            )
-            self.transformed_data = json.loads(data["writerOutput"])
-        else:
+        except Exception as err:
+            logger.info("Unexpected error: %s", err)
             self.status = "error"
             raise TransformationException(
-                f"record failed to transform because of unexpected status code: {resp.status_code}",
+                f"record failed to transform with error: {err}",
                 self.harvest_source.job_id,
                 self.id,
             )
