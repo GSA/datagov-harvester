@@ -8,7 +8,6 @@ cf_handler = CFHandler(
 )
 
 dhl_cf_task_data = {
-    "app_guuid": os.getenv("HARVEST_RUNNER_APP_GUID"),
     "task_id": "cf_task_func_spec",
     "command": "/usr/bin/sleep 60",
 }
@@ -23,9 +22,7 @@ class TestCFTasking:
         task = cf_handler.get_task(new_task["guid"])
 
         # read the recent logs of the task
-        logs = cf_handler.read_recent_app_logs(
-            dhl_cf_task_data["app_guuid"], task["guid"]
-        )
+        logs = cf_handler.read_recent_app_logs(task_id=task["guid"])
         assert logs is not None
 
         # cancel the task
@@ -35,5 +32,5 @@ class TestCFTasking:
     def test_get_all_app_tasks(self):
         cf_handler.setup()
 
-        tasks = cf_handler.get_all_app_tasks(dhl_cf_task_data["app_guuid"])
+        tasks = cf_handler.get_all_app_tasks()
         assert tasks is not None
