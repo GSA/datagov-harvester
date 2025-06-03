@@ -5,7 +5,7 @@ on:
     branches: [ main ]
 
 permissions:
-  content: read
+  contents: read
 
 env:
   PY_VERSION: "3.13"
