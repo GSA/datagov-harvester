@@ -84,7 +84,7 @@ class Organizations:
         self.orgs = {}
 
         # add any other data we want to compare
-        self.org_template = {"type": None, "logo": None}
+        self.org_template = {"type": None, "logo": None, "package_count": None}
 
         if source_type == "catalog":
             self.base_url = CATALOG_PROD_BASE_URL
@@ -123,6 +123,7 @@ class Organizations:
             self.orgs[org_name]["logo"] = org_data["image_url"]
             self.orgs[org_name]["name"] = org_data["name"]
             self.orgs[org_name]["id"] = org_data["id"]
+            self.orgs[org_name]["package_count"] = org_data["package_count"]
 
 
 class HarvestSources:
@@ -147,10 +148,18 @@ class HarvestSources:
                 f"{CATALOG_PROD_BASE_URL}/api/action/package_search"
                 f"?fq=(dataset_type:harvest)&rows={self.rows}"
             )
+            self.harvest_sources_dset_count_url = (
+                f"{CATALOG_PROD_BASE_URL}/api/action/package_search"
+                f"?facet.field=%5B%22harvest_source_title%22%5D&facet.limit=-1"
+            )
         else:
             self.harvest_sources_url = (
                 "https://datagov-harvest-admin-dev.app.cloud.gov"
                 "/harvest_sources/?paginate=false"
+            )
+            self.harvest_sources_dset_count_url = (
+                f"{CATALOG_NEXT_BASE_URL}/api/action/package_search"
+                f"?facet.field=%5B%22harvest_source_title%22%5D&facet.limit=-1"
             )
 
     def get_harvest_sources(self):
@@ -161,6 +170,16 @@ class HarvestSources:
             else:
                 self.sources = res.json()
         self.sources = {source["name"]: source for source in self.sources}
+
+    def get_num_datasets(self):
+        # harvest sources with no datasets aren't returned from the solr facet
+        res = requests.get(self.harvest_sources_dset_count_url)
+        if res.ok:
+            titles = res.json()["result"]["facets"]["harvest_source_title"]
+            self.titles = {
+                "_".join(map(str.lower, title.split())): count
+                for title, count in titles.items()
+            }
 
 
 class Datasets:
@@ -247,7 +266,14 @@ def compare_organizations():
 
     is_same = True
 
-    attribute_fields = ["catalog_name", "on_catalog-next", "same_org_type", "same_logo"]
+    attribute_fields = [
+        "catalog_name",
+        "on_catalog-next",
+        "same_org_type",
+        "same_logo",
+        "catalog_package_count",
+        "catalog_next_package_count",
+    ]
     attribute_output = [attribute_fields]
 
     for org_name, org_data in catalog_orgs.orgs.items():
@@ -256,6 +282,8 @@ def compare_organizations():
         compare_data = [
             org_data["type"] == org_data_next["type"],
             org_data["logo"] == org_data_next["logo"],
+            org_data["package_count"],
+            org_data_next["package_count"],
         ]
 
         if any(data is False for data in compare_data):
@@ -309,11 +337,21 @@ def compare_harvest_sources():
             if org_data["id"] == org_id:
                 return org_data["name"]
 
+    def compare_dataset_counts(catalog_sources: dict, next_source: dict) -> list:
+        output = []
+
+        for name, count in catalog_sources.items():
+            output.append([name, count, next_source.get(name, 0)])
+
+        return sorted(output, key=lambda r: r[1], reverse=True)
+
     catalog_harvest_sources = HarvestSources("catalog")
     catalog_harvest_sources.get_harvest_sources()
+    catalog_harvest_sources.get_num_datasets()
 
     catalog_next_harvest_sources = HarvestSources("catalog-next")
     catalog_next_harvest_sources.get_harvest_sources()
+    catalog_next_harvest_sources.get_num_datasets()
 
     catalog_orgs = Organizations("catalog")
     catalog_orgs.prepare_organizations()
@@ -363,6 +401,17 @@ def compare_harvest_sources():
             [hs_name, hs_name in catalog_harvest_sources.sources, *compare_data]
         )
 
+    dataset_counts = compare_dataset_counts(
+        catalog_harvest_sources.titles, catalog_next_harvest_sources.titles
+    )
+
+    dataset_count_summary_fields = [
+        "catalog_harvest_source_name",
+        "catalog_harvest_source_dataset_count",
+        "catalog_next_harvest_source_dataset_count",
+    ]
+    dataset_count_output = [dataset_count_summary_fields] + dataset_counts
+
     summary_fields = [
         "catalog_harvest_source_count",
         "catalog-next_harvest_source_count",
@@ -375,6 +424,11 @@ def compare_harvest_sources():
         ],
     ]
 
+    dataset_count_csv = write_to_csv(
+        os.path.join(OUTPUT_DIR, "harvest_source_dataset_count.csv"),
+        dataset_count_output,
+    )
+
     summary_csv = write_to_csv(
         os.path.join(OUTPUT_DIR, "harvest_source_summary_compare.csv"), summary_output
     )
@@ -383,7 +437,7 @@ def compare_harvest_sources():
         os.path.join(OUTPUT_DIR, "harvest_source_attr_compare.csv"), attribute_output
     )
 
-    return summary_csv, attribute_csv, is_same
+    return dataset_count_csv, summary_csv, attribute_csv, is_same
 
 
 def compare_datasets():
