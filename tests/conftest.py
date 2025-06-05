@@ -695,7 +695,6 @@ def single_internal_record(internal_compare_data):
 @pytest.fixture
 def dhl_cf_task_data() -> dict:
     return {
-        "app_guuid": "f4ab7f86-bee0-44fd-8806-1dca7f8e215a",
         "task_id": "cf_task_integration",
         "command": "/usr/bin/sleep 60",
     }
