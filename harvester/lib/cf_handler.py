@@ -68,7 +68,11 @@ class CFHandler:
         if app_guuid is None:
             app_guuid = self._app_guuid()
         self.setup()
-        return list(self.client.v3.apps.get(app_guuid, "tasks"))
+        # get tasks returns a single "page" and we need to manually wrap it into a
+        # pagination object
+        return list(
+            self.client.v3.apps._pagination(self.client.v3.apps.get(app_guuid, "tasks"))
+        )
 
     def num_running_app_tasks(self, app_guuid=None):
         """Count how many tasks are in the running state.

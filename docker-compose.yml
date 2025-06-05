@@ -57,7 +57,12 @@ services:
       FLASK_ENV: development
     ports:
       - "8080:8080"
-    command: flask run --host=0.0.0.0 --port=8080 --reload
+    command:
+      - /bin/sh
+      - -c
+      - |
+        flask db upgrade
+        flask run --host=0.0.0.0 --port=8080 --reload
 
 volumes:
   postgres_data:

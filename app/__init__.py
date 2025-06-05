@@ -36,7 +36,9 @@ def create_app():
     add_template_filters(app)
 
     with app.app_context():
-        db.create_all()
+        # SQL-Alchemy can't be used to create the schema here
+        # Instead, `flask db upgrade` must already have been run
+        # db.create_all()
         load_manager.start()
 
     return app

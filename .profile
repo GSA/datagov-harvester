@@ -12,12 +12,6 @@ function vcap_get_service () {
 }
 
 export APP_NAME=$(echo $VCAP_APPLICATION | jq -r '.application_name')
-export REAL_NAME=$(echo $VCAP_APPLICATION | jq -r '.application_name')
-if [[ $APP_NAME = "datagov-harvest-admin" ]] || \
-   [[ $APP_NAME = "datagov-harvest-runner" ]]
-then
-  APP_NAME=datagov-harvest
-fi
 
 # POSTGRES DB CREDS
 export URI=$(vcap_get_service db .credentials.uri)
@@ -43,7 +37,4 @@ export HARVEST_SMTP_PASSWORD=$(vcap_get_service smtp .credentials.smtp_password)
 export HARVEST_SMTP_SENDER=harvester@$(vcap_get_service smtp .credentials.domain_arn | grep -o "ses-[[:alnum:]]\+.ssb.data.gov")
 export HARVEST_SMTP_RECIPIENT=datagovhelp@gsa.gov
 
-
-if [[ $REAL_NAME = "datagov-harvest-admin" ]]; then
-  flask db upgrade
-fi
+# migrations are handled in harvest-admin-start.sh
