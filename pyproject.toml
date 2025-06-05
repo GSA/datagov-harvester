@@ -14,7 +14,7 @@ poetry-plugin-export = ">=1.8"
 
 [tool.poetry.dependencies]
 python = ">=3.13,<4.0"
-jsonschema = ">=4"
+jsonschema = {extras = ["format"], version = "^4.24.0"}
 python-dotenv = ">=1"
 deepdiff = ">=6"
 ckanapi = ">=4.7"

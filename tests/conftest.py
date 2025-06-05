@@ -253,6 +253,21 @@ def source_data_dcatus_single_record_non_federal(organization_data: dict) -> dic
 
 
 @pytest.fixture
+def source_data_dcatus_bad_license_uri(organization_data: dict) -> dict:
+    return {
+        "id": "2f2652de-91df-4c63-8b53-bfced20b276b",
+        "name": "Single Record Test Source",
+        "notification_emails": "email@example.com",
+        "organization_id": organization_data["id"],
+        "frequency": "daily",
+        "url": f"{HARVEST_SOURCE_URL}/dcatus/dcatus_bad_license_uri.json",
+        "schema_type": "dcatus1.1: non-federal",
+        "source_type": "document",
+        "notification_frequency": "always",
+    }
+
+
+@pytest.fixture
 def source_data_dcatus_bad_url(organization_data: dict) -> dict:
     return {
         "id": "b059e587-a4a1-422e-825a-830b4913dbfb",
@@ -906,3 +921,9 @@ def dcatus_keywords():
         "DOC/NOAA/NOS/OCM > Office of Coastal Management, National Ocean Service, NOAA, U.S. Department of Commerce",
         "NERRS",
     ]
+
+
+@pytest.fixture
+def bad_jsonschema_uri():
+    # this is a truncated value present in the wild via dcatus license
+    return "<p align='center' style='margin-top: 0px; margin-bottom: 1.55rem"
