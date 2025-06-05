@@ -30,6 +30,7 @@ class Organization(db.Model):
 
     name = db.Column(db.String, nullable=False, index=True)
     logo = db.Column(db.String)
+    organization_type = db.Column(db.String)
     sources = db.relationship(
         "HarvestSource", backref="org", cascade="all, delete-orphan", lazy=True
     )
