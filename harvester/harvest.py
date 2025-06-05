@@ -13,7 +13,7 @@ from typing import List, Union
 
 import requests
 from boltons.setutils import IndexedSet
-from jsonschema import Draft202012Validator
+from jsonschema import Draft202012Validator, FormatChecker
 from requests.exceptions import HTTPError, Timeout
 
 sys.path.insert(1, "/".join(os.path.realpath(__file__).split("/")[0:-2]))
@@ -122,7 +122,9 @@ class HarvestSource:
             raise Exception
 
         self.dataset_schema = open_json(self.schema_file)
-        self._validator = Draft202012Validator(self.dataset_schema)
+        self._validator = Draft202012Validator(
+            self.dataset_schema, format_checker=FormatChecker()
+        )
         self._reporter = HarvestReporter()
 
     @property
