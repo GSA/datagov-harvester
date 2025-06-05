@@ -50,7 +50,7 @@ class TestLoadManager:
         for job in jobs:
             interface_no_jobs.add_harvest_job(job)
 
-        CFCMock.return_value.v3.apps.get.return_value = [
+        CFCMock.return_value.v3.apps._pagination.return_value = [
             {"state": "RUNNING"},
             {"state": "RUNNING"},
             {"state": "DONE"},
@@ -99,7 +99,7 @@ class TestLoadManager:
         interface,
         mock_good_cf_index,
     ):
-        CFCMock.return_value.v3.apps.get.return_value = [
+        CFCMock.return_value.v3.apps._pagination.return_value = [
             {"state": "RUNNING"},
             {"state": "RUNNING"},
             {"state": "RUNNING"},
@@ -139,7 +139,7 @@ class TestLoadManager:
         source_data_dcatus,
         mock_good_cf_index,
     ):
-        CFCMock.return_value.v3.apps.get.return_value = [
+        CFCMock.return_value.v3.apps._pagination.return_value = [
             {"state": "RUNNING"},
             {"state": "RUNNING"},
         ]
@@ -277,7 +277,7 @@ class TestLoadManager:
         interface_no_jobs,
         source_data_dcatus,
     ):
-        CFCMock.return_value.v3.apps.get.return_value = all_tasks_json_fixture
+        CFCMock.return_value.v3.apps._pagination.return_value = all_tasks_json_fixture
 
         load_manager = LoadManager()
         load_manager.trigger_manual_job(source_data_dcatus["id"])
