@@ -238,6 +238,37 @@ class TestLoadManager:
         assert jobs[1].status == "in_progress"
 
     @patch("harvester.lib.cf_handler.CloudFoundryClient")
+    def test_dont_create_new_job_if_another_job_already_scheduled(
+        self,
+        CFCMock,
+        interface_with_multiple_jobs,
+        source_data_dcatus,
+        mock_good_cf_index,
+    ):
+        CFCMock.return_value.v3.apps._pagination.return_value = [
+            {"state": "RUNNING"},
+            {"state": "RUNNING"},
+        ]
+        jobs = interface_with_multiple_jobs.get_new_harvest_jobs_by_source_in_future(
+            source_data_dcatus["id"]
+        )
+        assert len(jobs) == 3
+
+        load_manager = LoadManager()
+        load_manager.schedule_first_job(source_data_dcatus["id"])
+        load_manager.schedule_next_job(source_data_dcatus["id"])
+        # assert that no new job is created
+        # when there is already a job scheduled in the future
+        new_jobs = (
+            interface_with_multiple_jobs.get_new_harvest_jobs_by_source_in_future(
+                source_data_dcatus["id"]
+            )
+        )
+        assert len(new_jobs) == 1
+        assert source_data_dcatus["frequency"] == "daily"
+        assert new_jobs[0].date_created == datetime.now() + timedelta(days=1)
+
+    @patch("harvester.lib.cf_handler.CloudFoundryClient")
     def test_assert_env_var_changes_task_size(
         self,
         CFCMock,
