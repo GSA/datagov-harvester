@@ -55,12 +55,13 @@ class LoadManager:
             """Check if a job is already running for this source."""
             harvest_job = interface.get_harvest_job(job_id)
             jobs_in_progress = interface.pget_harvest_jobs(
-                facets=f"harvest_source_id = '{harvest_job.harvest_source_id}', status = 'in_progress'",
+                facets=f"harvest_source_id = '{harvest_job.harvest_source_id}',\
+                    status = 'in_progress'",
                 paginate=False,
             )
             if len(jobs_in_progress):
                 return f"Can't trigger harvest. Job {jobs_in_progress[0].id} already in progress."  # noqa E501
-            
+
             """task manager start interface,
             takes a job_id"""
             task_contract = {
@@ -79,15 +80,13 @@ class LoadManager:
             message = f"LoadManager: start_job failed :: {repr(e)}"
             logger.error(message)
             try:
-              updated_job = interface.update_harvest_job(
-                  job_id, {"status": "new", "date_created": get_datetime()}
-              )
+                updated_job = interface.update_harvest_job(
+                    job_id, {"status": "new", "date_created": get_datetime()}
+                )
             except Exception as e:
-              logger.error(f"Failed to reset job {job_id} status: {repr(e)}")
-              pass
+                logger.error(f"Failed to reset job {job_id} status: {repr(e)}")
+                pass
             return message
-
-        
 
     def stop_job(self, job_id, job_type="harvest"):
         """task manager stop interface,
@@ -137,7 +136,7 @@ class LoadManager:
         if source.frequency == "manual":
             logger.info("No job scheduled for manual source.")
             return "No job scheduled for manual source."
-        
+
         # check if there is a job already scheduled in the future
         future_jobs = interface.get_new_harvest_jobs_by_source_in_future(source_id)
         if len(future_jobs) > 0:
@@ -145,7 +144,7 @@ class LoadManager:
             {future_jobs[0].date_created}."
             logger.info(message)
             return message
-        
+
         # schedule new future job
         job_data = interface.add_harvest_job(
             {

@@ -257,9 +257,7 @@ class TestLoadManager:
         )[0]
         assert message == f"Updated job {current_job.id} to in_progress"
 
-        failing_start_job_msg = load_manager.start_job(
-            new_job.id, job_type="harvest"
-        )
+        failing_start_job_msg = load_manager.start_job(new_job.id, job_type="harvest")
         assert (
             failing_start_job_msg
             == f"Can't trigger harvest. Job {current_job.id} already in progress."
