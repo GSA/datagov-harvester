@@ -112,18 +112,26 @@ class LoadManager:
         takes a source_id"""
         source = interface.get_harvest_source(source_id)
         if source.frequency == "manual":
-            message = "No job scheduled for manual source."
-        else:
-            # schedule new future job
-            job_data = interface.add_harvest_job(
-                {
-                    "harvest_source_id": source.id,
-                    "status": "new",
-                    "date_created": create_future_date(source.frequency),
-                }
-            )
-            message = f"Scheduled new harvest job: for {job_data.harvest_source_id} \
-            at {job_data.date_created}."
+            logger.info("No job scheduled for manual source.")
+            return "No job scheduled for manual source."
+        
+        # check if there is a job already scheduled in the future
+        future_jobs = interface.get_new_harvest_jobs_by_source_in_future(source_id)
+        if len(future_jobs) > 0:
+            message = f"Job already scheduled for source {source_id} at {future_jobs[0].date_created}."
+            logger.info(message)
+            return message
+        
+        # schedule new future job
+        job_data = interface.add_harvest_job(
+            {
+                "harvest_source_id": source.id,
+                "status": "new",
+                "date_created": create_future_date(source.frequency),
+            }
+        )
+        message = f"Scheduled new harvest job: for {job_data.harvest_source_id} \
+        at {job_data.date_created}."
 
         logger.info(message)
         return message
