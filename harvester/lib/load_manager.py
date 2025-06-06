@@ -118,7 +118,8 @@ class LoadManager:
         # check if there is a job already scheduled in the future
         future_jobs = interface.get_new_harvest_jobs_by_source_in_future(source_id)
         if len(future_jobs) > 0:
-            message = f"Job already scheduled for source {source_id} at {future_jobs[0].date_created}."
+            message = f"Job already scheduled for source {source_id} at \
+            {future_jobs[0].date_created}."
             logger.info(message)
             return message
         
