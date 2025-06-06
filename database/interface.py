@@ -2,7 +2,7 @@ import logging
 from datetime import datetime, timezone
 from functools import wraps
 
-from sqlalchemy import desc, func, inspect, text
+from sqlalchemy import asc, desc, func, inspect, text
 from sqlalchemy.exc import NoResultFound
 from sqlalchemy.orm import aliased
 
@@ -296,6 +296,7 @@ class HarvesterDBInterface:
                 HarvestJob.date_created < datetime.now(timezone.utc),
                 HarvestJob.status == "new",
             )
+            .order_by(asc(HarvestJob.date_created))
             .all()
         )
         return [job for job in harvest_jobs]
