@@ -10,6 +10,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from pathlib import Path
 from typing import List, Union
+from datetime import datetime
 
 import requests
 from boltons.setutils import IndexedSet
@@ -35,7 +36,7 @@ from harvester.utils.ckan_utils import CKANSyncTool
 from harvester.utils.general_utils import (
     dataset_to_hash,
     download_file,
-    download_waf,
+    find_duplicates_by_index,
     get_datetime,
     open_json,
     prepare_transform_msg,
@@ -99,6 +100,8 @@ class HarvestSource:
     )
     external_records: dict = field(default_factory=lambda: {}, repr=False)
     internal_records: dict = field(default_factory=lambda: {}, repr=False)
+
+    deletions: set = set()
 
     def __post_init__(self) -> None:
         self._db_interface: HarvesterDBInterface = db_interface
@@ -202,77 +205,103 @@ class HarvestSource:
                 _ckan_name=record["ckan_name"],
             )
 
-    def get_record_identifier(self, record: dict) -> str:
-        record_id = "identifier" if self.schema_type.startswith("dcatus") else "url"
+    def write_duplicate_to_db(self, identifier: str) -> None:
+        # Create a minimal harvest_record for error tracking purposes only
+        record_data = {
+            "harvest_job_id": self.job_id,
+            "harvest_source_id": self.id,
+            "identifier": identifier,
+            "status": "error",
+        }
 
-        if record_id not in record:
-            raise Exception
+        # Insert the record so it can be referenced in the error table
+        new_record = self.db_interface.add_harvest_record(record_data)
+        harvest_record_id = new_record.id if new_record else None
 
-        record_id = record[record_id].strip()
+        raise DuplicateIdentifierException(
+            f"Duplicate identifier '{identifier}' found for source: {self.name}",
+            self.job_id,
+            harvest_record_id,
+        )
 
-        if record_id == "":
-            raise Exception
-
-        return record_id
-
-    def external_records_to_id_hash(self, records: List[dict]) -> None:
-        # ruff: noqa: F841
-
-        logger.info("converting harvest records to id: hash")
-        for record in records:
+    def filter_duplicate_identifiers(self, records: List[dict]) -> list:
+        # retains the first instance of a duplicate.
+        for idx in find_duplicates_by_index(records):
             try:
-                identifier = self.get_record_identifier(record)
-
-                # Check if this identifier has already been processed (duplicate)
-                if identifier in self.external_records:
-                    # Create a minimal harvest_record for error tracking purposes only
-                    record_data = {
-                        "harvest_job_id": self.job_id,
-                        "harvest_source_id": self.id,
-                        "identifier": identifier,
-                        "status": "error",
-                    }
-
-                    # Insert the record so it can be referenced in the error table
-                    new_record = self.db_interface.add_harvest_record(record_data)
-                    harvest_record_id = new_record.id if new_record else None
-
-                    # Raise a non-critical exception to log the error and continue processing
-                    raise DuplicateIdentifierException(
-                        f"Duplicate identifier '{identifier}' found for source: {self.name}",
-                        self.job_id,
-                        harvest_record_id,
-                    )
-
-                if self.source_type == "document":
-                    dataset_hash = dataset_to_hash(sort_dataset(record))
-
-                if self.source_type == "waf":
-                    record = record["content"]
-                    dataset_hash = dataset_to_hash(record)
-
-                self.external_records[identifier] = Record(
-                    self, identifier, record, dataset_hash
-                )
-
+                self.write_duplicate_to_db(records[idx]["identifier"])
+                del records[idx]
             except DuplicateIdentifierException:
                 self.reporter.update("errored")
                 continue
-            except Exception as e:
-                raise ExtractExternalException(
-                    f"{self.name} {self.url} failed to convert to id:hash :: {repr(e)}",
-                    self.job_id,
-                )
 
-    def prepare_external_data(self) -> None:
-        logger.info("retrieving and preparing external records.")
+        return records
+
+    def external_record_to_record_hash(self, record: dict) -> "Record":
+        # ruff: noqa: F841
+        logger.info("converting harvest records to id: hash")
         try:
             if self.source_type == "document":
-                self.external_records_to_id_hash(
-                    download_file(self.url, ".json")["dataset"]
-                )
+                dataset = sort_dataset(record)
+
             if self.source_type == "waf":
-                self.external_records_to_id_hash(download_waf(traverse_waf(self.url)))
+                dataset = record["content"]
+
+            dataset_hash = dataset_to_hash(dataset)
+
+            return Record(self, record["identifier"], dataset, dataset_hash)
+        except Exception as e:
+            raise ExtractExternalException(
+                f"{self.name} {self.url} failed to convert to id:hash :: {repr(e)}",
+                self.job_id,
+            )
+
+    def filter_waf_by_datetime(self, files: zip) -> list:
+        output = []
+
+        # flask app returns this format
+        format_string = "%a, %d %b %Y %H:%M:%S %Z"
+
+        for data, external_datetime in files:
+            identifier = data["identifier"]
+            record = self.internal_records.get(identifier, None)
+            if record is not None:
+                interal_datetime = datetime.strptime(
+                    record["date_finished"], format_string
+                )
+                if external_datetime > interal_datetime:
+                    output.append(data)
+
+        return output
+
+    def get_deletions(self, external_records: list) -> None:
+        external_ids = set([record["identifier"] for record in external_records])
+        internal_ids = set(self.internal_records.keys())
+        self.deletions = internal_ids - external_ids
+
+    def prepare_record(self, record: dict) -> "Record":
+        not_delete = record["identifier"] not in self.deletions
+        if not_delete and self.source_type == "waf":
+            record["content"] = download_file(record["identifier"], ".xml")
+        return self.external_record_to_record_hash(record)
+
+    def prepare_external_data(self) -> any:
+        logger.info("retrieving external records.")
+        try:
+            records = []
+
+            if self.source_type == "document":
+                records = download_file(self.url, ".json")["dataset"]
+
+            if self.source_type == "waf":
+                records = traverse_waf(self.url)
+                records = self.filter_waf_by_datetime(records)
+
+            records = self.filter_duplicate_identifiers(records)
+            self.get_deletions(records)
+
+            for record in records:
+                yield self.prepare_record(record)
+
         except Exception as e:
             # ruff: noqa: E501
             raise ExtractExternalException(
@@ -357,12 +386,46 @@ class HarvestSource:
         self.internal_records = {}
         self.external_records = {}
 
-    def extract(self) -> None:
-        """Extract records for compare"""
-        logger.info(f"getting records changes for {self.name} using {self.url}")
-
-        self.prepare_external_data()
+    def run_full_harvest(self) -> None:
         self.prepare_internal_data()
+        external_records = self.prepare_external_data()
+
+        self.write_deletions_to_db()
+
+        # TODO: move all record-level methods from HarvestSource to Record
+        for external_record in external_records:
+            self.compare_record(external_record)
+            external_record.transform()
+            external_record.validate()
+            external_record.sync()
+
+    def write_deletions_to_db(self):
+        for identifier in self.deletions:
+            internal_record = self.internal_records(identifier)
+            internal_record.action = "delete"
+            record_mapping = self.make_record_mapping(internal_record)
+            db_record = self.db_interface.add_harvest_record(record_mapping)
+            internal_record.id = db_record.id
+
+    def compare_record(self, external_record: "Record") -> None:
+        interal_record = self.internal_records.get(external_record["identifer"], None)
+
+        if interal_record is not None:
+            same_hash = interal_record.metadata_hash != external_record.metadata_hash
+            # TODO: confirm force_harvest
+            if same_hash or self.job_type == "force_harvest":
+                external_record.action = "update"
+                external_record.ckan_id = interal_record.ckan_id
+                external_record.ckan_name = interal_record.ckan_name
+        else:
+            external_record.action = "create"
+
+        self.write_compare_record_to_db(external_record)
+
+    def write_compare_record_to_db(self, external_record: "Record") -> None:
+        record_mapping = self.make_record_mapping(external_record)
+        db_record = self.db_interface.add_harvest_record(record_mapping)
+        external_record.id = db_record.id
 
     def compare(self) -> None:
         """Determine which records needs to be updated, deleted, or created"""
@@ -805,29 +868,51 @@ def harvest_job_starter(job_id, job_type="harvest"):
     logger.info(f"Harvest job starting for JobId: {job_id}")
     harvest_source = HarvestSource(job_id, job_type)
 
-    if job_type in ["harvest", "validate", "force_harvest"]:
-        harvest_source.extract()
+    if job_type in ["harvest", "force_harvest"]:
+        harvest_source.run_full_harvest()
 
     if job_type == "clear":
-        # simulate harvesting an empty external source
-        harvest_source.external_records = {}
-        harvest_source.prepare_internal_data()
-
-    if job_type in ["harvest", "validate", "clear", "force_harvest"]:
-        harvest_source.compare()
-
-    if job_type in ["harvest", "validate", "force_harvest"]:
-        harvest_source.transform()
-        harvest_source.validate()
+        harvest_source.clear_helper()
 
     if job_type == "sync":
         harvest_source.sync_job_helper()
 
-    if job_type in ["harvest", "clear", "sync", "force_harvest"]:
-        harvest_source.sync()
+    # TODO: why do we need a validate job?
 
-    if job_type in ["clear"]:
-        harvest_source.clear_helper()
+    # harvest
+    #   internal, external, compare, transform, validate, load
+    # validate
+    #   internal, external, compare, transform, validate
+    # force-harvest
+    #   internal, external, compare, transform, validate, load
+    # clear
+    #   delete all harvest records
+    # sync
+    #   load (remaining work)
+
+    # if job_type in ["harvest", "validate", "force_harvest"]:
+    #     harvest_source.extract()
+
+    # if job_type == "clear":
+    #     # simulate harvesting an empty external source
+    #     harvest_source.external_records = {}
+    #     harvest_source.prepare_internal_data()
+
+    # if job_type in ["harvest", "validate", "clear", "force_harvest"]:
+    #     harvest_source.compare()
+
+    # if job_type in ["harvest", "validate", "force_harvest"]:
+    #     harvest_source.transform()
+    #     harvest_source.validate()
+
+    # if job_type == "sync":
+    #     harvest_source.sync_job_helper()
+
+    # if job_type in ["harvest", "clear", "sync", "force_harvest"]:
+    #     harvest_source.sync()
+
+    # if job_type in ["clear"]:
+    #     harvest_source.clear_helper()
 
     # generate harvest job report
     harvest_source.report()

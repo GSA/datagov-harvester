@@ -6,6 +6,7 @@ import os
 from datetime import datetime, timedelta, timezone
 from typing import Union
 from urllib.parse import urljoin
+import re
 
 import geojson_validator
 import requests
@@ -92,6 +93,43 @@ def download_file(url: str, file_type: str) -> Union[str, dict]:
     raise Exception
 
 
+def find_duplicates_by_index(records: list):
+    seen = set()
+    output = []
+    for i in range(len(records)):
+        identifier = records[i]["identifier"]
+        if identifier in seen:
+            output.append(i)
+        seen.add(identifier)
+    return output
+
+
+def get_waf_datetimes(soup: BeautifulSoup, files: list) -> list:
+    output = []
+
+    dt_placeholder = datetime(1900, 1, 1, 0, 0)
+    dt_pattern = r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}"
+    dt_format = "%Y-%m-%d %H:%M"
+
+    for td in soup.find_all("td"):
+        res = re.search(dt_pattern, td.text)
+        if res is not None:
+            output.append(datetime.strptime(res.group(0), dt_format))
+
+    if len(output) != len(files):
+        logger.warning(
+            f"mismatching datetime ({len(output)}) and file ({len(files)} counts"
+        )
+
+    # pad with placeholder when more files than datetimes
+    output += [dt_placeholder] * (len(files) - len(output))
+
+    # when more datetimes than files
+    output = output[: len(files)]
+
+    return output
+
+
 def traverse_waf(
     url, files=None, file_ext=".xml", folder="/", filters=["../", "dcatus/"]
 ):
@@ -103,6 +141,7 @@ def traverse_waf(
     parent = os.path.dirname(url.rstrip("/"))
 
     folders = []
+    datetimes = []
     res = requests.get(url)
 
     if files is None:
@@ -111,6 +150,8 @@ def traverse_waf(
     if res.status_code == 200:
         soup = BeautifulSoup(res.content, "html.parser")
         anchors = soup.find_all("a", href=True)
+
+        page_files = []
 
         for anchor in anchors:
             if (
@@ -123,24 +164,16 @@ def traverse_waf(
                 folders.append(urljoin(url, anchor["href"]))
 
             if anchor["href"].endswith(file_ext):
-                # TODO: just download the file here
-                # instead of storing them and returning at the end.
-                files.append(urljoin(url, anchor["href"]))
+                # standardize to dcatus v1.1
+                page_files.append({"identifier": urljoin(url, anchor["href"])})
+
+        datetimes += get_waf_datetimes(soup, page_files)
+        files += page_files
 
     for folder in folders:
         traverse_waf(folder, files=files, filters=filters)
-    return files
 
-
-def download_waf(files):
-    """Downloads WAF
-    Please add docstrings
-    """
-    output = []
-    for file in files:
-        output.append({"url": file, "content": download_file(file, ".xml")})
-
-    return output
+    return zip(files, datetimes)
 
 
 def query_filter_builder(base, facets):
