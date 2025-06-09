@@ -115,6 +115,8 @@ class CKANSyncTool:
         return True
 
     def create_record(self, record, retry=False) -> dict:
+        logger.info("Creating CKAN record with metadata: %s",
+                    record.ckanified_metadata)
         try:
             return self.ckan.action.package_create(**record.ckanified_metadata)
         except Exception as e:
