@@ -596,8 +596,6 @@ def create_ckan_extras(
         if extra == "accessLevel" and harvest_source.schema_type.startswith("iso"):
             metadata[extra] = "public"
         data = {"key": extra, "value": None}
-        # CKAN extras can't handle raw JSON objects as values, so serialize them as needed
-        val = _serialize_list_dict(metadata[extra])
         if extra == "publisher":
             data["value"] = val["name"]
 
@@ -611,9 +609,8 @@ def create_ckan_extras(
             output.append({"key": "old-spatial", "value": metadata["spatial"]})
             data["value"] = translate_spatial(metadata["spatial"])
         else:
-            # TODO: confirm this is what we want.
-            if isinstance(val, list) and len(val) > 0:
-                val = val[0]
+            # CKAN extras can't handle raw JSON objects as values, so serialize them as needed
+            val = _serialize_list_dict(metadata[extra])
             data["value"] = val
         output.append(data)
 
