@@ -1,6 +1,6 @@
 app_name: datagov-harvest
 space_name: development
-route_external: datagov-harvest-admin-dev.app.cloud.gov
+route_external: datagov-harvest-dev.app.cloud.gov
 admin_instances: 2
 admin_memory_quota: 1G
 admin_disk_quota: 4G
@@ -8,7 +8,6 @@ admin_disk_quota: 4G
 CF_API_URL: https://api.fr.cloud.gov
 CKAN_API_URL: https://catalog-next-dev-admin-datagov.app.cloud.gov
 
-HARVEST_RUNNER_APP_GUID: 7a29697f-8898-4490-8c57-f55ee4f848e7
 HARVEST_RUNNER_MAX_TASKS: 2
 
 MDTRANSLATOR_URL: http://mdtranslator-development.apps.internal:8080/translates
@@ -16,7 +15,8 @@ MDTRANSLATOR_URL: http://mdtranslator-development.apps.internal:8080/translates
 # Login.gov
 CLIENT_ID: urn:gov:gsa:openidconnect.profiles:sp:sso:gsa:datagov-dev-harvest-admin
 ISSUER: https://idp.int.identitysandbox.gov
-REDIRECT_URI: https://datagov-harvest-admin-dev.app.cloud.gov/callback
+# Redirect URI should match route_external from above
+REDIRECT_URI: https://datagov-harvest-dev.app.cloud.gov/callback
 
 # New Relic
 new_relic_monitor_mode: false

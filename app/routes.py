@@ -1019,9 +1019,9 @@ def get_harvest_record_raw(record_id=None):
         try:
             # if this fails, it's not JSON, but possibly XML
             source_raw_json = json.loads(record.source_raw)
-            return {"raw": source_raw_json}, 200
+            return source_raw_json, 200
         except json.JSONDecodeError:
-            return {"raw": record.source_raw}, 200
+            return record.source_raw, 200
     else:
         return {"error": STATUS_STRINGS_ENUM["404"]}, 404
 
