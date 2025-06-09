@@ -115,8 +115,7 @@ class CKANSyncTool:
         return True
 
     def create_record(self, record, retry=False) -> dict:
-        logger.info("Creating CKAN record with metadata: %s",
-                    record.ckanified_metadata)
+        logger.info("Creating CKAN record with metadata: %s", record.ckanified_metadata)
         try:
             return self.ckan.action.package_create(**record.ckanified_metadata)
         except Exception as e:
@@ -596,6 +595,7 @@ def create_ckan_extras(
         if extra == "accessLevel" and harvest_source.schema_type.startswith("iso"):
             metadata[extra] = "public"
         data = {"key": extra, "value": None}
+        val = metadata[extra]
         if extra == "publisher":
             data["value"] = val["name"]
 
@@ -609,8 +609,9 @@ def create_ckan_extras(
             output.append({"key": "old-spatial", "value": metadata["spatial"]})
             data["value"] = translate_spatial(metadata["spatial"])
         else:
-            # CKAN extras can't handle raw JSON objects as values, so serialize them as needed
-            val = _serialize_list_dict(metadata[extra])
+            # CKAN extras can't handle raw JSON objects as values, so
+            # serialize them as needed
+            val = _serialize_list_dict(val)
             data["value"] = val
         output.append(data)
 
