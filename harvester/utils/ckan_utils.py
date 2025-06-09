@@ -526,6 +526,15 @@ def munge_tag(tag: str) -> str:
     return tag
 
 
+def _serialize_list_dict(data):
+    # we need to serialize dict since CKAN/solr has issues with dict as extras value.
+    # list too, it can have a dict in it.
+    if isinstance(data, dict) or isinstance(data, list):
+        return json.dumps(data)
+    else:
+        return data
+
+
 def create_ckan_extras(
     metadata: dict, harvest_source: "HarvestSource", record_id: str
 ) -> list[dict]:
@@ -587,7 +596,8 @@ def create_ckan_extras(
         if extra == "accessLevel" and harvest_source.schema_type.startswith("iso"):
             metadata[extra] = "public"
         data = {"key": extra, "value": None}
-        val = metadata[extra]
+        # CKAN extras can't handle raw JSON objects as values, so serialize them as needed
+        val = _serialize_list_dict(metadata[extra])
         if extra == "publisher":
             data["value"] = val["name"]
 
@@ -600,6 +610,7 @@ def create_ckan_extras(
         elif extra == "spatial":
             output.append({"key": "old-spatial", "value": metadata["spatial"]})
             data["value"] = translate_spatial(metadata["spatial"])
+        elif 
         else:
             # TODO: confirm this is what we want.
             if isinstance(val, list) and len(val) > 0:
