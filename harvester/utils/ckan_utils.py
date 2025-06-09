@@ -610,7 +610,6 @@ def create_ckan_extras(
         elif extra == "spatial":
             output.append({"key": "old-spatial", "value": metadata["spatial"]})
             data["value"] = translate_spatial(metadata["spatial"])
-        elif 
         else:
             # TODO: confirm this is what we want.
             if isinstance(val, list) and len(val) > 0:
