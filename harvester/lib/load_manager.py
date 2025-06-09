@@ -61,7 +61,7 @@ class LoadManager:
                 page=0
             )
             if len(jobs_in_progress):
-                raise Exception(f"Can't trigger harvest. Job {jobs_in_progress[0].id} already in progress.") # noqa E501
+                return f"Can't trigger harvest. Job {jobs_in_progress[0].id} already in progress." # noqa E501
 
             """task manager start interface,
             takes a job_id"""
