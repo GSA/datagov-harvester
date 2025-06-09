@@ -1,4 +1,3 @@
-import functools
 import json
 import logging
 import os
@@ -18,6 +17,7 @@ from requests.exceptions import HTTPError, Timeout
 
 sys.path.insert(1, "/".join(os.path.realpath(__file__).split("/")[0:-2]))
 
+
 # ruff: noqa: E402
 from harvester import SMTP_CONFIG, HarvesterDBInterface, db_interface
 from harvester.exceptions import (
@@ -33,6 +33,7 @@ from harvester.exceptions import (
 from harvester.lib.harvest_reporter import HarvestReporter
 from harvester.utils.ckan_utils import CKANSyncTool
 from harvester.utils.general_utils import (
+    create_retry_session,
     dataset_to_hash,
     download_file,
     download_waf,
@@ -44,9 +45,7 @@ from harvester.utils.general_utils import (
 )
 
 # requests data
-session = requests.Session()
-# TODD: make sure this timeout config doesn't change all requests!
-session.request = functools.partial(session.request, timeout=15)
+session = create_retry_session()
 
 ckan_sync_tool = CKANSyncTool(session=session)
 
