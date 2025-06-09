@@ -57,10 +57,11 @@ class LoadManager:
             jobs_in_progress = interface.pget_harvest_jobs(
                 facets=f"harvest_source_id = '{harvest_job.harvest_source_id}',\
                     status = 'in_progress'",
-                paginate=False,
+                per_page=1, # Only need 1 job to know we should not start a new one
+                page=0
             )
             if len(jobs_in_progress):
-                return f"Can't trigger harvest. Job {jobs_in_progress[0].id} already in progress."  # noqa E501
+                raise Exception(f"Can't trigger harvest. Job {jobs_in_progress[0].id} already in progress.") # noqa E501
 
             """task manager start interface,
             takes a job_id"""
