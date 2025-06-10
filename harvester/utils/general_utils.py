@@ -369,7 +369,7 @@ def create_retry_session() -> requests.Session:
     # we want to retry on 500, 502, 503, and 504 errors (CKAN Down)
     retry_strategy = Retry(
         total=3,
-        backoff_factor=2,
+        backoff_factor=3,
         backoff_max=15,
         status_forcelist=[500, 502, 503, 504],
         raise_on_status=False,
