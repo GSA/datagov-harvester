@@ -3,7 +3,6 @@ import logging
 import os
 import smtplib
 import sys
-from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -21,6 +20,8 @@ sys.path.insert(1, "/".join(os.path.realpath(__file__).split("/")[0:-2]))
 # ruff: noqa: E402
 from harvester import SMTP_CONFIG, HarvesterDBInterface, db_interface
 from harvester.exceptions import (
+    CKANDownException,
+    CKANRejectionException,
     CompareException,
     DCATUSToCKANException,
     DuplicateIdentifierException,
@@ -29,8 +30,6 @@ from harvester.exceptions import (
     SynchronizeException,
     TransformationException,
     ValidationException,
-    CKANDownException,
-    CKANRejectionException,
 )
 from harvester.lib.harvest_reporter import HarvestReporter
 from harvester.utils.ckan_utils import CKANSyncTool
@@ -394,7 +393,7 @@ class HarvestSource:
 
         for record in self.records:
             # dont sync records in error, or those which have already been synced (success)
-            if record.status not in ("success", "error"): 
+            if record.status not in ("success", "error"):
                 try:
                     ckan_sync_tool.sync(record=record)
                 except (
@@ -406,7 +405,6 @@ class HarvestSource:
                     record.status = "error"
                     record.validation_msg = str(e)
                     self.reporter.update("errored")
-
 
         # post-sync cleanup
         for record in self.records:

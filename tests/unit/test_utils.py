@@ -3,16 +3,6 @@ from unittest.mock import Mock, patch
 
 import pytest
 import requests
-import pytest
-import requests
-from requests.adapters import HTTPAdapter
-from urllib3.util.retry import Retry
-from unittest.mock import patch
-from urllib3.connectionpool import HTTPConnectionPool
-from urllib3.response import HTTPResponse
-from io import BytesIO
-from urllib3.exceptions import ProtocolError
-
 
 from harvester.utils.ckan_utils import (
     create_ckan_extras,
@@ -463,7 +453,7 @@ class TestRetrySession:
 
         def side_effect_mock_send(request, **kwargs):
             """
-            Bad mock of the send and retry logic. Because the retry_increment 
+            Bad mock of the send and retry logic. Because the retry_increment
             logic is a bit complex.
             """
             session = create_retry_session()
@@ -482,4 +472,3 @@ class TestRetrySession:
             json={"key": "value"},
         )
         assert result.status_code == 200
-
