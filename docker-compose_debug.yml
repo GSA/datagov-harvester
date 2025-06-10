@@ -3,4 +3,9 @@ services:
     ports:
       - "8080:8080"
       - "5678:5678"
-    command: python -m debugpy --wait-for-client --listen 0.0.0.0:5678 -m flask run --host=0.0.0.0 --port=8080
+    command:
+      - /bin/sh
+      - -c
+      - |
+        flask db upgrade
+        python -m debugpy --wait-for-client --listen 0.0.0.0:5678 -m flask run --host=0.0.0.0 --port=8080

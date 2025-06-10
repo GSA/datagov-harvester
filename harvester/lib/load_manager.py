@@ -9,7 +9,6 @@ from harvester.utils.general_utils import create_future_date, get_datetime
 CF_API_URL = os.getenv("CF_API_URL")
 CF_SERVICE_USER = os.getenv("CF_SERVICE_USER")
 CF_SERVICE_AUTH = os.getenv("CF_SERVICE_AUTH")
-HARVEST_RUNNER_APP_GUID = os.getenv("HARVEST_RUNNER_APP_GUID")
 
 MAX_TASKS_COUNT = int(os.getenv("HARVEST_RUNNER_MAX_TASKS", 5))
 
@@ -35,10 +34,7 @@ class LoadManager:
         if os.getenv("CF_INSTANCE_INDEX") != "0":
             logger.info("CF_INSTANCE_INDEX is not set or not equal to zero")
             return
-        self.jobs = interface.get_new_harvest_jobs_in_past()
-        self.running_tasks = self.handler.get_all_running_app_tasks(
-            HARVEST_RUNNER_APP_GUID
-        )
+        self.running_tasks = self.handler.num_running_app_tasks()
         if self.running_tasks >= MAX_TASKS_COUNT:
             logger.info(
                 f"{self.running_tasks} running_tasks >= max tasks count ({MAX_TASKS_COUNT})."  # noqa E501
@@ -49,6 +45,7 @@ class LoadManager:
 
         # invoke cf_task with next job(s)
         # then mark that job(s) as running in the DB
+        self.jobs = interface.get_new_harvest_jobs_in_past()
         for job in self.jobs[:slots]:
             self.start_job(job.id)
             self.schedule_next_job(job.harvest_source_id)
@@ -57,7 +54,6 @@ class LoadManager:
         """task manager start interface,
         takes a job_id"""
         task_contract = {
-            "app_guuid": HARVEST_RUNNER_APP_GUID,
             "command": f"python harvester/harvest.py {job_id} {job_type}",
             "task_id": f"harvest-job-{job_id}-{job_type}",
         }
@@ -73,7 +69,7 @@ class LoadManager:
     def stop_job(self, job_id, job_type="harvest"):
         """task manager stop interface,
         takes a job_id"""
-        tasks = self.handler.get_all_app_tasks(HARVEST_RUNNER_APP_GUID)
+        tasks = self.handler.get_all_app_tasks()
         job_task = [
             (t["guid"], t["state"])
             for t in tasks
