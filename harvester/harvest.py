@@ -29,6 +29,8 @@ from harvester.exceptions import (
     SynchronizeException,
     TransformationException,
     ValidationException,
+    CKANDownException,
+    CKANRejectionException,
 )
 from harvester.lib.harvest_reporter import HarvestReporter
 from harvester.utils.ckan_utils import CKANSyncTool
@@ -390,28 +392,21 @@ class HarvestSource:
     def sync(self) -> None:
         """Sync records to external CKAN catalog."""
 
-        # multi-threaded sync
-        def error_callback(future):
-            try:
-                future.result()
-            except (
-                DCATUSToCKANException,
-                SynchronizeException,
-            ):
-                self.reporter.update("errored")
+        for record in self.records:
+            # dont sync records in error, or those which have already been synced (success)
+            if record.status not in ("success", "error"): 
+                try:
+                    ckan_sync_tool.sync(record=record)
+                except (
+                    DCATUSToCKANException,
+                    SynchronizeException,
+                    CKANDownException,
+                    CKANRejectionException,
+                ) as e:
+                    record.status = "error"
+                    record.validation_msg = str(e)
+                    self.reporter.update("errored")
 
-        with ThreadPoolExecutor(max_workers=harvest_worker_sync_count) as executor:
-            [
-                executor.submit(ckan_sync_tool.sync, record).add_done_callback(
-                    error_callback
-                )
-                for record in self.records
-                if record.status
-                not in (
-                    "success",
-                    "error",
-                )  # dont sync records in error, or those which have already been synced (success)
-            ]
 
         # post-sync cleanup
         for record in self.records:

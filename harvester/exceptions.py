@@ -94,3 +94,11 @@ class DCATUSToCKANException(HarvestNonCriticalException):
 
 class SynchronizeException(HarvestNonCriticalException):
     pass
+
+
+class CKANRejectionException(SynchronizeException):
+    pass
+
+
+class CKANDownException(SynchronizeException):
+    pass
