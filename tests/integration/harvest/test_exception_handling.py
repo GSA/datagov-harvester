@@ -5,8 +5,15 @@ from unittest.mock import Mock, patch
 
 import ckanapi
 import pytest
+from requests.exceptions import HTTPError
+from requests.models import Response
 
-from harvester.exceptions import ExtractExternalException, ExtractInternalException
+from harvester.exceptions import (
+    CKANDownException,
+    CKANRejectionException,
+    ExtractExternalException,
+    ExtractInternalException,
+)
 from harvester.harvest import HarvestSource
 
 
@@ -63,6 +70,12 @@ class TestHarvestJobExceptionHandling:
     def test_no_source_info_exception(self, job_data_dcatus):
         with pytest.raises(ExtractInternalException) as e:
             HarvestSource(job_data_dcatus["id"])
+
+
+def make_http_error(status_code):
+    response = Response()
+    response.status_code = status_code
+    return HTTPError(f"{status_code} Error", response=response)
 
 
 class TestHarvestRecordExceptionHandling:
@@ -238,3 +251,61 @@ class TestHarvestRecordExceptionHandling:
         assert (
             harvest_records[1].id == records_with_errors[0].id
         )  ## assert it's the second record that threw the exception, which validates our package_create mock
+
+    @patch("harvester.harvest.ckan_sync_tool.ckan.action.package_create")
+    def test_ckan_sync_400_error(
+        self,
+        mock_package_create,
+        interface,
+        organization_data,
+        source_data_dcatus,
+        job_data_dcatus,
+    ):
+        mock_package_create.side_effect = make_http_error(400)
+
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_dcatus)
+        harvest_job = interface.add_harvest_job(job_data_dcatus)
+
+        harvest_source = HarvestSource(harvest_job.id)
+        job_id = harvest_job.id
+        harvest_source.extract()
+        harvest_source.compare()
+        harvest_source.sync()
+        harvest_records = interface.get_harvest_records_by_job(job_id)
+        records_with_errors = [
+            record for record in harvest_records if record.status == "error"
+        ]
+        job_err = interface.get_harvest_job_errors_by_job(job_id)
+        record_err = interface.get_harvest_record_errors_by_job(job_id)
+        record_error, identifier, source_raw = record_err[0]
+        assert record_error.type == "CKANRejectionException"
+
+    @patch("harvester.harvest.ckan_sync_tool.ckan.action.package_create")
+    def test_ckan_sync_500_error(
+        self,
+        mock_package_create,
+        interface,
+        organization_data,
+        source_data_dcatus,
+        job_data_dcatus,
+    ):
+        mock_package_create.side_effect = make_http_error(500)
+
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_dcatus)
+        harvest_job = interface.add_harvest_job(job_data_dcatus)
+        job_id = harvest_job.id
+        harvest_source = HarvestSource(harvest_job.id)
+        harvest_source.extract()
+        harvest_source.compare()
+
+        harvest_source.sync()
+        harvest_records = interface.get_harvest_records_by_job(job_id)
+        records_with_errors = [
+            record for record in harvest_records if record.status == "error"
+        ]
+        job_err = interface.get_harvest_job_errors_by_job(job_id)
+        record_err = interface.get_harvest_record_errors_by_job(job_id)
+        record_error, identifier, source_raw = record_err[0]
+        assert record_error.type == "CKANDownException"

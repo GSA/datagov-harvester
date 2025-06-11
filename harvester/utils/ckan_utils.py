@@ -8,10 +8,16 @@ import urllib
 import uuid
 from typing import Tuple, Union
 
+import requests
 from ckanapi import RemoteCKAN
 
 from database.interface import HarvesterDBInterface
-from harvester.exceptions import DCATUSToCKANException, SynchronizeException
+from harvester.exceptions import (
+    CKANDownException,
+    CKANRejectionException,
+    DCATUSToCKANException,
+    SynchronizeException,
+)
 
 if typing.TYPE_CHECKING:
     from harvester.harvest import HarvestSource
@@ -90,6 +96,27 @@ class CKANSyncTool:
                 record.ckan_name = record.ckanified_metadata["name"]
             elif record.action == "update":
                 self.update_record(record)
+        # This should catch the HTTP exceptions in the package_x actions
+        except requests.exceptions.HTTPError as e:
+            record.status = "error"
+            if 400 <= e.response.status_code < 500:
+                raise CKANRejectionException(
+                    (
+                        f"CKAN rejected {record.action} for "
+                        f"{record.identifier} :: {repr(e)}"
+                    ),
+                    record.harvest_source.job_id,
+                    record.id,
+                )
+            elif 500 <= e.response.status_code < 600:
+                raise CKANDownException(
+                    (
+                        f"CKAN is down or unreachable for {record.action} for "
+                        f"{record.identifier} :: {repr(e)}"
+                    ),
+                    record.harvest_source.job_id,
+                    record.id,
+                )
         except Exception as e:
             record.status = "error"
             raise SynchronizeException(
@@ -115,6 +142,7 @@ class CKANSyncTool:
         return True
 
     def create_record(self, record, retry=False) -> dict:
+        logger.info("Creating CKAN record with metadata: %s", record.ckanified_metadata)
         try:
             return self.ckan.action.package_create(**record.ckanified_metadata)
         except Exception as e:
@@ -524,6 +552,15 @@ def munge_tag(tag: str) -> str:
     return tag
 
 
+def _serialize_list_dict(data):
+    # we need to serialize dict since CKAN/solr has issues with dict as extras value.
+    # list too, it can have a dict in it.
+    if isinstance(data, dict) or isinstance(data, list):
+        return json.dumps(data)
+    else:
+        return data
+
+
 def create_ckan_extras(
     metadata: dict, harvest_source: "HarvestSource", record_id: str
 ) -> list[dict]:
@@ -599,9 +636,9 @@ def create_ckan_extras(
             output.append({"key": "old-spatial", "value": metadata["spatial"]})
             data["value"] = translate_spatial(metadata["spatial"])
         else:
-            # TODO: confirm this is what we want.
-            if isinstance(val, list) and len(val) > 0:
-                val = val[0]
+            # CKAN extras can't handle raw JSON objects as values, so
+            # serialize them as needed
+            val = _serialize_list_dict(val)
             data["value"] = val
         output.append(data)
 
