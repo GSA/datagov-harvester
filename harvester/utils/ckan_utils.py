@@ -8,10 +8,16 @@ import urllib
 import uuid
 from typing import Tuple, Union
 
+import requests
 from ckanapi import RemoteCKAN
 
 from database.interface import HarvesterDBInterface
-from harvester.exceptions import DCATUSToCKANException, SynchronizeException
+from harvester.exceptions import (
+    CKANDownException,
+    CKANRejectionException,
+    DCATUSToCKANException,
+    SynchronizeException,
+)
 
 if typing.TYPE_CHECKING:
     from harvester.harvest import HarvestSource
@@ -90,6 +96,27 @@ class CKANSyncTool:
                 record.ckan_name = record.ckanified_metadata["name"]
             elif record.action == "update":
                 self.update_record(record)
+        # This should catch the HTTP exceptions in the package_x actions
+        except requests.exceptions.HTTPError as e:
+            record.status = "error"
+            if 400 <= e.response.status_code < 500:
+                raise CKANRejectionException(
+                    (
+                        f"CKAN rejected {record.action} for "
+                        f"{record.identifier} :: {repr(e)}"
+                    ),
+                    record.harvest_source.job_id,
+                    record.id,
+                )
+            elif 500 <= e.response.status_code < 600:
+                raise CKANDownException(
+                    (
+                        f"CKAN is down or unreachable for {record.action} for "
+                        f"{record.identifier} :: {repr(e)}"
+                    ),
+                    record.harvest_source.job_id,
+                    record.id,
+                )
         except Exception as e:
             record.status = "error"
             raise SynchronizeException(

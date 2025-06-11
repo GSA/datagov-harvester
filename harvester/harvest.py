@@ -1,10 +1,8 @@
-import functools
 import json
 import logging
 import os
 import smtplib
 import sys
-from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -18,9 +16,12 @@ from requests.exceptions import HTTPError, Timeout
 
 sys.path.insert(1, "/".join(os.path.realpath(__file__).split("/")[0:-2]))
 
+
 # ruff: noqa: E402
 from harvester import SMTP_CONFIG, HarvesterDBInterface, db_interface
 from harvester.exceptions import (
+    CKANDownException,
+    CKANRejectionException,
     CompareException,
     DCATUSToCKANException,
     DuplicateIdentifierException,
@@ -33,6 +34,7 @@ from harvester.exceptions import (
 from harvester.lib.harvest_reporter import HarvestReporter
 from harvester.utils.ckan_utils import CKANSyncTool
 from harvester.utils.general_utils import (
+    create_retry_session,
     dataset_to_hash,
     download_file,
     download_waf,
@@ -44,9 +46,7 @@ from harvester.utils.general_utils import (
 )
 
 # requests data
-session = requests.Session()
-# TODD: make sure this timeout config doesn't change all requests!
-session.request = functools.partial(session.request, timeout=15)
+session = create_retry_session()
 
 ckan_sync_tool = CKANSyncTool(session=session)
 
@@ -393,28 +393,20 @@ class HarvestSource:
     def sync(self) -> None:
         """Sync records to external CKAN catalog."""
 
-        # multi-threaded sync
-        def error_callback(future):
-            try:
-                future.result()
-            except (
-                DCATUSToCKANException,
-                SynchronizeException,
-            ):
-                self.reporter.update("errored")
-
-        with ThreadPoolExecutor(max_workers=harvest_worker_sync_count) as executor:
-            [
-                executor.submit(ckan_sync_tool.sync, record).add_done_callback(
-                    error_callback
-                )
-                for record in self.records
-                if record.status
-                not in (
-                    "success",
-                    "error",
-                )  # dont sync records in error, or those which have already been synced (success)
-            ]
+        for record in self.records:
+            # dont sync records in error, or those which have already been synced (success)
+            if record.status not in ("success", "error"):
+                try:
+                    ckan_sync_tool.sync(record=record)
+                except (
+                    DCATUSToCKANException,
+                    SynchronizeException,
+                    CKANDownException,
+                    CKANRejectionException,
+                ) as e:
+                    record.status = "error"
+                    record.validation_msg = str(e)
+                    self.reporter.update("errored")
 
         # post-sync cleanup
         for record in self.records:
