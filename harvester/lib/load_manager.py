@@ -51,6 +51,18 @@ class LoadManager:
             self.schedule_next_job(job.harvest_source_id)
 
     def start_job(self, job_id, job_type="harvest"):
+        """
+        Start a harvest job if no other job is currently in progress for the same source
+
+        This method checks if a job with status 'in_progress' already exists for the
+        given harvest source. If not, it updates the job status to 'in_progress',
+        creates a task contract, and starts the task using the handler. If an error
+        occurs during this process, the job status is reset to 'new'.
+
+        Returns:
+            str: A message indicating the result of the operation.
+        """
+
         try:
             """Check if a job is already running for this source."""
             harvest_job = interface.get_harvest_job(job_id)
@@ -63,8 +75,7 @@ class LoadManager:
             if len(jobs_in_progress):
                 return f"Can't trigger harvest. Job {jobs_in_progress[0].id} already in progress." # noqa E501
 
-            """task manager start interface,
-            takes a job_id"""
+            """task manager start interface, takes a job_id"""
             task_contract = {
                 "command": f"python harvester/harvest.py {job_id} {job_type}",
                 "task_id": f"harvest-job-{job_id}-{job_type}",
@@ -90,8 +101,7 @@ class LoadManager:
             return message
 
     def stop_job(self, job_id, job_type="harvest"):
-        """task manager stop interface,
-        takes a job_id"""
+        """task manager stop interface, takes a job_id"""
         tasks = self.handler.get_all_app_tasks()
         job_task = [
             (t["guid"], t["state"])
@@ -121,7 +131,8 @@ class LoadManager:
 
     def schedule_first_job(self, source_id):
         """schedule first job on harvest source registration or frequency change,
-        takes a source_id"""
+        takes a source_id
+        """
         future_jobs = interface.get_new_harvest_jobs_by_source_in_future(source_id)
         # delete any future scheduled jobs
         for job in future_jobs:
@@ -131,8 +142,7 @@ class LoadManager:
         return self.schedule_next_job(source_id)
 
     def schedule_next_job(self, source_id):
-        """immediately schedule next job to emulate cron,
-        takes a source_id"""
+        """immediately schedule next job to emulate cron, takes a source_id"""
         source = interface.get_harvest_source(source_id)
         if source.frequency == "manual":
             logger.info("No job scheduled for manual source.")
@@ -161,8 +171,7 @@ class LoadManager:
         return message
 
     def trigger_manual_job(self, source_id, job_type="harvest"):
-        """manual trigger harvest job,
-        takes a source_id"""
+        """manual trigger harvest job, takes a source_id"""
         try:
             source = interface.get_harvest_source(source_id)
             jobs_in_progress = interface.pget_harvest_jobs(
