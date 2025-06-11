@@ -1,6 +1,8 @@
 import json
+from unittest.mock import Mock, patch
 
 import pytest
+import requests
 
 from harvester.utils.ckan_utils import (
     create_ckan_extras,
@@ -11,6 +13,7 @@ from harvester.utils.ckan_utils import (
     translate_spatial,
 )
 from harvester.utils.general_utils import (
+    create_retry_session,
     dynamic_map_list_items_to_dict,
     parse_args,
     prepare_transform_msg,
@@ -414,3 +417,58 @@ class TestGeneralUtils:
     )
     def test_process_job_complete_percentage(self, job_data, result):
         assert process_job_complete_percentage(job_data) == result
+
+
+class TestRetrySession:
+    @patch("harvester.utils.general_utils.requests.Session")
+    @patch("harvester.utils.general_utils.Retry")
+    @patch("harvester.utils.general_utils.HTTPAdapter")
+    def test_create_retry_session(self, mock_adapter, mock_retry, mock_session):
+        """Test that the retry session is created with the correct parameters."""
+        session = create_retry_session()
+        mock_session.assert_called_once()
+        mock_adapter.assert_called_once_with(max_retries=mock_retry.return_value)
+        assert session.mount.call_count == 2
+        session.mount.assert_any_call("http://", mock_adapter.return_value)
+        session.mount.assert_any_call("https://", mock_adapter.return_value)
+
+    @patch("harvester.utils.general_utils.HTTPAdapter.send")
+    def test_session_retry_and_success(self, mock_send):
+        """
+        Test that the session retries the requests on failure,
+        and that the 3rd call succeeds.
+        """
+        ok_response = Mock()
+        ok_response.status_code = 200
+        ok_response.json.return_value = {"status": "ok"}
+        ok_response.history = []
+        ok_response.is_redirect = False
+        bad_response = Mock()
+        bad_response.history = []
+        bad_response.status_code = 500
+        bad_response.is_redirect = False
+        bad_response.raise_for_status.side_effect = requests.exceptions.HTTPError(
+            "500 Server Error"
+        )
+
+        def side_effect_mock_send(request, **kwargs):
+            """
+            Bad mock of the send and retry logic. Because the retry_increment
+            logic is a bit complex.
+            """
+            session = create_retry_session()
+            adapter = session.get_adapter("http://")
+            for i in range(0, adapter.max_retries.total):
+                if i < adapter.max_retries.total - 1:
+                    resp = bad_response
+                else:
+                    resp = ok_response
+            return resp
+
+        mock_send.side_effect = side_effect_mock_send
+        session = create_retry_session()
+        result = session.post(
+            "http://example.com/api",
+            json={"key": "value"},
+        )
+        assert result.status_code == 200
