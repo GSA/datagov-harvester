@@ -50,7 +50,7 @@ class TestLoadManager:
         for job in jobs:
             interface_no_jobs.add_harvest_job(job)
 
-        CFCMock.return_value.v3.apps.__getitem__.return_value.tasks.return_value = [
+        CFCMock.return_value.v3.apps._pagination.return_value = [
             {"state": "RUNNING"},
             {"state": "RUNNING"},
             {"state": "DONE"},
@@ -99,7 +99,7 @@ class TestLoadManager:
         interface,
         mock_good_cf_index,
     ):
-        CFCMock.return_value.v3.apps.__getitem__.return_value.tasks.return_value = [
+        CFCMock.return_value.v3.apps._pagination.return_value = [
             {"state": "RUNNING"},
             {"state": "RUNNING"},
             {"state": "RUNNING"},
@@ -139,7 +139,7 @@ class TestLoadManager:
         source_data_dcatus,
         mock_good_cf_index,
     ):
-        CFCMock.return_value.v3.apps.__getitem__.return_value.tasks.return_value = [
+        CFCMock.return_value.v3.apps._pagination.return_value = [
             {"state": "RUNNING"},
             {"state": "RUNNING"},
         ]
@@ -238,6 +238,72 @@ class TestLoadManager:
         assert jobs[1].status == "in_progress"
 
     @patch("harvester.lib.cf_handler.CloudFoundryClient")
+    def test_dont_start_new_job_if_job_already_in_progress(
+        self,
+        CFCMock,
+        mock_good_cf_index,
+        interface_no_jobs,
+        source_data_dcatus,
+    ):
+        load_manager = LoadManager()
+        load_manager.schedule_first_job(source_data_dcatus["id"])
+        message = load_manager.trigger_manual_job(source_data_dcatus["id"])
+        source_id = source_data_dcatus["id"]
+        new_job = interface_no_jobs.pget_harvest_jobs(
+            facets=f"harvest_source_id = '{source_id}', status = 'new'"
+        )[0]
+        current_job = interface_no_jobs.pget_harvest_jobs(
+            facets=f"harvest_source_id = '{source_id}', status = 'in_progress'"
+        )[0]
+        assert message == f"Updated job {current_job.id} to in_progress"
+        
+        failing_start_job_msg = load_manager.start_job(new_job.id, job_type="harvest")
+        assert f"Job {current_job.id} already in progress" in failing_start_job_msg
+
+        jobs = interface_no_jobs.pget_harvest_jobs(
+            facets=f"harvest_source_id = '{source_id}'",
+            order_by="desc",
+        )
+
+        assert len(jobs) == 2
+        for job in jobs:
+            if job.status == "new":
+                assert job.date_created == datetime.now() + timedelta(days=1)
+            elif job.status == "in_progress":
+                assert job.date_created == datetime.now()
+
+    @patch("harvester.lib.cf_handler.CloudFoundryClient")
+    def test_dont_create_new_job_if_another_job_already_scheduled(
+        self,
+        CFCMock,
+        interface_with_multiple_jobs,
+        source_data_dcatus,
+        mock_good_cf_index,
+    ):
+        CFCMock.return_value.v3.apps._pagination.return_value = [
+            {"state": "RUNNING"},
+            {"state": "RUNNING"},
+        ]
+        jobs = interface_with_multiple_jobs.get_new_harvest_jobs_by_source_in_future(
+            source_data_dcatus["id"]
+        )
+        assert len(jobs) == 3
+
+        load_manager = LoadManager()
+        load_manager.schedule_first_job(source_data_dcatus["id"])
+        load_manager.schedule_next_job(source_data_dcatus["id"])
+        # assert that no new job is created
+        # when there is already a job scheduled in the future
+        new_jobs = (
+            interface_with_multiple_jobs.get_new_harvest_jobs_by_source_in_future(
+                source_data_dcatus["id"]
+            )
+        )
+        assert len(new_jobs) == 1
+        assert source_data_dcatus["frequency"] == "daily"
+        assert new_jobs[0].date_created == datetime.now() + timedelta(days=1)
+
+    @patch("harvester.lib.cf_handler.CloudFoundryClient")
     def test_assert_env_var_changes_task_size(
         self,
         CFCMock,
@@ -277,9 +343,7 @@ class TestLoadManager:
         interface_no_jobs,
         source_data_dcatus,
     ):
-        CFCMock.return_value.v3.apps.__getitem__.return_value.tasks.return_value = (
-            all_tasks_json_fixture
-        )
+        CFCMock.return_value.v3.apps._pagination.return_value = all_tasks_json_fixture
 
         load_manager = LoadManager()
         load_manager.trigger_manual_job(source_data_dcatus["id"])

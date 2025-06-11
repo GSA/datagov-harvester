@@ -1,6 +1,6 @@
 ---
 applications:
-  - name: ((app_name))-admin
+  - name: ((app_name))
     buildpacks:
       - python_buildpack
     routes:
@@ -8,36 +8,21 @@ applications:
     services:
       - ((app_name))-db
       - ((app_name))-secrets
+      - ((app_name))-smtp
     instances: ((admin_instances))
     memory: ((admin_memory_quota))
     disk_quota: ((admin_disk_quota))
     env:
       FLASK_APP: run.py
       CF_API_URL: ((CF_API_URL))
-      HARVEST_RUNNER_APP_GUID: ((HARVEST_RUNNER_APP_GUID))
       HARVEST_RUNNER_MAX_TASKS: ((HARVEST_RUNNER_MAX_TASKS))
+      MDTRANSLATOR_URL: ((MDTRANSLATOR_URL))
       CKAN_API_URL: ((CKAN_API_URL))
       CLIENT_ID: ((CLIENT_ID))
       ISSUER: ((ISSUER))
       REDIRECT_URI: ((REDIRECT_URI))
-      NEW_RELIC_APP_NAME: ((app_name))-admin-((space_name))
+      NEW_RELIC_APP_NAME: ((app_name))-((space_name))
       NEW_RELIC_HOST: gov-collector.newrelic.com
       NEW_RELIC_MONITOR_MODE: ((new_relic_monitor_mode))
       NEW_RELIC_CONFIG_FILE: /home/vcap/app/config/newrelic.ini
     command: ./harvest-admin-start.sh
-  - name: ((app_name))-runner
-    buildpacks:
-      - python_buildpack
-    services:
-      - ((app_name))-db
-      - ((app_name))-secrets
-      - ((app_name))-smtp
-    instances: 0
-    health-check-type: process
-    no-route: true
-    env:
-      CF_API_URL: ((CF_API_URL))
-      CKAN_API_URL: ((CKAN_API_URL))
-      REDIRECT_URI: ((REDIRECT_URI))
-      MDTRANSLATOR_URL: ((MDTRANSLATOR_URL))
-    command: sleep infinity

@@ -39,3 +39,6 @@ pytest-**.xml
 pytest-coverage-**.txt
 pytest_auth_state.json
 pytest_harvest_errors.csv
+
+# qa data
+qa_output/
