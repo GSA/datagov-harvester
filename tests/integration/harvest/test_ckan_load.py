@@ -1,3 +1,5 @@
+import json
+
 from itertools import groupby
 from unittest.mock import patch
 
@@ -156,7 +158,7 @@ class TestCKANLoad:
                     "key": "description",
                     "value": "COT reports provide a breakdown of each Tuesday's open interest for futures and options on futures market in which 20 or more traders hold positions equal to or above the reporting levels established by CFTC",
                 },
-                {"key": "keyword", "value": "commitment of traders"},
+                {"key": "keyword", "value": '["commitment of traders", "cot", "open interest"]'},
                 {"key": "modified", "value": "R/P1W"},
                 {
                     "key": "publisher_hierarchy",
@@ -168,10 +170,10 @@ class TestCKANLoad:
                 },
                 {
                     "key": "contactPoint",
-                    "value": {
+                    "value": json.dumps({
                         "fn": "Harold W. Hild",
                         "hasEmail": "mailto:hhild@CFTC.GOV",
-                    },
+                    }),
                 },
                 {"key": "identifier", "value": "cftc-dc1"},
                 {"key": "accessLevel", "value": "public"},
@@ -181,8 +183,8 @@ class TestCKANLoad:
                     "value": '{"type":"MultiPolygon","coordinates":[[[[-124.733253,24.544245],[-124.733253,49.388611],[-66.954811,49.388611],[-66.954811,24.544245],[-124.733253,24.544245]]]]}',
                 },
                 {"key": "isPartOf", "value": "some-collection-id"},
-                {"key": "bureauCode", "value": "339:00"},
-                {"key": "programCode", "value": "000:000"},
+                {"key": "bureauCode", "value": json.dumps(["339:00"])},
+                {"key": "programCode", "value": json.dumps(["000:000"])},
             ],
         }
 
