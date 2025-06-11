@@ -14,6 +14,54 @@ fileConfig(config.config_file_name)
 logger = logging.getLogger("alembic.env")
 
 
+def include_name(name, type_, parent_names):
+    """Custom hook to exclude PostGIS-managed schemas."""
+    if type_ == "table":
+        # list is tables to exclude
+        # There are lots of tables in the tiger and topology schemas :|
+        return name not in [
+            "spatial_ref_sys",
+            "addr",
+            "addrfeat",
+            "bg",
+            "county",
+            "county_lookup",
+            "countysub_lookup",
+            "cousub",
+            "direction_lookup",
+            "edges",
+            "faces",
+            "featnames",
+            "geocode_settings",
+            "geocode_settings_default",
+            "loader_lookuptables",
+            "loader_platform",
+            "loader_variables",
+            "pagc_gaz",
+            "pagc_lex",
+            "pagc_rules",
+            "place",
+            "place_lookup",
+            "secondary_unit_lookup",
+            "state",
+            "state_lookup",
+            "street_type_lookup",
+            "tabblock",
+            "tabblock20",
+            "tract",
+            "zcta5",
+            "zip_lookup",
+            "zip_lookup_all",
+            "zip_lookup_base",
+            "zip_state",
+            "zip_state_loc",
+            "layer",
+            "topology",
+        ]
+    else:
+        return True
+
+
 def get_engine():
     try:
         # this works with Flask-SQLAlchemy<3 and Alchemical
@@ -62,7 +110,13 @@ def run_migrations_offline():
 
     """
     url = config.get_main_option("sqlalchemy.url")
-    context.configure(url=url, target_metadata=get_metadata(), literal_binds=True)
+    context.configure(
+        url=url,
+        target_metadata=get_metadata(),
+        literal_binds=True,
+        include_name=include_name,
+        include_schemas=True,
+    )
 
     with context.begin_transaction():
         context.run_migrations()
@@ -94,7 +148,11 @@ def run_migrations_online():
 
     with connectable.connect() as connection:
         context.configure(
-            connection=connection, target_metadata=get_metadata(), **conf_args
+            connection=connection,
+            target_metadata=get_metadata(),
+            include_name=include_name,
+            include_schemas=True,
+            **conf_args
         )
 
         with context.begin_transaction():
