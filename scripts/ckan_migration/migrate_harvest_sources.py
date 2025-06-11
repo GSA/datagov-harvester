@@ -52,6 +52,7 @@ def _org_to_upload(org_data):
         "id": org_data["id"],
         "name": org_data["title"],
         "logo": org_data["image_url"],
+        "organization_type": _get_extra_named(org_data, "organization_type"),
     }
 
 
@@ -84,7 +85,11 @@ def _ensure_org_harvester(org_data):
 
 
 def _ensure_org_new_catalog(org_data):
-    """Ensure organization exists in new CKAN catalog."""
+    """Ensure organization exists in new CKAN catalog.
+
+    org_data is the full details from the existing Catalog, so the
+    resulting org will be a clone of the one currently on Catalog.
+    """
     result = post(
         CONFIG.new_catalog_url + "api/action/organization_show",
         headers=CONFIG.new_catalog_auth_headers,
@@ -237,14 +242,15 @@ def _upload_source(source):
     click.echo(f"Uploading source data for url {source['url']}")
     logger.debug("Source data: %s", source)
 
-    # sources need organizations to exist in order to be created
-    org_exists = ensure_organization(source["organization"])
-    if not org_exists:
-        return False
-
     # We need information about the organization to create the correct harvest
     # source (federal or not and email notification list)
     org_details = _get_org_details(source["owner_org"])
+
+    # sources need organizations to exist in order to be created
+    org_exists = ensure_organization(org_details)
+    if not org_exists:
+        return False
+
 
     upload_data = _source_to_upload(source, org=org_details)
     logger.debug("Creating harvest source with data: %s", upload_data)
@@ -308,13 +314,13 @@ def migrate_source(
     if harvester_api_token:
         CONFIG.harvester_auth_headers = {"Authorization": harvester_api_token}
     else:
-        logger.error("Please set a non-empty api_token.")
+        logger.error("Please set a non-empty Harvester API token.")
         return 1
 
     if new_catalog_api_token:
         CONFIG.new_catalog_auth_headers = {"Authorization": new_catalog_api_token}
     else:
-        logger.error("Please set a non-empty api_token.")
+        logger.error("Please set a non-empty Catalog API token.")
         return 1
 
     if debug:

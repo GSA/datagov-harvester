@@ -11,6 +11,8 @@ import geojson_validator
 import requests
 import sansjson
 from bs4 import BeautifulSoup
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger()
@@ -358,3 +360,24 @@ def get_server_type(server: str) -> str:
         return "iis"
     else:
         return server
+
+
+def create_retry_session() -> requests.Session:
+    """Creates a requests session with retry logic for HTTP/S requests."""
+    session = requests.Session()
+    # 3 Retries with exponential backoff (of 2 seconds) for server errors
+    # we want to retry on 500, 502, 503, and 504 errors (CKAN Down)
+    retry_strategy = Retry(
+        total=3,
+        backoff_factor=3,
+        backoff_max=15,
+        status_forcelist=[500, 502, 503, 504],
+        raise_on_status=False,
+        allowed_methods={"GET", "POST", "PUT", "DELETE"},
+    )
+    # pass retry strategy to HTTPAdapter
+    adapter = HTTPAdapter(max_retries=retry_strategy)
+    # tell session which protocols to use the adapter with
+    session.mount("http://", adapter)
+    session.mount("https://", adapter)
+    return session
