@@ -30,7 +30,19 @@ class Organization(db.Model):
 
     name = db.Column(db.String, nullable=False, index=True)
     logo = db.Column(db.String)
-    organization_type = db.Column(db.String)
+    organization_type = db.Column(
+        Enum(
+            "Federal Government",
+            "City Government",
+            "State Government",
+            "County Government",
+            "University",
+            "Tribal",
+            "Non-Profit",
+            name="organization_type_enum",
+            create_constraint=True,
+        )
+    )
     sources = db.relationship(
         "HarvestSource", backref="org", cascade="all, delete-orphan", lazy=True
     )
