@@ -62,7 +62,7 @@ services:
       - -c
       - |
         flask db upgrade
-        flask run --host=0.0.0.0 --port=8080 --reload
+        gunicorn "wsgi:application" --config "./gunicorn.conf.py" -b "0.0.0.0:$PORT" --timeout 120 --worker-class gthread --workers 3 --forwarded-allow-ips='*' --preload
 
 volumes:
   postgres_data:
