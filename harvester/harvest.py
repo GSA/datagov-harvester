@@ -27,10 +27,10 @@ from harvester.exceptions import (
     DuplicateIdentifierException,
     ExtractExternalException,
     ExtractInternalException,
+    SendNotificationException,
     SynchronizeException,
     TransformationException,
     ValidationException,
-    SendNotificationException
 )
 from harvester.lib.harvest_reporter import HarvestReporter
 from harvester.utils.ckan_utils import CKANSyncTool

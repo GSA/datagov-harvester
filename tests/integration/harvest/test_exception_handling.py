@@ -1,6 +1,7 @@
 # ruff: noqa: F841
 
 import json
+import smtplib
 from unittest.mock import Mock, patch
 
 import ckanapi
@@ -13,10 +14,9 @@ from harvester.exceptions import (
     CKANRejectionException,
     ExtractExternalException,
     ExtractInternalException,
-    SendNotificationException
+    SendNotificationException,
 )
 from harvester.harvest import HarvestSource
-import smtplib
 
 
 def download_mock(_, __):
@@ -101,12 +101,15 @@ class TestHarvestJobExceptionHandling:
         harvest_source.notification_emails = ["user@example.com"]
 
         with patch(
-            "harvester.harvest.smtplib.SMTP", side_effect=smtplib.SMTPConnectError(421, "Cannot connect")
+            "harvester.harvest.smtplib.SMTP",
+            side_effect=smtplib.SMTPConnectError(421, "Cannot connect"),
         ):
             with pytest.raises(SendNotificationException) as exc_info:
                 harvest_source.send_notification_emails(job_results)
 
-            assert "Error preparing or sending notification emails" in str(exc_info.value)
+            assert "Error preparing or sending notification emails" in str(
+                exc_info.value
+            )
 
 
 def make_http_error(status_code):
