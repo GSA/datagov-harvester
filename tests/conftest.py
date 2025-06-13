@@ -147,7 +147,7 @@ def source_data_dcatus_2(organization_data: dict) -> dict:
     return {
         "id": "3f2652de-91df-4c63-8b53-bfced20b276b",
         "name": "Test Source 2",
-        "notification_emails": "email@example.com",
+        "notification_emails": ["email@example.com"],
         "organization_id": organization_data["id"],
         "frequency": "daily",
         "url": f"{HARVEST_SOURCE_URL}/dcatus/dcatus_2.json",
@@ -162,7 +162,7 @@ def source_data_dcatus_same_title(organization_data: dict) -> dict:
     return {
         "id": "50301cdb-5766-46ed-8f46-ca63844315a2",
         "name": "Test Source Same Title",
-        "notification_emails": "email@example.com",
+        "notification_emails": ["email@example.com"],
         "organization_id": organization_data["id"],
         "frequency": "daily",
         "url": f"{HARVEST_SOURCE_URL}/dcatus/dcatus_same_title.json",
@@ -177,7 +177,7 @@ def source_data_waf_csdgm(organization_data: dict) -> dict:
     return {
         "id": "55dca495-3b92-4fe4-b9c5-d433cbc3c82d",
         "name": "Test Source (WAF CSDGM)",
-        "notification_emails": "wafl@example.com",
+        "notification_emails": ["wafl@example.com"],
         "organization_id": organization_data["id"],
         "frequency": "daily",
         "url": f"{HARVEST_SOURCE_URL}/waf/",
@@ -192,7 +192,7 @@ def source_data_waf_iso19115_2(organization_data: dict) -> dict:
     return {
         "id": "8c3cd8c5-6174-42ef-9512-10503533c3a9",
         "name": "Test Source (WAF ISO19115_2)",
-        "notification_emails": "wafl@example.com",
+        "notification_emails": ["wafl@example.com"],
         "organization_id": organization_data["id"],
         "frequency": "daily",
         "url": f"{HARVEST_SOURCE_URL}/iso_2_waf/",
@@ -212,7 +212,7 @@ def source_data_dcatus_invalid(organization_data: dict) -> dict:
     return {
         "id": "2bfcb047-70dc-435a-a46c-4dec5df7532d",
         "name": "Test Source ( Invalid Records )",
-        "notification_emails": "invalid@example.com",
+        "notification_emails": ["invalid@example.com"],
         "organization_id": organization_data["id"],
         "frequency": "daily",
         "url": f"{HARVEST_SOURCE_URL}/dcatus/missing_title.json",
@@ -227,7 +227,7 @@ def source_data_dcatus_single_record(organization_data: dict) -> dict:
     return {
         "id": "2f2652de-91df-4c63-8b53-bfced20b276b",
         "name": "Single Record Test Source",
-        "notification_emails": "email@example.com",
+        "notification_emails": ["email@example.com"],
         "organization_id": organization_data["id"],
         "frequency": "daily",
         "url": f"{HARVEST_SOURCE_URL}/dcatus/dcatus_single_record.json",
@@ -242,7 +242,7 @@ def source_data_dcatus_single_record_non_federal(organization_data: dict) -> dic
     return {
         "id": "2f2652de-91df-4c63-8b53-bfced20b276b",
         "name": "Single Record Test Source",
-        "notification_emails": "email@example.com",
+        "notification_emails": ["email@example.com"],
         "organization_id": organization_data["id"],
         "frequency": "daily",
         "url": f"{HARVEST_SOURCE_URL}/dcatus/dcatus_single_record_non-federal.json",
@@ -257,7 +257,7 @@ def source_data_dcatus_bad_license_uri(organization_data: dict) -> dict:
     return {
         "id": "2f2652de-91df-4c63-8b53-bfced20b276b",
         "name": "Single Record Test Source",
-        "notification_emails": "email@example.com",
+        "notification_emails": ["email@example.com"],
         "organization_id": organization_data["id"],
         "frequency": "daily",
         "url": f"{HARVEST_SOURCE_URL}/dcatus/dcatus_bad_license_uri.json",
@@ -272,7 +272,7 @@ def source_data_dcatus_bad_url(organization_data: dict) -> dict:
     return {
         "id": "b059e587-a4a1-422e-825a-830b4913dbfb",
         "name": "Bad URL Source",
-        "notification_emails": "bad@example.com",
+        "notification_emails": ["bad@example.com"],
         "organization_id": organization_data["id"],
         "frequency": "daily",
         "url": f"{HARVEST_SOURCE_URL}/dcatus/bad_url.json",
@@ -287,7 +287,7 @@ def source_data_dcatus_invalid_records(organization_data) -> dict:
     return {
         "id": "8e7f539b-0a83-43ad-950e-3976bb11a425",
         "name": "Invalid Record Source",
-        "notification_emails": "invalid_record@example.com",
+        "notification_emails": ["invalid_record@example.com"],
         "organization_id": organization_data["id"],
         "frequency": "daily",
         "url": "http://localhost/dcatus/missing_title.json",

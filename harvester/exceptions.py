@@ -47,6 +47,10 @@ class CompareException(HarvestCriticalException):
     pass
 
 
+class SendNotificationException(HarvestCriticalException):
+    pass
+
+
 # non-critical exceptions
 class HarvestNonCriticalException(Exception):
     def __init__(self, msg, harvest_job_id, harvest_record_id):
