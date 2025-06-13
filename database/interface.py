@@ -422,7 +422,7 @@ class HarvesterDBInterface:
             self.db.refresh(new_record)
             return new_record
         except Exception as e:
-            logger.error("Error: %s", e)
+            logger.error("Write to db error: %s", e)
             self.db.rollback()
             return None
 

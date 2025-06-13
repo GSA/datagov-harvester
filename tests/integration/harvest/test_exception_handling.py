@@ -13,8 +13,10 @@ from harvester.exceptions import (
     CKANRejectionException,
     ExtractExternalException,
     ExtractInternalException,
+    SendNotificationException
 )
 from harvester.harvest import HarvestSource
+import smtplib
 
 
 def download_mock(_, __):
@@ -70,6 +72,41 @@ class TestHarvestJobExceptionHandling:
     def test_no_source_info_exception(self, job_data_dcatus):
         with pytest.raises(ExtractInternalException) as e:
             HarvestSource(job_data_dcatus["id"])
+
+    def test_send_notification_exception(
+        self,
+        interface,
+        organization_data,
+        source_data_dcatus_bad_url,
+        job_data_dcatus_bad_url,
+    ):
+        """
+        Test that an exception is raised when sending notification emails fails.
+        """
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_dcatus_bad_url)
+        harvest_job = interface.add_harvest_job(job_data_dcatus_bad_url)
+
+        harvest_source = HarvestSource(harvest_job.id)
+
+        job_results = {
+            "records_added": 1,
+            "records_updated": 2,
+            "records_deleted": 0,
+            "records_ignored": 0,
+            "records_errored": 0,
+            "records_validated": 3,
+        }
+
+        harvest_source.notification_emails = ["user@example.com"]
+
+        with patch(
+            "harvester.harvest.smtplib.SMTP", side_effect=smtplib.SMTPConnectError(421, "Cannot connect")
+        ):
+            with pytest.raises(SendNotificationException) as exc_info:
+                harvest_source.send_notification_emails(job_results)
+
+            assert "Error preparing or sending notification emails" in str(exc_info.value)
 
 
 def make_http_error(status_code):
