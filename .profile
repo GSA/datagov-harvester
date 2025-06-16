@@ -15,7 +15,7 @@ export APP_NAME=$(echo $VCAP_APPLICATION | jq -r '.application_name')
 
 # POSTGRES DB CREDS
 export URI=$(vcap_get_service db .credentials.uri)
-export DATABASE_URI=$(echo $URI | sed 's/postgres:\/\//postgresql:\/\//g')
+export DATABASE_URI=$(echo $URI | sed 's/postgres:\/\//postgresql+psycopg:\/\//g')
 
 # CF CREDS for CF TASKS API
 export CF_SERVICE_AUTH=$(vcap_get_service secrets .credentials.CF_SERVICE_AUTH)
