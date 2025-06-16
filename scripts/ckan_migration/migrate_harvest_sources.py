@@ -251,7 +251,6 @@ def _upload_source(source):
     if not org_exists:
         return False
 
-
     upload_data = _source_to_upload(source, org=org_details)
     logger.debug("Creating harvest source with data: %s", upload_data)
 
