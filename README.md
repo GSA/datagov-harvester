@@ -44,7 +44,20 @@ CF_SERVICE_* variables can be extracted from from service-keys by running `cf se
 
 CKAN_API_TOKEN should be extracted from `cf env datagov-harvest-runner` in the `user-provided` service `datagov-harvest-secrets` with the same key name.
 
-To make Playwright authenticated tests pass, copy the file `pytest_auth_state.json` [stored in Drive](https://drive.google.com/file/d/1_ItITwu3fbCNd5MzmoeOagD5tdPxXQe3/view?usp=drive_link) into the root of the project.
+### Playwright tests
+
+The playwright tests need authentication to complete full testing. In order to do this locally
+a file must exist at the root of this project called `pytest_auth_state.json`. You can see an
+example in [Google Drive](https://drive.google.com/file/d/1_ItITwu3fbCNd5MzmoeOagD5tdPxXQe3/view?usp=drive_link).
+In order to get a working version, first spin up the app and use the [user-setup](#user-management) to
+add yourself as a user. Once you are logged in, check your browser tools to find the session cookie.
+Copy that cookie, and replace in the relevant section of the `pytest_auth_state.json` file.
+
+If GitHub automated tests are failing (as of this writing 9 seemingly random tests fail),
+then take your new file and run it through base64 encoding with the following command, and place the
+output in the GitHub secret. This should be good for another month.
+
+`cat pytest_auth_state.json | base64`
 
 ### Flask Debugging
 If absolutely need to hit a breakpoint in your Flask app, you can setup local Flask debugging in your IDE.
