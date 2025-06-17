@@ -47,7 +47,7 @@ def get_sources(count):
     return data["result"]["results"]
 
 
-def _org_to_upload(org_data):
+def _harvester_org_to_upload(org_data):
     return {
         "id": org_data["id"],
         "name": org_data["title"],
@@ -67,7 +67,7 @@ def _ensure_org_harvester(org_data):
         # organization existed in harvester
         return True
     else:
-        upload_data = _org_to_upload(org_data)
+        upload_data = _harvester_org_to_upload(org_data)
         logger.debug("Creating harvester organization with data %s", upload_data)
         result = post(
             CONFIG.harvester_url + "organization/add",
@@ -84,11 +84,34 @@ def _ensure_org_harvester(org_data):
             return False
 
 
+def _new_catalog_org_to_upload(org_data):
+    new_org_data = {
+        key: value
+        for key, value in org_data.items()
+        if key
+        in [
+            "id",
+            "name",
+            "title",
+            "image_url",
+            "state",
+            "approval_status",
+        ]
+    }
+    new_org_data["extras"] = [
+        {
+            "key": "organization_type",
+            "value": _get_extra_named(org_data, "organization_type"),
+        }
+    ]
+    return new_org_data
+
+
 def _ensure_org_new_catalog(org_data):
     """Ensure organization exists in new CKAN catalog.
 
-    org_data is the full details from the existing Catalog, so the
-    resulting org will be a clone of the one currently on Catalog.
+    org_data is the full details from the existing Catalog, so we can get the
+    extras we need to put into our create API call.
     """
     result = post(
         CONFIG.new_catalog_url + "api/action/organization_show",
@@ -100,10 +123,11 @@ def _ensure_org_new_catalog(org_data):
         # organization existed in new catalog
         return True
     else:
-        logger.debug("Creating new CKAN organization with data %s", org_data)
+        upload_data = _new_catalog_org_to_upload(org_data)
+        logger.debug("Creating new CKAN organization with data %s", upload_data)
         result = post(
             CONFIG.new_catalog_url + "api/action/organization_create",
-            json=org_data,
+            json=upload_data,
             headers=CONFIG.new_catalog_auth_headers,
         )
         logger.debug("%s: %s", result.status_code, result.text)
