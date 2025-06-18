@@ -256,7 +256,7 @@ class TestLoadManager:
             facets=f"harvest_source_id = '{source_id}', status = 'in_progress'"
         )[0]
         assert message == f"Updated job {current_job.id} to in_progress"
-        
+
         failing_start_job_msg = load_manager.start_job(new_job.id, job_type="harvest")
         assert f"Job {current_job.id} already in progress" in failing_start_job_msg
 

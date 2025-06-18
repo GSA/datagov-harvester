@@ -112,7 +112,7 @@ def create_client_assertion():
         "aud": TOKEN_URL,
         "jti": uuid.uuid4().hex,
         "exp": now + 900,  # Token is valid for 15 minutes
-        "iat": now,
+        "iat": now - 100,  # Issued at time, allow some leeway
     }
 
     return jwt.encode(payload, private_key, algorithm="RS256")
