@@ -50,7 +50,7 @@ services:
     volumes:
       - .:/app
     environment:
-      DATABASE_URI: postgresql://${DATABASE_USER}:${DATABASE_PASSWORD}@db:${DATABASE_PORT}/${DATABASE_NAME}
+      DATABASE_URI: postgresql+psycopg://${DATABASE_USER}:${DATABASE_PASSWORD}@db:${DATABASE_PORT}/${DATABASE_NAME}
       CF_SERVICE_USER: ${CF_SERVICE_USER}
       CF_SERVICE_AUTH: ${CF_SERVICE_AUTH}
       FLASK_APP: run.py
