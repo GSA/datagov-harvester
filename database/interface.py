@@ -289,17 +289,32 @@ class HarvesterDBInterface:
         )
         return harvest_jobs
 
-    def get_new_harvest_jobs_in_past(self):
-        harvest_jobs = (
+    def get_in_progress_jobs(self):
+        """Get harvest jobs that are in progress."""
+        return list(
+            self.db.query(HarvestJob).filter(HarvestJob.status == "in_progress")
+        )
+
+    def get_new_harvest_jobs_in_past(self, limit=None):
+        """Get harvest jobs in the database that need to be run.
+
+        A job that needs to be run has status "new" and a date_created that is
+        before now. The jobs are returned in ascending order of date_created so that the
+        oldest jobs are given first.
+
+        If `limit` is given, it limits the number of returned jobs to at most that
+        number. The default is to return all the jobs.
+        """
+        return (
             self.db.query(HarvestJob)
             .filter(
                 HarvestJob.date_created < datetime.now(timezone.utc),
                 HarvestJob.status == "new",
             )
             .order_by(asc(HarvestJob.date_created))
+            .limit(limit)
             .all()
         )
-        return [job for job in harvest_jobs]
 
     def get_new_harvest_jobs_by_source_in_future(self, source_id):
         harvest_jobs = (
