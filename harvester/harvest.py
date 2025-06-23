@@ -27,6 +27,7 @@ from harvester.exceptions import (
     DuplicateIdentifierException,
     ExtractExternalException,
     ExtractInternalException,
+    SendNotificationException,
     SynchronizeException,
     TransformationException,
     ValidationException,
@@ -431,7 +432,12 @@ class HarvestSource:
                 self.notification_frequency == "on_error"
                 and job_results["records_errored"]
             ):
-                self.send_notification_emails(job_results)
+                try:
+                    self.send_notification_emails(job_results)
+                except SendNotificationException as e:
+                    logging.error(
+                        f"Error sending notification emails for job {self.job_id}: {e}"
+                    )
 
     def send_notification_emails(self, job_results: dict) -> None:
         """Send harvest report emails to havest source POCs"""
@@ -475,9 +481,12 @@ class HarvestSource:
                     )
                     logger.info(f"Notification email sent to: {recipient}")
 
-        # TODO: create a custom CriticalException and throw that instead
         except Exception as e:
             logger.error(f"Error preparing or sending notification emails: {e}")
+            raise SendNotificationException(
+                f"Error preparing or sending notification emails for job {self.job_id}: {e}",
+                self.job_id,
+            )
 
     def sync_job_helper(self):
         """Kickstart a sync job where we're just syncing records"""

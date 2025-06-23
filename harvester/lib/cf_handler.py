@@ -2,6 +2,7 @@ import functools
 import json
 import logging
 import os
+import re
 
 from cloudfoundry_client.client import CloudFoundryClient
 
@@ -74,13 +75,40 @@ class CFHandler:
             self.client.v3.apps._pagination(self.client.v3.apps.get(app_guuid, "tasks"))
         )
 
+    @staticmethod
+    def job_ids_from_tasks(task_list):
+        """Convert a list of task dicts into a list of their job ids."""
+
+        def _id_from_task(task):
+            name = task["name"]
+            try:
+                return re.match(r"harvest-job-(.*)-\w+", name)[1]
+            except TypeError:  # no match
+                return None
+
+        id_list = [_id_from_task(task) for task in task_list]
+        return [id_ for id_ in id_list if id_ is not None]
+
+    def get_running_app_tasks(self, app_guuid=None):
+        """Get a list of running tasks for a specified app.
+
+        There are other tasks in the list that aren't our harvest jobs
+        so we filter those out here.
+        """
+        tasks = self.get_all_app_tasks(app_guuid)
+        return [
+            task
+            for task in tasks
+            if task.get("state", "") == "RUNNING"
+            and task.get("name", "").startswith("harvest-job-")
+        ]
+
     def num_running_app_tasks(self, app_guuid=None):
         """Count how many tasks are in the running state.
 
         If app_guid is not given, it will use the current app's GUUID.
         """
-        tasks = self.get_all_app_tasks(app_guuid)
-        return sum(1 for _ in filter(lambda task: task["state"] == "RUNNING", tasks))
+        return len(self.get_running_app_tasks(app_guuid))
 
     def read_recent_app_logs(self, app_guuid=None, task_id=None):
         """Get a string of recent logs.

@@ -29,11 +29,47 @@ class LoadManager:
         self.jobs = []
         self.running_tasks = []
 
-    def start(self):
-        """Runs on Flask Admin start, roughly every 15min"""
-        if os.getenv("CF_INSTANCE_INDEX") != "0":
-            logger.info("CF_INSTANCE_INDEX is not set or not equal to zero")
-            return
+    def _handle_failed_job(self, job):
+        """Handle a HarvestJob that failed.
+
+        A failed job has status in_progress in the database but there isn't a
+        task running for it. Something happened to its task but we likely
+        don't know what. Minimally, set the state to `error` and record a job
+        error that we saw this.
+
+        The next job is scheduled on job start so we shouldn't need to schedule
+        anything else and we are choosing not to retry these.
+        """
+        interface.update_harvest_job(
+            job.id,
+            {
+                "status": "error",
+                "date_finished": get_datetime(),
+            },
+        )
+        interface.add_harvest_job_error(
+            {
+                "date_created": get_datetime(),
+                "type": "FailedJobCleanup",
+                "message": "In-progress job stopped running for an unknown reason.",
+                "harvest_job_id": job.id,
+            }
+        )
+
+    def _clean_old_jobs(self):
+        """Check for in_progress jobs in the database that aren't running."""
+        in_progress_jobs = interface.get_in_progress_jobs()
+        running_tasks = self.handler.get_running_app_tasks()
+        running_harvest_ids = set(self.handler.job_ids_from_tasks(running_tasks))
+
+        failed_jobs = [
+            job for job in in_progress_jobs if job.id not in running_harvest_ids
+        ]
+        for job in failed_jobs:
+            self._handle_failed_job(job)
+
+    def _start_new_jobs(self):
+        """Start new jobs to be done, up to the max tasks count."""
         self.running_tasks = self.handler.num_running_app_tasks()
         if self.running_tasks >= MAX_TASKS_COUNT:
             logger.info(
@@ -43,12 +79,21 @@ class LoadManager:
         else:
             slots = MAX_TASKS_COUNT - self.running_tasks
 
-        # invoke cf_task with next job(s)
-        # then mark that job(s) as running in the DB
-        self.jobs = interface.get_new_harvest_jobs_in_past()
-        for job in self.jobs[:slots]:
+        # invoke cf_task with next jobs
+        # then mark the job as running in the DB
+        self.jobs = interface.get_new_harvest_jobs_in_past(limit=slots)
+        for job in self.jobs:
             self.start_job(job.id)
             self.schedule_next_job(job.harvest_source_id)
+
+    def start(self):
+        """Runs on Flask Admin start, roughly every 15min"""
+        if os.getenv("CF_INSTANCE_INDEX") != "0":
+            logger.debug("CF_INSTANCE_INDEX is not set or not equal to zero")
+            return
+
+        self._clean_old_jobs()
+        self._start_new_jobs()
 
     def start_job(self, job_id, job_type="harvest"):
         """
