@@ -6,6 +6,7 @@ from unittest.mock import patch
 import pytest
 from freezegun import freeze_time
 
+from database.models import HarvestJobError
 from harvester.lib.load_manager import LoadManager
 from harvester.utils.general_utils import create_future_date
 
@@ -374,3 +375,41 @@ class TestLoadManager:
         cancel_task_mock = CFCMock.return_value.v3.tasks.cancel
         assert cancel_task_mock.call_count == 1
         assert cancel_task_mock.call_args[0][0] == task_guid_val
+
+    @patch("harvester.lib.cf_handler.CloudFoundryClient")
+    def test_clean_old_jobs_failed(self, CFCMock, interface_with_multiple_jobs):
+        """Cleans up failed in_progress jobs in the database."""
+        assert len(interface_with_multiple_jobs.get_in_progress_jobs()) == 3
+
+        # CF reports no running jobs
+        CFCMock.return_value.v3.apps._pagination.return_value = [
+            {"state": "SUCCEEDED", "name": "harvest-job-"},
+        ]
+
+        load_manager = LoadManager()
+        load_manager._clean_old_jobs()
+
+        # no in progress jobs
+        assert len(interface_with_multiple_jobs.get_in_progress_jobs()) == 0
+        # and three new job errors
+        assert interface_with_multiple_jobs.db.query(HarvestJobError).count() == 3
+
+    @patch("harvester.lib.cf_handler.CloudFoundryClient")
+    def test_clean_old_jobs_still_running(self, CFCMock, interface_with_multiple_jobs):
+        """Doesn't clean up running in_progress jobs."""
+        in_progress_jobs = interface_with_multiple_jobs.get_in_progress_jobs()
+        assert len(in_progress_jobs) == 3
+
+        # CF reports all running jobs
+        CFCMock.return_value.v3.apps._pagination.return_value = [
+            {"state": "RUNNING", "name": f"harvest-job-{job.id}-harvest"}
+            for job in in_progress_jobs
+        ]
+
+        load_manager = LoadManager()
+        load_manager._clean_old_jobs()
+
+        # still 3 in progress jobs
+        assert len(interface_with_multiple_jobs.get_in_progress_jobs()) == 3
+        # and no new job errors
+        assert interface_with_multiple_jobs.db.query(HarvestJobError).count() == 0
