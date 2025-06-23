@@ -100,9 +100,9 @@ class TestLoadManager:
         mock_good_cf_index,
     ):
         CFCMock.return_value.v3.apps._pagination.return_value = [
-            {"state": "RUNNING"},
-            {"state": "RUNNING"},
-            {"state": "RUNNING"},
+            {"state": "RUNNING", "name": "harvest-job-"},
+            {"state": "RUNNING", "name": "harvest-job-"},
+            {"state": "RUNNING", "name": "harvest-job-"},
         ]
 
         load_manager = LoadManager()
@@ -125,9 +125,9 @@ class TestLoadManager:
         load_manager.start()
 
         # assert logger called with correct args
-        assert logger_mock.info.call_count == 1
+        assert logger_mock.debug.call_count == 1
         assert (
-            logger_mock.info.call_args[0][0]
+            logger_mock.debug.call_args[0][0]
             == "CF_INSTANCE_INDEX is not set or not equal to zero"
         )
 

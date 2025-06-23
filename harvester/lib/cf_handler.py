@@ -99,7 +99,8 @@ class CFHandler:
         return [
             task
             for task in tasks
-            if task["state"] == "RUNNING" and task["name"].startswith("harvest-job-")
+            if task.get("state", "") == "RUNNING"
+            and task.get("name", "").startswith("harvest-job-")
         ]
 
     def num_running_app_tasks(self, app_guuid=None):
