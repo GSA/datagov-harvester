@@ -292,10 +292,7 @@ class HarvesterDBInterface:
     def get_in_progress_jobs(self):
         """Get harvest jobs that are in progress."""
         return list(
-            self.db.query(HarvestJob)
-            .filter(
-                HarvestJob.status == "in_progress"
-            )
+            self.db.query(HarvestJob).filter(HarvestJob.status == "in_progress")
         )
 
     def get_new_harvest_jobs_in_past(self, limit=None):

@@ -60,7 +60,7 @@ class LoadManager:
         """Check for in_progress jobs in the database that aren't running."""
         in_progress_jobs = interface.get_in_progress_jobs()
         running_tasks = self.handler.get_running_app_tasks()
-        running_task_ids = set(self.handler.job_ids_from_tasks(running_tasks))
+        running_harvest_ids = set(self.handler.job_ids_from_tasks(running_tasks))
 
         failed_jobs = [
             job for job in in_progress_jobs if job.id not in running_harvest_ids
