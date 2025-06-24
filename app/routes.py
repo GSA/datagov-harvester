@@ -1115,6 +1115,7 @@ def view_metrics():
         data = {
             "htmx_vars": htmx_vars,
             "jobs": jobs,
+            "new_jobs_in_past": len(db.get_new_harvest_jobs_in_past()),
             "current_time": current_time,
             "window_start": start_time,
         }
