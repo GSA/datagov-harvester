@@ -1112,10 +1112,15 @@ def view_metrics():
             per_page=pagination.per_page,
             order_by="desc",
         )
+        failures = db.pget_harvest_job_errors(
+            facets="type = 'FailedJobCleanup'",
+            order_by="desc",
+        )
         data = {
             "htmx_vars": htmx_vars,
             "jobs": jobs,
-            "new_jobs_in_past": len(db.get_new_harvest_jobs_in_past()),
+            "new_jobs_in_past": db.get_new_harvest_jobs_in_past(),
+            "failures": failures,
             "current_time": current_time,
             "window_start": start_time,
         }

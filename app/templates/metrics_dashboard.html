@@ -1,5 +1,7 @@
 {% extends 'base.html' %}
 
+{% import 'components/job-table/job_table.j2' as job_table %}
+
 {% block title %}
 <title>Metrics Dashboard</title>
 {% endblock %}
@@ -16,54 +18,7 @@
         {% if data.jobs %}
         {% block htmx_paginated %}
         <div id="paginated__harvest-jobs">
-            <div class="usa-table-container--scrollable" tabindex="0">
-                <table class="usa-table usa-table--striped">
-                    <caption>Recent Harvest Jobs</caption>
-                    <thead>
-                        <tr>
-                            <th scope="col">Job Id</th>
-                            <th scope="col">Source Id</th>
-                            <th scope="col">Status</th>
-                            <th scope="col">Created</th>
-                            <th scope="col">Records Added</th>
-                            <th scope="col">Records Updated</th>
-                            <th scope="col">Records Deleted</th>
-                            <th scope="col">Records Errored</th>
-                        </tr>
-                    </thead>
-                    <tbody id="paginated_harvest_jobs">
-                        {% for job in data.jobs %}
-                        <tr>
-                            <td data-sort-value="{{ job.id }}">
-                                <a href="{{ url_for('main.view_harvest_job', job_id=job.id) }}">
-                                    {{ job.id[:8] }}...
-                                </a>
-                            </td>
-                            <td data-sort-value="{{ job.harvest_source_id }}">
-                                <a href="{{ url_for('main.view_harvest_source', source_id=job.harvest_source_id) }}">
-                                    {{ job.harvest_source_id[:8] }}...
-                                </a>
-                            </td>
-                            <td>
-                                <span class="usa-tag {% if job.status == 'error' %}usa-tag--error
-                                                  {% elif job.status == 'in_progress' %}usa-tag--warning
-                                                  {% elif job.status == 'complete' %}usa-tag--success
-                                                  {% else %}usa-tag--base{% endif %}">
-                                    {{ job.status }}
-                                </span>
-                            </td>
-                            <td>{{ job.date_created.strftime('%Y-%m-%d %H:%M:%S')
-                                }}</td>
-                            <td>{{ job.records_added}}</td>
-                            <td>{{ job.records_updated}}</td>
-                            <td>{{ job.records_deleted}}</td>
-                            <td>{{ job.records_errored}}</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-                <div class="usa-sr-only usa-table__announcement-region" aria-live="polite"></div>
-            </div>
+            {{ job_table.job_table(data.jobs, "Recent Harvest Jobs") }}
             {% if pagination.count > jobs|count %}
             {% include '/components/pagination/pagination.html' %}
             {% endif %}
@@ -84,7 +39,67 @@
 
 
     <section id="jobs-to-harvest">
-      <h2>Scheduled Jobs Still to Harvest: {{data.new_jobs_in_past}}</h2>
+      <h2>Scheduled Jobs Still to Harvest: {{ data.new_jobs_in_past | length }}</h2>
+
+      {% if data.new_jobs_in_past %}
+      {{ job_table.job_table(data.new_jobs_in_past, "Scheduled jobs still to harvest") }}
+      {% else %}
+        <div class="usa-alert usa-alert--info">
+            <div class="usa-alert__body">
+                <p class="usa-alert__text">
+                    No scheduled jobs still to harvest.
+                </p>
+            </div>
+        </div>
+      {% endif %}
+    </section>
+
+
+    <section id="recent-failed-jobs">
+      <h2>Recent Failed jobs</h2>
+
+        <p class="text-muted">
+            Showing jobs from {{ data.window_start.strftime('%Y-%m-%d %H:%M:%S UTC') }}
+            to {{ data.current_time.strftime('%Y-%m-%d %H:%M:%S UTC') }}
+        </p>
+
+      {% if data.failures %}
+      <div class="usa-table-container--scrollable" tabindex="0">
+          <table class="usa-table usa-table--striped">
+              <caption>Recent failed jobs</caption>
+              <thead>
+                  <tr>
+                      <th scope="col">Job Id</th>
+                      <th scope="col">Created</th>
+                      <th scope="col">Message</th>
+                  </tr>
+              </thead>
+              <tbody id="paginated_harvest_jobs">
+                  {% for error in data.failures %}
+                  <tr>
+                      <td data-sort-value="{{ error.harvest_job_id }}">
+                          <a href="{{ url_for('main.view_harvest_job', job_id=error.harvest_job_id) }}">
+                              {{ error.harvest_job_id[:8] }}...
+                          </a>
+                      </td>
+                      <td>{{ error.date_created.strftime('%Y-%m-%d %H:%M:%S')
+                          }}</td>
+                      <td>{{ error.message}}</td>
+                  </tr>
+                  {% endfor %}
+              </tbody>
+          </table>
+          <div class="usa-sr-only usa-table__announcement-region" aria-live="polite"></div>
+      </div>
+      {% else %}
+        <div class="usa-alert usa-alert--info">
+            <div class="usa-alert__body">
+                <p class="usa-alert__text">
+                    No failed jobs from the last 24 hours.
+                </p>
+            </div>
+        </div>
+      {% endif %}
     </section>
 </div>
     {% endblock %}
