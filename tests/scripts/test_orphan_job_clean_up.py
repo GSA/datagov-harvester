@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from click.testing import CliRunner
 
-from scripts.delete_jobs import delete_jobs
+from scripts.orphan_job_clean_up import delete_jobs
 
 
 class TestDeleteOrphanJobsScript:
@@ -13,7 +13,7 @@ class TestDeleteOrphanJobsScript:
 
     @pytest.fixture
     def mock_interface(self):
-        with patch("scripts.delete_jobs.HarvesterDBInterface") as mock_cls:
+        with patch("scripts.orphan_job_clean_up.HarvesterDBInterface") as mock_cls:
             instance = MagicMock()
             mock_cls.return_value = instance
             yield instance
