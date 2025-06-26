@@ -1,7 +1,4 @@
-from datetime import datetime, timedelta
-
 import pytest
-
 from playwright.sync_api import expect
 
 
@@ -11,7 +8,7 @@ def upage(
 ):
     interface.add_organization(organization_data)
     interface.add_harvest_source(source_data_dcatus)
-    job = interface.add_harvest_job(job_data_new)
+    interface.add_harvest_job(job_data_new)
 
     unauthed_page.goto("/metrics/")
     yield unauthed_page
