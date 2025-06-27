@@ -79,6 +79,10 @@ class HarvestNonCriticalException(Exception):
         self.logger.error(self.msg, exc_info=True)
 
 
+class ExternalRecordToClass(HarvestNonCriticalException):
+    pass
+
+
 class ValidationException(HarvestNonCriticalException):
     def log_err(self):
         pass

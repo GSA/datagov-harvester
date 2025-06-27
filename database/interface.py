@@ -544,13 +544,20 @@ class HarvesterDBInterface:
             queries.append(HarvestRecord.ckan_id.isnot(None))
 
         subq = (
-            self.db.query(HarvestRecord)
+            self.db.query(
+                HarvestRecord.identifier,
+                HarvestRecord.source_hash,
+                HarvestRecord.ckan_id,
+                HarvestRecord.ckan_name,
+                HarvestRecord.date_created,
+                HarvestRecord.id,
+                HarvestRecord.action,
+            )
             .filter(*queries)
             .order_by(HarvestRecord.identifier, desc(HarvestRecord.date_created))
             .distinct(HarvestRecord.identifier)
             .subquery()
         )
-
         sq_alias = aliased(HarvestRecord, subq)
         return self.db.query(sq_alias).filter(sq_alias.action != "delete")
 

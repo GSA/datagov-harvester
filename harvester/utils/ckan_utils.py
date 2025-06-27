@@ -167,7 +167,7 @@ class CKANSyncTool:
 
     def ckanify_record(self, record) -> None:
         metadata = (
-            record.metadata
+            json.loads(record.source_raw)
             if record.transformed_data is None
             else record.transformed_data
         )
