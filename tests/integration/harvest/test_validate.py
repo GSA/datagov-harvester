@@ -17,9 +17,11 @@ class TestValidateDataset:
         harvest_job = interface.add_harvest_job(job_data_dcatus)
 
         harvest_source = HarvestSource(harvest_job.id)
-        harvest_source.prepare_external_data()
+        harvest_source.acquire_minimum_external_data()
+        external_records_to_process = harvest_source.external_records_to_process()
 
-        test_record = harvest_source.external_records["cftc-dc1"]
+        # "cftc-dc1" is always the first one
+        test_record = next(external_records_to_process)
         test_record.validate()
 
         assert test_record.valid is True
@@ -36,9 +38,11 @@ class TestValidateDataset:
         harvest_job = interface.add_harvest_job(job_data_dcatus_non_federal)
 
         harvest_source = HarvestSource(harvest_job.id)
-        harvest_source.prepare_external_data()
+        harvest_source.acquire_minimum_external_data()
+        external_records_to_process = harvest_source.external_records_to_process()
 
-        test_record = harvest_source.external_records["cftc-dc1"]
+        # "cftc-dc1" is always the first one
+        test_record = next(external_records_to_process)
         test_record.validate()
 
         assert test_record.valid is True
@@ -55,12 +59,11 @@ class TestValidateDataset:
         harvest_job = interface.add_harvest_job(job_data_dcatus_non_federal)
 
         harvest_source = HarvestSource(harvest_job.id)
-        harvest_source.prepare_external_data()
+        harvest_source.acquire_minimum_external_data()
+        external_records_to_process = harvest_source.external_records_to_process()
 
-        test_id = (
-            "https://www.arcgis.com/home/item.html?id=99731bb0369848169d98f31ce83fb0e2"
-        )
-        test_record = harvest_source.external_records[test_id]
+        # "cftc-dc1" is always the first one
+        test_record = next(external_records_to_process)
 
         with pytest.raises(ValidationException) as e:
             test_record.validate()
@@ -84,14 +87,15 @@ class TestValidateDataset:
         harvest_job = interface.add_harvest_job(job_data_waf_iso19115_2)
 
         harvest_source = HarvestSource(harvest_job.id)
-        harvest_source.prepare_external_data()
+        harvest_source.acquire_minimum_external_data()
+        external_records_to_process = harvest_source.external_records_to_process()
 
-        iso2_name = "http://localhost:80/iso_2_waf/valid_iso2.xml"
-        iso2_test_record = harvest_source.external_records[iso2_name]
-        iso2_test_record.transform()
-        iso2_test_record.validate()
+        # "valid_iso2.xml" is always the last one
+        test_iso_2_record = list(external_records_to_process)[-1]
+        test_iso_2_record.transform()
+        test_iso_2_record.validate()
 
-        assert iso2_test_record.valid is True
+        assert test_iso_2_record.valid is True
 
     def test_invalid_transformed_iso(
         self,
@@ -105,19 +109,20 @@ class TestValidateDataset:
         harvest_job = interface.add_harvest_job(job_data_waf_iso19115_2)
 
         harvest_source = HarvestSource(harvest_job.id)
-        harvest_source.prepare_external_data()
+        harvest_source.acquire_minimum_external_data()
+        external_records_to_process = harvest_source.external_records_to_process()
 
-        iso2_name = "http://localhost:80/iso_2_waf/valid_iso1.xml"
-        iso2_test_record = harvest_source.external_records[iso2_name]
-        iso2_test_record.transform()
+        # "valid_iso2.xml" is always the last one
+        test_iso_2_record = list(external_records_to_process)[-1]
+        test_iso_2_record.transform()
 
         # we increased our contactPoint options in mdtranslator
         # so this actually gets pulled so deleting it here
-        del iso2_test_record.transformed_data["contactPoint"]
+        del test_iso_2_record.transformed_data["contactPoint"]
 
         # validator throws an exception when the dataset is invalid
         with pytest.raises(ValidationException) as e:
-            iso2_test_record.validate()
+            test_iso_2_record.validate()
         assert (
             e.value.msg
             == "<ValidationError: \"'contactPoint' is a required property\">"
