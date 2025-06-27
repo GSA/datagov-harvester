@@ -38,7 +38,7 @@ class TestHarvestJobExceptionHandling:
         harvest_source = HarvestSource(harvest_job.id)
 
         with pytest.raises(ExtractExternalException) as e:
-            harvest_source.prepare_external_data()
+            harvest_source.acquire_minimum_external_data()
 
         assert harvest_job.status == "error"
 
@@ -58,11 +58,11 @@ class TestHarvestJobExceptionHandling:
 
         harvest_source = HarvestSource(harvest_job.id)
 
-        harvest_source.internal_records_to_id_hash = Mock()
-        harvest_source.internal_records_to_id_hash.side_effect = Exception("Broken")
+        harvest_source.store_records_as_internal = Mock()
+        harvest_source.store_records_as_internal.side_effect = Exception("Broken")
 
         with pytest.raises(ExtractInternalException) as e:
-            harvest_source.extract()
+            harvest_source.acquire_minimum_internal_data()
 
         assert harvest_job.status == "error"
 
@@ -136,17 +136,21 @@ class TestHarvestRecordExceptionHandling:
         interface.add_harvest_record(single_internal_record)
 
         harvest_source = HarvestSource(harvest_job.id)
-        harvest_source.extract()
-        harvest_source.compare()
-        harvest_source.sync()
+        harvest_source.acquire_data_sources()
+
+        harvest_source.determine_internal_deletions()
+        internal_records_to_delete = (
+            harvest_source.iter_internal_records_to_be_deleted()
+        )
+
+        test_record = list(internal_records_to_delete)[0]
+        test_record.sync()
 
         # NOTE: we should expect to see a record here as the sync failed
         # and the record should not have been cleaned up
-        interface_record = interface.get_harvest_record(harvest_source.records[0].id)
-        interface_errors = interface.get_harvest_record_errors_by_record(
-            harvest_source.records[0].id
-        )
-        assert interface_record.id == harvest_source.records[0].id
+        interface_record = interface.get_harvest_record(test_record.id)
+        interface_errors = interface.get_harvest_record_errors_by_record(test_record.id)
+        assert interface_record.id == test_record.id
         assert interface_record.status == "error"
         assert interface_errors[0].type == "SynchronizeException"
 
@@ -162,12 +166,17 @@ class TestHarvestRecordExceptionHandling:
         harvest_job = interface.add_harvest_job(job_data_dcatus_invalid)
 
         harvest_source = HarvestSource(harvest_job.id)
-        harvest_source.extract()
-        harvest_source.compare()
-        harvest_source.validate()
-        test_record = [
-            x for x in harvest_source.records if x.identifier == "null-spatial"
-        ][0]
+        harvest_source.acquire_data_sources()
+
+        external_records_to_process = harvest_source.external_records_to_process()
+
+        # there's only 1
+        test_record = list(external_records_to_process)[0]
+        test_record.compare()
+        try:
+            test_record.validate()
+        except:  # noqa: E722
+            pass
 
         interface_record = interface.get_harvest_record(test_record.id)
         interface_errors = interface.get_harvest_record_errors_by_record(test_record.id)
@@ -192,22 +201,32 @@ class TestHarvestRecordExceptionHandling:
         harvest_job = interface.add_harvest_job(job_data_dcatus)
 
         harvest_source = HarvestSource(harvest_job.id)
-        harvest_source.extract()
-        harvest_source.compare()
-        harvest_source.validate()
-        harvest_source.sync()
+        harvest_source.acquire_data_sources()
 
-        test_record = [x for x in harvest_source.records if x.identifier == "cftc-dc1"][
-            0
-        ]
+        external_records_to_process = harvest_source.external_records_to_process()
 
-        interface_record = interface.get_harvest_record(test_record.id)
-        interface_errors = interface.get_harvest_record_errors_by_record(test_record.id)
+        # 7 records
+        records = list(external_records_to_process)
+        expected = len(records)
 
-        assert ckanify_dcatus_mock.call_count == len(harvest_source.records) == 7
-        assert interface_record.id == test_record.id
-        assert interface_record.status == "error"
-        assert interface_errors[0].type == "DCATUSToCKANException"
+        for test_record in records:
+            test_record.compare()
+            test_record.validate()
+            test_record.sync()
+
+        assert (
+            ckanify_dcatus_mock.call_count
+            == harvest_source.reporter.errored
+            == expected
+        )
+
+        interface_errors = interface.get_harvest_record_errors_by_job(harvest_job.id)
+        assert len(interface_errors) == expected
+
+        dcat_to_ckan_errors = sum(
+            1 for error in interface_errors if error[0].type == "DCATUSToCKANException"
+        )
+        assert dcat_to_ckan_errors == expected
 
     # ruff: noqa: F401
     @patch("harvester.harvest.ckan_sync_tool.ckan", ckanapi.RemoteCKAN("mock_address"))
@@ -223,20 +242,26 @@ class TestHarvestRecordExceptionHandling:
         harvest_job = interface.add_harvest_job(job_data_dcatus)
 
         harvest_source = HarvestSource(harvest_job.id)
-        harvest_source.extract()
-        harvest_source.compare()
-        harvest_source.sync()
+        harvest_source.acquire_data_sources()
 
-        test_record = [x for x in harvest_source.records if x.identifier == "cftc-dc1"][
-            0
-        ]
+        external_records_to_process = harvest_source.external_records_to_process()
 
-        interface_record = interface.get_harvest_record(test_record.id)
-        interface_errors = interface.get_harvest_record_errors_by_record(test_record.id)
+        # 7 records
+        records = list(external_records_to_process)
+        expected = len(records)
 
-        assert interface_record.id == test_record.id
-        assert interface_record.status == "error"
-        assert interface_errors[0].type == "SynchronizeException"
+        for test_record in records:
+            test_record.compare()
+            test_record.validate()
+            test_record.sync()
+
+        interface_errors = interface.get_harvest_record_errors_by_job(harvest_job.id)
+        assert len(interface_errors) == expected
+
+        ckan_sync_errors = sum(
+            1 for error in interface_errors if error[0].type == "SynchronizeException"
+        )
+        assert ckan_sync_errors == expected
 
     @patch("harvester.harvest.ckan_sync_tool.ckan")
     @patch("harvester.utils.ckan_utils.uuid")
@@ -266,11 +291,19 @@ class TestHarvestRecordExceptionHandling:
             }
         )
         job_id = harvest_job.id
-        harvest_source = HarvestSource(job_id)
-        harvest_source.extract()
-        harvest_source.compare()
-        harvest_source.validate()
-        harvest_source.sync()
+
+        harvest_source = HarvestSource(harvest_job.id)
+        harvest_source.acquire_data_sources()
+
+        external_records_to_process = harvest_source.external_records_to_process()
+
+        records = list(external_records_to_process)
+
+        for test_record in records:
+            test_record.compare()
+            test_record.validate()
+            test_record.sync()
+
         harvest_source.report()
 
         harvest_records = interface.get_harvest_records_by_job(job_id)
@@ -306,17 +339,20 @@ class TestHarvestRecordExceptionHandling:
         interface.add_organization(organization_data)
         interface.add_harvest_source(source_data_dcatus)
         harvest_job = interface.add_harvest_job(job_data_dcatus)
+        job_id = harvest_job.id
 
         harvest_source = HarvestSource(harvest_job.id)
-        job_id = harvest_job.id
-        harvest_source.extract()
-        harvest_source.compare()
-        harvest_source.sync()
-        harvest_records = interface.get_harvest_records_by_job(job_id)
-        records_with_errors = [
-            record for record in harvest_records if record.status == "error"
-        ]
-        job_err = interface.get_harvest_job_errors_by_job(job_id)
+        harvest_source.acquire_data_sources()
+
+        external_records_to_process = harvest_source.external_records_to_process()
+
+        records = list(external_records_to_process)
+
+        for test_record in records:
+            test_record.compare()
+            test_record.validate()
+            test_record.sync()
+
         record_err = interface.get_harvest_record_errors_by_job(job_id)
         record_error, identifier, source_raw = record_err[0]
         assert record_error.type == "CKANRejectionException"
@@ -336,16 +372,19 @@ class TestHarvestRecordExceptionHandling:
         interface.add_harvest_source(source_data_dcatus)
         harvest_job = interface.add_harvest_job(job_data_dcatus)
         job_id = harvest_job.id
-        harvest_source = HarvestSource(harvest_job.id)
-        harvest_source.extract()
-        harvest_source.compare()
 
-        harvest_source.sync()
-        harvest_records = interface.get_harvest_records_by_job(job_id)
-        records_with_errors = [
-            record for record in harvest_records if record.status == "error"
-        ]
-        job_err = interface.get_harvest_job_errors_by_job(job_id)
+        harvest_source = HarvestSource(harvest_job.id)
+        harvest_source.acquire_data_sources()
+
+        external_records_to_process = harvest_source.external_records_to_process()
+
+        records = list(external_records_to_process)
+
+        for test_record in records:
+            test_record.compare()
+            test_record.validate()
+            test_record.sync()
+
         record_err = interface.get_harvest_record_errors_by_job(job_id)
         record_error, identifier, source_raw = record_err[0]
         assert record_error.type == "CKANDownException"

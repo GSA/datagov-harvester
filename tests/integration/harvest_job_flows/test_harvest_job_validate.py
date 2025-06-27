@@ -2,7 +2,6 @@ import os
 from unittest.mock import patch
 
 from harvester.harvest import harvest_job_starter
-from harvester.utils.general_utils import download_file
 
 HARVEST_SOURCE_URL = os.getenv("HARVEST_SOURCE_URL")
 
@@ -33,14 +32,12 @@ class TestHarvestJobValidate:
         job_id = harvest_job.id
         job_type = harvest_job.job_type
         harvest_job_starter(job_id, job_type)
-        records_to_add = download_file(
-            source_data_dcatus_single_record["url"], ".json"
-        )["dataset"]
+
         harvest_job = interface.get_harvest_job(job_id)
+
         assert harvest_job.status == "complete"
         assert harvest_job.records_added == 0
         assert harvest_job.records_validated == 1
-        assert harvest_job.records_validated == len(records_to_add) == 1
 
     @patch("harvester.harvest.ckan_sync_tool.ckan")
     def test_validate_single_invalid_record(
@@ -67,15 +64,9 @@ class TestHarvestJobValidate:
         job_id = harvest_job.id
         job_type = harvest_job.job_type
         harvest_job_starter(job_id, job_type)
-        records_to_add = download_file(source_data_dcatus_invalid["url"], ".json")[
-            "dataset"
-        ]
         harvest_job = interface.get_harvest_job(job_id)
         assert harvest_job.status == "complete"
-        assert (
-            harvest_job.records_errored == 1
-        )  # TODO: this should be 0 after we change count reporter
-        assert len(harvest_job.records) == len(records_to_add) == 1
+        assert harvest_job.records_errored == 1
         assert harvest_job.records_validated == 0
 
     def skip_test_valiate_new_against_existing_source(self):
