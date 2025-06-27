@@ -21,12 +21,12 @@ class TestTransform:
         harvest_job = interface.add_harvest_job(job_data_waf_iso19115_2)
 
         harvest_source = HarvestSource(harvest_job.id)
-        harvest_source.extract()
-        harvest_source.compare()
+        harvest_source.acquire_minimum_external_data()
+        external_records_to_process = harvest_source.external_records_to_process()
 
-        for record in harvest_source.records:
-            if record.identifier == "http://localhost:80/iso_2_waf/invalid_iso2.xml":
-                test_record = record
+        # "invalid_iso2.xml" is always the first one
+        test_record = next(external_records_to_process)
+        test_record.compare()
 
         # ruff: noqa: F841
         with pytest.raises(TransformationException) as e:
@@ -70,21 +70,24 @@ class TestTransform:
         harvest_job = interface.add_harvest_job(job_data_waf_iso19115_2)
 
         harvest_source = HarvestSource(harvest_job.id)
-        harvest_source.prepare_external_data()
+        harvest_source.acquire_minimum_external_data()
+        external_records_to_process = harvest_source.external_records_to_process()
 
-        iso2_name = "http://localhost:80/iso_2_waf/valid_iso2.xml"
-        iso2_test_record = harvest_source.external_records[iso2_name]
-        iso2_test_record.transform()
+        iso_records = list(external_records_to_process)
 
-        assert iso2_test_record.mdt_msgs == ""
-        assert DeepDiff(iso2_test_record.transformed_data, iso19115_2_transform) == {}
+        # "valid_iso2.xml" is always the last one
+        test_iso_2_record = iso_records[-1]
+        test_iso_2_record.transform()
 
-        iso1_name = "http://localhost:80/iso_2_waf/valid_iso1.xml"
-        iso1_test_record = harvest_source.external_records[iso1_name]
-        iso1_test_record.transform()
+        assert test_iso_2_record.mdt_msgs == ""
+        assert DeepDiff(test_iso_2_record.transformed_data, iso19115_2_transform) == {}
 
-        assert iso1_test_record.mdt_msgs == ""
-        assert DeepDiff(iso1_test_record.transformed_data, iso19115_1_transform) == {}
+        # "valid_iso1.xml" is always the second one
+        test_iso_1_record = iso_records[1]
+        test_iso_1_record.transform()
+
+        assert test_iso_1_record.mdt_msgs == ""
+        assert DeepDiff(test_iso_1_record.transformed_data, iso19115_1_transform) == {}
 
     def test_mdtranslator_down(
         self,
@@ -102,12 +105,11 @@ class TestTransform:
         harvest_job = interface.add_harvest_job(job_data_waf_iso19115_2)
 
         harvest_source = HarvestSource(harvest_job.id)
-        harvest_source.extract()
-        harvest_source.compare()
+        harvest_source.acquire_minimum_external_data()
+        external_records_to_process = harvest_source.external_records_to_process()
 
-        for record in harvest_source.records:
-            if record.identifier == "http://localhost:80/iso_2_waf/invalid_iso2.xml":
-                test_record = record
+        # "invalid_iso2.xml" is always the first one
+        test_record = next(external_records_to_process)
 
         with patch("requests.post") as mock_post:
             mock_response = Mock()
@@ -140,12 +142,11 @@ class TestTransform:
         harvest_job = interface.add_harvest_job(job_data_waf_iso19115_2)
 
         harvest_source = HarvestSource(harvest_job.id)
-        harvest_source.extract()
-        harvest_source.compare()
+        harvest_source.acquire_minimum_external_data()
+        external_records_to_process = harvest_source.external_records_to_process()
 
-        for record in harvest_source.records:
-            if record.identifier == "http://localhost:80/iso_2_waf/invalid_iso2.xml":
-                test_record = record
+        # "invalid_iso2.xml" is always the first one
+        test_record = next(external_records_to_process)
 
         with patch("requests.post") as mock_post:
             mock_response = Mock()
@@ -191,12 +192,11 @@ class TestTransform:
         harvest_job = interface.add_harvest_job(job_data_waf_iso19115_2)
 
         harvest_source = HarvestSource(harvest_job.id)
-        harvest_source.extract()
-        harvest_source.compare()
+        harvest_source.acquire_minimum_external_data()
+        external_records_to_process = harvest_source.external_records_to_process()
 
-        for record in harvest_source.records:
-            if record.identifier == "http://localhost:80/iso_2_waf/invalid_iso2.xml":
-                test_record = record
+        # "invalid_iso2.xml" is always the first one
+        test_record = next(external_records_to_process)
 
         with patch("requests.post") as mock_post:
             mock_post.side_effect = requests.Timeout()
@@ -223,12 +223,11 @@ class TestTransform:
         harvest_job = interface.add_harvest_job(job_data_waf_iso19115_2)
 
         harvest_source = HarvestSource(harvest_job.id)
-        harvest_source.extract()
-        harvest_source.compare()
+        harvest_source.acquire_minimum_external_data()
+        external_records_to_process = harvest_source.external_records_to_process()
 
-        for record in harvest_source.records:
-            if record.identifier == "http://localhost:80/iso_2_waf/invalid_iso2.xml":
-                test_record = record
+        # "invalid_iso2.xml" is always the first one
+        test_record = next(external_records_to_process)
 
         with patch("requests.post") as mock_post:
             mock_response = Mock()

@@ -1,5 +1,4 @@
 import json
-from itertools import groupby
 from unittest.mock import patch
 
 import pytest
@@ -45,52 +44,17 @@ class TestCKANLoad:
             interface.add_harvest_record(data)
 
         harvest_source = HarvestSource(job_id)
-        harvest_source.extract()
-        harvest_source.compare()
-        harvest_source.transform()
-        harvest_source.validate()
-        harvest_source.sync()
+        harvest_source.run_full_harvest()
         harvest_source.report()
 
-        results = {
-            "action": {"create": 0, "update": 0, "delete": 0, None: 0},
-            "status": {"success": 0, "error": 0, None: 0},
-            "validity": {True: 0, None: 0},
-        }
-        for key, group in groupby(
-            harvest_source.records, lambda x: x.action if x.status != "error" else None
-        ):
-            results["action"][key] = sum(1 for _ in group)
-
-        for key, group in groupby(harvest_source.records, lambda x: x.status):
-            results["status"][key] = sum(1 for _ in group)
-
-        for key, group in groupby(harvest_source.records, lambda x: x.valid):
-            results["validity"][key] = sum(1 for _ in group)
-
-        harvest_reporter = harvest_source.reporter.report()
-        assert results["action"]["create"] == 6
-        assert harvest_reporter["records_added"] == 6
-
-        assert results["action"]["update"] == harvest_reporter["records_updated"] == 1
-
-        assert results["action"]["delete"] == harvest_reporter["records_deleted"] == 1
-
-        assert results["status"]["error"] == harvest_reporter["records_errored"] == 0
-
-        assert (
-            results["status"]["success"]
-            == len(harvest_source.records) - harvest_reporter["records_errored"]
-            == 8
-        )
-
-        assert results["validity"][True] == harvest_reporter["records_validated"] == 7
-
-        assert (
-            results["validity"][None]
-            == len(harvest_source.records) - harvest_reporter["records_validated"]
-            == 1
-        )
+        assert harvest_source.reporter.added == 6
+        assert harvest_source.reporter.updated == 1
+        assert harvest_source.reporter.deleted == 1
+        assert harvest_source.reporter.errored == 0
+        assert harvest_source.reporter.ignored == 0
+        assert harvest_source.reporter.validated == 7
+        assert harvest_source.reporter.processed_count == 8
+        assert harvest_source.reporter.percent_complete == 100
 
     def test_ckanify_dcatus(
         self,
@@ -111,11 +75,10 @@ class TestCKANLoad:
             "harvest_source_id": job_data_dcatus["harvest_source_id"],
         }
         interface.add_harvest_record(record)
-        harvest_source.extract()
-        harvest_source.compare()
-        test_record = [x for x in harvest_source.records if x.identifier == "cftc-dc1"][
-            0
-        ]
+        harvest_source.acquire_minimum_external_data()
+        external_records = harvest_source.external_records_to_process()
+
+        test_record = next(external_records)
 
         expected_result = {
             "name": "commitment-of-traders",
@@ -314,10 +277,13 @@ class TestCKANLoad:
 
         harvest_source = HarvestSource(job.id)
 
-        # Should not raise an exception
-        harvest_source.external_records_to_id_hash(duplicated_identifier_records)
+        harvest_source.acquire_minimum_internal_data()
+        harvest_source.acquire_minimum_external_data()
 
-        # Only one unique record should be added to external_records
+        harvest_source.external_records = duplicated_identifier_records
+
+        assert len(harvest_source.external_records) == 3
+        harvest_source.filter_duplicate_identifiers()
         assert len(harvest_source.external_records) == 1
 
         # Assert that errors was logged (the duplicate identifier)

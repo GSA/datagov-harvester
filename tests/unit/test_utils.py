@@ -20,6 +20,7 @@ from harvester.utils.general_utils import (
     process_job_complete_percentage,
     query_filter_builder,
     validate_geojson,
+    find_indexes_for_duplicates,
 )
 
 
@@ -323,6 +324,17 @@ class TestCKANUtils:
 # Point example
 # "{\"type\": \"Point\", \"coordinates\": [-87.08258, 24.9579]}"
 class TestGeneralUtils:
+    def test_find_indexes_for_duplicates(self):
+        data = [
+            {"identifier": "a"},
+            {"identifier": "a"},
+            {"identifier": "a"},
+            {"identifier": "b"},
+            {"identifier": "b"},
+            {"identifier": "c"},
+        ]
+        assert find_indexes_for_duplicates(data) == [4, 2, 1]
+
     def test_args_parsing(self):
         args = parse_args(["test-id", "test-type"])
         assert args.jobId == "test-id"
