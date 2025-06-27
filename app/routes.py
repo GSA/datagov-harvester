@@ -1113,7 +1113,7 @@ def view_metrics():
             order_by="desc",
         )
         failures = db.pget_harvest_job_errors(
-            facets="type = 'FailedJobCleanup'",
+            facets=time_filter + " AND type = 'FailedJobCleanup'",
             order_by="desc",
         )
         data = {
