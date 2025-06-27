@@ -1,6 +1,7 @@
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from functools import wraps
+from typing import List
 
 from sqlalchemy import asc, desc, func, inspect, text
 from sqlalchemy.exc import NoResultFound
@@ -268,6 +269,22 @@ class HarvesterDBInterface:
 
     def get_harvest_job(self, job_id):
         return self.db.query(HarvestJob).filter_by(id=job_id).first()
+
+    def get_orphaned_harvest_jobs(self) -> List[HarvestJob]:
+        """
+        Retrieves all harvest jobs that are in progress and
+        were created more than one day ago.
+        """
+        one_day_ago = datetime.now(timezone.utc) - timedelta(days=1)
+        return (
+            self.db.query(HarvestJob)
+            .filter(
+                HarvestJob.status == "in_progress",
+                HarvestJob.date_created <= one_day_ago,
+            )
+            .order_by(HarvestJob.date_created.desc())
+            .all()
+        )
 
     def get_first_harvest_job_by_filter(self, filter):
         harvest_job = (
