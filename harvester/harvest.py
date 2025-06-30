@@ -47,6 +47,7 @@ from harvester.utils.general_utils import (
     prepare_transform_msg,
     sort_dataset,
     traverse_waf,
+    truncate_validation_message,
 )
 
 # requests data
@@ -784,11 +785,10 @@ class Record:
             self.harvest_source.reporter.update("validated")
         except Exception as e:
             self.status = "error"
-            self.validation_msg = str(e.message)
             self.valid = False
             self.harvest_source.reporter.update("errored")
             raise ValidationException(
-                repr(e),
+                truncate_validation_message(e),
                 self.harvest_source.job_id,
                 self.id,
             )
@@ -804,9 +804,8 @@ class Record:
             SynchronizeException,
             CKANDownException,
             CKANRejectionException,
-        ) as e:
+        ):
             self.status = "error"
-            self.validation_msg = str(e)
             self.harvest_source.reporter.update("errored")
 
     def update_self_in_db(self) -> bool:

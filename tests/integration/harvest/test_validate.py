@@ -70,9 +70,13 @@ class TestValidateDataset:
 
         # omitting the entire message for brevity
         # see the fixture for more details
-        assert e.value.msg.startswith(
-            "<ValidationError: '\"<p align=\\'center\\'"
-        ) and e.value.msg.endswith("is not valid under any of the given schemas'>")
+        expected = (
+            "'license':\"<p align='center' style='margin-top: 0px; "
+            "margin-bottom: 1.55rem; font-family: &quot;Avenir Next W0 "
+            '...[truncated]... .</p>" is not valid under any of the given schemas'
+        )
+
+        assert e.value.msg == expected
         assert test_record.valid is False
 
     def test_valid_transformed_iso(
@@ -123,7 +127,4 @@ class TestValidateDataset:
         # validator throws an exception when the dataset is invalid
         with pytest.raises(ValidationException) as e:
             test_iso_2_record.validate()
-        assert (
-            e.value.msg
-            == "<ValidationError: \"'contactPoint' is a required property\">"
-        )
+        assert e.value.msg == "'contactPoint' is a required property"

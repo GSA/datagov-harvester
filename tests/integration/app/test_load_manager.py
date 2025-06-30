@@ -316,7 +316,7 @@ class TestLoadManager:
         load_manager = LoadManager()
         load_manager.trigger_manual_job(source_data_dcatus["id"])
         start_task_mock = CFCMock.return_value.v3.tasks.create
-        assert start_task_mock.call_args.kwargs["memory_in_mb"] == "1536"
+        assert start_task_mock.call_args.kwargs["memory_in_mb"] == "2056"
         assert start_task_mock.call_args.kwargs["disk_in_mb"] == "4096"
 
         # clear out in progress jobs

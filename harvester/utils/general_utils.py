@@ -21,6 +21,28 @@ logger = logging.getLogger()
 FREQUENCY_ENUM = {"daily": 1, "weekly": 7, "biweekly": 14, "monthly": 30}
 
 
+def truncate_validation_message(e: Exception) -> str:
+    """
+    truncates the dcatus validation message to 150 characters using
+    " ...[truncated]... " as the substituted value within the
+    message.
+    """
+    msg = e.message
+    # limit the message size to be 150 characters
+    if len(msg) > 150:
+        msg = msg[:100] + " ...[truncated]... " + msg[-50:]
+
+    elem = ""
+    try:
+        if e.schema_path[0] == "properties":
+            elem = e.schema_path[1]
+            elem = "'" + elem + "':"
+    except Exception:
+        pass
+
+    return elem + msg
+
+
 def prepare_transform_msg(transform_data):
     # ruff: noqa: E731
     mask_info = lambda s: "WARNING" in s or "ERROR" in s

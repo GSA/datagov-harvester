@@ -3,6 +3,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 import requests
+from jsonschema.exceptions import ValidationError
 
 from harvester.utils.ckan_utils import (
     create_ckan_extras,
@@ -15,12 +16,13 @@ from harvester.utils.ckan_utils import (
 from harvester.utils.general_utils import (
     create_retry_session,
     dynamic_map_list_items_to_dict,
+    find_indexes_for_duplicates,
     parse_args,
     prepare_transform_msg,
     process_job_complete_percentage,
     query_filter_builder,
+    truncate_validation_message,
     validate_geojson,
-    find_indexes_for_duplicates,
 )
 
 
@@ -324,6 +326,22 @@ class TestCKANUtils:
 # Point example
 # "{\"type\": \"Point\", \"coordinates\": [-87.08258, 24.9579]}"
 class TestGeneralUtils:
+    def test_truncate_validation_message(self):
+        msg = (
+            "<ValidationError: '[{'@type': 'dcat:Distribution', 'description': "
+            "\"ERDDAP's version of the OPeNDAP .html web page for this dataset. Specify"
+            " a subset of the dataset and download the data via OPeNDAP or"
+        )
+        validation_exc = ValidationError(msg)
+
+        expected = (
+            "<ValidationError: '[{'@type': 'dcat:Distribution', 'description': "
+            "\"ERDDAP's version of the OPeNDAP . ...[truncated]... f the dataset and "
+            "download the data via OPeNDAP or"
+        )
+
+        assert truncate_validation_message(validation_exc) == expected
+
     def test_find_indexes_for_duplicates(self):
         data = [
             {"identifier": "a"},
