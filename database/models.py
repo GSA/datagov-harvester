@@ -3,7 +3,7 @@ import uuid
 from flask_sqlalchemy import SQLAlchemy
 from geoalchemy2 import Geometry
 from sqlalchemy import Column, Enum, String, func
-from sqlalchemy.orm import DeclarativeBase
+from sqlalchemy.orm import DeclarativeBase, backref
 
 
 class Base(DeclarativeBase):
@@ -44,7 +44,7 @@ class Organization(db.Model):
         )
     )
     sources = db.relationship(
-        "HarvestSource", backref="org", cascade="all, delete-orphan", lazy=True
+        "HarvestSource", backref=backref("org", lazy="joined"), cascade="all, delete-orphan", lazy=True
     )
 
 
@@ -85,7 +85,7 @@ class HarvestSource(db.Model):
         db.Enum("document", "waf", name="source_type"), nullable=False
     )
     jobs = db.relationship(
-        "HarvestJob", backref="source", cascade="all, delete-orphan", lazy=True
+        "HarvestJob", backref=backref("source", lazy="joined"), cascade="all, delete-orphan", lazy=True
     )
     notification_frequency = db.Column(
         db.Enum(
@@ -103,6 +103,7 @@ class HarvestJob(db.Model):
     harvest_source_id = db.Column(
         db.String(36), db.ForeignKey("harvest_source.id"), nullable=False
     )
+
     status = db.Column(
         Enum(
             "in_progress",
@@ -127,7 +128,7 @@ class HarvestJob(db.Model):
     records_ignored = db.Column(db.Integer, default=0)
     records_validated = db.Column(db.Integer, default=0)
     errors = db.relationship(
-        "HarvestJobError", backref="job", cascade="all, delete-orphan", lazy=True
+        "HarvestJobError", backref=backref("job", lazy="joined"), cascade="all, delete-orphan", lazy=True
     )
     records = db.relationship(
         "HarvestRecord", backref="job", cascade="all, delete-orphan", lazy=True
@@ -135,6 +136,7 @@ class HarvestJob(db.Model):
     record_errors = db.relationship(
         "HarvestRecordError", backref="job", cascade="all, delete-orphan", lazy=True
     )
+
 
 
 class HarvestRecord(db.Model):

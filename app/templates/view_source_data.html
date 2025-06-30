@@ -15,16 +15,21 @@
     <h2>Whooops!</h2>
     <p>Looks like you navigated to a harvest source that doesn't exist.</p>
     {% else %}
-    <h1>{{data.source["name"]}}</h1>
+    <h1>{{data.source.name}}</h1>
     <h2>Configuration:</h2>
     <div class="config-table harvest-source-config-properties">
         <table class="table">
-            {% for key, value in data.source.items() %}
+            {% for key, value in data.source.to_dict().items() %}
             <tr>
-                <td>{{key}}:</td>
                 {% if key == 'organization_id' %}
-                <td><a href="{{ url_for('main.view_organization', org_id=value) }}">{{value}}</a></td>
+                <td>Organization:</td>
+                <td><a href="{{ url_for('main.view_organization', org_id=value) }}">{{data.source.org.name}}</a></td>
+                {% elif key == 'notification_emails' %}
+                <td>Notification emails:</td>
+                <td>{{value|join(',')}}</a>
+                </td>
                 {% else %}
+                <td>{{key}}:</td>
                 <td>{{value}}</td>
                 {% endif %}
             </tr>
