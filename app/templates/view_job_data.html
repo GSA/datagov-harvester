@@ -26,6 +26,7 @@
                 <td>Harvest Source:</td>
                 <td><a href="{{ url_for('main.view_harvest_source', source_id=value) }}">{{data.job.source.name}}</a>
                 </td>
+                {% else %}
                 <td>{{key}}:</td>
                 <td>{{value}}</td>
                 {% endif %}
