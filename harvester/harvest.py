@@ -866,6 +866,6 @@ if __name__ == "__main__":
     try:
         args = parse_args(sys.argv[1:])
         harvest_job_starter(args.jobId, args.jobType)
-    except SystemExit as e:
+    except Exception as e:
         logger.error(f"Harvest has experienced an error :: {repr(e)}")
         sys.exit(1)
