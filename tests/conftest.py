@@ -65,7 +65,6 @@ def dbapp(app):
         db.session.add(us)
         db.session.commit()
         yield app
-        db.drop_all()
 
 
 @pytest.fixture()
@@ -302,6 +301,11 @@ def source_data_dcatus_invalid_records(organization_data) -> dict:
 @pytest.fixture
 def job_data_dcatus(fixtures_json) -> dict:
     return fixtures_json["job"][0]
+
+
+@pytest.fixture
+def job_data_new(fixtures_json) -> dict:
+    return [job for job in fixtures_json["job"] if job["status"] == "new"][0]
 
 
 @pytest.fixture

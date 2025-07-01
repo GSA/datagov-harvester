@@ -4,7 +4,7 @@ name: 3 - Restart Apps
 on:
   workflow_dispatch:
   schedule:
-    - cron: '11/30 * * * *'
+    - cron: '11/10 * * * *'
 
 permissions:
     contents: read

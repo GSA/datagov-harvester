@@ -343,16 +343,18 @@ class TestHarvestRecordRawAPI:
         harvest_job = interface.add_harvest_job(job_data_waf_iso19115_2)
 
         harvest_source = HarvestSource(harvest_job.id)
-        harvest_source.prepare_external_data()
-        harvest_source.compare_sources()
-        harvest_source.write_compare_to_db()
+        harvest_source.acquire_minimum_internal_data()
+        harvest_source.acquire_minimum_external_data()
+        external_records_to_process = harvest_source.external_records_to_process()
 
-        iso2_name = "http://localhost:80/iso_2_waf/valid_iso2.xml"
-        iso2_test_record = harvest_source.external_records[iso2_name]
-        response = client.get(f"/harvest_record/{iso2_test_record.id}/raw")
+        # last one is always "valid_iso2.xml"
+        test_record = list(external_records_to_process)[-1]
+        test_record.compare()
+
+        response = client.get(f"/harvest_record/{test_record.id}/raw")
 
         assert response.status_code == 200
-        assert response.text == iso2_test_record.source_raw
+        assert response.text == test_record.source_raw
 
     def test_json_harvest_record_raw(
         self,
@@ -372,12 +374,15 @@ class TestHarvestRecordRawAPI:
         harvest_job = interface.add_harvest_job(job_data_dcatus)
 
         harvest_source = HarvestSource(harvest_job.id)
-        harvest_source.prepare_external_data()
-        harvest_source.compare_sources()
-        harvest_source.write_compare_to_db()
+        harvest_source.acquire_minimum_internal_data()
+        harvest_source.acquire_minimum_external_data()
+        external_records_to_process = harvest_source.external_records_to_process()
 
-        dcat_record = harvest_source.external_records["cftc-dc1"]
-        response = client.get(f"/harvest_record/{dcat_record.id}/raw")
+        # first one is always "cftc-dc1"
+        test_record = next(external_records_to_process)
+        test_record.compare()
+
+        response = client.get(f"/harvest_record/{test_record.id}/raw")
 
         assert response.status_code == 200
-        assert response.json == json.loads(dcat_record.source_raw)
+        assert response.json == json.loads(test_record.source_raw)

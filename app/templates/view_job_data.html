@@ -20,13 +20,13 @@
                 <td>{{data['percent_complete']}}</td>
             </tr>
             {% endif %}
-            {% for key, value in data.job_dict.items() %}
+            {% for key, value in data.job.to_dict().items() %}
             <tr>
-                <td>{{key}}:</td>
                 {% if key == 'harvest_source_id' %}
-                <td><a href="{{ url_for('main.view_harvest_source', source_id=value) }}">{{value}}</a>
-                </td>
+                <td>Harvest Source:</td>
+                <td><a href="{{ url_for('main.view_harvest_source', source_id=value) }}">{{data.job.source.name}}</a></td>
                 {% else %}
+                <td>{{key}}:</td>
                 <td>{{value}}</td>
                 {% endif %}
             </tr>

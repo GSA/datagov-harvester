@@ -3,6 +3,7 @@ import hashlib
 import json
 import logging
 import os
+import re
 from datetime import datetime, timedelta, timezone
 from typing import Union
 from urllib.parse import urljoin
@@ -94,8 +95,82 @@ def download_file(url: str, file_type: str) -> Union[str, dict]:
     raise Exception
 
 
+def make_record_mapping(record):
+    """Helper to make a Harvest record dict"""
+
+    return {
+        "identifier": record.identifier,
+        "harvest_job_id": record.harvest_source.job_id,
+        "harvest_source_id": record.harvest_source.id,
+        "source_hash": record.metadata_hash,
+        "source_raw": record.source_raw,
+        "action": record.action,
+        "ckan_id": record.ckan_id,
+        "ckan_name": record.ckan_name,
+    }
+
+
+def find_indexes_for_duplicates(records: list):
+    """
+    output is a list of integers representing element positions of
+    duplicates records. this list is then used to record duplicate
+    record errors in the db and to remove from self.external_records.
+    sorting it in reverse (.sort edits in place) places the largest
+    numbers first. this is necessary to avoid index shifting
+    when you're deleting from a list.
+
+    scenario without sorting output
+        positions = [ 1, 3 ]
+        data = [ 0, 0, 1, 1 ]
+
+        deleting data[1] can shift the data since we're mutating the list.
+        what happens when we try to del data[3] on [0, 1, 1]?
+    """
+    seen = set()
+    output = []
+    for i in range(len(records)):
+        identifier = records[i]["identifier"]
+        if identifier in seen:
+            output.append(i)
+        seen.add(identifier)
+    output.sort(reverse=True)  # avoid index shifting
+
+    return output
+
+
+def get_waf_datetimes(soup: BeautifulSoup, expected_length: int) -> list:
+    output = []
+
+    dt_placeholder = datetime(1900, 1, 1, 0, 0)
+    dt_pattern = r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}"
+    dt_format = "%Y-%m-%d %H:%M"
+
+    for td in soup.find_all("td"):
+        res = re.search(dt_pattern, td.text)
+        if res is not None:
+            output.append(datetime.strptime(res.group(0), dt_format))
+
+    if len(output) != expected_length:
+        logger.warning(
+            f"mismatching datetime ({len(output)}) and file ({expected_length} counts"
+        )
+
+    # pad with placeholder when more files than datetimes
+    output += [dt_placeholder] * (expected_length - len(output))
+
+    # when more datetimes than files
+    output = output[:expected_length]
+
+    return output
+
+
 def traverse_waf(
-    url, files=None, file_ext=".xml", folder="/", filters=["../", "dcatus/"]
+    url,
+    files=None,
+    datetimes=None,
+    file_ext=".xml",
+    folder="/",
+    filters=["../", "dcatus/"],
 ):
     """
     Transverses WAF
@@ -105,44 +180,46 @@ def traverse_waf(
     parent = os.path.dirname(url.rstrip("/"))
 
     folders = []
+
     res = requests.get(url)
 
     if files is None:
         files = []
+    if datetimes is None:
+        datetimes = []
 
-    if res.status_code == 200:
-        soup = BeautifulSoup(res.content, "html.parser")
-        anchors = soup.find_all("a", href=True)
+    if not res.ok:
+        res.raise_for_status()
 
-        for anchor in anchors:
-            if (
-                anchor["href"].endswith(folder)  # is the anchor link a folder?
-                and not parent.endswith(
-                    anchor["href"].rstrip("/")
-                )  # it's not the parent folder right?
-                and anchor["href"] not in filters  # and it's not on our exclusion list?
-            ):
-                folders.append(urljoin(url, anchor["href"]))
+    soup = BeautifulSoup(res.content, "html.parser")
+    anchors = soup.find_all("a", href=True)
 
-            if anchor["href"].endswith(file_ext):
-                # TODO: just download the file here
-                # instead of storing them and returning at the end.
-                files.append(urljoin(url, anchor["href"]))
+    page_files = []
+
+    for anchor in anchors:
+        if (
+            anchor["href"].endswith(folder)  # is the anchor link a folder?
+            and not parent.endswith(
+                anchor["href"].rstrip("/")
+            )  # it's not the parent folder right?
+            and anchor["href"] not in filters  # and it's not on our exclusion list?
+        ):
+            folders.append(urljoin(url, anchor["href"]))
+
+        if anchor["href"].endswith(file_ext):
+            # standardize to dcatus v1.1
+            page_files.append({"identifier": urljoin(url, anchor["href"])})
+
+    datetimes += get_waf_datetimes(soup, len(page_files))
+    files += page_files
 
     for folder in folders:
-        traverse_waf(folder, files=files, filters=filters)
+        traverse_waf(folder, files=files, datetimes=datetimes, filters=filters)
+
+    for i in range(len(files)):
+        files[i]["modified_date"] = datetimes[i]
+
     return files
-
-
-def download_waf(files):
-    """Downloads WAF
-    Please add docstrings
-    """
-    output = []
-    for file in files:
-        output.append({"url": file, "content": download_file(file, ".xml")})
-
-    return output
 
 
 def query_filter_builder(base, facets):
