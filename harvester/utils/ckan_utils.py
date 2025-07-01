@@ -101,10 +101,7 @@ class CKANSyncTool:
             record.status = "error"
             if 400 <= e.response.status_code < 500:
                 raise CKANRejectionException(
-                    (
-                        f"CKAN rejected {record.action} for "
-                        f"{record.identifier} :: {repr(e)}"
-                    ),
+                    (f"CKAN rejected {record.action} for {record.identifier}"),
                     record.harvest_source.job_id,
                     record.id,
                 )
@@ -112,15 +109,15 @@ class CKANSyncTool:
                 raise CKANDownException(
                     (
                         f"CKAN is down or unreachable for {record.action} for "
-                        f"{record.identifier} :: {repr(e)}"
+                        f"{record.identifier}"
                     ),
                     record.harvest_source.job_id,
                     record.id,
                 )
-        except Exception as e:
+        except:
             record.status = "error"
             raise SynchronizeException(
-                f"failed to {record.action} for {record.identifier} :: {repr(e)}",
+                f"failed to {record.action} for {record.identifier}",
                 record.harvest_source.job_id,
                 record.id,
             )
