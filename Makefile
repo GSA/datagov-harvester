@@ -51,7 +51,7 @@ test: up test-unit test-integration ## Runs all local tests
 
 test-e2e-ci: re-up test-playwright test-functional ## All e2e/expensive tests. Run on PR into main.
 
-test-ci: up test-unit test-integration ## All simulated tests using only db and required test resources. Run on commit.
+test-ci: up test-unit test-integration test-scripts ## All simulated tests using only db and required test resources. Run on commit.
 
 re-up: clean up sleep-5 load-test-data ## resets system to clean fixture status
 

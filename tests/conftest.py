@@ -3,9 +3,10 @@ import logging
 import os
 from pathlib import Path
 from typing import Any, Generator, List
-from unittest.mock import Mock, patch
+from unittest.mock import MagicMock, Mock, patch
 
 import pytest
+from click.testing import CliRunner
 from dotenv import load_dotenv
 from flask import Flask
 from sqlalchemy.orm import scoped_session, sessionmaker
@@ -927,3 +928,20 @@ def dcatus_keywords():
 def bad_jsonschema_uri():
     # this is a truncated value present in the wild via dcatus license
     return "<p align='center' style='margin-top: 0px; margin-bottom: 1.55rem"
+
+
+@pytest.fixture
+def runner():
+    """
+    Fixture to provide a CLI runner for testing command line interfaces w/ click.
+    """
+    return CliRunner()
+
+
+@pytest.fixture
+def mock_interface():
+    """Mock the HarvesterDBInterface for testing."""
+    with patch("scripts.orphan_job_clean_up.HarvesterDBInterface") as mock_cls:
+        instance = MagicMock()
+        mock_cls.return_value = instance
+        yield instance
