@@ -6,13 +6,7 @@ import pytest
 
 
 @pytest.fixture()
-def new_job(interface, organization_data, source_data_dcatus, job_data_new):
-    interface.add_organization(organization_data)
-    interface.add_harvest_source(source_data_dcatus)
-    yield interface.add_harvest_job(job_data_new)
-
-@pytest.fixture()
-def failed_job_error(interface, new_job):
+def failed_job_error(interface, job):
     """An error for a failed job."""
     error = interface.add_harvest_job_error(
         {
@@ -39,11 +33,12 @@ def old_failed_job_error(interface, new_job):
 class TestMetricsPage:
 
     def test_metrics_failed_table(self, client, failed_job_error):
-        """Test that the failed jobs table has rows."""
+        """Failed jobs table has rows."""
         resp = client.get("/metrics/")
         assert f'<a href="/harvest_job/{failed_job_error.harvest_job_id}">' in resp.text
 
-    def test_metrics_old_failed_jobs(self, client, old_failed_job_error):
-        """The failed jobs table doesn't contain old jobs."""
+    def test_metrics_failed_source_name(self, client, job, failed_job_error):
+        """Failed jobs table links to source by name."""
         resp = client.get("/metrics/")
-        assert "No failed jobs" in resp.text
+        assert job.source.name in resp.text
+        assert f'<a href="/harvest_source/{job.source.id}">' in resp.text

@@ -71,6 +71,7 @@
               <thead>
                   <tr>
                       <th scope="col">Job Id</th>
+                      <th scope="col">Source</th>
                       <th scope="col">Created</th>
                       <th scope="col">Message</th>
                   </tr>
@@ -78,9 +79,14 @@
               <tbody id="paginated_harvest_jobs">
                   {% for error in data.failures %}
                   <tr>
-                      <td data-sort-value="{{ error.harvest_job_id }}">
-                          <a href="{{ url_for('main.view_harvest_job', job_id=error.harvest_job_id) }}">
-                              {{ error.harvest_job_id[:8] }}...
+                      <td data-sort-value="{{ error.job.id }}">
+                          <a href="{{ url_for('main.view_harvest_job', job_id=error.job.id) }}">
+                              {{ error.job.id[:8] }}...
+                          </a>
+                      </td>
+                      <td data-sort-value="{{ error.job.source.name }}">
+                          <a href="{{ url_for('main.view_harvest_source', source_id=error.job.source.id) }}">
+                              {{ error.job.source.name }}
                           </a>
                       </td>
                       <td>{{ error.date_created.strftime('%Y-%m-%d %H:%M:%S')

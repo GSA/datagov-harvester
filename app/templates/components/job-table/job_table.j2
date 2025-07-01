@@ -5,7 +5,7 @@
         <thead>
             <tr>
                 <th scope="col">Job Id</th>
-                <th scope="col">Source Id</th>
+                <th scope="col">Source</th>
                 <th scope="col">Status</th>
                 <th scope="col">Created</th>
                 <th scope="col">Records Added</th>
@@ -22,9 +22,9 @@
                         {{ job.id[:8] }}...
                     </a>
                 </td>
-                <td data-sort-value="{{ job.harvest_source_id }}">
-                    <a href="{{ url_for('main.view_harvest_source', source_id=job.harvest_source_id) }}">
-                        {{ job.harvest_source_id[:8] }}...
+                <td data-sort-value="{{ job.source.name }}">
+                    <a href="{{ url_for('main.view_harvest_source', source_id=job.source.id) }}">
+                        {{ job.source.name }}
                     </a>
                 </td>
                 <td>
