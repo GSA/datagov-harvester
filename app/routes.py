@@ -1111,8 +1111,9 @@ def view_metrics():
             per_page=pagination.per_page,
             order_by="desc",
         )
+        errors_time_filter = f"harvest_job_error.date_created >= '{start_time.isoformat()}' AND harvest_job_error.date_created <= '{current_time}'"
         failures = db.pget_harvest_job_errors(
-            facets="type = 'FailedJobCleanup'",
+            facets=errors_time_filter + " AND type = 'FailedJobCleanup'",
             order_by="desc",
         )
         data = {
