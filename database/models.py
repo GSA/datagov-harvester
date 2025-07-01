@@ -44,7 +44,10 @@ class Organization(db.Model):
         )
     )
     sources = db.relationship(
-        "HarvestSource", backref=backref("org", lazy="joined"), cascade="all, delete-orphan", lazy=True
+        "HarvestSource",
+        backref=backref("org", lazy="joined"),
+        cascade="all, delete-orphan",
+        lazy=True,
     )
 
 
@@ -85,7 +88,10 @@ class HarvestSource(db.Model):
         db.Enum("document", "waf", name="source_type"), nullable=False
     )
     jobs = db.relationship(
-        "HarvestJob", backref=backref("source", lazy="joined"), cascade="all, delete-orphan", lazy=True
+        "HarvestJob",
+        backref=backref("source", lazy="joined"),
+        cascade="all, delete-orphan",
+        lazy=True,
     )
     notification_frequency = db.Column(
         db.Enum(
@@ -128,7 +134,10 @@ class HarvestJob(db.Model):
     records_ignored = db.Column(db.Integer, default=0)
     records_validated = db.Column(db.Integer, default=0)
     errors = db.relationship(
-        "HarvestJobError", backref=backref("job", lazy="joined"), cascade="all, delete-orphan", lazy=True
+        "HarvestJobError",
+        backref=backref("job", lazy="joined"),
+        cascade="all, delete-orphan",
+        lazy=True,
     )
     records = db.relationship(
         "HarvestRecord", backref="job", cascade="all, delete-orphan", lazy=True
@@ -136,7 +145,6 @@ class HarvestJob(db.Model):
     record_errors = db.relationship(
         "HarvestRecordError", backref="job", cascade="all, delete-orphan", lazy=True
     )
-
 
 
 class HarvestRecord(db.Model):

@@ -28,4 +28,4 @@ class TestMetricsPage:
         """Failed jobs table links to source by name."""
         resp = client.get("/metrics/")
         assert job.source.name in resp.text
-        assert f'a href="/harvest_source/{job.source.id}"' in resp.text 
+        assert f'<a href="/harvest_source/{job.source.id}">' in resp.text
