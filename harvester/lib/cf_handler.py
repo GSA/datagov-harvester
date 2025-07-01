@@ -42,7 +42,7 @@ class CFHandler:
     def start_task(self, command, task_id):
         """Start a task on the currently running app's GUUID."""
         self.setup()
-        TASK_MEMORY = os.getenv("HARVEST_RUNNER_TASK_MEM", "1536")
+        TASK_MEMORY = os.getenv("HARVEST_RUNNER_TASK_MEM", "2056")
         TASK_DISK = os.getenv("HARVEST_RUNNER_TASK_DISK", "4096")
         return self.task_mgr.create(
             self._app_guuid(),
