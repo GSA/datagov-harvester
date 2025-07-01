@@ -18,6 +18,7 @@
         {% if data.jobs %}
         {% block htmx_paginated %}
         <div id="paginated__harvest-jobs">
+            {% import 'components/job-table/job_table.j2' as job_table %}
             {{ job_table.job_table(data.jobs, "Recent Harvest Jobs") }}
             {% if pagination.count > jobs|count %}
             {% include '/components/pagination/pagination.html' %}
