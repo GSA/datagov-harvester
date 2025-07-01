@@ -1,4 +1,5 @@
 import csv
+import re
 
 import pytest
 from playwright.sync_api import expect
@@ -22,8 +23,8 @@ class TestHarvestSourceUnauthed:
             upage.locator(".harvest-job-config-properties table tr td")
         ).to_have_text(
             [
-                "harvest_source_id:",
-                "2f2652de-91df-4c63-8b53-bfced20b276b",
+                "Harvest Source:",
+                "Test Source",
                 "status:",
                 "complete",
                 "job_type:",
