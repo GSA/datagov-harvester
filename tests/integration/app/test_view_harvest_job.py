@@ -1,17 +1,3 @@
-import pytest
-
-
-@pytest.fixture
-def job(interface, source):
-    """A harvest job for the fixtured source."""
-    yield interface.add_harvest_job(
-        {
-            "harvest_source_id": source.id,
-            "status": "complete",
-        }
-    )
-
-
 class TestViewHarvestJob:
 
     def test_harvest_source_name(self, client, job):
