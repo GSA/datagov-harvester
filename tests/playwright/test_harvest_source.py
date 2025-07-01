@@ -20,14 +20,14 @@ class TestHarvestSourceUnauthed:
             upage.locator(".harvest-source-config-properties table tr td")
         ).to_have_text(
             [
-                "organization_id:",
-                "d925f84d-955b-4cb7-812f-dcfd6681a18f",
+                "Organization:",
+                "Test Org",
                 "name:",
                 "Test Source",
                 "url:",
                 "http://localhost:80/dcatus/dcatus.json",
-                "notification_emails:",
-                "['email@example.com']",
+                "Notification emails:",
+                "email@example.com",
                 "frequency:",
                 "daily",
                 "schema_type:",

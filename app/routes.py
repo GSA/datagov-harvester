@@ -727,7 +727,7 @@ def view_harvest_source(source_id: str):
         }
         source = db.get_harvest_source(source_id)
         data = {
-            "source": db._to_dict(source),
+            "source": source,
             "summary_data": summary_data,
             "jobs": jobs,
             "chart_data": chart_data,
@@ -903,13 +903,12 @@ def view_harvest_job(job_id=None):
         else:
             data = {
                 "job": job,
-                "job_dict": db._to_dict(job) if job else {},
                 "record_errors": record_errors_dict,
                 "htmx_vars": htmx_vars,
             }
             if job and job.status == "in_progress":
                 data["percent_complete"] = process_job_complete_percentage(
-                    data["job_dict"]
+                    job.to_dict()
                 )
 
             return render_template(

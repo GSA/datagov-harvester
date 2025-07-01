@@ -15,12 +15,12 @@ from harvester.utils.ckan_utils import (
 from harvester.utils.general_utils import (
     create_retry_session,
     dynamic_map_list_items_to_dict,
+    find_indexes_for_duplicates,
     parse_args,
     prepare_transform_msg,
     process_job_complete_percentage,
     query_filter_builder,
     validate_geojson,
-    find_indexes_for_duplicates,
 )
 
 
