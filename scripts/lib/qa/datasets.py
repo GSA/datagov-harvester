@@ -3,10 +3,9 @@ import random
 
 import click
 import requests
-
 from deepdiff import DeepDiff
 
-from .utils import OutputBase, CATALOG_PROD_BASE_URL, CATALOG_NEXT_BASE_URL
+from .utils import CATALOG_NEXT_BASE_URL, CATALOG_PROD_BASE_URL, OutputBase
 
 logger = logging.getLogger(__name__)
 
@@ -81,7 +80,10 @@ class Datasets(OutputBase):
         # try to match identifiers
         identifier = self._get_extra_named(other, "identifier")
         if identifier:
-            url = f'{self.base_url}/api/action/package_search?fq=identifier:"{identifier}"'
+            url = (
+                f"{self.base_url}/api/action/package_search"
+                f'?fq=identifier:"{identifier}"'
+            )
             res = requests.get(url)
             if res.ok:
                 data = res.json()["result"]["results"]
@@ -100,7 +102,6 @@ class Datasets(OutputBase):
 
         # fall through nothing else worked
         return None
-
 
     def get_datasets(self):
         if not self.other_datasets:

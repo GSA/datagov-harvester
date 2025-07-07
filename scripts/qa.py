@@ -1,16 +1,13 @@
-import logging
-import os
-import shutil
 import enum
+import logging
 from functools import wraps
 from pathlib import Path
 from time import time
 
 import click
-
-from lib.qa.organizations import compare_organizations
-from lib.qa.harvest_sources import compare_harvest_sources
 from lib.qa.datasets import compare_datasets
+from lib.qa.harvest_sources import compare_harvest_sources
+from lib.qa.organizations import compare_organizations
 
 logger = logging.getLogger(__name__)
 

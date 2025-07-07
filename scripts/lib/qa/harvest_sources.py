@@ -1,8 +1,7 @@
+import click
 import requests
 
-import click
-
-from .utils import OutputBase, CATALOG_PROD_BASE_URL, CATALOG_NEXT_BASE_URL
+from .utils import CATALOG_NEXT_BASE_URL, CATALOG_PROD_BASE_URL, OutputBase
 
 
 class HarvestSources(OutputBase):
