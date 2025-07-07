@@ -1,11 +1,14 @@
-
 import click
 import requests
 
+from .utils import OutputBase, CATALOG_PROD_BASE_URL, CATALOG_NEXT_BASE_URL
+
 """Organization collection for QA."""
 
-class Organizations:
-    def __init__(self, base_url):
+
+class Organizations(OutputBase):
+    def __init__(self, base_url, **kwargs):
+        super().__init__(**kwargs)
         self.base_url = base_url
 
         # add any other data we want to compare
@@ -33,9 +36,7 @@ class Organizations:
         res.raise_for_status()
 
         data = res.json()
-        return {
-            org_name: dict(self.org_template) for org_name in data["result"]
-        }
+        return {org_name: dict(self.org_template) for org_name in data["result"]}
 
     def get_all_organization_details(self):
         with click.progressbar(self.orgs) as orgs:
@@ -50,12 +51,14 @@ class Organizations:
                 self.orgs[org_name]["package_count"] = org_data["package_count"]
 
 
-def compare_organizations():
+def compare_organizations(output_dir):
     click.echo("Comparing organizations")
-    catalog_orgs = Organizations(CATALOG_PROD_BASE_URL)
-    catalog_next_orgs = Organizations(CATALOG_NEXT_BASE_URL)
-
-    is_same = True
+    catalog_orgs = Organizations(
+        CATALOG_PROD_BASE_URL, output_dir=output_dir / "organizations"
+    )
+    catalog_next_orgs = Organizations(
+        CATALOG_NEXT_BASE_URL, output_dir=output_dir / "organizations"
+    )
 
     attribute_fields = [
         "catalog_name",
@@ -77,15 +80,9 @@ def compare_organizations():
             org_data_next["package_count"],
         ]
 
-        if any(data is False for data in compare_data):
-            is_same = False
-
         attribute_output.append(
             [org_name, org_name in catalog_next_orgs.orgs, *compare_data]
         )
-
-    if len(catalog_orgs.orgs) != len(catalog_next_orgs.orgs):
-        is_same = False
 
     summary_fields = ["catalog_count", "catalog-next_count"]
     summary_output = [
@@ -93,13 +90,7 @@ def compare_organizations():
         [len(catalog_orgs.orgs), len(catalog_next_orgs.orgs)],
     ]
 
-    summary_csv = write_to_csv(
-        os.path.join(OUTPUT_DIR, "org_summary_compare.csv"), summary_output
-    )
-    attribute_csv = write_to_csv(
-        os.path.join(OUTPUT_DIR, "org_attr_compare.csv"), attribute_output
-    )
+    summary_csv = catalog_orgs.write_to_csv("org_summary_compare.csv", summary_output)
+    attribute_csv = catalog_orgs.write_to_csv("org_attr_compare.csv", attribute_output)
 
-    return summary_csv, attribute_csv, is_same
-
-
+    return summary_csv, attribute_csv
