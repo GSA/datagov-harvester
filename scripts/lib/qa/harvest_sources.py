@@ -1,5 +1,11 @@
-class HarvestSources:
-    def __init__(self, source_type: str):
+import requests
+
+from .utils import OutputBase, CATALOG_PROD_BASE_URL, CATALOG_NEXT_BASE_URL
+
+
+class HarvestSources(OutputBase):
+    def __init__(self, source_type: str, **kwargs):
+        super().__init__(**kwargs)
         self.source_type = source_type  # catalog-next or catalog
 
         self.sources = {}
@@ -26,7 +32,7 @@ class HarvestSources:
             )
         else:
             self.harvest_sources_url = (
-                "https://datagov-harvest-admin-dev.app.cloud.gov"
+                "https://datagov-harvest-dev.app.cloud.gov"
                 "/harvest_sources/?paginate=false"
             )
             self.harvest_sources_dset_count_url = (
@@ -54,54 +60,45 @@ class HarvestSources:
             }
 
 
-def compare_harvest_sources():
-    def compare_schema_types(schema_next: str, schema_prod: str) -> bool:
-        if schema_next.startswith("dcatus") and schema_prod in [
-            "datajson",
-            "single-doc",
-        ]:
-            return True
+def compare_schema_types(schema_next: str, schema_prod: str) -> bool:
+    if schema_next.startswith("dcatus") and schema_prod in [
+        "datajson",
+        "single-doc",
+    ]:
+        return True
 
-        if schema_next.startswith("iso") and schema_prod in [
-            "waf",
-            "waf-collection",
-            "single-doc",
-        ]:
-            return True
+    if schema_next.startswith("iso") and schema_prod in [
+        "waf",
+        "waf-collection",
+        "single-doc",
+    ]:
+        return True
 
-        if schema_prod in ["csw", "arcgis", "single-doc", "geoportal"]:
-            return None
+    if schema_prod in ["csw", "arcgis", "single-doc", "geoportal"]:
+        return None
 
-        return False
+    return False
 
-    def get_org_name(organizations: Organizations, org_id: str) -> dict:
-        for org_name, org_data in organizations.items():
-            if org_data["id"] == org_id:
-                return org_data["name"]
 
-    def compare_dataset_counts(catalog_sources: dict, next_source: dict) -> list:
-        output = []
+def compare_dataset_counts(catalog_sources: dict, next_source: dict) -> list:
+    output = []
 
-        for name, count in catalog_sources.items():
-            output.append([name, count, next_source.get(name, 0)])
+    for name, count in catalog_sources.items():
+        output.append([name, count, next_source.get(name, 0)])
 
-        return sorted(output, key=lambda r: r[1], reverse=True)
+    return sorted(output, key=lambda r: r[1], reverse=True)
 
-    catalog_harvest_sources = HarvestSources("catalog")
+
+def compare_harvest_sources(output_dir):
+    output_dir = output_dir / "harvest_sources"
+
+    catalog_harvest_sources = HarvestSources("catalog", output_dir=output_dir)
     catalog_harvest_sources.get_harvest_sources()
     catalog_harvest_sources.get_num_datasets()
 
-    catalog_next_harvest_sources = HarvestSources("catalog-next")
+    catalog_next_harvest_sources = HarvestSources("catalog-next", output_dir=output_dir)
     catalog_next_harvest_sources.get_harvest_sources()
     catalog_next_harvest_sources.get_num_datasets()
-
-    catalog_orgs = Organizations("catalog")
-    catalog_orgs.prepare_organizations()
-
-    catalog_next_orgs = Organizations("catalog-next")
-    catalog_next_orgs.prepare_organizations()
-
-    is_same = True
 
     attribute_fields = [
         "catalog_harvest_source_name",
@@ -124,10 +121,6 @@ def compare_harvest_sources():
         )
 
         compare_data = [
-            hs_data["organization"]["name"]
-            == get_org_name(
-                catalog_next_orgs.orgs, harvest_source_data_next["organization_id"]
-            ),
             hs_data["name"] == harvest_source_data_next["name"],
             hs_data["url"] == harvest_source_data_next["url"],
             hs_data["frequency"].lower() == harvest_source_data_next["frequency"],
@@ -135,9 +128,6 @@ def compare_harvest_sources():
                 harvest_source_data_next["schema_type"], hs_data["source_type"]
             ),
         ]
-
-        if any(data is False for data in compare_data):
-            is_same = False
 
         attribute_output.append(
             [hs_name, hs_name in catalog_harvest_sources.sources, *compare_data]
@@ -166,17 +156,17 @@ def compare_harvest_sources():
         ],
     ]
 
-    dataset_count_csv = write_to_csv(
-        os.path.join(OUTPUT_DIR, "harvest_source_dataset_count.csv"),
+    dataset_count_csv = catalog_harvest_sources.write_to_csv(
+        "harvest_source_dataset_count.csv",
         dataset_count_output,
     )
 
-    summary_csv = write_to_csv(
-        os.path.join(OUTPUT_DIR, "harvest_source_summary_compare.csv"), summary_output
+    summary_csv = catalog_harvest_sources.write_to_csv(
+        "harvest_source_summary_compare.csv", summary_output
     )
 
-    attribute_csv = write_to_csv(
-        os.path.join(OUTPUT_DIR, "harvest_source_attr_compare.csv"), attribute_output
+    attribute_csv = catalog_harvest_sources.write_to_csv(
+        "harvest_source_attr_compare.csv", attribute_output
     )
 
-    return dataset_count_csv, summary_csv, attribute_csv, is_same
+    return dataset_count_csv, summary_csv, attribute_csv

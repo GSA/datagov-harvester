@@ -1,6 +1,7 @@
 
 import csv
 import json
+import shutil
 
 from pathlib import Path
 
@@ -13,8 +14,18 @@ class OutputBase:
 
     """Output methods and directory data."""
 
-    def __init__(self, output_dir=Path()):
+    def __init__(self, output_dir=None, clear_on_start=True):
+        if output_dir is None:
+            self.output_dir = Path()
+            # no clean up if no output_dir is specified
+            return
+
+
         self.output_dir = Path(output_dir)
+        if clear_on_start and self.output_dir.exists():
+            shutil.rmtree(self.output_dir)
+
+        self.output_dir.mkdir(parents=True, exist_ok=True)
 
 
     def write_to_csv(self, file_path: str, data: list) -> str:
