@@ -1,5 +1,7 @@
 import requests
 
+import click
+
 from .utils import OutputBase, CATALOG_PROD_BASE_URL, CATALOG_NEXT_BASE_URL
 
 
@@ -90,6 +92,7 @@ def compare_dataset_counts(catalog_sources: dict, next_source: dict) -> list:
 
 
 def compare_harvest_sources(output_dir):
+    click.echo("Comparing harvest sources")
     output_dir = output_dir / "harvest_sources"
 
     catalog_harvest_sources = HarvestSources("catalog", output_dir=output_dir)

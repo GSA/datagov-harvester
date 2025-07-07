@@ -17,11 +17,6 @@ logger = logging.getLogger(__name__)
 SCRIPT_DIR = Path(__file__).parents[0]
 OUTPUT_DIR = SCRIPT_DIR / "qa_output"
 
-# prepare output directory
-if os.path.exists(OUTPUT_DIR):
-    shutil.rmtree(OUTPUT_DIR)  # deletes dir and all contents
-os.mkdir(OUTPUT_DIR)
-
 
 ## helpers functions
 def timing(f):
@@ -57,18 +52,30 @@ class Job(enum.StrEnum):
     help="Choose a job",
     default=Job.all,
 )
+@click.option(
+    "--seed",
+    type=int,
+    help="Random seed value for reproduction",
+    default=None,
+)
+@click.option(
+    "--sample-size",
+    type=int,
+    help="Number of datasets to compare",
+    default=25,
+)
 @timing
-def process_job(job_type: str):
+def process_job(job_type: str, seed: int, sample_size: int):
     if job_type == Job.all:
         compare_organizations(OUTPUT_DIR)
         compare_harvest_sources(OUTPUT_DIR)
-        compare_datasets(OUTPUT_DIR)
+        compare_datasets(OUTPUT_DIR, seed=seed, sample_size=sample_size)
     if job_type == Job.organization:
         compare_organizations(OUTPUT_DIR)
     if job_type == Job.harvest_source:
         compare_harvest_sources(OUTPUT_DIR)
     if job_type == Job.dataset:
-        compare_datasets(OUTPUT_DIR)
+        compare_datasets(OUTPUT_DIR, seed=seed, sample_size=sample_size)
 
 
 if __name__ == "__main__":

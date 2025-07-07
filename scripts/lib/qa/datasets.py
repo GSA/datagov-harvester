@@ -13,7 +13,14 @@ logger = logging.getLogger(__name__)
 
 class Datasets(OutputBase):
 
-    def __init__(self, base_url: str, other_datasets: list = None, **kwargs):
+    def __init__(
+        self,
+        base_url: str,
+        other_datasets: list = None,
+        sample_size: int = 25,
+        seed: int = None,
+        **kwargs,
+    ):
         super().__init__(**kwargs)
         self.base_url = base_url
         self.other_datasets = other_datasets
@@ -22,19 +29,15 @@ class Datasets(OutputBase):
         self.missing_datasets = []
 
         # the idea is to get 25 out of 1000 attempts
-        self.sample_size = 25
+        self.sample_size = sample_size
 
-        self.seed_val = random.randint(1, 100)
-        self.write_to_file("dataset_seed_value.txt", str(self.seed_val))
-        random.seed(self.seed_val)
+        if seed is None:
+            self.seed_val = random.randint(1, 10000)
+        else:
+            click.echo(f"Using specific seed: {seed}")
+            self.seed_val = seed
 
-        self.get_num_datasets()
-
-        self.start = random.randint(1, int(self.num_datasets - self.sample_size))
-        self.package_url = (
-            f"{self.base_url}/api/action/package_search"
-            f"?start={self.start}&rows={self.sample_size}&sort=id%20asc"
-        )
+        self.get_datasets()
 
     @staticmethod
     def _get_extra_named(item_dict, name):
@@ -57,9 +60,10 @@ class Datasets(OutputBase):
             return None
 
     def get_num_datasets(self):
+        """Return the number of datasets in this catalog."""
         res = requests.get(f"{self.base_url}/api/action/package_search")
         res.raise_for_status()
-        self.num_datasets = res.json()["result"]["count"]
+        return res.json()["result"]["count"]
 
     def fetch_matching_dataset(self, other):
         """Find and return a dataset that "matches" other from self.base_url.
@@ -80,11 +84,24 @@ class Datasets(OutputBase):
     def get_datasets(self):
         if not self.other_datasets:
             # we have to go get the datasets since they weren't specified
-            res = requests.get(self.package_url)
+            click.echo(f"Getting {self.sample_size} datasets from catalog-next")
+
+            # only save the seed if we are doing the randomized download
+            self.write_to_file("dataset_seed_value.txt", str(self.seed_val))
+
+            random.seed(self.seed_val)
+            num_datasets = self.get_num_datasets()
+            start = random.randint(1, int(num_datasets - self.sample_size))
+
+            res = requests.get(
+                f"{self.base_url}/api/action/package_search"
+                f"?start={start}&rows={self.sample_size}&sort=id%20asc"
+            )
             res.raise_for_status()
             self.datasets = res.json()["result"]["results"]
         else:
             # datasets from other catalog were specified
+            click.echo("Getting matching datasets from catalog")
             with click.progressbar(self.other_datasets) as bar:
                 for other in bar:
                     matching = self.fetch_matching_dataset(other)
@@ -109,18 +126,19 @@ def munge_name(name: str) -> str:
     return name
 
 
-def compare_datasets(output_dir):
-    logger.info("Getting datasets from Catalog-next")
-    catalog_next_datasets = Datasets(CATALOG_NEXT_BASE_URL, output_dir=output_dir)
-    catalog_next_datasets.get_datasets()
+def compare_datasets(output_dir, seed=None, sample_size=25):
+    click.echo("Comparing datasets")
+    output_dir = output_dir / "datasets"
+    catalog_next_datasets = Datasets(
+        CATALOG_NEXT_BASE_URL, seed=seed, sample_size=sample_size, output_dir=output_dir
+    )
 
-    logger.info("Getting matching datasets from Catalog")
     catalog_datasets = Datasets(
         CATALOG_PROD_BASE_URL,
         other_datasets=catalog_next_datasets.datasets,
         output_dir=output_dir,
+        clear_on_start=False,  # seed value is there, don't clear the dir
     )
-    catalog_datasets.get_datasets()
 
     for catalog_dataset, catalog_next_dataset in zip(
         catalog_datasets.datasets, catalog_next_datasets.datasets
