@@ -74,12 +74,33 @@ class Datasets(OutputBase):
         res = requests.get(url)
         if res.ok:
             data = res.json()["result"]["results"]
-            if len(data) == 0:
-                return None
-            else:
+            if data:
+                # name matched
                 return data[0]
-        else:
-            return None
+
+        # try to match identifiers
+        identifier = self._get_extra_named(other, "identifier")
+        if identifier:
+            url = f'{self.base_url}/api/action/package_search?fq=identifier:"{identifier}"'
+            res = requests.get(url)
+            if res.ok:
+                data = res.json()["result"]["results"]
+                if data:
+                    # identifier matched
+                    return data[0]
+
+            # some catalog datasets have guid instead
+            url = f'{self.base_url}/api/action/package_search?fq=guid:"{identifier}"'
+            res = requests.get(url)
+            if res.ok:
+                data = res.json()["result"]["results"]
+                if data:
+                    # identifier matched guid
+                    return data[0]
+
+        # fall through nothing else worked
+        return None
+
 
     def get_datasets(self):
         if not self.other_datasets:
