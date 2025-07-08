@@ -2,11 +2,8 @@ import gc
 import json
 import logging
 import os
-import smtplib
 import sys
 from dataclasses import dataclass, field
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
 from itertools import chain
 from pathlib import Path
 from typing import List
@@ -45,6 +42,7 @@ from harvester.utils.general_utils import (
     make_record_mapping,
     open_json,
     prepare_transform_msg,
+    send_email_to_recipients,
     sort_dataset,
     traverse_waf,
 )
@@ -447,23 +445,7 @@ class HarvestSource:
             user_recipients = self.notification_emails
             all_recipients = [support_recipient] + user_recipients
 
-            with smtplib.SMTP(SMTP_CONFIG["server"], SMTP_CONFIG["port"]) as server:
-                if SMTP_CONFIG["use_tls"]:
-                    server.starttls()
-                server.login(SMTP_CONFIG["username"], SMTP_CONFIG["password"])
-
-                for recipient in all_recipients:
-                    msg = MIMEMultipart()
-                    msg["From"] = SMTP_CONFIG["default_sender"]
-                    msg["To"] = recipient
-                    msg["Reply-To"] = "no-reply@gsa.gov"
-                    msg["Subject"] = subject
-                    msg.attach(MIMEText(body, "plain"))
-
-                    server.sendmail(
-                        SMTP_CONFIG["default_sender"], [recipient], msg.as_string()
-                    )
-                    logger.info(f"Notification email sent to: {recipient}")
+            send_email_to_recipients(all_recipients, subject, body)
 
         except Exception as e:
             logger.error(f"Error preparing or sending notification emails: {e}")
