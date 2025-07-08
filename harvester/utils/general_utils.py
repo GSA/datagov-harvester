@@ -4,7 +4,10 @@ import json
 import logging
 import os
 import re
+import smtplib
 from datetime import datetime, timedelta, timezone
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 from typing import Union
 from urllib.parse import urljoin
 
@@ -19,6 +22,18 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger()
 
 FREQUENCY_ENUM = {"daily": 1, "weekly": 7, "biweekly": 14, "monthly": 30}
+
+
+SMTP_CONFIG = {
+    "server": os.getenv("HARVEST_SMTP_SERVER"),
+    "port": 587,
+    "use_tls": os.getenv("HARVEST_SMTP_STARTTLS", "true").lower() == "true",
+    "username": os.getenv("HARVEST_SMTP_USER"),
+    "password": os.getenv("HARVEST_SMTP_PASSWORD"),
+    "default_sender": os.getenv("HARVEST_SMTP_SENDER"),
+    "base_url": os.getenv("REDIRECT_URI").rsplit("/", 1)[0],
+    "recipient": os.getenv("HARVEST_SMTP_RECIPIENT"),
+}
 
 
 def prepare_transform_msg(transform_data):
@@ -458,3 +473,26 @@ def create_retry_session() -> requests.Session:
     session.mount("http://", adapter)
     session.mount("https://", adapter)
     return session
+
+
+def send_email_to_recipients(recipients, subject, body):
+    """Send an email to a list of recipiencts.
+
+    The subject and body stay the same and it sends messages to each address
+    in the iterable `recipients`.
+    """
+    with smtplib.SMTP(SMTP_CONFIG["server"], SMTP_CONFIG["port"]) as server:
+        if SMTP_CONFIG["use_tls"]:
+            server.starttls()
+        server.login(SMTP_CONFIG["username"], SMTP_CONFIG["password"])
+
+        for recipient in recipients:
+            msg = MIMEMultipart()
+            msg["From"] = SMTP_CONFIG["default_sender"]
+            msg["To"] = recipient
+            msg["Reply-To"] = "no-reply@gsa.gov"
+            msg["Subject"] = subject
+            msg.attach(MIMEText(body, "plain"))
+
+            server.sendmail(SMTP_CONFIG["default_sender"], [recipient], msg.as_string())
+            logger.info(f"Notification email sent to: {recipient}")

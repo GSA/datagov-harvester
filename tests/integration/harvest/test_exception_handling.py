@@ -101,7 +101,7 @@ class TestHarvestJobExceptionHandling:
         harvest_source.notification_emails = ["user@example.com"]
 
         with patch(
-            "harvester.harvest.smtplib.SMTP",
+            "harvester.utils.general_utils.smtplib.SMTP",
             side_effect=smtplib.SMTPConnectError(421, "Cannot connect"),
         ):
             with pytest.raises(SendNotificationException) as exc_info:
