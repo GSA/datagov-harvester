@@ -33,7 +33,7 @@ collect_ignore_glob = ["functional/*"]
 def default_session_fixture():
     with (
         patch("harvester.lib.cf_handler.CloudFoundryClient"),
-        patch("harvester.harvest.smtplib"),
+        patch("harvester.utils.general_utils.smtplib"),
         patch("app.load_manager.start", lambda: True),
     ):
         yield

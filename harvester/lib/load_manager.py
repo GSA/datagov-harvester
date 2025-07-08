@@ -3,8 +3,13 @@ import os
 from datetime import datetime
 
 from database.interface import HarvesterDBInterface
+from harvester import SMTP_CONFIG
 from harvester.lib.cf_handler import CFHandler
-from harvester.utils.general_utils import create_future_date, get_datetime
+from harvester.utils.general_utils import (
+    create_future_date,
+    get_datetime,
+    send_email_to_recipients,
+)
 
 CF_API_URL = os.getenv("CF_API_URL")
 CF_SERVICE_USER = os.getenv("CF_SERVICE_USER")
@@ -54,6 +59,16 @@ class LoadManager:
                 "message": "In-progress job stopped running for an unknown reason.",
                 "harvest_job_id": job.id,
             }
+        )
+        job_url = f"{SMTP_CONFIG['base_url']}/harvest_job/{job.id}"
+        send_email_to_recipients(
+            [SMTP_CONFIG.get("recipient")],
+            "Failed job cleaned up for {job.source.name}",
+            (
+                f"The harvest job ({job.id}) for harvest source {job.source.name}\n"
+                "was found to have failed.\n\n"
+                f"You can view the details here: {job_url}\n"
+            ),
         )
 
     def _clean_old_jobs(self):
