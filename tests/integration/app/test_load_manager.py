@@ -378,7 +378,9 @@ class TestLoadManager:
 
     @patch("harvester.lib.load_manager.send_email_to_recipients")
     @patch("harvester.lib.cf_handler.CloudFoundryClient")
-    def test_clean_old_jobs_failed(self, CFCMock, email_mock, interface_with_multiple_jobs):
+    def test_clean_old_jobs_failed(
+        self, CFCMock, email_mock, interface_with_multiple_jobs
+    ):
         """Cleans up failed in_progress jobs in the database."""
         assert len(interface_with_multiple_jobs.get_in_progress_jobs()) == 3
 
@@ -396,7 +398,6 @@ class TestLoadManager:
         assert interface_with_multiple_jobs.db.query(HarvestJobError).count() == 3
         # emails were sent for each failed job
         assert email_mock.call_count == 3
-
 
     @patch("harvester.lib.cf_handler.CloudFoundryClient")
     def test_clean_old_jobs_still_running(self, CFCMock, interface_with_multiple_jobs):
