@@ -561,25 +561,30 @@ class HarvesterDBInterface:
             queries.append(HarvestRecord.ckan_id.isnot(None))
 
         subq = (
-            self.db.query(
-                HarvestRecord.identifier,
-                HarvestRecord.source_hash,
-                HarvestRecord.ckan_id,
-                HarvestRecord.ckan_name,
-                HarvestRecord.date_created,
-                HarvestRecord.id,
-                HarvestRecord.action,
-            )
+            self.db.query(HarvestRecord)
             .filter(*queries)
             .order_by(HarvestRecord.identifier, desc(HarvestRecord.date_created))
             .distinct(HarvestRecord.identifier)
             .subquery()
         )
         sq_alias = aliased(HarvestRecord, subq)
-        return self.db.query(sq_alias).filter(sq_alias.action != "delete")
+
+        return self.db.query(
+            sq_alias.identifier,
+            sq_alias.source_hash,
+            sq_alias.ckan_id,
+            sq_alias.ckan_name,
+            sq_alias.date_created,
+            sq_alias.date_finished,
+            sq_alias.id,
+            sq_alias.action,
+        ).filter(sq_alias.action != "delete")
 
     def get_latest_harvest_records_by_source(self, source_id):
-        return self._to_dict(self.get_latest_harvest_records_by_source_orm(source_id))
+        return [
+            dict(row._mapping)
+            for row in self.get_latest_harvest_records_by_source_orm(source_id)
+        ]
 
     def get_geo_from_string(self, location_name):
         """get a geometry from the locations table using the location name
