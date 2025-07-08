@@ -123,6 +123,7 @@ def compare_harvest_sources(output_dir):
         )
 
         compare_data = [
+            hs_data["organization"]["id"] == harvest_source_data_next["organization_id"],
             hs_data["name"] == harvest_source_data_next["name"],
             hs_data["url"] == harvest_source_data_next["url"],
             hs_data["frequency"].lower() == harvest_source_data_next["frequency"],
