@@ -299,8 +299,9 @@ class HarvestSource:
         this function yields 1 record at a time to minimize memory usage of large waf sources.
         it yields 1 record regardless of the source type (e.g. datajson or waf)
         """
-        for record in self.external_records:
+        while len(self.external_records) > 0:
             try:
+                record = self.external_records.pop(0)
                 if self.source_type == "waf":
                     record["content"] = download_file(record["identifier"], ".xml")
                     dataset = record["content"]
@@ -311,6 +312,8 @@ class HarvestSource:
                 dataset_hash = dataset_to_hash(dataset)
 
                 yield Record(self, record["identifier"], dataset, dataset_hash)
+
+                del record
             except Exception as e:
                 self.reporter.update("errored")
                 raise ExternalRecordToClass(
@@ -703,7 +706,7 @@ class Record:
             self.id = db_record.id
         except Exception as e:
             raise CompareException(
-                f"{self.harvest_source.name} {self.url} failed to write compare to db. :: {repr(e)}",
+                f"{self.harvest_source.name} {self.harvest_source.url} failed to write compare to db. :: {repr(e)}",
                 self.harvest_source.job_id,
             )
 
@@ -865,6 +868,6 @@ if __name__ == "__main__":
     try:
         args = parse_args(sys.argv[1:])
         harvest_job_starter(args.jobId, args.jobType)
-    except SystemExit as e:
+    except Exception as e:
         logger.error(f"Harvest has experienced an error :: {repr(e)}")
         sys.exit(1)
