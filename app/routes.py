@@ -17,6 +17,7 @@ from cryptography.hazmat.primitives.serialization import load_pem_private_key
 from dotenv import load_dotenv
 from flask import (
     Blueprint,
+    Response,
     flash,
     jsonify,
     make_response,
@@ -944,62 +945,134 @@ def cancel_harvest_job(job_id):
 ### Download all errors for a given job
 @main.route("/harvest_job/<job_id>/errors/<error_type>", methods=["GET"])
 def download_harvest_errors_by_job(job_id, error_type):
-    try:
-        match error_type:
-            case "job":
-                errors = db._to_list(db.get_harvest_job_errors_by_job(job_id))
+    def generate_csv_data(error_type, job_id):
+        """Generator function to stream CSV data without loading all data into memory"""
+        try:
+            if error_type == "job":
+                # Write header first
                 header = [
-                    [
-                        "harvest_job_id",
-                        "date_created",
-                        "job_error_type",
-                        "message",
-                        "harvest_job_error_id",
-                    ]
+                    "harvest_job_id",
+                    "date_created",
+                    "job_error_type",
+                    "message",
+                    "harvest_job_error_id",
                 ]
-            case "record":
-                errors = [
-                    [
-                        error.id,
-                        identifier,
-                        (
-                            json.loads(source_raw).get("title", None)
-                            if source_raw
-                            else None
-                        ),
-                        error.harvest_record_id,
-                        error.type,
-                        error.message,
-                        error.date_created,
+
+                # Use StringIO for proper CSV formatting
+                header_io = StringIO()
+                header_writer = csv.writer(header_io)
+                header_writer.writerow(header)
+                yield header_io.getvalue()
+
+                # Stream job errors
+                errors = db.get_harvest_job_errors_by_job(job_id)
+                for error_dict in errors:
+                    row = [
+                        str(error_dict.get("harvest_job_id", "")),
+                        str(error_dict.get("date_created", "")),
+                        str(error_dict.get("type", "")),
+                        str(error_dict.get("message", "")),
+                        str(error_dict.get("id", "")),
                     ]
-                    for error, identifier, source_raw in db.get_harvest_record_errors_by_job(
-                        job_id, paginate=False
+
+                    row_io = StringIO()
+                    row_writer = csv.writer(row_io)
+                    row_writer.writerow(row)
+                    yield row_io.getvalue()
+
+            elif error_type == "record":
+                # Write header first
+                header = [
+                    "record_error_id",
+                    "identifier",
+                    "title",
+                    "harvest_record_id",
+                    "record_error_type",
+                    "message",
+                    "date_created",
+                ]
+
+                header_io = StringIO()
+                header_writer = csv.writer(header_io)
+                header_writer.writerow(header)
+                yield header_io.getvalue()
+
+                # Stream record errors in batches to avoid memory issues
+                batch_size = 1000
+                offset = 0
+
+                while True:
+                    # Get a batch of errors
+                    batch_errors = db.get_harvest_record_errors_by_job(
+                        job_id,
+                        paginate=True,
+                        page=offset // batch_size,
+                        per_page=batch_size,
                     )
-                ]
-                header = [
-                    [
-                        "record_error_id",
-                        "identifier",
-                        "title",
-                        "harvest_record_id",
-                        "record_error_type",
-                        "message",
-                        "date_created",
-                    ]
-                ]
 
-        si = StringIO()
-        cw = csv.writer(si)
-        cw.writerows(header + errors)
+                    if not batch_errors:
+                        break
 
-        output = make_response(si.getvalue())
-        output.headers["Content-Disposition"] = f"attachment; filename={job_id}.csv"
-        output.headers["Content-type"] = "text/csv"
+                    for error, identifier, source_raw in batch_errors:
+                        # Extract title from source_raw JSON
+                        title = ""
+                        if source_raw:
+                            try:
+                                title = json.loads(source_raw).get("title", "")
+                            except (json.JSONDecodeError, AttributeError):
+                                title = ""
 
-        return output
+                        row = [
+                            str(error.id) if error.id else "",
+                            str(identifier) if identifier else "",
+                            str(title),
+                            (
+                                str(error.harvest_record_id)
+                                if error.harvest_record_id
+                                else ""
+                            ),
+                            str(error.type) if error.type else "",
+                            str(error.message) if error.message else "",
+                            str(error.date_created) if error.date_created else "",
+                        ]
 
-    except Exception:
-        return "Please provide correct job_id"
+                        row_io = StringIO()
+                        row_writer = csv.writer(row_io)
+                        row_writer.writerow(row)
+                        yield row_io.getvalue()
+
+                    offset += batch_size
+
+                    # If we got fewer results than batch_size, we're done
+                    if len(batch_errors) < batch_size:
+                        break
+
+        except Exception as e:
+            logger.error(f"Error generating CSV data: {repr(e)}")
+            error_io = StringIO()
+            error_writer = csv.writer(error_io)
+            error_writer.writerow([f"Error generating CSV data: {str(e)}"])
+            yield error_io.getvalue()
+
+    try:
+        if error_type not in ["job", "record"]:
+            return "Invalid error type. Must be 'job' or 'record'", 400
+
+        # Create streaming response
+        response = Response(
+            generate_csv_data(error_type, job_id),
+            mimetype="text/csv",
+            headers={
+                "Content-Disposition": f"attachment; filename={job_id}_{error_type}_errors.csv",
+                "Content-Type": "text/csv",
+            },
+        )
+
+        return response
+
+    except Exception as e:
+        logger.error(f"Error in download_harvest_errors_by_job: {repr(e)}")
+        return "Error generating error report", 500
 
 
 # Records
