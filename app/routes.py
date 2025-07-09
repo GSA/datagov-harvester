@@ -945,26 +945,32 @@ def cancel_harvest_job(job_id):
 ### Download all errors for a given job
 @main.route("/harvest_job/<job_id>/errors/<error_type>", methods=["GET"])
 def download_harvest_errors_by_job(job_id, error_type):
-    def generate_csv_data(error_type, job_id):
-        """Generator function to stream CSV data without loading all data into memory"""
+    import tempfile
+    import os
+    
+    try:
+        if error_type not in ["job", "record"]:
+            return "Invalid error type. Must be 'job' or 'record'", 400
+
+        # Create a temporary file to store the CSV data
+        temp_file = tempfile.NamedTemporaryFile(mode='w+', delete=False, suffix='.csv')
+        temp_file_path = temp_file.name
+        
         try:
+            csv_writer = csv.writer(temp_file)
+            
             if error_type == "job":
-                # Write header first
+                # Write header
                 header = [
                     "harvest_job_id",
                     "date_created",
-                    "job_error_type",
+                    "job_error_type", 
                     "message",
                     "harvest_job_error_id",
                 ]
-
-                # Use StringIO for proper CSV formatting
-                header_io = StringIO()
-                header_writer = csv.writer(header_io)
-                header_writer.writerow(header)
-                yield header_io.getvalue()
-
-                # Stream job errors
+                csv_writer.writerow(header)
+                
+                # Write job errors
                 errors = db.get_harvest_job_errors_by_job(job_id)
                 for error_dict in errors:
                     row = [
@@ -974,45 +980,36 @@ def download_harvest_errors_by_job(job_id, error_type):
                         str(error_dict.get("message", "")),
                         str(error_dict.get("id", "")),
                     ]
-
-                    row_io = StringIO()
-                    row_writer = csv.writer(row_io)
-                    row_writer.writerow(row)
-                    yield row_io.getvalue()
-
+                    csv_writer.writerow(row)
+                    
             elif error_type == "record":
-                # Write header first
+                # Write header
                 header = [
                     "record_error_id",
                     "identifier",
-                    "title",
+                    "title", 
                     "harvest_record_id",
                     "record_error_type",
                     "message",
                     "date_created",
                 ]
-
-                header_io = StringIO()
-                header_writer = csv.writer(header_io)
-                header_writer.writerow(header)
-                yield header_io.getvalue()
-
-                # Stream record errors in batches to avoid memory issues
-                batch_size = 1000
-                offset = 0
-
+                csv_writer.writerow(header)
+                
+                # Process record errors in batches
+                page = 0
+                batch_size = 100
+                
                 while True:
-                    # Get a batch of errors
                     batch_errors = db.get_harvest_record_errors_by_job(
                         job_id,
                         paginate=True,
-                        page=offset // batch_size,
+                        page=page,
                         per_page=batch_size,
                     )
-
+                    
                     if not batch_errors:
                         break
-
+                        
                     for error, identifier, source_raw in batch_errors:
                         # Extract title from source_raw JSON
                         title = ""
@@ -1021,54 +1018,61 @@ def download_harvest_errors_by_job(job_id, error_type):
                                 title = json.loads(source_raw).get("title", "")
                             except (json.JSONDecodeError, AttributeError):
                                 title = ""
-
+                        
                         row = [
                             str(error.id) if error.id else "",
                             str(identifier) if identifier else "",
                             str(title),
-                            (
-                                str(error.harvest_record_id)
-                                if error.harvest_record_id
-                                else ""
-                            ),
+                            str(error.harvest_record_id) if error.harvest_record_id else "",
                             str(error.type) if error.type else "",
                             str(error.message) if error.message else "",
                             str(error.date_created) if error.date_created else "",
                         ]
-
-                        row_io = StringIO()
-                        row_writer = csv.writer(row_io)
-                        row_writer.writerow(row)
-                        yield row_io.getvalue()
-
-                    offset += batch_size
-
+                        csv_writer.writerow(row)
+                    
+                    page += 1
+                    
                     # If we got fewer results than batch_size, we're done
                     if len(batch_errors) < batch_size:
                         break
-
+            
+            temp_file.close()
+            
+            # Create a generator that reads the file in chunks
+            def generate_file_chunks():
+                try:
+                    with open(temp_file_path, 'r') as f:
+                        while True:
+                            chunk = f.read(8192)  # Read in 8KB chunks
+                            if not chunk:
+                                break
+                            yield chunk
+                finally:
+                    # Clean up the temporary file
+                    try:
+                        os.unlink(temp_file_path)
+                    except OSError:
+                        pass
+            
+            # Create streaming response
+            response = Response(
+                generate_file_chunks(),
+                mimetype="text/csv",
+                headers={
+                    "Content-Disposition": f"attachment; filename={job_id}_{error_type}_errors.csv",
+                    "Content-Type": "text/csv"
+                }
+            )
+            
+            return response
+            
         except Exception as e:
-            logger.error(f"Error generating CSV data: {repr(e)}")
-            error_io = StringIO()
-            error_writer = csv.writer(error_io)
-            error_writer.writerow([f"Error generating CSV data: {str(e)}"])
-            yield error_io.getvalue()
-
-    try:
-        if error_type not in ["job", "record"]:
-            return "Invalid error type. Must be 'job' or 'record'", 400
-
-        # Create streaming response
-        response = Response(
-            generate_csv_data(error_type, job_id),
-            mimetype="text/csv",
-            headers={
-                "Content-Disposition": f"attachment; filename={job_id}_{error_type}_errors.csv",
-                "Content-Type": "text/csv",
-            },
-        )
-
-        return response
+            temp_file.close()
+            try:
+                os.unlink(temp_file_path)
+            except OSError:
+                pass
+            raise e
 
     except Exception as e:
         logger.error(f"Error in download_harvest_errors_by_job: {repr(e)}")
