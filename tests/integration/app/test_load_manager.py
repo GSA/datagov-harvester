@@ -398,6 +398,8 @@ class TestLoadManager:
         assert interface_with_multiple_jobs.db.query(HarvestJobError).count() == 3
         # emails were sent for each failed job
         assert email_mock.call_count == 3
+        # email subjects did not have format string characters
+        assert all("{" not in args[1] for args, _ in email_mock.call_args_list)
 
     @patch("harvester.lib.cf_handler.CloudFoundryClient")
     def test_clean_old_jobs_still_running(self, CFCMock, interface_with_multiple_jobs):
