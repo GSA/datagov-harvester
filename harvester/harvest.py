@@ -32,6 +32,7 @@ from harvester.exceptions import (
     ValidationException,
 )
 from harvester.lib.harvest_reporter import HarvestReporter
+from harvester.lib.load_manager import LoadManager
 from harvester.utils.ckan_utils import CKANSyncTool
 from harvester.utils.general_utils import (
     create_retry_session,
@@ -843,6 +844,15 @@ def harvest_job_starter(job_id, job_type="harvest"):
     ckan_sync_tool.close_conection()
 
 
+def check_for_more_work():
+    """Call back to the load manager to start new tasks.
+
+    At the end of the harvest job, look for whether there are still new
+    jobs to be done and schedule at most one new task.
+    """
+    LoadManager()._start_new_jobs(check_from_task=True)
+
+
 if __name__ == "__main__":
     import sys
 
@@ -851,6 +861,7 @@ if __name__ == "__main__":
     try:
         args = parse_args(sys.argv[1:])
         harvest_job_starter(args.jobId, args.jobType)
+        check_for_more_work()
     except Exception as e:
         logger.error(f"Harvest has experienced an error :: {repr(e)}")
         sys.exit(1)
