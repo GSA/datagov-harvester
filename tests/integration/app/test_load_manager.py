@@ -113,7 +113,7 @@ class TestLoadManager:
         assert logger_mock.info.call_count == 1
         assert (
             logger_mock.info.call_args[0][0]
-            == "3 running_tasks >= max tasks count (3)."
+            == "3 running tasks >= max tasks count (3)."
         )
 
     @patch("harvester.lib.load_manager.logger")
