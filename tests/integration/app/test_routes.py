@@ -169,7 +169,7 @@ class TestDynamicRouteTable:
                 "GET": "Looks like you navigated to a harvest job that doesn't exist"
             },
             "main.download_harvest_errors_by_job": {
-                "GET": "Please provide correct job_id"
+                "GET": "Invalid error type. Must be 'job' or 'record'"
             },
         }
         for route in client.application.url_map.iter_rules():

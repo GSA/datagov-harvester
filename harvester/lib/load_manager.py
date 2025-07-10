@@ -63,7 +63,7 @@ class LoadManager:
         job_url = f"{SMTP_CONFIG['base_url']}/harvest_job/{job.id}"
         send_email_to_recipients(
             [SMTP_CONFIG.get("recipient")],
-            "Failed job cleaned up for {job.source.name}",
+            f"Failed job cleaned up for {job.source.name}",
             (
                 f"The harvest job ({job.id}) for harvest source {job.source.name}\n"
                 "was found to have failed.\n\n"
