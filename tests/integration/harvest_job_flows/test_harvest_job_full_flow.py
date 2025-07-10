@@ -1,10 +1,11 @@
 import json
 import os
+from datetime import datetime, timedelta
 from unittest.mock import MagicMock, patch
 
 from deepdiff import DeepDiff
 
-from harvester.harvest import harvest_job_starter
+from harvester.harvest import check_for_more_work, harvest_job_starter
 from harvester.utils.general_utils import download_file
 
 HARVEST_SOURCE_URL = os.getenv("HARVEST_SOURCE_URL")
@@ -380,3 +381,32 @@ class TestHarvestJobFullFlow:
             )
             == {}
         )
+
+
+class TestCheckMoreWork:
+
+    @patch("harvester.lib.cf_handler.CloudFoundryClient")
+    def test_check_more_work(
+        self, CFCMock, interface, organization_data, source_data_dcatus_single_record
+    ):
+        """Check more work starts another task."""
+
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_dcatus_single_record)
+        job = interface.add_harvest_job(
+            {
+                "status": "new",
+                "harvest_source_id": source_data_dcatus_single_record["id"],
+                "date_created": datetime.now() + timedelta(days=-1),
+            }
+        )
+
+        # no running tasks
+        CFCMock.return_value.v3.apps._pagination.return_value = []
+
+        check_for_more_work()
+        # one task created
+        start_task_mock = CFCMock.return_value.v3.tasks.create
+        assert start_task_mock.call_count == 1
+        # job in progress
+        assert job.status == "in_progress"
