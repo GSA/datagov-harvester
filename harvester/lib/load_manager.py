@@ -31,8 +31,6 @@ class LoadManager:
                 f"err {e} :: CFHandler is not configured correctly. \
                 Check your env vars."
             )
-        self.jobs = []
-        self.running_tasks = []
 
     def _handle_failed_job(self, job):
         """Handle a HarvestJob that failed.
@@ -83,21 +81,33 @@ class LoadManager:
         for job in failed_jobs:
             self._handle_failed_job(job)
 
-    def _start_new_jobs(self):
-        """Start new jobs to be done, up to the max tasks count."""
-        self.running_tasks = self.handler.num_running_app_tasks()
-        if self.running_tasks >= MAX_TASKS_COUNT:
+    def _start_new_jobs(self, check_from_task=False):
+        """Start new jobs to be done, up to the max tasks count.
+
+        If check_from_task is True, then this is being called from a running
+        task before it stops so we adjust the running_tasks calculation and
+        only schedule at most one new job.
+        """
+        running_tasks = self.handler.num_running_app_tasks()
+        if check_from_task:
+            running_tasks -= 1
+
+        if running_tasks >= MAX_TASKS_COUNT:
             logger.info(
-                f"{self.running_tasks} running_tasks >= max tasks count ({MAX_TASKS_COUNT})."  # noqa E501
+                f"{running_tasks} running tasks >= max tasks count ({MAX_TASKS_COUNT})."  # noqa E501
             )
             return
         else:
-            slots = MAX_TASKS_COUNT - self.running_tasks
+            slots = MAX_TASKS_COUNT - running_tasks
+
+        if check_from_task:
+            # from a task only do 1 at most
+            slots = 1 if slots > 0 else 0
 
         # invoke cf_task with next jobs
         # then mark the job as running in the DB
-        self.jobs = interface.get_new_harvest_jobs_in_past(limit=slots)
-        for job in self.jobs:
+        jobs = interface.get_new_harvest_jobs_in_past(limit=slots)
+        for job in jobs:
             self.start_job(job.id)
             self.schedule_next_job(job.harvest_source_id)
 

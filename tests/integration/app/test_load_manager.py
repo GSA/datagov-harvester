@@ -113,7 +113,7 @@ class TestLoadManager:
         assert logger_mock.info.call_count == 1
         assert (
             logger_mock.info.call_args[0][0]
-            == "3 running_tasks >= max tasks count (3)."
+            == "3 running tasks >= max tasks count (3)."
         )
 
     @patch("harvester.lib.load_manager.logger")
@@ -420,3 +420,74 @@ class TestLoadManager:
         assert len(interface_with_multiple_jobs.get_in_progress_jobs()) == 3
         # and no new job errors
         assert interface_with_multiple_jobs.db.query(HarvestJobError).count() == 0
+
+    @patch("harvester.lib.cf_handler.CloudFoundryClient")
+    def test_load_manager_from_tasks_invokes_one_task(
+        self,
+        CFCMock,
+        interface_no_jobs,
+        source_data_dcatus_orm,
+    ):
+        """Called from inside a task schedules at most 1 new task."""
+        intervals = [-1, -2]
+        jobs = [
+            {
+                "status": "new",
+                "harvest_source_id": source_data_dcatus_orm.id,
+                "date_created": datetime.now() + timedelta(days=interval),
+            }
+            for interval in intervals
+        ]
+        for job in jobs:
+            interface_no_jobs.add_harvest_job(job)
+
+        jobs = interface_no_jobs.get_new_harvest_jobs_in_past()
+        assert len(jobs) == 2
+        for job in jobs:
+            assert job.status == "new"
+
+        # no running tasks
+        CFCMock.return_value.v3.apps._pagination.return_value = []
+
+        load_manager = LoadManager()
+        load_manager._start_new_jobs(check_from_task=True)
+
+        # one task created
+        start_task_mock = CFCMock.return_value.v3.tasks.create
+        assert start_task_mock.call_count == 1
+        # first job is in progress
+        assert jobs[0].status == "in_progress"
+        # next job is not started
+        assert jobs[-1].status == "new"
+
+    @patch("harvester.lib.cf_handler.CloudFoundryClient")
+    @patch("harvester.lib.load_manager.MAX_TASKS_COUNT", 1)
+    def test_load_manager_from_tasks_doesnt_start_too_many(
+        self,
+        CFCMock,
+        interface_no_jobs,
+        source_data_dcatus_orm,
+    ):
+        """Called from inside a task doesn't schedule over limit."""
+        job = interface_no_jobs.add_harvest_job(
+            {
+                "status": "new",
+                "harvest_source_id": source_data_dcatus_orm.id,
+                "date_created": datetime.now() + timedelta(days=-1),
+            }
+        )
+
+        # way too many running tasks
+        CFCMock.return_value.v3.apps._pagination.return_value = [
+            {"state": "RUNNING", "name": "harvest-job-"},
+            {"state": "RUNNING", "name": "harvest-job-"},
+            {"state": "RUNNING", "name": "harvest-job-"},
+        ]
+
+        load_manager = LoadManager()
+        load_manager._start_new_jobs(check_from_task=True)
+
+        # no task created and job is still new
+        start_task_mock = CFCMock.return_value.v3.tasks.create
+        assert start_task_mock.call_count == 0
+        assert job.status == "new"
