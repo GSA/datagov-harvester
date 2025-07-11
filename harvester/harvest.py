@@ -399,7 +399,7 @@ class HarvestSource:
         date_finished. date_finished is set here because this function is
         either called on critical exception or the job has completed harvesting.
         """
-        self.db_interface.finish_job_with_status(
+        self.db_interface.update_harvest_job(
             self.job_id, {"status": status, "date_finished": get_datetime()}
         )
 
