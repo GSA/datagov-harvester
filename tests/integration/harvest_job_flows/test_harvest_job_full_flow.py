@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 from datetime import datetime, timedelta
 from unittest.mock import MagicMock, patch
@@ -381,6 +382,30 @@ class TestHarvestJobFullFlow:
             )
             == {}
         )
+
+    def test_harvest_multiple_jobs(
+        self,
+        interface,
+        organization_data,
+        source_data_dcatus_single_record,
+        caplog,
+    ):
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_dcatus_single_record)
+        harvest_job_doc = {
+            "status": "in_progress",
+            "harvest_source_id": source_data_dcatus_single_record["id"],
+        }
+        harvest_job1 = interface.add_harvest_job(harvest_job_doc)
+
+        harvest_job2 = interface.add_harvest_job(harvest_job_doc)
+
+        caplog.set_level(logging.INFO)
+
+        harvest_job_starter(harvest_job1.id, "harvest")
+        harvest_job = interface.get_harvest_job(harvest_job1.id)
+        assert f"Job {harvest_job2.id} is already in progress for source" in caplog.text
+        assert harvest_job.status == "error"
 
 
 class TestCheckMoreWork:
