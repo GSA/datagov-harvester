@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 from datetime import datetime, timedelta
 from unittest.mock import MagicMock, patch
@@ -11,6 +12,7 @@ from harvester.utils.general_utils import download_file
 HARVEST_SOURCE_URL = os.getenv("HARVEST_SOURCE_URL")
 
 
+@patch("harvester.lib.cf_handler.CloudFoundryClient")
 class TestHarvestJobFullFlow:
     @patch("harvester.harvest.ckan_sync_tool.ckan")
     @patch("harvester.harvest.HarvestSource.send_notification_emails")
@@ -380,6 +382,65 @@ class TestHarvestJobFullFlow:
                 ckan_package_create_args,
             )
             == {}
+        )
+
+    def test_harvest_multiple_jobs(
+        self,
+        CFClientMock,  # Class-level patch parameter
+        interface,
+        organization_data,
+        source_data_dcatus_single_record,
+        caplog,
+    ):
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_dcatus_single_record)
+        harvest_job_doc = {
+            "status": "in_progress",
+            "harvest_source_id": source_data_dcatus_single_record["id"],
+        }
+        harvest_job1 = interface.add_harvest_job(harvest_job_doc)
+
+        harvest_job2 = interface.add_harvest_job(harvest_job_doc)
+
+        caplog.set_level(logging.INFO)
+
+        harvest_job_starter(harvest_job1.id, "harvest")
+        harvest_job = interface.get_harvest_job(harvest_job1.id)
+        assert f"Job {harvest_job2.id} is already in progress for source" in caplog.text
+        assert harvest_job.status == "error"
+
+    def test_harvest_multiple_tasks(
+        self,
+        CFClientMock,  # Class-level patch parameter comes first
+        interface,
+        organization_data,
+        source_data_dcatus_single_record,
+        caplog,
+    ):
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_dcatus_single_record)
+        harvest_job = interface.add_harvest_job(
+            {
+                "status": "in_progress",
+                "harvest_source_id": source_data_dcatus_single_record["id"],
+            }
+        )
+
+        CFClientMock.return_value.v3.apps._pagination.return_value = [
+            {"state": "RUNNING", "name": f"harvest-job-{harvest_job.id}-harvest"},
+            {"state": "RUNNING", "name": f"harvest-job-{harvest_job.id}-harvest"},
+            {
+                "state": "RUNNING",
+                "name": "harvest-job-1c3d686c-6156-429d-b27b-5ab163750e76-harvest",
+            },
+        ]
+
+        caplog.set_level(logging.INFO)
+
+        harvest_job_starter(harvest_job.id, "harvest")
+        assert (
+            f"Job {harvest_job.id} is already running in another task. Exiting."
+            in caplog.text
         )
 
 

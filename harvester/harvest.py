@@ -31,6 +31,7 @@ from harvester.exceptions import (
     TransformationException,
     ValidationException,
 )
+from harvester.lib.cf_handler import CFHandler
 from harvester.lib.harvest_reporter import HarvestReporter
 from harvester.lib.load_manager import LoadManager
 from harvester.utils.ckan_utils import CKANSyncTool
@@ -60,6 +61,10 @@ ROOT_DIR = Path(__file__).parents[1]
 
 # harvest worker count
 harvest_worker_sync_count = int(os.getenv("HARVEST_WORKER_SYNC_COUNT", 1))
+
+CF_API_URL = os.getenv("CF_API_URL")
+CF_SERVICE_USER = os.getenv("CF_SERVICE_USER")
+CF_SERVICE_AUTH = os.getenv("CF_SERVICE_AUTH")
 
 
 @dataclass
@@ -819,6 +824,24 @@ def harvest_job_starter(job_id, job_type="harvest"):
     logger.info(f"Harvest job starting for JobId: {job_id}")
     harvest_source = HarvestSource(job_id, job_type)
 
+    # Check if another job is already in progress for this source
+    jobs = harvest_source.db_interface.get_in_progress_jobs()
+    for job in jobs:
+        if job.harvest_source_id == harvest_source.id and job.id != job_id:
+            logger.error(
+                f"Job {job.id} is already in progress for source {harvest_source.name}. Exiting."
+            )
+            harvest_source.finish_job_with_status("error")
+            return
+    # Check if another task is already running this job
+    handler = CFHandler(CF_API_URL, CF_SERVICE_USER, CF_SERVICE_AUTH)
+    running_tasks = handler.get_running_app_tasks()
+    running_harvest_ids = handler.job_ids_from_tasks(running_tasks)
+    if isinstance(running_harvest_ids, list) and running_harvest_ids.count(job_id) > 1:
+        logger.error(f"Job {job_id} is already running in another task. Exiting.")
+        # Don't finish the job here, just exit to prevent duplicate processing
+        return
+
     if job_type in ["harvest", "force_harvest"]:
         harvest_source.run_full_harvest()
 
@@ -837,6 +860,8 @@ def harvest_job_starter(job_id, job_type="harvest"):
 
     # generate harvest job report
     harvest_source.report()
+
+    logger.info(f"Harvest job completed for JobId: {job_id}")
 
     # close the db connection after job to prevent persistent open connections
     harvest_source.db_interface.close()
