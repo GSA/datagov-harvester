@@ -317,6 +317,7 @@ class HarvestSource:
                 raise ExternalRecordToClass(
                     f"{self.name} {self.url} failed to prepare record for harvest :: {repr(e)}",
                     self.job_id,
+                    None,  # there is no record id to associate
                 )
 
     def acquire_minimum_external_data(self) -> list:
