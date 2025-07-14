@@ -1,5 +1,7 @@
+import logging
 from unittest.mock import patch
 
+from harvester.harvest import harvest_job_starter
 from harvester.lib.cf_handler import CFHandler
 
 
@@ -60,3 +62,37 @@ class TestCFTasking:
         CFUtil = CFHandler("url", "user", "password")
         logs = CFUtil.read_recent_app_logs(task_id=dhl_cf_task_data["task_id"])
         assert logs is not None
+
+    def test_harvest_multiple_tasks(
+        self,
+        CFClientMock,  # Class-level patch parameter comes first
+        interface,
+        organization_data,
+        source_data_dcatus_single_record,
+        caplog,
+    ):
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_dcatus_single_record)
+        harvest_job = interface.add_harvest_job(
+            {
+                "status": "in_progress",
+                "harvest_source_id": source_data_dcatus_single_record["id"],
+            }
+        )
+
+        CFClientMock.return_value.v3.apps._pagination.return_value = [
+            {"state": "RUNNING", "name": f"harvest-job-{harvest_job.id}-harvest"},
+            {"state": "RUNNING", "name": f"harvest-job-{harvest_job.id}-harvest"},
+            {
+                "state": "RUNNING",
+                "name": "harvest-job-1c3d686c-6156-429d-b27b-5ab163750e76-harvest",
+            },
+        ]
+
+        caplog.set_level(logging.INFO)
+
+        harvest_job_starter(harvest_job.id, "harvest")
+        assert (
+            f"Job {harvest_job.id} is already running in another task. Exiting."
+            in caplog.text
+        )
