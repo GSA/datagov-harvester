@@ -48,6 +48,7 @@ from harvester.utils.general_utils import (
     sort_dataset,
     traverse_waf,
 )
+from database.models import HarvestSource as HarvestSourceORM
 
 # requests data
 session = create_retry_session()
@@ -185,6 +186,10 @@ class HarvestSource:
                 f"failed to extract source info from {job_id}. exiting :: {repr(e)}",
                 self.job_id,
             )
+
+    def get_source_orm(self) -> HarvestSourceORM:
+        """Get the harvest source object from the database."""
+        return self.db_interface.get_harvest_source_by_jobid(self.job_id)
 
     def store_records_as_internal(self, records: List[dict]) -> None:
         """
@@ -647,6 +652,7 @@ class Record:
                 return
             if self.harvest_source.schema_type.startswith("iso19115"):
                 self.transform()
+                self.fill_placeholders()
             self.validate()
             self.sync()
         except (
@@ -759,6 +765,31 @@ class Record:
                 self.harvest_source.job_id,
                 self.id,
             )
+
+    def fill_placeholders(self) -> None:
+        """Fill in placeholder values to prevent some validation errors.
+
+        We work directly on the self.transformed_data dict.
+        """
+        # missing contactPoint or it's empty
+        if not self.transformed_data.get("contactPoint"):
+            self.transformed_data["contactPoint"] = {
+                "fn": "Not provided - Contact data.gov",
+                "hasEmail": "mailto:datagovsupport@gsa.gov",
+            }
+
+        if not self.transformed_data.get("description"):
+            self.transformed_data["description"] = "No description was provided."
+
+        if not self.transformed_data.get("keyword"):
+            self.transformed_data["keyword"] = ["__"]
+
+        if not self.transformed_data.get("publisher"):
+            # publisher defaults to the harvest source's organization
+            # information
+            self.transformed_data["publisher"] = {
+                "name": self.harvest_source.get_source_orm().org.name
+            }
 
     def validate(self) -> None:
         # TODO: create a different status for transformation exceptions
