@@ -194,7 +194,9 @@ def _derive_source_fields():
 
         if source["source_type"] == "datajson":
             if organization_type == "Federal Government":
-                return "dcatus1.1: federal"
+                # https://github.com/GSA/data.gov/issues/5306
+                # Use non-federal schema even for federal organizations
+                return "dcatus1.1: non-federal"
             return "dcatus1.1: non-federal"
         elif source["source_type"].startswith("waf"):
             # WAF sources have auto-detected schemas in CKAN, so just choose
