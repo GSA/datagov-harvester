@@ -15,6 +15,8 @@ from requests.exceptions import HTTPError, Timeout
 sys.path.insert(1, "/".join(os.path.realpath(__file__).split("/")[0:-2]))
 
 
+from database.models import HarvestSource as HarvestSourceORM
+
 # ruff: noqa: E402
 from harvester import SMTP_CONFIG, HarvesterDBInterface, db_interface
 from harvester.exceptions import (
@@ -48,7 +50,6 @@ from harvester.utils.general_utils import (
     sort_dataset,
     traverse_waf,
 )
-from database.models import HarvestSource as HarvestSourceORM
 
 # requests data
 session = create_retry_session()

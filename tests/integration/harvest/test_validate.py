@@ -154,7 +154,9 @@ class TestValidateDataset:
         assert len(valid_iso_2_record.transformed_data["keyword"]) == 1
         assert valid_iso_2_record.transformed_data["keyword"][0] == "__"
 
-    def test_transformed_iso_publisher_placeholder(self, organization_data, valid_iso_2_record):
+    def test_transformed_iso_publisher_placeholder(
+        self, organization_data, valid_iso_2_record
+    ):
         valid_iso_2_record.transform()
         del valid_iso_2_record.transformed_data["publisher"]
 
@@ -162,4 +164,6 @@ class TestValidateDataset:
         valid_iso_2_record.fill_placeholders()
         valid_iso_2_record.validate()  ## passes
 
-        assert valid_iso_2_record.transformed_data["publisher"] == {"name": organization_data["name"]}
+        assert valid_iso_2_record.transformed_data["publisher"] == {
+            "name": organization_data["name"]
+        }
