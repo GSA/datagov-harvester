@@ -5,6 +5,7 @@ import os
 import re
 
 from cloudfoundry_client.client import CloudFoundryClient
+from cloudfoundry_client.errors import InvalidStatusCode
 
 logger = logging.getLogger("harvest_admin")
 
@@ -71,9 +72,16 @@ class CFHandler:
         self.setup()
         # get tasks returns a single "page" and we need to manually wrap it into a
         # pagination object
-        return list(
-            self.client.v3.apps._pagination(self.client.v3.apps.get(app_guuid, "tasks"))
-        )
+        try:
+            result_iter = self.client.v3.apps._pagination(
+                self.client.v3.apps.get(app_guuid, "tasks")
+            )
+        except InvalidStatusCode:
+            logger.warning(
+                "Failed to get app tasks from CF, task information is not accurate"
+            )
+            return []
+        return list(result_iter)
 
     @staticmethod
     def job_ids_from_tasks(task_list):

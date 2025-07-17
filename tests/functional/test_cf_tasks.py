@@ -1,5 +1,9 @@
 import os
 from time import sleep
+from unittest import TestCase
+from unittest.mock import patch
+
+from cloudfoundry_client.errors import InvalidStatusCode
 
 from harvester.lib.cf_handler import CFHandler
 
@@ -13,7 +17,7 @@ dhl_cf_task_data = {
 }
 
 
-class TestCFTasking:
+class TestCFTasking(TestCase):
     def test_crud_task(self):
         # start a new task
         new_task = cf_handler.start_task(**dhl_cf_task_data)
@@ -34,3 +38,14 @@ class TestCFTasking:
 
         tasks = cf_handler.get_all_app_tasks()
         assert tasks is not None
+
+    @patch("harvester.lib.cf_handler.CloudFoundryClient")
+    def tests_get_all_app_tasks_api_error(self, CFCMock):
+        cf_handler.setup()
+
+        CFCMock.return_value.v3.apps.get.side_effect = InvalidStatusCode(500, "")
+        with self.assertLogs() as logs:
+            tasks = cf_handler.get_all_app_tasks()
+            assert CFCMock.return_value.v3.apps.get.call_count == 1
+            assert tasks == []
+            assert "Failed to get app tasks" in logs.output[0]

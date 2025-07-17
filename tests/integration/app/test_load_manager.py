@@ -4,6 +4,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+from cloudfoundry_client.errors import InvalidStatusCode
 from freezegun import freeze_time
 
 from database.models import HarvestJobError
@@ -420,6 +421,15 @@ class TestLoadManager:
         assert len(interface_with_multiple_jobs.get_in_progress_jobs()) == 3
         # and no new job errors
         assert interface_with_multiple_jobs.db.query(HarvestJobError).count() == 0
+
+    @patch("harvester.lib.cf_handler.CloudFoundryClient")
+    def test_clean_old_jobs_api_error(self, CFCMock):
+        """Doesn't fail if API is down."""
+        # CF reports all running jobs
+        CFCMock.return_value.v3.apps.get.side_effect = InvalidStatusCode(500, "")
+
+        load_manager = LoadManager()
+        load_manager._clean_old_jobs()
 
     @patch("harvester.lib.cf_handler.CloudFoundryClient")
     def test_load_manager_from_tasks_invokes_one_task(
