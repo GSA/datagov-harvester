@@ -1,0 +1,101 @@
+name: Snyk Security Testing
+
+on:
+  pull_request:
+    branches: [ main ]
+  schedule:
+    # Run every day at midnight UTC
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+    # Allow manual triggering
+
+permissions:
+  contents: read
+  security-events: write
+
+env:
+  PY_VERSION: "3.13"
+
+jobs:
+  snyk-test:
+    runs-on: ubuntu-latest
+    name: Snyk Security Scan
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      # Set up Node.js for package-lock.json testing
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: "app/static/package.json"
+          cache: 'npm'
+          cache-dependency-path: |
+            package-lock.json
+            app/static/package-lock.json
+
+      # Install npm dependencies
+      - name: Install Node.js dependencies
+        run: |
+          npm ci
+          cd app/static
+          npm ci
+
+      # Set up Python for requirements.txt testing
+      - name: Set up Python ${{ env.PY_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PY_VERSION }}
+
+      # Install Python dependencies
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      # Install Snyk CLI
+      - name: Install Snyk CLI
+        run: npm install -g snyk
+
+      # Authenticate Snyk
+      - name: Authenticate Snyk
+        run: snyk auth ${{ secrets.SNYK_TOKEN }}
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+
+      # Test main package-lock.json
+      - name: Test package-lock.json with Snyk
+        run: |
+          echo "Testing main package-lock.json..."
+          snyk test --file=package-lock.json
+
+      # Test app/static package-lock.json
+      - name: Test app/static package-lock.json with Snyk
+        run: |
+          echo "Testing app/static package-lock.json..."
+          cd app/static
+          snyk test --file=package-lock.json
+
+      # Test requirements.txt
+      - name: Test requirements.txt with Snyk
+        run: |
+          echo "Testing requirements.txt..."
+          snyk test --file=requirements.txt
+
+      # Monitor dependencies (only on main branch pushes, not PRs)
+      - name: Monitor dependencies with Snyk
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: |
+          echo "Monitoring main package-lock.json..."
+          snyk monitor --file=package-lock.json
+          
+          echo "Monitoring app/static package-lock.json..."
+          cd app/static
+          snyk monitor --file=package-lock.json
+          cd ..
+          
+          echo "Monitoring requirements.txt..."
+          snyk monitor --file=requirements.txt 
