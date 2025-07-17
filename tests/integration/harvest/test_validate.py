@@ -119,7 +119,7 @@ class TestValidateDataset:
             valid_iso_2_record.validate()
         assert (
             e.value.msg
-            == "<ValidationError: \"'contactPoint' is a required property\">"
+            == "'contactPoint' is a required property"
         )
 
     def test_transformed_iso_contact_placeholder(self, valid_iso_2_record):
