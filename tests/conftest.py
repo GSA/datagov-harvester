@@ -949,3 +949,10 @@ def mock_interface():
         instance = MagicMock()
         mock_cls.return_value = instance
         yield instance
+
+
+@pytest.fixture
+def dcatus_non_federal_schema():
+    schema = Path(__file__).parents[1] / "schemas" / "non-federal_dataset.json"
+    with open(schema) as f:
+        return json.load(f)
