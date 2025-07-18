@@ -15,6 +15,7 @@ import geojson_validator
 import requests
 import sansjson
 from bs4 import BeautifulSoup
+from jsonschema.exceptions import ValidationError
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
@@ -496,3 +497,51 @@ def send_email_to_recipients(recipients, subject, body):
 
             server.sendmail(SMTP_CONFIG["default_sender"], [recipient], msg.as_string())
             logger.info(f"Notification email sent to: {recipient}")
+
+
+def found_simple_message(validation_error: ValidationError) -> bool:
+    """
+    determine whether the input validation error represents the most
+    succinct cause for error based on its json_path or dtype
+    """
+    # these are all the unique dtypes found in the
+    # non-federal schema (no different than federal)
+    # {"'boolean'", "'null'", "'array'", "'number'", "'object'", "'string'"}
+
+    # the required field at the root is missing entirely
+    if validation_error.json_path == "$":
+        return True
+
+    # dict/object and list/array are the only non-primitives in the schema
+    if isinstance(validation_error.instance, (dict, list)):
+        # if it's empty you'll get something like
+        # ['$.keyword', '[] should be non-empty']
+        # which is simple and what we want
+        if len(validation_error.instance) == 0:
+            return True
+        return False
+    return True
+
+
+def assemble_validation_messages(validation_errors: list, messages=None) -> list:
+    """
+    given a list of errors, follow each one recursively through its context
+    and get the simplest cause for error. errors with lists or dicts (other than empty)
+    will often return the entire object followed by 'is not valid under any of the given schemas'
+    which isn't helpful.
+    """
+
+    if messages is None:
+        messages = []
+
+    for error in validation_errors:
+        if found_simple_message(error):
+            # these aren't specific enough which make them unhelpful
+            generic_msg = "is not valid under any of the given schemas"
+            is_generic_msg = error.message.endswith(generic_msg)
+            if not is_generic_msg:
+                # ['$.distribution[2].title', "'' should be non-empty"]
+                messages.append([error.json_path, error.message])
+        assemble_validation_messages(error.context, messages)
+
+    return messages
