@@ -66,6 +66,9 @@ class CFHandler:
 
         If the GUUID is not given, then use the `VCAP_APPLICATION` environment
         variable to look up the current running app's guuid.
+
+        If the API call fails, return None. Callers should handle this
+        possibility.
         """
         if app_guuid is None:
             app_guuid = self._app_guuid()
@@ -80,12 +83,16 @@ class CFHandler:
             logger.warning(
                 "Failed to get app tasks from CF, task information is not accurate"
             )
-            return []
+            return None
         return list(result_iter)
 
     @staticmethod
     def job_ids_from_tasks(task_list):
-        """Convert a list of task dicts into a list of their job ids."""
+        """Convert a list of task dicts into a list of their job ids.
+
+        An argument of None can occur when tasks can't be listed. Return
+        an empty list in that case.
+        """
 
         def _id_from_task(task):
             name = task["name"]
@@ -93,6 +100,9 @@ class CFHandler:
                 return re.match(r"harvest-job-(.*)-\w+", name)[1]
             except TypeError:  # no match
                 return None
+
+        if task_list is None:
+            return []
 
         id_list = [_id_from_task(task) for task in task_list]
         return [id_ for id_ in id_list if id_ is not None]
@@ -102,8 +112,14 @@ class CFHandler:
 
         There are other tasks in the list that aren't our harvest jobs
         so we filter those out here.
+
+        If the tasks cannot be listed, this returns None. Callers should
+        handle this possibility.
         """
         tasks = self.get_all_app_tasks(app_guuid)
+        if tasks is None:
+            return None
+
         return [
             task
             for task in tasks
@@ -115,8 +131,14 @@ class CFHandler:
         """Count how many tasks are in the running state.
 
         If app_guid is not given, it will use the current app's GUUID.
+
+        If tasks can't be listed, return None. Callers should handle this
+        possibility.
         """
-        return len(self.get_running_app_tasks(app_guuid))
+        tasks = self.get_running_app_tasks(app_guuid)
+        if tasks is None:
+            return None
+        return len(tasks)
 
     def read_recent_app_logs(self, app_guuid=None, task_id=None):
         """Get a string of recent logs.
