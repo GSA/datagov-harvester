@@ -4,6 +4,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+from cloudfoundry_client.errors import InvalidStatusCode
 from freezegun import freeze_time
 
 from database.models import HarvestJobError
@@ -30,6 +31,7 @@ def all_tasks_json_fixture():
 
 @freeze_time("Jan 14th, 2012")
 class TestLoadManager:
+
     @patch("harvester.lib.cf_handler.CloudFoundryClient")
     @patch("harvester.lib.load_manager.MAX_TASKS_COUNT", 3)
     def test_load_manager_invokes_tasks(
@@ -420,6 +422,50 @@ class TestLoadManager:
         assert len(interface_with_multiple_jobs.get_in_progress_jobs()) == 3
         # and no new job errors
         assert interface_with_multiple_jobs.db.query(HarvestJobError).count() == 0
+
+    @patch("harvester.lib.cf_handler.CloudFoundryClient")
+    def test_clean_old_jobs_api_error(self, CFCMock, caplog):
+        """Doesn't fail if API is down."""
+        # CF tasks list call fails
+        CFCMock.return_value.v3.apps.get.side_effect = InvalidStatusCode(500, "")
+
+        load_manager = LoadManager()
+        load_manager._clean_old_jobs()
+        assert "task information is not accurate" in caplog.text
+
+    @patch("harvester.lib.cf_handler.CloudFoundryClient")
+    def test_start_new_jobs_api_error(self, CFCMock, caplog):
+        """Doesn't fail if API is down."""
+        # CF tasks list call fails
+        CFCMock.return_value.v3.apps.get.side_effect = InvalidStatusCode(500, "")
+
+        load_manager = LoadManager()
+        load_manager._start_new_jobs()
+        assert "Not starting new jobs" in caplog.text
+
+    @patch("harvester.lib.cf_handler.CloudFoundryClient")
+    def test_stop_job_api_fails(
+        self,
+        CFCMock,
+        all_tasks_json_fixture,
+        mock_good_cf_index,
+        interface_no_jobs,
+        source_data_dcatus,
+    ):
+        """Doesn't do anything if API is down."""
+        # CF tasks list call fails
+        CFCMock.return_value.v3.apps.get.side_effect = InvalidStatusCode(500, "")
+
+        load_manager = LoadManager()
+        load_manager.trigger_manual_job(source_data_dcatus["id"])
+
+        source_id = source_data_dcatus["id"]
+        jobs = interface_no_jobs.pget_harvest_jobs(
+            facets=f"harvest_source_id = '{source_id}'"
+        )
+
+        retval = load_manager.stop_job(jobs[0].id)
+        assert "Could not stop job" in retval
 
     @patch("harvester.lib.cf_handler.CloudFoundryClient")
     def test_load_manager_from_tasks_invokes_one_task(
