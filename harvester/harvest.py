@@ -771,6 +771,8 @@ class Record:
         """Fill in placeholder values to prevent some validation errors.
 
         We work directly on the self.transformed_data dict.
+
+        This function is only called on ISO records. It is not applied on DCATUS.
         """
         # missing contactPoint or it's empty
         if not self.transformed_data.get("contactPoint"):
@@ -791,6 +793,11 @@ class Record:
             self.transformed_data["publisher"] = {
                 "name": self.harvest_source.get_source_orm().org.name
             }
+
+        if self.transformed_data.get("describedBy"):
+            # recommended for unknown files types
+            # https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/MIME_types/Common_types
+            self.transformed_data["describedByType"] = "application/octet-stream"
 
     def validate(self) -> None:
         # TODO: create a different status for transformation exceptions

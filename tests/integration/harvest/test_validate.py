@@ -167,3 +167,18 @@ class TestValidateDataset:
         assert valid_iso_2_record.transformed_data["publisher"] == {
             "name": organization_data["name"]
         }
+
+    def test_transformed_iso_described_by_type_placeholder(self, valid_iso_2_record):
+        valid_iso_2_record.transform()
+        valid_iso_2_record.transformed_data["describedBy"] = (
+            "https://geodesy.noaa.gov/CORS/"
+        )
+
+        # now fill in the missing items
+        valid_iso_2_record.fill_placeholders()
+        valid_iso_2_record.validate()  ## passes
+
+        assert (
+            valid_iso_2_record.transformed_data["describedByType"]
+            == "application/octet-stream"
+        )
