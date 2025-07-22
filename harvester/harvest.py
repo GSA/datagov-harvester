@@ -512,7 +512,6 @@ class Record:
     _source_raw: str = None
     _metadata_hash: str = ""
     _action: str = None
-    _valid: bool = None
     _status: str = None
     _ckan_id: str = None
     _ckan_name: str = None
@@ -606,16 +605,6 @@ class Record:
         if value not in ["create", "update", "delete", None]:
             raise ValueError("Unknown action being set to record")
         self._action = value
-
-    @property
-    def valid(self) -> bool:
-        return self._valid
-
-    @valid.setter
-    def valid(self, value) -> None:
-        if not isinstance(value, bool):
-            raise ValueError("Record validity must be expressed as a boolean")
-        self._valid = value
 
     @property
     def status(self) -> None:
