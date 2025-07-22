@@ -20,7 +20,6 @@ from database.models import HarvestSource as HarvestSourceORM
 # ruff: noqa: E402
 from harvester import SMTP_CONFIG, HarvesterDBInterface, db_interface
 from harvester.exceptions import (
-    log_non_critical_error,
     CKANDownException,
     CKANRejectionException,
     CompareException,
@@ -32,6 +31,7 @@ from harvester.exceptions import (
     SendNotificationException,
     SynchronizeException,
     TransformationException,
+    log_non_critical_error,
 )
 from harvester.lib.cf_handler import CFHandler
 from harvester.lib.harvest_reporter import HarvestReporter
@@ -777,8 +777,13 @@ class Record:
         to `raise e` after calling this method.
         """
         self.status = "error"
-        log_non_critical_error(repr(e), self.harvest_source.job_id, self.id,
-                               e.__class__.__name__, emit_log=False)
+        log_non_critical_error(
+            repr(e),
+            self.harvest_source.job_id,
+            self.id,
+            e.__class__.__name__,
+            emit_log=False,
+        )
 
     def validate(self) -> None:
         """Validate a single record.
@@ -827,7 +832,7 @@ class Record:
             SynchronizeException,
             CKANDownException,
             CKANRejectionException,
-        ) as e:
+        ):
             self.status = "error"
             self.harvest_source.reporter.update("errored")
 

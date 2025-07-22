@@ -78,7 +78,9 @@ class HarvestNonCriticalException(Exception):
     def __init__(self, msg, harvest_job_id, harvest_record_id):
         super().__init__(msg, harvest_job_id, harvest_record_id)
         self.msg = msg
-        log_non_critical_error(msg, harvest_job_id, harvest_record_id, self.__class__.__name__)
+        log_non_critical_error(
+            msg, harvest_job_id, harvest_record_id, self.__class__.__name__
+        )
 
 
 class ExternalRecordToClass(HarvestNonCriticalException):

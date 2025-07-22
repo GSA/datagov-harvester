@@ -83,7 +83,9 @@ class TestValidateDataset:
         errors = [
             e[0] for e in interface.get_harvest_record_errors_by_job(harvest_job.id)
         ]
-        assert errors[0].message.startswith("<ValidationError: '\"<p align=\\'center\\'")
+        assert errors[0].message.startswith(
+            "<ValidationError: '\"<p align=\\'center\\'"
+        )
         assert errors[0].message.endswith(
             "is not valid under any of the given schemas'>"
         )
@@ -112,7 +114,9 @@ class TestValidateDataset:
             e[0] for e in interface.get_harvest_record_errors_by_job(harvest_job.id)
         ]
         assert len(errors) == 3
-        assert errors[-1].message.startswith("<ValidationError: '\"<p align=\\'center\\'")
+        assert errors[-1].message.startswith(
+            "<ValidationError: '\"<p align=\\'center\\'"
+        )
         assert errors[-1].message.endswith(
             "is not valid under any of the given schemas'>"
         )
