@@ -100,7 +100,9 @@ def delete_jobs(job_id: Optional[Tuple[str]], dry_run: bool) -> None:
     except Exception as e:
         click.echo(f"Error fetching tasks: {e}")
         return
+    # import pdb
 
+    # pdb.set_trace()
     # short circuit everything if no tasks are found
     if tasks:
         # loop through the tasks
@@ -122,12 +124,13 @@ def delete_jobs(job_id: Optional[Tuple[str]], dry_run: bool) -> None:
             ):
                 # update the db with the stopped job info
                 job = interface.get_harvest_job(job_id=harvest_task_guid)
+                if job:
+                    jobs.append(job)
                 # only stop and make db edits if not a dry run
                 if dry_run is False:
                     # task sequence id is used to stop the task
                     handler.stop_task(task_seq_id)
                     if job:
-                        jobs.append(job)
                         interface.update_harvest_job(
                             job.id,
                             {
