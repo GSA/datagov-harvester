@@ -269,6 +269,21 @@ def source_data_dcatus_bad_license_uri(organization_data: dict) -> dict:
 
 
 @pytest.fixture
+def source_data_dcatus_multiple_invalid(organization_data: dict) -> dict:
+    return {
+        "id": "2f2652de-91df-4c63-8b53-bfced20b276b",
+        "name": "Single Record Test Source",
+        "notification_emails": ["email@example.com"],
+        "organization_id": organization_data["id"],
+        "frequency": "daily",
+        "url": f"{HARVEST_SOURCE_URL}/dcatus/dcatus_multiple_invalid.json",
+        "schema_type": "dcatus1.1: non-federal",
+        "source_type": "document",
+        "notification_frequency": "always",
+    }
+
+
+@pytest.fixture
 def source_data_dcatus_bad_url(organization_data: dict) -> dict:
     return {
         "id": "b059e587-a4a1-422e-825a-830b4913dbfb",
