@@ -769,6 +769,28 @@ class Record:
                 "name": self.harvest_source.get_source_orm().org.name
             }
 
+        # If distribution items have a downloadURL or accessURL,
+        # check if it just needs an "https://" at the beginning
+        # to be valid
+        def _is_valid_url(url):
+            return Draft202012Validator(
+                {"type": "string", "format": "uri"},
+                format_checker=Draft202012Validator.FORMAT_CHECKER,
+            ).is_valid(url)
+
+        def _guess_better_url_in_item(item, key):
+            url = item.get(key)
+            if url is not None and not _is_valid_url(url):
+                # it exists and isn't valid
+                candidate = "https://" + url
+                if _is_valid_url(candidate):
+                    # TODO: log a warning that we are making this change
+                    item[key] = candidate
+
+        for dist_item in self.transformed_data.get("distribution", []):
+            _guess_better_url_in_item(dist_item, "downloadURL")
+            _guess_better_url_in_item(dist_item, "accessURL")
+
     def _report_error(self, e):
         """Report an exception to the database.
 
