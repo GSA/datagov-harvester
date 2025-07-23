@@ -209,6 +209,8 @@ class TestValidateDataset:
         valid_iso_2_record.transformed_data["distribution"][0][
             "downloadURL"
         ] = "www.example.com/"
+        # makes the record invalid
+        assert not valid_iso_2_record.validate()
 
         # now fill in the missing items
         valid_iso_2_record.fill_placeholders()
@@ -226,6 +228,8 @@ class TestValidateDataset:
         valid_iso_2_record.transformed_data["distribution"][0][
             "accessURL"
         ] = "www.example.com/"
+        # makes the record invalid
+        assert not valid_iso_2_record.validate()
 
         # now fill in the missing items
         valid_iso_2_record.fill_placeholders()
