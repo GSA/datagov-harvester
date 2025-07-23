@@ -31,7 +31,7 @@ from harvester.exceptions import (
     SendNotificationException,
     SynchronizeException,
     TransformationException,
-    ValidationException,
+    log_non_critical_error,
 )
 from harvester.lib.cf_handler import CFHandler
 from harvester.lib.harvest_reporter import HarvestReporter
@@ -512,8 +512,6 @@ class Record:
     _source_raw: str = None
     _metadata_hash: str = ""
     _action: str = None
-    _valid: bool = None
-    _validation_msg: str = ""
     _status: str = None
     _ckan_id: str = None
     _ckan_name: str = None
@@ -609,26 +607,6 @@ class Record:
         self._action = value
 
     @property
-    def valid(self) -> bool:
-        return self._valid
-
-    @valid.setter
-    def valid(self, value) -> None:
-        if not isinstance(value, bool):
-            raise ValueError("Record validity must be expressed as a boolean")
-        self._valid = value
-
-    @property
-    def validation_msg(self) -> str:
-        return self._validation_msg
-
-    @validation_msg.setter
-    def validation_msg(self, value) -> None:
-        if not isinstance(value, str):
-            raise ValueError("validation_msg must be a string")
-        self._validation_msg = value
-
-    @property
     def status(self) -> None:
         return self._status
 
@@ -658,7 +636,6 @@ class Record:
             self.sync()
         except (
             ExternalRecordToClass,
-            ValidationException,
             CompareException,
             TransformationException,
         ):
@@ -792,30 +769,57 @@ class Record:
                 "name": self.harvest_source.get_source_orm().org.name
             }
 
+    def _report_error(self, e):
+        """Report an exception to the database.
+
+        This does not re-raise the exception, it logs it and
+        execution proceeds. If callers want to raise, they need
+        to `raise e` after calling this method.
+        """
+        self.status = "error"
+        log_non_critical_error(
+            repr(e),
+            self.harvest_source.job_id,
+            self.id,
+            e.__class__.__name__,
+            emit_log=False,
+        )
+
     def validate(self) -> None:
+        """Validate a single record.
+
+        Run our jsconschema validator against the raw JSON record or the
+        transformed JSON data.
+
+        Returns True if the record is valid, False if it is not.
+        """
         # TODO: create a different status for transformation exceptions
         # so they aren't confused with validation issues
         logger.info(f"validating {self.identifier}")
-        try:
-            record = (
-                json.loads(self.source_raw)
-                if self.transformed_data is None
-                else self.transformed_data
-            )
+        if self.transformed_data is None:
+            try:
+                record = json.loads(self.source_raw)
+            except json.JSONDecodeError as e:
+                self._report_error(e)
+                self.harvest_source.reporter.update("errored")
+                return False
+        else:
+            record = self.transformed_data
 
-            self.harvest_source.validator.validate(record)
-            self.valid = True
+        # save ourselves a second call to is_valid by keeping a flag of
+        # whether we saw any errors
+        valid = True
+        for error in self.harvest_source.validator.iter_errors(record):
+            valid = False
+            self._report_error(error)
+
+        if valid:
             self.harvest_source.reporter.update("validated")
-        except Exception as e:
-            self.status = "error"
-            self.validation_msg = str(e.message)
-            self.valid = False
+            return True
+        else:
+            # update the reporter only once even with multiple errors
             self.harvest_source.reporter.update("errored")
-            raise ValidationException(
-                repr(e),
-                self.harvest_source.job_id,
-                self.id,
-            )
+            return False
 
     def sync(self):
         try:
@@ -828,9 +832,8 @@ class Record:
             SynchronizeException,
             CKANDownException,
             CKANRejectionException,
-        ) as e:
+        ):
             self.status = "error"
-            self.validation_msg = str(e)
             self.harvest_source.reporter.update("errored")
 
     def update_self_in_db(self) -> bool:
