@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Generator, List
 from unittest.mock import MagicMock, Mock, patch
@@ -964,3 +965,76 @@ def mock_interface():
         instance = MagicMock()
         mock_cls.return_value = instance
         yield instance
+
+
+@pytest.fixture
+def mock_cf_handler():
+    """Fixture to mock CFHandler."""
+    with patch("scripts.orphan_job_clean_up.CFHandler") as mock_handler_class:
+        mock_handler = Mock()
+        mock_handler_class.return_value = mock_handler
+        yield mock_handler
+
+
+@pytest.fixture
+def timestamps():
+    """Fixture providing various timestamps for testing."""
+    now = datetime.now(timezone.utc)
+    return {
+        "now": now,
+        "fresh": (now - timedelta(hours=1)).isoformat().replace("+00:00", "Z"),
+        "stale": (now - timedelta(hours=25)).isoformat().replace("+00:00", "Z"),
+    }
+
+
+@pytest.fixture
+def sample_running_tasks(timestamps):
+    """Fixture providing sample running tasks from CF."""
+    return [
+        {
+            "id": 244,  # sequence_id
+            "guid": "cf-task-guid-1",
+            "command": "python harvester/harvest.py"
+            " 7cd474ba-5437-4d50-b7ec-6114a877510e harvest",
+            "state": "RUNNING",
+            "updated_at": timestamps["stale"],  # Stale task
+            "name": "harvest-job-stale",
+        },
+        {
+            "id": 245,
+            "guid": "cf-task-guid-2",
+            "command": "python harvester/harvest.py"
+            " 12345678-1234-1234-1234-123456789abc harvest",
+            "state": "RUNNING",
+            "updated_at": timestamps["fresh"],  # Fresh task
+            "name": "harvest-job-fresh",
+        },
+        {
+            "id": 246,
+            "guid": "cf-task-guid-3",
+            "command": "python harvester/harvest.py"
+            " abcdef12-3456-7890-abcd-ef1234567890 harvest",
+            "state": "RUNNING",
+            "updated_at": timestamps["stale"],  # Another stale task
+            "name": "harvest-job-stale-2",
+        },
+    ]
+
+
+@pytest.fixture
+def sample_harvest_jobs():
+    """Fixture providing sample harvest job database objects."""
+    job1 = Mock()
+    job1.id = "7cd474ba-5437-4d50-b7ec-6114a877510e"
+
+    job2 = Mock()
+    job2.id = "12345678-1234-1234-1234-123456789abc"
+
+    job3 = Mock()
+    job3.id = "abcdef12-3456-7890-abcd-ef1234567890"
+
+    return {
+        "7cd474ba-5437-4d50-b7ec-6114a877510e": job1,
+        "12345678-1234-1234-1234-123456789abc": job2,
+        "abcdef12-3456-7890-abcd-ef1234567890": job3,
+    }
