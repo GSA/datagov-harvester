@@ -100,9 +100,6 @@ def delete_jobs(job_id: Optional[Tuple[str]], dry_run: bool) -> None:
     except Exception as e:
         click.echo(f"Error fetching tasks: {e}")
         return
-    # import pdb
-
-    # pdb.set_trace()
     # short circuit everything if no tasks are found
     if tasks:
         # loop through the tasks
