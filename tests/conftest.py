@@ -873,7 +873,7 @@ def iso19115_1_transform() -> dict:
         "contactPoint": {
             "@type": "vcard:Contact",
             "fn": "U.S. Environmental Protection Agency, Office of Research and Development-Sustainable and Healthy Communities Research Program, EnviroAtlas",
-            "hasEmail": "mailto:EnviroAtlas@epa.gov",
+            "hasEmail": "mailto:enviroatlas@epa.gov",
         },
         "identifier": "{4c6928d8-6ac2-4909-8b3d-a29e2805ce2d}",
         "accessLevel": "non-public",
