@@ -173,16 +173,13 @@ class TestHarvestRecordExceptionHandling:
         # there's only 1
         test_record = list(external_records_to_process)[0]
         test_record.compare()
-        try:
-            test_record.validate()
-        except:  # noqa: E722
-            pass
+        test_record.validate()
 
         interface_record = interface.get_harvest_record(test_record.id)
         interface_errors = interface.get_harvest_record_errors_by_record(test_record.id)
         assert interface_record.id == interface_errors[0].harvest_record_id
         assert interface_record.status == "error"
-        assert interface_errors[0].type == "ValidationException"
+        assert interface_errors[0].type == "ValidationError"
 
     @patch(
         "harvester.harvest.ckan_sync_tool.ckanify_record",

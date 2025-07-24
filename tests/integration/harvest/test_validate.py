@@ -1,6 +1,5 @@
 import pytest
 
-from harvester.exceptions import ValidationException
 from harvester.harvest import HarvestSource
 
 
@@ -38,9 +37,7 @@ class TestValidateDataset:
 
         # "cftc-dc1" is always the first one
         test_record = next(external_records_to_process)
-        test_record.validate()
-
-        assert test_record.valid is True
+        assert test_record.validate()
 
     def test_validate_dcatus_non_federal(
         self,
@@ -59,9 +56,7 @@ class TestValidateDataset:
 
         # "cftc-dc1" is always the first one
         test_record = next(external_records_to_process)
-        test_record.validate()
-
-        assert test_record.valid is True
+        assert test_record.validate()
 
     def test_invalid_license_uri_dcatus_non_federal(
         self,
@@ -81,31 +76,65 @@ class TestValidateDataset:
         # "cftc-dc1" is always the first one
         test_record = next(external_records_to_process)
 
-        with pytest.raises(ValidationException) as e:
-            test_record.validate()
+        assert not test_record.validate()
 
         # omitting the entire message for brevity
         # see the fixture for more details
-        expected = (
-            "'license':\"<p align='center' style='margin-top: 0px; "
-            "margin-bottom: 1.55rem; font-family: &quot;Avenir Next W0 "
-            '...[truncated]... .</p>" is not valid under any of the given schemas'
-        )
+        errors = [
+            e[0] for e in interface.get_harvest_record_errors_by_job(harvest_job.id)
+        ]
 
-        assert e.value.msg == expected
-        assert test_record.valid is False
+        assert len(errors) == 1
+
+        # ruff: noqa E501
+        expected = "<ValidationError: \"$.license, 'center' does not match any of the acceptable formats: 'uri', 'null', '^(\\\\\\\\[\\\\\\\\[REDACTED).*?(\\\\\\\\]\\\\\\\\])$'\">"
+        assert errors[0].message == expected
+
+    def test_multiple_invalid(
+        self,
+        interface,
+        organization_data,
+        source_data_dcatus_multiple_invalid,
+        job_data_dcatus_non_federal,
+    ):
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_dcatus_multiple_invalid)
+        harvest_job = interface.add_harvest_job(job_data_dcatus_non_federal)
+
+        harvest_source = HarvestSource(harvest_job.id)
+        harvest_source.acquire_minimum_external_data()
+        external_records_to_process = harvest_source.external_records_to_process()
+
+        # "cftc-dc1" is always the first one
+        test_record = next(external_records_to_process)
+
+        assert not test_record.validate()
+
+        errors = [
+            e[0] for e in interface.get_harvest_record_errors_by_job(harvest_job.id)
+        ]
+        assert len(errors) == 3
+
+        # ruff: noqa E501
+        expected = [
+            "<ValidationError: '$.contactPoint.hasEmail, \\'ocagoadmin@oakgov.com\\' does not match any of the acceptable formats: \"^mailto:[\\\\\\\\w\\\\\\\\_\\\\\\\\~\\\\\\\\!\\\\\\\\$\\\\\\\\&\\\\\\\\\\'\\\\\\\\(\\\\\\\\)\\\\\\\\*\\\\\\\\+\\\\\\\\,\\\\\\\\;\\\\\\\\=\\\\\\\\:.-]+@[\\\\\\\\w.-]+\\\\\\\\.[\\\\\\\\w.-]+?$\", \\'^(\\\\\\\\[\\\\\\\\[REDACTED).*?(\\\\\\\\]\\\\\\\\])$\\''>",
+            "<ValidationError: \"$.distribution[0].accessURL, '//////not-a-url.example.com/' does not match any of the acceptable formats: 'uri', 'null', '^(\\\\\\\\[\\\\\\\\[REDACTED).*?(\\\\\\\\]\\\\\\\\])$'\">",
+            "<ValidationError: \"$.license, 'center' does not match any of the acceptable formats: 'uri', 'null', '^(\\\\\\\\[\\\\\\\\[REDACTED).*?(\\\\\\\\]\\\\\\\\])$'\">",
+        ]
+
+        for i in range(len(errors)):
+            assert errors[i].message.startswith(expected[i])
 
     def test_valid_transformed_iso(
         self,
         valid_iso_2_record,
     ):
         valid_iso_2_record.transform()
-        valid_iso_2_record.validate()
-
-        assert valid_iso_2_record.valid is True
+        assert valid_iso_2_record.validate()
 
     def test_invalid_transformed_iso(
         self,
+        interface,
         valid_iso_2_record,
     ):
         valid_iso_2_record.transform()
@@ -114,12 +143,17 @@ class TestValidateDataset:
         # so this actually gets pulled so deleting it here
         del valid_iso_2_record.transformed_data["contactPoint"]
 
-        # validator throws an exception when the dataset is invalid
-        with pytest.raises(ValidationException) as e:
-            valid_iso_2_record.validate()
+        # validator logs exceptions when the dataset is invalid
+        valid_iso_2_record.validate()
+        errors = [
+            e[0]  # returns a tuple, first is the error
+            for e in interface.get_harvest_record_errors_by_job(
+                valid_iso_2_record.harvest_source.job_id
+            )
+        ]
         assert (
-            e.value.msg
-            == "'contactPoint' is a required property"
+            errors[0].message
+            == """<ValidationError: "$, 'contactPoint' is a required property">"""
         )
 
     def test_transformed_iso_contact_placeholder(self, valid_iso_2_record):
@@ -128,7 +162,7 @@ class TestValidateDataset:
 
         # now fill in the missing contactPoint
         valid_iso_2_record.fill_placeholders()
-        valid_iso_2_record.validate()  ## passes
+        assert valid_iso_2_record.validate()
         assert (
             "@gsa.gov"
             in valid_iso_2_record.transformed_data["contactPoint"]["hasEmail"]
@@ -143,7 +177,7 @@ class TestValidateDataset:
 
         # now fill in the missing items
         valid_iso_2_record.fill_placeholders()
-        valid_iso_2_record.validate()  ## passes
+        assert valid_iso_2_record.validate()
 
         assert "No description" in valid_iso_2_record.transformed_data["description"]
 
@@ -153,7 +187,7 @@ class TestValidateDataset:
 
         # now fill in the missing items
         valid_iso_2_record.fill_placeholders()
-        valid_iso_2_record.validate()  ## passes
+        assert valid_iso_2_record.validate()
 
         assert len(valid_iso_2_record.transformed_data["keyword"]) == 1
         assert valid_iso_2_record.transformed_data["keyword"][0] == "__"
@@ -166,7 +200,7 @@ class TestValidateDataset:
 
         # now fill in the missing items
         valid_iso_2_record.fill_placeholders()
-        valid_iso_2_record.validate()  ## passes
+        assert valid_iso_2_record.validate()
 
         assert valid_iso_2_record.transformed_data["publisher"] == {
             "name": organization_data["name"]

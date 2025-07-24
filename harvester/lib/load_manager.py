@@ -89,6 +89,12 @@ class LoadManager:
         only schedule at most one new job.
         """
         running_tasks = self.handler.num_running_app_tasks()
+        if running_tasks is None:
+            # None here indicates that tasks couldn't be listed with the API
+            # so be safe by not doing anything.
+            logger.warning("Not starting new jobs because tasks could not be listed")
+            return
+
         if check_from_task:
             running_tasks -= 1
 
@@ -173,6 +179,9 @@ class LoadManager:
     def stop_job(self, job_id, job_type="harvest"):
         """task manager stop interface, takes a job_id"""
         tasks = self.handler.get_all_app_tasks()
+        if tasks is None:
+            # couldn't list tasks, nothing to do
+            return f"Could not stop job {job_id}, can't list tasks"
         job_task = [
             (t["guid"], t["state"])
             for t in tasks

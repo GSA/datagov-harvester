@@ -1,3 +1,4 @@
+import logging
 import os
 
 from dotenv import load_dotenv
@@ -9,6 +10,8 @@ from flask_migrate import Migrate
 from app.filters import else_na, usa_icon
 from database.models import db
 from harvester.lib.load_manager import LoadManager
+
+logger = logging.getLogger("harvest_admin")
 
 load_manager = LoadManager()
 
@@ -39,7 +42,12 @@ def create_app():
         # SQL-Alchemy can't be used to create the schema here
         # Instead, `flask db upgrade` must already have been run
         # db.create_all()
-        load_manager.start()
+        try:
+            load_manager.start()
+        except Exception as e:
+            # we need to get to app start up, so ignore all errors
+            # from the load manager but log them
+            logger.warning("Load manager startup failed with exception: %s", repr(e))
 
     return app
 
