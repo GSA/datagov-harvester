@@ -83,12 +83,12 @@ class TestValidateDataset:
         errors = [
             e[0] for e in interface.get_harvest_record_errors_by_job(harvest_job.id)
         ]
-        assert errors[0].message.startswith(
-            "<ValidationError: '\"<p align=\\'center\\'"
-        )
-        assert errors[0].message.endswith(
-            "is not valid under any of the given schemas'>"
-        )
+
+        assert len(errors) == 1
+
+        # ruff: noqa E501
+        expected = "<ValidationError: \"$.license, 'center' does not match any of the acceptable formats: 'uri', 'null', '^(\\\\\\\\[\\\\\\\\[REDACTED).*?(\\\\\\\\]\\\\\\\\])$'\">"
+        assert errors[0].message == expected
 
     def test_multiple_invalid(
         self,
@@ -114,12 +114,16 @@ class TestValidateDataset:
             e[0] for e in interface.get_harvest_record_errors_by_job(harvest_job.id)
         ]
         assert len(errors) == 3
-        assert errors[-1].message.startswith(
-            "<ValidationError: '\"<p align=\\'center\\'"
-        )
-        assert errors[-1].message.endswith(
-            "is not valid under any of the given schemas'>"
-        )
+
+        # ruff: noqa E501
+        expected = [
+            "<ValidationError: '$.contactPoint.hasEmail, \\'ocagoadmin@oakgov.com\\' does not match any of the acceptable formats: \"^mailto:[\\\\\\\\w\\\\\\\\_\\\\\\\\~\\\\\\\\!\\\\\\\\$\\\\\\\\&\\\\\\\\\\'\\\\\\\\(\\\\\\\\)\\\\\\\\*\\\\\\\\+\\\\\\\\,\\\\\\\\;\\\\\\\\=\\\\\\\\:.-]+@[\\\\\\\\w.-]+\\\\\\\\.[\\\\\\\\w.-]+?$\", \\'^(\\\\\\\\[\\\\\\\\[REDACTED).*?(\\\\\\\\]\\\\\\\\])$\\''>",
+            "<ValidationError: \"$.distribution[0].accessURL, '//////not-a-url.example.com/' does not match any of the acceptable formats: 'uri', 'null', '^(\\\\\\\\[\\\\\\\\[REDACTED).*?(\\\\\\\\]\\\\\\\\])$'\">",
+            "<ValidationError: \"$.license, 'center' does not match any of the acceptable formats: 'uri', 'null', '^(\\\\\\\\[\\\\\\\\[REDACTED).*?(\\\\\\\\]\\\\\\\\])$'\">",
+        ]
+
+        for i in range(len(errors)):
+            assert errors[i].message.startswith(expected[i])
 
     def test_valid_transformed_iso(
         self,
@@ -149,7 +153,7 @@ class TestValidateDataset:
         ]
         assert (
             errors[0].message
-            == "<ValidationError: \"'contactPoint' is a required property\">"
+            == """<ValidationError: "$, 'contactPoint' is a required property">"""
         )
 
     def test_transformed_iso_contact_placeholder(self, valid_iso_2_record):

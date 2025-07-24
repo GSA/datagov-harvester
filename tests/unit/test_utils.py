@@ -3,6 +3,8 @@ from unittest.mock import Mock, patch
 
 import pytest
 import requests
+from jsonschema import Draft202012Validator, FormatChecker
+from jsonschema.exceptions import ValidationError
 
 from harvester.utils.ckan_utils import (
     create_ckan_extras,
@@ -13,6 +15,7 @@ from harvester.utils.ckan_utils import (
     translate_spatial,
 )
 from harvester.utils.general_utils import (
+    assemble_validation_errors,
     create_retry_session,
     dynamic_map_list_items_to_dict,
     find_indexes_for_duplicates,
@@ -324,6 +327,44 @@ class TestCKANUtils:
 # Point example
 # "{\"type\": \"Point\", \"coordinates\": [-87.08258, 24.9579]}"
 class TestGeneralUtils:
+    def test_assemble_validation_messages(
+        self, dol_distribution_json, dcatus_non_federal_schema
+    ):
+        # the amount of test cases for something like this is massive
+        # because you can check every rule for every piece of data
+        # so trying to reasonably cover our bases
+
+        del dol_distribution_json["identifier"]  # missing required field at root
+        dol_distribution_json["keyword"] = []  # empty array
+        dol_distribution_json["distribution"][0]["title"] = ""  # empty string
+        dol_distribution_json["distribution"][1] = bool  # wrong type
+        dol_distribution_json["contactPoint"][
+            "hasEmail"
+        ] = "bad email"  # bad value based on regex
+
+        validator = Draft202012Validator(
+            dcatus_non_federal_schema, format_checker=FormatChecker()
+        )
+
+        # validation messages are stored in the db via repr which will include the
+        # object type (e.g. '<ValidationError: "$, \'identifier\' is a required property">')
+        # omitting that here for brevity.
+        # ruff: noqa E501
+        expected = [
+            "$, 'identifier' is a required property",
+            "$.contactPoint.hasEmail, 'bad email' does not match any of the acceptable formats: \"^mailto:[\\\\w\\\\_\\\\~\\\\!\\\\$\\\\&\\\\'\\\\(\\\\)\\\\*\\\\+\\\\,\\\\;\\\\=\\\\:.-]+@[\\\\w.-]+\\\\.[\\\\w.-]+?$\", '^(\\\\[\\\\[REDACTED).*?(\\\\]\\\\])$'",
+            "$.distribution[0].title, '' does not match any of the acceptable formats: non-empty, 'null', '^(\\\\[\\\\[REDACTED).*?(\\\\]\\\\])$'",
+            "$.distribution[1], 'bool' does not match any of the acceptable formats: 'object', 'string'",
+            "$.keyword, [] does not match any of the acceptable formats: non-empty, 'string'",
+        ]
+
+        errors = assemble_validation_errors(
+            validator.iter_errors(dol_distribution_json)
+        )
+
+        for i in range(len(errors)):
+            assert errors[i].message == expected[i]
+
     def test_find_indexes_for_duplicates(self):
         data = [
             {"identifier": "a"},
