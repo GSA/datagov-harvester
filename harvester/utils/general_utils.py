@@ -5,6 +5,7 @@ import logging
 import os
 import re
 import smtplib
+from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -15,6 +16,7 @@ import geojson_validator
 import requests
 import sansjson
 from bs4 import BeautifulSoup
+from jsonschema.exceptions import ValidationError
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
@@ -496,3 +498,100 @@ def send_email_to_recipients(recipients, subject, body):
 
             server.sendmail(SMTP_CONFIG["default_sender"], [recipient], msg.as_string())
             logger.info(f"Notification email sent to: {recipient}")
+
+
+def found_simple_message(validation_error: ValidationError) -> bool:
+    """
+    determine whether the input validation error represents the most
+    succinct cause for error based on its json_path or dtype
+    """
+    # these are all the unique dtypes found in the
+    # non-federal schema (no different than federal)
+    # {"'boolean'", "'null'", "'array'", "'number'", "'object'", "'string'"}
+
+    # the required field at the root is missing entirely
+    if validation_error.json_path == "$":
+        return True
+
+    # dict/object and list/array are the only non-primitives in the schema
+    if isinstance(validation_error.instance, (dict, list)):
+        # if it's empty you'll get something like
+        # ['$.keyword', '[] should be non-empty']
+        # which is simple and what we want
+        if len(validation_error.instance) == 0:
+            return True
+        return False
+    return True
+
+
+def finalize_validation_messages(messages: defaultdict) -> list:
+    """
+    build the final validation messages either individually (root) or
+    bundled by field. see tests for output.
+
+    the input default dict is organized by { json_path: [errors...]} format
+        { "$": [ "'a' is required", "'b' is required" ],
+          "$.keyword": [ "[] should be non-empty", "[] is not of type 'string'" ],
+          "$.contactPoint.hasEmail": [ format1, format2, format3, etc...]
+        }
+
+    the regex says: get me the first word(s) in single quotes or just empty brackets [].
+    what's inside the single quotes represents the invalid data
+    """
+    output = []
+
+    for json_path, formats in messages.items():
+        # required root-level errors are processed individually not bundled by format
+        # "'a' is required"
+        if json_path == "$":
+            output += map(lambda error: ValidationError(f"$, {error}"), messages["$"])
+            continue
+
+        # all other errors are bundled based on the formats/rules
+
+        # [0] is the same as [n]
+        invalid_value = re.search(r"'(.*?)'|\[\]", formats[0])
+
+        # if the 0th doesn't work none of them will
+        if invalid_value is None:
+            logger.warning(f"can't find invalid data from error message: {formats[0]}")
+            continue
+
+        # here's the exact format (e.g 'uri', 'string', some regex, etc... )
+        formats = map(lambda format: format.split(" ")[-1], formats)
+
+        # build the bundled error message by json_path
+        msg = ValidationError(
+            f"{json_path}, {invalid_value.group(0)} does not match any of "
+            "the acceptable formats: " + ", ".join(formats)
+        )
+        output.append(msg)
+
+    return output
+
+
+def assemble_validation_errors(validation_errors: list, messages=None) -> list:
+    """
+    given a list of errors, follow each one recursively through its context
+    and get the simplest cause for error. store the error in a defaultdict
+    such that { json_path: [errors...]}
+
+    errors with lists or dicts (other than empty)
+    will often return the entire object followed by 'is not valid under any
+    of the given schemas' which isn't helpful.
+    """
+
+    if messages is None:
+        # {'$.distribution[2].title' = ["'' should be non-empty", etc...]}
+        messages = defaultdict(list)
+
+    for error in validation_errors:
+        if found_simple_message(error):
+            # these aren't specific enough which make them unhelpful
+            generic_msg = "is not valid under any of the given schemas"
+            is_generic_msg = error.message.endswith(generic_msg)
+            if not is_generic_msg:
+                messages[error.json_path].append(error.message)
+        assemble_validation_errors(error.context, messages)
+
+    return finalize_validation_messages(messages)
