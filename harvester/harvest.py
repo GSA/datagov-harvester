@@ -616,6 +616,15 @@ class Record:
             raise ValueError("status must be a string")
         self._status = value
 
+    @staticmethod
+    def _is_valid_url(url: str) -> bool:
+        """Return whether a string is a valid URL."""
+        return Draft202012Validator(
+            {"type": "string", "format": "uri"},
+            format_checker=Draft202012Validator.FORMAT_CHECKER,
+        ).is_valid(url)
+
+
     def harvest(self) -> None:
         """
         this is the main harvest function for a record instance. it runs the compare,
@@ -772,18 +781,12 @@ class Record:
         # If distribution items have a downloadURL or accessURL,
         # check if it just needs an "https://" at the beginning
         # to be valid
-        def _is_valid_url(url):
-            return Draft202012Validator(
-                {"type": "string", "format": "uri"},
-                format_checker=Draft202012Validator.FORMAT_CHECKER,
-            ).is_valid(url)
-
         def _guess_better_url_in_item(item, key):
             url = item.get(key)
-            if url is not None and not _is_valid_url(url):
+            if url is not None and not self._is_valid_url(url):
                 # it exists and isn't valid
                 candidate = "https://" + url
-                if _is_valid_url(candidate):
+                if self._is_valid_url(candidate):
                     # TODO: log a warning that we are making this change
                     item[key] = candidate
 
