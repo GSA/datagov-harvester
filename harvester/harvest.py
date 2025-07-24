@@ -38,6 +38,7 @@ from harvester.lib.harvest_reporter import HarvestReporter
 from harvester.lib.load_manager import LoadManager
 from harvester.utils.ckan_utils import CKANSyncTool
 from harvester.utils.general_utils import (
+    assemble_validation_errors,
     create_retry_session,
     dataset_to_hash,
     download_file,
@@ -809,7 +810,10 @@ class Record:
         # save ourselves a second call to is_valid by keeping a flag of
         # whether we saw any errors
         valid = True
-        for error in self.harvest_source.validator.iter_errors(record):
+
+        errors = self.harvest_source.validator.iter_errors(record)
+        errors = assemble_validation_errors(errors)
+        for error in errors:
             valid = False
             self._report_error(error)
 

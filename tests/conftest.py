@@ -1038,3 +1038,10 @@ def sample_harvest_jobs():
         "12345678-1234-1234-1234-123456789abc": job2,
         "abcdef12-3456-7890-abcd-ef1234567890": job3,
     }
+
+
+@pytest.fixture
+def dcatus_non_federal_schema():
+    schema = Path(__file__).parents[1] / "schemas" / "non-federal_dataset.json"
+    with open(schema) as f:
+        return json.load(f)
