@@ -2,7 +2,6 @@
 
 {% block script_head %}
 <script src="{{ url_for('static', filename='assets/chartjs/chart.umd.js') }}"></script>
-
 {% endblock %}
 
 {% block title %}
@@ -119,19 +118,20 @@
                     <caption> Harvest Jobs for Harvest Source Id: {{data.source["id"]}} </caption>
                     <thead>
                         <tr>
-                            <th data-sortable scope="col" role="columnheader">Id</th>
-                            <th data-sortable scope="col" role="columnheader">Type</th>
-                            <th data-sortable scope="col" role="columnheader">Status</th>
-                            <th data-sortable scope="col" role="columnheader">Date Created</th>
-                            <th data-sortable scope="col" role="columnheader">Date Finished</th>
-                            <th data-sortable scope="col" role="columnheader">Records Added</th>
-                            <th data-sortable scope="col" role="columnheader">Records Deleted</th>
-                            <th data-sortable scope="col" role="columnheader">Records Errored</th>
-                            <th data-sortable scope="col" role="columnheader">Records Ignored</th>
-                            <th data-sortable scope="col" role="columnheader">Records Updated</th>
+                            <th data-sortable scope="col" role="columnheader" {% if data.sort_state and data.sort_state.column == 'id' %}aria-sort="{{ 'ascending' if data.sort_state.direction == 'asc' else 'descending' }}"{% endif %}>Id</th>
+                            <th data-sortable scope="col" role="columnheader" {% if data.sort_state and data.sort_state.column == 'job_type' %}aria-sort="{{ 'ascending' if data.sort_state.direction == 'asc' else 'descending' }}"{% endif %}>Type</th>
+                            <th data-sortable scope="col" role="columnheader" {% if data.sort_state and data.sort_state.column == 'status' %}aria-sort="{{ 'ascending' if data.sort_state.direction == 'asc' else 'descending' }}"{% endif %}>Status</th>
+                            <th data-sortable scope="col" role="columnheader" {% if data.sort_state and data.sort_state.column == 'date_created' %}aria-sort="{{ 'ascending' if data.sort_state.direction == 'asc' else 'descending' }}"{% endif %}>Date Created</th>
+                            <th data-sortable scope="col" role="columnheader" {% if data.sort_state and data.sort_state.column == 'date_finished' %}aria-sort="{{ 'ascending' if data.sort_state.direction == 'asc' else 'descending' }}"{% endif %}>Date Finished</th>
+                            <th data-sortable scope="col" role="columnheader" {% if data.sort_state and data.sort_state.column == 'records_added' %}aria-sort="{{ 'ascending' if data.sort_state.direction == 'asc' else 'descending' }}"{% endif %}>Records Added</th>
+                            <th data-sortable scope="col" role="columnheader" {% if data.sort_state and data.sort_state.column == 'records_deleted' %}aria-sort="{{ 'ascending' if data.sort_state.direction == 'asc' else 'descending' }}"{% endif %}>Records Deleted</th>
+                            <th data-sortable scope="col" role="columnheader" {% if data.sort_state and data.sort_state.column == 'records_errored' %}aria-sort="{{ 'ascending' if data.sort_state.direction == 'asc' else 'descending' }}"{% endif %}>Records Errored</th>
+                            <th data-sortable scope="col" role="columnheader" {% if data.sort_state and data.sort_state.column == 'records_ignored' %}aria-sort="{{ 'ascending' if data.sort_state.direction == 'asc' else 'descending' }}"{% endif %}>Records Ignored</th>
+                            <th data-sortable scope="col" role="columnheader" {% if data.sort_state and data.sort_state.column == 'records_updated' %}aria-sort="{{ 'ascending' if data.sort_state.direction == 'asc' else 'descending' }}"{% endif %}>Records Updated</th>
                         </tr>
                     </thead>
-                    <tbody>
+                    <tbody id="harvest-jobs-tbody">
+                        {% block table_body %}
                         {% for job in data.jobs %}
                         <tr>
                             <td data-sort-value="{{job.id}}"><a
@@ -148,6 +148,7 @@
                             <td data-sort-value="{{job.records_updated or 0}}">{{job.records_updated}}</td>
                         </tr>
                         {% endfor %}
+                        {% endblock %}
                     </tbody>
                 </table>
                 <div class="usa-sr-only usa-table__announcement-region" aria-live="polite"></div>
@@ -200,5 +201,159 @@
     }
     const lineEl = document.getElementById('datagov-line-chart');
     new Chart(lineEl, buildLineChart(lineEl));
+
+    // Server-side table sorting using USWDS standards
+    function initializeTableSorting() {
+        const table = document.querySelector('.usa-table--sortable');
+        if (!table) {
+            console.warn('No sortable table found');
+            return;
+        }
+
+        console.log('Initializing table sorting for table:', table);
+
+        // Column mapping for sort parameter
+        const columnMap = {
+            0: 'id',
+            1: 'job_type', 
+            2: 'status',
+            3: 'date_created',
+            4: 'date_finished',
+            5: 'records_added',
+            6: 'records_deleted', 
+            7: 'records_errored',
+            8: 'records_ignored',
+            9: 'records_updated'
+        };
+
+        // Get base endpoint URL
+        const endpointUrl = '{{ data.htmx_vars.endpoint_url if data.htmx_vars else "" }}' || window.location.pathname;
+
+        // Remove any existing event listeners on this table to prevent duplicates
+        const existingListener = table._customSortListener;
+        if (existingListener) {
+            table.removeEventListener('click', existingListener, true);
+        }
+
+        // Initialize USWDS table component first to get proper styling and aria-labels
+        if (typeof window.USWDS !== 'undefined' && window.USWDS.table) {
+            console.log('Initializing USWDS table component');
+            window.USWDS.table.init(table);
+            
+            // Wait a moment for USWDS to fully initialize
+            setTimeout(() => {
+                console.log('USWDS initialized, checking for sort buttons');
+                const sortButtons = table.querySelectorAll('button[data-sort-value]');
+                console.log('Found USWDS sort buttons:', sortButtons.length);
+            }, 50);
+        }
+
+        // Get current sort state from server data
+        const currentColumn = '{{ data.sort_state.column if data.sort_state else "date_created" }}';
+        const currentDirection = '{{ data.sort_state.direction if data.sort_state else "desc" }}';
+
+        console.log('Current sort state:', { column: currentColumn, direction: currentDirection });
+
+        // Create our custom click handler
+        const customClickHandler = function(e) {
+            console.log('Click detected on table, target:', e.target);
+            
+            // Find the closest sortable header or sort button
+            const header = e.target.closest('th[data-sortable]');
+            const sortButton = e.target.closest('button[data-sort-value]');
+            
+            if (!header && !sortButton) {
+                console.log('Click not on sortable element');
+                return;
+            }
+
+            e.preventDefault();
+            e.stopPropagation();
+            
+            console.log('Intercepting sort click on:', header || sortButton);
+            
+            // Get the column index
+            const targetHeader = header || sortButton.closest('th[data-sortable]');
+            const headers = Array.from(table.querySelectorAll('th[data-sortable]'));
+            const index = headers.indexOf(targetHeader);
+            const column = columnMap[index];
+            
+            if (!column) {
+                console.warn('Could not map column index', index, 'to column name');
+                return;
+            }
+            
+            let direction = 'asc';
+            
+            // Check current aria-sort to determine direction
+            const currentAriaSort = targetHeader.getAttribute('aria-sort');
+            if (currentAriaSort === 'ascending') {
+                direction = 'desc';
+            } else if (currentAriaSort === 'descending') {
+                direction = 'asc';
+            }
+            
+            console.log('Sorting clicked:', { 
+                column, 
+                currentAriaSort, 
+                newDirection: direction
+            });
+            
+            // Build URL with sort parameters
+            const url = `${endpointUrl}?page=1&sort=${column}&order=${direction}`;
+            console.log('Making HTMX request to:', url);
+            
+            // Update aria-sort on headers immediately for visual feedback
+            updateHeaderAriaSort(targetHeader, direction, headers);
+            
+            // Make HTMX request to update only the table body
+            if (typeof htmx !== 'undefined') {
+                htmx.ajax('GET', url, {
+                    target: '#harvest-jobs-tbody',
+                    swap: 'innerHTML'
+                });
+            } else {
+                // Fallback to page reload if HTMX not available
+                window.location.href = url;
+            }
+        };
+
+        // Store reference to our handler so we can remove it later
+        table._customSortListener = customClickHandler;
+        
+        // Override USWDS sorting behavior with server-side sorting
+        // Use capture phase to intercept before USWDS handlers
+        table.addEventListener('click', customClickHandler, true);
+        
+        console.log('Table sorting initialization complete');
+    }
+
+    // Helper function to update aria-sort attributes on headers
+    function updateHeaderAriaSort(activeHeader, direction, allHeaders) {
+        // Remove aria-sort from all headers
+        allHeaders.forEach(header => {
+            header.removeAttribute('aria-sort');
+        });
+        
+        // Set aria-sort on the active header
+        const ariaValue = direction === 'asc' ? 'ascending' : 'descending';
+        activeHeader.setAttribute('aria-sort', ariaValue);
+        
+        console.log('Updated aria-sort on header:', activeHeader, 'to:', ariaValue);
+    }
+
+    // Initialize table sorting on page load
+    document.addEventListener('DOMContentLoaded', initializeTableSorting);
+    
+    // Handle HTMX afterSwap for table body updates
+    document.addEventListener('htmx:afterSwap', function(event) {
+        // Check if the swap was for our table body
+        if (event.detail.target.id === 'harvest-jobs-tbody') {
+            console.log('Table body updated via HTMX');
+            
+            // The table headers remain intact with USWDS functionality preserved
+            // No need to reinitialize table sorting
+        }
+    });
 </script>
 {% endblock %}

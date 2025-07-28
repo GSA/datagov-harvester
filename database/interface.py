@@ -680,7 +680,7 @@ class HarvesterDBInterface:
     #### PAGINATED QUERIES ####
     @count
     @paginate
-    def pget_db_query(self, model=None, facets="", order_by="asc", **kwargs):
+    def pget_db_query(self, model=None, facets="", order_by="asc", sort_column=None, **kwargs):
         model_map = {
             "organizations": Organization,
             "harvest_sources": HarvestSource,
@@ -699,7 +699,7 @@ class HarvesterDBInterface:
         if model in ["organizations", "harvest_sources"]:
             return self.db.query(model_name).filter(text(facet_string))
 
-        order_by_val = order_by_helper(model_name, order_by)
+        order_by_val = order_by_helper(model_name, order_by, sort_column)
 
         return (
             self.db.query(model_name).filter(text(facet_string)).order_by(order_by_val)
@@ -717,9 +717,9 @@ class HarvesterDBInterface:
             model="harvest_records", facets=facets, order_by=order_by, **kwargs
         )
 
-    def pget_harvest_jobs(self, facets="", order_by="asc", **kwargs):
+    def pget_harvest_jobs(self, facets="", order_by="asc", sort_column=None, **kwargs):
         return self.pget_db_query(
-            model="harvest_jobs", facets=facets, order_by=order_by, **kwargs
+            model="harvest_jobs", facets=facets, order_by=order_by, sort_column=sort_column, **kwargs
         )
 
     def pget_harvest_job_errors(self, facets="", order_by="asc", **kwargs):
@@ -749,5 +749,41 @@ class HarvesterDBInterface:
         )
 
 
-def order_by_helper(model, order_by):
-    return model.date_created.asc() if order_by == "asc" else model.date_created.desc()
+def order_by_helper(model, order_by, sort_column=None):
+    """
+    Enhanced order_by helper that supports multiple columns and directions.
+    
+    Args:
+        model: SQLAlchemy model class
+        order_by: Direction string ("asc" or "desc")
+        sort_column: Column name to sort by (defaults to "date_created")
+    
+    Returns:
+        SQLAlchemy order_by clause
+    """
+    # Default to date_created for backward compatibility
+    if not sort_column:
+        sort_column = "date_created"
+    
+    # Map column names for HarvestJob model
+    if model.__name__ == "HarvestJob":
+        column_map = {
+            "id": model.id,
+            "job_type": model.job_type,
+            "status": model.status,
+            "date_created": model.date_created,
+            "date_finished": model.date_finished,
+            "records_added": model.records_added,
+            "records_deleted": model.records_deleted,
+            "records_errored": model.records_errored,
+            "records_ignored": model.records_ignored,
+            "records_updated": model.records_updated,
+        }
+        
+        # Get the actual column object, fallback to date_created
+        column = column_map.get(sort_column, model.date_created)
+    else:
+        # For other models, default to date_created
+        column = getattr(model, sort_column, model.date_created)
+    
+    return column.asc() if order_by == "asc" else column.desc()

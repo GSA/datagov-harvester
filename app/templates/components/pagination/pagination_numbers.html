@@ -24,42 +24,42 @@
 {# List all items if less than 7 #}
 {% if pagination.page_count <= 7 %}
   {% for item in range(1, pagination.page_count + 1)  %}
-    {{ pagination_button(item, pager_button_opts, data.htmx_vars) }}
+    {{ pagination_button(item, pager_button_opts, data.htmx_vars, data.sort_state) }}
   {% endfor %}
 {# User is at the start of a long dataset #}
 {# Example: 1, 2, 3, *4*, 5 … 8 #}
 {# Doesn't apply when user gets to 5 of 8 #}
 {% elif pagination.current <= 4 and pagination.page_count >= 7 %}
   {% for item in pager_ranges.first_five  %}
-    {{ pagination_button(item, pager_button_opts, data.htmx_vars) }}
+    {{ pagination_button(item, pager_button_opts, data.htmx_vars, data.sort_state) }}
   {% endfor %}
 
   {{ overflow | trim | safe }}
 
-  {{ pagination_button(pager_ranges.last_item, pager_button_opts, data.htmx_vars) }}
+  {{ pagination_button(pager_ranges.last_item, pager_button_opts, data.htmx_vars, data.sort_state) }}
 
 {# When user is close to the end of dataset #}
 {# Example: 1 … 4, *5*, 6, 7, 8 #}
 {% elif pagination.current >= pagination.page_count - 3 %}
-  {{ pagination_button(1, pager_button_opts, data.htmx_vars) }}
+  {{ pagination_button(1, pager_button_opts, data.htmx_vars, data.sort_state) }}
 
   {{ overflow | trim | safe }}
   {% for item in pager_ranges.last_five %}
-    {{ pagination_button(item, pager_button_opts, data.htmx_vars) }}
+    {{ pagination_button(item, pager_button_opts, data.htmx_vars, data.sort_state) }}
   {% endfor %}
 {# Default case: Current - 1, Current, Current + 1 #}
 {# Example: 1 … 21, *22*, 23 … 50 #}
 {# Example: 1 … 4, *5*, 6 … 9 #}
 {% else %}
-  {{ pagination_button(1, pager_button_opts, data.htmx_vars) }}
+  {{ pagination_button(1, pager_button_opts, data.htmx_vars, data.sort_state) }}
 
   {{ overflow | trim | safe }}
 
   {% for item in pager_ranges.default %}
-    {{ pagination_button(item, pager_button_opts, data.htmx_vars) }}
+    {{ pagination_button(item, pager_button_opts, data.htmx_vars, data.sort_state) }}
   {% endfor %}
 
   {{ overflow | trim | safe }}
 
-  {{ pagination_button(pager_ranges.last_item, pager_button_opts, data.htmx_vars) }}
+  {{ pagination_button(pager_ranges.last_item, pager_button_opts, data.htmx_vars, data.sort_state) }}
 {% endif %}

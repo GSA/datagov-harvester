@@ -1,9 +1,13 @@
 {#
     The full pagination data object is passed so we can access current state, aria labels, and text labels.
   #}
-  {% macro pagination_arrow(direction, pagination, htmx_vars) %}
+  {% macro pagination_arrow(direction, pagination, htmx_vars, sort_state=None) %}
     {% set page_var = ((pagination.current - 1) if direction == 'previous' else (pagination.current + 1)) | string() %}
-    {% set placeholder_link = htmx_vars.endpoint_url + "?page=" + page_var %}
+    {% set sort_params = "" %}
+    {% if sort_state %}
+      {% set sort_params = "&sort=" + sort_state.column + "&order=" + sort_state.direction %}
+    {% endif %}
+    {% set placeholder_link = htmx_vars.endpoint_url + "?page=" + page_var + sort_params %}
 
     {% set link_attrs = {
       'class': 'usa-pagination__link usa-pagination__'  ~ direction ~ '-page',

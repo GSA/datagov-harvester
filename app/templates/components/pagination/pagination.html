@@ -11,13 +11,13 @@
 <nav aria-label="Pagination" class="usa-pagination">
     <ul class="usa-pagination__list">
         {% if pagination['page_count'] > 7 and pagination['current'] > 1 %}
-            {{ pagination_arrow('previous', pagination, data.htmx_vars) }}
+            {{ pagination_arrow('previous', pagination, data.htmx_vars, data.sort_state) }}
         {% endif %}
 
         {% include "components/pagination/pagination_numbers.html" %}
 
         {% if pagination['page_count'] > 7 and pagination['current'] < pagination['page_count'] %}
-            {{ pagination_arrow('next', pagination, data.htmx_vars) }}
+            {{ pagination_arrow('next', pagination, data.htmx_vars, data.sort_state) }}
         {% endif %}
     </ul>
 </nav>

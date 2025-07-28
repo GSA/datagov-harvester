@@ -583,6 +583,21 @@ def add_harvest_source():
 
 @main.route("/harvest_source/<source_id>", methods=["GET", "POST"])
 def view_harvest_source(source_id: str):
+    # Get sort parameters from URL
+    sort_column = request.args.get("sort", "date_created")
+    sort_direction = request.args.get("order", "desc")
+    
+    # Validate sort parameters
+    valid_columns = ["id", "job_type", "status", "date_created", "date_finished", 
+                    "records_added", "records_deleted", "records_errored", 
+                    "records_ignored", "records_updated"]
+    valid_directions = ["asc", "desc"]
+    
+    if sort_column not in valid_columns:
+        sort_column = "date_created"
+    if sort_direction not in valid_directions:
+        sort_direction = "desc"
+    
     htmx_vars = {
         "target_div": "#paginated__harvest-jobs",
         "endpoint_url": f"/harvest_source/{source_id}",
@@ -603,7 +618,8 @@ def view_harvest_source(source_id: str):
     jobs = db.pget_harvest_jobs(
         facets=harvest_jobs_facets,
         page=pagination.db_current,
-        order_by="desc",
+        order_by=sort_direction,
+        sort_column=sort_column,
     )
 
     if htmx:
@@ -611,13 +627,29 @@ def view_harvest_source(source_id: str):
             "source": {"id": source_id},
             "jobs": jobs,
             "htmx_vars": htmx_vars,
+            "sort_state": {
+                "column": sort_column,
+                "direction": sort_direction,
+            },
         }
-        return render_block(
-            "view_source_data.html",
-            "htmx_paginated",
-            data=data,
-            pagination=pagination.to_dict(),
-        )
+        
+        # Check if this is a sort request (has sort parameter)
+        if request.args.get("sort"):
+            # Return only the table body content for sorting
+            return render_block(
+                "view_source_data.html",
+                "table_body",
+                data=data,
+                pagination=pagination.to_dict(),
+            )
+        else:
+            # Return the full pagination block for other HTMX requests
+            return render_block(
+                "view_source_data.html",
+                "htmx_paginated",
+                data=data,
+                pagination=pagination.to_dict(),
+            )
     elif request.method == "POST":
         form = HarvestTriggerForm(request.form)
         if form.data["edit"]:
@@ -733,6 +765,10 @@ def view_harvest_source(source_id: str):
             "jobs": jobs,
             "chart_data": chart_data,
             "htmx_vars": htmx_vars,
+            "sort_state": {
+                "column": sort_column,
+                "direction": sort_direction,
+            },
         }
         return render_template(
             "view_source_data.html",

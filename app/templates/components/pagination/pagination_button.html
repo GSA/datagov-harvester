@@ -1,10 +1,14 @@
-{% macro pagination_button(item, pager_opts, htmx_vars) %}
+{% macro pagination_button(item, pager_opts, htmx_vars, sort_state=None) %}
   {% set is_current = (item == pager_opts.current) %}
   {% set is_last = (item == pager_opts.total) %}
   {% set labels = pager_opts.aria_labels %}
   {# HTMX page vars#}
   {% set item_str = item | string() %}
-  {% set placeholder_link = htmx_vars.endpoint_url + "?page=" + item_str %}
+  {% set sort_params = "" %}
+  {% if sort_state %}
+    {% set sort_params = "&sort=" + sort_state.column + "&order=" + sort_state.direction %}
+  {% endif %}
+  {% set placeholder_link = htmx_vars.endpoint_url + "?page=" + item_str + sort_params %}
 
   {# Display: "Last page, page X" if last item. Otherwise "Page X" #}
   {% set aria_label = (labels.last ~ " " ~ labels.page_label | lower if is_last else labels.page_label) ~ " " ~ item %}
