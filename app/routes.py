@@ -1154,6 +1154,30 @@ def view_metrics():
     start_time = current_time - timedelta(hours=24)
     time_filter = f"date_created >= '{start_time.isoformat()}' AND date_created <= '{current_time}'"
 
+    # Add filtering parameters
+    job_filter = request.args.get("job_filter", "").strip()
+    source_filter = request.args.get("source_filter", "").strip()
+    status_filter = request.args.get("status_filter", "").strip()
+    
+    # Build filter string
+    if job_filter:
+        time_filter += f" AND harvest_job.id LIKE '{job_filter}%'"
+    if source_filter:
+        time_filter += f" AND harvest_source_id = '{source_filter}'"
+    if status_filter:
+        time_filter += f" AND status = '{status_filter}'"
+
+    # Handle sorting
+    sort_by = request.args.get("sort_by", "date_created")
+    sort_order = request.args.get("sort_order", "desc")
+    
+    # Validate sort parameters
+    valid_sort_columns = ["date_created", "records_added", "records_updated", "records_deleted", "records_errored"]
+    if sort_by not in valid_sort_columns:
+        sort_by = "date_created"
+    if sort_order not in ["asc", "desc"]:
+        sort_order = "desc"
+
     htmx_vars = {
         "target_div": "#paginated__harvest-jobs",
         "endpoint_url": "/metrics",
@@ -1174,7 +1198,8 @@ def view_metrics():
             facets=time_filter,
             page=pagination.db_current,
             per_page=pagination.per_page,
-            order_by="desc",
+            order_by=sort_order,
+            sort_field=sort_by,
         )
         data = {
             "jobs": jobs,
@@ -1191,13 +1216,19 @@ def view_metrics():
             facets=time_filter,
             page=pagination.db_current,
             per_page=pagination.per_page,
-            order_by="desc",
+            order_by=sort_order,
+            sort_field=sort_by,
         )
         errors_time_filter = f"harvest_job_error.date_created >= '{start_time.isoformat()}' AND harvest_job_error.date_created <= '{current_time}'"
         failures = db.pget_harvest_job_errors(
             facets=errors_time_filter + " AND type = 'FailedJobCleanup'",
             order_by="desc",
         )
+        
+        # Get available sources and statuses for filter dropdowns
+        available_sources = db.get_all_harvest_sources()
+        available_statuses = ["new", "in_progress", "complete", "error"]  # Common statuses
+        
         data = {
             "htmx_vars": htmx_vars,
             "jobs": jobs,
@@ -1205,6 +1236,8 @@ def view_metrics():
             "failures": failures,
             "current_time": current_time,
             "window_start": start_time,
+            "available_sources": available_sources,
+            "available_statuses": available_statuses,
         }
         return render_template(
             "metrics_dashboard.html",
