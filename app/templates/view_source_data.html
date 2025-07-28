@@ -115,7 +115,7 @@
         <div id="paginated__harvest-jobs">
 
             <div class="usa-table-container--scrollable" tabindex="0">
-                <table class="usa-table usa-table--striped">
+                <table class="usa-table usa-table--striped usa-table--sortable">
                     <caption> Harvest Jobs for Harvest Source Id: {{data.source["id"]}} </caption>
                     <thead>
                         <tr>
@@ -134,18 +134,18 @@
                     <tbody>
                         {% for job in data.jobs %}
                         <tr>
-                            <th scope="row"><a
+                            <td data-sort-value="{{job.id}}"><a
                                     href="{{ url_for('main.view_harvest_job', job_id=job.id) }}">{{job.id[:8]}}</a>
-                            </th>
-                            <td data-sort-value={jobs.job_type}> {{job.job_type}}</td>
-                            <td data-sort-value={jobs.date_created}> {{job.status}}</td>
-                            <td data-sort-value={jobs.date_created}> {{job.date_created}}</td>
-                            <td data-sort-value={jobs.date_finished}>{{job.date_finished | else_na }}</td>
-                            <td data-sort-value={jobs.records_added}>{{job.records_added}}</td>
-                            <td data-sort-value={jobs.records_deleted}>{{job.records_deleted}}</td>
-                            <td data-sort-value={jobs.records_errored}>{{job.records_errored}}</td>
-                            <td data-sort-value={jobs.records_ignored}>{{job.records_ignored}}</td>
-                            <td data-sort-value={jobs.records_updated}>{{job.records_updated}}</td>
+                            </td>
+                            <td data-sort-value="{{job.job_type}}"> {{job.job_type}}</td>
+                            <td data-sort-value="{{job.status}}"> {{job.status}}</td>
+                            <td data-sort-value="{{job.date_created}}"> {{job.date_created}}</td>
+                            <td data-sort-value="{{job.date_finished or ''}}">{{job.date_finished | else_na }}</td>
+                            <td data-sort-value="{{job.records_added or 0}}">{{job.records_added}}</td>
+                            <td data-sort-value="{{job.records_deleted or 0}}">{{job.records_deleted}}</td>
+                            <td data-sort-value="{{job.records_errored or 0}}">{{job.records_errored}}</td>
+                            <td data-sort-value="{{job.records_ignored or 0}}">{{job.records_ignored}}</td>
+                            <td data-sort-value="{{job.records_updated or 0}}">{{job.records_updated}}</td>
                         </tr>
                         {% endfor %}
                     </tbody>
@@ -182,22 +182,21 @@
     const buildLineChart = (el) => {
         let chart = {
             type: 'line',
-            data: {{ data.chart_data | tojson
-    }},
-    options: {
-        responsive: true,
-            plugins: {
-            legend: {
-                position: 'top',
-                },
-            title: {
-                display: true,
-                    text: 'Harvest Job History'
+            data: {{ data.chart_data | tojson }},
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        position: 'top',
+                    },
+                    title: {
+                        display: true,
+                        text: 'Harvest Job History'
+                    }
+                }
             }
-        }
-    }
         };
-    return chart
+        return chart
     }
     const lineEl = document.getElementById('datagov-line-chart');
     new Chart(lineEl, buildLineChart(lineEl));
