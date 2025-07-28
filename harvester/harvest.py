@@ -38,6 +38,7 @@ from harvester.lib.harvest_reporter import HarvestReporter
 from harvester.lib.load_manager import LoadManager
 from harvester.utils.ckan_utils import CKANSyncTool
 from harvester.utils.general_utils import (
+    assemble_validation_errors,
     create_retry_session,
     dataset_to_hash,
     download_file,
@@ -616,6 +617,15 @@ class Record:
             raise ValueError("status must be a string")
         self._status = value
 
+    @staticmethod
+    def _is_valid_url(url: str) -> bool:
+        """Return whether a string is a valid URL."""
+        return Draft202012Validator(
+            {"type": "string", "format": "uri"},
+            format_checker=Draft202012Validator.FORMAT_CHECKER,
+        ).is_valid(url)
+
+
     def harvest(self) -> None:
         """
         this is the main harvest function for a record instance. it runs the compare,
@@ -769,6 +779,22 @@ class Record:
                 "name": self.harvest_source.get_source_orm().org.name
             }
 
+        # If distribution items have a downloadURL or accessURL,
+        # check if it just needs an "https://" at the beginning
+        # to be valid
+        def _guess_better_url_in_item(item, key):
+            url = item.get(key)
+            if url is not None and not self._is_valid_url(url):
+                # it exists and isn't valid
+                candidate = "https://" + url
+                if self._is_valid_url(candidate):
+                    # TODO: log a warning that we are making this change
+                    item[key] = candidate
+
+        for dist_item in self.transformed_data.get("distribution", []):
+            _guess_better_url_in_item(dist_item, "downloadURL")
+            _guess_better_url_in_item(dist_item, "accessURL")
+
     def _report_error(self, e):
         """Report an exception to the database.
 
@@ -809,7 +835,10 @@ class Record:
         # save ourselves a second call to is_valid by keeping a flag of
         # whether we saw any errors
         valid = True
-        for error in self.harvest_source.validator.iter_errors(record):
+
+        errors = self.harvest_source.validator.iter_errors(record)
+        errors = assemble_validation_errors(errors)
+        for error in errors:
             valid = False
             self._report_error(error)
 
