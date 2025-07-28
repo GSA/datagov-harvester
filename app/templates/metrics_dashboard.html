@@ -1,25 +1,14 @@
 {% extends 'base.html' %}
 
 {% import 'components/job-table/job_table.j2' as job_table %}
+{% import 'components/job-table/job_filters.j2' as job_filters %}
+{% import 'components/job-table/job_table_scripts.j2' as job_scripts %}
 
 {% block title %}
 <title>Metrics Dashboard</title>
 {% endblock %}
 
-<!-- SVG Icons for sorting -->
-<svg style="display: none;">
-  <defs>
-    <symbol id="unfold_more" viewBox="0 0 24 24">
-      <path d="M12 5.83L15.17 9l1.41-1.41L12 3 7.41 7.59 8.83 9 12 5.83zM12 18.17L8.83 15l-1.41 1.41L12 21l4.59-4.59L15.17 15 12 18.17z"/>
-    </symbol>
-    <symbol id="expand_less" viewBox="0 0 24 24">
-      <path d="m7.41 15.41 4.59-4.58 4.59 4.58 1.41-1.41-6-6-6 6z"/>
-    </symbol>
-    <symbol id="expand_more" viewBox="0 0 24 24">
-      <path d="M7.41 8.84L12 13.42l4.59-4.58L18 10.25l-6 6-6-6z"/>
-    </symbol>
-  </defs>
-</svg>
+{{ job_scripts.job_table_scripts("/metrics") }}
 
 {% block content %}
 <div class="wrapper job-data">
@@ -30,68 +19,21 @@
             to {{ data.current_time.strftime('%Y-%m-%d %H:%M:%S UTC') }}
         </p>
 
-        <!-- Filters Section -->
-        <div class="usa-form-group margin-bottom-3">
-            <div class="grid-row grid-gap">
-                <div class="grid-col-4">
-                    <label class="usa-label" for="job-filter">Filter by Job ID:</label>
-                    <input class="usa-input" id="job-filter" name="job_filter" type="text" 
-                           value="{{ request.args.get('job_filter', '') }}" 
-                           placeholder="Enter job ID prefix..."
-                           hx-get="/metrics" 
-                           hx-target="#paginated__harvest-jobs" 
-                           hx-include="[name='source_filter'], [name='status_filter'], [name='sort_by'], [name='sort_order']"
-                           hx-trigger="keyup changed delay:300ms"
-                           hx-push-url="true">
-                </div>
-                <div class="grid-col-4">
-                    <label class="usa-label" for="source-filter">Filter by Source:</label>
-                    <select class="usa-select" id="source-filter" name="source_filter"
-                            hx-get="/metrics" 
-                            hx-target="#paginated__harvest-jobs" 
-                            hx-include="[name='job_filter'], [name='status_filter'], [name='sort_by'], [name='sort_order']"
-                            hx-push-url="true">
-                        <option value="">All Sources</option>
-                        {% if data.available_sources %}
-                            {% for source in data.available_sources %}
-                                <option value="{{ source.id }}" {% if request.args.get('source_filter') == source.id|string %}selected{% endif %}>
-                                    {{ source.name }}
-                                </option>
-                            {% endfor %}
-                        {% endif %}
-                    </select>
-                </div>
-                <div class="grid-col-4">
-                    <label class="usa-label" for="status-filter">Filter by Status:</label>
-                    <select class="usa-select" id="status-filter" name="status_filter"
-                            hx-get="/metrics" 
-                            hx-target="#paginated__harvest-jobs" 
-                            hx-include="[name='job_filter'], [name='source_filter'], [name='sort_by'], [name='sort_order']"
-                            hx-push-url="true">
-                        <option value="">All Statuses</option>
-                        {% if data.available_statuses %}
-                            {% for status in data.available_statuses %}
-                                <option value="{{ status }}" {% if request.args.get('status_filter') == status %}selected{% endif %}>
-                                    {{ status.title() }}
-                                </option>
-                            {% endfor %}
-                        {% endif %}
-                    </select>
-                </div>
-            </div>
-        </div>
+        {{ job_filters.job_filters("/metrics", 
+                                  available_sources=data.available_sources, 
+                                  available_statuses=data.available_statuses,
+                                  show_type_filter=false) }}
 
         {% if data.jobs %}
         {% block htmx_paginated %}
+        {% import 'components/job-table/job_table.j2' as job_table %}
         <div id="paginated__harvest-jobs">
-            {% import 'components/job-table/job_table.j2' as job_table %}
-            {{ job_table.job_table(data.jobs, "Recent Harvest Jobs", sortable=true) }}
+            {{ job_table.job_table(data.jobs, "Recent Harvest Jobs", show_source=true) }}
             {% if pagination.count > jobs|count %}
             {% include '/components/pagination/pagination.html' %}
             {% endif %}
         </div>
         {% endblock %}
-
 
         {% else %}
         <div class="usa-alert usa-alert--info">
@@ -104,12 +46,11 @@
         {% endif %}
     </div>
 
-
     <section id="jobs-to-harvest">
       <h2>Scheduled Jobs Still to Harvest: {{ data.new_jobs_in_past | length }}</h2>
 
       {% if data.new_jobs_in_past %}
-      {{ job_table.job_table(data.new_jobs_in_past, "Scheduled jobs still to harvest") }}
+      {{ job_table.job_table(data.new_jobs_in_past, "Scheduled jobs still to harvest", show_source=true) }}
       {% else %}
         <div class="usa-alert usa-alert--info">
             <div class="usa-alert__body">
@@ -120,7 +61,6 @@
         </div>
       {% endif %}
     </section>
-
 
     <section id="recent-failed-jobs">
       <h2>Recent Failed jobs</h2>
@@ -175,132 +115,4 @@
       {% endif %}
     </section>
 </div>
-
-<!-- Hidden inputs for sorting -->
-<input type="hidden" name="sort_by" value="{{ request.args.get('sort_by', '') }}">
-<input type="hidden" name="sort_order" value="{{ request.args.get('sort_order', 'desc') }}">
-
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    // Handle table sorting
-    const sortButtons = document.querySelectorAll('.usa-table__header-button');
-    
-    sortButtons.forEach(button => {
-        button.addEventListener('click', function() {
-            const column = this.getAttribute('data-sort-column');
-            const sortType = this.getAttribute('data-sort-type');
-            const currentSort = document.querySelector('[name="sort_by"]').value;
-            const currentOrder = document.querySelector('[name="sort_order"]').value;
-            
-            // Determine new sort order
-            let newOrder = 'asc';
-            if (currentSort === column && currentOrder === 'asc') {
-                newOrder = 'desc';
-            }
-            
-            // Update hidden inputs
-            document.querySelector('[name="sort_by"]').value = column;
-            document.querySelector('[name="sort_order"]').value = newOrder;
-            
-            // Reset pagination to page 1 when sorting
-            const pageInput = document.querySelector('[name="page"]');
-            if (pageInput) {
-                pageInput.value = '1';
-            }
-            
-            // Trigger HTMX request
-            htmx.ajax('GET', '/metrics', {
-                target: '#paginated__harvest-jobs',
-                include: '[name="job_filter"], [name="source_filter"], [name="status_filter"], [name="sort_by"], [name="sort_order"], [name="page"]',
-                pushUrl: true
-            });
-            
-            // Update visual indicators
-            updateSortIndicators(column, newOrder);
-        });
-    });
-    
-    function updateSortIndicators(activeColumn, order) {
-        // Remove all existing indicators
-        sortButtons.forEach(btn => {
-            btn.classList.remove('sorted-asc', 'sorted-desc');
-            const icon = btn.querySelector('use');
-            if (icon) icon.setAttribute('xlink:href', '#unfold_more');
-        });
-        
-        // Add indicator to active column
-        const activeButton = document.querySelector(`[data-sort-column="${activeColumn}"]`);
-        if (activeButton) {
-            activeButton.classList.add(order === 'asc' ? 'sorted-asc' : 'sorted-desc');
-            const icon = activeButton.querySelector('use');
-            if (icon) {
-                icon.setAttribute('xlink:href', order === 'asc' ? '#expand_less' : '#expand_more');
-            }
-        }
-    }
-    
-    // Initialize sort indicators based on current URL parameters
-    const currentSort = document.querySelector('[name="sort_by"]').value;
-    const currentOrder = document.querySelector('[name="sort_order"]').value;
-    if (currentSort) {
-        updateSortIndicators(currentSort, currentOrder);
-    }
-    
-    // Reset filters functionality
-    function resetFilters() {
-        document.getElementById('job-filter').value = '';
-        document.getElementById('source-filter').value = '';
-        document.getElementById('status-filter').value = '';
-        document.querySelector('[name="sort_by"]').value = '';
-        document.querySelector('[name="sort_order"]').value = 'desc';
-        
-        htmx.ajax('GET', '/metrics', {
-            target: '#paginated__harvest-jobs',
-            pushUrl: true
-        });
-    }
-    
-    // Add reset button if needed
-    const resetButton = document.createElement('button');
-    resetButton.className = 'usa-button usa-button--outline margin-top-2';
-    resetButton.textContent = 'Reset Filters';
-    resetButton.addEventListener('click', resetFilters);
-    
-    const filtersSection = document.querySelector('.usa-form-group');
-    if (filtersSection) {
-        filtersSection.appendChild(resetButton);
-    }
-});
-</script>
-
-<style>
-.usa-table__header-button {
-    background: none;
-    border: none;
-    color: inherit;
-    cursor: pointer;
-    font-weight: bold;
-    text-align: left;
-    width: 100%;
-    padding: 0.5rem 1rem;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-}
-
-.usa-table__header-button:hover {
-    background-color: #f0f0f0;
-}
-
-.usa-table__header-button.sorted-asc,
-.usa-table__header-button.sorted-desc {
-    background-color: #e6f3ff;
-}
-
-.usa-icon {
-    width: 1rem;
-    height: 1rem;
-    fill: currentColor;
-}
-</style>
-    {% endblock %}
+{% endblock %}

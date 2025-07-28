@@ -1,0 +1,39 @@
+{% macro job_table_scripts(endpoint_url) -%}
+<script>
+// Clear all filter form inputs and reset the table
+function clearAllFilters(endpointUrl) {
+    // Clear all filter form inputs
+    document.querySelectorAll('#job-filter, #source-filter, #type-filter, #status-filter').forEach(input => {
+        if (input.tagName === 'SELECT') {
+            input.selectedIndex = 0;
+        } else {
+            input.value = '';
+        }
+    });
+    
+    // Trigger HTMX request to reset the table
+    htmx.ajax('GET', endpointUrl, {
+        target: '#paginated__harvest-jobs',
+        pushUrl: true
+    });
+}
+
+// Initialize USWDS sortable table functionality when content loads
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize USWDS components if they exist
+    if (typeof window.uswds !== 'undefined') {
+        window.uswds.initializeComponent('table');
+    }
+});
+
+// Re-initialize USWDS table after HTMX content swaps
+document.addEventListener('htmx:afterSwap', function(evt) {
+    if (evt.detail.target && evt.detail.target.id === 'paginated__harvest-jobs') {
+        // Re-initialize USWDS components for the new content
+        if (typeof window.uswds !== 'undefined') {
+            window.uswds.initializeComponent('table');
+        }
+    }
+});
+</script>
+{%- endmacro %}

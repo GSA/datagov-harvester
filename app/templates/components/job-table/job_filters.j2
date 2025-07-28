@@ -1,0 +1,133 @@
+{% macro job_filters(endpoint_url, available_sources=[], available_statuses=[], available_types=[], show_source_filter=true, show_status_filter=true, show_type_filter=false) -%}
+<!-- Filters Section -->
+<form class="usa-form margin-bottom-3">
+    <fieldset class="usa-fieldset">
+        <legend class="usa-legend">Filter Jobs</legend>
+        <div class="grid-row grid-gap">
+            
+            {% if show_source_filter %}
+            <div class="grid-col-12 tablet:grid-col-6 desktop:grid-col-3">
+                <label class="usa-label" for="source-filter">Source:</label>
+                <select class="usa-select" id="source-filter" name="source_filter"
+                        hx-get="{{ endpoint_url }}" 
+                        hx-target="#paginated__harvest-jobs" 
+                        hx-include="[name='job_filter'], [name='status_filter'], [name='type_filter'], [name='sort_by'], [name='sort_order']"
+                        hx-push-url="true">
+                    <option value="">All Sources</option>
+                    {% for source in available_sources %}
+                        <option value="{{ source.id }}" {% if request.args.get('source_filter') == source.id|string %}selected{% endif %}>
+                            {{ source.name }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% endif %}
+            
+            {% if show_type_filter %}
+            <div class="grid-col-12 tablet:grid-col-6 desktop:grid-col-3">
+                <label class="usa-label" for="type-filter">Type:</label>
+                <select class="usa-select" id="type-filter" name="type_filter"
+                        hx-get="{{ endpoint_url }}" 
+                        hx-target="#paginated__harvest-jobs" 
+                        hx-include="[name='job_filter'], [name='source_filter'], [name='status_filter'], [name='sort_by'], [name='sort_order']"
+                        hx-push-url="true">
+                    <option value="">All Types</option>
+                    {% for type in available_types %}
+                        <option value="{{ type }}" {% if request.args.get('type_filter') == type %}selected{% endif %}>
+                            {{ type.title() }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% endif %}
+            
+            {% if show_status_filter %}
+            <div class="grid-col-12 tablet:grid-col-6 desktop:grid-col-3">
+                <label class="usa-label" for="status-filter">Status:</label>
+                <select class="usa-select" id="status-filter" name="status_filter"
+                        hx-get="{{ endpoint_url }}" 
+                        hx-target="#paginated__harvest-jobs" 
+                        hx-include="[name='job_filter'], [name='source_filter'], [name='type_filter'], [name='sort_by'], [name='sort_order']"
+                        hx-push-url="true">
+                    <option value="">All Statuses</option>
+                    {% for status in available_statuses %}
+                        <option value="{{ status }}" {% if request.args.get('status_filter') == status %}selected{% endif %}>
+                            {{ status.title() }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% endif %}
+        </div>
+        
+        <!-- Clear Filters Button -->
+        <div class="margin-top-2">
+            <button type="button" class="usa-button usa-button--outline" id="clear-filters" onclick="clearAllFilters('{{ endpoint_url }}')">
+                Clear All Filters
+            </button>
+        </div>
+    </fieldset>
+</form>
+            </select>
+        </div>
+        
+        {% if show_status_filter %}
+        <div class="grid-col-{% if show_job_filter and show_source_filter and show_type_filter %}3{% elif (show_job_filter and show_source_filter) or (show_job_filter and show_type_filter) or (show_source_filter and show_type_filter) %}4{% elif show_job_filter or show_source_filter or show_type_filter %}6{% else %}12{% endif %}">
+            <label class="usa-label" for="status-filter">Filter by Status:</label>
+            <select class="usa-select" id="status-filter" name="status_filter"
+                    hx-get="{{ endpoint_url }}" 
+                    hx-target="#paginated__harvest-jobs" 
+                    hx-include="[name='job_filter'], [name='source_filter'], [name='type_filter'], [name='sort_by'], [name='sort_order']"
+                    hx-push-url="true">
+                <option value="">All Statuses</option>
+                {% for status in available_statuses %}
+                    <option value="{{ status }}" {% if request.args.get('status_filter') == status %}selected{% endif %}>
+                        {{ status.title() }}
+                    </option>
+                {% endfor %}
+            </select>
+        </div>
+        {% endif %}
+    </div>
+    
+    <!-- Reset Button -->
+    <button class="usa-button usa-button--outline margin-top-2" id="reset-filters">
+        Reset Filters
+    </button>
+</div>
+
+<!-- Hidden inputs for sorting -->
+<input type="hidden" name="sort_by" value="{{ request.args.get('sort_by', '') }}">
+<input type="hidden" name="sort_order" value="{{ request.args.get('sort_order', 'desc') }}">
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Reset filters functionality
+    const resetButton = document.getElementById('reset-filters');
+    if (resetButton) {
+        resetButton.addEventListener('click', function() {
+            // Clear all filter inputs
+            const jobFilter = document.getElementById('job-filter');
+            const sourceFilter = document.getElementById('source-filter');
+            const typeFilter = document.getElementById('type-filter');
+            const statusFilter = document.getElementById('status-filter');
+            
+            if (jobFilter) jobFilter.value = '';
+            if (sourceFilter) sourceFilter.value = '';
+            if (typeFilter) typeFilter.value = '';
+            if (statusFilter) statusFilter.value = '';
+            
+            // Clear sort parameters
+            document.querySelector('[name="sort_by"]').value = '';
+            document.querySelector('[name="sort_order"]').value = 'desc';
+            
+            // Trigger HTMX request to reset
+            htmx.ajax('GET', '{{ endpoint_url }}', {
+                target: '#paginated__harvest-jobs',
+                pushUrl: true
+            });
+        });
+    }
+});
+</script>
+{% endmacro -%}

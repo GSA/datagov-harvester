@@ -1,60 +1,24 @@
-{% macro job_table(jobs, caption, sortable=false) -%}
+{% macro job_table(jobs, caption, show_source=true) -%}
 <div class="usa-table-container--scrollable" tabindex="0">
-    <table class="usa-table usa-table--striped {% if sortable %}usa-table--sortable{% endif %}">
+    <table class="usa-table usa-table--striped usa-table--sortable" data-sortable>
         <caption>{{ caption }}</caption>
         <thead>
             <tr>
                 <th scope="col">Job Id</th>
-                <th scope="col">Source</th>
-                <th scope="col">Status</th>
-                {% if sortable %}
-                <th scope="col" role="columnheader">
-                    <button class="usa-table__header-button" data-sort-column="date_created" data-sort-type="date">
-                        Created
-                        <svg class="usa-icon" aria-hidden="true" focusable="false" role="img">
-                            <use xlink:href="#unfold_more"></use>
-                        </svg>
-                    </button>
-                </th>
-                <th scope="col" role="columnheader">
-                    <button class="usa-table__header-button" data-sort-column="records_added" data-sort-type="number">
-                        Records Added
-                        <svg class="usa-icon" aria-hidden="true" focusable="false" role="img">
-                            <use xlink:href="#unfold_more"></use>
-                        </svg>
-                    </button>
-                </th>
-                <th scope="col" role="columnheader">
-                    <button class="usa-table__header-button" data-sort-column="records_updated" data-sort-type="number">
-                        Records Updated
-                        <svg class="usa-icon" aria-hidden="true" focusable="false" role="img">
-                            <use xlink:href="#unfold_more"></use>
-                        </svg>
-                    </button>
-                </th>
-                <th scope="col" role="columnheader">
-                    <button class="usa-table__header-button" data-sort-column="records_deleted" data-sort-type="number">
-                        Records Deleted
-                        <svg class="usa-icon" aria-hidden="true" focusable="false" role="img">
-                            <use xlink:href="#unfold_more"></use>
-                        </svg>
-                    </button>
-                </th>
-                <th scope="col" role="columnheader">
-                    <button class="usa-table__header-button" data-sort-column="records_errored" data-sort-type="number">
-                        Records Errored
-                        <svg class="usa-icon" aria-hidden="true" focusable="false" role="img">
-                            <use xlink:href="#unfold_more"></use>
-                        </svg>
-                    </button>
-                </th>
-                {% else %}
-                <th scope="col">Created</th>
-                <th scope="col">Records Added</th>
-                <th scope="col">Records Updated</th>
-                <th scope="col">Records Deleted</th>
-                <th scope="col">Records Errored</th>
+                <th scope="col" data-sortable>Type</th>
+                {% if show_source %}
+                <th scope="col" data-sortable>
+                        Source
+                    </th>
                 {% endif %}
+                <th scope="col" data-sortable>Status</th>
+                <th scope="col" data-sortable>Created</th>
+                <th scope="col" data-sortable>Date Finished</th>
+                <th scope="col" data-sortable>Records Added</th>
+                <th scope="col" data-sortable>Records Updated</th>
+                <th scope="col" data-sortable>Records Deleted</th>
+                <th scope="col" data-sortable>Records Errored</th>
+                <th scope="col" data-sortable>Records Ignored</th>
             </tr>
         </thead>
         <tbody id="paginated_harvest_jobs">
@@ -65,11 +29,14 @@
                         {{ job.id[:8] }}...
                     </a>
                 </td>
+                <td data-sort-value="{{ job.job_type }}">{{ job.job_type }}</td>
+                {% if show_source %}
                 <td data-sort-value="{{ job.source.name }}">
                     <a href="{{ url_for('main.view_harvest_source', source_id=job.source.id) }}">
                         {{ job.source.name }}
                     </a>
                 </td>
+                {% endif %}
                 <td data-sort-value="{{ job.status }}">
                     <span class="usa-tag {% if job.status == 'error' %}usa-tag--error
                                         {% elif job.status == 'in_progress' %}usa-tag--warning
@@ -81,15 +48,18 @@
                 <td data-sort-value="{{ job.date_created.isoformat() if job.date_created else '' }}">
                     {{ job.date_created.strftime('%Y-%m-%d %H:%M:%S') if job.date_created else 'N/A' }}
                 </td>
+                <td data-sort-value="{{ job.date_finished.isoformat() if job.date_finished else 'zzzz' }}">
+                    {{ job.date_finished.strftime('%Y-%m-%d %H:%M:%S') if job.date_finished else 'N/A' }}
+                </td>
                 <td data-sort-value="{{ job.records_added or 0 }}">{{ job.records_added or 0 }}</td>
                 <td data-sort-value="{{ job.records_updated or 0 }}">{{ job.records_updated or 0 }}</td>
                 <td data-sort-value="{{ job.records_deleted or 0 }}">{{ job.records_deleted or 0 }}</td>
                 <td data-sort-value="{{ job.records_errored or 0 }}">{{ job.records_errored or 0 }}</td>
+                <td data-sort-value="{{ job.records_ignored or 0 }}">{{ job.records_ignored or 0 }}</td>
             </tr>
             {% endfor %}
         </tbody>
     </table>
     <div class="usa-sr-only usa-table__announcement-region" aria-live="polite"></div>
 </div>
-{% endmacro -%}
-
+{%- endmacro %}

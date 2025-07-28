@@ -587,9 +587,30 @@ def view_harvest_source(source_id: str):
         "target_div": "#paginated__harvest-jobs",
         "endpoint_url": f"/harvest_source/{source_id}",
     }
+    
+    # Get filtering parameters
+    type_filter = request.args.get('type_filter', '').strip()
+    status_filter = request.args.get('status_filter', '').strip()
+    
+    # Get sorting parameters
+    sort_by = request.args.get('sort', 'date_created')
+    sort_order = request.args.get('order', 'desc')
+    
+    # Validate sort_order
+    if sort_order not in ['asc', 'desc']:
+        sort_order = 'desc'
+    
+    # Build facets for filtering
     harvest_jobs_facets = (
-        f"harvest_source_id = '{source_id}' AND date_created <= '{get_datetime()}'"
+        f"harvest_source_id = '{source_id}'"
     )
+    
+    # Add filters to facets
+    if type_filter:
+        harvest_jobs_facets += f" AND harvest_job_type = '{type_filter}'"
+    if status_filter:
+        harvest_jobs_facets += f" AND status = '{status_filter}'"
+    
     jobs_count = db.pget_harvest_jobs(
         facets=harvest_jobs_facets,
         count=True,
@@ -603,7 +624,8 @@ def view_harvest_source(source_id: str):
     jobs = db.pget_harvest_jobs(
         facets=harvest_jobs_facets,
         page=pagination.db_current,
-        order_by="desc",
+        order_by=sort_order,
+        sort_by=sort_by,
     )
 
     if htmx:
@@ -611,6 +633,10 @@ def view_harvest_source(source_id: str):
             "source": {"id": source_id},
             "jobs": jobs,
             "htmx_vars": htmx_vars,
+            "type_filter": type_filter,
+            "status_filter": status_filter,
+            "sort_by": sort_by,
+            "sort_order": sort_order,
         }
         return render_block(
             "view_source_data.html",
@@ -727,12 +753,30 @@ def view_harvest_source(source_id: str):
             ],
         }
         source = db.get_harvest_source(source_id)
+        
+        # Get available types and statuses for filters
+        all_source_jobs = db.pget_harvest_jobs(
+            facets=f"harvest_source_id = '{source_id}' AND date_created <= '{get_datetime()}'",
+            page=1,
+            order_by="desc",
+            limit=1000  # Large enough to get all jobs for this source
+        )
+        
+        available_types = sorted(list(set(job.harvest_job_type for job in all_source_jobs if job.harvest_job_type)))
+        available_statuses = sorted(list(set(job.status for job in all_source_jobs if job.status)))
+        
         data = {
             "source": source,
             "summary_data": summary_data,
             "jobs": jobs,
             "chart_data": chart_data,
             "htmx_vars": htmx_vars,
+            "available_types": available_types,
+            "available_statuses": available_statuses,
+            "type_filter": type_filter,
+            "status_filter": status_filter,
+            "sort_by": sort_by,
+            "sort_order": sort_order,
         }
         return render_template(
             "view_source_data.html",
@@ -1151,17 +1195,14 @@ def get_harvest_error(error_id: str = None) -> dict:
 def view_metrics():
     """Render index page with recent harvest jobs."""
     current_time = get_datetime()
-    start_time = current_time - timedelta(hours=24)
+    start_time = current_time - timedelta(days=7)
     time_filter = f"date_created >= '{start_time.isoformat()}' AND date_created <= '{current_time}'"
 
     # Add filtering parameters
-    job_filter = request.args.get("job_filter", "").strip()
     source_filter = request.args.get("source_filter", "").strip()
     status_filter = request.args.get("status_filter", "").strip()
     
     # Build filter string
-    if job_filter:
-        time_filter += f" AND harvest_job.id LIKE '{job_filter}%'"
     if source_filter:
         time_filter += f" AND harvest_source_id = '{source_filter}'"
     if status_filter:
