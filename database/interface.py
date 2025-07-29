@@ -316,6 +316,19 @@ class HarvesterDBInterface:
         )
         return harvest_jobs
 
+    def get_harvest_jobs(self, facets="", order_by="desc"):
+        """Get all harvest jobs with optional filtering, no pagination"""
+        
+        facet_string = query_filter_builder(None, facets)
+        order_by_val = order_by_helper(HarvestJob, order_by)
+        
+        return (
+            self.db.query(HarvestJob)
+            .filter(text(facet_string) if facet_string else text("1=1"))
+            .order_by(order_by_val)
+            .all()
+        )
+
     def get_in_progress_jobs(self):
         """Get harvest jobs that are in progress."""
         return list(

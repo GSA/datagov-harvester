@@ -1,68 +1,151 @@
-{% macro job_table(jobs, caption, show_source=true, show_date_finished=false, show_records_ignored=false, initial_sort_column=none, initial_sort_direction=none) -%}
+{% macro job_table(jobs, caption, show_source=true, show_filters=false, initial_sort_column="date_created", initial_sort_direction="descending") -%}
+{% if show_filters %}
+<!-- Filter Controls -->
+<div class="usa-form usa-form--large margin-bottom-2">
+    <div class="grid-row grid-gap">
+        {% if show_source %}
+        <div class="grid-col-12 tablet:grid-col-6">
+            <label class="usa-label" for="source-filter">Filter by Harvest Source</label>
+            <select class="usa-select" id="source-filter" name="source-filter">
+                <option value="">All Sources</option>
+                {% set sources = jobs|map(attribute='source.name')|unique|sort %}
+                {% for source in sources %}
+                <option value="{{ source }}">{{ source }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        {% endif %}
+        <div class="grid-col-12 {% if show_source %}tablet:grid-col-6{% else %}tablet:grid-col-4{% endif %}">
+            <label class="usa-label" for="status-filter">Filter by Status</label>
+            <select class="usa-select" id="status-filter" name="status-filter">
+                <option value="">All Statuses</option>
+                {% set statuses = jobs|map(attribute='status')|unique|sort %}
+                {% for status in statuses %}
+                <option value="{{ status }}">{{ status|title }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="grid-col-12 {% if show_source %}tablet:grid-col-12{% else %}tablet:grid-col-8{% endif %} display-flex flex-align-end">
+            <button class="usa-button usa-button--outline" type="button" id="clear-filters">Clear Filters</button>
+        </div>
+    </div>
+</div>
+{% endif %}
+
 <div class="usa-table-container--scrollable" tabindex="0">
-    <table class="usa-table usa-table--striped">
+    <table class="usa-table usa-table--striped" id="jobs-table">
         <caption>{{ caption }}</caption>
         <thead>
             <tr>
-                <th data-sortable scope="col" role="columnheader">Job Id</th>
+                <th data-sortable scope="col" role="columnheader" title="Job Identifier">Job Id</th>
                 {% if show_source %}
-                <th data-sortable scope="col" role="columnheader">Source</th>
+                <th data-sortable scope="col" role="columnheader" title="Harvest Source Name">Source</th>
                 {% endif %}
-                <th data-sortable scope="col" role="columnheader">Type</th>
-                <th data-sortable scope="col" role="columnheader">Status</th>
-                <th data-sortable scope="col" role="columnheader"{% if initial_sort_column == 'date_created' %} aria-sort="{{ initial_sort_direction }}"{% endif %}>Date Created</th>
-                {% if show_date_finished %}
-                <th data-sortable scope="col" role="columnheader">Date Finished</th>
-                {% endif %}
-                <th data-sortable scope="col" role="columnheader">Records Added</th>
-                <th data-sortable scope="col" role="columnheader">Records Updated</th>
-                <th data-sortable scope="col" role="columnheader">Records Deleted</th>
-                <th data-sortable scope="col" role="columnheader">Records Errored</th>
-                {% if show_records_ignored %}
-                <th data-sortable scope="col" role="columnheader">Records Ignored</th>
-                {% endif %}
+                <th data-sortable scope="col" role="columnheader" title="Job Type">Type</th>
+                <th data-sortable scope="col" role="columnheader" title="Job Status">Status</th>
+                <th data-sortable scope="col" role="columnheader"{% if initial_sort_column == 'date_created' %} aria-sort="{{ initial_sort_direction }}" class="usa-table__header--active"{% endif %} title="Date Created">Created</th>
+                <th data-sortable scope="col" role="columnheader" title="Date Finished">Finished</th>
+                <th data-sortable scope="col" role="columnheader" title="Records Added">Add</th>
+                <th data-sortable scope="col" role="columnheader" title="Records Updated">Upd</th>
+                <th data-sortable scope="col" role="columnheader" title="Records Deleted">Del</th>
+                <th data-sortable scope="col" role="columnheader" title="Records Errored">Err</th>
+                <th data-sortable scope="col" role="columnheader" title="Records Unchanged">Ign</th>
             </tr>
         </thead>
         <tbody>
             {% for job in jobs %}
-            <tr>
+            <tr data-source="{{ job.source.name if show_source and job.source else '' }}" data-status="{{ job.status }}">
                 <td data-sort-value="{{ job.id }}">
                     <a href="{{ url_for('main.view_harvest_job', job_id=job.id) }}">
-                        {{ job.id[:8] }}{% if not show_source %}...{% endif %}
+                        {{ job.id[:6] }}{% if show_source %}...{% endif %}
                     </a>
                 </td>
                 {% if show_source %}
-                <td data-sort-value="{{ job.source.name }}">
-                    <a href="{{ url_for('main.view_harvest_source', source_id=job.source.id) }}">
-                        {{ job.source.name }}
+                <td data-sort-value="{{ job.source.name }}" class="text-truncate" style="max-width: 120px;">
+                    <a href="{{ url_for('main.view_harvest_source', source_id=job.source.id) }}" title="{{ job.source.name }}">
+                        {{ job.source.name[:15] }}{% if job.source.name|length > 15 %}...{% endif %}
                     </a>
                 </td>
                 {% endif %}
-                <td data-sort-value="{{ job.job_type }}">{{ job.job_type }}</td>
+                <td data-sort-value="{{ job.job_type }}">{{ job.job_type[:8] }}</td>
                 <td data-sort-value="{{ job.status }}">
                     <span class="usa-tag {% if job.status == 'error' %}usa-tag--error
                                         {% elif job.status == 'in_progress' %}usa-tag--warning
                                         {% elif job.status == 'complete' %}usa-tag--success
                                         {% else %}usa-tag--base{% endif %}">
-                        {{ job.status }}
+                        {{ job.status[:8] }}
                     </span>
                 </td>
-                <td data-sort-value="{{ job.date_created }}">{{ job.date_created.strftime('%Y-%m-%d %H:%M:%S') if job.date_created else 'N/A' }}</td>
-                {% if show_date_finished %}
-                <td data-sort-value="{{ job.date_finished }}">{{ job.date_finished.strftime('%Y-%m-%d %H:%M:%S') if job.date_finished else 'N/A' }}</td>
-                {% endif %}
+                <td data-sort-value="{{ job.date_created }}" style="font-size: 0.85em;">{{ job.date_created.strftime('%m/%d %H:%M') if job.date_created else 'N/A' }}</td>
+                <td data-sort-value="{{ job.date_finished }}" style="font-size: 0.85em;">{{ job.date_finished.strftime('%m/%d %H:%M') if job.date_finished else 'N/A' }}</td>
                 <td data-sort-value="{{ job.records_added }}">{{ job.records_added }}</td>
                 <td data-sort-value="{{ job.records_updated }}">{{ job.records_updated }}</td>
                 <td data-sort-value="{{ job.records_deleted }}">{{ job.records_deleted }}</td>
                 <td data-sort-value="{{ job.records_errored }}">{{ job.records_errored }}</td>
-                {% if show_records_ignored %}
                 <td data-sort-value="{{ job.records_ignored }}">{{ job.records_ignored }}</td>
-                {% endif %}
             </tr>
             {% endfor %}
         </tbody>
     </table>
     <div class="usa-sr-only usa-table__announcement-region" aria-live="polite"></div>
 </div>
+
+{% if show_filters %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const sourceFilter = document.getElementById('source-filter');
+    const statusFilter = document.getElementById('status-filter');
+    const clearFiltersBtn = document.getElementById('clear-filters');
+    const tableRows = document.querySelectorAll('#jobs-table tbody tr');
+    
+    function filterTable() {
+        const sourceValue = sourceFilter ? sourceFilter.value.toLowerCase() : '';
+        const statusValue = statusFilter.value.toLowerCase();
+        let visibleRows = 0;
+        
+        tableRows.forEach(row => {
+            const rowSource = row.getAttribute('data-source').toLowerCase();
+            const rowStatus = row.getAttribute('data-status').toLowerCase();
+            
+            const sourceMatch = !sourceValue || rowSource.includes(sourceValue);
+            const statusMatch = !statusValue || rowStatus === statusValue;
+            
+            if (sourceMatch && statusMatch) {
+                row.style.display = '';
+                visibleRows++;
+            } else {
+                row.style.display = 'none';
+            }
+        });
+        
+        // Update announcement for screen readers
+        const announcement = document.querySelector('.usa-table__announcement-region');
+        announcement.textContent = `Showing ${visibleRows} of ${tableRows.length} jobs`;
+    }
+    
+    function clearFilters() {
+        if (sourceFilter) sourceFilter.value = '';
+        if (statusFilter) statusFilter.value = '';
+        filterTable();
+    }
+    
+    // Add event listeners
+    if (sourceFilter) {
+        sourceFilter.addEventListener('change', filterTable);
+    }
+    if (statusFilter) {
+        statusFilter.addEventListener('change', filterTable);
+    }
+    if (clearFiltersBtn) {
+        clearFiltersBtn.addEventListener('click', clearFilters);
+    }
+    
+    // Initial filter (in case there are default values)
+    filterTable();
+});
+</script>
+{% endif %}
+
+
 {% endmacro -%}
 

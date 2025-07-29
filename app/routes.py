@@ -1117,66 +1117,31 @@ def get_harvest_error(error_id: str = None) -> dict:
 def view_metrics():
     """Render index page with recent harvest jobs."""
     current_time = get_datetime()
-    start_time = current_time - timedelta(hours=24)
+    start_time = current_time - timedelta(days=7)
     time_filter = f"date_created >= '{start_time.isoformat()}' AND date_created <= '{current_time}'"
 
-    htmx_vars = {
-        "target_div": "#paginated__harvest-jobs",
-        "endpoint_url": "/metrics",
-    }
-
-    count = db.pget_harvest_jobs(
+    # Get all jobs without pagination for client-side sorting
+    jobs = db.get_harvest_jobs(
         facets=time_filter,
-        count=True,
+        order_by="desc",
     )
-
-    pagination = Pagination(
-        count=count,
-        current=request.args.get("page", 1, type=convert_to_int),
+    
+    errors_time_filter = f"harvest_job_error.date_created >= '{start_time.isoformat()}' AND harvest_job_error.date_created <= '{current_time}'"
+    failures = db.pget_harvest_job_errors(
+        facets=errors_time_filter + " AND type = 'FailedJobCleanup'",
+        order_by="desc",
     )
-
-    if htmx:
-        jobs = db.pget_harvest_jobs(
-            facets=time_filter,
-            page=pagination.db_current,
-            per_page=pagination.per_page,
-            order_by="desc",
-        )
-        data = {
-            "jobs": jobs,
-            "htmx_vars": htmx_vars,
-        }
-        return render_block(
-            "metrics_dashboard.html",
-            "htmx_paginated",
-            data=data,
-            pagination=pagination.to_dict(),
-        )
-    else:
-        jobs = db.pget_harvest_jobs(
-            facets=time_filter,
-            page=pagination.db_current,
-            per_page=pagination.per_page,
-            order_by="desc",
-        )
-        errors_time_filter = f"harvest_job_error.date_created >= '{start_time.isoformat()}' AND harvest_job_error.date_created <= '{current_time}'"
-        failures = db.pget_harvest_job_errors(
-            facets=errors_time_filter + " AND type = 'FailedJobCleanup'",
-            order_by="desc",
-        )
-        data = {
-            "htmx_vars": htmx_vars,
-            "jobs": jobs,
-            "new_jobs_in_past": db.get_new_harvest_jobs_in_past(),
-            "failures": failures,
-            "current_time": current_time,
-            "window_start": start_time,
-        }
-        return render_template(
-            "metrics_dashboard.html",
-            pagination=pagination.to_dict(),
-            data=data,
-        )
+    data = {
+        "jobs": jobs,
+        "new_jobs_in_past": db.get_new_harvest_jobs_in_past(),
+        "failures": failures,
+        "current_time": current_time,
+        "window_start": start_time,
+    }
+    return render_template(
+        "metrics_dashboard.html",
+        data=data,
+    )
 
 
 # Builder Query for JSON feed
