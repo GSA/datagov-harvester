@@ -130,8 +130,12 @@
                             <th data-sortable scope="col" role="columnheader" {% if data.sort_state and data.sort_state.column == 'records_updated' %}aria-sort="{{ 'ascending' if data.sort_state.direction == 'asc' else 'descending' }}"{% endif %}>Records Updated</th>
                         </tr>
                     </thead>
-                    <tbody id="harvest-jobs-tbody">
+                    <tbody id="harvest-jobs-tbody" 
+                           hx-get="{{ url_for('main.view_harvest_source', source_id=data.source.id) }}?sort={{ data.sort_state.column if data.sort_state else 'date_created' }}&order={{ data.sort_state.direction if data.sort_state else 'desc' }}"
+                           hx-trigger="load"
+                           hx-swap="innerHTML">
                         {% block table_body %}
+                        <!-- Initial content will be replaced by HTMX -->
                         {% for job in data.jobs %}
                         <tr>
                             <td data-sort-value="{{job.id}}"><a
@@ -325,6 +329,9 @@
         // Use capture phase to intercept before USWDS handlers
         table.addEventListener('click', customClickHandler, true);
         
+        // Mark table as having sorting initialized
+        table._sortingInitialized = true;
+        
         console.log('Table sorting initialization complete');
     }
 
@@ -342,8 +349,20 @@
         console.log('Updated aria-sort on header:', activeHeader, 'to:', ariaValue);
     }
 
-    // Initialize table sorting on page load
-    document.addEventListener('DOMContentLoaded', initializeTableSorting);
+    // Initialize table sorting on page load only if table body is already populated
+    document.addEventListener('DOMContentLoaded', function() {
+        const tbody = document.getElementById('harvest-jobs-tbody');
+        // Check if tbody has actual job rows (not just the initial template placeholder)
+        const hasJobRows = tbody && tbody.querySelectorAll('tr').length > 0 && 
+                          !tbody.hasAttribute('hx-trigger');
+        
+        if (hasJobRows) {
+            console.log('Table body already populated, initializing sorting');
+            initializeTableSorting();
+        } else {
+            console.log('Table body will be loaded via HTMX, waiting for afterSwap');
+        }
+    });
     
     // Handle HTMX afterSwap for table body updates
     document.addEventListener('htmx:afterSwap', function(event) {
@@ -351,8 +370,13 @@
         if (event.detail.target.id === 'harvest-jobs-tbody') {
             console.log('Table body updated via HTMX');
             
-            // The table headers remain intact with USWDS functionality preserved
-            // No need to reinitialize table sorting
+            // If this is the initial load, we need to initialize table sorting
+            if (!event.detail.target.closest('table')._sortingInitialized) {
+                console.log('Initial table body load detected, initializing sorting');
+                setTimeout(() => {
+                    initializeTableSorting();
+                }, 100);
+            }
         }
     });
 </script>
