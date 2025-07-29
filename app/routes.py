@@ -1201,9 +1201,9 @@ def view_metrics():
             order_by="desc",
         )
         current_jobs = db.pget_harvest_jobs(
-                facets="status = 'in_progress'",
-                order_by="desc",
-            )
+            facets="status = 'in_progress'",
+            order_by="desc",
+        )
         data = {
             "htmx_vars": htmx_vars,
             "current_jobs": current_jobs,

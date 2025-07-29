@@ -625,7 +625,6 @@ class Record:
             format_checker=Draft202012Validator.FORMAT_CHECKER,
         ).is_valid(url)
 
-
     def harvest(self) -> None:
         """
         this is the main harvest function for a record instance. it runs the compare,

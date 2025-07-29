@@ -71,7 +71,7 @@ class TestHarvestSourceUnauthed:
         expect(
             upage.locator("#paginated__harvest-jobs table tr:first-child td")
         ).to_have_text(
-            ["harvest", "new", "2025-02-27 00:00:00", "N/A", "0", "0", "0", "0", "0"]
+            ["harvest", "new", "2025-07-28 00:00:00", "N/A", "0", "0", "0", "0", "0"]
         )
 
 

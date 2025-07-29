@@ -420,7 +420,7 @@ def dynamic_map_list_items_to_dict(list, fields):
             value = item.get(field)
             # Format datetime objects to be more readable for charts
             if isinstance(value, datetime):
-                value = value.strftime('%Y-%m-%d %H:%M')
+                value = value.strftime("%Y-%m-%d %H:%M")
             data_dict[field].append(value)
     return data_dict
 
