@@ -1,19 +1,19 @@
 {% macro job_table(jobs, caption, show_source=true) -%}
 <div class="usa-table-container" tabindex="0">
-    <table class="usa-table usa-table--striped">
+    <table class="usa-table usa-table--striped usa-table--borderless">
         <caption>{{ caption }}</caption>
         <thead>
             <tr>
-                <th scope="col" title="Job ID">Job</th>
+                <th scope="col" title="Job ID">Job ID</th>
                 {% if show_source %}<th scope="col" title="Harvest Source">Source</th>{% endif %}
                 <th scope="col" title="Job Status">Status</th>
-                <th scope="col" title="Start Date">Start</th>
-                <th scope="col" title="Completion Date">End</th>
-                <th scope="col" title="Records Added">Add</th>
-                <th scope="col" title="Records Updated">Upd</th>
-                <th scope="col" title="Records Deleted">Del</th>
-                <th scope="col" title="Records Errored">Err</th>
-                <th scope="col" title="Records Unchanged and Ignored">Ign</th>
+                <th scope="col" title="Start Date">Started</th>
+                <th scope="col" title="Completion Date">Finished</th>
+                <th scope="col" title="Records Added">Added</th>
+                <th scope="col" title="Records Updated">Updated</th>
+                <th scope="col" title="Records Deleted">Deleted</th>
+                <th scope="col" title="Records Errored">Errored</th>
+                <th scope="col" title="Records Unchanged and Ignored">Ignored</th>
             </tr>
         </thead>
         <tbody id="paginated_harvest_jobs">
@@ -21,31 +21,39 @@
             <tr>
                 <td data-sort-value="{{ job.id }}">
                     <a href="{{ url_for('main.view_harvest_job', job_id=job.id) }}">
-                        {{ job.id[:6] }}...
+                        {{ job.id[:6] }}
                     </a>
                 </td>
                 {% if show_source %}
-                <td data-sort-value="{{ job.source.name }}" style="max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                <td data-sort-value="{{ job.source.name }}">
                     <a href="{{ url_for('main.view_harvest_source', source_id=job.source.id) }}" title="{{ job.source.name }}">
-                        {{ job.source.name[:15] }}{% if job.source.name|length > 15 %}...{% endif %}
+                        <span class="display-none tablet:display-inline">{{ job.source.name[:25] }}{% if job.source.name|length > 25 %}...{% endif %}</span>
+                        <span class="tablet:display-none">{{ job.source.name[:12] }}{% if job.source.name|length > 12 %}...{% endif %}</span>
                     </a>
                 </td>
                 {% endif %}
-                <td style="font-size: 0.75em;">
+                <td>
                     <span class="usa-tag {% if job.status == 'error' %}usa-tag--error
                                         {% elif job.status == 'in_progress' %}usa-tag--warning
                                         {% elif job.status == 'complete' %}usa-tag--success
                                         {% else %}usa-tag--base{% endif %}">
-                        {{ job.status[:8] }}
+                        <span class="display-none tablet:display-inline">{{ job.status }}</span>
+                        <span class="tablet:display-none">{{ job.status[:4] }}</span>
                     </span>
                 </td>
-                <td style="font-size: 0.85em;">{{ job.date_created.strftime('%m/%d %H:%M') if job.date_created else 'N/A' }}</td>
-                <td style="font-size: 0.85em;">{{ job.date_finished.strftime('%m/%d %H:%M') if job.date_finished else 'N/A' }}</td>
-                <td>{{ job.records_added }}</td>
-                <td>{{ job.records_updated }}</td>
-                <td>{{ job.records_deleted }}</td>
-                <td>{{ job.records_errored }}</td>
-                <td>{{ job.records_ignored }}</td>
+                <td class="font-mono-sm">
+                    <span class="display-none tablet:display-inline">{{ job.date_created.strftime('%Y-%m-%d %H:%M') if job.date_created else 'N/A' }}</span>
+                    <span class="tablet:display-none">{{ job.date_created.strftime('%m/%d %H:%M') if job.date_created else 'N/A' }}</span>
+                </td>
+                <td class="font-mono-sm">
+                    <span class="display-none tablet:display-inline">{{ job.date_finished.strftime('%Y-%m-%d %H:%M') if job.date_finished else 'N/A' }}</span>
+                    <span class="tablet:display-none">{{ job.date_finished.strftime('%m/%d %H:%M') if job.date_finished else 'N/A' }}</span>
+                </td>
+                <td class="text-tabular">{{ job.records_added }}</td>
+                <td class="text-tabular">{{ job.records_updated }}</td>
+                <td class="text-tabular">{{ job.records_deleted }}</td>
+                <td class="text-tabular">{{ job.records_errored }}</td>
+                <td class="text-tabular">{{ job.records_ignored }}</td>
             </tr>
             {% endfor %}
         </tbody>

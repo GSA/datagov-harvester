@@ -51,8 +51,8 @@
         </p>
 
       {% if data.failures %}
-      <div class="usa-table-container--scrollable" tabindex="0">
-          <table class="usa-table usa-table--striped">
+      <div class="usa-table-container" tabindex="0">
+          <table class="usa-table usa-table--striped usa-table--borderless">
               <caption>Recent failed jobs</caption>
               <thead>
                   <tr>
@@ -67,7 +67,7 @@
                   <tr>
                       <td data-sort-value="{{ error.job.id }}">
                           <a href="{{ url_for('main.view_harvest_job', job_id=error.job.id) }}">
-                              {{ error.job.id[:8] }}...
+                              {{ error.job.id[:8] }}
                           </a>
                       </td>
                       <td data-sort-value="{{ error.job.source.name }}">
@@ -75,7 +75,7 @@
                               {{ error.job.source.name }}
                           </a>
                       </td>
-                      <td>{{ error.date_created.strftime('%Y-%m-%d %H:%M:%S')
+                      <td>{{ error.date_created.strftime('%Y-%m-%d %H:%M')
                           }}</td>
                       <td>{{ error.message}}</td>
                   </tr>
@@ -96,7 +96,7 @@
     </section>
 
     <div class="section my-3">
-        <h2>Recent Harvest Jobs</h2>
+        <h2>Recently Completed Harvest Jobs</h2>
         <p class="text-muted">
             Showing jobs from {{ data.window_start.strftime('%Y-%m-%d %H:%M:%S UTC') }}
             to {{ data.current_time.strftime('%Y-%m-%d %H:%M:%S UTC') }}
