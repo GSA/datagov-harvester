@@ -13,8 +13,12 @@ permissions:
 
 jobs:
   restart:
-    name: restart (development)
-    environment: development
+    name: restart harvest app
+    strategy:
+      fail-fast: false
+      matrix:
+        environ: ["development", "staging", "prod"]
+    environment: ${{ matrix.environ }}
     runs-on: ubuntu-latest
     steps:
       - name: checkout repo
@@ -27,7 +31,7 @@ jobs:
         with:
           command: harvester/bin/check-and-renew datagov-harvest restart
           cf_org: gsa-datagov
-          cf_space: development
+          cf_space: ${{ matrix.environ }}
           cf_username: ${{secrets.CF_SERVICE_USER}}
           cf_password: ${{secrets.CF_SERVICE_AUTH}}
       - name: Create Issue if it fails 😢

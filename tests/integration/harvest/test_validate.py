@@ -205,3 +205,41 @@ class TestValidateDataset:
         assert valid_iso_2_record.transformed_data["publisher"] == {
             "name": organization_data["name"]
         }
+
+    def test_transformed_iso_downloadURL_placeholder(
+        self, organization_data, valid_iso_2_record
+    ):
+        valid_iso_2_record.transform()
+        valid_iso_2_record.transformed_data["distribution"][0][
+            "downloadURL"
+        ] = "www.example.com/"
+        # makes the record invalid
+        assert not valid_iso_2_record.validate()
+
+        # now fill in the missing items
+        valid_iso_2_record.fill_placeholders()
+        assert valid_iso_2_record.validate()
+
+        assert (
+            valid_iso_2_record.transformed_data["distribution"][0]["downloadURL"]
+            == "https://www.example.com/"
+        )
+
+    def test_transformed_iso_accessURL_placeholder(
+        self, organization_data, valid_iso_2_record
+    ):
+        valid_iso_2_record.transform()
+        valid_iso_2_record.transformed_data["distribution"][0][
+            "accessURL"
+        ] = "www.example.com/"
+        # makes the record invalid
+        assert not valid_iso_2_record.validate()
+
+        # now fill in the missing items
+        valid_iso_2_record.fill_placeholders()
+        assert valid_iso_2_record.validate()
+
+        assert (
+            valid_iso_2_record.transformed_data["distribution"][0]["accessURL"]
+            == "https://www.example.com/"
+        )

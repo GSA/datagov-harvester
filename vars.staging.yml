@@ -8,7 +8,8 @@ admin_disk_quota: 4G
 CF_API_URL: https://api.fr.cloud.gov
 CKAN_API_URL: https://catalog-next-stage-admin-datagov.app.cloud.gov
 
-HARVEST_RUNNER_MAX_TASKS: 2
+# CKAN can't handle too many tasks talking to it
+HARVEST_RUNNER_MAX_TASKS: 3
 
 MDTRANSLATOR_URL: http://mdtranslator-staging.apps.internal:8080/translates
 
