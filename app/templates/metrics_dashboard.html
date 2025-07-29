@@ -77,8 +77,8 @@
                                   {{ error.job.source.name }}
                               </a>
                           </td>
-                          <td class="font-mono-sm utc-date" data-utc-date="{{ error.date_created.isoformat() if error.date_created else '' }}">
-                              {{ error.date_created.isoformat() if error.date_created else 'N/A' }}
+                          <td class="font-mono-sm utc-date" data-utc-date="{{ error.date_created }}">
+                              {{ error.date_created }}
                           </td>
                           <td>{{ error.message}}</td>
                       </tr>
