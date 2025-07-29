@@ -1,11 +1,11 @@
-{% macro job_table(jobs, caption) -%}
+{% macro job_table(jobs, caption, show_source=true) -%}
 <div class="usa-table-container" tabindex="0">
     <table class="usa-table usa-table--striped">
         <caption>{{ caption }}</caption>
         <thead>
             <tr>
                 <th scope="col" title="Job ID">Job</th>
-                <th scope="col" title="Harvest Source">Source</th>
+                {% if show_source %}<th scope="col" title="Harvest Source">Source</th>{% endif %}
                 <th scope="col" title="Job Status">Status</th>
                 <th scope="col" title="Start Date">Start</th>
                 <th scope="col" title="Completion Date">End</th>
@@ -24,11 +24,13 @@
                         {{ job.id[:6] }}...
                     </a>
                 </td>
+                {% if show_source %}
                 <td data-sort-value="{{ job.source.name }}" style="max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
                     <a href="{{ url_for('main.view_harvest_source', source_id=job.source.id) }}" title="{{ job.source.name }}">
                         {{ job.source.name[:15] }}{% if job.source.name|length > 15 %}...{% endif %}
                     </a>
                 </td>
+                {% endif %}
                 <td style="font-size: 0.75em;">
                     <span class="usa-tag {% if job.status == 'error' %}usa-tag--error
                                         {% elif job.status == 'in_progress' %}usa-tag--warning

@@ -1189,7 +1189,7 @@ def view_metrics():
             pagination=pagination.to_dict(),
         )
     else:
-        jobs = db.pget_harvest_jobs( 
+        jobs = db.pget_harvest_jobs(
             facets=time_filter + " AND status = 'complete'",
             page=pagination.db_current,
             per_page=pagination.per_page,
