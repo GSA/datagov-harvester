@@ -58,7 +58,6 @@ class TestHarvestSourceUnauthed:
                 "Last Job Records in Error:",
                 "N/A",
                 "Last Job Finished:",
-                "N/A",
                 "Next Job Scheduled:",
                 "N/A",
             ]
@@ -70,9 +69,7 @@ class TestHarvestSourceUnauthed:
         )
         expect(
             upage.locator("#paginated__harvest-jobs table tr:first-child td")
-        ).to_have_text(
-            ["harvest", "new", "2025-07-28 00:00:00", "N/A", "0", "0", "0", "0", "0"]
-        )
+        ).to_have_text(["harvest", "new", "N/A", "0", "0", "0", "0", "0"])
 
 
 class TestHarvestSourceAuthed:

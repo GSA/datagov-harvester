@@ -175,7 +175,7 @@ class TestDatabase:
         interface.add_organization(organization_data)
         interface.add_harvest_source(source_data_dcatus)
         interface.add_harvest_job(job_data_dcatus)
-        interface.add_harvest_record(record_data_dcatus[0])
+        interface.add_harvest_record(record_data_dcatus[2])
 
         harvest_record_error = interface.add_harvest_record_error(record_error_data[0])
         assert isinstance(harvest_record_error, HarvestRecordError)

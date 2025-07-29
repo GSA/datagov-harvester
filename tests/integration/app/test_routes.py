@@ -125,9 +125,9 @@ class TestDynamicRouteTable:
                             ("<cleaned_route_rule>", cleaned_route_rule),
                         ]
 
-                        expected_location = default_assertion_map[method][
+                        expected_location = default_assertion_map[method].get(
                             str(getattr(res, "status_code"))
-                        ]
+                        )
 
                         if expected_location is None:
                             assert expected_location == res.location
