@@ -1155,48 +1155,97 @@ def view_metrics():
     start_time = current_time - timedelta(days=7)
     time_filter = f"date_created >= '{start_time.isoformat()}' AND date_created <= '{current_time}'"
 
-    htmx_vars = {
-        "target_div": "#paginated__harvest-jobs",
-        "endpoint_url": "/metrics",
-    }
-
-    count = db.pget_harvest_jobs(
+    # Handle multiple pagination parameters
+    jobs_page = request.args.get("jobs_page", 1, type=convert_to_int)
+    errors_page = request.args.get("errors_page", 1, type=convert_to_int)
+    
+    # Count for pagination
+    count_jobs = db.pget_harvest_jobs(
         facets=time_filter + " AND status = 'complete'",
         count=True,
     )
 
-    pagination = Pagination(
-        count=count,
-        current=request.args.get("page", 1, type=convert_to_int),
+    count_errors = db.pget_harvest_job_errors(
+        facets=time_filter,
+        count=True,
     )
 
+    # Create separate pagination objects
+    pagination_jobs = Pagination(
+        count=count_jobs,
+        current=jobs_page,
+    )
+    
+    pagination_errors = Pagination(
+        count=count_errors,
+        current=errors_page,
+    )
+
+    # HTMX handling for specific sections
     if htmx:
-        jobs = db.pget_harvest_jobs(
-            facets=time_filter + " AND status = 'complete'",
-            page=pagination.db_current,
-            per_page=pagination.per_page,
-            order_by="desc",
-        )
-        data = {
-            "jobs": jobs,
-            "htmx_vars": htmx_vars,
-        }
-        return render_block(
-            "metrics_dashboard.html",
-            "htmx_paginated",
-            data=data,
-            pagination=pagination.to_dict(),
-        )
+        htmx_target = request.headers.get("HX-Target", "")
+        
+        if "paginated__harvest-jobs" in htmx_target:
+            # Handle jobs pagination
+            jobs = db.pget_harvest_jobs(
+                facets=time_filter + " AND status = 'complete'",
+                page=pagination_jobs.db_current,
+                per_page=pagination_jobs.per_page,
+                order_by="desc",
+            )
+            htmx_vars = {
+                "target_div": "#paginated__harvest-jobs",
+                "endpoint_url": "/metrics",
+                "page_param": "jobs_page"
+            }
+            data = {
+                "jobs": jobs,
+                "htmx_vars": htmx_vars,
+            }
+            return render_block(
+                "metrics_dashboard.html",
+                "htmx_paginated_jobs",
+                data=data,
+                pagination_jobs=pagination_jobs.to_dict(),
+            )
+            
+        elif "paginated__harvest-errors" in htmx_target:
+            # Handle errors pagination
+            errors_time_filter = f"harvest_job_error.date_created >= '{start_time.isoformat()}' AND harvest_job_error.date_created <= '{current_time}'"
+            failures = db.pget_harvest_job_errors(
+                facets=errors_time_filter,
+                page=pagination_errors.db_current,
+                per_page=pagination_errors.per_page,
+                order_by="desc",
+            )
+            htmx_vars = {
+                "target_div": "#paginated__harvest-errors",
+                "endpoint_url": "/metrics",
+                "page_param": "errors_page"
+            }
+            data = {
+                "failures": failures,
+                "htmx_vars": htmx_vars,
+            }
+            return render_block(
+                "metrics_dashboard.html",
+                "htmx_paginated_errors",
+                data=data,
+                pagination_errors=pagination_errors.to_dict(),
+            )
     else:
+        # Full page load
         jobs = db.pget_harvest_jobs(
             facets=time_filter + " AND status = 'complete'",
-            page=pagination.db_current,
-            per_page=pagination.per_page,
+            page=pagination_jobs.db_current,
+            per_page=pagination_jobs.per_page,
             order_by="desc",
         )
         errors_time_filter = f"harvest_job_error.date_created >= '{start_time.isoformat()}' AND harvest_job_error.date_created <= '{current_time}'"
         failures = db.pget_harvest_job_errors(
             facets=errors_time_filter,
+            page=pagination_errors.db_current,
+            per_page=pagination_errors.per_page,
             order_by="desc",
         )
         current_jobs = db.pget_harvest_jobs(
@@ -1204,7 +1253,6 @@ def view_metrics():
             order_by="desc",
         )
         data = {
-            "htmx_vars": htmx_vars,
             "current_jobs": current_jobs,
             "jobs": jobs,
             "new_jobs_in_past": db.get_new_harvest_jobs_in_past(),
@@ -1214,7 +1262,8 @@ def view_metrics():
         }
         return render_template(
             "metrics_dashboard.html",
-            pagination=pagination.to_dict(),
+            pagination_jobs=pagination_jobs.to_dict(),
+            pagination_errors=pagination_errors.to_dict(),
             data=data,
         )
 
