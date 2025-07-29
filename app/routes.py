@@ -1200,12 +1200,13 @@ def view_metrics():
             facets=errors_time_filter,
             order_by="desc",
         )
-        data = {
-            "htmx_vars": htmx_vars,
-            "current_jobs": db.pget_harvest_jobs(
+        current_jobs = db.pget_harvest_jobs(
                 facets="status = 'in_progress'",
                 order_by="desc",
-            ),
+            )
+        data = {
+            "htmx_vars": htmx_vars,
+            "current_jobs": current_jobs,
             "jobs": jobs,
             "new_jobs_in_past": db.get_new_harvest_jobs_in_past(),
             "failures": failures,
