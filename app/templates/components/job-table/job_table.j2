@@ -1,33 +1,45 @@
-{% macro job_table(jobs, caption) -%}
+{% macro job_table(jobs, caption, show_source=true, show_date_finished=false, show_records_ignored=false, initial_sort_column=none, initial_sort_direction=none) -%}
 <div class="usa-table-container--scrollable" tabindex="0">
     <table class="usa-table usa-table--striped">
         <caption>{{ caption }}</caption>
         <thead>
             <tr>
-                <th scope="col">Job Id</th>
-                <th scope="col">Source</th>
-                <th scope="col">Status</th>
-                <th scope="col">Created</th>
-                <th scope="col">Records Added</th>
-                <th scope="col">Records Updated</th>
-                <th scope="col">Records Deleted</th>
-                <th scope="col">Records Errored</th>
+                <th data-sortable scope="col" role="columnheader">Job Id</th>
+                {% if show_source %}
+                <th data-sortable scope="col" role="columnheader">Source</th>
+                {% endif %}
+                <th data-sortable scope="col" role="columnheader">Type</th>
+                <th data-sortable scope="col" role="columnheader">Status</th>
+                <th data-sortable scope="col" role="columnheader"{% if initial_sort_column == 'date_created' %} aria-sort="{{ initial_sort_direction }}"{% endif %}>Date Created</th>
+                {% if show_date_finished %}
+                <th data-sortable scope="col" role="columnheader">Date Finished</th>
+                {% endif %}
+                <th data-sortable scope="col" role="columnheader">Records Added</th>
+                <th data-sortable scope="col" role="columnheader">Records Updated</th>
+                <th data-sortable scope="col" role="columnheader">Records Deleted</th>
+                <th data-sortable scope="col" role="columnheader">Records Errored</th>
+                {% if show_records_ignored %}
+                <th data-sortable scope="col" role="columnheader">Records Ignored</th>
+                {% endif %}
             </tr>
         </thead>
-        <tbody id="paginated_harvest_jobs">
+        <tbody>
             {% for job in jobs %}
             <tr>
                 <td data-sort-value="{{ job.id }}">
                     <a href="{{ url_for('main.view_harvest_job', job_id=job.id) }}">
-                        {{ job.id[:8] }}...
+                        {{ job.id[:8] }}{% if not show_source %}...{% endif %}
                     </a>
                 </td>
+                {% if show_source %}
                 <td data-sort-value="{{ job.source.name }}">
                     <a href="{{ url_for('main.view_harvest_source', source_id=job.source.id) }}">
                         {{ job.source.name }}
                     </a>
                 </td>
-                <td>
+                {% endif %}
+                <td data-sort-value="{{ job.job_type }}">{{ job.job_type }}</td>
+                <td data-sort-value="{{ job.status }}">
                     <span class="usa-tag {% if job.status == 'error' %}usa-tag--error
                                         {% elif job.status == 'in_progress' %}usa-tag--warning
                                         {% elif job.status == 'complete' %}usa-tag--success
@@ -35,12 +47,17 @@
                         {{ job.status }}
                     </span>
                 </td>
-                <td>{{ job.date_created.strftime('%Y-%m-%d %H:%M:%S')
-                    }}</td>
-                <td>{{ job.records_added}}</td>
-                <td>{{ job.records_updated}}</td>
-                <td>{{ job.records_deleted}}</td>
-                <td>{{ job.records_errored}}</td>
+                <td data-sort-value="{{ job.date_created }}">{{ job.date_created.strftime('%Y-%m-%d %H:%M:%S') if job.date_created else 'N/A' }}</td>
+                {% if show_date_finished %}
+                <td data-sort-value="{{ job.date_finished }}">{{ job.date_finished.strftime('%Y-%m-%d %H:%M:%S') if job.date_finished else 'N/A' }}</td>
+                {% endif %}
+                <td data-sort-value="{{ job.records_added }}">{{ job.records_added }}</td>
+                <td data-sort-value="{{ job.records_updated }}">{{ job.records_updated }}</td>
+                <td data-sort-value="{{ job.records_deleted }}">{{ job.records_deleted }}</td>
+                <td data-sort-value="{{ job.records_errored }}">{{ job.records_errored }}</td>
+                {% if show_records_ignored %}
+                <td data-sort-value="{{ job.records_ignored }}">{{ job.records_ignored }}</td>
+                {% endif %}
             </tr>
             {% endfor %}
         </tbody>

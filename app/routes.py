@@ -583,42 +583,10 @@ def add_harvest_source():
 
 @main.route("/harvest_source/<source_id>", methods=["GET", "POST"])
 def view_harvest_source(source_id: str):
-    htmx_vars = {
-        "target_div": "#paginated__harvest-jobs",
-        "endpoint_url": f"/harvest_source/{source_id}",
-    }
-    harvest_jobs_facets = (
-        f"harvest_source_id = '{source_id}' AND date_created <= '{get_datetime()}'"
-    )
-    jobs_count = db.pget_harvest_jobs(
-        facets=harvest_jobs_facets,
-        count=True,
-    )
+    # Get all jobs for client-side filtering and sorting
+    jobs = db.get_all_harvest_jobs_by_source_id(source_id)
 
-    pagination = Pagination(
-        count=jobs_count,
-        current=request.args.get("page", 1, type=convert_to_int),
-    )
-
-    jobs = db.pget_harvest_jobs(
-        facets=harvest_jobs_facets,
-        page=pagination.db_current,
-        order_by="desc",
-    )
-
-    if htmx:
-        data = {
-            "source": {"id": source_id},
-            "jobs": jobs,
-            "htmx_vars": htmx_vars,
-        }
-        return render_block(
-            "view_source_data.html",
-            "htmx_paginated",
-            data=data,
-            pagination=pagination.to_dict(),
-        )
-    elif request.method == "POST":
+    if request.method == "POST":
         form = HarvestTriggerForm(request.form)
         if form.data["edit"]:
             return redirect(url_for("main.edit_harvest_source", source_id=source_id))
@@ -732,12 +700,10 @@ def view_harvest_source(source_id: str):
             "summary_data": summary_data,
             "jobs": jobs,
             "chart_data": chart_data,
-            "htmx_vars": htmx_vars,
         }
         return render_template(
             "view_source_data.html",
             form=form,
-            pagination=pagination.to_dict(),
             data=data,
         )
 

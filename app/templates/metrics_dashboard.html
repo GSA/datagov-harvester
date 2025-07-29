@@ -18,8 +18,13 @@
         {% if data.jobs %}
         {% block htmx_paginated %}
         <div id="paginated__harvest-jobs">
-            {% import 'components/job-table/job_table.j2' as job_table %}
-            {{ job_table.job_table(data.jobs, "Recent Harvest Jobs") }}
+            {{ job_table.job_table(
+                jobs=data.jobs, 
+                caption="Recent Harvest Jobs",
+                show_source=true,
+                show_date_finished=false,
+                show_records_ignored=false
+            ) }}
             {% if pagination.count > jobs|count %}
             {% include '/components/pagination/pagination.html' %}
             {% endif %}
@@ -43,7 +48,13 @@
       <h2>Scheduled Jobs Still to Harvest: {{ data.new_jobs_in_past | length }}</h2>
 
       {% if data.new_jobs_in_past %}
-      {{ job_table.job_table(data.new_jobs_in_past, "Scheduled jobs still to harvest") }}
+      {{ job_table.job_table(
+          jobs=data.new_jobs_in_past, 
+          caption="Scheduled jobs still to harvest",
+          show_source=true,
+          show_date_finished=false,
+          show_records_ignored=false
+      ) }}
       {% else %}
         <div class="usa-alert usa-alert--info">
             <div class="usa-alert__body">

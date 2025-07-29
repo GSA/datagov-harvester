@@ -306,6 +306,16 @@ class HarvesterDBInterface:
         )
         return harvest_jobs
 
+    def get_all_harvest_jobs_by_source_id(self, source_id):
+        """Get all harvest jobs for a specific source ID"""
+        harvest_jobs = (
+            self.db.query(HarvestJob)
+            .filter_by(harvest_source_id=source_id)
+            .order_by(HarvestJob.date_created.desc())
+            .all()
+        )
+        return harvest_jobs
+
     def get_in_progress_jobs(self):
         """Get harvest jobs that are in progress."""
         return list(
