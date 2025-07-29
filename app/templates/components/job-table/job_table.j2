@@ -13,7 +13,7 @@
                 <th scope="col" title="Records Updated">Updated</th>
                 <th scope="col" title="Records Deleted">Deleted</th>
                 <th scope="col" title="Records Errored">Errored</th>
-                <th scope="col" title="Records Unchanged and Ignored">Ignored</th>
+                <th scope="col" title="Records Unchanged and Ignored">Unchanged</th>
             </tr>
         </thead>
         <tbody id="paginated_harvest_jobs">
@@ -41,13 +41,11 @@
                         <span class="tablet:display-none">{{ job.status[:4] }}</span>
                     </span>
                 </td>
-                <td class="font-mono-sm">
-                    <span class="display-none tablet:display-inline">{{ job.date_created.strftime('%Y-%m-%d %H:%M') if job.date_created else 'N/A' }}</span>
-                    <span class="tablet:display-none">{{ job.date_created.strftime('%m/%d %H:%M') if job.date_created else 'N/A' }}</span>
+                <td class="font-mono-sm utc-date" data-utc-date="{{ job.date_created.isoformat() }}">
+                    {{ job.date_created if job.date_created else 'N/A' }}
                 </td>
-                <td class="font-mono-sm">
-                    <span class="display-none tablet:display-inline">{{ job.date_finished.strftime('%Y-%m-%d %H:%M') if job.date_finished else 'N/A' }}</span>
-                    <span class="tablet:display-none">{{ job.date_finished.strftime('%m/%d %H:%M') if job.date_finished else 'N/A' }}</span>
+                <td class="font-mono-sm utc-date" data-utc-date="{{ job.date_finished}}">
+                    {{ job.date_finished if job.date_finished else 'N/A' }}
                 </td>
                 <td class="text-tabular">{{ job.records_added }}</td>
                 <td class="text-tabular">{{ job.records_updated }}</td>
@@ -60,5 +58,51 @@
     </table>
     <div class="usa-sr-only usa-table__announcement-region" aria-live="polite"></div>
 </div>
+
+<script>
+// Convert UTC dates to local timezone using moment.js
+function convertUTCDatesToLocal(container) {
+    // Check if moment.js is available
+    if (typeof moment === 'undefined') {
+        console.error('moment.js is not loaded!');
+        return;
+    }
+    
+    // Find all date cells with UTC timestamps within the container (or document if no container)
+    const searchRoot = container || document;
+    const dateCells = searchRoot.querySelectorAll('.utc-date[data-utc-date]');
+    
+    dateCells.forEach(function(cell) {
+        const utcDateString = cell.getAttribute('data-utc-date');
+        if (!utcDateString) return;
+        
+        // Skip if already converted (to avoid double conversion)
+        if (cell.hasAttribute('data-converted')) return;
+        
+        // Convert UTC to local timezone using moment.js
+        const localMoment = moment.utc(utcDateString).local();
+        if (localMoment.isValid()) {
+            cell.textContent = localMoment.format('YYYY-MM-DD HH:mm');
+            cell.setAttribute('data-converted', 'true');
+        }
+    });
+}
+
+// Convert dates on initial page load
+document.addEventListener('DOMContentLoaded', function() {
+    convertUTCDatesToLocal();
+});
+
+// Convert dates after HTMX content is loaded
+document.addEventListener('htmx:afterSwap', function(event) {
+    // Convert dates in the newly swapped content
+    convertUTCDatesToLocal(event.detail.target);
+});
+
+// Also handle htmx:load event for broader compatibility
+document.addEventListener('htmx:load', function(event) {
+    convertUTCDatesToLocal(event.detail.elt);
+});
+</script>
 {% endmacro -%}
 
