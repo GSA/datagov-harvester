@@ -116,19 +116,19 @@
 
             <div class="usa-table-container--scrollable" tabindex="0">
                 <table class="usa-table usa-table--striped">
-                    <caption> Harvest Jobs for Harvest Source Id: {{data.source["id"]}} </caption>
+                    <caption> Harvest Jobs for Harvest Source Id: {{data.source.name}} </caption>
                     <thead>
                         <tr>
-                            <th data-sortable scope="col" role="columnheader">Id</th>
-                            <th data-sortable scope="col" role="columnheader">Type</th>
-                            <th data-sortable scope="col" role="columnheader">Status</th>
-                            <th data-sortable scope="col" role="columnheader">Date Created</th>
-                            <th data-sortable scope="col" role="columnheader">Date Finished</th>
-                            <th data-sortable scope="col" role="columnheader">Records Added</th>
-                            <th data-sortable scope="col" role="columnheader">Records Deleted</th>
-                            <th data-sortable scope="col" role="columnheader">Records Errored</th>
-                            <th data-sortable scope="col" role="columnheader">Records Ignored</th>
-                            <th data-sortable scope="col" role="columnheader">Records Updated</th>
+                            <th scope="col" role="columnheader">Id</th>
+                            <th scope="col" role="columnheader">Type</th>
+                            <th scope="col" role="columnheader">Status</th>
+                            <th scope="col" role="columnheader">Started</th>
+                            <th scope="col" role="columnheader">Finished</th>
+                            <th scope="col" role="columnheader">Added</th>
+                            <th scope="col" role="columnheader">Deleted</th>
+                            <th scope="col" role="columnheader">Errored</th>
+                            <th scope="col" role="columnheader">Ignored</th>
+                            <th scope="col" role="columnheader">Updated</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -137,15 +137,15 @@
                             <th scope="row"><a
                                     href="{{ url_for('main.view_harvest_job', job_id=job.id) }}">{{job.id[:8]}}</a>
                             </th>
-                            <td data-sort-value={jobs.job_type}> {{job.job_type}}</td>
-                            <td data-sort-value={jobs.date_created}> {{job.status}}</td>
-                            <td data-sort-value={jobs.date_created}> {{job.date_created}}</td>
-                            <td data-sort-value={jobs.date_finished}>{{job.date_finished | else_na }}</td>
-                            <td data-sort-value={jobs.records_added}>{{job.records_added}}</td>
-                            <td data-sort-value={jobs.records_deleted}>{{job.records_deleted}}</td>
-                            <td data-sort-value={jobs.records_errored}>{{job.records_errored}}</td>
-                            <td data-sort-value={jobs.records_ignored}>{{job.records_ignored}}</td>
-                            <td data-sort-value={jobs.records_updated}>{{job.records_updated}}</td>
+                            <td>{{job.job_type}}</td>
+                            <td>{{job.status}}</td>
+                            <td>{{job.date_created}}</td>
+                            <td>{{job.date_finished | else_na }}</td>
+                            <td>{{job.records_added}}</td>
+                            <td>{{job.records_deleted}}</td>
+                            <td>{{job.records_errored}}</td>
+                            <td>{{job.records_ignored}}</td>
+                            <td>{{job.records_updated}}</td>
                         </tr>
                         {% endfor %}
                     </tbody>

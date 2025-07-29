@@ -346,6 +346,8 @@ def fixtures():
             db.add_harvest_source(item)
         for item in fixture["job"]:
             db.add_harvest_job(item)
+        for item in fixture["job_error"]:
+            db.add_harvest_job_error(item)
         for item in fixture["record"]:
             db.add_harvest_record(item)
         for item in fixture["record_error"]:
@@ -1160,7 +1162,7 @@ def view_metrics():
     }
 
     count = db.pget_harvest_jobs(
-        facets=time_filter,
+        facets=time_filter + " AND status = 'complete'",
         count=True,
     )
 
@@ -1171,7 +1173,7 @@ def view_metrics():
 
     if htmx:
         jobs = db.pget_harvest_jobs(
-            facets=time_filter,
+            facets=time_filter + " AND status = 'complete'",
             page=pagination.db_current,
             per_page=pagination.per_page,
             order_by="desc",
@@ -1188,7 +1190,7 @@ def view_metrics():
         )
     else:
         jobs = db.pget_harvest_jobs(
-            facets=time_filter,
+            facets=time_filter + " AND status = 'complete'",
             page=pagination.db_current,
             per_page=pagination.per_page,
             order_by="desc",
