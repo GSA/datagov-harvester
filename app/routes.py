@@ -1158,7 +1158,7 @@ def view_metrics():
     # Handle multiple pagination parameters
     jobs_page = request.args.get("jobs_page", 1, type=convert_to_int)
     errors_page = request.args.get("errors_page", 1, type=convert_to_int)
-    
+
     # Count for pagination
     count_jobs = db.pget_harvest_jobs(
         facets=time_filter + " AND status = 'complete'",
@@ -1175,7 +1175,7 @@ def view_metrics():
         count=count_jobs,
         current=jobs_page,
     )
-    
+
     pagination_errors = Pagination(
         count=count_errors,
         current=errors_page,
@@ -1184,7 +1184,7 @@ def view_metrics():
     # HTMX handling for specific sections
     if htmx:
         htmx_target = request.headers.get("HX-Target", "")
-        
+
         if "paginated__harvest-jobs" in htmx_target:
             # Handle jobs pagination
             jobs = db.pget_harvest_jobs(
@@ -1196,7 +1196,7 @@ def view_metrics():
             htmx_vars = {
                 "target_div": "#paginated__harvest-jobs",
                 "endpoint_url": "/metrics",
-                "page_param": "jobs_page"
+                "page_param": "jobs_page",
             }
             data = {
                 "jobs": jobs,
@@ -1208,7 +1208,7 @@ def view_metrics():
                 data=data,
                 pagination_jobs=pagination_jobs.to_dict(),
             )
-            
+
         elif "paginated__harvest-errors" in htmx_target:
             # Handle errors pagination
             errors_time_filter = f"harvest_job_error.date_created >= '{start_time.isoformat()}' AND harvest_job_error.date_created <= '{current_time}'"
@@ -1221,7 +1221,7 @@ def view_metrics():
             htmx_vars = {
                 "target_div": "#paginated__harvest-errors",
                 "endpoint_url": "/metrics",
-                "page_param": "errors_page"
+                "page_param": "errors_page",
             }
             data = {
                 "failures": failures,
