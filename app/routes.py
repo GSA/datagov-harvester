@@ -1151,7 +1151,7 @@ def get_harvest_error(error_id: str = None) -> dict:
 def view_metrics():
     """Render index page with recent harvest jobs."""
     current_time = get_datetime()
-    start_time = current_time - timedelta(hours=24)
+    start_time = current_time - timedelta(days=7)
     time_filter = f"date_created >= '{start_time.isoformat()}' AND date_created <= '{current_time}'"
 
     htmx_vars = {
@@ -1195,11 +1195,15 @@ def view_metrics():
         )
         errors_time_filter = f"harvest_job_error.date_created >= '{start_time.isoformat()}' AND harvest_job_error.date_created <= '{current_time}'"
         failures = db.pget_harvest_job_errors(
-            facets=errors_time_filter + " AND type = 'FailedJobCleanup'",
+            facets=errors_time_filter,
             order_by="desc",
         )
         data = {
             "htmx_vars": htmx_vars,
+            "current_jobs": db.pget_harvest_jobs(
+                facets="status = 'in_progress'",
+                order_by="desc",
+            ),
             "jobs": jobs,
             "new_jobs_in_past": db.get_new_harvest_jobs_in_past(),
             "failures": failures,
