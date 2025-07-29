@@ -49,7 +49,7 @@ class TestHarvestSourceUnauthed:
     def test_config_table_summary(self, upage):
         # Test static content in the summary table
         summary_table = upage.locator(".harvest-source-config-summary table")
-        
+
         # Test static labels and values
         expect(summary_table).to_contain_text("Records:")
         expect(summary_table).to_contain_text("2")
@@ -64,11 +64,9 @@ class TestHarvestSourceUnauthed:
             10
         )
 
-        table = upage.locator(".harvest-job-config-properties table")
-        
         # Test the first row of the job table, but skip the dynamic date columns
         first_row = upage.locator("#paginated__harvest-jobs table tr:first-child td")
-        
+
         # Test static content that doesn't change
         expect(first_row.nth(0)).to_contain_text("4e5f6a")  # Job ID (truncated)
         expect(first_row.nth(1)).to_contain_text("in_progress")  # Status
