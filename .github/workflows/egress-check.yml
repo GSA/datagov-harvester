@@ -41,7 +41,7 @@ jobs:
         uses: cloud-gov/cg-cli-tools@main
         with:
           command: >
-            tools/monitor_cf_logs.sh datagov-harvest $INSTANCE_NAME
+            bin/monitor_cf_logs.sh datagov-harvest $INSTANCE_NAME
           cf_org: gsa-datagov
           cf_space: ${{ matrix.environ }}
           cf_username: ${{secrets.CF_SERVICE_USER}}
