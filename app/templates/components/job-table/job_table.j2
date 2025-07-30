@@ -33,19 +33,22 @@
                 </td>
                 {% endif %}
                 <td>
-                    <span class="usa-tag {% if job.status == 'error' %}usa-tag--error
-                                        {% elif job.status == 'in_progress' %}usa-tag--warning
-                                        {% elif job.status == 'complete' %}usa-tag--success
-                                        {% else %}usa-tag--base{% endif %}">
-                        <span class="display-none tablet:display-inline">{{ job.status }}</span>
-                        <span class="tablet:display-none">{{ job.status[:4] }}</span>
-                    </span>
+                    <span class="usa-tag {% if job.status == 'error' %}bg-error
+                                        {% elif job.status == 'in_progress' %}bg-warning
+                                        {% elif job.status == 'complete' %}bg-success
+                                        {% endif %}
+                                        display-none tablet:display-inline">{{ job.status }}</span>
+                    <span class="usa-tag {% if job.status == 'error' %}bg-error
+                                        {% elif job.status == 'in_progress' %}bg-warning
+                                        {% elif job.status == 'complete' %}bg-success
+                                        {% endif %}
+                                        tablet:display-none">{{ job.status[:4] }}</span>
                 </td>
-                <td class="font-mono-sm utc-date" data-utc-date="{{ job.date_created.isoformat() }}">
-                    {{ job.date_created if job.date_created else 'N/A' }}
+                <td class="font-mono-sm utc-date" data-utc-date="{{ job.date_created | utc_isoformat }}">
+                    {{ job.date_created | else_na}}
                 </td>
-                <td class="font-mono-sm utc-date" data-utc-date="{{ job.date_finished}}">
-                    {{ job.date_finished if job.date_finished else 'N/A' }}
+                <td class="font-mono-sm utc-date" data-utc-date="{{ job.date_finished | utc_isoformat }}">
+                    {{ job.date_finished | else_na }}
                 </td>
                 <td class="text-tabular">{{ job.records_added }}</td>
                 <td class="text-tabular">{{ job.records_updated }}</td>
@@ -60,31 +63,34 @@
 </div>
 
 <script>
-// Convert UTC dates to local timezone using moment.js
+// Convert UTC dates to local timezone
 function convertUTCDatesToLocal(container) {
-    // Check if moment.js is available
-    if (typeof moment === 'undefined') {
-        console.error('moment.js is not loaded!');
-        return;
-    }
-    
     // Find all date cells with UTC timestamps within the container (or document if no container)
     const searchRoot = container || document;
     const dateCells = searchRoot.querySelectorAll('.utc-date[data-utc-date]');
-    
+    const localFormat = new Intl.DateTimeFormat(undefined,
+      {
+        year: "numeric",
+        month: "numeric",
+        day: "numeric",
+        hour: "numeric",
+        minute: "numeric",
+        hour12: false,
+      }
+    );
+
     dateCells.forEach(function(cell) {
-        const utcDateString = cell.getAttribute('data-utc-date');
-        if (!utcDateString) return;
-        
         // Skip if already converted (to avoid double conversion)
         if (cell.hasAttribute('data-converted')) return;
-        
-        // Convert UTC to local timezone using moment.js
-        const localMoment = moment.utc(utcDateString).local();
-        if (localMoment.isValid()) {
-            cell.textContent = localMoment.format('YYYY-MM-DD HH:mm');
-            cell.setAttribute('data-converted', 'true');
-        }
+
+        const utcDateString = cell.getAttribute('data-utc-date');
+        if (!utcDateString) return;
+
+        const dateObject = new Date(Date.parse(utcDateString));
+        if (isNaN(dateObject)) return;
+
+        cell.textContent = localFormat.format(dateObject);
+        cell.setAttribute('data-converted', 'true');
     });
 }
 

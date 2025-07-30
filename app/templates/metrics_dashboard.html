@@ -24,7 +24,7 @@
         </div>
       {% endif %}
     </section>
-    
+
     <section id="jobs-to-harvest">
       <h2>Scheduled Jobs In Queue: {{ data.new_jobs_in_past | length }}</h2>
 
@@ -77,7 +77,7 @@
                                   {{ error.job.source.name }}
                               </a>
                           </td>
-                          <td class="font-mono-sm utc-date" data-utc-date="{{ error.date_created }}">
+                          <td class="font-mono-sm utc-date" data-utc-date="{{ error.date_created | utc_isoformat }}">
                               {{ error.date_created }}
                           </td>
                           <td>{{ error.message}}</td>
