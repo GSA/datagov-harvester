@@ -417,7 +417,11 @@ def dynamic_map_list_items_to_dict(list, fields):
     data_dict = {field: [] for field in fields}
     for item in list:
         for field in fields:
-            data_dict[field].append(item.get(field))
+            value = item.get(field)
+            # Format datetime objects to be more readable for charts
+            if isinstance(value, datetime):
+                value = value.strftime("%Y-%m-%d %H:%M")
+            data_dict[field].append(value)
     return data_dict
 
 

@@ -1,0 +1,19 @@
+{% macro paginated_table(pagination_config) -%}
+{# 
+  pagination_config should contain:
+  - pagination: pagination object with count, current, etc.
+  - target_div: unique target div ID for HTMX
+  - endpoint_url: URL for pagination requests  
+  - page_param: unique page parameter name (e.g., 'jobs_page', 'errors_page')
+  - content: the actual table/content to display
+#}
+
+<div id="{{ pagination_config.target_div }}">
+  {{ pagination_config.content }}
+  
+  {% if pagination_config.pagination.count > pagination_config.pagination.per_page %}
+    {% include 'components/pagination/multi_pagination.html' %}
+  {% endif %}
+</div>
+
+{% endmacro -%}

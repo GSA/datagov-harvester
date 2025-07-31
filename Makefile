@@ -29,6 +29,18 @@ install-static: ## Installs static assets
 	npm install; \
 	npm run build
 
+update-fixtures: ## Updates test fixtures with fresh dates
+	python tests/generate_fixtures.py
+
+test-fresh: update-fixtures ## Run tests with fresh fixtures
+	pytest
+
+test-unit-fresh: update-fixtures ## Run unit tests with fresh fixtures  
+	pytest tests/unit/
+
+test-functional-fresh: update-fixtures ## Run functional tests with fresh fixtures
+	pytest tests/functional/
+
 load-test-data: ## Loads fixture test data
 	docker compose exec app flask testdata load_test_data
 

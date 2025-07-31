@@ -1,0 +1,43 @@
+{% for page_num in range(1, config.pagination.page_count + 1) %}
+  {% if config.pagination.page_count <= 7 %}
+    {# Show all pages if 7 or fewer #}
+    <li class="usa-pagination__item usa-pagination__page-no">
+      <button 
+        class="usa-pagination__button {% if page_num == config.pagination.current %}usa-current{% endif %}"
+        aria-label="Page {{ page_num }}"
+        aria-current="{% if page_num == config.pagination.current %}page{% endif %}"
+        hx-get="{{ config.endpoint_url }}?{{ config.page_param }}={{ page_num }}"
+        hx-target="{{ config.target_div }}"
+        hx-swap="outerHTML">
+        {{ page_num }}
+      </button>
+    </li>
+  {% else %}
+    {# Complex pagination logic for many pages #}
+    {% set current = config.pagination.current %}
+    {% set total = config.pagination.page_count %}
+    
+    {% if page_num == 1 or page_num == total or (page_num >= current - 2 and page_num <= current + 2) %}
+      <li class="usa-pagination__item usa-pagination__page-no">
+        <button 
+          class="usa-pagination__button {% if page_num == current %}usa-current{% endif %}"
+          aria-label="Page {{ page_num }}"
+          aria-current="{% if page_num == current %}page{% endif %}"
+          hx-get="{{ config.endpoint_url }}?{{ config.page_param }}={{ page_num }}"
+          hx-target="{{ config.target_div }}"
+          hx-swap="outerHTML">
+          {{ page_num }}
+        </button>
+      </li>
+    {% elif (page_num == 2 and current > 4) or (page_num == total - 1 and current < total - 3) %}
+      {% set overflow %}
+        <li class="usa-pagination__item usa-pagination__overflow" aria-label="ellipsis indicating non-visible pages">
+          <span>
+            …
+          </span>
+        </li>
+      {% endset %}
+      {{ overflow }}
+    {% endif %}
+  {% endif %}
+{% endfor %}

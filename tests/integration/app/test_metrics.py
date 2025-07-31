@@ -25,7 +25,7 @@ def old_failed_job_error(interface, job):
         {
             "type": "FailedJobCleanup",
             "harvest_job_id": job.id,
-            "date_created": datetime.now() - timedelta(hours=25),
+            "date_created": datetime.now() - timedelta(days=25),
         }
     )
     yield error
