@@ -67,7 +67,7 @@
                 <tbody>
                     {% for errors in data.job.errors %}
                     <tr>
-                        <td> {{errors.date_created}}</td>
+                        <td> {{errors.date_created | utc_isoformat }}</td>
                         <td>{{errors.id}}</td>
                         <td>{{errors.type}}</td>
                         <td>{{errors.message}}</td>
@@ -111,7 +111,7 @@
                         </p>
                         <p><strong>Error Message:</strong> {{ record_error.error.message }}</p>
                         <p><strong>Type:</strong> {{ record_error.error.type }}</p>
-                        <p><strong>Date Created:</strong> {{ record_error.error.date_created }}</p>
+                        <p><strong>Date Created:</strong> {{ record_error.error.date_created | utc_isoformat }}</p>
                     </div>
                     {% endfor %}
                 </div>

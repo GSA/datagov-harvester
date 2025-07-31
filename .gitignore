@@ -40,5 +40,8 @@ pytest-coverage-**.txt
 pytest_auth_state.json
 pytest_harvest_errors.csv
 
+# Dynamic test fixtures (regenerated before tests)
+tests/fixtures.json
+
 # qa data
 qa_output/

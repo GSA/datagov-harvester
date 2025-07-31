@@ -109,9 +109,9 @@ def default_function_fixture(interface):
 
 @pytest.fixture
 def fixtures_json():
-    file = Path(__file__).parents[0] / "fixtures.json"
-    with open(file, "r") as file:
-        return json.load(file)
+    from tests.generate_fixtures import generate_dynamic_fixtures
+
+    return generate_dynamic_fixtures()
 
 
 @pytest.fixture

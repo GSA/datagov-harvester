@@ -1,17 +1,19 @@
-{% macro job_table(jobs, caption) -%}
-<div class="usa-table-container--scrollable" tabindex="0">
-    <table class="usa-table usa-table--striped">
+{% macro job_table(jobs, caption, show_source=true) -%}
+<div class="usa-table-container" tabindex="0">
+    <table class="usa-table usa-table--striped usa-table--borderless">
         <caption>{{ caption }}</caption>
         <thead>
             <tr>
-                <th scope="col">Job Id</th>
-                <th scope="col">Source</th>
-                <th scope="col">Status</th>
-                <th scope="col">Created</th>
-                <th scope="col">Records Added</th>
-                <th scope="col">Records Updated</th>
-                <th scope="col">Records Deleted</th>
-                <th scope="col">Records Errored</th>
+                <th scope="col" title="Job ID">Job ID</th>
+                {% if show_source %}<th scope="col" title="Harvest Source">Source</th>{% endif %}
+                <th scope="col" title="Job Status">Status</th>
+                <th scope="col" title="Start Date">Started</th>
+                <th scope="col" title="Completion Date">Finished</th>
+                <th scope="col" title="Records Added">Added</th>
+                <th scope="col" title="Records Updated">Updated</th>
+                <th scope="col" title="Records Deleted">Deleted</th>
+                <th scope="col" title="Records Errored">Errored</th>
+                <th scope="col" title="Records Unchanged and Ignored">Unchanged</th>
             </tr>
         </thead>
         <tbody id="paginated_harvest_jobs">
@@ -19,33 +21,94 @@
             <tr>
                 <td data-sort-value="{{ job.id }}">
                     <a href="{{ url_for('main.view_harvest_job', job_id=job.id) }}">
-                        {{ job.id[:8] }}...
+                        {{ job.id[:6] }}
                     </a>
                 </td>
+                {% if show_source %}
                 <td data-sort-value="{{ job.source.name }}">
-                    <a href="{{ url_for('main.view_harvest_source', source_id=job.source.id) }}">
-                        {{ job.source.name }}
+                    <a href="{{ url_for('main.view_harvest_source', source_id=job.source.id) }}" title="{{ job.source.name }}">
+                        <span class="display-none tablet:display-inline">{{ job.source.name[:25] }}{% if job.source.name|length > 25 %}...{% endif %}</span>
+                        <span class="tablet:display-none">{{ job.source.name[:12] }}{% if job.source.name|length > 12 %}...{% endif %}</span>
                     </a>
                 </td>
+                {% endif %}
                 <td>
-                    <span class="usa-tag {% if job.status == 'error' %}usa-tag--error
-                                        {% elif job.status == 'in_progress' %}usa-tag--warning
-                                        {% elif job.status == 'complete' %}usa-tag--success
-                                        {% else %}usa-tag--base{% endif %}">
-                        {{ job.status }}
-                    </span>
+                    <span class="usa-tag {% if job.status == 'error' %}bg-error
+                                        {% elif job.status == 'in_progress' %}bg-warning
+                                        {% elif job.status == 'complete' %}bg-success
+                                        {% endif %}
+                                        display-none tablet:display-inline">{{ job.status }}</span>
+                    <span class="usa-tag {% if job.status == 'error' %}bg-error
+                                        {% elif job.status == 'in_progress' %}bg-warning
+                                        {% elif job.status == 'complete' %}bg-success
+                                        {% endif %}
+                                        tablet:display-none">{{ job.status[:4] }}</span>
                 </td>
-                <td>{{ job.date_created.strftime('%Y-%m-%d %H:%M:%S')
-                    }}</td>
-                <td>{{ job.records_added}}</td>
-                <td>{{ job.records_updated}}</td>
-                <td>{{ job.records_deleted}}</td>
-                <td>{{ job.records_errored}}</td>
+                <td class="font-mono-sm utc-date" data-utc-date="{{ job.date_created | utc_isoformat }}">
+                    {{ job.date_created | else_na}}
+                </td>
+                <td class="font-mono-sm utc-date" data-utc-date="{{ job.date_finished | utc_isoformat }}">
+                    {{ job.date_finished | else_na }}
+                </td>
+                <td class="text-tabular">{{ job.records_added }}</td>
+                <td class="text-tabular">{{ job.records_updated }}</td>
+                <td class="text-tabular">{{ job.records_deleted }}</td>
+                <td class="text-tabular">{{ job.records_errored }}</td>
+                <td class="text-tabular">{{ job.records_ignored }}</td>
             </tr>
             {% endfor %}
         </tbody>
     </table>
     <div class="usa-sr-only usa-table__announcement-region" aria-live="polite"></div>
 </div>
+
+<script>
+// Convert UTC dates to local timezone
+function convertUTCDatesToLocal(container) {
+    // Find all date cells with UTC timestamps within the container (or document if no container)
+    const searchRoot = container || document;
+    const dateCells = searchRoot.querySelectorAll('.utc-date[data-utc-date]');
+    const localFormat = new Intl.DateTimeFormat(undefined,
+      {
+        year: "numeric",
+        month: "numeric",
+        day: "numeric",
+        hour: "numeric",
+        minute: "numeric",
+        hour12: false,
+      }
+    );
+
+    dateCells.forEach(function(cell) {
+        // Skip if already converted (to avoid double conversion)
+        if (cell.hasAttribute('data-converted')) return;
+
+        const utcDateString = cell.getAttribute('data-utc-date');
+        if (!utcDateString) return;
+
+        const dateObject = new Date(Date.parse(utcDateString));
+        if (isNaN(dateObject)) return;
+
+        cell.textContent = localFormat.format(dateObject);
+        cell.setAttribute('data-converted', 'true');
+    });
+}
+
+// Convert dates on initial page load
+document.addEventListener('DOMContentLoaded', function() {
+    convertUTCDatesToLocal();
+});
+
+// Convert dates after HTMX content is loaded
+document.addEventListener('htmx:afterSwap', function(event) {
+    // Convert dates in the newly swapped content
+    convertUTCDatesToLocal(event.detail.target);
+});
+
+// Also handle htmx:load event for broader compatibility
+document.addEventListener('htmx:load', function(event) {
+    convertUTCDatesToLocal(event.detail.elt);
+});
+</script>
 {% endmacro -%}
 

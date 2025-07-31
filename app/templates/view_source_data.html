@@ -1,8 +1,10 @@
 {% extends 'base.html' %}
 
+{% import 'components/job-table/job_table.j2' as job_table %}
+
 {% block script_head %}
 <script src="{{ url_for('static', filename='assets/chartjs/chart.umd.js') }}"></script>
-
+<script src="{{ url_for('static', filename='js/view_source_data.js') }}"></script>
 {% endblock %}
 
 {% block title %}
@@ -113,45 +115,7 @@
         <canvas id="datagov-line-chart" height="200"></canvas>
         {% block htmx_paginated %}
         <div id="paginated__harvest-jobs">
-
-            <div class="usa-table-container--scrollable" tabindex="0">
-                <table class="usa-table usa-table--striped">
-                    <caption> Harvest Jobs for Harvest Source Id: {{data.source["id"]}} </caption>
-                    <thead>
-                        <tr>
-                            <th data-sortable scope="col" role="columnheader">Id</th>
-                            <th data-sortable scope="col" role="columnheader">Type</th>
-                            <th data-sortable scope="col" role="columnheader">Status</th>
-                            <th data-sortable scope="col" role="columnheader">Date Created</th>
-                            <th data-sortable scope="col" role="columnheader">Date Finished</th>
-                            <th data-sortable scope="col" role="columnheader">Records Added</th>
-                            <th data-sortable scope="col" role="columnheader">Records Deleted</th>
-                            <th data-sortable scope="col" role="columnheader">Records Errored</th>
-                            <th data-sortable scope="col" role="columnheader">Records Ignored</th>
-                            <th data-sortable scope="col" role="columnheader">Records Updated</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for job in data.jobs %}
-                        <tr>
-                            <th scope="row"><a
-                                    href="{{ url_for('main.view_harvest_job', job_id=job.id) }}">{{job.id[:8]}}</a>
-                            </th>
-                            <td data-sort-value={jobs.job_type}> {{job.job_type}}</td>
-                            <td data-sort-value={jobs.date_created}> {{job.status}}</td>
-                            <td data-sort-value={jobs.date_created}> {{job.date_created}}</td>
-                            <td data-sort-value={jobs.date_finished}>{{job.date_finished | else_na }}</td>
-                            <td data-sort-value={jobs.records_added}>{{job.records_added}}</td>
-                            <td data-sort-value={jobs.records_deleted}>{{job.records_deleted}}</td>
-                            <td data-sort-value={jobs.records_errored}>{{job.records_errored}}</td>
-                            <td data-sort-value={jobs.records_ignored}>{{job.records_ignored}}</td>
-                            <td data-sort-value={jobs.records_updated}>{{job.records_updated}}</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-                <div class="usa-sr-only usa-table__announcement-region" aria-live="polite"></div>
-            </div>
+            {{ job_table.job_table(data.jobs, "Harvest Jobs for Harvest Source: " + data.source.name, show_source=false) }}
             {% if pagination.count > data.jobs|count %}
             {% include '/components/pagination/pagination.html' %}
             {% endif %}
@@ -167,39 +131,7 @@
 
 {% block scripts %}
 <script>
-    //
-    function confirmSubmit(event, type) {
-        let messageEnum = {
-            'clear': 'Are you sure you want to clear all datasets?',
-            'delete': 'Are you sure you want to delete this source?'
-        }
-        if (!confirm(messageEnum[type])) {
-            event.preventDefault(); // Prevents the form from submitting if the user cancels
-        }
-    }
-
-    // build harvest jobs chart
-    const buildLineChart = (el) => {
-        let chart = {
-            type: 'line',
-            data: {{ data.chart_data | tojson
-    }},
-    options: {
-        responsive: true,
-            plugins: {
-            legend: {
-                position: 'top',
-                },
-            title: {
-                display: true,
-                    text: 'Harvest Job History'
-            }
-        }
-    }
-        };
-    return chart
-    }
-    const lineEl = document.getElementById('datagov-line-chart');
-    new Chart(lineEl, buildLineChart(lineEl));
+    // Pass chart data to the external JavaScript file
+    window.chartData = {{ data.chart_data | tojson }};
 </script>
 {% endblock %}

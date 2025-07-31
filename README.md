@@ -224,6 +224,10 @@ flask db upgrade
 
 `cf run-task datagov-harvest-admin --name "add new user" --command "flask user add xxx@gsa.gov --name xxx"`
 
+Or, if doing for local development:
+
+`docker compose exec app flask user add your.i.name@gsa.gov --name yourName`
+
 #### add organizations
 
 `cf run-task datagov-harvest-admin --name "add new org" --command "flask org add 'Name of Org' --log https://some-url.png --id 1234"`
