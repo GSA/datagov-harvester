@@ -33,8 +33,7 @@ class HarvestSources(OutputBase):
             )
         else:
             self.harvest_sources_url = (
-                "https://datagov-harvest-dev.app.cloud.gov"
-                "/harvest_sources/?paginate=false"
+                "https://datagov-harvest.app.cloud.gov/harvest_sources/?paginate=false"
             )
             self.harvest_sources_dset_count_url = (
                 f"{CATALOG_NEXT_BASE_URL}/api/action/package_search"
