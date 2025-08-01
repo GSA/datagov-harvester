@@ -1,6 +1,6 @@
 import click
-import requests
 
+from . import session
 from .utils import CATALOG_NEXT_BASE_URL, CATALOG_PROD_BASE_URL, OutputBase
 
 
@@ -42,7 +42,7 @@ class HarvestSources(OutputBase):
             )
 
     def get_harvest_sources(self):
-        res = requests.get(self.harvest_sources_url)
+        res = session.get(self.harvest_sources_url)
         if res.ok:
             if self.source_type == "catalog":
                 self.sources = res.json()["result"]["results"]
@@ -52,7 +52,7 @@ class HarvestSources(OutputBase):
 
     def get_num_datasets(self):
         # harvest sources with no datasets aren't returned from the solr facet
-        res = requests.get(self.harvest_sources_dset_count_url)
+        res = session.get(self.harvest_sources_dset_count_url)
         if res.ok:
             titles = res.json()["result"]["facets"]["harvest_source_title"]
             self.titles = {

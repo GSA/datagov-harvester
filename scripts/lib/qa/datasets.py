@@ -2,16 +2,15 @@ import logging
 import random
 
 import click
-import requests
 from deepdiff import DeepDiff
 
+from . import session
 from .utils import CATALOG_NEXT_BASE_URL, CATALOG_PROD_BASE_URL, OutputBase
 
 logger = logging.getLogger(__name__)
 
 
 class Datasets(OutputBase):
-
     def __init__(
         self,
         base_url: str,
@@ -60,7 +59,7 @@ class Datasets(OutputBase):
 
     def get_num_datasets(self):
         """Return the number of datasets in this catalog."""
-        res = requests.get(f"{self.base_url}/api/action/package_search")
+        res = session.get(f"{self.base_url}/api/action/package_search")
         res.raise_for_status()
         return res.json()["result"]["count"]
 
@@ -70,7 +69,7 @@ class Datasets(OutputBase):
         Returns None if no matching dataset is found.
         """
         url = f'{self.base_url}/api/action/package_search?fq=name:"{other["name"]}"'
-        res = requests.get(url)
+        res = session.get(url)
         if res.ok:
             data = res.json()["result"]["results"]
             if data:
@@ -84,7 +83,7 @@ class Datasets(OutputBase):
                 f"{self.base_url}/api/action/package_search"
                 f'?fq=identifier:"{identifier}"'
             )
-            res = requests.get(url)
+            res = session.get(url)
             if res.ok:
                 data = res.json()["result"]["results"]
                 if data:
@@ -93,7 +92,7 @@ class Datasets(OutputBase):
 
             # some catalog datasets have guid instead
             url = f'{self.base_url}/api/action/package_search?fq=guid:"{identifier}"'
-            res = requests.get(url)
+            res = session.get(url)
             if res.ok:
                 data = res.json()["result"]["results"]
                 if data:
@@ -115,7 +114,7 @@ class Datasets(OutputBase):
             num_datasets = self.get_num_datasets()
             start = random.randint(1, int(num_datasets - self.sample_size))
 
-            res = requests.get(
+            res = session.get(
                 f"{self.base_url}/api/action/package_search"
                 f"?start={start}&rows={self.sample_size}&sort=id%20asc"
             )

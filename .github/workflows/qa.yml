@@ -1,0 +1,59 @@
+name: Harvester QA script
+
+env:
+  PY_VERSION: "3.13"
+  POETRY_VERSION: "2.0.0"
+
+on:
+  workflow_dispatch:
+    inputs: 
+      job_type:
+        description: 'The QA job to run'
+        required: false
+        type: choice
+        options:
+          - 'all'
+          - 'harvest_source'
+          - 'organization'
+          - 'dataset'
+        default: 'all'
+jobs:
+  run-qa:
+    env:
+        DATAGOV_BASIC_AUTH_USER: ${{secrets.DATAGOV_BASIC_AUTH_USER}}
+        DATAGOV_BASIC_AUTH_PASS: ${{secrets.DATAGOV_BASIC_AUTH_PASS}}
+    runs-on: ubuntu-latest
+    name: Harvester QA ${{ inputs.job_type }}
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set up Python ${{ env.PY_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PY_VERSION }}
+
+      - name: Install Poetry
+        uses: abatilo/actions-poetry@v3
+        with:
+          poetry-version: ${{ env.POETRY_VERSION }}
+          poetry-plugins: "poetry-plugin-export"
+
+      - name: Install Dependencies
+        run: |
+          poetry env use ${{ env.PY_VERSION }}
+          poetry install
+      
+      - name: Run QA
+        run: poetry run ./scripts/qa.py --job_type ${{ inputs.job_type }}
+      
+      - name: Zip QA output directory
+        run: zip -r qa_archive.zip ./scripts/qa_output
+
+      - name: Upload QA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: qa_archive
+          path: qa_archive.zip
