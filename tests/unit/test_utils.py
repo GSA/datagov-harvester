@@ -325,7 +325,7 @@ class TestCKANUtils:
 
     def test_create_ckan_resources(self, dol_distribution_json):
         resources = create_ckan_resources(dol_distribution_json)
-        assert len(resources) == 5 # four distribution and one landingPage
+        assert len(resources) == 5  # four distribution and one landingPage
 
     def test_create_ckan_resources_missing_accessurl(
         self, dol_distribution_json, caplog
