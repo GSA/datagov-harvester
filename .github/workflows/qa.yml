@@ -47,7 +47,7 @@ jobs:
           poetry install
       
       - name: Run QA
-        run: poetry run ./scripts/qa.py --job_type ${{ inputs.job_type }}
+        run: poetry run python ./scripts/qa.py --job-type ${{ inputs.job_type }}
       
       - name: Zip QA output directory
         run: zip -r qa_archive.zip ./scripts/qa_output
