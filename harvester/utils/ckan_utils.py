@@ -821,6 +821,12 @@ def create_ckan_resources(metadata: dict) -> list[dict]:
             # if we know the mimetype add the other details
             if resource["mimetype"]:
                 change_resource_details(resource=resource)
+        # if we didn't find either of the url_keys don't
+        # include this resource https://github.com/GSA/data.gov/issues/5322
+        if "url" not in resource:
+            logger.info("Not including resource that doesn't contain accessURL or downloadURL")
+            continue
+
         output.append(resource)
 
     return output
