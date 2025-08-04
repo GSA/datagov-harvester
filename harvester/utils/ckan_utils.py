@@ -825,7 +825,9 @@ def create_ckan_resources(metadata: dict) -> list[dict]:
         # include this resource https://github.com/GSA/data.gov/issues/5322
         if "url" not in resource:
             logger.info(
-                "Not including resource that doesn't contain accessURL or downloadURL"
+                "Not including resource that doesn't contain accessURL "
+                "or downloadURL for identifier %s",
+                metadata.get("identifier"),
             )
             continue
 
