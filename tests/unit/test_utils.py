@@ -7,6 +7,7 @@ from jsonschema import Draft202012Validator, FormatChecker
 
 from harvester.utils.ckan_utils import (
     create_ckan_extras,
+    create_ckan_resources,
     create_ckan_tags,
     munge_spatial,
     munge_tag,
@@ -321,6 +322,18 @@ class TestCKANUtils:
 
         access_level = list(filter(lambda e: e["key"] == "accessLevel", extras))[0]
         assert access_level["value"] == "public"
+
+    def test_create_ckan_resources(self, dol_distribution_json):
+        resources = create_ckan_resources(dol_distribution_json)
+        assert len(resources) == 5  # four distribution and one landingPage
+
+    def test_create_ckan_resources_missing_accessurl(
+        self, dol_distribution_json, caplog
+    ):
+        del dol_distribution_json["distribution"][0]["downloadURL"]
+        resources = create_ckan_resources(dol_distribution_json)
+        assert len(resources) == 4  # 3 valid distribution and one landingPage
+        assert "Not including" in caplog.text
 
 
 # Point example
