@@ -3,7 +3,7 @@
   #}
   {% macro pagination_arrow(direction, pagination, htmx_vars) %}
     {% set page_var = ((pagination.current - 1) if direction == 'previous' else (pagination.current + 1)) | string() %}
-    {% set placeholder_link = htmx_vars.endpoint_url + "?page=" + page_var %}
+    {% set placeholder_link = htmx_vars.endpoint_url ~ "?" ~ htmx_vars.page_param ~ "=" ~ page_var %}
 
     {% set link_attrs = {
       'class': 'usa-pagination__link usa-pagination__'  ~ direction ~ '-page',

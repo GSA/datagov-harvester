@@ -115,7 +115,9 @@
         <canvas id="datagov-line-chart" height="200"></canvas>
         {% block htmx_paginated %}
         <div id="paginated__harvest-jobs">
-            {{ job_table.job_table(data.jobs, "Harvest Jobs for Harvest Source: " + data.source.name, show_source=false) }}
+            <!-- job_table is undefined on pagination so importing here -->
+            {% import 'components/job-table/job_table.j2' as job_table %}
+            {{ job_table.job_table(data.jobs, "Harvest Jobs for Harvest Source: " + data.source.id, show_source=false) }}
             {% if pagination.count > data.jobs|count %}
             {% include '/components/pagination/pagination.html' %}
             {% endif %}

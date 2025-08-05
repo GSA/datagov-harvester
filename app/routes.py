@@ -587,6 +587,7 @@ def view_harvest_source(source_id: str):
     htmx_vars = {
         "target_div": "#paginated__harvest-jobs",
         "endpoint_url": f"/harvest_source/{source_id}",
+        "page_param": "page",
     }
     harvest_jobs_facets = (
         f"harvest_source_id = '{source_id}' AND date_created <= '{get_datetime()}'"
