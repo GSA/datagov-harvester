@@ -4,12 +4,18 @@ WORKDIR /app
 
 COPY . /app
 
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install poetry
+
+# poetry try use virtualenv if .venv is present
+RUN poetry config virtualenvs.create false
+RUN rm -rf /app/.venv 
+
+RUN poetry install --without=dev
 
 ARG DEV
 
 RUN if [ $DEV ]; \
-    then pip install --no-cache-dir -r requirements-dev.txt; \
+    then poetry install --with=dev; \
     fi
 
 EXPOSE 8080
