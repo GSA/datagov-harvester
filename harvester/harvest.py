@@ -953,4 +953,5 @@ if __name__ == "__main__":
         check_for_more_work()
     except Exception as e:
         logger.error(f"Harvest has experienced an error :: {repr(e)}")
+        check_for_more_work()
         sys.exit(1)
