@@ -1,13 +1,13 @@
 name: Snyk Security Testing
 
 on:
-  pull_request:
-    branches: [ main ]
-  schedule:
-    # Run every day at midnight UTC
-    - cron: '0 0 * * *'
   workflow_dispatch:
-    # Allow manual triggering
+  schedule:
+    # Run weekly on Sundays at 2:00 AM EST (7:00 AM UTC)
+    - cron: '0 7 * * 0'
+  push:
+    branches:
+      - main
 
 permissions:
   contents: read
@@ -20,7 +20,7 @@ jobs:
   snyk-test:
     runs-on: ubuntu-latest
     name: Snyk Security Scan
-    
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -44,23 +44,21 @@ jobs:
           cd app/static
           npm ci
 
-      # Set up Python for requirements.txt testing
       - name: Set up Python ${{ env.PY_VERSION }}
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PY_VERSION }}
 
-      # Install Python dependencies
       - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          python -m pip install poetry
+          poetry config virtualenvs.create false
+          poetry install --without=dev
 
-      # Install Snyk CLI
       - name: Install Snyk CLI
         run: npm install -g snyk
 
-      # Authenticate Snyk
       - name: Authenticate Snyk
         run: snyk auth ${{ secrets.SNYK_TOKEN }}
         env:
@@ -79,23 +77,70 @@ jobs:
           cd app/static
           snyk test --file=package-lock.json
 
-      # Test requirements.txt
-      - name: Test requirements.txt with Snyk
+      - name: Test poetry.lock with Snyk
         run: |
-          echo "Testing requirements.txt..."
-          snyk test --file=requirements.txt
+          echo "Testing poetry.lock..."
+          snyk test --file=poetry.lock --package-manager=poetry
+
+  snyk-monitor:
+    name: snyk monitor
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      # Set up Node.js for package-lock.json testing
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: "app/static/package.json"
+          cache: 'npm'
+          cache-dependency-path: |
+            package-lock.json
+            app/static/package-lock.json
+
+      - name: Install Node.js dependencies
+        run: |
+          npm ci
+          cd app/static
+          npm ci
+
+      - name: Set up Python ${{ env.PY_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PY_VERSION }}
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install poetry
+          poetry config virtualenvs.create false
+          poetry install --without=dev
+
+      - name: Install Snyk CLI
+        run: npm install -g snyk
+
+      - name: Authenticate Snyk
+        run: snyk auth ${{ secrets.SNYK_TOKEN }}
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
 
       # Monitor dependencies (only on main branch pushes, not PRs)
       - name: Monitor dependencies with Snyk
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         run: |
+          echo "Monitoring poetry.lock..."
+          snyk monitor --file=poetry.lock --package-manager=poetry
+          
           echo "Monitoring main package-lock.json..."
           snyk monitor --file=package-lock.json
-          
+
           echo "Monitoring app/static package-lock.json..."
           cd app/static
           snyk monitor --file=package-lock.json
-          cd ..
-          
-          echo "Monitoring requirements.txt..."
-          snyk monitor --file=requirements.txt 
