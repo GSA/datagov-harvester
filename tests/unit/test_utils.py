@@ -1,9 +1,12 @@
 import json
-from unittest.mock import Mock, patch
+import logging
+import time
+from unittest.mock import Mock, call, patch
 
 import pytest
 import requests
 from jsonschema import Draft202012Validator, FormatChecker
+from requests import HTTPError
 
 from harvester.utils.ckan_utils import (
     create_ckan_extras,
@@ -15,6 +18,7 @@ from harvester.utils.ckan_utils import (
     translate_spatial,
 )
 from harvester.utils.general_utils import (
+    RetrySession,
     assemble_validation_errors,
     create_retry_session,
     dynamic_map_list_items_to_dict,
@@ -534,55 +538,209 @@ class TestGeneralUtils:
 
 
 class TestRetrySession:
-    @patch("harvester.utils.general_utils.requests.Session")
-    @patch("harvester.utils.general_utils.Retry")
-    @patch("harvester.utils.general_utils.HTTPAdapter")
-    def test_create_retry_session(self, mock_adapter, mock_retry, mock_session):
-        """Test that the retry session is created with the correct parameters."""
-        session = create_retry_session()
-        mock_session.assert_called_once()
-        mock_adapter.assert_called_once_with(max_retries=mock_retry.return_value)
-        assert session.mount.call_count == 2
-        session.mount.assert_any_call("http://", mock_adapter.return_value)
-        session.mount.assert_any_call("https://", mock_adapter.return_value)
+    """Tests for RetrySession class."""
 
-    @patch("harvester.utils.general_utils.HTTPAdapter.send")
-    def test_session_retry_and_success(self, mock_send):
-        """
-        Test that the session retries the requests on failure,
-        and that the 3rd call succeeds.
-        """
-        ok_response = Mock()
-        ok_response.status_code = 200
-        ok_response.json.return_value = {"status": "ok"}
-        ok_response.history = []
-        ok_response.is_redirect = False
-        bad_response = Mock()
-        bad_response.history = []
-        bad_response.status_code = 500
-        bad_response.is_redirect = False
-        bad_response.raise_for_status.side_effect = requests.exceptions.HTTPError(
-            "500 Server Error"
+    def test_initialization_with_defaults(self):
+        """Test initialization with default parameters."""
+        session = RetrySession()
+
+        assert session.status_forcelist == {404, 499, 500, 502}
+        assert session.max_retries == 3
+        assert session.backoff_factor == 1.0
+
+    def test_initialization_with_custom_parameters(self):
+        """Test initialization with custom parameters."""
+        custom_codes = {500, 502, 503}
+        session = RetrySession(
+            status_forcelist=custom_codes, max_retries=5, backoff_factor=0.5
         )
 
-        def side_effect_mock_send(request, **kwargs):
-            """
-            Bad mock of the send and retry logic. Because the retry_increment
-            logic is a bit complex.
-            """
-            session = create_retry_session()
-            adapter = session.get_adapter("http://")
-            for i in range(0, adapter.max_retries.total):
-                if i < adapter.max_retries.total - 1:
-                    resp = bad_response
-                else:
-                    resp = ok_response
-            return resp
+        assert session.status_forcelist == custom_codes
+        assert session.max_retries == 5
+        assert session.backoff_factor == 0.5
 
-        mock_send.side_effect = side_effect_mock_send
-        session = create_retry_session()
-        result = session.post(
-            "http://example.com/api",
-            json={"key": "value"},
+    @patch("harvester.utils.general_utils.requests.Session.request")
+    @patch("harvester.utils.general_utils.time.sleep")
+    def test_successful_request_no_retry(self, mock_sleep, mock_request, caplog):
+        """Test successful request that doesn't need retry."""
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_request.return_value = mock_response
+
+        session = RetrySession()
+
+        with caplog.at_level(logging.INFO):
+            response = session.request("GET", "http://example.com")
+
+        assert response.status_code == 200
+        assert mock_request.call_count == 1
+        assert mock_sleep.call_count == 0
+        assert "Making GET request to http://example.com" in caplog.text
+
+    @patch("harvester.utils.general_utils.requests.Session.request")
+    @patch("harvester.utils.general_utils.time.sleep")
+    def test_retry_on_target_status_codes(self, mock_sleep, mock_request, caplog):
+        """Test retry behavior on target status codes."""
+        # First two calls return 500, third call returns 200
+        responses = [
+            Mock(status_code=500),
+            Mock(status_code=500),
+            Mock(status_code=200),
+        ]
+        mock_request.side_effect = responses
+
+        session = RetrySession(max_retries=3, backoff_factor=0.1)
+
+        with caplog.at_level(logging.WARNING):
+            response = session.request("GET", "http://example.com")
+
+        assert response.status_code == 200
+        assert mock_request.call_count == 3
+        assert mock_sleep.call_count == 2  # Two retries
+
+        # Check backoff delays
+        expected_delays = [0.1 * (2**0), 0.1 * (2**1)]  # [0.1, 0.2]
+        actual_delays = [call.args[0] for call in mock_sleep.call_args_list]
+        assert actual_delays == expected_delays
+
+        assert "Attempt 1: Received status code 500" in caplog.text
+        assert "Attempt 2: Received status code 500" in caplog.text
+
+    @patch("harvester.utils.general_utils.requests.Session.request")
+    @patch("harvester.utils.general_utils.time.sleep")
+    def test_max_retries_exhausted(self, mock_sleep, mock_request, caplog):
+        """Test behavior when max retries are exhausted."""
+        # All calls return 500
+        mock_response = Mock(status_code=500)
+        mock_request.return_value = mock_response
+
+        session = RetrySession(max_retries=2, backoff_factor=0.1)
+
+        with caplog.at_level(logging.ERROR):
+            response = session.request("GET", "http://example.com")
+
+        assert response.status_code == 500
+        assert mock_request.call_count == 3  # Initial + 2 retries
+        assert mock_sleep.call_count == 2
+        assert "Final attempt: Still received status code 500" in caplog.text
+
+    @patch("harvester.utils.general_utils.requests.Session.request")
+    @patch("harvester.utils.general_utils.time.sleep")
+    def test_exception_retry_behavior(self, mock_sleep, mock_request, caplog):
+        """Test retry behavior on request exceptions."""
+        # First two calls raise exception, third succeeds
+        mock_response = Mock(status_code=200)
+        mock_request.side_effect = [
+            requests.exceptions.ConnectionError("Connection failed"),
+            requests.exceptions.Timeout("Request timeout"),
+            mock_response,
+        ]
+
+        session = RetrySession(max_retries=3, backoff_factor=0.1)
+
+        with caplog.at_level(logging.ERROR):
+            response = session.request("GET", "http://example.com")
+
+        assert response.status_code == 200
+        assert mock_request.call_count == 3
+        assert mock_sleep.call_count == 2
+        assert "Connection failed" in caplog.text
+        assert "Request timeout" in caplog.text
+
+    @patch("harvester.utils.general_utils.requests.Session.request")
+    @patch("harvester.utils.general_utils.time.sleep")
+    def test_exception_max_retries_exhausted(self, mock_sleep, mock_request):
+        """Test exception raised when max retries exhausted on exceptions."""
+        mock_request.side_effect = requests.exceptions.ConnectionError(
+            "Persistent connection error"
         )
-        assert result.status_code == 200
+
+        session = RetrySession(max_retries=2)
+
+        with pytest.raises(requests.exceptions.ConnectionError) as exc_info:
+            session.request("GET", "http://example.com")
+
+        assert "Persistent connection error" in str(exc_info.value)
+        assert mock_request.call_count == 3  # Initial + 2 retries
+
+    @patch("harvester.utils.general_utils.requests.Session.request")
+    def test_different_http_methods(self, mock_request):
+        """Test that different HTTP methods work correctly."""
+        mock_response = Mock(status_code=200)
+        mock_request.return_value = mock_response
+
+        session = RetrySession()
+        methods = ["GET", "POST", "PUT", "DELETE", "PATCH"]
+
+        for method in methods:
+            response = session.request(method, "http://example.com")
+            assert response.status_code == 200
+
+        assert mock_request.call_count == len(methods)
+
+    @patch("harvester.utils.general_utils.requests.Session.request")
+    @patch("harvester.utils.general_utils.time.sleep")
+    def test_non_status_forcelist(self, mock_sleep, mock_request):
+        """Test that non-retry status codes don't trigger retries."""
+        mock_response = Mock(status_code=403)  # Not in default retry codes
+        mock_request.return_value = mock_response
+
+        session = RetrySession()
+        response = session.request("GET", "http://example.com")
+
+        assert response.status_code == 403
+        assert mock_request.call_count == 1
+        assert mock_sleep.call_count == 0
+
+    @patch("harvester.utils.general_utils.requests.Session.request")
+    @patch("harvester.utils.general_utils.time.sleep")
+    def test_custom_status_forcelist(self, mock_sleep, mock_request, caplog):
+        """Test custom retry status codes."""
+        # First call returns 418 (custom retry code), second succeeds
+        responses = [Mock(status_code=418), Mock(status_code=200)]
+        mock_request.side_effect = responses
+
+        session = RetrySession(
+            status_forcelist={418, 503}, max_retries=2, backoff_factor=0.1
+        )
+
+        with caplog.at_level(logging.WARNING):
+            response = session.request("GET", "http://example.com")
+
+        assert response.status_code == 200
+        assert mock_request.call_count == 2
+        assert mock_sleep.call_count == 1
+        assert "Attempt 1: Received status code 418" in caplog.text
+
+    def test_backoff_factor_calculation(self):
+        """
+        Test that backoff factor is calculated correctly.
+        """
+        session = RetrySession(backoff_factor=2.0)
+
+        with patch("harvester.utils.general_utils.time.sleep") as mock_sleep:
+            with patch(
+                "harvester.utils.general_utils.requests.Session.request"
+            ) as mock_request:
+                # All calls return 500 to trigger retries
+                mock_request.return_value = Mock(status_code=500)
+
+                session.request("GET", "http://example.com")
+
+                # Check that sleep was called with correct backoff delays
+                expected_delays = [2.0 * (2**0), 2.0 * (2**1), 2.0 * (2**2)]
+                actual_delays = [call.args[0] for call in mock_sleep.call_args_list]
+                assert actual_delays == expected_delays
+
+
+class TestCreateRetrySession:
+    """Test the create_retry_session factory function."""
+
+    def test_create_retry_session_defaults(self):
+        """Test create_retry_session returns correctly configured session."""
+        session = create_retry_session()
+
+        assert isinstance(session, RetrySession)
+        assert session.max_retries == 3
+        assert session.backoff_factor == 0.3
+        assert session.status_forcelist == {404, 499, 500, 502}
