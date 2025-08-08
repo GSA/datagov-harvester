@@ -24,7 +24,6 @@ datagov-harvester
 ├── docker-compose.yml
 ├── Dockerfile
 ├── .profile
-├── requirements.txt
 └── run.py
 
 
