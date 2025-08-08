@@ -500,7 +500,6 @@ class RetrySession(requests.Session):
             Defaults to {404, 499, 500, 502}
         max_retries: Maximum number of retry attempts
         backoff_factor: Factor for exponential backoff delay
-        status_forcelist: Deprecated, use status_forcelist instead
         """
         super().__init__()
 
