@@ -939,7 +939,16 @@ def check_for_more_work():
     At the end of the harvest job, look for whether there are still new
     jobs to be done and schedule at most one new task.
     """
-    LoadManager()._start_new_jobs(check_from_task=True)
+    try:
+        LoadManager()._start_new_jobs(check_from_task=True)
+    except Exception as e:
+        logger.error(f"Error checking for more work: {repr(e)}")
+        # We don't want to raise here, just log the error and continue
+        # This is to ensure that the harvest job can finish gracefully
+        # even if there is an issue with checking for more work.
+        # The application should pick up jobs every 15 minutes,
+        # this is only for speed.
+        return
 
 
 if __name__ == "__main__":
@@ -947,11 +956,14 @@ if __name__ == "__main__":
 
     from harvester.utils.general_utils import parse_args
 
+    exit_code = 0
+
     try:
         args = parse_args(sys.argv[1:])
         harvest_job_starter(args.jobId, args.jobType)
-        check_for_more_work()
     except Exception as e:
         logger.error(f"Harvest has experienced an error :: {repr(e)}")
+        exit_code = 1
+    finally:
         check_for_more_work()
-        sys.exit(1)
+        sys.exit(exit_code)
