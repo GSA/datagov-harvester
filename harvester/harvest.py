@@ -470,38 +470,24 @@ class HarvestSource:
 
     def clear_helper(self):
         logger.info(f"running clear helper for {self.name}")
-        ## get remaining records in db
+        ## get all records (current and historic)
         db_records = self.db_interface.get_harvest_records_by_source(
             paginate=False,
             source_id=self.id,
         )
-        logger.warning(f"{len(db_records)} uncleared incoming db records")
+        logger.info(f"{len(db_records)} records to be cleared")
         for db_record in db_records:
-            record = self.make_record_contract(db_record)
+            record = Record(
+                self,
+                db_record.identifier,
+                _action="delete",
+                _ckan_id=db_record.ckan_id,
+                _id=db_record.id,
+            )
             self.db_interface.delete_harvest_record(
                 identifier=record.identifier, harvest_source_id=self.id
             )
-            self.reporter.update("delete")
-
-    def make_record_contract(self, db_record):
-        """Helper to hydrate a db record"""
-
-        source_raw = (
-            json.loads(db_record.source_raw)
-            if self.schema_type.startswith("dcatus")
-            else db_record.source_raw
-        )
-
-        return Record(
-            self,
-            db_record.identifier,
-            source_raw,
-            db_record.source_hash,
-            db_record.action,
-            _status=db_record.status,
-            _ckan_id=db_record.ckan_id,
-            _ckan_name=db_record.ckan_name,
-        )
+            record.sync()
 
 
 @dataclass

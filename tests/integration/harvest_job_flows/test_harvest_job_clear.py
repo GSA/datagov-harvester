@@ -32,7 +32,8 @@ class TestHarvestJobClear:
         harvest_job = interface.get_harvest_job(job_id)
         assert harvest_job.status == "complete"
         assert harvest_job.records_added == 7
-
+        # - 1 ckan call from close_conection
+        assert len(CKANMock.method_calls) - 1 == harvest_job.records_added
         records_from_db = interface.get_latest_harvest_records_by_source(
             source_data_dcatus["id"]
         )
@@ -55,6 +56,9 @@ class TestHarvestJobClear:
         harvest_job = interface.get_harvest_job(job_id)
         assert harvest_job.status == "complete"
         assert harvest_job.records_deleted == 7
+        # 9 = 7 package creates + 1 close connection on harvest
+        # + 1 close connection on clear
+        assert len(CKANMock.method_calls) - 9 == harvest_job.records_deleted
         records_from_db = interface.get_latest_harvest_records_by_source(
             source_data_dcatus["id"]
         )
