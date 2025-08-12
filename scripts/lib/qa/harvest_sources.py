@@ -49,13 +49,19 @@ class HarvestSources(OutputBase):
                 self.sources = res.json()
         self.sources = {source["name"]: source for source in self.sources}
 
+    def keep_alphanumeric(self, text):
+        """
+        used to standardize harvest source names
+        """
+        return "".join(char for char in text if char.isalnum())
+
     def get_num_datasets(self):
         # harvest sources with no datasets aren't returned from the solr facet
         res = session.get(self.harvest_sources_dset_count_url)
         if res.ok:
             titles = res.json()["result"]["facets"]["harvest_source_title"]
             self.titles = {
-                "_".join(map(str.lower, title.split())): count
+                self.keep_alphanumeric(title.lower()): count
                 for title, count in titles.items()
             }
 
