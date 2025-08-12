@@ -11,6 +11,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from typing import Union
 from urllib.parse import urljoin
+from uuid import UUID
 
 import geojson_validator
 import requests
@@ -504,6 +505,20 @@ def send_email_to_recipients(recipients, subject, body):
             logger.info(f"Notification email sent to: {recipient}")
 
 
+def get_format_from_str(validation_msg: str) -> str:
+    """
+    gets the format/rule used against the data (e.g. 'uri', 'string', some regex)
+    """
+    if "too long" in validation_msg:
+        return "max string length requirement"
+
+    # for constants where a single value is acceptable
+    if "was expected" in validation_msg:
+        return f"constant value {validation_msg}"
+
+    return validation_msg.split(" ")[-1]
+
+
 def found_simple_message(validation_error: ValidationError) -> bool:
     """
     determine whether the input validation error represents the most
@@ -542,6 +557,7 @@ def finalize_validation_messages(messages: defaultdict) -> list:
     the regex says: get me the first word(s) in single quotes or just empty brackets [].
     what's inside the single quotes represents the invalid data
     """
+
     output = []
 
     for json_path, formats in messages.items():
@@ -553,16 +569,18 @@ def finalize_validation_messages(messages: defaultdict) -> list:
 
         # all other errors are bundled based on the formats/rules
 
-        # [0] is the same as [n]
-        invalid_value = re.search(r"'(.*?)'|\[\]", formats[0])
+        # constants like in "accrualPeriodicity" don't include the invalid data
+        # but >1 format/rule is used against it so grabbing
+        # the last one which is a regex and does include the invalid data
+        # excluding constants [0] == [n]
+        invalid_value = re.search(r"'(.*?)'|\[\]", formats[-1])
 
         # if the 0th doesn't work none of them will
         if invalid_value is None:
             logger.warning(f"can't find invalid data from error message: {formats[0]}")
             continue
 
-        # here's the exact format (e.g 'uri', 'string', some regex, etc... )
-        formats = map(lambda format: format.split(" ")[-1], formats)
+        formats = map(get_format_from_str, formats)
 
         # build the bundled error message by json_path
         msg = ValidationError(
@@ -599,3 +617,18 @@ def assemble_validation_errors(validation_errors: list, messages=None) -> list:
         assemble_validation_errors(error.context, messages)
 
     return finalize_validation_messages(messages)
+
+
+def is_valid_uuid4(uuid_string) -> bool:
+    """
+    Checks if a given string is a valid UUID 4. All h20 db ids are version 4. see Base(DeclarativeBase)
+    in models.
+    """
+    try:
+        return str(UUID(uuid_string, version=4)) == uuid_string
+    except ValueError:
+        return False
+    except (
+        AttributeError
+    ):  # Catches cases where input might not be a string (e.g., UUID(0))
+        return False

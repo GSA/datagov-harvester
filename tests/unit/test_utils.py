@@ -4,10 +4,10 @@ from unittest.mock import Mock, patch
 import pytest
 import requests
 from jsonschema import Draft202012Validator, FormatChecker
-from jsonschema.exceptions import ValidationError
 
 from harvester.utils.ckan_utils import (
     create_ckan_extras,
+    create_ckan_resources,
     create_ckan_tags,
     munge_spatial,
     munge_tag,
@@ -19,6 +19,7 @@ from harvester.utils.general_utils import (
     create_retry_session,
     dynamic_map_list_items_to_dict,
     find_indexes_for_duplicates,
+    is_valid_uuid4,
     parse_args,
     prepare_transform_msg,
     process_job_complete_percentage,
@@ -323,6 +324,18 @@ class TestCKANUtils:
         access_level = list(filter(lambda e: e["key"] == "accessLevel", extras))[0]
         assert access_level["value"] == "public"
 
+    def test_create_ckan_resources(self, dol_distribution_json):
+        resources = create_ckan_resources(dol_distribution_json)
+        assert len(resources) == 5  # four distribution and one landingPage
+
+    def test_create_ckan_resources_missing_accessurl(
+        self, dol_distribution_json, caplog
+    ):
+        del dol_distribution_json["distribution"][0]["downloadURL"]
+        resources = create_ckan_resources(dol_distribution_json)
+        assert len(resources) == 4  # 3 valid distribution and one landingPage
+        assert "Not including" in caplog.text
+
 
 # Point example
 # "{\"type\": \"Point\", \"coordinates\": [-87.08258, 24.9579]}"
@@ -341,6 +354,10 @@ class TestGeneralUtils:
         dol_distribution_json["contactPoint"][
             "hasEmail"
         ] = "bad email"  # bad value based on regex
+        dol_distribution_json["accrualPeriodicity"] = (
+            "No longer updated (dataset archived)"  # bad const value
+        )
+        dol_distribution_json["rights"] = "a" * 256  # max string length exceeded
 
         validator = Draft202012Validator(
             dcatus_non_federal_schema, format_checker=FormatChecker()
@@ -352,6 +369,8 @@ class TestGeneralUtils:
         # ruff: noqa E501
         expected = [
             "$, 'identifier' is a required property",
+            "$.rights, 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' does not match any of the acceptable formats: max string length requirement, 'null'",
+            "$.accrualPeriodicity, 'No longer updated (dataset archived)' does not match any of the acceptable formats: constant value 'irregular' was expected, '^R\\\\/P(?:\\\\d+(?:\\\\.\\\\d+)?Y)?(?:\\\\d+(?:\\\\.\\\\d+)?M)?(?:\\\\d+(?:\\\\.\\\\d+)?W)?(?:\\\\d+(?:\\\\.\\\\d+)?D)?(?:T(?:\\\\d+(?:\\\\.\\\\d+)?H)?(?:\\\\d+(?:\\\\.\\\\d+)?M)?(?:\\\\d+(?:\\\\.\\\\d+)?S)?)?$', 'null', '^(\\\\[\\\\[REDACTED).*?(\\\\]\\\\])$'",
             "$.contactPoint.hasEmail, 'bad email' does not match any of the acceptable formats: \"^mailto:[\\\\w\\\\_\\\\~\\\\!\\\\$\\\\&\\\\'\\\\(\\\\)\\\\*\\\\+\\\\,\\\\;\\\\=\\\\:.-]+@[\\\\w.-]+\\\\.[\\\\w.-]+?$\", '^(\\\\[\\\\[REDACTED).*?(\\\\]\\\\])$'",
             "$.distribution[0].title, '' does not match any of the acceptable formats: non-empty, 'null', '^(\\\\[\\\\[REDACTED).*?(\\\\]\\\\])$'",
             "$.distribution[1], 'bool' does not match any of the acceptable formats: 'object', 'string'",
@@ -513,6 +532,21 @@ class TestGeneralUtils:
     )
     def test_process_job_complete_percentage(self, job_data, result):
         assert process_job_complete_percentage(job_data) == result
+
+    @pytest.mark.parametrize(
+        "job_id,result",
+        [
+            [0, False],
+            ["test", False],
+            [{}, False],
+            ["cfbff0d1-9375-5685-968c-48ce8b15ae17", False],  # v5
+            ["bdbc3cb3-d6e1-45bf-95d2-d92deedf3edf", True],  # v4
+            ["9073926b-929f-31c2-abc9-fad77ae3e8eb", False],  # v3
+            ["87d46f9c-7792-11f0-b35b-621e4597c515", False],  # v1
+        ],
+    )
+    def test_is_valid_uuid4(self, job_id, result):
+        assert is_valid_uuid4(job_id) == result
 
 
 class TestRetrySession:

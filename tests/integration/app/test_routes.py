@@ -1,11 +1,10 @@
 import json
 import os
 import re
+from unittest.mock import patch
 
 import pytest
-from deepdiff import DeepDiff
 
-from harvester.exceptions import TransformationException
 from harvester.harvest import HarvestSource
 
 # ruff: noqa: F401
@@ -386,3 +385,32 @@ class TestHarvestRecordRawAPI:
 
         assert response.status_code == 200
         assert response.json == json.loads(test_record.source_raw)
+
+    @patch("harvester.lib.load_manager.LoadManager")
+    def test_cancel_in_progress_job(
+        self,
+        LMMock,
+        interface,
+        organization_data,
+        source_data_dcatus,
+        job_data_dcatus,
+        client,
+    ):
+        """
+        Tests whether a redirect to /harvest_job/cancel/<job_id> is given on job
+        cancellation with a valid job id
+        """
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_dcatus)
+
+        # doesn't affect anything but adding anyways.
+        job_data_dcatus["status"] = "in_progress"
+        job = interface.add_harvest_job(job_data_dcatus)
+
+        # the value itself doesn't matter. we just want to mock stop_job so it completes.
+        LMMock.stop_job.return_value = "a test value"
+
+        headers = {"Authorization": os.getenv("FLASK_APP_SECRET_KEY")}
+        response = client.get(f"/harvest_job/cancel/{job.id}", headers=headers)
+        assert response.status_code == 302
+        assert response.location == f"/harvest_job/{job.id}"

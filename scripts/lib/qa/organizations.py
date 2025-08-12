@@ -1,6 +1,6 @@
 import click
-import requests
 
+from . import session
 from .utils import CATALOG_NEXT_BASE_URL, CATALOG_PROD_BASE_URL, OutputBase
 
 """Organization collection for QA."""
@@ -22,7 +22,7 @@ class Organizations(OutputBase):
         self.get_all_organization_details()
 
     def get_organization_details(self, org_name: str):
-        res = requests.post(self.org_url, data={"id": org_name})
+        res = session.post(self.org_url, data={"id": org_name})
         if res.ok:
             return res.json()["result"]
 
@@ -32,7 +32,7 @@ class Organizations(OutputBase):
                 return extra["value"]
 
     def get_organization_list(self):
-        res = requests.get(self.org_list_url)
+        res = session.get(self.org_list_url)
         res.raise_for_status()
 
         data = res.json()

@@ -1,5 +1,5 @@
-
 import datetime
+
 
 def usa_icon(str):
     # ruff: noqa: E501
