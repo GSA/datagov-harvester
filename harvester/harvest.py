@@ -404,6 +404,8 @@ class HarvestSource:
         except (ExtractInternalException, ExtractExternalException):
             self.finish_job_with_status("error")
             return
+        except ExternalRecordToClass:
+            pass
 
     def finish_job_with_status(self, status: str):
         """
@@ -630,7 +632,6 @@ class Record:
             self.validate()
             self.sync()
         except (
-            ExternalRecordToClass,
             CompareException,
             TransformationException,
         ):
