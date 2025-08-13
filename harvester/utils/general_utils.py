@@ -12,6 +12,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from typing import Optional, Set, Union
 from urllib.parse import urljoin
+from uuid import UUID
 
 import geojson_validator
 import requests
@@ -726,3 +727,18 @@ def assemble_validation_errors(validation_errors: list, messages=None) -> list:
         assemble_validation_errors(error.context, messages)
 
     return finalize_validation_messages(messages)
+
+
+def is_valid_uuid4(uuid_string) -> bool:
+    """
+    Checks if a given string is a valid UUID 4. All h20 db ids are version 4. see Base(DeclarativeBase)
+    in models.
+    """
+    try:
+        return str(UUID(uuid_string, version=4)) == uuid_string
+    except ValueError:
+        return False
+    except (
+        AttributeError
+    ):  # Catches cases where input might not be a string (e.g., UUID(0))
+        return False

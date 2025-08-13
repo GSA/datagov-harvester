@@ -37,6 +37,7 @@ from harvester.utils.general_utils import (
     dynamic_map_list_items_to_dict,
     get_datetime,
     is_it_true,
+    is_valid_uuid4,
     process_job_complete_percentage,
 )
 
@@ -939,8 +940,7 @@ def delete_harvest_job(job_id):
 @login_required
 def cancel_harvest_job(job_id):
     """Cancels a harvest job"""
-    # Validate job_id (e.g., ensure it is alphanumeric or a valid UUID)
-    if not job_id.isalnum():
+    if not is_valid_uuid4(job_id):
         flash("Invalid job ID.")
         return redirect("/")
     message = load_manager.stop_job(job_id)

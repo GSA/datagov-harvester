@@ -23,6 +23,7 @@ from harvester.utils.general_utils import (
     create_retry_session,
     dynamic_map_list_items_to_dict,
     find_indexes_for_duplicates,
+    is_valid_uuid4,
     parse_args,
     prepare_transform_msg,
     process_job_complete_percentage,
@@ -535,6 +536,21 @@ class TestGeneralUtils:
     )
     def test_process_job_complete_percentage(self, job_data, result):
         assert process_job_complete_percentage(job_data) == result
+
+    @pytest.mark.parametrize(
+        "job_id,result",
+        [
+            [0, False],
+            ["test", False],
+            [{}, False],
+            ["cfbff0d1-9375-5685-968c-48ce8b15ae17", False],  # v5
+            ["bdbc3cb3-d6e1-45bf-95d2-d92deedf3edf", True],  # v4
+            ["9073926b-929f-31c2-abc9-fad77ae3e8eb", False],  # v3
+            ["87d46f9c-7792-11f0-b35b-621e4597c515", False],  # v1
+        ],
+    )
+    def test_is_valid_uuid4(self, job_id, result):
+        assert is_valid_uuid4(job_id) == result
 
 
 class TestRetrySession:
