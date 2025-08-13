@@ -1,0 +1,4012 @@
+This XML file does not appear to have any style information associated with it. The document tree is shown below.
+<gmi:MI_Metadata xmlns:gmi="http://www.isotc211.org/2005/gmi" xmlns:gco="http://www.isotc211.org/2005/gco" xmlns:gmd="http://www.isotc211.org/2005/gmd" xmlns:gml="http://www.opengis.net/gml/3.2" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="gov.noaa.psl.dataset.NOAACIRESDOE_20th_Century_Reanalysis_V3" xsi:schemaLocation="http://www.isotc211.org/2005/gmi http://ngdc.noaa.gov/metadata/published/xsd/schema.xsd" uuid="d3198910-f248-4b2a-bfed-ae9a2f56847f">
+<gmd:fileIdentifier>
+<gco:CharacterString>gov.noaa.psl.dataset.NOAACIRESDOE_20th_Century_Reanalysis_V3</gco:CharacterString>
+</gmd:fileIdentifier>
+<gmd:language>
+<gco:CharacterString>eng; USA</gco:CharacterString>
+</gmd:language>
+<gmd:characterSet>
+<gmd:MD_CharacterSetCode codeList="http://www.isotc211.org/2005/resources/Codelist/gmxCodelists.xml#MD_CharacterSetCode" codeListValue="utf8"/>
+</gmd:characterSet>
+<gmd:hierarchyLevel>
+<gmd:MD_ScopeCode codeList="http://www.isotc211.org/2005/resources/Codelist/gmxCodelists.xml#MD_ScopeCode" codeListValue="dataset"/>
+</gmd:hierarchyLevel>
+<gmd:hierarchyLevelName>
+<gco:CharacterString>dataset</gco:CharacterString>
+</gmd:hierarchyLevelName>
+<gmd:contact xlink:title="Metadata curator">
+<gmd:CI_ResponsibleParty xsi:schemaLocation="http://www.isotc211.org/2005/gmd http://ngdc.noaa.gov/metadata/published/xsd/schema.xsd" uuid="cd0061e9-edc0-4e52-9f99-81f7184101d8">
+<gmd:positionName>
+<gco:CharacterString>PSL/NOAA Data Curator</gco:CharacterString>
+</gmd:positionName>
+<gmd:contactInfo>
+<gmd:CI_Contact>
+<gmd:address>
+<gmd:CI_Address>
+<gmd:electronicMailAddress>
+<gco:CharacterString>webmaster.psl@noaa.gov</gco:CharacterString>
+</gmd:electronicMailAddress>
+</gmd:CI_Address>
+</gmd:address>
+</gmd:CI_Contact>
+</gmd:contactInfo>
+<gmd:role>
+<gmd:CI_RoleCode codeList="http://www.ngdc.noaa.gov/metadata/published/xsd/schema/resources/Codelist/gmxCodelists.xml#CI_RoleCode" codeListValue="custodian">custodian</gmd:CI_RoleCode>
+</gmd:role>
+</gmd:CI_ResponsibleParty>
+</gmd:contact>
+<gmd:dateStamp>
+<gco:Date>2015-12-31</gco:Date>
+</gmd:dateStamp>
+<gmd:metadataStandardName>
+<gco:CharacterString>ISO 19115-2 Geographic Information - Metadata Part 2 Extensions for imagery and gridded data</gco:CharacterString>
+</gmd:metadataStandardName>
+<gmd:metadataStandardVersion>
+<gco:CharacterString>ISO 19115-2:2009(E)</gco:CharacterString>
+</gmd:metadataStandardVersion>
+<gmd:identificationInfo>
+<gmd:MD_DataIdentification>
+<gmd:citation>
+<gmd:CI_Citation>
+<gmd:title>
+<gco:CharacterString>NOAA/CIRES/DOE 20th Century Reanalysis (V3)</gco:CharacterString>
+</gmd:title>
+<gmd:date>
+<gmd:CI_Date>
+<gmd:date>
+<gco:Date>2015-12-31</gco:Date>
+</gmd:date>
+<gmd:dateType>
+<gmd:CI_DateTypeCode codeList="http://www.ngdc.noaa.gov/metadata/published/xsd/schema/resources/Codelist/gmxCodelists.xml#CI_DateTypeCode" codeListValue="lastUpdate">lastUpdate</gmd:CI_DateTypeCode>
+</gmd:dateType>
+</gmd:CI_Date>
+</gmd:date>
+</gmd:CI_Citation>
+</gmd:citation>
+<gmd:abstract>
+<gco:CharacterString/>
+</gmd:abstract>
+<gmd:status>
+<gmd:MD_ProgressCode codeList="http://www.isotc211.org/2005/resources/Codelist/gmxCodelists.xml#MD_ProgressCode" codeListValue="ongoing">ongoing</gmd:MD_ProgressCode>
+</gmd:status>
+<gmd:graphicOverview>
+<gmd:MD_BrowseGraphic>
+<gmd:fileName>
+<gco:CharacterString>https://psl.noaa.gov/data/gridded/images/small/twentcv3.png</gco:CharacterString>
+</gmd:fileName>
+</gmd:MD_BrowseGraphic>
+</gmd:graphicOverview>
+<gmd:descriptiveKeywords>
+<gmd:MD_Keywords>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Air Temperature on Isentropic Levels</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly V-wind on Isentropic Levels</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Potential Vorticity on Isentropic Levels</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly U-wind on Isentropic Levels</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly V wind at 10m</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly U-wind at 10m</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Momentum Flux, v-component at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Snow Phase Change Heat Flux</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Momentum Flux, u-component at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>time-invariant soil type (Zobler) Gaussian Grid</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Geopotential Height at Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>time-invariant Land-sea Mask Gaussian Grid</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>time-invariant vegetation type (as in SiB) Gaussian Grid</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>time-invariant surface slope type</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly U-wind at Fixed Levels Above the Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Relative Humidity at Fixed Levels Above the Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly V-wind at Fixed Levels Above the Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Air Temperature at Fixed Levels Above the Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Clear Sky Upward Longwave Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Clear Sky Upward Solar Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Clear Sky Downward Solar Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Clear Sky Downward Longwave Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly accumulated total precipitation at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Water Equiv. of Accum. Snow Depth at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly accumulated Snow Depth at Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly accumulated convective precipitation at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly accumulated Water Runoff at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Meridional Gravity Wave Stress at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly SST/Land Skin Temperature</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Convective Inhibition</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Snow Cover at Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Ice Concentration at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Storm Surface Runoff at Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Categorical Snow at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Ice Thickness at Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Categorical Ice Pellets at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Plant Canopy Surface Water</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Albedo at Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Precipitation Rate at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Percent of Frozen Precipitation</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Pressure at Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Ground Heat Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Categorical Rain at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Height of Planetary Boundary Layer</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Zonal Gravity Wave Stress at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Convective Precipitation Rate at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly CAPE</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Potential Evaporation Rate at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Categorical Freezing Rain at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Specific Humidity on Pressure Levels</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Air Temperature on Pressure Levels</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Relative Humidity on Pressure Levels</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Geopotential Height on Pressure Levels</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly V-wind on Pressure Levels</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Omega on Pressure Levels</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly U-wind on Pressure Levels</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Liquid Volumetric Soil Moisture (non-frozen) Fraction</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Soil Moisture Content at Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Soil Moisture Content</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Soil Temperature</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Clear Sky Upward Longwave Flux</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Clear Sky Upward Solar Flux</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Downward Solar Radiation Flux at nominal top of atmosphere</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Upward Longwave Radiation Flux at nominal top of atmosphere</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Upward Solar Radiation Flux at nominal top of atmosphere</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Pressure at Tropopause</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Air Temperature at Tropopause</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly V-wind at Tropopause</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Geopotential Height at Tropopause</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Vertical Speed Shear at Tropopause</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly U-wind at Tropopause</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Field Capacity</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Friction Velocity</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Wilting Point</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly vegetation at Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Aerodynamic Conductance</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Surface Roughness</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Exchange Coefficient</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly spread of U-wind at 10m</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly spread of V wind at 10m</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly V-wind spread on Isentropic Levels</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Potential Vorticity spread on Isentropic Levels</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly U-wind spread on Isentropic Levels</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Air Temperature spread on Isentropic Levels</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Total Cloud Cover spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Convective Cloud Cover spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Cloud Work Function spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Precipitable Water spread for entire atmosphere</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Pressure spread at Mean Sea Level</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Total Columnar Ozone spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Cloud Water spread for entire atmosphere</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Relative Humidity spread for entire atmosphere</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Ice Concentration spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Storm Surface Runoff spread at Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Convective Inhibition spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Albedo spread at Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Potential Evaporation Rate spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Categorical Freezing Rain spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Convective Precipitation Rate spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Meridional Gravity Wave Stress spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Percent of Frozen Precipitation spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Categorical Ice Pellets spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Plant Canopy Surface Water spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Categorical Snow spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Ground Heat Flux spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly CAPE spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Precipitation Rate spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Height of Planetary Boundary Layer spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly SST/Land Skin Temperature spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Categorical Rain spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Ice Thickness spread at Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Zonal Gravity Wave Stress spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Snow Cover spread at Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Pressure spread at Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Air Temperature spread at sigma level 0.995</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly V-wind spread at sigma level 0.995</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Omega spread at sigma level 0.995</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Relative Humidity spread at sigma level 0.995</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Potential Temperature spread at sigma level 0.995</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly U-wind spread at sigma level 0.995</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Geopotential Height spread on Pressure Levels</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Air Temperature spread on Pressure Levels</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly U-wind spread on Pressure Levels</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Omega spread on Pressure Levels</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Specific Humidity spread on Pressure Levels</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly V-wind spread on Pressure Levels</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Middle Cloud Bottom Pressure spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Middle Cloud Top Temperature spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Low Cloud Bottom Pressure spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Top Cloud Cover spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Boundary Layer Cloud Cover spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>High Cloud Top Pressure spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Low Cloud Top Pressure spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>High Cloud Bottom Pressure spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>High Cloud Top Temperature spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Middle Cloud Cover spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Low Cloud Top Temperature spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Middle Cloud Top Pressure spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Low Cloud Cover spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Downward Solar Radiation Flux spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Direct Evaporation From Bare Soil spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly UV-B Downward Solar Flux spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Canopy Water Evaporation spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Visible Diffuse Downward Solar Flux spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Near IR Beam Downward Solar Flux spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Latent Heat Net Flux spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Transpiration spread at Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Upward Solar Radiation Flux spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Visible Beam Downward Solar Flux spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Downward Longwave Radiation Flux spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Clear Sky UV-B Downward Solar Flux spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Near IR Diffuse Downward Solar Flux spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Upward Longwave Radiation Flux spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Sensible Heat Net Flux spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Sublimation (Evaporation From Snow) spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly U-wind spread at Tropopause</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Vertical Speed Shear spread at Tropopause</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Geopotential Height spread at Tropopause</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly V-wind spread at Tropopause</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Pressure spread at Tropopause</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Air Temperature spread at Tropopause</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly vegetation spread at Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Field Capacity spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Wilting Point spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Friction Velocity spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Aerodynamic Conductance spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Surface Roughness spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Exchange Coefficient spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Clear Sky Downward Longwave Flux spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Clear Sky Downward Solar Flux spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Clear Sky Upward Solar Flux spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Clear Sky Upward Longwave Flux spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Maximum Temperature spread at 2 m</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Minumum Specific Humidity spread at 2 m</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Specific Humidity spread at 2 m</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Maximum Specific Humidity spread at 2 m</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Air Temperature spread at 2 m</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Minimum Temperature spread at 2 m</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Relative Humidity spread at 2 m</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Air Temperature spread at Fixed Levels Above the Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Relative Humidity spread at Fixed Levels Above the Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly U-wind spread at Fixed Levels Above the Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly V-wind spread at Fixed Levels Above the Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Downward Solar Radiation Flux spread at nominal top of atmosphere</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Upward Longwave Radiation Flux spread at nominal top of atmosphere</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Upward Solar Radiation Flux spread at nominal top of atmosphere</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Clear Sky Upward Longwave Flux spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Clear Sky Upward Solar Flux spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Liquid Volumetric Soil Moisture (non-frozen) Fraction spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Soil Moisture Content spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Soil Temperature spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Soil Moisture Content spread at Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Geopotential Height spread at Hybrid Level 1</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Specific Humidity spread at Hybrid Level 1</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly V wind spread at Hybrid Level 1</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Air Temperature spread at Hybrid Level 1</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly U-wind spread at Hybrid Level 1</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Momentum Flux, u-component spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Momentum Flux, v-component spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Snow Phase Change Heat Flux spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Geopotential Heights spread at 0C Isothermal Layer</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Relative Humidity spread at 0C Isothermal Layer</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Water Equiv. of Accum. Snow Depth spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly accumulated total precipitation spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Snow Depth spread at Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly accumulated convective precipitation spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Water Runoff spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Air Temperature spread at 2 m</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Soil Moisture Content spread at Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Soil Moisture Content spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Soil Temperature spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Liquid Volumetric Soil Moisture (non-frozen) Fraction spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Surface Roughness spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Exchange Coefficient spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Field Capacity spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Friction Velocity spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Aerodynamic Conductance spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly vegetation spread at Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Wilting Point spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Geopotential Height spread at Hybrid Level 1</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly V wind spread at Hybrid Level 1</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Air Temperature spread at Hybrid Level 1</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly U-wind spread at Hybrid Level 1</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Specific Humidity spread at Hybrid Level 1</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly V-wind spread at Fixed Levels Above the Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Relative Humidity spread at Fixed Levels Above the Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Air Temperature spread at Fixed Levels Above the Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly U-wind spread at Fixed Levels Above the Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Geopotential Heights spread at 0C Isothermal Layer</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Relative Humidity spread at 0C Isothermal Layer</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Clear Sky Upward Solar Flux spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Clear Sky Upward Longwave Flux spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Clear Sky Downward Longwave Flux spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Clear Sky Downward Solar Flux spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Daily 3-hourly Maximum Temperature spread at 2 m</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Specific Humidity spread at 2 m</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Air Temperature spread at 2 m</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Maximum Specific Humidity spread at 2 m</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Relative Humidity spread at 2 m</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Daily 3-hourly Minimum Temperature spread at 2 m</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Minumum Specific Humidity spread at 2 m</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly accumulated convective precipitation spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Water Runoff spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Snow Depth spread at Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly accumulated total precipitation spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Water Equiv. of Accum. Snow Depth spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Air Temperature spread at Tropopause</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly V-wind spread at Tropopause</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Pressure spread at Tropopause</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Geopotential Height spread at Tropopause</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly U-wind spread at Tropopause</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Vertical Speed Shear spread at Tropopause</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Momentum Flux, u-component spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Momentum Flux, v-component spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Snow Phase Change Heat Flux spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly V-wind spread on Pressure Levels</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Omega spread on Pressure Levels</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Specific Humidity spread on Pressure Levels</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Geopotential Height spread on Pressure Levels</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Air Temperature spread on Pressure Levels</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly U-wind spread on Pressure Levels</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Height of Planetary Boundary Layer spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Categorical Freezing Rain spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Categorical Snow spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Convective Precipitation Rate spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Precipitation Rate spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Snow Cover spread at Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Percent of Frozen Precipitation spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Pressure spread at Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Albedo spread at Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Zonal Gravity Wave Stress at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Categorical Rain spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Categorical Ice Pellets spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Convective Inhibition spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Plant Canopy Surface Water spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Ground Heat Flux spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Meridional Gravity Wave Stress at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Storm Surface Runoff spread at Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Ice Concentration spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Ice Thickness spread at Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly CAPE spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Potential Evaporation Rate spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly SST/Land Skin Temperature spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Air Temperature spread on Isentropic Levels</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Air Temperature spread on Isentropic Levels</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Potential Vorticity spread on Isentropic Levels</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly U-wind spread on Isentropic Levels</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly V-wind spread on Isentropic Levels</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Potential Vorticity spread on Isentropic Levels</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly V-wind spread at sigma level 0.995</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Air Temperature spread at sigma level 0.995</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Omega spread at sigma level 0.995</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Relative Humidity spread at sigma level 0.995</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly U-wind spread at sigma level 0.995</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Potential Temperature spread at sigma level 0.995</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Upward Longwave Radiation Flux spread at nominal top of atmosphere</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Clear Sky Upward Longwave Flux spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Clear Sky Upward Solar Flux spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Upward Solar Radiation Flux spread at nominal top of atmosphere</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Downward Solar Radiation Flux spread at nominal top of atmosphere</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Direct Evaporation From Bare Soil spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Sublimation (Evaporation From Snow) spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Visible Diffuse Downward Solar Flux spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Near IR Beam Downward Solar Flux spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Canopy Water Evaporation spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Transpiration spread at Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Latent Heat Net Flux spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Sensible Heat Net Flux spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Clear Sky UV-B Downward Solar Flux spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Downward Solar Radiation Flux spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Upward Solar Radiation Flux spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Downward Longwave Radiation Flux spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly UV-B Downward Solar Flux spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Upward Longwave Radiation Flux spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Near IR Diffuse Downward Solar Flux spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Visible Beam Downward Solar Flux spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Relative Humidity spread for entire atmosphere</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Total Cloud Cover spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Cloud Water spread for entire atmosphere</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Convective Cloud Cover spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Precipitable Water spread for entire atmosphere</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Total Columnar Ozone spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Cloud Work Function spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Pressure spread at Mean Sea Level</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean High Cloud Bottom Pressure spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean Middle Cloud Top Temperature spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Low Cloud Cover spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean Low Cloud Bottom Pressure spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean Middle Cloud Top Pressure spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean High Cloud Top Temperature spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean Low Cloud Top Pressure spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean Low Cloud Top Temperature spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Boundary Layer Cloud Cover spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Middle Cloud Cover spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Top Cloud Cover spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean Middle Cloud Bottom Pressure spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean High Cloud Top Pressure spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly spread of U-wind at 10m</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly spread of V wind at 10m</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Geopotential Height spread on Pressure Levels</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Specific Humidity spread on Pressure Levels</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly V-wind spread on Pressure Levels</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Omega spread on Pressure Levels</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Air Temperature spread on Pressure Levels</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly U-wind spread on Pressure Levels</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Total Columnar Ozone spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Precipitable Water spread for entire atmosphere</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Cloud Work Function spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Convective Cloud Cover spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Cloud Water spread for entire atmosphere</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Pressure spread at Mean Sea Level</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Relative Humidity spread for entire atmosphere</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Total Cloud Cover spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Clear Sky Upward Solar Flux spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Clear Sky Upward Longwave Flux spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Clear Sky Downward Solar Flux spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Clear Sky Downward Longwave Flux spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Maximum Temperature spread at 2 m</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Minimum Temperature spread at 2 m</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Air Temperature spread at 2 m</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Relative Humidity spread at 2 m</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Minumum Specific Humidity spread at 2 m</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Maximum Specific Humidity spread at 2 m</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Specific Humidity spread at 2 m</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Soil Temperature spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Liquid Volumetric Soil Moisture (non-frozen) Fraction spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Soil Moisture Content spread at Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Soil Moisture Content spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly U-wind spread at sigma level 0.995</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Air Temperature spread at sigma level 0.995</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Omega spread at sigma level 0.995</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Relative Humidity spread at sigma level 0.995</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Potential Temperature spread at sigma level 0.995</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly V-wind spread at sigma level 0.995</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Water Equiv. of Accum. Snow Depth spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly accumulated Water Runoff spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly accumulated convective precipitation spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly accumulated Snow Depth spread at Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly accumulated total precipitation spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Air Temperature spread on Isentropic Levels</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly U-wind spread on Isentropic Levels</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly V-wind spread on Isentropic Levels</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Potential Vorticity spread on Isentropic Levels</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Latent Heat Net Flux spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Downward Longwave Radiation Flux spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Downward Solar Radiation Flux spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Sublimation (Evaporation From Snow) spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Transpiration spread at Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly UV-B Downward Solar Flux spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Near IR Diffuse Downward Solar Flux spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Visible Diffuse Downward Solar Flux spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Sensible Heat Net Flux spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Upward Longwave Radiation Flux spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Upward Solar Radiation Flux spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Visible Beam Downward Solar Flux spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Clear Sky UV-B Downward Solar Flux spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Direct Evaporation From Bare Soil spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Canopy Water Evaporation spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Near IR Beam Downward Solar Flux spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Surface Roughness spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Wilting Point spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly vegetation spread at Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Field Capacity spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Exchange Coefficient spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Aerodynamic Conductance spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Friction Velocity spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly V wind spread at Hybrid Level 1</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Geopotential Height spread at Hybrid Level 1</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Specific Humidity spread at Hybrid Level 1</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly U-wind spread at Hybrid Level 1</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Air Temperature spread at Hybrid Level 1</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Geopotential Heights spread at 0C Isothermal Layer</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Relative Humidity spread at 0C Isothermal Layer</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly High Cloud Top Temperature spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Middle Cloud Top Temperature spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Low Cloud Top Pressure spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Boundary Layer Cloud Cover spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Middle Cloud Bottom Pressure spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly High Cloud Bottom Pressure spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Middle Cloud Cover spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Low Cloud Bottom Pressure spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Top Cloud Cover spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Low Cloud Top Temperature spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Middle Cloud Top Pressure spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly High Cloud Top Pressure spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Low Cloud Cover spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Storm Surface Runoff spread at Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Ice Concentration spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly SST/Land Skin Temperature spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Precipitation Rate spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Ice Thickness spread at Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Percent of Frozen Precipitation spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Meridional Gravity Wave Stress spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly CAPE spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Categorical Rain spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Convective Inhibition spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Pressure spread at Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Zonal Gravity Wave Stress spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Categorical Ice Pellets spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Potential Evaporation Rate spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Plant Canopy Surface Water spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Albedo spread at Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Snow Cover spread at Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Height of Planetary Boundary Layer spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Categorical Freezing Rain spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Categorical Snow spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Convective Precipitation Rate spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Ground Heat Flux spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly V-wind spread at Tropopause</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Vertical Speed Shear spread at Tropopause</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Pressure spread at Tropopause</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Geopotential Height spread at Tropopause</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Air Temperature spread at Tropopause</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly U-wind spread at Tropopause</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly U-wind spread at 10m</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly V wind spread at 10m</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Clear Sky Upward Longwave Flux spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Upward Longwave Radiation Flux spread at nominal top of atmosphere</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Downward Solar Radiation Flux spread at nominal top of atmosphere</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Clear Sky Upward Solar Flux spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Upward Solar Radiation Flux spread at nominal top of atmosphere</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Relative Humidity spread at Fixed Levels Above the Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Air Temperature spread at Fixed Levels Above the Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly V-wind spread at Fixed Levels Above the Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly U-wind spread at Fixed Levels Above the Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Momentum Flux, v-component spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Snow Phase Change Heat Flux spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Momentum Flux, u-component spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly U-wind at sigma level 0.995</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Relative Humidity at sigma level 0.995</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Air Temperature at sigma level 0.995</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Omega at sigma level 0.995</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Potential Temperature at sigma level 0.995</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly V-wind at sigma level 0.995</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly V wind at Hybrid Level 1</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly Specific Humidity at Hybrid Level 1</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly U-wind at Hybrid Level 1</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly Geopotential Height at Hybrid Level 1</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly Air Temperature at Hybrid Level 1</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly Soil Temperature</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly Soil Moisture Content</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly Soil Moisture Content at Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly Liquid Volumetric Soil Moisture (non-frozen) Fraction</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly U-wind on Pressure Levels</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly Omega on Pressure Levels</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly V-wind on Pressure Levels</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly Air Temperature on Pressure Levels</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly Specific Humidity on Pressure Levels</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly Geopotential Height on Pressure Levels</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly Minumum Specific Humidity at 2 m</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly Air Temperature at 2 m</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Daily Long Term Mean 3-hourly Minimum Temperature at 2 m</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly Relative Humidity at 2 m</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly Specific Humidity at 2 m</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Daily Long Term Mean 3-hourly Maximum Temperature at 2 m</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly Maximum Specific Humidity at 2 m</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly Direct Evaporation From Bare Soil</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly Downward Longwave Radiation Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly Canopy Water Evaporation</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly Clear Sky UV-B Downward Solar Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly UV-B Downward Solar Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly Sensible Heat Net Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly Upward Longwave Radiation Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly Sublimation (Evaporation From Snow)</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly Latent Heat Net Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly Downward Solar Radiation Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly Visible Diffuse Downward Solar Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly Transpiration at Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly Near IR Beam Downward Solar Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly Near IR Diffuse Downward Solar Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly Visible Beam Downward Solar Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly Upward Solar Radiation Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly Ice Concentration at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly Categorical Rain at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly Categorical Ice Pellets at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean Height of Planetary Boundary Layer</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly Convective Precipitation Rate at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly Categorical Snow at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly Categorical Freezing Rain at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly Precipitation Rate at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly Meridional Gravity Wave Stress at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly Convective Inhibition</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly Plant Canopy Surface Water</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly Ground Heat Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly Percent of Frozen Precipitation</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly SST/Land Skin Temperature</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly Pressure at Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly Storm Surface Runoff at Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly Snow Cover at Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly CAPE</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly Zonal Gravity Wave Stress at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly Albedo at Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly Potential Evaporation Rate at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly Ice Thickness at Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly Clear Sky Upward Solar Flux</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly Clear Sky Upward Longwave Flux</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly Downward Solar Radiation Flux at nominal top of atmosphere</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly Upward Solar Radiation Flux at nominal top of atmosphere</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly Upward Longwave Radiation Flux at nominal top of atmosphere</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly Low Cloud Cover</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly Boundary Layer Cloud Cover</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly Middle Cloud Cover</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly Top Cloud Cover</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean High Cloud Bottom Pressure</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean High Cloud Top Temperature</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean Middle Cloud Top Pressure</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean Low Cloud Top Pressure</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean Low Cloud Top Temperature</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean Low Cloud Bottom Pressure</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean Middle Cloud Top Temperature</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean Middle Cloud Bottom Pressure</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean High Cloud Top Pressure</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly U-wind at sigma level 0.995</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly Relative Humidity at sigma level 0.995</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly Potential Temperature at sigma level 0.995</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly V-wind at sigma level 0.995</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly Omega at sigma level 0.995</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly Air Temperature at sigma level 0.995</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly V-wind at Tropopause</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly U-wind at Tropopause</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly Air Temperature at Tropopause</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly Pressure at Tropopause</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly Geopotential Height at Tropopause</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly Vertical Speed Shear at Tropopause</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly Clear Sky Upward Solar Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly Clear Sky Upward Longwave Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly Clear Sky Downward Longwave Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly Clear Sky Downward Solar Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly Snow Phase Change Heat Flux</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly Momentum Flux, u-component at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly Momentum Flux, v-component at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly Field Capacity</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly Aerodynamic Conductance</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly Wilting Point</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly Friction Velocity</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly vegetation at Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly Exchange Coefficient</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly Surface Roughness</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly Relative Humidity for entire atmosphere</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly Total Cloud Cover</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly Cloud Water for entire atmosphere</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly Total Columnar Ozone</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term mean 3-hourly Pressure at Mean Sea Level</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly Cloud Work Function</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly Precipitable Water for entire atmosphere</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly Convective Cloud Cover</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly Geopotential Heights at 0C Isothermal Layer</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly Relative Humidity at 0C Isothermal Layer</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly V wind at 10m</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly U-wind at 10m</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly Air Temperature at Fixed Levels Above the Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly U-wind at Fixed Levels Above the Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly V-wind at Fixed Levels Above the Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly Relative Humidity at Fixed Levels Above the Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly Potential Vorticity on Isentropic Levels</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly Air Temperature on Isentropic Levels</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly V-wind on Isentropic Levels</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly U-wind on Isentropic Levels</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly accumulated total precipitation at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly accumulated Water Runoff at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly Water Equiv. of Accum. Snow Depth at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly accumulated Snow Depth at Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily Long Term Mean mean 3-hourly accumulated convective precipitation at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly V-wind spread at sigma level 0.995</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Omega spread at sigma level 0.995</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Relative Humidity spread at sigma level 0.995</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly U-wind spread at sigma level 0.995</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Air Temperature spread at sigma level 0.995</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Potential Temperature spread at sigma level 0.995</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly V wind spread at 10m</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly U-wind spread at 10m</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Upward Solar Radiation Flux spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Latent Heat Net Flux spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Downward Solar Radiation Flux spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Upward Longwave Radiation Flux spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Downward Longwave Radiation Flux spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Convective Inhibition spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Ice Concentration spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly CAPE spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly SST/Land Skin Temperature spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Pressure spread at Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Precipitation Rate spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Downward Solar Radiation Flux spread at nominal top of atmosphere</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Upward Solar Radiation Flux spread at nominal top of atmosphere</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Upward Longwave Radiation Flux spread at nominal top of atmosphere</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Cloud Water spread for entire atmosphere</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Pressure spread at Mean Sea Level</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Precipitable Water spread for entire atmosphere</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Total Columnar Ozone spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Specific Humidity spread on Pressure Levels</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly V-wind spread on Pressure Levels</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Omega spread on Pressure Levels</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Geopotential Height spread on Pressure Levels</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Air Temperature spread on Pressure Levels</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly U-wind spread on Pressure Levels</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Specific Humidity spread at 2 m</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Relative Humidity spread at 2 m</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Minimum Temperature spread at 2 m</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Maximum Temperature spread at 2 m</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly U-wind spread at Tropopause</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Pressure spread at Tropopause</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly V-wind spread at Tropopause</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Geopotential Height spread at Tropopause</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Air Temperature spread at Tropopause</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Geopotential Height at Hybrid Level 1</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Specific Humidity at Hybrid Level 1</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Air Temperature at Hybrid Level 1</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly V wind at Hybrid Level 1</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly U-wind at Hybrid Level 1</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Convective Cloud Cover</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Cloud Work Function</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Total Cloud Cover</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Relative Humidity for entire atmosphere</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Momentum Flux, u-component at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Snow Phase Change Heat Flux</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Momentum Flux, v-component at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Relative Humidity at Fixed Levels Above the Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly V-wind at Fixed Levels Above the Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly U-wind at Fixed Levels Above the Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Air Temperature at Fixed Levels Above the Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly accumulated Water Runoff at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly accumulated Snow Depth at Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly accumulated convective precipitation at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Water Equiv. of Accum. Snow Depth at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly accumulated total precipitation at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Categorical Freezing Rain at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Categorical Snow at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Albedo at Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Plant Canopy Surface Water</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Storm Surface Runoff at Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Ice Thickness at Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Convective Precipitation Rate at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Categorical Rain at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Zonal Gravity Wave Stress at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Categorical Ice Pellets at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Height of Planetary Boundary Layer</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Potential Evaporation Rate at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Percent of Frozen Precipitation</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Ground Heat Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Snow Cover at Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Meridional Gravity Wave Stress at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Relative Humidity on Pressure Levels</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Clear Sky Upward Longwave Flux</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Clear Sky Upward Solar Flux</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Minumum Specific Humidity at 2 m</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Maximum Specific Humidity at 2 m</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Soil Moisture Content</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Soil Moisture Content at Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Soil Temperature</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Liquid Volumetric Soil Moisture (non-frozen) Fraction</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Vertical Speed Shear at Tropopause</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Clear Sky Upward Longwave Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Clear Sky Upward Solar Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Clear Sky Downward Solar Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Clear Sky Downward Longwave Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Air Temperature on Isentropic Levels</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly V-wind on Isentropic Levels</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly U-wind on Isentropic Levels</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Potential Vorticity on Isentropic Levels</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Boundary Layer Cloud Cover</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Middle Cloud Cover</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Top Cloud Cover</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Low Cloud Top Temperature</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Middle Cloud Top Temperature</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean High Cloud Top Temperature</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Low Cloud Top Pressure</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Low Cloud Cover</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean High Cloud Bottom Pressure</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Middle Cloud Top Pressure</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Middle Cloud Bottom Pressure</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean High Cloud Top Pressure</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Low Cloud Bottom Pressure</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean UV-B Downward Solar Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Near IR Diffuse Downward Solar Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean Direct Evaporation From Bare Soil</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Direct Evaporation From Bare Soil</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Visible Beam Downward Solar Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Visible Diffuse Downward Solar Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Near IR Beam Downward Solar Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean Downward Solar Radiation Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean Downward Longwave Radiation Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean Clear Sky UV-B Downward Solar Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Sensible Heat Net Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Canopy Water Evaporation</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Sublimation (Evaporation From Snow)</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly UV-B Downward Solar Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Clear Sky UV-B Downward Solar Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean Latent Heat Net Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean Canopy Water Evaporation</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Transpiration at Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Relative Humidity at 0C Isothermal Layer</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Geopotential Heights at 0C Isothermal Layer</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Exchange Coefficient</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Friction Velocity</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly vegetation at Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Field Capacity</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Surface Roughness</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Aerodynamic Conductance</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Wilting Point</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean Upward Longwave Radiation Flux at nominal top of atmosphere</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean Clear Sky Upward Solar Flux</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean Clear Sky Upward Longwave Flux</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean Downward Solar Radiation Flux at nominal top of atmosphere</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean Upward Solar Radiation Flux at nominal top of atmosphere</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean Air Temperature at Tropopause</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean Geopotential Height at Tropopause</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean V-wind at Tropopause</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean U-wind at Tropopause</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean Pressure at Tropopause</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean Vertical Speed Shear at Tropopause</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean Momentum Flux, v-component at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean Snow Phase Change Heat Flux</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean Momentum Flux, u-component at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean Transpiration at Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean Sensible Heat Net Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean Visible Beam Downward Solar Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean Near IR Diffuse Downward Solar Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean Upward Longwave Radiation Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean Visible Diffuse Downward Solar Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean Upward Solar Radiation Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean Near IR Beam Downward Solar Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean Sublimation (Evaporation From Snow)</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>High Long Term Mean Cloud Top Temperature</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>High Long Term Mean Cloud Bottom Pressure</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean Top Cloud Cover</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Middle Long Term Mean Cloud Top Temperature</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean Middle Cloud Cover</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Middle Long Term Mean Cloud Bottom Pressure</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean Low Cloud Cover</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Low Long Term Mean Cloud Top Pressure</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Low Long Term Mean Cloud Bottom Pressure</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Middle Long Term Mean Cloud Top Pressure</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Low Long Term Mean Cloud Top Temperature</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean Boundary Layer Cloud Cover</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>High Long Term Mean Cloud Top Pressure</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean Convective Precipitation Rate at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean Ice Thickness at Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean SST/Land Skin Temperature</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean Albedo at Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean Categorical Rain at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean Storm Surface Runoff at Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean Plant Canopy Surface Water</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean Precipitation Rate at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean Height of Planetary Boundary Layer</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean Zonal Gravity Wave Stress at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean CAPE</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean Categorical Ice Pellets at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean Categorical Freezing Rain at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean Potential Evaporation Rate at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean Convective Inhibition</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean Snow Cover at Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean Ground Heat Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean Ice Concentration at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean Percent of Frozen Precipitation</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean Categorical Snow at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean Meridional Gravity Wave Stress at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean Pressure at Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean Relative Humidity on Pressure Levels</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean U-wind on Pressure Levels</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean Specific Humidity on Pressure Levels</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean V-wind on Pressure Levels</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean Omega on Pressure Levels</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean Geopotential Height on Pressure Levels</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean Air Temperature on Pressure Levels</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean V-wind at sigma level 0.995</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean Air Temperature at sigma level 0.995</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean Omega at sigma level 0.995</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean U-wind at sigma level 0.995</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean Relative Humidity at sigma level 0.995</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean Potential Temperature at sigma level 0.995</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean Soil Moisture Content at Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean Liquid Volumetric Soil Moisture (non-frozen) Fraction</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean Soil Temperature</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean Soil Moisture Content</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean Cloud Water for entire atmosphere</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean Total Columnar Ozone</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Pressure at Mean Sea Level</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean Precipitable Water for entire atmosphere</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean Convective Cloud Cover</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean Total Cloud Cover</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean Cloud Work Function</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean Relative Humidity for entire atmosphere</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean V-wind at Fixed Levels Above the Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean U-wind at Fixed Levels Above the Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean Air Temperature at Fixed Levels Above the Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean Relative Humidity at Fixed Levels Above the Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean Maximum Specific Humidity at 2 m</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean Minumum Specific Humidity at 2 m</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean Relative Humidity at 2 m</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean Minimum Temperature at 2 m</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean Air Temperature at 2 m</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean Maximum Temperature at 2 m</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean Specific Humidity at 2 m</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean V wind at Hybrid Level 1</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean Specific Humidity at Hybrid Level 1</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean Air Temperature at Hybrid Level 1</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean U-wind at Hybrid Level 1</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean Geopotential Height at Hybrid Level 1</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean vegetation at Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean Aerodynamic Conductance</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean Friction Velocity</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean Field Capacity</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean Surface Roughness</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean Wilting Point</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean Exchange Coefficient</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean Geopotential Heights at 0C Isothermal Layer</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean Relative Humidity at 0C Isothermal Layer</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean accumulated convective precipitation at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean accumulated Water Runoff at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean Water Equiv. of Accum. Snow Depth at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean accumulated total precipitation at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean accumulated Snow Depth at Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean U-wind at 10m</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean V wind at 10m</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean Potential Vorticity on Isentropic Levels</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean V-wind on Isentropic Levels</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean Air Temperature on Isentropic Levels</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean U-wind on Isentropic Levels</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean Clear Sky Upward Longwave Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean Clear Sky Downward Longwave Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean Clear Sky Upward Solar Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Long Term Mean Clear Sky Downward Solar Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Downward Solar Radiation Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Visible Diffuse Downward Solar Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Direct Evaporation From Bare Soil</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Upward Solar Radiation Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Near IR Beam Downward Solar Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Transpiration at Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Sublimation (Evaporation From Snow)</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Latent Heat Net Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Downward Longwave Radiation Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly UV-B Downward Solar Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Clear Sky UV-B Downward Solar Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Canopy Water Evaporation</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Upward Longwave Radiation Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Near IR Diffuse Downward Solar Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Sensible Heat Net Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Visible Beam Downward Solar Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Maximum Temperature at 2 m</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Air Temperature at 2 m</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Specific Humidity at 2 m</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Minumum Specific Humidity at 2 m</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Maximum Specific Humidity at 2 m</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Relative Humidity at 2 m</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Minimum Temperature at 2 m</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Cloud Water for entire atmosphere</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Cloud Work Function</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Precipitable Water for entire atmosphere</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Total Columnar Ozone</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Relative Humidity for entire atmosphere</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Pressure at Mean Sea Level</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Total Cloud Cover</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Convective Cloud Cover</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Low Cloud Cover</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Middle Cloud Top Pressure</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Middle Cloud Bottom Pressure</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Middle Cloud Top Temperature</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Low Cloud Bottom Pressure</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Middle Cloud Cover</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Top Cloud Cover</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Boundary Layer Cloud Cover</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>High Cloud Bottom Pressure</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Low Cloud Top Pressure</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>High Cloud Top Temperature</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>High Cloud Top Pressure</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Low Cloud Top Temperature</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly U-wind at Hybrid Level 1</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Air Temperature at Hybrid Level 1</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly V wind at Hybrid Level 1</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Geopotential Height at Hybrid Level 1</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Specific Humidity at Hybrid Level 1</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly U-wind at Hybrid Level 1</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly V wind at Hybrid Level 1</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Geopotential Height at Hybrid Level 1</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Air Temperature at Hybrid Level 1</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Specific Humidity at Hybrid Level 1</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Soil Temperature</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Liquid Volumetric Soil Moisture (non-frozen) Fraction</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Soil Moisture Content at Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Soil Moisture Content</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Geopotential Heights at 0C Isothermal Layer</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Relative Humidity at 0C Isothermal Layer</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Air Temperature at Tropopause</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Geopotential Height at Tropopause</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly V-wind at Tropopause</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Pressure at Tropopause</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly U-wind at Tropopause</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Vertical Speed Shear at Tropopause</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Aerodynamic Conductance</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Surface Roughness</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Exchange Coefficient</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly vegetation at Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Field Capacity</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Wilting Point</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Friction Velocity</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly accumulated Snow Depth at Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Water Equiv. of Accum. Snow Depth at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly accumulated total precipitation at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly accumulated convective precipitation at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly accumulated Water Runoff at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Relative Humidity on Pressure Levels</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly U-wind on Pressure Levels</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Geopotential Height on Pressure Levels</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Omega on Pressure Levels</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Specific Humidity on Pressure Levels</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Air Temperature on Pressure Levels</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly V-wind on Pressure Levels</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Convective Precipitation Rate at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Categorical Snow at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Categorical Freezing Rain at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Height of Planetary Boundary Layer</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Zonal Gravity Wave Stress at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Snow Cover at Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly SST/Land Skin Temperature</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Categorical Rain at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Percent of Frozen Precipitation</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Precipitation Rate at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Storm Surface Runoff at Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Convective Inhibition</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Ice Concentration at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Albedo at Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Pressure at Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Potential Evaporation Rate at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Ice Thickness at Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly CAPE</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Plant Canopy Surface Water</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Categorical Ice Pellets at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Meridional Gravity Wave Stress at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Ground Heat Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Upward Longwave Radiation Flux at nominal top of atmosphere</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Upward Solar Radiation Flux at nominal top of atmosphere</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Downward Solar Radiation Flux at nominal top of atmosphere</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Momentum Flux, u-component at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Snow Phase Change Heat Flux</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Momentum Flux, v-component at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Omega at sigma level 0.995</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Relative Humidity at sigma level 0.995</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Air Temperature at sigma level 0.995</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Potential Temperature at sigma level 0.995</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly U-wind at sigma level 0.995</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly V-wind at sigma level 0.995</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Daily 3-hourly Minimum Temperature at 2 m</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Relative Humidity at 2 m</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Maximum Specific Humidity at 2 m</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Daily 3-hourly Maximum Temperature at 2 m</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Specific Humidity at 2 m</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Air Temperature at 2 m</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Minumum Specific Humidity at 2 m</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Total Cloud Cover</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Pressure at Mean Sea Level</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Precipitable Water for entire atmosphere</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Cloud Work Function</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Relative Humidity for entire atmosphere</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Total Columnar Ozone</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Cloud Water for entire atmosphere</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Convective Cloud Cover</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly V-wind on Isentropic Levels</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly U-wind on Isentropic Levels</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly V wind at 10m</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly U-wind at 10m</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean High Cloud Top Pressure</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean Low Cloud Top Pressure</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean Middle Cloud Bottom Pressure</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean Middle Cloud Top Temperature</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Low Cloud Cover</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean High Cloud Bottom Pressure</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Middle Cloud Cover</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean Low Cloud Bottom Pressure</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Top Cloud Cover</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean High Cloud Top Temperature</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Boundary Layer Cloud Cover</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean Middle Cloud Top Pressure</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean Low Cloud Top Temperature</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Clear Sky Upward Longwave Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Clear Sky Upward Solar Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Clear Sky Downward Solar Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Clear Sky Downward Longwave Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Near IR Beam Downward Solar Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Sublimation (Evaporation From Snow)</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Visible Diffuse Downward Solar Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Transpiration at Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Clear Sky UV-B Downward Solar Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Latent Heat Net Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Sensible Heat Net Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly UV-B Downward Solar Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Canopy Water Evaporation</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Downward Longwave Radiation Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Downward Solar Radiation Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Upward Solar Radiation Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Upward Longwave Radiation Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Near IR Diffuse Downward Solar Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Direct Evaporation From Bare Soil</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Visible Beam Downward Solar Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Air Temperature at Fixed Levels Above the Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly V-wind at Fixed Levels Above the Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Relative Humidity at Fixed Levels Above the Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly U-wind at Fixed Levels Above the Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Geopotential Heights at 0C Isothermal Layer</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Relative Humidity at 0C Isothermal Layer</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Meridional Gravity Wave Stress at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly CAPE</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Ice Thickness at Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Convective Inhibition</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Storm Surface Runoff at Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Precipitation Rate at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Ice Concentration at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Pressure at Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Height of Planetary Boundary Layer</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Categorical Rain at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Zonal Gravity Wave Stress at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Albedo at Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Categorical Ice Pellets at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Potential Evaporation Rate at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly SST/Land Skin Temperature</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Plant Canopy Surface Water</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Snow Cover at Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Categorical Freezing Rain at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Categorical Snow at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Convective Precipitation Rate at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Ground Heat Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Air Temperature at Hybrid Level 1</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly U-wind at Hybrid Level 1</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Geopotential Height at Hybrid Level 1</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly V wind at Hybrid Level 1</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Specific Humidity at Hybrid Level 1</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Air Temperature at Fixed Levels Above the Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Relative Humidity at Fixed Levels Above the Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly V-wind at Fixed Levels Above the Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly U-wind at Fixed Levels Above the Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Exchange Coefficient</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Potential Vorticity on Isentropic Levels</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly V-wind on Isentropic Levels</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Air Temperature on Isentropic Levels</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly U-wind on Isentropic Levels</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Clear Sky Upward Longwave Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Clear Sky Upward Solar Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Clear Sky Downward Longwave Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Clear Sky Downward Solar Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Specific Humidity at 2 m</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Maximum Specific Humidity at 2 m</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Relative Humidity at 2 m</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Minumum Specific Humidity at 2 m</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Minimum Temperature at 2 m</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Maximum Temperature at 2 m</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Air Temperature at 2 m</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Momentum Flux, u-component at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Momentum Flux, v-component at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Middle Cloud Top Temperature</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly High Cloud Top Temperature</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Middle Cloud Top Pressure</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly High Cloud Top Pressure</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Low Cloud Bottom Pressure</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Middle Cloud Bottom Pressure</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly High Cloud Bottom Pressure</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Middle Cloud Cover</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Top Cloud Cover</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Boundary Layer Cloud Cover</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Low Cloud Cover</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Low Cloud Top Pressure</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Low Cloud Top Temperature</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Upward Longwave Radiation Flux at nominal top of atmosphere</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Downward Solar Radiation Flux at nominal top of atmosphere</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Clear Sky Upward Solar Flux</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Upward Solar Radiation Flux at nominal top of atmosphere</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Clear Sky Upward Longwave Flux</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly U-wind at 10m</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly V wind at 10m</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Pressure at Mean Sea Level</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Cloud Work Function</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Total Columnar Ozone</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Precipitable Water for entire atmosphere</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Convective Cloud Cover</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Total Cloud Cover</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Cloud Water for entire atmosphere</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Relative Humidity for entire atmosphere</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Near IR Beam Downward Solar Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Visible Beam Downward Solar Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly UV-B Downward Solar Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Clear Sky UV-B Downward Solar Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Canopy Water Evaporation</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Visible Diffuse Downward Solar Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Sensible Heat Net Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Upward Longwave Radiation Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Upward Solar Radiation Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Downward Longwave Radiation Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Latent Heat Net Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Downward Solar Radiation Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Direct Evaporation From Bare Soil</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Sublimation (Evaporation From Snow)</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Transpiration at Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Near IR Diffuse Downward Solar Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly accumulated Snow Depth at Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly accumulated Water Runoff at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly accumulated convective precipitation at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Water Equiv. of Accum. Snow Depth at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly accumulated total precipitation at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Soil Temperature</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Liquid Volumetric Soil Moisture (non-frozen) Fraction</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Soil Moisture Content at Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Soil Moisture Content</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly V-wind on Pressure Levels</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Specific Humidity on Pressure Levels</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Air Temperature on Pressure Levels</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Omega on Pressure Levels</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly U-wind on Pressure Levels</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Geopotential Height on Pressure Levels</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Relative Humidity on Pressure Levels</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly V-wind at sigma level 0.995</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Potential Temperature at sigma level 0.995</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Relative Humidity at sigma level 0.995</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly U-wind at sigma level 0.995</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Air Temperature at sigma level 0.995</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Omega at sigma level 0.995</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Relative Humidity at 0C Isothermal Layer</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Geopotential Heights at 0C Isothermal Layer</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly U-wind at Tropopause</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Pressure at Tropopause</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Geopotential Height at Tropopause</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Vertical Speed Shear at Tropopause</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly V-wind at Tropopause</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Air Temperature at Tropopause</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Field Capacity</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Surface Roughness</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Snow Phase Change Heat Flux</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Clear Sky Upward Solar Flux spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Clear Sky Upward Longwave Flux spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Clear Sky Downward Solar Flux spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Clear Sky Downward Longwave Flux spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Near IR Diffuse Downward Solar Flux spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Visible Diffuse Downward Solar Flux spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Visible Beam Downward Solar Flux spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Near IR Beam Downward Solar Flux spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Surface Roughness spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Wilting Point spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly vegetation spread at Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Field Capacity spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Aerodynamic Conductance spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Friction Velocity spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Percent of Frozen Precipitation spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Clear Sky Upward Longwave Flux spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Clear Sky Upward Solar Flux spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Snow Phase Change Heat Flux spread</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Latent Heat Net Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Upward Longwave Radiation Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Downward Solar Radiation Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Upward Solar Radiation Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Geopotential Height at Tropopause</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly V-wind at Tropopause</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly U-wind at Tropopause</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Air Temperature at Tropopause</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Pressure at Tropopause</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Downward Longwave Radiation Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly V-wind at sigma level 0.995</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Air Temperature at sigma level 0.995</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Omega at sigma level 0.995</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Potential Temperature at sigma level 0.995</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Relative Humidity at sigma level 0.995</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly U-wind at sigma level 0.995</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Visible Diffuse Downward Solar Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Near IR Beam Downward Solar Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Near IR Diffuse Downward Solar Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Visible Beam Downward Solar Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Clear Sky Upward Longwave Flux</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Clear Sky Upward Solar Flux</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Potential Vorticity on Isentropic Levels</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Air Temperature on Isentropic Levels</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Percent of Frozen Precipitation</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Wilting Point</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Friction Velocity</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly vegetation at Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Monthly Aerodynamic Conductance</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly vegetation at Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Wilting Point</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Friction Velocity</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Field Capacity</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Clear Sky Upward Solar Flux</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Clear Sky Upward Longwave Flux</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Percent of Frozen Precipitation</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Clear Sky Downward Longwave Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Clear Sky Downward Solar Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Clear Sky Upward Solar Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Clear Sky Upward Longwave Flux at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Snow Phase Change Heat Flux</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Aerodynamic Conductance</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Surface Roughness</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Meridional Gravity Wave Stress spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly Zonal Gravity Wave Stress spread at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly V wind at 10m</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>daily mean 3-hourly U-wind at 10m</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly U-wind at 10m</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly V wind at 10m</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Meridional Gravity Wave Stress at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>3-hourly Zonal Gravity Wave Stress at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Precipitable Water for entire atmosphere</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Cloud Water for entire atmosphere</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Total Columnar Ozone</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Pressure at Mean Sea Level</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Precipitation Rate at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly CAPE</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Pressure at Surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Convective Inhibition</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Ice Concentration at surface</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly SST/Land Skin Temperature</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Maximum Temperature at 2 m</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Air Temperature at 2 m</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Relative Humidity at 2 m</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Specific Humidity at 2 m</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Minimum Temperature at 2 m</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly U-wind at 10m</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly V wind at 10m</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Upward Solar Radiation Flux at nominal top of atmosphere</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Upward Longwave Radiation Flux at nominal top of atmosphere</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Downward Solar Radiation Flux at nominal top of atmosphere</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly U-wind on Pressure Levels</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Air Temperature on Pressure Levels</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Geopotential Height on Pressure Levels</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly V-wind on Pressure Levels</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Omega on Pressure Levels</gco:CharacterString>
+</gmd:keyword>
+<gmd:keyword>
+<gco:CharacterString>Long Term Mean Monthly Specific Humidity on Pressure Levels</gco:CharacterString>
+</gmd:keyword>
+<gmd:type>
+<gmd:MD_KeywordTypeCode codeList="http://www.isotc211.org/2005/resources/Codelist/gmxCodelists.xml#MD_KeywordTypeCode" codeListValue="theme">theme</gmd:MD_KeywordTypeCode>
+</gmd:type>
+<gmd:thesaurusName>
+<gmd:CI_Citation>
+<gmd:title>
+<gco:CharacterString>Variables</gco:CharacterString>
+</gmd:title>
+<gmd:date>
+<gmd:CI_Date>
+<gmd:date>
+<gco:Date>2013-02-05</gco:Date>
+</gmd:date>
+<gmd:dateType>
+<gmd:CI_DateTypeCode codeList="http://www.isotc211.org/2005/resources/Codelist/gmxCodelists.xml#CI_DateTypeCode" codeListValue="revision">revision</gmd:CI_DateTypeCode>
+</gmd:dateType>
+</gmd:CI_Date>
+</gmd:date>
+</gmd:CI_Citation>
+</gmd:thesaurusName>
+</gmd:MD_Keywords>
+</gmd:descriptiveKeywords>
+<gmd:language>
+<gco:CharacterString>eng; USA</gco:CharacterString>
+</gmd:language>
+<gmd:extent>
+<gmd:EX_Extent>
+<gmd:temporalElement>
+<gmd:EX_TemporalExtent id="boundingTemporalExtent">
+<gmd:extent>
+<gml:TimePeriod gml:id="d1685650887">
+<gml:beginPosition>1836-01-01</gml:beginPosition>
+<gml:endPosition>2015-12-31</gml:endPosition>
+</gml:TimePeriod>
+</gmd:extent>
+</gmd:EX_TemporalExtent>
+</gmd:temporalElement>
+</gmd:EX_Extent>
+</gmd:extent>
+<gmd:supplementalInformation>
+<gco:CharacterString>Compo,G.P. <https://www.esrl.noaa.gov/psd/people/gilbert.p.compo/>, J.S. Whitaker <https://www.esrl.noaa.gov/psd/people/jeffrey.s.whitaker/> P.D. Sardeshmukh, N.Matsui, R.J. Allan, X. Yin, B.E. Gleason, R.S. Vose, G. Rutledge, P. Bessemoulin, S. Bronnim</gco:CharacterString>
+</gmd:supplementalInformation>
+</gmd:MD_DataIdentification>
+</gmd:identificationInfo>
+<gmd:contentInfo>
+<gmd:MD_CoverageDescription>
+<gmd:attributeDescription>
+<gco:RecordType xlink:href="https://psl.noaa.gov/data/help/whatsnetCDF.html"/>
+</gmd:attributeDescription>
+<gmd:contentType>
+<gmd:MD_CoverageContentTypeCode codeList="http://www.isotc211.org/2005/resources/Codelist/gmxCodelists.xml#MD_CoverageContentTypeCode" codeListValue="referenceInformation">referenceInformation</gmd:MD_CoverageContentTypeCode>
+</gmd:contentType>
+</gmd:MD_CoverageDescription>
+</gmd:contentInfo>
+<gmd:distributionInfo>
+<gmd:MD_Distribution>
+<gmd:distributionFormat>
+<gmd:MD_Format>
+<gmd:name>
+<gco:CharacterString>NETCDF4_CLASSIC</gco:CharacterString>
+</gmd:name>
+<gmd:version>
+<gco:CharacterString>NETCDF4_CLASSIC</gco:CharacterString>
+</gmd:version>
+</gmd:MD_Format>
+</gmd:distributionFormat>
+<gmd:distributor>
+<gmd:MD_Distributor>
+<gmd:distributorContact>
+<gmd:CI_ResponsibleParty xsi:schemaLocation="http://www.isotc211.org/2005/gmd http://ngdc.noaa.gov/metadata/published/xsd/schema.xsd" uuid="cd0061e9-edc0-4e52-9f99-81f7184101d8">
+<gmd:positionName>
+<gco:CharacterString>PSL/NOAA Data Curator</gco:CharacterString>
+</gmd:positionName>
+<gmd:contactInfo>
+<gmd:CI_Contact>
+<gmd:address>
+<gmd:CI_Address>
+<gmd:electronicMailAddress>
+<gco:CharacterString>webmaster.psl@noaa.gov</gco:CharacterString>
+</gmd:electronicMailAddress>
+</gmd:CI_Address>
+</gmd:address>
+</gmd:CI_Contact>
+</gmd:contactInfo>
+<gmd:role>
+<gmd:CI_RoleCode codeList="http://www.ngdc.noaa.gov/metadata/published/xsd/schema/resources/Codelist/gmxCodelists.xml#CI_RoleCode" codeListValue="custodian">custodian</gmd:CI_RoleCode>
+</gmd:role>
+</gmd:CI_ResponsibleParty>
+</gmd:distributorContact>
+</gmd:MD_Distributor>
+</gmd:distributor>
+<gmd:transferOptions>
+<gmd:MD_DigitalTransferOptions>
+<gmd:onLine>
+<gmd:CI_OnlineResource>
+<gmd:linkage>
+<gmd:URL>https://www.esrl.noaa.gov/psd/data/gridded/data.20thC_ReanV3.html</gmd:URL>
+</gmd:linkage>
+<gmd:name>
+<gco:CharacterString>Cite URL</gco:CharacterString>
+</gmd:name>
+<gmd:description>
+<gco:CharacterString>Information about the dataset</gco:CharacterString>
+</gmd:description>
+<gmd:function>
+<gmd:CI_OnLineFunctionCode codeList="http://www.isotc211.org/2005/resources/Codelist/gmxCodelists.xml#CI_OnLineFunctionCode" codeListValue="information">information</gmd:CI_OnLineFunctionCode>
+</gmd:function>
+</gmd:CI_OnlineResource>
+</gmd:onLine>
+</gmd:MD_DigitalTransferOptions>
+</gmd:transferOptions>
+<gmd:transferOptions>
+<gmd:MD_DigitalTransferOptions>
+<gmd:onLine>
+<gmd:CI_OnlineResource>
+<gmd:linkage>
+<gmd:URL>https://psl.noaa.gov/thredds/catalog/Datasets/20thC_ReanV3/catalog.html</gmd:URL>
+</gmd:linkage>
+<gmd:name>
+<gco:CharacterString>Thredds Server</gco:CharacterString>
+</gmd:name>
+<gmd:description>
+<gco:CharacterString>Thredds Data server. Allows http, opendap, and possibly WCS and WMS downaloads.</gco:CharacterString>
+</gmd:description>
+<gmd:function>
+<gmd:CI_OnLineFunctionCode codeList="http://www.isotc211.org/2005/resources/Codelist/gmxCodelists.xml#CI_OnLineFunctionCode" codeListValue="download">download</gmd:CI_OnLineFunctionCode>
+</gmd:function>
+</gmd:CI_OnlineResource>
+</gmd:onLine>
+</gmd:MD_DigitalTransferOptions>
+</gmd:transferOptions>
+<gmd:transferOptions>
+<gmd:MD_DigitalTransferOptions>
+<gmd:onLine>
+<gmd:CI_OnlineResource>
+<gmd:linkage>
+<gmd:URL>ftp://ftp2.psl.noaa.gov/Datasets/20thC_ReanV3</gmd:URL>
+</gmd:linkage>
+<gmd:name>
+<gco:CharacterString>FTP server</gco:CharacterString>
+</gmd:name>
+<gmd:description>
+<gco:CharacterString>FTP server.</gco:CharacterString>
+</gmd:description>
+<gmd:function>
+<gmd:CI_OnLineFunctionCode codeList="http://www.isotc211.org/2005/resources/Codelist/gmxCodelists.xml#CI_OnLineFunctionCode" codeListValue="download">download</gmd:CI_OnLineFunctionCode>
+</gmd:function>
+</gmd:CI_OnlineResource>
+</gmd:onLine>
+</gmd:MD_DigitalTransferOptions>
+</gmd:transferOptions>
+</gmd:MD_Distribution>
+</gmd:distributionInfo>
+</gmi:MI_Metadata>
