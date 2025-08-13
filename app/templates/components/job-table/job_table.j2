@@ -63,54 +63,5 @@
     </table>
     <div class="usa-sr-only usa-table__announcement-region" aria-live="polite"></div>
 </div>
-
-<script>
-// Convert UTC dates to local timezone
-function convertUTCDatesToLocal(container) {
-    // Find all date cells with UTC timestamps within the container (or document if no container)
-    const searchRoot = container || document;
-    const dateCells = searchRoot.querySelectorAll('.utc-date[data-utc-date]');
-    const localFormat = new Intl.DateTimeFormat(undefined,
-      {
-        year: "numeric",
-        month: "numeric",
-        day: "numeric",
-        hour: "numeric",
-        minute: "numeric",
-        hour12: false,
-      }
-    );
-
-    dateCells.forEach(function(cell) {
-        // Skip if already converted (to avoid double conversion)
-        if (cell.hasAttribute('data-converted')) return;
-
-        const utcDateString = cell.getAttribute('data-utc-date');
-        if (!utcDateString) return;
-
-        const dateObject = new Date(Date.parse(utcDateString));
-        if (isNaN(dateObject)) return;
-
-        cell.textContent = localFormat.format(dateObject);
-        cell.setAttribute('data-converted', 'true');
-    });
-}
-
-// Convert dates on initial page load
-document.addEventListener('DOMContentLoaded', function() {
-    convertUTCDatesToLocal();
-});
-
-// Convert dates after HTMX content is loaded
-document.addEventListener('htmx:afterSwap', function(event) {
-    // Convert dates in the newly swapped content
-    convertUTCDatesToLocal(event.detail.target);
-});
-
-// Also handle htmx:load event for broader compatibility
-document.addEventListener('htmx:load', function(event) {
-    convertUTCDatesToLocal(event.detail.elt);
-});
-</script>
 {% endmacro -%}
 

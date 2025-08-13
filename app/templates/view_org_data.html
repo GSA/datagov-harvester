@@ -82,7 +82,13 @@
                             N/A
                             {% endif %}
                         </td>
-                        <td scope="row" class="text-center">{{data.future_harvest_jobs[source.id] | else_na}}</td>
+                        {% if data.future_harvest_jobs[source.id] %}
+                        <td class="utc-date" data-utc-date="{{ data.future_harvest_jobs[source.id] | utc_isoformat }}">
+                            {{ data.future_harvest_jobs[source.id] | else_na }}
+                        </td>
+                        {% else %}
+                        <td>N/A</td>
+                        {% endif %}
                         <td data-sort-value={{source.records_updated}}>{{source.source_type}}</td>
                         <td data-sort-value={{source.records_deleted}}>{{source.frequency}}</td>
                         <td data-sort-value={{source.date_finished}}>{{source.notification_emails}} </td>
