@@ -349,11 +349,18 @@ class TestHarvestRecordRawAPI:
         iso_records = list(external_records_to_process)
         # Filter for the record with 'valid_iso2' in the identifier
         test_iso_2_record = next(
-            (record for record in iso_records if "http://localhost:80/iso_2_waf/valid_iso2.xml" == record.identifier), None
+            (
+                record
+                for record in iso_records
+                if "http://localhost:80/iso_2_waf/valid_iso2.xml" == record.identifier
+            ),
+            None,
         )
 
         if test_iso_2_record is None:
-            raise ValueError("Could not find record with 'valid_iso2.xml' in identifier")
+            raise ValueError(
+                "Could not find record with 'valid_iso2.xml' in identifier"
+            )
 
         test_iso_2_record.compare()
 

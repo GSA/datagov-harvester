@@ -19,7 +19,12 @@ def valid_iso_2_record(
 
     # Filter for the record with 'valid_iso2' in the identifier
     target_record = next(
-        (record for record in records if "http://localhost:80/iso_2_waf/valid_iso2.xml" == record.identifier), None
+        (
+            record
+            for record in records
+            if "http://localhost:80/iso_2_waf/valid_iso2.xml" == record.identifier
+        ),
+        None,
     )
 
     if target_record is None:
@@ -320,9 +325,7 @@ class TestValidateDataset:
             == "https://www.example.com/"
         )
 
-    def test_transformed_iso_accessURL_placeholder(
-        self, valid_iso_2_record
-    ):
+    def test_transformed_iso_accessURL_placeholder(self, valid_iso_2_record):
         valid_iso_2_record.transform()
         valid_iso_2_record.transformed_data["distribution"][0][
             "accessURL"
