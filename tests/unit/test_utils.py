@@ -562,7 +562,7 @@ class TestRetrySession:
 
         assert session.status_forcelist == {404, 499, 500, 502}
         assert session.max_retries == 3
-        assert session.backoff_factor == 1.0
+        assert session.backoff_factor == 4.0
 
     def test_initialization_with_custom_parameters(self):
         """Test initialization with custom parameters."""
@@ -591,7 +591,7 @@ class TestRetrySession:
         assert response.status_code == 200
         assert mock_request.call_count == 1
         assert mock_sleep.call_count == 0
-        assert "Making GET request to http://example.com" in caplog.text
+        assert "Making initial GET request to http://example.com" in caplog.text
 
     @patch("harvester.utils.general_utils.requests.Session.request")
     @patch("harvester.utils.general_utils.time.sleep")
@@ -607,20 +607,19 @@ class TestRetrySession:
 
         session = RetrySession(max_retries=3, backoff_factor=0.1)
 
-        with caplog.at_level(logging.WARNING):
-            response = session.request("GET", "http://example.com")
+        # with caplog.at_level(logging.WARNING):
+        response = session.request("GET", "http://example.com")
 
         assert response.status_code == 200
         assert mock_request.call_count == 3
         assert mock_sleep.call_count == 2  # Two retries
 
         # Check backoff delays
-        expected_delays = [0.1 * (2**0), 0.1 * (2**1)]  # [0.1, 0.2]
+        expected_delays = [(0.1 * (2**0)) - 1, (0.1 * (2**1)) - 1]  # [0.1, 0.2]
         actual_delays = [call.args[0] for call in mock_sleep.call_args_list]
         assert actual_delays == expected_delays
-
+        assert "Making initial GET request to http://example.com" in caplog.text
         assert "Attempt 1: Received status code 500" in caplog.text
-        assert "Attempt 2: Received status code 500" in caplog.text
 
     @patch("harvester.utils.general_utils.requests.Session.request")
     @patch("harvester.utils.general_utils.time.sleep")
@@ -720,13 +719,19 @@ class TestRetrySession:
             status_forcelist={418, 503}, max_retries=2, backoff_factor=0.1
         )
 
-        with caplog.at_level(logging.WARNING):
-            response = session.request("GET", "http://example.com")
+        response = session.request("GET", "http://example.com")
 
         assert response.status_code == 200
         assert mock_request.call_count == 2
         assert mock_sleep.call_count == 1
-        assert "Attempt 1: Received status code 418" in caplog.text
+        assert (
+            "Making initial GET request to http://example.com"
+            == caplog.records[0].message
+        )
+        assert (
+            "Received status code 418 for GET http://example.com. Retrying..."
+            == caplog.records[1].message
+        )
 
     def test_backoff_factor_calculation(self):
         """
@@ -744,7 +749,11 @@ class TestRetrySession:
                 session.request("GET", "http://example.com")
 
                 # Check that sleep was called with correct backoff delays
-                expected_delays = [2.0 * (2**0), 2.0 * (2**1), 2.0 * (2**2)]
+                expected_delays = [
+                    (2.0 * (2**0)) - 1,
+                    (2.0 * (2**1)) - 1,
+                    (2.0 * (2**2)) - 1,
+                ]
                 actual_delays = [call.args[0] for call in mock_sleep.call_args_list]
                 assert actual_delays == expected_delays
 
@@ -758,5 +767,5 @@ class TestCreateRetrySession:
 
         assert isinstance(session, RetrySession)
         assert session.max_retries == 3
-        assert session.backoff_factor == 0.3
+        assert session.backoff_factor == 4.0
         assert session.status_forcelist == {404, 499, 500, 502}
