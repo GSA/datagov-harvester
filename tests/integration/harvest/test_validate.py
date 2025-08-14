@@ -15,17 +15,15 @@ def valid_iso_2_record(
     harvest_source.acquire_minimum_external_data()
     external_records_to_process = harvest_source.external_records_to_process()
 
-    # "valid_iso2.xml" is always the last one
-    yield list(external_records_to_process)[-1]
     records = list(external_records_to_process)
 
-    # Filter for the record with 'valid_iso1' in the identifier
+    # Filter for the record with 'valid_iso2' in the identifier
     target_record = next(
-        (record for record in records if "valid_iso1" in record.identifier), None
+        (record for record in records if "http://localhost:80/iso_2_waf/valid_iso2.xml" == record.identifier), None
     )
 
     if target_record is None:
-        raise ValueError("Could not find record with 'valid_iso1' in identifier")
+        raise ValueError("Could not find record with 'valid_iso2.xml' in identifier")
 
     yield target_record
 
@@ -323,7 +321,7 @@ class TestValidateDataset:
         )
 
     def test_transformed_iso_accessURL_placeholder(
-        self, organization_data, valid_iso_2_record
+        self, valid_iso_2_record
     ):
         valid_iso_2_record.transform()
         valid_iso_2_record.transformed_data["distribution"][0][

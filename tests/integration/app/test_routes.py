@@ -346,14 +346,21 @@ class TestHarvestRecordRawAPI:
         harvest_source.acquire_minimum_external_data()
         external_records_to_process = harvest_source.external_records_to_process()
 
-        # last one is always "valid_iso2.xml"
-        test_record = list(external_records_to_process)[-1]
-        test_record.compare()
+        iso_records = list(external_records_to_process)
+        # Filter for the record with 'valid_iso2' in the identifier
+        test_iso_2_record = next(
+            (record for record in iso_records if "http://localhost:80/iso_2_waf/valid_iso2.xml" == record.identifier), None
+        )
 
-        response = client.get(f"/harvest_record/{test_record.id}/raw")
+        if test_iso_2_record is None:
+            raise ValueError("Could not find record with 'valid_iso2.xml' in identifier")
+
+        test_iso_2_record.compare()
+
+        response = client.get(f"/harvest_record/{test_iso_2_record.id}/raw")
 
         assert response.status_code == 200
-        assert response.text == test_record.source_raw
+        assert response.text == test_iso_2_record.source_raw
 
     def test_json_harvest_record_raw(
         self,
