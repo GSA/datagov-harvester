@@ -17,6 +17,43 @@ def valid_iso_2_record(
 
     # "valid_iso2.xml" is always the last one
     yield list(external_records_to_process)[-1]
+    records = list(external_records_to_process)
+
+    # Filter for the record with 'valid_iso1' in the identifier
+    target_record = next(
+        (record for record in records if 'valid_iso1' in record.identifier),
+        None
+    )
+    
+    if target_record is None:
+        raise ValueError("Could not find record with 'valid_iso1' in identifier")
+    
+    yield target_record
+
+
+@pytest.fixture
+def valid_iso_2_too_many_keywords_record(
+    interface, organization_data, source_data_waf_iso19115_2, job_data_waf_iso19115_2
+):
+    interface.add_organization(organization_data)
+    interface.add_harvest_source(source_data_waf_iso19115_2)
+    harvest_job = interface.add_harvest_job(job_data_waf_iso19115_2)
+
+    harvest_source = HarvestSource(harvest_job.id)
+    harvest_source.acquire_minimum_external_data()
+    external_records_to_process = harvest_source.external_records_to_process()
+    records = list(external_records_to_process)
+
+    # Filter for the record with 'valid_iso_too_many_keywords' in the identifier
+    target_record = next(
+        (record for record in records if 'valid_iso_too_many_keywords' in record.identifier),
+        None
+    )
+    
+    if target_record is None:
+        raise ValueError("Could not find record with 'valid_iso_too_many_keywords' in identifier")
+    
+    yield target_record
 
 
 class TestValidateDataset:
@@ -125,6 +162,36 @@ class TestValidateDataset:
         for i in range(len(errors)):
             assert errors[i].message.startswith(expected[i])
 
+    def test_invalid_description_too_long_dcatus_federal(
+        self,
+        interface,
+        organization_data,
+        source_data_dcatus_long_description,
+        job_data_dcatus_long_description,
+    ):
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_dcatus_long_description)
+        harvest_job = interface.add_harvest_job(job_data_dcatus_long_description)
+
+        harvest_source = HarvestSource(harvest_job.id)
+        harvest_source.acquire_minimum_external_data()
+        external_records_to_process = harvest_source.external_records_to_process()
+
+        # Get the first record
+        test_record = next(external_records_to_process)
+
+        assert not test_record.validate()
+
+        errors = [
+            e[0] for e in interface.get_harvest_record_errors_by_job(harvest_job.id)
+        ]
+
+        assert len(errors) == 1
+
+        # Check that the error is about description being too long
+        expected_error_message = "does not match any of the acceptable formats: max string length requirement"
+        assert expected_error_message in errors[0].message
+
     def test_valid_transformed_iso(
         self,
         valid_iso_2_record,
@@ -155,6 +222,31 @@ class TestValidateDataset:
             errors[0].message
             == """<ValidationError: "$, 'contactPoint' is a required property">"""
         )
+
+    def test_invalid_transformed_iso_too_many_keywords(
+        self,
+        interface,
+        valid_iso_2_too_many_keywords_record,
+    ):
+        # Transform the ISO record
+        valid_iso_2_too_many_keywords_record.transform()
+        valid_iso_2_too_many_keywords_record.fill_placeholders()
+
+        # This should fail validation due to too many keywords (2518 > 1000 limit)
+        assert not valid_iso_2_too_many_keywords_record.validate()
+
+        errors = [
+            e[0]  # returns a tuple, first is the error
+            for e in interface.get_harvest_record_errors_by_job(
+                valid_iso_2_too_many_keywords_record.harvest_source.job_id
+            )
+        ]
+
+        assert len(errors) == 1
+        
+        # Check that the error is about having too many keywords
+        expected_error_message = "does not match any of the acceptable formats: max string length requirement"
+        assert expected_error_message in errors[0].message
 
     def test_transformed_iso_contact_placeholder(self, valid_iso_2_record):
         valid_iso_2_record.transform()

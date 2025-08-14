@@ -222,9 +222,10 @@
           "items": {
             "type": "string",
             "minLength": 1,
-            "maxLength": 10000
+            "maxLength": 1000
           },
-          "minItems": 1
+          "minItems": 1,
+          "maxItems": 1000
         },
         {
           "type": "string",
