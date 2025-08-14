@@ -21,13 +21,12 @@ def valid_iso_2_record(
 
     # Filter for the record with 'valid_iso1' in the identifier
     target_record = next(
-        (record for record in records if 'valid_iso1' in record.identifier),
-        None
+        (record for record in records if "valid_iso1" in record.identifier), None
     )
-    
+
     if target_record is None:
         raise ValueError("Could not find record with 'valid_iso1' in identifier")
-    
+
     yield target_record
 
 
@@ -46,13 +45,19 @@ def valid_iso_2_too_many_keywords_record(
 
     # Filter for the record with 'valid_iso_too_many_keywords' in the identifier
     target_record = next(
-        (record for record in records if 'valid_iso_too_many_keywords' in record.identifier),
-        None
+        (
+            record
+            for record in records
+            if "valid_iso_too_many_keywords" in record.identifier
+        ),
+        None,
     )
-    
+
     if target_record is None:
-        raise ValueError("Could not find record with 'valid_iso_too_many_keywords' in identifier")
-    
+        raise ValueError(
+            "Could not find record with 'valid_iso_too_many_keywords' in identifier"
+        )
+
     yield target_record
 
 
@@ -243,7 +248,7 @@ class TestValidateDataset:
         ]
 
         assert len(errors) == 1
-        
+
         # Check that the error is about having too many keywords
         expected_error_message = "does not match any of the acceptable formats: max string length requirement"
         assert expected_error_message in errors[0].message
