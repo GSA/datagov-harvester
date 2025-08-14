@@ -19,8 +19,6 @@ import requests
 import sansjson
 from bs4 import BeautifulSoup
 from jsonschema.exceptions import ValidationError
-from requests.adapters import HTTPAdapter
-from urllib3.util.retry import Retry
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger()
