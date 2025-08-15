@@ -5,11 +5,12 @@ import logging
 import os
 import re
 import smtplib
+import time
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-from typing import Union
+from typing import Optional, Set, Union
 from urllib.parse import urljoin
 from uuid import UUID
 
@@ -18,8 +19,6 @@ import requests
 import sansjson
 from bs4 import BeautifulSoup
 from jsonschema.exceptions import ValidationError
-from requests.adapters import HTTPAdapter
-from urllib3.util.retry import Retry
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger()
@@ -461,25 +460,111 @@ def get_server_type(server: str) -> str:
         return server
 
 
-def create_retry_session() -> requests.Session:
-    """Creates a requests session with retry logic for HTTP/S requests."""
-    session = requests.Session()
-    # 3 Retries with exponential backoff (of 2 seconds) for server errors
-    # we want to retry on 500, 502, 503, and 504 errors (CKAN Down)
-    retry_strategy = Retry(
-        total=3,
-        backoff_factor=3,
-        backoff_max=15,
-        status_forcelist=[500, 502, 503, 504],
-        raise_on_status=False,
-        allowed_methods={"GET", "POST", "PUT", "DELETE"},
-    )
-    # pass retry strategy to HTTPAdapter
-    adapter = HTTPAdapter(max_retries=retry_strategy)
-    # tell session which protocols to use the adapter with
-    session.mount("http://", adapter)
-    session.mount("https://", adapter)
-    return session
+class RetrySession(requests.Session):
+    """
+    Session made to handle more advanced logging and adds retry logic.
+    """
+
+    def __init__(
+        self,
+        status_forcelist: Optional[Set[int]] = None,
+        max_retries: int = 3,
+        backoff_factor: float = 4.0,
+    ):
+        """
+        Initialize the RetrySession.
+
+        status_forcelist: Set of HTTP status codes to retry on.
+            Defaults to {404, 499, 500, 502}
+        max_retries: Maximum number of retry attempts
+        backoff_factor: Factor for exponential backoff delay
+        """
+        super().__init__()
+
+        self.status_forcelist = status_forcelist or {404, 499, 500, 502}
+        self.max_retries = max_retries
+        self.backoff_factor = backoff_factor
+
+    def request(self, method: str, url: str, **kwargs) -> requests.Response:
+        """
+        Override request method to add logging and manual retry logic.
+
+        method: HTTP method
+        url: Request URL
+        **kwargs: Additional arguments passed to parent request method (
+            needed since we override it)
+        """
+        last_response = None
+        last_exception = None
+        for attempt in range(self.max_retries + 1):
+            try:
+                if attempt == 0:
+                    logger.info(f"Making initial {method.upper()} request to {url}")
+
+                response = super().request(method, url, **kwargs)
+                # If status code should trigger retry and we have attempts left
+                if (
+                    response.status_code in self.status_forcelist
+                    and attempt < self.max_retries
+                ):
+                    if attempt == 0:
+                        logger.warning(
+                            f"Received status code {response.status_code} for "
+                            f"{method.upper()} {url}. Retrying..."
+                        )
+                    else:
+                        logger.warning(
+                            f"Attempt {attempt}: Received status code "
+                            f"{response.status_code} for {method.upper()} {url}. "
+                            f"Retrying..."
+                        )
+                    last_response = response
+                    # Calculate backoff delay
+                    # for the 3, 7, 15 countdown
+                    delay = (self.backoff_factor * (2**attempt)) - 1
+                    time.sleep(delay)
+                    continue
+
+                # Success or no more retries
+                if response.status_code in self.status_forcelist:
+                    logger.error(
+                        f"Final attempt: Still received status code "
+                        f"{response.status_code} for {method.upper()} {url}"
+                    )
+
+                return response
+
+            except requests.exceptions.RequestException as e:
+                logger.error(
+                    f"Attempt {attempt + 1}: Request failed for "
+                    f"{method.upper()} {url}: {str(e)}"
+                )
+                last_exception = e
+
+                if attempt < self.max_retries:
+                    delay = self.backoff_factor * (2**attempt)
+                    time.sleep(delay)
+                    continue
+                else:
+                    raise
+
+        # This should not be reached, but just in case
+        if last_exception:
+            raise last_exception
+
+        return last_response
+
+
+def create_retry_session() -> RetrySession:
+    """
+    Creates our desired RetrySession with default settings.
+    """
+    # Use the HARVEST_RETRY_ON_ERROR env var to determine if we should retry
+    retry_enabled = os.getenv("HARVEST_RETRY_ON_ERROR", "true").lower() == "true"
+    if retry_enabled:
+        return RetrySession(max_retries=3, backoff_factor=4.0)
+    else:
+        return RetrySession(max_retries=0, backoff_factor=0)
 
 
 def send_email_to_recipients(recipients, subject, body):
