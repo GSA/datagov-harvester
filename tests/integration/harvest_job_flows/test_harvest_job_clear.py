@@ -1,6 +1,6 @@
 from unittest.mock import patch
 
-from harvester.harvest import harvest_job_starter
+from harvester.harvest import harvest_job_starter, HarvestSource
 
 
 class TestHarvestJobClear:
@@ -63,3 +63,29 @@ class TestHarvestJobClear:
             source_data_dcatus["id"]
         )
         assert len(records_from_db) == 0
+
+    @patch("harvester.harvest.Record.sync")
+    def test_harvest_job_clear_not_synced_with_ckan(
+        self,
+        record_mock,
+        interface,
+        organization_data,
+        source_data_dcatus,
+        job_data_dcatus,
+        record_data_dcatus,
+    ):
+        record_mock.return_value = False
+
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_dcatus)
+        job = interface.add_harvest_job(job_data_dcatus)
+        interface.add_harvest_record(record_data_dcatus[0])
+
+        assert len(interface.pget_harvest_records()) == 1
+
+        harvest_source = HarvestSource(job.id, "clear")
+        harvest_source.clear_helper()
+
+        # the record wasn't able to be deleted from ckan so it doesn't get
+        # deleted in the h20 db.
+        assert len(interface.pget_harvest_records()) == 1
