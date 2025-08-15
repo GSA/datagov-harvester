@@ -486,10 +486,11 @@ class HarvestSource:
                 _ckan_id=db_record.ckan_id,
                 _id=db_record.id,
             )
-            self.db_interface.delete_harvest_record(
-                identifier=record.identifier, harvest_source_id=self.id
-            )
-            record.sync()
+            deleted_from_ckan = record.sync()
+            if deleted_from_ckan:
+                self.db_interface.delete_harvest_record(
+                    identifier=record.identifier, harvest_source_id=self.id
+                )
 
 
 @dataclass
@@ -839,9 +840,10 @@ class Record:
     def sync(self):
         try:
             if self.status == "error":
-                return
+                return False
             if ckan_sync_tool.sync(record=self) is True:
                 self.update_self_in_db()
+                return True
         except (
             DCATUSToCKANException,
             SynchronizeException,
@@ -850,6 +852,7 @@ class Record:
         ):
             self.status = "error"
             self.harvest_source.reporter.update("errored")
+        return False
 
     def update_self_in_db(self) -> bool:
         data = {

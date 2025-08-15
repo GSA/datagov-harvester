@@ -313,6 +313,21 @@ def source_data_dcatus_invalid_records(organization_data) -> dict:
     }
 
 
+@pytest.fixture
+def source_data_dcatus_long_description(organization_data: dict) -> dict:
+    return {
+        "id": "2f2652de-91df-4c63-8b53-bfced20b276c",
+        "name": "Long Description Test Source",
+        "notification_emails": ["email@example.com"],
+        "organization_id": organization_data["id"],
+        "frequency": "daily",
+        "url": f"{HARVEST_SOURCE_URL}/dcatus/dcatus_long_description.json",
+        "schema_type": "dcatus1.1: federal",
+        "source_type": "document",
+        "notification_frequency": "always",
+    }
+
+
 ## HARVEST JOBS
 @pytest.fixture
 def job_data_dcatus(fixtures_json) -> dict:
@@ -393,6 +408,17 @@ def source_data_dcatus_invalid_records_job(
         "id": "2b57046b-cfda-4a37-bf84-a4766a54a743",
         "status": "new",
         "harvest_source_id": source_data_dcatus_invalid_records["id"],
+    }
+
+
+@pytest.fixture
+def job_data_dcatus_long_description(
+    source_data_dcatus_long_description: dict,
+) -> dict:
+    return {
+        "id": "2b57046b-cfda-4a37-bf84-a4766a54a744",
+        "status": "new",
+        "harvest_source_id": source_data_dcatus_long_description["id"],
     }
 
 
