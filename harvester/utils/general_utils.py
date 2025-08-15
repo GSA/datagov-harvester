@@ -539,6 +539,10 @@ def found_simple_message(validation_error: ValidationError) -> bool:
         # which is simple and what we want
         if len(validation_error.instance) == 0:
             return True
+        # If it's looking for maxItems, you may have
+        # any number of items in the array:
+        if validation_error.validator == "maxItems":
+            return True
         return False
     return True
 

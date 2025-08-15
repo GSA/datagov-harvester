@@ -24,7 +24,11 @@
     "accessLevel": {
       "description": "The degree to which this dataset could be made publicly-available, regardless of whether it has been made available. Choices: public (Data asset is or could be made publicly available to all without restrictions), restricted public (Data asset is available under certain use restrictions), or non-public (Data asset is not available to members of the public)",
       "title": "Public Access Level",
-      "enum": ["public", "restricted public", "non-public"]
+      "enum": [
+        "public",
+        "restricted public",
+        "non-public"
+      ]
     },
     "rights": {
       "title": "Rights",
@@ -153,7 +157,8 @@
       "title": "Description",
       "description": "Human-readable description (e.g., an abstract) with sufficient detail to enable a user to quickly understand whether the asset is of interest.",
       "type": "string",
-      "minLength": 1
+      "minLength": 1,
+      "maxLength": 10000
     },
     "distribution": {
       "title": "Distribution",
@@ -215,9 +220,11 @@
           "type": "array",
           "items": {
             "type": "string",
-            "minLength": 1
+            "minLength": 1,
+            "maxLength": 1000
           },
-          "minItems": 1
+          "minItems": 1,
+          "maxItems": 1000
         },
         {
           "type": "string",
@@ -487,7 +494,10 @@
       "title": "Project Open Data ContactPoint vCard",
       "description": "A Dataset ContactPoint as a vCard object",
       "type": "object",
-      "required": ["fn", "hasEmail"],
+      "required": [
+        "fn",
+        "hasEmail"
+      ],
       "properties": {
         "@type": {
           "title": "Metadata Context",
@@ -595,7 +605,8 @@
           "anyOf": [
             {
               "type": "string",
-              "minLength": 1
+              "minLength": 1,
+              "maxLength": 10000
             },
             {
               "type": "null"
@@ -692,7 +703,9 @@
               ]
             }
           },
-          "required": ["mediaType"]
+          "required": [
+            "mediaType"
+          ]
         }
       }
     },
@@ -701,7 +714,9 @@
       "title": "Project Open Data Organization",
       "description": "A Dataset Publisher Organization as a foaf:Agent object",
       "type": "object",
-      "required": ["name"],
+      "required": [
+        "name"
+      ],
       "properties": {
         "@type": {
           "title": "Metadata Context",
