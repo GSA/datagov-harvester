@@ -25,6 +25,11 @@
                 {% if key == 'harvest_source_id' %}
                 <td>Harvest Source:</td>
                 <td><a href="{{ url_for('main.view_harvest_source', source_id=value) }}">{{data.job.source.name}}</a></td>
+                {% elif key == 'date_created' or key == 'date_finished' %}
+                <td>{{key}}:</td>
+                <td class="utc-date" data-utc-date="{{ value | utc_isoformat }}">
+                    {{ value | else_na }}
+                </td>
                 {% else %}
                 <td>{{key}}:</td>
                 <td>{{value}}</td>
@@ -67,7 +72,9 @@
                 <tbody>
                     {% for errors in data.job.errors %}
                     <tr>
-                        <td> {{errors.date_created | utc_isoformat }}</td>
+                        <td class="utc-date" data-utc-date="{{ errors.date_created | utc_isoformat }}">
+                            {{ errors.date_created | else_na }}
+                        </td>
                         <td>{{errors.id}}</td>
                         <td>{{errors.type}}</td>
                         <td>{{errors.message}}</td>
@@ -111,7 +118,9 @@
                         </p>
                         <p><strong>Error Message:</strong> {{ record_error.error.message }}</p>
                         <p><strong>Type:</strong> {{ record_error.error.type }}</p>
-                        <p><strong>Date Created:</strong> {{ record_error.error.date_created | utc_isoformat }}</p>
+                        <p class="utc-date" data-utc-date="{{record_error.error.date_created | utc_isoformat }}">
+                            <strong>Date Created:</strong> {{ record_error.error.date_created | else_na }}
+                        </p>
                     </div>
                     {% endfor %}
                 </div>
