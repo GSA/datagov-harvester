@@ -559,7 +559,12 @@ def create_retry_session() -> RetrySession:
     """
     Creates our desired RetrySession with default settings.
     """
-    return RetrySession(max_retries=3, backoff_factor=4.0)
+    # Use the HARVEST_RETRY_ON_ERROR env var to determine if we should retry
+    retry_enabled = os.getenv("HARVEST_RETRY_ON_ERROR", "true").lower() == "true"
+    if retry_enabled:
+        return RetrySession(max_retries=3, backoff_factor=4.0)
+    else:
+        return RetrySession(max_retries=0, backoff_factor=0)
 
 
 def send_email_to_recipients(recipients, subject, body):

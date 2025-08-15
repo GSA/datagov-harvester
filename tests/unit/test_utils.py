@@ -757,6 +757,23 @@ class TestRetrySession:
                 actual_delays = [call.args[0] for call in mock_sleep.call_args_list]
                 assert actual_delays == expected_delays
 
+    @patch("harvester.utils.general_utils.requests.Session.request")
+    @patch("harvester.utils.general_utils.time.sleep")
+    def test_retries_disabled(self, mock_sleep, mock_request, caplog, monkeypatch):
+        """Test that when HARVEST_RETRY_ON_ERROR is set to `false`, no retries occur."""
+        monkeypatch.setenv("HARVEST_RETRY_ON_ERROR", "false")
+        mock_response = Mock(status_code=500)
+        mock_request.return_value = mock_response
+
+        session = create_retry_session()
+
+        with caplog.at_level(logging.ERROR):
+            response = session.request("GET", "http://example.com")
+
+        assert response.status_code == 500
+        assert mock_request.call_count == 1
+        assert "Final attempt: Still received status code 500" in caplog.text
+
 
 class TestCreateRetrySession:
     """Test the create_retry_session factory function."""
