@@ -192,7 +192,8 @@ class CKANSyncManager:
         db_harvest_ids: Set of harvest_object_ids in database
         db_identifiers: Set of identifiers in database
 
-        provides a tuple of (synced, to_update, to_delete records and to_add identifiers)
+        provides a tuple of
+        (synced, to_update, to_delete records and to_add identifiers)
         """
         synced = []  # harvest_object_id exists in DB - already synced
         to_update = []  # identifier exists in DB but harvest_object_id doesn't
