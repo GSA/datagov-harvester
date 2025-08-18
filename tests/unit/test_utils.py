@@ -19,8 +19,10 @@ from harvester.utils.ckan_utils import (
 )
 from harvester.utils.general_utils import (
     RetrySession,
+    USER_AGENT,
     assemble_validation_errors,
     create_retry_session,
+    download_file,
     dynamic_map_list_items_to_dict,
     find_indexes_for_duplicates,
     is_valid_uuid4,
@@ -28,6 +30,7 @@ from harvester.utils.general_utils import (
     prepare_transform_msg,
     process_job_complete_percentage,
     query_filter_builder,
+    traverse_waf,
     validate_geojson,
 )
 
@@ -552,6 +555,38 @@ class TestGeneralUtils:
     def test_is_valid_uuid4(self, job_id, result):
         assert is_valid_uuid4(job_id) == result
 
+    @patch("harvester.utils.general_utils.requests.get")
+    def test_download_file_user_agent(self, mock_get):
+        """Test that download_file includes correct User-Agent header."""
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"test": "data"}
+        mock_get.return_value = mock_response
+
+        result = download_file("http://example.com/test.json", ".json")
+
+        mock_get.assert_called_once_with(
+            "http://example.com/test.json",
+            headers={"User-Agent": USER_AGENT}
+        )
+        assert result == {"test": "data"}
+
+    @patch("harvester.utils.general_utils.requests.get")
+    def test_download_file_xml_user_agent(self, mock_get):
+        """Test that download_file includes correct User-Agent header for XML files."""
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.content = b"<xml>test</xml>"
+        mock_get.return_value = mock_response
+
+        result = download_file("http://example.com/test.xml", ".xml")
+
+        mock_get.assert_called_once_with(
+            "http://example.com/test.xml",
+            headers={"User-Agent": USER_AGENT}
+        )
+        assert result == "<xml>test</xml>"
+
 
 class TestRetrySession:
     """Tests for RetrySession class."""
@@ -574,6 +609,28 @@ class TestRetrySession:
         assert session.status_forcelist == custom_codes
         assert session.max_retries == 5
         assert session.backoff_factor == 0.5
+
+    def test_user_agent_header_set(self):
+        """Test that User-Agent header is set correctly on initialization."""
+        session = RetrySession()
+        
+        assert "User-Agent" in session.headers
+        assert session.headers["User-Agent"] == USER_AGENT
+
+    @patch("harvester.utils.general_utils.requests.Session.request")
+    def test_user_agent_in_requests(self, mock_request):
+        """Test that User-Agent header is included in actual requests."""
+        mock_response = Mock(status_code=200)
+        mock_request.return_value = mock_response
+
+        session = RetrySession()
+        session.request("GET", "http://example.com")
+
+        # Verify that the parent request method was called with the User-Agent header
+        mock_request.assert_called_once_with("GET", "http://example.com")
+        # The headers should be set on the session level
+        assert "User-Agent" in session.headers
+        assert session.headers["User-Agent"] == USER_AGENT
 
     @patch("harvester.utils.general_utils.requests.Session.request")
     @patch("harvester.utils.general_utils.time.sleep")
@@ -786,3 +843,18 @@ class TestCreateRetrySession:
         assert session.max_retries == 3
         assert session.backoff_factor == 4.0
         assert session.status_forcelist == {404, 499, 500, 502}
+        # Verify User-Agent header is set
+        assert "User-Agent" in session.headers
+        assert session.headers["User-Agent"] == USER_AGENT
+
+    def test_create_retry_session_with_retries_disabled(self, monkeypatch):
+        """Test create_retry_session with retries disabled still sets User-Agent."""
+        monkeypatch.setenv("HARVEST_RETRY_ON_ERROR", "false")
+        
+        session = create_retry_session()
+        
+        assert isinstance(session, RetrySession)
+        assert session.max_retries == 0
+        # Verify User-Agent header is still set
+        assert "User-Agent" in session.headers
+        assert session.headers["User-Agent"] == USER_AGENT
