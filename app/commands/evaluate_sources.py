@@ -9,15 +9,13 @@ import requests
 from requests.exceptions import ConnectionError, JSONDecodeError, Timeout
 from requests.models import Response
 
-from harvester.utils.general_utils import get_server_type, traverse_waf
+from harvester.utils.general_utils import get_server_type, traverse_waf, USER_AGENT
 
 logger = logging.getLogger(__name__)
 
 CATALOG_SOURCE_URL = "https://catalog.data.gov/api/action/package_search"
 HEADERS = {
-    "User-Agent": (
-        "HarvesterBot/0.0 (https://data.gov; datagovhelp@gsa.gov) Data.gov/2.0"
-    )
+    "User-Agent": USER_AGENT
 }
 
 

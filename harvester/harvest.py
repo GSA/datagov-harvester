@@ -50,6 +50,7 @@ from harvester.utils.general_utils import (
     send_email_to_recipients,
     sort_dataset,
     traverse_waf,
+    USER_AGENT
 )
 
 # requests data
@@ -688,7 +689,7 @@ class Record:
 
         mdt_url = os.getenv("MDTRANSLATOR_URL")
         try:
-            resp = requests.post(mdt_url, json=data)
+            resp = requests.post(mdt_url, json=data, headers={"User-Agent": USER_AGENT})
             # this will raise an HTTPError for bad responses (4xx, 5xx)
             # so we can handle them in the except block, we also will have
             # access to the response object
