@@ -18,8 +18,8 @@ from harvester.utils.ckan_utils import (
     translate_spatial,
 )
 from harvester.utils.general_utils import (
-    RetrySession,
     USER_AGENT,
+    RetrySession,
     assemble_validation_errors,
     create_retry_session,
     download_file,
@@ -566,8 +566,7 @@ class TestGeneralUtils:
         result = download_file("http://example.com/test.json", ".json")
 
         mock_get.assert_called_once_with(
-            "http://example.com/test.json",
-            headers={"User-Agent": USER_AGENT}
+            "http://example.com/test.json", headers={"User-Agent": USER_AGENT}
         )
         assert result == {"test": "data"}
 
@@ -582,8 +581,7 @@ class TestGeneralUtils:
         result = download_file("http://example.com/test.xml", ".xml")
 
         mock_get.assert_called_once_with(
-            "http://example.com/test.xml",
-            headers={"User-Agent": USER_AGENT}
+            "http://example.com/test.xml", headers={"User-Agent": USER_AGENT}
         )
         assert result == "<xml>test</xml>"
 
@@ -613,7 +611,7 @@ class TestRetrySession:
     def test_user_agent_header_set(self):
         """Test that User-Agent header is set correctly on initialization."""
         session = RetrySession()
-        
+
         assert "User-Agent" in session.headers
         assert session.headers["User-Agent"] == USER_AGENT
 
@@ -850,9 +848,9 @@ class TestCreateRetrySession:
     def test_create_retry_session_with_retries_disabled(self, monkeypatch):
         """Test create_retry_session with retries disabled still sets User-Agent."""
         monkeypatch.setenv("HARVEST_RETRY_ON_ERROR", "false")
-        
+
         session = create_retry_session()
-        
+
         assert isinstance(session, RetrySession)
         assert session.max_retries == 0
         # Verify User-Agent header is still set

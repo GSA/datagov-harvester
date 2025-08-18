@@ -99,9 +99,7 @@ def open_json(file_path):
 
 def download_file(url: str, file_type: str) -> Union[str, dict]:
     # ruff: noqa: E501
-    headers = {
-        "User-Agent": USER_AGENT
-    }
+    headers = {"User-Agent": USER_AGENT}
     resp = requests.get(url, headers=headers)
     if 200 <= resp.status_code < 300:
         if file_type == ".xml":
@@ -487,7 +485,7 @@ class RetrySession(requests.Session):
         self.status_forcelist = status_forcelist or {404, 499, 500, 502}
         self.max_retries = max_retries
         self.backoff_factor = backoff_factor
-        
+
         # Set default User-Agent header
         self.headers.update({"User-Agent": USER_AGENT})
 

@@ -38,6 +38,7 @@ from harvester.lib.harvest_reporter import HarvestReporter
 from harvester.lib.load_manager import LoadManager
 from harvester.utils.ckan_utils import CKANSyncTool
 from harvester.utils.general_utils import (
+    USER_AGENT,
     assemble_validation_errors,
     create_retry_session,
     dataset_to_hash,
@@ -50,7 +51,6 @@ from harvester.utils.general_utils import (
     send_email_to_recipients,
     sort_dataset,
     traverse_waf,
-    USER_AGENT
 )
 
 # requests data

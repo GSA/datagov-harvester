@@ -1,6 +1,6 @@
 from unittest.mock import patch
 
-from harvester.harvest import harvest_job_starter, HarvestSource
+from harvester.harvest import HarvestSource, harvest_job_starter
 
 
 class TestHarvestJobClear:
