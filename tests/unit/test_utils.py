@@ -578,7 +578,9 @@ class TestGeneralUtils:
         expected_result = "<xml>test</xml>"
         mock_response = Mock()
         mock_response.status_code = 200
-        mock_response.content = expected_result.encode('utf-8')  # Encode to bytes for mock
+        mock_response.content = expected_result.encode(
+            "utf-8"
+        )  # Encode to bytes for mock
         mock_get.return_value = mock_response
 
         result = download_file("http://example.com/test.xml", ".xml")
@@ -588,36 +590,39 @@ class TestGeneralUtils:
         )
         assert result == expected_result
 
-    @patch('harvester.utils.ckan_utils.RemoteCKAN')
-    @patch('harvester.utils.general_utils.requests.Session.request')
+    @patch("harvester.utils.ckan_utils.RemoteCKAN")
+    @patch("harvester.utils.general_utils.requests.Session.request")
     def test_ckan_requests_use_correct_user_agent(self, mock_request, mock_remote_ckan):
         """Test that CKAN requests include the correct User-Agent header."""
         # Mock the RemoteCKAN instance and its action attribute
         mock_ckan_instance = Mock()
         mock_remote_ckan.return_value = mock_ckan_instance
-        
+
         # Mock environment variables
-        with patch.dict('os.environ', {
-            'CKAN_API_URL': 'http://test.ckan.api',
-            'CKAN_API_TOKEN': 'test-token'
-        }):
+        with patch.dict(
+            "os.environ",
+            {"CKAN_API_URL": "http://test.ckan.api", "CKAN_API_TOKEN": "test-token"},
+        ):
             # Create a mock session that we can inspect
             mock_session = Mock()
             mock_session.request = mock_request
-            
+
             # Mock successful response
             mock_response = Mock()
             mock_response.status_code = 200
-            mock_response.json.return_value = {'success': True, 'result': {'id': 'test-id'}}
+            mock_response.json.return_value = {
+                "success": True,
+                "result": {"id": "test-id"},
+            }
             mock_request.return_value = mock_response
-            
+
             # Create CKANSyncTool instance
             ckan_sync_tool = CKANSyncTool(session=mock_session)
-            
+
             # Verify that RemoteCKAN was initialized with our User-Agent
             mock_remote_ckan.assert_called_once()
             call_kwargs = mock_remote_ckan.call_args.kwargs
-            assert call_kwargs['user_agent'] == USER_AGENT
+            assert call_kwargs["user_agent"] == USER_AGENT
 
 
 class TestRetrySession:
