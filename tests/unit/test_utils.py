@@ -558,9 +558,10 @@ class TestGeneralUtils:
     @patch("harvester.utils.general_utils.requests.get")
     def test_download_file_user_agent(self, mock_get):
         """Test that download_file includes correct User-Agent header."""
+        expected_result = {"test": "data"}
         mock_response = Mock()
         mock_response.status_code = 200
-        mock_response.json.return_value = {"test": "data"}
+        mock_response.json.return_value = expected_result
         mock_get.return_value = mock_response
 
         result = download_file("http://example.com/test.json", ".json")
@@ -568,14 +569,15 @@ class TestGeneralUtils:
         mock_get.assert_called_once_with(
             "http://example.com/test.json", headers={"User-Agent": USER_AGENT}
         )
-        assert result == {"test": "data"}
+        assert result == expected_result
 
     @patch("harvester.utils.general_utils.requests.get")
     def test_download_file_xml_user_agent(self, mock_get):
         """Test that download_file includes correct User-Agent header for XML files."""
+        expected_result = "<xml>test</xml>"
         mock_response = Mock()
         mock_response.status_code = 200
-        mock_response.content = b"<xml>test</xml>"
+        mock_response.content = expected_result.encode('utf-8')  # Encode to bytes for mock
         mock_get.return_value = mock_response
 
         result = download_file("http://example.com/test.xml", ".xml")
@@ -583,7 +585,7 @@ class TestGeneralUtils:
         mock_get.assert_called_once_with(
             "http://example.com/test.xml", headers={"User-Agent": USER_AGENT}
         )
-        assert result == "<xml>test</xml>"
+        assert result == expected_result
 
 
 class TestRetrySession:
