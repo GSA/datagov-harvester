@@ -53,6 +53,10 @@ class SendNotificationException(HarvestCriticalException):
     pass
 
 
+class ClearHelperException(HarvestCriticalException):
+    pass
+
+
 def log_non_critical_error(msg, job_id, record_id, error_type, emit_log=True):
     """Log a non-critical error into the database and logs.
 
