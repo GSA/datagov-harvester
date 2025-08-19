@@ -361,7 +361,11 @@ class HarvestSource:
         retrieves external (harvest source) and internal (harvester db) data sources
         """
         self.acquire_minimum_internal_data()
-        self.acquire_minimum_external_data()
+
+        if self.job_type == "clear":
+            self.external_records = []
+        else:
+            self.acquire_minimum_external_data()
 
     def acquire_minimum_internal_data(self) -> None:
         """
@@ -470,28 +474,6 @@ class HarvestSource:
                 f"Error preparing or sending notification emails for job {self.job_id}: {e}",
                 self.job_id,
             )
-
-    def clear_helper(self):
-        logger.info(f"running clear helper for {self.name}")
-        ## get all records (current and historic)
-        db_records = self.db_interface.get_harvest_records_by_source(
-            paginate=False,
-            source_id=self.id,
-        )
-        logger.info(f"{len(db_records)} records to be cleared")
-        for db_record in db_records:
-            record = Record(
-                self,
-                db_record.identifier,
-                _action="delete",
-                _ckan_id=db_record.ckan_id,
-                _id=db_record.id,
-            )
-            deleted_from_ckan = record.sync()
-            if deleted_from_ckan:
-                self.db_interface.delete_harvest_record(
-                    identifier=record.identifier, harvest_source_id=self.id
-                )
 
 
 @dataclass
@@ -896,7 +878,7 @@ def harvest_job_starter(job_id, job_type="harvest"):
         # Don't finish the job here, just exit to prevent duplicate processing
         return
 
-    if job_type in ["harvest", "force_harvest"]:
+    if job_type in ["harvest", "force_harvest", "clear"]:
         harvest_source.run_full_harvest()
 
     if job_type == "validate":
@@ -908,9 +890,6 @@ def harvest_job_starter(job_id, job_type="harvest"):
                 record.validate()
             except:  # noqa: E722
                 pass
-
-    if job_type == "clear":
-        harvest_source.clear_helper()
 
     # generate harvest job report
     harvest_source.report()

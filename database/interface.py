@@ -511,7 +511,7 @@ class HarvesterDBInterface:
     def get_harvest_record(self, record_id):
         return self.db.query(HarvestRecord).filter_by(id=record_id).first()
 
-    def get_all_outdated_records(self, days=365):
+    def get_all_outdated_records(self, days=365, source_id=None):
         """
         gets all outdated versions of records older than [days] ago
         for all harvest sources. "outdated" simply means not the latest
@@ -522,9 +522,14 @@ class HarvesterDBInterface:
             func.extract("days", (func.now() - HarvestRecord.date_created)) > days
         )
 
+        queries = [HarvestRecord.status == "success"]
+
+        if source_id is not None:
+            queries.append(HarvestRecord.harvest_source_id == source_id)
+
         subq = (
             self.db.query(HarvestRecord)
-            .filter(HarvestRecord.status == "success")
+            .filter(*queries)
             .order_by(
                 HarvestRecord.identifier,
                 HarvestRecord.harvest_source_id,
