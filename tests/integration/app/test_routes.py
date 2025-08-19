@@ -4,7 +4,9 @@ import re
 from unittest.mock import patch
 
 import pytest
+from flask import Response
 
+from app.routes import render_block
 from harvester.harvest import HarvestSource
 
 # ruff: noqa: F401
@@ -428,3 +430,33 @@ class TestHarvestRecordRawAPI:
         response = client.get(f"/harvest_job/cancel/{job.id}", headers=headers)
         assert response.status_code == 302
         assert response.location == f"/harvest_job/{job.id}"
+
+
+class TestRenderBlock:
+    """Test cases for render_block function."""
+
+    def test_autoescape_enabled_allows_rendering(self, app_with_temp_template):
+        """
+        Test that render_block escapes the content correctly now that it uses the
+        flask app's Jinja environment with autoescape enabled.
+        """
+        with app_with_temp_template.app_context():
+            response = render_block(
+                "test_template.html",
+                "test_block",
+                name="World",
+                user_input='<script>alert("XSS")</script>',
+            )
+
+            assert isinstance(response, Response)
+            assert response.status_code == 200
+            assert response.mimetype == "text/html"
+
+            html_content = response.get_data(as_text=True)
+
+            # Check that safe content is preserved
+            assert "<p>Hello World!</p>" in html_content
+
+            # Check that dangerous content is escaped
+            assert '<script>alert("XSS")</script>' not in html_content
+            assert "&lt;script&gt;alert(&#34;XSS&#34;)&lt;/script&gt;" in html_content
