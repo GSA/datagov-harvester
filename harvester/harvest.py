@@ -22,6 +22,7 @@ from harvester import SMTP_CONFIG, HarvesterDBInterface, db_interface
 from harvester.exceptions import (
     CKANDownException,
     CKANRejectionException,
+    ClearHelperException,
     CompareException,
     DCATUSToCKANException,
     DuplicateIdentifierException,
@@ -471,14 +472,30 @@ class HarvestSource:
             )
 
     def clear_helper(self):
+        """
+        deletes all the outdated/historic datasets then deletes the latest set of datasets
+        synchronized on ckan. if it can't delete on ckan then it wont delete in the h20 db.
+        if any records couldn't be deleted then create a job error.
+        """
         logger.info(f"running clear helper for {self.name}")
-        ## get all records (current and historic)
-        db_records = self.db_interface.get_harvest_records_by_source(
-            paginate=False,
-            source_id=self.id,
+
+        # get all outdated/historic records and delete them
+        outdated_records = self.db_interface.get_all_outdated_records(
+            days=0, source_id=self.id
         )
-        logger.info(f"{len(db_records)} records to be cleared")
-        for db_record in db_records:
+        logger.info(f"{len(outdated_records)} historic records to be cleared")
+        for record in outdated_records:
+            self.db_interface.delete_harvest_record(record_id=record.id)
+
+        # get latest set of records synchronized with ckan and delete them
+        latest_records = self.db_interface.get_latest_harvest_records_by_source_orm(
+            source_id=self.id, synced=True
+        )
+        clear_is_successful = True
+        not_deleted_count = 0
+
+        logger.info(f"{len(latest_records)} records to be cleared")
+        for db_record in latest_records:
             record = Record(
                 self,
                 db_record.identifier,
@@ -486,11 +503,19 @@ class HarvestSource:
                 _ckan_id=db_record.ckan_id,
                 _id=db_record.id,
             )
+            # harvest record error creation occurs in record.sync
             deleted_from_ckan = record.sync()
             if deleted_from_ckan:
-                self.db_interface.delete_harvest_record(
-                    identifier=record.identifier, harvest_source_id=self.id
-                )
+                self.db_interface.delete_harvest_record(record_id=record.id)
+            else:
+                clear_is_successful = False
+                not_deleted_count += 1
+
+        if not clear_is_successful:
+            ClearHelperException(
+                f"{not_deleted_count} records unable to be deleted from ckan",
+                self.job_id,
+            )
 
 
 @dataclass
