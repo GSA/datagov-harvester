@@ -31,7 +31,6 @@ from markupsafe import escape
 
 from database.interface import HarvesterDBInterface
 from harvester.lib.load_manager import LoadManager
-
 from harvester.utils.general_utils import (
     convert_to_int,
     dynamic_map_list_items_to_dict,

@@ -5,9 +5,9 @@ from unittest.mock import Mock, call, patch
 
 import pytest
 import requests
+from flask import Response
 from jsonschema import Draft202012Validator, FormatChecker
 from requests import HTTPError
-from flask import Response
 
 from app.routes import render_block
 from harvester.utils.ckan_utils import (

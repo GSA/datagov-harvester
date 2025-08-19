@@ -20,7 +20,6 @@ import sansjson
 from bs4 import BeautifulSoup
 from flask import Response, current_app
 from jsonschema.exceptions import ValidationError
-from harvester.exceptions import UnsafeTemplateEnvError
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger()
@@ -723,6 +722,10 @@ def is_valid_uuid4(uuid_string) -> bool:
         AttributeError
     ):  # Catches cases where input might not be a string (e.g., UUID(0))
         return False
+
+
+class UnsafeTemplateEnvError(RuntimeError):
+    pass
 
 
 def render_block(template_name: str, block_name: str, **context) -> Response:
