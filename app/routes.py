@@ -27,11 +27,11 @@ from flask import (
     session,
     url_for,
 )
-from jinja2_fragments.flask import render_block
 from markupsafe import escape
 
 from database.interface import HarvesterDBInterface
 from harvester.lib.load_manager import LoadManager
+
 from harvester.utils.general_utils import (
     convert_to_int,
     dynamic_map_list_items_to_dict,
@@ -39,6 +39,7 @@ from harvester.utils.general_utils import (
     is_it_true,
     is_valid_uuid4,
     process_job_complete_percentage,
+    render_block,
 )
 
 from . import htmx

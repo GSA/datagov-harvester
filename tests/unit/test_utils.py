@@ -7,7 +7,9 @@ import pytest
 import requests
 from jsonschema import Draft202012Validator, FormatChecker
 from requests import HTTPError
+from flask import Response
 
+from app.routes import render_block
 from harvester.utils.ckan_utils import (
     create_ckan_extras,
     create_ckan_resources,
@@ -786,3 +788,33 @@ class TestCreateRetrySession:
         assert session.max_retries == 3
         assert session.backoff_factor == 4.0
         assert session.status_forcelist == {404, 499, 500, 502}
+
+
+class TestRenderBlock:
+    """Test cases for render_block function."""
+
+    def test_autoescape_enabled_allows_rendering(self, app_with_temp_template):
+        """
+        Test that render_block escapes the content correctly now that it uses the
+        flask app's Jinja environment with autoescape enabled.
+        """
+        with app_with_temp_template.app_context():
+            response = render_block(
+                "test_template.html",
+                "test_block",
+                name="World",
+                user_input='<script>alert("XSS")</script>',
+            )
+
+            assert isinstance(response, Response)
+            assert response.status_code == 200
+            assert response.mimetype == "text/html"
+
+            html_content = response.get_data(as_text=True)
+
+            # Check that safe content is preserved
+            assert "<p>Hello World!</p>" in html_content
+
+            # Check that dangerous content is escaped
+            assert '<script>alert("XSS")</script>' not in html_content
+            assert "&lt;script&gt;alert(&#34;XSS&#34;)&lt;/script&gt;" in html_content

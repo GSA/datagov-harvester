@@ -1,7 +1,7 @@
 import json
 import os
 import re
-from unittest.mock import patch
+from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 

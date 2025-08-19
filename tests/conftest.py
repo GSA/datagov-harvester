@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import tempfile
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Generator, List
@@ -1071,3 +1072,35 @@ def dcatus_non_federal_schema():
     schema = Path(__file__).parents[1] / "schemas" / "non-federal_dataset.json"
     with open(schema) as f:
         return json.load(f)
+
+
+@pytest.fixture
+def app_with_temp_template(app):
+    """
+    Provides a flask app with a temporary template directory with a simple
+    template for testing render_block.
+    """
+
+    # Create a temporary directory for templates
+    template_dir = tempfile.mkdtemp()
+
+    # Create test templates
+    test_template = """
+{% block test_block %}
+<p>Hello {{ name }}!</p>
+<div>User input: {{ user_input }}</div>
+{% endblock %}
+    """
+
+    template_path = os.path.join(template_dir, "test_template.html")
+    with open(template_path, "w") as f:
+        f.write(test_template)
+
+    # Configure Flask to use our template directory
+    app.template_folder = template_dir
+
+    yield app
+
+    # Cleanup
+    os.unlink(template_path)
+    os.rmdir(template_dir)

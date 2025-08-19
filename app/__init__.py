@@ -17,6 +17,9 @@ load_manager = LoadManager()
 
 load_dotenv()
 
+# fixes a bug with Flask-HTMX not being able to find the app context
+htmx = None
+
 
 def create_app():
     app = Flask(__name__, static_url_path="", static_folder="static")
