@@ -109,3 +109,7 @@ class CKANRejectionException(SynchronizeException):
 
 class CKANDownException(SynchronizeException):
     pass
+
+
+class UnsafeTemplateEnvError(RuntimeError):
+    pass
