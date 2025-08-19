@@ -11,6 +11,7 @@ import pytest
 from click.testing import CliRunner
 from dotenv import load_dotenv
 from flask import Flask
+from jinja2 import FileSystemLoader
 from sqlalchemy.orm import scoped_session, sessionmaker
 
 from app import create_app
@@ -1077,10 +1078,9 @@ def dcatus_non_federal_schema():
 @pytest.fixture
 def app_with_temp_template(app):
     """
-    Provides a flask app with a temporary template directory with a simple
-    template for testing render_block.
+    Provides a flask app with a temporary template directory.
+    This version properly updates the Jinja2 loader.
     """
-
     # Create a temporary directory for templates
     template_dir = tempfile.mkdtemp()
 
@@ -1096,11 +1096,25 @@ def app_with_temp_template(app):
     with open(template_path, "w") as f:
         f.write(test_template)
 
-    # Configure Flask to use our template directory
-    app.template_folder = template_dir
+    # Store original loader
+    original_loader = app.jinja_env.loader
+
+    # Create new FileSystemLoader that includes both original and temp directories
+    search_paths = [template_dir]
+
+    # Add original template directories if they exist
+    if hasattr(app, "template_folder") and app.template_folder:
+        if os.path.isabs(app.template_folder):
+            search_paths.append(app.template_folder)
+        else:
+            search_paths.append(os.path.join(app.root_path, app.template_folder))
+
+    # Update the loader
+    app.jinja_env.loader = FileSystemLoader(search_paths)
 
     yield app
 
     # Cleanup
+    app.jinja_env.loader = original_loader
     os.unlink(template_path)
     os.rmdir(template_dir)
