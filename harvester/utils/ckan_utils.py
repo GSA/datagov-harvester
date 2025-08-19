@@ -22,7 +22,7 @@ from harvester.exceptions import (
 if typing.TYPE_CHECKING:
     from harvester.harvest import HarvestSource
 
-from harvester.utils.general_utils import get_datetime, is_number, validate_geojson
+from harvester.utils.general_utils import get_datetime, is_number, validate_geojson, USER_AGENT
 
 # all of these are copy/pasted from ckan core
 # https://github.com/ckan/ckan/blob/master/ckan/lib/munge.py
@@ -60,6 +60,7 @@ class CKANSyncTool:
             os.getenv("CKAN_API_URL"),
             apikey=os.getenv("CKAN_API_TOKEN"),
             session=session,
+            user_agent=USER_AGENT
         )
 
     def sync(self, record):
