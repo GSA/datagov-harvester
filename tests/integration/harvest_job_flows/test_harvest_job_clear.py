@@ -1,6 +1,6 @@
 from unittest.mock import patch
 
-from harvester.harvest import harvest_job_starter, HarvestSource
+from harvester.harvest import HarvestSource, harvest_job_starter
 
 
 class TestHarvestJobClear:
@@ -84,8 +84,7 @@ class TestHarvestJobClear:
         assert len(interface.pget_harvest_records()) == 1
 
         harvest_source = HarvestSource(job.id, "clear")
-        harvest_source.clear_helper()
+        harvest_source.run_full_harvest()
 
-        # the record wasn't able to be deleted from ckan so it doesn't get
-        # deleted in the h20 db.
-        assert len(interface.pget_harvest_records()) == 1
+        # 1 (original successful create record) + 1 (delete before ckan action)
+        assert len(interface.pget_harvest_records()) == 2

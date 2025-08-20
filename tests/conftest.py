@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import tempfile
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Generator, List
@@ -10,6 +11,7 @@ import pytest
 from click.testing import CliRunner
 from dotenv import load_dotenv
 from flask import Flask
+from jinja2 import FileSystemLoader
 from sqlalchemy.orm import scoped_session, sessionmaker
 
 from app import create_app
@@ -1071,3 +1073,47 @@ def dcatus_non_federal_schema():
     schema = Path(__file__).parents[1] / "schemas" / "non-federal_dataset.json"
     with open(schema) as f:
         return json.load(f)
+
+
+@pytest.fixture
+def app_with_temp_template(app):
+    """
+    Provides a flask app with a temporary template directory.
+    This version properly updates the Jinja2 loader.
+    """
+    # Create a temporary directory for templates
+    template_dir = tempfile.mkdtemp()
+
+    # Create test templates
+    test_template = """
+{% block test_block %}
+<p>Hello {{ name }}!</p>
+<div>User input: {{ user_input }}</div>
+{% endblock %}
+    """
+    template_path = Path(template_dir, "test_template.html")
+    with open(template_path, "w") as f:
+        f.write(test_template)
+
+    # Store original loader
+    original_loader = app.jinja_env.loader
+
+    # Create new FileSystemLoader that includes both original and temp directories
+    search_paths = [template_dir]
+
+    # Add original template directories if they exist
+    if hasattr(app, "template_folder") and app.template_folder:
+        if Path(app.template_folder).is_absolute():
+            search_paths.append(app.template_folder)
+        else:
+            search_paths.append(Path(app.root_path, app.template_folder))
+
+    # Update the loader
+    app.jinja_env.loader = FileSystemLoader(search_paths)
+
+    yield app
+
+    # Cleanup
+    app.jinja_env.loader = original_loader
+    os.unlink(template_path)
+    os.rmdir(template_dir)
