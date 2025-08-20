@@ -1091,8 +1091,7 @@ def app_with_temp_template(app):
 <div>User input: {{ user_input }}</div>
 {% endblock %}
     """
-
-    template_path = os.path.join(template_dir, "test_template.html")
+    template_path = Path(template_dir, "test_template.html")
     with open(template_path, "w") as f:
         f.write(test_template)
 
@@ -1104,10 +1103,10 @@ def app_with_temp_template(app):
 
     # Add original template directories if they exist
     if hasattr(app, "template_folder") and app.template_folder:
-        if os.path.isabs(app.template_folder):
+        if Path(app.template_folder).is_absolute():
             search_paths.append(app.template_folder)
         else:
-            search_paths.append(os.path.join(app.root_path, app.template_folder))
+            search_paths.append(Path(app.root_path, app.template_folder))
 
     # Update the loader
     app.jinja_env.loader = FileSystemLoader(search_paths)

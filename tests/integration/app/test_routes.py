@@ -6,7 +6,7 @@ from unittest.mock import patch
 import pytest
 from flask import Response
 
-from app.routes import render_block
+from app.routes import UnsafeTemplateEnvError, render_block
 from harvester.harvest import HarvestSource
 
 # ruff: noqa: F401
@@ -460,3 +460,23 @@ class TestRenderBlock:
             # Check that dangerous content is escaped
             assert '<script>alert("XSS")</script>' not in html_content
             assert "&lt;script&gt;alert(&#34;XSS&#34;)&lt;/script&gt;" in html_content
+
+    def test_autoescape_disabled_raises_exception(
+        self, app_with_temp_template, monkeypatch
+    ):
+        """
+        Test that render_block raises UnsafeTemplateEnvError when autoescape is disabled.
+        """
+        with app_with_temp_template.app_context():
+            # Temporarily disable autoescape on the Jinja environment
+            monkeypatch.setattr(app_with_temp_template.jinja_env, "autoescape", False)
+
+            with pytest.raises(UnsafeTemplateEnvError) as exc_info:
+                render_block(
+                    "test_template.html",
+                    "test_block",
+                    name="World",
+                    user_input='<script>alert("XSS")</script>',
+                )
+
+            assert "Jinja autoescape is disabled" in str(exc_info.value)
