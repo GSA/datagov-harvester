@@ -52,10 +52,12 @@ class HarvestSources(OutputBase):
         self.sources = {source["name"]: source for source in self.sources}
 
     def map_names_and_titles(self, harvest_counts):
-        mapping = session.get((
-            f"{CATALOG_PROD_BASE_URL}/api/action/package_search"
-            f"?fq=dataset_type:harvest&fl=title,name&rows=1000"
-        )).json()["result"]["results"]
+        mapping = session.get(
+            (
+                f"{CATALOG_PROD_BASE_URL}/api/action/package_search"
+                f"?fq=dataset_type:harvest&fl=title,name&rows=1000"
+            )
+        ).json()["result"]["results"]
         mapped = {}
         for item in mapping:
             mapped[item["title"]] = item["name"]
@@ -71,12 +73,10 @@ class HarvestSources(OutputBase):
     def get_num_datasets(self):
         # harvest sources with no datasets aren't returned from the solr facet
         res = session.get(self.harvest_sources_dset_count_url)
-        if res.ok:
-            mapped_res = self.map_names_and_titles(res.json()["result"]["facets"]["harvest_source_title"])
-            self.titles = {
-                title: count
-                for title, count in mapped_res.items()
-            }
+        if res.ok and res.json().get("result"):
+            hst = res.json()["result"]["facets"]["harvest_source_title"]
+            mapped_res = self.map_names_and_titles(hst)
+            self.titles = {title: count for title, count in mapped_res.items()}
 
 
 def compare_schema_types(schema_next: str, schema_prod: str) -> bool:

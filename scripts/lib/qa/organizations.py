@@ -39,7 +39,12 @@ class Organizations(OutputBase):
         return {org_name: dict(self.org_template) for org_name in data["result"]}
 
     def get_organization_counts(self, org_name: str):
-        res = session.get(f"{self.base_url}/api/action/package_search?q=organization:{org_name}&fq=collection_package_id:*%20OR%20")
+        res = session.get(
+            (
+                f"{self.base_url}/api/action/package_search"
+                f"?q=organization:{org_name}&fq=collection_package_id:*%20OR%20"
+            )
+        )
         if res.ok and res.json().get("result"):
             return res.json()["result"]["count"]
 
