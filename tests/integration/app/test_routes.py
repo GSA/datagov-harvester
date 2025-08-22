@@ -1,6 +1,7 @@
 import json
 import os
 import re
+import uuid
 from unittest.mock import patch
 
 import pytest
@@ -150,10 +151,10 @@ class TestDynamicRouteTable:
 
         # some endpoints respond with JSON
         json_responses_map = {
-            "main.get_harvest_record": "Not Found",
+            "main.get_harvest_record": '{"error":"Not Found"}\n',
             "main.get_harvest_record_raw": '{"error":"Not Found"}\n',
-            "main.get_all_harvest_record_errors": "Not Found",
-            "main.get_harvest_error": "Not Found",
+            "main.get_all_harvest_record_errors": '{"error":"Not Found"}\n',
+            "main.get_harvest_error": '{"error":"Not Found"}\n',
         }
         # some respond with a template
         # ruff: noqa: E501
@@ -177,7 +178,7 @@ class TestDynamicRouteTable:
             if re.match(whitelisted_route_regex, route.endpoint):
                 continue
 
-            cleaned_route_rule = re.sub(r"(\<.*?\>)", "1234", route.rule)
+            cleaned_route_rule = re.sub(r"(\<.*?\>)", str(uuid.uuid4()), route.rule)
 
             for method in route.methods:
                 if method in ["HEAD", "OPTIONS"]:
@@ -271,22 +272,27 @@ class TestJSONResponses:
                 10,
             ),
             (
-                "/harvest_records/?harvest_source_id=2f2652de-91df-4c63-8b53-bfced20b276b&facets=status='success'",
+                "/harvest_records/?harvest_job_id=6bce761c-7a39-41c1-ac73-94234c139c76",
+                200,
+                10,
+            ),
+            (
+                "/harvest_records/?harvest_source_id=2f2652de-91df-4c63-8b53-bfced20b276b&facets=status eq success",
                 200,
                 2,
             ),
             (
-                "/harvest_records/?harvest_source_id=2f2652de-91df-4c63-8b53-bfced20b276b&facets=ckan_id='1234'",
+                "/harvest_records/?harvest_source_id=2f2652de-91df-4c63-8b53-bfced20b276b&facets=ckan_id eq 1234",
                 200,
                 1,
             ),
             (
-                "/harvest_records/?harvest_source_id=2f2652de-91df-4c63-8b53-bfced20b276b&facets=status='success'&count=True",
+                "/harvest_records/?harvest_source_id=2f2652de-91df-4c63-8b53-bfced20b276b&facets=status eq success&count=True",
                 200,
                 2,
             ),
             (
-                "/harvest_records/?harvest_source_id=2f2652de-91df-4c63-8b53-bfced20b276b&facets=status='not_status'",
+                "/harvest_records/?harvest_source_id=2f2652de-91df-4c63-8b53-bfced20b276b&facets=status eq not_status",
                 400,
                 "Error with query",
             ),
@@ -301,7 +307,7 @@ class TestJSONResponses:
                 1,
             ),
             (
-                "/harvest_sources/?facets=schema_type='dcatus1.1: non-federal'",
+                "/harvest_sources/?facets=schema_type eq dcatus1.1: non-federal",
                 404,
                 "No harvest_sources found for this query",
             ),
@@ -312,6 +318,7 @@ class TestJSONResponses:
     ):
         """Tests against seeded content in `interface_with_fixture_json`"""
         res = client.get(route)
+        print(res.text)
         assert res.status_code == status_code
         try:
             json_res = json.loads(res.data)

@@ -20,14 +20,13 @@ class TestLogin:
         assert res.status_code == 302
         assert res.text.find(redirect_str) != -1
 
-    # Logged in user is redirected away from bad url
     @force_login(email="test@data.gov")
     def test_harvest_edit_bad_source_url(self, client, interface_no_jobs):
+        """Logged in user gets a not found error from bad url."""
         res = client.get("/harvest_source/edit/1234")
         # ruff: noqa: E501
-        redirect_str = 'You should be redirected automatically to the target URL: <a href="/harvest_source_list/">/harvest_source_list/</a>'
-        assert res.status_code == 302
-        assert res.text.find(redirect_str) != -1
+        assert res.status_code == 404
+        assert "Not Found" in res.text
 
     # Logged in user can see the organization action buttons
     @force_login(email="test@data.gov")

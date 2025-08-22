@@ -246,7 +246,7 @@ def query_filter_builder(model, facets_string):
     """Builds a list of filter expressions from a comma-separated string of facets
 
     Each facet is of them form "column op value" where `column` is a
-    column name from a model, `op` is one of the operators in
+    column name from the model, `op` is one of the operators in
     `sqlalchemy.sql.operators` like "eq" or "like_op", and `value` is
     a literal value for the operator.
 
@@ -262,7 +262,7 @@ def query_filter_builder(model, facets_string):
 
     facets = []
     for this_facet in facets_string.split(","):
-        column_name, op, value = this_facet.split()
+        column_name, op, value = this_facet.split(maxsplit=2)
         # these could raise attribute errors
         column = getattr(model, column_name)
         operator = getattr(sa_operators, op)
