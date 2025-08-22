@@ -38,17 +38,23 @@ class Organizations(OutputBase):
         data = res.json()
         return {org_name: dict(self.org_template) for org_name in data["result"]}
 
+    def get_organization_counts(self, org_name: str):
+        res = session.get(f"{self.base_url}/api/action/package_search?q=organization:{org_name}&fq=collection_package_id:*%20OR%20")
+        if res.ok and res.json().get("result"):
+            return res.json()["result"]["count"]
+
     def get_all_organization_details(self):
         with click.progressbar(self.orgs) as orgs:
             for org_name in orgs:
                 org_data = self.get_organization_details(org_name)
+                count_data = self.get_organization_counts(org_name)
 
                 # get whatever attributes you want here
                 self.orgs[org_name]["type"] = self.get_organization_type(org_data)
                 self.orgs[org_name]["logo"] = org_data["image_url"]
                 self.orgs[org_name]["name"] = org_data["name"]
                 self.orgs[org_name]["id"] = org_data["id"]
-                self.orgs[org_name]["package_count"] = org_data["package_count"]
+                self.orgs[org_name]["package_count"] = count_data
 
 
 def compare_organizations(output_dir):
