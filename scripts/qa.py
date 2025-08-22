@@ -67,11 +67,11 @@ def process_job(job_type: str, seed: int, sample_size: int):
     username = os.getenv("DATAGOV_BASIC_AUTH_USER")
     password = os.getenv("DATAGOV_BASIC_AUTH_PASS")
 
-    if not all([username, password]):
-        logger.critical(
-            "basic auth credentials for catalog need to be set as env vars. exiting."
-        )
-        return
+    # if not all([username, password]):
+    #     logger.critical(
+    #         "basic auth credentials for catalog need to be set as env vars. exiting."
+    #     )
+    #     return
 
     if job_type == Job.all:
         compare_organizations(OUTPUT_DIR)
