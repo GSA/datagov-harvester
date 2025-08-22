@@ -318,7 +318,6 @@ class TestJSONResponses:
     ):
         """Tests against seeded content in `interface_with_fixture_json`"""
         res = client.get(route)
-        print(res.text)
         assert res.status_code == status_code
         try:
             json_res = json.loads(res.data)

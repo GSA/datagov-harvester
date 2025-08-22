@@ -1366,7 +1366,6 @@ def json_builder_query():
 
     model = escape(request.path).replace("/", "")
     try:
-        print("Searching with facets", facets)
         res = db.pget_db_query(
             model=model,
             page=request.args.get("page", type=convert_to_int),
