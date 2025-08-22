@@ -75,6 +75,8 @@ AUTH_URL = ISSUER + "/openid_connect/authorize"
 TOKEN_URL = ISSUER + "/api/openid_connect/token"
 
 STATUS_STRINGS_ENUM = {404: "Not Found"}
+
+
 def JSON_NOT_FOUND():
     """Return our most generic error response.
 
@@ -962,9 +964,7 @@ def view_harvest_job(job_id=None):
     else:
         job = db.get_harvest_job(job_id)
         if request.args.get("type") and request.args.get("type") == "json":
-            return (
-                jsonify(db._to_dict(job)) if job else JSON_NOT_FOUND()
-            )
+            return jsonify(db._to_dict(job)) if job else JSON_NOT_FOUND()
         else:
             data = {
                 "job": job,
@@ -1197,7 +1197,9 @@ def add_harvest_record():
 def get_all_harvest_record_errors(record_id: str) -> list:
     try:
         record_errors = db.get_harvest_record_errors_by_record(record_id)
-        return jsonify(db._to_dict(record_errors)) if record_errors else JSON_NOT_FOUND()
+        return (
+            jsonify(db._to_dict(record_errors)) if record_errors else JSON_NOT_FOUND()
+        )
     except Exception:
         return jsonify({"error": "Please provide a valid record_id"}), 404
 
@@ -1220,7 +1222,9 @@ def view_metrics():
     """Render index page with recent harvest jobs."""
     current_time = get_datetime()
     start_time = current_time - timedelta(days=7)
-    time_filter = f"date_created ge {start_time.isoformat()},date_created le {current_time}"
+    time_filter = (
+        f"date_created ge {start_time.isoformat()},date_created le {current_time}"
+    )
 
     # Handle multiple pagination parameters
     jobs_page = request.args.get("jobs_page", 1, type=convert_to_int)
@@ -1308,7 +1312,9 @@ def view_metrics():
             per_page=pagination_jobs.per_page,
             order_by="desc",
         )
-        errors_time_filter = f"date_created ge {start_time.isoformat()},date_created le {current_time}"
+        errors_time_filter = (
+            f"date_created ge {start_time.isoformat()},date_created le {current_time}"
+        )
         failures = db.pget_harvest_job_errors(
             facets=errors_time_filter,
             page=pagination_errors.db_current,
@@ -1357,7 +1363,6 @@ def json_builder_query():
             facets += f",harvest_source_id eq {source_id}"
         else:
             facets = f"harvest_source_id eq {source_id}"
-
 
     model = escape(request.path).replace("/", "")
     try:

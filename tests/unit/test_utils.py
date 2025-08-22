@@ -552,7 +552,7 @@ class TestGeneralUtils:
             ["bdbc3cb3-d6e1-45bf-95d2-d92deedf3edf", True],  # v4
             ["9073926b-929f-31c2-abc9-fad77ae3e8eb", False],  # v3
             ["87d46f9c-7792-11f0-b35b-621e4597c515", False],  # v1
-            ["TRUE; DROP TABLE users;", False]  # invalid inputs
+            ["TRUE; DROP TABLE users;", False],  # invalid inputs
         ],
     )
     def test_is_valid_uuid4(self, job_id, result):

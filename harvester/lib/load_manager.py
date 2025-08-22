@@ -143,8 +143,7 @@ class LoadManager:
             """Check if a job is already running for this source."""
             harvest_job = interface.get_harvest_job(job_id)
             jobs_in_progress = interface.pget_harvest_jobs(
-                facets=f"harvest_source_id = '{harvest_job.harvest_source_id}',\
-                    status = 'in_progress'",
+                facets=f"harvest_source_id eq {harvest_job.harvest_source_id},status eq in_progress",  # noqa E501
                 per_page=1,  # Only need 1 job to know we should not start a new one
                 page=0,
             )
@@ -254,7 +253,7 @@ class LoadManager:
         try:
             source = interface.get_harvest_source(source_id)
             jobs_in_progress = interface.pget_harvest_jobs(
-                facets=f"harvest_source_id = '{source.id}', status = 'in_progress'",
+                facets=f"harvest_source_id eq {source.id},status eq in_progress",
                 paginate=False,
             )
             if len(jobs_in_progress):
