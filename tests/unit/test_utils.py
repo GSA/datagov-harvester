@@ -8,6 +8,7 @@ import requests
 from jsonschema import Draft202012Validator, FormatChecker
 from requests import HTTPError
 
+from database.models import HarvestSource
 from harvester.utils.ckan_utils import (
     CKANSyncTool,
     create_ckan_extras,
@@ -408,24 +409,24 @@ class TestGeneralUtils:
         assert args.jobId == "test-id"
         assert args.jobType == "test-type"
 
-    @pytest.mark.parametrize(
-        "base,facets,expected",
-        [
-            ("1", "", "1"),
-            ("1", "234", "1 AND 234"),
-            ("1", "2,3,4", "1 AND 2 AND 3 AND 4"),
-            ("1", "2,3,4,", "1 AND 2 AND 3 AND 4"),
-            ("1", "2 != 3,3 <= 4,", "1 AND 2 != 3 AND 3 <= 4"),
-            (None, "1,", "1"),
-            (None, "1 AND 2", "1 AND 2"),
-            (None, "1,2", "1 AND 2"),
-            (None, "1 , 2", "1  AND  2"),
-            (None, "1 OR 2", "1 OR 2"),
-            (None, ", facet_key = 'facet_val'", "facet_key = 'facet_val'"),
-        ],
-    )
-    def test_facet_builder(self, base, facets, expected):
-        assert expected == query_filter_builder(base, facets)
+    def test_facet_builder_empty(self):
+        assert query_filter_builder(HarvestSource, "") == []
+
+    def test_facet_builder_single(self):
+        assert len(query_filter_builder(HarvestSource, "id eq 1")) == 1
+
+    def test_facet_builder_notequal(self):
+        assert len(query_filter_builder(HarvestSource, "url startswith_op http:")) == 1
+
+    def test_facet_builder_multiple(self):
+        assert (
+            len(query_filter_builder(HarvestSource, "id eq 1,organization_id eq 2"))
+            == 2
+        )
+
+    def test_facet_builder_exception(self):
+        with pytest.raises(AttributeError):
+            query_filter_builder(HarvestSource, "nonexistent eq 1")
 
     @pytest.mark.parametrize(
         "original,expected",
