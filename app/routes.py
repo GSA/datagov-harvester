@@ -893,6 +893,9 @@ def delete_harvest_source(source_id):
 def trigger_harvest_source(source_id, job_type):
     if not is_valid_uuid4(source_id):
         return JSON_NOT_FOUND()
+    # possible job_types are in `harvester/harvest.py:harvest_job_starter()`
+    if job_type not in ["harvest", "force_harvest", "clear", "validate"]:
+        return JSON_NOT_FOUND()
     message = load_manager.trigger_manual_job(source_id, job_type)
     flash(message)
     return redirect(f"/harvest_source/{source_id}")

@@ -245,7 +245,7 @@ def traverse_waf(
 def query_filter_builder(model, facets_string):
     """Builds a list of filter expressions from a comma-separated string of facets
 
-    Each facet is of them form "column op value" where `column` is a
+    Each facet is of the form "column op value" where `column` is a
     column name from the model, `op` is one of the operators in
     `sqlalchemy.sql.operators` like "eq" or "like_op", and `value` is
     a literal value for the operator.

@@ -408,6 +408,9 @@ class TestHarvestRecordRawAPI:
         assert response.status_code == 200
         assert response.json == json.loads(test_record.source_raw)
 
+
+class TestAPIBehavior:
+
     @patch("harvester.lib.load_manager.LoadManager")
     def test_cancel_in_progress_job(
         self,
@@ -436,6 +439,19 @@ class TestHarvestRecordRawAPI:
         response = client.get(f"/harvest_job/cancel/{job.id}", headers=headers)
         assert response.status_code == 302
         assert response.location == f"/harvest_job/{job.id}"
+
+    def test_invalid_harvest_job_type(self, client, source_data_dcatus):
+        api_token = os.getenv("FLASK_APP_SECRET_KEY")
+        headers = {
+            "Authorization": api_token,
+            "Content-Type": "application/json",
+        }
+        response = client.get(
+            f"/harvest_source/harvest/{source_data_dcatus['id']}/invalid-job-type",
+            headers=headers,
+        )
+        assert response.status_code == 404
+        assert "error" in response.json
 
 
 class TestRenderBlock:
