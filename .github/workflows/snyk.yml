@@ -14,7 +14,7 @@ permissions:
   security-events: write
 
 env:
-  PY_VERSION: "3.13"
+  PY_VERSION: "3.12"
 
 jobs:
   snyk-test:
