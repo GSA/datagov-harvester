@@ -12,7 +12,7 @@ CKAN_API_URL: https://catalog-next-prod-admin-datagov.app.cloud.gov
 HARVEST_RUNNER_MAX_TASKS: 3
 HARVEST_RETRY_ON_ERROR: true
 
-MDTRANSLATOR_URL: http://mdtranslator-prod.apps.internal:8080/translates
+MDTRANSLATOR_URL: https://mdtranslator-prod.apps.internal:61443/translates
 
 # Login.gov
 CLIENT_ID: urn:gov:gsa:openidconnect.profiles:sp:sso:gsa:datagov-prod-harvest-admin
