@@ -52,15 +52,30 @@ class HarvestSources(OutputBase):
         self.sources = {source["name"]: source for source in self.sources}
 
     def map_names_and_titles(self, harvest_counts):
+        """
+        Maps harvest source titles to names using data from the production CKAN instance
+
+        This function pulls the title and name fields of harvest sources from the
+        production CKAN instance, creates a mapping dictionary from title to name, and
+        then uses this mapping to convert harvest source titles in the harvest_counts
+        dictionary to their corresponding harvest source names.
+
+        If it already uses the names (as in catalog-beta), then nothing should change.
+
+        Args:
+            harvest_counts (dict): Dictionary with harvest source titles as keys and
+                counts as values
+
+        Returns:
+            dict: Dictionary with harvest source names as keys and counts as values
+        """
         mapping = session.get(
             (
                 f"{CATALOG_PROD_BASE_URL}/api/action/package_search"
                 f"?fq=dataset_type:harvest&fl=title,name&rows=1000"
             )
         ).json()["result"]["results"]
-        mapped = {}
-        for item in mapping:
-            mapped[item["title"]] = item["name"]
+        mapped = {item["title"]: item["name"] for item in mapping}
         mapped_harvest_counts = {}
         for k in harvest_counts:
             try:
