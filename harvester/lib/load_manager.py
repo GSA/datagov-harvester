@@ -2,7 +2,6 @@ import logging
 import os
 from datetime import datetime
 
-from database.interface import HarvesterDBInterface
 from harvester import SMTP_CONFIG
 from harvester.lib.cf_handler import CFHandler
 from harvester.utils.general_utils import (
@@ -10,6 +9,8 @@ from harvester.utils.general_utils import (
     get_datetime,
     send_email_to_recipients,
 )
+# use the session scoped interface already made for the harvester
+from .. import db_interface as interface
 
 CF_API_URL = os.getenv("CF_API_URL")
 CF_SERVICE_USER = os.getenv("CF_SERVICE_USER")
@@ -17,7 +18,6 @@ CF_SERVICE_AUTH = os.getenv("CF_SERVICE_AUTH")
 
 MAX_TASKS_COUNT = int(os.getenv("HARVEST_RUNNER_MAX_TASKS", 5))
 
-interface = HarvesterDBInterface()
 
 logger = logging.getLogger("harvest_admin")
 
