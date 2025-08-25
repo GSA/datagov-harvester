@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 from functools import wraps
 from typing import List
 
-from sqlalchemy import asc, desc, func, inspect, text
+from sqlalchemy import asc, desc, func, inspect
 from sqlalchemy.exc import NoResultFound
 from sqlalchemy.orm import aliased
 
@@ -694,21 +694,19 @@ class HarvesterDBInterface:
             "harvest_job_errors": HarvestJobError,
             "harvest_record_errors": HarvestRecordError,
         }
-        model_name = model_map[model]
-        if not model_name:
+        model_class = model_map.get(model)
+        if model_class is None:
             return f"Incorrect model arg {model}", 400
 
-        facet_string = query_filter_builder(None, facets)
+        facet_list = query_filter_builder(model_class, facets)
 
         # TODO: should we add date_created to these models??
         if model in ["organizations", "harvest_sources"]:
-            return self.db.query(model_name).filter(text(facet_string))
+            return self.db.query(model_class).filter(*facet_list)
 
-        order_by_val = order_by_helper(model_name, order_by)
+        order_by_val = order_by_helper(model_class, order_by)
 
-        return (
-            self.db.query(model_name).filter(text(facet_string)).order_by(order_by_val)
-        )
+        return self.db.query(model_class).filter(*facet_list).order_by(order_by_val)
 
     #### FILTERED BUILDER QUERIES ####
     def pget_organizations(self, facets="", **kwargs):
@@ -738,7 +736,9 @@ class HarvesterDBInterface:
         )
 
     def get_harvest_records_by_job(self, job_id, facets="", order_by="asc", **kwargs):
-        facet_string = query_filter_builder(f"harvest_job_id = '{job_id}'", facets)
+        facet_string = f"harvest_job_id eq {job_id}"
+        if facets:
+            facet_string += "," + facets
         return self.pget_db_query(
             model="harvest_records", facets=facet_string, order_by=order_by, **kwargs
         )
@@ -746,9 +746,9 @@ class HarvesterDBInterface:
     def get_harvest_records_by_source(
         self, source_id, facets="", order_by="asc", **kwargs
     ):
-        facet_string = query_filter_builder(
-            f"harvest_source_id = '{source_id}'", facets
-        )
+        facet_string = f"harvest_source_id eq {source_id}"
+        if facets:
+            facet_string += "," + facets
         return self.pget_db_query(
             model="harvest_records", facets=facet_string, order_by=order_by, **kwargs
         )
