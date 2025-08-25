@@ -22,6 +22,7 @@ from harvester import SMTP_CONFIG, HarvesterDBInterface, db_interface
 from harvester.exceptions import (
     CKANDownException,
     CKANRejectionException,
+    ClearJobException,
     CompareException,
     DCATUSToCKANException,
     DuplicateIdentifierException,
@@ -94,6 +95,7 @@ class HarvestSource:
     _records: list = field(default_factory=lambda: [], repr=False)
     _dataset_schema: dict = field(default_factory=lambda: {}, repr=False)
     _no_harvest_resp: bool = False
+    _clear_complete: bool = True
 
     external_records: dict = field(default_factory=lambda: {}, repr=False)
     internal_records: dict = field(default_factory=lambda: {}, repr=False)
@@ -177,6 +179,16 @@ class HarvestSource:
         if not isinstance(value, bool):
             raise ValueError("No harvest response field must be a boolean")
         self._no_harvest_resp = value
+
+    @property
+    def clear_complete(self) -> bool:
+        return self._clear_complete
+
+    @clear_complete.setter
+    def clear_complete(self, value) -> None:
+        if not isinstance(value, bool):
+            raise ValueError("Clear complete must be a boolean")
+        self._clear_complete = value
 
     def get_source_info_from_job_id(self, job_id: str) -> None:
         # TODO: validate values here?
@@ -424,11 +436,18 @@ class HarvestSource:
 
     def report(self) -> None:
         """Assemble and record report for harvest job"""
-        job_status = {"status": "complete", "date_finished": get_datetime()}
-        job_results = self.reporter.report()
-        job_status.update(job_results)
 
-        self.db_interface.update_harvest_job(self.job_id, job_status)
+        job_results = self.reporter.report()
+
+        if self.job_type == "clear" and self.clear_complete is False:
+            ClearJobException(
+                f"{self.name} failed to clear completely",
+                self.job_id,
+            )
+        else:
+            job_status = {"status": "complete", "date_finished": get_datetime()}
+            job_status.update(job_results)
+            self.db_interface.update_harvest_job(self.job_id, job_status)
 
         if hasattr(self, "notification_emails") and self.notification_emails:
             if self.notification_frequency == "always" or (
@@ -605,7 +624,12 @@ class Record:
         """
         try:
             if self.action == "delete":
-                self.sync()
+                synched_with_ckan = self.sync()
+                if (
+                    self.harvest_source.job_type == "clear"
+                    and synched_with_ckan is False
+                ):
+                    self.harvest_source.clear_complete = False
                 return
             self.compare()
             if self.action is None:
