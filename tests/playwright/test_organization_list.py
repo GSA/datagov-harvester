@@ -22,7 +22,9 @@ class TestOrganizationListUnauthed:
         # at least one card exists
         expect(upage.locator("ul.usa-card-group li.usa-card")).not_to_have_count(0)
         expect(
-            upage.locator("ul.usa-card-group li.usa-card .usa-card__heading").get_by_text("Test Org")
+            upage.locator(
+                "ul.usa-card-group li.usa-card .usa-card__heading"
+            ).get_by_text("Test Org")
         ).not_to_have_count(0)
 
     def test_cant_add_org(self, upage):

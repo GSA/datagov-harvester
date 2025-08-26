@@ -11,6 +11,7 @@ def apage(authed_page):
     authed_page.goto("")
     yield authed_page
 
+
 @pytest.fixture()
 def apage_with_org(apage):
     apage.get_by_role("link", name="Organizations").click()
@@ -22,9 +23,9 @@ def apage_with_org(apage):
     apage.get_by_role("button", name="Submit").click()
     yield apage
     apage.get_by_role("link", name="Organizations").click()
-    apage.get_by_role("listitem").filter(
-        has_text="Test Org New"
-    ).nth(1).get_by_role("link").click()
+    apage.get_by_role("listitem").filter(has_text="Test Org New").nth(1).get_by_role(
+        "link"
+    ).click()
     apage.once("dialog", lambda dialog: dialog.accept())
     apage.get_by_role("button", name="Delete", exact=True).click()
 
@@ -43,9 +44,9 @@ class TestHarvestCreateAndDestroy:
         )
 
         apage.get_by_role("link", name="Organizations").click()
-        apage.get_by_role("listitem").filter(
-            has_text="Test Org New"
-        ).nth(1).get_by_role("link").click()
+        apage.get_by_role("listitem").filter(has_text="Test Org New").nth(
+            1
+        ).get_by_role("link").click()
         apage.once("dialog", lambda dialog: dialog.accept())
         apage.get_by_role("button", name="Delete", exact=True).click()
         expect(apage.locator(".alert-warning")).to_contain_text(
@@ -62,7 +63,9 @@ class TestHarvestCreateAndDestroy:
             "https://harvestsourceurl.gov/data.json"
         )
         apage_with_org.get_by_role("textbox", name="URL").press("Tab")
-        apage_with_org.get_by_role("textbox", name="Notification_emails").fill("a@a.com")
+        apage_with_org.get_by_role("textbox", name="Notification_emails").fill(
+            "a@a.com"
+        )
         apage_with_org.get_by_role("textbox", name="Notification_emails").press("Tab")
         apage_with_org.get_by_label("Frequency", exact=True).press("Tab")
         apage_with_org.get_by_role("button", name="Submit").click()
