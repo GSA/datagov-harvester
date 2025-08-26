@@ -231,16 +231,11 @@ class HarvesterDBInterface:
         if source is None:
             return "Harvest source not found"
 
-        records = (
-            self.db.query(HarvestRecord)
-            .filter(
-                HarvestRecord.harvest_source_id == source_id,
-                HarvestRecord.ckan_id.isnot(None),
-            )
-            .all()
+        record_count = self.get_latest_harvest_records_by_source_orm(
+            source_id, synced=True, count=True
         )
 
-        if len(records) == 0:
+        if record_count == 0:
             self.db.delete(source)
             self.db.commit()
             return (
@@ -250,7 +245,7 @@ class HarvesterDBInterface:
         else:
             # ruff: noqa: E501
             return (
-                f"Failed: {len(records)} records in the Harvest source, please clear it first.",
+                f"Failed: {record_count} records in the Harvest source, please clear it first.",
                 409,
             )
 

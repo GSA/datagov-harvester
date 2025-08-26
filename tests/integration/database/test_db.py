@@ -117,7 +117,7 @@ class TestDatabase:
         source = interface.add_harvest_source(source_data_dcatus)
         interface.add_harvest_job(job_data_dcatus)
         record_data_dcatus[0]["ckan_id"] = "1234"
-        interface.add_harvest_record(record_data_dcatus[0])
+        record = interface.add_harvest_record(record_data_dcatus[0])
 
         response = interface.delete_harvest_source(source.id)
         assert response == (
@@ -128,6 +128,19 @@ class TestDatabase:
         # Ensure the source still exists after failed deletion attempt
         source_still_exists = interface.get_harvest_source(source.id)
         assert source_still_exists is not None
+
+        # Case 3: Harvest source was cleared successfully which means
+        # all latest records are labelled as "delete" allowing harvest source
+        # deletion to occur
+        interface.update_harvest_record(record.id, {"action": "delete"})
+        response = interface.delete_harvest_source(source.id)
+        assert response == (
+            "Deleted harvest source with ID:2f2652de-91df-4c63-8b53-bfced20b276b successfully",
+            200,
+        )
+
+        deleted_source = interface.get_harvest_source(source.id)
+        assert deleted_source is None
 
     def test_harvest_source_by_jobid(
         self, interface, organization_data, source_data_dcatus, job_data_dcatus
