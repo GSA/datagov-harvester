@@ -11,14 +11,15 @@ from typing import Tuple, Union
 import requests
 from ckanapi import RemoteCKAN
 
-# use session scoped database interface
-from .. import db_interface
 from harvester.exceptions import (
     CKANDownException,
     CKANRejectionException,
     DCATUSToCKANException,
     SynchronizeException,
 )
+
+# use session scoped database interface
+from .. import db_interface
 
 if typing.TYPE_CHECKING:
     from harvester.harvest import HarvestSource
