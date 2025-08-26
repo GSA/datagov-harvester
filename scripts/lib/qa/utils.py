@@ -4,7 +4,7 @@ import shutil
 from pathlib import Path
 
 CATALOG_PROD_BASE_URL = "https://catalog.data.gov"
-CATALOG_NEXT_BASE_URL = "https://catalog-next-prod-datagov.app.cloud.gov"
+CATALOG_NEXT_BASE_URL = "https://catalog-beta.data.gov"
 
 
 class OutputBase:
