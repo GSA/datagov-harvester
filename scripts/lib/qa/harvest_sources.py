@@ -30,6 +30,7 @@ class HarvestSources(OutputBase):
             self.harvest_sources_dset_count_url = (
                 f"{CATALOG_PROD_BASE_URL}/api/action/package_search"
                 f"?facet.field=%5B%22harvest_source_title%22%5D&facet.limit=-1"
+                "&fq=collection_package_id:*%20OR%20"
             )
         else:
             self.harvest_sources_url = (
@@ -38,6 +39,7 @@ class HarvestSources(OutputBase):
             self.harvest_sources_dset_count_url = (
                 f"{CATALOG_NEXT_BASE_URL}/api/action/package_search"
                 f"?facet.field=%5B%22harvest_source_title%22%5D&facet.limit=-1"
+                "&fq=collection_package_id:*%20OR%20"
             )
 
     def get_harvest_sources(self):
@@ -49,21 +51,47 @@ class HarvestSources(OutputBase):
                 self.sources = res.json()
         self.sources = {source["name"]: source for source in self.sources}
 
-    def keep_alphanumeric(self, text):
+    def map_names_and_titles(self, harvest_counts):
         """
-        used to standardize harvest source names
+        Maps harvest source titles to names using data from the production CKAN instance
+
+        This function pulls the title and name fields of harvest sources from the
+        production CKAN instance, creates a mapping dictionary from title to name, and
+        then uses this mapping to convert harvest source titles in the harvest_counts
+        dictionary to their corresponding harvest source names.
+
+        If it already uses the names (as in catalog-beta), then nothing should change.
+
+        Args:
+            harvest_counts (dict): Dictionary with harvest source titles as keys and
+                counts as values
+
+        Returns:
+            dict: Dictionary with harvest source names as keys and counts as values
         """
-        return "".join(char for char in text if char.isalnum())
+        mapping = session.get(
+            (
+                f"{CATALOG_PROD_BASE_URL}/api/action/package_search"
+                f"?fq=dataset_type:harvest&fl=title,name&rows=1000"
+            )
+        ).json()["result"]["results"]
+        mapped = {item["title"]: item["name"] for item in mapping}
+        mapped_harvest_counts = {}
+        for k in harvest_counts:
+            try:
+                mapped_harvest_counts[mapped[k]] = harvest_counts[k]
+            except KeyError:
+                mapped_harvest_counts[k] = harvest_counts[k]
+                continue
+        return mapped_harvest_counts
 
     def get_num_datasets(self):
         # harvest sources with no datasets aren't returned from the solr facet
         res = session.get(self.harvest_sources_dset_count_url)
-        if res.ok:
-            titles = res.json()["result"]["facets"]["harvest_source_title"]
-            self.titles = {
-                self.keep_alphanumeric(title.lower()): count
-                for title, count in titles.items()
-            }
+        if res.ok and res.json().get("result"):
+            hst = res.json()["result"]["facets"]["harvest_source_title"]
+            mapped_res = self.map_names_and_titles(hst)
+            self.titles = {title: count for title, count in mapped_res.items()}
 
 
 def compare_schema_types(schema_next: str, schema_prod: str) -> bool:
