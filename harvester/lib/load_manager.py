@@ -9,6 +9,7 @@ from harvester.utils.general_utils import (
     get_datetime,
     send_email_to_recipients,
 )
+
 # use the session scoped interface already made for the harvester
 from .. import db_interface as interface
 

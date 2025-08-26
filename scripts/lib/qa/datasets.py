@@ -59,9 +59,12 @@ class Datasets(OutputBase):
 
     def get_num_datasets(self):
         """Return the number of datasets in this catalog."""
+        fq = "collection_package_id:*%20OR%20"
+        if "beta" in self.base_url:
+            fq = "include_collection:true"
         res = session.get(
             (
-                f"{self.base_url}/api/action/package_search?fq=collection_package_id:*%20OR%20"
+                f"{self.base_url}/api/action/package_search?fq={fq}"
             )
         )
         res.raise_for_status()
