@@ -18,7 +18,7 @@ MDTRANSLATOR_URL: https://mdtranslator-prod.apps.internal:61443/translates
 CLIENT_ID: urn:gov:gsa:openidconnect.profiles:sp:sso:gsa:datagov-prod-harvest-admin
 ISSUER: https://idp.int.identitysandbox.gov
 # Redirect URI should match route_external from above
-REDIRECT_URI: https://datagov-harvest.app.cloud.gov/callback
+REDIRECT_URI: https://harvest.data.gov/callback
 
 # New Relic
 new_relic_monitor_mode: false
