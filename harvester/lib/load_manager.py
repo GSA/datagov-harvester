@@ -2,7 +2,6 @@ import logging
 import os
 from datetime import datetime
 
-from database.interface import HarvesterDBInterface
 from harvester import SMTP_CONFIG
 from harvester.lib.cf_handler import CFHandler
 from harvester.utils.general_utils import (
@@ -11,13 +10,15 @@ from harvester.utils.general_utils import (
     send_email_to_recipients,
 )
 
+# use the session scoped interface already made for the harvester
+from .. import db_interface as interface
+
 CF_API_URL = os.getenv("CF_API_URL")
 CF_SERVICE_USER = os.getenv("CF_SERVICE_USER")
 CF_SERVICE_AUTH = os.getenv("CF_SERVICE_AUTH")
 
 MAX_TASKS_COUNT = int(os.getenv("HARVEST_RUNNER_MAX_TASKS", 5))
 
-interface = HarvesterDBInterface()
 
 logger = logging.getLogger("harvest_admin")
 
@@ -143,8 +144,7 @@ class LoadManager:
             """Check if a job is already running for this source."""
             harvest_job = interface.get_harvest_job(job_id)
             jobs_in_progress = interface.pget_harvest_jobs(
-                facets=f"harvest_source_id = '{harvest_job.harvest_source_id}',\
-                    status = 'in_progress'",
+                facets=f"harvest_source_id eq {harvest_job.harvest_source_id},status eq in_progress",  # noqa E501
                 per_page=1,  # Only need 1 job to know we should not start a new one
                 page=0,
             )
@@ -254,7 +254,7 @@ class LoadManager:
         try:
             source = interface.get_harvest_source(source_id)
             jobs_in_progress = interface.pget_harvest_jobs(
-                facets=f"harvest_source_id = '{source.id}', status = 'in_progress'",
+                facets=f"harvest_source_id eq {source.id},status eq in_progress",
                 paginate=False,
             )
             if len(jobs_in_progress):

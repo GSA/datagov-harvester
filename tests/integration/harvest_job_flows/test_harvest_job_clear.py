@@ -1,6 +1,6 @@
 from unittest.mock import patch
 
-from harvester.harvest import HarvestSource, harvest_job_starter
+from harvester.harvest import HarvestSource, ckan_sync_tool, harvest_job_starter
 
 
 class TestHarvestJobClear:
@@ -85,6 +85,16 @@ class TestHarvestJobClear:
 
         harvest_source = HarvestSource(job.id, "clear")
         harvest_source.run_full_harvest()
+        harvest_source.report()
 
         # 1 (original successful create record) + 1 (delete before ckan action)
         assert len(interface.pget_harvest_records()) == 2
+
+        # running clear via "harvest_job_starter" closes the db session
+        # preventing access to the data below
+        assert job.status == "error"
+        assert len(job.errors) == 1
+        assert job.errors[0].message == "Test Source failed to clear completely"
+
+        harvest_source.db_interface.close()
+        ckan_sync_tool.close_conection()
