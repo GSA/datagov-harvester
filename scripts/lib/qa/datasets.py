@@ -62,11 +62,7 @@ class Datasets(OutputBase):
         fq = "collection_package_id:*%20OR%20"
         if "beta" in self.base_url:
             fq = "include_collection:true"
-        res = session.get(
-            (
-                f"{self.base_url}/api/action/package_search?fq={fq}"
-            )
-        )
+        res = session.get((f"{self.base_url}/api/action/package_search?fq={fq}"))
         res.raise_for_status()
         return res.json()["result"]["count"]
 
