@@ -95,13 +95,13 @@
             </tr>
             <tr>
                 <td>Last Job Finished:</td>
-                <td>
+                <td class="utc-date" data-utc-date="{{ data.summary_data['last_job_finished'] | utc_isoformat }}">
                     {{data.summary_data["last_job_finished"] | else_na }}
                 </td>
             </tr>
             <tr>
                 <td>Next Job Scheduled:</td>
-                <td>
+                <td class="utc-date" data-utc-date="{{ data.summary_data['next_job_scheduled'] | utc_isoformat }}">
                     {{data.summary_data["next_job_scheduled"] | else_na }}
                 </td>
             </tr>
