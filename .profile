@@ -37,11 +37,17 @@ export HARVEST_SMTP_PASSWORD=$(vcap_get_service smtp .credentials.smtp_password)
 export HARVEST_SMTP_SENDER=harvester@$(vcap_get_service smtp .credentials.domain_arn | grep -o "ses-[[:alnum:]]\+.ssb.data.gov")
 export HARVEST_SMTP_RECIPIENT=datagovhelp@gsa.gov
 
+echo "Setting CA Bundle.."
+export REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
+export SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
+
 # egress proxy
 echo "Setting up egress proxy.."
 if [ -z ${proxy_url+x} ]; then
   echo "Egress proxy is not connected."
 else
+  echo "Egress proxy is enabled, excluding internal domains.."
+  export no_proxy=".apps.internal"
   export http_proxy=$proxy_url
   export https_proxy=$proxy_url
 fi
