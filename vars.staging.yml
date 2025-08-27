@@ -12,7 +12,7 @@ CKAN_API_URL: https://catalog-next-stage-admin-datagov.app.cloud.gov
 HARVEST_RUNNER_MAX_TASKS: 3
 HARVEST_RETRY_ON_ERROR: true
 
-MDTRANSLATOR_URL: https://mdtranslator-staging.apps.internal:61443/translates
+MDTRANSLATOR_URL: http://mdtranslator-staging.apps.internal:8080/translates
 
 # Login.gov
 CLIENT_ID: urn:gov:gsa:openidconnect.profiles:sp:sso:gsa:datagov-staging-harvest-admin
