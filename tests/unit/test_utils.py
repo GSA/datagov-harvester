@@ -360,13 +360,16 @@ class TestGeneralUtils:
         dol_distribution_json["keyword"] = []  # empty array
         dol_distribution_json["distribution"][0]["title"] = ""  # empty string
         dol_distribution_json["distribution"][1] = bool  # wrong type
-        dol_distribution_json["contactPoint"][
-            "hasEmail"
-        ] = "bad email"  # bad value based on regex
+        dol_distribution_json["contactPoint"]["hasEmail"] = (
+            "bad email"  # bad value based on regex
+        )
         dol_distribution_json["accrualPeriodicity"] = (
             "No longer updated (dataset archived)"  # bad const value
         )
         dol_distribution_json["rights"] = "a" * 256  # max string length exceeded
+        dol_distribution_json["distribution"][0]["@type"] = (
+            "Distribution"  # not dcat:Distribution
+        )
 
         validator = Draft202012Validator(
             dcatus_non_federal_schema, format_checker=FormatChecker()
@@ -381,6 +384,7 @@ class TestGeneralUtils:
             "$.rights, 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' does not match any of the acceptable formats: max string length requirement, 'null'",
             "$.accrualPeriodicity, 'No longer updated (dataset archived)' does not match any of the acceptable formats: constant value 'irregular' was expected, '^R\\\\/P(?:\\\\d+(?:\\\\.\\\\d+)?Y)?(?:\\\\d+(?:\\\\.\\\\d+)?M)?(?:\\\\d+(?:\\\\.\\\\d+)?W)?(?:\\\\d+(?:\\\\.\\\\d+)?D)?(?:T(?:\\\\d+(?:\\\\.\\\\d+)?H)?(?:\\\\d+(?:\\\\.\\\\d+)?M)?(?:\\\\d+(?:\\\\.\\\\d+)?S)?)?$', 'null', '^(\\\\[\\\\[REDACTED).*?(\\\\]\\\\])$'",
             "$.contactPoint.hasEmail, 'bad email' does not match any of the acceptable formats: \"^mailto:[\\\\w\\\\_\\\\~\\\\!\\\\$\\\\&\\\\'\\\\(\\\\)\\\\*\\\\+\\\\,\\\\;\\\\=\\\\:.-]+@[\\\\w.-]+\\\\.[\\\\w.-]+?$\", '^(\\\\[\\\\[REDACTED).*?(\\\\]\\\\])$'",
+            "$.distribution[0]['@type'], @type value does not match any of the acceptable formats: constant value 'dcat:Distribution' was expected",
             "$.distribution[0].title, '' does not match any of the acceptable formats: non-empty, 'null', '^(\\\\[\\\\[REDACTED).*?(\\\\]\\\\])$'",
             "$.distribution[1], 'bool' does not match any of the acceptable formats: 'object', 'string'",
             "$.keyword, [] does not match any of the acceptable formats: non-empty, 'string'",

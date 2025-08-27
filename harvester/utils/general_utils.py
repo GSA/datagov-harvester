@@ -684,11 +684,22 @@ def finalize_validation_messages(messages: defaultdict) -> list:
             logger.warning(f"can't find invalid data from error message: {formats[0]}")
             continue
 
+        invalid_value = invalid_value.group(0)
+
+        # @type values are consts too
+        if invalid_value in [
+            "'dcat:Distribution'",
+            "'org:Organization'",
+            "'dcat:Dataset'",
+            "'vcard:Contact'",
+        ]:
+            invalid_value = "@type value"
+
         formats = map(get_format_from_str, formats)
 
         # build the bundled error message by json_path
         msg = ValidationError(
-            f"{json_path}, {invalid_value.group(0)} does not match any of "
+            f"{json_path}, {invalid_value} does not match any of "
             "the acceptable formats: " + ", ".join(formats)
         )
         output.append(msg)
