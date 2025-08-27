@@ -6,7 +6,8 @@ from unittest.mock import Mock, call, patch
 import pytest
 import requests
 from jsonschema import Draft202012Validator, FormatChecker
-from requests import HTTPError
+import http
+from requests.exceptions import ConnectionError
 
 from database.models import HarvestSource
 from harvester.utils.ckan_utils import (
@@ -591,6 +592,18 @@ class TestGeneralUtils:
             "http://example.com/test.xml", headers={"User-Agent": USER_AGENT}
         )
         assert result == expected_result
+
+    @patch("harvester.utils.general_utils.requests.get")
+    def test_download_file_connection_error(self, mock_get):
+        mock_get.side_effect = ConnectionError(
+            "Connection aborted.",
+            http.client.RemoteDisconnected(
+                "Remote end closed connection without response"
+            ),
+        )
+
+        with pytest.raises(requests.exceptions.ConnectionError) as e:
+            download_file("http://example.com/test.xml", ".xml")
 
     @patch("harvester.utils.ckan_utils.RemoteCKAN")
     @patch("harvester.utils.general_utils.requests.Session.request")
