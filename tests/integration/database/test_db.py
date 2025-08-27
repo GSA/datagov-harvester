@@ -268,7 +268,7 @@ class TestDatabase:
         assert len(db_records) == 0
 
         db_records = interface.pget_harvest_records(
-            facets=f"id = '{id_lookup_table['test-identifier-0']}'"
+            facets=f"id eq {id_lookup_table['test-identifier-0']}"
         )
         assert len(db_records) == 1
         assert db_records[0].harvest_job_id == job_data_dcatus["id"]
@@ -416,7 +416,7 @@ class TestDatabase:
     ):
         source_id = source_data_dcatus["id"]
         filtered_list = interface_with_multiple_jobs.pget_harvest_jobs(
-            facets=f"status = 'new', harvest_source_id = '{source_id}'"
+            facets=f"status eq new, harvest_source_id eq {source_id}"
         )
         assert len(filtered_list) == 3
         assert filtered_list[0].status == "new"
@@ -474,10 +474,10 @@ class TestDatabase:
         self, source_data_dcatus, interface_with_multiple_jobs
     ):
         faceted_list = interface_with_multiple_jobs.pget_harvest_jobs(
-            facets="status = 'new' OR status = 'in_progress'"
+            facets="status eq new"
         )
 
-        assert len(faceted_list) == 6
+        assert len(faceted_list) == 3
         assert len([x for x in faceted_list if x.status == "new"]) == 3
         assert (
             len(
@@ -487,7 +487,7 @@ class TestDatabase:
                     if x.harvest_source_id == source_data_dcatus["id"]
                 ]
             )
-            == 6
+            == 3
         )
 
     def test_delete_harvest_job(
@@ -756,14 +756,14 @@ class TestDatabase:
         # source id, plus extra filter_text facet
         db_records = interface.get_harvest_records_by_source(
             source_data_dcatus["id"],
-            facets=f"id = '{id_lookup_table['test-identifier-0']}'",
+            facets=f"id eq {id_lookup_table['test-identifier-0']}",
         )
         assert len(db_records) == 1
 
         # source id, plus extra filter_text facet, plus kwargs to return only count
         db_records = interface.get_harvest_records_by_source(
             source_data_dcatus["id"],
-            facets=f"id = '{id_lookup_table['test-identifier-0']}'",
+            facets=f"id eq {id_lookup_table['test-identifier-0']}",
             count=True,
         )
         assert db_records == 1
@@ -771,7 +771,7 @@ class TestDatabase:
         # source id, plus two facets
         db_records = interface.get_harvest_records_by_source(
             source_data_dcatus["id"],
-            facets=f"id = '{id_lookup_table['test-identifier-4']}',identifier = 'test-identifier-4'",  # noqa E501
+            facets=f"id eq {id_lookup_table['test-identifier-4']},identifier eq test-identifier-4",  # noqa E501
             count=True,
         )
         assert db_records == 1

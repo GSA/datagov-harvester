@@ -196,7 +196,7 @@ class TestLoadManager:
 
         source_id = source_data_dcatus["id"]
         jobs = interface_no_jobs.pget_harvest_jobs(
-            facets=f"harvest_source_id = '{source_id}'",
+            facets=f"harvest_source_id eq {source_id}",
             order_by="desc",
         )
         assert len(jobs) == 2
@@ -219,7 +219,7 @@ class TestLoadManager:
         message = load_manager.trigger_manual_job(source_data_dcatus["id"])
         source_id = source_data_dcatus["id"]
         new_job = interface_no_jobs.pget_harvest_jobs(
-            facets=f"harvest_source_id = '{source_id}', status = 'in_progress'"
+            facets=f"harvest_source_id eq {source_id},status eq in_progress"
         )
         assert message == f"Updated job {new_job[0].id} to in_progress"
         message = load_manager.trigger_manual_job(source_data_dcatus["id"])
@@ -229,7 +229,7 @@ class TestLoadManager:
         )
 
         jobs = interface_no_jobs.pget_harvest_jobs(
-            facets=f"harvest_source_id = '{source_id}'",
+            facets=f"harvest_source_id eq {source_id}",
             order_by="desc",
         )
 
@@ -253,10 +253,10 @@ class TestLoadManager:
         message = load_manager.trigger_manual_job(source_data_dcatus["id"])
         source_id = source_data_dcatus["id"]
         new_job = interface_no_jobs.pget_harvest_jobs(
-            facets=f"harvest_source_id = '{source_id}', status = 'new'"
+            facets=f"harvest_source_id eq {source_id},status eq new"
         )[0]
         current_job = interface_no_jobs.pget_harvest_jobs(
-            facets=f"harvest_source_id = '{source_id}', status = 'in_progress'"
+            facets=f"harvest_source_id eq {source_id},status eq in_progress"
         )[0]
         assert message == f"Updated job {current_job.id} to in_progress"
 
@@ -264,7 +264,7 @@ class TestLoadManager:
         assert f"Job {current_job.id} already in progress" in failing_start_job_msg
 
         jobs = interface_no_jobs.pget_harvest_jobs(
-            facets=f"harvest_source_id = '{source_id}'",
+            facets=f"harvest_source_id eq {source_id}",
             order_by="desc",
         )
 
@@ -324,7 +324,7 @@ class TestLoadManager:
         # clear out in progress jobs
         source_id = source_data_dcatus["id"]
         jobs = interface_no_jobs.pget_harvest_jobs(
-            facets=f"harvest_source_id = '{source_id}'"
+            facets=f"harvest_source_id eq {source_id}"
         )
         interface_no_jobs.delete_harvest_job(jobs[0].id)
 
@@ -353,7 +353,7 @@ class TestLoadManager:
 
         source_id = source_data_dcatus["id"]
         jobs = interface_no_jobs.pget_harvest_jobs(
-            facets=f"harvest_source_id = '{source_id}'"
+            facets=f"harvest_source_id eq {source_id}"
         )
 
         task_guid_val = "3a24b55a02b0-eb7b-4eeb-9f45-645cedd3d93b"
@@ -461,7 +461,7 @@ class TestLoadManager:
 
         source_id = source_data_dcatus["id"]
         jobs = interface_no_jobs.pget_harvest_jobs(
-            facets=f"harvest_source_id = '{source_id}'"
+            facets=f"harvest_source_id eq {source_id}"
         )
 
         retval = load_manager.stop_job(jobs[0].id)
