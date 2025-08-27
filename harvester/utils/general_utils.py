@@ -16,6 +16,7 @@ from uuid import UUID
 
 import geojson_validator
 import requests
+import http
 import sansjson
 import sqlalchemy.sql.operators as sa_operators
 from bs4 import BeautifulSoup
@@ -102,14 +103,17 @@ def open_json(file_path):
 def download_file(url: str, file_type: str) -> Union[str, dict]:
     # ruff: noqa: E501
     headers = {"User-Agent": USER_AGENT}
-    resp = requests.get(url, headers=headers)
-    if 200 <= resp.status_code < 300:
-        if file_type == ".xml":
-            data = resp.content
-            if isinstance(data, bytes):
-                data = data.decode()
-            return data
-        return resp.json()
+    try:
+        resp = requests.get(url, headers=headers)
+        if 200 <= resp.status_code < 300:
+            if file_type == ".xml":
+                data = resp.content
+                if isinstance(data, bytes):
+                    data = data.decode()
+                return data
+            return resp.json()
+    except (http.client.RemoteDisconnected, requests.exceptions.ConnectionError) as e:
+        raise e
 
     raise Exception
 
