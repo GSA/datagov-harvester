@@ -76,6 +76,14 @@ class TestHarvestCreateAndDestroy:
         apage_with_org.get_by_role("listitem").filter(
             has_text="Test Source New Details"
         ).get_by_role("link").click()
+        apage_with_org.get_by_role("button", name="Edit", exact=True).click()
+        assert apage_with_org.locator("#name").get_attribute("readonly") is not None
+
+        apage_with_org.get_by_role("link", name="Harvest Sources").click()
+
+        apage_with_org.get_by_role("listitem").filter(
+            has_text="Test Source New Details"
+        ).get_by_role("link").click()
         apage_with_org.once("dialog", lambda dialog: dialog.accept())
         apage_with_org.get_by_role("button", name="Delete", exact=True).click()
         expect(apage_with_org.locator(".alert-warning")).to_contain_text(
