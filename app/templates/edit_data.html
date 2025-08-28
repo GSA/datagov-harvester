@@ -11,7 +11,11 @@
     {% for field in form if field.widget.input_type != 'hidden' %}
     <div class="form-group">
         {{field.label(class_='form-control-label')}}
-        {{field(class_='form-control')}}
+        {% if data_type == "Harvest Source" and action == "Edit" and field.id == 'name' %}
+            {{field(class_='form-control', readonly_=true)}}
+        {% else %}
+            {{field(class_='form-control')}}
+        {% endif %}
     </div>
     {% endfor %}
 
