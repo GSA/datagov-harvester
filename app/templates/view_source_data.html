@@ -27,9 +27,11 @@
                 <td>Organization:</td>
                 <td><a href="{{ url_for('main.view_organization', org_id=value) }}">{{data.source.org.name}}</a></td>
                 {% elif key == 'notification_emails' %}
-                <td>Notification emails:</td>
-                <td>{{value|join(',')}}</a>
-                </td>
+                  {% if session['user'] %}
+                    <td>Notification emails:</td>
+                    <td>{{value|join(', ')}}</a>
+                    </td>
+                  {% endif %}
                 {% else %}
                 <td>{{key}}:</td>
                 <td>{{value}}</td>
