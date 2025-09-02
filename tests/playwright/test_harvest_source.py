@@ -26,8 +26,6 @@ class TestHarvestSourceUnauthed:
                 "Test Source",
                 "url:",
                 "http://localhost:80/dcatus/dcatus.json",
-                "Notification emails:",
-                "email@example.com",
                 "frequency:",
                 "daily",
                 "schema_type:",
@@ -119,4 +117,14 @@ class TestHarvestSourceAuthed:
         apage.get_by_role("button", name="Delete", exact=True).click()
         expect(apage.locator(".alert-warning")).to_contain_text(
             ["Failed: 2 records in the Harvest source, please clear it first."]
+        )
+
+    def test_contains_notification_emails(self, apage):
+        expect(
+            apage.locator(".harvest-source-config-properties table td")
+        ).to_contain_text(
+            [
+                "Notification emails:",
+                "email@example.com",
+            ]
         )
