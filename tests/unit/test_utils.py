@@ -1,3 +1,4 @@
+import http
 import json
 import logging
 import time
@@ -6,7 +7,6 @@ from unittest.mock import Mock, call, patch
 import pytest
 import requests
 from jsonschema import Draft202012Validator, FormatChecker
-import http
 from requests.exceptions import ConnectionError
 
 from database.models import HarvestSource
@@ -361,16 +361,16 @@ class TestGeneralUtils:
         dol_distribution_json["keyword"] = []  # empty array
         dol_distribution_json["distribution"][0]["title"] = ""  # empty string
         dol_distribution_json["distribution"][1] = bool  # wrong type
-        dol_distribution_json["contactPoint"]["hasEmail"] = (
-            "bad email"  # bad value based on regex
-        )
+        dol_distribution_json["contactPoint"][
+            "hasEmail"
+        ] = "bad email"  # bad value based on regex
         dol_distribution_json["accrualPeriodicity"] = (
             "No longer updated (dataset archived)"  # bad const value
         )
         dol_distribution_json["rights"] = "a" * 256  # max string length exceeded
-        dol_distribution_json["distribution"][0]["@type"] = (
-            "Distribution"  # not dcat:Distribution
-        )
+        dol_distribution_json["distribution"][0][
+            "@type"
+        ] = "Distribution"  # not dcat:Distribution
 
         validator = Draft202012Validator(
             dcatus_non_federal_schema, format_checker=FormatChecker()

@@ -30,6 +30,9 @@
                 <td class="utc-date" data-utc-date="{{ value | utc_isoformat }}">
                     {{ value | else_na }}
                 </td>
+                {% elif key == 'records_ignored' %}
+                <td>records_unchanged:</td>
+                <td>{{value}}</td>
                 {% else %}
                 <td>{{key}}:</td>
                 <td>{{value}}</td>

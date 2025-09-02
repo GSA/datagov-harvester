@@ -37,7 +37,7 @@ class TestHarvestSourceUnauthed:
         expect(table).to_contain_text("records_deleted:")
         expect(table).to_contain_text("records_errored:")
         expect(table).to_contain_text("8")
-        expect(table).to_contain_text("records_ignored:")
+        expect(table).to_contain_text("records_unchanged:")
         expect(table).to_contain_text("records_validated:")
         expect(table).to_contain_text("id:")
         expect(table).to_contain_text("6bce761c-7a39-41c1-ac73-94234c139c76")

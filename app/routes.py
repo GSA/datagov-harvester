@@ -778,7 +778,7 @@ def view_harvest_source(source_id: str):
                     "backgroundColor": "red",
                 },
                 {
-                    "label": "Ignored",
+                    "label": "Unchanged",
                     "data": chart_data_values["records_ignored"],
                     "borderColor": "grey",
                     "backgroundColor": "grey",
