@@ -339,7 +339,7 @@ class HarvestSource:
                 del record
             except Exception as e:
                 self.reporter.update("errored")
-                raise ExternalRecordToClass(
+                ExternalRecordToClass(
                     f"{self.name} {self.url} failed to prepare record for harvest :: {repr(e)}",
                     self.job_id,
                     None,  # there is no record id to associate
@@ -421,8 +421,6 @@ class HarvestSource:
         except (ExtractInternalException, ExtractExternalException):
             self.finish_job_with_status("error")
             return
-        except ExternalRecordToClass:
-            pass
 
     def finish_job_with_status(self, status: str):
         """
