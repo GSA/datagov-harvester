@@ -934,6 +934,7 @@ def view_harvest_job(job_id=None):
     htmx_vars = {
         "target_div": "#error_results_pagination",
         "endpoint_url": f"/harvest_job/{job_id}",
+        "page_param": "page",
     }
 
     pagination = Pagination(
