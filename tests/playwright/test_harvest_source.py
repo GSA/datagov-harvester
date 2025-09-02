@@ -77,6 +77,36 @@ class TestHarvestSourceUnauthed:
         expect(first_row.nth(7)).to_contain_text("0")  # records_errored
         expect(first_row.nth(8)).to_contain_text("0")  # records_ignored
 
+    @pytest.mark.parametrize(
+        "data_term_name, glossary_term_name",
+        [
+            ("notification emails", "Notification emails"),
+            ("frequency", "frequency"),
+            ("schema_type", "schema_type"),
+            ("source_type", "source_type"),
+            ("notification_frequency", "notification_frequency"),
+            ("synced records", "Synced Records"),
+        ],
+    )
+    def test_glossary_terms(self, upage, data_term_name, glossary_term_name):
+        glossary = upage.locator("#glossary")
+        # glossary starts closed
+        assert glossary.get_attribute("aria-hidden") == "true"
+
+        upage.click(f"span[data-term='{data_term_name}']")
+        assert glossary.get_attribute("aria-hidden") == "false"
+        glossary_elem = upage.locator(
+            "button[class='data-glossary-term glossary__term']"
+        )
+        # only 1 term (the clicked one) is present in the glossary
+        expect(glossary_elem).to_have_count(1)
+        assert glossary_elem.text_content() == glossary_term_name
+
+        # close the glossary
+        glossary_close = upage.get_by_title("Close glossary")
+        glossary_close.click()
+        assert glossary.get_attribute("aria-hidden") == "true"
+
 
 class TestHarvestSourceAuthed:
     def test_can_perform_actions(self, apage):
