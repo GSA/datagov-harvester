@@ -440,6 +440,20 @@ class HarvesterDBInterface:
         )
         return [err for err in errors or []]
 
+    def get_record_errors_summary_by_job(self, job_id: str):
+        """Get a summary of all the record errors for this job."""
+        query = (
+            self.db.query(
+                HarvestJob.id,
+                HarvestRecordError.type,
+                func.count(HarvestRecordError.id),
+            )
+            .filter(HarvestJob.id == job_id)
+            .join(HarvestRecordError)
+            .group_by(HarvestJob.id, HarvestRecordError.type)
+        )
+        return {error_type: error_count for _, error_type, error_count in query}
+
     ## HARVEST RECORD
     def add_harvest_record(self, record_data):
         try:

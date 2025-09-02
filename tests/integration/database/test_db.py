@@ -387,6 +387,19 @@ class TestDatabase:
         assert count == len(record_error_data)
         assert all_errors_count == len(record_error_data) + len(record_error_data_2)
 
+    def test_record_errors_summary_by_job(
+        self,
+        interface_with_multiple_sources,
+        job_data_dcatus,
+        record_error_data,
+    ):
+        interface = interface_with_multiple_sources
+        job_id = job_data_dcatus["id"]
+        summary = interface.get_record_errors_summary_by_job(
+            job_id,
+        )
+        assert sum(count for count in summary.values()) == len(interface.get_harvest_record_errors_by_job(job_id))
+
     def test_add_harvest_job_with_id(
         self, interface, organization_data, source_data_dcatus, job_data_dcatus
     ):
