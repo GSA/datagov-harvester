@@ -13,7 +13,7 @@ def job_with_many_errors(interface_with_fixture_json):
     job = interface_with_fixture_json.get_first_harvest_job_by_filter({})
     record_id = job.records[0].id
     for i in range(100):
-        error = interface_with_fixture_json.add_harvest_record_error(
+        interface_with_fixture_json.add_harvest_record_error(
             {
                 "type": "testing",
                 "message": f"Error {i}",
@@ -22,6 +22,7 @@ def job_with_many_errors(interface_with_fixture_json):
             }
         )
     return job
+
 
 class TestViewHarvestJob:
 

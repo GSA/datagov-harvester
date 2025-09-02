@@ -1,5 +1,6 @@
 import argparse
 import hashlib
+import http
 import json
 import logging
 import os
@@ -16,7 +17,6 @@ from uuid import UUID
 
 import geojson_validator
 import requests
-import http
 import sansjson
 import sqlalchemy.sql.operators as sa_operators
 from bs4 import BeautifulSoup
