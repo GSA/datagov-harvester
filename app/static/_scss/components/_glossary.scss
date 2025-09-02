@@ -47,3 +47,19 @@
     }
   }
 }
+
+[data-term] {
+  border-bottom: 1px dotted;
+  border-color: color("primary-vivid");
+  color: inherit;
+  cursor: pointer;
+  text-decoration: none;
+  background-image: url("../../img/icon-glossary.svg");
+  background-position: left center;
+  background-repeat: no-repeat;
+  padding-left: 17px;
+}
+
+[data-term]:hover {
+  background-color: #f7f9fa;
+}
