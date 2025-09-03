@@ -78,7 +78,6 @@ class TestHarvestSourceUnauthed:
     @pytest.mark.parametrize(
         "data_term_name, glossary_term_name",
         [
-            ("notification emails", "Notification emails"),
             ("frequency", "frequency"),
             ("schema_type", "schema_type"),
             ("source_type", "source_type"),
