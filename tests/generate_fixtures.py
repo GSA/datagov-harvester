@@ -8,6 +8,7 @@ import json
 import os
 from datetime import datetime, timedelta
 from typing import Any, Dict
+from uuid import UUID
 
 
 def generate_dynamic_fixtures() -> Dict[str, Any]:
@@ -124,7 +125,7 @@ def generate_dynamic_fixtures() -> Dict[str, Any]:
     ]
 
     # Generate additional jobs to fill out the week
-    additional_job_ids = [
+    additional_job_ids = [str(UUID(_, version=4)) for _ in [
         "7c8d9e0f-1a2b-3c4d-5e6f-789012345678",
         "2b3c4d5e-6f7a-8b9c-0d1e-2f3456789abc",
         "5d6e7f8a-9b0c-1d2e-3f4a-5b6789cdef01",
@@ -135,7 +136,7 @@ def generate_dynamic_fixtures() -> Dict[str, Any]:
         "c2d3e4f5-6a7b-8c9d-0e1f-23456789abcd",
         "f5a6b7c8-9d0e-1f2a-3b4c-56789def0123",
         "56789def-9d0e-1f2a-3b4c-56789def0123",
-    ]
+    ]]
 
     for i, job_id in enumerate(additional_job_ids):
         job_templates.append(
@@ -212,7 +213,7 @@ def generate_dynamic_fixtures() -> Dict[str, Any]:
         )
 
     # Add error records
-    error_record_ids = [
+    error_record_ids = [str(UUID(_, version=4)) for _ in [
         "0779c855-df20-49c8-9108-66359d82b77c",
         "c218c965-3670-45c8-bfcd-f852d71ed917",
         "e1f603cc-8b6b-483f-beb4-86bda5462b79",
@@ -221,7 +222,7 @@ def generate_dynamic_fixtures() -> Dict[str, Any]:
         "27b5d5d6-808b-4a8c-ae4a-99f118e282dd",
         "c232a2ca-6344-4692-adc2-29f618a2eff3",
         "95021355-bad0-442b-98e9-475ecd849033",
-    ]
+    ]]
 
     for i, record_id in enumerate(error_record_ids):
         base_fixtures["record"].append(

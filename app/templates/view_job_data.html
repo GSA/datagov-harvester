@@ -99,6 +99,25 @@
         <a href="{{ url_for('main.download_harvest_errors_by_job', job_id=data.job.id, error_type=error_type)}}">
             <button class="btn btn-primary">download record errors as .csv</button>
         </a>
+
+        <table class="usa-table usa-table--striped" id="harvest-job-error-summary">
+          <caption>Error type summary</caption>
+          <thead>
+            <tr>
+              <td scope="col">Error type</td>
+              <td scope="col">Number of errors</td>
+            </tr>
+          </thead>
+          <tbody>
+            {% for error_type, count in data.record_error_summary.items() %}
+            <tr>
+              <td>{{ error_type }}</td>
+              <td>{{ count }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+
         <div class="usa-table-container--scrollable" tabindex="0">
             {% block record_errors_table %}
             <div id="error_results_pagination">

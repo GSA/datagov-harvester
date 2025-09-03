@@ -16,7 +16,7 @@ def apage(authed_page):
     yield authed_page
 
 
-class TestHarvestSourceUnauthed:
+class TestHarvestJobUnauthed:
     def test_config_table_properties(self, upage):
         # Test specific static labels and values that don't change
         table = upage.locator(".harvest-job-config-properties table")
@@ -60,6 +60,16 @@ class TestHarvestSourceUnauthed:
             "/harvest_record/0779c855-df20-49c8-9108-66359d82b77c",
         )
 
+    def test_harvest_job_record_errors_summary(self, upage):
+        expect(upage.locator("table#harvest-job-error-summary")).to_be_visible()
+
+        expect(
+            upage.locator("table#harvest-job-error-summary thead tr")
+        ).to_have_count(1)
+        expect(
+            upage.locator("table#harvest-job-error-summary tbody tr td")
+        ).to_have_text(["ValidationException", "8"])
+
     def test_download_harvest_errors_csv(self, upage):
         pytest_harvest_errors_csv = "pytest_harvest_errors.csv"
         with upage.expect_download() as download_info:
@@ -102,5 +112,5 @@ class TestHarvestSourceUnauthed:
         download.delete()
 
 
-class TestHarvestSourceAuthed:
+class TestHarvestJobAuthed:
     pass
