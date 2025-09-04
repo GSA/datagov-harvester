@@ -202,6 +202,21 @@ class HarvestSource:
                 self.job_id,
             )
 
+    def update_job_record_count_by_action(self, action: str):
+        """updates the record action counter in the reporter
+        and updates the job with new count dict
+
+        record actions are:
+            create
+            update
+            delete
+            None (unchanged)
+            errored
+            validated
+        """
+        self.reporter.update(action)
+        self.db_interface.update_harvest_job(self.job_id, self.reporter.report())
+
     def get_source_orm(self) -> HarvestSourceORM:
         """Get the harvest source object from the database."""
         return self.db_interface.get_harvest_source_by_jobid(self.job_id)
@@ -261,7 +276,7 @@ class HarvestSource:
                 self.write_duplicate_to_db(self.external_records[idx]["identifier"])
             except DuplicateIdentifierException:
                 del self.external_records[idx]
-                self.reporter.update("errored")
+                self.update_job_record_count_by_action("errored")
 
     def filter_waf_files_by_datetime(self) -> None:
         """
@@ -338,7 +353,7 @@ class HarvestSource:
 
                 del record
             except Exception as e:
-                self.reporter.update("errored")
+                self.update_job_record_count_by_action("errored")
                 ExternalRecordToClass(
                     f"{self.name} {self.url} failed to prepare record for harvest :: {repr(e)}",
                     self.job_id,
@@ -409,6 +424,9 @@ class HarvestSource:
             self.filter_duplicate_identifiers()
 
             external_records_to_process = self.external_records_to_process()
+
+            # amount of work to be done
+            self.reporter.total = len(self.deletions) + len(self.external_records)
 
             # deletions would occur first based on the arg positions
             records = chain(internal_records_to_delete, external_records_to_process)
@@ -667,9 +685,7 @@ class Record:
         if self.action is not None:
             self.write_compare_to_db()
         else:
-            self.harvest_source.reporter.update(None)
-
-        self.harvest_source.reporter.total += 1
+            self.harvest_source.update_job_record_count_by_action(None)
 
     def write_compare_to_db(self) -> None:
         try:
@@ -711,7 +727,7 @@ class Record:
                 data = resp.json()
                 self.mdt_msgs = prepare_transform_msg(data)
                 self.status = "error"
-                self.harvest_source.reporter.update("errored")
+                self.harvest_source.update_job_record_count_by_action("errored")
                 raise TransformationException(
                     f"record failed to transform: {self.mdt_msgs}",
                     self.harvest_source.job_id,
@@ -719,7 +735,7 @@ class Record:
                 )
             else:
                 self.status = "error"
-                self.harvest_source.reporter.update("errored")
+                self.harvest_source.update_job_record_count_by_action("errored")
                 raise TransformationException(
                     f"record failed to transform because of unexpected status code: {resp.status_code}",
                     self.harvest_source.job_id,
@@ -729,7 +745,7 @@ class Record:
         except Timeout:
             logger.error("Request timed out")
             self.status = "error"
-            self.harvest_source.reporter.update("errored")
+            self.harvest_source.update_job_record_count_by_action("errored")
             raise TransformationException(
                 "record failed to transform due to request timeout",
                 self.harvest_source.job_id,
@@ -739,7 +755,7 @@ class Record:
         except Exception as err:
             logger.info("Unexpected error: %s", err)
             self.status = "error"
-            self.harvest_source.reporter.update("errored")
+            self.harvest_source.update_job_record_count_by_action("errored")
             raise TransformationException(
                 f"record failed to transform with error: {err}",
                 self.harvest_source.job_id,
@@ -819,7 +835,7 @@ class Record:
                 record = json.loads(self.source_raw)
             except json.JSONDecodeError as e:
                 self._report_error(e)
-                self.harvest_source.reporter.update("errored")
+                self.harvest_source.update_job_record_count_by_action("errored")
                 return False
         else:
             record = self.transformed_data
@@ -835,11 +851,11 @@ class Record:
             self._report_error(error)
 
         if valid:
-            self.harvest_source.reporter.update("validated")
+            self.harvest_source.update_job_record_count_by_action("validated")
             return True
         else:
             # update the reporter only once even with multiple errors
-            self.harvest_source.reporter.update("errored")
+            self.harvest_source.update_job_record_count_by_action("errored")
             return False
 
     def sync(self):
@@ -847,6 +863,7 @@ class Record:
             if self.status == "error":
                 return False
             if ckan_sync_tool.sync(record=self) is True:
+                self.harvest_source.update_job_record_count_by_action(self.action)
                 self.update_self_in_db()
                 return True
         except (
@@ -856,7 +873,7 @@ class Record:
             CKANRejectionException,
         ):
             self.status = "error"
-            self.harvest_source.reporter.update("errored")
+            self.harvest_source.update_job_record_count_by_action("errored")
         return False
 
     def update_self_in_db(self) -> bool:
