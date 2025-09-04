@@ -941,6 +941,7 @@ def view_harvest_job(job_id=None):
         count=record_error_count,
         current=request.args.get("page", 1, type=convert_to_int),
     )
+    record_error_summary = db.get_record_errors_summary_by_job(job_id)
     record_errors = db.get_harvest_record_errors_by_job(
         job_id,
         page=pagination.db_current,
@@ -972,6 +973,7 @@ def view_harvest_job(job_id=None):
         else:
             data = {
                 "job": job,
+                "record_error_summary": record_error_summary,
                 "record_errors": record_errors_dict,
                 "htmx_vars": htmx_vars,
             }

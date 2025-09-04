@@ -16,7 +16,7 @@ def apage(authed_page):
     yield authed_page
 
 
-class TestHarvestSourceUnauthed:
+class TestHarvestJobUnauthed:
     def test_config_table_properties(self, upage):
         # Test specific static labels and values that don't change
         table = upage.locator(".harvest-job-config-properties table")
@@ -49,7 +49,7 @@ class TestHarvestSourceUnauthed:
     def test_harvest_job_record_errors_display(self, upage):
         expect(
             upage.locator("#error_results_pagination .error-list .error-block")
-        ).to_have_count(8)
+        ).to_have_count(10)  # paginated at 10 entries
 
         expect(
             upage.locator(
@@ -60,6 +60,16 @@ class TestHarvestSourceUnauthed:
             "/harvest_record/0779c855-df20-49c8-9108-66359d82b77c",
         )
 
+    def test_harvest_job_record_errors_summary(self, upage):
+        expect(upage.locator("table#harvest-job-error-summary")).to_be_visible()
+
+        expect(
+            upage.locator("table#harvest-job-error-summary thead tr")
+        ).to_have_count(1)
+        expect(
+            upage.locator("table#harvest-job-error-summary tbody tr td")
+        ).to_have_text(["TestException", "8", "ValidationException", "8"])
+
     def test_download_harvest_errors_csv(self, upage):
         pytest_harvest_errors_csv = "pytest_harvest_errors.csv"
         with upage.expect_download() as download_info:
@@ -69,7 +79,7 @@ class TestHarvestSourceUnauthed:
         with open(pytest_harvest_errors_csv) as csvfile:
             data = csv.reader(csvfile)
             # assert row count
-            assert 9 == sum(1 for row in data)
+            assert 17 == sum(1 for row in data)
             for index, row in enumerate(data):
                 # assert headers
                 if index == 0:
@@ -129,5 +139,5 @@ class TestHarvestSourceUnauthed:
         assert glossary.get_attribute("aria-hidden") == "true"
 
 
-class TestHarvestSourceAuthed:
+class TestHarvestJobAuthed:
     pass
