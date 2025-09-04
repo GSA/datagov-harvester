@@ -898,7 +898,7 @@ def trigger_harvest_source(source_id, job_type):
         return JSON_NOT_FOUND()
     message = load_manager.trigger_manual_job(source_id, job_type)
     flash(message)
-    return redirect(f"/harvest_source/{source_id}")
+    return redirect(url_for("main.view_harvest_source", source_id=source_id))
 
 
 ## Harvest Job
@@ -1015,7 +1015,7 @@ def cancel_harvest_job(job_id):
         return redirect("/")
     message = load_manager.stop_job(job_id)
     flash(message)
-    return redirect(f"/harvest_job/{job_id}")
+    return redirect(url_for("main.view_harvest_job", job_id=job_id))
 
 
 ### Download all errors for a given job
