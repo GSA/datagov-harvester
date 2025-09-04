@@ -247,6 +247,16 @@ def generate_dynamic_fixtures() -> Dict[str, Any]:
                 "type": "ValidationException",
             }
         )
+        # And another one with a different type
+        base_fixtures["record_error"].append(
+            {
+                "id": f"3ccb48db-21fc-427a-9ec7-36b0d0f621c{i}",
+                "harvest_record_id": record_id,
+                "harvest_job_id": test_job_id,
+                "message": "record is invalid",
+                "type": "TestException",
+            }
+        )
 
     return base_fixtures
 

@@ -49,7 +49,7 @@ class TestHarvestJobUnauthed:
     def test_harvest_job_record_errors_display(self, upage):
         expect(
             upage.locator("#error_results_pagination .error-list .error-block")
-        ).to_have_count(8)
+        ).to_have_count(10)  # paginated at 10 entries
 
         expect(
             upage.locator(
@@ -68,7 +68,7 @@ class TestHarvestJobUnauthed:
         ).to_have_count(1)
         expect(
             upage.locator("table#harvest-job-error-summary tbody tr td")
-        ).to_have_text(["ValidationException", "8"])
+        ).to_have_text(["TestException", "8", "ValidationException", "8"])
 
     def test_download_harvest_errors_csv(self, upage):
         pytest_harvest_errors_csv = "pytest_harvest_errors.csv"
@@ -79,7 +79,7 @@ class TestHarvestJobUnauthed:
         with open(pytest_harvest_errors_csv) as csvfile:
             data = csv.reader(csvfile)
             # assert row count
-            assert 9 == sum(1 for row in data)
+            assert 17 == sum(1 for row in data)
             for index, row in enumerate(data):
                 # assert headers
                 if index == 0:
