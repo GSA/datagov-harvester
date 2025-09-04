@@ -137,14 +137,6 @@ class CKANSyncTool:
         )
         record.status = "success"
 
-        # update harvest reporter
-        record.harvest_source.reporter.update(record.action)
-
-        # # update harvest job
-        record.harvest_source.db_interface.update_harvest_job(
-            record.harvest_source.job_id, record.harvest_source.reporter.report()
-        )
-
         return True
 
     def create_record(self, record, retry=False) -> dict:
