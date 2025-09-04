@@ -51,5 +51,18 @@ SET notification_emails = (
     )
     FROM unnest(notification_emails) AS email
 );
+```
 
+To revert the email modification,
+```sql
+UPDATE harvest_source
+SET notification_emails = (
+    SELECT array_agg(
+        CASE
+            WHEN email LIKE '%.local' THEN SUBSTRING(email, 1, LENGTH(email) - 6)
+            ELSE email
+        END
+    )
+    FROM unnest(notification_emails) AS email
+);
 ```
