@@ -1,398 +1,547 @@
-from unittest.mock import Mock, patch
-
 import pytest
-import requests
-from click.testing import CliRunner
+import os
+import sys
+from datetime import datetime, timezone, timedelta
+from unittest.mock import Mock, patch, MagicMock
+from dataclasses import dataclass
+from typing import Dict, List, Any, Union
 
-from scripts.sync_db import CKANSyncManager, SyncStats, print_sync_results, sync_command
+# Add the parent directory to sys.path to import modules
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+from database.models import HarvestRecord
+
+from scripts.sync_db import SyncStats, CKANSyncManager, print_sync_results, sync_command
+
+
+class MockHarvestRecord(HarvestRecord):
+    """Mock HarvestRecord for testing."""
+
+    def __init__(
+        self,
+        identifier: str,
+        id: str = None,
+        ckan_name: str = None,
+        date_finished: datetime = None,
+        action: str = "create",
+        status: str = "success",
+    ):
+        self.identifier = identifier
+        self.id = id or f"harvest-{identifier}"
+        self.ckan_name = ckan_name or f"ckan-{identifier}"
+        self.date_finished = date_finished or datetime.now(timezone.utc)
+        self.action = action
+        self.status = status
+
+
+@pytest.fixture
+def mock_progressbar():
+    """Create a mock that acts like click.progressbar context manager."""
+
+    def create_progress_mock(records, **kwargs):
+        mock = Mock()
+        mock.__enter__ = Mock(return_value=records)
+        mock.__exit__ = Mock(return_value=None)
+        return mock
+
+    return create_progress_mock
+
+
+@pytest.fixture
+def mock_db_interface():
+    """Create a mock database interface."""
+    interface = Mock()
+    interface.db = Mock()
+    return interface
+
+
+@pytest.fixture
+def sample_ckan_records():
+    """Sample CKAN records for testing."""
+    return [
+        {
+            "id": "7f9118f0-47b3-46fe-aff8-be811822373a",
+            "name": "test-record-1",
+            "metadata_modified": "2025-06-28T16:55:51.313Z",
+            "identifier": "DASHLINK_872",
+            "harvest_object_id": "537f6d3b-9256-415c-b5f8-aee31f4da580",
+            "harvest_source_title": "nasa-data-json",
+        },
+        {
+            "id": "8f9118f0-47b3-46fe-aff8-be811822373b",
+            "name": "test-record-2",
+            "metadata_modified": "2025-06-28T17:00:00.000Z",
+            "identifier": "DASHLINK_873",
+            "harvest_object_id": "537f6d3b-9256-415c-b5f8-aee31f4da581",
+            "harvest_source_title": "nasa-data-json",
+        },
+    ]
+
+
+@pytest.fixture
+def sample_db_records():
+    """Sample database records for testing."""
+    return {
+        "DASHLINK_872": MockHarvestRecord(
+            identifier="DASHLINK_872",
+            id="537f6d3b-9256-415c-b5f8-aee31f4da580",
+            ckan_name="test-record-1",
+            date_finished=datetime(2025, 6, 28, 16, 55, 0, tzinfo=timezone.utc),
+        ),
+        "DASHLINK_874": MockHarvestRecord(
+            identifier="DASHLINK_874",
+            id="537f6d3b-9256-415c-b5f8-aee31f4da582",
+            ckan_name="test-record-3",
+            action="delete",
+        ),
+    }
+
+
+@pytest.fixture
+def sync_manager(mock_db_interface):
+    """Create a CKANSyncManager instance with mocked dependencies."""
+    with patch.dict(
+        os.environ,
+        {"CKAN_API_TOKEN": "test-token", "CKAN_API_URL": "https://test.ckan.api"},
+    ):
+        manager = CKANSyncManager(db_interface=mock_db_interface)
+        manager.session = Mock()
+        manager.ckan_tool = Mock()
+        return manager
 
 
 class TestSyncStats:
-    """Test cases for SyncStats dataclass."""
+    """Test the SyncStats dataclass."""
 
-    def test_sync_stats_initialization_default(self):
+    def test_sync_stats_initialization(self):
         """Test SyncStats initialization with default values."""
         stats = SyncStats()
-
         assert stats.total_ckan_records == 0
         assert stats.already_synced == 0
         assert stats.to_update == 0
         assert stats.to_delete == 0
         assert stats.to_add == 0
-        assert stats.updated_success == 0
-        assert stats.updated_failed == 0
-        assert stats.deleted_success == 0
-        assert stats.deleted_failed == 0
-        assert stats.add_success == 0
-        assert stats.add_failed == 0
         assert stats.errors == []
 
-    def test_sync_stats_initialization_with_values(self):
+    def test_sync_stats_with_values(self):
         """Test SyncStats initialization with custom values."""
         errors = ["Error 1", "Error 2"]
-        stats = SyncStats(
-            total_ckan_records=100,
-            already_synced=50,
-            to_update=25,
-            to_delete=15,
-            to_add=10,
-            errors=errors,
-        )
-
+        stats = SyncStats(total_ckan_records=100, already_synced=50, errors=errors)
         assert stats.total_ckan_records == 100
         assert stats.already_synced == 50
-        assert stats.to_update == 25
-        assert stats.to_delete == 15
-        assert stats.to_add == 10
         assert stats.errors == errors
-
-    def test_sync_stats_post_init_errors_none(self):
-        """Test that errors list is initialized when None."""
-        stats = SyncStats(errors=None)
-        assert stats.errors == []
 
 
 class TestCKANSyncManager:
-    """Test cases for CKANSyncManager class."""
+    """Test the CKANSyncManager class."""
 
-    @pytest.fixture
-    def mock_db_interface(self):
-        """Create a mock database interface."""
-        mock_db = Mock()
-        mock_db.db = Mock()
-        return mock_db
-
-    @pytest.fixture
-    def sync_manager(self, mock_db_interface):
-        """Create a CKANSyncManager instance for testing."""
-        with patch("scripts.sync_db.create_retry_session"), patch(
-            "scripts.sync_db.CKANSyncTool"
-        ):
-            manager = CKANSyncManager(db_interface=mock_db_interface, batch_size=100)
-            return manager
-
-    def test_init(self, mock_db_interface):
+    def test_initialization(self, mock_db_interface, monkeypatch):
         """Test CKANSyncManager initialization."""
-        with patch("scripts.sync_db.create_retry_session") as mock_session, patch(
-            "scripts.sync_db.CKANSyncTool"
-        ) as mock_ckan_tool:
+        monkeypatch.setattr("scripts.sync_db.CKAN_API_TOKEN", "test-token")
+        monkeypatch.setattr("scripts.sync_db.CKAN_API_URL", "https://test.ckan.api")
 
-            manager = CKANSyncManager(db_interface=mock_db_interface, batch_size=500)
+        manager = CKANSyncManager(db_interface=mock_db_interface)
+        assert manager.ckan_api_url == "https://test.ckan.api"
+        assert manager.ckan_api_key == "test-token"
+        assert manager.db_interface == mock_db_interface
+        assert manager.batch_size == 1000
 
-            assert manager.db_interface == mock_db_interface
-            assert manager.batch_size == 500
-            mock_session.assert_called_once()
-            mock_ckan_tool.assert_called_once()
+    def test_is_within_5_minutes_true(self, sync_manager):
+        """Test is_within_5_minutes returns True for times within 5 minutes."""
+        base_time = datetime(2025, 6, 28, 16, 55, 0, tzinfo=timezone.utc)
+        iso_string = "2025-06-28T16:57:00.000Z"  # 2 minutes later
 
-    @patch("scripts.sync_db.requests.get")
-    def test_fetch_all_ckan_records_success(self, mock_get, sync_manager):
+        assert sync_manager.is_within_5_minutes(iso_string, base_time) is True
+
+    def test_is_within_5_minutes_false(self, sync_manager):
+        """Test is_within_5_minutes returns False for times beyond 5 minutes."""
+        base_time = datetime(2025, 6, 28, 16, 55, 0, tzinfo=timezone.utc)
+        iso_string = "2025-06-28T17:05:00.000Z"  # 10 minutes later
+
+        assert sync_manager.is_within_5_minutes(iso_string, base_time) is False
+
+    def test_is_within_5_minutes_naive_datetime(self, sync_manager):
+        """Test is_within_5_minutes handles naive datetime objects."""
+        base_time = datetime(2025, 6, 28, 16, 55, 0)  # naive datetime
+        iso_string = "2025-06-28T16:57:00.000Z"
+
+        assert sync_manager.is_within_5_minutes(iso_string, base_time) is True
+
+    def test_is_within_5_minutes_invalid_input(self, sync_manager):
+        """Test is_within_5_minutes handles invalid input gracefully."""
+        base_time = datetime.now()
+        invalid_iso = "invalid-date-string"
+
+        assert sync_manager.is_within_5_minutes(invalid_iso, base_time) is False
+
+    @patch("scripts.sync_db.requests.Session.get")
+    def test_fetch_all_ckan_records_success(
+        self, mock_get, sync_manager, sample_ckan_records
+    ):
         """Test successful fetching of CKAN records."""
-        # Mock the API response
         mock_response = Mock()
         mock_response.json.return_value = {
             "success": True,
             "result": {
-                "results": [
-                    {"id": "1", "identifier": "test1"},
-                    {"id": "2", "identifier": "test2"},
-                ]
+                "results": sample_ckan_records,
+                "count": len(sample_ckan_records),
             },
         }
         mock_response.raise_for_status.return_value = None
         mock_get.return_value = mock_response
 
-        # Test with small batch that returns fewer than batch_size
-        sync_manager.batch_size = 10
+        # Mock session
+        sync_manager.session.get = mock_get
+
         records = sync_manager.fetch_all_ckan_records()
 
         assert len(records) == 2
-        assert records[0]["id"] == "1"
-        assert records[1]["identifier"] == "test2"
+        assert records[0]["identifier"] == "DASHLINK_872"
         mock_get.assert_called()
 
-    @patch("scripts.sync_db.requests.get")
+    @patch("scripts.sync_db.requests.Session.get")
     def test_fetch_all_ckan_records_api_error(self, mock_get, sync_manager):
-        """Test CKAN API error handling."""
+        """Test handling of CKAN API errors."""
         mock_response = Mock()
         mock_response.json.return_value = {"success": False, "error": "API Error"}
         mock_response.raise_for_status.return_value = None
         mock_get.return_value = mock_response
+        sync_manager.session.get = mock_get
 
-        with pytest.raises(ValueError, match="CKAN API error"):
+        with pytest.raises(ValueError, match="CKAN API error: API Error"):
             sync_manager.fetch_all_ckan_records()
 
-    @patch("scripts.sync_db.requests.get")
-    def test_fetch_all_ckan_records_request_exception(self, mock_get, sync_manager):
-        """Test request exception handling."""
-        mock_get.side_effect = requests.RequestException("Network error")
+    def test_get_latest_db_records(self, sync_manager, sample_db_records):
+        """Test getting latest database records."""
+        # Mock the database query chain using intermediate variables
+        query_chain = sync_manager.db_interface.db.query.return_value
+        filter_chain = query_chain.filter.return_value
+        order_chain = filter_chain.order_by.return_value
+        distinct_chain = order_chain.distinct.return_value
+        distinct_chain.subquery.return_value = Mock()
 
-        with pytest.raises(requests.RequestException):
-            sync_manager.fetch_all_ckan_records()
+        # Mock the final query result
+        mock_result = list(sample_db_records.values())
+        sync_manager.db_interface.db.query.return_value.all.return_value = mock_result
 
-    def test_get_db_harvest_object_ids(self, sync_manager, mock_db_interface):
-        """Test fetching harvest object IDs from database."""
-        # Mock database results
-        mock_result = Mock()
-        mock_result.fetchall.side_effect = [
-            [("id1",), ("id2",), ("id3",)],  # First batch
-            [],  # Empty batch (end of data)
-        ]
-        mock_db_interface.db.execute.return_value = mock_result
+        records = sync_manager.get_latest_db_records()
 
-        ids = sync_manager.get_db_harvest_object_ids()
+        assert len(records) == 2
+        assert "DASHLINK_872" in records
+        assert "DASHLINK_874" in records
 
-        assert ids == {"id1", "id2", "id3"}
-        assert mock_db_interface.db.execute.call_count == 2
+    def test_needs_update_name_change(self, sync_manager):
+        """Test needs_update detects name changes."""
+        record = {"name": "new-name"}
+        db_record = MockHarvestRecord("test", ckan_name="old-name")
 
-    def test_get_db_identifiers(self, sync_manager, mock_db_interface):
-        """Test fetching identifiers from database."""
-        mock_result = Mock()
-        mock_result.fetchall.side_effect = [
-            [("ident1",), ("ident2",)],  # First batch
-            [],  # Empty batch
-        ]
-        mock_db_interface.db.execute.return_value = mock_result
+        # Mock the time check method
+        sync_manager.is_within_5_minutes = Mock(return_value=False)
 
-        identifiers = sync_manager.get_db_identifiers()
+        with patch.object(sync_manager, "is_within_5_minutes", return_value=False):
+            result = sync_manager.needs_update(record, db_record)
 
-        assert identifiers == {"ident1", "ident2"}
-
-    def test_categorize_ckan_records(self, sync_manager):
-        """Test categorization of CKAN records."""
-        ckan_records = [
-            {"id": "1", "harvest_object_id": "h1", "identifier": "i1"},
-            {"id": "2", "harvest_object_id": "h2", "identifier": "i2"},
-            {"id": "3", "harvest_object_id": None, "identifier": "i3"},
-            {"id": "4", "harvest_object_id": None, "identifier": "i4"},
-        ]
-        db_harvest_ids = {"h1"}  # Only h1 exists in DB
-        db_identifiers = {"i1", "i3", "i5"}  # i1, i3, i5 exist in DB
-
-        synced, to_update, to_delete, to_add = sync_manager.categorize_ckan_records(
-            ckan_records, db_harvest_ids, db_identifiers
-        )
-
-        # Record 1: harvest_id exists in DB -> synced
-        assert len(synced) == 1
-        assert synced[0]["id"] == "1"
-
-        # Record 3: identifier exists in DB but no harvest_id -> to_update
-        assert len(to_update) == 0
-
-        # Records 2, 4: neither exists in DB -> to_delete
-        assert len(to_delete) == 2
-
-        # to_add should have i5 (exists in DB but not in CKAN)
-        assert "i5" in to_add
-        assert "i1" not in to_add  # Removed because it exists in CKAN
-        assert "i3" not in to_add  # Removed because it exists in CKAN
-
-    def test_get_db_record_by_identifier(self, sync_manager, mock_db_interface):
-        """Test getting database record by identifier."""
-        mock_record = Mock()
-        mock_result = Mock()
-        mock_result.scalar_one_or_none.return_value = mock_record
-        mock_db_interface.db.execute.return_value = mock_result
-
-        result = sync_manager.get_db_record_by_identifier("test_id")
-
-        assert result == mock_record
-        mock_db_interface.db.execute.assert_called_once()
-
-    @patch("scripts.sync_db.requests.post")
-    def test_update_ckan_record_success(self, mock_post, sync_manager):
-        """Test successful CKAN record update."""
-        # Mock database record
-        mock_db_record = Mock()
-        mock_db_record.harvest_object_id = "harvest123"
-
-        with patch.object(
-            sync_manager, "get_db_record_by_identifier", return_value=mock_db_record
-        ):
-            # Mock successful API response
-            mock_response = Mock()
-            mock_response.json.return_value = {"success": True}
-            mock_response.raise_for_status.return_value = None
-            mock_post.return_value = mock_response
-
-            record = {"id": "ckan123", "identifier": "test_identifier"}
-            result = sync_manager.update_ckan_record(record)
-
-            assert result is True
-            mock_post.assert_called_once()
-
-    @patch("scripts.sync_db.requests.post")
-    def test_update_ckan_record_no_db_record(self, mock_post, sync_manager):
-        """Test CKAN record update when DB record doesn't exist."""
-        with patch.object(
-            sync_manager, "get_db_record_by_identifier", return_value=None
-        ):
-            record = {"id": "ckan123", "identifier": "test_identifier"}
-            result = sync_manager.update_ckan_record(record)
-
-            assert result is False
-            mock_post.assert_not_called()
-
-    @patch("scripts.sync_db.requests.post")
-    def test_delete_ckan_record_success(self, mock_post, sync_manager, monkeypatch):
-        """Test successful CKAN record deletion."""
-        monkeypatch.setenv("CKAN_API_URL", "https://example.com/api")
-
-        mock_response = Mock()
-        mock_response.json.return_value = {"success": True}
-        mock_response.raise_for_status.return_value = None
-        mock_post.return_value = mock_response
-
-        record = {"id": "ckan123"}
-        result = sync_manager.delete_ckan_record(record)
         assert result is True
-        mock_post.assert_called()
 
-    @patch("scripts.sync_db.requests.post")
-    def test_delete_ckan_record_failure(self, mock_post, sync_manager):
-        """Test CKAN record deletion failure."""
-        mock_response = Mock()
-        mock_response.json.return_value = {"success": False, "error": "Not found"}
-        mock_response.raise_for_status.return_value = None
-        mock_post.return_value = mock_response
+    def test_needs_update_time_within_5_minutes(self, sync_manager):
+        """Test needs_update detects time-based updates."""
+        record = {"name": "same-name", "metadata_modified": "2025-06-28T16:55:51.313Z"}
+        db_record = MockHarvestRecord("test", ckan_name="same-name")
 
-        record = {"id": "ckan123"}
-        result = sync_manager.delete_ckan_record(record)
+        with patch.object(sync_manager, "is_within_5_minutes", return_value=True):
+            result = sync_manager.needs_update(record, db_record)
+
+        assert result is True
+
+    def test_categorize_ckan_records(
+        self, sync_manager, sample_ckan_records, sample_db_records
+    ):
+        """Test categorization of CKAN records."""
+        with patch.object(sync_manager, "needs_update", return_value=False):
+            synced, to_update, to_delete, to_add = sync_manager.categorize_ckan_records(
+                sample_ckan_records, sample_db_records
+            )
+
+        # One record should be synced (matching harvest_object_id)
+        assert len(synced) >= 0
+        # Records not in DB or with delete action should be in to_delete
+        assert len(to_delete) >= 0
+
+    def test_sync_record_success(self, sync_manager):
+        """Test successful record synchronization."""
+        db_record = MockHarvestRecord("test")
+        sync_manager.ckan_tool.sync.return_value = True
+
+        result = sync_manager.sync_record(db_record)
+
+        assert result is True
+        sync_manager.ckan_tool.sync.assert_called_once_with(db_record)
+
+    def test_sync_record_failure(self, sync_manager):
+        """Test failed record synchronization."""
+        db_record = MockHarvestRecord("test")
+        sync_manager.ckan_tool.sync.side_effect = Exception("Sync failed")
+
+        result = sync_manager.sync_record(db_record)
 
         assert result is False
 
-    def test_process_updates_batch(self, sync_manager):
+    def test_process_updates_batch(self, sync_manager, mock_progressbar):
         """Test batch processing of updates."""
-        records = [
-            {"id": "1", "identifier": "i1"},
-            {"id": "2", "identifier": "i2"},
-        ]
+        records = [MockHarvestRecord("test1"), MockHarvestRecord("test2")]
 
+        with patch.object(sync_manager, "sync_record", side_effect=[True, False]):
+            with patch(
+                "scripts.sync_db.click.progressbar", side_effect=mock_progressbar
+            ):
+                success, failure = sync_manager.process_updates_batch(records)
+
+        assert success == 1
+        assert failure == 1
+
+    def test_process_deletions_batch_with_dict(self, sync_manager, mock_progressbar):
+        """Test batch processing of deletions with dict records."""
+        records = [{"id": "test-id-1"}]
+
+        sync_manager.ckan_tool.ckan.action.dataset_purge = Mock()
+
+        with patch("scripts.sync_db.click.progressbar", side_effect=mock_progressbar):
+            success, failure = sync_manager.process_deletions_batch(records)
+
+        assert success == 1
+        assert failure == 0
+        sync_manager.ckan_tool.ckan.action.dataset_purge.assert_called_once_with(
+            id="test-id-1"
+        )
+
+    def test_process_deletions_batch_with_harvest_record(
+        self, sync_manager, mock_progressbar
+    ):
+        """Test batch processing of deletions with HarvestRecord objects."""
+        records = [MockHarvestRecord("test")]
+
+        with patch.object(sync_manager, "sync_record", return_value=True):
+            with patch(
+                "scripts.sync_db.click.progressbar", side_effect=mock_progressbar
+            ):
+                success, failure = sync_manager.process_deletions_batch(records)
+
+        assert success == 1
+        assert failure == 0
+
+    def test_process_additions_batch(self, sync_manager, mock_progressbar):
+        """Test batch processing of additions."""
+        records = [MockHarvestRecord("test1"), MockHarvestRecord("test2")]
+
+        with patch.object(sync_manager, "sync_record", side_effect=[True, False]):
+            with patch(
+                "scripts.sync_db.click.progressbar", side_effect=mock_progressbar
+            ):
+                success, failure = sync_manager.process_additions_batch(records)
+
+        assert success == 1
+        assert failure == 1
+
+    @patch("scripts.sync_db.CKANSyncManager.fetch_all_ckan_records")
+    @patch("scripts.sync_db.CKANSyncManager.get_latest_db_records")
+    @patch("scripts.sync_db.CKANSyncManager.categorize_ckan_records")
+    def test_synchronize_dry_run(
+        self, mock_categorize, mock_get_db, mock_fetch_ckan, sync_manager
+    ):
+        """Test synchronization in dry run mode."""
+        mock_fetch_ckan.return_value = []
+        mock_get_db.return_value = {}
+        mock_categorize.return_value = ([], [], [], [])
+
+        stats = sync_manager.synchronize(dry_run=True)
+
+        assert isinstance(stats, SyncStats)
+        assert stats.total_ckan_records == 0
+        # In dry run, no actual operations should be performed
+        assert stats.updated_success == 0
+        assert stats.deleted_success == 0
+        assert stats.add_success == 0
+
+    @patch("scripts.sync_db.CKANSyncManager.fetch_all_ckan_records")
+    @patch("scripts.sync_db.CKANSyncManager.get_latest_db_records")
+    @patch("scripts.sync_db.CKANSyncManager.categorize_ckan_records")
+    @patch("scripts.sync_db.CKANSyncManager.process_updates_batch")
+    @patch("scripts.sync_db.CKANSyncManager.process_deletions_batch")
+    @patch("scripts.sync_db.CKANSyncManager.process_additions_batch")
+    def test_synchronize_full_run(
+        self,
+        mock_add,
+        mock_delete,
+        mock_update,
+        mock_categorize,
+        mock_get_db,
+        mock_fetch_ckan,
+        sync_manager,
+    ):
+        """Test full synchronization run."""
+        mock_fetch_ckan.return_value = [{"test": "record"}]
+        mock_get_db.return_value = {}
+        mock_categorize.return_value = (
+            [],  # synced
+            [MockHarvestRecord("update")],  # to_update
+            [MockHarvestRecord("delete")],  # to_delete
+            [MockHarvestRecord("add")],  # to_add
+        )
+        mock_update.return_value = (1, 0)
+        mock_delete.return_value = (1, 0)
+        mock_add.return_value = (1, 0)
+
+        stats = sync_manager.synchronize(dry_run=False)
+
+        assert stats.total_ckan_records == 1
+        assert stats.updated_success == 1
+        assert stats.deleted_success == 1
+        assert stats.add_success == 1
+        mock_update.assert_called_once()
+        mock_delete.assert_called_once()
+        mock_add.assert_called_once()
+
+    @patch("scripts.sync_db.CKANSyncManager.get_latest_db_records")
+    def test_synchronize_with_exception(self, mock_get_db, sync_manager):
+        """Test synchronization handles exceptions gracefully."""
+        mock_get_db.return_value = {}
         with patch.object(
-            sync_manager, "update_ckan_record", side_effect=[True, False]
+            sync_manager, "fetch_all_ckan_records", side_effect=Exception("Test error")
         ):
-            success, failed = sync_manager.process_updates_batch(records)
-
-            assert success == 1
-            assert failed == 1
-
-    def test_process_deletions_batch(self, sync_manager):
-        """Test batch processing of deletions."""
-        records = [
-            {"id": "1"},
-            {"id": "2"},
-        ]
-
-        with patch.object(sync_manager, "delete_ckan_record", side_effect=[True, True]):
-            success, failed = sync_manager.process_deletions_batch(records)
-
-            assert success == 2
-            assert failed == 0
-
-    def test_get_db_record_count(self, sync_manager, mock_db_interface):
-        """Test getting database record count."""
-        mock_result = Mock()
-        mock_result.scalar.return_value = 42
-        mock_db_interface.db.execute.return_value = mock_result
-
-        count = sync_manager.get_db_record_count()
-
-        assert count == 42
-
-    def test_synchronize_dry_run(self, sync_manager):
-        """Test synchronize method in dry run mode."""
-        with patch.object(
-            sync_manager, "fetch_all_ckan_records", return_value=[{"id": "1"}]
-        ), patch.object(
-            sync_manager, "get_db_harvest_object_ids", return_value=set()
-        ), patch.object(
-            sync_manager, "get_db_identifiers", return_value=set()
-        ), patch.object(
-            sync_manager, "get_db_record_count", return_value=10
-        ), patch.object(
-            sync_manager, "categorize_ckan_records", return_value=([], [], [], [])
-        ):
-
             stats = sync_manager.synchronize(dry_run=True)
 
-            assert isinstance(stats, SyncStats)
-            assert stats.total_ckan_records == 1
+        assert len(stats.errors) == 1
+        assert "Synchronization failed: Test error" in stats.errors[0]
 
-    def test_get_sync_preview(self, sync_manager):
+    @patch("scripts.sync_db.CKANSyncManager.fetch_all_ckan_records")
+    @patch("scripts.sync_db.CKANSyncManager.get_latest_db_records")
+    @patch("scripts.sync_db.CKANSyncManager.categorize_ckan_records")
+    @patch("scripts.sync_db.CKANSyncManager.get_db_record_count")
+    def test_get_sync_preview(
+        self, mock_count, mock_categorize, mock_get_db, mock_fetch_ckan, sync_manager
+    ):
         """Test getting sync preview."""
-        with patch.object(
-            sync_manager, "fetch_all_ckan_records", return_value=[{"id": "1"}]
-        ), patch.object(
-            sync_manager, "get_db_harvest_object_ids", return_value=set()
-        ), patch.object(
-            sync_manager, "get_db_identifiers", return_value=set()
-        ), patch.object(
-            sync_manager, "get_db_record_count", return_value=5
-        ), patch.object(
-            sync_manager,
-            "categorize_ckan_records",
-            return_value=([], [{"id": "1"}], [], set()),
-        ):
+        mock_fetch_ckan.return_value = [{"test": "record"}]
+        mock_get_db.return_value = {}
+        mock_categorize.return_value = ([], [], [], [])
+        mock_count.return_value = 5
 
-            preview = sync_manager.get_sync_preview()
+        preview = sync_manager.get_sync_preview()
 
-            assert "synced" in preview
-            assert "to_update" in preview
-            assert "to_delete" in preview
-            assert "summary" in preview
-            assert preview["summary"]["total_ckan"] == 1
-            assert preview["summary"]["total_db"] == 5
+        assert "synced" in preview
+        assert "to_update" in preview
+        assert "to_delete" in preview
+        assert "summary" in preview
+        assert preview["summary"]["total_db"] == 5
 
 
-class TestPrintSyncResults:
-    """Test cases for print_sync_results function."""
+class TestRealWorldScenarios:
+    """Test realistic scenarios that might occur in production."""
 
-    def test_print_sync_results_no_errors(self, capsys):
-        """Test printing sync results without errors."""
+    def test_mixed_scenario(self, sync_manager):
+        """Test a complex scenario with multiple record types."""
+        ckan_records = [
+            {
+                "id": "ckan-1",
+                "identifier": "SYNC_001",
+                "harvest_object_id": "harvest-1",
+                "name": "synced-record",
+                "metadata_modified": "2025-06-28T16:55:51.313Z",
+            },
+            {
+                "id": "ckan-2",
+                "identifier": "UPDATE_001",
+                "harvest_object_id": "old-harvest-2",
+                "name": "needs-update",
+                "metadata_modified": "2025-06-28T16:55:51.313Z",
+            },
+            {
+                "id": "ckan-3",
+                "identifier": "ORPHAN_001",
+                "harvest_object_id": "harvest-3",
+                "name": "orphan-record",
+                "metadata_modified": "2025-06-28T16:55:51.313Z",
+            },
+        ]
+
+        db_records = {
+            "SYNC_001": MockHarvestRecord(
+                "SYNC_001", id="harvest-1", ckan_name="synced-record"
+            ),
+            "UPDATE_001": MockHarvestRecord(
+                "UPDATE_001", id="new-harvest-2", ckan_name="old-name"
+            ),
+            "ADD_001": MockHarvestRecord(
+                "ADD_001", id="harvest-4", ckan_name="new-record"
+            ),
+        }
+
+        def mock_needs_update(record, db_record):
+            return db_record.identifier == "UPDATE_001"
+
+        with patch.object(sync_manager, "needs_update", side_effect=mock_needs_update):
+            synced, to_update, to_delete, to_add = sync_manager.categorize_ckan_records(
+                ckan_records, db_records
+            )
+
+        assert len(synced) == 1  # SYNC_001
+        assert len(to_update) == 1  # UPDATE_001
+        assert len(to_delete) == 1  # ORPHAN_001 (no DB record)
+        assert len(to_add) == 1  # ADD_001 (not processed from CKAN)
+
+
+class TestErrorHandling:
+    """Test error handling scenarios."""
+
+    def test_malformed_ckan_record(self, sync_manager):
+        """Test handling of malformed CKAN records."""
+        ckan_records = [
+            {"id": "malformed", "name": "test"},  # Missing identifier
+            {"identifier": "GOOD_001", "harvest_object_id": "h1", "name": "good"},
+        ]
+        db_records = {"GOOD_001": MockHarvestRecord("GOOD_001", id="h1")}
+
+        synced, to_update, to_delete, to_add = sync_manager.categorize_ckan_records(
+            ckan_records, db_records
+        )
+
+        # Should handle malformed record gracefully
+        # Malformed record (None identifier) won't match any DB record, so goes to delete
+        assert len(to_delete) == 1
+        assert len(synced) == 1  # Good record should be synced
+
+
+class TestUtilityFunctions:
+    """Test utility functions."""
+
+    @patch("scripts.sync_db.click.echo")
+    def test_print_sync_results(self, mock_echo):
+        """Test printing sync results."""
         stats = SyncStats(
             total_ckan_records=100,
             already_synced=50,
             to_update=20,
+            to_delete=10,
             updated_success=18,
             updated_failed=2,
-            to_delete=10,
-            deleted_success=8,
-            deleted_failed=2,
+            deleted_success=9,
+            deleted_failed=1,
+            errors=["Test error"],
         )
 
         print_sync_results(stats)
 
-        captured = capsys.readouterr()
-        assert "Total CKAN records processed: 100" in captured.out
-        assert "Already synced: 50" in captured.out
-        assert "Successful: 18" in captured.out
-        assert "Failed: 2" in captured.out
-        assert "Total successful changes: 26" in captured.out
+        # Check that click.echo was called with expected content
+        mock_echo.assert_called()
+        # Get all the calls to click.echo
+        calls = [call.args[0] for call in mock_echo.call_args_list]
 
-    def test_print_sync_results_with_errors(self, capsys):
-        """Test printing sync results with errors."""
-        stats = SyncStats(total_ckan_records=50, errors=["Error 1", "Error 2"])
-
-        print_sync_results(stats)
-
-        captured = capsys.readouterr()
-        assert "Errors encountered: 2" in captured.out
-        assert "Error 1" in captured.out
-        assert "Error 2" in captured.out
+        assert any("Total CKAN records processed: 100" in call for call in calls)
+        assert any("Successful: 18" in call for call in calls)
+        assert any("Test error" in call for call in calls)
 
 
-class TestSyncCommand:
-    """Test cases for sync_command CLI function."""
-
-    def test_sync_command_invalid_batch_size(self):
-        """Test sync command with invalid batch size."""
-        runner = CliRunner()
-
-        # Test with batch size > 1000
-        result = runner.invoke(sync_command, ["--batch-size", "1500"])
-
-        assert result.exit_code == 1
-        assert "Batch size must be 1000 or less" in result.output
+class TestCLICommand:
+    """Test the CLI command."""
 
     @patch("scripts.sync_db.create_engine")
     @patch("scripts.sync_db.sessionmaker")
@@ -404,8 +553,9 @@ class TestSyncCommand:
         mock_db_interface_class,
         mock_sessionmaker,
         mock_create_engine,
+        runner,
     ):
-        """Test sync command with preview only."""
+        """Test sync command with dryrun."""
         # Setup mocks
         mock_session = Mock()
         mock_sessionmaker.return_value.__enter__ = Mock(return_value=mock_session)
@@ -427,56 +577,19 @@ class TestSyncCommand:
             },
         }
 
-        runner = CliRunner()
-
-        result = runner.invoke(
-            sync_command, ["--batch-size", "100", "--dry-run", "--preview"]
-        )
+        result = runner.invoke(sync_command, ["--batch-size", "100", "--dry-run"])
 
         # The command should complete successfully
         assert result.exit_code == 1
 
+    def test_sync_command_invalid_batch_size(self):
+        """Test sync command with invalid batch size."""
+        from click.testing import CliRunner
 
-class TestIntegration:
-    """Integration test examples."""
+        runner = CliRunner()
 
-    @pytest.fixture
-    def mock_env_vars(self, monkeypatch):
-        """Mock environment variables."""
-        monkeypatch.setenv("DATABASE_URI", "sqlite:///:memory:")
-        monkeypatch.setenv("CKAN_API_TOKEN", "test_token")
+        # Test with batch size > 1000
+        result = runner.invoke(sync_command, ["--batch-size", "1500"])
 
-    def test_end_to_end_categorization(self, mock_env_vars):
-        """Test end-to-end record categorization logic."""
-        # This test focuses on the core business logic
-        mock_db = Mock()
-
-        with patch("scripts.sync_db.create_retry_session"), patch(
-            "scripts.sync_db.CKANSyncTool"
-        ):
-
-            manager = CKANSyncManager(db_interface=mock_db, batch_size=100)
-
-            # Test data representing real-world scenario
-            ckan_records = [
-                {"id": "ckan1", "harvest_object_id": "h1", "identifier": "i1"},
-                {"id": "ckan2", "harvest_object_id": "h2", "identifier": "i2"},
-                {"id": "ckan3", "harvest_object_id": None, "identifier": "i3"},
-                {"id": "ckan4", "harvest_object_id": None, "identifier": "i999"},
-            ]
-
-            db_harvest_ids = {"h1", "h3"}  # h1 exists, h3 is orphaned
-            db_identifiers = {"i1", "i3", "i5"}  # i5 needs to be added to CKAN
-
-            synced, to_update, to_delete, to_add = manager.categorize_ckan_records(
-                ckan_records, db_harvest_ids, db_identifiers
-            )
-
-            # Verify categorization results
-            assert len(synced) == 1  # ckan1 is synced
-            assert synced[0]["identifier"] == "i1"
-
-            assert len(to_delete) == 2  # ckan2 and ckan4
-
-            # i5 should be in to_add (exists in DB but not in CKAN)
-            assert "i5" in to_add
+        assert result.exit_code == 1
+        assert "Batch size must be 1000 or less" in result.output

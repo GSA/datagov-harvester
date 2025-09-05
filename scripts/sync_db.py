@@ -1,13 +1,14 @@
+import csv
 import os
 import sys
-import time
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Set, Tuple
+from datetime import datetime, timezone
 
+from typing import Any, Dict, List, Optional, Tuple, Union
 import click
 import requests
-from sqlalchemy import create_engine, func, select
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy import create_engine, func, select, desc
+from sqlalchemy.orm import sessionmaker, aliased
 
 from harvester.utils.ckan_utils import CKANSyncTool
 from harvester.utils.general_utils import create_retry_session
@@ -46,6 +47,19 @@ class SyncStats:
             self.errors = []
 
 
+@dataclass
+class SyncResult:
+    """Represents a sync operation result for CSV reporting."""
+
+    identifier: str
+    harvest_source_id: str
+    ckan_id: str
+    ckan_name: str
+    action: str  # 'synced', 'to_update', 'to_add', 'to_delete'
+    success: bool
+    error_message: str = ""
+
+
 class CKANSyncManager:
     """Manages synchronization between database and CKAN SOLR."""
 
@@ -58,12 +72,15 @@ class CKANSyncManager:
         self.ckan_api_key = CKAN_API_TOKEN
         self.db_interface = db_interface
         self.batch_size = batch_size
-        self.headers = {
-            "Authorization": f"Bearer {CKAN_API_TOKEN}",
-            "Content-Type": "application/json",
-        }
-        session = create_retry_session()
-        self.ckan_tool = CKANSyncTool(session=session)
+        self.session = create_retry_session()
+        self.session.headers.update(
+            {
+                "Authorization": f"Bearer {CKAN_API_TOKEN}",
+                "Content-Type": "application/json",
+            }
+        )
+        self.ckan_tool = CKANSyncTool(session=self.session)
+        self.sync_results: List[SyncResult] = []
 
     def fetch_all_ckan_records(self) -> List[Dict[str, Any]]:
         """
@@ -76,16 +93,15 @@ class CKANSyncManager:
 
         while True:
             try:
-                response = requests.get(
+                response = self.session.get(
                     f"{self.ckan_api_url}/api/action/package_search",
                     params={
                         "rows": self.batch_size,
                         "start": start,
                         "fq": "(include_collection:true)",
-                        "fl": "id,extras_identifier,extras_harvest_object_id",
+                        "fl": "id,extras_identifier,extras_harvest_object_id,"
+                        "extras_harvest_source_title,metadata_modified,name",
                     },
-                    headers=self.headers,
-                    timeout=30,
                 )
                 response.raise_for_status()
 
@@ -116,75 +132,79 @@ class CKANSyncManager:
         click.echo(f"Total CKAN records fetched: {len(all_records)}")
         return all_records
 
-    def get_db_harvest_object_ids(self) -> Set[str]:
+    def get_latest_db_records(self) -> Dict[str, HarvestRecord]:
         """
-        Get all harvest_object_ids from the database.
+        Get all latest records from the database.
+        Code based off:
+        get_latest_harvest_records_by_source_orm
         """
-        click.echo("Fetching harvest_object_ids from database...")
+        click.echo("Fetching latest records from database...")
 
-        # Fetch all harvest_object_ids from DB in chunks to handle large datasets
-        all_ids = set()
-        offset = 0
+        queries = [
+            HarvestRecord.status == "success",
+        ]
 
-        while True:
-            stmt = (
-                select(HarvestRecord.id)
-                .where(HarvestRecord.id.isnot(None))
-                .offset(offset)
-                .limit(self.batch_size)
+        subq = (
+            self.db_interface.db.query(HarvestRecord)
+            .filter(*queries)
+            .order_by(
+                HarvestRecord.identifier,
+                HarvestRecord.harvest_source_id,
+                desc(HarvestRecord.date_created),
             )
+            .distinct(HarvestRecord.identifier, HarvestRecord.harvest_source_id)
+            .subquery()
+        )
 
-            result = self.db_interface.db.execute(stmt)
-            batch_ids = [row[0] for row in result.fetchall()]
+        sq_alias = aliased(HarvestRecord, subq)
+        result = list(self.db_interface.db.query(sq_alias).all())
+        click.echo(f"Total latest records from DB: {len(result)}")
+        return {record.identifier: record for record in result}
 
-            if not batch_ids:
-                break
-
-            all_ids.update(batch_ids)
-            offset += len(batch_ids)
-
-            click.echo(f"Loaded {len(all_ids)} harvest_object_ids from DB...")
-
-        click.echo(f"Total harvest_object_ids in DB: {len(all_ids)}")
-        return all_ids
-
-    def get_db_identifiers(self) -> Set[str]:
+    def is_within_5_minutes(self, datetime_str: str, datetime_obj: datetime) -> bool:
         """
-        Get all identifiers from the database.
+        Safe version that handles naive datetime objects by assuming UTC.
+
+        datetime_str (str): ISO format datetime string
+        datetime_obj (datetime): Datetime object (naive or aware)
         """
-        click.echo("Fetching identifiers from database...")
+        try:
+            # Parse the ISO format string
+            parsed_dt = datetime.fromisoformat(datetime_str.replace("Z", "+00:00"))
 
-        all_identifiers = set()
-        offset = 0
+            # Handle naive datetime_obj by assuming it's UTC
+            if datetime_obj.tzinfo is None:
+                datetime_obj = datetime_obj.replace(tzinfo=timezone.utc)
 
-        while True:
-            stmt = (
-                select(HarvestRecord.identifier)
-                .where(HarvestRecord.identifier.isnot(None))
-                .offset(offset)
-                .limit(self.batch_size)
-            )
+            # Calculate absolute time difference
+            time_diff = abs((parsed_dt - datetime_obj).total_seconds())
+            return time_diff <= 300
 
-            result = self.db_interface.db.execute(stmt)
-            batch_identifiers = [row[0] for row in result.fetchall()]
+        except (ValueError, AttributeError):
+            return False
 
-            if not batch_identifiers:
-                break
-
-            all_identifiers.update(batch_identifiers)
-            offset += len(batch_identifiers)
-
-            click.echo(f"Loaded {len(all_identifiers)} identifiers from DB...")
-
-        click.echo(f"Total identifiers in DB: {len(all_identifiers)}")
-        return all_identifiers
+    def needs_update(self, record: Dict[str, Any], db_record: HarvestRecord) -> bool:
+        """
+        Check if a record needs to be updated.
+        Based on either name change or if the record is within 5 minutes
+        of the last update.
+        """
+        if record.get("name") != db_record.ckan_name or self.is_within_5_minutes(
+            record.get("metadata_modified"), db_record.date_finished
+        ):
+            return True
+        return False
 
     def categorize_ckan_records(
         self,
         ckan_records: List[Dict[str, Any]],
-        db_harvest_ids: Set[str],
-        db_identifiers: Set[str],
-    ) -> Tuple[List[Dict], List[Dict], List[Dict], List[str]]:
+        db_records: Dict[str, HarvestRecord],
+    ) -> Tuple[
+        List[HarvestRecord],
+        List[HarvestRecord],
+        List[Union[Dict, HarvestRecord]],
+        List[HarvestRecord],
+    ]:
         """
         Categorize CKAN records based on sync requirements.
 
@@ -198,28 +218,27 @@ class CKANSyncManager:
         synced = []  # harvest_object_id exists in DB - already synced
         to_update = []  # identifier exists in DB but harvest_object_id doesn't
         to_delete = []  # neither identifier nor harvest_object_id exists in DB
-        # if identifier only exists in db than it needs to be added to ckan solr
-        to_add = db_identifiers.copy()
+        processed_identifiers = set()
 
         for record in ckan_records:
-            harvest_id = record.get("harvest_object_id")
             identifier = record.get("identifier")
-            # If harvest_object_id exists in DB, already synced
-            if harvest_id and harvest_id in db_harvest_ids:
-                synced.append(record)
-                # if it's in we don't need to add it.
-                to_add.discard(identifier)
-            # If identifier is in the db identifiers we can remove the identifier
-            # from the to_add set, as it means we have a record.
-            elif identifier and identifier in db_identifiers:
-                # discard is the safe method
-                to_add.discard(identifier)
-            # delete if we don't have the identifier in the db
-            elif identifier and identifier not in db_identifiers:
-                to_delete.append(record)
-            # If it doesn't fit any of the above, it's ppossible we need to update
-            else:
-                to_update.append(record)
+            db_record = db_records.get(identifier)
+
+            if not db_record or (db_record.action == "delete"):
+                to_delete.append(db_record if db_record else record)
+            elif record.get("harvest_object_id") == db_record.id:
+                synced.append(db_record)
+                processed_identifiers.add(identifier)
+            elif self.needs_update(record, db_record):
+                to_update.append(db_record)
+                processed_identifiers.add(identifier)
+
+        to_add = [
+            db_record
+            for identifier, db_record in db_records.items()
+            if identifier not in processed_identifiers
+        ]
+
         return synced, to_update, to_delete, to_add
 
     def get_db_record_by_identifier(self, identifier: str) -> Optional[HarvestRecord]:
@@ -230,75 +249,51 @@ class CKANSyncManager:
         result = self.db_interface.db.execute(stmt)
         return result.scalar_one_or_none()
 
-    def update_ckan_record(self, record: Dict[str, Any]) -> bool:
+    def sync_record(self, db_record: HarvestRecord) -> bool:
         """
-        Update a CKAN record to link it with the database record.
-        """
-        try:
-            # Get the corresponding DB record to get the proper harvest_object_id
-            db_record = self.get_db_record_by_identifier(record["identifier"])
-
-            if not db_record:
-                click.echo(
-                    "Warning: DB record not found for identifier "
-                    f"{record['identifier']}"
-                )
-                return False
-
-            # Prepare update data
-            update_data = {
-                "id": record["id"],
-                "extras_harvest_object_id": db_record.harvest_object_id,
-            }
-
-            response = requests.post(
-                f"{self.ckan_api_url}/api/action/package_patch",
-                json=update_data,
-                headers=self.headers,
-                timeout=30,
-            )
-            response.raise_for_status()
-
-            result = response.json()
-            if result.get("success"):
-                return True
-            else:
-                click.echo(
-                    f"CKAN update failed for {record['id']}: {result.get('error')}"
-                )
-                return False
-
-        except Exception as e:
-            click.echo(f"Error updating CKAN record {record['id']}: {e}")
-            return False
-
-    def delete_ckan_record(self, record: Dict[str, Any]) -> bool:
-        """
-        Delete a CKAN record that doesn't exist in the database.
+        create, update, delete a CKAN..
         """
         try:
-            response = requests.post(
-                f"{self.ckan_api_url}/api/action/package_delete",
-                json={"id": record["id"]},
-                headers=self.headers,
-                timeout=30,
-            )
-            response.raise_for_status()
-
-            result = response.json()
-            if result.get("success"):
-                return True
-            else:
-                click.echo(
-                    f"CKAN deletion failed for {record['id']}: {result.get('error')}"
-                )
-                return False
+            # returns True if successful, or goes to an exception
+            return self.ckan_tool.sync(db_record)
 
         except Exception as e:
-            click.echo(f"Error deleting CKAN record {record['id']}: {e}")
+            click.echo(f"Error updating CKAN record identifier:{db_record}: {e}")
             return False
 
-    def process_updates_batch(self, records_to_update: List[Dict]) -> Tuple[int, int]:
+    def _create_sync_result(
+        self,
+        record: Union[HarvestRecord, Dict],
+        action: str,
+        success: bool,
+        error_message: str = "",
+    ) -> SyncResult:
+        """Create a SyncResult object from a record."""
+        if isinstance(record, HarvestRecord):
+            return SyncResult(
+                identifier=record.identifier,
+                harvest_source_id=record.harvest_source_id,
+                ckan_id=record.ckan_id or "",
+                ckan_name=record.ckan_name or "",
+                action=action,
+                success=success,
+                error_message=error_message,
+            )
+        else:
+            # Handle CKAN record dict for deletions
+            return SyncResult(
+                identifier=record.get("identifier", ""),
+                harvest_source_id="",  # Not available in CKAN record
+                ckan_id=record.get("id", ""),
+                ckan_name=record.get("name", ""),
+                action=action,
+                success=success,
+                error_message=error_message,
+            )
+
+    def process_updates_batch(
+        self, records_to_update: List[HarvestRecord]
+    ) -> Tuple[int, int]:
         """Process record updates in batches with progress tracking."""
         success_count = 0
         failure_count = 0
@@ -307,18 +302,34 @@ class CKANSyncManager:
 
         with click.progressbar(records_to_update, label="Updating records") as bar:
             for record in bar:
-                if self.update_ckan_record(record):
-                    success_count += 1
-                else:
+                try:
+                    if self.sync_record(record):
+                        success_count += 1
+                        self.sync_results.append(
+                            self._create_sync_result(record, "to_update", True)
+                        )
+                    else:
+                        failure_count += 1
+                        self.sync_results.append(
+                            self._create_sync_result(
+                                record, "to_update", False, "Sync operation failed"
+                            )
+                        )
+                except Exception as e:
                     failure_count += 1
-
-                # Small delay to avoid overwhelming the API
-                time.sleep(0.1)
+                    self.sync_results.append(
+                        self._create_sync_result(record, "to_update", False, str(e))
+                    )
 
         return success_count, failure_count
 
-    def process_deletions_batch(self, records_to_delete: List[Dict]) -> Tuple[int, int]:
-        """Process record deletions in batches with progress tracking."""
+    def process_deletions_batch(
+        self, records_to_delete: List[Union[Dict, HarvestRecord]]
+    ) -> Tuple[int, int]:
+        """
+        Process record deletions in batches with progress tracking.
+        Deletes using either HarvestRecord object or CKAN record dict.
+        """
         success_count = 0
         failure_count = 0
 
@@ -326,15 +337,123 @@ class CKANSyncManager:
 
         with click.progressbar(records_to_delete, label="Deleting records") as bar:
             for record in bar:
-                if self.delete_ckan_record(record):
-                    success_count += 1
-                else:
+                try:
+                    if isinstance(record, dict):
+                        self.ckan_tool.ckan.action.dataset_purge(id=record["id"])
+                        success_count += 1
+                        self.sync_results.append(
+                            self._create_sync_result(record, "to_delete", True)
+                        )
+                    elif isinstance(record, HarvestRecord):
+                        if self.sync_record(record):
+                            success_count += 1
+                            self.sync_results.append(
+                                self._create_sync_result(record, "to_delete", True)
+                            )
+                        else:
+                            failure_count += 1
+                            self.sync_results.append(
+                                self._create_sync_result(
+                                    record, "to_delete", False, "Sync operation failed"
+                                )
+                            )
+                    else:
+                        failure_count += 1
+                        # Create a generic sync result for unknown record types
+                        self.sync_results.append(
+                            SyncResult(
+                                "unknown",
+                                "",
+                                "",
+                                "",
+                                "to_delete",
+                                False,
+                                "Unknown record type",
+                            )
+                        )
+                except Exception as e:
                     failure_count += 1
-
-                # Small delay to avoid overwhelming the API
-                time.sleep(0.1)
+                    self.sync_results.append(
+                        self._create_sync_result(record, "to_delete", False, str(e))
+                    )
 
         return success_count, failure_count
+
+    def process_additions_batch(
+        self, records_to_add: List[HarvestRecord]
+    ) -> Tuple[int, int]:
+        """Process record additions in batches with progress tracking."""
+        success_count = 0
+        failure_count = 0
+
+        click.echo(f"Adding {len(records_to_add)} CKAN records...")
+
+        with click.progressbar(records_to_add, label="Adding records") as bar:
+            for record in bar:
+                try:
+                    if self.sync_record(record):
+                        success_count += 1
+                        self.sync_results.append(
+                            self._create_sync_result(record, "to_add", True)
+                        )
+                    else:
+                        failure_count += 1
+                        self.sync_results.append(
+                            self._create_sync_result(
+                                record, "to_add", False, "Sync operation failed"
+                            )
+                        )
+                except Exception as e:
+                    failure_count += 1
+                    self.sync_results.append(
+                        self._create_sync_result(record, "to_add", False, str(e))
+                    )
+
+        return success_count, failure_count
+
+    def _record_synced_items(self, synced_records: List[HarvestRecord]):
+        """Record already synced items for CSV reporting."""
+        for record in synced_records:
+            self.sync_results.append(self._create_sync_result(record, "synced", True))
+
+    def write_csv_report(self):
+        """Write sync results to CSV file."""
+        if not self.sync_results:
+            click.echo("No sync results to write to CSV.")
+            return
+
+        try:
+            with open("sync_report.csv", "w", newline="", encoding="utf-8") as csvfile:
+                fieldnames = [
+                    "identifier",
+                    "harvest_source_id",
+                    "ckan_id",
+                    "ckan_name",
+                    "action",
+                    "success",
+                    "error_message",
+                ]
+                writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+
+                writer.writeheader()
+                for result in self.sync_results:
+                    writer.writerow(
+                        {
+                            "identifier": result.identifier,
+                            "harvest_source_id": result.harvest_source_id,
+                            "ckan_id": result.ckan_id,
+                            "ckan_name": result.ckan_name,
+                            "action": result.action,
+                            "success": result.success,
+                            "error_message": result.error_message,
+                        }
+                    )
+
+            click.echo("CSV report written to: sync_report.csv")
+            click.echo(f"Total records in report: {len(self.sync_results)}")
+
+        except Exception as e:
+            click.echo(f"Error writing CSV file: {e}")
 
     def get_db_record_count(self) -> int:
         """Get total count of harvest records in database."""
@@ -347,17 +466,17 @@ class CKANSyncManager:
         Perform full synchronization between database and CKAN SOLR.
         """
         stats = SyncStats()
+        self.sync_results = []  # Reset results for each sync
 
         try:
             # Step 1: Fetch all data
+            db_records = self.get_latest_db_records()
             ckan_records = self.fetch_all_ckan_records()
-            db_harvest_ids = self.get_db_harvest_object_ids()
-            db_identifiers = self.get_db_identifiers()
             stats.total_ckan_records = len(ckan_records)
 
             # Step 2: Categorize records
             synced, to_update, to_delete, to_add = self.categorize_ckan_records(
-                ckan_records, db_harvest_ids, db_identifiers
+                ckan_records, db_records
             )
 
             stats.already_synced = len(synced)
@@ -370,40 +489,63 @@ class CKANSyncManager:
             click.echo("SYNCHRONIZATION ANALYSIS")
             click.echo("=" * 60)
             click.echo(f"Total CKAN records: {stats.total_ckan_records}")
-            click.echo(f"Total DB records: {self.get_db_record_count()}")
+            click.echo(f"Latest DB records: {len(db_records)}")
             click.echo(f"Already synced: {stats.already_synced}")
             click.echo(f"Need update: {stats.to_update}")
             click.echo(f"Need deletion: {stats.to_delete}")
             click.echo(f"Need addition: {stats.to_add}")
+
+            # Record synced items for CSV reporting
+            self._record_synced_items(synced)
+
             if dry_run:
                 click.echo("\nDRY RUN - No changes will be made")
-                return stats
+                # In dry run, record planned actions without success status
+                for record in to_update:
+                    self.sync_results.append(
+                        self._create_sync_result(
+                            record,
+                            "to_update_planned",
+                            True,
+                            "Dry run - no action taken",
+                        )
+                    )
+                for record in to_add:
+                    self.sync_results.append(
+                        self._create_sync_result(
+                            record, "to_add_planned", True, "Dry run - no action taken"
+                        )
+                    )
+                for record in to_delete:
+                    self.sync_results.append(
+                        self._create_sync_result(
+                            record,
+                            "to_delete_planned",
+                            True,
+                            "Dry run - no action taken",
+                        )
+                    )
+            else:
+                # Step 4: Process updates
+                if to_update:
+                    success, failed = self.process_updates_batch(to_update)
+                    stats.updated_success = success
+                    stats.updated_failed = failed
 
-            # Step 4: Process updates
-            if to_update:
-                success, failed = self.process_updates_batch(to_update)
-                stats.updated_success = success
-                stats.updated_failed = failed
+                # Step 5: Process deletions
+                if to_delete:
+                    success, failed = self.process_deletions_batch(to_delete)
+                    stats.deleted_success = success
+                    stats.deleted_failed = failed
 
-            # Step 5: Process deletions
-            if to_delete:
-                success, failed = self.process_deletions_batch(to_delete)
-                stats.deleted_success = success
-                stats.deleted_failed = failed
+                # Step 6: Handle additions
+                if to_add:
+                    success, failed = self.process_additions_batch(to_add)
+                    stats.add_success = success
+                    stats.add_failed = failed
 
-            # Step 6: Handle additions
-            if to_add:
-                for identifier in to_add:
-                    try:
-                        record = self.get_db_record_by_identifier(identifier)
-                        # Create a new record in CKAN for the identifier
-                        self.ckan_tool.add_record(record)
-                        stats.add_success += 1
-                    except Exception as e:
-                        error_msg = f"Failed to add identifier {identifier}: {e}"
-                        stats.errors.append(error_msg)
-                        click.echo(f"ERROR: {error_msg}")
-                        stats.add_failed += 1
+            # Write CSV report if requested
+            self.write_csv_report()
 
         except Exception as e:
             error_msg = f"Synchronization failed: {e}"
@@ -415,15 +557,12 @@ class CKANSyncManager:
     def get_sync_preview(self) -> Dict[str, List[Dict]]:
         """
         Get a preview of what the synchronization would do without making changes.
-
-        Dictionary with categorized records for preview
         """
+        db_records = self.get_latest_db_records()
         ckan_records = self.fetch_all_ckan_records()
-        db_harvest_ids = self.get_db_harvest_object_ids()
-        db_identifiers = self.get_db_identifiers()
 
         synced, to_update, to_delete, to_add = self.categorize_ckan_records(
-            ckan_records, db_harvest_ids, db_identifiers
+            ckan_records, db_records
         )
 
         return {
@@ -469,10 +608,7 @@ def print_sync_results(stats: SyncStats):
 @click.option(
     "--dry-run", is_flag=True, help="Analyze only, make no changes", default=True
 )
-@click.option(
-    "--preview", is_flag=True, help="Show detailed preview of changes", default=True
-)
-def sync_command(batch_size, dry_run, preview):
+def sync_command(batch_size, dry_run):
     """
     Synchronize database records with CKAN SOLR.
 
@@ -499,44 +635,52 @@ def sync_command(batch_size, dry_run, preview):
             batch_size=batch_size,
         )
 
-        if preview:
-            # Show detailed preview
-            preview_data = sync_manager.get_sync_preview()
+        # Show detailed preview
+        preview_data = sync_manager.get_sync_preview()
 
-            click.echo("\n" + "=" * 60)
-            click.echo("DETAILED SYNC PREVIEW")
-            click.echo("=" * 60)
+        click.echo("\n" + "=" * 60)
+        click.echo("DETAILED SYNC PREVIEW")
+        click.echo("=" * 60)
 
-            summary = preview_data["summary"]
-            click.echo(f"Total CKAN records: {summary['total_ckan']}")
-            click.echo(f"Total DB records: {summary['total_db']}")
-            click.echo(f"Already synced: {summary['already_synced']}")
-            click.echo(f"Need update: {summary['need_update']}")
-            click.echo(f"Need deletion: {summary['need_deletion']}")
-            click.echo(f"Need to be added: {summary['need_added']}")
+        summary = preview_data["summary"]
+        click.echo(f"Total CKAN records: {summary['total_ckan']}")
+        click.echo(f"Total DB records: {summary['total_db']}")
+        click.echo(f"Already synced: {summary['already_synced']}")
+        click.echo(f"Need update: {summary['need_update']}")
+        click.echo(f"Need deletion: {summary['need_deletion']}")
+        click.echo(f"Need to be added: {summary['need_added']}")
 
-            if preview_data["to_update"]:
-                click.echo("\nFirst 5 records to UPDATE:")
-                for record in preview_data["to_update"][:5]:
-                    click.echo(
-                        f"  - CKAN ID: {record['id']}, Identifier: "
-                        f"{record['identifier']}"
-                    )
+        if preview_data["to_update"]:
+            click.echo("\nFirst 5 records to UPDATE:")
+            for record in preview_data["to_update"][:5]:
+                click.echo(
+                    f"  - CKAN ID: {record.ckan_id}, Identifier: "
+                    f"{record.identifier}"
+                )
 
-            if preview_data["to_delete"]:
-                click.echo("\nFirst 5 records to DELETE:")
-                for record in preview_data["to_delete"][:5]:
+        if preview_data["to_delete"]:
+            click.echo("\nFirst 5 records to DELETE:")
+            for record in preview_data["to_delete"][:5]:
+                if isinstance(record, dict):
                     click.echo(
                         f"  - CKAN ID: {record['id']}, "
                         f"Identifier: {record.get('identifier', 'N/A')}"
+                    )
+                else:
+                    click.echo(
+                        f"  - CKAN ID: {record.ckan_id}, "
+                        f"Identifier: {record.identifier}"
                     )
 
         if not dry_run:
             # Perform synchronization
             stats = sync_manager.synchronize(dry_run=dry_run)
 
-            # Print results
+            # Print results of the synchronization
             print_sync_results(stats)
+        else:
+            # Generate CSV report even in dry run mode
+            stats = sync_manager.synchronize(dry_run=dry_run)
 
 
 if __name__ == "__main__":
