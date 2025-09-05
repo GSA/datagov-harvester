@@ -15,14 +15,9 @@
     <div class="config-table harvest-job-config-properties">
         <table class="table">
             {% if data['percent_complete'] %}
-            <tr>
+            <tr class="bg-error-light">
                 <td>Percent complete:</td>
-                <td>
-                    <div class="progress-meter">
-                        <!-- [:-1] slices off "%" -->
-                        <div class="progress-percent" style="--progress: {{ data['percent_complete'][:-1] }}"></div>
-                    </div> 
-                </td>
+                <td>{{data['percent_complete']}}</td>
             </tr>
             {% endif %}
             {% for key, value in data.job.to_dict().items() %}

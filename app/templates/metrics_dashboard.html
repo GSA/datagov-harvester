@@ -13,7 +13,7 @@
       <h2>Jobs In Progress: {{ data.current_jobs | length }}</h2>
 
       {% if data.current_jobs %}
-      {{ job_table.job_table(data.current_jobs, "Jobs In Progress", show_progress=True) }}
+      {{ job_table.job_table(data.current_jobs, "Jobs In Progress") }}
       {% else %}
         <div class="usa-alert usa-alert--info">
             <div class="usa-alert__body">
