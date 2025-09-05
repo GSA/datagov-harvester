@@ -15,7 +15,6 @@ def upage(
 
 
 class TestMetricsUnauthed:
-
     def test_new_jobs_exist(self, upage):
         """has scheduled jobs table"""
         expect(upage.locator("#jobs-to-harvest")).to_be_visible()
@@ -33,3 +32,13 @@ class TestMetricsUnauthed:
     def test_failed_jobs_exist(self, upage):
         """has failed jobs section"""
         expect(upage.locator("#recent-failed-jobs")).to_be_visible()
+
+    def test_jobs_in_progress(self, upage):
+        """has "Jobs in Progress" table and progress bar checks"""
+        expect(upage.locator("#jobs-harvesting")).to_be_visible()
+
+        expect(upage.locator(".progress-meter")).to_have_count(1)
+        assert (
+            upage.locator(".progress-percent").get_attribute("style")
+            == "--progress: 0"  # 0% completion
+        )

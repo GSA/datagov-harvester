@@ -22,6 +22,7 @@ class TestHarvestJobUnauthed:
         table = upage.locator(".harvest-job-config-properties table")
 
         # Test static content that should always be present
+        expect(table).not_to_contain_text("Percent complete:")  # job is not in progress
         expect(table).to_contain_text("Harvest Source:")
         expect(table).to_contain_text("Test Source")
         expect(table).to_contain_text("status:")
@@ -63,9 +64,9 @@ class TestHarvestJobUnauthed:
     def test_harvest_job_record_errors_summary(self, upage):
         expect(upage.locator("table#harvest-job-error-summary")).to_be_visible()
 
-        expect(
-            upage.locator("table#harvest-job-error-summary thead tr")
-        ).to_have_count(1)
+        expect(upage.locator("table#harvest-job-error-summary thead tr")).to_have_count(
+            1
+        )
         expect(
             upage.locator("table#harvest-job-error-summary tbody tr td")
         ).to_have_text(["TestException", "8", "ValidationException", "8"])
