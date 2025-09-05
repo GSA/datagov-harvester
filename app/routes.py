@@ -1178,7 +1178,8 @@ def get_harvest_record_raw(record_id=None):
             source_raw_json = json.loads(record.source_raw)
             return jsonify(source_raw_json), 200
         except json.JSONDecodeError:
-            return record.source_raw, 200
+            # Return XML with correct mimetype
+            return Response(record.source_raw, mimetype="application/xml; charset=utf-8"), 200
     else:
         return JSON_NOT_FOUND()
 
