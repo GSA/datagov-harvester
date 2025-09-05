@@ -1,16 +1,14 @@
-import pytest
 import os
 import sys
-from datetime import datetime, timezone, timedelta
-from unittest.mock import Mock, patch, MagicMock
-from dataclasses import dataclass
-from typing import Dict, List, Any, Union
+from datetime import datetime, timezone
+from unittest.mock import Mock, patch
+
+import pytest
 
 # Add the parent directory to sys.path to import modules
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from database.models import HarvestRecord
-
-from scripts.sync_db import SyncStats, CKANSyncManager, print_sync_results, sync_command
+from scripts.sync_db import CKANSyncManager, SyncStats, print_sync_results, sync_command
 
 
 class MockHarvestRecord(HarvestRecord):
@@ -504,8 +502,6 @@ class TestErrorHandling:
             ckan_records, db_records
         )
 
-        # Should handle malformed record gracefully
-        # Malformed record (None identifier) won't match any DB record, so goes to delete
         assert len(to_delete) == 1
         assert len(synced) == 1  # Good record should be synced
 

@@ -3,12 +3,12 @@ import os
 import sys
 from dataclasses import dataclass
 from datetime import datetime, timezone
-
 from typing import Any, Dict, List, Optional, Tuple, Union
+
 import click
 import requests
-from sqlalchemy import create_engine, func, select, desc
-from sqlalchemy.orm import sessionmaker, aliased
+from sqlalchemy import create_engine, desc, func, select
+from sqlalchemy.orm import aliased, sessionmaker
 
 from harvester.utils.ckan_utils import CKANSyncTool
 from harvester.utils.general_utils import create_retry_session
