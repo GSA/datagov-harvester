@@ -1329,6 +1329,10 @@ def view_metrics():
             facets="status eq in_progress",
             order_by="desc",
         )
+
+        for job in current_jobs:
+            job.percent_complete = process_job_complete_percentage(job.to_dict())
+
         data = {
             "current_jobs": current_jobs,
             "jobs": jobs,

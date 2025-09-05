@@ -22,6 +22,7 @@ class TestHarvestSourceUnauthed:
         table = upage.locator(".harvest-job-config-properties table")
 
         # Test static content that should always be present
+        expect(table).not_to_contain_text("Percent complete:")  # job is not in progress
         expect(table).to_contain_text("Harvest Source:")
         expect(table).to_contain_text("Test Source")
         expect(table).to_contain_text("status:")
@@ -59,6 +60,16 @@ class TestHarvestSourceUnauthed:
             "href",
             "/harvest_record/0779c855-df20-49c8-9108-66359d82b77c",
         )
+
+    def test_harvest_job_record_errors_summary(self, upage):
+        expect(upage.locator("table#harvest-job-error-summary")).to_be_visible()
+
+        expect(upage.locator("table#harvest-job-error-summary thead tr")).to_have_count(
+            1
+        )
+        expect(
+            upage.locator("table#harvest-job-error-summary tbody tr td")
+        ).to_have_text(["TestException", "8", "ValidationException", "8"])
 
     def test_download_harvest_errors_csv(self, upage):
         pytest_harvest_errors_csv = "pytest_harvest_errors.csv"

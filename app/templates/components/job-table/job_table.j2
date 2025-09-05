@@ -1,4 +1,4 @@
-{% macro job_table(jobs, caption, show_source=true) -%}
+{% macro job_table(jobs, caption, show_source=true, show_progress=False) -%}
 <div class="usa-table-container" tabindex="0">
     <table class="usa-table usa-table--striped usa-table--borderless">
         <caption>{{ caption }}</caption>
@@ -7,6 +7,9 @@
                 <th scope="col" title="Job ID">Job ID</th>
                 {% if show_source %}<th scope="col" title="Harvest Source">Source</th>{% endif %}
                 <th scope="col" title="Job Status">Status</th>
+                {% if show_progress %}
+                    <th scope="col" title="Job Progress">Progress</th>
+                {% endif %}
                 <th scope="col" title="Job Type">Type</th>
                 <th scope="col" title="Start Date">Started</th>
                 <th scope="col" title="Completion Date">Finished</th>
@@ -45,6 +48,14 @@
                                         {% endif %}
                                         tablet:display-none">{{ job.status[:4] }}</span>
                 </td>
+                {% if show_progress %}
+                    <td>
+                        <div class="progress-meter">
+                            {# [:-1] slices off "%" #}
+                            <div class="progress-percent" style="--progress: {{ job.percent_complete[:-1] }}"></div>
+                        </div>
+                    </td>
+                {% endif %}
                 <td class="text-tabular">{{ job.job_type }}</td>
                 <td class="font-mono-sm utc-date" data-utc-date="{{ job.date_created | utc_isoformat }}">
                     {{ job.date_created | else_na}}
