@@ -74,7 +74,16 @@ ISSUER = os.getenv("ISSUER")
 AUTH_URL = ISSUER + "/openid_connect/authorize"
 TOKEN_URL = ISSUER + "/api/openid_connect/token"
 
-STATUS_STRINGS_ENUM = {"404": "Not Found"}
+STATUS_STRINGS_ENUM = {404: "Not Found"}
+
+
+def JSON_NOT_FOUND():
+    """Return our most generic error response.
+
+    This is a function rather than a constant because `jsonify` requires
+    an app context.
+    """
+    return jsonify({"error": STATUS_STRINGS_ENUM[404]}), 404
 
 
 class UnsafeTemplateEnvError(RuntimeError):
@@ -114,6 +123,28 @@ def login_required(f):
         if "user" not in session:
             session["next"] = request.url
             return redirect(url_for("main.login"))
+        return f(*args, **kwargs)
+
+    return decorated_function
+
+
+def valid_id_required(f):
+    """Decorator to check that ALL function arguments are valid IDs.
+
+    Returns a JSON 404 if they are not.
+
+    TODO: Make the decorator return a pretty templated HTML page if the user
+    would be expecting a 404 page.
+    """
+
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        for arg in args:
+            if not is_valid_uuid4(arg):
+                return JSON_NOT_FOUND()
+        for kwarg in kwargs.values():
+            if not is_valid_uuid4(kwarg):
+                return JSON_NOT_FOUND()
         return f(*args, **kwargs)
 
     return decorated_function
@@ -443,13 +474,14 @@ def add_organization():
 def organization_list():
     organizations = db.get_all_organizations()
     if request.args.get("type") and request.args.get("type") == "json":
-        return db._to_dict(organizations)
+        return jsonify(db._to_dict(organizations))
     else:
         data = {"organizations": organizations}
         return render_template("view_org_list.html", data=data)
 
 
 @main.route("/organization/<org_id>", methods=["GET", "POST"])
+@valid_id_required  # TODO: make an HTML 404 page
 def view_organization(org_id: str):
     if request.method == "POST":
         form = OrganizationTriggerForm(request.form)
@@ -510,6 +542,7 @@ def view_organization(org_id: str):
 ### Edit Org
 @main.route("/organization/edit/<org_id>", methods=["GET", "POST"])
 @login_required
+@valid_id_required  # TODO: Use an HTML 404 page
 def edit_organization(org_id):
     if request.is_json:
         org = db.update_organization(org_id, request.json)
@@ -544,6 +577,7 @@ def edit_organization(org_id):
 ### Delete Org
 @api.route("/organization/<org_id>", methods=["DELETE"])
 @login_required
+@valid_id_required
 def delete_organization(org_id):
     try:
         message, status = db.delete_organization(org_id)
@@ -605,6 +639,7 @@ def add_harvest_source():
 
 
 @main.route("/harvest_source/<source_id>", methods=["GET", "POST"])
+@valid_id_required  # TODO: Use an HTML 404 page
 def view_harvest_source(source_id: str):
     htmx_vars = {
         "target_div": "#paginated__harvest-jobs",
@@ -612,7 +647,7 @@ def view_harvest_source(source_id: str):
         "page_param": "page",
     }
     harvest_jobs_facets = (
-        f"harvest_source_id = '{source_id}' AND date_created <= '{get_datetime()}'"
+        f"harvest_source_id eq {source_id},date_created le {get_datetime()}"
     )
     jobs_count = db.pget_harvest_jobs(
         facets=harvest_jobs_facets,
@@ -743,7 +778,7 @@ def view_harvest_source(source_id: str):
                     "backgroundColor": "red",
                 },
                 {
-                    "label": "Ignored",
+                    "label": "Unchanged",
                     "data": chart_data_values["records_ignored"],
                     "borderColor": "grey",
                     "backgroundColor": "grey",
@@ -776,6 +811,7 @@ def harvest_source_list():
 ### Edit Source
 @main.route("/harvest_source/edit/<source_id>", methods=["GET", "POST"])
 @login_required
+@valid_id_required  # TODO: Use an HTML 404 page
 def edit_harvest_source(source_id: str):
     if request.is_json:
         updated_source = db.update_harvest_source(source_id, request.json)
@@ -834,12 +870,13 @@ def edit_harvest_source(source_id: str):
             return "No harvest sources found for this organization", 404
     else:
         source = db.get_all_harvest_sources()
-    return db._to_dict(source)
+    return jsonify(db._to_dict(source))
 
 
 # Delete Source
 @api.route("/harvest_source/<source_id>", methods=["DELETE"])
 @login_required
+@valid_id_required
 def delete_harvest_source(source_id):
     try:
         message, status = db.delete_harvest_source(source_id)
@@ -854,9 +891,14 @@ def delete_harvest_source(source_id):
 @api.route("/harvest_source/harvest/<source_id>/<job_type>", methods=["GET"])
 @login_required
 def trigger_harvest_source(source_id, job_type):
+    if not is_valid_uuid4(source_id):
+        return JSON_NOT_FOUND()
+    # possible job_types are in `harvester/harvest.py:harvest_job_starter()`
+    if job_type not in ["harvest", "force_harvest", "clear", "validate"]:
+        return JSON_NOT_FOUND()
     message = load_manager.trigger_manual_job(source_id, job_type)
     flash(message)
-    return redirect(f"/harvest_source/{source_id}")
+    return redirect(url_for("main.view_harvest_source", source_id=source_id))
 
 
 ## Harvest Job
@@ -876,6 +918,7 @@ def add_harvest_job():
 
 ### Get Job
 @main.route("/harvest_job/<job_id>", methods=["GET"])
+@valid_id_required  # TODO: Use an HTML 404 page
 def view_harvest_job(job_id=None):
     def _load_json_title(json_string):
         try:
@@ -891,12 +934,14 @@ def view_harvest_job(job_id=None):
     htmx_vars = {
         "target_div": "#error_results_pagination",
         "endpoint_url": f"/harvest_job/{job_id}",
+        "page_param": "page",
     }
 
     pagination = Pagination(
         count=record_error_count,
         current=request.args.get("page", 1, type=convert_to_int),
     )
+    record_error_summary = db.get_record_errors_summary_by_job(job_id)
     record_errors = db.get_harvest_record_errors_by_job(
         job_id,
         page=pagination.db_current,
@@ -924,10 +969,11 @@ def view_harvest_job(job_id=None):
     else:
         job = db.get_harvest_job(job_id)
         if request.args.get("type") and request.args.get("type") == "json":
-            return db._to_dict(job) if job else (STATUS_STRINGS_ENUM["404"], 404)
+            return jsonify(db._to_dict(job)) if job else JSON_NOT_FOUND()
         else:
             data = {
                 "job": job,
+                "record_error_summary": record_error_summary,
                 "record_errors": record_errors_dict,
                 "htmx_vars": htmx_vars,
             }
@@ -944,14 +990,16 @@ def view_harvest_job(job_id=None):
 ### Update Job
 @main.route("/harvest_job/<job_id>", methods=["PUT"])
 @login_required
+@valid_id_required
 def update_harvest_job(job_id):
     result = db.update_harvest_job(job_id, request.json)
-    return db._to_dict(result)
+    return jsonify(db._to_dict(result))
 
 
 ### Delete Job
 @main.route("/harvest_job/<job_id>", methods=["DELETE"])
 @login_required
+@valid_id_required
 def delete_harvest_job(job_id):
     result = db.delete_harvest_job(job_id)
     return escape(result)
@@ -959,6 +1007,7 @@ def delete_harvest_job(job_id):
 
 @main.route("/harvest_job/cancel/<job_id>", methods=["GET", "POST"])
 @login_required
+@valid_id_required
 def cancel_harvest_job(job_id):
     """Cancels a harvest job"""
     if not is_valid_uuid4(job_id):
@@ -966,12 +1015,14 @@ def cancel_harvest_job(job_id):
         return redirect("/")
     message = load_manager.stop_job(job_id)
     flash(message)
-    return redirect(f"/harvest_job/{job_id}")
+    return redirect(url_for("main.view_harvest_job", job_id=job_id))
 
 
 ### Download all errors for a given job
 @main.route("/harvest_job/<job_id>/errors/<error_type>", methods=["GET"])
 def download_harvest_errors_by_job(job_id, error_type):
+    if not is_valid_uuid4(job_id):
+        return JSON_NOT_FOUND()
     try:
         if error_type not in ["job", "record"]:
             return "Invalid error type. Must be 'job' or 'record'", 400
@@ -1110,24 +1161,26 @@ def download_harvest_errors_by_job(job_id, error_type):
 # Records
 ## Get record
 @main.route("/harvest_record/<record_id>", methods=["GET"])
+@valid_id_required
 def get_harvest_record(record_id):
     record = db.get_harvest_record(record_id)
-    return db._to_dict(record) if record else (STATUS_STRINGS_ENUM["404"], 404)
+    return jsonify(db._to_dict(record)) if record else JSON_NOT_FOUND()
 
 
 ## Get records source raw
 @main.route("/harvest_record/<record_id>/raw", methods=["GET"])
+@valid_id_required
 def get_harvest_record_raw(record_id=None):
     record = db.get_harvest_record(record_id)
     if record:
         try:
             # if this fails, it's not JSON, but possibly XML
             source_raw_json = json.loads(record.source_raw)
-            return source_raw_json, 200
+            return jsonify(source_raw_json), 200
         except json.JSONDecodeError:
             return record.source_raw, 200
     else:
-        return {"error": STATUS_STRINGS_ENUM["404"]}, 404
+        return JSON_NOT_FOUND()
 
 
 ## Add record
@@ -1146,28 +1199,28 @@ def add_harvest_record():
 
 ### Get record errors by record id
 @main.route("/harvest_record/<record_id>/errors", methods=["GET"])
+@valid_id_required
 def get_all_harvest_record_errors(record_id: str) -> list:
     try:
         record_errors = db.get_harvest_record_errors_by_record(record_id)
         return (
-            db._to_dict(record_errors)
-            if record_errors
-            else (STATUS_STRINGS_ENUM["404"], 404)
+            jsonify(db._to_dict(record_errors)) if record_errors else JSON_NOT_FOUND()
         )
     except Exception:
-        return "Please provide a valid record_id"
+        return jsonify({"error": "Please provide a valid record_id"}), 404
 
 
 ## Harvest Error
 ### Get error by id
 @main.route("/harvest_error/<error_id>", methods=["GET"])
-def get_harvest_error(error_id: str = None) -> dict:
+@valid_id_required
+def get_harvest_error(error_id: str = None) -> Response:
     # retrieves the given error ( either job or record )
     try:
         error = db.get_harvest_error(error_id)
-        return db._to_dict(error) if error else (STATUS_STRINGS_ENUM["404"], 404)
+        return jsonify(db._to_dict(error)) if error else JSON_NOT_FOUND()
     except Exception:
-        return "Please provide a valid record_id"
+        return jsonify({"error": "Please provide a valid record_id"}), 404
 
 
 @main.route("/metrics/", methods=["GET"])
@@ -1175,7 +1228,9 @@ def view_metrics():
     """Render index page with recent harvest jobs."""
     current_time = get_datetime()
     start_time = current_time - timedelta(days=7)
-    time_filter = f"date_created >= '{start_time.isoformat()}' AND date_created <= '{current_time}'"
+    time_filter = (
+        f"date_created ge {start_time.isoformat()},date_created le {current_time}"
+    )
 
     # Handle multiple pagination parameters
     jobs_page = request.args.get("jobs_page", 1, type=convert_to_int)
@@ -1183,7 +1238,7 @@ def view_metrics():
 
     # Count for pagination
     count_jobs = db.pget_harvest_jobs(
-        facets=time_filter + " AND status = 'complete'",
+        facets=time_filter + ",status eq complete",
         count=True,
     )
 
@@ -1210,7 +1265,7 @@ def view_metrics():
         if "paginated__harvest-jobs" in htmx_target:
             # Handle jobs pagination
             jobs = db.pget_harvest_jobs(
-                facets=time_filter + " AND status = 'complete'",
+                facets=time_filter + ",status eq complete",
                 page=pagination_jobs.db_current,
                 per_page=pagination_jobs.per_page,
                 order_by="desc",
@@ -1233,7 +1288,7 @@ def view_metrics():
 
         elif "paginated__harvest-errors" in htmx_target:
             # Handle errors pagination
-            errors_time_filter = f"harvest_job_error.date_created >= '{start_time.isoformat()}' AND harvest_job_error.date_created <= '{current_time}'"
+            errors_time_filter = f"date_created ge {start_time.isoformat()},date_created le {current_time}"
             failures = db.pget_harvest_job_errors(
                 facets=errors_time_filter,
                 page=pagination_errors.db_current,
@@ -1258,12 +1313,14 @@ def view_metrics():
     else:
         # Full page load
         jobs = db.pget_harvest_jobs(
-            facets=time_filter + " AND status = 'complete'",
+            facets=time_filter + ",status eq complete",
             page=pagination_jobs.db_current,
             per_page=pagination_jobs.per_page,
             order_by="desc",
         )
-        errors_time_filter = f"harvest_job_error.date_created >= '{start_time.isoformat()}' AND harvest_job_error.date_created <= '{current_time}'"
+        errors_time_filter = (
+            f"date_created ge {start_time.isoformat()},date_created le {current_time}"
+        )
         failures = db.pget_harvest_job_errors(
             facets=errors_time_filter,
             page=pagination_errors.db_current,
@@ -1271,9 +1328,13 @@ def view_metrics():
             order_by="desc",
         )
         current_jobs = db.pget_harvest_jobs(
-            facets="status = 'in_progress'",
+            facets="status eq in_progress",
             order_by="desc",
         )
+
+        for job in current_jobs:
+            job.percent_complete = process_job_complete_percentage(job.to_dict())
+
         data = {
             "current_jobs": current_jobs,
             "jobs": jobs,
@@ -1302,10 +1363,16 @@ def json_builder_query():
     source_id = request.args.get("harvest_source_id")
     facets = request.args.get("facets", default="")
 
-    if job_id:
-        facets += f", harvest_job_id = '{job_id}'"
-    if source_id:
-        facets += f", harvest_source_id = '{source_id}'"
+    if job_id is not None:
+        if facets:
+            facets += f",harvest_job_id eq {job_id}"
+        else:
+            facets = f"harvest_job_id eq {job_id}"
+    if source_id is not None:
+        if facets:
+            facets += f",harvest_source_id eq {source_id}"
+        else:
+            facets = f"harvest_source_id eq {source_id}"
 
     model = escape(request.path).replace("/", "")
     try:
@@ -1324,7 +1391,7 @@ def json_builder_query():
             # in case we are just returning a count from db query
             return {"count": res, "type": model}
         else:
-            return db._to_dict(res)
+            return jsonify(db._to_dict(res))
     except Exception as e:
         logger.info(f"Failed json_builder_query :: {repr(e)} ")
         return "Error with query", 400

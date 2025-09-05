@@ -105,7 +105,7 @@ def default_function_fixture(interface):
         patch("harvester.exceptions.db_interface", interface),
         patch("harvester.lib.load_manager.interface", interface),
         patch("app.routes.db", interface),
-        patch("harvester.utils.ckan_utils.db", interface),
+        patch("harvester.utils.ckan_utils.db_interface", interface),
     ):
         yield
     logger.info("Patching complete. Unpatching")

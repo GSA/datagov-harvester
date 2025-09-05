@@ -11,13 +11,15 @@ from typing import Tuple, Union
 import requests
 from ckanapi import RemoteCKAN
 
-from database.interface import HarvesterDBInterface
 from harvester.exceptions import (
     CKANDownException,
     CKANRejectionException,
     DCATUSToCKANException,
     SynchronizeException,
 )
+
+# use session scoped database interface
+from .. import db_interface
 
 if typing.TYPE_CHECKING:
     from harvester.harvest import HarvestSource
@@ -41,14 +43,12 @@ MIN_TAG_LENGTH = 2
 # logging data
 logger = logging.getLogger("ckan_utils")
 
-db = HarvesterDBInterface()
-
 
 class CKANSyncTool:
     """A helper class used for parallelization of CKAN network calls.
 
     Args:
-        session: requires a pre-existing DB session connection
+        session: a requests session to use for accessing CKAN
 
     Usage:
         ckan_sync_tool = CKANSyncTool(session=session)
@@ -136,14 +136,6 @@ class CKANSyncTool:
                 {get_datetime() - start}"
         )
         record.status = "success"
-
-        # update harvest reporter
-        record.harvest_source.reporter.update(record.action)
-
-        # # update harvest job
-        record.harvest_source.db_interface.update_harvest_job(
-            record.harvest_source.job_id, record.harvest_source.reporter.report()
-        )
 
         return True
 
@@ -974,7 +966,7 @@ def translate_spatial(input) -> str:
         return validated_geojson
 
     # is it a name in the locations database?
-    res = db.get_geo_from_string(spatial_value)
+    res = db_interface.get_geo_from_string(spatial_value)
     if res is not None:
         return res
 

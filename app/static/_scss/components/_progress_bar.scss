@@ -1,0 +1,37 @@
+.progress-meter {
+  display: block;
+  height: 10px;
+  box-shadow: 0 1px 4px 0 rgba(0, 0, 0, 0.1);
+  border-radius: 5px;
+  padding: 1px;
+  margin-right: 2rem;
+  position: relative;
+}
+
+.progress-percent {
+  display: block;
+  height: 100%;
+  border-radius: 5px;
+  width: calc(var(--progress) * 1%); 
+  background-color: #538200;
+  font-size: 85%;
+  color: black;
+}
+
+.progress-percent[style="--progress: 0"] {
+  background-color: white
+}
+
+
+.progress-percent::after {
+  counter-reset: percent var(--progress);
+  content: counter(percent) '%';
+  position: absolute;
+  right: -2rem;
+  bottom: -0.3rem;
+}
+
+// progress bar on job page
+.table td:nth-child(2) {
+  vertical-align: middle;
+}

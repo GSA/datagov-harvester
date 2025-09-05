@@ -15,9 +15,14 @@
     <div class="config-table harvest-job-config-properties">
         <table class="table">
             {% if data['percent_complete'] %}
-            <tr class="bg-error-light">
+            <tr>
                 <td>Percent complete:</td>
-                <td>{{data['percent_complete']}}</td>
+                <td>
+                    <div class="progress-meter">
+                        <!-- [:-1] slices off "%" -->
+                        <div class="progress-percent" style="--progress: {{ data['percent_complete'][:-1] }}"></div>
+                    </div> 
+                </td>
             </tr>
             {% endif %}
             {% for key, value in data.job.to_dict().items() %}
@@ -30,6 +35,9 @@
                 <td class="utc-date" data-utc-date="{{ value | utc_isoformat }}">
                     {{ value | else_na }}
                 </td>
+                {% elif key == 'records_ignored' %}
+                <td>records_unchanged:</td>
+                <td>{{value}}</td>
                 {% else %}
                 <td>{{key}}:</td>
                 <td>{{value}}</td>
@@ -96,6 +104,25 @@
         <a href="{{ url_for('main.download_harvest_errors_by_job', job_id=data.job.id, error_type=error_type)}}">
             <button class="btn btn-primary">download record errors as .csv</button>
         </a>
+
+        <table class="usa-table usa-table--striped" id="harvest-job-error-summary">
+          <caption>Error type summary</caption>
+          <thead>
+            <tr>
+              <td scope="col">Error type</td>
+              <td scope="col">Number of errors</td>
+            </tr>
+          </thead>
+          <tbody>
+            {% for error_type, count in data.record_error_summary.items() %}
+            <tr>
+              <td>{{ error_type }}</td>
+              <td>{{ count }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+
         <div class="usa-table-container--scrollable" tabindex="0">
             {% block record_errors_table %}
             <div id="error_results_pagination">

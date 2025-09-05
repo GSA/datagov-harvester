@@ -1,4 +1,4 @@
-FROM python:3.13-slim
+FROM python:3.12-slim
 
 # Update PAM packages to fix CVE-2025-6020 SNYK-DEBIAN12-PAM-10378969
 RUN apt-get install -y --only-upgrade libpam-modules libpam0g libpam-runtime

@@ -132,13 +132,19 @@ class TestHarvestJobFullFlow:
 
         # assert job rollup
         assert harvest_job.status == "complete"
-        assert harvest_job.records_total == 4
-        assert len(harvest_job.record_errors) == 2
-        assert harvest_job.records_errored == 2
+        assert harvest_job.records_total == 5
+        assert len(harvest_job.record_errors) == 3
+        assert harvest_job.records_errored == 3
 
         # assert error insertion order
         errors = interface.get_harvest_record_errors_by_job(job_id)
-        assert errors[0][0].type == "TransformationException"
+        # the first doc ("decode_error.xml") throws a decoding error and since we can't fetch the doc
+        # there's no record to associate it to so checking to make sure the error
+        # exists and the message is what we expect then we remove it so the
+        # proceeeding assertions work as intended.
+        assert errors[0][0].type == "ExternalRecordToClass"
+        assert "UnicodeDecodeError" in errors[0][0].message
+        del errors[0]
 
         # assert harvest_record_id & type match
         for error in errors:
@@ -409,7 +415,6 @@ class TestHarvestJobFullFlow:
 
 
 class TestCheckMoreWork:
-
     @patch("harvester.lib.cf_handler.CloudFoundryClient")
     def test_check_more_work(
         self, CFCMock, interface, organization_data, source_data_dcatus_single_record

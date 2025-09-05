@@ -1,5 +1,6 @@
 import argparse
 import hashlib
+import http
 import json
 import logging
 import os
@@ -17,8 +18,10 @@ from uuid import UUID
 import geojson_validator
 import requests
 import sansjson
+import sqlalchemy.sql.operators as sa_operators
 from bs4 import BeautifulSoup
 from jsonschema.exceptions import ValidationError
+from sqlalchemy import literal
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger()
@@ -100,14 +103,19 @@ def open_json(file_path):
 def download_file(url: str, file_type: str) -> Union[str, dict]:
     # ruff: noqa: E501
     headers = {"User-Agent": USER_AGENT}
-    resp = requests.get(url, headers=headers)
-    if 200 <= resp.status_code < 300:
-        if file_type == ".xml":
-            data = resp.content
-            if isinstance(data, bytes):
-                data = data.decode()
-            return data
-        return resp.json()
+    try:
+        resp = requests.get(url, headers=headers)
+        if 200 <= resp.status_code < 300:
+            if file_type == ".xml":
+                data = resp.content
+                if isinstance(data, bytes):
+                    data = data.decode()
+                return data
+            return resp.json()
+    except (http.client.RemoteDisconnected, requests.exceptions.ConnectionError) as e:
+        raise e
+    except UnicodeDecodeError as e:
+        raise e
 
     raise Exception
 
@@ -240,23 +248,32 @@ def traverse_waf(
     return files
 
 
-def query_filter_builder(base, facets):
-    """Builds filter strings from base and comma separated string of filters
-    :param base str - base filter query
-    :param facets str - extra facets
+def query_filter_builder(model, facets_string):
+    """Builds a list of filter expressions from a comma-separated string of facets
 
+    Each facet is of the form "column op value" where `column` is a
+    column name from the model, `op` is one of the operators in
+    `sqlalchemy.sql.operators` like "eq" or "like_op", and `value` is
+    a literal value for the operator.
+
+    The facet string is split on comma characters, so it isn't possible
+    to include commas in the literal values.
+
+    This can raise exceptions if the filters specify nonsensical things about
+    the model. Callers should handle these exceptions.
     """
-    facets = facets.removeprefix(", ")
-    if base is None:
-        facet_string = facets.split(",")[0]
-        facet_list = facets.split(",")[1:]
-    else:
-        facet_string = base
-        facet_list = facets.split(",")
-    for facet in facet_list:
-        if facet != "":
-            facet_string += f" AND {facet}"
-    return facet_string
+    # empty facet string doesn't play well with our loop below
+    if not facets_string:
+        return []
+
+    facets = []
+    for this_facet in facets_string.split(","):
+        column_name, op, value = this_facet.split(maxsplit=2)
+        # these could raise attribute errors
+        column = getattr(model, column_name)
+        operator = getattr(sa_operators, op)
+        facets.append(operator(column, literal(value, type_=column.type)))
+    return facets
 
 
 def is_it_true(value):
@@ -673,11 +690,22 @@ def finalize_validation_messages(messages: defaultdict) -> list:
             logger.warning(f"can't find invalid data from error message: {formats[0]}")
             continue
 
+        invalid_value = invalid_value.group(0)
+
+        # @type values are consts too
+        if invalid_value in [
+            "'dcat:Distribution'",
+            "'org:Organization'",
+            "'dcat:Dataset'",
+            "'vcard:Contact'",
+        ]:
+            invalid_value = "@type value"
+
         formats = map(get_format_from_str, formats)
 
         # build the bundled error message by json_path
         msg = ValidationError(
-            f"{json_path}, {invalid_value.group(0)} does not match any of "
+            f"{json_path}, {invalid_value} does not match any of "
             "the acceptable formats: " + ", ".join(formats)
         )
         output.append(msg)

@@ -3,6 +3,26 @@ import io
 import json
 from datetime import datetime
 
+import pytest
+
+
+@pytest.fixture
+def job_with_many_errors(interface_with_fixture_json):
+    # Need at lest seven pages of errors to get the next and previous
+    # arrows, so let's make 100 of them.
+    job = interface_with_fixture_json.get_first_harvest_job_by_filter({})
+    record_id = job.records[0].id
+    for i in range(100):
+        interface_with_fixture_json.add_harvest_record_error(
+            {
+                "type": "testing",
+                "message": f"Error {i}",
+                "harvest_job_id": job.id,
+                "harvest_record_id": record_id,
+            }
+        )
+    return job
+
 
 class TestViewHarvestJob:
 
@@ -146,3 +166,19 @@ class TestViewHarvestJob:
 
         assert resp.status_code == 400
         assert "Invalid error type" in resp.data.decode("utf-8")
+
+    def test_job_error_pagination(self, client, job_with_many_errors):
+        resp = client.get(f"/harvest_job/{job_with_many_errors.id}")
+        # page=2 should be in the "next" button
+        assert f'hx-get="/harvest_job/{job_with_many_errors.id}?page=2"' in resp.text
+
+        # page=1 should be in the "previous" button
+        resp = client.get(f"/harvest_job/{job_with_many_errors.id}?page=2")
+        assert f'hx-get="/harvest_job/{job_with_many_errors.id}?page=1"' in resp.text
+
+    def test_record_error_summary(self, client, job_with_many_errors):
+        resp = client.get(f"/harvest_job/{job_with_many_errors.id}")
+        # fixture errors are of type "testing"
+        assert "Error type" in resp.text
+        assert "Number of errors" in resp.text
+        assert "testing" in resp.text

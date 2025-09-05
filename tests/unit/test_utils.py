@@ -1,3 +1,4 @@
+import http
 import json
 import logging
 import time
@@ -6,8 +7,9 @@ from unittest.mock import Mock, call, patch
 import pytest
 import requests
 from jsonschema import Draft202012Validator, FormatChecker
-from requests import HTTPError
+from requests.exceptions import ConnectionError
 
+from database.models import HarvestSource
 from harvester.utils.ckan_utils import (
     CKANSyncTool,
     create_ckan_extras,
@@ -366,6 +368,9 @@ class TestGeneralUtils:
             "No longer updated (dataset archived)"  # bad const value
         )
         dol_distribution_json["rights"] = "a" * 256  # max string length exceeded
+        dol_distribution_json["distribution"][0][
+            "@type"
+        ] = "Distribution"  # not dcat:Distribution
 
         validator = Draft202012Validator(
             dcatus_non_federal_schema, format_checker=FormatChecker()
@@ -380,6 +385,7 @@ class TestGeneralUtils:
             "$.rights, 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' does not match any of the acceptable formats: max string length requirement, 'null'",
             "$.accrualPeriodicity, 'No longer updated (dataset archived)' does not match any of the acceptable formats: constant value 'irregular' was expected, '^R\\\\/P(?:\\\\d+(?:\\\\.\\\\d+)?Y)?(?:\\\\d+(?:\\\\.\\\\d+)?M)?(?:\\\\d+(?:\\\\.\\\\d+)?W)?(?:\\\\d+(?:\\\\.\\\\d+)?D)?(?:T(?:\\\\d+(?:\\\\.\\\\d+)?H)?(?:\\\\d+(?:\\\\.\\\\d+)?M)?(?:\\\\d+(?:\\\\.\\\\d+)?S)?)?$', 'null', '^(\\\\[\\\\[REDACTED).*?(\\\\]\\\\])$'",
             "$.contactPoint.hasEmail, 'bad email' does not match any of the acceptable formats: \"^mailto:[\\\\w\\\\_\\\\~\\\\!\\\\$\\\\&\\\\'\\\\(\\\\)\\\\*\\\\+\\\\,\\\\;\\\\=\\\\:.-]+@[\\\\w.-]+\\\\.[\\\\w.-]+?$\", '^(\\\\[\\\\[REDACTED).*?(\\\\]\\\\])$'",
+            "$.distribution[0]['@type'], @type value does not match any of the acceptable formats: constant value 'dcat:Distribution' was expected",
             "$.distribution[0].title, '' does not match any of the acceptable formats: non-empty, 'null', '^(\\\\[\\\\[REDACTED).*?(\\\\]\\\\])$'",
             "$.distribution[1], 'bool' does not match any of the acceptable formats: 'object', 'string'",
             "$.keyword, [] does not match any of the acceptable formats: non-empty, 'string'",
@@ -408,24 +414,24 @@ class TestGeneralUtils:
         assert args.jobId == "test-id"
         assert args.jobType == "test-type"
 
-    @pytest.mark.parametrize(
-        "base,facets,expected",
-        [
-            ("1", "", "1"),
-            ("1", "234", "1 AND 234"),
-            ("1", "2,3,4", "1 AND 2 AND 3 AND 4"),
-            ("1", "2,3,4,", "1 AND 2 AND 3 AND 4"),
-            ("1", "2 != 3,3 <= 4,", "1 AND 2 != 3 AND 3 <= 4"),
-            (None, "1,", "1"),
-            (None, "1 AND 2", "1 AND 2"),
-            (None, "1,2", "1 AND 2"),
-            (None, "1 , 2", "1  AND  2"),
-            (None, "1 OR 2", "1 OR 2"),
-            (None, ", facet_key = 'facet_val'", "facet_key = 'facet_val'"),
-        ],
-    )
-    def test_facet_builder(self, base, facets, expected):
-        assert expected == query_filter_builder(base, facets)
+    def test_facet_builder_empty(self):
+        assert query_filter_builder(HarvestSource, "") == []
+
+    def test_facet_builder_single(self):
+        assert len(query_filter_builder(HarvestSource, "id eq 1")) == 1
+
+    def test_facet_builder_notequal(self):
+        assert len(query_filter_builder(HarvestSource, "url startswith_op http:")) == 1
+
+    def test_facet_builder_multiple(self):
+        assert (
+            len(query_filter_builder(HarvestSource, "id eq 1,organization_id eq 2"))
+            == 2
+        )
+
+    def test_facet_builder_exception(self):
+        with pytest.raises(AttributeError):
+            query_filter_builder(HarvestSource, "nonexistent eq 1")
 
     @pytest.mark.parametrize(
         "original,expected",
@@ -551,6 +557,7 @@ class TestGeneralUtils:
             ["bdbc3cb3-d6e1-45bf-95d2-d92deedf3edf", True],  # v4
             ["9073926b-929f-31c2-abc9-fad77ae3e8eb", False],  # v3
             ["87d46f9c-7792-11f0-b35b-621e4597c515", False],  # v1
+            ["TRUE; DROP TABLE users;", False],  # invalid inputs
         ],
     )
     def test_is_valid_uuid4(self, job_id, result):
@@ -589,6 +596,18 @@ class TestGeneralUtils:
             "http://example.com/test.xml", headers={"User-Agent": USER_AGENT}
         )
         assert result == expected_result
+
+    @patch("harvester.utils.general_utils.requests.get")
+    def test_download_file_connection_error(self, mock_get):
+        mock_get.side_effect = ConnectionError(
+            "Connection aborted.",
+            http.client.RemoteDisconnected(
+                "Remote end closed connection without response"
+            ),
+        )
+
+        with pytest.raises(requests.exceptions.ConnectionError) as e:
+            download_file("http://example.com/test.xml", ".xml")
 
     @patch("harvester.utils.ckan_utils.RemoteCKAN")
     @patch("harvester.utils.general_utils.requests.Session.request")
