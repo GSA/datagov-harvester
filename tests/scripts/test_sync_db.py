@@ -31,82 +31,6 @@ class MockHarvestRecord(HarvestRecord):
         self.status = status
 
 
-@pytest.fixture
-def mock_progressbar():
-    """Create a mock that acts like click.progressbar context manager."""
-
-    def create_progress_mock(records, **kwargs):
-        mock = Mock()
-        mock.__enter__ = Mock(return_value=records)
-        mock.__exit__ = Mock(return_value=None)
-        return mock
-
-    return create_progress_mock
-
-
-@pytest.fixture
-def mock_db_interface():
-    """Create a mock database interface."""
-    interface = Mock()
-    interface.db = Mock()
-    return interface
-
-
-@pytest.fixture
-def sample_ckan_records():
-    """Sample CKAN records for testing."""
-    return [
-        {
-            "id": "7f9118f0-47b3-46fe-aff8-be811822373a",
-            "name": "test-record-1",
-            "metadata_modified": "2025-06-28T16:55:51.313Z",
-            "identifier": "DASHLINK_872",
-            "harvest_object_id": "537f6d3b-9256-415c-b5f8-aee31f4da580",
-            "harvest_source_title": "nasa-data-json",
-        },
-        {
-            "id": "8f9118f0-47b3-46fe-aff8-be811822373b",
-            "name": "test-record-2",
-            "metadata_modified": "2025-06-28T17:00:00.000Z",
-            "identifier": "DASHLINK_873",
-            "harvest_object_id": "537f6d3b-9256-415c-b5f8-aee31f4da581",
-            "harvest_source_title": "nasa-data-json",
-        },
-    ]
-
-
-@pytest.fixture
-def sample_db_records():
-    """Sample database records for testing."""
-    return {
-        "DASHLINK_872": MockHarvestRecord(
-            identifier="DASHLINK_872",
-            id="537f6d3b-9256-415c-b5f8-aee31f4da580",
-            ckan_name="test-record-1",
-            date_finished=datetime(2025, 6, 28, 16, 55, 0, tzinfo=timezone.utc),
-        ),
-        "DASHLINK_874": MockHarvestRecord(
-            identifier="DASHLINK_874",
-            id="537f6d3b-9256-415c-b5f8-aee31f4da582",
-            ckan_name="test-record-3",
-            action="delete",
-        ),
-    }
-
-
-@pytest.fixture
-def sync_manager(mock_db_interface):
-    """Create a CKANSyncManager instance with mocked dependencies."""
-    with patch.dict(
-        os.environ,
-        {"CKAN_API_TOKEN": "test-token", "CKAN_API_URL": "https://test.ckan.api"},
-    ):
-        manager = CKANSyncManager(db_interface=mock_db_interface)
-        manager.session = Mock()
-        manager.ckan_tool = Mock()
-        return manager
-
-
 class TestSyncStats:
     """Test the SyncStats dataclass."""
 
@@ -430,10 +354,6 @@ class TestCKANSyncManager:
         assert "to_delete" in preview
         assert "summary" in preview
         assert preview["summary"]["total_db"] == 5
-
-
-class TestRealWorldScenarios:
-    """Test realistic scenarios that might occur in production."""
 
     def test_mixed_scenario(self, sync_manager):
         """Test a complex scenario with multiple record types."""
