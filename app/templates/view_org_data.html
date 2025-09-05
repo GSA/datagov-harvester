@@ -57,7 +57,9 @@
                         <th data-sortable scope="col" role="columnheader">Next Job</th>
                         <th data-sortable scope="col" role="columnheader">Source Type</th>
                         <th data-sortable scope="col" role="columnheader">Frequency</th>
+                        {% if session['user'] %}
                         <th data-sortable scope="col" role="columnheader">Notification Emails</th>
+                        {% endif %}
                         <th data-sortable scope="col" role="columnheader">Url</th>
                     </tr>
                 </thead>
@@ -91,7 +93,9 @@
                         {% endif %}
                         <td data-sort-value={{source.records_updated}}>{{source.source_type}}</td>
                         <td data-sort-value={{source.records_deleted}}>{{source.frequency}}</td>
+                        {% if session['user'] %}
                         <td data-sort-value={{source.date_finished}}>{{source.notification_emails}} </td>
+                        {% endif %}
                         <td data-sort-value={{source.records_errored}}><a href={{source.url}}>{{source.url}}</a></td>
                     </tr>
                     {% endfor %}

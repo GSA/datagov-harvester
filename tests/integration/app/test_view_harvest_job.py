@@ -175,3 +175,10 @@ class TestViewHarvestJob:
         # page=1 should be in the "previous" button
         resp = client.get(f"/harvest_job/{job_with_many_errors.id}?page=2")
         assert f'hx-get="/harvest_job/{job_with_many_errors.id}?page=1"' in resp.text
+
+    def test_record_error_summary(self, client, job_with_many_errors):
+        resp = client.get(f"/harvest_job/{job_with_many_errors.id}")
+        # fixture errors are of type "testing"
+        assert "Error type" in resp.text
+        assert "Number of errors" in resp.text
+        assert "testing" in resp.text

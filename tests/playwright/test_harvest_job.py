@@ -16,7 +16,7 @@ def apage(authed_page):
     yield authed_page
 
 
-class TestHarvestSourceUnauthed:
+class TestHarvestJobUnauthed:
     def test_config_table_properties(self, upage):
         # Test specific static labels and values that don't change
         table = upage.locator(".harvest-job-config-properties table")
@@ -50,7 +50,7 @@ class TestHarvestSourceUnauthed:
     def test_harvest_job_record_errors_display(self, upage):
         expect(
             upage.locator("#error_results_pagination .error-list .error-block")
-        ).to_have_count(8)
+        ).to_have_count(10)  # paginated at 10 entries
 
         expect(
             upage.locator(
@@ -80,7 +80,7 @@ class TestHarvestSourceUnauthed:
         with open(pytest_harvest_errors_csv) as csvfile:
             data = csv.reader(csvfile)
             # assert row count
-            assert 9 == sum(1 for row in data)
+            assert 17 == sum(1 for row in data)
             for index, row in enumerate(data):
                 # assert headers
                 if index == 0:
@@ -112,6 +112,33 @@ class TestHarvestSourceUnauthed:
         # clean up test resources
         download.delete()
 
+    @pytest.mark.parametrize(
+        "data_term_name, glossary_term_name",
+        [
+            ("records_unchanged", "records_unchanged"),
+            ("job error", "Job Error"),
+            ("record error", "Record Error"),
+        ],
+    )
+    def test_glossary_terms(self, upage, data_term_name, glossary_term_name):
+        glossary = upage.locator("#glossary")
+        # glossary starts closed
+        assert glossary.get_attribute("aria-hidden") == "true"
 
-class TestHarvestSourceAuthed:
+        upage.click(f"span[data-term='{data_term_name}']")
+        assert glossary.get_attribute("aria-hidden") == "false"
+        glossary_elem = upage.locator(
+            "button[class='data-glossary-term glossary__term']"
+        )
+        # only 1 term (the clicked one) is present in the glossary
+        expect(glossary_elem).to_have_count(1)
+        assert glossary_elem.text_content() == glossary_term_name
+
+        # close the glossary
+        glossary_close = upage.get_by_title("Close glossary")
+        glossary_close.click()
+        assert glossary.get_attribute("aria-hidden") == "true"
+
+
+class TestHarvestJobAuthed:
     pass

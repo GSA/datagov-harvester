@@ -204,7 +204,16 @@ class HarvestSource:
 
     def update_job_record_count_by_action(self, action: str):
         """updates the record action counter in the reporter
-        and updates the job with new count dict"""
+        and updates the job with new count dict
+
+        record actions are:
+            create
+            update
+            delete
+            None (unchanged)
+            errored
+            validated
+        """
         self.reporter.update(action)
         self.db_interface.update_harvest_job(self.job_id, self.reporter.report())
 

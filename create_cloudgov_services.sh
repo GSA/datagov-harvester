@@ -10,7 +10,7 @@ app_name=${1:-datagov-harvest}
 space=$(cf target | grep space | cut -d : -f 2 | xargs)
 
 # create email service
-cf service "${app_name}-smtp"  > /dev/null 2>&1 || cf create-service datagov-smtp base "${app_name}-smtp" -b "ssb-smtp-gsa-datagov-${space}"
+cf service "${app_name}-smtp"  > /dev/null 2>&1 || cf create-service aws-ses domain "${app_name}-smtp"
 
 # create the secrets service if necessary
 cf service "${app_name}-secrets"  > /dev/null 2>&1 || cf cups "${app_name}-secrets"

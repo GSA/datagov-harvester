@@ -44,7 +44,6 @@ class TestOrganizationUnauthed:
                 "N/A",
                 "document",
                 "daily",
-                "['email@example.com'] ",
                 "http://localhost:80/dcatus/dcatus.json",
             ]
         )
@@ -70,3 +69,11 @@ class TestOrganizationAuthed:
                 "Failed: 1 harvest sources in the organization, please delete those first."
             ]
         )
+
+    def test_contains_notification_emails(self, apage):
+        expect(
+            apage.locator(".organization-harvest-source-list table.usa-table thead tr")
+        ).to_contain_text("Notification Emails")
+        expect(
+            apage.locator(".organization-harvest-source-list table.usa-table tbody tr")
+        ).to_contain_text("['email@example.com'] ")
