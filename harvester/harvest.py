@@ -96,6 +96,7 @@ class HarvestSource:
     _dataset_schema: dict = field(default_factory=lambda: {}, repr=False)
     _no_harvest_resp: bool = False
     _clear_complete: bool = True
+    _is_critical_job_error: bool = False
 
     external_records: dict = field(default_factory=lambda: {}, repr=False)
     internal_records: dict = field(default_factory=lambda: {}, repr=False)
@@ -189,6 +190,16 @@ class HarvestSource:
         if not isinstance(value, bool):
             raise ValueError("Clear complete must be a boolean")
         self._clear_complete = value
+
+    @property
+    def is_critical_job_error(self) -> bool:
+        return self._is_critical_job_error
+
+    @is_critical_job_error.setter
+    def is_critical_job_error(self, value) -> None:
+        if not isinstance(value, bool):
+            raise ValueError("Is critical job error must be a boolean")
+        self._is_critical_job_error = value
 
     def get_source_info_from_job_id(self, job_id: str) -> None:
         # TODO: validate values here?
@@ -446,6 +457,9 @@ class HarvestSource:
         date_finished. date_finished is set here because this function is
         either called on critical exception or the job has completed harvesting.
         """
+        if status == "error":
+            self.is_critical_job_error = True
+
         self.db_interface.update_harvest_job(
             self.job_id, {"status": status, "date_finished": get_datetime()}
         )
@@ -460,7 +474,7 @@ class HarvestSource:
                 f"{self.name} failed to clear completely",
                 self.job_id,
             )
-        else:
+        if self.job_type == "harvest" and not self.is_critical_job_error:
             job_status = {"status": "complete", "date_finished": get_datetime()}
             job_status.update(job_results)
             self.db_interface.update_harvest_job(self.job_id, job_status)
