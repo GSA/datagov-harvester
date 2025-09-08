@@ -515,19 +515,6 @@ class HarvesterDBInterface:
     def get_harvest_record(self, record_id):
         return self.db.query(HarvestRecord).filter_by(id=record_id).first()
 
-    def get_harvest_record_with_source(self, record_id):
-        """
-        Returns a tuple of (harvest_record, harvest_source) for the given record_id using a single joined query.
-        """
-        query = (
-            self.db.query(HarvestRecord, HarvestSource)
-            .join(HarvestSource, HarvestRecord.harvest_source_id == HarvestSource.id)
-            .filter(HarvestRecord.id == record_id)
-        )
-        result = query.first()
-        if result:
-            return result[0], result[1]
-        return None, None
 
     def get_all_outdated_records(self, days=365, source_id=None):
         """

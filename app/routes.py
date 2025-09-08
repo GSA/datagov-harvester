@@ -1171,10 +1171,11 @@ def get_harvest_record(record_id):
 @main.route("/harvest_record/<record_id>/raw", methods=["GET"])
 @valid_id_required
 def get_harvest_record_raw(record_id=None):
-    record, source = db.get_harvest_record_with_source(record_id)
-    if not record or not source:
+    record = db.get_harvest_record(record_id)
+    if not record or not record.job or not record.job.source:
         return JSON_NOT_FOUND()
 
+    source = record.job.source
     schema_type = getattr(source, "schema_type", None)
 
     # If schema_type contains 'dcatus', treat as JSON, else XML
