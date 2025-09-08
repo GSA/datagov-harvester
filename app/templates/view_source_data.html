@@ -27,11 +27,15 @@
                 <td>Organization:</td>
                 <td><a href="{{ url_for('main.view_organization', org_id=value) }}">{{data.source.org.name}}</a></td>
                 {% elif key == 'notification_emails' %}
-                  {% if session['user'] %}
-                    <td>Notification emails:</td>
-                    <td>{{value|join(', ')}}</a>
-                    </td>
-                  {% endif %}
+                {% if session['user'] %}
+                <td>Notification emails:</td>
+                <td>{{value|join(', ')}}</td>
+                {% endif %}
+                {% elif key == 'url' %}
+                <td>{{key}}</td>
+                <td>
+                    <a href="{{value}}" target="_blank">{{value}}</a>
+                </td>
                 {% else %}
                 <td>{{key}}:</td>
                 <td>{{value}}</td>
@@ -119,7 +123,8 @@
         <div id="paginated__harvest-jobs">
             <!-- job_table is undefined on pagination so importing here -->
             {% import 'components/job-table/job_table.j2' as job_table %}
-            {{ job_table.job_table(data.jobs, "Harvest Jobs for Harvest Source: " + data.source.id, show_source=false) }}
+            {{ job_table.job_table(data.jobs, "Harvest Jobs for Harvest Source: " + data.source.id, show_source=false)
+            }}
             {% if pagination.count > data.jobs|count %}
             {% include '/components/pagination/pagination.html' %}
             {% endif %}
