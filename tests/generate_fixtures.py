@@ -54,7 +54,7 @@ def generate_dynamic_fixtures() -> Dict[str, Any]:
     job_templates = [
         {
             "id": "6bce761c-7a39-41c1-ac73-94234c139c76",
-            "status": "error",
+            "status": "new",
             "days_ago": 4,
             "duration_minutes": 0,
             "records_total": 10,
