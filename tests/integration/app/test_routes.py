@@ -376,6 +376,7 @@ class TestHarvestRecordRawAPI:
 
         assert response.status_code == 200
         assert response.text == test_iso_2_record.source_raw
+        assert response.mimetype == "application/xml"
 
     def test_json_harvest_record_raw(
         self,
@@ -407,6 +408,7 @@ class TestHarvestRecordRawAPI:
 
         assert response.status_code == 200
         assert response.json == json.loads(test_record.source_raw)
+        assert response.mimetype == "application/json"
 
 
 class TestAPIBehavior:

@@ -315,7 +315,8 @@ class TestDatabase:
         assert (
             count
             # two errors for each record
-            == 2 * len(
+            == 2
+            * len(
                 [record for record in record_data_dcatus if record["status"] == "error"]
             )
             == 16
@@ -399,7 +400,9 @@ class TestDatabase:
         summary = interface.get_record_errors_summary_by_job(
             job_id,
         )
-        assert sum(count for count in summary.values()) == len(interface.get_harvest_record_errors_by_job(job_id, per_page=999))
+        assert sum(count for count in summary.values()) == len(
+            interface.get_harvest_record_errors_by_job(job_id, per_page=999)
+        )
 
     def test_add_harvest_job_with_id(
         self, interface, organization_data, source_data_dcatus, job_data_dcatus
