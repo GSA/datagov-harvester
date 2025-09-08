@@ -27,7 +27,7 @@ class TestMetricsUnauthed:
         upage.goto("/metrics/")
         jobs_section = upage.locator("#jobs-to-harvest")
         print(jobs_section.inner_html())
-        expect(jobs_section.locator("tbody tr")).to_have_count(1)
+        expect(jobs_section.locator("tbody tr")).to_have_count(2)
 
     def test_failed_jobs_exist(self, upage):
         """has failed jobs section"""
