@@ -515,6 +515,7 @@ class HarvesterDBInterface:
     def get_harvest_record(self, record_id):
         return self.db.query(HarvestRecord).filter_by(id=record_id).first()
 
+
     def get_all_outdated_records(self, days=365, source_id=None):
         """
         gets all outdated versions of records older than [days] ago
