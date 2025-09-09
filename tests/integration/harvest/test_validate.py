@@ -348,3 +348,39 @@ class TestValidateDataset:
             valid_iso_2_record.transformed_data["distribution"][0]["accessURL"]
             == "https://www.example.com/"
         )
+
+    def test_transformed_iso_root_describedByType_placeholder(self, valid_iso_2_record):
+        valid_iso_2_record.transform()
+
+        # if `describedByType` is not in the root its valid
+        assert valid_iso_2_record.validate()
+
+        # test for invalid describedByType
+        valid_iso_2_record.transformed_data["describedByType"] = (
+            "WWW:LINK-1.0-http--link"
+        )
+        assert not valid_iso_2_record.validate()
+
+        # replace invalid describedByType with placeholder
+        valid_iso_2_record.fill_placeholders()
+        assert valid_iso_2_record.validate()
+        assert (
+            valid_iso_2_record.transformed_data["describedByType"]
+            == "application/octet-steam"
+        )
+
+    def test_transformed_iso_distribution_describedByType_placeholder(
+        self, valid_iso_2_record
+    ):
+        valid_iso_2_record.transform()
+        valid_iso_2_record.transformed_data["distribution"][0][
+            "describedByType"
+        ] = "WWW:LINK-1.0-http--link"
+        assert not valid_iso_2_record.validate()
+
+        valid_iso_2_record.fill_placeholders()
+        assert valid_iso_2_record.validate()
+        assert (
+            valid_iso_2_record.transformed_data["distribution"][0]["describedByType"]
+            == "application/octet-steam"
+        )
