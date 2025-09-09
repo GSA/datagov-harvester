@@ -1172,15 +1172,31 @@ def get_harvest_record(record_id):
 @valid_id_required
 def get_harvest_record_raw(record_id=None):
     record = db.get_harvest_record(record_id)
-    if record:
+    if not record or not record.job or not record.job.source:
+        return JSON_NOT_FOUND()
+
+    source = record.job.source
+    schema_type = getattr(source, "schema_type", None)
+
+    # If schema_type contains 'dcatus', treat as JSON, else XML
+    if schema_type and "dcatus" in schema_type:
         try:
-            # if this fails, it's not JSON, but possibly XML
             source_raw_json = json.loads(record.source_raw)
             return jsonify(source_raw_json), 200
-        except json.JSONDecodeError:
-            return record.source_raw, 200
+        except Exception:
+            logger.error(f"Error returning JSON source raw for record ID: {record_id}")
+            # fallback to raw string if JSON parsing fails
+            return (
+                Response(record.source_raw, mimetype="application/json; charset=utf-8"),
+                200,
+            )
     else:
-        return JSON_NOT_FOUND()
+        # Assume XML for all other schema types, including CSDGM and ISO19139
+        # TODO: Consider explicitly handling CSDGM and ISO19139 in case there are other formats in the future
+        return (
+            Response(record.source_raw, mimetype="application/xml; charset=utf-8"),
+            200,
+        )
 
 
 ## Add record
