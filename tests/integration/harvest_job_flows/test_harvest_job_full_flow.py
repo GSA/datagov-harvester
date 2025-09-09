@@ -161,6 +161,38 @@ class TestHarvestJobFullFlow:
         ## assert call_args to package_create
         ## TODO this test wil eventually succeed. we can then assert call_args
 
+    def test_harvest_waf_iso19115_2_download_exception(
+        self,
+        interface,
+        organization_data,
+        source_data_waf_iso19115_2,
+    ):
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_waf_iso19115_2)
+        harvest_job = interface.add_harvest_job(
+            {
+                "status": "new",
+                "harvest_source_id": source_data_waf_iso19115_2["id"],
+            }
+        )
+
+        job_id = harvest_job.id
+
+        harvest_source = HarvestSource(job_id, "harvest")
+        harvest_source.acquire_minimum_external_data()
+        harvest_source.external_records[0]["identifier"] = (
+            "https://localhost:1234/test.xml"
+        )
+
+        list(harvest_source.external_records_to_process())
+
+        harvest_job = interface.get_harvest_job(job_id)
+        assert len(harvest_job.record_errors) == 1
+        # xml record identifier is now used instead of the harvest source url
+        assert harvest_job.record_errors[0].message.startswith(
+            "Test Source (WAF ISO19115_2) https://localhost:1234/test.xml"
+        )
+
     @patch("harvester.harvest.ckan_sync_tool.ckan")
     @patch("harvester.harvest.download_file")
     @patch("harvester.harvest.HarvestSource.send_notification_emails")

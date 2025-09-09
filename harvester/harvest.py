@@ -354,8 +354,12 @@ class HarvestSource:
                 del record
             except Exception as e:
                 self.update_job_record_count_by_action("errored")
+
+                # "record"s in self.external_records are standardized as dicts at this point
+                record_id = record["identifier"] if "identifier" in record else None
+
                 ExternalRecordToClass(
-                    f"{self.name} {self.url} failed to prepare record for harvest :: {repr(e)}",
+                    f"{self.name} {record_id} failed to prepare record for harvest :: {repr(e)}",
                     self.job_id,
                     None,  # there is no record id to associate
                 )
