@@ -798,6 +798,11 @@ class Record:
                 "name": self.harvest_source.get_source_orm().org.name
             }
 
+        if not self.is_valid_describedByType(
+            self.transformed_data.get("describedByType", "")
+        ):
+            self.transformed_data["describedByType"] = "application/octet-steam"
+
         # If distribution items have a downloadURL or accessURL,
         # check if it just needs an "https://" at the beginning
         # to be valid
