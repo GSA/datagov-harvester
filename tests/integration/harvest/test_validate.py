@@ -226,7 +226,7 @@ class TestValidateDataset:
                 valid_iso_2_record.harvest_source.job_id
             )
         ]
-        
+
         # 'ExternalRecordToClass' caused by decoding error. not needed for this test.
         del errors[0]
 

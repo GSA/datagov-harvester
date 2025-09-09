@@ -96,7 +96,8 @@
                         {% if session['user'] %}
                         <td data-sort-value={{source.date_finished}}>{{source.notification_emails}} </td>
                         {% endif %}
-                        <td data-sort-value={{source.records_errored}}><a href={{source.url}}>{{source.url}}</a></td>
+                        <td data-sort-value={{source.records_errored}}><a target="_blank"
+                                href={{source.url}}>{{source.url}}</a></td>
                     </tr>
                     {% endfor %}
                 </tbody>
