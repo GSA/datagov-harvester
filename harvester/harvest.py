@@ -460,7 +460,10 @@ class HarvestSource:
                 f"{self.name} failed to clear completely",
                 self.job_id,
             )
-        else:
+
+        # only label the job as "complete" if it hasn't errored out by now
+        job = self.db_interface.get_harvest_job(self.job_id)
+        if job.status != "error":
             job_status = {"status": "complete", "date_finished": get_datetime()}
             job_status.update(job_results)
             self.db_interface.update_harvest_job(self.job_id, job_status)
