@@ -211,6 +211,21 @@ def source_data_iso19115_2_orm(source_data_waf_iso19115_2: dict) -> HarvestSourc
 
 
 @pytest.fixture
+def source_data_iso19115_2_document(organization_data: dict) -> dict:
+    return {
+        "id": "8c3cd8c5-6174-42ef-9512-10503533c3a8",
+        "name": "Test Source (ISO19115_2 document)",
+        "notification_emails": ["wafl@example.com"],
+        "organization_id": organization_data["id"],
+        "frequency": "daily",
+        "url": f"{HARVEST_SOURCE_URL}/iso_2_waf/valid_iso2.xml",
+        "schema_type": "iso19115_2",
+        "source_type": "document",
+        "notification_frequency": "always",
+    }
+
+
+@pytest.fixture
 def source_data_dcatus_invalid(organization_data: dict) -> dict:
     return {
         "id": "2bfcb047-70dc-435a-a46c-4dec5df7532d",
