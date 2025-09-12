@@ -6,7 +6,12 @@ from unittest.mock import MagicMock, patch
 
 from deepdiff import DeepDiff
 
-from harvester.harvest import check_for_more_work, harvest_job_starter
+from harvester.harvest import (
+    check_for_more_work,
+    harvest_job_starter,
+    HarvestSource,
+    ckan_sync_tool,
+)
 from harvester.utils.general_utils import download_file
 
 HARVEST_SOURCE_URL = os.getenv("HARVEST_SOURCE_URL")
@@ -155,6 +160,38 @@ class TestHarvestJobFullFlow:
 
         ## assert call_args to package_create
         ## TODO this test wil eventually succeed. we can then assert call_args
+
+    def test_harvest_waf_iso19115_2_download_exception(
+        self,
+        interface,
+        organization_data,
+        source_data_waf_iso19115_2,
+    ):
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_waf_iso19115_2)
+        harvest_job = interface.add_harvest_job(
+            {
+                "status": "new",
+                "harvest_source_id": source_data_waf_iso19115_2["id"],
+            }
+        )
+
+        job_id = harvest_job.id
+
+        harvest_source = HarvestSource(job_id, "harvest")
+        harvest_source.acquire_minimum_external_data()
+        harvest_source.external_records[0]["identifier"] = (
+            "https://localhost:1234/test.xml"
+        )
+
+        list(harvest_source.external_records_to_process())
+
+        harvest_job = interface.get_harvest_job(job_id)
+        assert len(harvest_job.record_errors) == 1
+        # xml record identifier is now used instead of the harvest source url
+        assert harvest_job.record_errors[0].message.startswith(
+            "Test Source (WAF ISO19115_2) https://localhost:1234/test.xml"
+        )
 
     @patch("harvester.harvest.ckan_sync_tool.ckan")
     @patch("harvester.harvest.download_file")
@@ -412,6 +449,35 @@ class TestHarvestJobFullFlow:
         harvest_job = interface.get_harvest_job(harvest_job1.id)
         assert f"Job {harvest_job2.id} is already in progress for source" in caplog.text
         assert harvest_job.status == "error"
+
+    @patch("requests.get")
+    def test_critical_job_error_status_not_overwritten(
+        self,
+        mock_get,
+        interface,
+        organization_data,
+        source_data_dcatus_single_record,
+    ):
+        mock_get.return_value.status_code = 500
+
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_dcatus_single_record)
+        harvest_job = interface.add_harvest_job(
+            {
+                "status": "new",
+                "harvest_source_id": source_data_dcatus_single_record["id"],
+            }
+        )
+
+        harvest_source = HarvestSource(harvest_job.id, "harvest")
+        harvest_source.run_full_harvest()
+        harvest_source.report()
+
+        harvest_job = interface.get_harvest_job(harvest_job.id)
+        assert harvest_job.status == "error"
+
+        harvest_source.db_interface.close()
+        ckan_sync_tool.close_conection()
 
 
 class TestCheckMoreWork:

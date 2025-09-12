@@ -354,8 +354,12 @@ class HarvestSource:
                 del record
             except Exception as e:
                 self.update_job_record_count_by_action("errored")
+
+                # "record"s in self.external_records are standardized as dicts at this point
+                record_id = record["identifier"] if "identifier" in record else None
+
                 ExternalRecordToClass(
-                    f"{self.name} {self.url} failed to prepare record for harvest :: {repr(e)}",
+                    f"{self.name} {record_id} failed to prepare record for harvest :: {repr(e)}",
                     self.job_id,
                     None,  # there is no record id to associate
                 )
@@ -460,7 +464,10 @@ class HarvestSource:
                 f"{self.name} failed to clear completely",
                 self.job_id,
             )
-        else:
+
+        # only label the job as "complete" if it hasn't errored out by now
+        job = self.db_interface.get_harvest_job(self.job_id)
+        if job.status != "error":
             job_status = {"status": "complete", "date_finished": get_datetime()}
             job_status.update(job_results)
             self.db_interface.update_harvest_job(self.job_id, job_status)
@@ -632,6 +639,14 @@ class Record:
             format_checker=Draft202012Validator.FORMAT_CHECKER,
         ).is_valid(url)
 
+    def is_valid_describedByType(self, described_by_type: str) -> bool:
+        """Return whether a string is a valid describedByType."""
+
+        return Draft202012Validator(
+            self.harvest_source.dataset_schema["properties"]["describedByType"],
+            format_checker=FormatChecker(),
+        ).is_valid(described_by_type)
+
     def harvest(self) -> None:
         """
         this is the main harvest function for a record instance. it runs the compare,
@@ -787,6 +802,11 @@ class Record:
                 "name": self.harvest_source.get_source_orm().org.name
             }
 
+        if not self.is_valid_describedByType(
+            self.transformed_data.get("describedByType", "")
+        ):
+            self.transformed_data["describedByType"] = "application/octet-steam"
+
         # If distribution items have a downloadURL or accessURL,
         # check if it just needs an "https://" at the beginning
         # to be valid
@@ -802,6 +822,8 @@ class Record:
         for dist_item in self.transformed_data.get("distribution", []):
             _guess_better_url_in_item(dist_item, "downloadURL")
             _guess_better_url_in_item(dist_item, "accessURL")
+            if not self.is_valid_describedByType(dist_item.get("describedByType", "")):
+                dist_item["describedByType"] = "application/octet-steam"
 
     def _report_error(self, e):
         """Report an exception to the database.
