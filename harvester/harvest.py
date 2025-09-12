@@ -345,7 +345,13 @@ class HarvestSource:
                     dataset = record["content"]
 
                 if self.source_type == "document":
-                    dataset = json.dumps(sort_dataset(record))
+                    if self.schema_type.startswith("dcatus"):
+                        dataset = json.dumps(sort_dataset(record))
+                    elif self.schema_type.startswith("iso19115"):
+                        # single document ISO
+                        record["content"] = download_file(record["identifier"], ".xml")
+                        dataset = record["content"]
+
 
                 dataset_hash = dataset_to_hash(dataset)
 
@@ -376,7 +382,13 @@ class HarvestSource:
         logger.info("retrieving external records.")
         try:
             if self.source_type == "document":
-                self.external_records = download_file(self.url, ".json")["dataset"]
+                if self.schema_type.startswith("dcatus"):
+                    self.external_records = download_file(self.url, ".json")["dataset"]
+                elif self.schema_type.startswith("iso19115"):
+                    # mimic the output of traverse_waf with a single file
+                    self.external_records = [{"identifier": self.url}]
+                else:
+                    raise ValueError(f"Schema type {self.schema_type} is not supported")
 
             if self.source_type == "waf":
                 self.external_records = traverse_waf(self.url)
