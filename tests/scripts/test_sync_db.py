@@ -72,7 +72,7 @@ class TestCKANSyncManager:
         base_time = datetime(2025, 6, 28, 16, 55, 0, tzinfo=timezone.utc)
         iso_string = "2025-06-28T16:57:00.000Z"  # 2 minutes later
 
-        assert sync_manager.is_within_5_minutes(iso_string, base_time) is True
+        assert sync_manager.is_within_5_minutes(iso_string, base_time)
 
     def test_is_within_5_minutes_false(self, sync_manager):
         """Test is_within_5_minutes returns False for times beyond 5 minutes."""
@@ -86,7 +86,7 @@ class TestCKANSyncManager:
         base_time = datetime(2025, 6, 28, 16, 55, 0)  # naive datetime
         iso_string = "2025-06-28T16:57:00.000Z"
 
-        assert sync_manager.is_within_5_minutes(iso_string, base_time) is True
+        assert sync_manager.is_within_5_minutes(iso_string, base_time)
 
     def test_is_within_5_minutes_invalid_input(self, sync_manager):
         """Test is_within_5_minutes handles invalid input gracefully."""

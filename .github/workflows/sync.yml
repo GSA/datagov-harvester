@@ -1,3 +1,6 @@
+permissions:
+  contents: read
+  
 name: DB/CKAN Sync Script
 
 env:
@@ -47,7 +50,7 @@ jobs:
           poetry env use ${{ env.PY_VERSION }}
           poetry install
       
-      - name: Run QA
+      - name: Run Sync
         run: |
           args=''
           if ${{ inputs.dry_run }}; then

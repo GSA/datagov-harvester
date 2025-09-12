@@ -3,7 +3,7 @@ import os
 import sys
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, NamedTuple, Optional, Tuple, Union
 
 import click
 import requests
@@ -58,6 +58,22 @@ class SyncResult:
     action: str  # 'synced', 'to_update', 'to_add', 'to_delete'
     success: bool
     error_message: str = ""
+
+
+class CategorizedRecords(NamedTuple):
+    """
+    Represents categorized records for the steps of the sync process.
+
+    synced: List of HarvestRecord objects that are already synced.
+    to_update: List of HarvestRecord objects that need to be updated.
+    to_delete: List of HarvestRecord objects or CKAN record dicts to be deleted.
+    to_add: List of HarvestRecord objects that need to be added.
+    """
+
+    synced: List[HarvestRecord]
+    to_update: List[HarvestRecord]
+    to_delete: List[Union[Dict, HarvestRecord]]
+    to_add: List[HarvestRecord]
 
 
 class CKANSyncManager:
@@ -199,12 +215,7 @@ class CKANSyncManager:
         self,
         ckan_records: List[Dict[str, Any]],
         db_records: Dict[str, HarvestRecord],
-    ) -> Tuple[
-        List[HarvestRecord],
-        List[HarvestRecord],
-        List[Union[Dict, HarvestRecord]],
-        List[HarvestRecord],
-    ]:
+    ) -> CategorizedRecords:
         """
         Categorize CKAN records based on sync requirements.
 
@@ -224,22 +235,32 @@ class CKANSyncManager:
             identifier = record.get("identifier")
             db_record = db_records.get(identifier)
 
+            # if the db record no longer exists because it was
+            # cleared with script it should be deleted, or if it was marked for
+            # deletion in the database we should delete it from CKAN
             if not db_record or (db_record.action == "delete"):
                 to_delete.append(db_record if db_record else record)
+            # if the current harveest_object_id matches the db record
+            # then it is already synced with the latest entry in the db
             elif record.get("harvest_object_id") == db_record.id:
                 synced.append(db_record)
                 processed_identifiers.add(identifier)
+            # lastly we check for any differences such as name or if the
+            # age of the record may be too different we would want to update
+            # the record in CKAN to match the latest entry in the database
             elif self.needs_update(record, db_record):
                 to_update.append(db_record)
                 processed_identifiers.add(identifier)
 
+        # if the identifier is not in the processed identifiers
+        # then it is a new record that needs to be added to CKAN
         to_add = [
             db_record
             for identifier, db_record in db_records.items()
             if identifier not in processed_identifiers
         ]
 
-        return synced, to_update, to_delete, to_add
+        return CategorizedRecords(synced, to_update, to_delete, to_add)
 
     def get_db_record_by_identifier(self, identifier: str) -> Optional[HarvestRecord]:
         """
@@ -657,7 +678,6 @@ def sync_command(batch_size, dry_run):
                     f"  - CKAN ID: {record.ckan_id}, Identifier: "
                     f"{record.identifier}"
                 )
-
         if preview_data["to_delete"]:
             click.echo("\nFirst 5 records to DELETE:")
             for record in preview_data["to_delete"][:5]:
@@ -672,15 +692,11 @@ def sync_command(batch_size, dry_run):
                         f"Identifier: {record.identifier}"
                     )
 
+        # Perform synchronization
+        stats = sync_manager.synchronize(dry_run=dry_run)
         if not dry_run:
-            # Perform synchronization
-            stats = sync_manager.synchronize(dry_run=dry_run)
-
             # Print results of the synchronization
             print_sync_results(stats)
-        else:
-            # Generate CSV report even in dry run mode
-            stats = sync_manager.synchronize(dry_run=dry_run)
 
 
 if __name__ == "__main__":
