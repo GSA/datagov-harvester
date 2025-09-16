@@ -45,10 +45,9 @@ class TestHarvestJobExceptionHandling:
         harvest_error = interface.get_harvest_job_errors_by_job(harvest_job.id)[0]
         assert harvest_error.type == "ExtractExternalException"
 
-    def test_harvest_source_bad_schema_type(self, interface,
-                                            organization_data,
-                                            source_data_dcatus,
-                                            job_data_dcatus):
+    def test_harvest_source_bad_schema_type(
+        self, interface, organization_data, source_data_dcatus, job_data_dcatus
+    ):
         """Schema types that don't start with dcatus or iso19115 raise an exception."""
         interface.add_organization(organization_data)
         source_data_dcatus["schema_type"] = "csdgm"
