@@ -55,6 +55,7 @@ services:
       CF_SERVICE_AUTH: ${CF_SERVICE_AUTH}
       FLASK_APP: run.py
       FLASK_ENV: development
+      DB_TIMEOUT: 300000  # 5 minutes
     ports:
       - "8080:8080"
     command:
