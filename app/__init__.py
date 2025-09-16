@@ -20,11 +20,19 @@ load_dotenv()
 # fixes a bug with Flask-HTMX not being able to find the app context
 htmx = None
 
+timeout = os.getenv("DB_TIMEOUT", 300000)  # 5 minutes
+
 
 def create_app():
     app = Flask(__name__, static_url_path="", static_folder="static")
 
     app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv("DATABASE_URI")
+    app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
+        "connect_args": {
+            "options": f"-c statement_timeout={timeout} "
+            f"-c idle_in_transaction_session_timeout={timeout}"
+        }
+    }
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
     app.config["SECRET_KEY"] = os.getenv("FLASK_APP_SECRET_KEY")
     Bootstrap(app)
