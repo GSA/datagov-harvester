@@ -16,7 +16,7 @@ poetry-plugin-export = ">=1.8"
 python = "~3.12.0" # stay with 3.12 until *.apps.internal:61443 works for 3.13
 jsonschema = {extras = ["format"], version = "^4.25.1"}
 python-dotenv = ">=1"
-deepdiff = ">=6"
+deepdiff = ">=8.6.1"
 ckanapi = ">=4.7"
 beautifulsoup4 = "^4.13.5"
 sansjson = "^0.3.0"

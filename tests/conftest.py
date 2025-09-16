@@ -19,6 +19,8 @@ from database.interface import HarvesterDBInterface
 from database.models import HarvestJob, HarvestSource, Locations, Organization, db
 from harvester.lib.load_manager import create_future_date
 from harvester.utils.general_utils import dataset_to_hash, sort_dataset
+from scripts.sync_db import CKANSyncManager
+from tests.scripts.test_sync_db import MockHarvestRecord
 
 load_dotenv()
 
@@ -367,15 +369,6 @@ def job_data_dcatus_2(source_data_dcatus_2: dict) -> dict:
         "id": "392ac4b3-79a6-414b-a2b3-d6c607d3b8d4",
         "status": "new",
         "harvest_source_id": source_data_dcatus_2["id"],
-    }
-
-
-@pytest.fixture
-def job_data_waf_csdgm(source_data_waf_csdgm: dict) -> dict:
-    return {
-        "id": "963cdc51-94d5-425d-a688-e0a57e0c5dd2",
-        "status": "new",
-        "harvest_source_id": source_data_waf_csdgm["id"],
     }
 
 
@@ -1132,3 +1125,79 @@ def app_with_temp_template(app):
     app.jinja_env.loader = original_loader
     os.unlink(template_path)
     os.rmdir(template_dir)
+
+
+@pytest.fixture
+def mock_progressbar():
+    """Create a mock that acts like click.progressbar context manager."""
+
+    def create_progress_mock(records, **kwargs):
+        mock = Mock()
+        mock.__enter__ = Mock(return_value=records)
+        mock.__exit__ = Mock(return_value=None)
+        return mock
+
+    return create_progress_mock
+
+
+@pytest.fixture
+def mock_db_interface():
+    """Create a mock database interface."""
+    interface = Mock()
+    interface.db = Mock()
+    return interface
+
+
+@pytest.fixture
+def sample_ckan_records():
+    """Sample CKAN records for testing."""
+    return [
+        {
+            "id": "7f9118f0-47b3-46fe-aff8-be811822373a",
+            "name": "test-record-1",
+            "metadata_modified": "2025-06-28T16:55:51.313Z",
+            "identifier": "DASHLINK_872",
+            "harvest_object_id": "537f6d3b-9256-415c-b5f8-aee31f4da580",
+            "harvest_source_title": "nasa-data-json",
+        },
+        {
+            "id": "8f9118f0-47b3-46fe-aff8-be811822373b",
+            "name": "test-record-2",
+            "metadata_modified": "2025-06-28T17:00:00.000Z",
+            "identifier": "DASHLINK_873",
+            "harvest_object_id": "537f6d3b-9256-415c-b5f8-aee31f4da581",
+            "harvest_source_title": "nasa-data-json",
+        },
+    ]
+
+
+@pytest.fixture
+def sample_db_records():
+    """Sample database records for testing."""
+    return {
+        "DASHLINK_872": MockHarvestRecord(
+            identifier="DASHLINK_872",
+            id="537f6d3b-9256-415c-b5f8-aee31f4da580",
+            ckan_name="test-record-1",
+            date_finished=datetime(2025, 6, 28, 16, 55, 0, tzinfo=timezone.utc),
+        ),
+        "DASHLINK_874": MockHarvestRecord(
+            identifier="DASHLINK_874",
+            id="537f6d3b-9256-415c-b5f8-aee31f4da582",
+            ckan_name="test-record-3",
+            action="delete",
+        ),
+    }
+
+
+@pytest.fixture
+def sync_manager(mock_db_interface):
+    """Create a CKANSyncManager instance with mocked dependencies."""
+    with patch.dict(
+        os.environ,
+        {"CKAN_API_TOKEN": "test-token", "CKAN_API_URL": "https://test.ckan.api"},
+    ):
+        manager = CKANSyncManager(db_interface=mock_db_interface)
+        manager.session = Mock()
+        manager.ckan_tool = Mock()
+        return manager
