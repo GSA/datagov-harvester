@@ -33,6 +33,6 @@
   },
   {
     "term": "notification_frequency",
-    "definition": "when notification emails are sent out. Choices being \"on_error\", and \"always\"."
+    "definition": "when notification emails are sent out. Choices being \"on_error\", \"on_error_or_update\", and \"always\"."
   }
 ]
