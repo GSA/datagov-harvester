@@ -13,43 +13,56 @@ from sqlalchemy.dialects.postgresql import ENUM
 
 # revision identifiers, used by Alembic.
 revision = "0829edb696ba"
-down_revision = "1800d355e5b9"
+down_revision = "a6aa1afd27b7"
 branch_labels = None
 depends_on = None
 
 
+old_options = (
+    "on_error",
+    "always",
+)
+new_options = (
+    "on_error",
+    "always",
+    "on_error_or_update",
+)
+
+old_enum = sa.Enum(*old_options, name="notification_frequency")
+new_enum = sa.Enum(*new_options, name="notification_frequency_new")
+
+
 def upgrade():
-    # Add the new enum value using PostgreSQL's ALTER TYPE
-    op.execute("ALTER TYPE notification_frequency ADD VALUE 'on_error_or_update'")
+    # Create new enum
+    new_enum.create(op.get_bind(), checkfirst=False)
+
+    # Alter column to use new enum
+    op.execute(
+        "ALTER TABLE harvest_source ALTER COLUMN notification_frequency TYPE notification_frequency_new "
+        "USING notification_frequency::text::notification_frequency_new"
+    )
+
+    # Drop old enum
+    old_enum.drop(op.get_bind(), checkfirst=False)
+
+    # Rename new enum to old name
+    op.execute("ALTER TYPE notification_frequency_new RENAME TO notification_frequency")
 
 
 def downgrade():
+    # recreate the old enum
+    old_enum.name = "notification_frequency_old"
+    old_enum.create(op.get_bind(), checkfirst=False)
+
+    # Alter column back
     op.execute(
-        """
-        UPDATE harvest_source 
-        SET notification_frequency = 'on_error' 
-        WHERE notification_frequency = 'on_error_or_update'
-    """
+        "ALTER TABLE harvest_source ALTER COLUMN notification_frequency TYPE notification_frequency_old "
+        "USING notification_frequency::text::notification_frequency_old"
     )
 
-    op.execute(
-        """
-        ALTER TABLE harvest_source 
-        ALTER COLUMN notification_frequency TYPE VARCHAR USING notification_frequency::VARCHAR
-    """
-    )
+    # Drop the present enum
+    new_enum.name = "notification_frequency"
+    new_enum.drop(op.get_bind(), checkfirst=False)
 
-    op.execute("DROP TYPE IF EXISTS notification_frequency")
-
-    notification_frequency_enum = ENUM(
-        "on_error", "always", name="notification_frequency"
-    )
-    notification_frequency_enum.create(op.get_bind())
-
-    op.execute(
-        """
-        ALTER TABLE harvest_source 
-        ALTER COLUMN notification_frequency TYPE notification_frequency 
-        USING notification_frequency::notification_frequency
-    """
-    )
+    # Rename old enum to current enum
+    op.execute("ALTER TYPE notification_frequency_old RENAME TO notification_frequency")
