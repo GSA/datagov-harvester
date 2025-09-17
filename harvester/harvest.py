@@ -86,6 +86,7 @@ class HarvestSource:
             "organization_id",
             "schema_type",
             "source_type",
+            "collection_parent_url",
             "id",  # db guuid
             "notification_emails",
             "notification_frequency",
@@ -301,6 +302,43 @@ class HarvestSource:
                 records.append(data)  # create
         self.external_records = records
 
+    def filter_waf_files_for_collection(self) -> None:
+        """
+        Retain files which need to be created or updated for a waf-collection.
+
+        The update is needed based on the modified_date found on the waf web
+        page. If the file date at the source is more recent than what we have
+        then we want to add it for processing. Additionally, the first record
+        in self.external_records will be the parent of a collection and if
+        that is missing or updated, then everything needs to be updated.
+
+        this function is only called when the harvest source type is "waf" so
+        self.external_records would be a list of dictionaries like...
+        [ { "identifier": "a.xml", "modified_date": datetime_obj}, ... ]
+        """
+        # if the parent is new, not in this source's internal records, then we have to
+        # harvest everything
+        if self.external_records[0]["identifier"] not in self.internal_records:
+            # leave self.external_records unchanged
+            return
+
+        filtered_records = []
+        # the first record will be the parent, we don't have a modified_date yet
+        # so always harvest it
+        filtered_records.append(self.external_records[0])
+
+        for data in self.external_records[1:]:
+            identifier = data["identifier"]
+            internal_record = self.internal_records.get(identifier, None)
+            if internal_record is not None:
+                # date_finished should never be None since we
+                # only grab successful internal records which are datetime stamped
+                if data["modified_date"] > internal_record.date_finished:
+                    filtered_records.append(data)  # update
+            else:
+                filtered_records.append(data)  # create
+        self.external_records = filtered_records
+
     def determine_internal_deletions(self) -> None:
         """
         determines which records in the harvester db needed to be deleted based on
@@ -340,11 +378,11 @@ class HarvestSource:
         while len(self.external_records) > 0:
             try:
                 record = self.external_records.pop(0)
-                if self.source_type == "waf":
+                if self.source_type in ["waf", "waf-collection"]:
                     record["content"] = download_file(record["identifier"], ".xml")
                     dataset = record["content"]
 
-                if self.source_type == "document":
+                elif self.source_type == "document":
                     if self.schema_type.startswith("dcatus"):
                         dataset = json.dumps(sort_dataset(record))
                     elif self.schema_type.startswith("iso19115"):
@@ -389,8 +427,14 @@ class HarvestSource:
                 else:
                     raise ValueError(f"Schema type {self.schema_type} is not supported")
 
-            if self.source_type == "waf":
+            elif self.source_type == "waf":
                 self.external_records = traverse_waf(self.url)
+
+            elif self.source_type == "waf-collection":
+                # First element is just like a single document waf
+                self.external_records = [{"identifier": self.collection_parent_url}]
+                self.external_records += traverse_waf(self.url)
+
         except Exception as e:
             # ruff: noqa: E501
             raise ExtractExternalException(
@@ -436,6 +480,9 @@ class HarvestSource:
 
             if self.source_type == "waf":
                 self.filter_waf_files_by_datetime()
+            if self.source_type == "waf-collection":
+                self.filter_waf_files_for_collection()
+
             self.filter_duplicate_identifiers()
 
             external_records_to_process = self.external_records_to_process()

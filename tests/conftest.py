@@ -238,7 +238,7 @@ def source_data_waf_collection(organization_data: dict) -> dict:
         "url": f"{HARVEST_SOURCE_URL}/iso_2_waf/",
         "schema_type": "iso19115_2",
         "source_type": "waf-collection",
-        "collection_parent_url": f"{HARVEST_SOURCE_URL}/valid_iso2.xml",
+        "collection_parent_url": f"{HARVEST_SOURCE_URL}/valid_iso2_parent.xml",
         "notification_frequency": "always",
     }
 
