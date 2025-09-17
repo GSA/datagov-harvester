@@ -827,7 +827,9 @@ class TestDatabase:
         organization_data,
         source_data_waf_csdgm,
     ):
-        """attempts to add a 'csdgm' harvest source which is unsupported"""
+        source_data_waf_csdgm["schema_type"] = "unsupported_schema"
+
         interface.add_organization(organization_data)
+
         # we can't add the source because we use an enum for schema type
         assert interface.add_harvest_source(source_data_waf_csdgm) is None

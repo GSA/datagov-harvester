@@ -76,6 +76,7 @@ class HarvestSource(db.Model):
         db.Enum(
             "iso19115_1",
             "iso19115_2",
+            "csdgm",
             "dcatus1.1: federal",
             "dcatus1.1: non-federal",
             name="schema_type",
