@@ -4,6 +4,10 @@ from flask_sqlalchemy import SQLAlchemy
 from geoalchemy2 import Geometry
 from sqlalchemy import Column, Enum, String, func
 from sqlalchemy.orm import DeclarativeBase, backref
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
 
 
 class Base(DeclarativeBase):
@@ -15,7 +19,17 @@ class Base(DeclarativeBase):
 
 
 # For ref: https://stackoverflow.com/questions/22698478/what-is-the-difference-between-the-declarative-base-and-db-model
-db = SQLAlchemy(model_class=Base)
+timeout = os.getenv("DB_TIMEOUT", 300000)  # 5 minutes
+
+db = SQLAlchemy(
+    model_class=Base,
+    engine_options={
+        "connect_args": {
+            "options": f"-c statement_timeout={timeout} "
+            f"-c idle_in_transaction_session_timeout={timeout}"
+        }
+    },
+)
 
 
 class Error(db.Model):
