@@ -1,6 +1,5 @@
 import argparse
 import hashlib
-import http
 import json
 import logging
 import os

@@ -226,7 +226,7 @@ class TestHarvestJobFullFlow:
 
     @patch("harvester.harvest.ckan_sync_tool.ckan")
     @patch("harvester.harvest.HarvestSource.send_notification_emails")
-    def test_harvest_iso19115_2_document(
+    def test_harvest_waf_collection(
         self,
         send_notification_emails_mock: MagicMock,
         CKANMock,
@@ -254,7 +254,6 @@ class TestHarvestJobFullFlow:
         assert harvest_job.records_total == 6
         assert len(harvest_job.record_errors) == 3
         assert harvest_job.records_errored == 3
-
 
     @patch("harvester.harvest.ckan_sync_tool.ckan")
     @patch("harvester.harvest.download_file")
