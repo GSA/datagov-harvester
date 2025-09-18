@@ -36,6 +36,11 @@
                 <td>
                     <a href="{{value}}" target="_blank">{{value}}</a>
                 </td>
+                {% elif key == 'collection_parent_url' %}
+                  {% if value %}
+                  <td>{{key}}:</td>
+                  <td>{{value}}</td>
+                  {% endif %}
                 {% else %}
                 <td>{{key}}:</td>
                 <td>{{value}}</td>
