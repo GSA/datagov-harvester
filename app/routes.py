@@ -191,7 +191,7 @@ def login():
 
     auth_request_url = (
         f"{AUTH_URL}?response_type=code"
-        f"&acr_values=urn:acr.login.gov:auth-only http://idmanagement.gov/ns/assurance/aal/2?hspd12=true"
+        f"&acr_values=urn:acr.login.gov:auth-only+http://idmanagement.gov/ns/assurance/aal/2?hspd12=true"
         f"&client_id={CLIENT_ID}"
         f"&nonce={nonce}"
         "&prompt=select_account"
