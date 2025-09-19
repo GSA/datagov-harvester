@@ -35,13 +35,13 @@ new_enum = sa.Enum(*new_options, name="schema_type_new")
 
 def upgrade():
 
-    # Create new enum
-    new_enum.create(op.get_bind(), checkfirst=False)
-
     op.execute(
         "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE pid <> pg_backend_pid() "
-        "AND state = 'active'"
+        "AND state = 'active' or state = 'idle in transaction'"
     )
+
+    # Create new enum
+    new_enum.create(op.get_bind(), checkfirst=False)
 
     # Alter column to use new enum
     op.execute(
@@ -57,14 +57,15 @@ def upgrade():
 
 
 def downgrade():
-    # recreate the old enum
-    old_enum.name = "schema_type_old"
-    old_enum.create(op.get_bind(), checkfirst=False)
 
     op.execute(
         "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE pid <> pg_backend_pid() "
-        "AND state = 'active'"
+        "AND state = 'active' or state = 'idle in transaction'"
     )
+
+    # recreate the old enum
+    old_enum.name = "schema_type_old"
+    old_enum.create(op.get_bind(), checkfirst=False)
 
     # Alter column back
     op.execute(
