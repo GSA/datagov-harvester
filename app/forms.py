@@ -57,6 +57,7 @@ class HarvestSourceForm(FlaskForm):
         choices=[
             "on_error",
             "always",
+            "on_error_or_update",
         ],
         validators=[DataRequired()],
     )
