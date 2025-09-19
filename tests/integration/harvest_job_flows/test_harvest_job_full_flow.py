@@ -7,10 +7,10 @@ from unittest.mock import MagicMock, patch
 from deepdiff import DeepDiff
 
 from harvester.harvest import (
-    check_for_more_work,
-    harvest_job_starter,
     HarvestSource,
+    check_for_more_work,
     ckan_sync_tool,
+    harvest_job_starter,
 )
 from harvester.utils.general_utils import download_file
 
@@ -180,9 +180,9 @@ class TestHarvestJobFullFlow:
 
         harvest_source = HarvestSource(job_id, "harvest")
         harvest_source.acquire_minimum_external_data()
-        harvest_source.external_records[0]["identifier"] = (
-            "https://localhost:1234/test.xml"
-        )
+        harvest_source.external_records[0][
+            "identifier"
+        ] = "https://localhost:1234/test.xml"
 
         list(harvest_source.external_records_to_process())
 

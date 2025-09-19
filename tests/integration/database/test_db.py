@@ -46,6 +46,36 @@ class TestDatabase:
         assert source is not None
         assert source.name == source_data_dcatus["name"]
 
+    def test_add_harvest_source_waf_collection_no_parent_url(
+        self, interface, organization_data, source_data_dcatus, caplog
+    ):
+        """A waf-collection source must have a non-null collection_parent_url."""
+        interface.add_organization(organization_data)
+        source_data_dcatus["source_type"] = "waf-collection"
+        source = interface.add_harvest_source(source_data_dcatus)
+        assert source is None
+        assert 'violates check constraint "wafcollectionparenturl"' in caplog.text
+
+    def test_add_harvest_source_waf_collection_with_parent_url(
+        self, interface, organization_data, source_data_dcatus
+    ):
+        """Can add a waf-collection source with parent URL."""
+        interface.add_organization(organization_data)
+        source_data_dcatus["source_type"] = "waf-collection"
+        source_data_dcatus["collection_parent_url"] = "fake-url"
+        source = interface.add_harvest_source(source_data_dcatus)
+        assert source is not None
+
+    def test_add_harvest_source_document_with_collection_parent_url(
+        self, interface, organization_data, source_data_dcatus, caplog
+    ):
+        """document harvest source cannot have collection_parent_url."""
+        interface.add_organization(organization_data)
+        source_data_dcatus["collection_parent_url"] = "fake-url"
+        source = interface.add_harvest_source(source_data_dcatus)
+        assert source is None
+        assert 'violates check constraint "wafcollectionparenturl"' in caplog.text
+
     def test_get_all_harvest_sources(
         self, interface, organization_data, source_data_dcatus
     ):
