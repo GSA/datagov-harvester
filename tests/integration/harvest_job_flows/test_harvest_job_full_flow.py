@@ -255,6 +255,10 @@ class TestHarvestJobFullFlow:
         assert len(harvest_job.record_errors) == 3
         assert harvest_job.records_errored == 3
 
+        for record in harvest_job.records:
+            if record.status == "success":
+                assert record.parent_identifier == source_data_waf_collection["collection_parent_url"]
+
     @patch("harvester.harvest.ckan_sync_tool.ckan")
     @patch("harvester.harvest.download_file")
     @patch("harvester.harvest.HarvestSource.send_notification_emails")

@@ -238,6 +238,7 @@ class HarvestSource:
                 _ckan_id=record["ckan_id"],
                 _ckan_name=record["ckan_name"],
                 _date_finished=record["date_finished"],
+                _parent_identifier=record.get("parent_identifier"),
             )
 
     def write_duplicate_to_db(self, identifier: str) -> None:
@@ -378,9 +379,15 @@ class HarvestSource:
         while len(self.external_records) > 0:
             try:
                 record = self.external_records.pop(0)
-                if self.source_type in ["waf", "waf-collection"]:
+                parent_identifier = None
+                if self.source_type == "waf":
                     record["content"] = download_file(record["identifier"], ".xml")
                     dataset = record["content"]
+
+                elif self.source_type == "waf-collection":
+                    record["content"] = download_file(record["identifier"], ".xml")
+                    dataset = record["content"]
+                    parent_identifier = self.collection_parent_url
 
                 elif self.source_type == "document":
                     if self.schema_type.startswith("dcatus"):
@@ -392,7 +399,13 @@ class HarvestSource:
 
                 dataset_hash = dataset_to_hash(dataset)
 
-                yield Record(self, record["identifier"], dataset, dataset_hash)
+                yield Record(
+                    self,
+                    record["identifier"],
+                    dataset,
+                    dataset_hash,
+                    _parent_identifier=parent_identifier,
+                )
 
                 del record
             except Exception as e:
@@ -592,6 +605,7 @@ class Record:
     _mdt_writer: str = "dcat_us"
     _mdt_msgs: str = ""
     _id: str = None
+    _parent_identifier: str = None
 
     transformed_data: dict = None
     ckanified_metadata: dict = field(default_factory=lambda: {})
@@ -661,6 +675,10 @@ class Record:
         return self._identifier
 
     @property
+    def parent_identifier(self) -> str:
+        return self._parent_identifier
+
+    @property
     def source_raw(self) -> str:
         return self._source_raw
 
@@ -724,6 +742,7 @@ class Record:
                 return
             if self.harvest_source.schema_type.startswith("iso19115"):
                 self.transform()
+                self.add_parent()
                 self.fill_placeholders()
             self.validate()
             self.sync()
@@ -833,6 +852,17 @@ class Record:
                 self.harvest_source.job_id,
                 self.id,
             )
+
+    def add_parent(self) -> None:
+        """Add parent information to transformed_data for waf-collections."""
+        if self.parent_identifier is not None:
+            return
+
+        if "isPartOf" in self.transformed_data:
+            # somehow this record already got a parent relationship!
+            return
+
+        self.transformed_data["isPartOf"] = self.parent_identifier
 
     def fill_placeholders(self) -> None:
         """Fill in placeholder values to prevent some validation errors.
