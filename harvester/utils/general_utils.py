@@ -1,5 +1,6 @@
 import argparse
 import hashlib
+import http
 import json
 import logging
 import os
@@ -102,11 +103,21 @@ def open_json(file_path):
 def download_file(url: str, file_type: str) -> Union[str, dict]:
     # ruff: noqa: E501
     headers = {"User-Agent": USER_AGENT}
-    resp = requests.get(url, headers=headers)
-    resp.raise_for_status()
-    if file_type == ".xml":
-        return resp.text
-    return resp.json()
+    try:
+        resp = requests.get(url, headers=headers)
+        if 200 <= resp.status_code < 300:
+            if file_type == ".xml":
+                data = resp.content
+                if isinstance(data, bytes):
+                    data = data.decode()
+                return data
+            return resp.json()
+    except (http.client.RemoteDisconnected, requests.exceptions.ConnectionError) as e:
+        raise e
+    except UnicodeDecodeError as e:
+        raise e
+
+    raise Exception
 
 
 def make_record_mapping(record):
