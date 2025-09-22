@@ -585,7 +585,9 @@ class TestGeneralUtils:
         expected_result = "<xml>test</xml>"
         mock_response = Mock()
         mock_response.status_code = 200
-        mock_response.text = expected_result
+        mock_response.content = expected_result.encode(
+            "utf-8"
+        )  # Encode to bytes for mock
         mock_get.return_value = mock_response
 
         result = download_file("http://example.com/test.xml", ".xml")
