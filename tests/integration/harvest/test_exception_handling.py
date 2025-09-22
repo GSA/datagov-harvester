@@ -45,26 +45,6 @@ class TestHarvestJobExceptionHandling:
         harvest_error = interface.get_harvest_job_errors_by_job(harvest_job.id)[0]
         assert harvest_error.type == "ExtractExternalException"
 
-    def test_harvest_source_bad_schema_type(self, interface,
-                                            organization_data,
-                                            source_data_dcatus,
-                                            job_data_dcatus):
-        """Schema types that don't start with dcatus or iso19115 raise an exception."""
-        interface.add_organization(organization_data)
-        source_data_dcatus["schema_type"] = "csdgm"
-        interface.add_harvest_source(source_data_dcatus)
-        harvest_job = interface.add_harvest_job(job_data_dcatus)
-
-        harvest_source = HarvestSource(harvest_job.id)
-
-        with pytest.raises(ExtractExternalException) as e:
-            harvest_source.acquire_minimum_external_data()
-
-        assert harvest_job.status == "error"
-
-        harvest_error = interface.get_harvest_job_errors_by_job(harvest_job.id)[0]
-        assert harvest_error.type == "ExtractExternalException"
-
     def test_extract_internal_exception(
         self,
         interface,

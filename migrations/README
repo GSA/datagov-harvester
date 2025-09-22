@@ -1,1 +1,70 @@
 Single-database configuration for Flask.
+
+## Migration Tips
+- Familiarize yourself with the flask sqlalchemy CLI (`flask db --help`).
+- Determine the level of restriction/locks your revision requires. You can see the lock postgres assigns a query by inspecting the `pg_locks` table. Check out the "Commands" section for an example.
+- Many `ALTER TABLE` statements will require an `accessExclusiveLock` and any existing "active" or "idle in transaction" harvester processes need to be terminated beforehand to avoid connection buildup. If this is NOT done deployment can fail due to timeouts. Check out the "Commands" section on how to manually terminate processes.
+- It might be best to simply terminate processes at the beginning of your migration function similar to [a6aa1afd27b7](./versions/a6aa1afd27b7_remove_csdgm_from_schema_type.py#L40) in case interference from existing hanging connections.
+- Change log levels to `DEBUG` in [alembic config](./alembic.ini).
+- Until [migration tests are added](https://github.com/GSA/data.gov/issues/5455) ALWAYS test your revision upgrade/downgrade cycle before pushing to remote.
+
+## Commands
+
+```sql
+-- Get all locks for current activities with an existing relation
+
+-- pg_locks documentation: https://www.postgresql.org/docs/current/view-pg-locks.html
+
+SELECT
+    l.locktype,
+    l.database,
+    l.relation::regclass,
+    l.pid,
+    l.mode,
+    l.granted,
+    a.usename AS username,
+    a.query AS current_query
+FROM
+    pg_locks l
+JOIN
+    pg_stat_activity a ON l.pid = a.pid
+WHERE
+    l.relation IS NOT NULL 
+ORDER BY
+    l.relation, l.pid
+
+-- Get all started activities
+
+-- pg_stat_activity documentation: https://www.postgresql.org/docs/current/monitoring-stats.html#MONITORING-PG-STAT-ACTIVITY-VIEW
+
+SELECT 
+  pid, 
+  datname, 
+  usename, 
+  client_addr, 
+  application_name, 
+  backend_type, 
+  query, 
+  state, 
+  query_start, 
+  age(clock_timestamp(), query_start) AS query_runtime
+FROM 
+  pg_stat_activity
+WHERE 
+  query_start IS NOT NULL
+
+
+-- terminate all 'active' and 'idle in transaction' activities
+-- USE THIS WITH CAUTION! 
+
+SELECT 
+  pg_terminate_backend(pid)
+FROM 
+  pg_stat_activity
+WHERE 
+  pid <> pg_backend_pid()
+  AND 
+    STATE = 'active' OR STATE = 'idle in transaction';
+```
+
+
