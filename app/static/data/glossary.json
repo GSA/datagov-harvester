@@ -34,5 +34,9 @@
   {
     "term": "notification_frequency",
     "definition": "when notification emails are sent out. Choices being \"on_error\", and \"always\"."
+  },
+  {
+    "term": "collection_parent_url",
+    "definition": "the URL of an ISO-format XML file to use as the parent dataset for all of this collection of datasets"
   }
 ]

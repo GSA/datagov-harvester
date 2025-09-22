@@ -352,7 +352,6 @@ class HarvestSource:
                         record["content"] = download_file(record["identifier"], ".xml")
                         dataset = record["content"]
 
-
                 dataset_hash = dataset_to_hash(dataset)
 
                 yield Record(self, record["identifier"], dataset, dataset_hash)
