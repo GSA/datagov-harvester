@@ -1,7 +1,7 @@
 """Add collection_parent_url and waf-collection type
 
 Revision ID: 3b56c7e46974
-Revises: 1800d355e5b9
+Revises: a6aa1afd27b7
 Create Date: 2025-09-19 18:18:14.376089
 
 """

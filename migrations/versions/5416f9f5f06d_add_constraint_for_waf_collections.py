@@ -1,7 +1,11 @@
 """Add constraint for waf-collections
 
+This must be done in a separate migration from adding the 'waf-collection'
+enum value because postgres doesn't allow referring to a new enum value
+inside the transaction that creates it.
+
 Revision ID: 5416f9f5f06d
-Revises: d805537d4cf2
+Revises: 3b56c7e46974
 Create Date: 2025-09-15 18:29:47.846333
 
 """
