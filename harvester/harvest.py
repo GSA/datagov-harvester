@@ -855,7 +855,7 @@ class Record:
 
     def add_parent(self) -> None:
         """Add parent information to transformed_data for waf-collections."""
-        if self.parent_identifier is not None:
+        if self.parent_identifier is None:
             return
 
         if "isPartOf" in self.transformed_data:
