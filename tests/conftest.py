@@ -347,6 +347,21 @@ def source_data_dcatus_long_description(organization_data: dict) -> dict:
     }
 
 
+@pytest.fixture
+def source_data_dcatus_none_value(organization_data: dict) -> dict:
+    return {
+        "id": "2f2652de-91df-4c63-8b53-bfced20b276c",
+        "name": "Long Description Test Source",
+        "notification_emails": ["email@example.com"],
+        "organization_id": organization_data["id"],
+        "frequency": "daily",
+        "url": f"{HARVEST_SOURCE_URL}/dcatus/dcatus_with_none.json",
+        "schema_type": "dcatus1.1: federal",
+        "source_type": "document",
+        "notification_frequency": "always",
+    }
+
+
 ## HARVEST JOBS
 @pytest.fixture
 def job_data_dcatus(fixtures_json) -> dict:
