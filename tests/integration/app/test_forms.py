@@ -1,6 +1,3 @@
-import os
-
-
 class TestFormStringStripping:
     def test_add_organization_strips_string_fields(self, app, client, interface):
         app.config.update({"WTF_CSRF_ENABLED": False})
