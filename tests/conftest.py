@@ -388,15 +388,6 @@ def job_data_dcatus_2(source_data_dcatus_2: dict) -> dict:
 
 
 @pytest.fixture
-def job_data_waf_csdgm(source_data_waf_csdgm: dict) -> dict:
-    return {
-        "id": "963cdc51-94d5-425d-a688-e0a57e0c5dd2",
-        "status": "new",
-        "harvest_source_id": source_data_waf_csdgm["id"],
-    }
-
-
-@pytest.fixture
 def job_data_waf_iso19115_2(source_data_waf_iso19115_2: dict) -> dict:
     return {
         "id": "83c431e6-0f53-4471-8003-b6afc0541101",

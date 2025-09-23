@@ -2,7 +2,7 @@ import uuid
 
 from flask_sqlalchemy import SQLAlchemy
 from geoalchemy2 import Geometry
-from sqlalchemy import Column, Enum, String, func
+from sqlalchemy import CheckConstraint, Column, Enum, String, func
 from sqlalchemy.orm import DeclarativeBase, backref
 
 
@@ -53,6 +53,15 @@ class Organization(db.Model):
 
 class HarvestSource(db.Model):
     __tablename__ = "harvest_source"
+    __table_args__ = (
+        CheckConstraint(
+            "(collection_parent_url IS NULL"
+            " AND source_type <> 'waf-collection')"
+            " OR (collection_parent_url IS NOT NULL"
+            " AND source_type = 'waf-collection')",
+            name="wafcollectionparenturl",
+        ),
+    )
 
     organization_id = db.Column(
         db.String(36), db.ForeignKey("organization.id"), nullable=False
@@ -76,7 +85,6 @@ class HarvestSource(db.Model):
         db.Enum(
             "iso19115_1",
             "iso19115_2",
-            "csdgm",
             "dcatus1.1: federal",
             "dcatus1.1: non-federal",
             name="schema_type",
@@ -85,7 +93,7 @@ class HarvestSource(db.Model):
     )
 
     source_type = db.Column(
-        db.Enum("document", "waf", name="source_type"), nullable=False
+        db.Enum("document", "waf", "waf-collection", name="source_type"), nullable=False
     )
     jobs = db.relationship(
         "HarvestJob",
@@ -101,6 +109,7 @@ class HarvestSource(db.Model):
         ),
         nullable=False,
     )
+    collection_parent_url = db.Column(db.String)
 
 
 class HarvestJob(db.Model):

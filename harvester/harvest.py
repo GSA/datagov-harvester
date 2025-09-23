@@ -110,7 +110,7 @@ class HarvestSource:
 
         if self.schema_type == "dcatus1.1: federal":
             self.schema_file = self.schemas_root / "federal_dataset.json"
-        elif self.schema_type in ["dcatus1.1: non-federal", "csdgm"]:
+        elif self.schema_type in ["dcatus1.1: non-federal"]:
             self.schema_file = self.schemas_root / "non-federal_dataset.json"
         elif self.schema_type.startswith("iso19115"):
             self.schema_file = self.schemas_root / "iso-non-federal_dataset.json"
@@ -352,7 +352,6 @@ class HarvestSource:
                         record["content"] = download_file(record["identifier"], ".xml")
                         dataset = record["content"]
 
-
                 dataset_hash = dataset_to_hash(dataset)
 
                 yield Record(self, record["identifier"], dataset, dataset_hash)
@@ -553,7 +552,6 @@ class Record:
         default_factory=lambda: {
             "iso19115_1": "iso19115_2_datagov",
             "iso19115_2": "iso19115_2_datagov",
-            "csdgm": "fgdc",
         }
     )
 
