@@ -1,6 +1,6 @@
 import pytest
 
-from harvester.harvest import HarvestSource
+from harvester.harvest import HarvestSource, Record
 
 
 @pytest.fixture
@@ -199,6 +199,41 @@ class TestValidateDataset:
         # Check that the error is about description being too long
         expected_error_message = "does not match any of the acceptable formats: max string length requirement"
         assert expected_error_message in errors[0].message
+
+    def test_none_in_dcatus_federal(
+        self,
+        interface,
+        organization_data,
+        source_data_dcatus_none_value,
+        job_data_dcatus_long_description,
+    ):
+        """
+        Test for the specific bug where the modified field was is Null
+        which then gets translated to None, and creates a weird message. The
+        format error string should not have duplicates of the same type.
+        """
+        interface.add_organization(organization_data)
+        # direct copy of the bad source data where bug was reported
+        interface.add_harvest_source(source_data_dcatus_none_value)
+        harvest_job = interface.add_harvest_job(job_data_dcatus_long_description)
+
+        harvest_source = HarvestSource(harvest_job.id)
+        harvest_source.acquire_minimum_external_data()
+        external_records_to_process = harvest_source.external_records_to_process()
+
+        # Get the first record
+        test_record: Record = next(external_records_to_process)
+        assert not test_record.validate()
+        errors = [
+            e[0] for e in interface.get_harvest_record_errors_by_job(harvest_job.id)
+        ]
+
+        # besides the broken uri issue, the bug we're testing for is
+        # modified is Null
+        assert len(errors) == 3
+
+        expected_error_message = "$.modified, 'string' does not match any of the acceptable formats: 'string'"
+        assert expected_error_message in errors[2].message
 
     def test_valid_transformed_iso(
         self,

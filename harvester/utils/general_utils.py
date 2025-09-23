@@ -733,7 +733,10 @@ def assemble_validation_errors(validation_errors: list, messages=None) -> list:
             # these aren't specific enough which make them unhelpful
             generic_msg = "is not valid under any of the given schemas"
             is_generic_msg = error.message.endswith(generic_msg)
-            if not is_generic_msg:
+            # if not the generic message, and if the message is not already
+            # present in the list for the given path we skip to avoid duplicates
+            # based on how messages are returned from the validator
+            if not is_generic_msg and error.message not in messages[error.json_path]:
                 messages[error.json_path].append(error.message)
         assemble_validation_errors(error.context, messages)
 
