@@ -74,6 +74,7 @@ ISSUER = os.getenv("ISSUER")
 AUTH_URL = ISSUER + "/openid_connect/authorize"
 TOKEN_URL = ISSUER + "/api/openid_connect/token"
 
+
 STATUS_STRINGS_ENUM = {404: "Not Found"}
 
 
@@ -190,12 +191,13 @@ def login():
 
     auth_request_url = (
         f"{AUTH_URL}?response_type=code"
+        f"&acr_values=urn:acr.login.gov:auth-only+http://idmanagement.gov/ns/assurance/aal/2?hspd12=true"
         f"&client_id={CLIENT_ID}"
-        f"&redirect_uri={REDIRECT_URI}"
-        f"&scope=openid email"
-        f"&state={state}"
         f"&nonce={nonce}"
-        f"&acr_values=http://idmanagement.gov/ns/assurance/loa/1"
+        "&prompt=select_account"
+        f"&redirect_uri={REDIRECT_URI}"
+        f"&scope=openid+email"
+        f"&state={state}"
     )
     return redirect(auth_request_url)
 
@@ -224,7 +226,6 @@ def callback():
         "client_assertion_type": "urn:ietf:params:oauth:client-assertion-type:jwt-bearer",
         "client_assertion": client_assertion,
     }
-
     response = requests.post(TOKEN_URL, data=token_payload)
 
     if response.status_code != 200:

@@ -2,12 +2,8 @@ import uuid
 
 from flask_sqlalchemy import SQLAlchemy
 from geoalchemy2 import Geometry
-from sqlalchemy import Column, Enum, String, func
+from sqlalchemy import CheckConstraint, Column, Enum, String, func
 from sqlalchemy.orm import DeclarativeBase, backref
-from dotenv import load_dotenv
-import os
-
-load_dotenv()
 
 
 class Base(DeclarativeBase):
@@ -19,17 +15,7 @@ class Base(DeclarativeBase):
 
 
 # For ref: https://stackoverflow.com/questions/22698478/what-is-the-difference-between-the-declarative-base-and-db-model
-timeout = os.getenv("DB_TIMEOUT", 300000)  # 5 minutes
-
-db = SQLAlchemy(
-    model_class=Base,
-    engine_options={
-        "connect_args": {
-            "options": f"-c statement_timeout={timeout} "
-            f"-c idle_in_transaction_session_timeout={timeout}"
-        }
-    },
-)
+db = SQLAlchemy(model_class=Base)
 
 
 class Error(db.Model):
@@ -67,6 +53,15 @@ class Organization(db.Model):
 
 class HarvestSource(db.Model):
     __tablename__ = "harvest_source"
+    __table_args__ = (
+        CheckConstraint(
+            "(collection_parent_url IS NULL"
+            " AND source_type <> 'waf-collection')"
+            " OR (collection_parent_url IS NOT NULL"
+            " AND source_type = 'waf-collection')",
+            name="wafcollectionparenturl",
+        ),
+    )
 
     organization_id = db.Column(
         db.String(36), db.ForeignKey("organization.id"), nullable=False
@@ -98,7 +93,7 @@ class HarvestSource(db.Model):
     )
 
     source_type = db.Column(
-        db.Enum("document", "waf", name="source_type"), nullable=False
+        db.Enum("document", "waf", "waf-collection", name="source_type"), nullable=False
     )
     jobs = db.relationship(
         "HarvestJob",
@@ -115,6 +110,7 @@ class HarvestSource(db.Model):
         ),
         nullable=False,
     )
+    collection_parent_url = db.Column(db.String)
 
 
 class HarvestJob(db.Model):

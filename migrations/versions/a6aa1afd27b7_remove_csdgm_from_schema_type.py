@@ -7,13 +7,15 @@ Create Date: 2025-09-12 17:06:56.439448
 """
 from alembic import op
 import sqlalchemy as sa
-
+from migrations.utils import get_terminate_processes_sql_cmd
 
 # revision identifiers, used by Alembic.
 revision = 'a6aa1afd27b7'
 down_revision = '1800d355e5b9'
 branch_labels = None
 depends_on = None
+
+terminate_processes_sql = get_terminate_processes_sql_cmd()
 
 # remove "csdgm" from schema_type
 old_options = (
@@ -34,6 +36,9 @@ old_enum = sa.Enum(*old_options, name="schema_type")
 new_enum = sa.Enum(*new_options, name="schema_type_new")
 
 def upgrade():
+
+    op.execute(terminate_processes_sql)
+
     # Create new enum
     new_enum.create(op.get_bind(), checkfirst=False)
 
@@ -51,6 +56,9 @@ def upgrade():
 
 
 def downgrade():
+
+    op.execute(terminate_processes_sql)
+
     # recreate the old enum
     old_enum.name = "schema_type_old"
     old_enum.create(op.get_bind(), checkfirst=False)
