@@ -257,7 +257,20 @@ class TestHarvestJobFullFlow:
 
         for record in harvest_job.records:
             if record.status == "success":
-                assert record.parent_identifier == source_data_waf_collection["collection_parent_url"]
+                assert (
+                    record.parent_identifier
+                    == source_data_waf_collection["collection_parent_url"]
+                )
+
+        # the first create call is our parent object, so just check the
+        # rest of the calls
+        for call_args in CKANMock.action.package_create.call_args_list[1:]:
+            # isPartOf extra is in there for each one
+            assert "extras" in call_args.kwargs
+            assert {
+                "key": "isPartOf",
+                "value": source_data_waf_collection["collection_parent_url"],
+            } in call_args.kwargs["extras"]
 
     @patch("harvester.harvest.ckan_sync_tool.ckan")
     @patch("harvester.harvest.download_file")
