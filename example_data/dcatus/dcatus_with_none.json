@@ -9,6 +9,12 @@
         "@type": "org:Organization",
         "name": "City of Philadelphia"
       },
+      "programCode": [
+        "000:000"
+      ],
+      "bureauCode": [
+        "339:00"
+      ],
       "description": "The datasets below show information about Complaints filed with the Police Advisory Commission against Philadelphia Police officers. The information comes directly from Police Advisory Commission Complaint Database.",
       "modified": null,
       "keyword": [

@@ -213,7 +213,6 @@ class TestValidateDataset:
         format error string should not have duplicates of the same type.
         """
         interface.add_organization(organization_data)
-        # direct copy of the bad source data where bug was reported
         interface.add_harvest_source(source_data_dcatus_none_value)
         harvest_job = interface.add_harvest_job(job_data_dcatus_long_description)
 
@@ -228,12 +227,11 @@ class TestValidateDataset:
             e[0] for e in interface.get_harvest_record_errors_by_job(harvest_job.id)
         ]
 
-        # besides the broken uri issue, the bug we're testing for is
-        # modified is Null
-        assert len(errors) == 3
+        # the bug we're testing for is modified is Null
+        assert len(errors) == 1
 
         expected_error_message = "$.modified, 'string' does not match any of the acceptable formats: 'string'"
-        assert expected_error_message in errors[2].message
+        assert expected_error_message in errors[0].message
 
     def test_valid_transformed_iso(
         self,

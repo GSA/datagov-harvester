@@ -351,7 +351,7 @@ def source_data_dcatus_long_description(organization_data: dict) -> dict:
 def source_data_dcatus_none_value(organization_data: dict) -> dict:
     return {
         "id": "2f2652de-91df-4c63-8b53-bfced20b276c",
-        "name": "Long Description Test Source",
+        "name": "Modified Null Test Source",
         "notification_emails": ["email@example.com"],
         "organization_id": organization_data["id"],
         "frequency": "daily",
