@@ -15,11 +15,6 @@ on:
         required: true
         type: boolean
         default: true
-      preview:
-        description: 'Preview stats before running the sync.'
-        required: true
-        type: boolean
-        default: true
 
 jobs:
   run-sync:
@@ -55,10 +50,6 @@ jobs:
           args=''
           if ${{ inputs.dry_run }}; then
             args="${args} --dry_run"
-          fi
-
-          if ${{ inputs.preview }}; then
-            args="${args} --preview"
           fi
 
           poetry run python ./scripts/sync_db.py ${args}
