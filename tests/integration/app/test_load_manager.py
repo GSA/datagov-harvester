@@ -386,7 +386,7 @@ class TestLoadManager:
         # Assert job error created
         errors = interface_no_jobs.get_harvest_job_errors_by_job(jobs[0].id)
         assert len(errors) == 1
-        assert errors[0].message == f"Job was manually cancelled."
+        assert errors[0].message == "Job was manually cancelled."
 
     # test cancelling a job that is not running (e.g. in CANCELING state)
     @patch("harvester.lib.cf_handler.CloudFoundryClient")
@@ -423,7 +423,10 @@ class TestLoadManager:
         message = load_manager.stop_job(jobs[0].id)
 
         # Assert return message for user feedback
-        assert message == f"Task for job {jobs[0].id} is not running, but marked job as error."
+        assert (
+            message
+            == f"Task for job {jobs[0].id} is not running, but marked job as error."
+        )
         # Assert job status updated
         jobs = interface_no_jobs.pget_harvest_jobs(
             facets=f"harvest_source_id eq {source_id}"
@@ -432,8 +435,9 @@ class TestLoadManager:
         # try again, but with job status already error.
         interface_no_jobs.update_harvest_job(jobs[0].id, {"status": "error"})
         message = load_manager.stop_job(jobs[0].id)
-        assert message == f"Task for job {jobs[0].id} is not running, job status is error."
-        
+        assert (
+            message == f"Task for job {jobs[0].id} is not running, job status is error."
+        )
 
     @patch("harvester.lib.load_manager.send_email_to_recipients")
     @patch("harvester.lib.cf_handler.CloudFoundryClient")
