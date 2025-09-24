@@ -484,9 +484,18 @@ class HarvestSource:
             self.db_interface.update_harvest_job(self.job_id, job_status)
 
         if hasattr(self, "notification_emails") and self.notification_emails:
-            if self.notification_frequency == "always" or (
-                self.notification_frequency == "on_error"
-                and job_results["records_errored"]
+            if (
+                self.notification_frequency == "always"
+                or (
+                    self.notification_frequency == "on_error"
+                    and job_results["records_errored"]
+                )
+                or (
+                    self.notification_frequency == "on_error_or_update"
+                    and (
+                        job_results["records_errored"] or job_results["records_updated"]
+                    )
+                )
             ):
                 try:
                     self.send_notification_emails(job_results)

@@ -105,6 +105,7 @@ class HarvestSource(db.Model):
         db.Enum(
             "on_error",
             "always",
+            "on_error_or_update",
             name="notification_frequency",
         ),
         nullable=False,
