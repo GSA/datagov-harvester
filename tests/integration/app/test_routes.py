@@ -413,7 +413,7 @@ class TestHarvestRecordRawAPI:
 
 class TestAPIBehavior:
 
-    @patch("harvester.lib.load_manager.LoadManager")
+    @patch("app.routes.load_manager")
     def test_cancel_in_progress_job(
         self,
         LMMock,
