@@ -28,7 +28,7 @@
             <tr>
                 <td>{{key}}:</td>
                 {% if key == 'logo' %}
-                <td><a href="{{value}}">{{value}}</a></td>
+                <td><i class="fa-solid fa-arrow-up-right-from-square"></i> <a href="{{value}}">{{value}}</a></td>
                 {% else %}
                 <td>{{value}}</td>
                 {% endif %}
@@ -106,7 +106,7 @@
                         {% if session['user'] %}
                         <td data-sort-value={{source.date_finished}}>{{source.notification_emails}} </td>
                         {% endif %}
-                        <td data-sort-value={{source.records_errored}}><a target="_blank"
+                        <td data-sort-value={{source.records_errored}}><i class="fa-solid fa-arrow-up-right-from-square"></i> <a target="_blank"
                                 href={{source.url}}>{{source.url}}</a></td>
                     </tr>
                     {% endfor %}
