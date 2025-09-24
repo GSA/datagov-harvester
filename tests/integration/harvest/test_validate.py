@@ -230,7 +230,9 @@ class TestValidateDataset:
         # the bug we're testing for is modified is Null
         assert len(errors) == 1
 
-        expected_error_message = "$.modified, 'string' does not match any of the acceptable formats: 'string'"
+        expected_error_message = (
+            "$.modified, None does not match any of the acceptable formats: 'string'"
+        )
         assert expected_error_message in errors[0].message
 
     def test_valid_transformed_iso(

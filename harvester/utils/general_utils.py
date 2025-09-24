@@ -621,7 +621,6 @@ def get_format_from_str(validation_msg: str) -> str:
     # for constants where a single value is acceptable
     if "was expected" in validation_msg:
         return f"constant value {validation_msg}"
-
     return validation_msg.split(" ")[-1]
 
 
@@ -683,14 +682,15 @@ def finalize_validation_messages(messages: defaultdict) -> list:
         # but >1 format/rule is used against it so grabbing
         # the last one which is a regex and does include the invalid data
         # excluding constants [0] == [n]
-        invalid_value = re.search(r"'(.*?)'|\[\]", formats[-1])
+        if formats[-1].startswith("None"):
+            invalid_value = "None"
+        else:
+            invalid_value = re.search(r"'(.*?)'|\[\]", formats[-1]).group(0)
 
         # if the 0th doesn't work none of them will
         if invalid_value is None:
             logger.warning(f"can't find invalid data from error message: {formats[0]}")
             continue
-
-        invalid_value = invalid_value.group(0)
 
         # @type values are consts too
         if invalid_value in [
