@@ -191,20 +191,35 @@ class LoadManager:
         if len(job_task) == 0:
             return f"No task with job_id: {job_id}"
 
-        if job_task[0][1] != "RUNNING":
-            updated_job = interface.update_harvest_job(
-                job_id, {"status": "complete", "date_finished": get_datetime()}
-            )
-            return (
-                f"Task for job {updated_job.id} is not running. Job marked as complete."
-            )
+        # Task options from https://v3-apidocs.cloudfoundry.org/version/3.202.0/index.html#tasks
+        # Should be nothing to do, but make sure the job is marked error if needed
+        if job_task[0][1] in ["SUCCEEDED", "CANCELING", "FAILED"]:
+            current_job = interface.get_harvest_job(job_id)
+            if current_job.status not in ["complete", "error"]:
+                updated_job = interface.update_harvest_job(
+                    job_id, {"status": "error", "date_finished": get_datetime()}
+                )
+                message = f"Task for job {updated_job.id} is not running, but marked job as error."  # noqa E501
+            else:
+                message = f"Task for job {job_id} is not running, job status is {current_job.status}."  # noqa E501
+
+            logger.info(message)
+            return message
 
         self.handler.stop_task(job_task[0][0])
 
         updated_job = interface.update_harvest_job(
-            job_id, {"status": "complete", "date_finished": get_datetime()}
+            job_id, {"status": "error", "date_finished": get_datetime()}
         )
-        message = f"Updated job {updated_job.id} to complete"
+        interface.add_harvest_job_error(
+            {
+                "date_created": get_datetime(),
+                "type": "CancelledJob",
+                "message": "Job was manually cancelled.",
+                "harvest_job_id": updated_job.id,
+            }
+        )
+        message = f"Updated job {updated_job.id} to error and stopped the job."
         logger.info(message)
         return message
 
