@@ -68,6 +68,7 @@ load_manager = LoadManager()
 
 # Login authentication
 load_dotenv()
+CKAN_URL = os.getenv("CKAN_URL") or ""
 CLIENT_ID = os.getenv("CLIENT_ID")
 REDIRECT_URI = os.getenv("REDIRECT_URI")
 ISSUER = os.getenv("ISSUER")
@@ -527,7 +528,7 @@ def view_organization(org_id: str):
             if job:
                 harvest_jobs[source.id] = job
         data = {
-            "ckan_url": os.getenv("CKAN_URL") or "",
+            "ckan_url": CKAN_URL,
             "organization": org,
             "organization_dict": db._to_dict(org),
             "harvest_sources": sources,
@@ -789,7 +790,7 @@ def view_harvest_source(source_id: str):
         }
         source = db.get_harvest_source(source_id)
         data = {
-            "ckan_url": os.getenv("CKAN_URL") or "",
+            "ckan_url": CKAN_URL,
             "source": source,
             "summary_data": summary_data,
             "jobs": jobs,
