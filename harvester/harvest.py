@@ -410,8 +410,12 @@ class HarvestSource:
             elif self.source_type == "waf-collection":
                 # First element is just like a single document waf, but we
                 # don't have a datetime for it, so use the ancient placeholder
-                self.external_records = [{"identifier": self.collection_parent_url,
-                                          "modified_date": DT_PLACEHOLDER}]
+                self.external_records = [
+                    {
+                        "identifier": self.collection_parent_url,
+                        "modified_date": DT_PLACEHOLDER,
+                    }
+                ]
                 self.external_records += traverse_waf(self.url)
 
         except Exception as e:
