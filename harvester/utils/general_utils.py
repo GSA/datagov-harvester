@@ -31,6 +31,8 @@ FREQUENCY_ENUM = {"daily": 1, "weekly": 7, "biweekly": 14, "monthly": 30}
 # User-Agent header for all HTTP requests
 USER_AGENT = "HarvesterBot/1.0 (https://data.gov;datagovhelp@gsa.gov) Data.gov"
 
+DT_PLACEHOLDER = datetime(1900, 1, 1, 0, 0)
+
 SMTP_CONFIG = {
     "server": os.getenv("HARVEST_SMTP_SERVER"),
     "port": 587,
@@ -167,7 +169,6 @@ def find_indexes_for_duplicates(records: list):
 def get_waf_datetimes(soup: BeautifulSoup, expected_length: int) -> list:
     output = []
 
-    dt_placeholder = datetime(1900, 1, 1, 0, 0)
     dt_pattern = r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}"
     dt_format = "%Y-%m-%d %H:%M"
 
@@ -182,7 +183,7 @@ def get_waf_datetimes(soup: BeautifulSoup, expected_length: int) -> list:
         )
 
     # pad with placeholder when more files than datetimes
-    output += [dt_placeholder] * (expected_length - len(output))
+    output += [DT_PLACEHOLDER] * (expected_length - len(output))
 
     # when more datetimes than files
     output = output[:expected_length]
