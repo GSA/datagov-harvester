@@ -39,6 +39,7 @@ from harvester.lib.harvest_reporter import HarvestReporter
 from harvester.lib.load_manager import LoadManager
 from harvester.utils.ckan_utils import CKANSyncTool
 from harvester.utils.general_utils import (
+    DT_PLACEHOLDER,
     USER_AGENT,
     assemble_validation_errors,
     create_retry_session,
@@ -86,6 +87,7 @@ class HarvestSource:
             "organization_id",
             "schema_type",
             "source_type",
+            "collection_parent_url",
             "id",  # db guuid
             "notification_emails",
             "notification_frequency",
@@ -237,6 +239,7 @@ class HarvestSource:
                 _ckan_id=record["ckan_id"],
                 _ckan_name=record["ckan_name"],
                 _date_finished=record["date_finished"],
+                _parent_identifier=record.get("parent_identifier"),
             )
 
     def write_duplicate_to_db(self, identifier: str) -> None:
@@ -340,11 +343,17 @@ class HarvestSource:
         while len(self.external_records) > 0:
             try:
                 record = self.external_records.pop(0)
+                parent_identifier = None
                 if self.source_type == "waf":
                     record["content"] = download_file(record["identifier"], ".xml")
                     dataset = record["content"]
 
-                if self.source_type == "document":
+                elif self.source_type == "waf-collection":
+                    record["content"] = download_file(record["identifier"], ".xml")
+                    dataset = record["content"]
+                    parent_identifier = self.collection_parent_url
+
+                elif self.source_type == "document":
                     if self.schema_type.startswith("dcatus"):
                         dataset = json.dumps(sort_dataset(record))
                     elif self.schema_type.startswith("iso19115"):
@@ -354,7 +363,13 @@ class HarvestSource:
 
                 dataset_hash = dataset_to_hash(dataset)
 
-                yield Record(self, record["identifier"], dataset, dataset_hash)
+                yield Record(
+                    self,
+                    record["identifier"],
+                    dataset,
+                    dataset_hash,
+                    _parent_identifier=parent_identifier,
+                )
 
                 del record
             except Exception as e:
@@ -389,8 +404,20 @@ class HarvestSource:
                 else:
                     raise ValueError(f"Schema type {self.schema_type} is not supported")
 
-            if self.source_type == "waf":
+            elif self.source_type == "waf":
                 self.external_records = traverse_waf(self.url)
+
+            elif self.source_type == "waf-collection":
+                # First element is just like a single document waf, but we
+                # don't have a datetime for it, so use the ancient placeholder
+                self.external_records = [
+                    {
+                        "identifier": self.collection_parent_url,
+                        "modified_date": DT_PLACEHOLDER,
+                    }
+                ]
+                self.external_records += traverse_waf(self.url)
+
         except Exception as e:
             # ruff: noqa: E501
             raise ExtractExternalException(
@@ -434,8 +461,9 @@ class HarvestSource:
             self.determine_internal_deletions()
             internal_records_to_delete = self.iter_internal_records_to_be_deleted()
 
-            if self.source_type == "waf":
+            if self.source_type in ["waf", "waf-collection"]:
                 self.filter_waf_files_by_datetime()
+
             self.filter_duplicate_identifiers()
 
             external_records_to_process = self.external_records_to_process()
@@ -484,9 +512,18 @@ class HarvestSource:
             self.db_interface.update_harvest_job(self.job_id, job_status)
 
         if hasattr(self, "notification_emails") and self.notification_emails:
-            if self.notification_frequency == "always" or (
-                self.notification_frequency == "on_error"
-                and job_results["records_errored"]
+            if (
+                self.notification_frequency == "always"
+                or (
+                    self.notification_frequency == "on_error"
+                    and job_results["records_errored"]
+                )
+                or (
+                    self.notification_frequency == "on_error_or_update"
+                    and (
+                        job_results["records_errored"] or job_results["records_updated"]
+                    )
+                )
             ):
                 try:
                     self.send_notification_emails(job_results)
@@ -545,6 +582,7 @@ class Record:
     _mdt_writer: str = "dcat_us"
     _mdt_msgs: str = ""
     _id: str = None
+    _parent_identifier: str = None
 
     transformed_data: dict = None
     ckanified_metadata: dict = field(default_factory=lambda: {})
@@ -614,6 +652,10 @@ class Record:
         return self._identifier
 
     @property
+    def parent_identifier(self) -> str:
+        return self._parent_identifier
+
+    @property
     def source_raw(self) -> str:
         return self._source_raw
 
@@ -677,6 +719,7 @@ class Record:
                 return
             if self.harvest_source.schema_type.startswith("iso19115"):
                 self.transform()
+                self.add_parent()
                 self.fill_placeholders()
             self.validate()
             self.sync()
@@ -786,6 +829,17 @@ class Record:
                 self.harvest_source.job_id,
                 self.id,
             )
+
+    def add_parent(self) -> None:
+        """Add parent information to transformed_data for waf-collections."""
+        if self.parent_identifier is None:
+            return
+
+        if "isPartOf" in self.transformed_data:
+            # somehow this record already got a parent relationship!
+            return
+
+        self.transformed_data["isPartOf"] = self.parent_identifier
 
     def fill_placeholders(self) -> None:
         """Fill in placeholder values to prevent some validation errors.
