@@ -127,3 +127,16 @@ class TestHarvestSourceAuthed:
                 "email@example.com",
             ]
         )
+
+    def test_contains_source_url(self, apage):
+        """
+        Test that the harvest source URL is a link and has the `target="_blank"`
+        attribute to open in a new tab.
+        """
+        # Locate the anchor tag by its href attribute
+        source_link = apage.locator('a[href="http://localhost:80/dcatus/dcatus.json"]')
+
+        # Verify the link exists and has target="_blank"
+        expect(source_link).to_be_visible()
+        expect(source_link).to_have_attribute("target", "_blank")
+        expect(source_link).to_have_text("http://localhost:80/dcatus/dcatus.json")

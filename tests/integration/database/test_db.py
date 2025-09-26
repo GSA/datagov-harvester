@@ -46,6 +46,36 @@ class TestDatabase:
         assert source is not None
         assert source.name == source_data_dcatus["name"]
 
+    def test_add_harvest_source_waf_collection_no_parent_url(
+        self, interface, organization_data, source_data_dcatus, caplog
+    ):
+        """A waf-collection source must have a non-null collection_parent_url."""
+        interface.add_organization(organization_data)
+        source_data_dcatus["source_type"] = "waf-collection"
+        source = interface.add_harvest_source(source_data_dcatus)
+        assert source is None
+        assert 'violates check constraint "wafcollectionparenturl"' in caplog.text
+
+    def test_add_harvest_source_waf_collection_with_parent_url(
+        self, interface, organization_data, source_data_dcatus
+    ):
+        """Can add a waf-collection source with parent URL."""
+        interface.add_organization(organization_data)
+        source_data_dcatus["source_type"] = "waf-collection"
+        source_data_dcatus["collection_parent_url"] = "fake-url"
+        source = interface.add_harvest_source(source_data_dcatus)
+        assert source is not None
+
+    def test_add_harvest_source_document_with_collection_parent_url(
+        self, interface, organization_data, source_data_dcatus, caplog
+    ):
+        """document harvest source cannot have collection_parent_url."""
+        interface.add_organization(organization_data)
+        source_data_dcatus["collection_parent_url"] = "fake-url"
+        source = interface.add_harvest_source(source_data_dcatus)
+        assert source is None
+        assert 'violates check constraint "wafcollectionparenturl"' in caplog.text
+
     def test_get_all_harvest_sources(
         self, interface, organization_data, source_data_dcatus
     ):
@@ -315,7 +345,8 @@ class TestDatabase:
         assert (
             count
             # two errors for each record
-            == 2 * len(
+            == 2
+            * len(
                 [record for record in record_data_dcatus if record["status"] == "error"]
             )
             == 16
@@ -399,7 +430,9 @@ class TestDatabase:
         summary = interface.get_record_errors_summary_by_job(
             job_id,
         )
-        assert sum(count for count in summary.values()) == len(interface.get_harvest_record_errors_by_job(job_id, per_page=999))
+        assert sum(count for count in summary.values()) == len(
+            interface.get_harvest_record_errors_by_job(job_id, per_page=999)
+        )
 
     def test_add_harvest_job_with_id(
         self, interface, organization_data, source_data_dcatus, job_data_dcatus
@@ -824,9 +857,7 @@ class TestDatabase:
         organization_data,
         source_data_waf_csdgm,
     ):
-        source_data_waf_csdgm["schema_type"] = "unsupported_schema"
-
+        """attempts to add a 'csdgm' harvest source which is unsupported"""
         interface.add_organization(organization_data)
-
         # we can't add the source because we use an enum for schema type
         assert interface.add_harvest_source(source_data_waf_csdgm) is None

@@ -110,7 +110,7 @@ class HarvestSource:
 
         if self.schema_type == "dcatus1.1: federal":
             self.schema_file = self.schemas_root / "federal_dataset.json"
-        elif self.schema_type in ["dcatus1.1: non-federal", "csdgm"]:
+        elif self.schema_type in ["dcatus1.1: non-federal"]:
             self.schema_file = self.schemas_root / "non-federal_dataset.json"
         elif self.schema_type.startswith("iso19115"):
             self.schema_file = self.schemas_root / "iso-non-federal_dataset.json"
@@ -345,7 +345,12 @@ class HarvestSource:
                     dataset = record["content"]
 
                 if self.source_type == "document":
-                    dataset = json.dumps(sort_dataset(record))
+                    if self.schema_type.startswith("dcatus"):
+                        dataset = json.dumps(sort_dataset(record))
+                    elif self.schema_type.startswith("iso19115"):
+                        # single document ISO
+                        record["content"] = download_file(record["identifier"], ".xml")
+                        dataset = record["content"]
 
                 dataset_hash = dataset_to_hash(dataset)
 
@@ -354,8 +359,12 @@ class HarvestSource:
                 del record
             except Exception as e:
                 self.update_job_record_count_by_action("errored")
+
+                # "record"s in self.external_records are standardized as dicts at this point
+                record_id = record["identifier"] if "identifier" in record else None
+
                 ExternalRecordToClass(
-                    f"{self.name} {self.url} failed to prepare record for harvest :: {repr(e)}",
+                    f"{self.name} {record_id} failed to prepare record for harvest :: {repr(e)}",
                     self.job_id,
                     None,  # there is no record id to associate
                 )
@@ -372,7 +381,13 @@ class HarvestSource:
         logger.info("retrieving external records.")
         try:
             if self.source_type == "document":
-                self.external_records = download_file(self.url, ".json")["dataset"]
+                if self.schema_type.startswith("dcatus"):
+                    self.external_records = download_file(self.url, ".json")["dataset"]
+                elif self.schema_type.startswith("iso19115"):
+                    # mimic the output of traverse_waf with a single file
+                    self.external_records = [{"identifier": self.url}]
+                else:
+                    raise ValueError(f"Schema type {self.schema_type} is not supported")
 
             if self.source_type == "waf":
                 self.external_records = traverse_waf(self.url)
@@ -460,15 +475,27 @@ class HarvestSource:
                 f"{self.name} failed to clear completely",
                 self.job_id,
             )
-        else:
+
+        # only label the job as "complete" if it hasn't errored out by now
+        job = self.db_interface.get_harvest_job(self.job_id)
+        if job.status != "error":
             job_status = {"status": "complete", "date_finished": get_datetime()}
             job_status.update(job_results)
             self.db_interface.update_harvest_job(self.job_id, job_status)
 
         if hasattr(self, "notification_emails") and self.notification_emails:
-            if self.notification_frequency == "always" or (
-                self.notification_frequency == "on_error"
-                and job_results["records_errored"]
+            if (
+                self.notification_frequency == "always"
+                or (
+                    self.notification_frequency == "on_error"
+                    and job_results["records_errored"]
+                )
+                or (
+                    self.notification_frequency == "on_error_or_update"
+                    and (
+                        job_results["records_errored"] or job_results["records_updated"]
+                    )
+                )
             ):
                 try:
                     self.send_notification_emails(job_results)
@@ -534,7 +561,6 @@ class Record:
         default_factory=lambda: {
             "iso19115_1": "iso19115_2_datagov",
             "iso19115_2": "iso19115_2_datagov",
-            "csdgm": "fgdc",
         }
     )
 
@@ -631,6 +657,14 @@ class Record:
             {"type": "string", "format": "uri"},
             format_checker=Draft202012Validator.FORMAT_CHECKER,
         ).is_valid(url)
+
+    def is_valid_describedByType(self, described_by_type: str) -> bool:
+        """Return whether a string is a valid describedByType."""
+
+        return Draft202012Validator(
+            self.harvest_source.dataset_schema["properties"]["describedByType"],
+            format_checker=FormatChecker(),
+        ).is_valid(described_by_type)
 
     def harvest(self) -> None:
         """
@@ -787,6 +821,11 @@ class Record:
                 "name": self.harvest_source.get_source_orm().org.name
             }
 
+        if not self.is_valid_describedByType(
+            self.transformed_data.get("describedByType", "")
+        ):
+            self.transformed_data["describedByType"] = "application/octet-steam"
+
         # If distribution items have a downloadURL or accessURL,
         # check if it just needs an "https://" at the beginning
         # to be valid
@@ -802,6 +841,8 @@ class Record:
         for dist_item in self.transformed_data.get("distribution", []):
             _guess_better_url_in_item(dist_item, "downloadURL")
             _guess_better_url_in_item(dist_item, "accessURL")
+            if not self.is_valid_describedByType(dist_item.get("describedByType", "")):
+                dist_item["describedByType"] = "application/octet-steam"
 
     def _report_error(self, e):
         """Report an exception to the database.

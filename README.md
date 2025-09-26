@@ -94,8 +94,9 @@ To setup:
     a. On Mac's this can be derived by running `ifconfig | grep inet` and grabbing the first `192.168.xxx.xxx` address you find.
   7. Add two new values to the local `.env` file:
     ```
+      CKAN_URL=`ip-address-from-step-4a`:5000
       CKAN_API_URL=`ip-address-from-step-4a`:5000
-      CKAN_API_TOKEN=`api-token-from-step-3`:5000
+      CKAN_API_TOKEN=`api-token-from-step-3`
     ```
   8. Restart datagov-harvest-admin, `make up`
   9. GoTo your previously configured harvest source

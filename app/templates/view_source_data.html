@@ -17,7 +17,18 @@
     <h2>Whooops!</h2>
     <p>Looks like you navigated to a harvest source that doesn't exist.</p>
     {% else %}
-    <h1>{{data.source.name}}</h1>
+    <div class="display-flex flex-align-center">
+        <h1 class="margin-right-2">{{data.source.name}}</h1>
+        <a
+            class="usa-button usa-button--outline"
+            target="_blank"
+            href="{{ data.ckan_url }}/organization/{{ data.source.org.id }}?harvest_source_title={{ data.source.name }}"
+        >
+            <i class="fa-solid fa-arrow-up-right-from-square"></i>View on catalog
+        </a>
+    </div>
+
+
     <h2>Configuration:</h2>
     <div class="config-table harvest-source-config-properties">
         <table class="table">
@@ -27,10 +38,19 @@
                 <td>Organization:</td>
                 <td><a href="{{ url_for('main.view_organization', org_id=value) }}">{{data.source.org.name}}</a></td>
                 {% elif key == 'notification_emails' %}
-                  {% if session['user'] %}
-                    <td>Notification emails:</td>
-                    <td>{{value|join(', ')}}</a>
-                    </td>
+                {% if session['user'] %}
+                <td>Notification emails:</td>
+                <td>{{value|join(', ')}}</td>
+                {% endif %}
+                {% elif key == 'url' %}
+                <td>{{key}}:</td>
+                <td>
+                    <i class="fa-solid fa-arrow-up-right-from-square"></i> <a href="{{value}}" target="_blank">{{value}}</a>
+                </td>
+                {% elif key == 'collection_parent_url' %}
+                  {% if value %}
+                  <td>{{key}}:</td>
+                  <td>{{value}}</td>
                   {% endif %}
                 {% else %}
                 <td>{{key}}:</td>
@@ -119,7 +139,8 @@
         <div id="paginated__harvest-jobs">
             <!-- job_table is undefined on pagination so importing here -->
             {% import 'components/job-table/job_table.j2' as job_table %}
-            {{ job_table.job_table(data.jobs, "Harvest Jobs for Harvest Source: " + data.source.id, show_source=false) }}
+            {{ job_table.job_table(data.jobs, "Harvest Jobs for Harvest Source: " + data.source.id, show_source=false)
+            }}
             {% if pagination.count > data.jobs|count %}
             {% include '/components/pagination/pagination.html' %}
             {% endif %}

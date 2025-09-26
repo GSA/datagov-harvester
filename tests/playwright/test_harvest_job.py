@@ -50,7 +50,9 @@ class TestHarvestJobUnauthed:
     def test_harvest_job_record_errors_display(self, upage):
         expect(
             upage.locator("#error_results_pagination .error-list .error-block")
-        ).to_have_count(10)  # paginated at 10 entries
+        ).to_have_count(
+            10
+        )  # paginated at 10 entries
 
         expect(
             upage.locator(

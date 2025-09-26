@@ -74,6 +74,7 @@ ISSUER = os.getenv("ISSUER")
 AUTH_URL = ISSUER + "/openid_connect/authorize"
 TOKEN_URL = ISSUER + "/api/openid_connect/token"
 
+
 STATUS_STRINGS_ENUM = {404: "Not Found"}
 
 
@@ -190,12 +191,13 @@ def login():
 
     auth_request_url = (
         f"{AUTH_URL}?response_type=code"
+        f"&acr_values=urn:acr.login.gov:auth-only+http://idmanagement.gov/ns/assurance/aal/2?hspd12=true"
         f"&client_id={CLIENT_ID}"
-        f"&redirect_uri={REDIRECT_URI}"
-        f"&scope=openid email"
-        f"&state={state}"
         f"&nonce={nonce}"
-        f"&acr_values=http://idmanagement.gov/ns/assurance/loa/1"
+        "&prompt=select_account"
+        f"&redirect_uri={REDIRECT_URI}"
+        f"&scope=openid+email"
+        f"&state={state}"
     )
     return redirect(auth_request_url)
 
@@ -224,7 +226,6 @@ def callback():
         "client_assertion_type": "urn:ietf:params:oauth:client-assertion-type:jwt-bearer",
         "client_assertion": client_assertion,
     }
-
     response = requests.post(TOKEN_URL, data=token_payload)
 
     if response.status_code != 200:
@@ -526,6 +527,7 @@ def view_organization(org_id: str):
             if job:
                 harvest_jobs[source.id] = job
         data = {
+            "ckan_url": os.getenv("CKAN_URL") or "",
             "organization": org,
             "organization_dict": db._to_dict(org),
             "harvest_sources": sources,
@@ -787,6 +789,7 @@ def view_harvest_source(source_id: str):
         }
         source = db.get_harvest_source(source_id)
         data = {
+            "ckan_url": os.getenv("CKAN_URL") or "",
             "source": source,
             "summary_data": summary_data,
             "jobs": jobs,
@@ -1172,15 +1175,31 @@ def get_harvest_record(record_id):
 @valid_id_required
 def get_harvest_record_raw(record_id=None):
     record = db.get_harvest_record(record_id)
-    if record:
+    if not record or not record.job or not record.job.source:
+        return JSON_NOT_FOUND()
+
+    source = record.job.source
+    schema_type = getattr(source, "schema_type", None)
+
+    # If schema_type contains 'dcatus', treat as JSON, else XML
+    if schema_type and "dcatus" in schema_type:
         try:
-            # if this fails, it's not JSON, but possibly XML
             source_raw_json = json.loads(record.source_raw)
             return jsonify(source_raw_json), 200
-        except json.JSONDecodeError:
-            return record.source_raw, 200
+        except Exception:
+            logger.error(f"Error returning JSON source raw for record ID: {record_id}")
+            # fallback to raw string if JSON parsing fails
+            return (
+                Response(record.source_raw, mimetype="application/json; charset=utf-8"),
+                200,
+            )
     else:
-        return JSON_NOT_FOUND()
+        # Assume XML for all other schema types, including CSDGM and ISO19139
+        # TODO: Consider explicitly handling CSDGM and ISO19139 in case there are other formats in the future
+        return (
+            Response(record.source_raw, mimetype="application/xml; charset=utf-8"),
+            200,
+        )
 
 
 ## Add record

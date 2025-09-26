@@ -47,6 +47,13 @@ class TestOrganizationUnauthed:
                 "http://localhost:80/dcatus/dcatus.json",
             ]
         )
+        # Locate the anchor tag by its href attribute
+        source_link = upage.locator('a[href="http://localhost:80/dcatus/dcatus.json"]')
+
+        # Verify the link exists and has target="_blank"
+        expect(source_link).to_be_visible()
+        expect(source_link).to_have_attribute("target", "_blank")
+        expect(source_link).to_have_text("http://localhost:80/dcatus/dcatus.json")
 
     def test_cant_perform_actions(self, upage):
         expect(

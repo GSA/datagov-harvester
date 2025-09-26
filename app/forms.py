@@ -45,7 +45,6 @@ class HarvestSourceForm(FlaskForm):
             "dcatus1.1: non-federal",
             "iso19115_1",
             "iso19115_2",
-            "csdgm",
         ],
         validators=[DataRequired()],
     )
@@ -57,6 +56,7 @@ class HarvestSourceForm(FlaskForm):
         choices=[
             "on_error",
             "always",
+            "on_error_or_update",
         ],
         validators=[DataRequired()],
     )
