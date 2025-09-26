@@ -10,7 +10,17 @@
     <h2>Whooops!</h2>
     <p>Looks like you navigated to an organization that doesn't exist.</p>
     {% else %}
-    <h1>{{data.organization.name}}</h1>
+    <div class="display-flex flex-align-center">
+        <h1 class="margin-right-2">{{data.organization.name}}</h1>
+        <a
+            class="usa-button usa-button--outline"
+            target="_blank"
+            href="{{ data.ckan_url }}/organization/{{ data.organization.id }}"
+        >
+            <i class="fa-solid fa-arrow-up-right-from-square"></i>View on catalog
+        </a>
+    </div>
+
     <h2>Organization Config Table</h2>
     <div class="config-table organization-config-properties">
         <table class="table">
@@ -18,7 +28,7 @@
             <tr>
                 <td>{{key}}:</td>
                 {% if key == 'logo' %}
-                <td><a href="{{value}}">{{value}}</a></td>
+                <td><i class="fa-solid fa-arrow-up-right-from-square"></i> <a href="{{value}}">{{value}}</a></td>
                 {% else %}
                 <td>{{value}}</td>
                 {% endif %}
@@ -96,7 +106,7 @@
                         {% if session['user'] %}
                         <td data-sort-value={{source.date_finished}}>{{source.notification_emails}} </td>
                         {% endif %}
-                        <td data-sort-value={{source.records_errored}}><a target="_blank"
+                        <td data-sort-value={{source.records_errored}}><i class="fa-solid fa-arrow-up-right-from-square"></i> <a target="_blank"
                                 href={{source.url}}>{{source.url}}</a></td>
                     </tr>
                     {% endfor %}
