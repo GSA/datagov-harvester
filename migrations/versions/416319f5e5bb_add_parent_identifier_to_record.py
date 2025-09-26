@@ -1,7 +1,7 @@
 """Add parent_identifier to record
 
 Revision ID: 416319f5e5bb
-Revises: 5416f9f5f06d
+Revises: e75e287e2251
 Create Date: 2025-09-19 19:09:44.757715
 
 """
@@ -11,7 +11,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = "416319f5e5bb"
-down_revision = "5416f9f5f06d"
+down_revision = "e75e287e2251"
 branch_labels = None
 depends_on = None
 
