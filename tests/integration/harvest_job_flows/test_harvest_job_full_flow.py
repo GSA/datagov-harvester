@@ -265,6 +265,63 @@ class TestHarvestJobFullFlow:
         assert send_notification_emails_mock.called
 
     @patch("harvester.harvest.ckan_sync_tool.ckan")
+    @patch("harvester.harvest.download_file")
+    @patch("harvester.harvest.HarvestSource.send_notification_emails")
+    def test_harvest_record_updates_reported(
+        self,
+        send_notification_emails_mock: MagicMock,
+        download_file_mock,
+        CKANMock,
+        interface,
+        organization_data,
+        source_data_dcatus,
+        job_data_dcatus,
+        single_internal_record,
+    ):
+        CKANMock.action.dataset_purge.side_effect = Exception("test exception")
+        download_file_mock.return_value = dict({"dataset": []})
+
+        interface.add_organization(organization_data)
+        # set notification_frequency to on_error_or_update
+        source_data_dcatus["notification_frequency"] = "on_error_or_update"
+        interface.add_harvest_source(source_data_dcatus)
+        harvest_job = interface.add_harvest_job(job_data_dcatus)
+
+        interface.add_harvest_record(single_internal_record)
+
+        job_id = harvest_job.id
+        harvest_job_starter(job_id, "harvest")
+        harvest_source = HarvestSource(job_id, "harvest")
+
+        interface_errors = interface.get_harvest_record_errors_by_job(job_id)
+        harvest_job = interface.get_harvest_job(job_id)
+        job_errors = [
+            error for record in harvest_job.records for error in record.errors
+        ]
+        assert harvest_job.status == "complete"
+        assert len(interface_errors) == harvest_job.records_errored
+        assert 0 == harvest_job.records_updated
+        assert len(interface_errors) == len(job_errors)
+        assert (
+            interface_errors[0][0].harvest_record_id == job_errors[0].harvest_record_id
+        )
+        assert send_notification_emails_mock.call_count == 1
+
+        harvest_job = interface.get_harvest_job(job_id)
+        with patch("harvester.harvest.HarvestReporter.report") as report_mock:
+            report_mock.return_value = {
+                "records_total": 1,
+                "records_added": 0,
+                "records_updated": 1,
+                "records_deleted": 0,
+                "records_ignored": 0,
+                "records_errored": 0,
+                "records_validated": 0,
+            }
+            harvest_source.report()
+            assert send_notification_emails_mock.call_count == 2
+
+    @patch("harvester.harvest.ckan_sync_tool.ckan")
     @patch("harvester.utils.ckan_utils.uuid")
     def test_validate_same_title(
         self,
