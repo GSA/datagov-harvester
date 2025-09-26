@@ -291,6 +291,7 @@ class TestHarvestJobFullFlow:
 
         job_id = harvest_job.id
         harvest_job_starter(job_id, "harvest")
+        harvest_source = HarvestSource(job_id, "harvest")
 
         interface_errors = interface.get_harvest_record_errors_by_job(job_id)
         harvest_job = interface.get_harvest_job(job_id)
@@ -304,7 +305,21 @@ class TestHarvestJobFullFlow:
         assert (
             interface_errors[0][0].harvest_record_id == job_errors[0].harvest_record_id
         )
-        assert send_notification_emails_mock.called
+        assert send_notification_emails_mock.call_count == 1
+
+        harvest_job = interface.get_harvest_job(job_id)
+        with patch("harvester.harvest.HarvestReporter.report") as report_mock:
+            report_mock.return_value = {
+                "records_total": 1,
+                "records_added": 0,
+                "records_updated": 1,
+                "records_deleted": 0,
+                "records_ignored": 0,
+                "records_errored": 0,
+                "records_validated": 0,
+            }
+            harvest_source.report()
+            assert send_notification_emails_mock.call_count == 2
 
     @patch("harvester.harvest.ckan_sync_tool.ckan")
     @patch("harvester.utils.ckan_utils.uuid")
