@@ -225,6 +225,54 @@ class TestHarvestJobFullFlow:
         assert harvest_job.records_errored == 0
 
     @patch("harvester.harvest.ckan_sync_tool.ckan")
+    @patch("harvester.harvest.HarvestSource.send_notification_emails")
+    def test_harvest_waf_collection(
+        self,
+        send_notification_emails_mock: MagicMock,
+        CKANMock,
+        interface,
+        organization_data,
+        source_data_waf_collection,
+    ):
+        CKANMock.action.package_create.return_value = {"id": 1234}
+
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_waf_collection)
+        harvest_job = interface.add_harvest_job(
+            {
+                "status": "new",
+                "harvest_source_id": source_data_waf_collection["id"],
+            }
+        )
+
+        job_id = harvest_job.id
+        harvest_job_starter(job_id, "harvest")
+        harvest_job = interface.get_harvest_job(job_id)
+
+        # assert job rollup
+        assert harvest_job.status == "complete"
+        assert harvest_job.records_total == 6
+        assert len(harvest_job.record_errors) == 3
+        assert harvest_job.records_errored == 3
+
+        for record in harvest_job.records:
+            if record.status == "success":
+                assert (
+                    record.parent_identifier
+                    == source_data_waf_collection["collection_parent_url"]
+                )
+
+        # the first create call is our parent object, so just check the
+        # rest of the calls
+        for call_args in CKANMock.action.package_create.call_args_list[1:]:
+            # isPartOf extra is in there for each one
+            assert "extras" in call_args.kwargs
+            assert {
+                "key": "isPartOf",
+                "value": source_data_waf_collection["collection_parent_url"],
+            } in call_args.kwargs["extras"]
+
+    @patch("harvester.harvest.ckan_sync_tool.ckan")
     @patch("harvester.harvest.download_file")
     @patch("harvester.harvest.HarvestSource.send_notification_emails")
     def test_harvest_record_errors_reported(
