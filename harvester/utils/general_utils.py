@@ -31,6 +31,8 @@ FREQUENCY_ENUM = {"daily": 1, "weekly": 7, "biweekly": 14, "monthly": 30}
 # User-Agent header for all HTTP requests
 USER_AGENT = "HarvesterBot/1.0 (https://data.gov;datagovhelp@gsa.gov) Data.gov"
 
+DT_PLACEHOLDER = datetime(1900, 1, 1, 0, 0)
+
 SMTP_CONFIG = {
     "server": os.getenv("HARVEST_SMTP_SERVER"),
     "port": 587,
@@ -132,6 +134,7 @@ def make_record_mapping(record):
         "action": record.action,
         "ckan_id": record.ckan_id,
         "ckan_name": record.ckan_name,
+        "parent_identifier": record.parent_identifier,
     }
 
 
@@ -166,7 +169,6 @@ def find_indexes_for_duplicates(records: list):
 def get_waf_datetimes(soup: BeautifulSoup, expected_length: int) -> list:
     output = []
 
-    dt_placeholder = datetime(1900, 1, 1, 0, 0)
     dt_pattern = r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}"
     dt_format = "%Y-%m-%d %H:%M"
 
@@ -181,7 +183,7 @@ def get_waf_datetimes(soup: BeautifulSoup, expected_length: int) -> list:
         )
 
     # pad with placeholder when more files than datetimes
-    output += [dt_placeholder] * (expected_length - len(output))
+    output += [DT_PLACEHOLDER] * (expected_length - len(output))
 
     # when more datetimes than files
     output = output[:expected_length]
@@ -621,7 +623,6 @@ def get_format_from_str(validation_msg: str) -> str:
     # for constants where a single value is acceptable
     if "was expected" in validation_msg:
         return f"constant value {validation_msg}"
-
     return validation_msg.split(" ")[-1]
 
 
@@ -683,14 +684,15 @@ def finalize_validation_messages(messages: defaultdict) -> list:
         # but >1 format/rule is used against it so grabbing
         # the last one which is a regex and does include the invalid data
         # excluding constants [0] == [n]
-        invalid_value = re.search(r"'(.*?)'|\[\]", formats[-1])
+        if formats[-1].startswith("None"):
+            invalid_value = "None"
+        else:
+            invalid_value = re.search(r"'(.*?)'|\[\]", formats[-1]).group(0)
 
         # if the 0th doesn't work none of them will
         if invalid_value is None:
             logger.warning(f"can't find invalid data from error message: {formats[0]}")
             continue
-
-        invalid_value = invalid_value.group(0)
 
         # @type values are consts too
         if invalid_value in [
@@ -733,7 +735,10 @@ def assemble_validation_errors(validation_errors: list, messages=None) -> list:
             # these aren't specific enough which make them unhelpful
             generic_msg = "is not valid under any of the given schemas"
             is_generic_msg = error.message.endswith(generic_msg)
-            if not is_generic_msg:
+            # if not the generic message, and if the message is not already
+            # present in the list for the given path we skip to avoid duplicates
+            # based on how messages are returned from the validator
+            if not is_generic_msg and error.message not in messages[error.json_path]:
                 messages[error.json_path].append(error.message)
         assemble_validation_errors(error.context, messages)
 

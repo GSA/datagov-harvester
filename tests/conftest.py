@@ -228,6 +228,22 @@ def source_data_iso19115_2_document(organization_data: dict) -> dict:
 
 
 @pytest.fixture
+def source_data_waf_collection(organization_data: dict) -> dict:
+    return {
+        "id": "8c3cd8c5-6174-42ef-9512-10503533c3a8",
+        "name": "Test Source (Waf collection)",
+        "notification_emails": ["wafl@example.com"],
+        "organization_id": organization_data["id"],
+        "frequency": "daily",
+        "url": f"{HARVEST_SOURCE_URL}/iso_2_waf/",
+        "schema_type": "iso19115_2",
+        "source_type": "waf-collection",
+        "collection_parent_url": f"{HARVEST_SOURCE_URL}/valid_iso2_parent.xml",
+        "notification_frequency": "always",
+    }
+
+
+@pytest.fixture
 def source_data_dcatus_invalid(organization_data: dict) -> dict:
     return {
         "id": "2bfcb047-70dc-435a-a46c-4dec5df7532d",
@@ -341,6 +357,21 @@ def source_data_dcatus_long_description(organization_data: dict) -> dict:
         "organization_id": organization_data["id"],
         "frequency": "daily",
         "url": f"{HARVEST_SOURCE_URL}/dcatus/dcatus_long_description.json",
+        "schema_type": "dcatus1.1: federal",
+        "source_type": "document",
+        "notification_frequency": "always",
+    }
+
+
+@pytest.fixture
+def source_data_dcatus_none_value(organization_data: dict) -> dict:
+    return {
+        "id": "2f2652de-91df-4c63-8b53-bfced20b276c",
+        "name": "Modified Null Test Source",
+        "notification_emails": ["email@example.com"],
+        "organization_id": organization_data["id"],
+        "frequency": "daily",
+        "url": f"{HARVEST_SOURCE_URL}/dcatus/dcatus_with_none.json",
         "schema_type": "dcatus1.1: federal",
         "source_type": "document",
         "notification_frequency": "always",

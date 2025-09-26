@@ -342,7 +342,6 @@ class TestLoadManager:
         self,
         CFCMock,
         all_tasks_json_fixture,
-        mock_good_cf_index,
         interface_no_jobs,
         source_data_dcatus,
     ):
@@ -371,12 +370,74 @@ class TestLoadManager:
             }
         )
 
-        load_manager.stop_job(jobs[0].id)
+        message = load_manager.stop_job(jobs[0].id)
 
-        # assert cancel_task ops
+        # Assert cancel_task ops
         cancel_task_mock = CFCMock.return_value.v3.tasks.cancel
         assert cancel_task_mock.call_count == 1
         assert cancel_task_mock.call_args[0][0] == task_guid_val
+        # Assert return message for user feedback
+        assert message == f"Updated job {jobs[0].id} to error and stopped the job."
+        # Assert job status updated
+        jobs = interface_no_jobs.pget_harvest_jobs(
+            facets=f"harvest_source_id eq {source_id}"
+        )
+        assert jobs[0].status == "error"
+        # Assert job error created
+        errors = interface_no_jobs.get_harvest_job_errors_by_job(jobs[0].id)
+        assert len(errors) == 1
+        assert errors[0].message == "Job was manually cancelled."
+
+    # test cancelling a job that is not running (e.g. in CANCELING state)
+    @patch("harvester.lib.cf_handler.CloudFoundryClient")
+    def test_trigger_cancel_job_not_running(
+        self,
+        CFCMock,
+        all_tasks_json_fixture,
+        interface_no_jobs,
+        source_data_dcatus,
+    ):
+        CFCMock.return_value.v3.apps._pagination.return_value = all_tasks_json_fixture
+
+        load_manager = LoadManager()
+        load_manager.trigger_manual_job(source_data_dcatus["id"])
+
+        source_id = source_data_dcatus["id"]
+        jobs = interface_no_jobs.pget_harvest_jobs(
+            facets=f"harvest_source_id eq {source_id}"
+        )
+
+        # modify tasks fixture in place
+        all_tasks_json_fixture.append(
+            {
+                "guid": "3a24b55a02b0-eb7b-4eeb-9f45-645cedd3d93b",
+                "sequence_id": 197,
+                "name": f"harvest-job-{jobs[0].id}-harvest",
+                "command": "python harvester/harvest.py 47442c62-716d-4678-947c-61990106685f harvest",
+                "state": "CANCELING",
+                "memory_in_mb": 1536,
+                "disk_in_mb": 4096,
+            }
+        )
+
+        message = load_manager.stop_job(jobs[0].id)
+
+        # Assert return message for user feedback
+        assert (
+            message
+            == f"Task for job {jobs[0].id} is not running, but marked job as error."
+        )
+        # Assert job status updated
+        jobs = interface_no_jobs.pget_harvest_jobs(
+            facets=f"harvest_source_id eq {source_id}"
+        )
+        assert jobs[0].status == "error"
+        # try again, but with job status already error.
+        interface_no_jobs.update_harvest_job(jobs[0].id, {"status": "error"})
+        message = load_manager.stop_job(jobs[0].id)
+        assert (
+            message == f"Task for job {jobs[0].id} is not running, job status is error."
+        )
 
     @patch("harvester.lib.load_manager.send_email_to_recipients")
     @patch("harvester.lib.cf_handler.CloudFoundryClient")
