@@ -15,6 +15,10 @@ def validate_email_list(form, field):
             raise ValidationError("Invalid email address: {}".format(email))
 
 
+def strip_filter(data):
+    return data.strip() if isinstance(data, str) else data
+
+
 class EmailListField(TextAreaField):
     def process_formdata(self, valuelist):
         if valuelist:
@@ -28,8 +32,16 @@ class HarvestSourceForm(FlaskForm):
     organization_id = SelectField(
         "Organization", choices=[], validators=[DataRequired()]
     )
-    name = StringField("Name", validators=[DataRequired()])
-    url = StringField("URL", validators=[DataRequired(), URL(require_tld=is_prod)])
+    name = StringField(
+        "Name",
+        validators=[DataRequired()],
+        filters=[strip_filter]
+    )
+    url = StringField(
+        "URL",
+        validators=[DataRequired(), URL(require_tld=is_prod)],
+        filters=[strip_filter]
+    )
     notification_emails = EmailListField(
         "Notification_emails", validators=[DataRequired(), validate_email_list]
     )
@@ -63,8 +75,16 @@ class HarvestSourceForm(FlaskForm):
 
 
 class OrganizationForm(FlaskForm):
-    name = StringField("Name", validators=[DataRequired()])
-    logo = StringField("Logo", validators=[DataRequired(), URL()])
+    name = StringField(
+        "Name",
+        validators=[DataRequired()],
+        filters=[strip_filter]
+    )
+    logo = StringField(
+        "Logo",
+        validators=[DataRequired(), URL()],
+        filters=[strip_filter]
+    )
 
 
 class HarvestTriggerForm(FlaskForm):
