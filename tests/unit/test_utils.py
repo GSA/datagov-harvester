@@ -36,6 +36,8 @@ from harvester.utils.general_utils import (
     traverse_waf,
     validate_geojson,
 )
+from ckanapi.errors import CKANAPIError
+from harvester.exceptions import SynchronizeException
 
 
 class TestCKANUtils:
@@ -914,3 +916,47 @@ class TestCreateRetrySession:
         # Verify User-Agent header is still set
         assert "User-Agent" in session.headers
         assert session.headers["User-Agent"] == USER_AGENT
+
+
+class TestCKANSyncToolAPIError:
+    @patch("harvester.utils.ckan_utils.RemoteCKAN")
+    def test_ckanapierror_trimmed_in_synchronize_exception(self, mock_remote_ckan):
+        """
+        ensure SynchronizeException message does not have lengthy response body
+        """
+
+        # mock CKAN to raise CKANAPIError with tuple-like string args
+        mock_ckan_instance = Mock()
+        mock_remote_ckan.return_value = mock_ckan_instance
+        large_body = "Asdf" * 1000
+        error_tuple_str = str(("http://ckan/api/action/dataset_purge", 500, large_body))
+        mock_ckan_instance.action.dataset_purge.side_effect = CKANAPIError(error_tuple_str)
+
+        # minimal record stub for delete path to avoid ckanify step
+        class RecordStub:
+            def __init__(self):
+                self.action = "delete"
+                self.identifier = "test-identifier"
+                self.id = "record-123"
+                self.ckan_id = "ckan-123"
+
+                class HS:
+                    job_id = "job-456"
+
+                self.harvest_source = HS()
+                self.status = None
+
+        record = RecordStub()
+
+        ckan_sync_tool = CKANSyncTool(session=Mock())
+        with pytest.raises(SynchronizeException) as exc_info:
+            ckan_sync_tool.sync(record)
+
+        message = str(exc_info.value)
+        assert "failed to delete" in message
+        assert record.identifier in message
+        # it has URL and status code
+        assert "http://ckan/api/action/dataset_purge" in message
+        assert "500" in message
+        # the large response body is trimmed out
+        assert large_body not in message

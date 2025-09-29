@@ -143,7 +143,19 @@
                             N/A
                             {% endif %}
                         </p>
-                        <p><strong>Error Message:</strong> {{ record_error.error.message }}</p>
+                        <!-- mixup between deployed app and testing env. TODO: fix this. -->
+                        {% if record_error.error.type in ["ValidationError", "ValidationException"] %}
+                            <p>
+                                <strong>Error Message:</strong> 
+                                <ul>
+                                    {% for msg in record_error.error.message %}
+                                        <li>{{msg}}</li>
+                                    {% endfor %}
+                                </ul>
+                            </p>
+                        {% else %}
+                            <p><strong>Error Message:</strong> {{ record_error.error.message }}</p>
+                        {% endif %} 
                         <p><strong>Type:</strong> {{ record_error.error.type }}</p>
                         <p class="utc-date" data-utc-date="{{record_error.error.date_created | utc_isoformat }}">
                             <strong>Date Created:</strong> {{ record_error.error.date_created | else_na }}
