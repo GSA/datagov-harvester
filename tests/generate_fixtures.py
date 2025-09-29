@@ -264,6 +264,10 @@ def generate_dynamic_fixtures() -> Dict[str, Any]:
             }
         )
 
+    # to demonstrate validation message consolidation update 2nd error
+    # of first record error
+    base_fixtures["record_error"][1]["type"] = "ValidationException"
+
     return base_fixtures
 
 
