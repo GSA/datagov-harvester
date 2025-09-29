@@ -1,3 +1,4 @@
+import ast
 import json
 import logging
 import mimetypes
@@ -10,6 +11,7 @@ from typing import Tuple, Union
 
 import requests
 from ckanapi import RemoteCKAN
+from ckanapi.errors import CKANAPIError
 
 from harvester.exceptions import (
     CKANDownException,
@@ -125,6 +127,18 @@ class CKANSyncTool:
                 )
         except Exception as e:
             record.status = "error"
+
+            if isinstance(e, CKANAPIError):
+                # CKANAPIError contains the whole response text, which is too much
+                # https://github.com/ckan/ckanapi/blob/ckanapi-4.8/ckanapi/common.py#L134
+                # let us throw away response from [url, status, response]
+                try:
+                    url, status, *_ = ast.literal_eval(e.args[0])
+                    e.args = (url, status)
+                except Exception as e1:
+                    # CKANAPI changed its behavior? leave e.args as-is with a warning.
+                    logger.warning(f"failed to parse CKANAPIError args: {repr(e1)}")
+
             raise SynchronizeException(
                 f"failed to {record.action} for {record.identifier} :: {repr(e)}",
                 record.harvest_source.job_id,
