@@ -6,6 +6,7 @@ admin_memory_quota: 1G
 admin_disk_quota: 4G
 
 CF_API_URL: https://api.fr.cloud.gov
+CKAN_URL: https://catalog-next-stage-datagov.app.cloud.gov
 CKAN_API_URL: https://catalog-next-stage-admin-datagov.app.cloud.gov
 
 # CKAN can't handle too many tasks talking to it

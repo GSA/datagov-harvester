@@ -105,6 +105,7 @@ class HarvestSource(db.Model):
         db.Enum(
             "on_error",
             "always",
+            "on_error_or_update",
             name="notification_frequency",
         ),
         nullable=False,
@@ -177,6 +178,8 @@ class HarvestRecord(db.Model):
     action = db.Column(
         Enum("create", "update", "delete", name="record_action"), index=True
     )
+    # Parent information isn't in source_raw for XML records
+    parent_identifier = db.Column(db.String)
     status = db.Column(Enum("error", "success", name="record_status"), index=True)
     errors = db.relationship("HarvestRecordError", backref="record", lazy=True)
 
