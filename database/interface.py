@@ -396,6 +396,39 @@ class HarvesterDBInterface:
         job = self.get_harvest_job(job_id)
         return [error for error in job.errors or []]
 
+    def get_harvest_record_errors_by_job_for_view(self, query):
+        """
+        groups validation messages based on harvest record id. aggregates the error
+        messages into a comma-separated string. for all other fields, the 1st row in the group
+        is used.
+        """
+        query = query.subquery()
+
+        error_types = ["ValidationException", "ValidationError"]
+
+        # aggregate the validation messages by harvest_record_id using 1st row for
+        # all other fields. sql indexing starts at 1
+        instance_idx = 1
+        agg = (
+            self.db.query(
+                func.array_agg(query.c.harvest_record_id)[instance_idx],
+                func.array_agg(query.c.harvest_job_id)[instance_idx],
+                func.array_agg(query.c.date_created)[instance_idx],
+                func.array_agg(query.c.type)[instance_idx],
+                func.array_to_string(func.array_agg(query.c.message), "::"),
+                func.array_agg(query.c.id)[instance_idx],
+                func.array_agg(query.c.identifier)[instance_idx],
+                func.array_agg(query.c.source_raw)[instance_idx],
+            )
+            .filter(query.c.type.in_(error_types))
+            .group_by(query.c.harvest_record_id)
+        )
+
+        # get all other messages as-is and combine
+        other = self.db.query(query).filter(query.c.type.not_in(error_types))
+
+        return agg.union(other)
+
     @count
     @paginate
     def get_harvest_record_errors_by_job(self, job_id: str, **kwargs):
@@ -406,6 +439,11 @@ class HarvesterDBInterface:
         and joins them with their harvest record, if one exists.
         The query returns a tuple containing:
             - HarvestRecordError object
+            - identifier (retrieved from HarvestRecord, can be None)
+            - source_raw (retrieved from HarvestRecord, containing 'title', can be None)
+
+        Or a tuple containing:
+            - Harvest record error values (not as a HarvestRecordError object)
             - identifier (retrieved from HarvestRecord, can be None)
             - source_raw (retrieved from HarvestRecord, containing 'title', can be None)
 
@@ -422,6 +460,11 @@ class HarvesterDBInterface:
             )
             .filter(HarvestRecordError.harvest_job_id == job_id)
         )
+
+        for_view = kwargs.get("for_view", False)
+        if for_view:
+            return self.get_harvest_record_errors_by_job_for_view(query)
+
         return query
 
     def get_harvest_error(self, error_id: str) -> dict:

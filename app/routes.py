@@ -424,6 +424,29 @@ def make_new_source_contract(form):
     }
 
 
+def make_new_record_error_contract(error: tuple) -> dict:
+    """
+    convert the record error row tuple into a dict. splits the validation message
+    value into an array
+    """
+    fields = [
+        "harvest_record_id",
+        "harvest_job_id",
+        "date_created",
+        "type",
+        "message",
+        "id",
+    ]
+
+    # identifier and source_raw are the last 2 and kept the same
+    record_error = dict(zip(fields, error[:-2]))
+    error_type = error[3]
+    if error_type in ["ValidationException", "ValidationError"]:
+        record_error["message"] = record_error["message"].split("::")  # turn into array
+
+    return record_error
+
+
 def make_new_org_contract(form):
     return {"name": form.name.data, "logo": form.logo.data}
 
@@ -947,17 +970,17 @@ def view_harvest_job(job_id=None):
     )
     record_error_summary = db.get_record_errors_summary_by_job(job_id)
     record_errors = db.get_harvest_record_errors_by_job(
-        job_id,
-        page=pagination.db_current,
+        job_id, page=pagination.db_current, for_view=True
     )
     record_errors_dict = [
         {
-            "error": db._to_dict(row.HarvestRecordError),
-            "identifier": row.identifier,
-            "title": _load_json_title(row.source_raw),
+            "error": make_new_record_error_contract(row),
+            "identifier": row[-2],
+            "title": _load_json_title(row[-1]),  # source_raw
         }
         for row in record_errors
     ]
+
     if htmx:
         data = {
             "harvest_job_id": job_id,
