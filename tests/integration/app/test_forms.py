@@ -49,3 +49,35 @@ class TestFormStringStripping:
             "other@example.com",
         ]
 
+    def test_edit_organization_updates_all_fields(
+        self, app, client, interface, organization_data
+    ):
+        app.config.update({"WTF_CSRF_ENABLED": False})
+        with client.session_transaction() as sess:
+            sess["user"] = "tester@gsa.gov"
+
+        interface.add_organization(organization_data)
+
+        edit_response = client.get(f"/organization/edit/{organization_data['id']}")
+
+        assert edit_response.status_code == 200
+        assert b'name="name"' in edit_response.data
+        assert b'name="logo"' in edit_response.data
+        assert b'name="organization_type"' in edit_response.data
+
+        updated_data = {
+            "name": "Updated Org",
+            "logo": "https://example.com/newlogo.png",
+            "organization_type": "City Government",
+        }
+
+        post_response = client.post(
+            f"/organization/edit/{organization_data['id']}", data=updated_data
+        )
+
+        assert post_response.status_code == 302
+
+        org = interface.get_organization(organization_data["id"])
+        assert org.name == "Updated Org"
+        assert org.logo == "https://example.com/newlogo.png"
+        assert org.organization_type == "City Government"
