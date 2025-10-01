@@ -9,7 +9,14 @@ from wtforms import (
     SubmitField,
     TextAreaField,
 )
-from wtforms.validators import URL, DataRequired, Optional, ValidationError
+from wtforms.validators import (
+    URL,
+    DataRequired,
+    Length,
+    Optional,
+    Regexp,
+    ValidationError,
+)
 
 is_prod = os.getenv("FLASK_ENV") == "production"
 
@@ -94,6 +101,15 @@ class OrganizationForm(FlaskForm):
     description = TextAreaField(
         "Description",
         validators=[Optional()],
+        filters=[strip_filter],
+    )
+    slug = StringField(
+        "Slug",
+        validators=[
+            Optional(),
+            Length(max=100),
+            Regexp(r"^[A-Za-z0-9-]*$", message="Slug can only contain letters, digits, and hyphens."),
+        ],
         filters=[strip_filter],
     )
     organization_type = SelectField(

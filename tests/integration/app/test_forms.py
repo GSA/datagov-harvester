@@ -8,6 +8,7 @@ class TestFormStringStripping:
             "name": "  Test Org  ",
             "logo": "  https://example.com/logo.png  ",
             "description": "  A sample description  ",
+            "slug": "  test-slug  ",
         }
         res = client.post("/organization/add", data=data)
 
@@ -18,6 +19,7 @@ class TestFormStringStripping:
         assert org.name == "Test Org"
         assert org.logo == "https://example.com/logo.png"
         assert org.description == "A sample description"
+        assert org.slug == "test-slug"
 
     def test_add_harvest_source_strips_string_fields(
         self, app, client, interface, organization_data
@@ -67,16 +69,19 @@ class TestFormStringStripping:
         assert b'name="logo"' in edit_response.data
         assert b'name="organization_type"' in edit_response.data
         assert b'name="description"' in edit_response.data
+        assert b'name="slug"' in edit_response.data
 
         updated_data = {
             "name": "Updated Org",
             "logo": "https://example.com/newlogo.png",
             "organization_type": "City Government",
             "description": "New description",
+            "slug": "updated-slug",
         }
 
         post_response = client.post(
-            f"/organization/edit/{organization_data['id']}", data=updated_data
+            f"/organization/edit/{organization_data['id']}",
+            data=updated_data,
         )
 
         assert post_response.status_code == 302
@@ -86,3 +91,4 @@ class TestFormStringStripping:
         assert org.logo == "https://example.com/newlogo.png"
         assert org.organization_type == "City Government"
         assert org.description == "New description"
+        assert org.slug == "updated-slug"

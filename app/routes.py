@@ -452,6 +452,7 @@ def make_new_org_contract(form):
         "name": form.name.data,
         "logo": form.logo.data,
         "description": form.description.data or None,
+        "slug": form.slug.data or None,
         "organization_type": form.organization_type.data or None,
     }
 
@@ -482,6 +483,7 @@ def add_organization():
                 "name": form.name.data,
                 "logo": form.logo.data,
                 "description": form.description.data or None,
+                "slug": form.slug.data or None,
                 "organization_type": form.organization_type.data or None,
             }
             org = db.add_organization(new_org)
