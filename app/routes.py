@@ -448,7 +448,11 @@ def make_new_record_error_contract(error: tuple) -> dict:
 
 
 def make_new_org_contract(form):
-    return {"name": form.name.data, "logo": form.logo.data}
+    return {
+        "name": form.name.data,
+        "logo": form.logo.data,
+        "organization_type": form.organization_type.data or None,
+    }
 
 
 # Routes
@@ -476,6 +480,7 @@ def add_organization():
             new_org = {
                 "name": form.name.data,
                 "logo": form.logo.data,
+                "organization_type": form.organization_type.data or None,
             }
             org = db.add_organization(new_org)
             if org:
