@@ -587,7 +587,7 @@ def edit_organization(org_id):
             return {"error": "Failed to update organization."}, 400
 
     org = db._to_dict(db.get_organization(org_id))
-    form = OrganizationForm(data=org)
+    form = OrganizationForm(organization_id=org_id, data=org)
     if form.validate_on_submit():
         new_org_data = make_new_org_contract(form)
         org = db.update_organization(org_id, new_org_data)

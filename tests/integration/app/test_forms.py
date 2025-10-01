@@ -21,6 +21,38 @@ class TestFormStringStripping:
         assert org.description == "A sample description"
         assert org.slug == "test-slug"
 
+    def test_add_organization_duplicate_slug_validation(
+        self, app, client, interface
+    ):
+        app.config.update({"WTF_CSRF_ENABLED": False})
+        with client.session_transaction() as sess:
+            sess["user"] = "tester@gsa.gov"
+
+        existing_org = {
+            "name": "Existing Org",
+            "logo": "https://example.com/existing.png",
+            "description": "Existing",
+            "slug": "duplicate-slug",
+        }
+
+        interface.add_organization(existing_org)
+
+        data = {
+            "name": "New Org",
+            "logo": "https://example.com/logo.png",
+            "description": "Another Org",
+            "slug": "duplicate-slug",
+        }
+
+        res = client.post("/organization/add", data=data, follow_redirects=True)
+
+        assert res.status_code == 200
+        assert b"Slug must be unique." in res.data
+
+        orgs = interface.get_all_organizations()
+        assert len(orgs) == 1
+        assert orgs[0].slug == "duplicate-slug"
+
     def test_add_harvest_source_strips_string_fields(
         self, app, client, interface, organization_data
     ):
