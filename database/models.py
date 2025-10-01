@@ -4,6 +4,7 @@ from flask_sqlalchemy import SQLAlchemy
 from geoalchemy2 import Geometry
 from sqlalchemy import CheckConstraint, Column, Enum, String, func
 from sqlalchemy.orm import DeclarativeBase, backref
+from alembic_utils.pg_materialized_view import PGMaterializedView
 
 
 class Base(DeclarativeBase):
@@ -217,3 +218,16 @@ class Locations(db.Model):
     display_name = db.Column(db.String)
     the_geom = db.Column(Geometry(geometry_type="MULTIPOLYGON"))
     type_order = db.Column(db.Integer)
+
+
+# views
+dataset_mv = PGMaterializedView(
+    schema="public",
+    signature="dataset_mv",
+    definition="""SELECT * FROM (
+                SELECT DISTINCT ON (identifier, harvest_source_id) *
+                FROM harvest_record 
+                WHERE status = 'success'
+                ORDER BY identifier, harvest_source_id, date_created DESC ) sq
+                WHERE sq.action != 'delete';""",
+)

@@ -3,7 +3,9 @@ from logging.config import fileConfig
 
 import alembic_postgresql_enum
 from alembic import context
+from alembic_utils.replaceable_entity import register_entities
 from flask import current_app
+from database.models import dataset_mv
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -159,6 +161,8 @@ def run_migrations_online():
         with context.begin_transaction():
             context.run_migrations()
 
+# register view(s)
+register_entities([dataset_mv])
 
 if context.is_offline_mode():
     run_migrations_offline()
