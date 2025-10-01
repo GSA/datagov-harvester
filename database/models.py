@@ -30,6 +30,7 @@ class Organization(db.Model):
 
     name = db.Column(db.String, nullable=False, index=True)
     logo = db.Column(db.String)
+    description = db.Column(db.Text)
     organization_type = db.Column(
         Enum(
             "Federal Government",

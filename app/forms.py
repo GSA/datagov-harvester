@@ -2,7 +2,13 @@ import os
 import re
 
 from flask_wtf import FlaskForm
-from wtforms import BooleanField, SelectField, StringField, SubmitField, TextAreaField
+from wtforms import (
+    BooleanField,
+    SelectField,
+    StringField,
+    SubmitField,
+    TextAreaField,
+)
 from wtforms.validators import URL, DataRequired, Optional, ValidationError
 
 is_prod = os.getenv("FLASK_ENV") == "production"
@@ -84,6 +90,11 @@ class OrganizationForm(FlaskForm):
         "Logo",
         validators=[DataRequired(), URL()],
         filters=[strip_filter]
+    )
+    description = TextAreaField(
+        "Description",
+        validators=[Optional()],
+        filters=[strip_filter],
     )
     organization_type = SelectField(
         "Organization Type",
