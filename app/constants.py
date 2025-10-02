@@ -1,13 +1,9 @@
-ORGANIZATION_TYPE_VALUES = (
-    "Federal Government",
-    "City Government",
-    "State Government",
-    "County Government",
-    "University",
-    "Tribal",
-    "Non-Profit",
+from shared.constants import (
+    ORGANIZATION_TYPE_SELECT_CHOICES as ORGANIZATION_TYPE_SELECT_CHOICES,
+    ORGANIZATION_TYPE_VALUES as ORGANIZATION_TYPE_VALUES,
 )
 
-ORGANIZATION_TYPE_SELECT_CHOICES = [
-    ("", "Select an organization type"),
-] + [(value, value) for value in ORGANIZATION_TYPE_VALUES]
+__all__ = [
+    "ORGANIZATION_TYPE_VALUES",
+    "ORGANIZATION_TYPE_SELECT_CHOICES",
+]

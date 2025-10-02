@@ -5,7 +5,7 @@ from geoalchemy2 import Geometry
 from sqlalchemy import CheckConstraint, Column, Enum, String, func
 from sqlalchemy.orm import DeclarativeBase, backref
 
-from app.constants import ORGANIZATION_TYPE_VALUES
+from shared.constants import ORGANIZATION_TYPE_VALUES
 
 
 class Base(DeclarativeBase):
