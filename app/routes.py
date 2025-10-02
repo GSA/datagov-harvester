@@ -336,6 +336,7 @@ def cli_add_org(name, slug, logo, id):
     }
     if id:
         org_contract["id"] = id
+
     org = db.add_organization(org_contract)
     if org:
         print(f"Added new organization with ID: {org.id}")
@@ -502,7 +503,7 @@ def add_organization():
         else:
             return make_response(jsonify({"error": "Failed to add organization."}), 400)
     else:
-        form = OrganizationForm()
+        form = OrganizationForm(db_interface=db)
         if form.validate_on_submit():
             new_org = {
                 "name": form.name.data,
@@ -612,7 +613,7 @@ def edit_organization(org_id):
             return {"error": "Failed to update organization."}, 400
 
     org = db._to_dict(db.get_organization(org_id))
-    form = OrganizationForm(organization_id=org_id, data=org)
+    form = OrganizationForm(organization_id=org_id, data=org, db_interface=db)
     if form.validate_on_submit():
         new_org_data = make_new_org_contract(form)
         org = db.update_organization(org_id, new_org_data)

@@ -45,10 +45,14 @@ class TestForms:
             "organization_type": "",
         }
 
-        res = client.post("/organization/add", data=data, follow_redirects=True)
+        res = client.post("/organization/add", data=data, follow_redirects=False)
 
-        assert res.status_code == 200
-        assert b"Slug must be unique." in res.data
+        assert res.status_code == 302
+
+        follow = client.get(res.headers["Location"], follow_redirects=True)
+        assert follow.status_code == 200
+        print(follow.data.decode())
+        assert b"Slug must be unique." in follow.data
 
         orgs = interface.get_all_organizations()
         assert len(orgs) == 1
