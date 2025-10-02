@@ -29,6 +29,7 @@ from flask import (
     url_for,
 )
 from markupsafe import escape
+from werkzeug.datastructures import MultiDict
 
 from database.interface import HarvesterDBInterface
 from harvester.lib.load_manager import LoadManager
@@ -299,16 +300,40 @@ def remove_user(email):
 ## Org management
 @org.cli.command("add")
 @click.argument("name")
+@click.option("--slug", default="", help="Slug for the organization")
 @click.option(
     "--logo",
     default="https://raw.githubusercontent.com/GSA/datagov-harvester/refs/heads/main/app/static/assets/img/placeholder-organization.png",
     help="Org Logo",
 )
 @click.option("--id", help="Org ID: should correspond to CKAN ORG ID")
-def cli_add_org(name, logo, id):
-    org_contract = {"name": name}
-    if logo:
-        org_contract["logo"] = logo
+def cli_add_org(name, slug, logo, id):
+    # let the web UI handle the validation, mostly for slug uniqueness
+    form_data = MultiDict(
+        {
+            "name": name,
+            "slug": slug,
+            "logo": logo,
+            "description": "",
+            "organization_type": "",
+        }
+    )
+
+    form = OrganizationForm(formdata=form_data, meta={"csrf": False})
+    if not form.validate():
+        click.echo("Failed to add organization.")
+        for field, errors in form.errors.items():
+            for error in errors:
+                click.echo(f" - {field}: {error}")
+        return
+
+    org_contract = {
+        "name": form.name.data,
+        "slug": form.slug.data or None,
+        "logo": form.logo.data,
+        "description": form.description.data or None,
+        "organization_type": form.organization_type.data or None,
+    }
     if id:
         org_contract["id"] = id
     org = db.add_organization(org_contract)
