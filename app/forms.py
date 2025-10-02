@@ -18,6 +18,8 @@ from wtforms.validators import (
     ValidationError,
 )
 
+from app.constants import ORGANIZATION_TYPE_SELECT_CHOICES
+
 is_prod = os.getenv("FLASK_ENV") == "production"
 
 
@@ -124,16 +126,7 @@ class OrganizationForm(FlaskForm):
 
     organization_type = SelectField(
         "Organization Type",
-        choices=[
-            ("", "Select an organization type"),
-            ("Federal Government", "Federal Government"),
-            ("City Government", "City Government"),
-            ("State Government", "State Government"),
-            ("County Government", "County Government"),
-            ("University", "University"),
-            ("Tribal", "Tribal"),
-            ("Non-Profit", "Non-Profit"),
-        ],
+        choices=ORGANIZATION_TYPE_SELECT_CHOICES,
         validators=[Optional()],
         default="",
     )

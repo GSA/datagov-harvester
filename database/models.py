@@ -5,6 +5,8 @@ from geoalchemy2 import Geometry
 from sqlalchemy import CheckConstraint, Column, Enum, String, func
 from sqlalchemy.orm import DeclarativeBase, backref
 
+from app.constants import ORGANIZATION_TYPE_VALUES
+
 
 class Base(DeclarativeBase):
     __abstract__ = True  # Indicates that this class should not be created as a table
@@ -34,13 +36,7 @@ class Organization(db.Model):
     slug = db.Column(db.String(100), unique=True, index=True)
     organization_type = db.Column(
         Enum(
-            "Federal Government",
-            "City Government",
-            "State Government",
-            "County Government",
-            "University",
-            "Tribal",
-            "Non-Profit",
+            *ORGANIZATION_TYPE_VALUES,
             name="organization_type_enum",
             create_constraint=True,
         )
