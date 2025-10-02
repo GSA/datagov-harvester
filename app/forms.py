@@ -105,12 +105,13 @@ class OrganizationForm(FlaskForm):
     )
     slug = StringField(
         "Slug",
+        description="Slug can only contain lowercase letters, digits, and hyphens. For example: 'department-of-energy' or 'gsa'.",
         validators=[
             DataRequired(),
             Length(max=100),
             Regexp(
-                r"^[A-Za-z0-9-]*$",
-                message="Slug can only contain letters, digits, and hyphens.",
+                r"^[a-z0-9-]*$",
+                message="Slug can only contain lowercase letters, digits, and hyphens.",
             ),
         ],
         filters=[strip_filter],
