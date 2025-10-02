@@ -450,9 +450,9 @@ def make_new_record_error_contract(error: tuple) -> dict:
 def make_new_org_contract(form):
     return {
         "name": form.name.data,
+        "slug": form.slug.data,
         "logo": form.logo.data,
         "description": form.description.data or None,
-        "slug": form.slug.data or None,
         "organization_type": form.organization_type.data or None,
     }
 
@@ -481,9 +481,9 @@ def add_organization():
         if form.validate_on_submit():
             new_org = {
                 "name": form.name.data,
+                "slug": form.slug.data,
                 "logo": form.logo.data,
                 "description": form.description.data or None,
-                "slug": form.slug.data or None,
                 "organization_type": form.organization_type.data or None,
             }
             org = db.add_organization(new_org)

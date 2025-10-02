@@ -9,7 +9,14 @@ from wtforms import (
     SubmitField,
     TextAreaField,
 )
-from wtforms.validators import URL, DataRequired, Length, Optional, Regexp, ValidationError
+from wtforms.validators import (
+    URL,
+    DataRequired,
+    Length,
+    Optional,
+    Regexp,
+    ValidationError,
+)
 
 is_prod = os.getenv("FLASK_ENV") == "production"
 
@@ -108,21 +115,6 @@ class OrganizationForm(FlaskForm):
         ],
         filters=[strip_filter],
     )
-
-    def __init__(self, *args, **kwargs):
-        self.organization_id = kwargs.pop("organization_id", None)
-        super().__init__(*args, **kwargs)
-
-    def validate_slug(self, field):
-        from database.models import Organization, db
-
-        query = db.session.query(Organization.id).filter(Organization.slug == field.data)
-
-        if self.organization_id:
-            query = query.filter(Organization.id != self.organization_id)
-
-        if query.first() is not None:
-            raise ValidationError("Slug must be unique.")
     organization_type = SelectField(
         "Organization Type",
         choices=[
@@ -138,6 +130,20 @@ class OrganizationForm(FlaskForm):
         validators=[Optional()],
         default="",
     )
+
+    def __init__(self, *args, **kwargs):
+        self.organization_id = kwargs.pop("organization_id", None)
+        self.db_interface = kwargs.pop("db_interface", None)
+        super().__init__(*args, **kwargs)
+
+    def validate_slug(self, field):
+        from database.interface import HarvesterDBInterface
+
+        db_interface = self.db_interface or HarvesterDBInterface()
+        existing = db_interface.get_organization_by_slug(field.data)
+
+        if existing and existing.id != self.organization_id:
+            raise ValidationError("Slug must be unique.")
 
 
 class HarvestTriggerForm(FlaskForm):

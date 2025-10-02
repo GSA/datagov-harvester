@@ -1,4 +1,4 @@
-class TestFormStringStripping:
+class TestForms:
     def test_add_organization_strips_string_fields(self, app, client, interface):
         app.config.update({"WTF_CSRF_ENABLED": False})
         with client.session_transaction() as sess:
@@ -42,6 +42,7 @@ class TestFormStringStripping:
             "logo": "https://example.com/logo.png",
             "description": "Another Org",
             "slug": "duplicate-slug",
+            "organization_type": "",
         }
 
         res = client.post("/organization/add", data=data, follow_redirects=True)
