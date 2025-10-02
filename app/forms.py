@@ -93,6 +93,24 @@ class OrganizationForm(FlaskForm):
         validators=[DataRequired()],
         filters=[strip_filter]
     )
+    slug = StringField(
+        "Slug",
+        description=(
+            "Use lowercase letters, digits, and hyphens. "
+            "For example: 'department-of-energy' or 'gsa'."
+        ),
+        validators=[
+            DataRequired(),
+            Length(max=100),
+            Regexp(
+                r"^[a-z0-9-]*$",
+                message=(
+                    "Slug can only contain lowercase letters, digits, and hyphens."
+                ),
+            ),
+        ],
+        filters=[strip_filter],
+    )
     logo = StringField(
         "Logo",
         validators=[DataRequired(), URL()],
@@ -103,19 +121,7 @@ class OrganizationForm(FlaskForm):
         validators=[Optional()],
         filters=[strip_filter],
     )
-    slug = StringField(
-        "Slug",
-        description="Slug can only contain lowercase letters, digits, and hyphens. For example: 'department-of-energy' or 'gsa'.",
-        validators=[
-            DataRequired(),
-            Length(max=100),
-            Regexp(
-                r"^[a-z0-9-]*$",
-                message="Slug can only contain lowercase letters, digits, and hyphens.",
-            ),
-        ],
-        filters=[strip_filter],
-    )
+
     organization_type = SelectField(
         "Organization Type",
         choices=[

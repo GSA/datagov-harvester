@@ -10,7 +10,12 @@
     {{ form.hidden_tag() }}
     {% for field in form if field.widget.input_type != 'hidden' %}
     <div class="form-group">
-        {{field.label(class_='form-control-label')}}
+        <label for="{{ field.id }}" class="form-control-label">
+            {{ field.label.text }}
+            {% if field.flags.required %}
+                <span class="text-danger">*</span>
+            {% endif %}
+        </label>
         {% if data_type == "Harvest Source" and action == "Edit" and field.id == 'name' %}
             {{field(class_='form-control', readonly_=true)}}
         {% else %}
