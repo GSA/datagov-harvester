@@ -13,13 +13,13 @@
         <label for="{{ field.id }}" class="form-control-label">
             {{ field.label.text }}
             {% if field.flags.required %}
-                <span class="text-danger">*</span>
+                <span class="text-danger" aria-hidden="true">*</span>
             {% endif %}
         </label>
         {% if data_type == "Harvest Source" and action == "Edit" and field.id == 'name' %}
-            {{field(class_='form-control', readonly_=true)}}
+            {{field(class_='form-control', readonly_=true, aria_label=field.label.text)}}
         {% else %}
-            {{field(class_='form-control')}}
+            {{field(class_='form-control', aria_label=field.label.text)}}
         {% endif %}
         {% if field.description %}
             <small class="form-text text-muted">{{ field.description }}</small>
