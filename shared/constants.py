@@ -1,3 +1,5 @@
+# NOTE: Keep this file in sync between datagov-harvester and datagov-catalog
+
 ORGANIZATION_TYPE_VALUES = (
     "Federal Government",
     "City Government",

@@ -1,8 +1,8 @@
 """Add description and slug columns to organization
 
 Revision ID: 7a5d0b40bd85
-Revises: 1800d355e5b9
-Create Date: 2025-10-01 12:00:00.000000
+Revises: 9ab0a6c4b25a
+Create Date: 2025-10-03 12:00:00.000000
 
 """
 
@@ -12,7 +12,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = "7a5d0b40bd85"
-down_revision = "416319f5e5bb"
+down_revision = "9ab0a6c4b25a"
 branch_labels = None
 depends_on = None
 
@@ -29,4 +29,3 @@ def downgrade():
         batch_op.drop_constraint("uq_organization_slug", type_="unique")
         batch_op.drop_column("slug")
         batch_op.drop_column("description")
-

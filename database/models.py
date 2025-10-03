@@ -1,3 +1,5 @@
+# NOTE: Keep this file in sync between datagov-harvester and datagov-catalog
+
 import uuid
 
 from flask_sqlalchemy import SQLAlchemy
