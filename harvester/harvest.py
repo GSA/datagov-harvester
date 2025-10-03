@@ -721,6 +721,7 @@ class Record:
                 self.transform()
                 self.add_parent()
                 self.fill_placeholders()
+                self._save_transformed_data()
             self.validate()
             self.sync()
         except (
@@ -888,6 +889,22 @@ class Record:
             _guess_better_url_in_item(dist_item, "accessURL")
             if not self.is_valid_describedByType(dist_item.get("describedByType", "")):
                 dist_item["describedByType"] = "application/octet-steam"
+
+    def _save_transformed_data(self) -> None:
+        if self.transformed_data is None or self.id is None:
+            return
+
+        try:
+            self.harvest_source.db_interface.update_harvest_record(
+                self.id,
+                {"source_transform": self.transformed_data},
+            )
+        except Exception as e:
+            logger.error(
+                "Failed to persist source_transform for record %s: %s",
+                self.id,
+                repr(e),
+            )
 
     def _report_error(self, e):
         """Report an exception to the database.
