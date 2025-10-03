@@ -5,9 +5,8 @@ import uuid
 from flask_sqlalchemy import SQLAlchemy
 from geoalchemy2 import Geometry
 from sqlalchemy import CheckConstraint, Column, Enum, String, func
-from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import DeclarativeBase, backref
 from sqlalchemy.dialects.postgresql import JSONB, TSVECTOR
+from sqlalchemy.orm import DeclarativeBase, backref
 
 from shared.constants import ORGANIZATION_TYPE_VALUES
 
@@ -197,7 +196,7 @@ class Dataset(db.Model):
     slug = db.Column(db.String, nullable=False)
 
     # This is all of the details of the dataset in DCAT schema in a JSON column
-    dcat = db.Column(JSONB , nullable=False)
+    dcat = db.Column(JSONB, nullable=False)
 
     # JOIN other tables at query time if we need the source and organization
     # harvest_source is dataset.record.source
