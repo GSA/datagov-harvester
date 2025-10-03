@@ -1,7 +1,7 @@
 """Add source_transform to harvest_record
 
 Revision ID: 9ab0a6c4b25a
-Revises: a6aa1afd27b7
+Revises: 416319f5e5bb
 Create Date: 2025-09-22 00:00:00.000000
 
 """
@@ -12,7 +12,7 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision = "9ab0a6c4b25a"
-down_revision = "a6aa1afd27b7"
+down_revision = "416319f5e5bb"
 branch_labels = None
 depends_on = None
 
