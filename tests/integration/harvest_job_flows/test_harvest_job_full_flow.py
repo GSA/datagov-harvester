@@ -141,6 +141,15 @@ class TestHarvestJobFullFlow:
         assert len(harvest_job.record_errors) == 3
         assert harvest_job.records_errored == 3
 
+        successful_records = [
+            record for record in harvest_job.records if record.status == "success"
+        ]
+
+        assert successful_records  # at least one record should have succeeded
+        for record in successful_records:
+            assert isinstance(record.source_transform, dict)
+            assert record.source_transform.get("identifier")
+
         # assert error insertion order
         errors = interface.get_harvest_record_errors_by_job(job_id)
         # the first doc ("decode_error.xml") throws a decoding error and since we can't fetch the doc
