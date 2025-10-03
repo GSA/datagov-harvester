@@ -6,11 +6,11 @@ Create Date: 2025-09-23 14:46:49.235190
 
 """
 
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 from alembic_postgresql_enum import TableReference
-from migrations.utils import get_terminate_processes_sql_cmd
 
+from migrations.utils import get_terminate_processes_sql_cmd
 
 # revision identifiers, used by Alembic.
 revision = "e75e287e2251"

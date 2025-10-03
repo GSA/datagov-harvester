@@ -2,13 +2,7 @@ import os
 import re
 
 from flask_wtf import FlaskForm
-from wtforms import (
-    BooleanField,
-    SelectField,
-    StringField,
-    SubmitField,
-    TextAreaField,
-)
+from wtforms import BooleanField, SelectField, StringField, SubmitField, TextAreaField
 from wtforms.validators import (
     URL,
     DataRequired,
@@ -47,15 +41,11 @@ class HarvestSourceForm(FlaskForm):
     organization_id = SelectField(
         "Organization", choices=[], validators=[DataRequired()]
     )
-    name = StringField(
-        "Name",
-        validators=[DataRequired()],
-        filters=[strip_filter]
-    )
+    name = StringField("Name", validators=[DataRequired()], filters=[strip_filter])
     url = StringField(
         "URL",
         validators=[DataRequired(), URL(require_tld=is_prod)],
-        filters=[strip_filter]
+        filters=[strip_filter],
     )
     notification_emails = EmailListField(
         "Notification_emails", validators=[DataRequired(), validate_email_list]
@@ -90,11 +80,7 @@ class HarvestSourceForm(FlaskForm):
 
 
 class OrganizationForm(FlaskForm):
-    name = StringField(
-        "Name",
-        validators=[DataRequired()],
-        filters=[strip_filter]
-    )
+    name = StringField("Name", validators=[DataRequired()], filters=[strip_filter])
     slug = StringField(
         "Slug",
         description=(
@@ -114,9 +100,7 @@ class OrganizationForm(FlaskForm):
         filters=[strip_filter],
     )
     logo = StringField(
-        "Logo",
-        validators=[DataRequired(), URL()],
-        filters=[strip_filter]
+        "Logo", validators=[DataRequired(), URL()], filters=[strip_filter]
     )
     description = TextAreaField(
         "Description",
