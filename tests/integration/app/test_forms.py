@@ -21,9 +21,7 @@ class TestForms:
         assert org.description == "A sample description"
         assert org.slug == "test-slug"
 
-    def test_add_organization_duplicate_slug_validation(
-        self, app, client, interface
-    ):
+    def test_add_organization_duplicate_slug_validation(self, app, client, interface):
         app.config.update({"WTF_CSRF_ENABLED": False})
         with client.session_transaction() as sess:
             sess["user"] = "tester@gsa.gov"

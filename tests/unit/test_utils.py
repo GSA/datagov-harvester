@@ -6,10 +6,12 @@ from unittest.mock import Mock, call, patch
 
 import pytest
 import requests
+from ckanapi.errors import CKANAPIError
 from jsonschema import Draft202012Validator, FormatChecker
 from requests.exceptions import ConnectionError
 
 from database.models import HarvestSource
+from harvester.exceptions import SynchronizeException
 from harvester.utils.ckan_utils import (
     CKANSyncTool,
     create_ckan_extras,
@@ -36,8 +38,6 @@ from harvester.utils.general_utils import (
     traverse_waf,
     validate_geojson,
 )
-from ckanapi.errors import CKANAPIError
-from harvester.exceptions import SynchronizeException
 
 
 class TestCKANUtils:
@@ -930,7 +930,9 @@ class TestCKANSyncToolAPIError:
         mock_remote_ckan.return_value = mock_ckan_instance
         large_body = "Asdf" * 1000
         error_tuple_str = str(("http://ckan/api/action/dataset_purge", 500, large_body))
-        mock_ckan_instance.action.dataset_purge.side_effect = CKANAPIError(error_tuple_str)
+        mock_ckan_instance.action.dataset_purge.side_effect = CKANAPIError(
+            error_tuple_str
+        )
 
         # minimal record stub for delete path to avoid ckanify step
         class RecordStub:

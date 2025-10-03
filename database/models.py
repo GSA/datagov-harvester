@@ -5,7 +5,7 @@ import uuid
 from flask_sqlalchemy import SQLAlchemy
 from geoalchemy2 import Geometry
 from sqlalchemy import CheckConstraint, Column, Enum, String, func
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import JSONB, TSVECTOR
 from sqlalchemy.orm import DeclarativeBase, backref
 
 from shared.constants import ORGANIZATION_TYPE_VALUES
@@ -184,6 +184,30 @@ class HarvestRecord(db.Model):
     parent_identifier = db.Column(db.String)
     status = db.Column(Enum("error", "success", name="record_status"), index=True)
     errors = db.relationship("HarvestRecordError", backref="record", lazy=True)
+    datasets = db.relationship("Dataset", backref="record", lazy=True)
+
+
+class Dataset(db.Model):
+    __tablename__ = "dataset"
+
+    # Base has a string `id` column that is uuid by default
+
+    # slug is the string that we use in a URL for this dataset
+    slug = db.Column(db.String, nullable=False)
+
+    # This is all of the details of the dataset in DCAT schema in a JSON column
+    dcat = db.Column(JSONB, nullable=False)
+
+    # JOIN other tables at query time if we need the source and organization
+    # harvest_source is dataset.record.source
+    # organization is dataset.record.source.org
+    harvest_record_id = db.Column(
+        db.String(36), db.ForeignKey("harvest_record.id"), nullable=False
+    )
+
+    popularity = db.Column(db.Numeric)
+    last_harvested_date = db.Column(db.DateTime)
+    search_vector = db.Column(TSVECTOR)
 
 
 class HarvestJobError(Error):
