@@ -1,3 +1,5 @@
+# NOTE: Keep this file in sync between datagov-harvester and datagov-catalog
+
 import uuid
 
 from flask_sqlalchemy import SQLAlchemy
@@ -5,6 +7,8 @@ from geoalchemy2 import Geometry
 from sqlalchemy import CheckConstraint, Column, Enum, String, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, backref
+
+from shared.constants import ORGANIZATION_TYPE_VALUES
 
 
 class Base(DeclarativeBase):
@@ -31,15 +35,11 @@ class Organization(db.Model):
 
     name = db.Column(db.String, nullable=False, index=True)
     logo = db.Column(db.String)
+    description = db.Column(db.Text)
+    slug = db.Column(db.String(100), unique=True, index=True)
     organization_type = db.Column(
         Enum(
-            "Federal Government",
-            "City Government",
-            "State Government",
-            "County Government",
-            "University",
-            "Tribal",
-            "Non-Profit",
+            *ORGANIZATION_TYPE_VALUES,
             name="organization_type_enum",
             create_constraint=True,
         )

@@ -2,8 +2,23 @@ import os
 import re
 
 from flask_wtf import FlaskForm
-from wtforms import BooleanField, SelectField, StringField, SubmitField, TextAreaField
-from wtforms.validators import URL, DataRequired, ValidationError
+from wtforms import (
+    BooleanField,
+    SelectField,
+    StringField,
+    SubmitField,
+    TextAreaField,
+)
+from wtforms.validators import (
+    URL,
+    DataRequired,
+    Length,
+    Optional,
+    Regexp,
+    ValidationError,
+)
+
+from app.constants import ORGANIZATION_TYPE_SELECT_CHOICES
 
 is_prod = os.getenv("FLASK_ENV") == "production"
 
@@ -80,11 +95,55 @@ class OrganizationForm(FlaskForm):
         validators=[DataRequired()],
         filters=[strip_filter]
     )
+    slug = StringField(
+        "Slug",
+        description=(
+            "Use lowercase letters, digits, and hyphens. "
+            "For example: 'department-of-energy' or 'gsa'."
+        ),
+        validators=[
+            DataRequired(),
+            Length(max=100),
+            Regexp(
+                r"^[a-z0-9-]*$",
+                message=(
+                    "Slug can only contain lowercase letters, digits, and hyphens."
+                ),
+            ),
+        ],
+        filters=[strip_filter],
+    )
     logo = StringField(
         "Logo",
         validators=[DataRequired(), URL()],
         filters=[strip_filter]
     )
+    description = TextAreaField(
+        "Description",
+        validators=[Optional()],
+        filters=[strip_filter],
+    )
+
+    organization_type = SelectField(
+        "Organization Type",
+        choices=ORGANIZATION_TYPE_SELECT_CHOICES,
+        validators=[Optional()],
+        default="",
+    )
+
+    def __init__(self, *args, **kwargs):
+        self.organization_id = kwargs.pop("organization_id", None)
+        self.db_interface = kwargs.pop("db_interface", None)
+        super().__init__(*args, **kwargs)
+
+    def validate_slug(self, field):
+        from database.interface import HarvesterDBInterface
+
+        db_interface = self.db_interface or HarvesterDBInterface()
+        existing = db_interface.get_organization_by_slug(field.data)
+
+        if existing and existing.id != self.organization_id:
+            raise ValidationError("Slug must be unique.")
 
 
 class HarvestTriggerForm(FlaskForm):

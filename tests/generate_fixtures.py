@@ -20,6 +20,8 @@ def generate_dynamic_fixtures() -> Dict[str, Any]:
             {
                 "name": "Test Org",
                 "logo": "https://raw.githubusercontent.com/GSA/datagov-harvester/refs/heads/main/app/static/assets/img/placeholder-organization.png",
+                "description": "Fixture org description",
+                "slug": "fixture-org",
                 "organization_type": "Federal Government",
                 "id": "d925f84d-955b-4cb7-812f-dcfd6681a18f",
             }
