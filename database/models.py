@@ -184,7 +184,6 @@ class HarvestRecord(db.Model):
     parent_identifier = db.Column(db.String)
     status = db.Column(Enum("error", "success", name="record_status"), index=True)
     errors = db.relationship("HarvestRecordError", backref="record", lazy=True)
-    datasets = db.relationship("Dataset", backref="record", lazy=True)
 
 
 class Dataset(db.Model):
