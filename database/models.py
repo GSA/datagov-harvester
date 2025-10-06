@@ -5,7 +5,7 @@ import uuid
 from flask_sqlalchemy import SQLAlchemy
 from geoalchemy2 import Geometry
 from sqlalchemy import CheckConstraint, Column, Enum, String, func
-from sqlalchemy.dialects.postgresql import JSONB, TSVECTOR
+from sqlalchemy.dialects.postgresql import JSONB, TSVECTOR, UUID
 from sqlalchemy.orm import DeclarativeBase, backref
 
 from shared.constants import ORGANIZATION_TYPE_VALUES
@@ -193,16 +193,32 @@ class Dataset(db.Model):
     # Base has a string `id` column that is uuid by default
 
     # slug is the string that we use in a URL for this dataset
-    slug = db.Column(db.String, nullable=False)
+    slug = db.Column(
+        db.String,
+        nullable=False,
+        index=True,
+        unique=True
+    )
 
     # This is all of the details of the dataset in DCAT schema in a JSON column
     dcat = db.Column(JSONB, nullable=False)
 
-    # JOIN other tables at query time if we need the source and organization
-    # harvest_source is dataset.record.source
-    # organization is dataset.record.source.org
+    organization_id = db.Column(
+        UUID(as_uuid=True),
+        nullable=False,
+        index=True,
+    )
+
+    harvest_source_id = db.Column(
+        UUID(as_uuid=True),
+        nullable=False,
+        index=True,
+    )
+
     harvest_record_id = db.Column(
-        db.String(36), db.ForeignKey("harvest_record.id"), nullable=False
+        UUID(as_uuid=True),
+        nullable=False,
+        index=True,
     )
 
     popularity = db.Column(db.Numeric)
