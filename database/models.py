@@ -240,7 +240,10 @@ class Dataset(db.Model):
     )
 
     popularity = db.Column(db.Numeric)
-    last_harvested_date = db.Column(db.DateTime)
+    last_harvested_date = db.Column(
+        db.DateTime,
+        index=True
+    )
     search_vector = db.Column(TSVECTOR)
 
     __table_args__ = (
