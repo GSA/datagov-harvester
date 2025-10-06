@@ -203,19 +203,19 @@ class Dataset(db.Model):
     dcat = db.Column(JSONB, nullable=False)
 
     organization_id = db.Column(
-        UUID(as_uuid=True),
+        db.String(36),
         nullable=False,
         index=True,
     )
 
     harvest_source_id = db.Column(
-        UUID(as_uuid=True),
+        db.String(36),
         nullable=False,
         index=True,
     )
 
     harvest_record_id = db.Column(
-        UUID(as_uuid=True),
+        db.String(36),
         nullable=False,
         index=True,
     )
