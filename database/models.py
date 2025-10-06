@@ -50,6 +50,11 @@ class Organization(db.Model):
         cascade="all, delete-orphan",
         lazy=True,
     )
+    datasets = db.relationship(
+        "Dataset",
+        backref=backref("organization", lazy="joined"),
+        cascade="all, delete-orphan",
+    )
 
 
 class HarvestSource(db.Model):
@@ -112,6 +117,11 @@ class HarvestSource(db.Model):
         nullable=False,
     )
     collection_parent_url = db.Column(db.String)
+    datasets = db.relationship(
+        "Dataset",
+        backref="harvest_source",
+        cascade="all, delete-orphan",
+    )
 
 
 class HarvestJob(db.Model):
@@ -184,6 +194,12 @@ class HarvestRecord(db.Model):
     parent_identifier = db.Column(db.String)
     status = db.Column(Enum("error", "success", name="record_status"), index=True)
     errors = db.relationship("HarvestRecordError", backref="record", lazy=True)
+    datasets = db.relationship(
+        "Dataset",
+        backref="record",
+        cascade="all, delete-orphan",
+        lazy=True,
+    )
 
 
 class Dataset(db.Model):
@@ -204,18 +220,21 @@ class Dataset(db.Model):
 
     organization_id = db.Column(
         db.String(36),
+        db.ForeignKey('organization.id', ondelete='CASCADE'),
         nullable=False,
         index=True,
     )
 
     harvest_source_id = db.Column(
         db.String(36),
+        db.ForeignKey('harvest_source.id', ondelete='CASCADE'),
         nullable=False,
         index=True,
     )
 
     harvest_record_id = db.Column(
         db.String(36),
+        db.ForeignKey('harvest_record.id', ondelete='CASCADE'),
         nullable=False,
         index=True,
     )
