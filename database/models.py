@@ -4,7 +4,7 @@ import uuid
 
 from flask_sqlalchemy import SQLAlchemy
 from geoalchemy2 import Geometry
-from sqlalchemy import CheckConstraint, Column, Enum, String, func
+from sqlalchemy import CheckConstraint, Column, Enum, String, func, Index
 from sqlalchemy.dialects.postgresql import JSONB, TSVECTOR
 from sqlalchemy.orm import DeclarativeBase, backref
 
@@ -242,6 +242,10 @@ class Dataset(db.Model):
     popularity = db.Column(db.Numeric)
     last_harvested_date = db.Column(db.DateTime)
     search_vector = db.Column(TSVECTOR)
+
+    __table_args__ = (
+        Index("ix_dataset_search_vector", "search_vector", postgresql_using="gin"),
+    )
 
 
 class HarvestJobError(Error):
