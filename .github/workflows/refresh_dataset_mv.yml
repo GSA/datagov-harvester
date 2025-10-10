@@ -24,7 +24,7 @@ jobs:
         with:
           command: >
             cf run-task datagov-harvest --name refresh_dataset_mv
-            --command "python scripts/refresh_dataset_mv.py""
+            --command "python scripts/refresh_dataset_mv.py"
           cf_org: gsa-datagov
           cf_space: ${{ inputs.environment }}
           cf_username: ${{secrets.CF_SERVICE_USER}}
