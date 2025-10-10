@@ -1,17 +1,18 @@
 permissions:
   contents: read
-  
+
 name: Refresh "dataset" materialized view
 
 on:
   workflow_dispatch:
-    inputs: 
+    inputs:
       environment:
-        description: 'cf environment'
+        description: "cf environment"
         required: true
-        default: 'development' # TODO: pinning to dev. change to "choice"
+        default: "development" # TODO: pinning to dev. change to "choice"
 
-run-refresh:
+jobs:
+  run-refresh:
     runs-on: ubuntu-latest
     name: Refresh dataset mv
     steps:
