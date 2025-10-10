@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 from functools import wraps
 from typing import List
 
-from sqlalchemy import asc, desc, func, inspect
+from sqlalchemy import asc, desc, func, inspect, text
 from sqlalchemy.exc import NoResultFound
 from sqlalchemy.orm import aliased
 
@@ -802,6 +802,25 @@ class HarvesterDBInterface:
         return self.pget_db_query(
             model="harvest_records", facets=facet_string, order_by=order_by, **kwargs
         )
+
+    def refresh_dataset_mv(self):
+        try:
+            self.db.execute(
+                text(
+                    """
+                    DO $$
+                    BEGIN
+                        IF EXISTS (SELECT 1 FROM pg_class WHERE relname = 'dataset' AND relkind = 'm') THEN
+                            REFRESH MATERIALIZED VIEW CONCURRENTLY dataset;
+                        END IF;
+                    END $$;
+                """
+                )
+            )
+            self.db.commit()
+        except Exception as e:
+            logger.error("Error: %s", e)
+            self.db.rollback()
 
 
 def order_by_helper(model, order_by):
