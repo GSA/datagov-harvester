@@ -1,0 +1,29 @@
+permissions:
+  contents: read
+  
+name: Refresh "dataset" materialized view
+
+on:
+  workflow_dispatch:
+    inputs: 
+      environment:
+        description: 'cf environment'
+        required: true
+        default: 'development' # TODO: pinning to dev. change to "choice"
+
+run-refresh:
+    runs-on: ubuntu-latest
+    name: Refresh dataset mv
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v4
+      - name: run task
+        uses: cloud-gov/cg-cli-tools@main
+        with:
+          command: >
+            cf run-task datagov-harvest --name refresh_dataset_mv
+            --command "python scripts/refresh_dataset_mv.py""
+          cf_org: gsa-datagov
+          cf_space: ${{ inputs.environment }}
+          cf_username: ${{secrets.CF_SERVICE_USER}}
+          cf_password: ${{secrets.CF_SERVICE_AUTH}}
