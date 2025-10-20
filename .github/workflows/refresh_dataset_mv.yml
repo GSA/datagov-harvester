@@ -10,6 +10,8 @@ on:
         description: "cf environment"
         required: true
         default: "development" # TODO: pinning to dev. change to "choice"
+  schedule:
+    - cron: "0 11 * * *" # every day at 6:00am EST
 
 jobs:
   run-refresh:
