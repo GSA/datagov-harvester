@@ -1038,10 +1038,6 @@ def harvest_job_starter(job_id, job_type="harvest"):
 
     logger.info(f"Harvest job completed for JobId: {job_id}")
 
-    logger.info("Refreshing 'dataset' materialized view")
-    # refresh "dataset" materialized view
-    harvest_source.db_interface.refresh_dataset_mv()
-
     # close the db connection after job to prevent persistent open connections
     harvest_source.db_interface.close()
 
