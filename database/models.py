@@ -7,6 +7,7 @@ from geoalchemy2 import Geometry
 from sqlalchemy import CheckConstraint, Column, Enum, String, func, Index
 from sqlalchemy.dialects.postgresql import JSONB, TSVECTOR
 from sqlalchemy.orm import DeclarativeBase, backref
+from sqlalchemy.ext.mutable import MutableDict
 
 from shared.constants import ORGANIZATION_TYPE_VALUES
 
@@ -200,7 +201,9 @@ class Dataset(db.Model):
     )
 
     # This is all of the details of the dataset in DCAT schema in a JSON column
-    dcat = db.Column(JSONB, nullable=False)
+    # make it mutable so that in-place mutations (e.g.,
+    # dcat["spatial"] = "...", for tests) are tracked
+    dcat = db.Column(MutableDict.as_mutable(JSONB), nullable=False)
 
     organization_id = db.Column(
         db.String(36),
