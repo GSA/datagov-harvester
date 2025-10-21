@@ -201,7 +201,8 @@ class Dataset(db.Model):
     )
 
     # This is all of the details of the dataset in DCAT schema in a JSON column
-    # make it mutable so that in-place mutations (e.g., dcat["spatial"] = "...", for tests) are tracked
+    # make it mutable so that in-place mutations (e.g.,
+    # dcat["spatial"] = "...", for tests) are tracked
     dcat = db.Column(MutableDict.as_mutable(JSONB), nullable=False)
 
     organization_id = db.Column(
