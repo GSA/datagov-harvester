@@ -242,6 +242,13 @@ class DatasetViewCount(db.Model):
     view_count = db.Column(db.Integer, nullable=False, default=0)
 
 
+class ResourceViewCount(db.Model):
+    __tablename__ = "resource_view_count"
+    # url from Google Analytics resource path is truncated to 100 characters
+    resource_url = db.Column(db.String(100), nullable=False, unique=True, index=True)
+    view_count = db.Column(db.Integer, nullable=False, default=0)
+
+
 class HarvestJobError(Error):
     __tablename__ = "harvest_job_error"
 
