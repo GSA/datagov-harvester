@@ -235,6 +235,13 @@ class Dataset(db.Model):
     )
 
 
+class DatasetViewCount(db.Model):
+    __tablename__ = "dataset_view_count"
+
+    dataset_slug = db.Column(db.String(100), nullable=False, unique=True, index=True)
+    view_count = db.Column(db.Integer, nullable=False, default=0)
+
+
 class HarvestJobError(Error):
     __tablename__ = "harvest_job_error"
 
