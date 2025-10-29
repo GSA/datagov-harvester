@@ -265,3 +265,10 @@ class Locations(db.Model):
     display_name = db.Column(db.String)
     the_geom = db.Column(Geometry(geometry_type="MULTIPOLYGON"))
     type_order = db.Column(db.Integer)
+
+
+class DatasetViewCount(db.Model):
+    __tablename__ = "dataset_view_count"
+
+    dataset_slug = db.Column(db.String(100), nullable=False, unique=True, index=True)
+    view_count = db.Column(db.Integer, nullable=False, default=0)

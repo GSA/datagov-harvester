@@ -6,10 +6,12 @@ from typing import List
 from sqlalchemy import asc, desc, func, inspect, text
 from sqlalchemy.exc import NoResultFound
 from sqlalchemy.orm import aliased
+from sqlalchemy.dialects.postgresql import insert
 
 from harvester.utils.general_utils import query_filter_builder
 
 from .models import (
+    DatasetViewCount,
     HarvestJob,
     HarvestJobError,
     HarvestRecord,
@@ -817,6 +819,25 @@ class HarvesterDBInterface:
                 """
                 )
             )
+            self.db.commit()
+        except Exception as e:
+            logger.error("Error: %s", e)
+            self.db.rollback()
+
+    def upsert_view_counts_of_datasets(self, datasets):
+        """
+        used by scripts/update_dataset_view_count.py in monthly github action. data
+        comes from google analytics.
+        """
+        stmt = insert(DatasetViewCount).values(datasets)
+
+        on_conflict_stmt = stmt.on_conflict_do_update(
+            index_elements=["dataset_slug"],
+            set_=dict(view_count=stmt.excluded.view_count),
+        )
+
+        try:
+            self.db.execute(on_conflict_stmt)
             self.db.commit()
         except Exception as e:
             logger.error("Error: %s", e)
