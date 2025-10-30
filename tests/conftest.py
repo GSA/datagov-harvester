@@ -1232,3 +1232,12 @@ def sync_manager(mock_db_interface):
         manager.session = Mock()
         manager.ckan_tool = Mock()
         return manager
+
+
+@pytest.fixture
+def view_count_datasets():
+    return [
+        {"dataset_slug": "b", "view_count": 5},
+        {"dataset_slug": "c", "view_count": 10},
+        {"dataset_slug": "d", "view_count": 1},
+    ]
