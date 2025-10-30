@@ -13,6 +13,9 @@ function vcap_get_service () {
 
 export APP_NAME=$(echo $VCAP_APPLICATION | jq -r '.application_name')
 
+# GA (google analytics)
+export GA_CREDENTIALS==$(vcap_get_service secrets .credentials.GA_CREDENTIALS)
+
 # POSTGRES DB CREDS
 export URI=$(vcap_get_service db .credentials.uri)
 export DATABASE_URI=$(echo $URI | sed 's/postgres:\/\//postgresql+psycopg:\/\//g')
