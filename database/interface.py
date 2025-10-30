@@ -834,7 +834,14 @@ class HarvesterDBInterface:
 
         try:
             self.db.execute(text("TRUNCATE TABLE dataset_view_count"))
-            self.db.execute(insert(DatasetViewCount).values(datasets))
+
+            # postgres caps query parameters to signed 2**16
+            # going with half (roughly 5000*3)
+            size = 5000
+            while datasets:
+                self.db.execute(insert(DatasetViewCount).values(datasets[:size]))
+                datasets = datasets[size:]
+
             self.db.commit()
         except Exception as e:
             logger.error("Error: %s", e)

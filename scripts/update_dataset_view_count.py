@@ -88,6 +88,8 @@ def get_view_counts_of_datasets() -> list[dict]:
         "offset": offset,
     }
 
+    processed = set()
+
     while True:
         response = properties.runReport(property=GA4_PROPERTY_ID, body=report).execute()
 
@@ -95,13 +97,20 @@ def get_view_counts_of_datasets() -> list[dict]:
             break
 
         for row in response["rows"]:
+            # slice off '/dataset/' to get slug
+            slug = row["dimensionValues"][0]["value"][9:]
+            slug = slug[:100]  # model field caps at 100
+
+            if slug in processed:  # skip duplicates
+                continue
+
             output.append(
                 {
-                    # slice off '/dataset/' to get slug
-                    "dataset_slug": row["dimensionValues"][0]["value"][9:],
+                    "dataset_slug": slug,
                     "view_count": int(row["metricValues"][0]["value"]),
                 }
             )
+            processed.add(slug)
 
         offset += page_size
         report["offset"] = offset
