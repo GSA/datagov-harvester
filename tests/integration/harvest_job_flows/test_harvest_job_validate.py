@@ -1,5 +1,4 @@
 import os
-from unittest.mock import patch
 
 from harvester.harvest import harvest_job_starter
 
@@ -7,18 +6,12 @@ HARVEST_SOURCE_URL = os.getenv("HARVEST_SOURCE_URL")
 
 
 class TestHarvestJobValidate:
-    @patch("harvester.harvest.ckan_sync_tool.ckan")
     def test_validate_single_valid_record(
         self,
-        CKANMock,
         interface,
         organization_data,
         source_data_dcatus_single_record,
     ):
-        CKANMock.action.package_create.return_value = {"id": 1234}
-        CKANMock.action.package_update = "ok"
-        CKANMock.action.dataset_purge = "ok"
-
         interface.add_organization(organization_data)
         interface.add_harvest_source(source_data_dcatus_single_record)
         harvest_job = interface.add_harvest_job(
@@ -39,18 +32,12 @@ class TestHarvestJobValidate:
         assert harvest_job.records_added == 0
         assert harvest_job.records_validated == 1
 
-    @patch("harvester.harvest.ckan_sync_tool.ckan")
     def test_validate_single_invalid_record(
         self,
-        CKANMock,
         interface,
         organization_data,
         source_data_dcatus_invalid,
     ):
-        CKANMock.action.package_create.return_value = {"id": 1234}
-        CKANMock.action.package_update = "ok"
-        CKANMock.action.dataset_purge = "ok"
-
         interface.add_organization(organization_data)
         interface.add_harvest_source(source_data_dcatus_invalid)
         harvest_job = interface.add_harvest_job(

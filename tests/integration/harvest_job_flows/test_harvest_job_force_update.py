@@ -1,13 +1,9 @@
-from unittest.mock import patch
-
 from harvester.harvest import harvest_job_starter
 
 
 class TestHarvestJobSync:
-    @patch("harvester.harvest.ckan_sync_tool.ckan")
     def test_harvest_job_force_update(
         self,
-        CKANMock,
         interface,
         organization_data,
         source_data_dcatus,
@@ -17,10 +13,6 @@ class TestHarvestJobSync:
         of code changes when we want to update all datasets,
         not just those that have changed
         """
-
-        CKANMock.action.package_create.return_value = {"id": 1234}
-        CKANMock.action.package_update.return_value = "ok"
-
         interface.add_organization(organization_data)
         interface.add_harvest_source(source_data_dcatus)
 
@@ -42,8 +34,6 @@ class TestHarvestJobSync:
 
         assert len(job_err) == 0
         assert len(record_err) == 0
-
-        assert CKANMock.action.package_create.call_count == 7
 
         assert harvest_job.status == "complete"
         assert harvest_job.records_added == 7
@@ -73,8 +63,6 @@ class TestHarvestJobSync:
         # assert all records are resynced.
         assert len(job_err) == 0
         assert len(record_err) == 0
-
-        assert CKANMock.action.package_create.call_count == 7
 
         assert harvest_job.status == "complete"
         assert harvest_job.records_added == 0
