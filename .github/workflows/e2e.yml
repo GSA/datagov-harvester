@@ -16,7 +16,6 @@ jobs:
     name: Playwright
     environment: development
     env:
-        CKAN_API_TOKEN_DEV: ${{secrets.CKAN_API_TOKEN_DEV}}
         CF_SERVICE_USER: ${{secrets.CF_SERVICE_USER}}
         CF_SERVICE_AUTH: ${{secrets.CF_SERVICE_AUTH}}
         HARVEST_RUNNER_APP_GUID: ${{secrets.HARVEST_RUNNER_APP_GUID}}
