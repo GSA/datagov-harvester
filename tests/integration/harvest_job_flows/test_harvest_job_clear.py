@@ -1,21 +1,15 @@
 from unittest.mock import patch
 
-from harvester.harvest import HarvestSource, ckan_sync_tool, harvest_job_starter
+from harvester.harvest import HarvestSource, harvest_job_starter
 
 
 class TestHarvestJobClear:
-    @patch("harvester.harvest.ckan_sync_tool.ckan")
     def test_harvest_job_clear(
         self,
-        CKANMock,
         interface,
         organization_data,
         source_data_dcatus,
     ):
-        CKANMock.action.package_create.return_value = {"id": 1234}
-        CKANMock.action.dataset_purge.return_value = {"ok"}
-        CKANMock.action.package_update = "ok"
-
         interface.add_organization(organization_data)
         interface.add_harvest_source(source_data_dcatus)
         harvest_job = interface.add_harvest_job(
@@ -32,8 +26,6 @@ class TestHarvestJobClear:
         harvest_job = interface.get_harvest_job(job_id)
         assert harvest_job.status == "complete"
         assert harvest_job.records_added == 7
-        # - 1 ckan call from close_conection
-        assert len(CKANMock.method_calls) - 1 == harvest_job.records_added
         records_from_db = interface.get_latest_harvest_records_by_source(
             source_data_dcatus["id"]
         )
@@ -56,9 +48,6 @@ class TestHarvestJobClear:
         harvest_job = interface.get_harvest_job(job_id)
         assert harvest_job.status == "complete"
         assert harvest_job.records_deleted == 7
-        # 9 = 7 package creates + 1 close connection on harvest
-        # + 1 close connection on clear
-        assert len(CKANMock.method_calls) - 9 == harvest_job.records_deleted
         records_from_db = interface.get_latest_harvest_records_by_source(
             source_data_dcatus["id"]
         )
@@ -97,4 +86,3 @@ class TestHarvestJobClear:
         assert job.errors[0].message == "Test Source failed to clear completely"
 
         harvest_source.db_interface.close()
-        ckan_sync_tool.close_conection()

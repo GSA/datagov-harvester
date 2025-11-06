@@ -6,8 +6,6 @@ admin_memory_quota: 1G
 admin_disk_quota: 4G
 
 CF_API_URL: https://api.fr.cloud.gov
-CKAN_URL: https://catalog-beta.data.gov
-CKAN_API_URL: https://catalog-next-prod-admin-datagov.app.cloud.gov
 
 # CKAN can't handle too many tasks talking to it
 HARVEST_RUNNER_MAX_TASKS: 3

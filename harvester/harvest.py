@@ -20,29 +20,24 @@ from database.models import HarvestSource as HarvestSourceORM
 # ruff: noqa: E402
 from harvester import SMTP_CONFIG, HarvesterDBInterface, db_interface
 from harvester.exceptions import (
-    CKANDownException,
-    CKANRejectionException,
     ClearJobException,
     CompareException,
-    DCATUSToCKANException,
     DuplicateIdentifierException,
     ExternalRecordToClass,
     ExtractExternalException,
     ExtractInternalException,
     SendNotificationException,
-    SynchronizeException,
     TransformationException,
     log_non_critical_error,
 )
 from harvester.lib.cf_handler import CFHandler
 from harvester.lib.harvest_reporter import HarvestReporter
 from harvester.lib.load_manager import LoadManager
-from harvester.utils.ckan_utils import CKANSyncTool
+from harvester.utils.ckan_utils import add_uuid_to_package_name, munge_title_to_name
 from harvester.utils.general_utils import (
     DT_PLACEHOLDER,
     USER_AGENT,
     assemble_validation_errors,
-    create_retry_session,
     dataset_to_hash,
     download_file,
     find_indexes_for_duplicates,
@@ -54,11 +49,6 @@ from harvester.utils.general_utils import (
     sort_dataset,
     traverse_waf,
 )
-
-# requests data
-session = create_retry_session()
-
-ckan_sync_tool = CKANSyncTool(session=session)
 
 # logging data
 logger = logging.getLogger("harvest_runner")
@@ -961,22 +951,49 @@ class Record:
             self.harvest_source.update_job_record_count_by_action("errored")
             return False
 
+    def make_unique_slug(self, base_slug):
+        """
+        create slug until unique based on all other slugs in harvest record
+
+        includes "deleted" datasets which isn't perfect.
+        """
+        slug = base_slug
+        while True:
+            slug_exists = self.harvest_source.db_interface.pget_harvest_records(
+                facets=f"ckan_name eq {slug}", count=True
+            )
+            if not slug_exists:
+                break
+            slug = add_uuid_to_package_name(base_slug)
+
+        return slug
+
     def sync(self):
         try:
             if self.status == "error":
                 return False
-            if ckan_sync_tool.sync(record=self) is True:
-                self.harvest_source.update_job_record_count_by_action(self.action)
-                self.update_self_in_db()
-                return True
-        except (
-            DCATUSToCKANException,
-            SynchronizeException,
-            CKANDownException,
-            CKANRejectionException,
-        ):
+
+            if self.action == "create":
+                metadata = (
+                    json.loads(self.source_raw)
+                    if self.transformed_data is None
+                    else self.transformed_data
+                )
+
+                self.ckan_name = self.make_unique_slug(
+                    munge_title_to_name(metadata["title"])
+                )
+
+            self.status = "success"
+            self.harvest_source.update_job_record_count_by_action(self.action)
+            self.update_self_in_db()
+            return True
+
+        except Exception as e:
+            logger.error(f"error syncing record: {e}")
             self.status = "error"
             self.harvest_source.update_job_record_count_by_action("errored")
+
         return False
 
     def update_self_in_db(self) -> bool:
@@ -1040,9 +1057,6 @@ def harvest_job_starter(job_id, job_type="harvest"):
 
     # close the db connection after job to prevent persistent open connections
     harvest_source.db_interface.close()
-
-    # close the connection to RemoteCKAN
-    ckan_sync_tool.close_conection()
 
 
 def check_for_more_work():
