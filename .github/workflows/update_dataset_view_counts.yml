@@ -9,15 +9,23 @@ on:
       environment:
         description: "cf environment"
         required: true
-        default: "development" # TODO: pinning to dev. change to "choice"
+        type: choice
+        default: "development"
+        options:
+          - development
+          - staging
+          - prod
   schedule:
     - cron: "0 0 2 * *" # Runs at 00:00 UTC on 2nd day of the month - to account for GA4 reporting latency
+
+env:
+  TARGET_ENV: ${{ inputs.environment || 'development' }}
 
 jobs:
   dataset-view-count:
     runs-on: ubuntu-latest
     name: generate dataset view count report
-    environment: development # TODO: pinning to dev. change when needed.
+    environment: ${{ env.TARGET_ENV }}
     steps:
       - name: Check out the code
         uses: actions/checkout@v4
@@ -28,6 +36,6 @@ jobs:
             cf run-task datagov-harvest --name update_dataset_view_count
             --command "python scripts/update_dataset_view_count.py"
           cf_org: gsa-datagov
-          cf_space: ${{ inputs.environment }}
+          cf_space: ${{ env.TARGET_ENV }}
           cf_username: ${{secrets.CF_SERVICE_USER}}
           cf_password: ${{secrets.CF_SERVICE_AUTH}}
