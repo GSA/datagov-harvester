@@ -9,18 +9,24 @@ on:
       environment:
         description: "cf environment"
         required: true
-        default: "development" # TODO: pinning to dev. change to "choice"
+        type: choice
+        default: "development"
+        options:
+          - development
+          - staging
+          - prod
   schedule:
     - cron: "0 0 2 * *" # Runs at 00:00 UTC on 2nd day of the month - to account for GA4 reporting latency
 
 jobs:
-  dataset-view-count:
+  dataset-view-count-manual:
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
-    name: generate dataset view count report
-    environment: development # TODO: pinning to dev. change when needed.
+    name: generate dataset view count report (${{ inputs.environment }})
+    environment: ${{ inputs.environment }}
     steps:
       - name: Check out the code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: run task
         uses: cloud-gov/cg-cli-tools@main
         with:
@@ -29,5 +35,27 @@ jobs:
             --command "python scripts/update_dataset_view_count.py"
           cf_org: gsa-datagov
           cf_space: ${{ inputs.environment }}
+          cf_username: ${{secrets.CF_SERVICE_USER}}
+          cf_password: ${{secrets.CF_SERVICE_AUTH}}
+
+  dataset-view-count-cron:
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    name: generate dataset view count report (${{ matrix.target_env }})
+    strategy:
+      matrix:
+        target_env: [staging, prod]
+    environment: ${{ matrix.target_env }}
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v5
+      - name: run task
+        uses: cloud-gov/cg-cli-tools@main
+        with:
+          command: >
+            cf run-task datagov-harvest --name update_dataset_view_count
+            --command "python scripts/update_dataset_view_count.py"
+          cf_org: gsa-datagov
+          cf_space: ${{ matrix.target_env }}
           cf_username: ${{secrets.CF_SERVICE_USER}}
           cf_password: ${{secrets.CF_SERVICE_AUTH}}
