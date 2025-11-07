@@ -4,9 +4,10 @@ import uuid
 
 from flask_sqlalchemy import SQLAlchemy
 from geoalchemy2 import Geometry
-from sqlalchemy import CheckConstraint, Column, Enum, String, func
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy import CheckConstraint, Column, Enum, String, func, Index
+from sqlalchemy.dialects.postgresql import JSONB, TSVECTOR
 from sqlalchemy.orm import DeclarativeBase, backref
+from sqlalchemy.ext.mutable import MutableDict
 
 from shared.constants import ORGANIZATION_TYPE_VALUES
 
@@ -184,6 +185,68 @@ class HarvestRecord(db.Model):
     parent_identifier = db.Column(db.String)
     status = db.Column(Enum("error", "success", name="record_status"), index=True)
     errors = db.relationship("HarvestRecordError", backref="record", lazy=True)
+
+
+class Dataset(db.Model):
+    __tablename__ = "dataset"
+
+    # Base has a string `id` column that is uuid by default
+
+    # slug is the string that we use in a URL for this dataset
+    slug = db.Column(
+        db.String,
+        nullable=False,
+        index=True,
+        unique=True
+    )
+
+    # This is all of the details of the dataset in DCAT schema in a JSON column
+    # make it mutable so that in-place mutations (e.g.,
+    # dcat["spatial"] = "...", for tests) are tracked
+    dcat = db.Column(MutableDict.as_mutable(JSONB), nullable=False)
+
+    organization_id = db.Column(
+        db.String(36),
+        nullable=False,
+        index=True,
+    )
+
+    harvest_source_id = db.Column(
+        db.String(36),
+        nullable=False,
+        index=True,
+    )
+
+    harvest_record_id = db.Column(
+        db.String(36),
+        nullable=False,
+        index=True,
+    )
+
+    popularity = db.Column(db.Numeric)
+    last_harvested_date = db.Column(
+        db.DateTime,
+        index=True
+    )
+    search_vector = db.Column(TSVECTOR)
+
+    __table_args__ = (
+        Index("ix_dataset_search_vector", "search_vector", postgresql_using="gin"),
+    )
+
+
+class DatasetViewCount(db.Model):
+    __tablename__ = "dataset_view_count"
+
+    dataset_slug = db.Column(db.String(100), nullable=False, unique=True, index=True)
+    view_count = db.Column(db.Integer, nullable=False, default=0)
+
+
+class ResourceViewCount(db.Model):
+    __tablename__ = "resource_view_count"
+    # url from Google Analytics resource path is truncated to 100 characters
+    resource_url = db.Column(db.String(100), nullable=False, unique=True, index=True)
+    view_count = db.Column(db.Integer, nullable=False, default=0)
 
 
 class HarvestJobError(Error):

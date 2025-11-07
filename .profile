@@ -13,6 +13,9 @@ function vcap_get_service () {
 
 export APP_NAME=$(echo $VCAP_APPLICATION | jq -r '.application_name')
 
+# GA (google analytics)
+export GA_CREDENTIALS==$(vcap_get_service secrets .credentials.GA_CREDENTIALS)
+
 # POSTGRES DB CREDS
 export URI=$(vcap_get_service db .credentials.uri)
 export DATABASE_URI=$(echo $URI | sed 's/postgres:\/\//postgresql+psycopg:\/\//g')
@@ -23,8 +26,6 @@ export CF_SERVICE_USER=$(vcap_get_service secrets .credentials.CF_SERVICE_USER)
 
 export FLASK_APP_SECRET_KEY=$(vcap_get_service secrets .credentials.FLASK_APP_SECRET_KEY)
 export OPENID_PRIVATE_KEY=$(vcap_get_service secrets .credentials.OPENID_PRIVATE_KEY)
-
-export CKAN_API_TOKEN=$(vcap_get_service secrets .credentials.CKAN_API_TOKEN)
 
 # New Relic
 export NEW_RELIC_LICENSE_KEY=$(vcap_get_service secrets .credentials.NEW_RELIC_LICENSE_KEY)

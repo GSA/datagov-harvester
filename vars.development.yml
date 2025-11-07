@@ -6,8 +6,6 @@ admin_memory_quota: 1G
 admin_disk_quota: 4G
 
 CF_API_URL: https://api.fr.cloud.gov
-CKAN_URL: https://catalog-next-dev-datagov.app.cloud.gov
-CKAN_API_URL: https://catalog-next-dev-admin-datagov.app.cloud.gov
 
 HARVEST_RUNNER_MAX_TASKS: 4
 HARVEST_RETRY_ON_ERROR: true

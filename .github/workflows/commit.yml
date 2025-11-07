@@ -19,7 +19,6 @@ jobs:
   test:
     environment: development
     env:
-        CKAN_API_TOKEN_DEV: ${{secrets.CKAN_API_TOKEN_DEV}}
         CF_SERVICE_USER: ${{secrets.CF_SERVICE_USER}}
         CF_SERVICE_AUTH: ${{secrets.CF_SERVICE_AUTH}}
         FLASK_APP_SECRET_KEY: ${{secrets.FLASK_APP_SECRET_KEY}}
@@ -127,9 +126,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        command: [
-          "cf add-network-policy datagov-harvest mdtranslator --protocol tcp --port 8080",
-        ]
+        command:
+          [
+            "cf add-network-policy datagov-harvest mdtranslator --protocol tcp --port 8080",
+          ]
         environ: ["development"]
     steps:
       - name: proxy to web

@@ -3,13 +3,15 @@ from datetime import datetime, timedelta, timezone
 from functools import wraps
 from typing import List
 
-from sqlalchemy import asc, desc, func, inspect
+from sqlalchemy import asc, desc, func, inspect, text
 from sqlalchemy.exc import NoResultFound
 from sqlalchemy.orm import aliased
+from sqlalchemy.dialects.postgresql import insert
 
 from harvester.utils.general_utils import query_filter_builder
 
 from .models import (
+    DatasetViewCount,
     HarvestJob,
     HarvestJobError,
     HarvestRecord,
@@ -802,6 +804,48 @@ class HarvesterDBInterface:
         return self.pget_db_query(
             model="harvest_records", facets=facet_string, order_by=order_by, **kwargs
         )
+
+    def refresh_dataset_mv(self):
+        try:
+            self.db.execute(
+                text(
+                    """
+                    DO $$
+                    BEGIN
+                        IF EXISTS (SELECT 1 FROM pg_class WHERE relname = 'dataset' AND relkind = 'm') THEN
+                            REFRESH MATERIALIZED VIEW CONCURRENTLY dataset;
+                        END IF;
+                    END $$;
+                """
+                )
+            )
+            self.db.commit()
+        except Exception as e:
+            logger.error("Error: %s", e)
+            self.db.rollback()
+
+    def insert_view_counts_of_datasets(self, datasets):
+        """
+        truncates then populates dataset view count table
+
+        used by scripts/update_dataset_view_count.py in monthly github action. data
+        comes from google analytics.
+        """
+
+        try:
+            self.db.execute(text("TRUNCATE TABLE dataset_view_count"))
+
+            # postgres caps query parameters to signed 2**16
+            # going with half (roughly 5000*3)
+            size = 5000
+            while datasets:
+                self.db.execute(insert(DatasetViewCount).values(datasets[:size]))
+                datasets = datasets[size:]
+
+            self.db.commit()
+        except Exception as e:
+            logger.error("Error: %s", e)
+            self.db.rollback()
 
 
 def order_by_helper(model, order_by):

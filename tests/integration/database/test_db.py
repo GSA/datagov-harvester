@@ -4,7 +4,12 @@ from freezegun import freeze_time
 from sqlalchemy import text
 
 from database.interface import PAGINATE_ENTRIES_PER_PAGE
-from database.models import HarvestJobError, HarvestRecordError, Locations
+from database.models import (
+    HarvestJobError,
+    HarvestRecordError,
+    Locations,
+    DatasetViewCount,
+)
 
 
 @freeze_time("Jan 14th, 2012")
@@ -861,3 +866,17 @@ class TestDatabase:
         interface.add_organization(organization_data)
         # we can't add the source because we use an enum for schema type
         assert interface.add_harvest_source(source_data_waf_csdgm) is None
+
+    def test_insert_dataset_view_counts(self, interface, view_count_datasets):
+        # add record to show delete
+        dataset_view_count = DatasetViewCount(dataset_slug="a", view_count=1)
+        interface.db.add(dataset_view_count)
+        interface.db.commit()
+
+        datasets = interface.db.query(DatasetViewCount).all()
+        assert len(datasets) == 1
+
+        interface.insert_view_counts_of_datasets(view_count_datasets)
+
+        datasets = interface.db.query(DatasetViewCount).all()
+        assert len(datasets) == 3  # b,c,d

@@ -1,24 +1,16 @@
-from unittest.mock import patch
-
 from harvester.harvest import HarvestSource
 from harvester.utils.general_utils import dataset_to_hash, sort_dataset
 
 
 class TestCompare:
-    @patch("harvester.harvest.ckan_sync_tool.ckan")
     def test_compare(
         self,
-        CKANMock,
         organization_data,
         source_data_dcatus,
         job_data_dcatus,
         interface,
         internal_compare_data,
     ):
-        CKANMock.action.package_create.return_value = {"id": 1234}
-        CKANMock.action.package_update.return_value = True
-        CKANMock.action.dataset_purge.return_value = True
-
         # add the necessary records to satisfy FKs
         interface.add_organization(organization_data)
         interface.add_harvest_source(source_data_dcatus)
