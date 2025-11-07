@@ -9,15 +9,21 @@ on:
       environment:
         description: "cf environment"
         required: true
-        default: "development" # TODO: pinning to dev. change to "choice"
+        type: choice
+        default: "development"
+        options:
+          - development
+          - staging
+          - prod
   schedule:
     - cron: "0 11 * * *" # every day at 6:00am EST
 
 jobs:
-  run-refresh:
+  run-refresh-manual:
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
-    name: Refresh dataset mv
-    environment: development # TODO: pinning to dev. change when needed.
+    name: Refresh dataset mv (${{ inputs.environment }})
+    environment: ${{ inputs.environment }}
     steps:
       - name: Check out the code
         uses: actions/checkout@v4
@@ -29,5 +35,24 @@ jobs:
             --command "python scripts/refresh_dataset_mv.py"
           cf_org: gsa-datagov
           cf_space: ${{ inputs.environment }}
+          cf_username: ${{secrets.CF_SERVICE_USER}}
+          cf_password: ${{secrets.CF_SERVICE_AUTH}}
+
+  run-refresh-schedule:
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    name: Refresh dataset mv (prod)
+    environment: prod
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v4
+      - name: run task
+        uses: cloud-gov/cg-cli-tools@main
+        with:
+          command: >
+            cf run-task datagov-harvest --name refresh_dataset_mv
+            --command "python scripts/refresh_dataset_mv.py"
+          cf_org: gsa-datagov
+          cf_space: prod
           cf_username: ${{secrets.CF_SERVICE_USER}}
           cf_password: ${{secrets.CF_SERVICE_AUTH}}
