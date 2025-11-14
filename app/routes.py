@@ -480,7 +480,7 @@ def make_new_org_contract(form):
         "logo": form.logo.data,
         "description": form.description.data or None,
         "organization_type": form.organization_type.data or None,
-        "aliases": (form.aliases.data or "").split(","),
+        "aliases": [alias.strip() for alias in (form.aliases.data or "").split(",")],
     }
 
 
