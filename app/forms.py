@@ -114,6 +114,11 @@ class OrganizationForm(FlaskForm):
         validators=[Optional()],
         default="",
     )
+    aliases = StringField(
+        "Organization aliases (comma-separated)",
+        validators=[Optional()],
+        default="",
+    )
 
     def __init__(self, *args, **kwargs):
         self.organization_id = kwargs.pop("organization_id", None)

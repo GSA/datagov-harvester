@@ -21,6 +21,26 @@ class TestForms:
         assert org.description == "A sample description"
         assert org.slug == "test-slug"
 
+    def test_add_organization_aliases(self, app, client, interface):
+        app.config.update({"WTF_CSRF_ENABLED": False})
+        with client.session_transaction() as sess:
+            sess["user"] = "tester@gsa.gov"
+
+        data = {
+            "name": "Test Org",
+            "logo": "https://example.com/logo.png  ",
+            "description": "description  ",
+            "slug": "test",
+            "aliases": "first, second",
+        }
+        res = client.post("/organization/add", data=data)
+
+        assert res.status_code == 302
+        orgs = interface.get_all_organizations()
+        org = orgs[0]
+        assert len(org.aliases) == 2
+        assert not org.aliases[-1].startswith(" ")
+
     def test_add_organization_duplicate_slug_validation(self, app, client, interface):
         app.config.update({"WTF_CSRF_ENABLED": False})
         with client.session_transaction() as sess:
