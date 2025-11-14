@@ -321,7 +321,7 @@ def cli_add_org(name, slug, logo, id, aliases):
             "logo": logo,
             "description": "",
             "organization_type": "",
-            "aliases": aliases
+            "aliases": aliases,
         }
     )
 
