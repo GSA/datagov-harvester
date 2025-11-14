@@ -306,8 +306,13 @@ def remove_user(email):
     default="https://raw.githubusercontent.com/GSA/datagov-harvester/refs/heads/main/app/static/assets/img/placeholder-organization.png",
     help="Org Logo",
 )
+@click.option(
+    "--aliases",
+    default="",
+    help="Comma-separated list of organization aliases",
+)
 @click.option("--id", help="Org ID: should correspond to CKAN ORG ID")
-def cli_add_org(name, slug, logo, id):
+def cli_add_org(name, slug, logo, id, aliases):
     # let the web UI handle the validation, mostly for slug uniqueness
     form_data = MultiDict(
         {
@@ -316,6 +321,7 @@ def cli_add_org(name, slug, logo, id):
             "logo": logo,
             "description": "",
             "organization_type": "",
+            "aliases": aliases
         }
     )
 
@@ -327,13 +333,7 @@ def cli_add_org(name, slug, logo, id):
                 click.echo(f" - {field}: {error}")
         return
 
-    org_contract = {
-        "name": form.name.data,
-        "slug": form.slug.data or None,
-        "logo": form.logo.data,
-        "description": form.description.data or None,
-        "organization_type": form.organization_type.data or None,
-    }
+    org_contract = make_new_org_contract(form)
     if id:
         org_contract["id"] = id
 
@@ -480,6 +480,7 @@ def make_new_org_contract(form):
         "logo": form.logo.data,
         "description": form.description.data or None,
         "organization_type": form.organization_type.data or None,
+        "aliases": (form.aliases.data or "").split(","),
     }
 
 
@@ -505,13 +506,7 @@ def add_organization():
     else:
         form = OrganizationForm(db_interface=db)
         if form.validate_on_submit():
-            new_org = {
-                "name": form.name.data,
-                "slug": form.slug.data,
-                "logo": form.logo.data,
-                "description": form.description.data or None,
-                "organization_type": form.organization_type.data or None,
-            }
+            new_org = make_new_org_contract(form)
             org = db.add_organization(new_org)
             if org:
                 flash(f"Added new organization with ID: {org.id}")

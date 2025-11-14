@@ -45,6 +45,7 @@ class Organization(db.Model):
             create_constraint=True,
         )
     )
+    aliases = db.Column(db.ARRAY(db.String))
     sources = db.relationship(
         "HarvestSource",
         backref=backref("org", lazy="joined"),
