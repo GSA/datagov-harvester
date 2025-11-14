@@ -4,7 +4,7 @@ import uuid
 
 from flask_sqlalchemy import SQLAlchemy
 from geoalchemy2 import Geometry
-from sqlalchemy import CheckConstraint, Column, Enum, String, func, Index
+from sqlalchemy import CheckConstraint, Column, Enum, String, func
 from sqlalchemy.dialects.postgresql import JSONB, TSVECTOR
 from sqlalchemy.orm import DeclarativeBase, backref
 from sqlalchemy.ext.mutable import MutableDict
@@ -208,18 +208,21 @@ class Dataset(db.Model):
 
     organization_id = db.Column(
         db.String(36),
+        db.ForeignKey("organization.id"),
         nullable=False,
         index=True,
     )
 
     harvest_source_id = db.Column(
         db.String(36),
+        db.ForeignKey("harvest_source.id"),
         nullable=False,
         index=True,
     )
 
     harvest_record_id = db.Column(
         db.String(36),
+        db.ForeignKey("harvest_record.id"),
         nullable=False,
         index=True,
     )
@@ -231,8 +234,23 @@ class Dataset(db.Model):
     )
     search_vector = db.Column(TSVECTOR)
 
-    __table_args__ = (
-        Index("ix_dataset_search_vector", "search_vector", postgresql_using="gin"),
+    organization = db.relationship(
+        "Organization",
+        backref=backref("datasets", lazy=True),
+        lazy="joined",
+    )
+
+    harvest_source = db.relationship(
+        "HarvestSource",
+        backref=backref("datasets", lazy=True),
+        lazy="joined",
+    )
+
+    harvest_record = db.relationship(
+        "HarvestRecord",
+        backref=backref("dataset", uselist=False, lazy=True),
+        lazy="joined",
+        uselist=False,
     )
 
 
