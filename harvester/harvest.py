@@ -968,25 +968,57 @@ class Record:
 
         return slug
 
+    def _metadata_for_dataset(self):
+        if self.transformed_data is not None:
+            return self.transformed_data
+
+        if self.source_raw is None:
+            raise ValueError("Record missing source_raw for dataset persistence")
+
+        return json.loads(self.source_raw)
+
+    def _dataset_payload(self, metadata: dict) -> dict:
+        if not self.ckan_name:
+            raise ValueError("Record slug is not set for dataset persistence")
+
+        if self.date_finished is None:
+            raise ValueError(
+                "Record date_finished is not set; cannot build dataset payload"
+            )
+
+        return {
+            "slug": self.ckan_name,
+            "dcat": metadata,
+            "organization_id": self.harvest_source.organization_id,
+            "harvest_source_id": self.harvest_source.id,
+            "harvest_record_id": self.id,
+            "last_harvested_date": self.date_finished,
+        }
+
     def sync(self):
         try:
             if self.status == "error":
                 return False
-
-            if self.action == "create":
-                metadata = (
-                    json.loads(self.source_raw)
-                    if self.transformed_data is None
-                    else self.transformed_data
-                )
-
-                self.ckan_name = self.make_unique_slug(
-                    munge_title_to_name(metadata["title"])
-                )
+            metadata = None
+            if self.action in ("create", "update"):
+                metadata = self._metadata_for_dataset()
+                if self.action == "create" or not self.ckan_name:
+                    self.ckan_name = self.make_unique_slug(
+                        munge_title_to_name(metadata["title"])
+                    )
 
             self.status = "success"
             self.harvest_source.update_job_record_count_by_action(self.action)
             self.update_self_in_db()
+
+            if self.action in ("create", "update") and metadata is not None:
+                dataset_payload = self._dataset_payload(metadata)
+                self.harvest_source.db_interface.upsert_dataset(dataset_payload)
+            elif self.action == "delete" and self.ckan_name:
+                self.harvest_source.db_interface.delete_dataset_by_slug(
+                    self.ckan_name
+                )
+
             return True
 
         except Exception as e:
@@ -997,10 +1029,12 @@ class Record:
         return False
 
     def update_self_in_db(self) -> bool:
+        finished_date = get_datetime()
         data = {
             "status": self.status,
-            "date_finished": get_datetime(),
+            "date_finished": finished_date,
         }
+        self._date_finished = finished_date
         if self.ckan_id is not None:
             data["ckan_id"] = self.ckan_id
         if self.ckan_name is not None:
