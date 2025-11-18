@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, patch
 
 from jsonschema.exceptions import ValidationError
 
+from database.models import Dataset
 from harvester.harvest import HarvestSource, check_for_more_work, harvest_job_starter
 from harvester.utils.general_utils import download_file
 
@@ -41,6 +42,21 @@ class TestHarvestJobFullFlow:
         # assert that send_notification_emails is not called because email has no errors
         assert send_notification_emails_mock.called is False
 
+        datasets = interface.db.query(Dataset).all()
+        assert len(datasets) == len(records_to_add)
+
+        latest_records = interface.get_latest_harvest_records_by_source(
+            source_data_dcatus_single_record["id"]
+        )
+        dataset_slugs = {dataset.slug for dataset in datasets}
+        record_slugs = {
+            record["ckan_name"] for record in latest_records if record.get("ckan_name")
+        }
+        assert dataset_slugs == record_slugs
+        for dataset in datasets:
+            assert dataset.harvest_record_id is not None
+            assert dataset.harvest_source_id == source_data_dcatus_single_record["id"]
+
     @patch("harvester.harvest.HarvestSource.send_notification_emails")
     def test_multiple_harvest_jobs(
         self,
@@ -69,6 +85,9 @@ class TestHarvestJobFullFlow:
         assert len(records_from_db) == 7
         assert send_notification_emails_mock.called
 
+        datasets = interface.db.query(Dataset).all()
+        assert len(datasets) == 7
+
         ## create follow-up job
         interface.update_harvest_source(
             source_data_dcatus["id"],
@@ -96,6 +115,15 @@ class TestHarvestJobFullFlow:
         )
 
         assert len(records_from_db) == records_from_db_count == 3
+
+        datasets = interface.db.query(Dataset).all()
+        assert len(datasets) == 3
+
+        dataset_slugs = {dataset.slug for dataset in datasets}
+        record_slugs = {
+            record["ckan_name"] for record in records_from_db if record.get("ckan_name")
+        }
+        assert dataset_slugs == record_slugs
 
     @patch("harvester.harvest.HarvestSource.send_notification_emails")
     def test_harvest_waf_iso19115_2(

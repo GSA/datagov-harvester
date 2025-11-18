@@ -11,6 +11,7 @@ from sqlalchemy.dialects.postgresql import insert
 from harvester.utils.general_utils import query_filter_builder
 
 from .models import (
+    Dataset,
     DatasetViewCount,
     HarvestJob,
     HarvestJobError,
@@ -562,6 +563,53 @@ class HarvesterDBInterface:
 
     def get_harvest_record(self, record_id):
         return self.db.query(HarvestRecord).filter_by(id=record_id).first()
+
+    ## DATASETS
+    def upsert_dataset(self, dataset_data: dict):
+        slug = dataset_data.get("slug")
+        if not slug:
+            raise ValueError("dataset_data must include a slug")
+
+        try:
+            stmt = insert(Dataset).values(**dataset_data)
+            update_cols = {
+                column: getattr(stmt.excluded, column)
+                for column in dataset_data
+                if column != "slug"
+            }
+            stmt = stmt.on_conflict_do_update(
+                index_elements=[Dataset.slug],
+                set_=update_cols,
+            )
+            self.db.execute(stmt)
+            self.db.commit()
+            return self.get_dataset_by_slug(slug)
+        except Exception as e:
+            logger.error("Error upserting dataset '%s': %s", slug, e)
+            self.db.rollback()
+            raise
+
+    def delete_dataset_by_slug(self, slug: str) -> bool:
+        if not slug:
+            return False
+
+        try:
+            dataset = self.get_dataset_by_slug(slug)
+            if dataset is None:
+                return False
+
+            self.db.delete(dataset)
+            self.db.commit()
+            return True
+        except Exception as e:
+            logger.error("Error deleting dataset '%s': %s", slug, e)
+            self.db.rollback()
+            raise
+
+    def get_dataset_by_slug(self, slug: str):
+        if not slug:
+            return None
+        return self.db.query(Dataset).filter_by(slug=slug).first()
 
     def get_all_outdated_records(self, days=365, source_id=None):
         """
