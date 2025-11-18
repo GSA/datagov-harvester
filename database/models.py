@@ -5,7 +5,7 @@ import uuid
 from flask_sqlalchemy import SQLAlchemy
 from geoalchemy2 import Geometry
 from sqlalchemy import CheckConstraint, Column, Enum, String, func
-from sqlalchemy.dialects.postgresql import JSONB, TSVECTOR
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, backref
 from sqlalchemy.ext.mutable import MutableDict
 
@@ -232,7 +232,6 @@ class Dataset(db.Model):
         db.DateTime,
         index=True
     )
-    search_vector = db.Column(TSVECTOR)
 
     organization = db.relationship(
         "Organization",
