@@ -101,7 +101,7 @@ class CKANSyncTool:
             elif record.action == "create":
                 res = self.create_record(record)
                 record.ckan_id = res["id"]
-                record.ckan_name = record.ckanified_metadata["name"]
+                record.dataset_slug = record.ckanified_metadata["name"]
             elif record.action == "update":
                 self.update_record(record)
         # This should catch the HTTP exceptions in the package_x actions
@@ -170,7 +170,7 @@ class CKANSyncTool:
     def update_record(self, record) -> dict:
         updated_metadata = {
             **record.ckanified_metadata,
-            **{"id": record.ckan_id, "name": record.ckan_name},
+            **{"id": record.ckan_id, "name": record.dataset_slug},
         }
         return self.ckan.action.package_update(**updated_metadata)
 

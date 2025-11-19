@@ -228,7 +228,7 @@ class HarvestSource:
                 None,  # source raw
                 record["source_hash"],
                 _ckan_id=record["ckan_id"],
-                _ckan_name=record["ckan_name"],
+                _dataset_slug=record.get("dataset_slug"),
                 _date_finished=record["date_finished"],
                 _parent_identifier=record.get("parent_identifier"),
             )
@@ -568,7 +568,7 @@ class Record:
     _action: str = None
     _status: str = None
     _ckan_id: str = None
-    _ckan_name: str = None
+    _dataset_slug: str = None
     _date_finished: str = None
     _mdt_writer: str = "dcat_us"
     _mdt_msgs: str = ""
@@ -613,12 +613,12 @@ class Record:
         self._id = value
 
     @property
-    def ckan_name(self) -> str:
-        return self._ckan_name
+    def dataset_slug(self) -> str:
+        return self._dataset_slug
 
-    @ckan_name.setter
-    def ckan_name(self, value) -> None:
-        self._ckan_name = value
+    @dataset_slug.setter
+    def dataset_slug(self, value) -> None:
+        self._dataset_slug = value
 
     @property
     def date_finished(self) -> str:
@@ -738,7 +738,7 @@ class Record:
             if not_same_hash or self.harvest_source.job_type == "force_harvest":
                 self.action = "update"
                 self.ckan_id = internal_record.ckan_id
-                self.ckan_name = internal_record.ckan_name
+                self.dataset_slug = internal_record.dataset_slug
         else:
             self.action = "create"
 
@@ -962,7 +962,7 @@ class Record:
         return json.loads(self.source_raw)
 
     def _dataset_payload(self, metadata: dict) -> dict:
-        if not self.ckan_name:
+        if not self.dataset_slug:
             raise ValueError("Record slug is not set for dataset persistence")
 
         if self.date_finished is None:
@@ -971,7 +971,7 @@ class Record:
             )
 
         return {
-            "slug": self.ckan_name,
+            "slug": self.dataset_slug,
             "dcat": metadata,
             "organization_id": self.harvest_source.organization_id,
             "harvest_source_id": self.harvest_source.id,
@@ -986,8 +986,8 @@ class Record:
             metadata = None
             if self.action in ("create", "update"):
                 metadata = self._metadata_for_dataset()
-                if not self.ckan_name:
-                    self.ckan_name = munge_title_to_name(metadata["title"])
+                if not self.dataset_slug:
+                    self.dataset_slug = munge_title_to_name(metadata["title"])
 
             self.status = "success"
             self.harvest_source.update_job_record_count_by_action(self.action)
@@ -999,9 +999,9 @@ class Record:
                     self._insert_dataset_with_unique_slug(dataset_payload)
                 else:
                     self.harvest_source.db_interface.upsert_dataset(dataset_payload)
-            elif self.action == "delete" and self.ckan_name:
+            elif self.action == "delete" and self.dataset_slug:
                 self.harvest_source.db_interface.delete_dataset_by_slug(
-                    self.ckan_name
+                    self.dataset_slug
                 )
 
             return True
@@ -1043,10 +1043,10 @@ class Record:
                     raise
 
                 logger.info(
-                    "Dataset slug '%s' already exists; generating a new slug", self.ckan_name
+                    "Dataset slug '%s' already exists; generating a new slug", self.dataset_slug
                 )
-                self.ckan_name = add_uuid_to_package_name(self.ckan_name)
-                dataset_payload["slug"] = self.ckan_name
+                self.dataset_slug = add_uuid_to_package_name(self.dataset_slug)
+                dataset_payload["slug"] = self.dataset_slug
 
     @staticmethod
     def _is_slug_unique_violation(error: IntegrityError) -> bool:

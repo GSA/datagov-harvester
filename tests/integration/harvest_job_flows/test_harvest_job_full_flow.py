@@ -360,15 +360,15 @@ class TestHarvestJobFullFlow:
 
         ## assert title is same
         assert raw_source_0["title"] == raw_source_1["title"]
-        ## assert name is unique
-        assert harvest_job.records[0].ckan_name != harvest_job.records[1].ckan_name
+        ## assert slug is unique
+        assert harvest_job.records[0].dataset_slug != harvest_job.records[1].dataset_slug
 
-        ## assert ckan_name persists in db
+        ## assert slug persists in db
         for idx, record in enumerate(harvest_job.records):
             db_record = interface.get_harvest_record(record.id)
-            assert db_record.ckan_name == harvest_job.records[idx].ckan_name
+            assert db_record.dataset.slug == harvest_job.records[idx].dataset_slug
 
-        # now do a package_update & confirm it uses ckan_name
+        # now do a package_update & confirm it uses the stored slug
         ## update harvest source url to simulate harvest source updates
         interface.update_harvest_source(
             source_data_dcatus_same_title["id"],
@@ -390,10 +390,10 @@ class TestHarvestJobFullFlow:
         assert harvest_job.records_ignored == 1
         assert harvest_job.records_errored == 0
 
-        # assert db record retains correct ckan_id & ckan_name
+        # assert db record retains correct ckan_id & slug
         db_record = interface.get_harvest_record(harvest_job.records[0].id)
         assert db_record.action == "update"
-        assert db_record.ckan_name == "commitment-of-traders-12345"
+        assert db_record.dataset.slug == "commitment-of-traders-12345"
         assert db_record.identifier == "cftc-dc2"
 
     def test_harvest_multiple_jobs(
