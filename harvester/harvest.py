@@ -11,6 +11,7 @@ from typing import List
 import requests
 from jsonschema import Draft202012Validator, FormatChecker
 from requests.exceptions import HTTPError, Timeout
+from sqlalchemy.exc import IntegrityError
 
 sys.path.insert(1, "/".join(os.path.realpath(__file__).split("/")[0:-2]))
 
@@ -951,23 +952,6 @@ class Record:
             self.harvest_source.update_job_record_count_by_action("errored")
             return False
 
-    def make_unique_slug(self, base_slug):
-        """
-        create slug until unique based on all other slugs in harvest record
-
-        includes "deleted" datasets which isn't perfect.
-        """
-        slug = base_slug
-        while True:
-            slug_exists = self.harvest_source.db_interface.pget_harvest_records(
-                facets=f"ckan_name eq {slug}", count=True
-            )
-            if not slug_exists:
-                break
-            slug = add_uuid_to_package_name(base_slug)
-
-        return slug
-
     def _metadata_for_dataset(self):
         if self.transformed_data is not None:
             return self.transformed_data
@@ -1002,10 +986,8 @@ class Record:
             metadata = None
             if self.action in ("create", "update"):
                 metadata = self._metadata_for_dataset()
-                if self.action == "create" or not self.ckan_name:
-                    self.ckan_name = self.make_unique_slug(
-                        munge_title_to_name(metadata["title"])
-                    )
+                if not self.ckan_name:
+                    self.ckan_name = munge_title_to_name(metadata["title"])
 
             self.status = "success"
             self.harvest_source.update_job_record_count_by_action(self.action)
@@ -1013,7 +995,10 @@ class Record:
 
             if self.action in ("create", "update") and metadata is not None:
                 dataset_payload = self._dataset_payload(metadata)
-                self.harvest_source.db_interface.upsert_dataset(dataset_payload)
+                if self.action == "create":
+                    self._insert_dataset_with_unique_slug(dataset_payload)
+                else:
+                    self.harvest_source.db_interface.upsert_dataset(dataset_payload)
             elif self.action == "delete" and self.ckan_name:
                 self.harvest_source.db_interface.delete_dataset_by_slug(
                     self.ckan_name
@@ -1037,8 +1022,6 @@ class Record:
         self._date_finished = finished_date
         if self.ckan_id is not None:
             data["ckan_id"] = self.ckan_id
-        if self.ckan_name is not None:
-            data["ckan_name"] = self.ckan_name
 
         if self.harvest_source.job_type == "force_harvest":
             data["harvest_job_id"] = self.harvest_source.job_id
@@ -1047,6 +1030,33 @@ class Record:
             self.id,
             data,
         )
+
+    def _insert_dataset_with_unique_slug(self, dataset_payload: dict) -> None:
+        """Persist a dataset, retrying with a unique slug when needed."""
+
+        while True:
+            try:
+                self.harvest_source.db_interface.insert_dataset(dataset_payload)
+                return
+            except IntegrityError as error:
+                if not self._is_slug_unique_violation(error):
+                    raise
+
+                logger.info(
+                    "Dataset slug '%s' already exists; generating a new slug", self.ckan_name
+                )
+                self.ckan_name = add_uuid_to_package_name(self.ckan_name)
+                dataset_payload["slug"] = self.ckan_name
+
+    @staticmethod
+    def _is_slug_unique_violation(error: IntegrityError) -> bool:
+        constraint = getattr(getattr(error, "orig", None), "diag", None)
+        if constraint is not None:
+            if getattr(constraint, "constraint_name", None) == "dataset_slug_key":
+                return True
+
+        message = str(getattr(error, "orig", error)).lower()
+        return "dataset" in message and "slug" in message and "unique" in message
 
 
 def harvest_job_starter(job_id, job_type="harvest"):
