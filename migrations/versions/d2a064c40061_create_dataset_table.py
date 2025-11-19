@@ -50,7 +50,7 @@ def upgrade():
         op.f("ix_dataset_harvest_record_id"),
         "dataset",
         ["harvest_record_id"],
-        unique=False,
+        unique=True,
     )
     op.create_index(
         op.f("ix_dataset_last_harvested_date"),
@@ -58,6 +58,10 @@ def upgrade():
         ["last_harvested_date"],
         unique=False,
     )
+
+    with op.batch_alter_table("harvest_record", schema=None) as batch_op:
+        batch_op.drop_index(batch_op.f("ix_harvest_record_ckan_name"))
+        batch_op.drop_column("ckan_name")
 
 
 def downgrade():
@@ -67,3 +71,9 @@ def downgrade():
     op.drop_index(op.f("ix_dataset_organization_id"), table_name="dataset")
     op.drop_index(op.f("ix_dataset_slug"), table_name="dataset")
     op.drop_table("dataset")
+
+    with op.batch_alter_table("harvest_record", schema=None) as batch_op:
+        batch_op.add_column(sa.Column("ckan_name", sa.String(), nullable=True))
+        batch_op.create_index(
+            batch_op.f("ix_harvest_record_ckan_name"), ["ckan_name"], unique=False
+        )
