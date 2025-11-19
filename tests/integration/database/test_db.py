@@ -578,9 +578,10 @@ class TestDatabase:
             source_data_dcatus["id"]
         )
 
-        # remove so compare works
+        # remove volatile fields so compare works
         for record in latest_records:
             del record["id"]
+            record.pop("dataset_slug", None)
 
         expected_records = [
             {
