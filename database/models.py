@@ -186,6 +186,13 @@ class HarvestRecord(db.Model):
     status = db.Column(Enum("error", "success", name="record_status"), index=True)
     errors = db.relationship("HarvestRecordError", backref="record", lazy=True)
 
+    @property
+    def dataset_slug(self) -> str:
+        dataset = getattr(self, "dataset", None)
+        if dataset is None:
+            return None
+        return dataset.slug
+
 
 class Dataset(db.Model):
     __tablename__ = "dataset"
