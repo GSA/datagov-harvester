@@ -48,20 +48,14 @@ class TestHarvestJobFullFlow:
         latest_records = interface.get_latest_harvest_records_by_source(
             source_data_dcatus_single_record["id"]
         )
-        dataset_slugs = {dataset.slug for dataset in datasets}
-        record_slugs = {
-            record["ckan_name"] for record in latest_records if record.get("ckan_name")
-        }
-        assert dataset_slugs == record_slugs
-        records_by_slug = {
-            record["ckan_name"]: record
-            for record in latest_records
-            if record.get("ckan_name")
-        }
+        records_by_id = {record["id"]: record for record in latest_records}
+        assert {dataset.harvest_record_id for dataset in datasets} == set(
+            records_by_id.keys()
+        )
         for dataset in datasets:
             assert dataset.harvest_record_id is not None
             assert dataset.harvest_source_id == source_data_dcatus_single_record["id"]
-            matching_record = records_by_slug[dataset.slug]
+            matching_record = records_by_id[dataset.harvest_record_id]
             assert dataset.last_harvested_date == matching_record["date_finished"]
 
     @patch("harvester.harvest.HarvestSource.send_notification_emails")
@@ -126,11 +120,9 @@ class TestHarvestJobFullFlow:
         datasets = interface.db.query(Dataset).all()
         assert len(datasets) == 3
 
-        dataset_slugs = {dataset.slug for dataset in datasets}
-        record_slugs = {
-            record["ckan_name"] for record in records_from_db if record.get("ckan_name")
-        }
-        assert dataset_slugs == record_slugs
+        dataset_record_ids = {dataset.harvest_record_id for dataset in datasets}
+        record_ids = {record["id"] for record in records_from_db}
+        assert dataset_record_ids == record_ids
 
     @patch("harvester.harvest.HarvestSource.send_notification_emails")
     def test_harvest_waf_iso19115_2(

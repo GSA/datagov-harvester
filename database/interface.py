@@ -698,13 +698,11 @@ class HarvesterDBInterface:
                 sq_alias.identifier,
                 sq_alias.source_hash,
                 sq_alias.ckan_id,
-                Dataset.slug.label("ckan_name"),
                 sq_alias.date_created,
                 sq_alias.date_finished,
                 sq_alias.id,
                 sq_alias.action,
             )
-            .outerjoin(Dataset, Dataset.harvest_record_id == sq_alias.id)
             .filter(sq_alias.action != "delete")
         )
 
