@@ -31,7 +31,7 @@ class TestOrganizationUnauthed:
                 "organization_type:",
                 "Federal Government",
                 "aliases:",
-                "None",
+                "['testorg']",
                 "id:",
                 "d925f84d-955b-4cb7-812f-dcfd6681a18f",
             ]
