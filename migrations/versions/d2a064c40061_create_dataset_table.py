@@ -28,9 +28,15 @@ def upgrade():
         sa.Column("popularity", sa.Numeric(), nullable=True),
         sa.Column("last_harvested_date", sa.DateTime(), nullable=True),
         sa.Column("id", sa.String(length=36), nullable=False),
-        sa.ForeignKeyConstraint(["organization_id"], ["organization.id"]),
-        sa.ForeignKeyConstraint(["harvest_source_id"], ["harvest_source.id"]),
-        sa.ForeignKeyConstraint(["harvest_record_id"], ["harvest_record.id"]),
+        sa.ForeignKeyConstraint(
+            ["organization_id"], ["organization.id"], ondelete="CASCADE"
+        ),
+        sa.ForeignKeyConstraint(
+            ["harvest_source_id"], ["harvest_source.id"], ondelete="CASCADE"
+        ),
+        sa.ForeignKeyConstraint(
+            ["harvest_record_id"], ["harvest_record.id"], ondelete="CASCADE"
+        ),
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_index(op.f("ix_dataset_slug"), "dataset", ["slug"], unique=True)

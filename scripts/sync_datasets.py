@@ -10,7 +10,7 @@ from sqlalchemy.exc import IntegrityError
 
 sys.path.insert(1, "/".join(os.path.realpath(__file__).split("/")[0:-2]))
 
-from database.models import Dataset, HarvestRecord, db
+from database.models import Dataset, HarvestRecord, HarvestSource, db
 from harvester import HarvesterDBInterface
 from harvester.utils.ckan_utils import add_uuid_to_package_name, munge_title_to_name
 from harvester.utils.general_utils import get_datetime
@@ -37,11 +37,19 @@ def _insert_dataset_for_record(interface: HarvesterDBInterface, record: HarvestR
             f"Record {record.id} missing metadata to build dataset payload"
         )
 
+    harvest_source = getattr(record, "harvest_source", None)
+    if harvest_source is None:
+        harvest_source = interface.db.get(HarvestSource, record.harvest_source_id)
+    if harvest_source is None:
+        raise click.ClickException(
+            f"Record {record.id} is missing an associated harvest source"
+        )
+
     slug = munge_title_to_name(metadata.get("title") or record.identifier)
     payload = {
         "slug": slug,
         "dcat": metadata,
-        "organization_id": record.harvest_source.organization_id,
+        "organization_id": harvest_source.organization_id,
         "harvest_source_id": record.harvest_source_id,
         "harvest_record_id": record.id,
         "last_harvested_date": record.date_finished or get_datetime(),
@@ -70,15 +78,6 @@ def _records_missing_datasets(session) -> List[HarvestRecord]:
     )
 
 
-def _datasets_missing_records(session) -> List[Dataset]:
-    return (
-        session.query(Dataset)
-        .outerjoin(HarvestRecord, Dataset.harvest_record_id == HarvestRecord.id)
-        .filter(HarvestRecord.id.is_(None))
-        .all()
-    )
-
-
 def _datasets_with_unexpected_records(session) -> List[Dataset]:
     return (
         session.query(Dataset)
@@ -93,10 +92,9 @@ def _datasets_with_unexpected_records(session) -> List[Dataset]:
     )
 
 
-def _report(records_missing, datasets_missing, datasets_bad):
+def _report(records_missing, datasets_bad):
     click.echo("Dataset Sync Report\n====================")
     click.echo(f"Records needing datasets: {len(records_missing)}")
-    click.echo(f"Datasets pointing to missing harvest records: {len(datasets_missing)}")
     click.echo(
         f"Datasets tied to non-success/non-create records: {len(datasets_bad)}"
     )
@@ -107,10 +105,9 @@ def _sync_impl(apply_changes: bool):
 
     try:
         records_missing = _records_missing_datasets(db.session)
-        datasets_missing = _datasets_missing_records(db.session)
         datasets_bad = _datasets_with_unexpected_records(db.session)
 
-        _report(records_missing, datasets_missing, datasets_bad)
+        _report(records_missing, datasets_bad)
 
         if apply_changes:
             synced = 0
@@ -131,6 +128,28 @@ def _sync_impl(apply_changes: bool):
                     except click.ClickException as exc:
                         click.echo(f"Failed to sync record {record.id}: {exc}")
             click.echo(f"Datasets created: {synced}")
+
+            deleted = 0
+            if datasets_bad:
+                click.echo(
+                    f"Deleting {len(datasets_bad)} dataset(s) tied "
+                    "to invalid harvest records..."
+                )
+                for dataset in datasets_bad:
+                    try:
+                        interface.db.delete(dataset)
+                        interface.db.commit()
+                        deleted += 1
+                        click.echo(
+                            f"Deleted dataset {dataset.slug} "
+                            f"(harvest_record_id={dataset.harvest_record_id})"
+                        )
+                    except Exception as exc:  # pragma: no cover - defensive
+                        interface.db.rollback()
+                        click.echo(
+                            f"Failed to delete dataset {dataset.slug}: {exc}"
+                        )
+                click.echo(f"Datasets deleted: {deleted}")
     finally:
         db.session.remove()
 
@@ -145,7 +164,10 @@ def register_cli(app):
         "--apply",
         "apply_changes",
         is_flag=True,
-        help="Create datasets for missing harvest records",
+        help=(
+            "Create datasets for missing harvest records and delete datasets "
+            "tied to invalid harvest records"
+        ),
     )
     def dataset_check(apply_changes):
         """Report (and optionally repair) dataset mismatches."""
