@@ -1,3 +1,4 @@
+import ast
 import os
 import re
 
@@ -26,6 +27,21 @@ def validate_email_list(form, field):
 
 def strip_filter(data):
     return data.strip() if isinstance(data, str) else data
+
+
+def comma_separated_filter(data):
+    """Turn the list or the repr of a list into just comma-separated values."""
+    # "[" isn't likely to be an alias so if we see it, it's probably the repr
+    # of a list
+    if isinstance(data, list):
+        return ", ".join(data)
+    if data.startswith("["):
+        try:
+            data_list = ast.literal_eval(data)
+            return ", ".join(data_list)
+        except ValueError:
+            return data
+    return data
 
 
 class EmailListField(TextAreaField):
@@ -117,6 +133,7 @@ class OrganizationForm(FlaskForm):
     aliases = StringField(
         "Organization aliases (comma-separated)",
         validators=[Optional()],
+        filters=[comma_separated_filter],
         default="",
     )
 
