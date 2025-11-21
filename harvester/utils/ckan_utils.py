@@ -990,3 +990,22 @@ def translate_spatial(input) -> str:
 
     # If unable to create a valid geojson, return an empty string
     return ""
+
+
+def translate_spatial_to_geojson(spatial_input):
+    if not spatial_input:
+        return None
+
+    translated_value = translate_spatial(spatial_input)
+    if not translated_value:
+        return None
+
+    try:
+        return json.loads(translated_value)
+    except json.JSONDecodeError as exc:
+        logger.warning(
+            "Unable to decode translated spatial value %s: %s",
+            translated_value,
+            exc,
+        )
+        return None

@@ -34,7 +34,11 @@ from harvester.exceptions import (
 from harvester.lib.cf_handler import CFHandler
 from harvester.lib.harvest_reporter import HarvestReporter
 from harvester.lib.load_manager import LoadManager
-from harvester.utils.ckan_utils import add_uuid_to_package_name, munge_title_to_name
+from harvester.utils.ckan_utils import (
+    add_uuid_to_package_name,
+    munge_title_to_name,
+    translate_spatial_to_geojson,
+)
 from harvester.utils.general_utils import (
     DT_PLACEHOLDER,
     USER_AGENT,
@@ -970,7 +974,7 @@ class Record:
                 "Record date_finished is not set; cannot build dataset payload"
             )
 
-        return {
+        payload = {
             "slug": self.dataset_slug,
             "dcat": metadata,
             "organization_id": self.harvest_source.organization_id,
@@ -978,6 +982,12 @@ class Record:
             "harvest_record_id": self.id,
             "last_harvested_date": self.date_finished,
         }
+
+        translated_spatial = translate_spatial_to_geojson(metadata.get("spatial"))
+        if translated_spatial is not None:
+            payload["translated_spatial"] = translated_spatial
+
+        return payload
 
     def sync(self):
         try:
