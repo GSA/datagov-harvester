@@ -24,6 +24,7 @@ def generate_dynamic_fixtures() -> Dict[str, Any]:
                 "slug": "fixture-org",
                 "organization_type": "Federal Government",
                 "id": "d925f84d-955b-4cb7-812f-dcfd6681a18f",
+                "aliases": ["testorg"],
             }
         ],
         "source": [

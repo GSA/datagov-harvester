@@ -147,3 +147,17 @@ class TestForms:
         assert org.organization_type == "City Government"
         assert org.description == "New description"
         assert org.slug == "updated-slug"
+
+    def test_edit_organization_handles_aliases(
+        self, app, client, interface, organization_data
+    ):
+        """aliases form field is formatted correctly"""
+        app.config.update({"WTF_CSRF_ENABLED": False})
+        with client.session_transaction() as sess:
+            sess["user"] = "tester@gsa.gov"
+
+        interface.add_organization(organization_data)
+
+        edit_response = client.get(f"/organization/edit/{organization_data['id']}")
+        assert "testorg" in edit_response.text
+        assert "['testorg']" not in edit_response.text
