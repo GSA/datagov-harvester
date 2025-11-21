@@ -2,7 +2,7 @@ import json
 import logging
 import os
 import sys
-from typing import List
+from typing import Iterable, Optional
 
 import click
 from sqlalchemy import String, cast, or_
@@ -81,13 +81,18 @@ def _latest_successful_records(session):
     return aliased(HarvestRecord, subquery)
 
 
-def _records_missing_datasets(session):
+def _records_missing_datasets(
+    session, exclude_ids: Optional[Iterable[int]] = None
+):
     LatestRecord = _latest_successful_records(session)
     harvest_source_alias = aliased(HarvestSource)
 
-    return (
+    query = (
         session.query(LatestRecord)
-        .join(harvest_source_alias, LatestRecord.harvest_source_id == harvest_source_alias.id)
+        .join(
+            harvest_source_alias,
+            LatestRecord.harvest_source_id == harvest_source_alias.id,
+        )
         .outerjoin(Dataset, Dataset.harvest_record_id == LatestRecord.id)
         .filter(
             LatestRecord.action.in_(["create", "update"]),
@@ -99,9 +104,16 @@ def _records_missing_datasets(session):
         )
     )
 
+    if exclude_ids:
+        query = query.filter(~LatestRecord.id.in_(tuple(exclude_ids)))
 
-def _datasets_with_unexpected_records(session):
-    return (
+    return query
+
+
+def _datasets_with_unexpected_records(
+    session, exclude_ids: Optional[Iterable[int]] = None
+):
+    query = (
         session.query(Dataset)
         .join(HarvestRecord, Dataset.harvest_record_id == HarvestRecord.id)
         .filter(
@@ -112,12 +124,33 @@ def _datasets_with_unexpected_records(session):
         )
     )
 
+    if exclude_ids:
+        query = query.filter(~Dataset.id.in_(tuple(exclude_ids)))
 
-def _report(records_missing_count: int, datasets_bad_count: int):
+    return query
+
+
+def _report(
+    total_records: int,
+    total_datasets: int,
+    records_missing_count: int,
+    datasets_bad_count: int,
+):
     click.echo("Dataset Sync Report\n====================")
+    click.echo(f"Total harvest records: {total_records}")
+    click.echo(f"Total datasets: {total_datasets}")
     click.echo(f"Records needing datasets: {records_missing_count}")
     click.echo(
-        f"Datasets tied to non-success/non-create records: {datasets_bad_count}"
+        "Datasets tied to non-success/non-create records: "
+        f"{datasets_bad_count}"
+    )
+    record_batches = (records_missing_count + BATCH_SIZE - 1) // BATCH_SIZE
+    dataset_batches = (datasets_bad_count + BATCH_SIZE - 1) // BATCH_SIZE
+    click.echo(
+        f"Estimated record batches (size {BATCH_SIZE}): {record_batches}"
+    )
+    click.echo(
+        f"Estimated dataset batches (size {BATCH_SIZE}): {dataset_batches}"
     )
 
 
@@ -125,26 +158,33 @@ def _sync_impl(apply_changes: bool):
     interface = HarvesterDBInterface(session=db.session)
 
     try:
-        records_missing_query = _records_missing_datasets(db.session)
-        datasets_bad_query = _datasets_with_unexpected_records(db.session)
+        total_records = db.session.query(HarvestRecord.id).count()
+        total_datasets = db.session.query(Dataset.id).count()
+        records_missing_count = _records_missing_datasets(db.session).count()
+        datasets_bad_count = _datasets_with_unexpected_records(db.session).count()
 
-        records_missing_count = records_missing_query.count()
-        datasets_bad_count = datasets_bad_query.count()
-
-        _report(records_missing_count, datasets_bad_count)
+        _report(
+            total_records,
+            total_datasets,
+            records_missing_count,
+            datasets_bad_count,
+        )
 
         if apply_changes:
             synced = 0
-            batches = (records_missing_count + BATCH_SIZE - 1) // BATCH_SIZE
-            for current_batch in range(batches):
-                offset = current_batch * BATCH_SIZE
+            current_batch = 0
+            failed_record_ids = set()
+            while True:
                 batch_records = (
-                    records_missing_query.limit(BATCH_SIZE).offset(offset).all()
+                    _records_missing_datasets(db.session, failed_record_ids)
+                    .limit(BATCH_SIZE)
+                    .all()
                 )
                 if not batch_records:
-                    continue
+                    break
+                current_batch += 1
                 click.echo(
-                    f"Processing batch {current_batch + 1} "
+                    f"Processing batch {current_batch} "
                     f"({len(batch_records)} records)..."
                 )
                 for record_in_batch in batch_records:
@@ -156,6 +196,7 @@ def _sync_impl(apply_changes: bool):
                             f"(slug: {slug})"
                         )
                     except click.ClickException as exc:
+                        failed_record_ids.add(record_in_batch.id)
                         click.echo(
                             f"Failed to sync record {record_in_batch.id}: {exc}"
                         )
@@ -167,13 +208,23 @@ def _sync_impl(apply_changes: bool):
                     f"Deleting {datasets_bad_count} dataset(s) tied "
                     "to invalid harvest records..."
                 )
-                for current_batch in range(
-                    (datasets_bad_count + BATCH_SIZE - 1) // BATCH_SIZE
-                ):
-                    offset = current_batch * BATCH_SIZE
-                    batch = datasets_bad_query.limit(BATCH_SIZE).offset(offset).all()
+                failed_dataset_ids = set()
+                current_batch = 0
+                while True:
+                    batch = (
+                        _datasets_with_unexpected_records(
+                            db.session, failed_dataset_ids
+                        )
+                        .limit(BATCH_SIZE)
+                        .all()
+                    )
                     if not batch:
-                        continue
+                        break
+                    current_batch += 1
+                    click.echo(
+                        f"Deleting batch {current_batch} "
+                        f"({len(batch)} datasets)..."
+                    )
                     for dataset in batch:
                         try:
                             interface.db.delete(dataset)
@@ -184,6 +235,7 @@ def _sync_impl(apply_changes: bool):
                                 f"(harvest_record_id={dataset.harvest_record_id})"
                             )
                         except Exception as exc:  # pragma: no cover - defensive
+                            failed_dataset_ids.add(dataset.id)
                             interface.db.rollback()
                             click.echo(
                                 f"Failed to delete dataset {dataset.slug}: {exc}"
