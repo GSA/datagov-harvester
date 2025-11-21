@@ -14,6 +14,45 @@ from database.models import (
 
 @freeze_time("Jan 14th, 2012")
 class TestDatabase:
+    def _create_record_for_dataset(
+        self,
+        interface,
+        organization_data,
+        source_data_dcatus,
+        job_data_dcatus,
+        identifier="dataset-popularity-record",
+    ):
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_dcatus)
+        job_data_dcatus["harvest_source_id"] = source_data_dcatus["id"]
+        interface.add_harvest_job(job_data_dcatus)
+        return interface.add_harvest_record(
+            {
+                "identifier": identifier,
+                "harvest_job_id": job_data_dcatus["id"],
+                "harvest_source_id": source_data_dcatus["id"],
+                "status": "success",
+                "action": "create",
+                "source_raw": "{}",
+            }
+        )
+
+    def _dataset_payload(
+        self,
+        slug,
+        record,
+        organization_data,
+        source_data_dcatus,
+    ):
+        return {
+            "slug": slug,
+            "dcat": {"title": slug},
+            "organization_id": organization_data["id"],
+            "harvest_source_id": source_data_dcatus["id"],
+            "harvest_record_id": record.id,
+            "last_harvested_date": datetime.now(timezone.utc),
+        }
+
     def test_add_organization(self, interface, organization_data):
         org = interface.add_organization(organization_data)
 
@@ -877,3 +916,71 @@ class TestDatabase:
 
         datasets = interface.db.query(DatasetViewCount).all()
         assert len(datasets) == 3  # b,c,d
+
+    def test_insert_dataset_sets_popularity_from_view_counts(
+        self,
+        interface,
+        organization_data,
+        source_data_dcatus,
+        job_data_dcatus,
+    ):
+        record = self._create_record_for_dataset(
+            interface,
+            organization_data,
+            source_data_dcatus,
+            job_data_dcatus,
+            identifier="dataset-popularity-insert",
+        )
+        slug = "dataset-popularity-insert"
+        interface.db.add(DatasetViewCount(dataset_slug=slug, view_count=9))
+        interface.db.commit()
+
+        dataset = interface.insert_dataset(
+            self._dataset_payload(slug, record, organization_data, source_data_dcatus)
+        )
+
+        assert dataset.popularity == 9
+
+    def test_upsert_dataset_updates_popularity_from_view_counts(
+        self,
+        interface,
+        organization_data,
+        source_data_dcatus,
+        job_data_dcatus,
+    ):
+        record = self._create_record_for_dataset(
+            interface,
+            organization_data,
+            source_data_dcatus,
+            job_data_dcatus,
+            identifier="dataset-popularity-upsert",
+        )
+        slug = "dataset-popularity-upsert"
+        interface.db.add(DatasetViewCount(dataset_slug=slug, view_count=4))
+        interface.db.commit()
+
+        base_payload = self._dataset_payload(
+            slug,
+            record,
+            organization_data,
+            source_data_dcatus,
+        )
+        interface.insert_dataset(base_payload)
+
+        # simulate analytics refresh increasing popularity
+        view_count = (
+            interface.db.query(DatasetViewCount)
+            .filter_by(dataset_slug=slug)
+            .first()
+        )
+        view_count.view_count = 12
+        interface.db.commit()
+
+        updated_payload = {
+            **base_payload,
+            "dcat": {"title": f"{slug}-updated"},
+            "last_harvested_date": datetime.now(timezone.utc),
+        }
+        dataset = interface.upsert_dataset(updated_payload)
+
+        assert dataset.popularity == 12
