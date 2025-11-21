@@ -981,13 +981,18 @@ class Record:
         if not self.ckan_name:
             raise ValueError("Record slug is not set for dataset persistence")
 
+        if self.date_finished is None:
+            raise ValueError(
+                "Record date_finished is not set; cannot build dataset payload"
+            )
+
         return {
             "slug": self.ckan_name,
             "dcat": metadata,
             "organization_id": self.harvest_source.organization_id,
             "harvest_source_id": self.harvest_source.id,
             "harvest_record_id": self.id,
-            "last_harvested_date": get_datetime(),
+            "last_harvested_date": self.date_finished,
         }
 
     def sync(self):
@@ -1024,10 +1029,12 @@ class Record:
         return False
 
     def update_self_in_db(self) -> bool:
+        finished_date = get_datetime()
         data = {
             "status": self.status,
-            "date_finished": get_datetime(),
+            "date_finished": finished_date,
         }
+        self._date_finished = finished_date
         if self.ckan_id is not None:
             data["ckan_id"] = self.ckan_id
         if self.ckan_name is not None:

@@ -53,9 +53,16 @@ class TestHarvestJobFullFlow:
             record["ckan_name"] for record in latest_records if record.get("ckan_name")
         }
         assert dataset_slugs == record_slugs
+        records_by_slug = {
+            record["ckan_name"]: record
+            for record in latest_records
+            if record.get("ckan_name")
+        }
         for dataset in datasets:
             assert dataset.harvest_record_id is not None
             assert dataset.harvest_source_id == source_data_dcatus_single_record["id"]
+            matching_record = records_by_slug[dataset.slug]
+            assert dataset.last_harvested_date == matching_record["date_finished"]
 
     @patch("harvester.harvest.HarvestSource.send_notification_emails")
     def test_multiple_harvest_jobs(
