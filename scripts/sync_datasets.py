@@ -141,6 +141,8 @@ def _sync_impl(apply_changes: bool):
                 batch_records = (
                     records_missing_query.limit(BATCH_SIZE).offset(offset).all()
                 )
+                if not batch_records:
+                    continue
                 click.echo(
                     f"Processing batch {current_batch + 1} "
                     f"({len(batch_records)} records)..."
@@ -170,6 +172,8 @@ def _sync_impl(apply_changes: bool):
                 ):
                     offset = current_batch * BATCH_SIZE
                     batch = datasets_bad_query.limit(BATCH_SIZE).offset(offset).all()
+                    if not batch:
+                        continue
                     for dataset in batch:
                         try:
                             interface.db.delete(dataset)
