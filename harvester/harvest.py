@@ -34,24 +34,22 @@ from harvester.exceptions import (
 from harvester.lib.cf_handler import CFHandler
 from harvester.lib.harvest_reporter import HarvestReporter
 from harvester.lib.load_manager import LoadManager
-from harvester.utils.ckan_utils import (
-    add_uuid_to_package_name,
-    munge_title_to_name,
-    translate_spatial_to_geojson,
-)
 from harvester.utils.general_utils import (
     DT_PLACEHOLDER,
     USER_AGENT,
+    add_uuid_to_package_name,
     assemble_validation_errors,
     dataset_to_hash,
     download_file,
     find_indexes_for_duplicates,
     get_datetime,
+    munge_title_to_name,
     make_record_mapping,
     open_json,
     prepare_transform_msg,
     send_email_to_recipients,
     sort_dataset,
+    translate_spatial_to_geojson,
     traverse_waf,
 )
 

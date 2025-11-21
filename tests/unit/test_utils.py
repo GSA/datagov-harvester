@@ -10,16 +10,13 @@ from jsonschema import Draft202012Validator, FormatChecker
 from requests.exceptions import ConnectionError
 
 from database.models import HarvestSource
-from harvester.exceptions import SynchronizeException
-from harvester.utils.ckan_utils import (
+from harvester.utils.general_utils import (
+    USER_AGENT,
+    RetrySession,
     munge_spatial,
     munge_title_to_name,
     translate_spatial,
     translate_spatial_to_geojson,
-)
-from harvester.utils.general_utils import (
-    USER_AGENT,
-    RetrySession,
     assemble_validation_errors,
     create_retry_session,
     download_file,

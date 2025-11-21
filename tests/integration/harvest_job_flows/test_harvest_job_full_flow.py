@@ -330,7 +330,7 @@ class TestHarvestJobFullFlow:
             harvest_source.report()
             assert send_notification_emails_mock.call_count == 2
 
-    @patch("harvester.utils.ckan_utils.uuid")
+    @patch("harvester.utils.general_utils.uuid")
     def test_validate_same_title(
         self,
         UUIDMock,
