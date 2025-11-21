@@ -1,7 +1,7 @@
 """add translated spatial column to dataset
 
 Revision ID: a4cb8572c296
-Revises: e75e287e2251
+Revises: d2a064c40061
 Create Date: 2025-03-05 00:00:00.000000
 
 """
@@ -13,7 +13,7 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision = "a4cb8572c296"
-down_revision = "e75e287e2251"
+down_revision = "d2a064c40061"
 branch_labels = None
 depends_on = None
 
