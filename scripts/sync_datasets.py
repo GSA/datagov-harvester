@@ -182,13 +182,24 @@ def _sync_impl(apply_changes: bool):
             synced = 0
             current_batch = 0
             failed_record_ids = set()
+            next_batch_message = (
+                f"Processing next batch {current_batch + 1} "
+                f"of {BATCH_SIZE} records..."
+            )
             while True:
+                if next_batch_message:
+                    click.echo(next_batch_message)
+                    next_batch_message = None
                 batch_records = (
                     _records_missing_datasets(db.session, failed_record_ids)
                     .limit(BATCH_SIZE)
                     .all()
                 )
                 if not batch_records:
+                    if current_batch == 0:
+                        click.echo("No records needing datasets.")
+                    else:
+                        click.echo("No more records needing datasets.")
                     break
                 current_batch += 1
                 click.echo(
@@ -208,6 +219,10 @@ def _sync_impl(apply_changes: bool):
                         click.echo(
                             f"Failed to sync record {record_in_batch.id}: {exc}"
                         )
+                next_batch_message = (
+                    f"Processing next batch {current_batch + 1} "
+                    f"of {BATCH_SIZE} records..."
+                )
             click.echo(f"Datasets created: {synced}")
 
             deleted = 0
@@ -218,7 +233,14 @@ def _sync_impl(apply_changes: bool):
                 )
                 failed_dataset_ids = set()
                 current_batch = 0
+                next_delete_batch_message = (
+                    f"Deleting next batch {current_batch + 1} "
+                    f"of {BATCH_SIZE} datasets..."
+                )
                 while True:
+                    if next_delete_batch_message:
+                        click.echo(next_delete_batch_message)
+                        next_delete_batch_message = None
                     batch = (
                         _datasets_with_unexpected_records(
                             db.session, failed_dataset_ids
@@ -227,6 +249,10 @@ def _sync_impl(apply_changes: bool):
                         .all()
                     )
                     if not batch:
+                        if current_batch == 0:
+                            click.echo("No datasets tied to invalid records.")
+                        else:
+                            click.echo("No more datasets tied to invalid records.")
                         break
                     current_batch += 1
                     click.echo(
@@ -248,6 +274,10 @@ def _sync_impl(apply_changes: bool):
                             click.echo(
                                 f"Failed to delete dataset {dataset.slug}: {exc}"
                             )
+                    next_delete_batch_message = (
+                        f"Deleting next batch {current_batch + 1} "
+                        f"of {BATCH_SIZE} datasets..."
+                    )
                 click.echo(f"Datasets deleted: {deleted}")
     finally:
         db.session.remove()
