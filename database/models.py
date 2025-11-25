@@ -1,6 +1,7 @@
 # NOTE: Keep this file in sync between datagov-harvester and datagov-catalog
 
 import uuid
+from typing import Optional
 
 from flask_sqlalchemy import SQLAlchemy
 from geoalchemy2 import Geometry
@@ -185,6 +186,14 @@ class HarvestRecord(db.Model):
     parent_identifier = db.Column(db.String)
     status = db.Column(Enum("error", "success", name="record_status"), index=True)
     errors = db.relationship("HarvestRecordError", backref="record", lazy=True)
+
+    @property
+    def dataset_slug(self) -> Optional[str]:
+        dataset = getattr(self, "dataset", None)
+        if dataset is None:
+            return None
+        return dataset.slug
+        return dataset.slug
 
 
 class Dataset(db.Model):

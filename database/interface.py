@@ -570,43 +570,59 @@ class HarvesterDBInterface:
         if not slug:
             raise ValueError("dataset_data must include a slug")
 
+        # use a nested transaction so that rollbacks don't rollback
+        # the whole session during the pytests and fail
+        nested = self.db.begin_nested()
         try:
             dataset = Dataset(**dataset_data)
             self.db.add(dataset)
-            self.db.commit()
+            self.db.flush()
+        except Exception as e:
+            nested.rollback()
+            logger.error("Error inserting dataset '%s': %s", slug, e)
+            raise
+        else:
+            nested.commit()
+            try:
+                self.db.commit()
+            except Exception:
+                self.db.rollback()
+                raise
             self.db.refresh(dataset)
             return dataset
-        except IntegrityError:
-            self.db.rollback()
-            raise
-        except Exception as e:
-            logger.error("Error inserting dataset '%s': %s", slug, e)
-            self.db.rollback()
-            raise
 
     def upsert_dataset(self, dataset_data: dict):
         slug = dataset_data.get("slug")
         if not slug:
             raise ValueError("dataset_data must include a slug")
 
+        stmt = insert(Dataset).values(**dataset_data)
+        update_cols = {
+            column: getattr(stmt.excluded, column)
+            for column in dataset_data
+            if column != "slug"
+        }
+        stmt = stmt.on_conflict_do_update(
+            index_elements=[Dataset.slug],
+            set_=update_cols,
+        )
+
+        nested = self.db.begin_nested()
         try:
-            stmt = insert(Dataset).values(**dataset_data)
-            update_cols = {
-                column: getattr(stmt.excluded, column)
-                for column in dataset_data
-                if column != "slug"
-            }
-            stmt = stmt.on_conflict_do_update(
-                index_elements=[Dataset.slug],
-                set_=update_cols,
-            )
             self.db.execute(stmt)
-            self.db.commit()
-            return self.get_dataset_by_slug(slug)
+            self.db.flush()
         except Exception as e:
+            nested.rollback()
             logger.error("Error upserting dataset '%s': %s", slug, e)
-            self.db.rollback()
             raise
+        else:
+            nested.commit()
+            try:
+                self.db.commit()
+            except Exception:
+                self.db.rollback()
+                raise
+            return self.get_dataset_by_slug(slug)
 
     def delete_dataset_by_slug(self, slug: str) -> bool:
         if not slug:
