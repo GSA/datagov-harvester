@@ -293,7 +293,8 @@ def _sync_impl(apply_changes: bool):
                             )
                     if dataset_batches:
                         next_delete_batch_message = (
-                            f"Deleting next batch {current_batch + 1}/{dataset_batches} "
+                            f"Deleting next batch "
+                            f"{current_batch + 1}/{dataset_batches} "
                             f"of {BATCH_SIZE} datasets..."
                         )
                 click.echo(f"Datasets deleted: {deleted}")
