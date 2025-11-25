@@ -19,8 +19,6 @@ from database.interface import HarvesterDBInterface
 from database.models import HarvestJob, HarvestSource, Locations, Organization, db
 from harvester.lib.load_manager import create_future_date
 from harvester.utils.general_utils import dataset_to_hash, sort_dataset
-from scripts.sync_db import CKANSyncManager
-from tests.scripts.test_sync_db import MockHarvestRecord
 
 load_dotenv()
 
@@ -1200,39 +1198,6 @@ def sample_ckan_records():
             "harvest_source_title": "nasa-data-json",
         },
     ]
-
-
-@pytest.fixture
-def sample_db_records():
-    """Sample database records for testing."""
-    return {
-        "DASHLINK_872": MockHarvestRecord(
-            identifier="DASHLINK_872",
-            id="537f6d3b-9256-415c-b5f8-aee31f4da580",
-            ckan_name="test-record-1",
-            date_finished=datetime(2025, 6, 28, 16, 55, 0, tzinfo=timezone.utc),
-        ),
-        "DASHLINK_874": MockHarvestRecord(
-            identifier="DASHLINK_874",
-            id="537f6d3b-9256-415c-b5f8-aee31f4da582",
-            ckan_name="test-record-3",
-            action="delete",
-        ),
-    }
-
-
-@pytest.fixture
-def sync_manager(mock_db_interface):
-    """Create a CKANSyncManager instance with mocked dependencies."""
-    with patch.dict(
-        os.environ,
-        {"CKAN_API_TOKEN": "test-token", "CKAN_API_URL": "https://test.ckan.api"},
-    ):
-        manager = CKANSyncManager(db_interface=mock_db_interface)
-        manager.session = Mock()
-        manager.ckan_tool = Mock()
-        return manager
-
 
 @pytest.fixture
 def view_count_datasets():

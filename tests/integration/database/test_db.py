@@ -589,7 +589,6 @@ class TestDatabase:
                 "date_created": datetime(2024, 3, 1, 0, 0, 0, 1000),
                 "date_finished": None,
                 "ckan_id": None,
-                "ckan_name": None,
                 "action": "update",
             },
             {
@@ -598,7 +597,6 @@ class TestDatabase:
                 "date_created": datetime(2024, 3, 1, 0, 0, 0, 1000),
                 "date_finished": None,
                 "ckan_id": None,
-                "ckan_name": None,
                 "action": "create",
             },
             {
@@ -607,7 +605,6 @@ class TestDatabase:
                 "date_created": datetime(2024, 5, 1, 0, 0, 0, 1000),
                 "date_finished": None,
                 "ckan_id": None,
-                "ckan_name": None,
                 "action": "create",
             },
             {
@@ -616,7 +613,6 @@ class TestDatabase:
                 "date_created": datetime(2024, 4, 3, 0, 0, 0, 1000),
                 "date_finished": None,
                 "ckan_id": None,
-                "ckan_name": None,
                 "action": "create",
             },
         ]
