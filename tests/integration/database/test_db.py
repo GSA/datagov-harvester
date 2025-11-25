@@ -43,8 +43,9 @@ class TestDatabase:
         record,
         organization_data,
         source_data_dcatus,
+        translated_spatial=None,
     ):
-        return {
+        payload = {
             "slug": slug,
             "dcat": {"title": slug},
             "organization_id": organization_data["id"],
@@ -52,6 +53,11 @@ class TestDatabase:
             "harvest_record_id": record.id,
             "last_harvested_date": datetime.now(timezone.utc),
         }
+
+        if translated_spatial is not None:
+            payload["translated_spatial"] = translated_spatial
+
+        return payload
 
     def test_add_organization(self, interface, organization_data):
         org = interface.add_organization(organization_data)
@@ -935,11 +941,20 @@ class TestDatabase:
         interface.db.add(DatasetViewCount(dataset_slug=slug, view_count=9))
         interface.db.commit()
 
+        translated_geojson = {"type": "Point", "coordinates": [-77.0, 38.9]}
+
         dataset = interface.insert_dataset(
-            self._dataset_payload(slug, record, organization_data, source_data_dcatus)
+            self._dataset_payload(
+                slug,
+                record,
+                organization_data,
+                source_data_dcatus,
+                translated_spatial=translated_geojson,
+            )
         )
 
         assert dataset.popularity == 9
+        assert dataset.translated_spatial == translated_geojson
 
     def test_upsert_dataset_updates_popularity_from_view_counts(
         self,
@@ -959,11 +974,13 @@ class TestDatabase:
         interface.db.add(DatasetViewCount(dataset_slug=slug, view_count=4))
         interface.db.commit()
 
+        base_geojson = {"type": "Point", "coordinates": [-80.0, 25.0]}
         base_payload = self._dataset_payload(
             slug,
             record,
             organization_data,
             source_data_dcatus,
+            translated_spatial=base_geojson,
         )
         interface.insert_dataset(base_payload)
 
@@ -976,11 +993,14 @@ class TestDatabase:
         view_count.view_count = 12
         interface.db.commit()
 
+        updated_geojson = {"type": "Point", "coordinates": [-81.0, 26.0]}
         updated_payload = {
             **base_payload,
             "dcat": {"title": f"{slug}-updated"},
             "last_harvested_date": datetime.now(timezone.utc),
+            "translated_spatial": updated_geojson,
         }
         dataset = interface.upsert_dataset(updated_payload)
 
         assert dataset.popularity == 12
+        assert dataset.translated_spatial == updated_geojson

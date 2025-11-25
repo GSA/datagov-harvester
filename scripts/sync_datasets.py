@@ -13,7 +13,11 @@ sys.path.insert(1, "/".join(os.path.realpath(__file__).split("/")[0:-2]))
 
 from database.models import Dataset, HarvestRecord, HarvestSource, db
 from harvester import HarvesterDBInterface
-from harvester.utils.ckan_utils import add_uuid_to_package_name, munge_title_to_name
+from harvester.utils.ckan_utils import (
+    add_uuid_to_package_name,
+    munge_title_to_name,
+    translate_spatial_to_geojson,
+)
 from harvester.utils.general_utils import get_datetime
 
 logger = logging.getLogger("sync_datasets")
@@ -55,6 +59,10 @@ def _insert_dataset_for_record(interface: HarvesterDBInterface, record: HarvestR
         "harvest_record_id": record.id,
         "last_harvested_date": record.date_finished or get_datetime(),
     }
+
+    translated_spatial = translate_spatial_to_geojson(metadata.get("spatial"))
+    if translated_spatial is not None:
+        payload["translated_spatial"] = translated_spatial
 
     while True:
         try:
