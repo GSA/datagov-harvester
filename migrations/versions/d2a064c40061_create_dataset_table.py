@@ -1,6 +1,6 @@
 """Create dataset table
 
-Revision ID: d2a064c40061
+Revision ID: c6db3bc6a5f5
 Revises: 1c80316df048
 Create Date: 2025-11-21 15:30:00.000000
 
@@ -11,7 +11,7 @@ from alembic import op
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision = "d2a064c40061"
+revision = "c6db3bc6a5f5"
 down_revision = "1c80316df048"
 branch_labels = None
 depends_on = None
@@ -25,8 +25,13 @@ def upgrade():
         sa.Column("organization_id", sa.String(length=36), nullable=False),
         sa.Column("harvest_source_id", sa.String(length=36), nullable=False),
         sa.Column("harvest_record_id", sa.String(length=36), nullable=False),
-        sa.Column("popularity", sa.Numeric(), nullable=True),
+        sa.Column("popularity", sa.Integer(), server_default="0", nullable=True),
         sa.Column("last_harvested_date", sa.DateTime(), nullable=True),
+        sa.Column(
+            "translated_spatial",
+            postgresql.JSONB(astext_type=sa.Text()),
+            nullable=True,
+        ),
         sa.Column("id", sa.String(length=36), nullable=False),
         sa.ForeignKeyConstraint(
             ["organization_id"], ["organization.id"], ondelete="CASCADE"
