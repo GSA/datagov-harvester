@@ -236,7 +236,7 @@ class Dataset(db.Model):
         index=True,
     )
 
-    popularity = db.Column(db.Numeric)
+    popularity = db.Column(db.Numeric, server_default="0")
     last_harvested_date = db.Column(
         db.DateTime,
         index=True
