@@ -1,10 +1,10 @@
 import logging
 from datetime import datetime, timedelta, timezone
 from functools import wraps
-from typing import List
+from typing import List, Optional
 
 from sqlalchemy import asc, desc, func, inspect, text
-from sqlalchemy.exc import IntegrityError, NoResultFound
+from sqlalchemy.exc import NoResultFound
 from sqlalchemy.orm import aliased
 from sqlalchemy.dialects.postgresql import insert
 
@@ -565,6 +565,20 @@ class HarvesterDBInterface:
         return self.db.query(HarvestRecord).filter_by(id=record_id).first()
 
     ## DATASETS
+    def _apply_popularity_from_view_count(self, dataset: Optional[Dataset]) -> None:
+        if dataset is None or not dataset.slug:
+            return
+
+        view_count = (
+            self.db.query(DatasetViewCount.view_count)
+            .filter(DatasetViewCount.dataset_slug == dataset.slug)
+            .scalar()
+        )
+        if view_count is None:
+            return
+
+        dataset.popularity = view_count
+
     def insert_dataset(self, dataset_data: dict):
         slug = dataset_data.get("slug")
         if not slug:
@@ -577,6 +591,7 @@ class HarvesterDBInterface:
             dataset = Dataset(**dataset_data)
             self.db.add(dataset)
             self.db.flush()
+            self._apply_popularity_from_view_count(dataset)
         except Exception as e:
             nested.rollback()
             logger.error("Error inserting dataset '%s': %s", slug, e)
@@ -608,9 +623,12 @@ class HarvesterDBInterface:
         )
 
         nested = self.db.begin_nested()
+        dataset = None
         try:
             self.db.execute(stmt)
             self.db.flush()
+            dataset = self.get_dataset_by_slug(slug)
+            self._apply_popularity_from_view_count(dataset)
         except Exception as e:
             nested.rollback()
             logger.error("Error upserting dataset '%s': %s", slug, e)
@@ -622,7 +640,11 @@ class HarvesterDBInterface:
             except Exception:
                 self.db.rollback()
                 raise
-            return self.get_dataset_by_slug(slug)
+            if dataset is None:
+                dataset = self.get_dataset_by_slug(slug)
+            if dataset is not None:
+                self.db.refresh(dataset)
+            return dataset
 
     def delete_dataset_by_slug(self, slug: str) -> bool:
         if not slug:
