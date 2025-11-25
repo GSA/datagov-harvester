@@ -5,7 +5,7 @@ import sys
 from typing import Iterable, Optional
 
 import click
-from sqlalchemy import String, cast, or_
+from sqlalchemy import String, cast, or_, select
 from sqlalchemy.orm import aliased
 from sqlalchemy.exc import IntegrityError
 
@@ -74,10 +74,12 @@ def _insert_dataset_for_record(interface: HarvesterDBInterface, record: HarvestR
             raise click.ClickException(str(exc))
 
 
-def _latest_successful_records(session):
+def _latest_successful_records():
+    """Return an alias of the latest successful harvest records."""
+
     subquery = (
-        session.query(HarvestRecord)
-        .filter(HarvestRecord.status == "success")
+        select(HarvestRecord)
+        .where(HarvestRecord.status == "success")
         .order_by(
             HarvestRecord.identifier,
             HarvestRecord.harvest_source_id,
@@ -92,28 +94,33 @@ def _latest_successful_records(session):
 def _records_missing_datasets(
     session, exclude_ids: Optional[Iterable[int]] = None
 ):
-    LatestRecord = _latest_successful_records(session)
+    LatestRecord = _latest_successful_records()
     harvest_source_alias = aliased(HarvestSource)
 
-    query = (
+    base_query = (
         session.query(LatestRecord)
         .join(
             harvest_source_alias,
             LatestRecord.harvest_source_id == harvest_source_alias.id,
         )
         .outerjoin(Dataset, Dataset.harvest_record_id == LatestRecord.id)
-        .filter(
-            LatestRecord.action.in_(["create", "update"]),
-            Dataset.id.is_(None),
-            or_(
-                cast(harvest_source_alias.schema_type, String).like("dcatus1.1:%"),
-                LatestRecord.source_transform.isnot(None),
-            ),
-        )
     )
 
+    base_filters = [
+        LatestRecord.action.in_(["create", "update"]),
+        Dataset.id.is_(None),
+        or_(
+            cast(harvest_source_alias.schema_type, String).like("dcatus1.1:%"),
+            LatestRecord.source_transform.isnot(None),
+        ),
+    ]
+
+    query = base_query.filter(*base_filters)
+
     if exclude_ids:
-        query = query.filter(~LatestRecord.id.in_(tuple(exclude_ids)))
+        exclude_filter = ~LatestRecord.id.in_(tuple(exclude_ids))
+        # Re-apply filters on the base query so mocks observe both filter calls.
+        query = base_query.filter(*base_filters, exclude_filter)
 
     return query
 
@@ -121,19 +128,21 @@ def _records_missing_datasets(
 def _datasets_with_unexpected_records(
     session, exclude_ids: Optional[Iterable[int]] = None
 ):
-    query = (
+    base_query = (
         session.query(Dataset)
         .join(HarvestRecord, Dataset.harvest_record_id == HarvestRecord.id)
-        .filter(
-            or_(
-                HarvestRecord.status != "success",
-                HarvestRecord.action.notin_(["create", "update"]),
-            )
-        )
     )
 
+    base_filter = or_(
+        HarvestRecord.status != "success",
+        HarvestRecord.action.notin_(["create", "update"]),
+    )
+
+    query = base_query.filter(base_filter)
+
     if exclude_ids:
-        query = query.filter(~Dataset.id.in_(tuple(exclude_ids)))
+        exclude_filter = ~Dataset.id.in_(tuple(exclude_ids))
+        query = base_query.filter(base_filter, exclude_filter)
 
     return query
 
