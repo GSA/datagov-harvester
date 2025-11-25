@@ -702,7 +702,9 @@ class HarvesterDBInterface:
                 sq_alias.date_finished,
                 sq_alias.id,
                 sq_alias.action,
+                Dataset.slug.label("dataset_slug"),
             )
+            .outerjoin(Dataset, Dataset.harvest_record_id == sq_alias.id)
             .filter(sq_alias.action != "delete")
         )
 
