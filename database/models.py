@@ -178,7 +178,6 @@ class HarvestRecord(db.Model):
     )
     date_finished = db.Column(db.DateTime, index=True)
     ckan_id = db.Column(db.String, index=True)
-    ckan_name = db.Column(db.String, index=True)
     action = db.Column(
         Enum("create", "update", "delete", name="record_action"), index=True
     )
@@ -186,6 +185,25 @@ class HarvestRecord(db.Model):
     parent_identifier = db.Column(db.String)
     status = db.Column(Enum("error", "success", name="record_status"), index=True)
     errors = db.relationship("HarvestRecordError", backref="record", lazy=True)
+
+    @property
+    def ckan_name(self) -> str:
+        """Return the dataset slug associated with this record, if present."""
+
+        override = getattr(self, "_ckan_name_override", None)
+        if override is not None:
+            return override
+
+        dataset = getattr(self, "dataset", None)
+        if dataset is None:
+            return None
+        return dataset.slug
+
+    @ckan_name.setter
+    def ckan_name(self, value: str) -> None:
+        """Allow temporary overrides (used in tests and scripts)."""
+
+        self._ckan_name_override = value
 
 
 class Dataset(db.Model):

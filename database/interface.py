@@ -4,7 +4,7 @@ from functools import wraps
 from typing import List
 
 from sqlalchemy import asc, desc, func, inspect, text
-from sqlalchemy.exc import NoResultFound
+from sqlalchemy.exc import IntegrityError, NoResultFound
 from sqlalchemy.orm import aliased
 from sqlalchemy.dialects.postgresql import insert
 
@@ -565,6 +565,25 @@ class HarvesterDBInterface:
         return self.db.query(HarvestRecord).filter_by(id=record_id).first()
 
     ## DATASETS
+    def insert_dataset(self, dataset_data: dict):
+        slug = dataset_data.get("slug")
+        if not slug:
+            raise ValueError("dataset_data must include a slug")
+
+        try:
+            dataset = Dataset(**dataset_data)
+            self.db.add(dataset)
+            self.db.commit()
+            self.db.refresh(dataset)
+            return dataset
+        except IntegrityError:
+            self.db.rollback()
+            raise
+        except Exception as e:
+            logger.error("Error inserting dataset '%s': %s", slug, e)
+            self.db.rollback()
+            raise
+
     def upsert_dataset(self, dataset_data: dict):
         slug = dataset_data.get("slug")
         if not slug:
@@ -674,16 +693,20 @@ class HarvesterDBInterface:
         )
         sq_alias = aliased(HarvestRecord, subq)
 
-        return self.db.query(
-            sq_alias.identifier,
-            sq_alias.source_hash,
-            sq_alias.ckan_id,
-            sq_alias.ckan_name,
-            sq_alias.date_created,
-            sq_alias.date_finished,
-            sq_alias.id,
-            sq_alias.action,
-        ).filter(sq_alias.action != "delete")
+        return (
+            self.db.query(
+                sq_alias.identifier,
+                sq_alias.source_hash,
+                sq_alias.ckan_id,
+                Dataset.slug.label("ckan_name"),
+                sq_alias.date_created,
+                sq_alias.date_finished,
+                sq_alias.id,
+                sq_alias.action,
+            )
+            .outerjoin(Dataset, Dataset.harvest_record_id == sq_alias.id)
+            .filter(sq_alias.action != "delete")
+        )
 
     def get_latest_harvest_records_by_source(self, source_id):
         return [
