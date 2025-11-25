@@ -139,26 +139,23 @@ def _datasets_with_unexpected_records(
 
 
 def _report(
-    total_records: int,
+    total_harvested_records: int,
     total_datasets: int,
     records_missing_count: int,
     datasets_bad_count: int,
+    record_batches: int,
+    dataset_batches: int,
 ):
     click.echo("Dataset Sync Report\n====================")
-    click.echo(f"Total harvest records: {total_records}")
+    click.echo(f"Total harvested records: {total_harvested_records}")
     click.echo(f"Total datasets: {total_datasets}")
-    click.echo(f"Records needing datasets: {records_missing_count}")
+    click.echo(f"Datasets to add: {records_missing_count}")
+    click.echo(f"Datasets to delete: {datasets_bad_count}")
     click.echo(
-        "Datasets tied to non-success/non-create records: "
-        f"{datasets_bad_count}"
-    )
-    record_batches = (records_missing_count + BATCH_SIZE - 1) // BATCH_SIZE
-    dataset_batches = (datasets_bad_count + BATCH_SIZE - 1) // BATCH_SIZE
-    click.echo(
-        f"Estimated record batches (size {BATCH_SIZE}): {record_batches}"
+        f"Estimated adding batches (size {BATCH_SIZE}): {record_batches}"
     )
     click.echo(
-        f"Estimated dataset batches (size {BATCH_SIZE}): {dataset_batches}"
+        f"Estimated delete batches (size {BATCH_SIZE}): {dataset_batches}"
     )
 
 
@@ -166,26 +163,43 @@ def _sync_impl(apply_changes: bool):
     interface = HarvesterDBInterface(session=db.session)
 
     try:
-        total_records = db.session.query(HarvestRecord.id).count()
         total_datasets = db.session.query(Dataset.id).count()
         records_missing_count = _records_missing_datasets(db.session).count()
         datasets_bad_count = _datasets_with_unexpected_records(db.session).count()
 
+        valid_dataset_count = max(total_datasets - datasets_bad_count, 0)
+        total_harvested_records = valid_dataset_count + records_missing_count
+
+        record_batches = (
+            (records_missing_count + BATCH_SIZE - 1) // BATCH_SIZE
+            if records_missing_count
+            else 0
+        )
+        dataset_batches = (
+            (datasets_bad_count + BATCH_SIZE - 1) // BATCH_SIZE
+            if datasets_bad_count
+            else 0
+        )
+
         _report(
-            total_records,
+            total_harvested_records,
             total_datasets,
             records_missing_count,
             datasets_bad_count,
+            record_batches,
+            dataset_batches,
         )
 
         if apply_changes:
             synced = 0
             current_batch = 0
             failed_record_ids = set()
-            next_batch_message = (
-                f"Processing next batch {current_batch + 1} "
-                f"of {BATCH_SIZE} records..."
-            )
+            next_batch_message = None
+            if record_batches:
+                next_batch_message = (
+                    f"Processing next batch {current_batch + 1}/{record_batches} "
+                    f"of {BATCH_SIZE} records..."
+                )
             while True:
                 if next_batch_message:
                     click.echo(next_batch_message)
@@ -197,9 +211,9 @@ def _sync_impl(apply_changes: bool):
                 )
                 if not batch_records:
                     if current_batch == 0:
-                        click.echo("No records needing datasets.")
+                        click.echo("No datasets to add.")
                     else:
-                        click.echo("No more records needing datasets.")
+                        click.echo("No more datasets to add.")
                     break
                 current_batch += 1
                 click.echo(
@@ -219,10 +233,11 @@ def _sync_impl(apply_changes: bool):
                         click.echo(
                             f"Failed to sync record {record_in_batch.id}: {exc}"
                         )
-                next_batch_message = (
-                    f"Processing next batch {current_batch + 1} "
-                    f"of {BATCH_SIZE} records..."
-                )
+                if record_batches:
+                    next_batch_message = (
+                        f"Processing next batch {current_batch + 1}/{record_batches} "
+                        f"of {BATCH_SIZE} records..."
+                    )
             click.echo(f"Datasets created: {synced}")
 
             deleted = 0
@@ -233,10 +248,12 @@ def _sync_impl(apply_changes: bool):
                 )
                 failed_dataset_ids = set()
                 current_batch = 0
-                next_delete_batch_message = (
-                    f"Deleting next batch {current_batch + 1} "
-                    f"of {BATCH_SIZE} datasets..."
-                )
+                next_delete_batch_message = None
+                if dataset_batches:
+                    next_delete_batch_message = (
+                        f"Deleting next batch {current_batch + 1}/{dataset_batches} "
+                        f"of {BATCH_SIZE} datasets..."
+                    )
                 while True:
                     if next_delete_batch_message:
                         click.echo(next_delete_batch_message)
@@ -250,9 +267,9 @@ def _sync_impl(apply_changes: bool):
                     )
                     if not batch:
                         if current_batch == 0:
-                            click.echo("No datasets tied to invalid records.")
+                            click.echo("No datasets to delete.")
                         else:
-                            click.echo("No more datasets tied to invalid records.")
+                            click.echo("No more datasets to delete.")
                         break
                     current_batch += 1
                     click.echo(
@@ -274,11 +291,38 @@ def _sync_impl(apply_changes: bool):
                             click.echo(
                                 f"Failed to delete dataset {dataset.slug}: {exc}"
                             )
-                    next_delete_batch_message = (
-                        f"Deleting next batch {current_batch + 1} "
-                        f"of {BATCH_SIZE} datasets..."
-                    )
+                    if dataset_batches:
+                        next_delete_batch_message = (
+                            f"Deleting next batch {current_batch + 1}/{dataset_batches} "
+                            f"of {BATCH_SIZE} datasets..."
+                        )
                 click.echo(f"Datasets deleted: {deleted}")
+
+            # re-check counts after applying changes
+            total_datasets = db.session.query(Dataset.id).count()
+            records_missing_count = _records_missing_datasets(db.session).count()
+            datasets_bad_count = _datasets_with_unexpected_records(db.session).count()
+            valid_dataset_count = max(total_datasets - datasets_bad_count, 0)
+            total_harvested_records = valid_dataset_count + records_missing_count
+            record_batches = (
+                (records_missing_count + BATCH_SIZE - 1) // BATCH_SIZE
+                if records_missing_count
+                else 0
+            )
+            dataset_batches = (
+                (datasets_bad_count + BATCH_SIZE - 1) // BATCH_SIZE
+                if datasets_bad_count
+                else 0
+            )
+            click.echo("\nPost-sync status:")
+            _report(
+                total_harvested_records,
+                total_datasets,
+                records_missing_count,
+                datasets_bad_count,
+                record_batches,
+                dataset_batches,
+            )
     finally:
         db.session.remove()
 
