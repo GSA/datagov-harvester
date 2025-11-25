@@ -10,6 +10,7 @@ from flask_migrate import Migrate
 from app.filters import else_na, usa_icon, utc_isoformat
 from database.models import db
 from harvester.lib.load_manager import LoadManager
+from scripts.sync_datasets import register_cli
 
 logger = logging.getLogger("harvest_admin")
 
@@ -40,6 +41,7 @@ def create_app():
     register_routes(app)
 
     add_template_filters(app)
+    register_cli(app)
 
     with app.app_context():
         # SQL-Alchemy can't be used to create the schema here

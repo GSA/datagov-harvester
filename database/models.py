@@ -216,21 +216,21 @@ class Dataset(db.Model):
 
     organization_id = db.Column(
         db.String(36),
-        db.ForeignKey("organization.id"),
+        db.ForeignKey("organization.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
 
     harvest_source_id = db.Column(
         db.String(36),
-        db.ForeignKey("harvest_source.id"),
+        db.ForeignKey("harvest_source.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
 
     harvest_record_id = db.Column(
         db.String(36),
-        db.ForeignKey("harvest_record.id"),
+        db.ForeignKey("harvest_record.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
