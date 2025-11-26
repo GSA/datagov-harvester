@@ -1,7 +1,7 @@
 import logging
 from datetime import datetime, timedelta, timezone
 from functools import wraps
-from typing import List
+from typing import List, Optional
 
 from sqlalchemy import asc, desc, func, inspect, text
 from sqlalchemy.exc import NoResultFound
@@ -11,6 +11,7 @@ from sqlalchemy.dialects.postgresql import insert
 from harvester.utils.general_utils import query_filter_builder
 
 from .models import (
+    Dataset,
     DatasetViewCount,
     HarvestJob,
     HarvestJobError,
@@ -563,6 +564,115 @@ class HarvesterDBInterface:
     def get_harvest_record(self, record_id):
         return self.db.query(HarvestRecord).filter_by(id=record_id).first()
 
+    ## DATASETS
+    def _apply_popularity_from_view_count(self, dataset: Optional[Dataset]) -> None:
+        if dataset is None or not dataset.slug:
+            return
+
+        view_count = (
+            self.db.query(DatasetViewCount.view_count)
+            .filter(DatasetViewCount.dataset_slug == dataset.slug)
+            .scalar()
+        )
+        if view_count is None:
+            return
+
+        dataset.popularity = view_count
+
+    def insert_dataset(self, dataset_data: dict):
+        slug = dataset_data.get("slug")
+        if not slug:
+            raise ValueError("dataset_data must include a slug")
+
+        # use a nested transaction so that rollbacks don't rollback
+        # the whole session during the pytests and fail
+        nested = self.db.begin_nested()
+        try:
+            dataset = Dataset(**dataset_data)
+            self.db.add(dataset)
+            self.db.flush()
+            self._apply_popularity_from_view_count(dataset)
+        except Exception as e:
+            nested.rollback()
+            logger.error("Error inserting dataset '%s': %s", slug, e)
+            raise
+        else:
+            nested.commit()
+            try:
+                self.db.commit()
+            except Exception:
+                self.db.rollback()
+                raise
+            self.db.refresh(dataset)
+            return dataset
+
+    def upsert_dataset(self, dataset_data: dict):
+        slug = dataset_data.get("slug")
+        if not slug:
+            raise ValueError("dataset_data must include a slug")
+
+        stmt = insert(Dataset).values(**dataset_data)
+        update_cols = {
+            column: getattr(stmt.excluded, column)
+            for column in dataset_data
+            if column != "slug"
+        }
+        stmt = stmt.on_conflict_do_update(
+            index_elements=[Dataset.slug],
+            set_=update_cols,
+        )
+
+        nested = self.db.begin_nested()
+        dataset = None
+        try:
+            self.db.execute(stmt)
+            self.db.flush()
+            dataset = self.get_dataset_by_slug(slug)
+            self._apply_popularity_from_view_count(dataset)
+        except Exception as e:
+            nested.rollback()
+            logger.error("Error upserting dataset '%s': %s", slug, e)
+            raise
+        else:
+            nested.commit()
+            try:
+                self.db.commit()
+            except Exception:
+                self.db.rollback()
+                raise
+            if dataset is None:
+                dataset = self.get_dataset_by_slug(slug)
+            if dataset is not None:
+                self.db.refresh(dataset)
+            return dataset
+
+    def delete_dataset_by_slug(self, slug: str) -> bool:
+        """Delete a dataset by slug.
+
+        Returns True if deleted, False if slug is falsy or dataset not found.
+        On unexpected errors the transaction is rolled back and the exception is raised.
+        """
+        if not slug:
+            return False
+
+        try:
+            dataset = self.get_dataset_by_slug(slug)
+            if dataset is None:
+                return False
+
+            self.db.delete(dataset)
+            self.db.commit()
+            return True
+        except Exception as e:
+            logger.error("Error deleting dataset '%s': %s", slug, e)
+            self.db.rollback()
+            raise
+
+    def get_dataset_by_slug(self, slug: str):
+        if not slug:
+            return None
+        return self.db.query(Dataset).filter_by(slug=slug).first()
+
     def get_all_outdated_records(self, days=365, source_id=None):
         """
         gets all outdated versions of records older than [days] ago
@@ -626,16 +736,20 @@ class HarvesterDBInterface:
         )
         sq_alias = aliased(HarvestRecord, subq)
 
-        return self.db.query(
-            sq_alias.identifier,
-            sq_alias.source_hash,
-            sq_alias.ckan_id,
-            sq_alias.ckan_name,
-            sq_alias.date_created,
-            sq_alias.date_finished,
-            sq_alias.id,
-            sq_alias.action,
-        ).filter(sq_alias.action != "delete")
+        return (
+            self.db.query(
+                sq_alias.identifier,
+                sq_alias.source_hash,
+                sq_alias.ckan_id,
+                sq_alias.date_created,
+                sq_alias.date_finished,
+                sq_alias.id,
+                sq_alias.action,
+                Dataset.slug.label("dataset_slug"),
+            )
+            .outerjoin(Dataset, Dataset.harvest_record_id == sq_alias.id)
+            .filter(sq_alias.action != "delete")
+        )
 
     def get_latest_harvest_records_by_source(self, source_id):
         return [

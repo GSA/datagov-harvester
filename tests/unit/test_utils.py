@@ -6,25 +6,17 @@ from unittest.mock import Mock, call, patch
 
 import pytest
 import requests
-from ckanapi.errors import CKANAPIError
 from jsonschema import Draft202012Validator, FormatChecker
 from requests.exceptions import ConnectionError
 
 from database.models import HarvestSource
-from harvester.exceptions import SynchronizeException
-from harvester.utils.ckan_utils import (
-    CKANSyncTool,
-    create_ckan_extras,
-    create_ckan_resources,
-    create_ckan_tags,
-    munge_spatial,
-    munge_tag,
-    munge_title_to_name,
-    translate_spatial,
-)
 from harvester.utils.general_utils import (
     USER_AGENT,
     RetrySession,
+    munge_spatial,
+    munge_title_to_name,
+    translate_spatial,
+    translate_spatial_to_geojson,
     assemble_validation_errors,
     create_retry_session,
     download_file,
@@ -44,45 +36,6 @@ class TestCKANUtils:
     """Some of these tests are copied from
     # https://github.com/ckan/ckan/blob/master/ckan/tests/lib/test_munge.py
     """
-
-    def test_create_ckan_tags(self, dcatus_keywords):
-        expected = [
-            {"name": "biosphere"},
-            {"name": "coastal"},
-            {"name": "docnoaanosocm"},
-            {"name": "earth-science"},
-            {"name": "ecosystems"},
-            {"name": "ma"},
-            {"name": "marine-ecosystems"},
-            {"name": "national-ocean-service"},
-            {"name": "nerrs"},
-            {"name": "noaa"},
-            {"name": "office-of-coastal-management"},
-            {"name": "us-department-of-commerce"},
-            {"name": "waquoit-bay-nerr"},
-        ]
-
-        tags = sorted(create_ckan_tags(dcatus_keywords), key=lambda t: t["name"])
-        for i in range(len(tags)):
-            assert tags[i] == expected[i]
-
-    @pytest.mark.parametrize(
-        "original,expected",
-        [
-            ("unchanged", "unchanged"),
-            ("s", "s_"),  # too short
-            ("some spaces  here", "some-spaces-here"),
-            ("random:other%characters&_.here", "randomothercharactershere"),
-            ("river-water-dashes", "river-water-dashes"),
-        ],
-    )
-    def test_munge_tag_multiple_pass(self, original, expected):
-        """Munge a list of tags muliple times gives expected results."""
-
-        first_munge = munge_tag(original)
-        assert first_munge == expected
-        second_munge = munge_tag(first_munge)
-        assert second_munge == expected
 
     @pytest.mark.parametrize(
         "original,expected",
@@ -222,131 +175,12 @@ class TestCKANUtils:
         translate_spatial(metadata["spatial"])
         assert metadata["spatial"] == "1.0,2.0,3.5,5.5"
 
-    def test_create_ckan_extras(self, dol_distribution_json, source_data_dcatus_orm):
-        extras = create_ckan_extras(
-            dol_distribution_json, source_data_dcatus_orm, "1234"
-        )
-
-        assert extras == [
-            {"key": "resource-type", "value": "Dataset"},
-            {"key": "harvest_object_id", "value": "1234"},
-            {
-                "key": "harvest_source_id",
-                "value": "2f2652de-91df-4c63-8b53-bfced20b276b",
-            },
-            {"key": "harvest_source_title", "value": "Test Source"},
-            {"key": "identifier", "value": "https://data.wa.gov/api/views/f6w7-q2d2"},
-            {"key": "source_datajson_identifier", "value": True},
-            {"key": "title", "value": "Electric Vehicle Population Data"},
-            {
-                "key": "description",
-                "value": "This dataset shows the Battery Electric Vehicles (BEVs) and "
-                "Plug-in Hybrid Electric Vehicles (PHEVs) that are currently registered"
-                " through Washington State Department of Licensing (DOL).",
-            },
-            {
-                "key": "keyword",
-                "value": json.dumps(
-                    [
-                        "bev",
-                        "bevs",
-                        "bolt",
-                        "car",
-                        "cars",
-                        "chevrolet",
-                        "chevy",
-                        "clean energy",
-                        "department of licensing",
-                        "dol",
-                        "dol_open_data",
-                        "electric",
-                        "energy",
-                        "environment",
-                        "ev",
-                        "evs",
-                        "green report",
-                        "hybrid",
-                        "hybrids",
-                        "leaf",
-                        "model 3",
-                        "nhtsa",
-                        "nissan",
-                        "phev",
-                        "phevs",
-                        "plug-in",
-                        "plug-ins",
-                        "population",
-                        "rao_ev",
-                        "rao_open_data",
-                        "rao_veh",
-                        "tesla",
-                        "vehicle",
-                        "vehicles",
-                        "volt",
-                    ]
-                ),
-            },
-            {"key": "modified", "value": "2025-01-16"},
-            {"key": "publisher_hierarchy", "value": "data.wa.gov"},
-            {"key": "publisher", "value": "data.wa.gov"},
-            {
-                "key": "contactPoint",
-                "value": json.dumps(
-                    {
-                        "@type": "vcard:Contact",
-                        "fn": "Department of Licensing",
-                        "hasEmail": "mailto:no-reply@data.wa.gov",
-                    }
-                ),
-            },
-            {"key": "identifier", "value": "https://data.wa.gov/api/views/f6w7-q2d2"},
-            {"key": "accessLevel", "value": "public"},
-            {"key": "old-spatial", "value": "United States"},
-            {
-                "key": "spatial",
-                "value": '{"type":"MultiPolygon","coordinates":'
-                "[[[[-124.733253,24.544245],[-124.733253,49.388611],"
-                "[-66.954811,49.388611],[-66.954811,24.544245],"
-                "[-124.733253,24.544245]]]]}",
-            },
-            {"key": "isPartOf", "value": "http://dx.doi.org/10.7927/H4PZ56R2"},
-            {"key": "temporal", "value": "2000-01-15T00:45:00Z/2010-01-15T00:06:00Z"},
-            {
-                "key": "license",
-                "value": "http://opendatacommons.org/licenses/odbl/1.0/",
-            },
-            {
-                "key": "rights",
-                "value": "This dataset contains Personally Identifiable Information and"
-                " could not be released for public access.",
-            },
-            {"key": "bureauCode", "value": json.dumps(["010:86", "010:04"])},
-            {"key": "programCode", "value": json.dumps(["015:001", "015:002"])},
-        ]
-
-    def test_create_iso_ckan_extras(
-        self, iso19115_2_transform, source_data_iso19115_2_orm
-    ):
-        iso19115_2_transform["accessLevel"] = "non-public"
-
-        extras = create_ckan_extras(
-            iso19115_2_transform, source_data_iso19115_2_orm, "1234"
-        )
-
-        access_level = list(filter(lambda e: e["key"] == "accessLevel", extras))[0]
-        assert access_level["value"] == "public"
-
-    def test_create_ckan_resources(self, dol_distribution_json):
-        resources = create_ckan_resources(dol_distribution_json)
-        assert len(resources) == 5  # four distribution and one landingPage
-
-    def test_create_ckan_resources_missing_accessurl(
-        self, dol_distribution_json, caplog
-    ):
-        del dol_distribution_json["distribution"][0]["downloadURL"]
-        resources = create_ckan_resources(dol_distribution_json)
-        assert len(resources) == 4  # 3 valid distribution and one landingPage
-        assert "Not including" in caplog.text
+    def test_translate_spatial_to_geojson(self):
+        geojson = translate_spatial_to_geojson("-88.9718,36.52033")
+        assert geojson == {
+            "type": "Point",
+            "coordinates": [-88.9718, 36.52033],
+        }
 
 
 # Point example
@@ -610,40 +444,6 @@ class TestGeneralUtils:
 
         with pytest.raises(requests.exceptions.ConnectionError) as e:
             download_file("http://example.com/test.xml", ".xml")
-
-    @patch("harvester.utils.ckan_utils.RemoteCKAN")
-    @patch("harvester.utils.general_utils.requests.Session.request")
-    def test_ckan_requests_use_correct_user_agent(self, mock_request, mock_remote_ckan):
-        """Test that CKAN requests include the correct User-Agent header."""
-        # Mock the RemoteCKAN instance and its action attribute
-        mock_ckan_instance = Mock()
-        mock_remote_ckan.return_value = mock_ckan_instance
-
-        # Mock environment variables
-        with patch.dict(
-            "os.environ",
-            {"CKAN_API_URL": "http://test.ckan.api", "CKAN_API_TOKEN": "test-token"},
-        ):
-            # Create a mock session that we can inspect
-            mock_session = Mock()
-            mock_session.request = mock_request
-
-            # Mock successful response
-            mock_response = Mock()
-            mock_response.status_code = 200
-            mock_response.json.return_value = {
-                "success": True,
-                "result": {"id": "test-id"},
-            }
-            mock_request.return_value = mock_response
-
-            # Create CKANSyncTool instance
-            ckan_sync_tool = CKANSyncTool(session=mock_session)
-
-            # Verify that RemoteCKAN was initialized with our User-Agent
-            mock_remote_ckan.assert_called_once()
-            call_kwargs = mock_remote_ckan.call_args.kwargs
-            assert call_kwargs["user_agent"] == USER_AGENT
 
 
 class TestRetrySession:
@@ -916,49 +716,3 @@ class TestCreateRetrySession:
         # Verify User-Agent header is still set
         assert "User-Agent" in session.headers
         assert session.headers["User-Agent"] == USER_AGENT
-
-
-class TestCKANSyncToolAPIError:
-    @patch("harvester.utils.ckan_utils.RemoteCKAN")
-    def test_ckanapierror_trimmed_in_synchronize_exception(self, mock_remote_ckan):
-        """
-        ensure SynchronizeException message does not have lengthy response body
-        """
-
-        # mock CKAN to raise CKANAPIError with tuple-like string args
-        mock_ckan_instance = Mock()
-        mock_remote_ckan.return_value = mock_ckan_instance
-        large_body = "Asdf" * 1000
-        error_tuple_str = str(("http://ckan/api/action/dataset_purge", 500, large_body))
-        mock_ckan_instance.action.dataset_purge.side_effect = CKANAPIError(
-            error_tuple_str
-        )
-
-        # minimal record stub for delete path to avoid ckanify step
-        class RecordStub:
-            def __init__(self):
-                self.action = "delete"
-                self.identifier = "test-identifier"
-                self.id = "record-123"
-                self.ckan_id = "ckan-123"
-
-                class HS:
-                    job_id = "job-456"
-
-                self.harvest_source = HS()
-                self.status = None
-
-        record = RecordStub()
-
-        ckan_sync_tool = CKANSyncTool(session=Mock())
-        with pytest.raises(SynchronizeException) as exc_info:
-            ckan_sync_tool.sync(record)
-
-        message = str(exc_info.value)
-        assert "failed to delete" in message
-        assert record.identifier in message
-        # it has URL and status code
-        assert "http://ckan/api/action/dataset_purge" in message
-        assert "500" in message
-        # the large response body is trimmed out
-        assert large_body not in message
