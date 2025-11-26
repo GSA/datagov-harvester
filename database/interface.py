@@ -647,6 +647,11 @@ class HarvesterDBInterface:
             return dataset
 
     def delete_dataset_by_slug(self, slug: str) -> bool:
+        """Delete a dataset by slug.
+
+        Returns True if deleted, False if slug is falsy or dataset not found.
+        On unexpected errors the transaction is rolled back and the exception is raised.
+        """
         if not slug:
             return False
 

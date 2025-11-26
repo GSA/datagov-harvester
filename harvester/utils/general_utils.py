@@ -441,7 +441,11 @@ def _munge_to_length(string: str, min_length: int, max_length: int) -> str:
 
 
 def substitute_ascii_equivalents(text_unicode: str) -> str:
-    """Replace Latin-1 characters with ASCII equivalents when possible."""
+    """
+    Replace Latin-1 characters with ASCII equivalents when possible.
+    This is copied from CKAN's ckan.lib.munge but made more efficient.
+    https://github.com/ckan/ckan/blob/ckan-2.11.4/ckan/lib/munge.py#L66
+    """
 
     char_mapping = {
         0xC0: "A",
@@ -554,6 +558,11 @@ def munge_spatial(spatial_value: str) -> str:
     )
     geojson_point_tpl = '{{"type": "Point", "coordinates": [{x}, {y}]}}'
 
+    #  do some string munging to try to get to something parseable
+    #  1. Remove "+" characters.
+    #  2. Replace occurrences of "., " and ".]" to fix some malformed separators.
+    #  3. Strip a trailing "." if present.
+    #  4. Remove unnecessary leading zeros A regex call.
     spatial_value = spatial_value.replace("+", "")
     spatial_value = spatial_value.replace(".,", ",").replace(".]", "]")
     if spatial_value and spatial_value[-1] == ".":

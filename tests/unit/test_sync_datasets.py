@@ -53,6 +53,11 @@ def test_records_missing_datasets_returns_query(session):
 
 
 def test_records_missing_datasets_excludes_failed_ids(session):
+    """
+    Verify _records_missing_datasets excludes two given IDs and
+    adds filters to select records.
+    Uses mocked session.query().join().outerjoin() and expects two filter calls.
+    """
     query = (
         session.query.return_value
         .join.return_value
@@ -75,6 +80,13 @@ def test_datasets_with_unexpected_records_returns_query(session):
 
 
 def test_datasets_with_unexpected_records_excludes_failed_ids(session):
+    """_datasets_with_unexpected_records should filter out excluded dataset IDs.
+
+    This helper also re-applies ``filter`` when ``exclude_ids`` is supplied,
+    so the mock sees two invocations: once with the base "unexpected record"
+    predicate and a second time with the exclusion predicate as well. Hence
+    the expectation that ``filter`` is called ``2`` times.
+    """
     query = session.query.return_value.join.return_value
 
     _datasets_with_unexpected_records(session, exclude_ids=[3])
