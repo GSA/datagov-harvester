@@ -193,7 +193,6 @@ class HarvestRecord(db.Model):
         if dataset is None:
             return None
         return dataset.slug
-        return dataset.slug
 
 
 class Dataset(db.Model):
