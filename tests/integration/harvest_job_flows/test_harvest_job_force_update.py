@@ -1,3 +1,4 @@
+from database.models import Dataset
 from harvester.harvest import harvest_job_starter
 
 
@@ -44,6 +45,12 @@ class TestHarvestJobSync:
         assert harvest_job.records_updated == 0
         assert harvest_job.records_validated == 7
 
+        datasets_initial = interface.db.query(Dataset).all()
+        assert len(datasets_initial) == 7
+        initial_harvest_record_ids = {
+            dataset.slug: dataset.harvest_record_id for dataset in datasets_initial
+        }
+
         ## create a second force_harvest to pickup sync
         harvest_job = interface.add_harvest_job(
             {
@@ -72,3 +79,12 @@ class TestHarvestJobSync:
         assert harvest_job.records_total == 7
         assert harvest_job.records_updated == 7
         assert harvest_job.records_validated == 7
+
+        datasets_after = interface.db.query(Dataset).all()
+        assert len(datasets_after) == 7
+        updated_harvest_record_ids = {
+            dataset.slug: dataset.harvest_record_id for dataset in datasets_after
+        }
+        assert set(initial_harvest_record_ids) == set(updated_harvest_record_ids)
+        for slug, record_id in initial_harvest_record_ids.items():
+            assert updated_harvest_record_ids[slug] != record_id

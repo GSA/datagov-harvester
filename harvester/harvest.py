@@ -11,6 +11,7 @@ from typing import List
 import requests
 from jsonschema import Draft202012Validator, FormatChecker
 from requests.exceptions import HTTPError, Timeout
+from sqlalchemy.exc import IntegrityError
 
 sys.path.insert(1, "/".join(os.path.realpath(__file__).split("/")[0:-2]))
 
@@ -33,20 +34,22 @@ from harvester.exceptions import (
 from harvester.lib.cf_handler import CFHandler
 from harvester.lib.harvest_reporter import HarvestReporter
 from harvester.lib.load_manager import LoadManager
-from harvester.utils.ckan_utils import add_uuid_to_package_name, munge_title_to_name
 from harvester.utils.general_utils import (
     DT_PLACEHOLDER,
     USER_AGENT,
+    add_uuid_to_package_name,
     assemble_validation_errors,
     dataset_to_hash,
     download_file,
     find_indexes_for_duplicates,
     get_datetime,
+    munge_title_to_name,
     make_record_mapping,
     open_json,
     prepare_transform_msg,
     send_email_to_recipients,
     sort_dataset,
+    translate_spatial_to_geojson,
     traverse_waf,
 )
 
@@ -227,7 +230,7 @@ class HarvestSource:
                 None,  # source raw
                 record["source_hash"],
                 _ckan_id=record["ckan_id"],
-                _ckan_name=record["ckan_name"],
+                _dataset_slug=record.get("dataset_slug"),
                 _date_finished=record["date_finished"],
                 _parent_identifier=record.get("parent_identifier"),
             )
@@ -567,7 +570,7 @@ class Record:
     _action: str = None
     _status: str = None
     _ckan_id: str = None
-    _ckan_name: str = None
+    _dataset_slug: str = None
     _date_finished: str = None
     _mdt_writer: str = "dcat_us"
     _mdt_msgs: str = ""
@@ -612,12 +615,12 @@ class Record:
         self._id = value
 
     @property
-    def ckan_name(self) -> str:
-        return self._ckan_name
+    def dataset_slug(self) -> str:
+        return self._dataset_slug
 
-    @ckan_name.setter
-    def ckan_name(self, value) -> None:
-        self._ckan_name = value
+    @dataset_slug.setter
+    def dataset_slug(self, value) -> None:
+        self._dataset_slug = value
 
     @property
     def date_finished(self) -> str:
@@ -737,7 +740,7 @@ class Record:
             if not_same_hash or self.harvest_source.job_type == "force_harvest":
                 self.action = "update"
                 self.ckan_id = internal_record.ckan_id
-                self.ckan_name = internal_record.ckan_name
+                self.dataset_slug = internal_record.dataset_slug
         else:
             self.action = "create"
 
@@ -951,42 +954,64 @@ class Record:
             self.harvest_source.update_job_record_count_by_action("errored")
             return False
 
-    def make_unique_slug(self, base_slug):
-        """
-        create slug until unique based on all other slugs in harvest record
+    def _metadata_for_dataset(self):
+        if self.transformed_data is not None:
+            return self.transformed_data
 
-        includes "deleted" datasets which isn't perfect.
-        """
-        slug = base_slug
-        while True:
-            slug_exists = self.harvest_source.db_interface.pget_harvest_records(
-                facets=f"ckan_name eq {slug}", count=True
+        if self.source_raw is None:
+            raise ValueError("Record missing source_raw for dataset persistence")
+
+        return json.loads(self.source_raw)
+
+    def _dataset_payload(self, metadata: dict) -> dict:
+        if not self.dataset_slug:
+            raise ValueError("Record slug is not set for dataset persistence")
+
+        if self.date_finished is None:
+            raise ValueError(
+                "Record date_finished is not set; cannot build dataset payload"
             )
-            if not slug_exists:
-                break
-            slug = add_uuid_to_package_name(base_slug)
 
-        return slug
+        payload = {
+            "slug": self.dataset_slug,
+            "dcat": metadata,
+            "organization_id": self.harvest_source.organization_id,
+            "harvest_source_id": self.harvest_source.id,
+            "harvest_record_id": self.id,
+            "last_harvested_date": self.date_finished,
+        }
+
+        translated_spatial = translate_spatial_to_geojson(metadata.get("spatial"))
+        if translated_spatial is not None:
+            payload["translated_spatial"] = translated_spatial
+
+        return payload
 
     def sync(self):
         try:
             if self.status == "error":
                 return False
-
-            if self.action == "create":
-                metadata = (
-                    json.loads(self.source_raw)
-                    if self.transformed_data is None
-                    else self.transformed_data
-                )
-
-                self.ckan_name = self.make_unique_slug(
-                    munge_title_to_name(metadata["title"])
-                )
+            metadata = None
+            if self.action in ("create", "update"):
+                metadata = self._metadata_for_dataset()
+                if not self.dataset_slug:
+                    self.dataset_slug = munge_title_to_name(metadata["title"])
 
             self.status = "success"
             self.harvest_source.update_job_record_count_by_action(self.action)
             self.update_self_in_db()
+
+            if self.action in ("create", "update") and metadata is not None:
+                dataset_payload = self._dataset_payload(metadata)
+                if self.action == "create":
+                    self._insert_dataset_with_unique_slug(dataset_payload)
+                else:
+                    self.harvest_source.db_interface.upsert_dataset(dataset_payload)
+            elif self.action == "delete" and self.dataset_slug:
+                self.harvest_source.db_interface.delete_dataset_by_slug(
+                    self.dataset_slug
+                )
+
             return True
 
         except Exception as e:
@@ -997,14 +1022,14 @@ class Record:
         return False
 
     def update_self_in_db(self) -> bool:
+        finished_date = get_datetime()
         data = {
             "status": self.status,
-            "date_finished": get_datetime(),
+            "date_finished": finished_date,
         }
+        self._date_finished = finished_date
         if self.ckan_id is not None:
             data["ckan_id"] = self.ckan_id
-        if self.ckan_name is not None:
-            data["ckan_name"] = self.ckan_name
 
         if self.harvest_source.job_type == "force_harvest":
             data["harvest_job_id"] = self.harvest_source.job_id
@@ -1013,6 +1038,33 @@ class Record:
             self.id,
             data,
         )
+
+    def _insert_dataset_with_unique_slug(self, dataset_payload: dict) -> None:
+        """Persist a dataset, retrying with a unique slug when needed."""
+
+        while True:
+            try:
+                self.harvest_source.db_interface.insert_dataset(dataset_payload)
+                return
+            except IntegrityError as error:
+                if not self._is_slug_unique_violation(error):
+                    raise
+
+                logger.info(
+                    "Dataset slug '%s' already exists; generating a new slug", self.dataset_slug
+                )
+                self.dataset_slug = add_uuid_to_package_name(self.dataset_slug)
+                dataset_payload["slug"] = self.dataset_slug
+
+    @staticmethod
+    def _is_slug_unique_violation(error: IntegrityError) -> bool:
+        constraint = getattr(getattr(error, "orig", None), "diag", None)
+        if constraint is not None:
+            if getattr(constraint, "constraint_name", None) == "dataset_slug_key":
+                return True
+
+        message = str(getattr(error, "orig", error)).lower()
+        return "dataset" in message and "slug" in message and "unique" in message
 
 
 def harvest_job_starter(job_id, job_type="harvest"):
