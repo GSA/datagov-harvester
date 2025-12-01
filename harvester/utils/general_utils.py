@@ -7,6 +7,7 @@ import os
 import re
 import smtplib
 import time
+import uuid
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from email.mime.multipart import MIMEMultipart
@@ -32,6 +33,9 @@ FREQUENCY_ENUM = {"daily": 1, "weekly": 7, "biweekly": 14, "monthly": 30}
 USER_AGENT = "HarvesterBot/1.0 (https://data.gov;datagovhelp@gsa.gov) Data.gov"
 
 DT_PLACEHOLDER = datetime(1900, 1, 1, 0, 0)
+
+PACKAGE_NAME_MAX_LENGTH = 90
+PACKAGE_NAME_MIN_LENGTH = 2
 
 SMTP_CONFIG = {
     "server": os.getenv("HARVEST_SMTP_SERVER"),
@@ -133,7 +137,6 @@ def make_record_mapping(record):
         "source_raw": record.source_raw,
         "action": record.action,
         "ckan_id": record.ckan_id,
-        "ckan_name": record.ckan_name,
         "parent_identifier": record.parent_identifier,
     }
 
@@ -425,6 +428,239 @@ def validate_geojson(geojson_str: str) -> bool:
         logger.warning(f"This spatial value was unable be fixed: {geojson_str}")
         pass
     return False
+
+
+def _munge_to_length(string: str, min_length: int, max_length: int) -> str:
+    """Pad or truncate a string to ensure it fits within the provided bounds."""
+
+    if len(string) < min_length:
+        string += "_" * (min_length - len(string))
+    if len(string) > max_length:
+        string = string[:max_length]
+    return string
+
+
+def substitute_ascii_equivalents(text_unicode: str) -> str:
+    """
+    Replace Latin-1 characters with ASCII equivalents when possible.
+    This is copied from CKAN's ckan.lib.munge but made more efficient.
+    https://github.com/ckan/ckan/blob/ckan-2.11.4/ckan/lib/munge.py#L66
+    """
+
+    char_mapping = {
+        0xC0: "A",
+        0xC1: "A",
+        0xC2: "A",
+        0xC3: "A",
+        0xC4: "A",
+        0xC5: "A",
+        0xC6: "Ae",
+        0xC7: "C",
+        0xC8: "E",
+        0xC9: "E",
+        0xCA: "E",
+        0xCB: "E",
+        0xCC: "I",
+        0xCD: "I",
+        0xCE: "I",
+        0xCF: "I",
+        0xD0: "Th",
+        0xD1: "N",
+        0xD2: "O",
+        0xD3: "O",
+        0xD4: "O",
+        0xD5: "O",
+        0xD6: "O",
+        0xD8: "O",
+        0xD9: "U",
+        0xDA: "U",
+        0xDB: "U",
+        0xDC: "U",
+        0xDD: "Y",
+        0xDE: "th",
+        0xDF: "ss",
+        0xE0: "a",
+        0xE1: "a",
+        0xE2: "a",
+        0xE3: "a",
+        0xE4: "a",
+        0xE5: "a",
+        0xE6: "ae",
+        0xE7: "c",
+        0xE8: "e",
+        0xE9: "e",
+        0xEA: "e",
+        0xEB: "e",
+        0xEC: "i",
+        0xED: "i",
+        0xEE: "i",
+        0xEF: "i",
+        0xF0: "th",
+        0xF1: "n",
+        0xF2: "o",
+        0xF3: "o",
+        0xF4: "o",
+        0xF5: "o",
+        0xF6: "o",
+        0xF8: "o",
+        0xF9: "u",
+        0xFA: "u",
+        0xFB: "u",
+        0xFC: "u",
+        0xFD: "y",
+        0xFE: "th",
+        0xFF: "y",
+    }
+
+    result = []
+    for char in text_unicode:
+        code_point = ord(char)
+        if code_point in char_mapping:
+            result.append(char_mapping[code_point])
+        elif code_point >= 0x80:
+            continue
+        else:
+            result.append(char)
+    return "".join(result)
+
+
+def munge_title_to_name(name: str) -> str:
+    """Convert a dataset title into a slug-friendly package name."""
+
+    name = substitute_ascii_equivalents(name)
+    name = re.sub("[ .:/]", "-", name)
+    name = re.sub("[^a-zA-Z0-9-_]", "", name).lower()
+    name = re.sub("-+", "-", name).strip("-")
+
+    if len(name) > PACKAGE_NAME_MAX_LENGTH:
+        year_match = re.match(r".*?[_-]((?:\d{2,4}[-/])?\d{2,4})$", name)
+        if year_match:
+            year = year_match.group(1)
+            name = f"{name[: (PACKAGE_NAME_MAX_LENGTH - len(year) - 1)]}-{year}"
+        else:
+            name = name[:PACKAGE_NAME_MAX_LENGTH]
+
+    return _munge_to_length(name, PACKAGE_NAME_MIN_LENGTH, PACKAGE_NAME_MAX_LENGTH)
+
+
+def add_uuid_to_package_name(name: str) -> str:
+    """Append a short UUID segment to ensure slug uniqueness."""
+
+    return f"{name}-{str(uuid.uuid4())[:5]}"
+
+
+def munge_spatial(spatial_value: str) -> str:
+    """Translate loose spatial inputs into GeoJSON strings when possible."""
+
+    geojson_polygon_tpl = (
+        '{{"type": "Polygon", "coordinates": [[[{minx}, {miny}], '
+        '[{minx}, {maxy}], [{maxx}, {maxy}], [{maxx}, {miny}], [{minx}, {miny}]]]}}'
+    )
+    geojson_point_tpl = '{{"type": "Point", "coordinates": [{x}, {y}]}}'
+
+    #  do some string munging to try to get to something parseable
+    #  1. Remove "+" characters.
+    #  2. Replace occurrences of "., " and ".]" to fix some malformed separators.
+    #  3. Strip a trailing "." if present.
+    #  4. Remove unnecessary leading zeros A regex call.
+    spatial_value = spatial_value.replace("+", "")
+    spatial_value = spatial_value.replace(".,", ",").replace(".]", "]")
+    if spatial_value and spatial_value[-1] == ".":
+        spatial_value = spatial_value[:-1]
+    spatial_value = re.sub(
+        r"(^|\s)(-?)0+((0|[1-9][0-9]*)(\.[0-9]*)?)",
+        r"\1\2\3",
+        spatial_value,
+    )
+
+    try:
+        numbers_with_spaces = [int(i) for i in spatial_value.split(" ")]
+        if all(isinstance(x, int) for x in numbers_with_spaces):
+            spatial_value = spatial_value.replace(" ", ",")
+    except ValueError:
+        pass
+
+    parts = spatial_value.strip().split(",")
+    if len(parts) == 4 and all(is_number(x) for x in parts):
+        minx, miny, maxx, maxy = parts
+        return geojson_polygon_tpl.format(minx=minx, miny=miny, maxx=maxx, maxy=maxy)
+    if len(parts) == 2 and all(is_number(x) for x in parts):
+        x, y = parts
+        return geojson_point_tpl.format(x=x, y=y)
+
+    try:
+        geometry = json.loads(spatial_value)
+        if isinstance(geometry, list) and len(geometry) == 2:
+            min_point, max_point = geometry
+            return geojson_polygon_tpl.format(
+                minx=min_point[0],
+                miny=min_point[1],
+                maxx=max_point[0],
+                maxy=max_point[1],
+            )
+    except Exception:  # noqa: BLE001
+        pass
+
+    return ""
+
+
+def _get_geo_lookup_interface():
+    try:
+        from harvester import db_interface  # type: ignore
+
+        return db_interface
+    except Exception:  # pragma: no cover - optional dependency
+        return None
+
+
+def translate_spatial(input_value) -> str:
+    """Normalize spatial strings/dicts into GeoJSON strings when possible."""
+
+    if isinstance(input_value, dict):
+        spatial_value = json.dumps(input_value)
+    elif isinstance(input_value, str):
+        spatial_value = input_value
+    else:
+        return ""
+
+    validated_geojson = validate_geojson(spatial_value)
+    if validated_geojson:
+        return validated_geojson
+
+    dbi = _get_geo_lookup_interface()
+    if dbi is not None:
+        try:
+            resolved_geojson = dbi.get_geo_from_string(spatial_value)
+            if resolved_geojson:
+                return resolved_geojson
+        except Exception:  # pragma: no cover - defensive lookup
+            pass
+
+    if isinstance(spatial_value, str):
+        return munge_spatial(spatial_value)
+
+    return ""
+
+
+def translate_spatial_to_geojson(spatial_input):
+    """Return a GeoJSON dict for the provided spatial input, if possible."""
+
+    if not spatial_input:
+        return None
+
+    translated_value = translate_spatial(spatial_input)
+    if not translated_value:
+        return None
+
+    try:
+        return json.loads(translated_value)
+    except json.JSONDecodeError as exc:  # pragma: no cover - defensive
+        logger.warning(
+            "Unable to decode translated spatial value %s: %s",
+            translated_value,
+            exc,
+        )
+        return None
 
 
 def dynamic_map_list_items_to_dict(list, fields):

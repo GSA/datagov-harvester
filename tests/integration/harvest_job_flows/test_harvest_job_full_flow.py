@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, patch
 
 from jsonschema.exceptions import ValidationError
 
+from database.models import Dataset
 from harvester.harvest import HarvestSource, check_for_more_work, harvest_job_starter
 from harvester.utils.general_utils import download_file
 
@@ -41,6 +42,22 @@ class TestHarvestJobFullFlow:
         # assert that send_notification_emails is not called because email has no errors
         assert send_notification_emails_mock.called is False
 
+        datasets = interface.db.query(Dataset).all()
+        assert len(datasets) == len(records_to_add)
+
+        latest_records = interface.get_latest_harvest_records_by_source(
+            source_data_dcatus_single_record["id"]
+        )
+        records_by_id = {record["id"]: record for record in latest_records}
+        assert {dataset.harvest_record_id for dataset in datasets} == set(
+            records_by_id.keys()
+        )
+        for dataset in datasets:
+            assert dataset.harvest_record_id is not None
+            assert dataset.harvest_source_id == source_data_dcatus_single_record["id"]
+            matching_record = records_by_id[dataset.harvest_record_id]
+            assert dataset.last_harvested_date == matching_record["date_finished"]
+
     @patch("harvester.harvest.HarvestSource.send_notification_emails")
     def test_multiple_harvest_jobs(
         self,
@@ -69,6 +86,9 @@ class TestHarvestJobFullFlow:
         assert len(records_from_db) == 7
         assert send_notification_emails_mock.called
 
+        datasets = interface.db.query(Dataset).all()
+        assert len(datasets) == 7
+
         ## create follow-up job
         interface.update_harvest_source(
             source_data_dcatus["id"],
@@ -96,6 +116,13 @@ class TestHarvestJobFullFlow:
         )
 
         assert len(records_from_db) == records_from_db_count == 3
+
+        datasets = interface.db.query(Dataset).all()
+        assert len(datasets) == 3
+
+        dataset_record_ids = {dataset.harvest_record_id for dataset in datasets}
+        record_ids = {record["id"] for record in records_from_db}
+        assert dataset_record_ids == record_ids
 
     @patch("harvester.harvest.HarvestSource.send_notification_emails")
     def test_harvest_waf_iso19115_2(
@@ -303,7 +330,7 @@ class TestHarvestJobFullFlow:
             harvest_source.report()
             assert send_notification_emails_mock.call_count == 2
 
-    @patch("harvester.utils.ckan_utils.uuid")
+    @patch("harvester.utils.general_utils.uuid")
     def test_validate_same_title(
         self,
         UUIDMock,
@@ -333,15 +360,15 @@ class TestHarvestJobFullFlow:
 
         ## assert title is same
         assert raw_source_0["title"] == raw_source_1["title"]
-        ## assert name is unique
-        assert harvest_job.records[0].ckan_name != harvest_job.records[1].ckan_name
+        ## assert slug is unique
+        assert harvest_job.records[0].dataset_slug != harvest_job.records[1].dataset_slug
 
-        ## assert ckan_name persists in db
+        ## assert slug persists in db
         for idx, record in enumerate(harvest_job.records):
             db_record = interface.get_harvest_record(record.id)
-            assert db_record.ckan_name == harvest_job.records[idx].ckan_name
+            assert db_record.dataset.slug == harvest_job.records[idx].dataset_slug
 
-        # now do a package_update & confirm it uses ckan_name
+        # now do a package_update & confirm it uses the stored slug
         ## update harvest source url to simulate harvest source updates
         interface.update_harvest_source(
             source_data_dcatus_same_title["id"],
@@ -363,10 +390,10 @@ class TestHarvestJobFullFlow:
         assert harvest_job.records_ignored == 1
         assert harvest_job.records_errored == 0
 
-        # assert db record retains correct ckan_id & ckan_name
+        # assert db record retains correct ckan_id & slug
         db_record = interface.get_harvest_record(harvest_job.records[0].id)
         assert db_record.action == "update"
-        assert db_record.ckan_name == "commitment-of-traders-12345"
+        assert db_record.dataset.slug == "commitment-of-traders-12345"
         assert db_record.identifier == "cftc-dc2"
 
     def test_harvest_multiple_jobs(

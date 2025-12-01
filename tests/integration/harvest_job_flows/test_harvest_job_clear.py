@@ -1,5 +1,6 @@
 from unittest.mock import patch
 
+from database.models import Dataset
 from harvester.harvest import HarvestSource, harvest_job_starter
 
 
@@ -31,6 +32,7 @@ class TestHarvestJobClear:
         )
 
         assert len(records_from_db) == 7
+        assert interface.db.query(Dataset).count() == 7
 
         # now run a clear
         harvest_job = interface.add_harvest_job(
@@ -52,6 +54,7 @@ class TestHarvestJobClear:
             source_data_dcatus["id"]
         )
         assert len(records_from_db) == 0
+        assert interface.db.query(Dataset).count() == 0
 
     @patch("harvester.harvest.Record.sync")
     def test_harvest_job_clear_not_synced_with_ckan(
