@@ -43,8 +43,8 @@ from harvester.utils.general_utils import (
     download_file,
     find_indexes_for_duplicates,
     get_datetime,
-    munge_title_to_name,
     make_record_mapping,
+    munge_title_to_name,
     open_json,
     prepare_transform_msg,
     send_email_to_recipients,
@@ -454,7 +454,10 @@ class HarvestSource:
             self.determine_internal_deletions()
             internal_records_to_delete = self.iter_internal_records_to_be_deleted()
 
-            if self.source_type in ["waf", "waf-collection"]:
+            if (
+                self.source_type in ["waf", "waf-collection"]
+                and self.job_type != "force_harvest"
+            ):
                 self.filter_waf_files_by_datetime()
 
             self.filter_duplicate_identifiers()
@@ -1051,7 +1054,8 @@ class Record:
                     raise
 
                 logger.info(
-                    "Dataset slug '%s' already exists; generating a new slug", self.dataset_slug
+                    "Dataset slug '%s' already exists; generating a new slug",
+                    self.dataset_slug,
                 )
                 self.dataset_slug = add_uuid_to_package_name(self.dataset_slug)
                 dataset_payload["slug"] = self.dataset_slug
