@@ -38,7 +38,7 @@ gevent = "^25.9.1"
 geojson-validator = "^0.6.0"
 GeoAlchemy2 = "^0.18.1"
 protobuf = "5.29.5" #pinned due to cloudfoundry-client needing <6.0.0
-psycopg = {extras = ["binary"], version = "^3.2.13"}
+psycopg = {extras = ["binary"], version = "^3.3.2"}
 aiohttp = "^3.13.2" #SNYK-PYTHON-AIOHTTP-10742466
 urllib3 = ">=2.5.0" #SNYK-PYTHON-URLLIB3-10390193, SNYK-PYTHON-URLLIB3-10390194
 alembic-postgresql-enum = "^1.8.0"
@@ -47,7 +47,7 @@ google-api-python-client = "^2.185.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = ">=7.3.2"
-ruff = "^0.14.7"
+ruff = "^0.14.8"
 pytest-cov = "^7.0.0"
 debugpy = "^1.8.17"
 isort = "^7.0.0"
