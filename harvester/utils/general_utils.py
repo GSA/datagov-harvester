@@ -30,7 +30,7 @@ logger = logging.getLogger()
 FREQUENCY_ENUM = {"daily": 1, "weekly": 7, "biweekly": 14, "monthly": 30}
 
 # User-Agent header for all HTTP requests
-USER_AGENT = "HarvesterBot/1.0 (https://data.gov;datagovhelp@gsa.gov) Data.gov"
+USER_AGENT = "HarvesterBot/0.0 (https://data.gov; datagovhelp@gsa.gov) Data.gov/2.0"
 
 DT_PLACEHOLDER = datetime(1900, 1, 1, 0, 0)
 
