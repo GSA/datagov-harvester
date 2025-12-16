@@ -21,6 +21,7 @@ import requests
 import sansjson
 import sqlalchemy.sql.operators as sa_operators
 from bs4 import BeautifulSoup
+from bs4.element import Tag
 from jsonschema.exceptions import ValidationError
 from sqlalchemy import literal
 
@@ -175,8 +176,15 @@ def get_waf_datetimes(soup: BeautifulSoup, expected_length: int) -> list:
     dt_pattern = r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}"
     dt_format = "%Y-%m-%d %H:%M"
 
-    for td in soup.find_all("td"):
-        res = re.search(dt_pattern, td.text)
+    rows = soup.find_all("td") or soup.find_all("pre")
+
+    if rows and rows[0].name == "pre":
+        rows = rows[0].text.split("\n")
+
+    for row in rows:
+        if isinstance(row, Tag):
+            row = row.text
+        res = re.search(dt_pattern, row)
         if res is not None:
             output.append(datetime.strptime(res.group(0), dt_format))
 
