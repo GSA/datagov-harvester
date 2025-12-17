@@ -115,7 +115,7 @@ class LoadManager:
         # then mark the job as running in the DB
         jobs = interface.get_new_harvest_jobs_in_past(limit=slots)
         for job in jobs:
-            self.start_job(job.id)
+            self.start_job(job.id, job.job_type)
             self.schedule_next_job(job.harvest_source_id)
 
     def start(self):
