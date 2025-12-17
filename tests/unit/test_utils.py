@@ -1,9 +1,11 @@
+from datetime import datetime
 import http
 import json
 import logging
 import time
 from unittest.mock import Mock, call, patch
 
+from bs4 import BeautifulSoup
 import pytest
 import requests
 from jsonschema import Draft202012Validator, FormatChecker
@@ -29,8 +31,8 @@ from harvester.utils.general_utils import (
     query_filter_builder,
     traverse_waf,
     validate_geojson,
+    get_waf_datetimes
 )
-
 
 class TestCKANUtils:
     """Some of these tests are copied from
@@ -186,6 +188,28 @@ class TestCKANUtils:
 # Point example
 # "{\"type\": \"Point\", \"coordinates\": [-87.08258, 24.9579]}"
 class TestGeneralUtils:
+    def test_get_waf_datetimes(self):
+        """
+        so far web servers either use 'td' elements or text within a 'pre' element
+        to list the documents.
+        """
+        # census-5-digit-zip-code-tabulation-area-zcta5-national
+        page_pre = '<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2 Final//EN">\n<html>\n <head>\n  <title>Index of /data/existing/decennial/GEO/GPMB/TIGERline/TIGER2013/zcta510</title>\n </head>\n <body>\n<h1>Index of /data/existing/decennial/GEO/GPMB/TIGERline/TIGER2013/zcta510</h1>\n<pre>      <a href="?C=N;O=A">Name</a>                                                   <a href="?C=M;O=A">Last modified</a>      <a href="?C=S;O=A">Size</a>  <a href="?C=D;O=A">Description</a><hr>      <a href="/data/existing/decennial/GEO/GPMB/TIGERline/TIGER2013/">Parent Directory</a>                                                            -   \n      <a href="2013_zcta510.ea.iso.xml">2013_zcta510.ea.iso.xml</a>                                2015-09-22 08:40   16K  \n      <a href="tl_2013_us_zcta510.shp.iso.xml">tl_2013_us_zcta510.shp.iso.xml</a>                         2015-09-22 08:31   34K  \n<hr></pre>\n</body></html>\n'
+        soup = BeautifulSoup(page_pre)
+        datetimes = get_waf_datetimes(soup, 2)
+
+        assert datetimes == [datetime(2015, 9, 22, 8, 40), datetime(2015, 9, 22, 8, 31)]
+
+        # shortened noaa-esrl-psd
+        page_td = '<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2 Final//EN">\n<html>\n <head>\n  <title>Index of /waf/NOAA/oar/esrl/psd/iso/xml</title>\n </head>\n <body>\n<h1>Index of /waf/NOAA/oar/esrl/psd/iso/xml</h1>\n  <table>\n   <tr><th valign="top"><img src="/icons/blank.gif" alt="[ICO]"></th><th><a href="?C=N;O=D">Name</a></th><th><a href="?C=M;O=A">Last modified</a></th><th><a href="?C=S;O=A">Size</a></th><th><a href="?C=D;O=A">Description</a></th></tr>\n   <tr><th colspan="5"><hr></th></tr>\n<tr><td valign="top"><img src="/icons/text.gif" alt="[TXT]"></td><td><a href="COBE-SST2_Sea_Surface_Temperature_and_Ice.xml">COBE-SST2_Sea_Surface_Temperature_and_Ice.xml</a></td><td align="right">2025-01-01 09:15  </td><td align="right"> 13K</td><td>&nbsp;</td></tr>\n<tr><td valign="top"><img src="/icons/text.gif" alt="[TXT]"></td><td><a href="COBE_Sea_Surface_Temperature.xml">COBE_Sea_Surface_Temperature.xml</a></td><td align="right">2025-01-01 09:15  </td><td align="right"> 12K</td><td>&nbsp;</td></tr>\n<tr><td valign="top"><img src="/icons/text.gif" alt="[TXT]"></td><td><a href="CPC_GLOBAL_PRCP_V1.0.xml">CPC_GLOBAL_PRCP_V1.0.xml</a></td><td align="right">2025-01-01 09:15  </td><td align="right"> 11K</td><td>&nbsp;</td></tr></body></html>'
+        soup = BeautifulSoup(page_td)
+        datetimes = get_waf_datetimes(soup, 2)
+
+        assert datetimes == [
+            datetime(2025, 1, 1, 9, 15),
+            datetime(2025, 1, 1, 9, 15),
+        ]
+
     def test_assemble_validation_messages(
         self, dol_distribution_json, dcatus_non_federal_schema
     ):
