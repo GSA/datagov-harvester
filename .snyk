@@ -1,6 +1,13 @@
 # Snyk (https://snyk.io) policy file, patches or ignores known vulnerabilities.
 version: v1.25.1
-ignore: {}
+ignore:
+  SNYK-PYTHON-WERKZEUG-14151620:
+    - "*":
+        reason: >-
+          No remediation available yet until flask updates underlying
+          werkzeug dependency. However, we don't use werkzeug as our deployed WSGI server
+          (we use gunicorn) so this only affects local development.
+        expires: 2026-03-01T00:00:00.000Z
 patch: {}
 exclude:
   global:
