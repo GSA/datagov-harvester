@@ -8,6 +8,13 @@ ignore:
           werkzeug dependency. However, we don't use werkzeug as our deployed WSGI server
           (we use gunicorn) so this only affects local development.
         expires: 2026-03-01T00:00:00.000Z
+  SNYK-PYTHON-WERKZEUG-14908843:
+    - "*":
+        reason: >-
+          No remediation available yet until flask updates underlying
+          werkzeug dependency. However, we don't use werkzeug as our deployed WSGI server
+          (we use gunicorn) so this only affects local development.
+        expires: 2026-03-01T00:00:00.000Z
 patch: {}
 exclude:
   global:
