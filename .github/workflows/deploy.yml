@@ -14,7 +14,7 @@ permissions:
     contents: read
 
 env:
-  POETRY_VERSION: "2.0.0"
+  POETRY_VERSION: "latest"
 
 jobs:
   create-cloudgov-services-staging:
