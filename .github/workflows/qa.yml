@@ -2,11 +2,11 @@ name: Harvester QA script
 
 env:
   PY_VERSION: "3.12"
-  POETRY_VERSION: "2.0.0"
+  POETRY_VERSION: "latest"
 
 on:
   workflow_dispatch:
-    inputs: 
+    inputs:
       job_type:
         description: 'The QA job to run'
         required: false
@@ -45,10 +45,10 @@ jobs:
         run: |
           poetry env use ${{ env.PY_VERSION }}
           poetry install
-      
+
       - name: Run QA
         run: poetry run python ./scripts/qa.py --job-type ${{ inputs.job_type }}
-      
+
       - name: Zip QA output directory
         run: zip -r qa_archive.zip ./scripts/qa_output
 
