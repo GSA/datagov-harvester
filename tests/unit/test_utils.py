@@ -31,8 +31,9 @@ from harvester.utils.general_utils import (
     query_filter_builder,
     traverse_waf,
     validate_geojson,
-    get_waf_datetimes
+    get_waf_datetimes,
 )
+
 
 class TestCKANUtils:
     """Some of these tests are copied from
@@ -65,6 +66,12 @@ class TestCKANUtils:
             '{"type": "Polygon", "coordinates": '
             "[[[1.0, 2.0], [1.0, 5.5], [3.5, 5.5], "
             "[3.5, 2.0], [1.0, 2.0]]]}"
+        )
+
+    def test_munge_spatial_duplicates(self):
+        assert (
+            munge_spatial("-92.109, 15.132, -92.109, 15.132")
+            == '{"type": "Point", "coordinates": [-92.109, 15.132]}'
         )
 
     def test_translate_spatial_simple_bbox(self):
@@ -221,16 +228,16 @@ class TestGeneralUtils:
         dol_distribution_json["keyword"] = []  # empty array
         dol_distribution_json["distribution"][0]["title"] = ""  # empty string
         dol_distribution_json["distribution"][1] = bool  # wrong type
-        dol_distribution_json["contactPoint"][
-            "hasEmail"
-        ] = "bad email"  # bad value based on regex
+        dol_distribution_json["contactPoint"]["hasEmail"] = (
+            "bad email"  # bad value based on regex
+        )
         dol_distribution_json["accrualPeriodicity"] = (
             "No longer updated (dataset archived)"  # bad const value
         )
         dol_distribution_json["rights"] = "a" * 256  # max string length exceeded
-        dol_distribution_json["distribution"][0][
-            "@type"
-        ] = "Distribution"  # not dcat:Distribution
+        dol_distribution_json["distribution"][0]["@type"] = (
+            "Distribution"  # not dcat:Distribution
+        )
 
         validator = Draft202012Validator(
             dcatus_non_federal_schema, format_checker=FormatChecker()
