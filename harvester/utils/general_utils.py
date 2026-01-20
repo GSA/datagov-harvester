@@ -587,14 +587,20 @@ def munge_spatial(spatial_value: str) -> str:
             spatial_value = spatial_value.replace(" ", ",")
     except ValueError:
         pass
+    
+    parts = [part.strip() for part in spatial_value.strip().split(",")]
 
-    parts = spatial_value.strip().split(",")
-    if len(parts) == 4 and all(is_number(x) for x in parts):
-        minx, miny, maxx, maxy = parts
-        return geojson_polygon_tpl.format(minx=minx, miny=miny, maxx=maxx, maxy=maxy)
     if len(parts) == 2 and all(is_number(x) for x in parts):
         x, y = parts
         return geojson_point_tpl.format(x=x, y=y)
+    
+    if len(parts) == 4 and all(is_number(x) for x in parts):
+        # duplicate points situation (e.g. "-92.109, 15.132, -92.109, 15.132")
+        if parts[:2] == parts[2:]:
+            x,y = list(dict.fromkeys(parts)) # removes duplicates while preserving order
+            return geojson_point_tpl.format(x=x, y=y)
+        minx, miny, maxx, maxy = parts
+        return geojson_polygon_tpl.format(minx=minx, miny=miny, maxx=maxx, maxy=maxy)
 
     try:
         geometry = json.loads(spatial_value)
