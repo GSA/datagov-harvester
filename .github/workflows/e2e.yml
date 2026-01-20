@@ -9,7 +9,7 @@ permissions:
 
 env:
   PY_VERSION: "3.12"
-  POETRY_VERSION: "2.0.0"
+  POETRY_VERSION: "latest"
 
 jobs:
   test:
@@ -50,7 +50,7 @@ jobs:
         poetry env use ${{ env.PY_VERSION }}
         poetry install
     - name: Install Playwright Browsers
-      run: poetry run playwright install --with-deps --only-shell chromium 
+      run: poetry run playwright install --with-deps --only-shell chromium
     - name: Write Playwright Auth File
       shell: bash
       run: |
