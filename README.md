@@ -28,6 +28,8 @@ This project is using `poetry` to manage this project. Install poetry [here](htt
 
 Once installed, `poetry install` installs dependencies into a local virtual environment.
 
+CI always uses the latest Poetry version. To update locally (matching CI), run `poetry self update` (or `make poetry-update`).
+
 We use [Ruff](https://github.com/astral-sh/ruff) to format and lint our Python files. If you use VS Code, you can install the formatter [here](https://marketplace.visualstudio.com/items?itemName=charliermarsh.ruff).
 
 This repo contains pre-commit actions. Learn how to configure your IDE to run those [here](https://pre-commit.com/)
