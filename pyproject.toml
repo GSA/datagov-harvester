@@ -44,7 +44,8 @@ urllib3 = ">=2.5.0" #SNYK-PYTHON-URLLIB3-10390193, SNYK-PYTHON-URLLIB3-10390194
 alembic-postgresql-enum = "^1.8.0"
 google-auth = "^2.47.0"
 google-api-python-client = "^2.188.0"
-pyasn1 = "0.6.2" #SNYK-PYTHON-PYASN1-15032639
+pyasn1 = "^0.6.2" #SNYK-PYTHON-PYASN1-15032639
+werkzeug = "^3.1.5" #SNYK-PYTHON-WERKZEUG-14908843
 
 [tool.poetry.group.dev.dependencies]
 pytest = ">=7.3.2"
