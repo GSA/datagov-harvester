@@ -562,9 +562,12 @@ def munge_spatial(spatial_value: str) -> str:
 
     geojson_polygon_tpl = (
         '{{"type": "Polygon", "coordinates": [[[{minx}, {miny}], '
-        '[{minx}, {maxy}], [{maxx}, {maxy}], [{maxx}, {miny}], [{minx}, {miny}]]]}}'
+        "[{minx}, {maxy}], [{maxx}, {maxy}], [{maxx}, {miny}], [{minx}, {miny}]]]}}"
     )
     geojson_point_tpl = '{{"type": "Point", "coordinates": [{x}, {y}]}}'
+    geojson_line_tpl = (
+        '{{"type": "LineString", "coordinates": [[{x1}, {y1}], [{x2}, {y2}]]}}'
+    )
 
     #  do some string munging to try to get to something parseable
     #  1. Remove "+" characters.
@@ -587,18 +590,24 @@ def munge_spatial(spatial_value: str) -> str:
             spatial_value = spatial_value.replace(" ", ",")
     except ValueError:
         pass
-    
+
     parts = [part.strip() for part in spatial_value.strip().split(",")]
 
     if len(parts) == 2 and all(is_number(x) for x in parts):
         x, y = parts
         return geojson_point_tpl.format(x=x, y=y)
-    
+
     if len(parts) == 4 and all(is_number(x) for x in parts):
+        coords = list(dict.fromkeys(parts))  # removes duplicates while preserving order
         # duplicate points situation (e.g. "-92.109, 15.132, -92.109, 15.132")
         if parts[:2] == parts[2:]:
-            x,y = list(dict.fromkeys(parts)) # removes duplicates while preserving order
+            x, y = coords
             return geojson_point_tpl.format(x=x, y=y)
+        if len(coords) == 3:  # only 3 unique lat/lons which means it's a straight line
+            return geojson_line_tpl.format(
+                x1=parts[0], y1=parts[1], x2=parts[2], y2=parts[3]
+            )
+
         minx, miny, maxx, maxy = parts
         return geojson_polygon_tpl.format(minx=minx, miny=miny, maxx=maxx, maxy=maxy)
 

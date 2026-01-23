@@ -74,6 +74,12 @@ class TestCKANUtils:
             == '{"type": "Point", "coordinates": [-92.109, 15.132]}'
         )
 
+    def test_munge_spatial_linestring(self):
+        assert (
+            munge_spatial("-90.09,27.155,-90.09,27.275")
+            == '{"type": "LineString", "coordinates": [[-90.09, 27.155], [-90.09, 27.275]]}'
+        )
+
     def test_translate_spatial_simple_bbox(self):
         assert translate_spatial("1.0,2.0,3.5,5.5") == (
             '{"type": "Polygon", "coordinates": '
