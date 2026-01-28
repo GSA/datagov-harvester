@@ -533,11 +533,17 @@ class HarvestSource:
         try:
             job_url = f"{SMTP_CONFIG['base_url']}/harvest_job/{self.job_id}"
 
-            subject = "Harvest Job Completed"
+            subject = f"Harvest Job Completed for {self.name}"
+            source = self.get_source_orm()
+            org_name = source.org.name
+
             body = (
-                f"The harvest job ({self.job_id}) has been successfully completed.\n"
-                f"You can view the details here: {job_url}\n\n"
-                "Summary of the job:\n"
+                "A harvest job has been successfully completed.\n"
+                f"- Organization: {org_name}\n"
+                f"- Harvest source: {self.name}\n"
+                f"- Job details: {job_url}\n\n"
+
+                "Summary of the job ({self.job_id}):\n"
                 f"- Records Added: {job_results['records_added']}\n"
                 f"- Records Updated: {job_results['records_updated']}\n"
                 f"- Records Deleted: {job_results['records_deleted']}\n"
