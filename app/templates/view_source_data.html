@@ -50,7 +50,9 @@
                 {% elif key == 'collection_parent_url' %}
                   {% if value %}
                   <td>{{key}}:</td>
-                  <td>{{value}}</td>
+                  <td>
+                    <i class="fa-solid fa-arrow-up-right-from-square"></i> <a href="{{value}}" target="_blank">{{value}}</a>
+                  </td>
                   {% endif %}
                 {% else %}
                 <td>{{key}}:</td>
