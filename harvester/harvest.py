@@ -543,7 +543,7 @@ class HarvestSource:
                 f"- Harvest source: {self.name}\n"
                 f"- Job details: {job_url}\n\n"
 
-                "Summary of the job ({self.job_id}):\n"
+                f"Summary of the job ({self.job_id}):\n"
                 f"- Records Added: {job_results['records_added']}\n"
                 f"- Records Updated: {job_results['records_updated']}\n"
                 f"- Records Deleted: {job_results['records_deleted']}\n"
