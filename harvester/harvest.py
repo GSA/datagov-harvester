@@ -533,7 +533,7 @@ class HarvestSource:
         try:
             job_url = f"{SMTP_CONFIG['base_url']}/harvest_job/{self.job_id}"
 
-            subject = f"Harvest Job Completed for {self.name}"
+            subject = "Harvest Job Completed"
             source = self.get_source_orm()
             org_name = source.org.name
 
