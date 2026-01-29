@@ -5,28 +5,30 @@
 {% endblock %}
 
 {% block content %}
-<div class="wrapper">
     {% if not data.organization %}
     <h2>Whooops!</h2>
     <p>Looks like you navigated to an organization that doesn't exist.</p>
     {% else %}
-    <div class="display-flex flex-align-center">
-        <h1 class="margin-right-2">{{data.organization.name}}</h1>
-        <a
-            class="usa-button usa-button--outline"
-            target="_blank"
-            href="{{ data.ckan_url }}/organization/{{ data.organization.id }}"
-        >
-            <i class="fa-solid fa-arrow-up-right-from-square"></i>View on catalog
-        </a>
-    </div>
+    <h1 class="margin-right-2 display-inline">{{data.organization.name}}</h1>
+    <a
+        class="usa-button usa-button--outline"
+        target="_blank"
+        href="{{ data.ckan_url }}/organization/{{ data.organization.id }}"
+    >
+        <i class="fa-solid fa-arrow-up-right-from-square"></i>View on catalog
+    </a>
 
-    <h2>Organization Config Table</h2>
     <div class="config-table organization-config-properties">
-        <table class="table">
+        <table class="usa-table usa-table--borderless">
+          <caption>Configuration</caption>
+          <thead>
+            <th scope="col">Field</th>
+            <th scope="col">Value</th>
+          </thead>
+          <tbody>
             {% for key, value in data.organization_dict.items() %}
             <tr>
-                <td>{{key}}:</td>
+                <th scope="row">{{key}}</th>
                 {% if key == 'logo' %}
                 <td><i class="fa-solid fa-arrow-up-right-from-square"></i> <a href="{{value}}">{{value}}</a></td>
                 {% else %}
@@ -57,71 +59,68 @@
         {% if not data.harvest_sources %}
         No harvest sources found
         {% else %}
-        <div class="usa-table-container--scrollable" tabindex="0">
-            <table class="usa-table usa-table--striped">
-                <caption> Harvest Sources for {{data.organization.name}} </caption>
-                <thead>
-                    <tr>
-                        <th data-sortable scope="col" role="columnheader">Name</th>
-                        <th data-sortable scope="col" role="columnheader">Last Job</th>
-                        <th data-sortable scope="col" role="columnheader">Next Job</th>
-                        <th data-sortable scope="col" role="columnheader">Source Type</th>
-                        <th data-sortable scope="col" role="columnheader">Frequency</th>
-                        {% if session['user'] %}
-                        <th data-sortable scope="col" role="columnheader">Notification Emails</th>
-                        {% endif %}
-                        <th data-sortable scope="col" role="columnheader">Url</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for source in data.harvest_sources %}
-                    <tr>
-                        <td data-sort-value={{source.date_created}}><a
-                                href="{{ url_for('api.view_harvest_source', source_id=source.id) }}">{{source.name}}</a>
-                        </td>
-                        <td scope="row" class="text-center">
-                            {% if data.harvest_jobs[source.id] %}
-                            {% set last_job_has_errors = (data.harvest_jobs[source.id].errors | length) == 0 %}
-                            <a href="{{ url_for('api.view_harvest_job', job_id=data.harvest_jobs[source.id].id) }}">
-                                <svg class="usa-icon align-middle {% if last_job_has_errors %}check{%else%}cancel{%endif%}"
-                                    aria-hidden="true" focusable="false" role="img">
-                                    <use
-                                        xlink:href="/assets/uswds/img/sprite.svg#{% if last_job_has_errors %}check{%else%}cancel{%endif%}">
-                                    </use>
-                                </svg>
-                            </a>
-                            {% else %}
-                            N/A
-                            {% endif %}
-                        </td>
-                        {% if data.future_harvest_jobs[source.id] %}
-                        <td class="utc-date" data-utc-date="{{ data.future_harvest_jobs[source.id] | utc_isoformat }}">
-                            {{ data.future_harvest_jobs[source.id] | else_na }}
-                        </td>
+        <table class="usa-table usa-table--striped">
+            <caption class="font-heading-xl"> Harvest Sources for {{data.organization.name}} </caption>
+            <thead>
+                <tr>
+                    <th data-sortable scope="col" role="columnheader">Name</th>
+                    <th data-sortable scope="col" role="columnheader">Last Job</th>
+                    <th data-sortable scope="col" role="columnheader">Next Job</th>
+                    <th data-sortable scope="col" role="columnheader">Source Type</th>
+                    <th data-sortable scope="col" role="columnheader">Frequency</th>
+                    {% if session['user'] %}
+                    <th data-sortable scope="col" role="columnheader">Notification Emails</th>
+                    {% endif %}
+                    <th data-sortable scope="col" role="columnheader">Url</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for source in data.harvest_sources %}
+                <tr>
+                    <td data-sort-value={{source.date_created}}><a
+                            href="{{ url_for('api.view_harvest_source', source_id=source.id) }}">{{source.name}}</a>
+                    </td>
+                    <td scope="row" class="text-center">
+                        {% if data.harvest_jobs[source.id] %}
+                        {% set last_job_has_errors = (data.harvest_jobs[source.id].errors | length) == 0 %}
+                        <a href="{{ url_for('api.view_harvest_job', job_id=data.harvest_jobs[source.id].id) }}">
+                            <svg class="usa-icon align-middle {% if last_job_has_errors %}check{%else%}cancel{%endif%}"
+                                aria-hidden="true" focusable="false" role="img">
+                                <use
+                                    xlink:href="/assets/uswds/img/sprite.svg#{% if last_job_has_errors %}check{%else%}cancel{%endif%}">
+                                </use>
+                            </svg>
+                        </a>
                         {% else %}
-                        <td>N/A</td>
+                        N/A
                         {% endif %}
-                        <td data-sort-value={{source.records_updated}}>{{source.source_type}}</td>
-                        <td data-sort-value={{source.records_deleted}}>{{source.frequency}}</td>
-                        {% if session['user'] %}
-                        <td data-sort-value={{source.date_finished}}>{{source.notification_emails}} </td>
-                        {% endif %}
-                        <td data-sort-value={{source.records_errored}}><i class="fa-solid fa-arrow-up-right-from-square"></i> <a target="_blank"
-                                href={{source.url}}>{{source.url}}</a></td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-            <div class="usa-sr-only usa-table__announcement-region" aria-live="polite"></div>
-        </div>
+                    </td>
+                    {% if data.future_harvest_jobs[source.id] %}
+                    <td class="utc-date" data-utc-date="{{ data.future_harvest_jobs[source.id] | utc_isoformat }}">
+                        {{ data.future_harvest_jobs[source.id] | else_na }}
+                    </td>
+                    {% else %}
+                    <td>N/A</td>
+                    {% endif %}
+                    <td data-sort-value={{source.records_updated}}>{{source.source_type}}</td>
+                    <td data-sort-value={{source.records_deleted}}>{{source.frequency}}</td>
+                    {% if session['user'] %}
+                    <td data-sort-value={{source.date_finished}}>{{source.notification_emails}} </td>
+                    {% endif %}
+                    <td data-sort-value={{source.records_errored}}><i class="fa-solid fa-arrow-up-right-from-square"></i> <a target="_blank"
+                            href={{source.url}}>{{source.url}}</a></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <div class="usa-sr-only usa-table__announcement-region" aria-live="polite"></div>
         {% endif %}
     </div>
     {% endif %}
-</div>
 {% endblock %}
 
 {% block scripts %}
-<script>
+<script nonce="{{ csp_nonce() }}">
     function confirmSubmit(event, type) {
         let messageEnum = {
             'delete': 'Are you sure you want to delete this organization?'
