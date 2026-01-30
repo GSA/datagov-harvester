@@ -37,7 +37,6 @@ class TestDynamicRouteTable:
         # dont test flask internal or auth routes
         whitelisted_routes = [
             "static",
-            "bootstrap.static",
             "main.login",
             "main.logout",
             "main.callback",
@@ -147,7 +146,7 @@ class TestDynamicRouteTable:
 
     def test_client_response_on_error(self, client):
         # ignore routes which aren't public GETS and don't accept args
-        whitelisted_route_regex = r"((main|api|bootstrap)?(?:\.)?(add|edit|cancel|update|delete|trigger|view)?(?:_)?(static|index|callback|json_builder_query|view_metrics|log(in|out)|organization(?:s)?|harvest_source|harvest_job|harvest_record))"
+        whitelisted_route_regex = r"((main|api)?(?:\.)?(add|edit|cancel|update|delete|trigger|view)?(?:_)?(static|index|callback|json_builder_query|view_metrics|log(in|out)|organization(?:s)?|harvest_source|harvest_job|harvest_record))"
 
         # some endpoints respond with JSON
         json_responses_map = {
