@@ -51,7 +51,9 @@
             {% elif key == 'collection_parent_url' %}
               {% if value %}
               <th scope="row">{{key}}</th>
-              <td>{{value}}</td>
+              <td>
+                <i class="fa-solid fa-arrow-up-right-from-square"></i> <a href="{{value}}" target="_blank">{{value}}</a>
+              </td>
               {% endif %}
             {% else %}
             <th scope="row">{{key}}</th>
