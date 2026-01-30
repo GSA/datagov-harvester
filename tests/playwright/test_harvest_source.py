@@ -17,24 +17,32 @@ def apage(authed_page):
 class TestHarvestSourceUnauthed:
     def test_config_table_properties(self, upage):
         expect(
-            upage.locator(".harvest-source-config-properties table tr td")
+            upage.locator("table#harvest-source-config-properties tr th")
         ).to_have_text(
             [
-                "Organization:",
+                "Field",
+                "Value",
+                "Organization",
+                "name",
+                "url",
+                "frequency",
+                "schema_type",
+                "source_type",
+                "notification_frequency",
+                "id",
+            ]
+        )
+        expect(
+            upage.locator("table#harvest-source-config-properties tr td")
+        ).to_have_text(
+            [
                 "Test Org",
-                "name:",
                 "Test Source",
-                "url:",
                 "http://localhost:80/dcatus/dcatus.json",
-                "frequency:",
                 "daily",
-                "schema_type:",
                 "dcatus1.1: federal",
-                "source_type:",
                 "document",
-                "notification_frequency:",
                 "always",
-                "id:",
                 "2f2652de-91df-4c63-8b53-bfced20b276b",
             ]
         )
@@ -46,16 +54,16 @@ class TestHarvestSourceUnauthed:
 
     def test_config_table_summary(self, upage):
         # Test static content in the summary table
-        summary_table = upage.locator(".harvest-source-config-summary table")
+        summary_table = upage.locator("table#harvest-source-config-summary")
 
         # Test static labels and values
-        expect(summary_table).to_contain_text("Records:")
+        expect(summary_table).to_contain_text("Records")
         expect(summary_table).to_contain_text("2")
-        expect(summary_table).to_contain_text("Synced Records:")
-        expect(summary_table).to_contain_text("Last Job Records in Error:")
+        expect(summary_table).to_contain_text("Synced Records")
+        expect(summary_table).to_contain_text("Last Job Records in Error")
         expect(summary_table).to_contain_text("N/A")
-        expect(summary_table).to_contain_text("Last Job Finished:")
-        expect(summary_table).to_contain_text("Next Job Scheduled:")
+        expect(summary_table).to_contain_text("Last Job Finished")
+        expect(summary_table).to_contain_text("Next Job Scheduled")
 
     def test_job_summary(self, upage):
         expect(upage.locator("#paginated__harvest-jobs table tbody tr")).to_have_count(
@@ -108,25 +116,20 @@ class TestHarvestSourceUnauthed:
 class TestHarvestSourceAuthed:
     def test_can_perform_actions(self, apage):
         expect(
-            apage.locator(".harvest-source-config-actions ul li input")
+            apage.locator("form ul li input")
         ).to_have_text(["Edit", "Harvest", "Clear", "Delete"])
 
     def test_cant_delete_harvest_source_with_records(self, apage):
         apage.once("dialog", lambda dialog: dialog.accept())
         apage.get_by_role("button", name="Delete", exact=True).click()
-        expect(apage.locator(".alert-warning")).to_contain_text(
+        expect(apage.locator(".usa-alert--warning")).to_contain_text(
             ["Failed: 2 records in the Harvest source, please clear it first."]
         )
 
     def test_contains_notification_emails(self, apage):
-        expect(
-            apage.locator(".harvest-source-config-properties table td")
-        ).to_contain_text(
-            [
-                "Notification emails:",
-                "email@example.com",
-            ]
-        )
+        table_locator = apage.locator("table#harvest-source-config-properties")
+        expect(table_locator).to_contain_text("Notification emails")
+        expect(table_locator).to_contain_text("email@example.com")
 
     def test_contains_source_url(self, apage):
         """
