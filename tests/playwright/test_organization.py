@@ -16,9 +16,7 @@ def apage(authed_page):
 
 class TestOrganizationUnauthed:
     def test_config_table_properties(self, upage):
-        expect(
-            upage.locator(".organization-config-properties table th")
-        ).to_have_text(
+        expect(upage.locator(".organization-config-properties table th")).to_have_text(
             [
                 "Field",
                 "Value",
@@ -31,9 +29,7 @@ class TestOrganizationUnauthed:
                 "id",
             ]
         )
-        expect(
-            upage.locator(".organization-config-properties table td")
-        ).to_have_text(
+        expect(upage.locator(".organization-config-properties table td")).to_have_text(
             [
                 "Test Org",
                 "https://raw.githubusercontent.com/GSA/datagov-harvester/refs/heads/main/app/static/assets/img/placeholder-organization.png",

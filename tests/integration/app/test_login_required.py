@@ -65,9 +65,7 @@ class TestLogin:
         self, client, interface_no_jobs, source_data_dcatus
     ):
         res = client.get(f"/harvest_source/{source_data_dcatus['id']}")
-        button_string_text = (
-            '<form method="POST" action>'
-        )
+        button_string_text = '<form method="POST" action>'
         source_edit_text = '<input class="usa-button" id="edit" name="edit" type="submit" value="Edit">'
         source_harvest_text = '<input class="usa-button usa-button--base" id="harvest" name="harvest" type="submit" value="Harvest">'
         source_clear_text = ' <input class="usa-button usa-button--accent-cool" id="clear" name="clear" onclick="confirmSubmit(event, &#39;clear&#39;)" type="submit" value="Clear">'

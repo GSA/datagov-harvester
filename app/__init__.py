@@ -75,37 +75,54 @@ def create_app():
     # single quotes need to appear in some of the strings
     csp = {
         "default-src": "'self'",
-        "script-src": " ".join([
-            "'self'", "'unsafe-hashes'",
-            "https://www.googletagmanager.com",
-        ]),
-        "font-src": " ".join([
-            "'self'",  # USWDS fonts
-            "https://cdnjs.cloudflare.com",  # font awesome
-        ]),
-        "img-src": " ".join([
-            "'self'", "data:",
-            "https://s3-us-gov-west-1.amazonaws.com",  # GSA Starmark
-            "https://raw.githubusercontent.com",  # github logos repo
-        ]),
-        "connect-src": " ".join([
-            "'self'",
-        ]),
+        "script-src": " ".join(
+            [
+                "'self'",
+                "'unsafe-hashes'",
+                "https://www.googletagmanager.com",
+            ]
+        ),
+        "font-src": " ".join(
+            [
+                "'self'",  # USWDS fonts
+                "https://cdnjs.cloudflare.com",  # font awesome
+            ]
+        ),
+        "img-src": " ".join(
+            [
+                "'self'",
+                "data:",
+                "https://s3-us-gov-west-1.amazonaws.com",  # GSA Starmark
+                "https://raw.githubusercontent.com",  # github logos repo
+            ]
+        ),
+        "connect-src": " ".join(
+            [
+                "'self'",
+            ]
+        ),
         "frame-src": "https://www.googletagmanager.com",
-        "style-src-attr": " ".join([
-            "'self'",
-        ]),
-        "style-src-elem": " ".join([
-            "'self'", "'unsafe-hashes'",  # local styles.css
-            "https://cdnjs.cloudflare.com",  # font-awesome
-            "'sha256-faU7yAF8NxuMTNEwVmBz+VcYeIoBQ2EMHW3WaVxCvnk='",  # htmx.min.js
-        ]),
+        "style-src-attr": " ".join(
+            [
+                "'self'",
+            ]
+        ),
+        "style-src-elem": " ".join(
+            [
+                "'self'",
+                "'unsafe-hashes'",  # local styles.css
+                "https://cdnjs.cloudflare.com",  # font-awesome
+                "'sha256-faU7yAF8NxuMTNEwVmBz+VcYeIoBQ2EMHW3WaVxCvnk='",  # htmx.min.js
+            ]
+        ),
     }
-    Talisman(app, content_security_policy=csp,
-             content_security_policy_nonce_in=['script-src', 'style-src-elem'],
-             # our https connections are terminated outside this app
-             force_https=False)
-
+    Talisman(
+        app,
+        content_security_policy=csp,
+        content_security_policy_nonce_in=["script-src", "style-src-elem"],
+        # our https connections are terminated outside this app
+        force_https=False,
+    )
 
     return app
 
