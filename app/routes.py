@@ -807,6 +807,7 @@ def view_harvest_source(source_id: str):
             [
                 "date_finished",
                 "records_added",
+                "records_updated",
                 "records_deleted",
                 "records_errored",
                 "records_ignored",
@@ -820,6 +821,12 @@ def view_harvest_source(source_id: str):
                     "data": chart_data_values["records_added"],
                     "borderColor": "green",
                     "backgroundColor": "green",
+                },
+                {
+                    "label": "Updated",
+                    "data": chart_data_values["records_updated"],
+                    "borderColor": "blue",
+                    "backgroundColor": "blue",
                 },
                 {
                     "label": "Deleted",
