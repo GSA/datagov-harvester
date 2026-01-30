@@ -115,9 +115,9 @@ class TestHarvestSourceUnauthed:
 
 class TestHarvestSourceAuthed:
     def test_can_perform_actions(self, apage):
-        expect(
-            apage.locator("form ul li input")
-        ).to_have_text(["Edit", "Harvest", "Clear", "Delete"])
+        expect(apage.locator("form ul li input")).to_have_text(
+            ["Edit", "Harvest", "Clear", "Delete"]
+        )
 
     def test_cant_delete_harvest_source_with_records(self, apage):
         apage.once("dialog", lambda dialog: dialog.accept())
