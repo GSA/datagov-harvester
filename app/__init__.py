@@ -3,6 +3,7 @@ import os
 
 from apiflask import APIFlask
 from dotenv import load_dotenv
+from flask import Flask
 from flask_bootstrap import Bootstrap
 from flask_htmx import HTMX
 from flask_migrate import Migrate
@@ -41,7 +42,6 @@ def create_app():
     app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv("DATABASE_URI")
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
     app.config["SECRET_KEY"] = os.getenv("FLASK_APP_SECRET_KEY")
-    Bootstrap(app)
     global htmx
     htmx = HTMX(app)
 
@@ -78,8 +78,6 @@ def create_app():
         "script-src": " ".join([
             "'self'", "'unsafe-hashes'",
             "https://www.googletagmanager.com",
-            "https://stackpath.bootstrapcdn.com",
-            "https://code.jquery.com",
         ]),
         "font-src": " ".join([
             "'self'",  # USWDS fonts
@@ -88,6 +86,7 @@ def create_app():
         "img-src": " ".join([
             "'self'", "data:",
             "https://s3-us-gov-west-1.amazonaws.com",  # GSA Starmark
+            "https://raw.githubusercontent.com",  # github logos repo
         ]),
         "connect-src": " ".join([
             "'self'",
@@ -97,9 +96,8 @@ def create_app():
             "'self'",
         ]),
         "style-src-elem": " ".join([
-            "'self'",  # local styles.css
+            "'self'", "'unsafe-hashes'",  # local styles.css
             "https://cdnjs.cloudflare.com",  # font-awesome
-            "https://stackpath.bootstrapcdn.com",
             "'sha256-faU7yAF8NxuMTNEwVmBz+VcYeIoBQ2EMHW3WaVxCvnk='",  # htmx.min.js
         ]),
     }

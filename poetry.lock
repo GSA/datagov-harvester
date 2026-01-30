@@ -1063,22 +1063,6 @@ async = ["asgiref (>=3.2)"]
 dotenv = ["python-dotenv"]
 
 [[package]]
-name = "flask-bootstrap"
-version = "3.3.7.1"
-description = "An extension that includes Bootstrap in your project, without any boilerplate code."
-optional = false
-python-versions = "*"
-groups = ["main"]
-files = [
-    {file = "Flask-Bootstrap-3.3.7.1.tar.gz", hash = "sha256:cb08ed940183f6343a64e465e83b3a3f13c53e1baabb8d72b5da4545ef123ac8"},
-]
-
-[package.dependencies]
-dominate = "*"
-Flask = ">=0.8"
-visitor = "*"
-
-[[package]]
 name = "flask-htmx"
 version = "0.4.0"
 description = "A Flask extension to work with HTMX."
@@ -4282,4 +4266,4 @@ testing = ["coverage[toml]", "zope.event", "zope.testing"]
 [metadata]
 lock-version = "2.1"
 python-versions = "~3.12.0"
-content-hash = "ed44cb25432513d2395d4e41eb1ab59baa63a6de6adb373c28202a1112b242e0"
+content-hash = "2b5f6416037a08085d9563968e7c9adaa637c5c80134d4ea99d5783a24e0ca56"
