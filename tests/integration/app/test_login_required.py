@@ -66,7 +66,7 @@ class TestLogin:
     ):
         res = client.get(f"/harvest_source/{source_data_dcatus['id']}")
         button_string_text = (
-            '<div class="config-actions harvest-source-config-actions">'
+            '<form method="POST" action>'
         )
         source_edit_text = '<input class="usa-button" id="edit" name="edit" type="submit" value="Edit">'
         source_harvest_text = '<input class="usa-button usa-button--base" id="harvest" name="harvest" type="submit" value="Harvest">'
