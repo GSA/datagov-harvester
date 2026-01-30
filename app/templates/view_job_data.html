@@ -21,8 +21,13 @@
                 <th scope="row">Percent complete</th>
                 <td>
                     <div class="progress-meter">
+                    <style nonce="{{ csp_nonce() }}">
+                      .this-progress {
+                        --progress: {{ data['percent_complete'][:-1] }};
+                      }
+                    </style>
                         <!-- [:-1] slices off "%" -->
-                        <div class="progress-percent" style="--progress: {{ data['percent_complete'][:-1] }}"></div>
+                        <div class="progress-percent this-progress"></div>
                     </div> 
                 </td>
             </tr>
