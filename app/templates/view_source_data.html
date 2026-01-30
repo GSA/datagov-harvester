@@ -101,27 +101,27 @@
       <thead><th></th><th></th></thead>
       <tbody>
         <tr>
-            <th scope="row">Records:</th>
+            <th scope="row">Records</th>
             <td>{{data.summary_data["records_count"]}}</td>
         </tr>
         <tr>
-            <th scope="row">Synced Records:</th>
+            <th scope="row">Synced Records</th>
             <td>{{data.summary_data["synced_records_count"]}}</td>
         </tr>
         <tr>
-            <th scope="row">Last Job Records in Error:</th>
+            <th scope="row">Last Job Records in Error</th>
             <td>
                 {{data.summary_data["last_job_errors"] | else_na }}
             </td>
         </tr>
         <tr>
-            <th scope="row">Last Job Finished:</th>
+            <th scope="row">Last Job Finished</th>
             <td class="utc-date" data-utc-date="{{ data.summary_data['last_job_finished'] | utc_isoformat }}">
                 {{data.summary_data["last_job_finished"] | else_na }}
             </td>
         </tr>
         <tr>
-            <th scope="row">Next Job Scheduled:</th>
+            <th scope="row">Next Job Scheduled</th>
             <td class="utc-date" data-utc-date="{{ data.summary_data['next_job_scheduled'] | utc_isoformat }}">
                 {{data.summary_data["next_job_scheduled"] | else_na }}
             </td>
