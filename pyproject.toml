@@ -26,7 +26,7 @@ flask-sqlalchemy = "^3.1.1"
 flask-wtf = "^1.2.1"
 flask-migrate = "^4.0.7"
 flask-bootstrap = "^3.3.7.1"
-cloudfoundry-client = "^1.36.0"
+cloudfoundry-client = "^1.40.0"
 pyjwt = "^2.11.0"
 cryptography = "^46.0.4"
 boltons = "^25.0.0"
@@ -37,7 +37,7 @@ newrelic = "^11.4.0"
 gevent = "^25.9.1"
 geojson-validator = "^0.6.0"
 GeoAlchemy2 = "^0.18.1"
-protobuf = "5.29.5" #pinned due to cloudfoundry-client needing <6.0.0
+protobuf = "^6.33.0"
 psycopg = {extras = ["binary"], version = "^3.3.2"}
 aiohttp = "^3.13.3" #SNYK-PYTHON-AIOHTTP-10742466
 urllib3 = ">=2.5.0" #SNYK-PYTHON-URLLIB3-10390193, SNYK-PYTHON-URLLIB3-10390194
