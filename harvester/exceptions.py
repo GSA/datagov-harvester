@@ -113,3 +113,7 @@ class CKANRejectionException(SynchronizeException):
 
 class CKANDownException(SynchronizeException):
     pass
+
+
+class NoIdentifierException(HarvestNonCriticalException):
+    pass
