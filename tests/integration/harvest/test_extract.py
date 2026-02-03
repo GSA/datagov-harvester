@@ -38,3 +38,28 @@ class TestExtract:
         harvest_source = HarvestSource(harvest_job.id)
 
         assert str(harvest_source.schema_file).endswith("iso-non-federal_dataset.json")
+
+    def test_extract_source_with_dataset_missing_identifier(
+        self,
+        interface,
+        organization_data,
+        source_data_dcatus_no_identifier,
+        job_data_dcatus_no_identifier,
+    ):
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_dcatus_no_identifier)
+        harvest_job = interface.add_harvest_job(job_data_dcatus_no_identifier)
+
+        harvest_source = HarvestSource(harvest_job.id)
+        harvest_source.acquire_data_sources()
+        harvest_source.filter_datasets_with_no_identifier()
+
+        assert len(harvest_source.external_records) == 0
+
+        errors = interface.get_harvest_record_errors_by_job(harvest_job.id)
+
+        msg = (
+            "Test Source (no identifier) Commitment of Traders is "
+            "missing 'identifier' field"
+        )
+        assert errors[0][0].message == msg
