@@ -147,7 +147,7 @@ class TestDynamicRouteTable:
 
     def test_client_response_on_error(self, client):
         # ignore routes which aren't public GETS and don't accept args
-        whitelisted_route_regex = r"((main|api|bootstrap)?(?:\.)?(add|edit|cancel|update|delete|trigger|view)?(?:_)?(static|index|callback|json_builder_query|view_metrics|log(in|out)|organization(?:s)?|harvest_source|harvest_job|harvest_record))"
+        whitelisted_route_regex = r"((main|api|bootstrap)?(?:\.)?(add|edit|cancel|update|delete|trigger|view)?(?:_)?(static|index|callback|json_builder_query|view_metrics|log(in|out)|organization(?:s)?|harvest_source|harvest_job|harvest_record)|openapi.\w+)"
 
         # some endpoints respond with JSON
         json_responses_map = {
@@ -159,7 +159,7 @@ class TestDynamicRouteTable:
         # some respond with a template
         # ruff: noqa: E501
         templated_responses_map = {
-            "main.view_organization": {
+            "api.view_organization": {
                 "GET": "Looks like you navigated to an organization that doesn't exist",
                 "POST": 'You should be redirected automatically to the target URL: <a href="/organization/1234">/organization/1234</a>',
             },
@@ -257,7 +257,7 @@ class TestJSONResponses:
         organization_data,
     ):
         res = client.get(
-            f"/organization/{organization_data['id']}-missing",
+            f"/organization/{organization_data['id'].replace('a', 'b')}",
             headers={"Content-type": "application/json"},
         )
         assert res.status_code == 404

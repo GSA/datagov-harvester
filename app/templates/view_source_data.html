@@ -36,7 +36,7 @@
             <tr>
                 {% if key == 'organization_id' %}
                 <td>Organization:</td>
-                <td><a href="{{ url_for('main.view_organization', org_id=value) }}">{{data.source.org.name}}</a></td>
+                <td><a href="{{ url_for('api.view_organization', org_id=value) }}">{{data.source.org.name}}</a></td>
                 {% elif key == 'notification_emails' %}
                 {% if session['user'] %}
                 <td>Notification emails:</td>
