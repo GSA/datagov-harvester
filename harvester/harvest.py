@@ -27,6 +27,7 @@ from harvester.exceptions import (
     ExternalRecordToClass,
     ExtractExternalException,
     ExtractInternalException,
+    NoIdentifierException,
     SendNotificationException,
     TransformationException,
     log_non_critical_error,
@@ -297,6 +298,44 @@ class HarvestSource:
                 records.append(data)  # create
         self.external_records = records
 
+    def filter_datasets_with_no_identifier(self) -> None:
+        """
+        identifies and removes datasets without an 'identifier' field from self.external_records
+        and logs the error in the db as a record-level error
+        """
+
+        external_records = []
+
+        for record in self.external_records:
+            try:
+                if "identifier" not in record:
+                    # use something identifiable to the dataset otherwise label it accordingly
+                    id_substitute = (
+                        record.get("title")
+                        or record.get("description")
+                        or "no-identifier"
+                    )
+                    record_data = {
+                        "harvest_job_id": self.job_id,
+                        "harvest_source_id": self.id,
+                        "identifier": id_substitute,
+                        "status": "error",
+                    }
+                    new_record = self.db_interface.add_harvest_record(record_data)
+
+                    raise NoIdentifierException(
+                        f"{self.name} {new_record.identifier} is missing 'identifier' field",
+                        self.job_id,
+                        new_record.id,
+                    )
+                else:
+                    external_records.append(record)
+
+            except NoIdentifierException:
+                continue
+
+        self.external_records = external_records
+
     def determine_internal_deletions(self) -> None:
         """
         determines which records in the harvester db needed to be deleted based on
@@ -451,6 +490,8 @@ class HarvestSource:
         try:
             self.acquire_data_sources()
 
+            self.filter_datasets_with_no_identifier()
+
             self.determine_internal_deletions()
             internal_records_to_delete = self.iter_internal_records_to_be_deleted()
 
@@ -542,7 +583,6 @@ class HarvestSource:
                 f"- Organization: {org_name}\n"
                 f"- Harvest source: {self.name}\n"
                 f"- Job details: {job_url}\n\n"
-
                 f"Summary of the job ({self.job_id}):\n"
                 f"- Records Added: {job_results['records_added']}\n"
                 f"- Records Updated: {job_results['records_updated']}\n"

@@ -179,6 +179,21 @@ def source_data_dcatus_same_title(organization_data: dict) -> dict:
 
 
 @pytest.fixture
+def source_data_dcatus_no_identifier(organization_data: dict) -> dict:
+    return {
+        "id": "48f1b0d6-ecd7-4b5f-9e5d-9e2146e21f77",
+        "name": "Test Source (no identifier)",
+        "notification_emails": ["email@example.com"],
+        "organization_id": organization_data["id"],
+        "frequency": "daily",
+        "url": f"{HARVEST_SOURCE_URL}/dcatus/dcatus_no_identifier.json",
+        "schema_type": "dcatus1.1: federal",
+        "source_type": "document",
+        "notification_frequency": "always",
+    }
+
+
+@pytest.fixture
 def source_data_waf_csdgm(organization_data: dict) -> dict:
     return {
         "id": "55dca495-3b92-4fe4-b9c5-d433cbc3c82d",
@@ -401,6 +416,15 @@ def job_data_dcatus_2(source_data_dcatus_2: dict) -> dict:
         "id": "392ac4b3-79a6-414b-a2b3-d6c607d3b8d4",
         "status": "new",
         "harvest_source_id": source_data_dcatus_2["id"],
+    }
+
+
+@pytest.fixture
+def job_data_dcatus_no_identifier(source_data_dcatus_no_identifier: dict) -> dict:
+    return {
+        "id": "b9457afe-d5a3-48e3-ab97-2e9f728013a1",
+        "status": "new",
+        "harvest_source_id": source_data_dcatus_no_identifier["id"],
     }
 
 
@@ -1201,6 +1225,7 @@ def sample_ckan_records():
             "harvest_source_title": "nasa-data-json",
         },
     ]
+
 
 @pytest.fixture
 def view_count_datasets():
