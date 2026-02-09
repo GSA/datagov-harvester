@@ -151,26 +151,30 @@ class TestDynamicRouteTable:
 
         # some endpoints respond with JSON
         json_responses_map = {
-            "main.get_harvest_record": '{"error":"Not Found"}\n',
-            "main.get_harvest_record_raw": '{"error":"Not Found"}\n',
-            "main.get_all_harvest_record_errors": '{"error":"Not Found"}\n',
-            "main.get_harvest_error": '{"error":"Not Found"}\n',
+            "api.get_harvest_record": '{"error":"Not Found"}\n',
+            "api.get_harvest_record_raw": '{"error":"Not Found"}\n',
+            "api.get_all_harvest_record_errors": '{"error":"Not Found"}\n',
+            "api.get_harvest_error": '{"error":"Not Found"}\n',
         }
         # some respond with a template
         # ruff: noqa: E501
         templated_responses_map = {
             "api.view_organization": {
                 "GET": "Looks like you navigated to an organization that doesn't exist",
+            },
+            "main.view_organization": {
                 "POST": 'You should be redirected automatically to the target URL: <a href="/organization/1234">/organization/1234</a>',
             },
-            "main.view_harvest_source": {
+            "api.view_harvest_source": {
                 "GET": "Looks like you navigated to a harvest source that doesn't exist",
+            },
+            "main.view_harvest_source": {
                 "POST": 'You should be redirected automatically to the target URL: <a href="/harvest_source/1234">/harvest_source/1234</a>',
             },
-            "main.view_harvest_job": {
+            "api.view_harvest_job": {
                 "GET": "Looks like you navigated to a harvest job that doesn't exist"
             },
-            "main.download_harvest_errors_by_job": {
+            "api.download_harvest_errors_by_job": {
                 "GET": "Invalid error type. Must be 'job' or 'record'"
             },
         }
@@ -184,6 +188,7 @@ class TestDynamicRouteTable:
                 if method in ["HEAD", "OPTIONS"]:
                     continue  # we get no response body from these methods, so skip them
                 client_method = getattr(client, method.lower(), None)
+                print(route, route.endpoint, method)
                 res = client_method(cleaned_route_rule)
 
                 if route.endpoint in json_responses_map:

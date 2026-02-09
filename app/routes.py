@@ -97,7 +97,9 @@ def JSON_NOT_FOUND():
     This is a function rather than a constant because `jsonify` requires
     an app context.
     """
-    return jsonify({"error": STATUS_STRINGS_ENUM[404]}), 404
+    response = jsonify({"error": STATUS_STRINGS_ENUM[404]})
+    response.status_code = 404
+    return response
 
 
 class UnsafeTemplateEnvError(RuntimeError):
@@ -301,13 +303,22 @@ def add_organization(**kwargs):
 
 @main.route("/organization/<string:org_id>", methods=["POST"])
 @api.get("/organization/<string:org_id>")
-@api.output(OrgInfo)
+@api.doc(responses={  # HTML or JSON so specify response manually
+    200: {
+        "description": "View organization info",
+        "content": {
+            "application/json": {
+                "schema": OrgInfo
+            }
+        }
+    }
+})
 @valid_id_required
 def view_organization(org_id: str):
     if request.method == "POST":
         form = OrganizationTriggerForm(request.form)
         if form.data["edit"]:
-            return redirect(url_for("main.edit_organization", org_id=org_id))
+            return redirect(url_for("api.edit_organization", org_id=org_id))
         elif form.data["delete"]:
             try:
                 message, status = db.delete_organization(org_id)
@@ -386,7 +397,7 @@ def edit_organization(org_id):
         return redirect(url_for("api.view_organization", org_id=org_id))
     elif form.errors:
         flash(form.errors)
-        return redirect(url_for("main.edit_organization", org_id=org_id))
+        return redirect(url_for("api.edit_organization", org_id=org_id))
 
     return render_template(
         "edit_data.html",
@@ -465,7 +476,15 @@ def add_harvest_source():
 
 @main.route("/harvest_source/<source_id>", methods=["POST"])
 @api.get("/harvest_source/<source_id>")
-@api.output(SourceInfo)
+@api.doc(responses={  # HTML or JSON output so specify manual response
+    200: { "description": "View harvest source",
+           "content": {
+               "application/json": {
+                   "schema": SourceInfo
+                }
+            }
+    }
+})
 @valid_id_required  # TODO: Use an HTML 404 page
 def view_harvest_source(source_id: str):
     htmx_vars = {
@@ -680,12 +699,12 @@ def edit_harvest_source(source_id: str):
                 else:
                     flash("Failed to update harvest source.")
                 return redirect(
-                    url_for("main.view_harvest_source", source_id=source.id)
+                    url_for("api.view_harvest_source", source_id=source.id)
                 )
             elif form.errors:
                 flash(form.errors)
                 return redirect(
-                    url_for("main.edit_harvest_source", source_id=source_id)
+                    url_for("api.edit_harvest_source", source_id=source_id)
                 )
             return render_template(
                 "edit_data.html",
@@ -736,7 +755,7 @@ def trigger_harvest_source(source_id, job_type):
         return JSON_NOT_FOUND()
     message = load_manager.trigger_manual_job(source_id, job_type)
     flash(message)
-    return redirect(url_for("main.view_harvest_source", source_id=source_id))
+    return redirect(url_for("api.view_harvest_source", source_id=source_id))
 
 
 ## Harvest Job
@@ -757,7 +776,16 @@ def add_harvest_job():
 
 ### Get Job
 @api.route("/harvest_job/<job_id>", methods=["GET"])
-@api.output(JobInfo)
+@api.doc(responses={  # HTML or JSON response so specify the response manually
+    200: {
+        "description": "View harvest job",
+        "content": {
+            "application/json": {
+                "schema": JobInfo
+            }
+        }
+    }
+})
 @valid_id_required  # TODO: Use an HTML 404 page
 def view_harvest_job(job_id=None):
     def _load_json_title(json_string):
@@ -858,7 +886,7 @@ def cancel_harvest_job(job_id):
         return redirect("/")
     message = load_manager.stop_job(job_id)
     flash(message)
-    return redirect(url_for("main.view_harvest_job", job_id=job_id))
+    return redirect(url_for("api.view_harvest_job", job_id=job_id))
 
 
 ### Download all errors for a given job
@@ -1242,18 +1270,29 @@ def view_metrics():
 @api.route("/harvest_jobs/", methods=["GET"])
 @api.route("/harvest_job_errors/", methods=["GET"])
 @api.route("/harvest_record_errors/", methods=["GET"])
-@api.input(QueryInfo, location="query")
-@api.doc(
-    responses={  # list return type requires a manual schema
-        200: {
-            "description": "List of reuslts for this query",
-            "content": {
-                "application/json": {"schema": {"type": "array", "items": ErrorInfo}}
+@api.input(QueryInfo, location="query", validation=False)  # we handle the request directly
+@api.doc(responses={  # list return type requires a manual schema
+    200: {
+        "description": "List of reuslts for this query",
+        "content": {
+            "application/json": {
+                "schema": {
+                    "type": "array",
+                    "items": {
+                        "oneOf": [
+                            ErrorInfo,
+                            OrgInfo,
+                            SourceInfo,
+                            RecordInfo,
+                            JobInfo,
+                        ]
+                    }
+                }
             },
         },
     }
-)
-def json_builder_query():
+})
+def json_builder_query(**kwargs):
     job_id = request.args.get("harvest_job_id")
     source_id = request.args.get("harvest_source_id")
     facets = request.args.get("facets", default="")
