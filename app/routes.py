@@ -9,9 +9,10 @@ import uuid
 from datetime import timedelta
 from functools import wraps
 
-import click
 import jwt
 import requests
+from apiflask import APIBlueprint
+from apiflask.schemas import FileSchema
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.serialization import load_pem_private_key
 from dotenv import load_dotenv
@@ -29,7 +30,6 @@ from flask import (
     url_for,
 )
 from markupsafe import escape
-from werkzeug.datastructures import MultiDict
 
 from database.interface import HarvesterDBInterface
 from harvester.lib.load_manager import LoadManager
@@ -43,7 +43,16 @@ from harvester.utils.general_utils import (
 )
 
 from . import htmx
-from .commands.evaluate_sources import evaluate_sources
+from .api_schemas import (
+    ErrorInfo,
+    JobInfo,
+    OrgCreate,
+    OrgInfo,
+    QueryInfo,
+    RecordInfo,
+    SourceInfo,
+)
+from .auth import LoginRequiredAuth
 from .forms import (
     HarvestSourceForm,
     HarvestTriggerForm,
@@ -51,17 +60,19 @@ from .forms import (
     OrganizationTriggerForm,
 )
 from .paginate import Pagination
+from .util import (
+    make_new_org_contract,
+    make_new_record_error_contract,
+    make_new_source_contract,
+)
 
 logger = logging.getLogger("harvest_admin")
 
-user = Blueprint("user", __name__)
-auth = Blueprint("auth", __name__)
 main = Blueprint("main", __name__)
-org = Blueprint("org", __name__)
-source = Blueprint("harvest_source", __name__)
-job = Blueprint("harvest_job", __name__)
-api = Blueprint("api", __name__)
-testdata = Blueprint("testdata", __name__)
+api = APIBlueprint("api", __name__)
+auth = LoginRequiredAuth()
+login_required = auth.login_required()
+
 
 db = HarvesterDBInterface()
 
@@ -108,27 +119,6 @@ def render_block(template_name: str, block_name: str, **context) -> Response:
     block_gen = template.blocks[block_name]
     html = "".join(block_gen(template.new_context(context)))
     return Response(html, mimetype="text/html; charset=utf-8")
-
-
-def login_required(f):
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        provided_token = request.headers.get("Authorization")
-        if request.is_json or provided_token is not None:
-            if provided_token is None:
-                return "error: Authorization header missing", 401
-            api_token = os.getenv("FLASK_APP_SECRET_KEY")
-            if provided_token != api_token:
-                return "error: Unauthorized", 401
-            return f(*args, **kwargs)
-
-        # check session-based authentication for web users
-        if "user" not in session:
-            session["next"] = request.url
-            return redirect(url_for("main.login"))
-        return f(*args, **kwargs)
-
-    return decorated_function
 
 
 def valid_id_required(f):
@@ -255,235 +245,6 @@ def callback():
         return redirect(url_for("main.index"))
 
 
-# CLI commands
-## User management
-@user.cli.command("add")
-@click.argument("email")
-@click.option("--name", default="", help="Name of the user")
-def add_user(email, name):
-    """add new user with .gov email."""
-
-    email = email.lower()
-    usr_data = {"email": email}
-    if name:
-        usr_data["name"] = name
-
-    success, message = db.add_user(usr_data)
-    if success:
-        print("User added successfully!")
-    else:
-        print("Error:", message)
-
-
-@user.cli.command("list")
-def list_users():
-    """List all users' emails."""
-    users = db.list_users()
-    if users:
-        for user in users:
-            print(user.email)
-    else:
-        print("No users found.")
-
-
-@user.cli.command("remove")
-@click.argument("email")
-def remove_user(email):
-    """Remove a user with the given EMAIL."""
-    email = email.lower()
-    if db.remove_user(email):
-        print(f"Removed user with email: {email}")
-    else:
-        print("Failed to remove user or user not found.")
-
-
-## Org management
-@org.cli.command("add")
-@click.argument("name")
-@click.option("--slug", default="", help="Slug for the organization")
-@click.option(
-    "--logo",
-    default="https://raw.githubusercontent.com/GSA/datagov-harvester/refs/heads/main/app/static/assets/img/placeholder-organization.png",
-    help="Org Logo",
-)
-@click.option(
-    "--aliases",
-    default="",
-    help="Comma-separated list of organization aliases",
-)
-@click.option("--id", help="Org ID: should correspond to CKAN ORG ID")
-def cli_add_org(name, slug, logo, id, aliases):
-    # let the web UI handle the validation, mostly for slug uniqueness
-    form_data = MultiDict(
-        {
-            "name": name,
-            "slug": slug,
-            "logo": logo,
-            "description": "",
-            "organization_type": "",
-            "aliases": aliases,
-        }
-    )
-
-    form = OrganizationForm(formdata=form_data, meta={"csrf": False})
-    if not form.validate():
-        click.echo("Failed to add organization.")
-        for field, errors in form.errors.items():
-            for error in errors:
-                click.echo(f" - {field}: {error}")
-        return
-
-    org_contract = make_new_org_contract(form)
-    if id:
-        org_contract["id"] = id
-
-    org = db.add_organization(org_contract)
-    if org:
-        print(f"Added new organization with ID: {org.id}")
-    else:
-        print("Failed to add organization.")
-
-
-@org.cli.command("list")
-def cli_list_org():
-    """List all organizations"""
-    organizations = db.get_all_organizations()
-    if organizations:
-        for org in organizations:
-            print(f"{org.name} : {org.id}")
-    else:
-        print("No organizations found.")
-
-
-@org.cli.command("delete")
-@click.argument("id")
-def cli_remove_org(id):
-    """Remove an organization with a given id."""
-    result = db.delete_organization(id)
-    if result:
-        print(f"Triggered delete of organization with ID: {id}")
-    else:
-        print("Failed to delete organization")
-
-
-## Harvest Source Management
-@source.cli.command("list")
-def cli_list_harvest_source():
-    """List all harvest sources"""
-    harvest_sources = db.get_all_harvest_sources()
-    if harvest_sources:
-        for source in harvest_sources:
-            print(f"{source.name} : {source.id}")
-    else:
-        print("No harvest sources found.")
-
-
-@source.cli.command("delete")
-@click.argument("id")
-def cli_remove_harvest_source(id):
-    """Remove a harvest source with a given id."""
-    result = db.delete_harvest_source(id)
-    if result:
-        print(f"Triggered delete of harvest source with ID: {id}")
-    else:
-        print("Failed to delete harvest source")
-
-
-@source.cli.command("evaluate_sources")
-def cli_evaluate_sources():
-    """
-    Evaluates existing sources to see if they are still availible,
-    captures the response code, and schema type.
-    """
-    evaluate_sources()
-
-
-## Harvet Job Management
-@job.cli.command("delete")
-@click.argument("id")
-def cli_remove_harvest_job(id):
-    """Remove a harvest job with a given id."""
-    result = db.delete_harvest_job(id)
-    if result:
-        print(f"Triggered delete of harvest job with ID: {id}")
-    else:
-        print("Failed to delete harvest job")
-
-
-## Load Test Data
-# TODO move this into its own file when you break up routes
-@testdata.cli.command("load_test_data")
-def fixtures():
-    """Load database fixtures from JSON."""
-
-    from tests.generate_fixtures import generate_dynamic_fixtures
-
-    fixture = generate_dynamic_fixtures()
-
-    for item in fixture["organization"]:
-        db.add_organization(item)
-    for item in fixture["source"]:
-        db.add_harvest_source(item)
-    for item in fixture["job"]:
-        db.add_harvest_job(item)
-    for item in fixture["job_error"]:
-        db.add_harvest_job_error(item)
-    for item in fixture["record"]:
-        db.add_harvest_record(item)
-    for item in fixture["record_error"]:
-        db.add_harvest_record_error(item)
-
-    click.echo("Done.")
-
-
-# Helper Functions
-def make_new_source_contract(form):
-    return {
-        "organization_id": form.organization_id.data,
-        "name": form.name.data,
-        "url": form.url.data,
-        "notification_emails": form.notification_emails.data,
-        "frequency": form.frequency.data,
-        "schema_type": form.schema_type.data,
-        "source_type": form.source_type.data,
-        "notification_frequency": form.notification_frequency.data,
-    }
-
-
-def make_new_record_error_contract(error: tuple) -> dict:
-    """
-    convert the record error row tuple into a dict. splits the validation message
-    value into an array
-    """
-    fields = [
-        "harvest_record_id",
-        "harvest_job_id",
-        "date_created",
-        "type",
-        "message",
-        "id",
-    ]
-
-    # identifier and source_raw are the last 2 and kept the same
-    record_error = dict(zip(fields, error[:-2]))
-    error_type = error[3]
-    if error_type in ["ValidationException", "ValidationError"]:
-        record_error["message"] = record_error["message"].split("::")  # turn into array
-
-    return record_error
-
-
-def make_new_org_contract(form):
-    return {
-        "name": form.name.data,
-        "slug": form.slug.data,
-        "logo": form.logo.data,
-        "description": form.description.data or None,
-        "organization_type": form.organization_type.data or None,
-        "aliases": [alias.strip() for alias in (form.aliases.data or "").split(",")],
-    }
-
-
 # Routes
 @main.route("/", methods=["GET"])
 def index():
@@ -491,10 +252,23 @@ def index():
 
 
 ## Organizations
+@main.route("/organization_list/", methods=["GET"])
+def organization_list():
+    organizations = db.get_all_organizations()
+    if request.args.get("type") and request.args.get("type") == "json":
+        return jsonify(db._to_dict(organizations))
+    else:
+        data = {"organizations": organizations}
+        return render_template("view_org_list.html", data=data)
+
+
 ### Add Org
-@main.route("/organization/add", methods=["POST", "GET"])
-@login_required
-def add_organization():
+@main.route("/organization/add", methods=["GET"])
+@api.post("/organization/add")
+@api.doc(hide=True)  # don't include the authenticated API
+@api.input(OrgCreate, validation=False)  # passes a kwarg but we handle request
+@api.auth_required(auth)
+def add_organization(**kwargs):
     if request.is_json:
         org = db.add_organization(request.json)
         if org:
@@ -515,7 +289,7 @@ def add_organization():
             return redirect(url_for("main.organization_list"))
         elif form.errors:
             flash(form.errors)
-            return redirect(url_for("main.add_organization"))
+            return redirect(url_for("api.add_organization"))
     return render_template(
         "edit_data.html",
         form=form,
@@ -525,18 +299,10 @@ def add_organization():
     )
 
 
-@main.route("/organization_list/", methods=["GET"])
-def organization_list():
-    organizations = db.get_all_organizations()
-    if request.args.get("type") and request.args.get("type") == "json":
-        return jsonify(db._to_dict(organizations))
-    else:
-        data = {"organizations": organizations}
-        return render_template("view_org_list.html", data=data)
-
-
-@main.route("/organization/<org_id>", methods=["GET", "POST"])
-@valid_id_required  # TODO: make an HTML 404 page
+@main.route("/organization/<string:org_id>", methods=["POST"])
+@api.get("/organization/<string:org_id>")
+@api.output(OrgInfo)
+@valid_id_required
 def view_organization(org_id: str):
     if request.method == "POST":
         form = OrganizationTriggerForm(request.form)
@@ -547,16 +313,16 @@ def view_organization(org_id: str):
                 message, status = db.delete_organization(org_id)
                 flash(message)
                 if status == 409:
-                    return redirect(url_for("main.view_organization", org_id=org_id))
+                    return redirect(url_for("api.view_organization", org_id=org_id))
                 else:
                     return redirect(url_for("main.organization_list"))
             except Exception as e:
                 message = f"Failed to delete organization :: {repr(e)}"
                 logger.error(message)
                 flash(message)
-                return redirect(url_for("main.view_organization", org_id=org_id))
+                return redirect(url_for("api.view_organization", org_id=org_id))
         else:
-            return redirect(url_for("main.view_organization", org_id=org_id))
+            return redirect(url_for("api.view_organization", org_id=org_id))
     else:
         org = db.get_organization(org_id)
         if request.is_json:
@@ -596,8 +362,9 @@ def view_organization(org_id: str):
 
 
 ### Edit Org
-@main.route("/organization/edit/<org_id>", methods=["GET", "POST"])
-@login_required
+@api.route("/organization/edit/<string:org_id>", methods=["GET", "POST"])
+@api.doc(hide=True)  # don't document the authenticated API
+@api.auth_required(auth)
 @valid_id_required  # TODO: Use an HTML 404 page
 def edit_organization(org_id):
     if request.is_json:
@@ -616,7 +383,7 @@ def edit_organization(org_id):
             flash(f"Updated org with ID: {org.id}")
         else:
             flash("Failed to update organization.")
-        return redirect(url_for("main.view_organization", org_id=org_id))
+        return redirect(url_for("api.view_organization", org_id=org_id))
     elif form.errors:
         flash(form.errors)
         return redirect(url_for("main.edit_organization", org_id=org_id))
@@ -631,8 +398,9 @@ def edit_organization(org_id):
 
 
 ### Delete Org
-@api.route("/organization/<org_id>", methods=["DELETE"])
-@login_required
+@api.route("/organization/<string:org_id>", methods=["DELETE"])
+@api.doc(hide=True)  # don't include the authenticated API
+@api.auth_required(auth)
 @valid_id_required
 def delete_organization(org_id):
     try:
@@ -646,8 +414,9 @@ def delete_organization(org_id):
 
 ## Harvest Source
 ### Add Source
-@main.route("/harvest_source/add", methods=["POST", "GET"])
-@login_required
+@api.route("/harvest_source/add", methods=["POST", "GET"])
+@api.doc(hide=True)  # don't document the authenticated API
+@api.auth_required(auth)
 def add_harvest_source():
     if request.is_json:
         try:
@@ -694,7 +463,9 @@ def add_harvest_source():
     )
 
 
-@main.route("/harvest_source/<source_id>", methods=["GET", "POST"])
+@main.route("/harvest_source/<source_id>", methods=["POST"])
+@api.get("/harvest_source/<source_id>")
+@api.output(SourceInfo)
 @valid_id_required  # TODO: Use an HTML 404 page
 def view_harvest_source(source_id: str):
     htmx_vars = {
@@ -873,8 +644,9 @@ def harvest_source_list():
 
 
 ### Edit Source
-@main.route("/harvest_source/edit/<source_id>", methods=["GET", "POST"])
-@login_required
+@api.route("/harvest_source/edit/<source_id>", methods=["GET", "POST"])
+@api.doc(hide=True)  # don't list the authenticated API
+@api.auth_required(auth)
 @valid_id_required  # TODO: Use an HTML 404 page
 def edit_harvest_source(source_id: str):
     if request.is_json:
@@ -939,6 +711,7 @@ def edit_harvest_source(source_id: str):
 
 # Delete Source
 @api.route("/harvest_source/<source_id>", methods=["DELETE"])
+@api.doc(hide=True)
 @login_required
 @valid_id_required
 def delete_harvest_source(source_id):
@@ -953,7 +726,8 @@ def delete_harvest_source(source_id):
 
 ### Trigger Harvest
 @api.route("/harvest_source/harvest/<source_id>/<job_type>", methods=["GET"])
-@login_required
+@api.doc(hide=True)  # don't document the authenticated API
+@api.auth_required(auth)
 def trigger_harvest_source(source_id, job_type):
     if not is_valid_uuid4(source_id):
         return JSON_NOT_FOUND()
@@ -967,8 +741,9 @@ def trigger_harvest_source(source_id, job_type):
 
 ## Harvest Job
 ### Add Job
-@main.route("/harvest_job/add", methods=["POST"])
-@login_required
+@api.route("/harvest_job/add", methods=["POST"])
+@api.doc(hide=True)  # don't list the autenticated API
+@api.auth_required(auth)
 def add_harvest_job():
     if request.is_json:
         job = db.add_harvest_job(request.json)
@@ -981,7 +756,8 @@ def add_harvest_job():
 
 
 ### Get Job
-@main.route("/harvest_job/<job_id>", methods=["GET"])
+@api.route("/harvest_job/<job_id>", methods=["GET"])
+@api.output(JobInfo)
 @valid_id_required  # TODO: Use an HTML 404 page
 def view_harvest_job(job_id=None):
     def _load_json_title(json_string):
@@ -1052,8 +828,9 @@ def view_harvest_job(job_id=None):
 
 
 ### Update Job
-@main.route("/harvest_job/<job_id>", methods=["PUT"])
-@login_required
+@api.route("/harvest_job/<job_id>", methods=["PUT"])
+@api.doc(hide=True)  # don't list the authenticated API
+@api.auth_required(auth)
 @valid_id_required
 def update_harvest_job(job_id):
     result = db.update_harvest_job(job_id, request.json)
@@ -1061,16 +838,18 @@ def update_harvest_job(job_id):
 
 
 ### Delete Job
-@main.route("/harvest_job/<job_id>", methods=["DELETE"])
-@login_required
+@api.route("/harvest_job/<job_id>", methods=["DELETE"])
+@api.doc(hide=True)  # don't list the authenticated API
+@api.auth_required(auth)
 @valid_id_required
 def delete_harvest_job(job_id):
     result = db.delete_harvest_job(job_id)
     return escape(result)
 
 
-@main.route("/harvest_job/cancel/<job_id>", methods=["GET", "POST"])
-@login_required
+@api.route("/harvest_job/cancel/<job_id>", methods=["GET", "POST"])
+@api.doc(hide=True)
+@api.auth_required(auth)
 @valid_id_required
 def cancel_harvest_job(job_id):
     """Cancels a harvest job"""
@@ -1083,7 +862,8 @@ def cancel_harvest_job(job_id):
 
 
 ### Download all errors for a given job
-@main.route("/harvest_job/<job_id>/errors/<error_type>", methods=["GET"])
+@api.route("/harvest_job/<string:job_id>/errors/<string:error_type>", methods=["GET"])
+@api.output(FileSchema, content_type="text/csv")
 def download_harvest_errors_by_job(job_id, error_type):
     if not is_valid_uuid4(job_id):
         return JSON_NOT_FOUND()
@@ -1224,7 +1004,8 @@ def download_harvest_errors_by_job(job_id, error_type):
 
 # Records
 ## Get record
-@main.route("/harvest_record/<record_id>", methods=["GET"])
+@api.route("/harvest_record/<record_id>", methods=["GET"])
+@api.output(RecordInfo)
 @valid_id_required
 def get_harvest_record(record_id):
     record = db.get_harvest_record(record_id)
@@ -1232,7 +1013,18 @@ def get_harvest_record(record_id):
 
 
 ## Get records source raw
-@main.route("/harvest_record/<record_id>/raw", methods=["GET"])
+@api.route("/harvest_record/<record_id>/raw", methods=["GET"])
+@api.doc(
+    responses={  # nultiple MIME-types, specify them manually
+        200: {
+            "description": "Raw harvest record contents",
+            "content": {
+                "application/json": {"type": "object"},
+                "application/xml": {"type": "object"},
+            },
+        }
+    }
+)
 @valid_id_required
 def get_harvest_record_raw(record_id=None):
     record = db.get_harvest_record(record_id)
@@ -1264,8 +1056,9 @@ def get_harvest_record_raw(record_id=None):
 
 
 ## Add record
-@main.route("/harvest_record/add", methods=["POST", "GET"])
-@login_required
+@api.route("/harvest_record/add", methods=["POST", "GET"])
+@api.doc(hide=True)  # don't list the authenticated API
+@api.auth_required(auth)
 def add_harvest_record():
     if request.is_json:
         record = db.add_harvest_record(request.json)
@@ -1278,7 +1071,17 @@ def add_harvest_record():
 
 
 ### Get record errors by record id
-@main.route("/harvest_record/<record_id>/errors", methods=["GET"])
+@api.route("/harvest_record/<record_id>/errors", methods=["GET"])
+@api.doc(
+    responses={  # top-level list needs a manual schema
+        200: {
+            "description": "List of errors for this record",
+            "content": {
+                "application/json": {"schema": {"type": "array", "items": ErrorInfo}}
+            },
+        },
+    }
+)
 @valid_id_required
 def get_all_harvest_record_errors(record_id: str) -> list:
     try:
@@ -1292,7 +1095,8 @@ def get_all_harvest_record_errors(record_id: str) -> list:
 
 ## Harvest Error
 ### Get error by id
-@main.route("/harvest_error/<error_id>", methods=["GET"])
+@api.route("/harvest_error/<error_id>", methods=["GET"])
+@api.output(ErrorInfo)
 @valid_id_required
 def get_harvest_error(error_id: str = None) -> Response:
     # retrieves the given error ( either job or record )
@@ -1432,12 +1236,23 @@ def view_metrics():
 
 
 # Builder Query for JSON feed
-@main.route("/organizations/", methods=["GET"])
-@main.route("/harvest_sources/", methods=["GET"])
-@main.route("/harvest_records/", methods=["GET"])
-@main.route("/harvest_jobs/", methods=["GET"])
-@main.route("/harvest_job_errors/", methods=["GET"])
-@main.route("/harvest_record_errors/", methods=["GET"])
+@api.route("/organizations/", methods=["GET"])
+@api.route("/harvest_sources/", methods=["GET"])
+@api.route("/harvest_records/", methods=["GET"])
+@api.route("/harvest_jobs/", methods=["GET"])
+@api.route("/harvest_job_errors/", methods=["GET"])
+@api.route("/harvest_record_errors/", methods=["GET"])
+@api.input(QueryInfo, location="query")
+@api.doc(
+    responses={  # list return type requires a manual schema
+        200: {
+            "description": "List of reuslts for this query",
+            "content": {
+                "application/json": {"schema": {"type": "array", "items": ErrorInfo}}
+            },
+        },
+    }
+)
 def json_builder_query():
     job_id = request.args.get("harvest_job_id")
     source_id = request.args.get("harvest_source_id")
@@ -1479,10 +1294,4 @@ def json_builder_query():
 
 def register_routes(app):
     app.register_blueprint(main)
-    app.register_blueprint(auth)
-    app.register_blueprint(user)
-    app.register_blueprint(org)
-    app.register_blueprint(source)
-    app.register_blueprint(job)
     app.register_blueprint(api)
-    app.register_blueprint(testdata)
