@@ -14,6 +14,7 @@ from shared.constants import (
     SOURCE_TYPE_VALUES,
 )
 
+
 def _to_enum(name, values):
     """Make an iterable of values into a Python enum.
 
@@ -25,7 +26,9 @@ def _to_enum(name, values):
 ACTION_ENUM = _to_enum("Action", ACTION_VALUES)
 FREQUENCY_ENUM = _to_enum("Frequency", FREQUENCY_VALUES)
 JOB_STATUS_ENUM = _to_enum("JobStatus", JOB_STATUS_VALUES)
-NOTIFICATION_FREQUENCY_ENUM = _to_enum("NotificationFrequency", NOTIFICATION_FREQUENCY_VALUES)
+NOTIFICATION_FREQUENCY_ENUM = _to_enum(
+    "NotificationFrequency", NOTIFICATION_FREQUENCY_VALUES
+)
 ORGANIZATION_TYPE_ENUM = _to_enum("OrganizationType", ORGANIZATION_TYPE_VALUES)
 RECORD_STATUS_ENUM = _to_enum("RecordStatus", RECORD_STATUS_VALUES)
 SCHEMA_TYPE_ENUM = _to_enum("SchemaType", SCHEMA_TYPE_VALUES)
