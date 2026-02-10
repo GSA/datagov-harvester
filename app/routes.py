@@ -173,7 +173,7 @@ def create_client_assertion():
 def trigger_manual_job_helper(source_id, job_type="harvest"):
     message = load_manager.trigger_manual_job(source_id, job_type)
     flash(message)
-    return redirect(url_for("main.view_harvest_source", source_id=source_id))
+    return redirect(url_for("api.view_harvest_source", source_id=source_id))
 
 
 @main.route("/login")
@@ -526,7 +526,7 @@ def view_harvest_source(source_id: str):
     elif request.method == "POST":
         form = HarvestTriggerForm(request.form)
         if form.data["edit"]:
-            return redirect(url_for("main.edit_harvest_source", source_id=source_id))
+            return redirect(url_for("api.edit_harvest_source", source_id=source_id))
         elif form.data["harvest"]:
             if form.data["force_check"]:
                 return trigger_manual_job_helper(source_id, "force_harvest")
@@ -541,7 +541,7 @@ def view_harvest_source(source_id: str):
                 flash(message)
                 if status == 409:
                     return redirect(
-                        url_for("main.view_harvest_source", source_id=source_id)
+                        url_for("api.view_harvest_source", source_id=source_id)
                     )
                 else:
                     return redirect(url_for("main.harvest_source_list"))
@@ -550,10 +550,10 @@ def view_harvest_source(source_id: str):
                 logger.error(message)
                 flash(message)
                 return redirect(
-                    url_for("main.view_harvest_source", source_id=source_id)
+                    url_for("api.view_harvest_source", source_id=source_id)
                 )
         else:
-            return redirect(url_for("main.view_harvest_source", source_id=source_id))
+            return redirect(url_for("api.view_harvest_source", source_id=source_id))
 
     else:
         form = HarvestTriggerForm()
