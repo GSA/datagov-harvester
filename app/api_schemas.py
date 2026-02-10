@@ -14,18 +14,22 @@ from shared.constants import (
     SOURCE_TYPE_VALUES,
 )
 
-ACTION_ENUM = PyEnum("Action", [(a, a) for a in ACTION_VALUES])
-FREQUENCY_ENUM = PyEnum("Frequency", [(a, a) for a in FREQUENCY_VALUES])
-JOB_STATUS_ENUM = PyEnum("JobStatus", [(a, a) for a in JOB_STATUS_VALUES])
-NOTIFICATION_FREQUENCY_ENUM = PyEnum(
-    "NotificationFrequency", [(a, a) for a in NOTIFICATION_FREQUENCY_VALUES]
-)
-ORGANIZATION_TYPE_ENUM = PyEnum(
-    "OrganizationType", [(a, a) for a in ORGANIZATION_TYPE_VALUES]
-)
-RECORD_STATUS_ENUM = PyEnum("RecordStatus", [(a, a) for a in RECORD_STATUS_VALUES])
-SCHEMA_TYPE_ENUM = PyEnum("SchemaType", [(a, a) for a in SCHEMA_TYPE_VALUES])
-SOURCE_TYPE_ENUM = PyEnum("SourceType", [(a, a) for a in SOURCE_TYPE_VALUES])
+def _to_enum(name, values):
+    """Make an iterable of values into a Python enum.
+
+    The produced enum has the name and values the same.
+    """
+    return PyEnum(name, [(a, a) for a in values])
+
+
+ACTION_ENUM = _to_enum("Action", ACTION_VALUES)
+FREQUENCY_ENUM = _to_enum("Frequency", FREQUENCY_VALUES)
+JOB_STATUS_ENUM = _to_enum("JobStatus", JOB_STATUS_VALUES)
+NOTIFICATION_FREQUENCY_ENUM = to_enum("NotificationFrequency", NOTIFICATION_FREQUENCY_VALUES)
+ORGANIZATION_TYPE_ENUM = _to_enum("OrganizationType", ORGANIZATION_TYPE_VALUES)
+RECORD_STATUS_ENUM = _to_enum("RecordStatus", RECORD_STATUS_VALUES)
+SCHEMA_TYPE_ENUM = _to_enum("SchemaType", SCHEMA_TYPE_VALUES)
+SOURCE_TYPE_ENUM = _to_enum("SourceType", SOURCE_TYPE_VALUES)
 
 
 # must be created from a dict because "type" key
