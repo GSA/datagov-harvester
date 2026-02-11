@@ -183,7 +183,8 @@ class OpenSearchInterface:
             raise ValueError("OPENSEARCH_HOST is not set")
         parsed_host = cls._extract_hostname(opensearch_host)
         if parsed_host and (
-            parsed_host == "es.amazonaws.com" or parsed_host.endswith(".es.amazonaws.com")
+            parsed_host == "es.amazonaws.com"
+            or parsed_host.endswith(".es.amazonaws.com")
         ):
             return cls(aws_host=opensearch_host)
         return cls(test_host=opensearch_host)
