@@ -25,7 +25,7 @@ def apage_with_org(apage):
     apage.get_by_role("button", name="Submit").click()
     yield apage
     apage.get_by_role("link", name="Organizations").click()
-    apage.get_by_role("listitem").filter(has_text="Test Org New").nth(1).get_by_role(
+    apage.get_by_role("listitem").filter(has_text="Test Org New").nth(0).get_by_role(
         "link"
     ).click()
     apage.once("dialog", lambda dialog: dialog.accept())
@@ -49,7 +49,7 @@ class TestHarvestCreateAndDestroy:
 
         apage.get_by_role("link", name="Organizations").click()
         apage.get_by_role("listitem").filter(has_text="Test Org New").nth(
-            1
+            0
         ).get_by_role("link").click()
         apage.once("dialog", lambda dialog: dialog.accept())
         apage.get_by_role("button", name="Delete", exact=True).click()

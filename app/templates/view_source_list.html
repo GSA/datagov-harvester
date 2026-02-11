@@ -17,7 +17,7 @@
     {% if session['user'] %}
     <div class="add-buttons-div mt-3">
         <ul class="list-unstyled">
-            <li><a href="{{ url_for('main.add_harvest_source') }}" class="btn btn-primary">
+            <li><a href="{{ url_for('api.add_harvest_source') }}" class="btn btn-primary">
                     Add Harvest Source</a></li>
         </ul>
     </div>
@@ -36,7 +36,7 @@
             <div class="usa-card__footer">
                 <ul class="usa-button-group">
                     <li class="usa-button-group__item">
-                        <a href="{{ url_for('main.view_harvest_source', source_id=source.id) }}"
+                        <a href="{{ url_for('api.view_harvest_source', source_id=source.id) }}"
                             class="usa-button usa-button--outline">Details</a>
                     </li>
                 </ul>

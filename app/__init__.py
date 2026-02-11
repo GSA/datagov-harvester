@@ -1,8 +1,8 @@
 import logging
 import os
 
+from apiflask import APIFlask
 from dotenv import load_dotenv
-from flask import Flask
 from flask_bootstrap import Bootstrap
 from flask_htmx import HTMX
 from flask_migrate import Migrate
@@ -23,7 +23,19 @@ htmx = None
 
 
 def create_app():
-    app = Flask(__name__, static_url_path="", static_folder="static")
+    app = APIFlask(__name__, static_url_path="", static_folder="static", docs_path=None)
+
+    # OpenAPI fields
+    app.config["INFO"] = {
+        "title": "Datagov Harvester",
+        "version": "0.1.0",
+    }
+
+    # don't include auth information in the OpenAPI spec
+    @app.spec_processor
+    def remove_auth(spec):
+        del spec["components"]["securitySchemes"]
+        return spec
 
     app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv("DATABASE_URI")
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
@@ -39,6 +51,10 @@ def create_app():
     from .routes import register_routes
 
     register_routes(app)
+
+    from .commands import register_commands
+
+    register_commands(app)
 
     add_template_filters(app)
     register_cli(app)
