@@ -3,6 +3,7 @@ import os
 import time
 from datetime import date, datetime
 from typing import Any, Callable, TypeVar
+from urllib.parse import urlparse
 
 from botocore.credentials import Credentials
 from opensearchpy import AWSV4SignerAuth, OpenSearch, RequestsHttpConnection, helpers
@@ -157,13 +158,33 @@ class OpenSearchInterface:
                 body["settings"] = self.SETTINGS
             self.client.indices.create(index=self.INDEX_NAME, body=body)
 
+    @staticmethod
+    def _extract_hostname(host_or_url: str) -> str | None:
+        """
+        Extract a hostname from a value that may be a bare host or a full URL.
+
+        This helps ensure that host-based checks are performed on the actual
+        hostname portion, not on an arbitrary string containing a host.
+        """
+        if not host_or_url:
+            return None
+        # If a scheme is present, parse as a URL to get the hostname.
+        if "://" in host_or_url:
+            parsed = urlparse(host_or_url)
+            return parsed.hostname
+        # Otherwise, treat the value as a bare hostname.
+        return host_or_url
+
     @classmethod
     def from_environment(cls):
         """Factory method to return a best-guess instance from environment variables."""
         opensearch_host = os.getenv("OPENSEARCH_HOST")
         if not opensearch_host:
             raise ValueError("OPENSEARCH_HOST is not set")
-        if opensearch_host.endswith("es.amazonaws.com"):
+        parsed_host = cls._extract_hostname(opensearch_host)
+        if parsed_host and (
+            parsed_host == "es.amazonaws.com" or parsed_host.endswith(".es.amazonaws.com")
+        ):
             return cls(aws_host=opensearch_host)
         return cls(test_host=opensearch_host)
 
