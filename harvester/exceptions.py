@@ -57,7 +57,9 @@ class ClearJobException(HarvestCriticalException):
     pass
 
 
-def log_non_critical_error(msg, job_id, record_id, error_type, emit_log=True):
+def log_non_critical_error(
+    msg, job_id, record_id, error_type, is_error=True, emit_log=True
+):
     """Log a non-critical error into the database and logs.
 
     If emit_log is False, then don't print the error into our logs.
@@ -70,8 +72,11 @@ def log_non_critical_error(msg, job_id, record_id, error_type, emit_log=True):
         "harvest_record_id": record_id,
     }
 
+    # spatial translate failure doesn't mean the record is in "error"
+    status = "error" if is_error else "success"
+
     db_interface.add_harvest_record_error(error_data)
-    db_interface.update_harvest_record(record_id, {"status": "error"})
+    db_interface.update_harvest_record(record_id, {"status": status})
 
     if emit_log:
         logger.error(msg, exc_info=True)
@@ -79,11 +84,11 @@ def log_non_critical_error(msg, job_id, record_id, error_type, emit_log=True):
 
 # non-critical exceptions
 class HarvestNonCriticalException(Exception):
-    def __init__(self, msg, harvest_job_id, harvest_record_id):
+    def __init__(self, msg, harvest_job_id, harvest_record_id, is_error=True):
         super().__init__(msg, harvest_job_id, harvest_record_id)
         self.msg = msg
         log_non_critical_error(
-            msg, harvest_job_id, harvest_record_id, self.__class__.__name__
+            msg, harvest_job_id, harvest_record_id, self.__class__.__name__, is_error
         )
 
 
