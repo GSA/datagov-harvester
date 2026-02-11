@@ -470,6 +470,14 @@ class TestHarvestJobFullFlow:
 
         harvest_job = interface.get_harvest_job(job_id)
 
+        # only successful records are returned here. just because the spatial
+        # value can't be translated doesn't mean the whole record is in error
+        latest_records = interface.get_latest_harvest_records_by_source(
+            source_data_dcatus_cant_translate_spatial["id"]
+        )
+        # this shows the record is labelled as successful and not "error"
+        assert len(latest_records) == 1
+
         assert len(harvest_job.record_errors) == 1
         assert (
             harvest_job.record_errors[0].message
