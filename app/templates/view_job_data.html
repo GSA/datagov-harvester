@@ -29,7 +29,7 @@
             <tr>
                 {% if key == 'harvest_source_id' %}
                 <td>Harvest Source:</td>
-                <td><a href="{{ url_for('main.view_harvest_source', source_id=value) }}">{{data.job.source.name}}</a></td>
+                <td><a href="{{ url_for('api.view_harvest_source', source_id=value) }}">{{data.job.source.name}}</a></td>
                 {% elif key == 'date_created' or key == 'date_finished' %}
                 <td>{{key}}:</td>
                 <td class="utc-date" data-utc-date="{{ value | utc_isoformat }}">
@@ -50,7 +50,7 @@
     <div class="config-actions">
         <ul class="usa-button-group">
             <li class="usa-button-group__item">
-                <a href="{{ url_for('main.cancel_harvest_job', job_id=data.job.id)}}">
+                <a href="{{ url_for('api.cancel_harvest_job', job_id=data.job.id)}}">
                     <button class="usa-button usa-button--secondary">Cancel</button>
                 </a>
             </li>
@@ -63,7 +63,7 @@
         No job errors found
         {% else %}
         {% set error_type = "job" %}
-        <a href="{{ url_for('main.download_harvest_errors_by_job', job_id=data.job.id, error_type=error_type)}}">
+        <a href="{{ url_for('api.download_harvest_errors_by_job', job_id=data.job.id, error_type=error_type)}}">
             <button class="btn btn-primary">download job errors as .csv</button>
         </a>
         <div class="usa-table-container--scrollable" tabindex="0">
@@ -101,7 +101,7 @@
         <p>No record errors found</p>
         {% else %}
         {% set error_type = "record" %}
-        <a href="{{ url_for('main.download_harvest_errors_by_job', job_id=data.job.id, error_type=error_type)}}">
+        <a href="{{ url_for('api.download_harvest_errors_by_job', job_id=data.job.id, error_type=error_type)}}">
             <button class="btn btn-primary">download record errors as .csv</button>
         </a>
 
@@ -136,7 +136,7 @@
                         <p><strong>Harvest Record ID:</strong>
                             {% if record_error.error.harvest_record_id %}
                             <a
-                                href="{{ url_for('main.get_harvest_record', record_id=record_error.error.harvest_record_id) }}">
+                                href="{{ url_for('api.get_harvest_record', record_id=record_error.error.harvest_record_id) }}">
                                 {{ record_error.error.harvest_record_id }}
                             </a>
                             {% else %}

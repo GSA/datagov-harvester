@@ -77,12 +77,12 @@
                     {% for source in data.harvest_sources %}
                     <tr>
                         <td data-sort-value={{source.date_created}}><a
-                                href="{{ url_for('main.view_harvest_source', source_id=source.id) }}">{{source.name}}</a>
+                                href="{{ url_for('api.view_harvest_source', source_id=source.id) }}">{{source.name}}</a>
                         </td>
                         <td scope="row" class="text-center">
                             {% if data.harvest_jobs[source.id] %}
                             {% set last_job_has_errors = (data.harvest_jobs[source.id].errors | length) == 0 %}
-                            <a href="{{ url_for('main.view_harvest_job', job_id=data.harvest_jobs[source.id].id) }}">
+                            <a href="{{ url_for('api.view_harvest_job', job_id=data.harvest_jobs[source.id].id) }}">
                                 <svg class="usa-icon align-middle {% if last_job_has_errors %}check{%else%}cancel{%endif%}"
                                     aria-hidden="true" focusable="false" role="img">
                                     <use

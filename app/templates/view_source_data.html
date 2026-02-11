@@ -36,7 +36,7 @@
             <tr>
                 {% if key == 'organization_id' %}
                 <td>Organization:</td>
-                <td><a href="{{ url_for('main.view_organization', org_id=value) }}">{{data.source.org.name}}</a></td>
+                <td><a href="{{ url_for('api.view_organization', org_id=value) }}">{{data.source.org.name}}</a></td>
                 {% elif key == 'notification_emails' %}
                 {% if session['user'] %}
                 <td>Notification emails:</td>
@@ -93,7 +93,7 @@
     <br>
     <h2>Summary: </h2>
     {% if data.summary_data["active_job_in_progress"] %}
-    <a class="text-error" href="{{ url_for('main.view_harvest_job', job_id=data.jobs[0].id)}}">
+    <a class="text-error" href="{{ url_for('api.view_harvest_job', job_id=data.jobs[0].id)}}">
         <svg class="usa-icon" aria-hidden="true" focusable="false" role="img">
             <use href="/assets/uswds/img/sprite.svg#alarm"></use>
         </svg>
