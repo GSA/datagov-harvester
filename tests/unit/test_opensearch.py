@@ -163,7 +163,10 @@ def test_run_with_timeout_retry(monkeypatch):
             raise ConnectionTimeout("timeout")
         return "ok"
 
-    monkeypatch.setattr(opensearch.time, "sleep", lambda seconds: sleeps.append(seconds))
+    def fake_sleep(seconds):
+        sleeps.append(seconds)
+
+    monkeypatch.setattr(opensearch.time, "sleep", fake_sleep)
 
     result = iface._run_with_timeout_retry(
         action,
@@ -198,7 +201,10 @@ def test_index_datasets_counts_errors(monkeypatch, sample_dataset):
 
     monkeypatch.setattr(opensearch.helpers, "streaming_bulk", fake_streaming_bulk)
 
-    succeeded, failed, errors = iface.index_datasets([sample_dataset], refresh_after=False)
+    succeeded, failed, errors = iface.index_datasets(
+        [sample_dataset],
+        refresh_after=False,
+    )
 
     assert succeeded == 1
     assert failed == 1

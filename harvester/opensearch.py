@@ -250,6 +250,10 @@ class OpenSearchInterface:
         )
         organization = dataset.organization.to_dict() if dataset.organization else {}
 
+        popularity = (
+            dataset.popularity if dataset.popularity is not None else None
+        )
+
         return {
             "_index": self.INDEX_NAME,
             "_id": dataset.id,
@@ -264,7 +268,7 @@ class OpenSearchInterface:
             "identifier": dataset.dcat.get("identifier", ""),
             "has_spatial": has_spatial,
             "organization": organization,
-            "popularity": dataset.popularity if dataset.popularity is not None else None,
+            "popularity": popularity,
             "spatial_shape": dataset.translated_spatial,
             "spatial_centroid": spatial_centroid,
             "harvest_record": self._create_harvest_record_url(dataset),
