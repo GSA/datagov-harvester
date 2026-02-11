@@ -99,6 +99,10 @@ class TransformationException(HarvestNonCriticalException):
     pass
 
 
+class SpatialTransformationException(HarvestNonCriticalException):
+    pass
+
+
 class DCATUSToCKANException(HarvestNonCriticalException):
     pass
 
