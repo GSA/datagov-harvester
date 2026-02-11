@@ -29,6 +29,7 @@ from harvester.exceptions import (
     ExtractInternalException,
     NoIdentifierException,
     SendNotificationException,
+    SpatialTransformationException,
     TransformationException,
     log_non_critical_error,
 )
@@ -1054,8 +1055,17 @@ class Record:
         }
 
         translated_spatial = translate_spatial_to_geojson(metadata.get("spatial"))
-        if translated_spatial is not None:
-            payload["translated_spatial"] = translated_spatial
+        try:
+            if translated_spatial is not None:
+                payload["translated_spatial"] = translated_spatial
+            if metadata.get("spatial") and translated_spatial is None:
+                raise SpatialTransformationException(
+                    f"unable to spatially fix {metadata.get('spatial')}",
+                    self.harvest_source.job_id,
+                    self.id,
+                )
+        except SpatialTransformationException:
+            pass
 
         return payload
 
