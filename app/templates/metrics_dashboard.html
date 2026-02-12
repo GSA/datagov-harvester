@@ -68,12 +68,12 @@
                       {% for error in data.failures %}
                       <tr>
                           <td data-sort-value="{{ error.job.id }}">
-                              <a href="{{ url_for('main.view_harvest_job', job_id=error.job.id) }}">
+                              <a href="{{ url_for('api.view_harvest_job', job_id=error.job.id) }}">
                                   {{ error.job.id[:8] }}
                               </a>
                           </td>
                           <td data-sort-value="{{ error.job.source.name }}">
-                              <a href="{{ url_for('main.view_harvest_source', source_id=error.job.source.id) }}">
+                              <a href="{{ url_for('api.view_harvest_source', source_id=error.job.source.id) }}">
                                   {{ error.job.source.name }}
                               </a>
                           </td>

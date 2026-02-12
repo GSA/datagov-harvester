@@ -448,6 +448,34 @@ class TestHarvestJobFullFlow:
 
         harvest_source.db_interface.close()
 
+    @patch("harvester.harvest.HarvestSource.send_notification_emails")
+    def test_cant_translate_spatial(
+        self,
+        send_notification_emails_mock: MagicMock,
+        interface,
+        organization_data,
+        source_data_dcatus_cant_translate_spatial,
+    ):
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_dcatus_cant_translate_spatial)
+        harvest_job = interface.add_harvest_job(
+            {
+                "status": "new",
+                "harvest_source_id": source_data_dcatus_cant_translate_spatial["id"],
+            }
+        )
+
+        job_id = harvest_job.id
+        harvest_job_starter(job_id, "harvest")
+
+        harvest_job = interface.get_harvest_job(job_id)
+
+        assert len(harvest_job.record_errors) == 1
+        assert (
+            harvest_job.record_errors[0].message
+            == 'unable to spatially fix [[{"WestBoundingCoordinate":-54.185,"NorthBoundingCoordinate":-3.007,"EastBoundingCoordinate":-51.798,"SouthBoundingCoordinate":-11.491}],"CARTESIAN"]'
+        )
+
 
 class TestCheckMoreWork:
     @patch("harvester.lib.cf_handler.CloudFoundryClient")

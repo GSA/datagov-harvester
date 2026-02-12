@@ -7,10 +7,17 @@ from flask_sqlalchemy import SQLAlchemy
 from geoalchemy2 import Geometry
 from sqlalchemy import CheckConstraint, Column, Enum, String, func
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import DeclarativeBase, backref
 from sqlalchemy.ext.mutable import MutableDict
+from sqlalchemy.orm import DeclarativeBase, backref
 
-from shared.constants import ORGANIZATION_TYPE_VALUES
+from shared.constants import (
+    FREQUENCY_VALUES,
+    JOB_STATUS_VALUES,
+    NOTIFICATION_FREQUENCY_VALUES,
+    ORGANIZATION_TYPE_VALUES,
+    SCHEMA_TYPE_VALUES,
+    SOURCE_TYPE_VALUES,
+)
 
 
 class Base(DeclarativeBase):
@@ -75,11 +82,7 @@ class HarvestSource(db.Model):
     notification_emails = db.Column(db.ARRAY(db.String))
     frequency = db.Column(
         Enum(
-            "manual",
-            "daily",
-            "weekly",
-            "biweekly",
-            "monthly",
+            *FREQUENCY_VALUES,
             name="frequency",
         ),
         nullable=False,
@@ -87,17 +90,14 @@ class HarvestSource(db.Model):
     )
     schema_type = db.Column(
         db.Enum(
-            "iso19115_1",
-            "iso19115_2",
-            "dcatus1.1: federal",
-            "dcatus1.1: non-federal",
+            *SCHEMA_TYPE_VALUES,
             name="schema_type",
         ),
         nullable=False,
     )
 
     source_type = db.Column(
-        db.Enum("document", "waf", "waf-collection", name="source_type"), nullable=False
+        db.Enum(*SOURCE_TYPE_VALUES, name="source_type"), nullable=False
     )
     jobs = db.relationship(
         "HarvestJob",
@@ -107,9 +107,7 @@ class HarvestSource(db.Model):
     )
     notification_frequency = db.Column(
         db.Enum(
-            "on_error",
-            "always",
-            "on_error_or_update",
+            *NOTIFICATION_FREQUENCY_VALUES,
             name="notification_frequency",
         ),
         nullable=False,
@@ -126,10 +124,7 @@ class HarvestJob(db.Model):
 
     status = db.Column(
         Enum(
-            "in_progress",
-            "complete",
-            "new",
-            "error",
+            *JOB_STATUS_VALUES,
             name="job_status",
         ),
         nullable=False,
@@ -201,12 +196,7 @@ class Dataset(db.Model):
     # Base has a string `id` column that is uuid by default
 
     # slug is the string that we use in a URL for this dataset
-    slug = db.Column(
-        db.String,
-        nullable=False,
-        index=True,
-        unique=True
-    )
+    slug = db.Column(db.String, nullable=False, index=True, unique=True)
 
     # This is all of the details of the dataset in DCAT schema in a JSON column
     # make it mutable so that in-place mutations (e.g.,
@@ -236,10 +226,7 @@ class Dataset(db.Model):
     )
 
     popularity = db.Column(db.Integer, server_default="0")
-    last_harvested_date = db.Column(
-        db.DateTime,
-        index=True
-    )
+    last_harvested_date = db.Column(db.DateTime, index=True)
 
     organization = db.relationship(
         "Organization",

@@ -24,13 +24,13 @@
             {% for job in jobs %}
             <tr>
                 <td data-sort-value="{{ job.id }}">
-                    <a href="{{ url_for('main.view_harvest_job', job_id=job.id) }}">
+                    <a href="{{ url_for('api.view_harvest_job', job_id=job.id) }}">
                         {{ job.id[:6] }}
                     </a>
                 </td>
                 {% if show_source %}
                 <td data-sort-value="{{ job.source.name }}">
-                    <a href="{{ url_for('main.view_harvest_source', source_id=job.source.id) }}" title="{{ job.source.name }}">
+                    <a href="{{ url_for('api.view_harvest_source', source_id=job.source.id) }}" title="{{ job.source.name }}">
                         <span class="display-none tablet:display-inline">{{ job.source.name[:25] }}{% if job.source.name|length > 25 %}...{% endif %}</span>
                         <span class="tablet:display-none">{{ job.source.name[:12] }}{% if job.source.name|length > 12 %}...{% endif %}</span>
                     </a>

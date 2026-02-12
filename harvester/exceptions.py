@@ -99,6 +99,10 @@ class TransformationException(HarvestNonCriticalException):
     pass
 
 
+class SpatialTransformationException(HarvestNonCriticalException):
+    pass
+
+
 class DCATUSToCKANException(HarvestNonCriticalException):
     pass
 
@@ -112,4 +116,8 @@ class CKANRejectionException(SynchronizeException):
 
 
 class CKANDownException(SynchronizeException):
+    pass
+
+
+class NoIdentifierException(HarvestNonCriticalException):
     pass
