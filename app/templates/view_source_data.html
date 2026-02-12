@@ -12,18 +12,21 @@
 {% endblock %}
 
 {% block content %}
+<div class="wrapper source-data">
     {% if not data.source %}
     <h2>Whooops!</h2>
     <p>Looks like you navigated to a harvest source that doesn't exist.</p>
     {% else %}
-    <h1 class="margin-right-2 display-inline">{{data.source.name}}</h1>
-    <a
-        class="usa-button usa-button--outline"
-        target="_blank"
-        href="{{ data.ckan_url }}/organization/{{ data.source.org.id }}?harvest_source_title={{ data.source.name }}"
-    >
-        <i class="fa-solid fa-arrow-up-right-from-square"></i>View on catalog
-    </a>
+    <div class="display-flex flex-align-center">
+        <h1 class="margin-right-2">{{data.source.name}}</h1>
+        <a
+            class="usa-button usa-button--outline"
+            target="_blank"
+            href="{{ data.ckan_url }}/organization/{{ data.source.org.id }}?harvest_source_title={{ data.source.name }}"
+        >
+            <i class="fa-solid fa-arrow-up-right-from-square"></i>View on catalog
+        </a>
+    </div>
 
 
     <h2>Configuration:</h2>
@@ -60,34 +63,35 @@
         </table>
     </div>
     {% if session['user'] %}
-      <form method="POST" action>
-          {{ form.hidden_tag() }}
-          <ul class="usa-button-group">
-              <li class="usa-button-group__item">
-                  {{form.edit(class_='usa-button')}}
-              </li>
-              <li class="usa-button-group__item">
-                  {{form.harvest(class_='usa-button usa-button--base')}}
-              </li>
-              <li class="usa-button-group__item">
-                  {{form.clear(class_='usa-button usa-button--accent-cool', onclick="confirmSubmit(event, 'clear')")}}
-              </li>
-              <li class="usa-button-group__item">
-                  {{form.delete(class_='usa-button usa-button--secondary', onclick="confirmSubmit(event, 'delete')")}}
+    <div class="config-actions harvest-source-config-actions">
+        <form method="POST" action>
+            {{ form.hidden_tag() }}
+            <ul class="usa-button-group">
+                <li class="usa-button-group__item">
+                    {{form.edit(class_='usa-button')}}
+                </li>
+                <li class="usa-button-group__item">
+                    {{form.harvest(class_='usa-button usa-button--base')}}
+                </li>
+                <li class="usa-button-group__item">
+                    {{form.clear(class_='usa-button usa-button--accent-cool', onclick="confirmSubmit(event, 'clear')")}}
+                </li>
+                <li class="usa-button-group__item">
+                    {{form.delete(class_='usa-button usa-button--secondary', onclick="confirmSubmit(event, 'delete')")}}
 
-              </li>
-          </ul>
-          <fieldset class="usa-fieldset">
-              <div class="usa-checkbox">
-                  {{form.force_check(class_='usa-checkbox__input')}}
-                  {{form.force_check.label(class_='usa-checkbox__label')}}
-              </div>
-          </fieldset>
-      </form>
+                </li>
+            </ul>
+            <fieldset class="usa-fieldset">
+                <div class="usa-checkbox">
+                    {{form.force_check(class_='usa-checkbox__input')}}
+                    {{form.force_check.label(class_='usa-checkbox__label')}}
+                </div>
+            </fieldset>
+        </form>
+    </div>
     {% endif %}
-
     <br>
-    <h2>Summary</h2>
+    <h2>Summary: </h2>
     {% if data.summary_data["active_job_in_progress"] %}
     <a class="text-error" href="{{ url_for('api.view_harvest_job', job_id=data.jobs[0].id)}}">
         <svg class="usa-icon" aria-hidden="true" focusable="false" role="img">
@@ -97,40 +101,38 @@
     </a>
     {% endif %}
 
-    <table id="harvest-source-config-summary" class="usa-table usa-table--borderless">
-      <thead><th></th><th></th></thead>
-      <tbody>
-        <tr>
-            <th scope="row">Records</th>
-            <td>{{data.summary_data["records_count"]}}</td>
-        </tr>
-        <tr>
-            <th scope="row">Synced Records</th>
-            <td>{{data.summary_data["synced_records_count"]}}</td>
-        </tr>
-        <tr>
-            <th scope="row">Last Job Records in Error</th>
-            <td>
-                {{data.summary_data["last_job_errors"] | else_na }}
-            </td>
-        </tr>
-        <tr>
-            <th scope="row">Last Job Finished</th>
-            <td class="utc-date" data-utc-date="{{ data.summary_data['last_job_finished'] | utc_isoformat }}">
-                {{data.summary_data["last_job_finished"] | else_na }}
-            </td>
-        </tr>
-        <tr>
-            <th scope="row">Next Job Scheduled</th>
-            <td class="utc-date" data-utc-date="{{ data.summary_data['next_job_scheduled'] | utc_isoformat }}">
-                {{data.summary_data["next_job_scheduled"] | else_na }}
-            </td>
-        </tr>
-      </tbody>
-    </table>
-
-    <br/>
-        <h2>Harvest Job History</h2>
+    <div class="config-table harvest-source-config-summary">
+        <table class="table">
+            <tr>
+                <td>Records:</td>
+                <td>{{data.summary_data["records_count"]}}</td>
+            </tr>
+            <tr>
+                <td>Synced Records:</td>
+                <td>{{data.summary_data["synced_records_count"]}}</td>
+            </tr>
+            <tr>
+                <td>Last Job Records in Error:</td>
+                <td>
+                    {{data.summary_data["last_job_errors"] | else_na }}
+                </td>
+            </tr>
+            <tr>
+                <td>Last Job Finished:</td>
+                <td class="utc-date" data-utc-date="{{ data.summary_data['last_job_finished'] | utc_isoformat }}">
+                    {{data.summary_data["last_job_finished"] | else_na }}
+                </td>
+            </tr>
+            <tr>
+                <td>Next Job Scheduled:</td>
+                <td class="utc-date" data-utc-date="{{ data.summary_data['next_job_scheduled'] | utc_isoformat }}">
+                    {{data.summary_data["next_job_scheduled"] | else_na }}
+                </td>
+            </tr>
+        </table>
+    </div>
+    <div class="section mt-3">
+        <h2>Harvest Job History:</h2>
         {% if not data.jobs %}
         No harvest jobs found
         {% else %}
@@ -148,7 +150,9 @@
         {% endblock %}
 
         {% endif %}
+    </div>
     {% endif %} <!-- line 21 -->
+</div>
 
 {% endblock %}
 

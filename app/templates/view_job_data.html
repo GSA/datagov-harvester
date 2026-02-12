@@ -10,15 +10,13 @@
     <h2>Whooops!</h2>
     <p>Looks like you navigated to a harvest job that doesn't exist.</p>
     {% else %}
-    <h1>Details for Harvest Job: {{data.job.id}}</h1>
-    <div id="harvest-job-config-properties" class="config-table">
-        <table class="usa-table usa-table--borderless">
-          <caption>Job info</caption>
-          <thead><th></th><th></th></thead>
-          <tbody>
+    <h1>Details for Harvest Job Id: {{data.job.id}}</h1>
+    <h2>Job Info</h2>
+    <div class="config-table harvest-job-config-properties">
+        <table class="table">
             {% if data['percent_complete'] %}
             <tr>
-                <th scope="row">Percent complete</th>
+                <td>Percent complete:</td>
                 <td>
                     <div class="progress-meter">
                     <style nonce="{{ csp_nonce() }}">
@@ -35,23 +33,22 @@
             {% for key, value in data.job.to_dict().items() %}
             <tr>
                 {% if key == 'harvest_source_id' %}
-                <th>Harvest Source:</th>
+                <td>Harvest Source:</td>
                 <td><a href="{{ url_for('api.view_harvest_source', source_id=value) }}">{{data.job.source.name}}</a></td>
                 {% elif key == 'date_created' or key == 'date_finished' %}
-                <th scope="row">{{key}}</th>
+                <td>{{key}}:</td>
                 <td class="utc-date" data-utc-date="{{ value | utc_isoformat }}">
                     {{ value | else_na }}
                 </td>
                 {% elif key == 'records_ignored' %}
-                <th scope="row">records_unchanged</th>
+                <td>records_unchanged:</td>
                 <td>{{value}}</td>
                 {% else %}
-                <th scope="row">{{key}}</th>
+                <td>{{key}}:</td>
                 <td>{{value}}</td>
                 {% endif %}
             </tr>
             {% endfor %}
-          </tbody>
         </table>
     </div>
     {% if session['user'] and data.job.status == "in_progress" %}
@@ -65,7 +62,7 @@
         </ul>
     </div>
     {% endif %}
-    <div class="section margin-y-3">
+    <div class="section my-3">
         <h2>Job Error Table</h2>
         {% if not data.job.errors %}
         No job errors found
@@ -74,31 +71,34 @@
         <a href="{{ url_for('api.download_harvest_errors_by_job', job_id=data.job.id, error_type=error_type)}}">
             <button class="btn btn-primary">download job errors as .csv</button>
         </a>
-        <table class="usa-table usa-table--striped">
-            <caption> Harvest Job Errors for {{data.job.id}} </caption>
-            <thead>
-                <tr>
-                    <th scope="col">Date Created</th>
-                    <th scope="col">Id</th>
-                    <th scope="col">Type</th>
-                    <th scope="col">Message</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for errors in data.job.errors %}
-                <tr>
-                    <td class="utc-date" data-utc-date="{{ errors.date_created | utc_isoformat }}">
-                        {{ errors.date_created | else_na }}
-                    </td>
-                    <td>{{errors.id}}</td>
-                    <td>{{errors.type}}</td>
-                    <td>{{errors.message}}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+        <div class="usa-table-container--scrollable" tabindex="0">
+            <table class="usa-table usa-table--striped">
+                <caption> Harvest Job Errors for {{data.job.id}} </caption>
+                <thead>
+                    <tr>
+                        <th scope="col">Date Created</th>
+                        <th scope="col">Id</th>
+                        <th scope="col">Type</th>
+                        <th scope="col">Message</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for errors in data.job.errors %}
+                    <tr>
+                        <td class="utc-date" data-utc-date="{{ errors.date_created | utc_isoformat }}">
+                            {{ errors.date_created | else_na }}
+                        </td>
+                        <td>{{errors.id}}</td>
+                        <td>{{errors.type}}</td>
+                        <td>{{errors.message}}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            <div class="usa-sr-only usa-table__announcement-region" aria-live="polite"></div>
         </div>
         {% endif %}
+    </div>
 
     <div class="section">
         <h2>Record Error Details</h2>
@@ -128,6 +128,7 @@
           </tbody>
         </table>
 
+        <div class="usa-table-container--scrollable" tabindex="0">
             {% block record_errors_table %}
             <div id="error_results_pagination">
                 <div class="error-list">
@@ -173,7 +174,10 @@
             </div>
 
             {% endblock %}
+            <div class="usa-sr-only usa-table__announcement-region" aria-live="polite"></div>
+        </div>
         {% endif %}
+    </div>
     {% endif %}
 </div>
 {% endblock %}

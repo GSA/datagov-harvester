@@ -16,27 +16,23 @@ def apage(authed_page):
 
 class TestOrganizationUnauthed:
     def test_config_table_properties(self, upage):
-        expect(upage.locator(".organization-config-properties table th")).to_have_text(
+        expect(
+            upage.locator(".organization-config-properties table tr td")
+        ).to_have_text(
             [
-                "Field",
-                "Value",
-                "name",
-                "logo",
-                "description",
-                "slug",
-                "organization_type",
-                "aliases",
-                "id",
-            ]
-        )
-        expect(upage.locator(".organization-config-properties table td")).to_have_text(
-            [
+                "name:",
                 "Test Org",
+                "logo:",
                 "https://raw.githubusercontent.com/GSA/datagov-harvester/refs/heads/main/app/static/assets/img/placeholder-organization.png",
+                "description:",
                 "Fixture org description",
+                "slug:",
                 "fixture-org",
+                "organization_type:",
                 "Federal Government",
+                "aliases:",
                 "['testorg']",
+                "id:",
                 "d925f84d-955b-4cb7-812f-dcfd6681a18f",
             ]
         )
@@ -81,7 +77,7 @@ class TestOrganizationAuthed:
         apage.once("dialog", lambda dialog: dialog.accept())
         apage.get_by_role("button", name="Delete", exact=True).click()
         # ruff: noqa: E501
-        expect(apage.locator(".usa-alert--warning")).to_contain_text(
+        expect(apage.locator(".alert-warning")).to_contain_text(
             [
                 "Failed: 1 harvest sources in the organization, please delete those first."
             ]

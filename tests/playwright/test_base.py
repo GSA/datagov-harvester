@@ -16,7 +16,7 @@ def apage(authed_page):
 
 class TestBaseUnauthed:
     def test_nav_items(self, upage):
-        expect(upage.locator("ul.usa-nav__primary > li")).to_have_text(
+        expect(upage.locator("ul.menu > li")).to_have_text(
             ["Organizations", "Harvest Sources", "Metrics", "Login"]
         )
 
@@ -29,6 +29,6 @@ class TestBaseAuthed:
             ("Metrics", 2),
             ("Logout", 4),
         ]  # skip logged in user name in index 3
-        nav_items = apage.locator("ul.usa-nav__primary > li")
+        nav_items = apage.locator("ul.menu > li")
         for text, index in nav_items_expected:
             assert nav_items.nth(index).inner_text() == text
