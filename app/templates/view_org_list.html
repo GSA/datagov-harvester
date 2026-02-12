@@ -5,24 +5,24 @@
 {% endblock %}
 
 {% block content %}
-<div class="bg-base-lighter padding-2 radius-md">
-  <h2 class="font-lang-lg my-0">Find an Organization</h2>
+<div class="bg-base-lighter padding-2 radius-md margin-bottom-2">
+  <h2>Find an Organization</h2>
   <div role="region" aria-label="Component search" aria-atomic="true" class="margin-top-1">
     <label for="icon-filter">Filter by name and keyword</label>
-    <input class="usa-input" id="icon-filter" type="text" onkeyup="filter(this)">
+    <input class="usa-input" id="icon-filter" type="text">
     <p class="text-base-darker margin-top-1 margin-bottom-0" aria-live="polite"><span id="component-count"></span></p>
   </div>
   {% if session['user'] %}
-  <div class="add-buttons-div mt-3">
-    <ul class="list-unstyled">
-      <li><a href="{{ url_for('api.add_organization') }}" class="btn btn-primary">
+  <div class="margin-top-3">
+    <ul class="usa-list--unstyled">
+      <li><a href="{{ url_for('api.add_organization') }}" class="usa-button">
           Add Organization</a></li>
     </ul>
   </div>
   {% endif %}
 </div>
 
-<ul class="usa-card-group flex-row margin-top-3">
+<ul class="usa-card-group">
   {% for org in data.organizations %}
   <li class="usa-card site-component-card grid-col-6 tablet:grid-col-4" data-meta="{{org.name}}">
     <div class="usa-card__container">
@@ -46,20 +46,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script>
-  function filter(e) {
-    search = e.value.toLowerCase();
-    document.querySelectorAll('.site-component-card').forEach(function (row) {
-      text = row.getAttribute("data-meta").toLowerCase();
-      if (text.match(search)) {
-        row.classList.remove("display-none");
-      } else {
-        row.classList.add("display-none");
-      }
-    });
-    componentCount = document.querySelectorAll('.site-component-card:not(.display-none)').length;
-    var word = (componentCount === 1) ? "organization" : "organizations";
-    document.getElementById("component-count").innerHTML = `<strong>${componentCount}</strong> ${word} found`
-  }
-</script>
+<script src="{{ url_for('static', filename='js/filter.js') }}"></script>"
 {% endblock %}

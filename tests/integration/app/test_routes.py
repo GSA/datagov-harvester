@@ -37,7 +37,6 @@ class TestDynamicRouteTable:
         # dont test flask internal or auth routes
         whitelisted_routes = [
             "static",
-            "bootstrap.static",
             "main.login",
             "main.logout",
             "main.callback",
