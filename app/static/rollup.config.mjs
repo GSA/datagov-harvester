@@ -9,6 +9,7 @@ export default {
         { src: './node_modules/chart.js/dist/chart.umd.js', dest: './assets/chartjs/' },
         { src: './node_modules/chart.js/dist/chart.umd.js.map', dest: './assets/chartjs/' },
         { src: './node_modules/htmx.org/dist/htmx.min.js', dest: './assets/htmx/' },
+        { src: './node_modules/openapi-explorer/dist/browser/openapi-explorer.min.js', dest: './assets/openapi-explorer/' },
       ]
     })
   ]

@@ -1331,6 +1331,12 @@ def json_builder_query(**kwargs):
         return "Error with query", 400
 
 
+# Serve a UI for exploring our OpenAPI documented API
+@main.route("/openapi/explore")
+def openapi_explorer():
+    return render_template("openapi_explorer.html")
+
+
 def register_routes(app):
     app.register_blueprint(main)
     app.register_blueprint(api)

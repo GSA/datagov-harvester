@@ -1,0 +1,13 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<openapi-explorer :spec-url="/openapi.json">
+  <div slot="overview">
+    <h1>Explore the API</h1>
+  </div>
+</openapi-explorer>
+{% endblock %}
+
+{% block scripts %}
+<script type="module" src="{{ url_for('static', filename='assets/openapi-explorer/openapi-explorer.min.js') }}"></script>
+{% endblock %}
