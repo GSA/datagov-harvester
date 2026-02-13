@@ -949,16 +949,19 @@ class Record:
                 repr(e),
             )
 
-    def _report_error(self, e):
+    def _report_error(self, e, get_repr=True):
         """Report an exception to the database.
 
         This does not re-raise the exception, it logs it and
         execution proceeds. If callers want to raise, they need
         to `raise e` after calling this method.
         """
+
+        e_msg = repr(e) if get_repr else str(e)
+
         self.status = "error"
         log_non_critical_error(
-            repr(e),
+            e_msg,
             self.harvest_source.job_id,
             self.id,
             e.__class__.__name__,
@@ -994,7 +997,7 @@ class Record:
         errors = assemble_validation_errors(errors)
         for error in errors:
             valid = False
-            self._report_error(error)
+            self._report_error(error, get_repr=False)
 
         if valid:
             self.harvest_source.update_job_record_count_by_action("validated")
