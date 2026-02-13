@@ -962,7 +962,9 @@ def finalize_validation_messages(messages: defaultdict) -> list:
         ]:
             invalid_value = "@type value"
 
+        # get and clean up formats (e.g. str, regex, arrays...)
         formats = map(get_format_from_str, formats)
+        formats = list(map(lambda format: re.sub(r"\\+", r"\\", format), formats))
 
         # build the bundled error message by json_path
         msg = ValidationError(
