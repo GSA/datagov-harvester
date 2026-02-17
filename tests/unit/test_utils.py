@@ -252,6 +252,7 @@ class TestGeneralUtils:
         # validation messages are stored in the db via repr which will include the
         # object type (e.g. '<ValidationError: "$, \'identifier\' is a required property">')
         # omitting that here for brevity.
+        # backslashes are doubled here but not in the final validation record error message.
         # ruff: noqa E501
         expected = [
             "$, 'identifier' is a required property",
