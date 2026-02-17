@@ -25,6 +25,19 @@ services:
         interval: 5s
         timeout: 5s
         retries: 5
+  opensearch:
+      image: opensearchproject/opensearch:2.11.1
+      environment:
+        discovery.type: single-node
+      ports:
+        - "9200:9200"
+        - "9600:9600"
+      healthcheck:
+        test: ['CMD-SHELL', 'curl -sk -u admin:admin https://localhost:9200/_cluster/health?wait_for_status=yellow\&timeout=1s | grep -q ''"timed_out":false''']
+        interval: 5s
+        timeout: 5s
+        retries: 12
+        start_period: 10s
   transformer:
       image: ghcr.io/gsa/mdtranslator:latest
       restart: always
@@ -45,11 +58,14 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      opensearch:
+        condition: service_healthy
       transformer:
         condition: service_healthy
     volumes:
       - .:/app
     environment:
+      OPENSEARCH_HOST: opensearch
       DATABASE_URI: postgresql+psycopg://${DATABASE_USER}:${DATABASE_PASSWORD}@db:${DATABASE_PORT}/${DATABASE_NAME}
       CF_SERVICE_USER: ${CF_SERVICE_USER}
       CF_SERVICE_AUTH: ${CF_SERVICE_AUTH}
