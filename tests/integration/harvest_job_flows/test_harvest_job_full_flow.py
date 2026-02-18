@@ -484,6 +484,13 @@ class TestHarvestJobFullFlow:
             == 'unable to spatially fix [[{"WestBoundingCoordinate":-54.185,"NorthBoundingCoordinate":-3.007,"EastBoundingCoordinate":-51.798,"SouthBoundingCoordinate":-11.491}],"CARTESIAN"]'
         )
 
+        # notification email was sent (configured to "always")
+        assert send_notification_emails_mock.called
+        # the record was added as intended (not errored)
+        assert send_notification_emails_mock.call_args.args[0]["records_added"] == 1
+
+
+
 
 class TestCheckMoreWork:
     @patch("harvester.lib.cf_handler.CloudFoundryClient")
