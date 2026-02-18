@@ -132,7 +132,7 @@ class TestValidateDataset:
         assert len(errors) == 1
 
         # ruff: noqa E501
-        expected = "<ValidationError: \"$.license, 'center' does not match any of the acceptable formats: 'uri', 'null', '^(\\\\\\\\[\\\\\\\\[REDACTED).*?(\\\\\\\\]\\\\\\\\])$'\">"
+        expected = "<ValidationError: \"$.license, 'center' does not match any of the acceptable formats: 'uri', 'null', '^(\\[\\[REDACTED).*?(\\]\\])$'\">"
         assert errors[0].message == expected
 
     def test_multiple_invalid(
@@ -162,9 +162,9 @@ class TestValidateDataset:
 
         # ruff: noqa E501
         expected = [
-            "<ValidationError: '$.contactPoint.hasEmail, \\'ocagoadmin@oakgov.com\\' does not match any of the acceptable formats: \"^mailto:[\\\\\\\\w\\\\\\\\_\\\\\\\\~\\\\\\\\!\\\\\\\\$\\\\\\\\&\\\\\\\\\\'\\\\\\\\(\\\\\\\\)\\\\\\\\*\\\\\\\\+\\\\\\\\,\\\\\\\\;\\\\\\\\=\\\\\\\\:.-]+@[\\\\\\\\w.-]+\\\\\\\\.[\\\\\\\\w.-]+?$\", \\'^(\\\\\\\\[\\\\\\\\[REDACTED).*?(\\\\\\\\]\\\\\\\\])$\\''>",
-            "<ValidationError: \"$.distribution[0].accessURL, '//////not-a-url.example.com/' does not match any of the acceptable formats: 'uri', 'null', '^(\\\\\\\\[\\\\\\\\[REDACTED).*?(\\\\\\\\]\\\\\\\\])$'\">",
-            "<ValidationError: \"$.license, 'center' does not match any of the acceptable formats: 'uri', 'null', '^(\\\\\\\\[\\\\\\\\[REDACTED).*?(\\\\\\\\]\\\\\\\\])$'\">",
+            "<ValidationError: '$.contactPoint.hasEmail, \\'ocagoadmin@oakgov.com\\' does not match any of the acceptable formats: \"^mailto:[\\w\\_\\~\\!\\$\\&\\'\\(\\)\\*\\+\\,\\;\\=\\:.-]+@[\\w.-]+\\.[\\w.-]+?$\", \\'^(\\[\\[REDACTED).*?(\\]\\])$\\''>",
+            "<ValidationError: \"$.distribution[0].accessURL, '//////not-a-url.example.com/' does not match any of the acceptable formats: 'uri', 'null', '^(\\[\\[REDACTED).*?(\\]\\])$'\">",
+            "<ValidationError: \"$.license, 'center' does not match any of the acceptable formats: 'uri', 'null', '^(\\[\\[REDACTED).*?(\\]\\])$'\">",
         ]
 
         for i in range(len(errors)):
@@ -350,9 +350,9 @@ class TestValidateDataset:
         self, organization_data, valid_iso_2_record
     ):
         valid_iso_2_record.transform()
-        valid_iso_2_record.transformed_data["distribution"][0][
-            "downloadURL"
-        ] = "www.example.com/"
+        valid_iso_2_record.transformed_data["distribution"][0]["downloadURL"] = (
+            "www.example.com/"
+        )
         # makes the record invalid
         assert not valid_iso_2_record.validate()
 
@@ -367,9 +367,9 @@ class TestValidateDataset:
 
     def test_transformed_iso_accessURL_placeholder(self, valid_iso_2_record):
         valid_iso_2_record.transform()
-        valid_iso_2_record.transformed_data["distribution"][0][
-            "accessURL"
-        ] = "www.example.com/"
+        valid_iso_2_record.transformed_data["distribution"][0]["accessURL"] = (
+            "www.example.com/"
+        )
         # makes the record invalid
         assert not valid_iso_2_record.validate()
 
@@ -406,9 +406,9 @@ class TestValidateDataset:
         self, valid_iso_2_record
     ):
         valid_iso_2_record.transform()
-        valid_iso_2_record.transformed_data["distribution"][0][
-            "describedByType"
-        ] = "WWW:LINK-1.0-http--link"
+        valid_iso_2_record.transformed_data["distribution"][0]["describedByType"] = (
+            "WWW:LINK-1.0-http--link"
+        )
         assert not valid_iso_2_record.validate()
 
         valid_iso_2_record.fill_placeholders()
