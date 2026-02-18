@@ -1044,6 +1044,7 @@ class Record:
                     f"unable to spatially fix {metadata.get('spatial')}",
                     self.harvest_source.job_id,
                     self.id,
+                    is_error=False,
                 )
         except SpatialTransformationException:
             pass
