@@ -79,6 +79,8 @@ def create_app():
             [
                 "'self'",
                 "'unsafe-hashes'",
+                "https://code.jquery.com",  # Jquery (needed for bootstrap)
+                "https://stackpath.bootstrapcdn.com",  # bootstrap
                 "https://www.googletagmanager.com",
             ]
         ),
@@ -111,6 +113,7 @@ def create_app():
             [
                 "'self'",
                 "'unsafe-hashes'",  # local styles.css
+                "https://stackpath.bootstrapcdn.com",  # bootstrap
                 "https://cdnjs.cloudflare.com",  # font-awesome
                 "'sha256-faU7yAF8NxuMTNEwVmBz+VcYeIoBQ2EMHW3WaVxCvnk='",  # htmx.min.js
             ]
