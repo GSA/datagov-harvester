@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from itertools import chain
 from pathlib import Path
 from typing import List
+import re
 
 import requests
 from jsonschema import Draft202012Validator, FormatChecker
@@ -956,9 +957,12 @@ class Record:
         execution proceeds. If callers want to raise, they need
         to `raise e` after calling this method.
         """
+
+        e_msg = re.sub(r"\\+", r"\\", repr(e))
+
         self.status = "error"
         log_non_critical_error(
-            repr(e),
+            e_msg,
             self.harvest_source.job_id,
             self.id,
             e.__class__.__name__,
@@ -1040,6 +1044,7 @@ class Record:
                     f"unable to spatially fix {metadata.get('spatial')}",
                     self.harvest_source.job_id,
                     self.id,
+                    is_error=False,
                 )
         except SpatialTransformationException:
             pass
