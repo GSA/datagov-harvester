@@ -35,6 +35,8 @@ def comma_separated_filter(data):
     # of a list
     if isinstance(data, list):
         return ", ".join(data)
+    if not isinstance(data, str):
+        return data
     if data.startswith("["):
         try:
             data_list = ast.literal_eval(data)
