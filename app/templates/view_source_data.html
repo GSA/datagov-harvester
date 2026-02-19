@@ -74,10 +74,10 @@
                     {{form.harvest(class_='usa-button usa-button--base')}}
                 </li>
                 <li class="usa-button-group__item">
-                    {{form.clear(class_='usa-button usa-button--accent-cool', onclick="confirmSubmit(event, 'clear')")}}
+                    {{form.clear(class_='usa-button usa-button--accent-cool confirm-submit', data_action="clear")}}
                 </li>
                 <li class="usa-button-group__item">
-                    {{form.delete(class_='usa-button usa-button--secondary', onclick="confirmSubmit(event, 'delete')")}}
+                    {{form.delete(class_='usa-button usa-button--secondary confirm-submit', data_action="delete")}}
 
                 </li>
             </ul>
@@ -157,7 +157,7 @@
 {% endblock %}
 
 {% block scripts %}
-<script>
+<script nonce="{{ csp_nonce() }}">
     // Pass chart data to the external JavaScript file
     window.chartData = {{ data.chart_data | tojson }};
 </script>
