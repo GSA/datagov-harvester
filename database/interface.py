@@ -398,7 +398,7 @@ class HarvesterDBInterface:
             self.db.rollback()
             return None
 
-    def get_harvest_job_errors_by_job(self, job_id: str) -> list[dict]:
+    def get_harvest_job_errors_by_job(self, job_id: str) -> list[HarvestJobError]:
         job = self.get_harvest_job(job_id)
         return [error for error in job.errors or []]
 
