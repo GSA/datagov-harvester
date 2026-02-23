@@ -9,6 +9,8 @@ from botocore.credentials import Credentials
 from opensearchpy import AWSV4SignerAuth, OpenSearch, RequestsHttpConnection, helpers
 from opensearchpy.exceptions import ConnectionTimeout
 
+from shared.opensearch_schema import OPENSEARCH_MAPPINGS, OPENSEARCH_SETTINGS
+
 logger = logging.getLogger(__name__)
 
 
@@ -24,93 +26,8 @@ T = TypeVar("T")
 
 class OpenSearchInterface:
     INDEX_NAME = "datasets"
-    TEXT_ANALYZER = "datagov_text"
-    STOP_FILTER = "datagov_stop"
-
-    SETTINGS = {
-        "analysis": {
-            "filter": {
-                STOP_FILTER: {
-                    "type": "stop",
-                    "stopwords": "_english_",
-                }
-            },
-            "analyzer": {
-                TEXT_ANALYZER: {
-                    "type": "custom",
-                    "tokenizer": "standard",
-                    "filter": ["lowercase", STOP_FILTER],
-                }
-            },
-        }
-    }
-
-    MAPPINGS = {
-        "properties": {
-            "title": {
-                "type": "text",
-                "analyzer": TEXT_ANALYZER,
-                "search_analyzer": TEXT_ANALYZER,
-            },
-            "slug": {"type": "keyword"},
-            "last_harvested_date": {"type": "date"},
-            "dcat": {
-                "type": "nested",
-                "properties": {
-                    "modified": {"type": "keyword"},
-                    "issued": {"type": "keyword"},
-                },
-            },
-            "description": {
-                "type": "text",
-                "analyzer": TEXT_ANALYZER,
-                "search_analyzer": TEXT_ANALYZER,
-            },
-            "publisher": {
-                "type": "text",
-                "analyzer": TEXT_ANALYZER,
-                "search_analyzer": TEXT_ANALYZER,
-            },
-            "keyword": {
-                "type": "text",
-                "analyzer": TEXT_ANALYZER,
-                "search_analyzer": TEXT_ANALYZER,
-                "fields": {"raw": {"type": "keyword"}},
-            },
-            "theme": {
-                "type": "text",
-                "analyzer": TEXT_ANALYZER,
-                "search_analyzer": TEXT_ANALYZER,
-            },
-            "identifier": {
-                "type": "text",
-                "analyzer": TEXT_ANALYZER,
-                "search_analyzer": TEXT_ANALYZER,
-            },
-            "has_spatial": {"type": "boolean"},
-            "popularity": {"type": "integer"},
-            "organization": {
-                "type": "nested",
-                "properties": {
-                    "id": {"type": "keyword"},
-                    "name": {
-                        "type": "text",
-                        "analyzer": TEXT_ANALYZER,
-                        "search_analyzer": TEXT_ANALYZER,
-                    },
-                    "description": {
-                        "type": "text",
-                        "analyzer": TEXT_ANALYZER,
-                        "search_analyzer": TEXT_ANALYZER,
-                    },
-                    "slug": {"type": "keyword"},
-                    "organization_type": {"type": "keyword"},
-                },
-            },
-            "spatial_shape": {"type": "geo_shape", "ignore_malformed": True},
-            "spatial_centroid": {"type": "geo_point"},
-        }
-    }
+    SETTINGS = OPENSEARCH_SETTINGS
+    MAPPINGS = OPENSEARCH_MAPPINGS
 
     @staticmethod
     def _create_test_opensearch_client(host):
