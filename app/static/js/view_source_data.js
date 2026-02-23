@@ -1,7 +1,8 @@
 // View Source Data JavaScript functionality
 
 // Confirmation dialog for form submission actions
-function confirmSubmit(event, type) {
+function confirmSubmit(event) {
+    const type = event.target.getAttribute("data-action");
     let messageEnum = {
         'clear': 'Are you sure you want to clear all datasets?',
         'delete': 'Are you sure you want to delete this source?'
@@ -37,5 +38,10 @@ document.addEventListener('DOMContentLoaded', function() {
     const lineEl = document.getElementById('datagov-line-chart');
     if (lineEl && window.chartData) {
         new Chart(lineEl, buildLineChart(lineEl, window.chartData));
+    }
+
+    var confirmationElts = document.getElementsByClassName("confirm-submit");
+    for (let elt of confirmationElts) {
+      elt.addEventListener("click", function (e) {confirmSubmit(e)});
     }
 });

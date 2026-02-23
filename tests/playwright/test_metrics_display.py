@@ -38,7 +38,6 @@ class TestMetricsUnauthed:
         expect(upage.locator("#jobs-harvesting")).to_be_visible()
 
         expect(upage.locator(".progress-meter")).to_have_count(1)
-        assert (
-            upage.locator(".progress-percent").get_attribute("style")
-            == "--progress: 0"  # 0% completion
+        expect(upage.locator(".progress-percent")).to_have_attribute(
+            "class", "progress-percent this-progress"
         )

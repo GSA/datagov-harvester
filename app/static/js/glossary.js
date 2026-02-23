@@ -1,4 +1,4 @@
-var Glossary = require("glossary-panel");
+var Glossary = require("./glossary-panel.js");
 var terms = require("../data/glossary.json");
 
 var body = document.querySelectorAll(
