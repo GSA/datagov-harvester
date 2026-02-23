@@ -31,10 +31,13 @@ def strip_filter(data):
 
 def comma_separated_filter(data):
     """Turn the list or the repr of a list into just comma-separated values."""
-    # "[" isn't likely to be an alias so if we see it, it's probably the repr
-    # of a list
     if isinstance(data, list):
         return ", ".join(data)
+    # we need to string-process data, if we get anything else, pass it along
+    if not isinstance(data, str):
+        return data
+    # "[" isn't likely to be an alias so if we see it, it's probably the repr
+    # of a list
     if data.startswith("["):
         try:
             data_list = ast.literal_eval(data)
