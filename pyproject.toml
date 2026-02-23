@@ -38,6 +38,8 @@ gevent = "^25.9.1"
 geojson-validator = "^0.6.0"
 GeoAlchemy2 = "^0.18.1"
 protobuf = "^6.33.0"
+botocore = ">=1.40.55,<2.0.0"
+opensearch-py = ">=3.0.0,<4.0.0"
 psycopg = {extras = ["binary"], version = "^3.3.3"}
 aiohttp = "^3.13.3" #SNYK-PYTHON-AIOHTTP-10742466
 urllib3 = ">=2.5.0" #SNYK-PYTHON-URLLIB3-10390193, SNYK-PYTHON-URLLIB3-10390194

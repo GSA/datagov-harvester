@@ -99,6 +99,8 @@ class HarvestSource:
     internal_records: dict = field(default_factory=lambda: {}, repr=False)
 
     deletions: set = field(default_factory=lambda: set(), repr=False)
+    _opensearch: object = field(default=None, init=False, repr=False)
+    _opensearch_initialized: bool = field(default=False, init=False, repr=False)
 
     def __post_init__(self) -> None:
         self._db_interface: HarvesterDBInterface = db_interface
@@ -153,6 +155,27 @@ class HarvestSource:
     @property
     def reporter(self):
         return self._reporter
+
+    @property
+    def opensearch(self):
+        if self._opensearch_initialized:
+            return self._opensearch
+
+        self._opensearch_initialized = True
+        opensearch_host = os.getenv("OPENSEARCH_HOST")
+        if not opensearch_host:
+            self._opensearch = None
+            return None
+
+        try:
+            from harvester.opensearch import OpenSearchInterface
+
+            self._opensearch = OpenSearchInterface.from_environment()
+        except Exception as e:
+            logger.exception("Failed to initialize OpenSearch client: %s", e)
+            self._opensearch = None
+
+        return self._opensearch
 
     @property
     def source_attrs(self) -> List:
@@ -1051,6 +1074,41 @@ class Record:
 
         return payload
 
+    def _index_dataset_in_opensearch(self, dataset) -> None:
+        client = self.harvest_source.opensearch
+        if client is None or dataset is None:
+            return
+        try:
+            succeeded, failed, errors = client.index_datasets([dataset])
+            if failed:
+                logger.error(
+                    "OpenSearch indexing failed for dataset %s (slug %s): %s",
+                    dataset.id,
+                    dataset.slug,
+                    errors,
+                )
+        except Exception as e:
+            logger.exception(
+                "OpenSearch indexing error for dataset %s (slug %s): %s",
+                dataset.id,
+                dataset.slug,
+                e,
+            )
+
+    def _delete_dataset_from_opensearch(self, dataset) -> None:
+        client = self.harvest_source.opensearch
+        if client is None or dataset is None:
+            return
+        try:
+            client.delete_dataset_by_id(dataset.id)
+        except Exception as e:
+            logger.exception(
+                "OpenSearch delete error for dataset %s (slug %s): %s",
+                dataset.id,
+                dataset.slug,
+                e,
+            )
+
     def sync(self):
         try:
             if self.status == "error":
@@ -1068,13 +1126,21 @@ class Record:
             if self.action in ("create", "update") and metadata is not None:
                 dataset_payload = self._dataset_payload(metadata)
                 if self.action == "create":
-                    self._insert_dataset_with_unique_slug(dataset_payload)
+                    dataset = self._insert_dataset_with_unique_slug(dataset_payload)
                 else:
-                    self.harvest_source.db_interface.upsert_dataset(dataset_payload)
+                    dataset = self.harvest_source.db_interface.upsert_dataset(
+                        dataset_payload
+                    )
+                self._index_dataset_in_opensearch(dataset)
             elif self.action == "delete" and self.dataset_slug:
-                self.harvest_source.db_interface.delete_dataset_by_slug(
+                dataset = self.harvest_source.db_interface.get_dataset_by_slug(
                     self.dataset_slug
                 )
+                deleted = self.harvest_source.db_interface.delete_dataset_by_slug(
+                    self.dataset_slug
+                )
+                if deleted:
+                    self._delete_dataset_from_opensearch(dataset)
 
             return True
 
@@ -1103,13 +1169,12 @@ class Record:
             data,
         )
 
-    def _insert_dataset_with_unique_slug(self, dataset_payload: dict) -> None:
+    def _insert_dataset_with_unique_slug(self, dataset_payload: dict) -> object:
         """Persist a dataset, retrying with a unique slug when needed."""
 
         while True:
             try:
-                self.harvest_source.db_interface.insert_dataset(dataset_payload)
-                return
+                return self.harvest_source.db_interface.insert_dataset(dataset_payload)
             except IntegrityError as error:
                 if not self._is_slug_unique_violation(error):
                     raise
