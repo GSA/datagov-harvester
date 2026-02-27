@@ -17,7 +17,7 @@ def apage(authed_page):
 class TestBaseUnauthed:
     def test_nav_items(self, upage):
         expect(upage.locator("ul.menu > li")).to_have_text(
-            ["Organizations", "Harvest Sources", "Metrics", "Login"]
+            ["Organizations", "Harvest Sources", "Metrics", "Validators", "Login"]
         )
 
 
@@ -27,7 +27,8 @@ class TestBaseAuthed:
             ("Organizations", 0),
             ("Harvest Sources", 1),
             ("Metrics", 2),
-            ("Logout", 4),
+            ("Validators", 3),
+            ("Logout", 5),
         ]  # skip logged in user name in index 3
         nav_items = apage.locator("ul.menu > li")
         for text, index in nav_items_expected:

@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<h2>JSON Schema Validator</h2>
+
+<form method="POST">
+    {{ form.hidden_tag() }}
+    
+    <!-- schema and fetch_method can't be empty so they won't have errors to display -->
+    <div class="form-group">
+        <label for="{{ form.schema.id }}" class="form-control-label">
+            {{ form.schema.label }}
+        </label>
+        {{ form.schema(class="form-control") }}
+    </div>
+
+    <div class="form-group">
+        <label for="{{ form.fetch_method.id }}" class="form-control-label">
+            {{ form.fetch_method.label }}
+        </label>
+        {{ form.fetch_method(class="form-control", id="fetch_method") }}
+    </div>
+
+    <div id="url_field" class="form-group">
+        <label for="{{ form.url.id }}" class="form-control-label">
+            {{ form.url.label }}
+        </label>
+        {{ form.url(class="form-control", placeholder="https://example.com/data.json", type="url") }}
+        {% for error in form.url.errors %}
+            <div class="text-red">{{ error }}</div>
+        {% endfor %}
+    </div>
+
+    <div id="json_field" class="form-group">
+        <label for="{{ form.json_text.id }}" class="form-control-label">
+            {{ form.json_text.label }}
+        </label>
+        {{ form.json_text(class="form-control", rows="10", placeholder='{"key": "value"}') }}
+        {% for error in form.json_text.errors %}
+            <div class="text-red">{{ error }}</div>
+        {% endfor %}
+    </div>
+
+    <div class="form-group">
+        {{ form.submit(class="btn btn-primary") }}
+    </div>
+</form>
+
+<div class="section">
+    {% if submitted %}
+        <h2>Validation Results</h2>
+        {% if not data.record_errors %}
+            <p>No validation errors found</p>
+        {% else %}
+        <div class="usa-table-container" tabindex="0">
+            <div class="error-list">
+                {% for record_error in data.record_errors %}
+                <div class="error-block">
+                    <p style="word-break: break-all"><strong>Identifier:</strong> {{ record_error[0] ~ " (dataset position)" if record_error[0] is number else record_error[0] }}</p>
+                    <p>
+                        <strong>Error Message:</strong> 
+                        <ul>
+                            <li>{{ record_error[1] }}</li>
+                        </ul>
+                    </p>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+    {% endif %}
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+
+<script>
+function toggleInputFields() {
+    const method = document.getElementById("fetch_method").value;
+
+    const urlField = document.getElementById("url_field");
+    const urlInput = document.getElementById("url");
+    const jsonField = document.getElementById("json_field");
+    const jsonTextArea = document.getElementById("json_text");
+
+    if (method === "url") {
+        urlField.style.display = "block";
+        jsonField.style.display = "none";
+        jsonTextArea.value = "";
+    } else {
+        urlField.style.display = "none";
+        urlInput.value = "";
+        jsonField.style.display = "block";
+    }
+}
+
+function clearErrors() {
+    const errors = document.querySelectorAll(".section, .text-red")
+    for (const error of errors) {
+        error.remove();
+    }
+}
+
+document.addEventListener("DOMContentLoaded", function() {
+    toggleInputFields();
+});
+
+document.getElementById("fetch_method").addEventListener("change", toggleInputFields);
+
+for ( const input_name of [ "fetch_method", "url", "schema", "json_text"]) {
+    document.getElementById(input_name).addEventListener("change", clearErrors);
+};
+</script>
+
+{% endblock %}
