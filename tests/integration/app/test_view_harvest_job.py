@@ -134,6 +134,14 @@ class TestViewHarvestJob:
 
     def test_download_job_errors_csv(self, client, interface, job):
         """Test downloading CSV for job errors (smaller dataset test)."""
+        job_error = interface.add_harvest_job_error(
+            {
+                "harvest_job_id": job.id,
+                "type": "JobError",
+                "message": "Test job error message",
+            }
+        )
+
         # Test the CSV download endpoint for job errors
         resp = client.get(f"/harvest_job/{job.id}/errors/job")
 
@@ -159,6 +167,13 @@ class TestViewHarvestJob:
             "harvest_job_error_id",
         ]
         assert header == expected_header
+
+        data_rows = list(csv_reader)
+        assert len(data_rows) == 1
+        assert data_rows[0][0] == str(job.id)
+        assert data_rows[0][2] == "JobError"
+        assert data_rows[0][3] == "Test job error message"
+        assert data_rows[0][4] == str(job_error.id)
 
     def test_download_errors_invalid_type(self, client, job):
         """Test error handling for invalid error type."""

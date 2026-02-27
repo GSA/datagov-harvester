@@ -24,9 +24,11 @@
   },
   "dependencies": {
     "@uswds/uswds": "3.13.0",
+    "aria-accordion": "^1.0.0",
     "chart.js": "^4.5.1",
-    "glossary-panel": "^1.0.0",
-    "htmx.org": "^2.0.8"
+    "htmx.org": "^2.0.8",
+    "list.js": "^2.3.1",
+    "object-assign": "^4.1.1"
   },
   "devDependencies": {
     "@babel/core": "^7.29.0",
@@ -37,7 +39,7 @@
     "browserify": "^17.0.1",
     "concurrently": "^9.2.1",
     "gulp": "^5.0.1",
-    "rollup": "^4.57.1",
+    "rollup": "^4.59.0",
     "rollup-plugin-copy": "^3.5.0",
     "sass": "^1.97.3",
     "typescript": "^5.9.3",

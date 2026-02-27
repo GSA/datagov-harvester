@@ -924,7 +924,7 @@ def download_harvest_errors_by_job(job_id, error_type):
                 csv_writer.writerow(header)
 
                 # Write job errors
-                errors = db.get_harvest_job_errors_by_job(job_id)
+                errors = db._to_dict(db.get_harvest_job_errors_by_job(job_id))
                 for error_dict in errors:
                     row = [
                         str(error_dict.get("harvest_job_id", "")),
