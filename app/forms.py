@@ -1,6 +1,7 @@
 import ast
 import os
 import re
+import json
 
 from flask_wtf import FlaskForm
 from wtforms import BooleanField, SelectField, StringField, SubmitField, TextAreaField
@@ -16,6 +17,18 @@ from wtforms.validators import (
 from app.constants import ORGANIZATION_TYPE_SELECT_CHOICES
 
 is_prod = os.getenv("FLASK_ENV") == "production"
+
+
+def validate_json_format(form, field):
+    """
+    Custom validator to check if the field data is valid JSON.
+    """
+    try:
+        json.loads(field.data)
+    except json.JSONDecodeError:
+        raise ValidationError(
+            "Invalid JSON format. Please ensure the data is a valid JSON string."
+        )
 
 
 def validate_email_list(form, field):
@@ -165,3 +178,53 @@ class HarvestTriggerForm(FlaskForm):
 class OrganizationTriggerForm(FlaskForm):
     edit = SubmitField("Edit")
     delete = SubmitField("Delete")
+
+
+def url_paste_validate(form, field):
+    if form.fetch_method.data == "url":
+        if not form.url.data:
+            raise ValidationError("URL is required.")
+    elif form.fetch_method.data == "paste":
+        if not form.json_text.data:
+            raise ValidationError("JSON input is required.")
+        else:
+            validate_json_format(form, form.json_text)
+
+    return True
+
+
+class ValidatorForm(FlaskForm):
+    schema = SelectField(
+        "Schema",
+        choices=[
+            "dcatus1.1: federal dataset",
+            "dcatus1.1: non-federal dataset",
+        ],
+        validators=[DataRequired()],
+    )
+    fetch_method = SelectField(
+        "Fetch Method",
+        choices=[
+            ("url", "Fetch from URL"),
+            ("paste", "Paste JSON"),
+        ],
+        validators=[DataRequired()],
+    )
+    url = StringField(
+        "URL",
+        validators=[url_paste_validate],
+        filters=[strip_filter],
+    )
+
+    def validate_url(self, field):
+        if self.fetch_method.data == "url" and field.data:
+            try:
+                URL(require_tld=is_prod)(self, field)
+            except ValidationError:
+                raise ValidationError("Invalid URL")
+
+    json_text = TextAreaField(
+        "DCATUS Catalog JSON Input",
+        validators=[url_paste_validate],
+    )
+    submit = SubmitField("Validate")
