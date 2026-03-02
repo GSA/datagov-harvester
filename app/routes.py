@@ -1331,9 +1331,9 @@ def json_builder_query(**kwargs):
         return "Error with query", 400
 
 
-@main.route('/openapi/docs')
+@main.route("/openapi/docs")
 def openapi_docs():
-    return render_template('/swagger.html')
+    return render_template("/swagger.html")
 
 
 def register_routes(app):
