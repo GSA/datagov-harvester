@@ -82,6 +82,7 @@ def create_app():
                 "https://code.jquery.com",  # Jquery (needed for bootstrap)
                 "https://stackpath.bootstrapcdn.com",  # bootstrap
                 "https://www.googletagmanager.com",
+                "https://unpkg.com",  # Swagger
             ]
         ),
         "font-src": " ".join(
@@ -116,6 +117,7 @@ def create_app():
                 "https://stackpath.bootstrapcdn.com",  # bootstrap
                 "https://cdnjs.cloudflare.com",  # font-awesome
                 "'sha256-faU7yAF8NxuMTNEwVmBz+VcYeIoBQ2EMHW3WaVxCvnk='",  # htmx.min.js
+                "https://unpkg.com",  # Swagger
             ]
         ),
     }

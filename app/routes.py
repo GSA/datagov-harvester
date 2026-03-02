@@ -257,7 +257,7 @@ def index():
 @main.route("/organization_list/", methods=["GET"])
 def organization_list():
     organizations = db.get_all_organizations()
-    if request.args.get("type") and request.args.get("type") == "json":
+    if request.is_json:
         return jsonify(db._to_dict(organizations))
     else:
         data = {"organizations": organizations}
@@ -1329,6 +1329,11 @@ def json_builder_query(**kwargs):
     except Exception as e:
         logger.info(f"Failed json_builder_query :: {repr(e)} ")
         return "Error with query", 400
+
+
+@main.route('/openapi/docs')
+def openapi_docs():
+    return render_template('/swagger.html')
 
 
 def register_routes(app):

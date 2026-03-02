@@ -1,0 +1,58 @@
+{% extends 'base.html' %}
+
+{% block title %}
+<title>OpenAPI Documentation</title>
+{% endblock %}
+
+{% block script_head %}
+  {{ super() }}
+  <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5.11.0/swagger-ui.css" />
+{% endblock %}
+
+{% block content %}
+<div id="swagger-ui"></div>
+
+  <script src="https://unpkg.com/swagger-ui-dist@5.11.0/swagger-ui-bundle.js" crossorigin></script>
+  <script src="https://unpkg.com/swagger-ui-dist@5.11.0/swagger-ui-standalone-preset.js" crossorigin></script>
+  <script nonce="{{ csp_nonce() }}">
+    // we can get several config items of Function type
+    // referring to https://swagger.io/docs/open-source-tools/swagger-ui/usage/configuration/
+    var funcConfigItems = ['operationsSorter', 'tagsSorter', 'onComplete', 'requestInterceptor', 'responseInterceptor', 'modelPropertyMacro', 'parameterMacro']
+
+    function parseFunc(funcStr) {
+        return new Function('"use strict"; return ' + funcStr)()
+    }
+
+    var baseConfig = {
+      url: "{{ url_for('openapi.spec') }}",
+      dom_id: "#swagger-ui",
+      deepLinking: true,
+      presets: [
+        SwaggerUIBundle.presets.apis,
+        SwaggerUIStandalonePreset
+      ],
+      plugins: [
+        SwaggerUIBundle.plugins.DownloadUrl
+      ],
+      layout: "{{ config.SWAGGER_UI_LAYOUT }}",
+            {% if oauth2_redirect_path %} oauth2RedirectUrl: "{{ oauth2_redirect_path }}"{% endif %}
+        }
+    {% if config.SWAGGER_UI_CONFIG %}
+    var userConfig = {{ config.SWAGGER_UI_CONFIG | tojson }}
+    for (var attr in userConfig) {
+      baseConfig[attr] = funcConfigItems.includes(attr) ? parseFunc(userConfig[attr]) : userConfig[attr]
+    }
+    {% endif %}
+    window.onload = function () {
+      const ui = SwaggerUIBundle(baseConfig)
+      {% if config.SWAGGER_UI_OAUTH_CONFIG %}
+      oauthConfig = {}
+      var userOauthConfig = {{ config.SWAGGER_UI_OAUTH_CONFIG | tojson }}
+      for (var attr in userOauthConfig) {
+        oauthConfig[attr] = userOauthConfig[attr]
+      }
+      ui.initOAuth(oauthConfig)
+      {% endif %}
+    }
+  </script>
+{% endblock %}
