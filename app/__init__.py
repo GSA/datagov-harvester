@@ -3,7 +3,7 @@ import os
 
 from apiflask import APIFlask
 from dotenv import load_dotenv
-from flask_bootstrap import Bootstrap
+from flask_bootstrap import Bootstrap5
 from flask_htmx import HTMX
 from flask_migrate import Migrate
 from flask_talisman import Talisman
@@ -41,7 +41,7 @@ def create_app():
     app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv("DATABASE_URI")
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
     app.config["SECRET_KEY"] = os.getenv("FLASK_APP_SECRET_KEY")
-    Bootstrap(app)
+    Bootstrap5(app)
     global htmx
     htmx = HTMX(app)
 
@@ -79,8 +79,7 @@ def create_app():
             [
                 "'self'",
                 "'unsafe-hashes'",
-                "https://code.jquery.com",  # Jquery (needed for bootstrap)
-                "https://stackpath.bootstrapcdn.com",  # bootstrap
+                "https://cdn.jsdelivr.net",  # Bootstrap CDN
                 "https://www.googletagmanager.com",
             ]
         ),
@@ -113,7 +112,7 @@ def create_app():
             [
                 "'self'",
                 "'unsafe-hashes'",  # local styles.css
-                "https://stackpath.bootstrapcdn.com",  # bootstrap
+                "https://cdn.jsdelivr.net",  # Bootstrap CDN
                 "https://cdnjs.cloudflare.com",  # font-awesome
                 "'sha256-faU7yAF8NxuMTNEwVmBz+VcYeIoBQ2EMHW3WaVxCvnk='",  # htmx.min.js
             ]
