@@ -53,20 +53,18 @@
         {% if not data.record_errors %}
             <p>No validation errors found</p>
         {% else %}
-        <div class="usa-table-container" tabindex="0">
-            <div class="error-list">
-                {% for record_error in data.record_errors %}
-                <div class="error-block">
-                    <p style="word-break: break-all"><strong>Identifier:</strong> {{ record_error[0] ~ " (dataset position)" if record_error[0] is number else record_error[0] }}</p>
-                    <p>
-                        <strong>Error Message:</strong> 
-                        <ul>
-                            <li>{{ record_error[1] }}</li>
-                        </ul>
-                    </p>
-                </div>
-                {% endfor %}
+        <div class="error-list">
+            {% for record_error in data.record_errors %}
+            <div class="error-block">
+                <p style="word-break: break-all"><strong>Identifier:</strong> {{ record_error[0] ~ " (dataset position)" if record_error[0] is number else record_error[0] }}</p>
+                <p>
+                    <strong>Error Message:</strong> 
+                    <ul>
+                        <li>{{ record_error[1] }}</li>
+                    </ul>
+                </p>
             </div>
+            {% endfor %}
         </div>
         {% endif %}
     {% endif %}
@@ -76,7 +74,7 @@
 
 {% block scripts %}
 
-<script>
+<script nonce="{{ csp_nonce() }}">
 function toggleInputFields() {
     const method = document.getElementById("fetch_method").value;
 

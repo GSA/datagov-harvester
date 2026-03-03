@@ -37,7 +37,7 @@ class TestValidator:
         upage.locator("input[type=submit]").click()
 
         # error table should be visible and with 5 validation errors
-        expect(upage.locator(".usa-table-container")).to_be_visible()
+        expect(upage.locator(".error-list")).to_be_visible()
         expect(upage.locator(".error-block")).to_have_count(5)
 
     def test_ui_validate_by_json(self, upage, dcatus_long_description_json):
@@ -53,7 +53,7 @@ class TestValidator:
         upage.locator("input[type=submit]").click()
 
         # error table should be visible and with 5 validation errors
-        expect(upage.locator(".usa-table-container")).to_be_visible()
+        expect(upage.locator(".error-list")).to_be_visible()
         expect(upage.locator(".error-block")).to_have_count(1)
 
     def test_api_validate_by_url(self, upage, validator_api_url):

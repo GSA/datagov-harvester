@@ -99,7 +99,7 @@ def is_public_ip(hostname: str) -> bool:
 
 def fetch_json_from_url(url: str) -> dict:
 
-    MAX_CONTENT_LENGTH = 10 * 1024 * 1024  # 10MB limit
+    max_content_length = 10 * 1024 * 1024  # 10MB limit
 
     parsed = urlparse(url)
 
@@ -123,8 +123,8 @@ def fetch_json_from_url(url: str) -> dict:
     if "application/json" not in content_type:
         raise ValueError("URL did not return JSON.")
 
-    content = response.raw.read(MAX_CONTENT_LENGTH + 1)
-    if len(content) > MAX_CONTENT_LENGTH:
+    content = response.raw.read(max_content_length + 1)
+    if len(content) > max_content_length:
         raise ValueError("JSON payload too large.")
 
     return response.json()
