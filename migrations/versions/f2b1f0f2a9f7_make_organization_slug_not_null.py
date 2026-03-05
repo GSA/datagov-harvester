@@ -18,15 +18,11 @@ depends_on = None
 
 def upgrade():
     # Backfill missing slugs so the NOT NULL alteration succeeds.
-    op.execute(
-        sa.text(
-            """
+    op.execute(sa.text("""
             UPDATE organization
             SET slug = CONCAT('org-', id)
             WHERE slug IS NULL
-            """
-        )
-    )
+            """))
 
     with op.batch_alter_table("organization", schema=None) as batch_op:
         batch_op.alter_column(
