@@ -226,7 +226,7 @@ class TestLoginAuthHeaders:
             "Authorization": api_token,
             "Content-Type": "application/json",
         }
-        data = {"name": "Test Org", "logo": "test_logo.png"}
+        data = {"name": "Test Org", "slug": "test-org", "logo": "test_logo.png"}
         response = client.get("/organization/add", json=data, headers=headers)
         assert response.status_code == 200
 
