@@ -39,6 +39,7 @@
             <li><a href="{{ url_for('main.organization_list') }}">Organizations</a></li>
             <li><a href="{{ url_for('main.harvest_source_list') }}">Harvest Sources</a></li>
             <li><a href="{{ url_for('main.view_metrics') }}">Metrics</a></li>
+            <li><a href="{{ url_for('main.view_validators') }}">Validators</a></li>
             {% if session['user'] %}
             <li>{{ session['user'] }}</li>
             <li><a href="{{ url_for('main.logout') }}">Logout</a></li>

@@ -51,6 +51,9 @@ from .api_schemas import (
     QueryInfo,
     RecordInfo,
     SourceInfo,
+    ValidatorInfo,
+    ValidationResultSchema,
+    ValidationErrorResponseSchema,
 )
 from .auth import LoginRequiredAuth
 from .forms import (
@@ -58,12 +61,15 @@ from .forms import (
     HarvestTriggerForm,
     OrganizationForm,
     OrganizationTriggerForm,
+    ValidatorForm,
 )
 from .paginate import Pagination
 from .util import (
     make_new_org_contract,
     make_new_record_error_contract,
     make_new_source_contract,
+    fetch_json_from_url,
+    validate_records,
 )
 
 logger = logging.getLogger("harvest_admin")
@@ -1329,6 +1335,85 @@ def json_builder_query(**kwargs):
     except Exception as e:
         logger.info(f"Failed json_builder_query :: {repr(e)} ")
         return "Error with query", 400
+
+
+@api.route("/api/validate", methods=["POST"])
+@api.input(ValidatorInfo)
+@api.output(ValidationResultSchema, status_code=200)
+@api.doc(
+    summary="Validate a DCAT catalog against a v1.1 schema",
+    description="Downloads or parses a DCATUS catalog and validates each dataset.",
+    responses={
+        500: {
+            "description": "Failed to download or process the catalog",
+            "content": {"application/json": {"schema": ValidationErrorResponseSchema}},
+        },
+    },
+)
+def validator(json_data):
+    """
+    api route for validating v1.1 dcatus catalogs
+    """
+    errors = []
+    data = []
+
+    try:
+        if json_data["fetch_method"] == "url":
+            data = fetch_json_from_url(json_data["url"])
+
+        if json_data["fetch_method"] == "paste":
+            data = json.loads(json_data["json_text"])
+
+        errors = validate_records(data, json_data["schema"])
+    except Exception as e:
+        logger.error(f"API Validator error :: {repr(e)}")
+        return make_response(
+            jsonify(
+                {"error": "API Validator error: failed to validate dcatus catalog"}
+            ),
+            500,
+        )
+
+    return make_response(
+        jsonify({"validation_errors": errors}),
+        200,
+    )
+
+
+@main.route("/validate/", methods=["GET", "POST"])
+def view_validators():
+    """
+    view for validating v1.1 dcatus catalogs using form
+    """
+    data = []
+    errors = []
+    submitted = False
+
+    form = ValidatorForm()
+    if form.validate_on_submit():
+        if form.fetch_method.data == "url":
+            try:
+                data = fetch_json_from_url(form.url.data)
+            except Exception as e:
+                form.url.errors.append(str(e))
+        if form.fetch_method.data == "paste":
+            data = json.loads(form.json_text.data)
+
+        errors = validate_records(data, form.schema.data)
+
+        if not form.errors:
+            submitted = True
+
+    data = {
+        "record_errors": errors,
+    }
+
+    return render_template(
+        "view_validators.html",
+        form=form,
+        data=data,
+        submitted=submitted,
+    )
 
 
 def register_routes(app):
