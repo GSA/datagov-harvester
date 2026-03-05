@@ -350,9 +350,9 @@ class TestValidateDataset:
         self, organization_data, valid_iso_2_record
     ):
         valid_iso_2_record.transform()
-        valid_iso_2_record.transformed_data["distribution"][0]["downloadURL"] = (
-            "www.example.com/"
-        )
+        valid_iso_2_record.transformed_data["distribution"][0][
+            "downloadURL"
+        ] = "www.example.com/"
         # makes the record invalid
         assert not valid_iso_2_record.validate()
 
@@ -367,9 +367,9 @@ class TestValidateDataset:
 
     def test_transformed_iso_accessURL_placeholder(self, valid_iso_2_record):
         valid_iso_2_record.transform()
-        valid_iso_2_record.transformed_data["distribution"][0]["accessURL"] = (
-            "www.example.com/"
-        )
+        valid_iso_2_record.transformed_data["distribution"][0][
+            "accessURL"
+        ] = "www.example.com/"
         # makes the record invalid
         assert not valid_iso_2_record.validate()
 
@@ -406,9 +406,9 @@ class TestValidateDataset:
         self, valid_iso_2_record
     ):
         valid_iso_2_record.transform()
-        valid_iso_2_record.transformed_data["distribution"][0]["describedByType"] = (
-            "WWW:LINK-1.0-http--link"
-        )
+        valid_iso_2_record.transformed_data["distribution"][0][
+            "describedByType"
+        ] = "WWW:LINK-1.0-http--link"
         assert not valid_iso_2_record.validate()
 
         valid_iso_2_record.fill_placeholders()

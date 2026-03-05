@@ -28,10 +28,8 @@ class LoadManager:
         try:
             self.handler = CFHandler(CF_API_URL, CF_SERVICE_USER, CF_SERVICE_AUTH)
         except Exception as e:
-            logger.info(
-                f"err {e} :: CFHandler is not configured correctly. \
-                Check your env vars."
-            )
+            logger.info(f"err {e} :: CFHandler is not configured correctly. \
+                Check your env vars.")
 
     def _handle_failed_job(self, job):
         """Handle a HarvestJob that failed.
