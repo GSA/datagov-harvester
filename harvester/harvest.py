@@ -2,12 +2,12 @@ import gc
 import json
 import logging
 import os
+import re
 import sys
 from dataclasses import dataclass, field
 from itertools import chain
 from pathlib import Path
 from typing import List
-import re
 
 import requests
 from jsonschema import Draft202012Validator, FormatChecker

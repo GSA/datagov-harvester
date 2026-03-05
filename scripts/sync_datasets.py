@@ -6,8 +6,8 @@ from typing import Iterable, Optional
 
 import click
 from sqlalchemy import String, cast, or_, select
-from sqlalchemy.orm import aliased
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import aliased
 
 sys.path.insert(1, "/".join(os.path.realpath(__file__).split("/")[0:-2]))
 
@@ -91,9 +91,7 @@ def _latest_successful_records():
     return aliased(HarvestRecord, subquery)
 
 
-def _records_missing_datasets(
-    session, exclude_ids: Optional[Iterable[int]] = None
-):
+def _records_missing_datasets(session, exclude_ids: Optional[Iterable[int]] = None):
     LatestRecord = _latest_successful_records()
     harvest_source_alias = aliased(HarvestSource)
 
@@ -128,9 +126,8 @@ def _records_missing_datasets(
 def _datasets_with_unexpected_records(
     session, exclude_ids: Optional[Iterable[int]] = None
 ):
-    base_query = (
-        session.query(Dataset)
-        .join(HarvestRecord, Dataset.harvest_record_id == HarvestRecord.id)
+    base_query = session.query(Dataset).join(
+        HarvestRecord, Dataset.harvest_record_id == HarvestRecord.id
     )
 
     base_filter = or_(
@@ -160,12 +157,8 @@ def _report(
     click.echo(f"Total datasets: {total_datasets}")
     click.echo(f"Datasets to add: {records_missing_count}")
     click.echo(f"Datasets to delete: {datasets_bad_count}")
-    click.echo(
-        f"Estimated adding batches (size {BATCH_SIZE}): {record_batches}"
-    )
-    click.echo(
-        f"Estimated delete batches (size {BATCH_SIZE}): {dataset_batches}"
-    )
+    click.echo(f"Estimated adding batches (size {BATCH_SIZE}): {record_batches}")
+    click.echo(f"Estimated delete batches (size {BATCH_SIZE}): {dataset_batches}")
 
 
 def _sync_impl(apply_changes: bool):
@@ -239,9 +232,7 @@ def _sync_impl(apply_changes: bool):
                         )
                     except click.ClickException as exc:
                         failed_record_ids.add(record_in_batch.id)
-                        click.echo(
-                            f"Failed to sync record {record_in_batch.id}: {exc}"
-                        )
+                        click.echo(f"Failed to sync record {record_in_batch.id}: {exc}")
                 if record_batches:
                     next_batch_message = (
                         f"Processing next batch {current_batch + 1}/{record_batches} "
@@ -282,8 +273,7 @@ def _sync_impl(apply_changes: bool):
                         break
                     current_batch += 1
                     click.echo(
-                        f"Deleting batch {current_batch} "
-                        f"({len(batch)} datasets)..."
+                        f"Deleting batch {current_batch} " f"({len(batch)} datasets)..."
                     )
                     for dataset in batch:
                         try:

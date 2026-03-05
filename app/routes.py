@@ -303,16 +303,14 @@ def add_organization(**kwargs):
 
 @main.route("/organization/<string:org_id>", methods=["POST"])
 @api.get("/organization/<string:org_id>")
-@api.doc(responses={  # HTML or JSON so specify response manually
-    200: {
-        "description": "View organization info",
-        "content": {
-            "application/json": {
-                "schema": OrgInfo
-            }
+@api.doc(
+    responses={  # HTML or JSON so specify response manually
+        200: {
+            "description": "View organization info",
+            "content": {"application/json": {"schema": OrgInfo}},
         }
     }
-})
+)
 @valid_id_required
 def view_organization(org_id: str):
     if request.method == "POST":
@@ -476,15 +474,14 @@ def add_harvest_source():
 
 @main.route("/harvest_source/<source_id>", methods=["POST"])
 @api.get("/harvest_source/<source_id>")
-@api.doc(responses={  # HTML or JSON output so specify manual response
-    200: { "description": "View harvest source",
-           "content": {
-               "application/json": {
-                   "schema": SourceInfo
-                }
-            }
+@api.doc(
+    responses={  # HTML or JSON output so specify manual response
+        200: {
+            "description": "View harvest source",
+            "content": {"application/json": {"schema": SourceInfo}},
+        }
     }
-})
+)
 @valid_id_required  # TODO: Use an HTML 404 page
 def view_harvest_source(source_id: str):
     htmx_vars = {
@@ -549,9 +546,7 @@ def view_harvest_source(source_id: str):
                 message = f"Failed to delete harvest source :: {repr(e)}"
                 logger.error(message)
                 flash(message)
-                return redirect(
-                    url_for("api.view_harvest_source", source_id=source_id)
-                )
+                return redirect(url_for("api.view_harvest_source", source_id=source_id))
         else:
             return redirect(url_for("api.view_harvest_source", source_id=source_id))
 
@@ -698,14 +693,10 @@ def edit_harvest_source(source_id: str):
                     flash(f"Updated source with ID: {source.id}. {job_message}")
                 else:
                     flash("Failed to update harvest source.")
-                return redirect(
-                    url_for("api.view_harvest_source", source_id=source.id)
-                )
+                return redirect(url_for("api.view_harvest_source", source_id=source.id))
             elif form.errors:
                 flash(form.errors)
-                return redirect(
-                    url_for("api.edit_harvest_source", source_id=source_id)
-                )
+                return redirect(url_for("api.edit_harvest_source", source_id=source_id))
             return render_template(
                 "edit_data.html",
                 form=form,
@@ -776,16 +767,14 @@ def add_harvest_job():
 
 ### Get Job
 @api.route("/harvest_job/<job_id>", methods=["GET"])
-@api.doc(responses={  # HTML or JSON response so specify the response manually
-    200: {
-        "description": "View harvest job",
-        "content": {
-            "application/json": {
-                "schema": JobInfo
-            }
+@api.doc(
+    responses={  # HTML or JSON response so specify the response manually
+        200: {
+            "description": "View harvest job",
+            "content": {"application/json": {"schema": JobInfo}},
         }
     }
-})
+)
 @valid_id_required  # TODO: Use an HTML 404 page
 def view_harvest_job(job_id=None):
     def _load_json_title(json_string):
@@ -1270,28 +1259,32 @@ def view_metrics():
 @api.route("/harvest_jobs/", methods=["GET"])
 @api.route("/harvest_job_errors/", methods=["GET"])
 @api.route("/harvest_record_errors/", methods=["GET"])
-@api.input(QueryInfo, location="query", validation=False)  # we handle the request directly
-@api.doc(responses={  # list return type requires a manual schema
-    200: {
-        "description": "List of reuslts for this query",
-        "content": {
-            "application/json": {
-                "schema": {
-                    "type": "array",
-                    "items": {
-                        "oneOf": [
-                            ErrorInfo,
-                            OrgInfo,
-                            SourceInfo,
-                            RecordInfo,
-                            JobInfo,
-                        ]
+@api.input(
+    QueryInfo, location="query", validation=False
+)  # we handle the request directly
+@api.doc(
+    responses={  # list return type requires a manual schema
+        200: {
+            "description": "List of reuslts for this query",
+            "content": {
+                "application/json": {
+                    "schema": {
+                        "type": "array",
+                        "items": {
+                            "oneOf": [
+                                ErrorInfo,
+                                OrgInfo,
+                                SourceInfo,
+                                RecordInfo,
+                                JobInfo,
+                            ]
+                        },
                     }
-                }
+                },
             },
-        },
+        }
     }
-})
+)
 def json_builder_query(**kwargs):
     job_id = request.args.get("harvest_job_id")
     source_id = request.args.get("harvest_source_id")

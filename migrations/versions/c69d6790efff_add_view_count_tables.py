@@ -21,7 +21,9 @@ def upgrade():
     op.create_table(
         "dataset_view_count",
         sa.Column("dataset_slug", sa.String(length=100), nullable=False),
-        sa.Column("view_count", sa.Integer(), server_default=sa.text("0"), nullable=False),
+        sa.Column(
+            "view_count", sa.Integer(), server_default=sa.text("0"), nullable=False
+        ),
         sa.Column("id", sa.String(length=36), nullable=False),
         sa.PrimaryKeyConstraint("id"),
     )
@@ -35,7 +37,9 @@ def upgrade():
     op.create_table(
         "resource_view_count",
         sa.Column("resource_url", sa.String(length=100), nullable=False),
-        sa.Column("view_count", sa.Integer(), server_default=sa.text("0"), nullable=False),
+        sa.Column(
+            "view_count", sa.Integer(), server_default=sa.text("0"), nullable=False
+        ),
         sa.Column("id", sa.String(length=36), nullable=False),
         sa.PrimaryKeyConstraint("id"),
     )

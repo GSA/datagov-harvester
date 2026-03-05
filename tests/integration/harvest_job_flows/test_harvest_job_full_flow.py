@@ -361,7 +361,9 @@ class TestHarvestJobFullFlow:
         ## assert title is same
         assert raw_source_0["title"] == raw_source_1["title"]
         ## assert slug is unique
-        assert harvest_job.records[0].dataset_slug != harvest_job.records[1].dataset_slug
+        assert (
+            harvest_job.records[0].dataset_slug != harvest_job.records[1].dataset_slug
+        )
 
         ## assert slug persists in db
         for idx, record in enumerate(harvest_job.records):
@@ -488,8 +490,6 @@ class TestHarvestJobFullFlow:
         assert send_notification_emails_mock.called
         # the record was added as intended (not errored)
         assert send_notification_emails_mock.call_args.args[0]["records_added"] == 1
-
-
 
 
 class TestCheckMoreWork:
