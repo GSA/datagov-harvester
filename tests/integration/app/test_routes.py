@@ -230,6 +230,16 @@ class TestLoginAuthHeaders:
         response = client.get("/organization/add", json=data, headers=headers)
         assert response.status_code == 200
 
+    def test_add_organization_invalid_slug_rejected(self, client):
+        api_token = os.getenv("FLASK_APP_SECRET_KEY")
+        headers = {
+            "Authorization": api_token,
+            "Content-Type": "application/json",
+        }
+        data = {"name": "Test Org", "logo": "test_logo.png", "slug": "Test_Org"}
+        response = client.post("/organization/add", json=data, headers=headers)
+        assert response.status_code == 422
+
     def test_login_required_invalid_token(self, client):
         headers = {
             "Authorization": "invalid_token",
