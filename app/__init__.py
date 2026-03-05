@@ -81,6 +81,7 @@ def create_app():
                 "'unsafe-hashes'",
                 "https://cdn.jsdelivr.net",  # Bootstrap CDN
                 "https://www.googletagmanager.com",
+                "https://unpkg.com",  # Swagger
             ]
         ),
         "font-src": " ".join(
@@ -115,6 +116,7 @@ def create_app():
                 "https://cdn.jsdelivr.net",  # Bootstrap CDN
                 "https://cdnjs.cloudflare.com",  # font-awesome
                 "'sha256-faU7yAF8NxuMTNEwVmBz+VcYeIoBQ2EMHW3WaVxCvnk='",  # htmx.min.js
+                "https://unpkg.com",  # Swagger
             ]
         ),
     }
