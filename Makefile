@@ -96,8 +96,12 @@ clean: ## Cleans docker images
 sleep-5:
 	sleep 5
 
-lint:  ## Lints wtih ruff, isort, black
+lint-check:  ## Lints wtih ruff, isort, black
 	poetry run ruff check .
+	poetry run isort --check .
+	poetry run black --check .
+
+lint-fix:  ## Fix lints with isort and black
 	poetry run isort .
 	poetry run black .
 
