@@ -343,9 +343,7 @@ def view_organization(org_identifier: str):
                 message = f"Failed to delete organization :: {repr(e)}"
                 logger.error(message)
                 flash(message)
-                return redirect(
-                    url_for("api.view_organization", org_identifier=org_id)
-                )
+                return redirect(url_for("api.view_organization", org_identifier=org_id))
         else:
             return redirect(url_for("api.view_organization", org_identifier=org_id))
     else:
