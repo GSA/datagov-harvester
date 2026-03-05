@@ -42,6 +42,7 @@ pytest_harvest_errors.csv
 
 # Dynamic test fixtures (regenerated before tests)
 tests/fixtures.json
+tests/badges/**
 
 # qa data
 qa_output/

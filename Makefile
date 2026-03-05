@@ -47,16 +47,19 @@ test-functional-fresh: update-fixtures ## Run functional tests with fresh fixtur
 load-test-data: ## Loads fixture test data
 	docker compose exec app flask testdata load_test_data
 
-test-unit: ## Runs unit tests.
+ensure-badge-dirs: ## Creates local badge output dirs used by pytest-local-badge
+	mkdir -p tests/badges/unit tests/badges/integration tests/badges/functional tests/badges/playwright
+
+test-unit: ensure-badge-dirs ## Runs unit tests.
 	poetry run pytest  --local-badge-output-dir tests/badges/unit/ --cov-report term-missing --junitxml=pytest-unit.xml --cov=harvester ./tests/unit | tee pytest-coverage-unit.txt
 
-test-integration: ## Runs integration tests.
+test-integration: ensure-badge-dirs ## Runs integration tests.
 	poetry run pytest --local-badge-output-dir tests/badges/integration/ --cov-report term-missing --junitxml=pytest-integration.xml --cov=harvester ./tests/integration | tee pytest-coverage-integration.txt
 
-test-functional: ## Runs functional tests.
+test-functional: ensure-badge-dirs ## Runs functional tests.
 	poetry run pytest --local-badge-output-dir tests/badges/functional/ --noconftest --cov-report term-missing --junitxml=pytest-functional.xml --cov=harvester ./tests/functional | tee pytest-coverage-functional.txt
 
-test-playwright: ## Runs playwright tests.
+test-playwright: ensure-badge-dirs ## Runs playwright tests.
 	poetry run pytest --local-badge-output-dir tests/badges/playwright/ --cov-report term-missing --junitxml=pytest-playwright.xml --cov=app ./tests/playwright | tee pytest-coverage-playwright.txt
 
 test-scripts: ## Runs script tests.
