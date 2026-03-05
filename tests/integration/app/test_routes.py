@@ -215,7 +215,7 @@ class TestDynamicRouteTable:
 class TestLoginAuthHeaders:
     def test_login_required_no_token(self, client):
         headers = {"Content-Type": "application/json"}
-        data = {"name": "Test Org", "logo": "test_logo.png"}
+        data = {"name": "Test Org", "logo": "test_logo.png", "slug": "test-org"}
         response = client.get("/organization/add", json=data, headers=headers)
         assert response.status_code == 401
         assert response.data.decode() == "error: Authorization header missing"
@@ -226,7 +226,7 @@ class TestLoginAuthHeaders:
             "Authorization": api_token,
             "Content-Type": "application/json",
         }
-        data = {"name": "Test Org", "logo": "test_logo.png"}
+        data = {"name": "Test Org", "logo": "test_logo.png", "slug": "test-org"}
         response = client.get("/organization/add", json=data, headers=headers)
         assert response.status_code == 200
 
@@ -235,7 +235,7 @@ class TestLoginAuthHeaders:
             "Authorization": "invalid_token",
             "Content-Type": "application/json",
         }
-        data = {"name": "Test Org", "logo": "test_logo.png"}
+        data = {"name": "Test Org", "logo": "test_logo.png", "slug": "test-org"}
         response = client.get("/organization/add", json=data, headers=headers)
         assert response.status_code == 401
         assert response.data.decode() == "error: Unauthorized"
