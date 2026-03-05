@@ -66,6 +66,7 @@ class JobInfo(Schema):
 
 
 class OrgCreate(Schema):
+    id = UUID()
     name = String(required=True)
     logo = String()
     description = String()
