@@ -68,13 +68,17 @@ class TestDynamicRouteTable:
             if route.endpoint in whitelisted_routes:
                 continue
             # replace arg values with real data
+            # Route rules can include either "<name>" or "<converter:name>".
+            # Example: "<org_id>" and "<string:org_identifier>".
+            # Use regex replacements so both forms are covered.
             replacements = [
-                ("<org_id>", organization_data["id"]),
-                ("<source_id>", source_data_dcatus["id"]),
-                ("<job_id>", job_data_dcatus["id"]),
-                ("<error_type>", "record"),
-                ("<record_id>", record_data_dcatus[0]["id"]),
-                ("<error_id>", record_error_data[0]["id"]),
+                (r"<(?:[^:>]+:)?org_id>", organization_data["id"]),
+                (r"<(?:[^:>]+:)?org_identifier>", organization_data["id"]),
+                (r"<(?:[^:>]+:)?source_id>", source_data_dcatus["id"]),
+                (r"<(?:[^:>]+:)?job_id>", job_data_dcatus["id"]),
+                (r"<(?:[^:>]+:)?error_type>", "record"),
+                (r"<(?:[^:>]+:)?record_id>", record_data_dcatus[0]["id"]),
+                (r"<(?:[^:>]+:)?error_id>", record_error_data[0]["id"]),
             ]
             cleaned_route_rule = route.rule
             for old, new in replacements:
