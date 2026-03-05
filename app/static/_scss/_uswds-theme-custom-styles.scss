@@ -84,3 +84,25 @@ ul.menu {
 .usa-table-container--scrollable {
   overflow: scroll;
 }
+
+/* Keep Bootstrap 4 visual defaults while using Bootstrap 5 assets. */
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, "Noto Sans", "Liberation Sans", sans-serif,
+    "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji" !important;
+}
+
+a {
+  text-decoration: none !important;
+}
+
+a:hover {
+  text-decoration: underline !important;
+}
+
+@media (min-width: 1400px) {
+  .container,
+  .container-xxl {
+    max-width: 1140px !important;
+  }
+}
