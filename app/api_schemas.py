@@ -66,10 +66,20 @@ class JobInfo(Schema):
 
 
 class OrgCreate(Schema):
+    id = UUID()
     name = String(required=True)
     logo = String()
     description = String()
-    slug = String(validate=validators.Length(max=100))
+    slug = String(
+        required=True,
+        validate=[
+            validators.Length(max=100),
+            validators.Regexp(
+                r"^[a-z0-9-]+$",
+                error="Slug can only contain lowercase letters, digits, and hyphens.",
+            ),
+        ],
+    )
     organization_type = Enum(ORGANIZATION_TYPE_ENUM)
     aliases = List(String())
 

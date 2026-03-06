@@ -1,4 +1,5 @@
 import os
+from uuid import uuid4
 
 import pytest
 from playwright.sync_api import expect
@@ -14,18 +15,22 @@ def apage(authed_page):
 
 @pytest.fixture()
 def apage_with_org(apage):
+    suffix = uuid4().hex[:8]
+    org_name = f"Test Org New {suffix}"
+    org_slug = f"test-org-new-{suffix}"
+
     apage.get_by_role("link", name="Organizations").click()
     apage.get_by_role("link", name="Add Organization").click()
     apage.get_by_role("textbox", name="Name").click()
-    apage.get_by_role("textbox", name="Name").fill("Test Org New")
+    apage.get_by_role("textbox", name="Name").fill(org_name)
     apage.get_by_role("textbox", name="Slug").click()
-    apage.get_by_role("textbox", name="Slug").fill("test-org-new")
+    apage.get_by_role("textbox", name="Slug").fill(org_slug)
     apage.get_by_role("textbox", name="Logo").click()
     apage.get_by_role("textbox", name="Logo").fill("https://example.com/logo.png")
     apage.get_by_role("button", name="Submit").click()
     yield apage
     apage.get_by_role("link", name="Organizations").click()
-    apage.get_by_role("listitem").filter(has_text="Test Org New").nth(0).get_by_role(
+    apage.get_by_role("listitem").filter(has_text=org_name).nth(0).get_by_role(
         "link"
     ).click()
     apage.once("dialog", lambda dialog: dialog.accept())
@@ -34,12 +39,16 @@ def apage_with_org(apage):
 
 class TestHarvestCreateAndDestroy:
     def test_can_create_and_destroy_new_org(self, apage):
+        suffix = uuid4().hex[:8]
+        org_name = f"Test Org New {suffix}"
+        org_slug = f"test-org-new-{suffix}"
+
         apage.get_by_role("link", name="Organizations").click()
         apage.get_by_role("link", name="Add Organization").click()
         apage.get_by_role("textbox", name="Name").click()
-        apage.get_by_role("textbox", name="Name").fill("Test Org New")
+        apage.get_by_role("textbox", name="Name").fill(org_name)
         apage.get_by_role("textbox", name="Slug").click()
-        apage.get_by_role("textbox", name="Slug").fill("test-org-new")
+        apage.get_by_role("textbox", name="Slug").fill(org_slug)
         apage.get_by_role("textbox", name="Logo").click()
         apage.get_by_role("textbox", name="Logo").fill("https://example.com/logo.png")
         apage.get_by_role("button", name="Submit").click()
@@ -48,9 +57,9 @@ class TestHarvestCreateAndDestroy:
         )
 
         apage.get_by_role("link", name="Organizations").click()
-        apage.get_by_role("listitem").filter(has_text="Test Org New").nth(
-            0
-        ).get_by_role("link").click()
+        apage.get_by_role("listitem").filter(has_text=org_name).nth(0).get_by_role(
+            "link"
+        ).click()
         apage.once("dialog", lambda dialog: dialog.accept())
         apage.get_by_role("button", name="Delete", exact=True).click()
         expect(apage.locator(".alert-warning")).to_contain_text(
