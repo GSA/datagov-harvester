@@ -15,7 +15,11 @@ def apage(authed_page):
 class TestHarvestAPICreateAndDestroy:
     def test_api_create_and_destroy_org(self, apage):
         org_id = str(uuid.uuid4())
-        fixture_org = {"name": "Test Org New", "id": org_id}
+        fixture_org = {
+            "name": "Test Org New",
+            "slug": f"test-org-{org_id[:8]}",
+            "id": org_id,
+        }
         res = apage.request.post(
             "/organization/add",
             headers={
@@ -47,7 +51,11 @@ class TestHarvestAPICreateAndDestroy:
     def test_api_create_and_destroy_harvest_source(self, apage):
         source_id = str(uuid.uuid4())
         org_id = str(uuid.uuid4())
-        fixture_org = {"name": "Test Org New", "id": org_id}
+        fixture_org = {
+            "name": "Test Org New",
+            "slug": f"test-org-{org_id[:8]}",
+            "id": org_id,
+        }
         res = apage.request.post(
             "/organization/add",
             headers={

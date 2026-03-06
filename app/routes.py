@@ -30,6 +30,7 @@ from flask import (
     url_for,
 )
 from markupsafe import escape
+from marshmallow import ValidationError
 
 from database.interface import HarvesterDBInterface
 from harvester.lib.load_manager import LoadManager
@@ -278,11 +279,18 @@ def organization_list():
 @main.route("/organization/add", methods=["GET"])
 @api.post("/organization/add")
 @api.doc(hide=True)  # don't include the authenticated API
-@api.input(OrgCreate, validation=False)  # passes a kwarg but we handle request
+@api.input(OrgCreate, validation=False)  # validated explicitly for API POST
 @api.auth_required(auth)
 def add_organization(**kwargs):
     if request.is_json:
-        org = db.add_organization(request.json)
+        org_data = request.json or {}
+        if request.method == "POST":
+            try:
+                org_data = OrgCreate().load(org_data)
+            except ValidationError as e:
+                return make_response(jsonify({"detail": e.messages}), 422)
+
+        org = db.add_organization(org_data)
         if org:
             return make_response(
                 jsonify({"message": f"Added new organization with ID: {org.id}"}), 200
