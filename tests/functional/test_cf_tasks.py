@@ -23,7 +23,8 @@ if HAS_CF_CREDS:
 else:
     if RUNNING_IN_GITHUB:
         raise RuntimeError(
-            "CF_API_URL, CF_SERVICE_USER, and CF_SERVICE_AUTH must be set in GitHub Actions"
+            "CF_API_URL, CF_SERVICE_USER, and CF_SERVICE_AUTH "
+            "must be set in GitHub Actions"
         )
     cf_handler = None
 
