@@ -37,7 +37,6 @@ app/static/assets/*
 .pytest_cache
 pytest-**.xml
 pytest-coverage-**.txt
-pytest_auth_state.json
 pytest_harvest_errors.csv
 
 # Dynamic test fixtures (regenerated before tests)
