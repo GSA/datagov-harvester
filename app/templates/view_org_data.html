@@ -19,7 +19,7 @@
         <a
             class="usa-button usa-button--outline"
             target="_blank"
-            href="{{ data.ckan_url }}/organization/{{ data.organization.id }}"
+            href="{{ data.ckan_url }}/organization/{{ data.organization.slug or data.organization.id }}"
         >
             <i class="fa-solid fa-arrow-up-right-from-square"></i>View on catalog
         </a>

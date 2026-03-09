@@ -156,6 +156,13 @@ def _get_org_by_identifier(org_identifier: str):
     return org
 
 
+def _get_org_url_identifier(org) -> str | None:
+    """Prefer an organization's slug for URLs, with UUID as a fallback."""
+    if org is None:
+        return None
+    return org.slug or org.id
+
+
 def create_client_assertion():
     private_key_data = os.getenv("OPENID_PRIVATE_KEY")
     if not private_key_data:
@@ -332,12 +339,13 @@ def add_organization(**kwargs):
 def view_organization(org_identifier: str):
     """View an organization by UUID or slug.
 
-    This route used to accept only UUIDs. It now accepts a general identifier
-    so organization pages can be resolved by slug as well, while internal
-    actions still normalize back to the canonical organization UUID.
+    This route used to accept only UUIDs. It now resolves either a UUID or a
+    slug to an organization, then prefers the slug when linking back to the
+    organization page.
     """
     org = _get_org_by_identifier(org_identifier)
     org_id = org.id if org is not None else org_identifier
+    org_url_identifier = _get_org_url_identifier(org) or org_identifier
 
     if request.method == "POST":
         form = OrganizationTriggerForm(request.form)
@@ -349,7 +357,10 @@ def view_organization(org_identifier: str):
                 flash(message)
                 if status == 409:
                     return redirect(
-                        url_for("api.view_organization", org_identifier=org_id)
+                        url_for(
+                            "api.view_organization",
+                            org_identifier=org_url_identifier,
+                        )
                     )
                 else:
                     return redirect(url_for("main.organization_list"))
@@ -357,9 +368,16 @@ def view_organization(org_identifier: str):
                 message = f"Failed to delete organization :: {repr(e)}"
                 logger.error(message)
                 flash(message)
-                return redirect(url_for("api.view_organization", org_identifier=org_id))
+                return redirect(
+                    url_for(
+                        "api.view_organization",
+                        org_identifier=org_url_identifier,
+                    )
+                )
         else:
-            return redirect(url_for("api.view_organization", org_identifier=org_id))
+            return redirect(
+                url_for("api.view_organization", org_identifier=org_url_identifier)
+            )
     else:
         if request.is_json:
             if org is None:
@@ -419,7 +437,12 @@ def edit_organization(org_id):
             flash(f"Updated org with ID: {org.id}")
         else:
             flash("Failed to update organization.")
-        return redirect(url_for("api.view_organization", org_identifier=org_id))
+        return redirect(
+            url_for(
+                "api.view_organization",
+                org_identifier=_get_org_url_identifier(org) or org_id,
+            )
+        )
     elif form.errors:
         flash(form.errors)
         return redirect(url_for("api.edit_organization", org_id=org_id))

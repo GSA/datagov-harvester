@@ -256,6 +256,16 @@ class TestLoginAuthHeaders:
 
 
 class TestJSONResponses:
+    def test_organization_list_prefers_slug_links(
+        self, client, interface_with_multiple_jobs, organization_data
+    ):
+        res = client.get("/organization_list/")
+
+        assert res.status_code == 200
+        assert (
+            f'/organization/{organization_data["slug"]}"'.encode() in res.data
+        )
+
     def test_get_organization_json(
         self,
         client,
@@ -281,6 +291,14 @@ class TestJSONResponses:
         )
         assert res.status_code == 404
         assert res.is_json
+
+    def test_post_organization_uuid_redirects_to_slug(
+        self, client, interface_with_multiple_jobs, organization_data
+    ):
+        res = client.post(f'/organization/{organization_data["id"]}')
+
+        assert res.status_code == 302
+        assert res.location == f'/organization/{organization_data["slug"]}'
 
     @pytest.mark.parametrize(
         "route,status_code,response",
