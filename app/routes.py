@@ -146,7 +146,7 @@ def valid_id_required(f):
     return decorated_function
 
 
-def get_org_by_identifier(org_identifier: str):
+def _get_org_by_identifier(org_identifier: str):
     """Resolve an organization by UUID id or slug."""
     org = None
     if is_valid_uuid4(org_identifier):
@@ -330,7 +330,13 @@ def add_organization(**kwargs):
     }
 )
 def view_organization(org_identifier: str):
-    org = get_org_by_identifier(org_identifier)
+    """View an organization by UUID or slug.
+
+    This route used to accept only UUIDs. It now accepts a general identifier
+    so organization pages can be resolved by slug as well, while internal
+    actions still normalize back to the canonical organization UUID.
+    """
+    org = _get_org_by_identifier(org_identifier)
     org_id = org.id if org is not None else org_identifier
 
     if request.method == "POST":
