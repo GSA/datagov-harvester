@@ -262,9 +262,7 @@ class TestJSONResponses:
         res = client.get("/organization_list/")
 
         assert res.status_code == 200
-        assert (
-            f'/organization/{organization_data["slug"]}"'.encode() in res.data
-        )
+        assert f'/organization/{organization_data["slug"]}"'.encode() in res.data
 
     def test_get_organization_json(
         self,
