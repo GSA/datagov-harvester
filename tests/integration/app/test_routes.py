@@ -73,7 +73,7 @@ class TestDynamicRouteTable:
             # Use regex replacements so both forms are covered.
             replacements = [
                 (r"<(?:[^:>]+:)?org_id>", organization_data["id"]),
-                (r"<(?:[^:>]+:)?org_identifier>", organization_data["id"]),
+                (r"<(?:[^:>]+:)?org_identifier>", organization_data["slug"]),
                 (r"<(?:[^:>]+:)?source_id>", source_data_dcatus["id"]),
                 (r"<(?:[^:>]+:)?job_id>", job_data_dcatus["id"]),
                 (r"<(?:[^:>]+:)?error_type>", "record"),
