@@ -9,6 +9,7 @@ applications:
       - ((app_name))-db
       - ((app_name))-secrets
       - ((app_name))-smtp
+      - logstack-space-drain
     instances: ((admin_instances))
     memory: ((admin_memory_quota))
     disk_quota: ((admin_disk_quota))
