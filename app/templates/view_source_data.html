@@ -22,7 +22,7 @@
         <a
             class="usa-button usa-button--outline"
             target="_blank"
-            href="{{ data.ckan_url }}/organization/{{ data.source.org.id }}?harvest_source_title={{ data.source.name }}"
+            href="{{ data.ckan_url }}/organization/{{ data.source.org.slug or data.source.org.id }}?harvest_source_title={{ data.source.name }}"
         >
             <i class="fa-solid fa-arrow-up-right-from-square"></i>View on catalog
         </a>
@@ -36,7 +36,7 @@
             <tr>
                 {% if key == 'organization_id' %}
                 <td>Organization:</td>
-                <td><a href="{{ url_for('api.view_organization', org_id=value) }}">{{data.source.org.name}}</a></td>
+                <td><a href="{{ url_for('api.view_organization', org_identifier=data.source.org.slug or value) }}">{{data.source.org.name}}</a></td>
                 {% elif key == 'notification_emails' %}
                 {% if session['user'] %}
                 <td>Notification emails:</td>
