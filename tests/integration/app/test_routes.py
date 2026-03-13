@@ -293,10 +293,10 @@ class TestJSONResponses:
     def test_post_organization_uuid_redirects_to_slug(
         self, client, interface_with_multiple_jobs, organization_data
     ):
-        res = client.post(f"/organization/{organization_data['id']}")
+        res = client.post(f'/organization/{organization_data["id"]}')
 
         assert res.status_code == 302
-        assert res.location == f"/organization/{organization_data['slug']}"
+        assert res.location == f'/organization/{organization_data["slug"]}'
 
     @pytest.mark.parametrize(
         "route,status_code,response",
