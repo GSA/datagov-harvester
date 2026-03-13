@@ -36,12 +36,10 @@ def default_function_fixture():
 def session():
     return MagicMock()
 
+
 def test_records_missing_datasets_returns_query(session):
     query = (
-        session.query.return_value
-        .join.return_value
-        .outerjoin.return_value
-        .filter.return_value
+        session.query.return_value.join.return_value.outerjoin.return_value.filter.return_value
     )
 
     result = _records_missing_datasets(session)
@@ -58,11 +56,7 @@ def test_records_missing_datasets_excludes_failed_ids(session):
     adds filters to select records.
     Uses mocked session.query().join().outerjoin() and expects two filter calls.
     """
-    query = (
-        session.query.return_value
-        .join.return_value
-        .outerjoin.return_value
-    )
+    query = session.query.return_value.join.return_value.outerjoin.return_value
 
     _records_missing_datasets(session, exclude_ids=[1, 2])
 

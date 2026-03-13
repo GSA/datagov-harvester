@@ -2,13 +2,31 @@ import os
 from time import sleep
 from unittest.mock import patch
 
+import pytest
 from cloudfoundry_client.errors import InvalidStatusCode
 
 from harvester.lib.cf_handler import CFHandler
 
-cf_handler = CFHandler(
-    os.getenv("CF_API_URL"), os.getenv("CF_SERVICE_USER"), os.getenv("CF_SERVICE_AUTH")
+CF_API_URL = os.getenv("CF_API_URL")
+CF_SERVICE_USER = os.getenv("CF_SERVICE_USER")
+CF_SERVICE_AUTH = os.getenv("CF_SERVICE_AUTH")
+RUNNING_IN_GITHUB = os.getenv("GITHUB_ACTIONS", "").lower() == "true"
+HAS_CF_CREDS = all([CF_API_URL, CF_SERVICE_USER, CF_SERVICE_AUTH])
+
+pytestmark = pytest.mark.skipif(
+    not RUNNING_IN_GITHUB and not HAS_CF_CREDS,
+    reason="Cloud Foundry credentials are not configured for functional tests",
 )
+
+if HAS_CF_CREDS:
+    cf_handler = CFHandler(CF_API_URL, CF_SERVICE_USER, CF_SERVICE_AUTH)
+else:
+    if RUNNING_IN_GITHUB:
+        raise RuntimeError(
+            "CF_API_URL, CF_SERVICE_USER, and CF_SERVICE_AUTH "
+            "must be set in GitHub Actions"
+        )
+    cf_handler = None
 
 dhl_cf_task_data = {
     "task_id": "cf_task_func_spec",

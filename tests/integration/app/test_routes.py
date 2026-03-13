@@ -68,13 +68,17 @@ class TestDynamicRouteTable:
             if route.endpoint in whitelisted_routes:
                 continue
             # replace arg values with real data
+            # Route rules can include either "<name>" or "<converter:name>".
+            # Example: "<org_id>" and "<string:org_identifier>".
+            # Use regex replacements so both forms are covered.
             replacements = [
-                ("<org_id>", organization_data["id"]),
-                ("<source_id>", source_data_dcatus["id"]),
-                ("<job_id>", job_data_dcatus["id"]),
-                ("<error_type>", "record"),
-                ("<record_id>", record_data_dcatus[0]["id"]),
-                ("<error_id>", record_error_data[0]["id"]),
+                (r"<(?:[^:>]+:)?org_id>", organization_data["id"]),
+                (r"<(?:[^:>]+:)?org_identifier>", organization_data["slug"]),
+                (r"<(?:[^:>]+:)?source_id>", source_data_dcatus["id"]),
+                (r"<(?:[^:>]+:)?job_id>", job_data_dcatus["id"]),
+                (r"<(?:[^:>]+:)?error_type>", "record"),
+                (r"<(?:[^:>]+:)?record_id>", record_data_dcatus[0]["id"]),
+                (r"<(?:[^:>]+:)?error_id>", record_error_data[0]["id"]),
             ]
             cleaned_route_rule = route.rule
             for old, new in replacements:
@@ -147,7 +151,7 @@ class TestDynamicRouteTable:
 
     def test_client_response_on_error(self, client):
         # ignore routes which aren't public GETS and don't accept args
-        whitelisted_route_regex = r"((main|api|bootstrap)?(?:\.)?(add|edit|cancel|update|delete|trigger|view)?(?:_)?(static|index|callback|json_builder_query|view_metrics|view_validators|validator|log(in|out)|organization(?:s)?|harvest_source|harvest_job|harvest_record)|openapi.\w+)"
+        whitelisted_route_regex = r"((main|api|bootstrap)?(?:\.)?(add|edit|cancel|update|delete|trigger|view)?(?:_)?(static|index|callback|json_builder_query|view_metrics|view_validators|validator|log(in|out)|organization(?:s)?|harvest_source|harvest_job|harvest_record)|openapi.+|)"
 
         # some endpoints respond with JSON
         json_responses_map = {
@@ -215,7 +219,7 @@ class TestDynamicRouteTable:
 class TestLoginAuthHeaders:
     def test_login_required_no_token(self, client):
         headers = {"Content-Type": "application/json"}
-        data = {"name": "Test Org", "logo": "test_logo.png"}
+        data = {"name": "Test Org", "logo": "test_logo.png", "slug": "test-org"}
         response = client.get("/organization/add", json=data, headers=headers)
         assert response.status_code == 401
         assert response.data.decode() == "error: Authorization header missing"
@@ -226,22 +230,40 @@ class TestLoginAuthHeaders:
             "Authorization": api_token,
             "Content-Type": "application/json",
         }
-        data = {"name": "Test Org", "logo": "test_logo.png"}
+        data = {"name": "Test Org", "logo": "test_logo.png", "slug": "test-org"}
         response = client.get("/organization/add", json=data, headers=headers)
         assert response.status_code == 200
+
+    def test_add_organization_invalid_slug_rejected(self, client):
+        api_token = os.getenv("FLASK_APP_SECRET_KEY")
+        headers = {
+            "Authorization": api_token,
+            "Content-Type": "application/json",
+        }
+        data = {"name": "Test Org", "logo": "test_logo.png", "slug": "Test_Org"}
+        response = client.post("/organization/add", json=data, headers=headers)
+        assert response.status_code == 422
 
     def test_login_required_invalid_token(self, client):
         headers = {
             "Authorization": "invalid_token",
             "Content-Type": "application/json",
         }
-        data = {"name": "Test Org", "logo": "test_logo.png"}
+        data = {"name": "Test Org", "logo": "test_logo.png", "slug": "test-org"}
         response = client.get("/organization/add", json=data, headers=headers)
         assert response.status_code == 401
         assert response.data.decode() == "error: Unauthorized"
 
 
 class TestJSONResponses:
+    def test_organization_list_prefers_slug_links(
+        self, client, interface_with_multiple_jobs, organization_data
+    ):
+        res = client.get("/organization_list/")
+
+        assert res.status_code == 200
+        assert f'/organization/{organization_data["slug"]}"'.encode() in res.data
+
     def test_get_organization_json(
         self,
         client,
@@ -267,6 +289,14 @@ class TestJSONResponses:
         )
         assert res.status_code == 404
         assert res.is_json
+
+    def test_post_organization_uuid_redirects_to_slug(
+        self, client, interface_with_multiple_jobs, organization_data
+    ):
+        res = client.post(f"/organization/{organization_data['id']}")
+
+        assert res.status_code == 302
+        assert res.location == f"/organization/{organization_data['slug']}"
 
     @pytest.mark.parametrize(
         "route,status_code,response",

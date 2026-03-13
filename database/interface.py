@@ -4,9 +4,9 @@ from functools import wraps
 from typing import List, Optional
 
 from sqlalchemy import asc, desc, func, inspect, text
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import NoResultFound
 from sqlalchemy.orm import aliased
-from sqlalchemy.dialects.postgresql import insert
 
 from harvester.utils.general_utils import query_filter_builder
 
@@ -921,18 +921,14 @@ class HarvesterDBInterface:
 
     def refresh_dataset_mv(self):
         try:
-            self.db.execute(
-                text(
-                    """
+            self.db.execute(text("""
                     DO $$
                     BEGIN
                         IF EXISTS (SELECT 1 FROM pg_class WHERE relname = 'dataset' AND relkind = 'm') THEN
                             REFRESH MATERIALIZED VIEW CONCURRENTLY dataset;
                         END IF;
                     END $$;
-                """
-                )
-            )
+                """))
             self.db.commit()
         except Exception as e:
             logger.error("Error: %s", e)

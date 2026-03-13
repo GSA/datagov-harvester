@@ -1,13 +1,13 @@
-from datetime import datetime
 import http
 import json
 import logging
 import time
+from datetime import datetime
 from unittest.mock import Mock, call, patch
 
-from bs4 import BeautifulSoup
 import pytest
 import requests
+from bs4 import BeautifulSoup
 from jsonschema import Draft202012Validator, FormatChecker
 from requests.exceptions import ConnectionError
 
@@ -15,23 +15,23 @@ from database.models import HarvestSource
 from harvester.utils.general_utils import (
     USER_AGENT,
     RetrySession,
-    munge_spatial,
-    munge_title_to_name,
-    translate_spatial,
-    translate_spatial_to_geojson,
     assemble_validation_errors,
     create_retry_session,
     download_file,
     dynamic_map_list_items_to_dict,
     find_indexes_for_duplicates,
+    get_waf_datetimes,
     is_valid_uuid4,
+    munge_spatial,
+    munge_title_to_name,
     parse_args,
     prepare_transform_msg,
     process_job_complete_percentage,
     query_filter_builder,
+    translate_spatial,
+    translate_spatial_to_geojson,
     traverse_waf,
     validate_geojson,
-    get_waf_datetimes,
 )
 
 
@@ -234,16 +234,16 @@ class TestGeneralUtils:
         dol_distribution_json["keyword"] = []  # empty array
         dol_distribution_json["distribution"][0]["title"] = ""  # empty string
         dol_distribution_json["distribution"][1] = bool  # wrong type
-        dol_distribution_json["contactPoint"]["hasEmail"] = (
-            "bad email"  # bad value based on regex
-        )
+        dol_distribution_json["contactPoint"][
+            "hasEmail"
+        ] = "bad email"  # bad value based on regex
         dol_distribution_json["accrualPeriodicity"] = (
             "No longer updated (dataset archived)"  # bad const value
         )
         dol_distribution_json["rights"] = "a" * 256  # max string length exceeded
-        dol_distribution_json["distribution"][0]["@type"] = (
-            "Distribution"  # not dcat:Distribution
-        )
+        dol_distribution_json["distribution"][0][
+            "@type"
+        ] = "Distribution"  # not dcat:Distribution
 
         validator = Draft202012Validator(
             dcatus_non_federal_schema, format_checker=FormatChecker()

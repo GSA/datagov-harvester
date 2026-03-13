@@ -1,5 +1,5 @@
-from datetime import datetime
 import json
+from datetime import datetime
 from unittest.mock import Mock, patch
 
 from database.models import Dataset
@@ -135,9 +135,11 @@ class TestHarvestJobSync:
             "readerValidationMessages": [],
         }
 
-        with patch("harvester.harvest.traverse_waf", return_value=mock_waf_files), \
-             patch("harvester.harvest.download_file", return_value=valid_xml), \
-             patch("harvester.harvest.requests.post", return_value=mock_mdt_response):
+        with patch(
+            "harvester.harvest.traverse_waf", return_value=mock_waf_files
+        ), patch("harvester.harvest.download_file", return_value=valid_xml), patch(
+            "harvester.harvest.requests.post", return_value=mock_mdt_response
+        ):
 
             # Initial harvest
             harvest_job = interface.add_harvest_job(

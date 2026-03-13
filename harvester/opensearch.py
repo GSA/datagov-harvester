@@ -272,9 +272,7 @@ class OpenSearchInterface:
         )
         organization = dataset.organization.to_dict() if dataset.organization else {}
 
-        popularity = (
-            dataset.popularity if dataset.popularity is not None else None
-        )
+        popularity = dataset.popularity if dataset.popularity is not None else None
 
         return {
             "_index": self.INDEX_NAME,

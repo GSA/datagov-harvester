@@ -5,10 +5,10 @@ from sqlalchemy import text
 
 from database.interface import PAGINATE_ENTRIES_PER_PAGE
 from database.models import (
+    DatasetViewCount,
     HarvestJobError,
     HarvestRecordError,
     Locations,
-    DatasetViewCount,
 )
 
 
@@ -986,9 +986,7 @@ class TestDatabase:
 
         # simulate analytics refresh increasing popularity
         view_count = (
-            interface.db.query(DatasetViewCount)
-            .filter_by(dataset_slug=slug)
-            .first()
+            interface.db.query(DatasetViewCount).filter_by(dataset_slug=slug).first()
         )
         view_count.view_count = 12
         interface.db.commit()
