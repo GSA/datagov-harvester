@@ -36,8 +36,8 @@ class TestBaseAuthed:
             ("API Documentation", 2),
             ("Metrics", 3),
             ("Validators", 4),
-            ("Logout", 5),
-        ]  # skip logged in user name in index 3
+            ("Logout", 6),
+        ]  # skip logged in user name in index 5
         nav_items = apage.locator("ul.menu > li")
         for text, index in nav_items_expected:
             assert nav_items.nth(index).inner_text() == text
