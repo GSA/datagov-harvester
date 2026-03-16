@@ -1,15 +1,17 @@
-from jsonschema import Draft202012Validator, FormatChecker
-import socket
 import ipaddress
-import requests
-from urllib.parse import urlparse
-from pathlib import Path
 import logging
 import os
+import socket
+from pathlib import Path
+from urllib.parse import urlparse
+
+import requests
+from jsonschema import Draft202012Validator, FormatChecker
+
 from harvester.utils.general_utils import (
-    open_json,
-    assemble_validation_errors,
     USER_AGENT,
+    assemble_validation_errors,
+    open_json,
 )
 
 logger = logging.getLogger("harvest_admin_utils")

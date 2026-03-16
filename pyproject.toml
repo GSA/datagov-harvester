@@ -119,4 +119,4 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.isort]
 profile = "black"
-skip = [".poetry", "app/static/node_modules"]
+skip = [".poetry", "app/static/node_modules", ".venv"]

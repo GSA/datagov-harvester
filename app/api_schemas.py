@@ -1,9 +1,11 @@
-from enum import Enum as PyEnum
-import os
 import json
+import os
+from enum import Enum as PyEnum
 
+import marshmallow
 from apiflask import Schema, validators
 from apiflask.fields import (
+    URL,
     UUID,
     Boolean,
     DateTime,
@@ -12,9 +14,7 @@ from apiflask.fields import (
     Integer,
     List,
     String,
-    URL,
 )
-import marshmallow
 from marshmallow import ValidationError, validate
 
 from shared.constants import (

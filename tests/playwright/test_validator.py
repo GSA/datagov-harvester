@@ -1,5 +1,6 @@
-import pytest
 import os
+
+import pytest
 from playwright.sync_api import expect
 
 is_prod = os.getenv("FLASK_ENV") == "production"

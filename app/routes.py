@@ -52,9 +52,9 @@ from .api_schemas import (
     QueryInfo,
     RecordInfo,
     SourceInfo,
-    ValidatorInfo,
-    ValidationResultSchema,
     ValidationErrorResponseSchema,
+    ValidationResultSchema,
+    ValidatorInfo,
 )
 from .auth import LoginRequiredAuth
 from .forms import (
@@ -66,10 +66,10 @@ from .forms import (
 )
 from .paginate import Pagination
 from .util import (
+    fetch_json_from_url,
     make_new_org_contract,
     make_new_record_error_contract,
     make_new_source_contract,
-    fetch_json_from_url,
     validate_records,
 )
 

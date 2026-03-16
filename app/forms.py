@@ -1,7 +1,7 @@
 import ast
+import json
 import os
 import re
-import json
 
 from flask_wtf import FlaskForm
 from wtforms import BooleanField, SelectField, StringField, SubmitField, TextAreaField
