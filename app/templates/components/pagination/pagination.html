@@ -8,16 +8,15 @@
   </li>
 {% endset %}
 
+{% set resolved_htmx_vars = htmx_vars | default(data.htmx_vars) %}
 <nav aria-label="Pagination" class="usa-pagination">
     <ul class="usa-pagination__list">
         {% if pagination['page_count'] > 7 and pagination['current'] > 1 %}
-            {{ pagination_arrow('previous', pagination, data.htmx_vars) }}
+            {{ pagination_arrow('previous', pagination, resolved_htmx_vars) }}
         {% endif %}
 
         {% include "components/pagination/pagination_numbers.html" %}
 
-        {% if pagination['page_count'] > 7 and pagination['current'] < pagination['page_count'] %}
-            {{ pagination_arrow('next', pagination, data.htmx_vars) }}
-        {% endif %}
-    </ul>
+        {% if pagination['page_count'] > 7 and pagination['current'] < pagination['page_count'] %} {{
+            pagination_arrow('next', pagination, resolved_htmx_vars) }} {% endif %} </ul>
 </nav>
