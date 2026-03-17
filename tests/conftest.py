@@ -137,6 +137,12 @@ def organization_data_orm(organization_data: dict) -> Organization:
     return Organization(**organization_data)
 
 
+## DATASETS
+@pytest.fixture
+def dataset_data(fixtures_json) -> dict:
+    return fixtures_json["dataset"][0]
+
+
 ## HARVEST SOURCES
 @pytest.fixture
 def source_data_dcatus(fixtures_json) -> dict:

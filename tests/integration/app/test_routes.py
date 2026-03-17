@@ -33,6 +33,7 @@ class TestDynamicRouteTable:
         job_data_dcatus,
         record_data_dcatus,
         record_error_data,
+        dataset_data,
     ):
         # dont test flask internal or auth routes
         whitelisted_routes = [
@@ -79,6 +80,7 @@ class TestDynamicRouteTable:
                 (r"<(?:[^:>]+:)?error_type>", "record"),
                 (r"<(?:[^:>]+:)?record_id>", record_data_dcatus[0]["id"]),
                 (r"<(?:[^:>]+:)?error_id>", record_error_data[0]["id"]),
+                (r"<(?:[^:>]+:)?dataset_slug>", dataset_data["slug"]),
             ]
             cleaned_route_rule = route.rule
             for old, new in replacements:
