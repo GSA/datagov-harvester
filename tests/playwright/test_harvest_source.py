@@ -105,6 +105,10 @@ class TestHarvestSourceUnauthed:
         assert glossary.get_attribute("aria-hidden") == "true"
 
     def test_dataset_table(self, upage):
+        """
+        Checks to see if the dataset table is populated with the dataset.id and
+        dataset.slug.
+        """
         expect(upage.locator("#paginated__datasets table tr td")).to_have_text(
             [
                 "a1b2c3d4-e5f6-7890-abcd-ef1234567891",
