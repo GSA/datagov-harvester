@@ -15,7 +15,9 @@ _ORG_ID = "d925f84d-955b-4cb7-812f-dcfd6681a18f"
 _SOURCE_ID = "2f2652de-91df-4c63-8b53-bfced20b276b"
 _TEST_JOB_ID = "6bce761c-7a39-41c1-ac73-94234c139c76"
 
-# Each entry maps: (dataset_id, record_id, slug, dcat_title, dcat_identifier, record_index)
+# Each entry maps: (
+# dataset_id, record_id, slug, dcat_title, dcat_identifier, record_index
+# )
 _SUCCESSFUL_RECORDS = [
     {
         "dataset_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567891",
