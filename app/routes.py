@@ -1445,12 +1445,14 @@ def view_validators():
             except Exception as e:
                 form.url.errors.append(str(e))
         if form.fetch_method.data == "paste":
-            data = json.loads(form.json_text.data)
-
-        errors = validate_records(data, form.schema.data)
+            try:
+                data = json.loads(form.json_text.data)
+            except Exception as e:
+                form.json_text.errors.append(str(e))
 
         if not form.errors:
             submitted = True
+            errors = validate_records(data, form.schema.data)
 
     data = {
         "record_errors": errors,
