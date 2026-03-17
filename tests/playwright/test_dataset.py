@@ -20,6 +20,7 @@ class TestDatasetUnauthed:
     """
     Test an unauthed view of the dataset detail page.
     """
+
     def test_config_table_properties(self, upage):
         """
         Test that the dataset table is populated witht he expected info.
