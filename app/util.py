@@ -114,12 +114,14 @@ def fetch_json_from_url(url: str) -> dict:
     if not is_public_ip(parsed.hostname) and IS_PROD:
         raise ValueError("Access to private/internal addresses is not allowed.")
 
-    response = requests.get(
-        url,
-        headers={"User-Agent": USER_AGENT},
-    )
-
-    response.raise_for_status()
+    try:
+        response = requests.get(
+            url,
+            headers={"User-Agent": USER_AGENT},
+        )
+        response.raise_for_status()
+    except Exception as e:
+        raise ValueError(f"Error processing request: {str(e)}")
 
     content_type = response.headers.get("Content-Type", "")
     if "application/json" not in content_type:

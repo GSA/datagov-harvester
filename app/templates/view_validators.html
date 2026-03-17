@@ -23,8 +23,20 @@
     </div>
 
     <div id="url_field" class="form-group">
+
         <label for="{{ form.url.id }}" class="form-control-label">
             {{ form.url.label }}
+            <button
+                type="button"
+                class="usa-tooltip usa-button--unstyled"
+                data-position="right"
+                data-classes="width-full tablet:width-auto"
+                title="We restrict what documents can be fetched by TLD. Only .gov and .mil are allowed."
+            >
+                <svg class="usa-icon" aria-hidden="true">
+                    <use href="/assets/uswds/img/sprite.svg#info"></use>
+                </svg>
+            </button>
         </label>
         {{ form.url(class="form-control", placeholder="https://example.com/data.json", type="url") }}
         {% for error in form.url.errors %}
