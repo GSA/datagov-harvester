@@ -40,7 +40,7 @@ class TestDatasetUnauthed:
                 "Popularity:",
                 "N/A",
                 "Last Harvested:",
-                re.compile(r"\d{4}-\d{2}-\d{2} \d{1,2}:\d{2} [AP]M \(GMT[+-]\d{1,2}\)"),
+                re.compile(r"\d{4}-\d{2}-\d{2} \d{1,2}:\d{2} [AP]M \(GMT(?:[+-]\d{1,2})?\)"),
             ],
             use_inner_text=True,
         )
@@ -76,7 +76,7 @@ class TestDatasetAuthed:
                 "Popularity:",
                 "N/A",
                 "Last Harvested:",
-                re.compile(r"\d{4}-\d{2}-\d{2} \d{1,2}:\d{2} [AP]M \(GMT[+-]\d{1,2}\)"),
+                re.compile(r"\d{4}-\d{2}-\d{2} \d{1,2}:\d{2} [AP]M \(GMT(?:[+-]\d{1,2})?\)"),
             ],
             use_inner_text=True,
         )
