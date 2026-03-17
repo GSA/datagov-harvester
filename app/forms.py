@@ -225,8 +225,8 @@ class DatasetSlugForm(FlaskForm):
             raise ValidationError(
                 f"The slug '{field.data}' is already in use by another dataset."
             )
-        
-        
+
+
 def url_paste_validate(form, field):
     if form.fetch_method.data == "url":
         if not form.url.data:
