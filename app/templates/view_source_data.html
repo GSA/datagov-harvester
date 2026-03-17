@@ -19,11 +19,8 @@
     {% else %}
     <div class="display-flex flex-align-center">
         <h1 class="margin-right-2">{{data.source.name}}</h1>
-        <a
-            class="usa-button usa-button--outline"
-            target="_blank"
-            href="{{ data.ckan_url }}/organization/{{ data.source.org.slug or data.source.org.id }}?harvest_source_title={{ data.source.name }}"
-        >
+        <a class="usa-button usa-button--outline" target="_blank"
+            href="{{ data.ckan_url }}/organization/{{ data.source.org.slug or data.source.org.id }}?harvest_source_title={{ data.source.name }}">
             <i class="fa-solid fa-arrow-up-right-from-square"></i>View on catalog
         </a>
     </div>
@@ -36,7 +33,9 @@
             <tr>
                 {% if key == 'organization_id' %}
                 <td>Organization:</td>
-                <td><a href="{{ url_for('api.view_organization', org_identifier=data.source.org.slug or value) }}">{{data.source.org.name}}</a></td>
+                <td><a
+                        href="{{ url_for('api.view_organization', org_identifier=data.source.org.slug or value) }}">{{data.source.org.name}}</a>
+                </td>
                 {% elif key == 'notification_emails' %}
                 {% if session['user'] %}
                 <td>Notification emails:</td>
@@ -45,15 +44,17 @@
                 {% elif key == 'url' %}
                 <td>{{key}}:</td>
                 <td>
-                    <i class="fa-solid fa-arrow-up-right-from-square"></i> <a href="{{value}}" target="_blank">{{value}}</a>
+                    <i class="fa-solid fa-arrow-up-right-from-square"></i> <a href="{{value}}"
+                        target="_blank">{{value}}</a>
                 </td>
                 {% elif key == 'collection_parent_url' %}
-                  {% if value %}
-                  <td>{{key}}:</td>
-                  <td>
-                    <i class="fa-solid fa-arrow-up-right-from-square"></i> <a href="{{value}}" target="_blank">{{value}}</a>
-                  </td>
-                  {% endif %}
+                {% if value %}
+                <td>{{key}}:</td>
+                <td>
+                    <i class="fa-solid fa-arrow-up-right-from-square"></i> <a href="{{value}}"
+                        target="_blank">{{value}}</a>
+                </td>
+                {% endif %}
                 {% else %}
                 <td>{{key}}:</td>
                 <td>{{value}}</td>
@@ -151,6 +152,48 @@
 
         {% endif %}
     </div>
+
+    <div class="section mt-3">
+        <h2>Datasets:</h2>
+        {% block htmx_paginated_datasets %}
+        <div id="paginated__datasets">
+            {% set pagination = datasets_pagination %}
+            {% set htmx_vars = data.datasets_htmx_vars %}
+            {% if data.datasets %}
+            <div class="usa-table-container--scrollable" tabindex="0">
+                <table class="usa-table usa-table--striped">
+                    <caption>Datasets for Harvest Source: {{ data.source.id }}</caption>
+                    <thead>
+                        <tr>
+                            <th scope="col">ID</th>
+                            <th scope="col">Slug</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for dataset in data.datasets %}
+                        <tr>
+                            <td>{{ dataset.id }}</td>
+                            <td>
+                                <a href="{{ url_for('api.view_dataset', dataset_slug=dataset.slug) }}">
+                                    {{ dataset.slug }}
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <div class="usa-sr-only usa-table__announcement-region" aria-live="polite"></div>
+            {% if pagination.count > data.datasets|count %}
+            {% include '/components/pagination/pagination.html' %}
+            {% endif %}
+            {% else %}
+            <p>No datasets found for this harvest source.</p>
+            {% endif %}
+        </div>
+        {% endblock %}
+    </div>
+
     {% endif %} <!-- line 21 -->
 </div>
 

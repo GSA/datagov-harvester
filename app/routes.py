@@ -55,6 +55,7 @@ from .api_schemas import (
 )
 from .auth import LoginRequiredAuth
 from .forms import (
+    DatasetSlugForm,
     HarvestSourceForm,
     HarvestTriggerForm,
     OrganizationForm,
@@ -534,10 +535,15 @@ def add_harvest_source():
 )
 @valid_id_required  # TODO: Use an HTML 404 page
 def view_harvest_source(source_id: str):
-    htmx_vars = {
+    jobs_htmx_vars = {
         "target_div": "#paginated__harvest-jobs",
         "endpoint_url": f"/harvest_source/{source_id}",
         "page_param": "page",
+    }
+    datasets_htmx_vars = {
+        "target_div": "#paginated__datasets",
+        "endpoint_url": f"/harvest_source/{source_id}",
+        "page_param": "datasets_page",
     }
     harvest_jobs_facets = (
         f"harvest_source_id eq {source_id},date_created le {get_datetime()}"
@@ -559,17 +565,42 @@ def view_harvest_source(source_id: str):
     )
 
     if htmx:
-        data = {
-            "source": {"id": source_id},
-            "jobs": jobs,
-            "htmx_vars": htmx_vars,
-        }
-        return render_block(
-            "view_source_data.html",
-            "htmx_paginated",
-            data=data,
-            pagination=pagination.to_dict(),
-        )
+        htmx_target = request.headers.get("HX-Target", "")
+
+        if "paginated__datasets" in htmx_target:
+            datasets_pagination = Pagination(
+                count=db.get_datasets_by_source(source_id=source_id, count=True),
+                current=request.args.get("datasets_page", 1, type=convert_to_int),
+            )
+            datasets = db.get_datasets_by_source(
+                source_id=source_id,
+                page=datasets_pagination.db_current,
+                per_page=datasets_pagination.per_page,
+            )
+            data = {
+                "source": {"id": source_id},
+                "datasets": datasets,
+                "datasets_htmx_vars": datasets_htmx_vars,
+            }
+            return render_block(
+                "view_source_data.html",
+                "htmx_paginated_datasets",
+                data=data,
+                pagination=datasets_pagination.to_dict(),
+                datasets_pagination=datasets_pagination.to_dict(),
+            )
+        else:
+            data = {
+                "source": {"id": source_id},
+                "jobs": jobs,
+                "htmx_vars": jobs_htmx_vars,
+            }
+            return render_block(
+                "view_source_data.html",
+                "htmx_paginated",
+                data=data,
+                pagination=pagination.to_dict(),
+            )
     elif request.method == "POST":
         form = HarvestTriggerForm(request.form)
         if form.data["edit"]:
@@ -684,18 +715,32 @@ def view_harvest_source(source_id: str):
             ],
         }
         source = db.get_harvest_source(source_id)
+        datasets_page = request.args.get("datasets_page", 1, type=convert_to_int)
+        datasets_count = db.get_datasets_by_source(source_id=source_id, count=True)
+        datasets_pagination = Pagination(
+            count=datasets_count,
+            current=datasets_page,
+        )
+        datasets = db.get_datasets_by_source(
+            source_id=source_id,
+            page=datasets_pagination.db_current,
+            per_page=datasets_pagination.per_page,
+        )
         data = {
             "ckan_url": CKAN_URL,
             "source": source,
             "summary_data": summary_data,
             "jobs": jobs,
             "chart_data": chart_data,
-            "htmx_vars": htmx_vars,
+            "htmx_vars": jobs_htmx_vars,
+            "datasets": datasets,
+            "datasets_htmx_vars": datasets_htmx_vars,
         }
         return render_template(
             "view_source_data.html",
             form=form,
             pagination=pagination.to_dict(),
+            datasets_pagination=datasets_pagination.to_dict(),
             data=data,
         )
 
@@ -705,6 +750,66 @@ def harvest_source_list():
     sources = db.get_all_harvest_sources()
     data = {"harvest_sources": sources}
     return render_template("view_source_list.html", data=data)
+
+
+@main.route("/dataset/<string:dataset_slug>", methods=["POST"])
+@api.get("/dataset/<string:dataset_slug>")
+@api.doc(
+    responses={
+        200: {"description": "View dataset detail page"},
+        404: {"description": "Dataset not found"},
+    }
+)
+def view_dataset(dataset_slug: str):
+    """View a dataset detail page by slug, and handle slug edits via POST."""
+    dataset = db.get_dataset_by_slug(dataset_slug)
+
+    if request.method == "POST":
+        if not session.get("user"):
+            flash("You must be logged in to edit a dataset slug.")
+            return redirect(url_for("api.view_dataset", dataset_slug=dataset_slug))
+
+        form = DatasetSlugForm(
+            request.form,
+            dataset_id=dataset.id if dataset else None,
+            db_interface=db,
+        )
+        if dataset is None:
+            flash("Dataset not found.")
+            return redirect(url_for("main.harvest_source_list"))
+
+        if form.validate():
+            updated = db.update_dataset_slug(dataset.id, form.slug.data)
+            if updated:
+                flash(f"Slug updated successfully to '{updated.slug}'.")
+                return redirect(url_for("api.view_dataset", dataset_slug=updated.slug))
+            else:
+                flash("Failed to update slug. Please try again.")
+                return redirect(url_for("api.view_dataset", dataset_slug=dataset_slug))
+        else:
+            # Re-render the page with the form errors shown inline.
+            data = {"dataset": dataset}
+            return (
+                render_template(
+                    "view_dataset_data.html",
+                    data=data,
+                    form=form,
+                ),
+                422,
+            )
+
+    # GET
+    form = DatasetSlugForm(
+        dataset_id=dataset.id if dataset else None,
+        db_interface=db,
+        data={"slug": dataset.slug} if dataset else {},
+    )
+    data = {"dataset": dataset}
+    return render_template(
+        "view_dataset_data.html",
+        data=data,
+        form=form,
+    ), (200 if dataset is not None else 404)
 
 
 ### Edit Source
