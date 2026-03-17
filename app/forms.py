@@ -231,3 +231,46 @@ class ValidatorForm(FlaskForm):
         validators=[url_paste_validate],
     )
     submit = SubmitField("Validate")
+    
+class DatasetSlugForm(FlaskForm):
+    """
+    Form for editing the slug of a Dataset.
+
+    Validates that the new slug is valid and unique across all
+    datasets, excluding the dataset currently being edited.
+    """
+
+    slug = StringField(
+        "Slug",
+        description=(
+            "Use lowercase letters, digits, and hyphens. "
+            "For example: 'my-dataset-title'."
+        ),
+        validators=[
+            DataRequired(),
+            Length(max=200),
+            Regexp(
+                r"^[a-z0-9-]+$",
+                message=(
+                    "Slug can only contain lowercase letters, digits, and hyphens."
+                ),
+            ),
+        ],
+        filters=[strip_filter],
+    )
+
+    def __init__(self, *args, **kwargs):
+        self.dataset_id = kwargs.pop("dataset_id", None)
+        self.db_interface = kwargs.pop("db_interface", None)
+        super().__init__(*args, **kwargs)
+
+    def validate_slug(self, field):
+        from database.interface import HarvesterDBInterface
+
+        db_interface = self.db_interface or HarvesterDBInterface()
+        existing = db_interface.get_dataset_by_slug(field.data)
+
+        if existing and existing.id != self.dataset_id:
+            raise ValidationError(
+                f"The slug '{field.data}' is already in use by another dataset."
+            )

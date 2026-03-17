@@ -673,6 +673,48 @@ class HarvesterDBInterface:
             return None
         return self.db.query(Dataset).filter_by(slug=slug).first()
 
+    def update_dataset_slug(self, dataset_id: str, new_slug: str) -> Dataset | None:
+        """
+        Update the slug of a dataset by its ID.
+        """
+        if not dataset_id or not new_slug:
+            raise ValueError("dataset_id and new_slug are required")
+
+        try:
+            dataset = self.db.get(Dataset, dataset_id)
+            if dataset is None:
+                return None
+            dataset.slug = new_slug
+            self.db.commit()
+            self.db.refresh(dataset)
+            return dataset
+        except Exception as e:
+            logger.error("Error updating dataset slug for '%s': %s", dataset_id, e)
+            self.db.rollback()
+            return None
+
+    def get_datasets_by_source(
+        self,
+        source_id: str,
+        page: int = 0,
+        per_page: int = PAGINATE_ENTRIES_PER_PAGE,
+        count: bool = False,
+    ) -> list | int:
+        """Get datasets for a harvest source with optional pagination.
+
+        Results are ordered by `last_harvested_date` descending so the most
+        recently harvested datasets appear first. Rows with a `NULL`
+        `last_harvested_date` are sorted to the end.
+        """
+        query = (
+            self.db.query(Dataset)
+            .filter(Dataset.harvest_source_id == source_id)
+            .order_by(Dataset.last_harvested_date.desc().nullslast())
+        )
+        if count:
+            return query.count()
+        return query.offset(page * per_page).limit(per_page).all()
+
     def get_all_outdated_records(self, days=365, source_id=None):
         """
         gets all outdated versions of records older than [days] ago
