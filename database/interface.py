@@ -611,11 +611,12 @@ class HarvesterDBInterface:
         if not slug:
             raise ValueError("dataset_data must include a slug")
 
+        update_data = {k: v for k, v in dataset_data.items() if k != "slug"}
+
         stmt = insert(Dataset).values(**dataset_data)
         update_cols = {
             column: getattr(stmt.excluded, column)
-            for column in dataset_data
-            if column != "slug"
+            for column in update_data
         }
         stmt = stmt.on_conflict_do_update(
             index_elements=[Dataset.slug],

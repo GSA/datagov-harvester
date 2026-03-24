@@ -1134,8 +1134,13 @@ class Record:
                 if self.action == "create":
                     dataset = self._insert_dataset_with_unique_slug(dataset_payload)
                 else:
+                    # harvester should never update the slug
+                    update_payload = {
+                        k: v for k, v in dataset_payload.items() if k != "slug"
+                    }
+                    update_payload["slug"] = self.dataset_slug
                     dataset = self.harvest_source.db_interface.upsert_dataset(
-                        dataset_payload
+                        update_payload
                     )
                 self._index_dataset_in_opensearch(dataset)
             elif self.action == "delete" and self.dataset_slug:
