@@ -693,27 +693,17 @@ class HarvesterDBInterface:
             self.db.rollback()
             return None
 
-    def get_datasets_by_source(
-        self,
-        source_id: str,
-        page: int = 0,
-        per_page: int = PAGINATE_ENTRIES_PER_PAGE,
-        count: bool = False,
-    ) -> list | int:
-        """Get datasets for a harvest source with optional pagination.
-
-        Results are ordered by `last_harvested_date` descending so the most
-        recently harvested datasets appear first. Rows with a `NULL`
-        `last_harvested_date` are sorted to the end.
+    @count
+    @paginate
+    def get_datasets_by_source(self, source_id: str, **kwargs):
         """
-        query = (
+        Get datasets for a harvest source with optional pagination and counting.
+        """
+        return (
             self.db.query(Dataset)
             .filter(Dataset.harvest_source_id == source_id)
             .order_by(Dataset.last_harvested_date.desc().nullslast())
         )
-        if count:
-            return query.count()
-        return query.offset(page * per_page).limit(per_page).all()
 
     def get_all_outdated_records(self, days=365, source_id=None):
         """

@@ -787,6 +787,7 @@ class Record:
             if self.harvest_source.schema_type.startswith("iso19115"):
                 self.transform()
                 self.add_parent()
+                self.replace_identifier()
                 self.fill_placeholders()
                 self._save_transformed_data()
             self.validate()
@@ -898,16 +899,21 @@ class Record:
                 self.id,
             )
 
+    def replace_identifier(self) -> None:
+        """
+        mdtranslator can derive an 'identifier' field from ISO docs but we don't
+        want that. we want the URL as the identifier.
+        """
+        self.transformed_data["identifier"] = self.identifier
+
     def add_parent(self) -> None:
-        """Add parent information to transformed_data for waf-collections."""
-        if self.parent_identifier is None:
-            return
+        """Add parent information to transformed_data for waf-collections.
 
-        if "isPartOf" in self.transformed_data:
-            # somehow this record already got a parent relationship!
-            return
-
-        self.transformed_data["isPartOf"] = self.parent_identifier
+        mdtranslator can derive 'isPartOf' but we want to prioritize
+        self.parent_identifier when available
+        """
+        if self.parent_identifier:
+            self.transformed_data["isPartOf"] = self.parent_identifier
 
     def fill_placeholders(self) -> None:
         """Fill in placeholder values to prevent some validation errors.
@@ -1128,8 +1134,13 @@ class Record:
                 if self.action == "create":
                     dataset = self._insert_dataset_with_unique_slug(dataset_payload)
                 else:
+                    # harvester should never update the slug
+                    update_payload = {
+                        k: v for k, v in dataset_payload.items() if k != "slug"
+                    }
+                    update_payload["slug"] = self.dataset_slug
                     dataset = self.harvest_source.db_interface.upsert_dataset(
-                        dataset_payload
+                        update_payload
                     )
                 self._index_dataset_in_opensearch(dataset)
             elif self.action == "delete" and self.dataset_slug:

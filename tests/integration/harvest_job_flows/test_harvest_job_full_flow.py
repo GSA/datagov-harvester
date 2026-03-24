@@ -180,6 +180,14 @@ class TestHarvestJobFullFlow:
         ## assert call_args to package_create
         ## TODO this test wil eventually succeed. we can then assert call_args
 
+        # check dataset information
+        identifiers = [
+            "http://localhost:80/iso_2_waf/valid_iso1.xml",
+            "http://localhost:80/iso_2_waf/valid_iso2.xml",
+        ]
+        for i in range(len(successful_records)):
+            assert successful_records[i].dataset.dcat["identifier"] == identifiers[i]
+
     def test_harvest_waf_iso19115_2_download_exception(
         self,
         interface,
@@ -270,6 +278,12 @@ class TestHarvestJobFullFlow:
             if record.status == "success":
                 assert (
                     record.parent_identifier
+                    == source_data_waf_collection["collection_parent_url"]
+                )
+
+                # make sure the parent url is in the transformed dcat data in the dataset
+                assert (
+                    record.dataset.dcat["isPartOf"]
                     == source_data_waf_collection["collection_parent_url"]
                 )
         # call on error

@@ -62,7 +62,7 @@
     {% if session['user'] %}
     <div class="config-actions dataset-config-actions mt-3">
         <h2>Edit Slug:</h2>
-        <form method="POST" action="{{ url_for('api.view_dataset', dataset_slug=data.dataset.slug) }}">
+        <form method="POST" action="{{ url_for('main.view_dataset', dataset_slug=data.dataset.slug) }}">
             {{ form.hidden_tag() }}
             <div class="form-group mb-2">
                 {{ form.slug.label(class_='form-control-label') }}

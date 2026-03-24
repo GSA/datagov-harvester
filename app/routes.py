@@ -758,14 +758,7 @@ def harvest_source_list():
     return render_template("view_source_list.html", data=data)
 
 
-@main.route("/dataset/<string:dataset_slug>", methods=["POST"])
-@api.get("/dataset/<string:dataset_slug>")
-@api.doc(
-    responses={
-        200: {"description": "View dataset detail page"},
-        404: {"description": "Dataset not found"},
-    }
-)
+@main.route("/dataset/<string:dataset_slug>", methods=["GET", "POST"])
 def view_dataset(dataset_slug: str):
     """View a dataset detail page by slug, and handle slug edits via POST."""
     dataset = db.get_dataset_by_slug(dataset_slug)
@@ -773,7 +766,7 @@ def view_dataset(dataset_slug: str):
     if request.method == "POST":
         if not session.get("user"):
             flash("You must be logged in to edit a dataset slug.")
-            return redirect(url_for("api.view_dataset", dataset_slug=dataset_slug))
+            return redirect(url_for("main.view_dataset", dataset_slug=dataset_slug))
 
         form = DatasetSlugForm(
             request.form,
@@ -788,10 +781,10 @@ def view_dataset(dataset_slug: str):
             updated = db.update_dataset_slug(dataset.id, form.slug.data)
             if updated:
                 flash(f"Slug updated successfully to '{updated.slug}'.")
-                return redirect(url_for("api.view_dataset", dataset_slug=updated.slug))
+                return redirect(url_for("main.view_dataset", dataset_slug=updated.slug))
             else:
                 flash("Failed to update slug. Please try again.")
-                return redirect(url_for("api.view_dataset", dataset_slug=dataset_slug))
+                return redirect(url_for("main.view_dataset", dataset_slug=dataset_slug))
         else:
             # Re-render the page with the form errors shown inline.
             data = {"dataset": dataset}
