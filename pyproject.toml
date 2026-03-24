@@ -44,17 +44,17 @@ aiohttp = "^3.13.3" #SNYK-PYTHON-AIOHTTP-10742466
 urllib3 = ">=2.5.0" #SNYK-PYTHON-URLLIB3-10390193, SNYK-PYTHON-URLLIB3-10390194
 alembic-postgresql-enum = "^1.9.0"
 google-auth = "^2.49.1"
-google-api-python-client = "^2.192.0"
-pyasn1 = "^0.6.2" #SNYK-PYTHON-PYASN1-15032639
+google-api-python-client = "^2.193.0"
+pyasn1 = "^0.6.3" #SNYK-PYTHON-PYASN1-15032639
 werkzeug = "^3.1.6" #SNYK-PYTHON-WERKZEUG-14908843
-apiflask = "^3.0.2"
+apiflask = "^3.1.0"
 flask-talisman = "^1.1.0"
 newrelic = "^12.0.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = ">=7.3.2"
-ruff = "^0.15.6"
-pytest-cov = "^7.0.0"
+ruff = "^0.15.7"
+pytest-cov = "^7.1.0"
 debugpy = "^1.8.20"
 isort = "^8.0.1"
 black = "^26.3.1"
