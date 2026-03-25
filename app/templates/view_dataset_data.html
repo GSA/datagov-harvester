@@ -1,0 +1,90 @@
+{% extends 'base.html' %}
+
+{% block title %}
+<title>View Dataset</title>
+{% endblock %}
+
+{% block content %}
+<div class="wrapper dataset-data">
+    {% if not data.dataset %}
+    <h2>Whooops!</h2>
+    <p>Looks like you navigated to a dataset that doesn't exist.</p>
+    {% else %}
+    <div class="display-flex flex-align-center">
+        <h1 class="margin-right-2">{{ data.dataset.slug }}</h1>
+    </div>
+
+    <h2>Dataset Details:</h2>
+    <div class="config-table dataset-config-properties">
+        <table class="table">
+            <tr>
+                <td>ID:</td>
+                <td>{{ data.dataset.id }}</td>
+            </tr>
+            <tr>
+                <td>Slug:</td>
+                <td>{{ data.dataset.slug }}</td>
+            </tr>
+            <tr>
+                <td>Harvest Source:</td>
+                <td>
+                    <a href="{{ url_for('api.view_harvest_source', source_id=data.dataset.harvest_source_id) }}">
+                        {{ data.dataset.harvest_source_id }}
+                    </a>
+                </td>
+            </tr>
+            <tr>
+                <td>Organization:</td>
+                <td>
+                    {% if data.dataset.organization %}
+                    <a
+                        href="{{ url_for('api.view_organization', org_identifier=data.dataset.organization.slug or data.dataset.organization_id) }}">
+                        {{ data.dataset.organization.name }}
+                    </a>
+                    {% else %}
+                    {{ data.dataset.organization_id }}
+                    {% endif %}
+                </td>
+            </tr>
+            <tr>
+                <td>Popularity:</td>
+                <td>{{ data.dataset.popularity | default('N/A', true) }}</td>
+            </tr>
+            <tr>
+                <td>Last Harvested:</td>
+                <td class="utc-date" data-utc-date="{{ data.dataset.last_harvested_date | utc_isoformat }}">
+                    {{ data.dataset.last_harvested_date | else_na }}
+                </td>
+            </tr>
+        </table>
+    </div>
+
+    {% if session['user'] %}
+    <div class="config-actions dataset-config-actions mt-3">
+        <h2>Edit Slug:</h2>
+        <form method="POST" action="{{ url_for('main.view_dataset', dataset_slug=data.dataset.slug) }}">
+            {{ form.hidden_tag() }}
+            <div class="form-group mb-2">
+                {{ form.slug.label(class_='form-control-label') }}
+                {{ form.slug(class_='form-control' + (' is-invalid' if form.slug.errors else ''),
+                aria_label=form.slug.label.text) }}
+                {% if form.slug.description %}
+                <small class="form-text text-muted">{{ form.slug.description }}</small>
+                {% endif %}
+                {% for error in form.slug.errors %}
+                <div class="invalid-feedback d-block">
+                    <i class="fa-solid fa-circle-exclamation"></i> {{ error }}
+                </div>
+                {% endfor %}
+            </div>
+            <button type="submit" class="usa-button">Update Slug</button>
+        </form>
+    </div>
+    {% endif %}
+
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+{% endblock %}

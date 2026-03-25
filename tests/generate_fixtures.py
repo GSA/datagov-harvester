@@ -10,6 +10,104 @@ from datetime import datetime, timedelta
 from typing import Any, Dict
 from uuid import UUID
 
+# Stable IDs shared across fixture sections
+_ORG_ID = "d925f84d-955b-4cb7-812f-dcfd6681a18f"
+_SOURCE_ID = "2f2652de-91df-4c63-8b53-bfced20b276b"
+_TEST_JOB_ID = "6bce761c-7a39-41c1-ac73-94234c139c76"
+
+# Each entry maps: (
+# dataset_id, record_id, slug, dcat_title, dcat_identifier, record_index
+# )
+_SUCCESSFUL_RECORDS = [
+    {
+        "dataset_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567891",
+        "record_id": "09f073b3-00e3-4147-ba69-a5d0fd7ce021",
+        "slug": "fixture-dataset-1",
+        "ckan_id": "1234",
+        "record_identifier": "test_identifier-9",
+        "dcat": {
+            "title": "Fixture Dataset 1",
+            "description": (
+                "A sample federal dataset for testing purposes. "
+                "Contains environmental monitoring data."
+            ),
+            "identifier": "test-identifier-9",
+            "keyword": ["environment", "monitoring", "federal"],
+            "modified": "2024-01-15",
+            "publisher": {
+                "name": "Test Org",
+                "@type": "org:Organization",
+            },
+            "contactPoint": {
+                "@type": "vcard:Contact",
+                "fn": "Data Steward",
+                "hasEmail": "mailto:data@example.gov",
+            },
+            "accessLevel": "public",
+            "bureauCode": ["000:00"],
+            "programCode": ["000:000"],
+            "license": "https://creativecommons.org/licenses/by/4.0/",
+            "spatial": "-124.733253,24.544245,-66.954811,49.388611",
+            "temporal": "2020-01-01T00:00:00Z/2023-12-31T23:59:59Z",
+            "distribution": [
+                {
+                    "@type": "dcat:Distribution",
+                    "downloadURL": "https://example.gov/data/dataset-1.csv",
+                    "mediaType": "text/csv",
+                    "title": "Fixture Dataset 1 CSV",
+                }
+            ],
+        },
+    },
+    {
+        "dataset_id": "b2c3d4e5-f6a7-8901-bcde-f12345678902",
+        "record_id": "09f073b3-00e3-4147-ba69-a5d0fd7ce022",
+        "slug": "fixture-dataset-2",
+        "ckan_id": "1235",
+        "record_identifier": "test_identifier-10",
+        "dcat": {
+            "title": "Fixture Dataset 2",
+            "description": (
+                "A secondary sample dataset for testing. "
+                "Contains demographic survey results."
+            ),
+            "identifier": "test-identifier-10",
+            "keyword": ["demographics", "survey", "population"],
+            "modified": "2024-03-22",
+            "publisher": {
+                "name": "Test Org",
+                "@type": "org:Organization",
+            },
+            "contactPoint": {
+                "@type": "vcard:Contact",
+                "fn": "Survey Coordinator",
+                "hasEmail": "mailto:survey@example.gov",
+            },
+            "accessLevel": "public",
+            "bureauCode": ["000:00"],
+            "programCode": ["000:001"],
+            "license": "https://creativecommons.org/publicdomain/zero/1.0/",
+            "distribution": [
+                {
+                    "@type": "dcat:Distribution",
+                    "downloadURL": "https://example.gov/data/dataset-2.json",
+                    "mediaType": "application/json",
+                    "title": "Fixture Dataset 2 JSON",
+                },
+                {
+                    "@type": "dcat:Distribution",
+                    "downloadURL": "https://example.gov/data/dataset-2.xlsx",
+                    "mediaType": (
+                        "application/vnd.openxmlformats-officedocument"
+                        ".spreadsheetml.sheet"
+                    ),
+                    "title": "Fixture Dataset 2 Excel",
+                },
+            ],
+        },
+    },
+]
+
 
 def generate_dynamic_fixtures() -> Dict[str, Any]:
     """Generate fixtures with dates from the last 7 days."""
@@ -19,20 +117,24 @@ def generate_dynamic_fixtures() -> Dict[str, Any]:
         "organization": [
             {
                 "name": "Test Org",
-                "logo": "https://raw.githubusercontent.com/GSA/datagov-harvester/refs/heads/main/app/static/assets/img/placeholder-organization.png",
+                "logo": (
+                    "https://raw.githubusercontent.com/GSA/datagov-harvester"
+                    "/refs/heads/main/app/static/assets/img"
+                    "/placeholder-organization.png"
+                ),
                 "description": "Fixture org description",
                 "slug": "fixture-org",
                 "organization_type": "Federal Government",
-                "id": "d925f84d-955b-4cb7-812f-dcfd6681a18f",
+                "id": _ORG_ID,
                 "aliases": ["testorg"],
             }
         ],
         "source": [
             {
-                "id": "2f2652de-91df-4c63-8b53-bfced20b276b",
+                "id": _SOURCE_ID,
                 "name": "Test Source",
                 "notification_emails": ["email@example.com"],
-                "organization_id": "d925f84d-955b-4cb7-812f-dcfd6681a18f",
+                "organization_id": _ORG_ID,
                 "frequency": "daily",
                 "url": "http://localhost:80/dcatus/dcatus.json",
                 "schema_type": "dcatus1.1: federal",
@@ -43,20 +145,21 @@ def generate_dynamic_fixtures() -> Dict[str, Any]:
         "job": [],
         "job_error": [
             {
-                "harvest_job_id": "6bce761c-7a39-41c1-ac73-94234c139c76",
+                "harvest_job_id": _TEST_JOB_ID,
                 "message": "error reading records from harvest database",
                 "type": "ExtractInternalException",
             }
         ],
         "record": [],
         "record_error": [],
+        "dataset": [],
     }
 
     # Generate jobs with dates from the last 7 days
     now = datetime.now()
     job_templates = [
         {
-            "id": "6bce761c-7a39-41c1-ac73-94234c139c76",
+            "id": _TEST_JOB_ID,
             "status": "new",
             "days_ago": 4,
             "duration_minutes": 0,
@@ -166,7 +269,7 @@ def generate_dynamic_fixtures() -> Dict[str, Any]:
         created_date = now - timedelta(days=template["days_ago"])
 
         job = {
-            "harvest_source_id": "2f2652de-91df-4c63-8b53-bfced20b276b",
+            "harvest_source_id": _SOURCE_ID,
             "status": template["status"],
             "date_created": created_date.strftime("%Y-%m-%d %H:%M:%S.%f"),
         }
@@ -197,24 +300,39 @@ def generate_dynamic_fixtures() -> Dict[str, Any]:
 
         base_fixtures["job"].append(job)
 
-    # Generate corresponding records for the main test job
-    test_job_id = "6bce761c-7a39-41c1-ac73-94234c139c76"
-    source_id = "2f2652de-91df-4c63-8b53-bfced20b276b"
+    # Generate successful records and corresponding datasets
+    # last_harvested_date matches the test job's created date (4 days ago)
+    last_harvested_date = (now - timedelta(days=4)).strftime("%Y-%m-%d %H:%M:%S.%f")
 
-    # Add successful records
-    for i in range(1, 3):  # 2 successful records
+    for entry in _SUCCESSFUL_RECORDS:
         base_fixtures["record"].append(
             {
-                "id": f"09f073b3-00e3-4147-ba69-a5d0fd7ce02{i}",
-                "ckan_id": str(1234 + i - 1),
-                "identifier": f"test_identifier-{8 + i}",
-                "harvest_job_id": test_job_id,
-                "harvest_source_id": source_id,
+                "id": entry["record_id"],
+                "ckan_id": entry["ckan_id"],
+                "identifier": entry["record_identifier"],
+                "harvest_job_id": _TEST_JOB_ID,
+                "harvest_source_id": _SOURCE_ID,
                 "action": "create",
                 "status": "success",
-                "source_raw": (
-                    f'{{"title": "test-{7 + i}", ' f'"identifier": "test-{7 + i}"}}'
+                "source_raw": json.dumps(
+                    {
+                        "title": entry["dcat"]["title"],
+                        "identifier": entry["dcat"]["identifier"],
+                    }
                 ),
+            }
+        )
+
+        base_fixtures["dataset"].append(
+            {
+                "id": entry["dataset_id"],
+                "slug": entry["slug"],
+                "dcat": entry["dcat"],
+                "organization_id": _ORG_ID,
+                "harvest_source_id": _SOURCE_ID,
+                "harvest_record_id": entry["record_id"],
+                "popularity": 0,
+                "last_harvested_date": last_harvested_date,
             }
         )
 
@@ -238,8 +356,8 @@ def generate_dynamic_fixtures() -> Dict[str, Any]:
             {
                 "id": record_id,
                 "identifier": f"test_identifier-{i + 1}",
-                "harvest_job_id": test_job_id,
-                "harvest_source_id": source_id,
+                "harvest_job_id": _TEST_JOB_ID,
+                "harvest_source_id": _SOURCE_ID,
                 "action": "create",
                 "status": "error",
                 "source_raw": f'{{"title": "test-{i}", "identifier": "test-{i}"}}',
@@ -251,7 +369,7 @@ def generate_dynamic_fixtures() -> Dict[str, Any]:
             {
                 "id": f"3ccb48db-21fc-427a-9ec7-36b0d0f621d{i}",
                 "harvest_record_id": record_id,
-                "harvest_job_id": test_job_id,
+                "harvest_job_id": _TEST_JOB_ID,
                 "message": "record is invalid",
                 "type": "ValidationException",
             }
@@ -261,7 +379,7 @@ def generate_dynamic_fixtures() -> Dict[str, Any]:
             {
                 "id": f"3ccb48db-21fc-427a-9ec7-36b0d0f621c{i}",
                 "harvest_record_id": record_id,
-                "harvest_job_id": test_job_id,
+                "harvest_job_id": _TEST_JOB_ID,
                 "message": "record is invalid",
                 "type": "TestException",
             }

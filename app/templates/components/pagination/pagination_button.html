@@ -4,7 +4,7 @@
   {% set labels = pager_opts.aria_labels %}
   {# HTMX page vars#}
   {% set item_str = item | string() %}
-  {% set placeholder_link = htmx_vars.endpoint_url + "?page=" + item_str %}
+  {% set placeholder_link = htmx_vars.endpoint_url ~ "?" ~ htmx_vars.page_param ~ "=" ~ item_str %}
 
   {# Display: "Last page, page X" if last item. Otherwise "Page X" #}
   {% set aria_label = (labels.last ~ " " ~ labels.page_label | lower if is_last else labels.page_label) ~ " " ~ item %}

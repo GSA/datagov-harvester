@@ -1,3 +1,6 @@
+from bs4 import BeautifulSoup
+
+
 class TestForms:
     def test_add_organization_strips_string_fields(self, app, client, interface):
         app.config.update({"WTF_CSRF_ENABLED": False})
@@ -161,3 +164,153 @@ class TestForms:
         edit_response = client.get(f"/organization/edit/{organization_data['id']}")
         assert "testorg" in edit_response.text
         assert "['testorg']" not in edit_response.text
+
+
+class TestDatasetSlugForm:
+    """
+    Tests for DatasetSlugForm validation and the dataset slug-edit route.
+    """
+
+    def _setup_dataset(self, interface, fixtures_json):
+        """
+        Insert the minimal org/source/job/record/dataset chain into the DB.
+        """
+        org = fixtures_json["organization"][0]
+        source = fixtures_json["source"][0]
+        job = fixtures_json["job"][0]
+        record = fixtures_json["record"][0]
+        dataset = fixtures_json["dataset"][0]
+
+        interface.add_organization(org)
+        interface.add_harvest_source(source)
+        interface.add_harvest_job(job)
+        interface.add_harvest_record(record)
+        interface.insert_dataset(dataset)
+
+        return dataset
+
+    def test_get_dataset_page_renders_form(self, app, client, interface, fixtures_json):
+        """
+        GET /dataset/<slug> renders the page with the slug form field.
+        """
+        app.config.update({"WTF_CSRF_ENABLED": False})
+        dataset = self._setup_dataset(interface, fixtures_json)
+        with client.session_transaction() as sess:
+            sess["user"] = "tester@gsa.gov"
+
+        res = client.get(f"/dataset/{dataset['slug']}")
+
+        assert res.status_code == 200
+        soup = BeautifulSoup(res.data, "html.parser")
+        # only one form
+        form = soup.find("form")
+        assert form is not None
+        # only one input
+        slug_input = form.find("input")
+        assert slug_input is not None
+        assert slug_input.attrs.get("name") == "slug"
+
+    def test_edit_slug_success(self, app, client, interface, fixtures_json):
+        """
+        A valid, unique slug POST updates the dataset and redirects.
+        """
+        app.config.update({"WTF_CSRF_ENABLED": False})
+        with client.session_transaction() as sess:
+            sess["user"] = "tester@gsa.gov"
+
+        dataset = self._setup_dataset(interface, fixtures_json)
+
+        res = client.post(
+            f"/dataset/{dataset['slug']}",
+            data={"slug": "brand-new-slug"},
+        )
+
+        assert res.status_code == 302
+        assert "brand-new-slug" in res.headers["Location"]
+
+        updated = interface.get_dataset_by_slug("brand-new-slug")
+        assert updated is not None
+        assert updated.id == dataset["id"]
+
+    def test_edit_slug_strips_whitespace(self, app, client, interface, fixtures_json):
+        """
+        Whitespace around the submitted slug is stripped before saving.
+        """
+        app.config.update({"WTF_CSRF_ENABLED": False})
+        with client.session_transaction() as sess:
+            sess["user"] = "tester@gsa.gov"
+
+        dataset = self._setup_dataset(interface, fixtures_json)
+
+        res = client.post(
+            f"/dataset/{dataset['slug']}",
+            data={"slug": "  stripped-slug  "},
+        )
+
+        assert res.status_code == 302
+        updated = interface.get_dataset_by_slug("stripped-slug")
+        assert updated is not None
+
+    def test_edit_slug_own_slug_allowed(self, app, client, interface, fixtures_json):
+        """
+        POSTing the dataset's existing slug is accepted and redirects cleanly.
+        """
+        app.config.update({"WTF_CSRF_ENABLED": False})
+        with client.session_transaction() as sess:
+            sess["user"] = "tester@gsa.gov"
+
+        dataset = self._setup_dataset(interface, fixtures_json)
+        original_slug = dataset["slug"]
+
+        res = client.post(
+            f"/dataset/{original_slug}",
+            data={"slug": original_slug},
+        )
+
+        assert res.status_code == 302
+        assert original_slug in res.headers["Location"]
+
+    def test_edit_slug_duplicate_returns_422(
+        self, app, client, interface, fixtures_json
+    ):
+        """
+        A slug already owned by a different dataset returns 422 with an error.
+        """
+        app.config.update({"WTF_CSRF_ENABLED": False})
+        with client.session_transaction() as sess:
+            sess["user"] = "tester@gsa.gov"
+
+        self._setup_dataset(interface, fixtures_json)
+
+        # Insert a second dataset with a known slug to create a collision.
+        second_dataset = fixtures_json["dataset"][1]
+        interface.add_harvest_record(fixtures_json["record"][1])
+        interface.insert_dataset(second_dataset)
+
+        res = client.post(
+            f"/dataset/{fixtures_json['dataset'][0]['slug']}",
+            data={"slug": second_dataset["slug"]},
+        )
+
+        assert res.status_code == 422
+        assert b"already in use" in res.data
+
+    def test_edit_slug_invalid_chars_returns_422(
+        self, app, client, interface, fixtures_json
+    ):
+        """
+        A slug containing invalid characters returns 422 with a validation error.
+        """
+        app.config.update({"WTF_CSRF_ENABLED": False})
+        with client.session_transaction() as sess:
+            sess["user"] = "tester@gsa.gov"
+
+        dataset = self._setup_dataset(interface, fixtures_json)
+
+        res = client.post(
+            f"/dataset/{dataset['slug']}",
+            data={"slug": "Invalid_Slug!"},
+        )
+
+        assert res.status_code == 422
+        assert b"lowercase" in res.data
