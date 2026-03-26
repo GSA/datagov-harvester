@@ -8,6 +8,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import NoResultFound
 from sqlalchemy.orm import aliased
 
+from harvester.opensearch import OpenSearchInterface
 from harvester.utils.general_utils import query_filter_builder
 
 from .models import (
@@ -687,6 +688,11 @@ class HarvesterDBInterface:
             dataset.slug = new_slug
             self.db.commit()
             self.db.refresh(dataset)
+            # connect to OS and reindex the dataset
+            client = OpenSearchInterface.from_environment()
+            succeeded, failed, errors = client.index_datasets([dataset])
+            if failed or errors:
+                logger.error("Error syncing with OpenSearch '%s'", dataset_id)
             return dataset
         except Exception as e:
             logger.error("Error updating dataset slug for '%s': %s", dataset_id, e)
