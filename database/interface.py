@@ -688,16 +688,24 @@ class HarvesterDBInterface:
             dataset.slug = new_slug
             self.db.commit()
             self.db.refresh(dataset)
+        except Exception as e:
+            logger.error("Error updating dataset slug for '%s': %s", dataset_id, e)
+            self.db.rollback()
+            return None
+
+        try:
             # connect to OS and reindex the dataset
             client = OpenSearchInterface.from_environment()
             succeeded, failed, errors = client.index_datasets([dataset])
             if failed or errors:
                 logger.error("Error syncing with OpenSearch '%s'", dataset_id)
-            return dataset
+
         except Exception as e:
-            logger.error("Error updating dataset slug for '%s': %s", dataset_id, e)
-            self.db.rollback()
-            return None
+            logger.error(
+                "Exception occured while doing sync with OpenSearch %s", dataset_id, e
+            )
+
+        return dataset
 
     @count
     @paginate
