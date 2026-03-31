@@ -63,8 +63,8 @@
   {% include 'glossary.html' %}
 
   <div class="container my-3">
-    {% for message in get_flashed_messages() %}
-    <div class="alert alert-warning alert-dismissible fade show">
+    {% for category, message in get_flashed_messages(with_categories=true) %}
+    <div class="alert alert-{{ category }} alert-dismissible fade show">
       <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
       {{ message }}
     </div>
