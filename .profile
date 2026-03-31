@@ -8,6 +8,9 @@ function vcap_get_service () {
   name="$1"
   path="$2"
   service_name=${APP_NAME}-${name}
+  if [ "$name" = "opensearch" ]; then
+    service_name=datagov-catalog-opensearch
+  fi
   echo $VCAP_SERVICES | jq --raw-output --arg service_name "$service_name" ".[][] | select(.name == \$service_name) | $path"
 }
 
