@@ -3,6 +3,7 @@ import hashlib
 import http
 import json
 import logging
+import mimetypes
 import os
 import re
 import smtplib
@@ -48,6 +49,317 @@ SMTP_CONFIG = {
     "base_url": os.getenv("REDIRECT_URI").rsplit("/", 1)[0],
     "recipient": os.getenv("HARVEST_SMTP_RECIPIENT"),
 }
+
+RESOURCE_MAPPING = {
+    # ArcGIS File Types
+    "esri rest": ("Esri REST", "Esri REST API Endpoint"),
+    "arcgis_rest": ("Esri REST", "Esri REST API Endpoint"),
+    "web map application": ("ArcGIS Online Map", "ArcGIS Online Map"),
+    "arcgis map preview": ("ArcGIS Map Preview", "ArcGIS Map Preview"),
+    "arcgis map service": ("ArcGIS Map Service", "ArcGIS Map Service"),
+    "wms": ("WMS", "ArcGIS Web Mapping Service"),
+    "wfs": ("WFS", "ArcGIS Web Feature Service"),
+    "wcs": ("WCS", "Web Coverage Service"),
+    # CSS File Types
+    "css": ("CSS", "Cascading Style Sheet File"),
+    "text/css": ("CSS", "Cascading Style Sheet File"),
+    # CSV File Types
+    "csv": ("CSV", "Comma Separated Values File"),
+    "text/csv": ("CSV", "Comma Separated Values File"),
+    # EXE File Types
+    "exe": ("EXE", "Windows Executable Program"),
+    "application/x-msdos-program": ("EXE", "Windows Executable Program"),
+    # HyperText Markup Language (HTML) File Types
+    "htx": ("HTML", "Web Page"),
+    "htm": ("HTML", "Web Page"),
+    "html": ("HTML", "Web Page"),
+    "htmls": ("HTML", "Web Page"),
+    "xhtml": ("HTML", "Web Page"),
+    "text/html": ("HTML", "Web Page"),
+    "application/xhtml+xml": ("HTML", "Web Page"),
+    "application/x-httpd-php": ("HTML", "Web Page"),
+    # Image File Types - BITMAP
+    "bm": ("BMP", "Bitmap Image File"),
+    "bmp": ("BMP", "Bitmap Image File"),
+    "pbm": ("BMP", "Bitmap Image File"),
+    "xbm": ("BMP", "Bitmap Image File"),
+    "image/bmp": ("BMP", "Bitmap Image File"),
+    "image/x-ms-bmp": ("BMP", "Bitmap Image File"),
+    "image/x-xbitmap": ("BMP", "Bitmap Image File"),
+    "image/x-windows-bmp": ("BMP", "Bitmap Image File"),
+    "image/x-portable-bitmap": ("BMP", "Bitmap Image File"),
+    # Image File Types - Graphics Interchange Format (GIF)
+    "gif": ("GIF", "GIF Image File"),
+    "image/gif": ("GIF", "GIF Image File"),
+    # Image File Types - ICON
+    "ico": ("ICO", "Icon Image File"),
+    "image/x-icon": ("ICO", "Icon Image File"),
+    # Image File Types - JPEG
+    "jpe": ("JPEG", "JPEG Image File"),
+    "jpg": ("JPEG", "JPEG Image File"),
+    "jps": ("JPEG", "JPEG Image File"),
+    "jpeg": ("JPEG", "JPEG Image File"),
+    "pjpeg": ("JPEG", "JPEG Image File"),
+    "image/jpeg": ("JPEG", "JPEG Image File"),
+    "image/pjpeg": ("JPEG", "JPEG Image File"),
+    "image/x-jps": ("JPEG", "JPEG Image File"),
+    "image/x-citrix-jpeg": ("JPEG", "JPEG Image File"),
+    # Image File Types - PNG
+    "png": ("PNG", "PNG Image File"),
+    "x-png": ("PNG", "PNG Image File"),
+    "image/png": ("PNG", "PNG Image File"),
+    "image/x-citrix-png": ("PNG", "PNG Image File"),
+    # Image File Types - Scalable Vector Graphics (SVG)
+    "svg": ("SVG", "SVG Image File"),
+    "image/svg+xml": ("SVG", "SVG Image File"),
+    # Image File Types - Tagged Image File Format (TIFF)
+    "tif": ("TIFF", "TIFF Image File"),
+    "tiff": ("TIFF", "TIFF Image File"),
+    "image/tiff": ("TIFF", "TIFF Image File"),
+    "image/x-tiff": ("TIFF", "TIFF Image File"),
+    # JSON File Types
+    "json": ("JSON", "JSON File"),
+    "text/x-json": ("JSON", "JSON File"),
+    "application/json": ("JSON", "JSON File"),
+    # KML File Types
+    "kml": ("KML", "KML File"),
+    "kmz": ("KML", "KMZ File"),
+    "application/vnd.google-earth.kml+xml": ("KML", "KML File"),
+    "application/vnd.google-earth.kmz": ("KML", "KMZ File"),
+    # MS Access File Types
+    "mdb": ("ACCESS", "MS Access Database"),
+    "access": ("ACCESS", "MS Access Database"),
+    "application/mdb": ("ACCESS", "MS Access Database"),
+    "application/msaccess": ("ACCESS", "MS Access Database"),
+    "application/x-msaccess": ("ACCESS", "MS Access Database"),
+    "application/vnd.msaccess": ("ACCESS", "MS Access Database"),
+    "application/vnd.ms-access": ("ACCESS", "MS Access Database"),
+    # MS Excel File Types
+    "xl": ("EXCEL", "MS Excel File"),
+    "xla": ("EXCEL", "MS Excel File"),
+    "xlb": ("EXCEL", "MS Excel File"),
+    "xlc": ("EXCEL", "MS Excel File"),
+    "xld": ("EXCEL", "MS Excel File"),
+    "xls": ("EXCEL", "MS Excel File"),
+    "xlsx": ("EXCEL", "MS Excel File"),
+    "xlsm": ("EXCEL", "MS Excel File"),
+    "excel": ("EXCEL", "MS Excel File"),
+    "openXML": ("EXCEL", "MS Excel File"),
+    "application/excel": ("EXCEL", "MS Excel File"),
+    "application/x-excel": ("EXCEL", "MS Excel File"),
+    "application/x-msexcel": ("EXCEL", "MS Excel File"),
+    "application/vnd.ms-excel": ("EXCEL", "MS Excel File"),
+    "application/vnd.ms-excel.sheet.macroEnabled.12": ("EXCEL", "MS Excel File"),
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": (
+        "EXCEL",
+        "MS Excel File",
+    ),
+    # MS PowerPoint File Types
+    "ppt": ("POWERPOINT", "MS PowerPoint File"),
+    "pps": ("POWERPOINT", "MS PowerPoint File"),
+    "pptx": ("POWERPOINT", "MS PowerPoint File"),
+    "ppsx": ("POWERPOINT", "MS PowerPoint File"),
+    "pptm": ("POWERPOINT", "MS PowerPoint File"),
+    "ppsm": ("POWERPOINT", "MS PowerPoint File"),
+    "sldx": ("POWERPOINT", "MS PowerPoint File"),
+    "sldm": ("POWERPOINT", "MS PowerPoint File"),
+    "application/powerpoint": ("POWERPOINT", "MS PowerPoint File"),
+    "application/mspowerpoint": ("POWERPOINT", "MS PowerPoint File"),
+    "application/x-mspowerpoint": ("POWERPOINT", "MS PowerPoint File"),
+    "application/vnd.ms-powerpoint": ("POWERPOINT", "MS PowerPoint File"),
+    "application/vnd.ms-powerpoint.presentation.macroEnabled.12": (
+        "POWERPOINT",
+        "MS PowerPoint File",
+    ),
+    "application/vnd.ms-powerpoint.slideshow.macroEnabled.12": (
+        "POWERPOINT",
+        "MS PowerPoint File",
+    ),
+    "application/vnd.ms-powerpoint.slide.macroEnabled.12": (
+        "POWERPOINT",
+        "MS PowerPoint File",
+    ),
+    "application/vnd.openxmlformats-officedocument.presentationml.slide": (
+        "POWERPOINT",
+        "MS PowerPoint File",
+    ),
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation": (
+        "POWERPOINT",
+        "MS PowerPoint File",
+    ),
+    "application/vnd.openxmlformats-officedocument.presentationml.slideshow": (
+        "POWERPOINT",
+        "MS PowerPoint File",
+    ),
+    # MS Word File Types
+    "doc": ("DOC", "MS Word File"),
+    "docx": ("DOC", "MS Word File"),
+    "docm": ("DOC", "MS Word File"),
+    "word": ("DOC", "MS Word File"),
+    "application/msword": ("DOC", "MS Word File"),
+    "application/vnd.ms-word.document.macroEnabled.12": ("DOC", "MS Word File"),
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": (
+        "DOC",
+        "MS Word File",
+    ),
+    # Network Common Data Form (NetCDF) File Types
+    "nc": ("CDF", "NetCDF File"),
+    "cdf": ("CDF", "NetCDF File"),
+    "netcdf": ("CDF", "NetCDF File"),
+    "application/x-netcdf": ("NETCDF", "NetCDF File"),
+    # PDF File Types
+    "pdf": ("PDF", "PDF File"),
+    "application/pdf": ("PDF", "PDF File"),
+    # PERL File Types
+    "pl": ("PERL", "Perl Script File"),
+    "pm": ("PERL", "Perl Module File"),
+    "perl": ("PERL", "Perl Script File"),
+    "text/x-perl": ("PERL", "Perl Script File"),
+    # QGIS File Types
+    "qgis": ("QGIS", "QGIS File"),
+    "application/x-qgis": ("QGIS", "QGIS File"),
+    # RAR File Types
+    "rar": ("RAR", "RAR Compressed File"),
+    "application/rar": ("RAR", "RAR Compressed File"),
+    "application/vnd.rar": ("RAR", "RAR Compressed File"),
+    "application/x-rar-compressed": ("RAR", "RAR Compressed File"),
+    # Resource Description Framework (RDF) File Types
+    "rdf": ("RDF", "RDF File"),
+    "application/rdf+xml": ("RDF", "RDF File"),
+    # Rich Text Format (RTF) File Types
+    "rt": ("RICH TEXT", "Rich Text File"),
+    "rtf": ("RICH TEXT", "Rich Text File"),
+    "rtx": ("RICH TEXT", "Rich Text File"),
+    "text/richtext": ("RICH TEXT", "Rich Text File"),
+    "text/vnd.rn-realtext": ("RICH TEXT", "Rich Text File"),
+    "application/rtf": ("RICH TEXT", "Rich Text File"),
+    "application/x-rtf": ("RICH TEXT", "Rich Text File"),
+    # SID File Types - Primary association: Commodore64 (C64)?
+    "sid": ("SID", "SID File"),
+    "mrsid": ("SID", "SID File"),
+    "audio/psid": ("SID", "SID File"),
+    "audio/x-psid": ("SID", "SID File"),
+    "audio/sidtune": ("SID", "MID File"),
+    "audio/x-sidtune": ("SID", "SID File"),
+    "audio/prs.sid": ("SID", "SID File"),
+    # Tab Separated Values (TSV) File Types
+    "tsv": ("TSV", "Tab Separated Values File"),
+    "text/tab-separated-values": ("TSV", "Tab Separated Values File"),
+    # Tape Archive (TAR) File Types
+    "tar": ("TAR", "TAR Compressed File"),
+    "application/x-tar": ("TAR", "TAR Compressed File"),
+    # Text File Types
+    "txt": ("TEXT", "Text File"),
+    "text/plain": ("TEXT", "Text File"),
+    # Extensible Markup Language (XML) File Types
+    "xml": ("XML", "XML File"),
+    "text/xml": ("XML", "XML File"),
+    "application/xml": ("XML", "XML File"),
+    # XYZ File Format File Types
+    "xyz": ("XYZ", "XYZ File"),
+    "chemical/x-xyz": ("XYZ", "XYZ File"),
+    # ZIP File Types
+    "zip": ("ZIP", "Zip File"),
+    "application/zip": ("ZIP", "Zip File"),
+    "multipart/x-zip": ("ZIP", "Zip File"),
+    "application/x-compressed": ("ZIP", "Zip File"),
+    "application/x-zip-compressed": ("ZIP", "Zip File"),
+    None: (None, None),
+}
+
+URL_RESOURCE_MAPPING = {
+    # OGC
+    "wms": (
+        "service=wms",
+        "geoserver/wms",
+        "mapserver/wmsserver",
+        "com.esri.wms.Esrimap",
+        "service/wms",
+    ),
+    "wfs": (
+        "service=wfs",
+        "geoserver/wfs",
+        "mapserver/wfsserver",
+        "com.esri.wfs.Esrimap",
+    ),
+    "wcs": (
+        "service=wcs",
+        "geoserver/wcs",
+        "imageserver/wcsserver",
+        "mapserver/wcsserver",
+    ),
+    "sos": ("service=sos",),
+    "csw": ("service=csw",),
+    # ESRI
+    "kml": ("mapserver/generatekml",),
+    "arcims": ("com.esri.esrimap.esrimap",),
+    "arcgis_rest": ("arcgis/rest/services",),
+}
+
+
+def add_landing_page_as_distribution(dcatus_doc: dict) -> dict:
+    """
+    add the landing page as a distribution if it's not already there
+    """
+    add_lp = True
+
+    for dist in dcatus_doc["distribution"]:
+        if dist["accessURL"] == dcatus_doc["landingPage"]:
+            add_lp = False
+    if add_lp:
+        dcatus_doc["distribution"].append(
+            {"accessURL": dcatus_doc["landingPage"], "mediaType": "text/html"}
+        )
+
+    return dcatus_doc
+
+
+def determine_mimetype(url: str) -> Union[str, None]:
+    """
+    attempts to determine mimetype based on input url
+    """
+    mtype = mimetypes.guess_type(url)
+    if mtype[0]:
+        return mtype[0]
+
+    for mimetype, url_parts in URL_RESOURCE_MAPPING.items():
+        for url_part in url_parts:
+            if url_part in url:
+                return mimetype
+
+
+def prepare_distributions(dcatus_doc: dict) -> list[dict]:
+    """
+    adds the landing page as a distribution if it's not already and
+    tries to calculate mimetype and human legible format
+    """
+
+    if "distribution" not in dcatus_doc or dcatus_doc["distribution"] is None:
+        return dcatus_doc
+
+    if "landingPage" in dcatus_doc:
+        dcatus_doc = add_landing_page_as_distribution(dcatus_doc)
+
+    for dist in dcatus_doc["distribution"]:
+        # don't guess if it's already there and not a placeholder value
+        if "mediaType" in dist and dist["mediaType"] != "placeholder/value":
+            continue
+
+        url_key = next(
+            (key for key in ["downloadURL", "accessURL"] if key in dist), None
+        )
+
+        # stopiteration shouldn't happen because a resource needs either a download or access url
+        # and at this point the record will be valid but just in case...
+        if not url_key:
+            continue
+
+        mtype = determine_mimetype(dist[url_key])
+
+        dist["mediaType"] = mtype
+        dist["format"] = RESOURCE_MAPPING.get(mtype)[0]
+
+    return dcatus_doc
 
 
 def prepare_transform_msg(transform_data):

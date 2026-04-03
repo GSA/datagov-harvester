@@ -49,6 +49,7 @@ from harvester.utils.general_utils import (
     make_record_mapping,
     munge_title_to_name,
     open_json,
+    prepare_distributions,
     prepare_transform_msg,
     send_email_to_recipients,
     sort_dataset,
@@ -789,6 +790,7 @@ class Record:
                 self.add_parent()
                 self.replace_identifier()
                 self.fill_placeholders()
+                self.fix_distributions()
                 self._save_transformed_data()
             self.validate()
             self.sync()
@@ -945,6 +947,12 @@ class Record:
         ):
             self.transformed_data["describedByType"] = "application/octet-steam"
 
+    def fix_distributions(self):
+        """
+        determines mimetype of distributions and fixes url protocol
+        """
+        self.transformed_data = prepare_distributions(self.transformed_data)
+
         # If distribution items have a downloadURL or accessURL,
         # check if it just needs an "https://" at the beginning
         # to be valid
@@ -961,7 +969,7 @@ class Record:
             _guess_better_url_in_item(dist_item, "downloadURL")
             _guess_better_url_in_item(dist_item, "accessURL")
             if not self.is_valid_describedByType(dist_item.get("describedByType", "")):
-                dist_item["describedByType"] = "application/octet-steam"
+                dist_item["describedByType"] = "application/octet-stream"
 
     def _save_transformed_data(self) -> None:
         if self.transformed_data is None or self.id is None:
