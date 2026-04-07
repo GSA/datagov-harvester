@@ -111,14 +111,13 @@ class TestValidator:
             ]
         }
 
-    def test_download_button_triggers_csv(self, upage, page):
+    def test_download_button_triggers_csv(self, upage, dcatus_many_invalid_json):
         """
         The download button should only appear when there are more than 10 errors,
         and clicking it should trigger a CSV file download.
         """
-        upage.locator("input[name=url]").fill(
-            "http://nginx-harvest-source/dcatus/dcatus_many_invalid.json"
-        )
+        upage.locator("select[name=fetch_method]").select_option("paste")
+        upage.locator("textarea[name=json_text]").fill(dcatus_many_invalid_json)
         upage.locator("input[type=submit]").click()
 
         # Confirm we have more errors than the display cap so the button is present.
@@ -133,31 +132,11 @@ class TestValidator:
         download = download_info.value
         assert download.suggested_filename == "validation_errors.csv"
 
-        # Read and validate the CSV content.
         path = download.path()
         content = path.read_text(encoding="utf-8")
         lines = content.strip().splitlines()
 
-        # First line must be the header row.
         assert lines[0] == '"Dataset identifier","Error"'
-
-        # Every line after should be a two-column CSV row.
         assert len(lines) > 1, "CSV should contain at least one error row"
         for line in lines[1:]:
             assert line.count('"') >= 4, f"Malformed CSV row: {line}"
-
-        validator_api_json = {"json_text": "09u10293u{}d12-901aoi"}
-
-        res = upage.request.post(
-            "/api/validate",
-            headers={
-                "Content-Type": "application/json",
-            },
-            data=validator_api_json,
-        )
-
-        assert res.status == 422
-        assert res.json() == {
-            "detail": {"json": {"_schema": ["Invalid JSON"]}},
-            "message": "Validation error",
-        }

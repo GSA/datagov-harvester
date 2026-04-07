@@ -12,14 +12,14 @@
         <label for="{{ form.schema.id }}" class="form-control-label">
             {{ form.schema.label }}
         </label>
-        {{ form.schema(class="form-control") }}
+        {{ form.schema(class="form-select") }}
     </div>
 
     <div class="form-group">
         <label for="{{ form.fetch_method.id }}" class="form-control-label">
             {{ form.fetch_method.label }}
         </label>
-        {{ form.fetch_method(class="form-control", id="fetch_method") }}
+        {{ form.fetch_method(class="form-select", id="fetch_method") }}
     </div>
 
     <div id="url_field" class="form-group">
@@ -67,8 +67,8 @@
             <p>No validation errors found</p>
         {% else %}
         {% if total > 10 %}
-        <p><strong>Showing First 10</strong></p>
-        <button class="btn btn-outline-secondary btn-sm" id="btn-download"
+        <p><strong>Showing First 10 of {{ total }}</strong></p>
+        <button class="btn btn-success" id="btn-download"
             title="Download all {{ total }} error(s) as CSV"
             aria-label="Download all errors as CSV">
             <i class="fa fa-download me-1" aria-hidden="true"></i>
