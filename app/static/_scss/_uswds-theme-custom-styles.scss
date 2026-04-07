@@ -104,6 +104,11 @@ a:hover {
   text-decoration: underline !important;
 }
 
+div.form-group.form-submit-group {
+  margin-top: 1rem;
+  margin-bottom: 1rem;
+}
+
 @media (min-width: 1400px) {
   .container,
   .container-xxl {

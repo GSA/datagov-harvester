@@ -111,9 +111,42 @@ class TestValidator:
             ]
         }
 
-    def test_api_validate_by_invalid_json(self, upage, validator_api_json):
+    def test_download_button_triggers_csv(self, upage, page):
+        """
+        The download button should only appear when there are more than 10 errors,
+        and clicking it should trigger a CSV file download.
+        """
+        upage.locator("input[name=url]").fill(
+            "http://nginx-harvest-source/dcatus/dcatus_many_invalid.json"
+        )
+        upage.locator("input[type=submit]").click()
 
-        validator_api_json["json_text"] = "09u10293u{}d12-901aoi"
+        # Confirm we have more errors than the display cap so the button is present.
+        error_blocks = upage.locator(".error-block")
+        expect(error_blocks).to_have_count(10)  # only first 10 are rendered
+        expect(upage.locator("#btn-download")).to_be_visible()
+
+        # Download triggered by the button click.
+        with upage.expect_download() as download_info:
+            upage.locator("#btn-download").click()
+
+        download = download_info.value
+        assert download.suggested_filename == "validation_errors.csv"
+
+        # Read and validate the CSV content.
+        path = download.path()
+        content = path.read_text(encoding="utf-8")
+        lines = content.strip().splitlines()
+
+        # First line must be the header row.
+        assert lines[0] == '"Dataset identifier","Error"'
+
+        # Every line after should be a two-column CSV row.
+        assert len(lines) > 1, "CSV should contain at least one error row"
+        for line in lines[1:]:
+            assert line.count('"') >= 4, f"Malformed CSV row: {line}"
+
+        validator_api_json = {"json_text": "09u10293u{}d12-901aoi"}
 
         res = upage.request.post(
             "/api/validate",
@@ -123,7 +156,6 @@ class TestValidator:
             data=validator_api_json,
         )
 
-        # ruff: noqa: E501
         assert res.status == 422
         assert res.json() == {
             "detail": {"json": {"_schema": ["Invalid JSON"]}},
