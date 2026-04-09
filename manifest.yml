@@ -8,7 +8,7 @@ applications:
     services:
       - ((app_name))-db
       - ((app_name))-secrets
-      - ((app_name))-opensearch
+      - datagov-catalog-opensearch
       - ((app_name))-smtp
       - logstack-space-drain
     instances: ((admin_instances))
