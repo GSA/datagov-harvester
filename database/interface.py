@@ -8,6 +8,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import NoResultFound
 from sqlalchemy.orm import aliased
 
+from harvester.opensearch import OpenSearchInterface
 from harvester.utils.general_utils import query_filter_builder
 
 from .models import (
@@ -673,9 +674,23 @@ class HarvesterDBInterface:
             return None
         return self.db.query(Dataset).filter_by(slug=slug).first()
 
-    def update_dataset_slug(self, dataset_id: str, new_slug: str) -> Dataset | None:
+    def update_dataset_slug(
+        self, dataset_id: str, new_slug: str
+    ) -> (
+        tuple[Dataset, bool, None] | tuple[Dataset, bool, str] | tuple[None, bool, str]
+    ):
         """
         Update the slug of a dataset by its ID.
+
+        Returns a `(dataset, os_synced, error)` 3-tuple so callers have full
+        visibility into what happened at each layer:
+
+        `(dataset, True,  None)`  — DB committed and OpenSearch reindexed.
+        `(dataset, False, str)`   — DB committed; OpenSearch error in `error`.
+        `(None,    False, str)`   — DB commit failed; error message in `error`.
+
+        The two operations are kept in separate try/except blocks so that an
+        OpenSearch failure never rolls back an already-committed slug change.
         """
         if not dataset_id or not new_slug:
             raise ValueError("dataset_id and new_slug are required")
@@ -683,15 +698,34 @@ class HarvesterDBInterface:
         try:
             dataset = self.db.get(Dataset, dataset_id)
             if dataset is None:
-                return None
+                return None, False, f"Dataset '{dataset_id}' not found."
             dataset.slug = new_slug
             self.db.commit()
             self.db.refresh(dataset)
-            return dataset
         except Exception as e:
             logger.error("Error updating dataset slug for '%s': %s", dataset_id, e)
             self.db.rollback()
-            return None
+            return None, False, str(e)
+
+        try:
+            client = OpenSearchInterface.from_environment()
+            succeeded, failed, errors = client.index_datasets([dataset])
+            if failed or errors:
+                error_msg = f"OpenSearch reindex reported {failed} failure(s): {errors}"
+                logger.error(
+                    "OpenSearch reindex reported failures for dataset '%s': %s",
+                    dataset_id,
+                    errors,
+                )
+                return dataset, False, error_msg
+        except Exception as e:
+            logger.exception(
+                "Exception occurred while reindexing dataset '%s' in OpenSearch",
+                dataset_id,
+            )
+            return dataset, False, str(e)
+
+        return dataset, True, None
 
     @count
     @paginate

@@ -41,7 +41,7 @@ export HARVEST_SMTP_PASSWORD=$(vcap_get_service smtp .credentials.smtp_password)
 export HARVEST_SMTP_SENDER=harvester@$(vcap_get_service smtp .credentials.domain_arn | grep -o "ses-[[:alnum:]]\+.appmail.cloud.gov")
 export HARVEST_SMTP_RECIPIENT=datagovhelp@gsa.gov
 
-# OpenSearch host and credentials
+# Opensearch host and credentials
 export OPENSEARCH_HOST=$(vcap_get_service opensearch .credentials.host)
 export OPENSEARCH_ACCESS_KEY=$(vcap_get_service opensearch .credentials.access_key)
 export OPENSEARCH_SECRET_KEY=$(vcap_get_service opensearch .credentials.secret_key)
