@@ -56,7 +56,7 @@ if [ -z ${proxy_url+x} ]; then
   echo "Egress proxy is not connected."
 else
   echo "Egress proxy is enabled, excluding internal domains.."
-  export no_proxy=".apps.internal"
+  export no_proxy=".apps.internal,${OPENSEARCH_HOST}"
   export http_proxy=$proxy_url
   export https_proxy=$proxy_url
 fi
