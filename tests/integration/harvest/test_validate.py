@@ -415,5 +415,5 @@ class TestValidateDataset:
         assert valid_iso_2_record.validate()
         assert (
             valid_iso_2_record.transformed_data["distribution"][0]["describedByType"]
-            == "application/octet-steam"
+            == "application/octet-stream"
         )
