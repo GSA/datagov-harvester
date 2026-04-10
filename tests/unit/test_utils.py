@@ -25,12 +25,12 @@ from harvester.utils.general_utils import (
     munge_spatial,
     munge_title_to_name,
     parse_args,
+    prepare_distributions,
     prepare_transform_msg,
     process_job_complete_percentage,
     query_filter_builder,
     translate_spatial,
     translate_spatial_to_geojson,
-    traverse_waf,
     validate_geojson,
 )
 
@@ -482,6 +482,64 @@ class TestGeneralUtils:
 
         with pytest.raises(requests.exceptions.ConnectionError) as e:
             download_file("http://example.com/test.xml", ".xml")
+
+    def test_prepare_distributions(self):
+        simplified_dcatus_doc = {
+            "distribution": [
+                {
+                    "@type": "dcat:Distribution",
+                    "downloadURL": "https://data.wa.gov/api/views/f6w7-q2d2/rows.csv?accessType=DOWNLOAD",
+                },
+                {
+                    "@type": "dcat:Distribution",
+                    "describedBy": "https://data.wa.gov/api/views/f6w7-q2d2/columns.json",
+                    "describedByType": "application/json",
+                    "downloadURL": "https://data.wa.gov/api/views/f6w7-q2d2/rows.json?accessType=DOWNLOAD",
+                },
+                {
+                    "@type": "dcat:Distribution",
+                    "description": "The TIGER/Line Shapefiles are the fully supported, core geographic product from the U.S. Census Bureau. They are extracts of selected geographic and cartographic information from the U.S. Census Bureau's Master Address File/Topologically Integrated Geographic Encoding and Referencing (MAF/TIGER) System.",
+                    "downloadURL": "https://www2.census.gov/geo/tiger/TIGER2025/PLACE/tl_2025_42_place.zip",
+                    "mediaType": "placeholder/value",
+                    "title": "tl_2025_42_place.zip",
+                },
+                {
+                    "@type": "dcat:Distribution",
+                    "describedBy": "https://data.wa.gov/api/views/f6w7-q2d2/columns.rdf",
+                    "describedByType": "application/rdf+xml",
+                    "downloadURL": "https://data.wa.gov/api/views/f6w7-q2d2/rows.rdf?accessType=DOWNLOAD",
+                    "mediaType": "placeholder/value",
+                },
+                {
+                    "@type": "dcat:Distribution",
+                    "description": "Entity and attribute file",
+                    "downloadURL": "https://meta.geo.census.gov/data/existing/decennial/GEO/GPMB/TIGERline/Current_19110/tl_2025_place.shp.ea.iso.xml",
+                    "mediaType": "placeholder/value",
+                    "title": "tl_2025_place.shp.ea.iso.xml",
+                },
+                {
+                    "@type": "dcat:Distribution",
+                    "description": "The Open Geospatial Consortium, Inc. (OGC) Web Map Service interface standard (WMS) provides a simple HTTP interface for requesting geo-registered map images from our geospatial database. The response to the request is one or more geo-registered map images that can be displayed in a browser or WMS client application. By gaining access to our data through our WMS, users can produce maps containing TIGERweb layers combined with layers from other servers.",
+                    "accessURL": "https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/tigerWMS_Current/MapServer",
+                    "mediaType": "placeholder/value",
+                    "title": "TIGERweb/tigerWMS_Current (MapServer)",
+                },
+            ]
+        }
+
+        prepared_dcatus_doc = prepare_distributions(simplified_dcatus_doc)
+
+        expected = [
+            "text/csv",
+            "application/json",
+            "application/zip",
+            "application/rdf+xml",
+            "application/xml",
+            "arcgis_rest",
+        ]
+
+        for i in range(len(prepared_dcatus_doc["distribution"])):
+            assert prepared_dcatus_doc["distribution"][i]["mediaType"] == expected[i]
 
 
 class TestRetrySession:

@@ -906,16 +906,16 @@ def iso19115_2_transform() -> dict:
             {
                 "@type": "dcat:Distribution",
                 "description": "Global Change Master Directory (GCMD). 2024. GCMD Keywords, Version 19. Greenbelt, MD: Earth Science Data and Information System, Earth Science Projects Division, Goddard Space Flight Center (GSFC), National Aeronautics and Space Administration (NASA). URL (GCMD Keyword Forum Page): https://forum.earthdata.nasa.gov/app.php/tag/GCMD+Keywords",
-                "downloadURL": "https://forum.earthdata.nasa.gov/app.php/tag/GCMD%2BKeywords",
+                "accessURL": "https://forum.earthdata.nasa.gov/app.php/tag/GCMD%2BKeywords",
+                "mediaType": "text/html",
                 "title": "GCMD Keyword Forum Page",
-                "mediaType": "placeholder/value",
             },
             {
                 "@type": "dcat:Distribution",
                 "description": "View the complete metadata record on InPort for more information about this dataset.",
-                "downloadURL": "https://www.fisheries.noaa.gov/inport/item/47598",
+                "accessURL": "https://www.fisheries.noaa.gov/inport/item/47598",
+                "mediaType": "text/html",
                 "title": "Full Metadata Record",
-                "mediaType": "placeholder/value",
             },
         ],
         "license": "https://creativecommons.org/publicdomain/zero/1.0/",
@@ -1007,7 +1007,15 @@ def iso19115_1_transform() -> dict:
         },
         "identifier": "{4c6928d8-6ac2-4909-8b3d-a29e2805ce2d}",
         "accessLevel": "non-public",
-        "distribution": [],
+        "distribution": [
+            {
+                "@type": "dcat:Distribution",
+                "description": "The endpoint of a web service to access the dataset (REST endpoint, WMS GetCapabilities URL, or a SOAP WSDL endpoint).",
+                "accessURL": "https://enviroatlas.epa.gov/arcgis/rest/services/Other/ACS_Demographics_by_Tract_2008_2012_EA/MapServer",
+                "mediaType": "text/html",
+                "title": "API",
+            }
+        ],
         "license": "https://creativecommons.org/publicdomain/zero/1.0/",
         "rights": "otherRestrictions, PUBLIC",
         "spatial": "-12.68151645,6.65223303,-138.21454852,61.7110157",
@@ -1289,3 +1297,54 @@ def validator_api_json(dcatus_bad_license_uri_json):
         "fetch_method": "paste",
         "json_text": dcatus_bad_license_uri_json,
     }
+
+
+@pytest.fixture()
+def mock_opensearch():
+    """
+    Fixture for opensearch related tests.
+    """
+    mock_client = MagicMock()
+    mock_client.index_datasets.return_value = (1, 0, [])
+    with patch(
+        "database.interface.OpenSearchInterface.from_environment",
+        return_value=mock_client,
+    ):
+        yield mock_client
+
+
+@pytest.fixture()
+def slug_protection_dataset(
+    interface,
+    organization_data,
+    source_data_dcatus,
+    job_data_dcatus,
+):
+    """
+    Complete dataset with existing slug.
+    """
+    interface.add_organization(organization_data)
+    interface.add_harvest_source(source_data_dcatus)
+    job_data_dcatus["harvest_source_id"] = source_data_dcatus["id"]
+    interface.add_harvest_job(job_data_dcatus)
+    record = interface.add_harvest_record(
+        {
+            "identifier": "slug-protection-reindex",
+            "harvest_job_id": job_data_dcatus["id"],
+            "harvest_source_id": source_data_dcatus["id"],
+            "status": "success",
+            "action": "create",
+            "source_raw": "{}",
+        }
+    )
+    dataset = interface.insert_dataset(
+        {
+            "slug": "original-slug",
+            "dcat": {"title": "original-slug"},
+            "organization_id": organization_data["id"],
+            "harvest_source_id": source_data_dcatus["id"],
+            "harvest_record_id": record.id,
+            "last_harvested_date": datetime.now(timezone.utc),
+        }
+    )
+    return dataset

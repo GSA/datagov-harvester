@@ -778,12 +778,28 @@ def view_dataset(dataset_slug: str):
             return redirect(url_for("main.harvest_source_list"))
 
         if form.validate():
-            updated = db.update_dataset_slug(dataset.id, form.slug.data)
+            updated, os_synced, os_error = db.update_dataset_slug(
+                dataset.id, form.slug.data
+            )
             if updated:
-                flash(f"Slug updated successfully to '{updated.slug}'.")
+                if os_synced:
+                    flash(
+                        f"Slug updated successfully to '{updated.slug}'.",
+                        "success",
+                    )
+                else:
+                    flash(
+                        f"Slug updated to '{updated.slug}' in the database, "
+                        "but the search index could not be updated. "
+                        f"Error: {os_error}",
+                        "warning",
+                    )
                 return redirect(url_for("main.view_dataset", dataset_slug=updated.slug))
             else:
-                flash("Failed to update slug. Please try again.")
+                flash(
+                    f"Failed to update slug. Error: {os_error}",
+                    "danger",
+                )
                 return redirect(url_for("main.view_dataset", dataset_slug=dataset_slug))
         else:
             # Re-render the page with the form errors shown inline.
