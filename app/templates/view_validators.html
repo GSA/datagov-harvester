@@ -66,15 +66,14 @@
         {% if not data.record_errors %}
             <p>No validation errors found</p>
         {% else %}
-        {% if total > 10 %}
-        <p><strong>Showing First 10 of {{ total }}</strong></p>
-        <button class="btn btn-success" id="btn-download"
-            title="Download all {{ total }} error(s) as CSV"
+        <button class="btn btn-success" id="btn-download" title="Download all {{ total }} error(s) as CSV"
             aria-label="Download all errors as CSV">
             <i class="fa fa-download me-1" aria-hidden="true"></i>
             Download all errors (.csv)
         </button>
         <script id="all-errors-data" type="application/json">{{ data.record_errors | tojson }}</script>
+        {% if total > 10 %}
+        <p><strong>Showing First 10 of {{ total }}</strong></p>
         {% endif %}
         <div class="error-list">
             {% for record_error in data.record_errors[:10] %}
