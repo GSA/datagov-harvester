@@ -12,14 +12,14 @@
         <label for="{{ form.schema.id }}" class="form-control-label">
             {{ form.schema.label }}
         </label>
-        {{ form.schema(class="form-control") }}
+        {{ form.schema(class="form-select") }}
     </div>
 
     <div class="form-group">
         <label for="{{ form.fetch_method.id }}" class="form-control-label">
             {{ form.fetch_method.label }}
         </label>
-        {{ form.fetch_method(class="form-control", id="fetch_method") }}
+        {{ form.fetch_method(class="form-select", id="fetch_method") }}
     </div>
 
     <div id="url_field" class="form-group">
@@ -54,7 +54,7 @@
         {% endfor %}
     </div>
 
-    <div class="form-group">
+    <div class="form-group form-submit-group">
         {{ form.submit(class="btn btn-primary") }}
     </div>
 </form>
@@ -62,11 +62,21 @@
 <div class="section">
     {% if submitted %}
         <h2>Validation Results</h2>
+        {% set total = data.record_errors | length %}
         {% if not data.record_errors %}
             <p>No validation errors found</p>
         {% else %}
+        <button class="btn btn-success" id="btn-download" title="Download all {{ total }} error(s) as CSV"
+            aria-label="Download all errors as CSV">
+            <i class="fa fa-download me-1" aria-hidden="true"></i>
+            Download all errors (.csv)
+        </button>
+        <script nonce="{{ csp_nonce() }}" id="all-errors-data" type="application/json">{{ data.record_errors | tojson }}</script>
+        {% if total > 10 %}
+        <p><strong>Showing First 10 of {{ total }}</strong></p>
+        {% endif %}
         <div class="error-list">
-            {% for record_error in data.record_errors %}
+            {% for record_error in data.record_errors[:10] %}
             <div class="error-block">
                 <p style="word-break: break-all"><strong>Identifier:</strong> {{ record_error[0] ~ " (dataset position)" if record_error[0] is number else record_error[0] }}</p>
                 <p>
@@ -122,6 +132,49 @@ document.getElementById("fetch_method").addEventListener("change", toggleInputFi
 for ( const input_name of [ "fetch_method", "url", "schema", "json_text"]) {
     document.getElementById(input_name).addEventListener("change", clearErrors);
 };
+
+/* ── CSV download of all errors ── */
+function downloadValidationErrors() {
+    const raw = document.getElementById("all-errors-data");
+    if (!raw) return;
+
+    let errors;
+    try {
+        errors = JSON.parse(raw.textContent);
+    } catch (e) {
+        alert("Could not read error data.");
+        return;
+    }
+
+    const rows = [["Dataset identifier", "Error"]].concat(errors);
+    const csv = rows
+        .map(function (row) {
+            return row
+                .map(function (cell) {
+                    // Escape double-quotes and wrap every cell
+                    return '"' + String(cell).replace(/"/g, '""') + '"';
+                })
+                .join(",");
+        })
+        .join("\r\n");
+
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "validation_errors.csv";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+
+document.addEventListener("DOMContentLoaded", function () {
+    const btnDownload = document.getElementById("btn-download");
+    if (btnDownload) {
+        btnDownload.addEventListener("click", downloadValidationErrors);
+    }
+});
 </script>
 
 {% endblock %}
