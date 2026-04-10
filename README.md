@@ -128,6 +128,8 @@ Any created service needs to be bound to an app with `cf bind-service <app> <ser
 
 Alternately, you can just push the app up and it will bind with the services so long as they are named following the expected pattern in `manifest.yml`.
 
+The harvester also expects an OpenSearch service named `datagov-catalog-opensearch`. The provisioning script creates it with Cloud.gov's `aws-elasticsearch` broker and requests `OpenSearch_2.11`, using `es-medium` in development and `es-medium-ha` in staging and `es-large` in production.
+
 #### User provided
 
 A user provided service by the name of `datagov-harvest-secrets` is also expected to be in place and populated with the following secrets:
