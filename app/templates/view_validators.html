@@ -71,7 +71,7 @@
             <i class="fa fa-download me-1" aria-hidden="true"></i>
             Download all errors (.csv)
         </button>
-        <script id="all-errors-data" type="application/json">{{ data.record_errors | tojson }}</script>
+        <script nonce="{{ csp_nonce() }}" id="all-errors-data" type="application/json">{{ data.record_errors | tojson }}</script>
         {% if total > 10 %}
         <p><strong>Showing First 10 of {{ total }}</strong></p>
         {% endif %}
