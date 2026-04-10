@@ -1,3 +1,4 @@
+import pytest
 from bs4 import BeautifulSoup
 
 
@@ -166,6 +167,7 @@ class TestForms:
         assert "['testorg']" not in edit_response.text
 
 
+@pytest.mark.usefixtures("mock_opensearch")
 class TestDatasetSlugForm:
     """
     Tests for DatasetSlugForm validation and the dataset slug-edit route.
