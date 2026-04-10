@@ -41,7 +41,7 @@ export HARVEST_SMTP_PASSWORD=$(vcap_get_service smtp .credentials.smtp_password)
 export HARVEST_SMTP_SENDER=harvester@$(vcap_get_service smtp .credentials.domain_arn | grep -o "ses-[[:alnum:]]\+.appmail.cloud.gov")
 export HARVEST_SMTP_RECIPIENT=datagovhelp@gsa.gov
 
-# Opensearch host and credentials
+# OpenSearch host and credentials
 export OPENSEARCH_HOST=$(vcap_get_service opensearch .credentials.host)
 export OPENSEARCH_ACCESS_KEY=$(vcap_get_service opensearch .credentials.access_key)
 export OPENSEARCH_SECRET_KEY=$(vcap_get_service opensearch .credentials.secret_key)
@@ -56,7 +56,7 @@ if [ -z ${proxy_url+x} ]; then
   echo "Egress proxy is not connected."
 else
   echo "Egress proxy is enabled, excluding internal domains.."
-  export no_proxy=".apps.internal"
+  export no_proxy=".apps.internal,${OPENSEARCH_HOST}"
   export http_proxy=$proxy_url
   export https_proxy=$proxy_url
 fi
