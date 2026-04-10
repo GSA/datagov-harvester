@@ -1297,3 +1297,54 @@ def validator_api_json(dcatus_bad_license_uri_json):
         "fetch_method": "paste",
         "json_text": dcatus_bad_license_uri_json,
     }
+
+
+@pytest.fixture()
+def mock_opensearch():
+    """
+    Fixture for opensearch related tests.
+    """
+    mock_client = MagicMock()
+    mock_client.index_datasets.return_value = (1, 0, [])
+    with patch(
+        "database.interface.OpenSearchInterface.from_environment",
+        return_value=mock_client,
+    ):
+        yield mock_client
+
+
+@pytest.fixture()
+def slug_protection_dataset(
+    interface,
+    organization_data,
+    source_data_dcatus,
+    job_data_dcatus,
+):
+    """
+    Complete dataset with existing slug.
+    """
+    interface.add_organization(organization_data)
+    interface.add_harvest_source(source_data_dcatus)
+    job_data_dcatus["harvest_source_id"] = source_data_dcatus["id"]
+    interface.add_harvest_job(job_data_dcatus)
+    record = interface.add_harvest_record(
+        {
+            "identifier": "slug-protection-reindex",
+            "harvest_job_id": job_data_dcatus["id"],
+            "harvest_source_id": source_data_dcatus["id"],
+            "status": "success",
+            "action": "create",
+            "source_raw": "{}",
+        }
+    )
+    dataset = interface.insert_dataset(
+        {
+            "slug": "original-slug",
+            "dcat": {"title": "original-slug"},
+            "organization_id": organization_data["id"],
+            "harvest_source_id": source_data_dcatus["id"],
+            "harvest_record_id": record.id,
+            "last_harvested_date": datetime.now(timezone.utc),
+        }
+    )
+    return dataset

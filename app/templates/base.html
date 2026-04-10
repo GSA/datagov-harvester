@@ -63,8 +63,14 @@
   {% include 'glossary.html' %}
 
   <div class="container my-3">
-    {% for message in get_flashed_messages() %}
-    <div class="alert alert-warning alert-dismissible fade show">
+    {% set _category_map = {
+      'success': 'alert-success',
+      'warning': 'alert-warning',
+      'danger':  'alert-danger',
+      'error':   'alert-danger'
+    } %}
+    {% for category, message in get_flashed_messages(with_categories=true) %}
+    <div class="alert {{ _category_map.get(category, 'alert-warning') }} alert-dismissible fade show">
       <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
       {{ message }}
     </div>

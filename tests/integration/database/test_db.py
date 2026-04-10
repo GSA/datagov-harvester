@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from unittest.mock import MagicMock, patch
 
 from freezegun import freeze_time
 from sqlalchemy import text
@@ -1101,7 +1102,13 @@ class TestDatasetSlugProtection:
 
         # Simulate user editing the slug via the dataset detail form.
         user_slug = "slug-protection-custom-user"
-        interface.update_dataset_slug(dataset.id, user_slug)
+        mock_client = MagicMock()
+        mock_client.index_datasets.return_value = (1, 0, [])
+        with patch(
+            "database.interface.OpenSearchInterface.from_environment",
+            return_value=mock_client,
+        ):
+            interface.update_dataset_slug(dataset.id, user_slug)
 
         # On the next harvest run the harvester queries the DB for the
         # current slug
@@ -1117,3 +1124,75 @@ class TestDatasetSlugProtection:
 
         assert result.slug == user_slug
         assert result.dcat == {"title": "Re-harvested Title"}
+
+    def test_update_dataset_slug_passes_updated_slug_to_opensearch(
+        self, interface, slug_protection_dataset
+    ):
+        """
+        Test to confirm that the updated dataset.slug is past to opensearch.
+        """
+        mock_client = MagicMock()
+        mock_client.index_datasets.return_value = (1, 0, [])
+
+        with patch(
+            "database.interface.OpenSearchInterface.from_environment",
+            return_value=mock_client,
+        ):
+            interface.update_dataset_slug(
+                slug_protection_dataset.id, "reindex-slug-check"
+            )
+
+        (indexed_datasets,), _ = mock_client.index_datasets.call_args
+        assert len(indexed_datasets) == 1
+        assert indexed_datasets[0].slug == "reindex-slug-check"
+
+    def test_update_dataset_slug_logs_error_on_opensearch_failure(
+        self, interface, slug_protection_dataset, caplog
+    ):
+        """
+        When OpenSearch reports index failures, update_dataset_slug must:
+        - still return the updated dataset (DB commit succeeded)
+        - return os_synced=False
+        - return an error string describing the failure
+        - log the error at ERROR level
+        """
+        mock_client = MagicMock()
+        mock_client.index_datasets.return_value = (0, 1, [{"error": "boom"}])
+
+        with patch(
+            "database.interface.OpenSearchInterface.from_environment",
+            return_value=mock_client,
+        ):
+            with caplog.at_level("ERROR"):
+                result, os_synced, os_error = interface.update_dataset_slug(
+                    slug_protection_dataset.id, "reindex-error-path"
+                )
+
+        assert result is not None
+        assert result.slug == "reindex-error-path"
+        assert os_synced is False
+        assert os_error is not None
+        assert "boom" in os_error
+        assert any("OpenSearch" in message for message in caplog.messages)
+
+    def test_update_dataset_slug_returns_error_string_on_opensearch_exception(
+        self, interface, slug_protection_dataset, caplog
+    ):
+        """
+        When OpenSearch raises an exception, the error string must contain the
+        exception message so the caller can surface it to the user.
+        """
+        with patch(
+            "database.interface.OpenSearchInterface.from_environment",
+            side_effect=RuntimeError("OPENSEARCH_HOST is not set"),
+        ):
+            with caplog.at_level("ERROR"):
+                result, os_synced, os_error = interface.update_dataset_slug(
+                    slug_protection_dataset.id, "reindex-exception-path"
+                )
+
+        assert result is not None
+        assert result.slug == "reindex-exception-path"
+        assert os_synced is False
+        assert os_error is not None
+        assert "OPENSEARCH_HOST is not set" in os_error
