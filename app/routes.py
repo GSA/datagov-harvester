@@ -995,7 +995,7 @@ def view_harvest_job(job_id=None):
         )
     else:
         job = db.get_harvest_job(job_id)
-        if request.args.get("type") and request.args.get("type") == "json":
+        if request.is_json or request.accept_mimetypes.accept_json:
             return jsonify(db._to_dict(job)) if job else JSON_NOT_FOUND()
         else:
             data = {

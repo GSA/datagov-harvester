@@ -197,3 +197,8 @@ class TestViewHarvestJob:
         assert "Error type" in resp.text
         assert "Number of errors" in resp.text
         assert "testing" in resp.text
+
+    def test_job_accept_json(self, client, job_with_many_errors):
+        resp = client.get(f"/harvest_job/{job_with_many_errors.id}", headers={"Accept": "application/json"})
+        assert resp.is_json
+        assert "id" in resp.json
