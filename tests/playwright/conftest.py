@@ -79,3 +79,24 @@ def authed_page(browser, base_url):
     page.set_default_timeout(2500)
     yield page
     context.close()
+
+
+@pytest.fixture
+def dcatus_many_invalid_json():
+    """
+    A DCAT-US catalog with 15 records all missing 'identifier',
+    producing >10 validation errors so the download button renders.
+    """
+    import json
+
+    datasets = [
+        {
+            "title": f"Dataset {i}",
+            "description": f"Description {i}",
+            "accessLevel": "public",
+            "bureauCode": ["000:00"],
+            "programCode": ["000:000"],
+        }
+        for i in range(15)
+    ]
+    return json.dumps({"dataset": datasets})

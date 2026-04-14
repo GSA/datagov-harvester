@@ -41,6 +41,8 @@ def create_app():
     app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv("DATABASE_URI")
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
     app.config["SECRET_KEY"] = os.getenv("FLASK_APP_SECRET_KEY")
+    app.config["MAX_CONTENT_LENGTH"] = 10 * 1024 * 1024
+
     Bootstrap5(app)
     global htmx
     htmx = HTMX(app)
