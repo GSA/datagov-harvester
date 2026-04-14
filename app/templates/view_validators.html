@@ -107,97 +107,76 @@
 {% block scripts %}
 
 <script nonce="{{ csp_nonce() }}">
-function toggleInputFields() {
-    const method = document.getElementById("fetch_method").value;
+    const FIELD_CONFIG = {
+        url: { show: "url_field", clear: ["json_text", "json_file"] },
+        paste: { show: "json_field", clear: ["url", "json_file"] },
+        upload: { show: "upload_field", clear: ["url", "json_text"] },
+    };
 
-    const urlField = document.getElementById("url_field");
-    const urlInput = document.getElementById("url");
-    const jsonField = document.getElementById("json_field");
-    const jsonTextArea = document.getElementById("json_text");
-    const upLoadField = document.getElementById("upload_field");
-    const jsonFile = document.getElementById("json_file");
+    function toggleInputFields() {
+        const method = document.getElementById("fetch_method").value;
+        const config = FIELD_CONFIG[method];
 
-    if (method === "url") {
-        urlField.style.display = "block";
-        jsonField.style.display = "none";
-        jsonTextArea.value = "";
-        upLoadField.style.display =  "none"
-        jsonFile.value = ""
+        Object.values(FIELD_CONFIG).forEach(({ show }) => {
+            document.getElementById(show).style.display = "none";
+        });
 
-    } else if (method === "paste") {
-        urlField.style.display = "none";
-        urlInput.value = "";
-        jsonField.style.display = "block";
-        upLoadField.style.display = "none"
-        jsonFile.value = ""
-    } else {
-        urlField.style.display = "none";
-        urlInput.value = "";
-        jsonField.style.display = "none";
-        jsonTextArea.value = "";
-        upLoadField.style.display = "block"
-    }
-}
+        document.getElementById(config.show).style.display = "block";
 
-function clearErrors() {
-    const errors = document.querySelectorAll(".section, .text-red")
-    for (const error of errors) {
-        error.remove();
-    }
-}
-
-document.addEventListener("DOMContentLoaded", function() {
-    toggleInputFields();
-});
-
-document.getElementById("fetch_method").addEventListener("change", toggleInputFields);
-
-for ( const input_name of [ "fetch_method", "url", "schema", "json_text"]) {
-    document.getElementById(input_name).addEventListener("change", clearErrors);
-};
-
-/* ── CSV download of all errors ── */
-function downloadValidationErrors() {
-    const raw = document.getElementById("all-errors-data");
-    if (!raw) return;
-
-    let errors;
-    try {
-        errors = JSON.parse(raw.textContent);
-    } catch (e) {
-        alert("Could not read error data.");
-        return;
+        config.clear.forEach(id => {
+            document.getElementById(id).value = "";
+        });
     }
 
-    const rows = [["Dataset identifier", "Error"]].concat(errors);
-    const csv = rows
-        .map(function (row) {
-            return row
-                .map(function (cell) {
-                    // Escape double-quotes and wrap every cell
-                    return '"' + String(cell).replace(/"/g, '""') + '"';
-                })
-                .join(",");
-        })
-        .join("\r\n");
-
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "validation_errors.csv";
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-}
-
-document.addEventListener("DOMContentLoaded", function () {
-    const btnDownload = document.getElementById("btn-download");
-    if (btnDownload) {
-        btnDownload.addEventListener("click", downloadValidationErrors);
+    function clearErrors() {
+        document.querySelectorAll(".section, .text-red").forEach(el => el.remove());
     }
-});
+
+    document.addEventListener("DOMContentLoaded", toggleInputFields);
+
+    document.getElementById("fetch_method").addEventListener("change", toggleInputFields);
+
+    ["fetch_method", "url", "schema", "json_text"].forEach(id => {
+        document.getElementById(id).addEventListener("change", clearErrors);
+    });
+
+    /* ── CSV download of all errors ── */
+    function downloadValidationErrors() {
+        const raw = document.getElementById("all-errors-data");
+        if (!raw) return;
+
+        let errors;
+        try {
+            errors = JSON.parse(raw.textContent);
+        } catch (e) {
+            alert("Could not read error data.");
+            return;
+        }
+
+        const rows = [["Dataset identifier", "Error"]].concat(errors);
+        const csv = rows
+            .map(row =>
+                row.map(cell => '"' + String(cell).replace(/"/g, '""') + '"').join(",")
+            )
+            .join("\r\n");
+
+        const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "validation_errors.csv";
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+
+    document.addEventListener("DOMContentLoaded", function () {
+        const btnDownload = document.getElementById("btn-download");
+        if (btnDownload) {
+            btnDownload.addEventListener("click", downloadValidationErrors);
+        }
+    });
 </script>
 
 {% endblock %}
