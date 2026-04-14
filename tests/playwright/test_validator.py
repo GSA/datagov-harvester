@@ -212,3 +212,22 @@ class TestValidator:
             "Invalid JSON in uploaded file: Expecting value: line 1 column 1 (char 0)"
         )
         expect(upage.locator(".error-list")).not_to_be_visible()
+
+    def test_ui_upload_rejects_file_exceeding_size_limit(self, upage):
+        """
+        Uploading a file larger than MAX_CONTENT_LENGTH (10MB) should result
+        in a 413 response from Flask before the form is processed.
+        """
+        upage.locator("select[name=fetch_method]").select_option("upload")
+        upage.locator("input[type=file][name=json_file]").set_input_files(
+            {
+                "name": "large.json",
+                "mimeType": "application/json",
+                "buffer": b"x" * (11 * 1024 * 1024),  # 11MB, over the 10MB cap
+            }
+        )
+
+        with upage.expect_response("**/validate/") as response_info:
+            upage.locator("input[type=submit]").click()
+
+        assert response_info.value.status == 413
