@@ -4,7 +4,7 @@
 
 <h2>JSON Schema Validator</h2>
 
-<form method="POST">
+<form method="POST" enctype="multipart/form-data">
     {{ form.hidden_tag() }}
     
     <!-- schema and fetch_method can't be empty so they won't have errors to display -->
@@ -51,6 +51,16 @@
         {{ form.json_text(class="form-control", rows="10", placeholder='{"key": "value"}') }}
         {% for error in form.json_text.errors %}
             <div class="text-red">{{ error }}</div>
+        {% endfor %}
+    </div>
+
+    <div id="upload_field" class="form-group">
+        <label for="{{ form.json_file.id }}" class="form-control-label">
+            {{ form.json_file.label }}
+        </label>
+        {{ form.json_file(class="form-control") }}
+        {% for error in form.json_file.errors %}
+        <div class="text-red">{{ error }}</div>
         {% endfor %}
     </div>
 
@@ -104,15 +114,28 @@ function toggleInputFields() {
     const urlInput = document.getElementById("url");
     const jsonField = document.getElementById("json_field");
     const jsonTextArea = document.getElementById("json_text");
+    const upLoadField = document.getElementById("upload_field");
+    const jsonFile = document.getElementById("json_file");
 
     if (method === "url") {
         urlField.style.display = "block";
         jsonField.style.display = "none";
         jsonTextArea.value = "";
-    } else {
+        upLoadField.style.display =  "none"
+        jsonFile.value = ""
+
+    } else if (method === "paste") {
         urlField.style.display = "none";
         urlInput.value = "";
         jsonField.style.display = "block";
+        upLoadField.style.display = "none"
+        jsonFile.value = ""
+    } else {
+        urlField.style.display = "none";
+        urlInput.value = "";
+        jsonField.style.display = "none";
+        jsonTextArea.value = "";
+        upLoadField.style.display = "block"
     }
 }
 

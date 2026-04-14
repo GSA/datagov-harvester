@@ -1558,11 +1558,19 @@ def view_validators():
                 data = fetch_json_from_url(form.url.data)
             except Exception as e:
                 form.url.errors.append(str(e))
-        if form.fetch_method.data == "paste":
+        elif form.fetch_method.data == "paste":
             try:
                 data = json.loads(form.json_text.data)
             except Exception as e:
                 form.json_text.errors.append(str(e))
+        elif form.fetch_method.data == "upload":
+            try:
+                raw = form.json_file.data.read()
+                data = json.loads(raw)
+            except json.JSONDecodeError as e:
+                form.json_file.errors.append(f"Invalid JSON in uploaded file: {e}")
+            except Exception as e:
+                form.json_file.errors.append(str(e))
 
         if not form.errors:
             submitted = True

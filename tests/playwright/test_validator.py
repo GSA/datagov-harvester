@@ -140,3 +140,75 @@ class TestValidator:
         assert len(lines) > 1, "CSV should contain at least one error row"
         for line in lines[1:]:
             assert line.count('"') >= 4, f"Malformed CSV row: {line}"
+
+    def test_ui_upload_field_hidden_by_default(self, upage):
+        """
+        Upload field should not be visible when URL is the default fetch method.
+        """
+        expect(upage.locator("select[name=fetch_method]")).to_have_value("url")
+        expect(upage.locator("#upload_field")).not_to_be_visible()
+
+    def test_ui_upload_field_shown_on_selection(self, upage):
+        """
+        Selecting the upload fetch method should reveal the upload field
+        and hide the url and json fields.
+        """
+        upage.locator("select[name=fetch_method]").select_option("upload")
+
+        expect(upage.locator("#upload_field")).to_be_visible()
+        expect(upage.locator("input[type=file][name=json_file]")).to_be_visible()
+        expect(upage.locator("#url_field")).not_to_be_visible()
+        expect(upage.locator("#json_field")).not_to_be_visible()
+
+    def test_ui_validate_by_file_upload(
+        self, upage, dcatus_long_description_json, tmp_path
+    ):
+        """
+        Uploading a valid .json file should run validation and surface errors,
+        matching the behaviour of the paste method for the same content.
+        """
+        json_file = tmp_path / "catalog.json"
+        json_file.write_text(dcatus_long_description_json, encoding="utf-8")
+
+        upage.locator("select[name=fetch_method]").select_option("upload")
+        upage.locator("input[type=file][name=json_file]").set_input_files(
+            str(json_file)
+        )
+        upage.locator("input[type=submit]").click()
+
+        expect(upage.locator(".error-list")).to_be_visible()
+        expect(upage.locator(".error-block")).to_have_count(1)
+
+    def test_ui_upload_rejects_non_json_extension(self, upage, tmp_path):
+        """
+        Uploading a non-.json file should surface a field validation error
+        and not run the validator.
+        """
+        bad_file = tmp_path / "catalog.txt"
+        bad_file.write_text('{"dataset": []}', encoding="utf-8")
+
+        upage.locator("select[name=fetch_method]").select_option("upload")
+        upage.locator("input[type=file][name=json_file]").set_input_files(str(bad_file))
+        upage.locator("input[type=submit]").click()
+
+        expect(upage.locator("#upload_field .text-red")).to_have_text(
+            "Only .json files are accepted."
+        )
+        expect(upage.locator(".error-list")).not_to_be_visible()
+
+    def test_ui_upload_invalid_json_content(self, upage, tmp_path):
+        """
+        Uploading a .json file whose content is not valid JSON should surface
+        a field error and not run the validator.
+        """
+        bad_file = tmp_path / "catalog.json"
+        bad_file.write_text("this is not { valid json", encoding="utf-8")
+
+        upage.locator("select[name=fetch_method]").select_option("upload")
+        upage.locator("input[type=file][name=json_file]").set_input_files(str(bad_file))
+        upage.locator("input[type=submit]").click()
+
+        expect(upage.locator("#upload_field .text-red")).to_have_text(
+            "Invalid JSON in uploaded file: Expecting value: line 1 column 1 (char 0)"
+        )
+        expect(upage.locator(".error-list")).not_to_be_visible()
