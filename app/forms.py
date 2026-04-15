@@ -4,6 +4,7 @@ import os
 import re
 
 from flask_wtf import FlaskForm
+from flask_wtf.file import FileAllowed, FileField
 from wtforms import BooleanField, SelectField, StringField, SubmitField, TextAreaField
 from wtforms.validators import (
     URL,
@@ -236,6 +237,9 @@ def url_paste_validate(form, field):
             raise ValidationError("JSON input is required.")
         else:
             validate_json_format(form, form.json_text)
+    elif form.fetch_method.data == "upload":
+        if not form.json_file.data:
+            raise ValidationError("A JSON file is required.")
 
     return True
 
@@ -254,6 +258,7 @@ class ValidatorForm(FlaskForm):
         choices=[
             ("url", "Fetch from URL"),
             ("paste", "Paste JSON"),
+            ("upload", "Upload JSON File"),
         ],
         validators=[DataRequired()],
     )
@@ -273,5 +278,11 @@ class ValidatorForm(FlaskForm):
     json_text = TextAreaField(
         "DCATUS Catalog JSON Input",
         validators=[url_paste_validate],
+    )
+    json_file = FileField(
+        "Upload DCATUS JSON File",
+        validators=[
+            FileAllowed(["json"], "Only .json files are accepted."),
+        ],
     )
     submit = SubmitField("Validate")
