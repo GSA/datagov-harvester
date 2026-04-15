@@ -524,6 +524,14 @@ class TestGeneralUtils:
                     "mediaType": "placeholder/value",
                     "title": "TIGERweb/tigerWMS_Current (MapServer)",
                 },
+                {
+                    "@type": "dcat:Distribution",
+                    "description": "NOAA/NOS Smooth Sheet survey image in MrSID format",
+                    "downloadURL": "https://data.ngdc.noaa.gov/platforms/ocean/nos/coast/F00001-F02000/F00001/Smooth_Sheets/F00001.sid.gz",
+                    "mediaType": "placeholder/value",
+                    "title": "F00001.sid.gz",
+                    "describedByType": "application/octet-stream",
+                },
             ]
         }
 
@@ -536,10 +544,14 @@ class TestGeneralUtils:
             "application/rdf+xml",
             "application/xml",
             "arcgis_rest",
+            "image/x-mrsid-image",
         ]
 
         for i in range(len(prepared_dcatus_doc["distribution"])):
             assert prepared_dcatus_doc["distribution"][i]["mediaType"] == expected[i]
+
+        # the mediatype isn't in RESOURCE_MAPPING so format shouldn't exist
+        "format" not in prepared_dcatus_doc["distribution"][-1]
 
 
 class TestRetrySession:
