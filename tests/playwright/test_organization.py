@@ -34,6 +34,8 @@ class TestOrganizationUnauthed:
                 "['testorg']",
                 "id:",
                 "d925f84d-955b-4cb7-812f-dcfd6681a18f",
+                "source_count:",
+                "1",
             ]
         )
 
