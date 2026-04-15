@@ -372,7 +372,7 @@ class TestJSONResponses:
         res = client.get("/organizations/")
         assert res.status_code == 200
 
-        assert json.loads(res.data) == [
+        assert res.json == [
             {
                 "aliases": ["testorg"],
                 "description": "Fixture org description",
