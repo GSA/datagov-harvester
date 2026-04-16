@@ -1,7 +1,7 @@
 name: Harvester QA script
 
 env:
-  PY_VERSION: "3.12"
+  PY_VERSION: "3.12.12"
   POETRY_VERSION: "latest"
 
 on:
