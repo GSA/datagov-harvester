@@ -5,10 +5,10 @@ from typing import Optional
 
 from flask_sqlalchemy import SQLAlchemy
 from geoalchemy2 import Geometry
-from sqlalchemy import CheckConstraint, Column, Enum, String, func
+from sqlalchemy import CheckConstraint, Column, Enum, String, func, select
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.mutable import MutableDict
-from sqlalchemy.orm import DeclarativeBase, backref
+from sqlalchemy.orm import DeclarativeBase, backref, column_property
 
 from shared.constants import (
     FREQUENCY_VALUES,
@@ -113,6 +113,16 @@ class HarvestSource(db.Model):
         nullable=False,
     )
     collection_parent_url = db.Column(db.String)
+
+
+# to avoid moving models around adding this here since it references
+# 2 models (Organization & HarvestSource)
+Organization.source_count = column_property(
+    select(func.count(HarvestSource.id))
+    .where(HarvestSource.organization_id == Organization.id)
+    .correlate_except(HarvestSource)
+    .scalar_subquery()
+)
 
 
 class HarvestJob(db.Model):

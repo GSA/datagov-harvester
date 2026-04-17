@@ -102,6 +102,7 @@ class OrgCreate(Schema):
 
 class OrgInfo(OrgCreate):
     id = UUID(required=True)
+    source_count = Integer()
 
 
 class QueryInfo(Schema):

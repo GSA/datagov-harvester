@@ -541,6 +541,9 @@ class TestGeneralUtils:
         for i in range(len(prepared_dcatus_doc["distribution"])):
             assert prepared_dcatus_doc["distribution"][i]["mediaType"] == expected[i]
 
+        # the mediatype isn't in RESOURCE_MAPPING so format shouldn't exist
+        "format" not in prepared_dcatus_doc["distribution"][-1]
+
 
 class TestRetrySession:
     """Tests for RetrySession class."""

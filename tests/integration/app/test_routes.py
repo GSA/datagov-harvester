@@ -365,6 +365,26 @@ class TestJSONResponses:
         except Exception:
             assert res.data.decode() == response
 
+    def test_organizations(self, client, interface_with_fixture_json):
+        """
+        checks the content of the json response when navigating to "/organizations/"
+        """
+        res = client.get("/organizations/")
+        assert res.status_code == 200
+
+        assert res.json == [
+            {
+                "aliases": ["testorg"],
+                "description": "Fixture org description",
+                "id": "d925f84d-955b-4cb7-812f-dcfd6681a18f",
+                "logo": "https://raw.githubusercontent.com/GSA/datagov-harvester/refs/heads/main/app/static/assets/img/placeholder-organization.png",
+                "name": "Test Org",
+                "organization_type": "Federal Government",
+                "slug": "fixture-org",
+                "source_count": 1,
+            }
+        ]
+
 
 class TestHarvestRecordRawAPI:
     """Test the HarvestRecord API Raw endpoint."""

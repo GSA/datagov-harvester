@@ -358,7 +358,10 @@ def prepare_distributions(dcatus_doc: dict) -> list[dict]:
 
         if mtype:
             dist["mediaType"] = mtype
-            dist["format"] = RESOURCE_MAPPING.get(mtype)[0]
+            if mtype in RESOURCE_MAPPING:
+                dist["format"] = RESOURCE_MAPPING.get(mtype)[0]
+            else:
+                logger.warning(f"unknown mimetype '{mtype}' in distribution")
 
     return dcatus_doc
 
