@@ -1,10 +1,26 @@
 ---
 applications:
+  - name: ((app_name))-proxy
+    buildpacks:
+      - https://github.com/cloudfoundry/nginx-buildpack
+    services:
+      - ((app_name))-secrets
+      - logstack-space-drain
+    path: ./proxy
+    memory: 100M
+    instances: ((proxy_instances))
+    routes:
+      - route: ((route_external))
+    env:
+      EXTERNAL_ROUTE: ((route_external))
+      INTERNAL_ROUTE: ((route_internal))
+      BASIC_AUTH_ENABLED: ((basic_auth_enabled))
+
   - name: ((app_name))
     buildpacks:
       - python_buildpack
     routes:
-      - route: ((route_external))
+      - route: ((route_internal))
     services:
       - ((app_name))-db
       - ((app_name))-secrets

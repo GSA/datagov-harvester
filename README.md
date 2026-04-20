@@ -145,9 +145,12 @@ A user provided service by the name of `datagov-harvest-secrets` is also expecte
 1. Ensure you have a `manifest.yml` and `vars.development.yml` file configured for your Flask application. The vars file may include variables:
 
     ```bash
-    app_name: harvesting-logic
-    database_name: harvesting-logic-db
-    route_external: harvester-dev-datagov.app.cloud.gov
+    app_name: datagov-harvest
+    database_name: datagov-harvest-db
+    route_external: datagov-harvest-dev.app.cloud.gov
+    route_internal: datagov-harvest-dev.apps.internal
+    proxy_instances: 1
+    basic_auth_enabled: on
     ```
 
 2. Deploy the application using Cloud Foundry's `cf push` command with the variable file:
@@ -158,6 +161,9 @@ A user provided service by the name of `datagov-harvest-secrets` is also expecte
    ```
 
 ## Applications
+
+### datagov-harvest-proxy
+This is an nginx app which owns the public route and proxies traffic to the internal Flask app route.
 
 ### datagov-harvest-admin
 This is a Flask app which manages the configuration of harvest sources, organizations, and the creation of harvest jobs.

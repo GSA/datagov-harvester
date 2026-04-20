@@ -128,7 +128,7 @@ jobs:
           poetry export -f requirements.txt --output requirements.txt --without-hashes
           echo "Generated requirements.txt:"
           cat requirements.txt
-      - name: Deploy admin app
+      - name: Deploy apps
         uses: cloud-gov/cg-cli-tools@main
         with:
           command: cf push --vars-file vars.development.yml --strategy rolling --no-wait
@@ -148,11 +148,12 @@ jobs:
       matrix:
         command:
           [
+            "cf add-network-policy datagov-harvest-proxy datagov-harvest --protocol tcp --port 61443",
             "cf add-network-policy datagov-harvest mdtranslator --protocol tcp --port 8080",
           ]
         environ: ["development"]
     steps:
-      - name: proxy to web
+      - name: Add network policy
         uses: cloud-gov/cg-cli-tools@main
         with:
           command: ${{ matrix.command }}

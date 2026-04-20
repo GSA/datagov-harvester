@@ -1,6 +1,9 @@
 app_name: datagov-harvest
 space_name: prod
-route_external: datagov-harvest.app.cloud.gov
+route_external: harvest.data.gov
+route_internal: datagov-harvest-prod.apps.internal
+proxy_instances: 2
+basic_auth_enabled: off # nginx terminology 'on' 'off'. cf will interpret these as 'true' 'false'
 admin_instances: 2
 admin_memory_quota: 2G
 admin_disk_quota: 4G
