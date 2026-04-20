@@ -54,124 +54,30 @@ jobs:
     name: deploy (staging)
     needs:
       - create-cloudgov-services-staging
-    environment: staging
-    runs-on: ubuntu-latest
     permissions:
-      # issue creation needs more permissions
-      contents: read
-      id-token: write
       actions: write
-    steps:
-      - name: checkout
-        uses: actions/checkout@v4
-      - name: Install node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version-file: "app/static/package.json"
-      - name: Build static assets
-        shell: bash
-        run: |
-          cd app/static
-          npm ci
-          npm run build
-      - name: Set up Python ${{ env.PY_VERSION }}
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PY_VERSION }}
-      - name: Install Poetry
-        uses: abatilo/actions-poetry@v3
-        with:
-          poetry-version: ${{ env.POETRY_VERSION }}
-          poetry-plugins: "poetry-plugin-export"
-      - name: Add requirements.txt
-        run: |
-          poetry export -f requirements.txt --output requirements.txt --without-hashes
-          echo "Generated requirements.txt:"
-          cat requirements.txt
-      - name: Deploy apps
-        uses: cloud-gov/cg-cli-tools@main
-        with:
-          command: cf push --vars-file vars.staging.yml --strategy rolling
-          cf_org: gsa-datagov
-          cf_space: staging
-          cf_username: ${{secrets.CF_SERVICE_USER}}
-          cf_password: ${{secrets.CF_SERVICE_AUTH}}
-      - name: Create Issue if it fails 😢
-        if: ${{ failure() && github.ref == 'refs/heads/main' }}
-        uses: JasonEtco/create-an-issue@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.ADD_TO_PROJECT_PAT }}
-          GITHUB_JOB: ${{ toJson(github)['job'] }}
-          GITHUB_ATTEMPTS: ${{ github.run_attempt }}
-          LAST_COMMIT: ${{ github.sha }}
-          LAST_RUN_BY: ${{ github.actor }}
-          RUN_ID: ${{ github.run_id }}
-          REPO: ${{ github.repository }}
-        with:
-          filename: .github/deploy_failure.md
-          update_existing: true
+      contents: read
+    uses: gsa/data.gov/.github/workflows/deploy-template.yml@main
+    with:
+      environ: staging
+      app_url: https://datagov-harvest-staging.app.cloud.gov
+      app_names: '{"include":[{"app":"datagov-harvest"},{"app":"datagov-harvest-proxy"}]}'
+    secrets: inherit
 
   deploy-prod:
     name: deploy (prod)
     needs:
       - create-cloudgov-services-prod
       - deploy-staging
-    environment: prod
-    runs-on: ubuntu-latest
     permissions:
-      # issue creation needs more permissions
-      contents: read
-      id-token: write
       actions: write
-    steps:
-      - name: checkout
-        uses: actions/checkout@v4
-      - name: Install node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version-file: "app/static/package.json"
-      - name: Build static assets
-        shell: bash
-        run: |
-          cd app/static
-          npm ci
-          npm run build
-      - name: Set up Python ${{ env.PY_VERSION }}
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PY_VERSION }}
-      - name: Install Poetry
-        uses: abatilo/actions-poetry@v3
-        with:
-          poetry-version: ${{ env.POETRY_VERSION }}
-          poetry-plugins: "poetry-plugin-export"
-      - name: Add requirements.txt
-        run: |
-          poetry export -f requirements.txt --output requirements.txt --without-hashes
-          echo "Generated requirements.txt:"
-          cat requirements.txt
-      - name: Deploy apps
-        uses: cloud-gov/cg-cli-tools@main
-        with:
-          command: cf push --vars-file vars.prod.yml --strategy rolling
-          cf_org: gsa-datagov
-          cf_space: prod
-          cf_username: ${{secrets.CF_SERVICE_USER}}
-          cf_password: ${{secrets.CF_SERVICE_AUTH}}
-      - name: Create Issue if it fails 😢
-        if: ${{ failure() && github.ref == 'refs/heads/main' }}
-        uses: JasonEtco/create-an-issue@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.ADD_TO_PROJECT_PAT }}
-          GITHUB_JOB: ${{ toJson(github)['job'] }}
-          GITHUB_ATTEMPTS: ${{ github.run_attempt }}
-          LAST_COMMIT: ${{ github.sha }}
-          LAST_RUN_BY: ${{ github.actor }}
-          RUN_ID: ${{ github.run_id }}
-          REPO: ${{ github.repository }}
-        with:
-          filename: .github/deploy_failure.md
-          update_existing: true
+      contents: read
+    uses: gsa/data.gov/.github/workflows/deploy-template.yml@main
+    with:
+      environ: prod
+      app_url: https://harvest.data.gov
+      app_names: '{"include":[{"app":"datagov-harvest"},{"app":"datagov-harvest-proxy"}]}'
+    secrets: inherit
 
   network-policies:
     name: Add network-policies
