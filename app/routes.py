@@ -852,8 +852,11 @@ def edit_harvest_source(source_id: str):
                 (str(org["id"]), f"{org['name']} - {org['id']}")
                 for org in db._to_dict(organizations)
             ]
-            source.notification_emails = ", ".join(source.notification_emails)
-            form = HarvestSourceForm(data=db._to_dict(source))
+            source_data = db._to_dict(source)
+            source_data["notification_emails"] = ", ".join(
+                source_data.get("notification_emails") or []
+            )
+            form = HarvestSourceForm(data=source_data)
             form.organization_id.choices = organization_choices
             if form.validate_on_submit():
                 new_source_data = make_new_source_contract(form)
