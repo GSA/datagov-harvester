@@ -10,6 +10,19 @@ class TestLogin:
         res = client.get(f"/harvest_source/edit/{source_data_dcatus['id']}")
         assert res.status_code == 200
 
+    @force_login(email="test@data.gov")
+    def test_harvest_edit__logged_in_without_notification_emails(
+        self, client, interface_no_jobs, source_data_dcatus
+    ):
+        interface_no_jobs.update_harvest_source(
+            source_data_dcatus["id"], {"notification_emails": None}
+        )
+
+        res = client.get(f"/harvest_source/edit/{source_data_dcatus['id']}")
+
+        assert res.status_code == 200
+        assert b'name="notification_emails"' in res.data
+
     # Logged out user cannot see protected page
     def test_harvest_edit__logged_out(
         self, client, interface_no_jobs, source_data_dcatus
