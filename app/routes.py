@@ -444,7 +444,9 @@ def add_organization(**kwargs):
             new_org = make_new_org_contract(form)
             org = db.add_organization(new_org)
             if org:
-                _log_mutation("create", "organization", org.id, organization_slug=org.slug)
+                _log_mutation(
+                    "create", "organization", org.id, organization_slug=org.slug
+                )
                 flash(f"Added new organization with ID: {org.id}")
             else:
                 flash("Failed to add organization.")
@@ -938,9 +940,7 @@ def view_harvest_source(source_id: str):
 def harvest_source_list():
     sources = db.get_all_harvest_sources()
     data = {"harvest_sources": sources}
-    logger.info(
-        "Rendered harvest source list count=%s", len(sources) if sources else 0
-    )
+    logger.info("Rendered harvest source list count=%s", len(sources) if sources else 0)
     return render_template("view_source_list.html", data=data)
 
 

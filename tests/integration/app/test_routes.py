@@ -329,7 +329,9 @@ class TestLoginLogging:
             response = client.get("/callback?code=bad-code&state=expected-state")
 
         assert response.status_code == 400
-        assert "Login callback failed: token endpoint returned status=400" in caplog.text
+        assert (
+            "Login callback failed: token endpoint returned status=400" in caplog.text
+        )
 
     def test_callback_logs_unregistered_user(self, client, caplog):
         caplog.set_level("INFO", logger="harvest_admin")
@@ -355,7 +357,9 @@ class TestLoginLogging:
             response = client.get("/callback?code=abc123&state=expected-state")
 
         assert response.status_code == 302
-        assert "Login rejected for unregistered user=unregistered@gsa.gov" in caplog.text
+        assert (
+            "Login rejected for unregistered user=unregistered@gsa.gov" in caplog.text
+        )
 
 
 class TestAuditLogging:
