@@ -21,6 +21,7 @@ from flask import (
     Response,
     current_app,
     flash,
+    g,
     jsonify,
     make_response,
     redirect,
@@ -168,6 +169,37 @@ def _get_org_url_identifier(org) -> str | None:
     if org is None:
         return None
     return org.slug or org.id
+
+
+def _get_request_actor() -> str:
+    actor = getattr(g, "request_actor", None) or session.get("user")
+    return actor or "<anonymous>"
+
+
+def _get_request_auth_type() -> str:
+    auth_type = getattr(g, "request_auth_type", None)
+    if auth_type:
+        return auth_type
+    if session.get("user"):
+        return "session"
+    return "anonymous"
+
+
+def _log_mutation(action: str, entity: str, entity_id: str | None = None, **details):
+    detail_fields = {
+        "user": _get_request_actor(),
+        "auth_type": _get_request_auth_type(),
+        "method": request.method,
+        "path": request.path,
+    }
+    if entity_id is not None:
+        detail_fields[f"{entity}_id"] = entity_id
+    detail_fields.update(details)
+    ordered_keys = sorted(detail_fields)
+    message = "Audit %s %s " % (action, entity) + " ".join(
+        f"{key}=%s" for key in ordered_keys
+    )
+    logger.info(message, *(detail_fields[key] for key in ordered_keys))
 
 
 def create_client_assertion():
@@ -400,6 +432,7 @@ def add_organization(**kwargs):
 
         org = db.add_organization(org_data)
         if org:
+            _log_mutation("create", "organization", org.id, organization_slug=org.slug)
             return make_response(
                 jsonify({"message": f"Added new organization with ID: {org.id}"}), 200
             )
@@ -411,6 +444,7 @@ def add_organization(**kwargs):
             new_org = make_new_org_contract(form)
             org = db.add_organization(new_org)
             if org:
+                _log_mutation("create", "organization", org.id, organization_slug=org.slug)
                 flash(f"Added new organization with ID: {org.id}")
             else:
                 flash("Failed to add organization.")
@@ -455,6 +489,13 @@ def view_organization(org_identifier: str):
         elif form.data["delete"]:
             try:
                 message, status = db.delete_organization(org_id)
+                _log_mutation(
+                    "delete",
+                    "organization",
+                    org_id,
+                    organization_slug=org_url_identifier,
+                    status=status,
+                )
                 flash(message)
                 if status == 409:
                     return redirect(
@@ -525,6 +566,7 @@ def edit_organization(org_id):
     if request.is_json:
         org = db.update_organization(org_id, request.json)
         if org:
+            _log_mutation("edit", "organization", org.id, organization_slug=org.slug)
             return {"message": f"Updated org with ID: {org.id}"}, 200
         else:
             return {"error": "Failed to update organization."}, 400
@@ -535,6 +577,7 @@ def edit_organization(org_id):
         new_org_data = make_new_org_contract(form)
         org = db.update_organization(org_id, new_org_data)
         if org:
+            _log_mutation("edit", "organization", org.id, organization_slug=org.slug)
             flash(f"Updated org with ID: {org.id}")
         else:
             flash("Failed to update organization.")
@@ -565,6 +608,7 @@ def edit_organization(org_id):
 def delete_organization(org_id):
     try:
         message, status = db.delete_organization(org_id)
+        _log_mutation("delete", "organization", org_id, status=status)
         return make_response(jsonify({"message": message}), status)
     except Exception as e:
         message = f"Failed to delete organization :: {repr(e)}"
@@ -583,6 +627,13 @@ def add_harvest_source():
             source = db.add_harvest_source(request.json)
             job_message = load_manager.schedule_first_job(source.id)
             if source and job_message:
+                _log_mutation(
+                    "create",
+                    "harvest_source",
+                    source.id,
+                    organization_id=source.organization_id,
+                    source_name=source.name,
+                )
                 return make_response(
                     jsonify(
                         {
@@ -607,6 +658,13 @@ def add_harvest_source():
             source = db.add_harvest_source(new_source)
             job_message = load_manager.schedule_first_job(source.id)
             if source and job_message:
+                _log_mutation(
+                    "create",
+                    "harvest_source",
+                    source.id,
+                    organization_id=source.organization_id,
+                    source_name=source.name,
+                )
                 flash(f"Added new harvest source with ID: {source.id}. {job_message}")
             else:
                 flash("Failed to add harvest source.")
@@ -732,6 +790,7 @@ def view_harvest_source(source_id: str):
         elif form.data["delete"]:
             try:
                 message, status = db.delete_harvest_source(source_id)
+                _log_mutation("delete", "harvest_source", source_id, status=status)
                 flash(message)
                 if status == 409:
                     return redirect(
@@ -909,6 +968,14 @@ def view_dataset(dataset_slug: str):
                 dataset.id, form.slug.data
             )
             if updated:
+                _log_mutation(
+                    "edit",
+                    "dataset",
+                    updated.id,
+                    old_slug=dataset_slug,
+                    new_slug=updated.slug,
+                    opensearch_synced=os_synced,
+                )
                 if os_synced:
                     flash(
                         f"Slug updated successfully to '{updated.slug}'.",
@@ -965,6 +1032,13 @@ def edit_harvest_source(source_id: str):
         job_message = load_manager.schedule_first_job(updated_source.id)
 
         if updated_source and job_message:
+            _log_mutation(
+                "edit",
+                "harvest_source",
+                updated_source.id,
+                organization_id=updated_source.organization_id,
+                source_name=updated_source.name,
+            )
             return {
                 "message": f"Updated source with ID: {updated_source.id}. {job_message}"
             }, 200
@@ -990,6 +1064,13 @@ def edit_harvest_source(source_id: str):
                 source = db.update_harvest_source(source_id, new_source_data)
                 job_message = load_manager.schedule_first_job(source.id)
                 if source and job_message:
+                    _log_mutation(
+                        "edit",
+                        "harvest_source",
+                        source.id,
+                        organization_id=source.organization_id,
+                        source_name=source.name,
+                    )
                     flash(f"Updated source with ID: {source.id}. {job_message}")
                 else:
                     flash("Failed to update harvest source.")
@@ -1027,6 +1108,7 @@ def edit_harvest_source(source_id: str):
 def delete_harvest_source(source_id):
     try:
         message, status = db.delete_harvest_source(source_id)
+        _log_mutation("delete", "harvest_source", source_id, status=status)
         return make_response(jsonify({"message": message}), status)
     except Exception as e:
         message = f"Failed to delete harvest source :: {repr(e)}"
@@ -1058,6 +1140,13 @@ def add_harvest_job():
     if request.is_json:
         job = db.add_harvest_job(request.json)
         if job:
+            _log_mutation(
+                "create",
+                "harvest_job",
+                job.id,
+                harvest_source_id=job.harvest_source_id,
+                status=job.status,
+            )
             return {"message": f"Added new harvest job with ID: {job.id}"}, 200
         else:
             return {"error": "Failed to add harvest job."}, 400
@@ -1172,6 +1261,13 @@ def view_harvest_job(job_id=None):
 @valid_id_required
 def update_harvest_job(job_id):
     result = db.update_harvest_job(job_id, request.json)
+    _log_mutation(
+        "edit",
+        "harvest_job",
+        job_id,
+        harvest_source_id=getattr(result, "harvest_source_id", None),
+        status=getattr(result, "status", None),
+    )
     return jsonify(db._to_dict(result))
 
 
@@ -1182,6 +1278,7 @@ def update_harvest_job(job_id):
 @valid_id_required
 def delete_harvest_job(job_id):
     result = db.delete_harvest_job(job_id)
+    _log_mutation("delete", "harvest_job", job_id)
     return escape(result)
 
 
@@ -1401,6 +1498,12 @@ def add_harvest_record():
     if request.is_json:
         record = db.add_harvest_record(request.json)
         if record:
+            _log_mutation(
+                "create",
+                "harvest_record",
+                record.id,
+                harvest_job_id=record.harvest_job_id,
+            )
             return {"message": f"Added new record with ID: {record.id}"}, 200
         else:
             return {"error": "Failed to add harvest record."}, 400

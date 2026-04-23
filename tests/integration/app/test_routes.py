@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import re
 import uuid
@@ -355,6 +356,71 @@ class TestLoginLogging:
 
         assert response.status_code == 302
         assert "Login rejected for unregistered user=unregistered@gsa.gov" in caplog.text
+
+
+class TestAuditLogging:
+    def test_api_add_organization_logs_actor(self, client, caplog):
+        api_token = os.getenv("FLASK_APP_SECRET_KEY")
+        headers = {
+            "Authorization": api_token,
+            "Content-Type": "application/json",
+        }
+        data = {
+            "name": "Audit Org",
+            "logo": "test_logo.png",
+            "slug": "audit-org",
+        }
+        caplog.set_level(logging.INFO, logger="harvest_admin")
+
+        response = client.post("/organization/add", json=data, headers=headers)
+
+        assert response.status_code == 200
+        assert "Audit create organization" in caplog.text
+        assert "user=<api_token>" in caplog.text
+        assert "auth_type=api_token" in caplog.text
+
+    def test_web_edit_organization_logs_actor(
+        self, app, client, interface, organization_data, caplog
+    ):
+        app.config.update({"WTF_CSRF_ENABLED": False})
+        interface.add_organization(organization_data)
+        with client.session_transaction() as sess:
+            sess["user"] = "tester@gsa.gov"
+        caplog.set_level(logging.INFO, logger="harvest_admin")
+
+        response = client.post(
+            f"/organization/edit/{organization_data['id']}",
+            data={
+                "name": "Updated Org",
+                "logo": "https://example.com/newlogo.png",
+                "organization_type": "City Government",
+                "description": "New description",
+                "slug": "updated-slug",
+            },
+        )
+
+        assert response.status_code == 302
+        assert "Audit edit organization" in caplog.text
+        assert "user=tester@gsa.gov" in caplog.text
+        assert "auth_type=session" in caplog.text
+
+    def test_api_delete_organization_logs_actor(
+        self, client, interface, organization_data, caplog
+    ):
+        api_token = os.getenv("FLASK_APP_SECRET_KEY")
+        headers = {"Authorization": api_token}
+        interface.add_organization(organization_data)
+        caplog.set_level(logging.INFO, logger="harvest_admin")
+
+        response = client.delete(
+            f"/organization/{organization_data['id']}",
+            headers=headers,
+        )
+
+        assert response.status_code == 200
+        assert "Audit delete organization" in caplog.text
+        assert f"organization_id={organization_data['id']}" in caplog.text
+        assert "user=<api_token>" in caplog.text
 
 
 class TestJSONResponses:
