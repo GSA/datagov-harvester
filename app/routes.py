@@ -207,6 +207,11 @@ def login():
     nonce = secrets.token_urlsafe(32)
     session["state"] = state
     session["nonce"] = nonce
+    logger.info(
+        "Login initiated from ip=%s next=%s",
+        request.headers.get("X-Forwarded-For", request.remote_addr),
+        session.get("next"),
+    )
 
     auth_request_url = (
         f"{AUTH_URL}?response_type=code"
@@ -223,7 +228,12 @@ def login():
 
 @main.route("/logout")
 def logout():
-    session.pop("user", None)
+    user = session.pop("user", None)
+    logger.info(
+        "Logout completed for user=%s ip=%s",
+        user or "<anonymous>",
+        request.headers.get("X-Forwarded-For", request.remote_addr),
+    )
     return redirect(url_for("main.index"))
 
 
@@ -231,11 +241,29 @@ def logout():
 def callback():
     code = request.args.get("code")
     state = request.args.get("state")
+    request_ip = request.headers.get("X-Forwarded-For", request.remote_addr)
+
+    logger.info(
+        "Login callback received ip=%s has_code=%s has_state=%s",
+        request_ip,
+        bool(code),
+        bool(state),
+    )
 
     if state != session.pop("state", None):
+        logger.warning("Login callback failed: state mismatch ip=%s", request_ip)
         return "State mismatch error", 400
 
-    client_assertion = create_client_assertion()
+    try:
+        client_assertion = create_client_assertion()
+    except Exception as e:
+        logger.exception(
+            "Login callback failed: could not create client assertion ip=%s error=%s",
+            request_ip,
+            repr(e),
+        )
+        return "Failed to prepare login request", 500
+
     # ruff: noqa: E501
     token_payload = {
         "grant_type": "authorization_code",
@@ -245,29 +273,95 @@ def callback():
         "client_assertion_type": "urn:ietf:params:oauth:client-assertion-type:jwt-bearer",
         "client_assertion": client_assertion,
     }
-    response = requests.post(TOKEN_URL, data=token_payload)
-
-    if response.status_code != 200:
+    try:
+        response = requests.post(TOKEN_URL, data=token_payload)
+    except Exception as e:
+        logger.exception(
+            "Login callback failed: token exchange request error ip=%s error=%s",
+            request_ip,
+            repr(e),
+        )
         return "Failed to fetch access token", 400
 
-    token_data = response.json()
+    if response.status_code != 200:
+        logger.error(
+            "Login callback failed: token endpoint returned status=%s ip=%s body=%s",
+            response.status_code,
+            request_ip,
+            response.text,
+        )
+        return "Failed to fetch access token", 400
+
+    try:
+        token_data = response.json()
+    except ValueError as e:
+        logger.exception(
+            "Login callback failed: token endpoint returned invalid JSON ip=%s error=%s",
+            request_ip,
+            repr(e),
+        )
+        return "Failed to fetch access token", 400
+
     id_token = token_data.get("id_token")
+    if not id_token:
+        logger.error(
+            "Login callback failed: id_token missing from token response ip=%s",
+            request_ip,
+        )
+        return "Failed to fetch access token", 400
 
-    decoded_id_token = jwt.decode(id_token, options={"verify_signature": False})
+    try:
+        decoded_id_token = jwt.decode(id_token, options={"verify_signature": False})
+    except Exception as e:
+        logger.exception(
+            "Login callback failed: unable to decode id_token ip=%s error=%s",
+            request_ip,
+            repr(e),
+        )
+        return "Failed to decode login token", 400
 
-    usr_email = decoded_id_token["email"].lower()
+    usr_email = decoded_id_token.get("email")
+    if not usr_email:
+        logger.error(
+            "Login callback failed: email missing from id_token claims ip=%s sub=%s",
+            request_ip,
+            decoded_id_token.get("sub"),
+        )
+        return "Failed to identify user", 400
 
-    usr_info = {"email": usr_email, "ssoid": decoded_id_token["sub"]}
+    usr_email = usr_email.lower()
+    usr_ssoid = decoded_id_token.get("sub")
+    if not usr_ssoid:
+        logger.error(
+            "Login callback failed: sub missing from id_token claims user=%s ip=%s",
+            usr_email,
+            request_ip,
+        )
+        return "Failed to identify user", 400
+
+    usr_info = {"email": usr_email, "ssoid": usr_ssoid}
     usr = db.verify_user(usr_info)
 
     if usr:
         session["user"] = usr_email
+        logger.info(
+            "Login succeeded for user=%s ssoid=%s ip=%s",
+            usr_email,
+            usr_ssoid,
+            request_ip,
+        )
         next_url = session.pop("next", None)
         if next_url:
             return redirect(url_for(next_url))
         else:
             return redirect(url_for("main.index"))
     else:
+        logger.warning(
+            "Login rejected for unregistered user=%s ssoid=%s ip=%s",
+            usr_email,
+            usr_ssoid,
+            request_ip,
+        )
         flash("Please request registration from the admin before proceeding.")
         return redirect(url_for("main.index"))
 
@@ -588,6 +682,14 @@ def view_harvest_source(source_id: str):
                 "datasets": datasets,
                 "datasets_htmx_vars": datasets_htmx_vars,
             }
+            logger.info(
+                "Rendered harvest source datasets partial source_id=%s page=%s "
+                "datasets_count=%s returned=%s",
+                source_id,
+                datasets_pagination.current,
+                datasets_pagination.count,
+                len(datasets),
+            )
             return render_block(
                 "view_source_data.html",
                 "htmx_paginated_datasets",
@@ -601,6 +703,14 @@ def view_harvest_source(source_id: str):
                 "jobs": jobs,
                 "htmx_vars": jobs_htmx_vars,
             }
+            logger.info(
+                "Rendered harvest source jobs partial source_id=%s page=%s jobs_count=%s "
+                "returned=%s",
+                source_id,
+                pagination.current,
+                pagination.count,
+                len(jobs),
+            )
             return render_block(
                 "view_source_data.html",
                 "htmx_paginated",
@@ -742,6 +852,20 @@ def view_harvest_source(source_id: str):
             "datasets": datasets,
             "datasets_htmx_vars": datasets_htmx_vars,
         }
+        logger.info(
+            "Rendered harvest source page source_id=%s source_name=%s jobs_total=%s "
+            "jobs_returned=%s datasets_total=%s datasets_returned=%s "
+            "records_count=%s synced_records_count=%s active_job_in_progress=%s",
+            source_id,
+            getattr(source, "name", None),
+            jobs_count,
+            len(jobs),
+            datasets_count,
+            len(datasets),
+            records_count,
+            synced_records_count,
+            summary_data["active_job_in_progress"],
+        )
         return render_template(
             "view_source_data.html",
             form=form,
@@ -755,6 +879,9 @@ def view_harvest_source(source_id: str):
 def harvest_source_list():
     sources = db.get_all_harvest_sources()
     data = {"harvest_sources": sources}
+    logger.info(
+        "Rendered harvest source list count=%s", len(sources) if sources else 0
+    )
     return render_template("view_source_list.html", data=data)
 
 
@@ -990,6 +1117,14 @@ def view_harvest_job(job_id=None):
             "record_errors": record_errors_dict,
             "htmx_vars": htmx_vars,
         }
+        logger.info(
+            "Rendered harvest job errors partial job_id=%s page=%s error_count=%s "
+            "returned=%s",
+            job_id,
+            pagination.current,
+            pagination.count,
+            len(record_errors_dict),
+        )
         return render_block(
             "view_job_data.html",
             "record_errors_table",
@@ -1014,6 +1149,16 @@ def view_harvest_job(job_id=None):
                 data["percent_complete"] = process_job_complete_percentage(
                     job.to_dict()
                 )
+            logger.info(
+                "Rendered harvest job detail job_id=%s status=%s source_id=%s "
+                "record_error_count=%s record_errors_returned=%s page=%s",
+                job_id,
+                getattr(job, "status", None),
+                getattr(job, "harvest_source_id", None),
+                record_error_count,
+                len(record_errors_dict),
+                pagination.current,
+            )
 
             return render_template(
                 "view_job_data.html", data=data, pagination=pagination.to_dict()
@@ -1356,6 +1501,15 @@ def view_metrics():
                 "jobs": jobs,
                 "htmx_vars": htmx_vars,
             }
+            logger.info(
+                "Rendered metrics jobs partial page=%s total_jobs=%s returned=%s "
+                "window_start=%s window_end=%s",
+                pagination_jobs.current,
+                count_jobs,
+                len(jobs),
+                start_time.isoformat(),
+                current_time.isoformat(),
+            )
             return render_block(
                 "metrics_dashboard.html",
                 "htmx_paginated_jobs",
@@ -1381,6 +1535,15 @@ def view_metrics():
                 "failures": failures,
                 "htmx_vars": htmx_vars,
             }
+            logger.info(
+                "Rendered metrics errors partial page=%s total_errors=%s returned=%s "
+                "window_start=%s window_end=%s",
+                pagination_errors.current,
+                count_errors,
+                len(failures),
+                start_time.isoformat(),
+                current_time.isoformat(),
+            )
             return render_block(
                 "metrics_dashboard.html",
                 "htmx_paginated_errors",
@@ -1420,6 +1583,18 @@ def view_metrics():
             "current_time": current_time,
             "window_start": start_time,
         }
+        logger.info(
+            "Rendered metrics page current_jobs=%s completed_jobs_total=%s "
+            "completed_jobs_returned=%s failure_total=%s failure_returned=%s "
+            "window_start=%s window_end=%s",
+            len(current_jobs),
+            count_jobs,
+            len(jobs),
+            count_errors,
+            len(failures),
+            start_time.isoformat(),
+            current_time.isoformat(),
+        )
         return render_template(
             "metrics_dashboard.html",
             pagination_jobs=pagination_jobs.to_dict(),
@@ -1533,6 +1708,12 @@ def validator(json_data):
             data = json.loads(json_data["json_text"])
 
         errors = validate_records(data, json_data["schema"])
+        logger.info(
+            "API validator completed fetch_method=%s schema=%s validation_errors=%s",
+            json_data["fetch_method"],
+            json_data["schema"],
+            len(errors),
+        )
     except Exception as e:
         logger.error(f"API Validator error :: {repr(e)}")
         return make_response(
@@ -1581,10 +1762,26 @@ def view_validators():
         if not form.errors:
             submitted = True
             errors = validate_records(data, form.schema.data)
+            logger.info(
+                "Rendered validator results fetch_method=%s schema=%s validation_errors=%s",
+                form.fetch_method.data,
+                form.schema.data,
+                len(errors),
+            )
+        else:
+            logger.warning(
+                "Validator submission failed fetch_method=%s url_errors=%s json_errors=%s",
+                form.fetch_method.data,
+                len(form.url.errors),
+                len(form.json_text.errors),
+            )
 
     data = {
         "record_errors": errors,
     }
+
+    if request.method == "GET":
+        logger.info("Rendered validator page")
 
     return render_template(
         "view_validators.html",

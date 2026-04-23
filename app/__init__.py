@@ -1,4 +1,5 @@
 import logging
+import logging.config
 import os
 
 from apiflask import APIFlask
@@ -9,6 +10,7 @@ from flask_migrate import Migrate
 from flask_talisman import Talisman
 
 from app.filters import else_na, usa_icon, utc_isoformat
+from config.logger_config import LOGGING_CONFIG
 from database.models import db
 from harvester.lib.load_manager import LoadManager
 from scripts.sync_datasets import register_cli
@@ -18,6 +20,7 @@ logger = logging.getLogger("harvest_admin")
 load_manager = LoadManager()
 
 load_dotenv()
+logging.config.dictConfig(LOGGING_CONFIG)
 
 # fixes a bug with Flask-HTMX not being able to find the app context
 htmx = None
