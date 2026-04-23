@@ -39,7 +39,7 @@
                 {% elif key == 'notification_emails' %}
                 {% if session['user'] %}
                 <td>Notification emails:</td>
-                <td>{{value | default('N/A', true) | join(', ')}}</td>
+                <td>{{ value | join(', ') if value else 'N/A' }}</td>
                 {% endif %}
                 {% elif key == 'url' %}
                 <td>{{key}}:</td>
