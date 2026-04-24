@@ -26,6 +26,7 @@ class OpenSearchInterface:
     INDEX_NAME = "datasets"
     TEXT_ANALYZER = "datagov_text"
     STOP_FILTER = "datagov_stop"
+    DEFAULT_CATALOG_BASE_URL = "https://catalog.data.gov"
 
     SETTINGS = {
         "analysis": {
@@ -274,7 +275,7 @@ class OpenSearchInterface:
 
         popularity = dataset.popularity if dataset.popularity is not None else None
 
-        return {
+        document = {
             "_index": self.INDEX_NAME,
             "_id": dataset.id,
             "title": dataset.dcat.get("title", ""),
@@ -292,13 +293,61 @@ class OpenSearchInterface:
             "spatial_shape": dataset.translated_spatial,
             "spatial_centroid": spatial_centroid,
             "harvest_record": self._create_harvest_record_url(dataset),
+            "harvest_record_raw": self._create_harvest_record_raw_url(dataset),
         }
+        if self._has_harvest_record_transformed(dataset):
+            document["harvest_record_transformed"] = (
+                self._create_harvest_record_transformed_url(dataset)
+            )
+        return document
+
+    @staticmethod
+    def _catalog_base_url() -> str:
+        return os.getenv(
+            "CATALOG_BASE_URL", OpenSearchInterface.DEFAULT_CATALOG_BASE_URL
+        ).rstrip("/")
 
     @staticmethod
     def _create_harvest_record_url(dataset) -> str | None:
         if not getattr(dataset, "harvest_record_id", None):
             return None
-        return f"/harvest_record/{dataset.harvest_record_id}"
+        return (
+            f"{OpenSearchInterface._catalog_base_url()}/harvest_record/"
+            f"{dataset.harvest_record_id}"
+        )
+
+    @staticmethod
+    def _create_harvest_record_raw_url(dataset) -> str | None:
+        if not getattr(dataset, "harvest_record_id", None):
+            return None
+        return (
+            f"{OpenSearchInterface._catalog_base_url()}/harvest_record/"
+            f"{dataset.harvest_record_id}/raw"
+        )
+
+    @staticmethod
+    def _create_harvest_record_transformed_url(dataset) -> str | None:
+        if not getattr(dataset, "harvest_record_id", None):
+            return None
+        return (
+            f"{OpenSearchInterface._catalog_base_url()}/harvest_record/"
+            f"{dataset.harvest_record_id}/transformed"
+        )
+
+    @staticmethod
+    def _has_harvest_record_transformed(dataset) -> bool:
+        record = getattr(dataset, "harvest_record", None)
+        if record is None:
+            return False
+
+        transformed = getattr(record, "source_transform", None)
+        if transformed is None:
+            return False
+
+        if isinstance(transformed, str) and not transformed.strip():
+            return False
+
+        return True
 
     def _run_with_timeout_retry(
         self,
