@@ -1275,7 +1275,10 @@ def get_harvest_record_transformed(record_id=None):
         try:
             transformed = json.loads(transformed)
         except json.JSONDecodeError:
-            return Response(transformed, mimetype="application/json; charset=utf-8"), 200
+            return (
+                Response(transformed, mimetype="application/json; charset=utf-8"),
+                200,
+            )
 
     return jsonify(transformed), 200
 

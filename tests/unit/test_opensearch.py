@@ -99,10 +99,7 @@ def test_dataset_to_document(sample_dataset):
     assert document["title"] == "Dataset Title"
     assert document["publisher"] == "Publisher"
     assert document["has_spatial"] is True
-    assert (
-        document["harvest_record"]
-        == "https://catalog.data.gov/harvest_record/hr-1"
-    )
+    assert document["harvest_record"] == "https://catalog.data.gov/harvest_record/hr-1"
     assert (
         document["harvest_record_raw"]
         == "https://catalog.data.gov/harvest_record/hr-1/raw"
