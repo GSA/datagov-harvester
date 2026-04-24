@@ -6,6 +6,7 @@ import pytest
 from cloudfoundry_client.errors import InvalidStatusCode
 
 from harvester.lib.cf_handler import CFHandler
+from harvester.lib.cf_handler import logger as cf_logger
 
 CF_API_URL = os.getenv("CF_API_URL")
 CF_SERVICE_USER = os.getenv("CF_SERVICE_USER")
@@ -35,6 +36,15 @@ dhl_cf_task_data = {
 
 
 class TestCFTasking:
+    def _assert_cf_warning_logged(self, caplog, action):
+        caplog.set_level("WARNING", logger="harvest_admin")
+        cf_logger.addHandler(caplog.handler)
+        try:
+            action()
+        finally:
+            cf_logger.removeHandler(caplog.handler)
+        assert "Failed to get app tasks" in caplog.text
+
     def test_crud_task(self):
         # start a new task
         new_task = cf_handler.start_task(**dhl_cf_task_data)
@@ -62,10 +72,15 @@ class TestCFTasking:
 
         CFCMock.return_value.v3.apps.get.side_effect = InvalidStatusCode(500, "")
 
-        tasks = cf_handler.get_all_app_tasks()
+        tasks = None
+
+        def action():
+            nonlocal tasks
+            tasks = cf_handler.get_all_app_tasks()
+
+        self._assert_cf_warning_logged(caplog, action)
         assert CFCMock.return_value.v3.apps.get.call_count == 1
         assert tasks is None
-        assert "Failed to get app tasks" in caplog.text
 
     @patch("harvester.lib.cf_handler.CloudFoundryClient")
     def tests_get_running_app_tasks_api_error(self, CFCMock, caplog):
@@ -73,9 +88,14 @@ class TestCFTasking:
 
         CFCMock.return_value.v3.apps.get.side_effect = InvalidStatusCode(500, "")
 
-        tasks = cf_handler.get_running_app_tasks()
+        tasks = None
+
+        def action():
+            nonlocal tasks
+            tasks = cf_handler.get_running_app_tasks()
+
+        self._assert_cf_warning_logged(caplog, action)
         assert tasks is None
-        assert "Failed to get app tasks" in caplog.text
 
     @patch("harvester.lib.cf_handler.CloudFoundryClient")
     def tests_num_running_app_tasks_api_error(self, CFCMock, caplog):
@@ -83,6 +103,11 @@ class TestCFTasking:
 
         CFCMock.return_value.v3.apps.get.side_effect = InvalidStatusCode(500, "")
 
-        num_tasks = cf_handler.num_running_app_tasks()
+        num_tasks = None
+
+        def action():
+            nonlocal num_tasks
+            num_tasks = cf_handler.num_running_app_tasks()
+
+        self._assert_cf_warning_logged(caplog, action)
         assert num_tasks is None
-        assert "Failed to get app tasks" in caplog.text
