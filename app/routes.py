@@ -1248,6 +1248,38 @@ def get_harvest_record_raw(record_id=None):
         )
 
 
+@api.route("/harvest_record/<record_id>/transformed", methods=["GET"])
+@api.doc(
+    responses={
+        200: {
+            "description": "Transformed harvest record contents",
+            "content": {
+                "application/json": {"type": "object"},
+            },
+        }
+    }
+)
+@valid_id_required
+def get_harvest_record_transformed(record_id=None):
+    record = db.get_harvest_record(record_id)
+    if not record:
+        return JSON_NOT_FOUND()
+
+    transformed = record.source_transform
+    if transformed is None:
+        return JSON_NOT_FOUND()
+
+    if isinstance(transformed, str):
+        if not transformed.strip():
+            return JSON_NOT_FOUND()
+        try:
+            transformed = json.loads(transformed)
+        except json.JSONDecodeError:
+            return Response(transformed, mimetype="application/json; charset=utf-8"), 200
+
+    return jsonify(transformed), 200
+
+
 ## Add record
 @api.route("/harvest_record/add", methods=["POST", "GET"])
 @api.doc(hide=True)  # don't list the authenticated API

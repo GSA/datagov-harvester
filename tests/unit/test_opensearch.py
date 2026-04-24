@@ -64,6 +64,7 @@ def sample_dataset():
         organization=DummyOrg(),
         popularity=7,
         harvest_record_id="hr-1",
+        harvest_record=SimpleNamespace(source_transform={"title": "Transformed"}),
     )
 
 
@@ -98,8 +99,28 @@ def test_dataset_to_document(sample_dataset):
     assert document["title"] == "Dataset Title"
     assert document["publisher"] == "Publisher"
     assert document["has_spatial"] is True
-    assert document["harvest_record"] == "/harvest_record/hr-1"
+    assert (
+        document["harvest_record"]
+        == "https://catalog.data.gov/harvest_record/hr-1"
+    )
+    assert (
+        document["harvest_record_raw"]
+        == "https://catalog.data.gov/harvest_record/hr-1/raw"
+    )
+    assert (
+        document["harvest_record_transformed"]
+        == "https://catalog.data.gov/harvest_record/hr-1/transformed"
+    )
     assert document["spatial_centroid"] == {"lat": 2.0, "lon": 1.0}
+
+
+def test_dataset_to_document_omits_transformed_url_without_payload(sample_dataset):
+    iface = OpenSearchInterface.__new__(OpenSearchInterface)
+    sample_dataset.harvest_record = SimpleNamespace(source_transform=None)
+
+    document = iface.dataset_to_document(sample_dataset)
+
+    assert "harvest_record_transformed" not in document
 
 
 def test_init_creates_index_when_missing(monkeypatch):
