@@ -90,7 +90,6 @@ class TestCFTasking:
         ]
 
         caplog.set_level(logging.INFO)
-
         harvest_job_starter(harvest_job.id, "harvest")
         assert (
             f"Job {harvest_job.id} is already running in another task. Exiting."

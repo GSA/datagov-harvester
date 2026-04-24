@@ -21,6 +21,7 @@ from flask import (
     Response,
     current_app,
     flash,
+    g,
     jsonify,
     make_response,
     redirect,
@@ -170,6 +171,37 @@ def _get_org_url_identifier(org) -> str | None:
     return org.slug or org.id
 
 
+def _get_request_actor() -> str:
+    actor = getattr(g, "request_actor", None) or session.get("user")
+    return actor or "<anonymous>"
+
+
+def _get_request_auth_type() -> str:
+    auth_type = getattr(g, "request_auth_type", None)
+    if auth_type:
+        return auth_type
+    if session.get("user"):
+        return "session"
+    return "anonymous"
+
+
+def _log_mutation(action: str, entity: str, entity_id: str | None = None, **details):
+    detail_fields = {
+        "user": _get_request_actor(),
+        "auth_type": _get_request_auth_type(),
+        "method": request.method,
+        "path": request.path,
+    }
+    if entity_id is not None:
+        detail_fields[f"{entity}_id"] = entity_id
+    detail_fields.update(details)
+    ordered_keys = sorted(detail_fields)
+    message = "Audit %s %s " % (action, entity) + " ".join(
+        f"{key}=%s" for key in ordered_keys
+    )
+    logger.info(message, *(detail_fields[key] for key in ordered_keys))
+
+
 def create_client_assertion():
     private_key_data = os.getenv("OPENID_PRIVATE_KEY")
     if not private_key_data:
@@ -207,6 +239,11 @@ def login():
     nonce = secrets.token_urlsafe(32)
     session["state"] = state
     session["nonce"] = nonce
+    logger.info(
+        "Login initiated from ip=%s next=%s",
+        request.headers.get("X-Forwarded-For", request.remote_addr),
+        session.get("next"),
+    )
 
     auth_request_url = (
         f"{AUTH_URL}?response_type=code"
@@ -223,7 +260,12 @@ def login():
 
 @main.route("/logout")
 def logout():
-    session.pop("user", None)
+    user = session.pop("user", None)
+    logger.info(
+        "Logout completed for user=%s ip=%s",
+        user or "<anonymous>",
+        request.headers.get("X-Forwarded-For", request.remote_addr),
+    )
     return redirect(url_for("main.index"))
 
 
@@ -231,11 +273,29 @@ def logout():
 def callback():
     code = request.args.get("code")
     state = request.args.get("state")
+    request_ip = request.headers.get("X-Forwarded-For", request.remote_addr)
+
+    logger.info(
+        "Login callback received ip=%s has_code=%s has_state=%s",
+        request_ip,
+        bool(code),
+        bool(state),
+    )
 
     if state != session.pop("state", None):
+        logger.warning("Login callback failed: state mismatch ip=%s", request_ip)
         return "State mismatch error", 400
 
-    client_assertion = create_client_assertion()
+    try:
+        client_assertion = create_client_assertion()
+    except Exception as e:
+        logger.exception(
+            "Login callback failed: could not create client assertion ip=%s error=%s",
+            request_ip,
+            repr(e),
+        )
+        return "Failed to prepare login request", 500
+
     # ruff: noqa: E501
     token_payload = {
         "grant_type": "authorization_code",
@@ -245,29 +305,95 @@ def callback():
         "client_assertion_type": "urn:ietf:params:oauth:client-assertion-type:jwt-bearer",
         "client_assertion": client_assertion,
     }
-    response = requests.post(TOKEN_URL, data=token_payload)
-
-    if response.status_code != 200:
+    try:
+        response = requests.post(TOKEN_URL, data=token_payload)
+    except Exception as e:
+        logger.exception(
+            "Login callback failed: token exchange request error ip=%s error=%s",
+            request_ip,
+            repr(e),
+        )
         return "Failed to fetch access token", 400
 
-    token_data = response.json()
+    if response.status_code != 200:
+        logger.error(
+            "Login callback failed: token endpoint returned status=%s ip=%s body=%s",
+            response.status_code,
+            request_ip,
+            response.text,
+        )
+        return "Failed to fetch access token", 400
+
+    try:
+        token_data = response.json()
+    except ValueError as e:
+        logger.exception(
+            "Login callback failed: token endpoint returned invalid JSON ip=%s error=%s",
+            request_ip,
+            repr(e),
+        )
+        return "Failed to fetch access token", 400
+
     id_token = token_data.get("id_token")
+    if not id_token:
+        logger.error(
+            "Login callback failed: id_token missing from token response ip=%s",
+            request_ip,
+        )
+        return "Failed to fetch access token", 400
 
-    decoded_id_token = jwt.decode(id_token, options={"verify_signature": False})
+    try:
+        decoded_id_token = jwt.decode(id_token, options={"verify_signature": False})
+    except Exception as e:
+        logger.exception(
+            "Login callback failed: unable to decode id_token ip=%s error=%s",
+            request_ip,
+            repr(e),
+        )
+        return "Failed to decode login token", 400
 
-    usr_email = decoded_id_token["email"].lower()
+    usr_email = decoded_id_token.get("email")
+    if not usr_email:
+        logger.error(
+            "Login callback failed: email missing from id_token claims ip=%s sub=%s",
+            request_ip,
+            decoded_id_token.get("sub"),
+        )
+        return "Failed to identify user", 400
 
-    usr_info = {"email": usr_email, "ssoid": decoded_id_token["sub"]}
+    usr_email = usr_email.lower()
+    usr_ssoid = decoded_id_token.get("sub")
+    if not usr_ssoid:
+        logger.error(
+            "Login callback failed: sub missing from id_token claims user=%s ip=%s",
+            usr_email,
+            request_ip,
+        )
+        return "Failed to identify user", 400
+
+    usr_info = {"email": usr_email, "ssoid": usr_ssoid}
     usr = db.verify_user(usr_info)
 
     if usr:
         session["user"] = usr_email
+        logger.info(
+            "Login succeeded for user=%s ssoid=%s ip=%s",
+            usr_email,
+            usr_ssoid,
+            request_ip,
+        )
         next_url = session.pop("next", None)
         if next_url:
             return redirect(url_for(next_url))
         else:
             return redirect(url_for("main.index"))
     else:
+        logger.warning(
+            "Login rejected for unregistered user=%s ssoid=%s ip=%s",
+            usr_email,
+            usr_ssoid,
+            request_ip,
+        )
         flash("Please request registration from the admin before proceeding.")
         return redirect(url_for("main.index"))
 
@@ -306,6 +432,7 @@ def add_organization(**kwargs):
 
         org = db.add_organization(org_data)
         if org:
+            _log_mutation("create", "organization", org.id, organization_slug=org.slug)
             return make_response(
                 jsonify({"message": f"Added new organization with ID: {org.id}"}), 200
             )
@@ -317,6 +444,9 @@ def add_organization(**kwargs):
             new_org = make_new_org_contract(form)
             org = db.add_organization(new_org)
             if org:
+                _log_mutation(
+                    "create", "organization", org.id, organization_slug=org.slug
+                )
                 flash(f"Added new organization with ID: {org.id}")
             else:
                 flash("Failed to add organization.")
@@ -361,6 +491,13 @@ def view_organization(org_identifier: str):
         elif form.data["delete"]:
             try:
                 message, status = db.delete_organization(org_id)
+                _log_mutation(
+                    "delete",
+                    "organization",
+                    org_id,
+                    organization_slug=org_url_identifier,
+                    status=status,
+                )
                 flash(message)
                 if status == 409:
                     return redirect(
@@ -431,6 +568,7 @@ def edit_organization(org_id):
     if request.is_json:
         org = db.update_organization(org_id, request.json)
         if org:
+            _log_mutation("edit", "organization", org.id, organization_slug=org.slug)
             return {"message": f"Updated org with ID: {org.id}"}, 200
         else:
             return {"error": "Failed to update organization."}, 400
@@ -441,6 +579,7 @@ def edit_organization(org_id):
         new_org_data = make_new_org_contract(form)
         org = db.update_organization(org_id, new_org_data)
         if org:
+            _log_mutation("edit", "organization", org.id, organization_slug=org.slug)
             flash(f"Updated org with ID: {org.id}")
         else:
             flash("Failed to update organization.")
@@ -471,6 +610,7 @@ def edit_organization(org_id):
 def delete_organization(org_id):
     try:
         message, status = db.delete_organization(org_id)
+        _log_mutation("delete", "organization", org_id, status=status)
         return make_response(jsonify({"message": message}), status)
     except Exception as e:
         message = f"Failed to delete organization :: {repr(e)}"
@@ -489,6 +629,13 @@ def add_harvest_source():
             source = db.add_harvest_source(request.json)
             job_message = load_manager.schedule_first_job(source.id)
             if source and job_message:
+                _log_mutation(
+                    "create",
+                    "harvest_source",
+                    source.id,
+                    organization_id=source.organization_id,
+                    source_name=source.name,
+                )
                 return make_response(
                     jsonify(
                         {
@@ -513,6 +660,13 @@ def add_harvest_source():
             source = db.add_harvest_source(new_source)
             job_message = load_manager.schedule_first_job(source.id)
             if source and job_message:
+                _log_mutation(
+                    "create",
+                    "harvest_source",
+                    source.id,
+                    organization_id=source.organization_id,
+                    source_name=source.name,
+                )
                 flash(f"Added new harvest source with ID: {source.id}. {job_message}")
             else:
                 flash("Failed to add harvest source.")
@@ -588,6 +742,14 @@ def view_harvest_source(source_id: str):
                 "datasets": datasets,
                 "datasets_htmx_vars": datasets_htmx_vars,
             }
+            logger.info(
+                "Rendered harvest source datasets partial source_id=%s page=%s "
+                "datasets_count=%s returned=%s",
+                source_id,
+                datasets_pagination.current,
+                datasets_pagination.count,
+                len(datasets),
+            )
             return render_block(
                 "view_source_data.html",
                 "htmx_paginated_datasets",
@@ -601,6 +763,14 @@ def view_harvest_source(source_id: str):
                 "jobs": jobs,
                 "htmx_vars": jobs_htmx_vars,
             }
+            logger.info(
+                "Rendered harvest source jobs partial source_id=%s page=%s jobs_count=%s "
+                "returned=%s",
+                source_id,
+                pagination.current,
+                pagination.count,
+                len(jobs),
+            )
             return render_block(
                 "view_source_data.html",
                 "htmx_paginated",
@@ -622,6 +792,7 @@ def view_harvest_source(source_id: str):
         elif form.data["delete"]:
             try:
                 message, status = db.delete_harvest_source(source_id)
+                _log_mutation("delete", "harvest_source", source_id, status=status)
                 flash(message)
                 if status == 409:
                     return redirect(
@@ -742,6 +913,20 @@ def view_harvest_source(source_id: str):
             "datasets": datasets,
             "datasets_htmx_vars": datasets_htmx_vars,
         }
+        logger.info(
+            "Rendered harvest source page source_id=%s source_name=%s jobs_total=%s "
+            "jobs_returned=%s datasets_total=%s datasets_returned=%s "
+            "records_count=%s synced_records_count=%s active_job_in_progress=%s",
+            source_id,
+            getattr(source, "name", None),
+            jobs_count,
+            len(jobs),
+            datasets_count,
+            len(datasets),
+            records_count,
+            synced_records_count,
+            summary_data["active_job_in_progress"],
+        )
         return render_template(
             "view_source_data.html",
             form=form,
@@ -755,6 +940,7 @@ def view_harvest_source(source_id: str):
 def harvest_source_list():
     sources = db.get_all_harvest_sources()
     data = {"harvest_sources": sources}
+    logger.info("Rendered harvest source list count=%s", len(sources) if sources else 0)
     return render_template("view_source_list.html", data=data)
 
 
@@ -782,6 +968,14 @@ def view_dataset(dataset_slug: str):
                 dataset.id, form.slug.data
             )
             if updated:
+                _log_mutation(
+                    "edit",
+                    "dataset",
+                    updated.id,
+                    old_slug=dataset_slug,
+                    new_slug=updated.slug,
+                    opensearch_synced=os_synced,
+                )
                 if os_synced:
                     flash(
                         f"Slug updated successfully to '{updated.slug}'.",
@@ -838,6 +1032,13 @@ def edit_harvest_source(source_id: str):
         job_message = load_manager.schedule_first_job(updated_source.id)
 
         if updated_source and job_message:
+            _log_mutation(
+                "edit",
+                "harvest_source",
+                updated_source.id,
+                organization_id=updated_source.organization_id,
+                source_name=updated_source.name,
+            )
             return {
                 "message": f"Updated source with ID: {updated_source.id}. {job_message}"
             }, 200
@@ -863,6 +1064,13 @@ def edit_harvest_source(source_id: str):
                 source = db.update_harvest_source(source_id, new_source_data)
                 job_message = load_manager.schedule_first_job(source.id)
                 if source and job_message:
+                    _log_mutation(
+                        "edit",
+                        "harvest_source",
+                        source.id,
+                        organization_id=source.organization_id,
+                        source_name=source.name,
+                    )
                     flash(f"Updated source with ID: {source.id}. {job_message}")
                 else:
                     flash("Failed to update harvest source.")
@@ -900,6 +1108,7 @@ def edit_harvest_source(source_id: str):
 def delete_harvest_source(source_id):
     try:
         message, status = db.delete_harvest_source(source_id)
+        _log_mutation("delete", "harvest_source", source_id, status=status)
         return make_response(jsonify({"message": message}), status)
     except Exception as e:
         message = f"Failed to delete harvest source :: {repr(e)}"
@@ -931,6 +1140,13 @@ def add_harvest_job():
     if request.is_json:
         job = db.add_harvest_job(request.json)
         if job:
+            _log_mutation(
+                "create",
+                "harvest_job",
+                job.id,
+                harvest_source_id=job.harvest_source_id,
+                status=job.status,
+            )
             return {"message": f"Added new harvest job with ID: {job.id}"}, 200
         else:
             return {"error": "Failed to add harvest job."}, 400
@@ -990,6 +1206,14 @@ def view_harvest_job(job_id=None):
             "record_errors": record_errors_dict,
             "htmx_vars": htmx_vars,
         }
+        logger.info(
+            "Rendered harvest job errors partial job_id=%s page=%s error_count=%s "
+            "returned=%s",
+            job_id,
+            pagination.current,
+            pagination.count,
+            len(record_errors_dict),
+        )
         return render_block(
             "view_job_data.html",
             "record_errors_table",
@@ -1014,6 +1238,16 @@ def view_harvest_job(job_id=None):
                 data["percent_complete"] = process_job_complete_percentage(
                     job.to_dict()
                 )
+            logger.info(
+                "Rendered harvest job detail job_id=%s status=%s source_id=%s "
+                "record_error_count=%s record_errors_returned=%s page=%s",
+                job_id,
+                getattr(job, "status", None),
+                getattr(job, "harvest_source_id", None),
+                record_error_count,
+                len(record_errors_dict),
+                pagination.current,
+            )
 
             return render_template(
                 "view_job_data.html", data=data, pagination=pagination.to_dict()
@@ -1027,6 +1261,13 @@ def view_harvest_job(job_id=None):
 @valid_id_required
 def update_harvest_job(job_id):
     result = db.update_harvest_job(job_id, request.json)
+    _log_mutation(
+        "edit",
+        "harvest_job",
+        job_id,
+        harvest_source_id=getattr(result, "harvest_source_id", None),
+        status=getattr(result, "status", None),
+    )
     return jsonify(db._to_dict(result))
 
 
@@ -1037,6 +1278,7 @@ def update_harvest_job(job_id):
 @valid_id_required
 def delete_harvest_job(job_id):
     result = db.delete_harvest_job(job_id)
+    _log_mutation("delete", "harvest_job", job_id)
     return escape(result)
 
 
@@ -1291,6 +1533,12 @@ def add_harvest_record():
     if request.is_json:
         record = db.add_harvest_record(request.json)
         if record:
+            _log_mutation(
+                "create",
+                "harvest_record",
+                record.id,
+                harvest_job_id=record.harvest_job_id,
+            )
             return {"message": f"Added new record with ID: {record.id}"}, 200
         else:
             return {"error": "Failed to add harvest record."}, 400
@@ -1391,6 +1639,15 @@ def view_metrics():
                 "jobs": jobs,
                 "htmx_vars": htmx_vars,
             }
+            logger.info(
+                "Rendered metrics jobs partial page=%s total_jobs=%s returned=%s "
+                "window_start=%s window_end=%s",
+                pagination_jobs.current,
+                count_jobs,
+                len(jobs),
+                start_time.isoformat(),
+                current_time.isoformat(),
+            )
             return render_block(
                 "metrics_dashboard.html",
                 "htmx_paginated_jobs",
@@ -1416,6 +1673,15 @@ def view_metrics():
                 "failures": failures,
                 "htmx_vars": htmx_vars,
             }
+            logger.info(
+                "Rendered metrics errors partial page=%s total_errors=%s returned=%s "
+                "window_start=%s window_end=%s",
+                pagination_errors.current,
+                count_errors,
+                len(failures),
+                start_time.isoformat(),
+                current_time.isoformat(),
+            )
             return render_block(
                 "metrics_dashboard.html",
                 "htmx_paginated_errors",
@@ -1455,6 +1721,18 @@ def view_metrics():
             "current_time": current_time,
             "window_start": start_time,
         }
+        logger.info(
+            "Rendered metrics page current_jobs=%s completed_jobs_total=%s "
+            "completed_jobs_returned=%s failure_total=%s failure_returned=%s "
+            "window_start=%s window_end=%s",
+            len(current_jobs),
+            count_jobs,
+            len(jobs),
+            count_errors,
+            len(failures),
+            start_time.isoformat(),
+            current_time.isoformat(),
+        )
         return render_template(
             "metrics_dashboard.html",
             pagination_jobs=pagination_jobs.to_dict(),
@@ -1568,6 +1846,12 @@ def validator(json_data):
             data = json.loads(json_data["json_text"])
 
         errors = validate_records(data, json_data["schema"])
+        logger.info(
+            "API validator completed fetch_method=%s schema=%s validation_errors=%s",
+            json_data["fetch_method"],
+            json_data["schema"],
+            len(errors),
+        )
     except Exception as e:
         logger.error(f"API Validator error :: {repr(e)}")
         return make_response(
@@ -1616,10 +1900,26 @@ def view_validators():
         if not form.errors:
             submitted = True
             errors = validate_records(data, form.schema.data)
+            logger.info(
+                "Rendered validator results fetch_method=%s schema=%s validation_errors=%s",
+                form.fetch_method.data,
+                form.schema.data,
+                len(errors),
+            )
+        else:
+            logger.warning(
+                "Validator submission failed fetch_method=%s url_errors=%s json_errors=%s",
+                form.fetch_method.data,
+                len(form.url.errors),
+                len(form.json_text.errors),
+            )
 
     data = {
         "record_errors": errors,
     }
+
+    if request.method == "GET":
+        logger.info("Rendered validator page")
 
     return render_template(
         "view_validators.html",

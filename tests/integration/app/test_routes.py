@@ -1,8 +1,9 @@
 import json
+import logging
 import os
 import re
 import uuid
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import pytest
 from flask import Response
@@ -255,6 +256,175 @@ class TestLoginAuthHeaders:
         response = client.get("/organization/add", json=data, headers=headers)
         assert response.status_code == 401
         assert response.data.decode() == "error: Unauthorized"
+
+    def test_login_required_invalid_token_logs_rejection(self, client, caplog):
+        caplog.set_level("INFO", logger="harvest_admin")
+        headers = {
+            "Authorization": "invalid_token",
+            "Content-Type": "application/json",
+        }
+        data = {"name": "Test Org", "logo": "test_logo.png", "slug": "test-org"}
+
+        response = client.get("/organization/add", json=data, headers=headers)
+
+        assert response.status_code == 401
+        assert "API auth rejected: invalid Authorization header" in caplog.text
+
+
+class TestLoginLogging:
+    def test_login_route_logs_start(self, client, caplog):
+        caplog.set_level("INFO", logger="harvest_admin")
+
+        response = client.get("/login")
+
+        assert response.status_code == 302
+        assert "Login initiated from ip=" in caplog.text
+
+    def test_callback_logs_successful_login(self, client, interface, caplog):
+        caplog.set_level("INFO", logger="harvest_admin")
+        ok, user = interface.add_user(
+            {"email": "test.user@gsa.gov", "name": "Test User"}
+        )
+        assert ok is True
+        assert user.email == "test.user@gsa.gov"
+
+        with client.session_transaction() as sess:
+            sess["state"] = "expected-state"
+
+        token_response = Mock()
+        token_response.status_code = 200
+        token_response.json.return_value = {"id_token": "encoded-token"}
+
+        with (
+            patch("app.routes.create_client_assertion", return_value="assertion"),
+            patch("app.routes.requests.post", return_value=token_response),
+            patch(
+                "app.routes.jwt.decode",
+                return_value={
+                    "email": "test.user@gsa.gov",
+                    "sub": "login-gov-subject",
+                },
+            ),
+        ):
+            response = client.get("/callback?code=abc123&state=expected-state")
+
+        assert response.status_code == 302
+        assert "Login callback received" in caplog.text
+        assert "Login succeeded for user=test.user@gsa.gov" in caplog.text
+
+    def test_callback_logs_token_exchange_failure(self, client, caplog):
+        caplog.set_level("INFO", logger="harvest_admin")
+
+        with client.session_transaction() as sess:
+            sess["state"] = "expected-state"
+
+        failed_response = Mock()
+        failed_response.status_code = 400
+        failed_response.text = "invalid_grant"
+
+        with (
+            patch("app.routes.create_client_assertion", return_value="assertion"),
+            patch("app.routes.requests.post", return_value=failed_response),
+        ):
+            response = client.get("/callback?code=bad-code&state=expected-state")
+
+        assert response.status_code == 400
+        assert (
+            "Login callback failed: token endpoint returned status=400" in caplog.text
+        )
+
+    def test_callback_logs_unregistered_user(self, client, caplog):
+        caplog.set_level("INFO", logger="harvest_admin")
+
+        with client.session_transaction() as sess:
+            sess["state"] = "expected-state"
+
+        token_response = Mock()
+        token_response.status_code = 200
+        token_response.json.return_value = {"id_token": "encoded-token"}
+
+        with (
+            patch("app.routes.create_client_assertion", return_value="assertion"),
+            patch("app.routes.requests.post", return_value=token_response),
+            patch(
+                "app.routes.jwt.decode",
+                return_value={
+                    "email": "unregistered@gsa.gov",
+                    "sub": "login-gov-subject",
+                },
+            ),
+        ):
+            response = client.get("/callback?code=abc123&state=expected-state")
+
+        assert response.status_code == 302
+        assert (
+            "Login rejected for unregistered user=unregistered@gsa.gov" in caplog.text
+        )
+
+
+class TestAuditLogging:
+    def test_api_add_organization_logs_actor(self, client, caplog):
+        api_token = os.getenv("FLASK_APP_SECRET_KEY")
+        headers = {
+            "Authorization": api_token,
+            "Content-Type": "application/json",
+        }
+        data = {
+            "name": "Audit Org",
+            "logo": "test_logo.png",
+            "slug": "audit-org",
+        }
+        caplog.set_level(logging.INFO, logger="harvest_admin")
+
+        response = client.post("/organization/add", json=data, headers=headers)
+
+        assert response.status_code == 200
+        assert "Audit create organization" in caplog.text
+        assert "user=<api_token>" in caplog.text
+        assert "auth_type=api_token" in caplog.text
+
+    def test_web_edit_organization_logs_actor(
+        self, app, client, interface, organization_data, caplog
+    ):
+        app.config.update({"WTF_CSRF_ENABLED": False})
+        interface.add_organization(organization_data)
+        with client.session_transaction() as sess:
+            sess["user"] = "tester@gsa.gov"
+        caplog.set_level(logging.INFO, logger="harvest_admin")
+
+        response = client.post(
+            f"/organization/edit/{organization_data['id']}",
+            data={
+                "name": "Updated Org",
+                "logo": "https://example.com/newlogo.png",
+                "organization_type": "City Government",
+                "description": "New description",
+                "slug": "updated-slug",
+            },
+        )
+
+        assert response.status_code == 302
+        assert "Audit edit organization" in caplog.text
+        assert "user=tester@gsa.gov" in caplog.text
+        assert "auth_type=session" in caplog.text
+
+    def test_api_delete_organization_logs_actor(
+        self, client, interface, organization_data, caplog
+    ):
+        api_token = os.getenv("FLASK_APP_SECRET_KEY")
+        headers = {"Authorization": api_token}
+        interface.add_organization(organization_data)
+        caplog.set_level(logging.INFO, logger="harvest_admin")
+
+        response = client.delete(
+            f"/organization/{organization_data['id']}",
+            headers=headers,
+        )
+
+        assert response.status_code == 200
+        assert "Audit delete organization" in caplog.text
+        assert f"organization_id={organization_data['id']}" in caplog.text
+        assert "user=<api_token>" in caplog.text
 
 
 class TestJSONResponses:

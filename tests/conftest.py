@@ -50,6 +50,23 @@ def app() -> Generator[Any, Flask, Any]:
 
 
 @pytest.fixture(autouse=True)
+def enable_named_logger_propagation():
+    loggers = [
+        logging.getLogger("harvest_admin"),
+        logging.getLogger("harvest_runner"),
+    ]
+    original_propagation = {logger.name: logger.propagate for logger in loggers}
+
+    for named_logger in loggers:
+        named_logger.propagate = True
+
+    yield
+
+    for named_logger in loggers:
+        named_logger.propagate = original_propagation[named_logger.name]
+
+
+@pytest.fixture(autouse=True)
 def dbapp(app):
     with app.app_context():
         db.drop_all()  # drop unconditionally in case tests errored and the db isn't clean...
