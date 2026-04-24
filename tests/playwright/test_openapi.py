@@ -12,5 +12,5 @@ class TestOpenAPI:
     def test_swagger(self, page):
         expect(page.locator("h2.title")).to_have_text("Datagov Harvester 0.1.0 OAS 3.1")
         expect(page.locator("h3")).to_have_text("Api")
-        expect(page.locator(".opblock-get")).to_have_count(14)
+        expect(page.locator(".opblock-get")).to_have_count(15)
         expect(page.locator(".json-schema-2020-12")).to_have_count(10)
