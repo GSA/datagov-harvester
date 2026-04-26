@@ -26,6 +26,7 @@ class OpenSearchInterface:
     INDEX_NAME = "datasets"
     TEXT_ANALYZER = "datagov_text"
     STOP_FILTER = "datagov_stop"
+    KEYWORD_NORMALIZER = "lowercase_normalizer"
     DEFAULT_CATALOG_BASE_URL = "https://catalog.data.gov"
 
     SETTINGS = {
@@ -41,6 +42,12 @@ class OpenSearchInterface:
                     "type": "custom",
                     "tokenizer": "standard",
                     "filter": ["lowercase", STOP_FILTER],
+                }
+            },
+            "normalizer": {
+                KEYWORD_NORMALIZER: {
+                    "type": "custom",
+                    "filter": ["lowercase"],
                 }
             },
         }
@@ -60,6 +67,7 @@ class OpenSearchInterface:
                 "properties": {
                     "modified": {"type": "keyword"},
                     "issued": {"type": "keyword"},
+                    "isPartOf": {"type": "keyword"},
                 },
             },
             "description": {
@@ -71,12 +79,25 @@ class OpenSearchInterface:
                 "type": "text",
                 "analyzer": TEXT_ANALYZER,
                 "search_analyzer": TEXT_ANALYZER,
+                "fields": {
+                    "raw": {"type": "keyword"},
+                    "normalized": {
+                        "type": "keyword",
+                        "normalizer": KEYWORD_NORMALIZER,
+                    },
+                },
             },
             "keyword": {
                 "type": "text",
                 "analyzer": TEXT_ANALYZER,
                 "search_analyzer": TEXT_ANALYZER,
-                "fields": {"raw": {"type": "keyword"}},
+                "fields": {
+                    "raw": {"type": "keyword"},
+                    "normalized": {
+                        "type": "keyword",
+                        "normalizer": KEYWORD_NORMALIZER,
+                    },
+                },
             },
             "theme": {
                 "type": "text",
@@ -107,6 +128,11 @@ class OpenSearchInterface:
                     "slug": {"type": "keyword"},
                     "organization_type": {"type": "keyword"},
                 },
+            },
+            "distribution_titles": {
+                "type": "text",
+                "analyzer": TEXT_ANALYZER,
+                "search_analyzer": TEXT_ANALYZER,
             },
             "spatial_shape": {"type": "geo_shape", "ignore_malformed": True},
             "spatial_centroid": {"type": "geo_point"},
@@ -289,6 +315,11 @@ class OpenSearchInterface:
             "identifier": dataset.dcat.get("identifier", ""),
             "has_spatial": has_spatial,
             "organization": organization,
+            "distribution_titles": [
+                dist["title"]
+                for dist in (dataset.dcat.get("distribution") or [])
+                if isinstance(dist, dict) and dist.get("title")
+            ],
             "popularity": popularity,
             "spatial_shape": dataset.translated_spatial,
             "spatial_centroid": spatial_centroid,

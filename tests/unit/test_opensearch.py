@@ -58,6 +58,12 @@ def sample_dataset():
             "identifier": "id-1",
             "spatial": "POINT(1 2)",
             "modified": date(2024, 1, 2),
+            "isPartOf": "collection-1",
+            "distribution": [
+                {"title": "CSV download"},
+                {"title": "API endpoint"},
+                {"accessURL": "https://example.com/no-title"},
+            ],
         },
         last_harvested_date=datetime(2024, 1, 3, 4, 5, 6),
         translated_spatial={"type": "Point", "coordinates": [1, 2]},
@@ -98,6 +104,8 @@ def test_dataset_to_document(sample_dataset):
     assert document["_id"] == sample_dataset.id
     assert document["title"] == "Dataset Title"
     assert document["publisher"] == "Publisher"
+    assert document["dcat"]["isPartOf"] == "collection-1"
+    assert document["distribution_titles"] == ["CSV download", "API endpoint"]
     assert document["has_spatial"] is True
     assert document["harvest_record"] == "https://catalog.data.gov/harvest_record/hr-1"
     assert (
@@ -135,6 +143,22 @@ def test_init_creates_index_when_missing(monkeypatch):
     assert created["index"] == OpenSearchInterface.INDEX_NAME
     assert created["body"]["mappings"] == OpenSearchInterface.MAPPINGS
     assert created["body"]["settings"] == OpenSearchInterface.SETTINGS
+
+
+def test_mappings_include_catalog_compatible_fields():
+    mappings = OpenSearchInterface.MAPPINGS["properties"]
+
+    assert mappings["dcat"]["properties"]["isPartOf"] == {"type": "keyword"}
+    assert mappings["distribution_titles"]["type"] == "text"
+    assert mappings["publisher"]["fields"]["raw"] == {"type": "keyword"}
+    assert mappings["publisher"]["fields"]["normalized"] == {
+        "type": "keyword",
+        "normalizer": OpenSearchInterface.KEYWORD_NORMALIZER,
+    }
+    assert mappings["keyword"]["fields"]["normalized"] == {
+        "type": "keyword",
+        "normalizer": OpenSearchInterface.KEYWORD_NORMALIZER,
+    }
 
 
 def test_from_environment_uses_aws_client(monkeypatch):
