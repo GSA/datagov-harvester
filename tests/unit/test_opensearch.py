@@ -147,6 +147,9 @@ def test_init_creates_index_when_missing(monkeypatch):
 
 def test_mappings_include_catalog_compatible_fields():
     mappings = OpenSearchInterface.MAPPINGS["properties"]
+    normalizer = OpenSearchInterface.SETTINGS["analysis"]["normalizer"][
+        OpenSearchInterface.KEYWORD_NORMALIZER
+    ]
 
     assert mappings["dcat"]["properties"]["isPartOf"] == {"type": "keyword"}
     assert mappings["distribution_titles"]["type"] == "text"
@@ -158,6 +161,10 @@ def test_mappings_include_catalog_compatible_fields():
     assert mappings["keyword"]["fields"]["normalized"] == {
         "type": "keyword",
         "normalizer": OpenSearchInterface.KEYWORD_NORMALIZER,
+    }
+    assert normalizer == {
+        "type": "custom",
+        "filter": ["lowercase"],
     }
 
 
