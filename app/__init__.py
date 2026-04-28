@@ -1,6 +1,7 @@
 import logging
 import logging.config
 import os
+from urllib.parse import urlsplit
 
 from apiflask import APIFlask
 from dotenv import load_dotenv
@@ -26,6 +27,20 @@ logging.config.dictConfig(LOGGING_CONFIG)
 htmx = None
 
 
+def _external_route_to_server_url(route: str | None) -> str | None:
+    if not route:
+        return None
+
+    route = route.strip().rstrip("/")
+    if not route:
+        return None
+
+    if urlsplit(route).scheme:
+        return route
+
+    return f"https://{route}"
+
+
 def create_app():
     app = APIFlask(__name__, static_url_path="", static_folder="static", docs_path=None)
 
@@ -34,6 +49,9 @@ def create_app():
         "title": "Datagov Harvester",
         "version": "0.1.0",
     }
+    external_server_url = _external_route_to_server_url(os.getenv("EXTERNAL_ROUTE"))
+    if external_server_url:
+        app.config["SERVERS"] = [{"url": external_server_url}]
 
     # don't include auth information in the OpenAPI spec
     @app.spec_processor
