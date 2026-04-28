@@ -1,6 +1,10 @@
 """OpenAPI spec tests."""
 
+from unittest.mock import patch
+
 from bs4 import BeautifulSoup
+
+from app import create_app
 
 
 class TestOpenAPI:
@@ -28,3 +32,14 @@ class TestOpenAPI:
             "swagger-ui-bundle.js" in script_el.get("src", "")
             for script_el in soup.find_all("script")
         )
+
+    def test_openapi_json_uses_external_route_for_servers(self):
+        with patch.dict("os.environ", {"EXTERNAL_ROUTE": "api.example.gov"}):
+            app = create_app()
+            app.config.update({"TESTING": True})
+
+            with app.test_client() as client:
+                response = client.get("/openapi.json")
+
+        assert response.status_code == 200
+        assert response.json["servers"] == [{"url": "https://api.example.gov"}]
