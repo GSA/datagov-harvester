@@ -1632,7 +1632,7 @@ def view_metrics():
             )
             htmx_vars = {
                 "target_div": "#paginated__harvest-jobs",
-                "endpoint_url": "/metrics",
+                "endpoint_url": "/metrics/",
                 "page_param": "jobs_page",
             }
             data = {
@@ -1666,7 +1666,7 @@ def view_metrics():
             )
             htmx_vars = {
                 "target_div": "#paginated__harvest-errors",
-                "endpoint_url": "/metrics",
+                "endpoint_url": "/metrics/",
                 "page_param": "errors_page",
             }
             data = {

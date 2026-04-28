@@ -92,7 +92,7 @@
             {% set errors_config = {
                 'pagination': pagination_errors,
                 'target_div': '#paginated__harvest-errors',
-                'endpoint_url': '/metrics',
+                'endpoint_url': '/metrics/',
                 'page_param': 'errors_page'
             } %}
             {{ multi_pagination(errors_config) }}
@@ -127,7 +127,7 @@
             {% set jobs_config = {
                 'pagination': pagination_jobs,
                 'target_div': '#paginated__harvest-jobs',
-                'endpoint_url': '/metrics',
+                'endpoint_url': '/metrics/',
                 'page_param': 'jobs_page'
             } %}
             {{ multi_pagination(jobs_config) }}
