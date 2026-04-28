@@ -28,6 +28,7 @@ htmx = None
 
 
 def _external_route_to_server_url(route: str | None) -> str | None:
+    """Return a normalized external server URL, or None for empty input."""
     if not route:
         return None
 
