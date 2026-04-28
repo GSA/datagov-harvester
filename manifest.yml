@@ -32,6 +32,7 @@ applications:
     disk_quota: ((admin_disk_quota))
     env:
       FLASK_APP: run.py
+      EXTERNAL_ROUTE: ((route_external))
       CF_API_URL: ((CF_API_URL))
       CATALOG_BASE_URL: ((CATALOG_BASE_URL))
       HARVEST_RUNNER_MAX_TASKS: ((HARVEST_RUNNER_MAX_TASKS))
