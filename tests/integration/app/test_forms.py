@@ -166,9 +166,7 @@ class TestForms:
         assert "testorg" in edit_response.text
         assert "['testorg']" not in edit_response.text
 
-    def test_harvest_source_add_org_dropdown_is_sorted(
-        self, app, client, interface
-    ):
+    def test_harvest_source_add_org_dropdown_is_sorted(self, app, client, interface):
         """
         Organization dropdown on /harvest_source/add is sorted A–Z by name.
         """

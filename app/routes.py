@@ -653,7 +653,7 @@ def add_harvest_source():
         organizations = db.get_all_organizations()
         organization_choices = sorted(
             [(str(org.id), f"{org.name} - {org.id}") for org in organizations],
-            key=lambda x: x[1].lower()
+            key=lambda x: x[1].lower(),
         )
         form.organization_id.choices = organization_choices
         if form.validate_on_submit():
@@ -1055,7 +1055,7 @@ def edit_harvest_source(source_id: str):
                     (str(org["id"]), f"{org['name']} - {org['id']}")
                     for org in db._to_dict(organizations)
                 ],
-                key=lambda x: x[1].lower()
+                key=lambda x: x[1].lower(),
             )
             source_data = db._to_dict(source)
             source_data["notification_emails"] = ", ".join(
