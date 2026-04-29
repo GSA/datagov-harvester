@@ -505,6 +505,39 @@ class TestHarvestJobFullFlow:
         # the record was added as intended (not errored)
         assert send_notification_emails_mock.call_args.args[0]["records_added"] == 1
 
+    @patch("harvester.harvest.HarvestSource.send_notification_emails")
+    def test_find_no_slug_on_update(
+        self,
+        send_notification_emails_mock: MagicMock,
+        slug_out_of_sync_interface,
+        job_data_dcatus,
+    ):
+        # the last successful record (create) isn't tied to the dataset via FK
+        # the following erroneous update record is tied to it instead
+        latest_records = (
+            slug_out_of_sync_interface.get_latest_harvest_records_by_source(
+                job_data_dcatus["harvest_source_id"]
+            )
+        )
+
+        # so it won't have a dataset_slug because no dataset has its harvest_record_id
+        assert latest_records[0]["dataset_slug"] is None
+
+        harvest_job_starter(job_data_dcatus["id"], "harvest")
+
+        latest_records = (
+            slug_out_of_sync_interface.get_latest_harvest_records_by_source(
+                job_data_dcatus["harvest_source_id"]
+            )
+        )
+
+        # if the dataset slug didn't exist then the default by munging
+        # from the title would be used (i.e. commitment-of-traders) but that's not the case
+        # and the intended slug (i.e. original-slug) was picked up instead.
+        assert (
+            latest_records[0]["dataset_slug"] == "original-slug"
+        ) != "commitment-of-traders"
+
 
 class TestCheckMoreWork:
     @patch("harvester.lib.cf_handler.CloudFoundryClient")

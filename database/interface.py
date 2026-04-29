@@ -727,6 +727,22 @@ class HarvesterDBInterface:
 
         return dataset, True, None
 
+    def get_slug_of_record(self, harvest_source_id: str, identifier: str):
+        """
+        get the slug of the harvest record by harvest source id and identifier
+
+        this is needed when harvest records are no longer synced with datasets
+        """
+        return (
+            self.db.query(Dataset.slug)
+            .join(HarvestRecord, Dataset.harvest_record_id == HarvestRecord.id)
+            .filter(
+                HarvestRecord.identifier == identifier,
+                HarvestRecord.harvest_source_id == harvest_source_id,
+            )
+            .scalar()
+        )
+
     @count
     @paginate
     def get_datasets_by_source(self, source_id: str, **kwargs):

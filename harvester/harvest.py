@@ -1132,6 +1132,11 @@ class Record:
                 metadata = self._metadata_for_dataset()
                 if not self.dataset_slug:
                     self.dataset_slug = munge_title_to_name(metadata["title"])
+                    if self.action == "update":
+                        slug = self.harvest_source.db_interface.get_slug_of_record(
+                            self.harvest_source.id, self.identifier
+                        )
+                        self.dataset_slug = slug if slug else self.dataset_slug
 
             self.status = "success"
             self.harvest_source.update_job_record_count_by_action(self.action)

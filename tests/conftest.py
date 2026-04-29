@@ -1365,3 +1365,50 @@ def slug_protection_dataset(
         }
     )
     return dataset
+
+
+@pytest.fixture()
+def slug_out_of_sync_interface(
+    interface,
+    organization_data,
+    source_data_dcatus,
+    job_data_dcatus,
+):
+    """
+    TODO
+    """
+    interface.add_organization(organization_data)
+    interface.add_harvest_source(source_data_dcatus)
+    job_data_dcatus["harvest_source_id"] = source_data_dcatus["id"]
+    interface.add_harvest_job(job_data_dcatus)
+    interface.add_harvest_record(
+        {
+            "identifier": "cftc-dc1",
+            "harvest_job_id": job_data_dcatus["id"],
+            "harvest_source_id": source_data_dcatus["id"],
+            "status": "success",
+            "action": "create",
+            "source_raw": "{}",
+        }
+    )
+    record_error = interface.add_harvest_record(
+        {
+            "identifier": "cftc-dc1",
+            "harvest_job_id": job_data_dcatus["id"],
+            "harvest_source_id": source_data_dcatus["id"],
+            "status": "error",
+            "action": "update",
+            "source_raw": "{}",
+        }
+    )
+    interface.insert_dataset(
+        {
+            "slug": "original-slug",
+            "dcat": {"title": "original-slug"},
+            "organization_id": organization_data["id"],
+            "harvest_source_id": source_data_dcatus["id"],
+            "harvest_record_id": record_error.id,
+            "last_harvested_date": datetime.now(timezone.utc),
+        }
+    )
+    return interface
