@@ -651,9 +651,10 @@ def add_harvest_source():
     else:
         form = HarvestSourceForm()
         organizations = db.get_all_organizations()
-        organization_choices = [
-            (str(org.id), f"{org.name} - {org.id}") for org in organizations
-        ]
+        organization_choices = sorted(
+            [(str(org.id), f"{org.name} - {org.id}") for org in organizations],
+            key=lambda x: x[1].lower()
+        )
         form.organization_id.choices = organization_choices
         if form.validate_on_submit():
             new_source = make_new_source_contract(form)
@@ -1049,10 +1050,13 @@ def edit_harvest_source(source_id: str):
         source = db.get_harvest_source(source_id)
         organizations = db.get_all_organizations()
         if source and organizations:
-            organization_choices = [
-                (str(org["id"]), f"{org['name']} - {org['id']}")
-                for org in db._to_dict(organizations)
-            ]
+            organization_choices = sorted(
+                [
+                    (str(org["id"]), f"{org['name']} - {org['id']}")
+                    for org in db._to_dict(organizations)
+                ],
+                key=lambda x: x[1].lower()
+            )
             source_data = db._to_dict(source)
             source_data["notification_emails"] = ", ".join(
                 source_data.get("notification_emails") or []

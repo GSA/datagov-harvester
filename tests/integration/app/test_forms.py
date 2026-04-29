@@ -166,6 +166,47 @@ class TestForms:
         assert "testorg" in edit_response.text
         assert "['testorg']" not in edit_response.text
 
+    def test_harvest_source_add_org_dropdown_is_sorted(
+        self, app, client, interface
+    ):
+        """
+        Organization dropdown on /harvest_source/add is sorted A–Z by name.
+        """
+        app.config.update({"WTF_CSRF_ENABLED": False})
+        with client.session_transaction() as sess:
+            sess["user"] = "tester@gsa.gov"
+
+        # Insert orgs intentionally out of alphabetical order
+        orgs = [
+            {
+                "name": "Zebra Agency",
+                "logo": "https://example.com/z.png",
+                "slug": "zebra-agency",
+            },
+            {
+                "name": "apple Bureau",
+                "logo": "https://example.com/a.png",
+                "slug": "apple-bureau",
+            },
+            {
+                "name": "Mango Department",
+                "logo": "https://example.com/m.png",
+                "slug": "mango-department",
+            },
+        ]
+        for org in orgs:
+            interface.add_organization(org)
+
+        res = client.get("/harvest_source/add")
+        assert res.status_code == 200
+
+        soup = BeautifulSoup(res.data, "html.parser")
+        select = soup.find("select", {"id": "organization_id"})
+        assert select is not None, "organization_id <select> not found"
+
+        option_labels = [opt.text.split(" - ")[0] for opt in select.find_all("option")]
+        assert option_labels == sorted(option_labels, key=str.lower)
+
 
 @pytest.mark.usefixtures("mock_opensearch")
 class TestDatasetSlugForm:
