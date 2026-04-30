@@ -260,7 +260,8 @@ def login():
 
 @main.route("/logout")
 def logout():
-    user = session.pop("user", None)
+    user = session.get("user")
+    session.clear()
     logger.info(
         "Logout completed for user=%s ip=%s",
         user or "<anonymous>",

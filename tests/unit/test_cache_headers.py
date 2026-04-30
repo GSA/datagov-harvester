@@ -67,3 +67,18 @@ def test_assets_are_cached_for_one_hour(client):
     assert response.headers["Cache-Control"] == "public, max-age=3600, s-maxage=3600"
     assert "Pragma" not in response.headers
     assert "Expires" not in response.headers
+
+
+def test_logout_clears_full_session(client):
+    with client.session_transaction() as sess:
+        sess["user"] = "test.user@gsa.gov"
+        sess["state"] = "expected-state"
+        sess["nonce"] = "expected-nonce"
+        sess["next"] = "main.view_metrics"
+
+    response = client.get("/logout")
+
+    assert response.status_code == 302
+
+    with client.session_transaction() as sess:
+        assert dict(sess) == {}
