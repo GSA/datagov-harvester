@@ -5,6 +5,7 @@ from urllib.parse import urlsplit
 
 from apiflask import APIFlask
 from dotenv import load_dotenv
+from flask import request, session
 from flask_bootstrap import Bootstrap5
 from flask_htmx import HTMX
 from flask_migrate import Migrate
@@ -64,6 +65,39 @@ def create_app():
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
     app.config["SECRET_KEY"] = os.getenv("FLASK_APP_SECRET_KEY")
     app.config["MAX_CONTENT_LENGTH"] = 10 * 1024 * 1024
+
+    def set_private_no_store(response):
+        response.headers["Cache-Control"] = "private, no-store, max-age=0"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+        return response
+
+    def set_public_cache(response, ttl):
+        response.headers["Cache-Control"] = f"public, max-age={ttl}, s-maxage={ttl}"
+        response.headers.pop("Pragma", None)
+        response.headers.pop("Expires", None)
+        return response
+
+    @app.after_request
+    def apply_cache_headers(response):
+        path = request.path or "/"
+        method = request.method
+        has_session_user = bool(session.get("user"))
+        sets_cookie = bool(response.headers.getlist("Set-Cookie"))
+
+        if path.startswith(("/login", "/callback", "/logout")):
+            return set_private_no_store(response)
+
+        if path.startswith("/assets/"):
+            return set_public_cache(response, 3600)
+
+        if method not in {"GET", "HEAD"}:
+            return set_private_no_store(response)
+
+        if has_session_user or sets_cookie or response.status_code >= 400:
+            return set_private_no_store(response)
+
+        return set_public_cache(response, 60)
 
     Bootstrap5(app)
     global htmx
