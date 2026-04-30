@@ -124,10 +124,7 @@ def test_stale_logged_in_session_is_cleared_and_cookie_deleted(client):
     with patch("app.current_unix_timestamp", return_value=1_901):
         response = client.get("/_cache_test", base_url="https://localhost")
 
-    assert (
-        response.headers["Cache-Control"]
-        == "private, no-store, max-age=0"
-    )
+    assert response.headers["Cache-Control"] == "private, no-store, max-age=0"
     assert any(
         header.startswith("session=;")
         for header in response.headers.getlist("Set-Cookie")
