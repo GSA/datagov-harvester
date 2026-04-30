@@ -45,6 +45,7 @@ from harvester.utils.general_utils import (
 )
 
 from . import htmx
+from . import current_unix_timestamp
 from .api_schemas import (
     ErrorInfo,
     JobInfo,
@@ -377,6 +378,7 @@ def callback():
 
     if usr:
         session["user"] = usr_email
+        session["last_activity"] = current_unix_timestamp()
         logger.info(
             "Login succeeded for user=%s ssoid=%s ip=%s",
             usr_email,

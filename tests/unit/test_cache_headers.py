@@ -1,6 +1,7 @@
 from unittest.mock import patch
 
 import pytest
+from flask import request, session
 
 from app import create_app
 
@@ -13,6 +14,12 @@ def app():
 
     @app.route("/_cache_test")
     def cache_test():
+        return "ok"
+
+    @app.route("/_set_session")
+    def set_session():
+        for key, value in request.args.items():
+            session[key] = value
         return "ok"
 
     return app
@@ -42,14 +49,21 @@ def test_anonymous_page_is_publicly_cacheable(client):
 
 
 def test_logged_in_page_is_private_no_store(client):
-    with client.session_transaction() as sess:
-        sess["user"] = "test.user@gsa.gov"
+    client.get(
+        "/_set_session?user=test.user@gsa.gov&last_activity=1000",
+        base_url="https://localhost",
+    )
 
-    response = client.get("/_cache_test")
+    with patch("app.current_unix_timestamp", return_value=1_100):
+        response = client.get("/_cache_test", base_url="https://localhost")
 
     assert response.headers["Cache-Control"] == "private, no-store, max-age=0"
     assert response.headers["Pragma"] == "no-cache"
     assert response.headers["Expires"] == "0"
+
+    with client.session_transaction() as sess:
+        assert sess["user"] == "test.user@gsa.gov"
+        assert sess["last_activity"] == 1_100
 
 
 def test_login_route_is_private_no_store(client):
@@ -74,11 +88,34 @@ def test_logout_clears_full_session(client):
         sess["user"] = "test.user@gsa.gov"
         sess["state"] = "expected-state"
         sess["nonce"] = "expected-nonce"
+        sess["last_activity"] = 1_000
         sess["next"] = "main.view_metrics"
 
     response = client.get("/logout")
 
     assert response.status_code == 302
+
+    with client.session_transaction() as sess:
+        assert dict(sess) == {}
+
+
+def test_stale_logged_in_session_is_cleared_and_cookie_deleted(client):
+    client.get(
+        "/_set_session?user=test.user@gsa.gov&last_activity=1000",
+        base_url="https://localhost",
+    )
+
+    with patch("app.current_unix_timestamp", return_value=1_901):
+        response = client.get("/_cache_test", base_url="https://localhost")
+
+    assert (
+        response.headers["Cache-Control"]
+        == "private, no-store, max-age=0"
+    )
+    assert any(
+        header.startswith("session=;")
+        for header in response.headers.getlist("Set-Cookie")
+    )
 
     with client.session_transaction() as sess:
         assert dict(sess) == {}

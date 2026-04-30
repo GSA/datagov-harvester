@@ -1,11 +1,12 @@
 import logging
 import logging.config
 import os
+import time
 from urllib.parse import urlsplit
 
 from apiflask import APIFlask
 from dotenv import load_dotenv
-from flask import request, session
+from flask import g, request, session
 from flask_bootstrap import Bootstrap5
 from flask_htmx import HTMX
 from flask_migrate import Migrate
@@ -26,6 +27,10 @@ logging.config.dictConfig(LOGGING_CONFIG)
 
 # fixes a bug with Flask-HTMX not being able to find the app context
 htmx = None
+
+
+def current_unix_timestamp() -> int:
+    return int(time.time())
 
 
 def _external_route_to_server_url(route: str | None) -> str | None:
@@ -65,6 +70,51 @@ def create_app():
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
     app.config["SECRET_KEY"] = os.getenv("FLASK_APP_SECRET_KEY")
     app.config["MAX_CONTENT_LENGTH"] = 10 * 1024 * 1024
+    app.config["SESSION_IDLE_TIMEOUT_SECONDS"] = int(
+        os.getenv("SESSION_IDLE_TIMEOUT_SECONDS", "900")
+    )
+
+    def get_session_cookie_name():
+        return app.config.get("SESSION_COOKIE_NAME", "session")
+
+    def clear_session_cookie(response):
+        response.delete_cookie(
+            get_session_cookie_name(),
+            path=app.config.get("SESSION_COOKIE_PATH", "/"),
+            domain=app.config.get("SESSION_COOKIE_DOMAIN"),
+        )
+        return response
+
+    @app.before_request
+    def expire_stale_session():
+        g.clear_session_cookie = False
+
+        if request.path.startswith("/assets/"):
+            return
+
+        if not session.get("user"):
+            return
+
+        now = current_unix_timestamp()
+        last_activity = session.get("last_activity")
+        timeout_seconds = app.config["SESSION_IDLE_TIMEOUT_SECONDS"]
+
+        try:
+            last_activity = int(last_activity)
+        except (TypeError, ValueError):
+            last_activity = None
+
+        if last_activity is None or now - last_activity > timeout_seconds:
+            logger.info(
+                "Session expired for user=%s path=%s",
+                session.get("user"),
+                request.path,
+            )
+            session.clear()
+            g.clear_session_cookie = True
+            return
+
+        session["last_activity"] = now
 
     def set_private_no_store(response):
         response.headers["Cache-Control"] = "private, no-store, max-age=0"
@@ -83,6 +133,10 @@ def create_app():
         path = request.path or "/"
         method = request.method
         has_session_user = bool(session.get("user"))
+
+        if getattr(g, "clear_session_cookie", False):
+            response = clear_session_cookie(response)
+
         sets_cookie = bool(response.headers.getlist("Set-Cookie"))
 
         if path.startswith(("/login", "/callback", "/logout")):
