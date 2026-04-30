@@ -66,6 +66,22 @@ def test_logged_in_page_is_private_no_store(client):
         assert sess["last_activity"] == 1_100
 
 
+def test_logged_in_session_without_last_activity_is_initialized(client):
+    client.get(
+        "/_set_session?user=test.user@gsa.gov",
+        base_url="https://localhost",
+    )
+
+    with patch("app.current_unix_timestamp", return_value=1_100):
+        response = client.get("/_cache_test", base_url="https://localhost")
+
+    assert response.headers["Cache-Control"] == "private, no-store, max-age=0"
+
+    with client.session_transaction() as sess:
+        assert sess["user"] == "test.user@gsa.gov"
+        assert sess["last_activity"] == 1_100
+
+
 def test_login_route_is_private_no_store(client):
     response = client.get("/login")
 

@@ -44,8 +44,7 @@ from harvester.utils.general_utils import (
     process_job_complete_percentage,
 )
 
-from . import htmx
-from . import current_unix_timestamp
+from . import current_unix_timestamp, htmx
 from .api_schemas import (
     ErrorInfo,
     JobInfo,

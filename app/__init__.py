@@ -104,7 +104,11 @@ def create_app():
         except (TypeError, ValueError):
             last_activity = None
 
-        if last_activity is None or now - last_activity > timeout_seconds:
+        if last_activity is None:
+            session["last_activity"] = now
+            return
+
+        if now - last_activity > timeout_seconds:
             logger.info(
                 "Session expired for user=%s path=%s",
                 session.get("user"),
