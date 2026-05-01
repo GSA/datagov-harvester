@@ -60,6 +60,10 @@ def test_logged_in_page_is_private_no_store(client):
     assert response.headers["Cache-Control"] == "private, no-store, max-age=0"
     assert response.headers["Pragma"] == "no-cache"
     assert response.headers["Expires"] == "0"
+    assert any(
+        header.startswith("harvest_auth=1;")
+        for header in response.headers.getlist("Set-Cookie")
+    )
 
     with client.session_transaction() as sess:
         assert sess["user"] == "test.user@gsa.gov"
@@ -88,6 +92,10 @@ def test_login_route_is_private_no_store(client):
     assert response.headers["Cache-Control"] == "private, no-store, max-age=0"
     assert response.headers["Pragma"] == "no-cache"
     assert response.headers["Expires"] == "0"
+    assert any(
+        header.startswith("harvest_session=")
+        for header in response.headers.getlist("Set-Cookie")
+    )
 
 
 def test_assets_are_cached_for_one_hour(client):
@@ -110,6 +118,10 @@ def test_logout_clears_full_session(client):
     response = client.get("/logout")
 
     assert response.status_code == 302
+    assert any(
+        header.startswith("harvest_auth=;")
+        for header in response.headers.getlist("Set-Cookie")
+    )
 
     with client.session_transaction() as sess:
         assert dict(sess) == {}
@@ -126,7 +138,11 @@ def test_stale_logged_in_session_is_cleared_and_cookie_deleted(client):
 
     assert response.headers["Cache-Control"] == "private, no-store, max-age=0"
     assert any(
-        header.startswith("session=;")
+        header.startswith("harvest_session=;")
+        for header in response.headers.getlist("Set-Cookie")
+    )
+    assert any(
+        header.startswith("harvest_auth=;")
         for header in response.headers.getlist("Set-Cookie")
     )
 

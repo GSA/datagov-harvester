@@ -70,24 +70,69 @@ def create_app():
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
     app.config["SECRET_KEY"] = os.getenv("FLASK_APP_SECRET_KEY")
     app.config["MAX_CONTENT_LENGTH"] = 10 * 1024 * 1024
+    app.config["SESSION_COOKIE_NAME"] = os.getenv(
+        "SESSION_COOKIE_NAME", "harvest_session"
+    )
+    app.config["SESSION_COOKIE_SECURE"] = True
+    app.config["SESSION_COOKIE_HTTPONLY"] = True
+    app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+    app.config["AUTH_COOKIE_NAME"] = os.getenv("AUTH_COOKIE_NAME", "harvest_auth")
     app.config["SESSION_IDLE_TIMEOUT_SECONDS"] = int(
         os.getenv("SESSION_IDLE_TIMEOUT_SECONDS", "900")
     )
 
     def get_session_cookie_name():
-        return app.config.get("SESSION_COOKIE_NAME", "session")
+        return app.config["SESSION_COOKIE_NAME"]
+
+    def get_auth_cookie_name():
+        return app.config["AUTH_COOKIE_NAME"]
+
+    def get_cookie_path():
+        return app.config.get("SESSION_COOKIE_PATH") or "/"
+
+    def get_cookie_domain():
+        return app.config.get("SESSION_COOKIE_DOMAIN")
+
+    def get_cookie_secure():
+        return app.config.get("SESSION_COOKIE_SECURE", False)
+
+    def get_cookie_samesite():
+        return app.config.get("SESSION_COOKIE_SAMESITE", "Lax")
 
     def clear_session_cookie(response):
         response.delete_cookie(
             get_session_cookie_name(),
-            path=app.config.get("SESSION_COOKIE_PATH", "/"),
-            domain=app.config.get("SESSION_COOKIE_DOMAIN"),
+            path=get_cookie_path(),
+            domain=get_cookie_domain(),
+        )
+        return response
+
+    def set_auth_cookie(response):
+        """mark the response as authenticated for CloudFront cache separation."""
+        response.set_cookie(
+            get_auth_cookie_name(),
+            "1",
+            path=get_cookie_path(),
+            domain=get_cookie_domain(),
+            secure=get_cookie_secure(),
+            httponly=True,
+            samesite=get_cookie_samesite(),
+        )
+        return response
+
+    def clear_auth_cookie(response):
+        """remove the authenticated marker cookie when login state is gone."""
+        response.delete_cookie(
+            get_auth_cookie_name(),
+            path=get_cookie_path(),
+            domain=get_cookie_domain(),
         )
         return response
 
     @app.before_request
     def expire_stale_session():
         g.clear_session_cookie = False
+        g.sync_auth_cookie = False
 
         if request.path.startswith("/assets/"):
             return
@@ -116,6 +161,7 @@ def create_app():
             )
             session.clear()
             g.clear_session_cookie = True
+            g.sync_auth_cookie = True
             return
 
         session["last_activity"] = now
@@ -140,6 +186,13 @@ def create_app():
 
         if getattr(g, "clear_session_cookie", False):
             response = clear_session_cookie(response)
+
+        if has_session_user:
+            response = set_auth_cookie(response)
+        elif getattr(g, "sync_auth_cookie", False) or request.cookies.get(
+            get_auth_cookie_name()
+        ):
+            response = clear_auth_cookie(response)
 
         sets_cookie = bool(response.headers.getlist("Set-Cookie"))
 
