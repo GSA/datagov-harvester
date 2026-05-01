@@ -1,4 +1,5 @@
 import os
+import time
 from urllib.parse import urlparse
 
 import pytest
@@ -23,7 +24,9 @@ def _build_signed_session_cookie() -> str:
         raise RuntimeError("Unable to create Flask session serializer")
 
     session_user = os.getenv("PLAYWRIGHT_AUTH_USER", "user@test.local")
-    return serializer.dumps({"user": session_user})
+    return serializer.dumps(
+        {"user": session_user, "last_activity": int(time.time())}
+    )
 
 
 def _authed_storage_state(base_url: str) -> dict:
@@ -31,8 +34,18 @@ def _authed_storage_state(base_url: str) -> dict:
     return {
         "cookies": [
             {
-                "name": "session",
+                "name": "harvest_session",
                 "value": _build_signed_session_cookie(),
+                "domain": host,
+                "path": "/",
+                "expires": -1,
+                "httpOnly": True,
+                "secure": False,
+                "sameSite": "Lax",
+            },
+            {
+                "name": "harvest_auth",
+                "value": "1",
                 "domain": host,
                 "path": "/",
                 "expires": -1,
