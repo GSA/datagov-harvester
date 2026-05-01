@@ -24,9 +24,7 @@ def _build_signed_session_cookie() -> str:
         raise RuntimeError("Unable to create Flask session serializer")
 
     session_user = os.getenv("PLAYWRIGHT_AUTH_USER", "user@test.local")
-    return serializer.dumps(
-        {"user": session_user, "last_activity": int(time.time())}
-    )
+    return serializer.dumps({"user": session_user, "last_activity": int(time.time())})
 
 
 def _authed_storage_state(base_url: str) -> dict:
@@ -52,7 +50,7 @@ def _authed_storage_state(base_url: str) -> dict:
                 "httpOnly": True,
                 "secure": False,
                 "sameSite": "Lax",
-            }
+            },
         ],
         "origins": [],
     }
