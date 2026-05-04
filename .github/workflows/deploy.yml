@@ -60,7 +60,7 @@ jobs:
     uses: gsa/data.gov/.github/workflows/deploy-template.yml@main
     with:
       environ: staging
-      app_url: https://datagov-harvest-staging.app.cloud.gov
+      app_url: https://harvest-stage.data.gov
       app_names: '{"include":[{"app":"datagov-harvest"},{"app":"datagov-harvest-proxy"}]}'
     secrets: inherit
 

@@ -1,10 +1,12 @@
 import logging
 import logging.config
 import os
+import time
 from urllib.parse import urlsplit
 
 from apiflask import APIFlask
 from dotenv import load_dotenv
+from flask import g, request, session
 from flask_bootstrap import Bootstrap5
 from flask_htmx import HTMX
 from flask_migrate import Migrate
@@ -25,6 +27,10 @@ logging.config.dictConfig(LOGGING_CONFIG)
 
 # fixes a bug with Flask-HTMX not being able to find the app context
 htmx = None
+
+
+def current_unix_timestamp() -> int:
+    return int(time.time())
 
 
 def _external_route_to_server_url(route: str | None) -> str | None:
@@ -64,6 +70,145 @@ def create_app():
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
     app.config["SECRET_KEY"] = os.getenv("FLASK_APP_SECRET_KEY")
     app.config["MAX_CONTENT_LENGTH"] = 10 * 1024 * 1024
+    app.config["SESSION_COOKIE_NAME"] = os.getenv(
+        "SESSION_COOKIE_NAME", "harvest_session"
+    )
+    app.config["SESSION_COOKIE_SECURE"] = True
+    app.config["SESSION_COOKIE_HTTPONLY"] = True
+    app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+    app.config["AUTH_COOKIE_NAME"] = os.getenv("AUTH_COOKIE_NAME", "harvest_auth")
+    app.config["SESSION_IDLE_TIMEOUT_SECONDS"] = int(
+        os.getenv("SESSION_IDLE_TIMEOUT_SECONDS", "900")
+    )
+
+    def get_session_cookie_name():
+        return app.config["SESSION_COOKIE_NAME"]
+
+    def get_auth_cookie_name():
+        return app.config["AUTH_COOKIE_NAME"]
+
+    def get_cookie_path():
+        return app.config.get("SESSION_COOKIE_PATH") or "/"
+
+    def get_cookie_domain():
+        return app.config.get("SESSION_COOKIE_DOMAIN")
+
+    def get_cookie_secure():
+        return app.config.get("SESSION_COOKIE_SECURE", False)
+
+    def get_cookie_samesite():
+        return app.config.get("SESSION_COOKIE_SAMESITE", "Lax")
+
+    def clear_session_cookie(response):
+        response.delete_cookie(
+            get_session_cookie_name(),
+            path=get_cookie_path(),
+            domain=get_cookie_domain(),
+        )
+        return response
+
+    def set_auth_cookie(response):
+        """mark the response as authenticated for CloudFront cache separation."""
+        response.set_cookie(
+            get_auth_cookie_name(),
+            "1",
+            path=get_cookie_path(),
+            domain=get_cookie_domain(),
+            secure=get_cookie_secure(),
+            httponly=True,
+            samesite=get_cookie_samesite(),
+        )
+        return response
+
+    def clear_auth_cookie(response):
+        """remove the authenticated marker cookie when login state is gone."""
+        response.delete_cookie(
+            get_auth_cookie_name(),
+            path=get_cookie_path(),
+            domain=get_cookie_domain(),
+        )
+        return response
+
+    @app.before_request
+    def expire_stale_session():
+        g.clear_session_cookie = False
+        g.sync_auth_cookie = False
+
+        if request.path.startswith("/assets/"):
+            return
+
+        if not session.get("user"):
+            return
+
+        now = current_unix_timestamp()
+        last_activity = session.get("last_activity")
+        timeout_seconds = app.config["SESSION_IDLE_TIMEOUT_SECONDS"]
+
+        try:
+            last_activity = int(last_activity)
+        except (TypeError, ValueError):
+            last_activity = None
+
+        if last_activity is None:
+            session["last_activity"] = now
+            return
+
+        if now - last_activity > timeout_seconds:
+            logger.info(
+                "Session expired for user=%s path=%s",
+                session.get("user"),
+                request.path,
+            )
+            session.clear()
+            g.clear_session_cookie = True
+            g.sync_auth_cookie = True
+            return
+
+        session["last_activity"] = now
+
+    def set_private_no_store(response):
+        response.headers["Cache-Control"] = "private, no-store, max-age=0"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+        return response
+
+    def set_public_cache(response, ttl):
+        response.headers["Cache-Control"] = f"public, max-age={ttl}, s-maxage={ttl}"
+        response.headers.pop("Pragma", None)
+        response.headers.pop("Expires", None)
+        return response
+
+    @app.after_request
+    def apply_cache_headers(response):
+        path = request.path or "/"
+        method = request.method
+        has_session_user = bool(session.get("user"))
+
+        if getattr(g, "clear_session_cookie", False):
+            response = clear_session_cookie(response)
+
+        if has_session_user:
+            response = set_auth_cookie(response)
+        elif getattr(g, "sync_auth_cookie", False) or request.cookies.get(
+            get_auth_cookie_name()
+        ):
+            response = clear_auth_cookie(response)
+
+        sets_cookie = bool(response.headers.getlist("Set-Cookie"))
+
+        if path.startswith(("/login", "/callback", "/logout")):
+            return set_private_no_store(response)
+
+        if path.startswith("/assets/"):
+            return set_public_cache(response, 3600)
+
+        if method not in {"GET", "HEAD"}:
+            return set_private_no_store(response)
+
+        if has_session_user or sets_cookie or response.status_code >= 400:
+            return set_private_no_store(response)
+
+        return set_public_cache(response, 60)
 
     Bootstrap5(app)
     global htmx
