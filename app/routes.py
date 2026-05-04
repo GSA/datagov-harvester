@@ -44,7 +44,7 @@ from harvester.utils.general_utils import (
     process_job_complete_percentage,
 )
 
-from . import htmx
+from . import current_unix_timestamp, htmx
 from .api_schemas import (
     ErrorInfo,
     JobInfo,
@@ -260,7 +260,8 @@ def login():
 
 @main.route("/logout")
 def logout():
-    user = session.pop("user", None)
+    user = session.get("user")
+    session.clear()
     logger.info(
         "Logout completed for user=%s ip=%s",
         user or "<anonymous>",
@@ -376,6 +377,7 @@ def callback():
 
     if usr:
         session["user"] = usr_email
+        session["last_activity"] = current_unix_timestamp()
         logger.info(
             "Login succeeded for user=%s ssoid=%s ip=%s",
             usr_email,
