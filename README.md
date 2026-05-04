@@ -147,7 +147,7 @@ A user provided service by the name of `datagov-harvest-secrets` is also expecte
     ```bash
     app_name: datagov-harvest
     database_name: datagov-harvest-db
-    route_external: datagov-harvest-dev.app.cloud.gov
+    route_external: harvest-dev.data.gov
     route_internal: datagov-harvest-dev.apps.internal
     proxy_instances: 1
     basic_auth_enabled: on
