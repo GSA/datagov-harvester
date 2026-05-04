@@ -1055,21 +1055,12 @@ class Record:
         return json.loads(self.source_raw)
 
     def _dataset_payload(self, metadata: dict) -> dict:
-        if not self.dataset_slug:
-            raise ValueError("Record slug is not set for dataset persistence")
-
-        if self.date_finished is None:
-            raise ValueError(
-                "Record date_finished is not set; cannot build dataset payload"
-            )
-
         payload = {
-            "slug": self.dataset_slug,
             "dcat": metadata,
             "organization_id": self.harvest_source.organization_id,
             "harvest_source_id": self.harvest_source.id,
             "harvest_record_id": self.id,
-            "last_harvested_date": self.date_finished,
+            "last_harvested_date": get_datetime(),
         }
 
         translated_spatial = translate_spatial_to_geojson(metadata.get("spatial"))
@@ -1123,43 +1114,72 @@ class Record:
                 e,
             )
 
+    def _process_upsert_record(self):
+        """
+        builds the dataset payload, upserts it into dataset, and syncs with opensearch
+        """
+        metadata = self._metadata_for_dataset()
+        dataset_payload = self._dataset_payload(metadata)
+
+        dataset = None
+        if self.action == "create":
+            dataset = self._insert_dataset_with_unique_slug(dataset_payload)
+        else:
+            # harvester should never update the slug
+            dataset_payload["slug"] = self.dataset_slug
+            dataset = self.harvest_source.db_interface.upsert_dataset(dataset_payload)
+
+        if not dataset:
+            return False
+
+        self._index_dataset_in_opensearch(dataset)
+
+        return True
+
+    def _process_delete_record(self):
+        """
+        deletes the dataset and syncs with opensearch
+        """
+        dataset = self.harvest_source.db_interface.get_dataset_by_slug(
+            self.dataset_slug
+        )
+        deleted = self.harvest_source.db_interface.delete_dataset_by_slug(
+            self.dataset_slug
+        )
+
+        if not deleted:
+            return False
+
+        self._delete_dataset_from_opensearch(dataset)
+
+        return True
+
     def sync(self):
+        """
+        synchronizes harvest record with dataset (required) and opensearch (optional)
+
+        "success" means the record is synced with dataset only not opensearch.
+        opensearch has a daily action to resync with dataset. this takes pressure
+        off harvesting by not atomizing dataset & opensearch sync.
+        """
         try:
             if self.status == "error":
                 return False
-            metadata = None
-            if self.action in ("create", "update"):
-                metadata = self._metadata_for_dataset()
-                if not self.dataset_slug:
-                    self.dataset_slug = munge_title_to_name(metadata["title"])
 
-            self.status = "success"
+            if self.action in ["update", "delete"] and not self.dataset_slug:
+                raise ValueError(
+                    f"harvest record {self.action} must have an existing slug"
+                )
+
+            success = False
+            if self.action in ["create", "update"]:
+                success = self._process_upsert_record()
+            else:
+                success = self._process_delete_record()
+
+            self.status = "success" if success else "error"
             self.harvest_source.update_job_record_count_by_action(self.action)
             self.update_self_in_db()
-
-            if self.action in ("create", "update") and metadata is not None:
-                dataset_payload = self._dataset_payload(metadata)
-                if self.action == "create":
-                    dataset = self._insert_dataset_with_unique_slug(dataset_payload)
-                else:
-                    # harvester should never update the slug
-                    update_payload = {
-                        k: v for k, v in dataset_payload.items() if k != "slug"
-                    }
-                    update_payload["slug"] = self.dataset_slug
-                    dataset = self.harvest_source.db_interface.upsert_dataset(
-                        update_payload
-                    )
-                self._index_dataset_in_opensearch(dataset)
-            elif self.action == "delete" and self.dataset_slug:
-                dataset = self.harvest_source.db_interface.get_dataset_by_slug(
-                    self.dataset_slug
-                )
-                deleted = self.harvest_source.db_interface.delete_dataset_by_slug(
-                    self.dataset_slug
-                )
-                if deleted:
-                    self._delete_dataset_from_opensearch(dataset)
 
             return True
 
@@ -1167,6 +1187,7 @@ class Record:
             logger.error(f"error syncing record: {e}")
             self.status = "error"
             self.harvest_source.update_job_record_count_by_action("errored")
+            self.update_self_in_db()
 
         return False
 

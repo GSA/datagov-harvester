@@ -41,7 +41,7 @@ def guarantee_slug(slug, interface, max_attempts=10):
         attempts += 1
 
 
-def create_slug(metadata, interface, harvest_record):
+def determine_slug(metadata, interface, harvest_record):
     """
     slug creation scenarios
         create (never got to dataset)
