@@ -916,13 +916,16 @@ def munge_spatial(spatial_value: str) -> str:
     if len(parts) == 4 and all(is_number(x) for x in parts):
         coords = list(dict.fromkeys(parts))  # removes duplicates while preserving order
         # duplicate points situation (e.g. "-92.109, 15.132, -92.109, 15.132")
-        if parts[:2] == parts[2:]:
+        if len(coords) == 2 and parts[:2] == parts[2:]:
             x, y = coords
             return geojson_point_tpl.format(x=x, y=y)
         if len(coords) == 3:  # only 3 unique lat/lons which means it's a straight line
             return geojson_line_tpl.format(
                 x1=parts[0], y1=parts[1], x2=parts[2], y2=parts[3]
             )
+        # e.g. '0,0,0,0'
+        if len(coords) == 1:
+            return geojson_point_tpl.format(x=coords[0], y=coords[0])
 
         minx, miny, maxx, maxy = parts
         return geojson_polygon_tpl.format(minx=minx, miny=miny, maxx=maxx, maxy=maxy)

@@ -105,7 +105,7 @@ jobs:
     uses: gsa/data.gov/.github/workflows/deploy-template.yml@main
     with:
       environ: development
-      app_url: https://datagov-harvest-dev.app.cloud.gov
+      app_url: https://harvest-dev.data.gov
       app_names: '{"include":[{"app":"datagov-harvest"},{"app":"datagov-harvest-proxy"}]}'
     secrets: inherit
 
