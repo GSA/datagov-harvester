@@ -835,12 +835,7 @@ def view_harvest_source(source_id: str):
             last_job = jobs[0]
             if last_job.status == "in_progress":
                 summary_data["active_job_in_progress"] = True
-
-            last_job_error_count = db.get_harvest_record_errors_by_job(
-                count=True,
-                job_id=last_job.id,
-            )
-            summary_data["last_job_errors"] = last_job_error_count
+            summary_data["last_job_errors"] = last_job.records_errored
             summary_data["last_job_finished"] = last_job.date_finished
 
         future_jobs = db.get_new_harvest_jobs_by_source_in_future(source_id)
