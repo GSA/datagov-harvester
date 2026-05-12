@@ -14,7 +14,7 @@ This repository holds the source code the Data.gov Harvester 2.0, which consists
 
 ## Documentation
 
-Current sequence diagrams are availale in the the `/docs/diagrams/dest` folder.
+Current sequence diagrams are available in the the `/docs/diagrams/dest` folder.
 
 Documentation for the Harvseter 2.0 project is found in Google Drive: [Harvester 2.0 folder](https://drive.google.com/drive/folders/11mhCBb9vWxrTHV_s_S4pZhhI2fGHmxrq)
 
@@ -64,7 +64,7 @@ If absolutely need to hit a breakpoint in your Flask app, you can setup local Fl
 ### Local Flask to CKAN workflow
 You can configure a local instance of the Flask application to push datasets to a local CKAN instance. This dramatically cuts development time and is a huge increase to efficiency.
 
-!NOTE: Currenly this process is not user-friendly but is expected to be improved in the future.
+!NOTE: Currently this process is not user-friendly but is expected to be improved in the future.
 
 To setup:
 
