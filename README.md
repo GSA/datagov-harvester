@@ -7,13 +7,15 @@ This repository holds the source code the Data.gov Harvester 2.0, which consists
 
 ## Documentation
 
-Current sequence diagrams are availale in the the `/docs/diagrams/dest` folder.
+In this repository:
 
-Documentation for the Harvseter 2.0 project is found in Google Drive: [Harvester 2.0 folder](https://drive.google.com/drive/folders/11mhCBb9vWxrTHV_s_S4pZhhI2fGHmxrq)
+ - The latest sequence diagrams are available in the [/docs/diagrams/mermaid/dest](docs/diagrams/mermaid/dest) folder. (Click "Raw" for a full-page view of any diagram.)
+ - The [/docs](docs) folder in general.
+ - Application specific documentation [below](#applications).
 
-Historic documentation can be found in the `Archive` [folder](https://drive.google.com/drive/folders/1DG1oxSCoeru2-bbmSfcBnIiCZUg-N1Az), along with historic diagrams [here](https://drive.google.com/drive/folders/1GJZYVVMubGG54d5yCZY9zoea3xjZ9HNI)
-
-Application specific documentation [below](#applications).
+On Google Drive (not publicly accessible):
+ - [Harvester 2.0 folder](https://drive.google.com/drive/folders/11mhCBb9vWxrTHV_s_S4pZhhI2fGHmxrq)
+ - Historic documentation [Archive folder](https://drive.google.com/drive/folders/1DG1oxSCoeru2-bbmSfcBnIiCZUg-N1Az), along with [historic diagrams](https://drive.google.com/drive/folders/1GJZYVVMubGG54d5yCZY9zoea3xjZ9HNI)
 
 ## Setup
 
