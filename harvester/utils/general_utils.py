@@ -487,11 +487,15 @@ def find_indexes_for_duplicates(records: list):
 
 
 def get_waf_datetimes(soup: BeautifulSoup, expected_length: int) -> list:
+    """
+    gets the datetime strings as datetime obejct of the waf datasets
+    """
     output = []
 
-    dt_pattern = r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}"
-    dt_format = "%Y-%m-%d %H:%M"
-
+    dt_data = [
+        [r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}", "%Y-%m-%d %H:%M"],
+        [r"\d{2}-[A-Za-z]{3}-\d{4}\s\d{2}:\d{2}", "%d-%b-%Y %H:%M"],
+    ]
     rows = soup.find_all("td") or soup.find_all("pre")
 
     if rows and rows[0].name == "pre":
@@ -500,9 +504,10 @@ def get_waf_datetimes(soup: BeautifulSoup, expected_length: int) -> list:
     for row in rows:
         if isinstance(row, Tag):
             row = row.text
-        res = re.search(dt_pattern, row)
-        if res is not None:
-            output.append(datetime.strptime(res.group(0), dt_format))
+        for dt_pattern, dt_format in dt_data:
+            res = re.search(dt_pattern, row)
+            if res is not None:
+                output.append(datetime.strptime(res.group(0), dt_format))
 
     if len(output) != expected_length:
         logger.warning(
