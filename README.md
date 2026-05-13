@@ -21,7 +21,16 @@ On Google Drive (not publicly accessible):
 
 This project is using `poetry` to manage this project. Install poetry [here](https://python-poetry.org/docs/#installation).
 
+
+Currently, this project is pinned to python version 3.12.12. To install and use this specific version:
+
+```
+% poetry python install 3.12.12
+% poetry env use 3.12.12
+```
+
 Once installed, `poetry install` installs dependencies into a local virtual environment.
+
 
 CI always uses the latest Poetry version. To update locally (matching CI), run `poetry self update` (or `make poetry-update`).
 
@@ -33,13 +42,50 @@ This repo contains pre-commit actions. Learn how to configure your IDE to run th
 
 Set these environment variables in your shell:
 
+??? Do we need these to map to cloud.gov for local dev?
+
 - CF_SERVICE_USER
 - CF_SERVICE_AUTH
-- CKAN_API_TOKEN
+<-- - CKAN_API_TOKEN -->
+
+?? poetry install as above? or not?
+
+
+Build the static assets:
+
+```
+% nvm use 24
+% make install-static
+```
+
+Build and bring up docker containers:
+```
+% make build
+% make up
+```
+
+or (TODO: test)
+
+```
+% make build-dev
+% make up-dev
+```
+
+You will need to be able to log in! We use login.gov, and for local development you must have an account at the login.gov sandbox `https://idp.int.identitysandbox.gov` (Click "Create an account")
+
+
+Add your user account, using an email address that matches your login.gov snadbox account (see also "user management" below):
+```
+% docker compose exec app flask user add your.i.name@gsa.gov --name yourName
+User added successfully!
+```
+
 
 CF_SERVICE_* variables can be extracted from from service-keys by running `cf service-key ci-deployer dhl-deployer` in the appropriate space.
 
-CKAN_API_TOKEN should be extracted from `cf env datagov-harvest-runner` in the `user-provided` service `datagov-harvest-secrets` with the same key name.
+<--
+CKAN_API_TOKEN should be extracted from `cf env datagov-harvest` in the `user-provided` service `datagov-harvest-secrets` with the same key name.
+-->
 
 ### Flask Debugging
 If absolutely need to hit a breakpoint in your Flask app, you can setup local Flask debugging in your IDE.
