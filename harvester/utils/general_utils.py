@@ -495,11 +495,12 @@ def get_waf_datetimes(soup: BeautifulSoup, expected_length: int) -> list:
     dt_data = [
         [r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}", "%Y-%m-%d %H:%M"],
         [r"\d{2}-[A-Za-z]{3}-\d{4}\s\d{2}:\d{2}", "%d-%b-%Y %H:%M"],
+        [r"\d{1,2}/\d{1,2}/\d{4}\s+\d{1,2}:\d{2}\s(?:AM|PM)", "%m/%d/%Y %I:%M %p"],
     ]
     rows = soup.find_all("td") or soup.find_all("pre")
 
     if rows and rows[0].name == "pre":
-        rows = rows[0].text.split("\n")
+        rows = rows[0].text.split(".xml")
 
     for row in rows:
         if isinstance(row, Tag):
