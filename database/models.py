@@ -5,7 +5,7 @@ from typing import Optional
 
 from flask_sqlalchemy import SQLAlchemy
 from geoalchemy2 import Geometry
-from sqlalchemy import CheckConstraint, Column, Enum, String, func, select
+from sqlalchemy import CheckConstraint, Column, Enum, Index, String, func, select, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.mutable import MutableDict
 from sqlalchemy.orm import DeclarativeBase, backref, column_property
@@ -165,6 +165,14 @@ class HarvestJob(db.Model):
         "HarvestRecordError", backref="job", cascade="all, delete-orphan", lazy=True
     )
 
+    __table_args__ = (
+        Index(
+            "ix_harvest_job_source_date_created",
+            harvest_source_id,
+            date_created.desc(),
+        ),
+    )
+
 
 class HarvestRecord(db.Model):
     __tablename__ = "harvest_record"
@@ -198,6 +206,25 @@ class HarvestRecord(db.Model):
         if dataset is None:
             return None
         return dataset.slug
+
+    __table_args__ = (
+        Index(
+            "ix_harvest_record_source_identifier_created_success",
+            harvest_source_id,
+            identifier,
+            date_created.desc(),
+            postgresql_where=text("status = 'success'"),
+            postgresql_include=["action"],
+        ),
+        Index(
+            "ix_harvest_record_source_identifier_created_success_synced",
+            harvest_source_id,
+            identifier,
+            date_created.desc(),
+            postgresql_where=text("status = 'success' AND ckan_id IS NOT NULL"),
+            postgresql_include=["action"],
+        ),
+    )
 
 
 class Dataset(db.Model):
@@ -289,6 +316,12 @@ class HarvestRecordError(Error):
     harvest_job_id = db.Column(
         db.String(36), db.ForeignKey("harvest_job.id"), nullable=False
     )
+
+
+Index(
+    "ix_harvest_record_error_harvest_job_id",
+    HarvestRecordError.harvest_job_id,
+)
 
 
 class HarvestUser(db.Model):
