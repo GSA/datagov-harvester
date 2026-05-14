@@ -1,10 +1,8 @@
 # Developer quickstart
 
-## Local development
-
 We use docker containers to run the application locally.
 
-### Running the app
+## Running the app
 
 Build the static assets (requires `npm`):
 
@@ -14,15 +12,17 @@ Build the static assets (requires `npm`):
 
 Build and bring up docker containers:
 ```
-% make build-dev
+% make build
 % make up
 ```
+
+TODO: would I want `up-unified` here?
 
 Refer to the [`Makefile`](/Makefile) for additional commands.
 
 Note that you do not need to set the `CF_SERVICE_USER` and `CF_SERVICE_AUTH` variables. The app will emit a warning about these; they are needed only in the Cloud.gov environment.
 
-#### Using the app
+### Using the app
 
 Point your web browser to https://localhost:8080
 
@@ -45,47 +45,9 @@ We use [Ruff](https://github.com/astral-sh/ruff) to format and lint our Python f
 
 This repo contains pre-commit actions. Learn how to configure your IDE to run those [here](https://pre-commit.com/).
 
+## Flask Debugging
 
-## Additional tools
-
-We use `poetry` to manage this project. It is installed and run automatically within the app container. You might also find it helpful to install it locally. Install poetry [here](https://python-poetry.org/docs/#installation).
-
-
-Currently, this project is pinned to python version 3.12.12 (check `pyproject.toml` to verify). To install and use this specific version:
-
-```
-% poetry python install 3.12.12
-% poetry env use 3.12.12
-```
-
-Once installed, `poetry install` installs dependencies into a local virtual environment.
-
-To update poetry itself locally (matching CI, which will always use the latest version), run `poetry self update` (or `make poetry-update`).
-
-
-## Local development
-
-Set these environment variables in your shell:
-
-??? Do we need these to map to cloud.gov for local dev?
-
-- CF_SERVICE_USER
-- CF_SERVICE_AUTH
-
-?? poetry install as above? or not?
-
-
-
-
-
-CF_SERVICE_* variables can be extracted from from service-keys by running `cf service-key ci-deployer dhl-deployer` in the appropriate space.
-
-<--
-CKAN_API_TOKEN should be extracted from `cf env datagov-harvest` in the `user-provided` service `datagov-harvest-secrets` with the same key name.
--->
-
-### Flask Debugging
-If absolutely need to hit a breakpoint in your Flask app, you can setup local Flask debugging in your IDE.
+If you absolutely need to hit a breakpoint in your Flask app, you can setup local Flask debugging in your IDE.
 
 *NOTE: To use the VS-Code debugger, you will first need to sacrifice the reloading support for flask*
 
@@ -99,53 +61,77 @@ If absolutely need to hit a breakpoint in your Flask app, you can setup local Fl
 
 5. Visit the site at `http://localhost:8080` and invoke the route which contains the code you've set the breakpoint on.
 
-### Local Flask to CKAN workflow
-You can configure a local instance of the Flask application to push datasets to a local CKAN instance. This dramatically cuts development time and is a huge increase to efficiency.
-
-!NOTE: Currenly this process is not user-friendly but is expected to be improved in the future.
-
-To setup:
-
-  1. Launch a local instance of the datagov-harvest-admin app,
-    a. Create an organization, and grab the org id
-    b. Create a harvest source with a valid harvest url
-    c. This [test source](https://raw.githubusercontent.com/GSA/catalog.data.gov/refs/heads/main/tests/harvest-sources/data.json) is a good one to use to test integration
-  2. Launch a local instance of catalog.data.gov, aka CKAN
-  3. Login to CKAN as admin and generate an API token. Copy that token.
-  4. Install ckanapi via pip so that it's available in your local shell, `pip install python`
-  5. use ckanapi to create an organization with same id as the organization in flask app, ex.
-    `ckanapi action organization_create -r http://localhost:5000 name=test-org id=5cf8d5a1-12be-4300-a249-20ca584681cf`
-  6. Get internal IP for your machine.
-    a. On Mac's this can be derived by running `ifconfig | grep inet` and grabbing the first `192.168.xxx.xxx` address you find.
-  7. Add two new values to the local `.env` file:
-    ```
-      CKAN_URL=`ip-address-from-step-4a`:5000
-      CKAN_API_URL=`ip-address-from-step-4a`:5000
-      CKAN_API_TOKEN=`api-token-from-step-3`
-    ```
-  8. Restart datagov-harvest-admin, `make up`
-  9. GoTo your previously configured harvest source
-  10. Click "Harvest" button. This will fail.
-  11. `docker exec` into local datagov-harvest-admin and run same job command from Step 8.
-    a. this is usually `python harvester/harvest.py {job_id} {job_type}`
-  12. You should now see successful harvest of your datasets 🎉
 
 ## Testing
 
+### Install poetry
+
+We use `poetry` to manage this project, and to run the tests. Install poetry [here](https://python-poetry.org/docs/#installation). (Poetry is also installed and run automatically within the app container, which is why you didn't need it to get the app up and running.)
+
+Currently, this project is pinned to python version 3.12.12 (check `pyproject.toml` to verify). To install and use this specific version:
+
+```
+% poetry python install 3.12.12
+% poetry env use 3.12.12
+```
+
+Once poetry is installed, `poetry install` installs dependencies into a local virtual environment.
+
+To update poetry itself locally (matching CI, which will always use the latest version), run `poetry self update` (or `make poetry-update`).
+
+
 ### Harvester testing
 
-- These tests are found in `extract`, and `validate`. Some of them rely on services in the `docker-compose.yml`. Run using docker `docker compose up -d` and with the command `poetry run pytest --ignore=./tests/load/ckan`.
-
-If you followed the instructions for `CKAN load testing` and `Harvester testing` you can simply run `poetry run pytest` to run all tests.
+- These tests are found in `extract`, and `validate`. Some of them rely on services in the `docker-compose.yml`. Run using docker `docker compose up -d` and with the command `poetry run pytest`.
 
 For tests to pass, you may have to pull the latest MDTranslator. Use `docker compose pull` to get the latest versions of the docker images.
 
+
 ### Integration testing
+
+TODO: does this still apply?
+
 - to run integration tests locally add the following env variables to your .env file in addition to their appropriate values
   - CF_SERVICE_USER = "put username here"
   - CF_SERVICE_AUTH = "put password here"
 
-## Deployment to cloud.gov
+
+### Database migrations
+
+When altering the db during development, you first want to stamp the db before making any changes to the model.
+
+```bash
+make clean up
+docker compose exec app bash
+```
+
+Once inside the container, you run:
+
+```bash
+flask db stamp head
+```
+
+Apply your changes to the model file, then run:
+
+```bash
+flask db migrate -m "your migration message here"
+```
+
+Then, finally, to apply your changes in place to the local db, run:
+
+```bash
+flask db upgrade
+```
+
+## Deployment to Cloud.gov
+
+Github workflows automatically deploy:
+ - to the `development` space when the `develop` branch is updated
+ - to `staging` and `prod` when the `main` branch is updated
+
+Data.gov team members can deploy to `development` from the command line. The remainder of this document provides background on the Cloud.gov configuration.
+
+*Warning: this documentation has not been tested recently!*
 
 ### Services
 
@@ -174,7 +160,6 @@ A user provided service by the name of `datagov-harvest-secrets` is also expecte
 
 - CF_SERVICE_AUTH
 - CF_SERVICE_USER
-- CKAN_API_TOKEN
 - FLASK_APP_SECRET_KEY
 - OPENID_PRIVATE_KEY
 
@@ -225,34 +210,6 @@ This is a python application, chiefy comprised of files in the `harvester` direc
   - Update harvest job db record with job results
   - Email results using SMTP client
 
-### Flask Commands
-
-#### database migrations
-
-When altering the db during development, you first want to stamp the db before making any changes to the model.
-
-```bash
-make clean up
-docker compose exec app bash
-```
-
-Once inside the container, you run:
-
-```bash
-flask db stamp head
-```
-
-Apply your changes to the model file, then run:
-
-```bash
-flask db migrate -m "your migration message here"
-```
-
-Then, finally, to apply your changes in place to the local db, run:
-
-```bash
-flask db upgrade
-```
 
 #### user management
 
