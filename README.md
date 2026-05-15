@@ -1,9 +1,15 @@
 # datagov-harvester
 
-This repository holds the source code the Data.gov Harvester 2.0, which consists of two applications:
+This repository holds the source code the Data.gov Harvester 2.0, which includes three applications applications:
 
-- [datagov-harvest-admin](#datagov-harvest-admin)
-- [datagov-harvest-runner](#datagov-harvest-runner)
+- datagov-harvest-runner: This is a python application, chiefly composed of files in the `harvester` directory.
+
+- datagov-harvest-admin: This is a Flask app which manages the configuration of harvest sources, organizations, and the creation of harvest jobs.
+
+- datagov-harvest-proxy: This is an nginx app which owns the public route and proxies traffic to the internal Flask app route.
+
+There is further documentation in the [developer](/docs/developer.md) quickstart.
+
 
 ## Documentation
 
