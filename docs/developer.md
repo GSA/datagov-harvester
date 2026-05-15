@@ -92,7 +92,7 @@ For tests to pass, you may have to pull the latest MDTranslator. Use `docker com
 
 ### Integration testing
 
-TODO: does this still apply?
+TODO: does this still apply? TODO
 
 - to run integration tests locally add the following env variables to your .env file in addition to their appropriate values
   - CF_SERVICE_USER = "put username here"
