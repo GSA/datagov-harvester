@@ -875,6 +875,18 @@ def single_internal_record(internal_compare_data):
 
 
 @pytest.fixture
+def waf_datetime_filtered_internal_record(source_data_waf_iso19115_2):
+    return {
+        "harvest_source_id": source_data_waf_iso19115_2["id"],
+        "identifier": "http://localhost:80/iso_2_waf/to_be_filtered_by_datetime.xml",
+        "date_finished": datetime.now(),
+        "source_hash": "a",
+        "status": "success",
+        "action": "create",
+    }
+
+
+@pytest.fixture
 def dhl_cf_task_data() -> dict:
     return {
         "task_id": "cf_task_integration",

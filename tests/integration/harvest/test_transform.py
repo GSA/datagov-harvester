@@ -98,7 +98,15 @@ class TestTransform:
         assert DeepDiff(test_iso_2_record.transformed_data, iso19115_2_transform) == {}
 
         # "valid_iso1.xml" is always the second one
-        test_iso_1_record = iso_records[1]
+        test_iso_1_record = next(
+            (
+                record
+                for record in iso_records
+                if "http://localhost:80/iso_2_waf/valid_iso1.xml" == record.identifier
+            ),
+            None,
+        )
+
         test_iso_1_record.transform()
 
         assert test_iso_1_record.mdt_msgs == ""

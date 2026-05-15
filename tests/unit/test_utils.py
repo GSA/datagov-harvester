@@ -226,6 +226,16 @@ class TestGeneralUtils:
             datetime(2025, 1, 1, 9, 15),
         ]
 
+        page_pre = '<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2 Final//EN">\n<html>\n <head>\n  <title>Index of /data/existing/decennial/GEO/GPMB/TIGERline/TIGER2013/zcta510</title>\n </head>\n <body>\n<h1>Index of /data/existing/decennial/GEO/GPMB/TIGERline/TIGER2013/zcta510</h1>\n<pre>      <a href="?C=N;O=A">Name</a>                                                   <a href="?C=M;O=A">Last modified</a>      <a href="?C=S;O=A">Size</a>  <a href="?C=D;O=A">Description</a><hr>      <a href="/data/existing/decennial/GEO/GPMB/TIGERline/TIGER2013/">Parent Directory</a>                                                            -   \n      <a href="2013_zcta510.ea.iso.xml">2013_zcta510.ea.iso.xml</a>                                6/17/2021 12:20 PM    16K  \n      <a href="tl_2013_us_zcta510.shp.iso.xml">tl_2013_us_zcta510.shp.iso.xml</a>                         8/1/2025 11:24 AM    34K  \n<hr></pre>\n</body></html>\n'
+
+        soup = BeautifulSoup(page_pre)
+        datetimes = get_waf_datetimes(soup, 2)
+
+        assert datetimes == [
+            datetime(2021, 6, 17, 12, 20),
+            datetime(2025, 8, 1, 11, 24),
+        ]
+
     def test_assemble_validation_messages(
         self, dol_distribution_json, dcatus_non_federal_schema
     ):

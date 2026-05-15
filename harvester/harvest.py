@@ -307,6 +307,8 @@ class HarvestSource:
         is determined via the modified_date found on the waf web page. if the file date
         at the source is more recent than what we have then we want to add it for processing.
 
+        the number of datasets filtered by datetime is added to the unchanged count of the job
+
         this function is only called when the harvest source type is "waf" so
         self.external_records would be a list of dictionaries like...
         [ { "identifier": "a.xml", "modified_date": datetime_obj}, ... ]
@@ -322,6 +324,13 @@ class HarvestSource:
                     records.append(data)  # update
             else:
                 records.append(data)  # create
+
+        # update unchanged to include filtered waf docs
+        for _ in range(len(self.external_records) - len(records)):
+            self.reporter.update(None)
+
+        self.db_interface.update_harvest_job(self.job_id, self.reporter.report())
+
         self.external_records = records
 
     def filter_datasets_with_no_identifier(self) -> None:
