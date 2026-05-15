@@ -16,8 +16,6 @@ Build and bring up docker containers:
 % make up
 ```
 
-TODO: would I want `up-unified` here?
-
 Refer to the [`Makefile`](/Makefile) for additional commands.
 
 Note that you do not need to set the `CF_SERVICE_USER` and `CF_SERVICE_AUTH` variables. The app will emit a warning about these; they are needed only in the Cloud.gov environment.
