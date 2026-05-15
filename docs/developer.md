@@ -43,8 +43,6 @@ We use [Ruff](https://github.com/astral-sh/ruff) to format and lint our Python f
 
 ## Git setup and conventions
 
-TODO: verify branch conventions
-
  - This repo contains pre-commit actions. Learn how to configure your IDE to run those [here](https://pre-commit.com/).
  - Create a branch from `main`. We prefer short descriptive branch names.
  - To test changes in the `development` space in Cloud.gov, merge changes into the `develop` branch. Coordinate with other developers by announcing your plans in #datagov-devsecops.
