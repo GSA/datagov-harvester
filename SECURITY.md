@@ -22,7 +22,6 @@ at <https://www.gsa.gov/vulnerability-disclosure-policy> for details including:
 
 Certain GSA/TTS programs have bug bounties that are not discussed at the above link. If you find security issues for any of the following domains:
 
-* 18f.gov
 * cloud.gov
 * fedramp.gov
 * login.gov
