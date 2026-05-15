@@ -3,7 +3,7 @@ space_name: development
 route_external: harvest-dev.data.gov
 route_internal: datagov-harvest-dev.apps.internal
 proxy_instances: 1
-basic_auth_enabled: off # nginx terminology 'on' 'off'. cf will interpret these as 'true' 'false'
+basic_auth_enabled: on # nginx terminology 'on' 'off'. cf will interpret these as 'true' 'false'
 admin_instances: 2
 admin_memory_quota: 1G
 admin_disk_quota: 4G
