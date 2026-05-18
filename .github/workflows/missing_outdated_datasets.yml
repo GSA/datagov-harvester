@@ -1,0 +1,70 @@
+name: Check missing datasets
+
+on:
+  schedule:
+    - cron: "0 0 * * 0" # sunday at midnight EDT
+  workflow_dispatch:
+
+permissions:
+  issues: write
+  contents: read
+
+env:
+  PY_VERSION: "3.12.12"
+  POETRY_VERSION: "latest"
+
+jobs:
+  check-missing-datasets:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set up Python ${{ env.PY_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PY_VERSION }}
+
+      - name: Install Poetry
+        uses: abatilo/actions-poetry@v3
+        with:
+          poetry-version: ${{ env.POETRY_VERSION }}
+          poetry-plugins: "poetry-plugin-export"
+
+      - name: Install Dependencies
+        run: |
+          poetry env use ${{ env.PY_VERSION }}
+          poetry install
+
+      - name: Check missing datasets
+        id: check
+        env:
+          DATABASE_URI: ${{ secrets.DATABASE_URI }}
+        run: |
+          count=$(python scripts/count_missing_outdated_datasets.py)
+          echo "missing_count=$count" >> "$GITHUB_OUTPUT"
+
+      - name: Create issue if missing datasets exist
+        if: steps.check.outputs.missing_count != '0'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const count = "${{ steps.check.outputs.missing_count }}";
+
+            const title = `Missing datasets detected: ${count}`;
+
+            const body = `
+            The missing dataset check found **${count}** latest successful harvest records that do not have a corresponding dataset.
+            Please investigate harvest records / dataset sync.
+            `;
+
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title,
+              body,
+              labels: ["bug"]
+            });

@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 from functools import wraps
 from typing import List, Optional
 
-from sqlalchemy import asc, desc, func, inspect, text
+from sqlalchemy import asc, desc, exists, func, inspect, text
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import NoResultFound
 from sqlalchemy.orm import aliased
@@ -738,6 +738,42 @@ class HarvesterDBInterface:
             .filter(Dataset.harvest_source_id == source_id)
             .order_by(Dataset.last_harvested_date.desc().nullslast())
         )
+
+    def get_missing_or_outdated_datasets(self):
+        """
+        calculate the number of missing or outdated datasets. "missing" is when
+        there's a successful harvest record but no dataset. "outdated" is when
+        an older version of a harvest record is used as the dataset when a newer successful
+        one exists
+
+        context: https://github.com/GSA/data.gov/issues/5883
+        """
+
+        subq = (
+            self.db.query(HarvestRecord)
+            .filter(HarvestRecord.status == "success")
+            .order_by(
+                HarvestRecord.identifier,
+                HarvestRecord.harvest_source_id,
+                desc(HarvestRecord.date_created),
+            )
+            .distinct(
+                HarvestRecord.identifier,
+                HarvestRecord.harvest_source_id,
+            )
+            .subquery()
+        )
+
+        sq = aliased(HarvestRecord, subq)
+
+        count_query = (
+            self.db.query(func.count())
+            .select_from(sq)
+            .filter(sq.action != "delete")
+            .filter(~exists().where(Dataset.harvest_record_id == sq.id))
+        )
+
+        return count_query.scalar() or 0
 
     def get_all_outdated_records(self, days=365, source_id=None):
         """

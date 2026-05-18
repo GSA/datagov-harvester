@@ -1004,6 +1004,68 @@ class TestDatabase:
         assert dataset.popularity == 12
         assert dataset.translated_spatial == updated_geojson
 
+    def test_count_missing_outdated_datasets(
+        self,
+        interface,
+        organization_data,
+        source_data_dcatus,
+        job_data_dcatus,
+    ):
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_dcatus)
+        job_data_dcatus["harvest_source_id"] = source_data_dcatus["id"]
+        interface.add_harvest_job(job_data_dcatus)
+
+        # missing dataset harvest record
+        interface.add_harvest_record(
+            {
+                "identifier": "test",
+                "harvest_job_id": job_data_dcatus["id"],
+                "harvest_source_id": source_data_dcatus["id"],
+                "status": "success",
+                "action": "create",
+                "source_raw": "{}",
+            }
+        )
+
+        # dataset outdated harvest records
+        outdated_record = interface.add_harvest_record(
+            {
+                "identifier": "test-other",
+                "harvest_job_id": job_data_dcatus["id"],
+                "harvest_source_id": source_data_dcatus["id"],
+                "status": "success",
+                "action": "create",
+                "source_raw": "{}",
+                "date_created": datetime(2000, 3, 1, 0, 0, 0, 1000),
+            }
+        )
+
+        update_payload = {
+            "slug": "test-other",
+            "dcat": {"title": "Updated via harvest"},
+            "organization_id": organization_data["id"],
+            "harvest_source_id": source_data_dcatus["id"],
+            "harvest_record_id": outdated_record.id,
+            "last_harvested_date": datetime(2000, 3, 1, 0, 0, 0, 1000),
+        }
+
+        interface.upsert_dataset(update_payload)
+
+        interface.add_harvest_record(
+            {
+                "identifier": "test-other",
+                "harvest_job_id": job_data_dcatus["id"],
+                "harvest_source_id": source_data_dcatus["id"],
+                "status": "success",
+                "action": "update",
+                "source_raw": "{}",
+            }
+        )
+
+        # 1 missing and 1 outdated dataset
+        assert interface.get_missing_or_outdated_datasets() == 2
+
 
 @freeze_time("Mar 20th, 2026")
 class TestDatasetSlugProtection:
