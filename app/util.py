@@ -11,6 +11,7 @@ from jsonschema import Draft202012Validator, FormatChecker
 from harvester.utils.general_utils import (
     USER_AGENT,
     assemble_validation_errors,
+    build_dcatus3_validator,
     open_json,
 )
 
@@ -141,20 +142,34 @@ def validate_records(dcatus_catalog: dict, schema_name: str) -> list:
 
     output = []
 
+    dcatus1_1_dir = BASE_DIR / "schemas" / "dcatus1.1"
+    dcatus3_0_dir = BASE_DIR / "schemas" / "dcatus3.0" / "definitions"
+
     schemas = {
-        "dcatus1.1: federal dataset": BASE_DIR / "schemas" / "federal_dataset.json",
-        "dcatus1.1: non-federal dataset": BASE_DIR
-        / "schemas"
-        / "non-federal_dataset.json",
+        "dcatus1.1: federal dataset": dcatus1_1_dir / "federal_dataset.json",
+        "dcatus1.1: non-federal dataset": dcatus1_1_dir / "non-federal_dataset.json",
+        "dcatus3.0 catalog": dcatus3_0_dir,
     }
-    schema = open_json(schemas[schema_name])
 
-    validator = Draft202012Validator(schema, format_checker=FormatChecker())
+    schema = schemas[schema_name]
 
-    for idx, record in enumerate(dcatus_catalog["dataset"]):
-        errors = validator.iter_errors(record)
+    if schema_name.startswith("dcatus1.1"):
+        validator = Draft202012Validator(
+            open_json(schema), format_checker=FormatChecker()
+        )
+
+        for idx, record in enumerate(dcatus_catalog["dataset"]):
+            errors = validator.iter_errors(record)
+            errors = [e.message for e in assemble_validation_errors(errors)]
+            identifier = idx if "identifier" not in record else record["identifier"]
+            output += list(zip([identifier] * len(errors), errors))
+    else:
+        validator = build_dcatus3_validator(schema)
+        errors = validator.iter_errors(dcatus_catalog)
         errors = [e.message for e in assemble_validation_errors(errors)]
-        identifier = idx if "identifier" not in record else record["identifier"]
-        output += list(zip([identifier] * len(errors), errors))
+        # not going to pull the record identifier from the error message for now.
+        # the json path will clearly indicate which dataset is
+        # wrong (e.g. $.dataset[0] )
+        output += list(zip([""] * len(errors), errors))
 
     return output
