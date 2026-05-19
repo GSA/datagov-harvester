@@ -27,16 +27,12 @@ def reset_database(yes: bool) -> None:
     # `DROP SCHEMA ... CASCADE` can block on other open sessions. Since this
     # command is intentionally destructive, terminate other sessions first.
     click.echo("Terminating other database sessions...")
-    db.session.execute(
-        text(
-            """
+    db.session.execute(text("""
             SELECT pg_terminate_backend(pid)
             FROM pg_stat_activity
             WHERE pid <> pg_backend_pid()
               AND datname = current_database()
-            """
-        )
-    )
+            """))
 
     # Rebuild from an empty schema so Alembic remains the source of truth.
     click.echo("Dropping and recreating schema...")
