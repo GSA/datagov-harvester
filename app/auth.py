@@ -12,12 +12,13 @@ logger = logging.getLogger("harvest_admin.auth")
 
 
 class LoginRequiredAuth(APIKeyHeaderAuth):
+    API_KEY_HEADER_NAME = "X-API-Key"
 
     def get_security_scheme(self) -> dict[str, t.Any]:
         """Hardcode our particular security scheme."""
         security_scheme = {
             "type": "apiKey",
-            "name": "Authorization",
+            "name": self.API_KEY_HEADER_NAME,
             "in": "header",
         }
         return security_scheme
@@ -28,19 +29,21 @@ class LoginRequiredAuth(APIKeyHeaderAuth):
         def login_required_internal(f):
             @wraps(f)
             def decorated_function(*args, **kwargs):
-                provided_token = request.headers.get("Authorization")
+                provided_token = request.headers.get(self.API_KEY_HEADER_NAME)
                 if request.is_json or provided_token is not None:
                     if provided_token is None:
                         logger.warning(
-                            "API auth rejected: missing Authorization header for %s %s",
+                            "API auth rejected: missing %s header for %s %s",
+                            self.API_KEY_HEADER_NAME,
                             request.method,
                             request.path,
                         )
-                        return "error: Authorization header missing", 401
+                        return f"error: {self.API_KEY_HEADER_NAME} header missing", 401
                     api_token = os.getenv("FLASK_APP_SECRET_KEY")
                     if provided_token != api_token:
                         logger.warning(
-                            "API auth rejected: invalid Authorization header for %s %s",
+                            "API auth rejected: invalid %s header for %s %s",
+                            self.API_KEY_HEADER_NAME,
                             request.method,
                             request.path,
                         )

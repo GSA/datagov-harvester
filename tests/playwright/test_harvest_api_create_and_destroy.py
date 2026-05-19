@@ -23,7 +23,7 @@ class TestHarvestAPICreateAndDestroy:
         res = apage.request.post(
             "/organization/add",
             headers={
-                "Authorization": api_token,
+                "X-API-Key": api_token,
                 "Content-Type": "application/json",
             },
             data=fixture_org,
@@ -37,7 +37,7 @@ class TestHarvestAPICreateAndDestroy:
         res = apage.request.delete(
             f"/organization/{org_id}",
             headers={
-                "Authorization": api_token,
+                "X-API-Key": api_token,
                 "Content-Type": "application/json",
             },
         )
@@ -59,7 +59,7 @@ class TestHarvestAPICreateAndDestroy:
         res = apage.request.post(
             "/organization/add",
             headers={
-                "Authorization": api_token,
+                "X-API-Key": api_token,
                 "Content-Type": "application/json",
             },
             data=fixture_org,
@@ -78,7 +78,7 @@ class TestHarvestAPICreateAndDestroy:
         res = apage.request.post(
             "/harvest_source/add",
             headers={
-                "Authorization": api_token,
+                "X-API-Key": api_token,
                 "Content-Type": "application/json",
             },
             data=fixture_source,
@@ -92,7 +92,7 @@ class TestHarvestAPICreateAndDestroy:
         res = apage.request.delete(
             f"/harvest_source/{source_id}",
             headers={
-                "Authorization": api_token,
+                "X-API-Key": api_token,
                 "Content-Type": "application/json",
             },
         )

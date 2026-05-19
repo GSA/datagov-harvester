@@ -220,17 +220,26 @@ class TestDynamicRouteTable:
 
 
 class TestLoginAuthHeaders:
+    def test_login_required_basic_auth_header_uses_web_session(self, client):
+        with client.session_transaction() as session:
+            session["user"] = "test.user@gsa.gov"
+
+        headers = {"Authorization": "Basic Zm9vOmJhcg=="}
+        response = client.get("/organization/add", headers=headers)
+
+        assert response.status_code == 200
+
     def test_login_required_no_token(self, client):
         headers = {"Content-Type": "application/json"}
         data = {"name": "Test Org", "logo": "test_logo.png", "slug": "test-org"}
         response = client.get("/organization/add", json=data, headers=headers)
         assert response.status_code == 401
-        assert response.data.decode() == "error: Authorization header missing"
+        assert response.data.decode() == "error: X-API-Key header missing"
 
     def test_login_required_valid_token(self, client):
         api_token = os.getenv("FLASK_APP_SECRET_KEY")
         headers = {
-            "Authorization": api_token,
+            "X-API-Key": api_token,
             "Content-Type": "application/json",
         }
         data = {"name": "Test Org", "logo": "test_logo.png", "slug": "test-org"}
@@ -240,7 +249,7 @@ class TestLoginAuthHeaders:
     def test_add_organization_invalid_slug_rejected(self, client):
         api_token = os.getenv("FLASK_APP_SECRET_KEY")
         headers = {
-            "Authorization": api_token,
+            "X-API-Key": api_token,
             "Content-Type": "application/json",
         }
         data = {"name": "Test Org", "logo": "test_logo.png", "slug": "Test_Org"}
@@ -249,7 +258,7 @@ class TestLoginAuthHeaders:
 
     def test_login_required_invalid_token(self, client):
         headers = {
-            "Authorization": "invalid_token",
+            "X-API-Key": "invalid_token",
             "Content-Type": "application/json",
         }
         data = {"name": "Test Org", "logo": "test_logo.png", "slug": "test-org"}
@@ -260,7 +269,7 @@ class TestLoginAuthHeaders:
     def test_login_required_invalid_token_logs_rejection(self, client, caplog):
         caplog.set_level("INFO", logger="harvest_admin")
         headers = {
-            "Authorization": "invalid_token",
+            "X-API-Key": "invalid_token",
             "Content-Type": "application/json",
         }
         data = {"name": "Test Org", "logo": "test_logo.png", "slug": "test-org"}
@@ -268,7 +277,7 @@ class TestLoginAuthHeaders:
         response = client.get("/organization/add", json=data, headers=headers)
 
         assert response.status_code == 401
-        assert "API auth rejected: invalid Authorization header" in caplog.text
+        assert "API auth rejected: invalid X-API-Key header" in caplog.text
 
 
 class TestLoginLogging:
@@ -366,7 +375,7 @@ class TestAuditLogging:
     def test_api_add_organization_logs_actor(self, client, caplog):
         api_token = os.getenv("FLASK_APP_SECRET_KEY")
         headers = {
-            "Authorization": api_token,
+            "X-API-Key": api_token,
             "Content-Type": "application/json",
         }
         data = {
@@ -412,7 +421,7 @@ class TestAuditLogging:
         self, client, interface, organization_data, caplog
     ):
         api_token = os.getenv("FLASK_APP_SECRET_KEY")
-        headers = {"Authorization": api_token}
+        headers = {"X-API-Key": api_token}
         interface.add_organization(organization_data)
         caplog.set_level(logging.INFO, logger="harvest_admin")
 
@@ -663,7 +672,7 @@ class TestAPIBehavior:
         # the value itself doesn't matter. we just want to mock stop_job so it completes.
         LMMock.stop_job.return_value = "a test value"
 
-        headers = {"Authorization": os.getenv("FLASK_APP_SECRET_KEY")}
+        headers = {"X-API-Key": os.getenv("FLASK_APP_SECRET_KEY")}
         response = client.get(f"/harvest_job/cancel/{job.id}", headers=headers)
         assert response.status_code == 302
         assert response.location == f"/harvest_job/{job.id}"
@@ -671,7 +680,7 @@ class TestAPIBehavior:
     def test_invalid_harvest_job_type(self, client, source_data_dcatus):
         api_token = os.getenv("FLASK_APP_SECRET_KEY")
         headers = {
-            "Authorization": api_token,
+            "X-API-Key": api_token,
             "Content-Type": "application/json",
         }
         response = client.get(
