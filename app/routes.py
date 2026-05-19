@@ -1828,7 +1828,7 @@ def openapi_docs():
 @api.input(ValidatorInfo)
 @api.output(ValidationResultSchema, status_code=200)
 @api.doc(
-    summary="Validate a DCAT catalog against a v1.1 schema",
+    summary="Validate a DCAT catalog against a v1.1 or v3.0 schema",
     description="Downloads or parses a DCATUS catalog and validates each dataset.",
     responses={
         500: {
@@ -1839,7 +1839,7 @@ def openapi_docs():
 )
 def validator(json_data):
     """
-    api route for validating v1.1 dcatus catalogs
+    api route for validating v1.1 or v3.0 dcatus catalogs
     """
     errors = []
     data = []
@@ -1876,7 +1876,7 @@ def validator(json_data):
 @main.route("/validate/", methods=["GET", "POST"])
 def view_validators():
     """
-    view for validating v1.1 dcatus catalogs using form
+    view for validating v1.1 or v3.0 dcatus catalogs using form
     """
     data = []
     errors = []
