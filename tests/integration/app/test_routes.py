@@ -277,7 +277,7 @@ class TestLoginAuthHeaders:
         response = client.get("/organization/add", json=data, headers=headers)
 
         assert response.status_code == 401
-        assert "API auth rejected: invalid X-API-Key header" in caplog.text
+        assert "API auth rejected: invalid API key header" in caplog.text
 
 
 class TestLoginLogging:
