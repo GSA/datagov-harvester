@@ -16,7 +16,7 @@ $ sed -e "s:^.*/harvest_source/::" < harvest_source_paths.txt > harvest_source_i
 $ cf env datagov-harvest | grep FLASK_APP_SECRET_KEY
 $ export API_TOKEN=...
 $ cat harvest_source_ids.txt | while read id; do \
-    curl -s -H "Authorization: ${API_TOKEN}" \
+    curl -s -H "X-API-Key: ${API_TOKEN}" \
     https://harvest-dev.data.gov/harvest_job/add \
     --json "{\"harvest_source_id\": \"$id\", \"status\": \"new\", \"date_created\": \"$(TZ=UTC date -Iseconds -j -v +45M)\"}" ;
   done
