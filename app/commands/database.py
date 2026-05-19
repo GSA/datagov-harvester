@@ -1,7 +1,7 @@
 import click
 from flask import Blueprint
-from sqlalchemy import text
 from flask_migrate import upgrade
+from sqlalchemy import text
 
 from database.models import db
 
