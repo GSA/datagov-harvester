@@ -1,3 +1,4 @@
+from .database import database
 from .job import job
 from .org import org
 from .source import source
@@ -6,6 +7,7 @@ from .user import user
 
 
 def register_commands(app):
+    app.register_blueprint(database)
     app.register_blueprint(testdata)
     app.register_blueprint(user)
     app.register_blueprint(org)
