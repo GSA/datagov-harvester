@@ -33,8 +33,7 @@ class LoginRequiredAuth(APIKeyHeaderAuth):
                 if request.is_json or provided_token is not None:
                     if provided_token is None:
                         logger.warning(
-                            "API auth rejected: missing %s header for %s %s",
-                            self.API_KEY_HEADER_NAME,
+                            "API auth rejected: missing API key header for %s %s",
                             request.method,
                             request.path,
                         )
@@ -42,8 +41,7 @@ class LoginRequiredAuth(APIKeyHeaderAuth):
                     api_token = os.getenv("FLASK_APP_SECRET_KEY")
                     if provided_token != api_token:
                         logger.warning(
-                            "API auth rejected: invalid %s header for %s %s",
-                            self.API_KEY_HEADER_NAME,
+                            "API auth rejected: invalid API key header for %s %s",
                             request.method,
                             request.path,
                         )
