@@ -131,15 +131,28 @@ class TestHarvestJobFullFlow:
         interface,
         organization_data,
         source_data_waf_iso19115_2,
+        waf_datetime_filtered_internal_record,
     ):
         interface.add_organization(organization_data)
         interface.add_harvest_source(source_data_waf_iso19115_2)
+
+        harvest_job_old = interface.add_harvest_job(
+            {
+                "status": "complete",
+                "harvest_source_id": source_data_waf_iso19115_2["id"],
+            }
+        )
+
+        waf_datetime_filtered_internal_record["harvest_job_id"] = harvest_job_old.id
+
         harvest_job = interface.add_harvest_job(
             {
                 "status": "new",
                 "harvest_source_id": source_data_waf_iso19115_2["id"],
             }
         )
+
+        interface.add_harvest_record(waf_datetime_filtered_internal_record)
 
         job_id = harvest_job.id
         harvest_job_starter(job_id, "harvest")
@@ -150,6 +163,7 @@ class TestHarvestJobFullFlow:
         assert harvest_job.records_total == 5
         assert len(harvest_job.record_errors) == 3
         assert harvest_job.records_errored == 3
+        assert harvest_job.records_ignored == 1
 
         successful_records = [
             record for record in harvest_job.records if record.status == "success"
@@ -270,9 +284,9 @@ class TestHarvestJobFullFlow:
 
         # assert job rollup
         assert harvest_job.status == "complete"
-        assert harvest_job.records_total == 6
-        assert len(harvest_job.record_errors) == 3
-        assert harvest_job.records_errored == 3
+        assert harvest_job.records_total == 7
+        assert len(harvest_job.record_errors) == 4
+        assert harvest_job.records_errored == 4
 
         for record in harvest_job.records:
             if record.status == "success":

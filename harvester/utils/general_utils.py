@@ -23,7 +23,10 @@ import sansjson
 import sqlalchemy.sql.operators as sa_operators
 from bs4 import BeautifulSoup
 from bs4.element import Tag
+from jsonschema import Draft202012Validator, FormatChecker
 from jsonschema.exceptions import ValidationError
+from referencing import Registry
+from referencing.jsonschema import DRAFT202012
 from sqlalchemy import literal
 
 logging.basicConfig(level=logging.INFO)
@@ -487,22 +490,28 @@ def find_indexes_for_duplicates(records: list):
 
 
 def get_waf_datetimes(soup: BeautifulSoup, expected_length: int) -> list:
+    """
+    gets the datetime strings as datetime obejct of the waf datasets
+    """
     output = []
 
-    dt_pattern = r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}"
-    dt_format = "%Y-%m-%d %H:%M"
-
+    dt_data = [
+        [r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}", "%Y-%m-%d %H:%M"],
+        [r"\d{2}-[A-Za-z]{3}-\d{4}\s\d{2}:\d{2}", "%d-%b-%Y %H:%M"],
+        [r"\d{1,2}/\d{1,2}/\d{4}\s+\d{1,2}:\d{2}\s(?:AM|PM)", "%m/%d/%Y %I:%M %p"],
+    ]
     rows = soup.find_all("td") or soup.find_all("pre")
 
     if rows and rows[0].name == "pre":
-        rows = rows[0].text.split("\n")
+        rows = rows[0].text.split(".xml")
 
     for row in rows:
         if isinstance(row, Tag):
             row = row.text
-        res = re.search(dt_pattern, row)
-        if res is not None:
-            output.append(datetime.strptime(res.group(0), dt_format))
+        for dt_pattern, dt_format in dt_data:
+            res = re.search(dt_pattern, row)
+            if res is not None:
+                output.append(datetime.strptime(res.group(0), dt_format))
 
     if len(output) != expected_length:
         logger.warning(
@@ -1217,7 +1226,7 @@ def found_simple_message(validation_error: ValidationError) -> bool:
     if validation_error.json_path == "$":
         return True
 
-    # dict/object and list/array are the only non-primitives in the schema
+    # we need to dig a little deeper when it's a list
     if isinstance(validation_error.instance, (dict, list)):
         # if it's empty you'll get something like
         # ['$.keyword', '[] should be non-empty']
@@ -1228,8 +1237,20 @@ def found_simple_message(validation_error: ValidationError) -> bool:
         # any number of items in the array:
         if validation_error.validator == "maxItems":
             return True
+
+        if validation_error.message.endswith("is a required property"):
+            return True
+
         return False
     return True
+
+
+def is_required_property(messages: str) -> bool:
+    for message in messages:
+        if "is a required property" in message:
+            return True
+
+    return False
 
 
 def finalize_validation_messages(messages: defaultdict) -> list:
@@ -1250,10 +1271,13 @@ def finalize_validation_messages(messages: defaultdict) -> list:
     output = []
 
     for json_path, formats in messages.items():
-        # required root-level errors are processed individually not bundled by format
-        # "'a' is required"
-        if json_path == "$":
-            output += map(lambda error: ValidationError(f"$, {error}"), messages["$"])
+        # required property messages aren't based on format but simply
+        # "[field] is a required property"
+        if is_required_property(formats):
+            output += map(
+                lambda error: ValidationError(f"{json_path}, {error}"),
+                messages[json_path],
+            )
             continue
 
         # all other errors are bundled based on the formats/rules
@@ -1293,7 +1317,7 @@ def finalize_validation_messages(messages: defaultdict) -> list:
     return output
 
 
-def assemble_validation_errors(validation_errors: list, messages=None) -> list:
+def assemble_validation_errors(validation_errors: list, messages=None) -> list:  #
     """
     given a list of errors, follow each one recursively through its context
     and get the simplest cause for error. store the error in a defaultdict
@@ -1336,3 +1360,23 @@ def is_valid_uuid4(uuid_string) -> bool:
         AttributeError
     ):  # Catches cases where input might not be a string (e.g., UUID(0))
         return False
+
+
+def build_dcatus3_validator(definitions_dir):
+    """
+    builds a dcatus v3.0 catalog validator based on schema files in [definitions_dir]
+    """
+    registry = Registry()
+
+    for schema_file in definitions_dir.glob("*.json"):
+        schema = open_json(schema_file)
+        registry = registry.with_resource(
+            uri=schema["$id"],
+            resource=DRAFT202012.create_resource(schema),
+        )
+
+    return Draft202012Validator(
+        schema={"$ref": "https://resources.data.gov/dcat-us/3.0.0/definitions/catalog"},
+        registry=registry,
+        format_checker=FormatChecker(),
+    )

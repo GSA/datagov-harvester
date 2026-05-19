@@ -875,6 +875,18 @@ def single_internal_record(internal_compare_data):
 
 
 @pytest.fixture
+def waf_datetime_filtered_internal_record(source_data_waf_iso19115_2):
+    return {
+        "harvest_source_id": source_data_waf_iso19115_2["id"],
+        "identifier": "http://localhost:80/iso_2_waf/to_be_filtered_by_datetime.xml",
+        "date_finished": datetime.now(),
+        "source_hash": "a",
+        "status": "success",
+        "action": "create",
+    }
+
+
+@pytest.fixture
 def dhl_cf_task_data() -> dict:
     return {
         "task_id": "cf_task_integration",
@@ -1196,7 +1208,9 @@ def sample_harvest_jobs():
 
 @pytest.fixture
 def dcatus_non_federal_schema():
-    schema = Path(__file__).parents[1] / "schemas" / "non-federal_dataset.json"
+    schema = (
+        Path(__file__).parents[1] / "schemas" / "dcatus1.1" / "non-federal_dataset.json"
+    )
     with open(schema) as f:
         return json.load(f)
 
@@ -1365,3 +1379,26 @@ def slug_protection_dataset(
         }
     )
     return dataset
+
+
+@pytest.fixture
+def dcatus_3_catalog_missing_identifier():
+    return json.dumps(
+        {
+            "@type": "Catalog",
+            "title": "Catalog With Invalid Homepage",
+            "description": "This catalog has homepage as a string URL instead of a Document object.",
+            "dataset": [
+                {
+                    "@type": "Dataset",
+                    "title": "Example Dataset",
+                    "description": "A valid dataset.",
+                    "contactPoint": {
+                        "fn": "Support",
+                        "hasEmail": "mailto:support@example.gov",
+                    },
+                    "publisher": {"name": "Example Org"},
+                }
+            ],
+        }
+    )
