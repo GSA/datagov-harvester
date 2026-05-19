@@ -216,6 +216,12 @@ Then, finally, to apply your changes in place to the local db, run:
 flask db upgrade
 ```
 
+To wipe the local database and rebuild it from migrations:
+
+```bash
+flask database reset --yes
+```
+
 #### user management
 
 `cf run-task datagov-harvest-admin --name "add new user" --command "flask user add xxx@gsa.gov --name xxx"`
