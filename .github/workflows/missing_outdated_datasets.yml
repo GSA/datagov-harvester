@@ -4,6 +4,16 @@ on:
   schedule:
     - cron: "0 4 * * 0" # Sunday midnight EDT
   workflow_dispatch:
+    inputs:
+      environment:
+        description: "environment to use"
+        required: true
+        default: "development"
+        type: choice
+        options:
+          - prod
+          - staging
+          - development
 
 permissions:
   contents: read
@@ -12,7 +22,7 @@ permissions:
 jobs:
   check-missing-datasets:
     runs-on: ubuntu-latest
-
+    environment: ${{ github.event_name == 'schedule' && 'prod' || inputs.environment }}
     steps:
       - uses: actions/checkout@v4
 
@@ -29,7 +39,7 @@ jobs:
             -m 2G
           
           cf_org: gsa-datagov
-          cf_space: prod
+          cf_space: ${{ github.event_name == 'schedule' && 'prod' || inputs.environment }}
           cf_username: ${{secrets.CF_SERVICE_USER}}
           cf_password: ${{secrets.CF_SERVICE_AUTH}}
 
@@ -40,7 +50,7 @@ jobs:
           command: >
             bin/monitor_cf_logs.sh datagov-harvest $TASK_NAME
           cf_org: gsa-datagov
-          cf_space: prod
+          cf_space: ${{ github.event_name == 'schedule' && 'prod' || inputs.environment }}
           cf_username: ${{secrets.CF_SERVICE_USER}}
           cf_password: ${{secrets.CF_SERVICE_AUTH}}
 
@@ -55,6 +65,6 @@ jobs:
           LAST_RUN_BY: ${{ github.actor }}
           RUN_ID: ${{ github.run_id }}
           COMMAND: python scripts/count_missing_outdated_datasets.py
-          ENVIRONMENT: prod
+          ENVIRONMENT: ${{ github.event_name == 'schedule' && 'prod' || inputs.environment }}
         with:
           filename: .github/missing_datasets.md
