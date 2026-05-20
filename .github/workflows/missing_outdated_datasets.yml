@@ -1,4 +1,4 @@
-name: Check missing datasets in harvester
+name: Check missing datasets
 
 on:
   schedule:
@@ -29,11 +29,10 @@ jobs:
       - name: run task
         uses: cloud-gov/cg-cli-tools@main
         with:
-          command: |
-            cf run-task datagov-harvest \
-            --name "check-missing-datasets-${{ github.run_id }}" \
-            --command "python scripts/count_missing_outdated_datasets.py" \
-            -m 2G
+          command: >
+            cf run-task datagov-harvest 
+            --name "check-missing-datasets-${{ github.run_id }}" 
+            --command "python scripts/count_missing_outdated_datasets.py" -m 2G
           
           cf_org: gsa-datagov
           cf_space: ${{ github.event_name == 'schedule' && 'prod' || inputs.environment }}
