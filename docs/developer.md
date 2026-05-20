@@ -83,20 +83,11 @@ Once poetry is installed, `poetry install` installs dependencies into a local vi
 To update poetry itself locally (matching CI, which will always use the latest version), run `poetry self update` (or `make poetry-update`).
 
 
-### Harvester testing
+### Running tests
 
-- These tests are found in `extract`, and `validate`. Some of them rely on services in the `docker-compose.yml`. Run using docker `docker compose up -d` and with the command `poetry run pytest`.
+A number of "test" and "test-*" targets are defined in the `Makefile`.
 
 For tests to pass, you may have to pull the latest MDTranslator. Use `docker compose pull` to get the latest versions of the docker images.
-
-
-### Integration testing
-
-TODO: does this still apply? TODO
-
-- to run integration tests locally add the following env variables to your .env file in addition to their appropriate values
-  - CF_SERVICE_USER = "put username here"
-  - CF_SERVICE_AUTH = "put password here"
 
 
 ### Database migrations
