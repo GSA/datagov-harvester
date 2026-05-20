@@ -1,0 +1,60 @@
+name: Check missing datasets in harvester
+
+on:
+  schedule:
+    - cron: "0 4 * * 0" # Sunday midnight EDT
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  check-missing-datasets:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: run task
+        uses: cloud-gov/cg-cli-tools@main
+        with:
+          command: |
+            TASK_NAME="check-missing-datasets-${GITHUB_RUN_ID}"
+            echo "TASK_NAME=${TASK_NAME}" | tee -a $GITHUB_ENV
+
+            cf run-task datagov-harvest \
+            --name "$TASK_NAME" \
+            --command "python scripts/count_missing_outdated_datasets.py" \
+            -m 2G
+          
+          cf_org: gsa-datagov
+          cf_space: prod
+          cf_username: ${{secrets.CF_SERVICE_USER}}
+          cf_password: ${{secrets.CF_SERVICE_AUTH}}
+
+      - name: monitor task output
+        timeout-minutes: 20
+        uses: cloud-gov/cg-cli-tools@main
+        with:
+          command: >
+            bin/monitor_cf_logs.sh datagov-harvest $TASK_NAME
+          cf_org: gsa-datagov
+          cf_space: prod
+          cf_username: ${{secrets.CF_SERVICE_USER}}
+          cf_password: ${{secrets.CF_SERVICE_AUTH}}
+
+      - name: Create Issue for failure
+        if: ${{ failure() }}
+        uses: JasonEtco/create-an-issue@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.ADD_TO_PROJECT_PAT }}
+          GITHUB_JOB: ${{ toJson(github)['job'] }}
+          GITHUB_ATTEMPTS: ${{ github.run_attempt }}
+          LAST_COMMIT: ${{ github.sha }}
+          LAST_RUN_BY: ${{ github.actor }}
+          RUN_ID: ${{ github.run_id }}
+          COMMAND: python scripts/count_missing_outdated_datasets.py
+          ENVIRONMENT: prod
+        with:
+          filename: .github/missing_datasets.md
