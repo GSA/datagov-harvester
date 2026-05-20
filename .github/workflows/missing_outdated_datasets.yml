@@ -30,11 +30,8 @@ jobs:
         uses: cloud-gov/cg-cli-tools@main
         with:
           command: |
-            TASK_NAME="check-missing-datasets-${GITHUB_RUN_ID}"
-            echo "TASK_NAME=${TASK_NAME}" | tee -a $GITHUB_ENV
-
             cf run-task datagov-harvest \
-            --name "$TASK_NAME" \
+            --name "check-missing-datasets-${{ github.run_id }}" \
             --command "python scripts/count_missing_outdated_datasets.py" \
             -m 2G
           
@@ -48,7 +45,7 @@ jobs:
         uses: cloud-gov/cg-cli-tools@main
         with:
           command: >
-            bin/monitor_cf_logs.sh datagov-harvest $TASK_NAME
+            bin/monitor_cf_logs.sh datagov-harvest "check-missing-datasets-${{ github.run_id }}"
           cf_org: gsa-datagov
           cf_space: ${{ github.event_name == 'schedule' && 'prod' || inputs.environment }}
           cf_username: ${{secrets.CF_SERVICE_USER}}
