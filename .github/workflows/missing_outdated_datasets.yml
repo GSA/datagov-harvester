@@ -12,7 +12,7 @@ permissions:
 jobs:
   check-missing-datasets:
     runs-on: ubuntu-latest
-
+    environment: prod
     steps:
       - uses: actions/checkout@v4
 
