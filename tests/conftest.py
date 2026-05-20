@@ -1208,7 +1208,9 @@ def sample_harvest_jobs():
 
 @pytest.fixture
 def dcatus_non_federal_schema():
-    schema = Path(__file__).parents[1] / "schemas" / "non-federal_dataset.json"
+    schema = (
+        Path(__file__).parents[1] / "schemas" / "dcatus1.1" / "non-federal_dataset.json"
+    )
     with open(schema) as f:
         return json.load(f)
 
@@ -1377,3 +1379,26 @@ def slug_protection_dataset(
         }
     )
     return dataset
+
+
+@pytest.fixture
+def dcatus_3_catalog_missing_identifier():
+    return json.dumps(
+        {
+            "@type": "Catalog",
+            "title": "Catalog With Invalid Homepage",
+            "description": "This catalog has homepage as a string URL instead of a Document object.",
+            "dataset": [
+                {
+                    "@type": "Dataset",
+                    "title": "Example Dataset",
+                    "description": "A valid dataset.",
+                    "contactPoint": {
+                        "fn": "Support",
+                        "hasEmail": "mailto:support@example.gov",
+                    },
+                    "publisher": {"name": "Example Org"},
+                }
+            ],
+        }
+    )

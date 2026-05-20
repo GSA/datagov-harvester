@@ -57,6 +57,28 @@ class TestValidator:
         expect(upage.locator(".error-list")).to_be_visible()
         expect(upage.locator(".error-block")).to_have_count(1)
 
+    def test_ui_validate_by_json_dcatus3(
+        self, upage, dcatus_3_catalog_missing_identifier
+    ):
+        """
+        basic run of the validator form of a dcatus 3.0 catalog fetching via json text
+        """
+
+        upage.locator("select[name=fetch_method]").select_option("paste")
+
+        upage.locator("select[name=schema]").select_option("dcatus3.0 catalog")
+
+        # add a test dcatus doc
+        upage.locator("textarea[name=json_text]").fill(
+            dcatus_3_catalog_missing_identifier
+        )
+
+        upage.locator("input[type=submit]").click()
+
+        # error table should be visible and with 5 validation errors
+        expect(upage.locator(".error-list")).to_be_visible()
+        expect(upage.locator(".error-block")).to_have_count(1)
+
     def test_api_validate_by_url(self, upage, validator_api_url):
 
         res = upage.request.post(

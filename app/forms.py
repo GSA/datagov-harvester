@@ -250,6 +250,7 @@ class ValidatorForm(FlaskForm):
         choices=[
             "dcatus1.1: federal dataset",
             "dcatus1.1: non-federal dataset",
+            "dcatus3.0 catalog",
         ],
         validators=[DataRequired()],
     )
