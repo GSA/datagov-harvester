@@ -337,13 +337,13 @@ def migrate_source(
     workers=None,
 ):
     if harvester_api_token:
-        CONFIG.harvester_auth_headers = {"Authorization": harvester_api_token}
+        CONFIG.harvester_auth_headers = {"X-API-Key": harvester_api_token}
     else:
         logger.error("Please set a non-empty Harvester API token.")
         return 1
 
     if new_catalog_api_token:
-        CONFIG.new_catalog_auth_headers = {"Authorization": new_catalog_api_token}
+        CONFIG.new_catalog_auth_headers = {"X-API-Key": new_catalog_api_token}
     else:
         logger.error("Please set a non-empty Catalog API token.")
         return 1

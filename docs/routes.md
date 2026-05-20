@@ -22,7 +22,8 @@ it is.
 - `/organizations/`: Lists organizations, GET only, no login required
 - `/organization/add`: Add a new organization. Login-required. POST
   with JSON updates in the DB. POST with form data adds or checks for errors.
-  GET should load the `edit_data` template.
+  GET should load the `edit_data` template. JSON callers authenticate with
+  the `X-API-Key` header.
 - `/organization/<id>`: Detail page for a single org, GET only, no login
   required
 - `/organization/config/edit/<id>`: Edit an organization, POSTing JSON updates

@@ -110,11 +110,15 @@ class HarvestSource:
         self.schemas_root = ROOT_DIR / "schemas"
 
         if self.schema_type == "dcatus1.1: federal":
-            self.schema_file = self.schemas_root / "federal_dataset.json"
+            self.schema_file = self.schemas_root / "dcatus1.1" / "federal_dataset.json"
         elif self.schema_type in ["dcatus1.1: non-federal"]:
-            self.schema_file = self.schemas_root / "non-federal_dataset.json"
+            self.schema_file = (
+                self.schemas_root / "dcatus1.1" / "non-federal_dataset.json"
+            )
         elif self.schema_type.startswith("iso19115"):
-            self.schema_file = self.schemas_root / "iso-non-federal_dataset.json"
+            self.schema_file = (
+                self.schemas_root / "dcatus1.1" / "iso-non-federal_dataset.json"
+            )
         else:
             # this can't happen because we apply an enum in our model but just in case.
             logger.error(
