@@ -1,4 +1,4 @@
-FROM python:3.12.12-slim
+FROM python:3.12.13-slim
 
 # Refresh APT indexes and pull the latest patched packages from the base distro.
 RUN apt-get update && \

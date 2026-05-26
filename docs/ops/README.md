@@ -20,7 +20,7 @@ specified amount of time in the future (see the `-v` option to the Mac OS X
 ```bash
 $ export API_TOKEN=...
 $ export id=.....  # harvest source id
-$ curl -s -H "Authorization: ${API_TOKEN}" \
+$ curl -s -H "X-API-Key: ${API_TOKEN}" \
   https://datagov-harvest-admin-dev.app.cloud.gov/harvest_job/add \
   --json "{\"harvest_source_id\": \"$id\", \
            \"status\": \"new\", \
