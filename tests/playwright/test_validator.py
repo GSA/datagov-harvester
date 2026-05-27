@@ -253,3 +253,10 @@ class TestValidator:
             upage.locator("input[type=submit]").click()
 
         assert response_info.value.status == 413
+
+    def test_ui_dcatus3_info(self, upage):
+        """
+        checks to see if the dcatus 3.0 validator info section is visible to the user
+        on the validator page
+        """
+        expect(upage.locator("div[id=dcatus3-validator-info]")).to_be_visible()
