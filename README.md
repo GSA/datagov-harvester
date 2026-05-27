@@ -42,7 +42,7 @@ Set these environment variables in your shell:
 - CF_SERVICE_AUTH
 - CKAN_API_TOKEN
 
-CF_SERVICE_* variables can be extracted from from service-keys by running `cf service-key ci-deployer dhl-deployer` in the appropriate space.
+CF_SERVICE_* variables can be extracted from from service-keys by running `cf service-key ci-deployer datagov-harvest-deployer` in the appropriate space.
 
 CKAN_API_TOKEN should be extracted from `cf env datagov-harvest-runner` in the `user-provided` service `datagov-harvest-secrets` with the same key name.
 
