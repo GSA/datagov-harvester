@@ -1,10 +1,7 @@
-FROM python:3.12.13-slim
+FROM python:3.12.13-alpine3.22
 
-# Refresh APT indexes and pull the latest patched packages from the base distro.
-RUN apt-get update && \
-    apt-get upgrade -y && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
+# Pull the latest patched packages from the base distro.
+RUN apk upgrade --no-cache
 
 WORKDIR /app
 
@@ -29,4 +26,4 @@ EXPOSE 8080
 ENV FLASK_APP=run.py
 
 # Run run.py when the container launches
-CMD ["/bin/bash", "-c", "flask db upgrade && flask run --host=0.0.0.0 --port=8080"]
+CMD ["/bin/sh", "-c", "flask db upgrade && flask run --host=0.0.0.0 --port=8080"]
