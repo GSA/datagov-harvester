@@ -157,6 +157,8 @@ A user provided service by the name of `datagov-harvest-secrets` is also expecte
 - FLASK_APP_SECRET_KEY
 - OPENID_PRIVATE_KEY
 
+CF_SERVICE_* variables can be extracted from from service-keys by running `cf service-key ci-deployer datagov-harvest-deployer` in the appropriate space.
+
 ### Manually Deploying the Flask Application to development
 
 1. Ensure you have a `manifest.yml` and `vars.development.yml` file configured for your Flask application. The vars file may include variables:
