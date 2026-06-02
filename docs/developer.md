@@ -71,13 +71,6 @@ If you absolutely need to hit a breakpoint in your Flask app, you can setup loca
 
 We use `poetry` to manage this project, and to run the tests. Install poetry [here](https://python-poetry.org/docs/#installation). (Poetry is also installed and run automatically within the app container, which is why you didn't need it to get the app up and running.)
 
-Currently, this project is pinned to python version 3.12.12 (check `pyproject.toml` to verify). To install and use this specific version:
-
-```
-% poetry python install 3.12.12
-% poetry env use 3.12.12
-```
-
 Once poetry is installed, `poetry install` installs dependencies into a local virtual environment.
 
 To update poetry itself locally (matching CI, which will always use the latest version), run `poetry self update` (or `make poetry-update`).
@@ -89,6 +82,14 @@ A number of "test" and "test-*" targets are defined in the `Makefile`.
 
 For tests to pass, you may have to pull the latest MDTranslator. Use `docker compose pull` to get the latest versions of the docker images.
 
+
+### Exporting requirements.txt
+
+If you've added, updated, or removed any python dependencies, be sure to export requirements.txt:
+
+   ```bash
+   poetry export -f requirements.txt --output requirements.txt --without-hashes
+   ```
 
 ### Database migrations
 
@@ -161,6 +162,8 @@ CF_SERVICE_* variables can be extracted from from service-keys by running `cf se
 
 ### Manually Deploying the Flask Application to development
 
+Note: we prefer that you deploy to the development environment by pushing to the `develop` branch, which triggers deployment. That approach provides better team visibility. However, there are circumstances where deploying from the command line is necessary; for example if a failing action is preventing deployment.
+
 1. Ensure you have a `manifest.yml` and `vars.development.yml` file configured for your Flask application. The vars file may include variables:
 
     ```bash
@@ -190,24 +193,9 @@ This is a Flask app which manages the configuration of harvest sources, organiza
 ### datagov-harvest-runner
 This is a python application, chiefy comprised of files in the `harvester` directory.
 
-#### Features
-- Extract
-  - General purpose fetching and downloading of web resources.
-  - Catered extraction to the following data formats:
-    - DCAT-US
-- Validation
-  - DCAT-US
-    - `jsonschema` validation using draft 2020-12.
-- Load
-  - DCAT-US
-    - Conversion of dcat-us catalog into ckan dataset schema
-    - Create, delete, update, and patch of ckan package/dataset
-- Report
-  - Update harvest job db record with job results
-  - Email results using SMTP client
+#### User management
 
-
-#### user management
+The Data.gov team are the only intended users of the harvester admin app.
 
 `cf run-task datagov-harvest-admin --name "add new user" --command "flask user add xxx@gsa.gov --name xxx"`
 
@@ -215,6 +203,8 @@ Or, if doing for local development:
 
 `docker compose exec app flask user add your.i.name@gsa.gov --name yourName`
 
-#### add organizations
+#### Add organizations
+
+You can add organizations using the harvester UI. Alternatively, you can run this command:
 
 `cf run-task datagov-harvest-admin --name "add new org" --command "flask org add 'Name of Org' --log https://some-url.png --id 1234"`
