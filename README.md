@@ -36,6 +36,12 @@ This repo contains pre-commit actions. Learn how to configure your IDE to run th
 
 ## Local development
 
+Local configuration should be stored in `.env`, which is ignored by git.
+Use `.env.example` as the template for required local variables.
+
+Do not commit real credentials, environment-specific secrets, or generated `.env` files.
+Production and deployed environment variables are provided by the deployment platform.
+
 Set these environment variables in your shell:
 
 - CF_SERVICE_USER
