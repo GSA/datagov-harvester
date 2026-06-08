@@ -45,3 +45,7 @@ tests/badges/**
 
 # qa data
 qa_output/
+
+.env
+.env.*
+!.env.sample

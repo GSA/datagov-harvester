@@ -47,6 +47,14 @@ We use [Ruff](https://github.com/astral-sh/ruff) to format and lint our Python f
  - Create a branch from `main`. We prefer short descriptive branch names.
  - To test changes in the `development` space in Cloud.gov, merge changes into the `develop` branch. Coordinate with other developers by announcing your plans in #datagov-devsecops.
 
+## Local development
+
+Local configuration should be stored in `.env`, which is ignored by git.
+Use `.env.sample` as the template for required local variables.
+
+Do not commit real credentials, environment-specific secrets, or generated `.env` files.
+Production and deployed environment variables are provided by the deployment platform.
+
 
 ## Flask Debugging
 
