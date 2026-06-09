@@ -42,6 +42,15 @@ Use `.env.example` as the template for required local variables.
 Do not commit real credentials, environment-specific secrets, or generated `.env` files.
 Production and deployed environment variables are provided by the deployment platform.
 
+### Local login (no Login.gov account)
+
+When `FLASK_ENV=development` and `ENABLE_LOCAL_DEV_LOGIN=true` (set in [`docker-compose.yml`](docker-compose.yml) for the app service), visit `http://localhost:8080/login` and sign in with:
+
+- **Username:** `admin`
+- **Password:** `admin`
+
+This bypasses Login.gov and the `harvest_user` allow list for local development only. It is disabled in deployed environments. Login.gov sandbox remains available via the link on the login page.
+
 Set these environment variables in your shell:
 
 - CF_SERVICE_USER

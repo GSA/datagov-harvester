@@ -5,7 +5,14 @@ import re
 
 from flask_wtf import FlaskForm
 from flask_wtf.file import FileAllowed, FileField
-from wtforms import BooleanField, SelectField, StringField, SubmitField, TextAreaField
+from wtforms import (
+    BooleanField,
+    PasswordField,
+    SelectField,
+    StringField,
+    SubmitField,
+    TextAreaField,
+)
 from wtforms.validators import (
     URL,
     DataRequired,
@@ -287,3 +294,9 @@ class ValidatorForm(FlaskForm):
         ],
     )
     submit = SubmitField("Validate")
+
+
+class LocalDevLoginForm(FlaskForm):
+    username = StringField("Username", validators=[DataRequired()])
+    password = PasswordField("Password", validators=[DataRequired()])
+    submit = SubmitField("Log in")
