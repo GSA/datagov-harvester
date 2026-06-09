@@ -1,7 +1,6 @@
 import os
 from collections.abc import Mapping, Sequence
 
-
 REQUIRED_ENV_VARS = ("FLASK_APP_SECRET_KEY",)
 
 
