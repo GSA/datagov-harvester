@@ -1,5 +1,6 @@
 from .database import database
 from .job import job
+from .opensearch import search
 from .org import org
 from .source import source
 from .testdata import testdata
@@ -13,3 +14,4 @@ def register_commands(app):
     app.register_blueprint(org)
     app.register_blueprint(source)
     app.register_blueprint(job)
+    app.register_blueprint(search)
