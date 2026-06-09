@@ -1,12 +1,11 @@
 """APIFlask auth object to wrap our login_required logic."""
 
 import logging
-import os
 import typing as t
 from functools import wraps
 
 from apiflask.security import APIKeyHeaderAuth
-from flask import g, redirect, request, session, url_for
+from flask import current_app, g, redirect, request, session, url_for
 
 logger = logging.getLogger("harvest_admin.auth")
 
@@ -38,8 +37,8 @@ class LoginRequiredAuth(APIKeyHeaderAuth):
                             request.path,
                         )
                         return f"error: {self.API_KEY_HEADER_NAME} header missing", 401
-                    api_token = os.getenv("FLASK_APP_SECRET_KEY")
-                    if provided_token != api_token:
+                    api_token = current_app.config.get("API_TOKEN")
+                    if not api_token or provided_token != api_token:
                         logger.warning(
                             "API auth rejected: invalid API key header for %s %s",
                             request.method,
