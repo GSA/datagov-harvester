@@ -2,7 +2,7 @@ import json
 import logging
 import os
 import tempfile
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Generator, List
 from unittest.mock import MagicMock, Mock, patch
@@ -15,7 +15,7 @@ from jinja2 import FileSystemLoader
 from sqlalchemy.orm import scoped_session, sessionmaker
 
 from app import create_app
-from database.interface import HarvesterDBInterface
+from database.interface import HarvesterDBInterface, OpenSearchInterface
 from database.models import HarvestJob, HarvestSource, Locations, Organization, db
 from harvester.lib.load_manager import create_future_date
 from harvester.utils.general_utils import dataset_to_hash, sort_dataset
@@ -1125,6 +1125,11 @@ def runner():
 
 
 @pytest.fixture
+def cli_runner(dbapp):
+    yield dbapp.test_cli_runner()
+
+
+@pytest.fixture
 def mock_interface():
     """Mock the HarvesterDBInterface for testing."""
     with patch("scripts.orphan_job_clean_up.HarvesterDBInterface") as mock_cls:
@@ -1342,6 +1347,97 @@ def mock_opensearch():
         return_value=mock_client,
     ):
         yield mock_client
+
+
+@pytest.fixture
+def opensearch_client():
+    return OpenSearchInterface(test_host="localhost")
+
+
+@pytest.fixture
+def mock_organization():
+    """Mock organization for dataset tests."""
+    mock_org = Mock()
+    mock_org.to_dict.return_value = {
+        "id": "org-123",
+        "name": "Test Org",
+        "slug": "test-org",
+    }
+    return mock_org
+
+
+@pytest.fixture
+def mock_dataset_with_datetime(mock_organization):
+    """Mock dataset with datetime object in DCAT."""
+    mock_dataset = Mock()
+    mock_dataset.id = "test-id-123"
+    mock_dataset.slug = "test-dataset"
+    mock_dataset.dcat = {
+        "title": "Test Dataset",
+        "description": "Test description",
+        "modified": datetime(2023, 6, 22, 20, 25, 39, 652070),
+        "keyword": ["health", "education"],
+        "publisher": {"name": "Test Publisher"},
+    }
+    mock_dataset.popularity = 100
+    mock_dataset.organization = mock_organization
+    return mock_dataset
+
+
+@pytest.fixture
+def mock_dataset_with_date(mock_organization):
+    """Mock dataset with date object in DCAT."""
+    mock_dataset = Mock()
+    mock_dataset.id = "test-id-456"
+    mock_dataset.slug = "test-dataset-2"
+    mock_dataset.dcat = {
+        "title": "Test Dataset 2",
+        "description": "Test description 2",
+        "issued": date(2006, 5, 31),
+        "keyword": [],
+        "publisher": {"name": "Test Publisher"},
+    }
+    mock_dataset.popularity = 50
+    mock_dataset.organization = mock_organization
+    return mock_dataset
+
+
+@pytest.fixture
+def mock_dataset_with_string_dates(mock_organization):
+    """Mock dataset with string dates in DCAT."""
+    mock_dataset = Mock()
+    mock_dataset.id = "test-id-789"
+    mock_dataset.slug = "test-dataset-3"
+    mock_dataset.dcat = {
+        "title": "Test Dataset 3",
+        "description": "Test description 3",
+        "modified": "2023-06-22T20:25:39.652070",
+        "issued": "2006-05-31",
+        "keyword": [],
+        "publisher": {},
+    }
+    mock_dataset.popularity = None
+    mock_dataset.organization = mock_organization
+    return mock_dataset
+
+
+@pytest.fixture
+def mock_dataset_with_spatial(mock_organization):
+    """Mock dataset with spatial data and datetime in DCAT."""
+    mock_dataset = Mock()
+    mock_dataset.id = "test-id-spatial"
+    mock_dataset.slug = "test-spatial-dataset"
+    mock_dataset.dcat = {
+        "title": "Spatial Dataset",
+        "description": "Dataset with spatial info",
+        "modified": datetime(2023, 1, 15, 10, 30, 0),
+        "spatial": "United States",
+        "keyword": ["geography", "maps"],
+        "publisher": {},
+    }
+    mock_dataset.popularity = 200
+    mock_dataset.organization = mock_organization
+    return mock_dataset
 
 
 @pytest.fixture()
