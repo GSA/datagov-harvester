@@ -4,47 +4,72 @@ set -o errexit
 set -o pipefail
 
 function vcap_get_service () {
-  local path name
+  local path name service_name
   name="$1"
   path="$2"
   service_name=${APP_NAME}-${name}
   if [ "$name" = "opensearch" ]; then
     service_name=datagov-catalog-opensearch
   fi
-  echo $VCAP_SERVICES | jq --raw-output --arg service_name "$service_name" ".[][] | select(.name == \$service_name) | $path"
+  echo "$VCAP_SERVICES" | jq --raw-output --arg service_name "$service_name" ".[][] | select(.name == \$service_name) | $path"
 }
 
-export APP_NAME=$(echo $VCAP_APPLICATION | jq -r '.application_name')
+function require_vcap_value () {
+  local service="$1"
+  local credential_path="$2"
+  local label="$3"
+  local _val
+
+  _val=$(vcap_get_service "$service" "$credential_path")
+  if [ "$_val" = "null" ] || [ -z "$_val" ]; then
+    echo "ERROR: ${label} not found in VCAP_SERVICES. Aborting startup." >&2
+    exit 1
+  fi
+  printf '%s' "$_val"
+}
+
+function require_vcap_secret () {
+  local service="$1"
+  local credential_path="$2"
+  local env_var="$3"
+  local label="${4:-$env_var}"
+  local _val
+
+  _val=$(require_vcap_value "$service" "$credential_path" "$label")
+  printf -v "$env_var" '%s' "$_val"
+  export "$env_var"
+}
+
+export APP_NAME=$(echo "$VCAP_APPLICATION" | jq -r '.application_name')
 
 # GA (google analytics)
-export GA_CREDENTIALS==$(vcap_get_service secrets .credentials.GA_CREDENTIALS)
+require_vcap_secret secrets .credentials.GA_CREDENTIALS GA_CREDENTIALS
 
 # POSTGRES DB CREDS
-export URI=$(vcap_get_service db .credentials.uri)
-export DATABASE_URI=$(echo $URI | sed 's/postgres:\/\//postgresql+psycopg:\/\//g')
+require_vcap_secret db .credentials.uri URI DATABASE_URI
+export DATABASE_URI=$(echo "$URI" | sed 's/postgres:\/\//postgresql+psycopg:\/\//g')
 
 # CF CREDS for CF TASKS API
-export CF_SERVICE_AUTH=$(vcap_get_service secrets .credentials.CF_SERVICE_AUTH)
-export CF_SERVICE_USER=$(vcap_get_service secrets .credentials.CF_SERVICE_USER)
-
-export FLASK_APP_SECRET_KEY=$(vcap_get_service secrets .credentials.FLASK_APP_SECRET_KEY)
-export OPENID_PRIVATE_KEY=$(vcap_get_service secrets .credentials.OPENID_PRIVATE_KEY)
+require_vcap_secret secrets .credentials.CF_SERVICE_AUTH CF_SERVICE_AUTH
+require_vcap_secret secrets .credentials.CF_SERVICE_USER CF_SERVICE_USER
+require_vcap_secret secrets .credentials.FLASK_APP_SECRET_KEY FLASK_APP_SECRET_KEY
+require_vcap_secret secrets .credentials.OPENID_PRIVATE_KEY OPENID_PRIVATE_KEY
 
 # New Relic
-export NEW_RELIC_LICENSE_KEY=$(vcap_get_service secrets .credentials.NEW_RELIC_LICENSE_KEY)
+require_vcap_secret secrets .credentials.NEW_RELIC_LICENSE_KEY NEW_RELIC_LICENSE_KEY
 
 # SMTP Settings
 export HARVEST_SMTP_SERVER=$(vcap_get_service smtp .credentials.smtp_server)
 export HARVEST_SMTP_STARTTLS=True
-export HARVEST_SMTP_USER=$(vcap_get_service smtp .credentials.smtp_user)
-export HARVEST_SMTP_PASSWORD=$(vcap_get_service smtp .credentials.smtp_password)
+require_vcap_secret smtp .credentials.smtp_user HARVEST_SMTP_USER
+require_vcap_secret smtp .credentials.smtp_password HARVEST_SMTP_PASSWORD
 export HARVEST_SMTP_SENDER=harvester@$(vcap_get_service smtp .credentials.domain_arn | grep -o "ses-[[:alnum:]]\+.appmail.cloud.gov")
 export HARVEST_SMTP_RECIPIENT=datagovhelp@gsa.gov
 
 # OpenSearch host and credentials
 export OPENSEARCH_HOST=$(vcap_get_service opensearch .credentials.host)
-export OPENSEARCH_ACCESS_KEY=$(vcap_get_service opensearch .credentials.access_key)
-export OPENSEARCH_SECRET_KEY=$(vcap_get_service opensearch .credentials.secret_key)
+require_vcap_secret opensearch .credentials.access_key OPENSEARCH_ACCESS_KEY
+require_vcap_secret opensearch .credentials.secret_key OPENSEARCH_SECRET_KEY
 
 echo "Setting CA Bundle.."
 export REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
