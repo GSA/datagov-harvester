@@ -13,6 +13,7 @@ from flask_migrate import Migrate
 from flask_talisman import Talisman
 
 from app.filters import else_na, usa_icon, utc_isoformat
+from app.startup_validation import validate_required_env_vars
 from config.logger_config import LOGGING_CONFIG
 from database.models import db
 from harvester.lib.load_manager import LoadManager
@@ -49,6 +50,7 @@ def _external_route_to_server_url(route: str | None) -> str | None:
 
 
 def create_app():
+    env_values = validate_required_env_vars()
     app = APIFlask(__name__, static_url_path="", static_folder="static", docs_path=None)
 
     # OpenAPI fields
@@ -68,7 +70,7 @@ def create_app():
 
     app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv("DATABASE_URI")
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-    app.config["SECRET_KEY"] = os.getenv("FLASK_APP_SECRET_KEY")
+    app.config["SECRET_KEY"] = env_values["FLASK_APP_SECRET_KEY"]
     app.config["MAX_CONTENT_LENGTH"] = 10 * 1024 * 1024
     app.config["SESSION_COOKIE_NAME"] = os.getenv(
         "SESSION_COOKIE_NAME", "harvest_session"
