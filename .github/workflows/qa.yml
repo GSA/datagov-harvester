@@ -17,6 +17,10 @@ on:
           - 'organization'
           - 'dataset'
         default: 'all'
+
+permissions:
+  contents: read
+
 jobs:
   run-qa:
     env:
