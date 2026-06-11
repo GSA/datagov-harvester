@@ -119,6 +119,24 @@ def test_dataset_to_document(sample_dataset):
     assert document["spatial_centroid"] == {"lat": 2.0, "lon": 1.0}
 
 
+def test_dataset_to_document_has_dcat_spatial(sample_dataset):
+    iface = OpenSearchInterface.__new__(OpenSearchInterface)
+    sample_dataset.translated_spatial = None
+
+    document = iface.dataset_to_document(sample_dataset)
+
+    assert document["has_spatial"] is True
+
+
+def test_dataset_to_document_has_translated_spatial(sample_dataset):
+    iface = OpenSearchInterface.__new__(OpenSearchInterface)
+    sample_dataset.dcat.pop("spatial", None)
+
+    document = iface.dataset_to_document(sample_dataset)
+
+    assert document["has_spatial"] is True
+
+
 @pytest.mark.parametrize(
     "theme",
     [
