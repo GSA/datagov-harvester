@@ -267,11 +267,17 @@ def create_app():
                 "data:",
                 "https://s3-us-gov-west-1.amazonaws.com",  # GSA Starmark
                 "https://raw.githubusercontent.com",  # github logos repo
+                "https://*.google-analytics.com",  # GA4 beacons
+                "https://*.googletagmanager.com",  # GTM beacons
             ]
         ),
         "connect-src": " ".join(
             [
                 "'self'",
+                "https://*.google-analytics.com",  # GA4 collect endpoint
+                "https://*.analytics.google.com",  # GA4 analytics
+                "https://*.googletagmanager.com",  # GTM
+                "https://www.google.com",  # GA4 collect fallback
             ]
         ),
         "frame-src": "https://www.googletagmanager.com",
