@@ -27,6 +27,8 @@ logging.config.dictConfig(LOGGING_CONFIG)
 
 # fixes a bug with Flask-HTMX not being able to find the app context
 htmx = None
+HSTS_MAX_AGE_SECONDS = 60 * 60 * 24 * 365
+HSTS_HEADER = f"max-age={HSTS_MAX_AGE_SECONDS}; includeSubDomains; preload"
 
 
 def current_unix_timestamp() -> int:
@@ -299,6 +301,8 @@ def create_app():
         app,
         content_security_policy=csp,
         content_security_policy_nonce_in=["script-src", "style-src-elem"],
+        strict_transport_security_max_age=HSTS_MAX_AGE_SECONDS,
+        strict_transport_security_preload=True,
         # our https connections are terminated outside this app
         force_https=False,
     )
