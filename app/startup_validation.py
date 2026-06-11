@@ -14,10 +14,7 @@ def _is_missing_required_value(value: str | None) -> bool:
         return True
 
     stripped_value = value.strip()
-    return (
-        not stripped_value
-        or stripped_value.lower() in NULL_LIKE_PLACEHOLDER_VALUES
-    )
+    return not stripped_value or stripped_value.lower() in NULL_LIKE_PLACEHOLDER_VALUES
 
 
 def validate_required_env_vars(
