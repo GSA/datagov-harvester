@@ -1,5 +1,6 @@
 permissions:
   contents: read
+  issues: write
 
 name: Sync OpenSearch
 
@@ -105,3 +106,18 @@ jobs:
           cf_space: ${{ env.CF_SPACE }}
           cf_username: ${{ secrets.CF_SERVICE_USER }}
           cf_password: ${{ secrets.CF_SERVICE_AUTH }}
+      - name: Create issue for failure
+        if: failure()
+        uses: JasonEtco/create-an-issue@v2
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_JOB: ${{ github.job }}
+          GITHUB_ATTEMPTS: ${{ github.run_attempt }}
+          LAST_COMMIT: ${{ github.sha }}
+          LAST_RUN_BY: ${{ github.actor }}
+          RUN_ID: ${{ github.run_id }}
+          COMMAND: ${{ env.TASK_COMMAND }}
+          ENVIRONMENT: ${{ matrix.environment }}
+        with:
+          filename: .github/opensearch_sync_failure.md
+          update_existing: true
