@@ -11,7 +11,7 @@ function vcap_get_service () {
   if [ "$name" = "opensearch" ]; then
     service_name=datagov-catalog-opensearch
   fi
-  echo $VCAP_SERVICES | jq --raw-output --arg service_name "$service_name" ".[][] | select(.name == \$service_name) | $path"
+  echo $VCAP_SERVICES | jq --raw-output --arg service_name "$service_name" ".[][] | select(.name == \$service_name) | ($path | if . == null then empty else . end)"
 }
 
 export APP_NAME=$(echo $VCAP_APPLICATION | jq -r '.application_name')
