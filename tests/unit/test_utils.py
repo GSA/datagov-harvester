@@ -285,6 +285,19 @@ class TestGeneralUtils:
         for i in range(len(errors)):
             assert errors[i].message == expected[i]
 
+    def test_assemble_validation_messages_keyword_too_many_items(
+        self, dol_distribution_json, dcatus_non_federal_schema
+    ):
+        dol_distribution_json["keyword"] = ["a"] * 1001
+        validator = Draft202012Validator(
+            dcatus_non_federal_schema, format_checker=FormatChecker()
+        )
+        errors = assemble_validation_errors(
+            validator.iter_errors(dol_distribution_json)
+        )
+        keyword_error = next(e for e in errors if "$.keyword" in e.message)
+        assert "max 1000 items" in keyword_error.message
+
     def test_find_indexes_for_duplicates(self):
         data = [
             {"identifier": "a"},
