@@ -130,7 +130,8 @@ def test_geometry_centroid_uses_valid_points_when_some_are_out_of_range():
     assert centroid == {"lat": 40.0, "lon": 30.0}
 
 
-def test_dataset_to_document(sample_dataset):
+def test_dataset_to_document(sample_dataset, monkeypatch):
+    monkeypatch.delenv("CATALOG_BASE_URL", raising=False)
     iface = OpenSearchInterface.__new__(OpenSearchInterface)
 
     document = iface.dataset_to_document(sample_dataset)
