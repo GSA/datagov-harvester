@@ -5,9 +5,21 @@ from unittest.mock import Mock, patch
 def test_reset_mapping_recreates_empty_index(app):
     client = Mock()
     client.INDEX_NAME = "datasets"
-    client.MAPPINGS = {"properties": {"title": {"type": "text"}}}
+    client.MAPPINGS = {
+        "properties": {
+            "title": {
+                "type": "text",
+                "analyzer": "datagov_text",
+                "search_analyzer": "datagov_text",
+            }
+        }
+    }
     client.client.indices.get_mapping.return_value = {
-        "datasets": {"mappings": client.MAPPINGS}
+        "datasets": {
+            "mappings": {
+                "properties": {"title": {"type": "text", "analyzer": "datagov_text"}}
+            }
+        }
     }
 
     with patch(
@@ -21,6 +33,24 @@ def test_reset_mapping_recreates_empty_index(app):
     client._ensure_index.assert_called_once_with()
     client.index_datasets.assert_not_called()
     assert "Mapping reset successfully. The index is empty." in result.output
+
+
+def test_reset_mapping_rejects_real_mapping_mismatch(app):
+    client = Mock()
+    client.INDEX_NAME = "datasets"
+    client.MAPPINGS = {"properties": {"title": {"type": "text"}}}
+    client.client.indices.get_mapping.return_value = {
+        "datasets": {"mappings": {"properties": {"title": {"type": "keyword"}}}}
+    }
+
+    with patch(
+        "app.commands.search.OpenSearchInterface.from_environment",
+        return_value=client,
+    ):
+        result = app.test_cli_runner().invoke(args=["search", "reset-mapping"])
+
+    assert result.exit_code != 0
+    assert "Created index mapping does not match application mapping." in result.output
 
 
 def test_compare_update_indexes_missing_and_deletes_extra(app):

@@ -36,6 +36,24 @@ def _normalize_last_harvested(value):
     return dt.isoformat(timespec="milliseconds")
 
 
+def _normalize_mapping_for_comparison(value):
+    """Normalize mapping defaults omitted by OpenSearch responses."""
+    if isinstance(value, dict):
+        normalized = {
+            key: _normalize_mapping_for_comparison(item) for key, item in value.items()
+        }
+        if normalized.get("search_analyzer") is not None and normalized.get(
+            "search_analyzer"
+        ) == normalized.get("analyzer"):
+            normalized.pop("search_analyzer")
+        return normalized
+
+    if isinstance(value, list):
+        return [_normalize_mapping_for_comparison(item) for item in value]
+
+    return value
+
+
 @search.cli.command("reset-mapping")
 def reset_opensearch_mapping():
     """Delete the dataset index and recreate its empty mapping and settings."""
@@ -50,7 +68,9 @@ def reset_opensearch_mapping():
 
     mapping = client.client.indices.get_mapping(index=client.INDEX_NAME)
     actual_mapping = mapping[client.INDEX_NAME]["mappings"]
-    if actual_mapping != client.MAPPINGS:
+    if _normalize_mapping_for_comparison(
+        actual_mapping
+    ) != _normalize_mapping_for_comparison(client.MAPPINGS):
         raise click.ClickException(
             "Created index mapping does not match application mapping."
         )
