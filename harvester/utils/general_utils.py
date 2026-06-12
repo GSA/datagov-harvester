@@ -1204,7 +1204,13 @@ def get_format_from_str(validation_msg: str) -> str:
     """
     gets the format/rule used against the data (e.g. 'uri', 'string', some regex)
     """
-    if "too long" in validation_msg:
+    if "is too long" in validation_msg:
+        match = re.search(r"\[maxLength=(\d+)\]", validation_msg)
+        if match:
+            return f"max string length of {match.group(1)} characters"
+        match = re.search(r"\[maxItems=(\d+)\]", validation_msg)
+        if match:
+            return f"max {match.group(1)} items"
         return "max string length requirement"
 
     # for constants where a single value is acceptable
@@ -1337,11 +1343,24 @@ def assemble_validation_errors(validation_errors: list, messages=None) -> list: 
             # these aren't specific enough which make them unhelpful
             generic_msg = "is not valid under any of the given schemas"
             is_generic_msg = error.message.endswith(generic_msg)
+            if error.validator == "maxLength":
+                formatted_message = (
+                    f"{error.message} [maxLength={error.validator_value}]"
+                )
+            elif error.validator == "maxItems":
+                formatted_message = (
+                    f"{error.message} [maxItems={error.validator_value}]"
+                )
+            else:
+                formatted_message = error.message
             # if not the generic message, and if the message is not already
             # present in the list for the given path we skip to avoid duplicates
             # based on how messages are returned from the validator
-            if not is_generic_msg and error.message not in messages[error.json_path]:
-                messages[error.json_path].append(error.message)
+            if (
+                not is_generic_msg
+                and formatted_message not in messages[error.json_path]
+            ):
+                messages[error.json_path].append(formatted_message)
         assemble_validation_errors(error.context, messages)
 
     return finalize_validation_messages(messages)
