@@ -1,9 +1,10 @@
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 from flask import request, session
 
-from app import create_app
+from app import HSTS_HEADER, create_app
 
 
 @pytest.fixture
@@ -46,6 +47,21 @@ def test_anonymous_page_is_publicly_cacheable(client):
     assert response.headers["Cache-Control"] == "public, max-age=60, s-maxage=60"
     assert "Pragma" not in response.headers
     assert "Expires" not in response.headers
+
+
+def test_https_responses_set_preload_ready_hsts_header(client):
+    response = client.get("/_cache_test", headers={"X-Forwarded-Proto": "https"})
+
+    assert response.headers["Strict-Transport-Security"] == HSTS_HEADER
+
+
+def test_nginx_sets_hsts_header_for_public_proxy():
+    nginx_header = f'add_header Strict-Transport-Security "{HSTS_HEADER}" always;'
+
+    nginx_config = Path("proxy/nginx-common.conf").read_text()
+
+    assert nginx_header in nginx_config
+    assert "proxy_hide_header Strict-Transport-Security;" in nginx_config
 
 
 def test_logged_in_page_is_private_no_store(client):
