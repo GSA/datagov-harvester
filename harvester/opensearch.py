@@ -287,8 +287,17 @@ class OpenSearchInterface:
     def dataset_to_document(self, dataset):
         """Map a dataset into a document for indexing."""
         spatial_value = dataset.dcat.get("spatial")
-        has_spatial = bool(spatial_value and str(spatial_value).strip()) or (
-            dataset.translated_spatial is not None
+        themes = dataset.dcat.get("theme") or []
+        if isinstance(themes, str):
+            themes = [themes]
+        has_spatial_theme = any(
+            isinstance(theme, str) and theme.strip().lower() == "geospatial"
+            for theme in themes
+        )
+        has_spatial = (
+            bool(spatial_value and str(spatial_value).strip())
+            or dataset.translated_spatial is not None
+            or has_spatial_theme
         )
         normalized_dcat = self._normalize_dcat_dates(dataset.dcat)
         spatial_centroid = self._geometry_centroid(dataset.translated_spatial)

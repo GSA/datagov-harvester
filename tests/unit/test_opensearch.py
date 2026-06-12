@@ -119,6 +119,59 @@ def test_dataset_to_document(sample_dataset):
     assert document["spatial_centroid"] == {"lat": 2.0, "lon": 1.0}
 
 
+def test_dataset_to_document_has_dcat_spatial(sample_dataset):
+    iface = OpenSearchInterface.__new__(OpenSearchInterface)
+    sample_dataset.translated_spatial = None
+
+    document = iface.dataset_to_document(sample_dataset)
+
+    assert document["has_spatial"] is True
+
+
+def test_dataset_to_document_has_translated_spatial(sample_dataset):
+    iface = OpenSearchInterface.__new__(OpenSearchInterface)
+    sample_dataset.dcat.pop("spatial", None)
+
+    document = iface.dataset_to_document(sample_dataset)
+
+    assert document["has_spatial"] is True
+
+
+@pytest.mark.parametrize(
+    "theme",
+    [
+        ["Geospatial"],
+        ["GEOSPATIAL"],
+        ["Health", " geospatial "],
+        "Geospatial",
+    ],
+)
+def test_dataset_to_document_has_spatial_theme(sample_dataset, theme):
+    iface = OpenSearchInterface.__new__(OpenSearchInterface)
+    sample_dataset.dcat.pop("spatial", None)
+    sample_dataset.dcat["theme"] = theme
+    sample_dataset.translated_spatial = None
+
+    document = iface.dataset_to_document(sample_dataset)
+
+    assert document["has_spatial"] is True
+
+
+@pytest.mark.parametrize(
+    "theme",
+    [None, [], ["Health"], "Environment", "Spatial"],
+)
+def test_dataset_to_document_without_spatial_data_or_theme(sample_dataset, theme):
+    iface = OpenSearchInterface.__new__(OpenSearchInterface)
+    sample_dataset.dcat.pop("spatial", None)
+    sample_dataset.dcat["theme"] = theme
+    sample_dataset.translated_spatial = None
+
+    document = iface.dataset_to_document(sample_dataset)
+
+    assert document["has_spatial"] is False
+
+
 def test_dataset_to_document_omits_transformed_url_without_payload(sample_dataset):
     iface = OpenSearchInterface.__new__(OpenSearchInterface)
     sample_dataset.harvest_record = SimpleNamespace(source_transform=None)
