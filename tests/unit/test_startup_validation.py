@@ -29,15 +29,25 @@ def test_validate_required_env_vars_rejects_missing_and_blank_values():
                 "PRESENT_ENV_VAR",
                 "MISSING_ENV_VAR",
                 "BLANK_ENV_VAR",
+                "NULL_PLACEHOLDER_ENV_VAR",
+                "NONE_PLACEHOLDER_ENV_VAR",
+                "NIL_PLACEHOLDER_ENV_VAR",
+                "UNDEFINED_PLACEHOLDER_ENV_VAR",
             ),
             {
                 "PRESENT_ENV_VAR": "present-value",
                 "BLANK_ENV_VAR": "   ",
+                "NULL_PLACEHOLDER_ENV_VAR": "null",
+                "NONE_PLACEHOLDER_ENV_VAR": " None ",
+                "NIL_PLACEHOLDER_ENV_VAR": "NIL",
+                "UNDEFINED_PLACEHOLDER_ENV_VAR": "undefined",
             },
         )
 
     assert str(exc_info.value) == (
-        "Missing required environment variable(s): MISSING_ENV_VAR, BLANK_ENV_VAR"
+        "Missing required environment variable(s): MISSING_ENV_VAR, BLANK_ENV_VAR, "
+        "NULL_PLACEHOLDER_ENV_VAR, NONE_PLACEHOLDER_ENV_VAR, "
+        "NIL_PLACEHOLDER_ENV_VAR, UNDEFINED_PLACEHOLDER_ENV_VAR"
     )
 
 

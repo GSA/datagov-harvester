@@ -2,10 +2,19 @@ import os
 from collections.abc import Mapping, Sequence
 
 REQUIRED_ENV_VARS = ("FLASK_APP_SECRET_KEY", "HARVEST_API_TOKEN")
+NULL_LIKE_PLACEHOLDER_VALUES = frozenset({"null", "none", "nil", "undefined"})
 
 
 class StartupValidationError(RuntimeError):
     """Raised when the application cannot safely start."""
+
+
+def _is_missing_required_value(value: str | None) -> bool:
+    if value is None:
+        return True
+
+    stripped_value = value.strip()
+    return not stripped_value or stripped_value.lower() in NULL_LIKE_PLACEHOLDER_VALUES
 
 
 def validate_required_env_vars(
@@ -16,7 +25,7 @@ def validate_required_env_vars(
     missing_env_vars = [
         env_var
         for env_var in required_env_vars
-        if not env.get(env_var) or not env[env_var].strip()
+        if _is_missing_required_value(env.get(env_var))
     ]
 
     if missing_env_vars:
