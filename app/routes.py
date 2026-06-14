@@ -1784,6 +1784,9 @@ def json_builder_query(**kwargs):
     job_id = request.args.get("harvest_job_id")
     source_id = request.args.get("harvest_source_id")
     facets = request.args.get("facets", default="")
+    order_by = request.args.get("order_by")
+    if order_by is not None and order_by not in ("asc", "desc"):
+        return f"Invalid order_by '{order_by}', must be 'asc' or 'desc'", 422
 
     if job_id is not None:
         if facets:
@@ -1804,7 +1807,7 @@ def json_builder_query(**kwargs):
             per_page=request.args.get("per_page", type=convert_to_int),
             paginate=request.args.get("paginate", type=is_it_true),
             count=request.args.get("count", type=is_it_true),
-            order_by=request.args.get("order_by"),
+            order_by=order_by,
             facets=facets,
         )
         if not res:
