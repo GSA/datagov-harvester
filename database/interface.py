@@ -41,7 +41,12 @@ def paginate(fn):
         elif kwargs.get("paginate") is False:
             return query.all()
         else:
-            per_page = kwargs.get("per_page") or PAGINATE_ENTRIES_PER_PAGE
+            # `or` would treat an explicit per_page=0 as falsy and fall back to
+            # the default, returning a full page instead of none. Only default
+            # when per_page was not supplied. See GSA/data.gov#5910.
+            per_page = kwargs.get("per_page")
+            if per_page is None:
+                per_page = PAGINATE_ENTRIES_PER_PAGE
             page = kwargs.get("page") or PAGINATE_START_PAGE
             query = query.limit(per_page)
             query = query.offset(page * per_page)
