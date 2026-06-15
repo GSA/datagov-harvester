@@ -269,7 +269,7 @@ class TestGeneralUtils:
         # ruff: noqa E501
         expected = [
             "$, 'identifier' is a required property",
-            "$.rights, 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' does not match any of the acceptable formats: max string length requirement, 'null'",
+            "$.rights, 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' does not match any of the acceptable formats: max string length of 255 characters, 'null'",
             "$.accrualPeriodicity, 'No longer updated (dataset archived)' does not match any of the acceptable formats: constant value 'irregular' was expected, '^R\\\\/P(?:\\\\d+(?:\\\\.\\\\d+)?Y)?(?:\\\\d+(?:\\\\.\\\\d+)?M)?(?:\\\\d+(?:\\\\.\\\\d+)?W)?(?:\\\\d+(?:\\\\.\\\\d+)?D)?(?:T(?:\\\\d+(?:\\\\.\\\\d+)?H)?(?:\\\\d+(?:\\\\.\\\\d+)?M)?(?:\\\\d+(?:\\\\.\\\\d+)?S)?)?$', 'null', '^(\\\\[\\\\[REDACTED).*?(\\\\]\\\\])$'",
             "$.contactPoint.hasEmail, 'bad email' does not match any of the acceptable formats: \"^mailto:[\\\\w\\\\_\\\\~\\\\!\\\\$\\\\&\\\\'\\\\(\\\\)\\\\*\\\\+\\\\,\\\\;\\\\=\\\\:.-]+@[\\\\w.-]+\\\\.[\\\\w.-]+?$\", '^(\\\\[\\\\[REDACTED).*?(\\\\]\\\\])$'",
             "$.distribution[0]['@type'], @type value does not match any of the acceptable formats: constant value 'dcat:Distribution' was expected",
@@ -284,6 +284,19 @@ class TestGeneralUtils:
 
         for i in range(len(errors)):
             assert errors[i].message == expected[i]
+
+    def test_assemble_validation_messages_keyword_too_many_items(
+        self, dol_distribution_json, dcatus_non_federal_schema
+    ):
+        dol_distribution_json["keyword"] = ["a"] * 1001
+        validator = Draft202012Validator(
+            dcatus_non_federal_schema, format_checker=FormatChecker()
+        )
+        errors = assemble_validation_errors(
+            validator.iter_errors(dol_distribution_json)
+        )
+        keyword_error = next(e for e in errors if "$.keyword" in e.message)
+        assert "max 1000 items" in keyword_error.message
 
     def test_find_indexes_for_duplicates(self):
         data = [

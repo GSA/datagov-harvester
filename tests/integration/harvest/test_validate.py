@@ -197,7 +197,7 @@ class TestValidateDataset:
         assert len(errors) == 1
 
         # Check that the error is about description being too long
-        expected_error_message = "does not match any of the acceptable formats: max string length requirement"
+        expected_error_message = "does not match any of the acceptable formats: max string length of 10000 characters"
         assert expected_error_message in errors[0].message
 
     def test_none_in_dcatus_federal(
@@ -293,7 +293,9 @@ class TestValidateDataset:
         assert len(errors) == 1
 
         # Check that the error is about having too many keywords
-        expected_error_message = "does not match any of the acceptable formats: max string length requirement"
+        expected_error_message = (
+            "does not match any of the acceptable formats: max 1000 items"
+        )
         assert expected_error_message in errors[0].message
 
     def test_transformed_iso_contact_placeholder(self, valid_iso_2_record):
