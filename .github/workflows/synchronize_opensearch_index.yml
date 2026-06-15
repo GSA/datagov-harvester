@@ -1,0 +1,123 @@
+permissions:
+  contents: read
+  issues: write
+
+name: Sync OpenSearch
+
+on:
+  workflow_dispatch:
+    inputs:
+      command:
+        description: "Select which OpenSearch command to run"
+        required: true
+        default: search compare
+        type: choice
+        options:
+          - search reset-mapping
+          - search compare
+          - search compare --update
+          - search compare --force-update
+      environment:
+        description: "cf environment"
+        required: true
+        default: development
+        type: choice
+        options:
+          - development
+          - staging
+          - prod
+  schedule:
+    - cron: "0 10 * * *" # runs at 6am EDT
+
+jobs:
+  determine-environments:
+    runs-on: ubuntu-latest
+    outputs:
+      environments: ${{ steps.set-env.outputs.environments }}
+    steps:
+      - id: set-env
+        env:
+          SELECTED_ENV: ${{ inputs.environment || 'development' }}
+        run: |
+          if [[ "${{ github.event_name }}" == "schedule" ]]; then
+            echo 'environments=["staging","prod"]' >> "$GITHUB_OUTPUT"
+          else
+            echo "environments=[\"$SELECTED_ENV\"]" >> "$GITHUB_OUTPUT"
+          fi
+
+  opensearch-sync:
+    needs: determine-environments
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        environment: ${{ fromJson(needs.determine-environments.outputs.environments) }}
+    name: Sync OpenSearch index
+    environment: ${{ matrix.environment }}
+    env:
+      CF_SPACE: ${{ matrix.environment }}
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v4
+      - name: Store task instance name
+        run: |
+          echo "OPENSEARCH_INSTANCE_NAME=search-sync-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_ENV"
+      - name: Determine command for manual run
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          case "${{ inputs.command }}" in
+            "search reset-mapping")
+              cmd="flask search reset-mapping"
+              ;;
+            "search compare")
+              cmd="flask search compare"
+              ;;
+            "search compare --update")
+              cmd="flask search compare --update"
+              ;;
+            "search compare --force-update")
+              cmd="flask search compare --force-update"
+              ;;
+            *)
+              echo "Unknown command: ${{ inputs.command }}" >&2
+              exit 1
+              ;;
+          esac
+          echo "TASK_COMMAND=$cmd" >> "$GITHUB_ENV"
+      - name: Determine command for scheduled run
+        if: github.event_name == 'schedule'
+        run: |
+          echo 'TASK_COMMAND=flask search compare --update' >> "$GITHUB_ENV"
+      - name: Run task
+        uses: cloud-gov/cg-cli-tools@main
+        with:
+          command: >
+            cf run-task datagov-harvest --name "$OPENSEARCH_INSTANCE_NAME"
+            --command "$TASK_COMMAND" -k 2G -m 2G
+          cf_org: gsa-datagov
+          cf_space: ${{ env.CF_SPACE }}
+          cf_username: ${{ secrets.CF_SERVICE_USER }}
+          cf_password: ${{ secrets.CF_SERVICE_AUTH }}
+      - name: Monitor task output
+        uses: cloud-gov/cg-cli-tools@main
+        with:
+          command: >
+            bin/monitor_cf_logs.sh datagov-harvest "$OPENSEARCH_INSTANCE_NAME"
+          cf_org: gsa-datagov
+          cf_space: ${{ env.CF_SPACE }}
+          cf_username: ${{ secrets.CF_SERVICE_USER }}
+          cf_password: ${{ secrets.CF_SERVICE_AUTH }}
+      - name: Create issue for failure
+        if: failure()
+        uses: JasonEtco/create-an-issue@v2
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_JOB: ${{ github.job }}
+          GITHUB_ATTEMPTS: ${{ github.run_attempt }}
+          LAST_COMMIT: ${{ github.sha }}
+          LAST_RUN_BY: ${{ github.actor }}
+          RUN_ID: ${{ github.run_id }}
+          COMMAND: ${{ env.TASK_COMMAND }}
+          ENVIRONMENT: ${{ matrix.environment }}
+        with:
+          filename: .github/opensearch_sync_failure.md
+          update_existing: true

@@ -24,4 +24,4 @@ ISSUER: https://idp.int.identitysandbox.gov
 REDIRECT_URI: https://harvest.data.gov/callback
 
 # New Relic
-new_relic_monitor_mode: false
+new_relic_monitor_mode: true

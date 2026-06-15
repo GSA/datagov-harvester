@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 import time
@@ -247,6 +248,15 @@ class OpenSearchInterface:
     @staticmethod
     def _geometry_centroid(geometry: Any) -> dict | None:
         """Calculate the centroid of a geometry."""
+        if geometry is None:
+            return None
+
+        if isinstance(geometry, str):
+            try:
+                geometry = json.loads(geometry)
+            except json.JSONDecodeError:
+                return None
+
         if not isinstance(geometry, dict):
             return None
 
@@ -263,6 +273,8 @@ class OpenSearchInterface:
                 return False
             lon, lat = value[0], value[1]
             if not isinstance(lon, (int, float)) or not isinstance(lat, (int, float)):
+                return False
+            if not (-90.0 <= lat <= 90.0) or not (-180.0 <= lon <= 180.0):
                 return False
             points.append((float(lon), float(lat)))
             return True
