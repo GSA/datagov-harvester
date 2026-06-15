@@ -245,6 +245,26 @@ class OpenSearchInterface:
         return normalized_dcat
 
     @staticmethod
+    def _normalize_dcat_spatial(dcat: dict) -> dict:
+        """Normalize the spatial field so it always indexes as text.
+
+        The OpenSearch mapping treats dcat.spatial as text and most datasets
+        carry it as a string, but some carry it as a JSON-LD object such as
+        {"@type": "Location", "prefLabel": "United States"}, which fails text
+        parsing and aborts the whole index batch. Coerce a non-string spatial
+        value to a string, preferring a readable label. See #5987.
+        """
+        spatial = dcat.get("spatial")
+        if spatial is None or isinstance(spatial, str):
+            return dcat
+        normalized_dcat = dcat.copy()
+        if isinstance(spatial, dict) and spatial.get("prefLabel"):
+            normalized_dcat["spatial"] = str(spatial["prefLabel"])
+        else:
+            normalized_dcat["spatial"] = str(spatial)
+        return normalized_dcat
+
+    @staticmethod
     def _geometry_centroid(geometry: Any) -> dict | None:
         """Calculate the centroid of a geometry."""
         if not isinstance(geometry, dict):
@@ -300,6 +320,7 @@ class OpenSearchInterface:
             or has_spatial_theme
         )
         normalized_dcat = self._normalize_dcat_dates(dataset.dcat)
+        normalized_dcat = self._normalize_dcat_spatial(normalized_dcat)
         spatial_centroid = self._geometry_centroid(dataset.translated_spatial)
         last_harvested = (
             dataset.last_harvested_date.isoformat()

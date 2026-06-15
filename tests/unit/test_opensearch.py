@@ -87,6 +87,22 @@ def test_normalize_dcat_dates():
     assert normalized["temporal"] == "123"
 
 
+def test_normalize_dcat_spatial():
+    # object spatial with prefLabel -> readable label (regression for #5987)
+    dcat = {"spatial": {"@type": "Location", "prefLabel": "United States"}}
+    assert OpenSearchInterface._normalize_dcat_spatial(dcat)["spatial"] == "United States"
+    # string spatial is left unchanged
+    assert (
+        OpenSearchInterface._normalize_dcat_spatial({"spatial": "-180,-90,180,90"})["spatial"]
+        == "-180,-90,180,90"
+    )
+    # object spatial without prefLabel is coerced to a string (still indexes)
+    coerced = OpenSearchInterface._normalize_dcat_spatial({"spatial": {"bbox": [1, 2]}})["spatial"]
+    assert isinstance(coerced, str)
+    # missing spatial is a no-op
+    assert "spatial" not in OpenSearchInterface._normalize_dcat_spatial({"title": "x"})
+
+
 def test_geometry_centroid_returns_average():
     geometry = {"type": "MultiPoint", "coordinates": [[0, 0], [2, 2]]}
 
