@@ -5,7 +5,7 @@ description = ""
 authors = ["Datagov Team <datagov@gsa.gov>"]
 maintainers = ["Datagov Team <datagov@gsa.gov>"]
 readme = "README.md"
-packages = [{ include = "harvester" }]
+packages = [{ include = "harvester" }, { include = "shared" }]
 license = "LICENSE.md"                                  # TODO fix me
 repository = "https://github.com/GSA/datagov-harvester"
 
