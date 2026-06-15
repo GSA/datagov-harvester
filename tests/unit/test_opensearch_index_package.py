@@ -1,7 +1,6 @@
 import ast
 from pathlib import Path
 
-
 WRITER_DIRECTORY = Path(__file__).parents[2] / "shared" / "opensearch_index"
 FORBIDDEN_IMPORT_ROOTS = {
     "app",
