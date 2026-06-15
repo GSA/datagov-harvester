@@ -3,7 +3,7 @@ import uuid
 
 import pytest
 
-api_token = os.getenv("FLASK_APP_SECRET_KEY")
+api_token = os.getenv("HARVEST_API_TOKEN")
 
 
 @pytest.fixture()

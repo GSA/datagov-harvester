@@ -11,7 +11,7 @@ function vcap_get_service () {
   if [ "$name" = "opensearch" ]; then
     service_name=datagov-catalog-opensearch
   fi
-  echo $VCAP_SERVICES | jq --raw-output --arg service_name "$service_name" ".[][] | select(.name == \$service_name) | $path"
+  echo $VCAP_SERVICES | jq --raw-output --arg service_name "$service_name" ".[][] | select(.name == \$service_name) | ($path | if . == null then empty else . end)"
 }
 
 export APP_NAME=$(echo $VCAP_APPLICATION | jq -r '.application_name')
@@ -28,6 +28,7 @@ export CF_SERVICE_AUTH=$(vcap_get_service secrets .credentials.CF_SERVICE_AUTH)
 export CF_SERVICE_USER=$(vcap_get_service secrets .credentials.CF_SERVICE_USER)
 
 export FLASK_APP_SECRET_KEY=$(vcap_get_service secrets .credentials.FLASK_APP_SECRET_KEY)
+export HARVEST_API_TOKEN=$(vcap_get_service secrets .credentials.HARVEST_API_TOKEN)
 export OPENID_PRIVATE_KEY=$(vcap_get_service secrets .credentials.OPENID_PRIVATE_KEY)
 
 # New Relic

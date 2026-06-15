@@ -4,7 +4,7 @@ from uuid import uuid4
 import pytest
 from playwright.sync_api import expect
 
-api_token = os.getenv("FLASK_APP_SECRET_KEY")
+api_token = os.getenv("HARVEST_API_TOKEN")
 
 
 @pytest.fixture()
