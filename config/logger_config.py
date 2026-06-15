@@ -28,5 +28,9 @@ LOGGING_CONFIG = {
             "level": "INFO",
             "propagate": False,
         },
+        "opensearch": {
+            "level": "WARNING",
+            "propagate": True,
+        },
     },
 }

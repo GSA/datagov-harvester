@@ -37,8 +37,8 @@ class LoginRequiredAuth(APIKeyHeaderAuth):
                             request.path,
                         )
                         return f"error: {self.API_KEY_HEADER_NAME} header missing", 401
-                    api_token = current_app.config["SECRET_KEY"]
-                    if provided_token != api_token:
+                    api_token = current_app.config.get("API_TOKEN")
+                    if not api_token or provided_token != api_token:
                         logger.warning(
                             "API auth rejected: invalid API key header for %s %s",
                             request.method,

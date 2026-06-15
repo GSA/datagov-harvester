@@ -1,7 +1,7 @@
 import os
 from collections.abc import Mapping, Sequence
 
-REQUIRED_ENV_VARS = ("FLASK_APP_SECRET_KEY",)
+REQUIRED_ENV_VARS = ("FLASK_APP_SECRET_KEY", "HARVEST_API_TOKEN")
 NULL_LIKE_PLACEHOLDER_VALUES = frozenset({"null", "none", "nil", "undefined"})
 
 

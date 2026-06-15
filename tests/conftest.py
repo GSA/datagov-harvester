@@ -21,6 +21,7 @@ from harvester.lib.load_manager import create_future_date
 from harvester.utils.general_utils import dataset_to_hash, sort_dataset
 
 load_dotenv()
+os.environ.setdefault("HARVEST_API_TOKEN", "test-harvest-api-token")
 
 logger = logging.getLogger("pytest.conftest")
 
