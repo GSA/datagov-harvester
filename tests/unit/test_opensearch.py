@@ -95,7 +95,43 @@ def test_geometry_centroid_returns_average():
     assert centroid == {"lat": 1.0, "lon": 1.0}
 
 
-def test_dataset_to_document(sample_dataset):
+def test_geometry_centroid_accepts_json_string():
+    geometry = '{"type": "Point", "coordinates": [10, 20]}'
+
+    centroid = OpenSearchInterface._geometry_centroid(geometry)
+
+    assert centroid == {"lat": 20.0, "lon": 10.0}
+
+
+@pytest.mark.parametrize(
+    "geometry",
+    [
+        {"type": "Point", "coordinates": [185.0, 45.0]},
+        {"type": "Point", "coordinates": [-74.0, -91.0]},
+    ],
+)
+def test_geometry_centroid_skips_out_of_range_coordinates(geometry):
+    assert OpenSearchInterface._geometry_centroid(geometry) is None
+
+
+def test_geometry_centroid_uses_valid_points_when_some_are_out_of_range():
+    geometry = {
+        "type": "MultiPoint",
+        "coordinates": [
+            [10.0, 20.0],
+            [185.0, 45.0],
+            [30.0, -91.0],
+            [50.0, 60.0],
+        ],
+    }
+
+    centroid = OpenSearchInterface._geometry_centroid(geometry)
+
+    assert centroid == {"lat": 40.0, "lon": 30.0}
+
+
+def test_dataset_to_document(sample_dataset, monkeypatch):
+    monkeypatch.delenv("CATALOG_BASE_URL", raising=False)
     iface = OpenSearchInterface.__new__(OpenSearchInterface)
 
     document = iface.dataset_to_document(sample_dataset)
@@ -117,6 +153,35 @@ def test_dataset_to_document(sample_dataset):
         == "https://catalog.data.gov/harvest_record/hr-1/transformed"
     )
     assert document["spatial_centroid"] == {"lat": 2.0, "lon": 1.0}
+
+
+def test_dataset_to_document_handles_missing_date_and_organization(sample_dataset):
+    iface = OpenSearchInterface.__new__(OpenSearchInterface)
+    sample_dataset.last_harvested_date = None
+    sample_dataset.organization = None
+
+    document = iface.dataset_to_document(sample_dataset)
+
+    assert document["last_harvested_date"] is None
+    assert document["organization"] == {}
+
+
+def test_dataset_to_document_uses_configured_catalog_base_url(
+    sample_dataset, monkeypatch
+):
+    iface = OpenSearchInterface.__new__(OpenSearchInterface)
+    monkeypatch.setenv("CATALOG_BASE_URL", "https://example.gov/")
+
+    document = iface.dataset_to_document(sample_dataset)
+
+    assert document["harvest_record"] == "https://example.gov/harvest_record/hr-1"
+    assert (
+        document["harvest_record_raw"] == "https://example.gov/harvest_record/hr-1/raw"
+    )
+    assert (
+        document["harvest_record_transformed"]
+        == "https://example.gov/harvest_record/hr-1/transformed"
+    )
 
 
 def test_dataset_to_document_has_dcat_spatial(sample_dataset):
