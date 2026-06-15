@@ -51,7 +51,7 @@ def test_validate_required_env_vars_rejects_missing_and_blank_values():
     )
 
 
-def test_create_app_requires_flask_app_secret_key():
+def test_create_app_requires_session_secret_and_api_token():
     with (
         patch.dict("os.environ", {}, clear=True),
         pytest.raises(StartupValidationError) as exc_info,
@@ -59,15 +59,39 @@ def test_create_app_requires_flask_app_secret_key():
         create_app()
 
     assert str(exc_info.value) == (
-        "Missing required environment variable(s): FLASK_APP_SECRET_KEY"
+        "Missing required environment variable(s): FLASK_APP_SECRET_KEY, "
+        "HARVEST_API_TOKEN"
     )
 
 
-def test_create_app_uses_validated_secret_key():
+def test_create_app_requires_harvest_api_token():
     with (
-        patch.dict("os.environ", {"FLASK_APP_SECRET_KEY": "validated-secret-key"}),
+        patch.dict(
+            "os.environ",
+            {"FLASK_APP_SECRET_KEY": "validated-secret-key"},
+            clear=True,
+        ),
+        pytest.raises(StartupValidationError) as exc_info,
+    ):
+        create_app()
+
+    assert str(exc_info.value) == (
+        "Missing required environment variable(s): HARVEST_API_TOKEN"
+    )
+
+
+def test_create_app_uses_validated_secrets():
+    with (
+        patch.dict(
+            "os.environ",
+            {
+                "FLASK_APP_SECRET_KEY": "validated-secret-key",
+                "HARVEST_API_TOKEN": "validated-api-token",
+            },
+        ),
         patch("app.load_manager.start", lambda: True),
     ):
         app = create_app()
 
     assert app.config["SECRET_KEY"] == "validated-secret-key"
+    assert app.config["API_TOKEN"] == "validated-api-token"

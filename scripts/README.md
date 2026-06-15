@@ -13,7 +13,7 @@ should make a JSON form of this list page.)
 $ curl https://harvest-dev.data.gov/harvest_source_list/ > harvest_source_list.html
 $ grep href=\"/harvest_source/ harvest_source_list.html | sed -e s/\<a// -e s/href=\"// -e s/\"// > harvest_source_paths.txt
 $ sed -e "s:^.*/harvest_source/::" < harvest_source_paths.txt > harvest_source_ids.txt
-$ cf env datagov-harvest | grep FLASK_APP_SECRET_KEY
+$ cf env datagov-harvest | grep HARVEST_API_TOKEN
 $ export API_TOKEN=...
 $ cat harvest_source_ids.txt | while read id; do \
     curl -s -H "X-API-Key: ${API_TOKEN}" \

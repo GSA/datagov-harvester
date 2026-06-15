@@ -1,6 +1,5 @@
 import json
 import logging
-import os
 import re
 import uuid
 from unittest.mock import Mock, patch
@@ -236,8 +235,8 @@ class TestLoginAuthHeaders:
         assert response.status_code == 401
         assert response.data.decode() == "error: X-API-Key header missing"
 
-    def test_login_required_valid_token(self, client):
-        api_token = os.getenv("FLASK_APP_SECRET_KEY")
+    def test_login_required_valid_token(self, app, client):
+        api_token = app.config["API_TOKEN"]
         headers = {
             "X-API-Key": api_token,
             "Content-Type": "application/json",
@@ -246,8 +245,18 @@ class TestLoginAuthHeaders:
         response = client.get("/organization/add", json=data, headers=headers)
         assert response.status_code == 200
 
-    def test_add_organization_invalid_slug_rejected(self, client):
-        api_token = os.getenv("FLASK_APP_SECRET_KEY")
+    def test_login_required_rejects_session_secret_as_api_token(self, app, client):
+        headers = {
+            "X-API-Key": app.config["SECRET_KEY"],
+            "Content-Type": "application/json",
+        }
+        data = {"name": "Test Org", "logo": "test_logo.png", "slug": "test-org"}
+        response = client.get("/organization/add", json=data, headers=headers)
+        assert response.status_code == 401
+        assert response.data.decode() == "error: Unauthorized"
+
+    def test_add_organization_invalid_slug_rejected(self, app, client):
+        api_token = app.config["API_TOKEN"]
         headers = {
             "X-API-Key": api_token,
             "Content-Type": "application/json",
@@ -372,8 +381,8 @@ class TestLoginLogging:
 
 
 class TestAuditLogging:
-    def test_api_add_organization_logs_actor(self, client, caplog):
-        api_token = os.getenv("FLASK_APP_SECRET_KEY")
+    def test_api_add_organization_logs_actor(self, app, client, caplog):
+        api_token = app.config["API_TOKEN"]
         headers = {
             "X-API-Key": api_token,
             "Content-Type": "application/json",
@@ -418,9 +427,9 @@ class TestAuditLogging:
         assert "auth_type=session" in caplog.text
 
     def test_api_delete_organization_logs_actor(
-        self, client, interface, organization_data, caplog
+        self, app, client, interface, organization_data, caplog
     ):
-        api_token = os.getenv("FLASK_APP_SECRET_KEY")
+        api_token = app.config["API_TOKEN"]
         headers = {"X-API-Key": api_token}
         interface.add_organization(organization_data)
         caplog.set_level(logging.INFO, logger="harvest_admin")
@@ -656,6 +665,7 @@ class TestAPIBehavior:
         organization_data,
         source_data_dcatus,
         job_data_dcatus,
+        app,
         client,
     ):
         """
@@ -672,13 +682,13 @@ class TestAPIBehavior:
         # the value itself doesn't matter. we just want to mock stop_job so it completes.
         LMMock.stop_job.return_value = "a test value"
 
-        headers = {"X-API-Key": os.getenv("FLASK_APP_SECRET_KEY")}
+        headers = {"X-API-Key": app.config["API_TOKEN"]}
         response = client.get(f"/harvest_job/cancel/{job.id}", headers=headers)
         assert response.status_code == 302
         assert response.location == f"/harvest_job/{job.id}"
 
-    def test_invalid_harvest_job_type(self, client, source_data_dcatus):
-        api_token = os.getenv("FLASK_APP_SECRET_KEY")
+    def test_invalid_harvest_job_type(self, app, client, source_data_dcatus):
+        api_token = app.config["API_TOKEN"]
         headers = {
             "X-API-Key": api_token,
             "Content-Type": "application/json",
