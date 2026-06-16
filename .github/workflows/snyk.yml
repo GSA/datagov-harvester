@@ -20,13 +20,13 @@ jobs:
     if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           fetch-depth: 1
 
       # Set up Node.js for package-lock.json testing
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version-file: "app/static/package.json"
           cache: 'npm'
@@ -42,7 +42,7 @@ jobs:
           npm ci
 
       - name: Set up Python ${{ env.PY_VERSION }}
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PY_VERSION }}
 
