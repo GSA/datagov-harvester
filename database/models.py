@@ -5,7 +5,7 @@ from typing import Optional
 
 from flask_sqlalchemy import SQLAlchemy
 from geoalchemy2 import Geometry
-from sqlalchemy import CheckConstraint, Column, Enum, String, func, select
+from sqlalchemy import CheckConstraint, Column, Enum, Index, String, func, select
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.mutable import MutableDict
 from sqlalchemy.orm import DeclarativeBase, backref, column_property
@@ -192,6 +192,16 @@ class HarvestRecord(db.Model):
     status = db.Column(Enum("error", "success", name="record_status"), index=True)
     errors = db.relationship("HarvestRecordError", backref="record", lazy=True)
 
+    __table_args__ = (
+        Index(
+            "ix_hr_source_status_identifier_created_desc",
+            "harvest_source_id",
+            "status",
+            "identifier",
+            date_created.desc(),
+        ),
+    )
+
     @property
     def dataset_slug(self) -> Optional[str]:
         dataset = getattr(self, "dataset", None)
@@ -289,6 +299,8 @@ class HarvestRecordError(Error):
     harvest_job_id = db.Column(
         db.String(36), db.ForeignKey("harvest_job.id"), nullable=False
     )
+
+    __table_args__ = (Index("ix_hre_job_id", "harvest_job_id"),)
 
 
 class HarvestUser(db.Model):

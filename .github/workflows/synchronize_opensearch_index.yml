@@ -57,7 +57,7 @@ jobs:
       CF_SPACE: ${{ matrix.environment }}
     steps:
       - name: Check out the code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
       - name: Store task instance name
         run: |
           echo "OPENSEARCH_INSTANCE_NAME=search-sync-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_ENV"
