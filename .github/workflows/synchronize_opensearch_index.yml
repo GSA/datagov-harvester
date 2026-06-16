@@ -116,7 +116,7 @@ jobs:
           if [ -f .cf_monitor_result ]; then
             echo "result=$(cat .cf_monitor_result)" >> "$GITHUB_OUTPUT"
           fi
-          if [ "${{ steps.monitor.outcome }}" = "failure" ] && [ ! -f .cf_monitor_result ]; then
+          if [ "${{ steps.monitor.outcome }}" = "failure" ]; then
             echo "task_failed=true" >> "$GITHUB_OUTPUT"
           fi
       - name: Create issue for task failure
@@ -135,7 +135,7 @@ jobs:
           filename: .github/opensearch_sync_failure.md
           update_existing: true
       - name: Create issue for index batch failures
-        if: steps.monitor_result.outputs.result == 'index_batch_warning'
+        if: steps.monitor_result.outputs.result == 'warning_pattern_matched'
         uses: JasonEtco/create-an-issue@v2
         env:
           GITHUB_TOKEN: ${{ github.token }}
@@ -150,7 +150,5 @@ jobs:
           filename: .github/opensearch_index_batch_failure.md
           update_existing: true
       - name: Fail workflow on monitor errors
-        if: >-
-          steps.monitor_result.outputs.task_failed == 'true' ||
-          steps.monitor_result.outputs.result == 'index_batch_warning'
+        if: steps.monitor_result.outputs.task_failed == 'true'
         run: exit 1

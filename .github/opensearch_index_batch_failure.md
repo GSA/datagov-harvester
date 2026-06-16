@@ -3,8 +3,8 @@ title: OpenSearch Index Batch Failures ({{ env.ENVIRONMENT }})
 labels: ["bug", "o&m"]
 ---
 
-The scheduled OpenSearch sync task completed but one or more dataset batches reported
-`failed to index in this batch` in the task logs.
+The OpenSearch sync task logs included the index failure message
+`failed to index in this batch`.
 
 Workflow with Issue: {{ workflow }}
 Job Failed: {{ env.GITHUB_JOB }}
