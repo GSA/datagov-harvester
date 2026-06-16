@@ -77,6 +77,7 @@ def unauthed_page(browser, base_url):
     context = browser.new_context(base_url=base_url)
     page = context.new_page()
     page.set_default_timeout(2500)
+    page.set_default_navigation_timeout(10000)
     yield page
     context.close()
 
@@ -88,6 +89,7 @@ def authed_page(browser, base_url):
     )
     page = context.new_page()
     page.set_default_timeout(2500)
+    page.set_default_navigation_timeout(10000)
     yield page
     context.close()
 
