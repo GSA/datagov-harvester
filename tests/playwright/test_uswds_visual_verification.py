@@ -56,7 +56,9 @@ class TestUswdsVisualVerification:
         page.goto("/organization/add")
         expect(page.locator(".usa-form-group")).not_to_have_count(0)
         expect(page.locator(".usa-label")).not_to_have_count(0)
-        expect(page.locator(".usa-input, .usa-select, .usa-textarea").first).to_be_visible()
+        expect(
+            page.locator(".usa-input, .usa-select, .usa-textarea").first
+        ).to_be_visible()
         expect(page.locator(".usa-button").first).to_be_visible()
         _assert_no_bootstrap_classes(page)
         _shot(page, "03-add-organization-form")

@@ -221,9 +221,8 @@ def create_app():
 
     Migrate(app, db)
 
-    from .routes import register_routes
-
     from .local_dev_auth import log_local_dev_login_status
+    from .routes import register_routes
 
     register_routes(app)
 

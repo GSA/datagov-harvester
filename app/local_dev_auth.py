@@ -16,9 +16,8 @@ def _env_flag_enabled(name: str) -> bool:
 
 
 def is_local_dev_login_enabled() -> bool:
-    return (
-        os.getenv("FLASK_ENV") == "development"
-        and _env_flag_enabled("ENABLE_LOCAL_DEV_LOGIN")
+    return os.getenv("FLASK_ENV") == "development" and _env_flag_enabled(
+        "ENABLE_LOCAL_DEV_LOGIN"
     )
 
 
