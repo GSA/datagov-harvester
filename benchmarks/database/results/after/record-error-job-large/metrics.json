@@ -1,0 +1,16 @@
+{
+  "phase": "after",
+  "case_key": "record-error-job-large",
+  "query": "Harvest record errors by job",
+  "test_case": "Large source",
+  "clients": 1,
+  "threads": 1,
+  "successful_transactions": 100,
+  "failed_transactions": 0,
+  "median_ms": 15168.6005,
+  "p95_ms": 16513.917,
+  "mean_ms": 15337.38411,
+  "minimum_ms": 14823.818,
+  "maximum_ms": 17167.95,
+  "tps": 0.0652
+}

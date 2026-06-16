@@ -1,0 +1,16 @@
+{
+  "phase": "before",
+  "case_key": "latest-medium",
+  "query": "Latest successful records by source",
+  "test_case": "Medium source",
+  "clients": 1,
+  "threads": 1,
+  "successful_transactions": 100,
+  "failed_transactions": 0,
+  "median_ms": 8008.8015,
+  "p95_ms": 8813.079,
+  "mean_ms": 7921.1488,
+  "minimum_ms": 6802.089,
+  "maximum_ms": 9682.873,
+  "tps": 0.126243
+}

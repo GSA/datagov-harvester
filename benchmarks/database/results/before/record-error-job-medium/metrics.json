@@ -1,0 +1,16 @@
+{
+  "phase": "before",
+  "case_key": "record-error-job-medium",
+  "query": "Harvest record errors by job",
+  "test_case": "Medium record errors",
+  "clients": 1,
+  "threads": 1,
+  "successful_transactions": 100,
+  "failed_transactions": 0,
+  "median_ms": 1359.627,
+  "p95_ms": 1718.903,
+  "mean_ms": 1410.18843,
+  "minimum_ms": 1159.969,
+  "maximum_ms": 2444.979,
+  "tps": 0.709115
+}

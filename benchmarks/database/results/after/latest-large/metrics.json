@@ -1,0 +1,16 @@
+{
+  "phase": "after",
+  "case_key": "latest-large",
+  "query": "Latest successful records by source",
+  "test_case": "Large source",
+  "clients": 1,
+  "threads": 1,
+  "successful_transactions": 100,
+  "failed_transactions": 0,
+  "median_ms": 11269.037,
+  "p95_ms": 13597.284,
+  "mean_ms": 11565.304380000001,
+  "minimum_ms": 10243.618,
+  "maximum_ms": 14239.836,
+  "tps": 0.086465
+}

@@ -1,0 +1,16 @@
+{
+  "phase": "after",
+  "case_key": "latest-small",
+  "query": "Latest successful records by source",
+  "test_case": "Small source",
+  "clients": 1,
+  "threads": 1,
+  "successful_transactions": 50,
+  "failed_transactions": 0,
+  "median_ms": 27.667,
+  "p95_ms": 30.824,
+  "mean_ms": 28.9696,
+  "minimum_ms": 26.78,
+  "maximum_ms": 73.56,
+  "tps": 34.507771
+}

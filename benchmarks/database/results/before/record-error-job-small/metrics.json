@@ -1,0 +1,16 @@
+{
+  "phase": "before",
+  "case_key": "record-error-job-small",
+  "query": "Harvest record errors by job",
+  "test_case": "Small record errors",
+  "clients": 1,
+  "threads": 1,
+  "successful_transactions": 100,
+  "failed_transactions": 0,
+  "median_ms": 831.074,
+  "p95_ms": 876.934,
+  "mean_ms": 839.99013,
+  "minimum_ms": 791.996,
+  "maximum_ms": 1341.096,
+  "tps": 1.190477
+}

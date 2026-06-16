@@ -1,0 +1,13 @@
+pgbench (17.5 (Homebrew))
+transaction type: /Users/reidhewitt/work/xentity/datagov/datagov-harvesting-logic/benchmarks/database/results/after/record-error-job-small/query.sql
+scaling factor: 1
+query mode: simple
+number of clients: 1
+number of threads: 1
+maximum number of tries: 1
+number of transactions per client: 100
+number of transactions actually processed: 100/100
+number of failed transactions: 0 (0.000%)
+latency average = 195.154 ms
+initial connection time = 28.567 ms
+tps = 5.124149 (without initial connection time)
