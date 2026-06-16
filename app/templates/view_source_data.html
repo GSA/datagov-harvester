@@ -24,7 +24,7 @@
 
     <h2>Configuration:</h2>
     <div class="config-table harvest-source-config-properties">
-        <table class="table">
+        <table class="usa-table width-full">
             {% for key, value in data.source.to_dict().items() %}
             <tr>
                 {% if key == 'organization_id' %}
@@ -90,7 +90,7 @@
     <br>
     <h2>Summary: </h2>
     {% if data.summary_data["active_job_in_progress"] %}
-    <a class="text-error" href="{{ url_for('api.view_harvest_job', job_id=data.jobs[0].id)}}">
+    <a class="text-secondary-dark" href="{{ url_for('api.view_harvest_job', job_id=data.jobs[0].id)}}">
         <svg class="usa-icon" aria-hidden="true" focusable="false" role="img">
             <use href="/assets/uswds/img/sprite.svg#alarm"></use>
         </svg>
@@ -99,7 +99,7 @@
     {% endif %}
 
     <div class="config-table harvest-source-config-summary">
-        <table class="table">
+        <table class="usa-table width-full">
             <tr>
                 <td>Records:</td>
                 <td>{{data.summary_data["records_count"]}}</td>
@@ -128,7 +128,7 @@
             </tr>
         </table>
     </div>
-    <div class="section mt-3">
+    <div class="section margin-top-3">
         <h2>Harvest Job History:</h2>
         {% if not data.jobs %}
         No harvest jobs found
@@ -149,7 +149,7 @@
         {% endif %}
     </div>
 
-    <div class="section mt-3">
+    <div class="section margin-top-3">
         <h2>Datasets:</h2>
         {% block htmx_paginated_datasets %}
         <div id="paginated__datasets">

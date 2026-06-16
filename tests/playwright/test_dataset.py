@@ -48,7 +48,7 @@ class TestDatasetUnauthed:
         )
 
     def test_dataset_actions_hidden(self, upage):
-        action_section = upage.locator(".config-actions.dataset-config-actions.mt-3")
+        action_section = upage.locator(".config-actions.dataset-config-actions.margin-top-3")
         expect(action_section).not_to_be_visible()
 
 
@@ -89,7 +89,7 @@ class TestDatasetAuthed:
         """
         Test actions are visible, currently the only action is to update slug.
         """
-        action_section = apage.locator(".config-actions.dataset-config-actions.mt-3")
+        action_section = apage.locator(".config-actions.dataset-config-actions.margin-top-3")
         expect(action_section).to_be_visible()
-        actions = apage.locator(".config-actions.dataset-config-actions.mt-3 button")
+        actions = apage.locator(".config-actions.dataset-config-actions.margin-top-3 button")
         expect(actions).to_have_text(["Update Slug"])
