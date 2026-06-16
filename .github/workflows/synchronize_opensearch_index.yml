@@ -98,16 +98,29 @@ jobs:
           cf_username: ${{ secrets.CF_SERVICE_USER }}
           cf_password: ${{ secrets.CF_SERVICE_AUTH }}
       - name: Monitor task output
+        id: monitor
+        continue-on-error: true
         uses: cloud-gov/cg-cli-tools@main
         with:
           command: >
             bin/monitor_cf_logs.sh datagov-harvest "$OPENSEARCH_INSTANCE_NAME"
+            "failed to index in this batch"
           cf_org: gsa-datagov
           cf_space: ${{ env.CF_SPACE }}
           cf_username: ${{ secrets.CF_SERVICE_USER }}
           cf_password: ${{ secrets.CF_SERVICE_AUTH }}
-      - name: Create issue for failure
-        if: failure()
+      - name: Interpret monitor result
+        id: monitor_result
+        if: always()
+        run: |
+          if [ -f .cf_monitor_result ]; then
+            echo "result=$(cat .cf_monitor_result)" >> "$GITHUB_OUTPUT"
+          fi
+          if [ "${{ steps.monitor.outcome }}" = "failure" ] && [ ! -f .cf_monitor_result ]; then
+            echo "task_failed=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Create issue for task failure
+        if: steps.monitor_result.outputs.task_failed == 'true'
         uses: JasonEtco/create-an-issue@v2
         env:
           GITHUB_TOKEN: ${{ github.token }}
@@ -121,3 +134,23 @@ jobs:
         with:
           filename: .github/opensearch_sync_failure.md
           update_existing: true
+      - name: Create issue for index batch failures
+        if: steps.monitor_result.outputs.result == 'index_batch_warning'
+        uses: JasonEtco/create-an-issue@v2
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_JOB: ${{ github.job }}
+          GITHUB_ATTEMPTS: ${{ github.run_attempt }}
+          LAST_COMMIT: ${{ github.sha }}
+          LAST_RUN_BY: ${{ github.actor }}
+          RUN_ID: ${{ github.run_id }}
+          COMMAND: ${{ env.TASK_COMMAND }}
+          ENVIRONMENT: ${{ matrix.environment }}
+        with:
+          filename: .github/opensearch_index_batch_failure.md
+          update_existing: true
+      - name: Fail workflow on monitor errors
+        if: >-
+          steps.monitor_result.outputs.task_failed == 'true' ||
+          steps.monitor_result.outputs.result == 'index_batch_warning'
+        run: exit 1
