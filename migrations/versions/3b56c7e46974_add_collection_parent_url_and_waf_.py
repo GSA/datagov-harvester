@@ -10,8 +10,6 @@ import sqlalchemy as sa
 from alembic import op
 from alembic_postgresql_enum import TableReference
 
-from migrations.utils import get_terminate_processes_sql_cmd
-
 # revision identifiers, used by Alembic.
 revision = "3b56c7e46974"
 down_revision = "a6aa1afd27b7"
@@ -20,10 +18,6 @@ depends_on = None
 
 
 def upgrade():
-    # enum change uses a restrictive table lock, so get everything out of the
-    # way so we can succeed
-    op.execute(get_terminate_processes_sql_cmd())
-
     with op.batch_alter_table("harvest_source", schema=None) as batch_op:
         batch_op.add_column(
             sa.Column("collection_parent_url", sa.String(), nullable=True)
@@ -46,10 +40,6 @@ def upgrade():
 
 
 def downgrade():
-    # enum change uses a restrictive table lock, so get everything out of the
-    # way so we can succeed
-    op.execute(get_terminate_processes_sql_cmd())
-
     op.sync_enum_values(
         enum_schema="public",
         enum_name="source_type",
