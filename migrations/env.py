@@ -139,6 +139,7 @@ def migrations_are_pending(connectable) -> bool:
 
     return True
 
+
 def terminate_database_connections(connectable) -> None:
     autocommit_engine = connectable.execution_options(isolation_level="AUTOCOMMIT")
 
