@@ -15,8 +15,10 @@ class CFHandler:
         self.url = url
         self.user = user
         self.password = password
-        self.proxy = dict(http=os.environ.get('http_proxy', ''),
-                          https=os.environ.get('https_proxy', ''))
+        self.proxy = dict(
+            http=os.environ.get("http_proxy", ""),
+            https=os.environ.get("https_proxy", ""),
+        )
         self.verify_certificate = True
         self.setup()
 
@@ -40,10 +42,8 @@ class CFHandler:
     def setup(self):
         logger.debug("Running CFHandler setup")
         self.client = CloudFoundryClient(
-            self.url,
-            proxy=self.proxy,
-            verify=self.verify_certificate
-            )
+            self.url, proxy=self.proxy, verify=self.verify_certificate
+        )
         self.client.init_with_user_credentials(self.user, self.password)
         self.task_mgr = self.client.v3.tasks
 
