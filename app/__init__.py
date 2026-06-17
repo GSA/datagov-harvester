@@ -201,10 +201,7 @@ def create_app():
 
         sets_cookie = bool(response.headers.getlist("Set-Cookie"))
 
-        if (
-            path.startswith(("/login", "/callback", "/logout"))
-            or path == "/login/oidc"
-        ):
+        if path.startswith(("/login", "/callback", "/logout")) or path == "/login/oidc":
             return set_private_no_store(response)
 
         if path.startswith("/assets/"):
