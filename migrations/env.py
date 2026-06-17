@@ -3,7 +3,10 @@ from logging.config import fileConfig
 
 import alembic_postgresql_enum
 from alembic import context
+from alembic.runtime.migration import MigrationContext
+from alembic.script import ScriptDirectory
 from flask import current_app
+from sqlalchemy import text
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -123,6 +126,31 @@ def run_migrations_offline():
         context.run_migrations()
 
 
+def migrations_are_pending(connectable) -> bool:
+    script_directory = ScriptDirectory.from_config(config)
+    migration_heads = set(script_directory.get_heads())
+
+    with connectable.connect() as connection:
+        migration_context = MigrationContext.configure(connection)
+        database_heads = set(migration_context.get_current_heads())
+
+    if database_heads == migration_heads:
+        return False
+
+    return True
+
+def terminate_database_connections(connectable) -> None:
+    autocommit_engine = connectable.execution_options(isolation_level="AUTOCOMMIT")
+
+    terminate_sql = text(
+        "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE pid <> pg_backend_pid() "
+        "AND state = 'active' or state = 'idle in transaction'"
+    )
+
+    with autocommit_engine.connect() as connection:
+        connection.execute(terminate_sql)
+
+
 def run_migrations_online():
     """Run migrations in 'online' mode.
 
@@ -147,13 +175,17 @@ def run_migrations_online():
 
     connectable = get_engine()
 
+    # Terminate connections only if migrations are necessary
+    if migrations_are_pending(connectable):
+        terminate_database_connections(connectable)
+
     with connectable.connect() as connection:
         context.configure(
             connection=connection,
             target_metadata=get_metadata(),
             include_name=include_name,
             include_schemas=True,
-            **conf_args
+            **conf_args,
         )
 
         with context.begin_transaction():

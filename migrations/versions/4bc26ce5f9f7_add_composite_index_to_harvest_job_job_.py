@@ -18,29 +18,37 @@ depends_on = None
 
 def upgrade():
     with op.get_context().autocommit_block():
-        op.execute("""
-            CREATE INDEX CONCURRENTLY ix_hr_source_status_identifier_created_desc
-                ON harvest_record (
-                harvest_source_id,
-                status,
-                identifier,
-                date_created DESC
-            )
-            """)
+        op.create_index(
+            "ix_hr_source_status_identifier_created_desc",
+            "harvest_record",
+            [
+                "harvest_source_id",
+                "status",
+                "identifier",
+                sa.text("date_created DESC"),
+            ],
+            unique=False,
+            postgresql_concurrently=True,
+        )
 
-        op.execute("""
-            CREATE INDEX CONCURRENTLY ix_hre_job_id
-            ON harvest_record_error (harvest_job_id)
-            """)
+        op.create_index(
+            "ix_hre_job_id",
+            "harvest_record_error",
+            ["harvest_job_id"],
+            unique=False,
+            postgresql_concurrently=True,
+        )
 
 
 def downgrade():
     with op.get_context().autocommit_block():
-        op.execute("""
-            DROP INDEX CONCURRENTLY IF EXISTS
-            ix_hr_source_status_identifier_created_desc
-            """)
-        op.execute("""
-            DROP INDEX CONCURRENTLY IF EXISTS
-            ix_hre_job_id
-            """)
+        op.drop_index(
+            "ix_hr_source_status_identifier_created_desc",
+            table_name="harvest_record",
+            postgresql_concurrently=True,
+        )
+        op.drop_index(
+            "ix_hre_job_id",
+            table_name="harvest_record_error",
+            postgresql_concurrently=True,
+        )
