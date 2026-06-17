@@ -23,13 +23,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout Code
-      uses: actions/checkout@v5
+      uses: actions/checkout@v6
       with:
         fetch-depth: 1
     - name: Create local .env from sample
       run: cp .env.sample .env
     - name: Install node.js
-      uses: actions/setup-node@v4
+      uses: actions/setup-node@v6
       with:
         node-version-file: "app/static/package.json"
     - name: Build static assets
@@ -39,11 +39,11 @@ jobs:
         npm ci
         npm run build
     - name: Set up Python ${{ env.PY_VERSION }}
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v6
       with:
         python-version: ${{ env.PY_VERSION }}
     - name: Install Poetry ${{ env.POETRY_VERSION }}
-      uses: abatilo/actions-poetry@v3
+      uses: abatilo/actions-poetry@v4
       with:
         poetry-version: ${{ env.POETRY_VERSION }}
         poetry-plugins: "poetry-plugin-export"
@@ -55,7 +55,7 @@ jobs:
       run: poetry run playwright install --with-deps --only-shell chromium
     - name: Run E2E tests
       run: make test-e2e-ci
-    - uses: actions/upload-artifact@v4
+    - uses: actions/upload-artifact@v7
       if: ${{ !cancelled() }}
       with:
         name: e2e-report
