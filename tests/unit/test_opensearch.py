@@ -3,8 +3,8 @@ from types import SimpleNamespace
 
 import pytest
 
-import harvester.opensearch as opensearch
-from harvester.opensearch import (
+import shared.opensearch_index.writer as opensearch
+from shared.opensearch_index import (
     DEFAULT_DELETE_REQUEST_TIMEOUT_SECONDS,
     ConnectionTimeout,
     OpenSearchInterface,
