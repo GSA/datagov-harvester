@@ -13,7 +13,7 @@
     <h1>Details for Harvest Job Id: {{data.job.id}}</h1>
     <h2>Job Info</h2>
     <div class="config-table harvest-job-config-properties">
-        <table class="table">
+        <table class="usa-table width-full">
             {% if data['percent_complete'] %}
             <tr>
                 <td>Percent complete:</td>
@@ -62,14 +62,14 @@
         </ul>
     </div>
     {% endif %}
-    <div class="section my-3">
+    <div class="section margin-y-3">
         <h2>Job Error Table</h2>
         {% if not data.job.errors %}
         No job errors found
         {% else %}
         {% set error_type = "job" %}
         <a href="{{ url_for('api.download_harvest_errors_by_job', job_id=data.job.id, error_type=error_type)}}">
-            <button class="btn btn-primary">download job errors as .csv</button>
+            <button class="usa-button">download job errors as .csv</button>
         </a>
         <div class="usa-table-container--scrollable" tabindex="0">
             <table class="usa-table usa-table--striped">
@@ -107,7 +107,7 @@
         {% else %}
         {% set error_type = "record" %}
         <a href="{{ url_for('api.download_harvest_errors_by_job', job_id=data.job.id, error_type=error_type)}}">
-            <button class="btn btn-primary">download record errors as .csv</button>
+            <button class="usa-button">download record errors as .csv</button>
         </a>
 
         <table class="usa-table usa-table--striped" id="harvest-job-error-summary">
