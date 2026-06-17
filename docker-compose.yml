@@ -8,7 +8,8 @@ services:
       - "${HARVEST_SOURCE_PORT}:80"
   db:
       restart: always
-      image: postgis/postgis:latest
+      platform: linux/amd64
+      image: postgis/postgis:17-3.5
       env_file:
         - .env
       environment:
@@ -72,6 +73,7 @@ services:
       CF_SERVICE_AUTH: ${CF_SERVICE_AUTH}
       FLASK_APP: run.py
       FLASK_ENV: development
+      ENABLE_LOCAL_DEV_LOGIN: "true"
     ports:
       - "8080:8080"
     command:

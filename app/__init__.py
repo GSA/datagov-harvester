@@ -78,7 +78,7 @@ def create_app():
     app.config["SESSION_COOKIE_NAME"] = os.getenv(
         "SESSION_COOKIE_NAME", "harvest_session"
     )
-    app.config["SESSION_COOKIE_SECURE"] = True
+    app.config["SESSION_COOKIE_SECURE"] = os.getenv("FLASK_ENV") != "development"
     app.config["SESSION_COOKIE_HTTPONLY"] = True
     app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
     app.config["AUTH_COOKIE_NAME"] = os.getenv("AUTH_COOKIE_NAME", "harvest_auth")
@@ -201,7 +201,10 @@ def create_app():
 
         sets_cookie = bool(response.headers.getlist("Set-Cookie"))
 
-        if path.startswith(("/login", "/callback", "/logout")):
+        if (
+            path.startswith(("/login", "/callback", "/logout"))
+            or path == "/login/oidc"
+        ):
             return set_private_no_store(response)
 
         if path.startswith("/assets/"):
@@ -223,9 +226,12 @@ def create_app():
 
     Migrate(app, db)
 
+    from .local_dev_auth import log_local_dev_login_status
     from .routes import register_routes
 
     register_routes(app)
+
+    log_local_dev_login_status()
 
     from .commands import register_commands
 
@@ -308,6 +314,7 @@ def create_app():
         strict_transport_security_preload=True,
         # our https connections are terminated outside this app
         force_https=False,
+        session_cookie_secure=os.getenv("FLASK_ENV") != "development",
     )
 
     return app
