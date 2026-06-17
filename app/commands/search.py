@@ -8,6 +8,8 @@ from database.models import Dataset, db
 from harvester.opensearch import OpenSearchInterface
 
 search = Blueprint("search", __name__)
+# we use this message to detect index failure in GH actions
+OPENSEARCH_INDEX_BATCH_FAILURE_MESSAGE = "failed to index in this batch"
 
 
 def _normalize_last_harvested(value):
@@ -142,7 +144,8 @@ def compare_opensearch(sample_size: int, update: bool, force_update: bool):
             total_indexed += succeeded
             if failed:
                 click.echo(
-                    f"    Warning: {failed} dataset(s) failed to index in this batch."
+                    f"    Warning: {failed} dataset(s) "
+                    f"{OPENSEARCH_INDEX_BATCH_FAILURE_MESSAGE}."
                 )
                 if log_all_errors:
                     for error in errors:

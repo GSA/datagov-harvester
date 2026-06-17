@@ -4,7 +4,7 @@ labels: ["bug", "o&m"]
 ---
 
 The OpenSearch sync task logs included the index failure message
-`failed to index in this batch`.
+`{{ env.OPENSEARCH_INDEX_BATCH_FAILURE_PATTERN }}`.
 
 Workflow with Issue: {{ workflow }}
 Job Failed: {{ env.GITHUB_JOB }}

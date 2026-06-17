@@ -55,6 +55,8 @@ jobs:
     environment: ${{ matrix.environment }}
     env:
       CF_SPACE: ${{ matrix.environment }}
+      # Keep this aligned with OPENSEARCH_INDEX_BATCH_FAILURE_MESSAGE in app/commands/search.py.
+      OPENSEARCH_INDEX_BATCH_FAILURE_PATTERN: failed to index in this batch
     steps:
       - name: Check out the code
         uses: actions/checkout@v6
@@ -104,7 +106,7 @@ jobs:
         with:
           command: >
             bin/monitor_cf_logs.sh datagov-harvest "$OPENSEARCH_INSTANCE_NAME"
-            "failed to index in this batch"
+            "$OPENSEARCH_INDEX_BATCH_FAILURE_PATTERN"
           cf_org: gsa-datagov
           cf_space: ${{ env.CF_SPACE }}
           cf_username: ${{ secrets.CF_SERVICE_USER }}
