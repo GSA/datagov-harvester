@@ -24,7 +24,7 @@
 
     <h2>Configuration:</h2>
     <div class="config-table harvest-source-config-properties">
-        <table class="usa-table width-full">
+        <table class="usa-table usa-table--borderless width-full">
             {% for key, value in data.source.to_dict().items() %}
             <tr>
                 {% if key == 'organization_id' %}
@@ -99,7 +99,7 @@
     {% endif %}
 
     <div class="config-table harvest-source-config-summary">
-        <table class="usa-table width-full">
+        <table class="usa-table usa-table--borderless width-full">
             <tr>
                 <td>Records:</td>
                 <td>{{data.summary_data["records_count"]}}</td>
