@@ -232,8 +232,14 @@ class OpenSearchInterface:
         self._ensure_index()
 
     @staticmethod
-    def _normalize_dcat_dates(dcat: dict) -> dict:
-        """Normalize date fields in DCAT to ensure they're always strings."""
+    def _serialize_dcat_value(value: Any) -> str:
+        if isinstance(value, (dict, list)):
+            return json.dumps(value, sort_keys=True)
+        return str(value)
+
+    @classmethod
+    def _normalize_dcat_dates(cls, dcat: dict) -> dict:
+        """Normalize DCAT values for OpenSearch metadata indexing."""
         normalized_dcat = dcat.copy()
         date_fields = ["modified", "issued", "temporal"]
         for field in date_fields:
@@ -245,10 +251,27 @@ class OpenSearchInterface:
                     normalized_dcat[field] = str(value)
         spatial = normalized_dcat.get("spatial")
         if spatial is not None and not isinstance(spatial, str):
-            if isinstance(spatial, (dict, list)):
-                normalized_dcat["spatial"] = json.dumps(spatial, sort_keys=True)
-            else:
-                normalized_dcat["spatial"] = str(spatial)
+            normalized_dcat["spatial"] = cls._serialize_dcat_value(spatial)
+
+        distributions = normalized_dcat.get("distribution")
+        if isinstance(distributions, list):
+            # keep each distribution object intact, but serialize any nested
+            # object or list values inside it.
+            normalized_dcat["distribution"] = [
+                (
+                    {
+                        field: (
+                            cls._serialize_dcat_value(field_value)
+                            if isinstance(field_value, (dict, list))
+                            else field_value
+                        )
+                        for field, field_value in distribution.items()
+                    }
+                    if isinstance(distribution, dict)
+                    else distribution
+                )
+                for distribution in distributions
+            ]
         return normalized_dcat
 
     @staticmethod

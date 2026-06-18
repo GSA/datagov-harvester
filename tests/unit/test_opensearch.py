@@ -102,6 +102,30 @@ def test_normalize_dcat_spatial_object():
     )
 
 
+def test_normalize_dcat_distribution_structured_field():
+    dcat = {
+        "distribution": [
+            {
+                "title": "CSV download",
+                "conformsTo": {
+                    "@type": "Standard",
+                    "identifier": "https://www.w3.org/TR/tabular-data-primer/",
+                    "title": "CSV on the Web",
+                },
+            }
+        ]
+    }
+
+    normalized = OpenSearchInterface._normalize_dcat_dates(dcat)
+
+    assert normalized["distribution"][0]["title"] == "CSV download"
+    assert normalized["distribution"][0]["conformsTo"] == (
+        '{"@type": "Standard", '
+        '"identifier": "https://www.w3.org/TR/tabular-data-primer/", '
+        '"title": "CSV on the Web"}'
+    )
+
+
 def test_geometry_centroid_returns_average():
     geometry = {"type": "MultiPoint", "coordinates": [[0, 0], [2, 2]]}
 
