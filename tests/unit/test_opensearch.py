@@ -87,6 +87,60 @@ def test_normalize_dcat_dates():
     assert normalized["temporal"] == "123"
 
 
+def test_normalize_dcat_spatial_object():
+    dcat = {
+        "spatial": {
+            "@type": "Location",
+            "prefLabel": "United States",
+        },
+    }
+
+    normalized = OpenSearchInterface._normalize_dcat_dates(dcat)
+
+    assert (
+        normalized["spatial"] == '{"@type": "Location", "prefLabel": "United States"}'
+    )
+
+
+def test_normalize_dcat_distribution_structured_field():
+    dcat = {
+        "distribution": [
+            {
+                "title": "CSV download",
+                "conformsTo": {
+                    "@type": "Standard",
+                    "identifier": "https://www.w3.org/TR/tabular-data-primer/",
+                    "title": "CSV on the Web",
+                },
+            }
+        ]
+    }
+
+    normalized = OpenSearchInterface._normalize_dcat_dates(dcat)
+
+    assert normalized["distribution"][0]["title"] == "CSV download"
+    assert normalized["distribution"][0]["conformsTo"] == (
+        '{"@type": "Standard", '
+        '"identifier": "https://www.w3.org/TR/tabular-data-primer/", '
+        '"title": "CSV on the Web"}'
+    )
+
+
+def test_normalize_dcat_serializes_nested_metadata_objects():
+    dcat = {
+        "contactPoint": {
+            "fn": "Data contact",
+            "hasEmail": {"@id": "mailto:data@example.gov"},
+        }
+    }
+
+    normalized = OpenSearchInterface._normalize_dcat_dates(dcat)
+
+    expected_email = '{"@id": "mailto:data@example.gov"}'
+    assert normalized["contactPoint"]["fn"] == "Data contact"
+    assert normalized["contactPoint"]["hasEmail"] == expected_email
+
+
 def test_geometry_centroid_returns_average():
     geometry = {"type": "MultiPoint", "coordinates": [[0, 0], [2, 2]]}
 
