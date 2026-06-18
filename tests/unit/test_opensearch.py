@@ -97,7 +97,10 @@ def test_normalize_dcat_spatial_object():
 
     normalized = OpenSearchInterface._normalize_dcat_dates(dcat)
 
-    assert normalized["spatial"] == '{"@type": "Location", "prefLabel": "United States"}'
+    assert (
+        normalized["spatial"]
+        == '{"@type": "Location", "prefLabel": "United States"}'
+    )
 
 
 def test_geometry_centroid_returns_average():
