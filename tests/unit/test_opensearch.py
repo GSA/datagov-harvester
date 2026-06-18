@@ -98,8 +98,7 @@ def test_normalize_dcat_spatial_object():
     normalized = OpenSearchInterface._normalize_dcat_dates(dcat)
 
     assert (
-        normalized["spatial"]
-        == '{"@type": "Location", "prefLabel": "United States"}'
+        normalized["spatial"] == '{"@type": "Location", "prefLabel": "United States"}'
     )
 
 
