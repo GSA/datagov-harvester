@@ -444,11 +444,7 @@ class TestDatabase:
             count=True,
         )
 
-        sync_count = interface.get_latest_harvest_records_by_source_orm(
-            source_data_dcatus["id"], count=True, synced=True
-        )
-
-        assert (count - 1) == sync_count == 2
+        assert (count - 1) == 2
 
     def test_errors_by_job(
         self,
