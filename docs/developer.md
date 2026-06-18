@@ -26,12 +26,12 @@ Point your web browser to http://localhost:8080
 
 #### Local login (no Login.gov account)
 
-When `FLASK_ENV=development` and `ENABLE_LOCAL_DEV_LOGIN=true` (set in [`docker-compose.yml`](../docker-compose.yml) for the app service), visit http://localhost:8080/login and sign in with:
+To use local login, set `ENABLE_LOCAL_DEV_LOGIN=true` in your `.env`, then visit http://localhost:8080/login and sign in with:
 
 - **Username:** `admin`
 - **Password:** `admin`
 
-This bypasses Login.gov and the `harvest_user` allow list for local development only. It is disabled in deployed environments. Login.gov sandbox remains available via the link on the login page.
+This bypasses Login.gov and the `harvest_user` allow list for local development only. It is disabled by default and remains disabled in deployed environments. Login.gov sandbox remains available via the link on the login page.
 
 #### Login.gov sandbox
 

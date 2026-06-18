@@ -24,9 +24,10 @@ def client(app):
 def dev_login_env():
     with patch.dict(
         os.environ,
-        {"FLASK_ENV": "development", "ENABLE_LOCAL_DEV_LOGIN": "true"},
+        {"ENABLE_LOCAL_DEV_LOGIN": "true"},
         clear=False,
     ):
+        os.environ.pop("VCAP_APPLICATION", None)
         yield
 
 
@@ -52,16 +53,28 @@ class TestLocalDevLoginGuards:
         )
         assert response.status_code == 404
 
-    def test_login_post_returns_404_in_production(self, client):
+    def test_login_post_returns_404_by_default(self, client):
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("ENABLE_LOCAL_DEV_LOGIN", None)
+            response = client.post(
+                "/login",
+                data={"username": "admin", "password": "admin"},
+            )
+        assert response.status_code == 404
+
+    def test_login_post_returns_404_when_vcap_application_is_present(self, client):
         with patch.dict(
             os.environ,
-            {"FLASK_ENV": "production", "ENABLE_LOCAL_DEV_LOGIN": "true"},
+            {
+                "ENABLE_LOCAL_DEV_LOGIN": "true",
+                "VCAP_APPLICATION": '{"application_name": "harvester"}',
+            },
             clear=False,
         ):
             with patch("app.load_manager.start", lambda: True):
-                prod_app = create_app()
-            prod_app.config.update({"TESTING": True, "WTF_CSRF_ENABLED": False})
-            response = prod_app.test_client().post(
+                cf_app = create_app()
+            cf_app.config.update({"TESTING": True, "WTF_CSRF_ENABLED": False})
+            response = cf_app.test_client().post(
                 "/login",
                 data={"username": "admin", "password": "admin"},
             )
