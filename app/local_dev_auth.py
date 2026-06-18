@@ -15,8 +15,12 @@ def _env_flag_enabled(name: str) -> bool:
     return os.getenv(name, "").strip().lower() in ("1", "true", "yes")
 
 
+def is_running_on_cloud_foundry() -> bool:
+    return "VCAP_APPLICATION" in os.environ
+
+
 def is_local_dev_login_enabled() -> bool:
-    return "VCAP_APPLICATION" not in os.environ and _env_flag_enabled(
+    return not is_running_on_cloud_foundry() and _env_flag_enabled(
         "ENABLE_LOCAL_DEV_LOGIN"
     )
 

@@ -4,7 +4,11 @@ from unittest.mock import patch
 import pytest
 
 from app import create_app
-from app.local_dev_auth import LOCAL_DEV_SESSION_EMAIL
+from app.local_dev_auth import (
+    LOCAL_DEV_SESSION_EMAIL,
+    is_local_dev_login_enabled,
+    is_running_on_cloud_foundry,
+)
 
 
 @pytest.fixture
@@ -40,6 +44,31 @@ def dev_client(dev_login_env):
 
 
 class TestLocalDevLoginGuards:
+    def test_session_cookie_secure_false_when_not_on_cloud_foundry(self, app):
+        assert app.config["SESSION_COOKIE_SECURE"] is False
+
+    def test_session_cookie_secure_true_when_vcap_application_is_present(self):
+        with patch.dict(
+            os.environ,
+            {"VCAP_APPLICATION": '{"application_name": "harvester"}'},
+            clear=False,
+        ):
+            with patch("app.load_manager.start", lambda: True):
+                cf_app = create_app()
+        assert cf_app.config["SESSION_COOKIE_SECURE"] is True
+
+    def test_is_local_dev_login_disabled_on_cloud_foundry(self):
+        with patch.dict(
+            os.environ,
+            {
+                "ENABLE_LOCAL_DEV_LOGIN": "true",
+                "VCAP_APPLICATION": '{"application_name": "harvester"}',
+            },
+            clear=False,
+        ):
+            assert is_running_on_cloud_foundry() is True
+            assert is_local_dev_login_enabled() is False
+
     def test_login_redirects_to_login_gov_when_disabled(self, client):
         with patch.dict(os.environ, {"ENABLE_LOCAL_DEV_LOGIN": ""}, clear=False):
             response = client.get("/login")

@@ -13,6 +13,7 @@ from flask_migrate import Migrate
 from flask_talisman import Talisman
 
 from app.filters import else_na, usa_icon, utc_isoformat
+from app.local_dev_auth import is_running_on_cloud_foundry
 from app.startup_validation import validate_required_env_vars
 from config.logger_config import LOGGING_CONFIG
 from database.models import db
@@ -78,7 +79,7 @@ def create_app():
     app.config["SESSION_COOKIE_NAME"] = os.getenv(
         "SESSION_COOKIE_NAME", "harvest_session"
     )
-    app.config["SESSION_COOKIE_SECURE"] = os.getenv("FLASK_ENV") != "development"
+    app.config["SESSION_COOKIE_SECURE"] = is_running_on_cloud_foundry()
     app.config["SESSION_COOKIE_HTTPONLY"] = True
     app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
     app.config["AUTH_COOKIE_NAME"] = os.getenv("AUTH_COOKIE_NAME", "harvest_auth")
@@ -311,7 +312,7 @@ def create_app():
         strict_transport_security_preload=True,
         # our https connections are terminated outside this app
         force_https=False,
-        session_cookie_secure=os.getenv("FLASK_ENV") != "development",
+        session_cookie_secure=is_running_on_cloud_foundry(),
     )
 
     return app
