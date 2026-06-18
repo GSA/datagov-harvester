@@ -126,6 +126,21 @@ def test_normalize_dcat_distribution_structured_field():
     )
 
 
+def test_normalize_dcat_serializes_nested_metadata_objects():
+    dcat = {
+        "contactPoint": {
+            "fn": "Data contact",
+            "hasEmail": {"@id": "mailto:data@example.gov"},
+        }
+    }
+
+    normalized = OpenSearchInterface._normalize_dcat_dates(dcat)
+
+    expected_email = '{"@id": "mailto:data@example.gov"}'
+    assert normalized["contactPoint"]["fn"] == "Data contact"
+    assert normalized["contactPoint"]["hasEmail"] == expected_email
+
+
 def test_geometry_centroid_returns_average():
     geometry = {"type": "MultiPoint", "coordinates": [[0, 0], [2, 2]]}
 

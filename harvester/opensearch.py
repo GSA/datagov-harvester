@@ -238,6 +238,34 @@ class OpenSearchInterface:
         return str(value)
 
     @classmethod
+    def _normalize_dcat_metadata_value(cls, value: Any) -> Any:
+        # stringify nested objects/lists because
+        # OpenSearch expect those fields to be text.
+        if isinstance(value, dict):
+            return {
+                field: (
+                    cls._serialize_dcat_value(field_value)
+                    if isinstance(field_value, (dict, list))
+                    else field_value
+                )
+                for field, field_value in value.items()
+            }
+        if isinstance(value, list):
+            return [
+                (
+                    cls._normalize_dcat_metadata_value(item)
+                    if isinstance(item, dict)
+                    else (
+                        cls._serialize_dcat_value(item)
+                        if isinstance(item, list)
+                        else item
+                    )
+                )
+                for item in value
+            ]
+        return value
+
+    @classmethod
     def _normalize_dcat_dates(cls, dcat: dict) -> dict:
         """Normalize DCAT values for OpenSearch metadata indexing."""
         normalized_dcat = dcat.copy()
@@ -253,25 +281,10 @@ class OpenSearchInterface:
         if spatial is not None and not isinstance(spatial, str):
             normalized_dcat["spatial"] = cls._serialize_dcat_value(spatial)
 
-        distributions = normalized_dcat.get("distribution")
-        if isinstance(distributions, list):
-            # keep each distribution object intact, but serialize any nested
-            # object or list values inside it.
-            normalized_dcat["distribution"] = [
-                (
-                    {
-                        field: (
-                            cls._serialize_dcat_value(field_value)
-                            if isinstance(field_value, (dict, list))
-                            else field_value
-                        )
-                        for field, field_value in distribution.items()
-                    }
-                    if isinstance(distribution, dict)
-                    else distribution
-                )
-                for distribution in distributions
-            ]
+        for field, value in normalized_dcat.items():
+            if field in date_fields or field == "spatial":
+                continue
+            normalized_dcat[field] = cls._normalize_dcat_metadata_value(value)
         return normalized_dcat
 
     @staticmethod
