@@ -553,6 +553,33 @@ class TestJSONResponses:
         except Exception:
             assert res.data.decode() == response
 
+    def test_harvest_sources_order_by_supports_desc_prefix(
+        self,
+        client,
+        interface,
+        organization_data,
+        source_data_dcatus,
+        source_data_dcatus_2,
+    ):
+        interface.add_organization(organization_data)
+
+        source_alpha = source_data_dcatus.copy()
+        source_alpha["name"] = "Alpha source"
+
+        source_zulu = source_data_dcatus_2.copy()
+        source_zulu["name"] = "Zulu source"
+
+        interface.add_harvest_source(source_alpha)
+        interface.add_harvest_source(source_zulu)
+
+        asc_response = client.get("/harvest_sources/?order_by=name&paginate=false")
+        desc_response = client.get("/harvest_sources/?order_by=-name&paginate=false")
+
+        assert asc_response.status_code == 200
+        assert desc_response.status_code == 200
+        assert asc_response.json[0]["name"] == "Alpha source"
+        assert desc_response.json[0]["name"] == "Zulu source"
+
     def test_organizations(self, client, interface_with_fixture_json):
         """
         checks the content of the json response when navigating to "/organizations/"
