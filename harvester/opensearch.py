@@ -243,6 +243,12 @@ class OpenSearchInterface:
                     normalized_dcat[field] = value.isoformat()
                 elif value is not None and not isinstance(value, str):
                     normalized_dcat[field] = str(value)
+        spatial = normalized_dcat.get("spatial")
+        if spatial is not None and not isinstance(spatial, str):
+            if isinstance(spatial, (dict, list)):
+                normalized_dcat["spatial"] = json.dumps(spatial, sort_keys=True)
+            else:
+                normalized_dcat["spatial"] = str(spatial)
         return normalized_dcat
 
     @staticmethod
