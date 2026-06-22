@@ -72,6 +72,18 @@ class TestLogin:
         assert res.text.find(org_edit_text) == -1
         assert res.text.find(org_delete_text) == -1
 
+    def test_org_post_delete__logged_out(
+        self, client, interface_no_jobs, organization_data
+    ):
+        res = client.post(
+            f"/organization/{organization_data['id']}",
+            data={"delete": "Delete"},
+        )
+
+        assert res.status_code == 302
+        assert res.location == "/login"
+        assert interface_no_jobs.get_organization(organization_data["id"]) is not None
+
     # Logged in user can see the harvest source action buttons
     @force_login(email="test@data.gov")
     def test_harvest_data_edit_buttons__logged_in(
@@ -110,3 +122,32 @@ class TestLogin:
         assert res.text.find(source_harvest_text) == -1
         assert res.text.find(source_clear_text) == -1
         assert res.text.find(source_delete_text) == -1
+
+    def test_harvest_source_post_clear__logged_out(
+        self, client, interface_no_jobs, source_data_dcatus
+    ):
+        res = client.post(
+            f"/harvest_source/{source_data_dcatus['id']}",
+            data={"clear": "Clear"},
+        )
+
+        assert res.status_code == 302
+        assert res.location == "/login"
+        assert (
+            interface_no_jobs.get_harvest_source(source_data_dcatus["id"]) is not None
+        )
+        assert interface_no_jobs.pget_harvest_jobs(count=True) == 0
+
+    def test_harvest_source_post_delete__logged_out(
+        self, client, interface_no_jobs, source_data_dcatus
+    ):
+        res = client.post(
+            f"/harvest_source/{source_data_dcatus['id']}",
+            data={"delete": "Delete"},
+        )
+
+        assert res.status_code == 302
+        assert res.location == "/login"
+        assert (
+            interface_no_jobs.get_harvest_source(source_data_dcatus["id"]) is not None
+        )

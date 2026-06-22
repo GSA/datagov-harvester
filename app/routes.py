@@ -507,7 +507,6 @@ def add_organization(**kwargs):
     )
 
 
-@main.route("/organization/<string:org_identifier>", methods=["POST"])
 @api.get("/organization/<string:org_identifier>")
 @api.doc(
     responses={  # HTML or JSON so specify response manually
@@ -526,81 +525,90 @@ def view_organization(org_identifier: str):
     """
     org = _get_org_by_identifier(org_identifier)
     org_id = org.id if org is not None else org_identifier
-    org_url_identifier = _get_org_url_identifier(org) or org_identifier
 
-    if request.method == "POST":
-        form = OrganizationTriggerForm(request.form)
-        if form.data["edit"]:
-            return redirect(url_for("api.edit_organization", org_id=org_id))
-        elif form.data["delete"]:
-            try:
-                message, status = db.delete_organization(org_id)
-                _log_mutation(
-                    "delete",
-                    "organization",
-                    org_id,
-                    organization_slug=org_url_identifier,
-                    status=status,
-                )
-                flash(message)
-                if status == 409:
-                    return redirect(
-                        url_for(
-                            "api.view_organization",
-                            org_identifier=org_url_identifier,
-                        )
-                    )
-                else:
-                    return redirect(url_for("main.organization_list"))
-            except Exception as e:
-                message = f"Failed to delete organization :: {repr(e)}"
-                logger.error(message)
-                flash(message)
+    if request.is_json:
+        if org is None:
+            # org_id wasn't found
+            return make_response(jsonify({"message": "Organization not found"}), 404)
+        return jsonify(org.to_dict())
+    form = OrganizationTriggerForm()
+    sources = db.get_harvest_source_by_org(org_id)
+    future_harvest_jobs = {}
+    for source in sources:
+        job = db.get_new_harvest_jobs_by_source_in_future(source.id)
+        if len(job):
+            future_harvest_jobs[source.id] = job[0].date_created
+    harvest_jobs = {}
+    for source in sources:
+        job = db.get_first_harvest_job_by_filter(
+            {"harvest_source_id": source.id, "status": "complete"}
+        )
+        if job:
+            harvest_jobs[source.id] = job
+    data = {
+        "ckan_url": CKAN_URL,
+        "organization": org,
+        "organization_dict": db._to_dict(org),
+        "harvest_sources": sources,
+        "harvest_jobs": harvest_jobs,
+        "future_harvest_jobs": future_harvest_jobs,
+    }
+    return render_template(
+        "view_org_data.html",
+        data=data,
+        form=form,
+    ), (200 if org is not None else 404)
+
+
+@main.post("/organization/<string:org_identifier>")
+@login_required
+def update_organization_actions(org_identifier: str):
+    """Handle authenticated organization action form submissions."""
+    org = _get_org_by_identifier(org_identifier)
+    org_id = org.id if org is not None else org_identifier
+    org_url_identifier = _get_org_url_identifier(org) or org_identifier
+    form = OrganizationTriggerForm()
+
+    if not form.validate_on_submit():
+        flash(form.errors)
+        return redirect(
+            url_for("api.view_organization", org_identifier=org_url_identifier)
+        )
+
+    if form.edit.data:
+        return redirect(url_for("api.edit_organization", org_id=org_id))
+    elif form.delete.data:
+        try:
+            message, status = db.delete_organization(org_id)
+            _log_mutation(
+                "delete",
+                "organization",
+                org_id,
+                organization_slug=org_url_identifier,
+                status=status,
+            )
+            flash(message)
+            if status == 409:
                 return redirect(
                     url_for(
                         "api.view_organization",
                         org_identifier=org_url_identifier,
                     )
                 )
-        else:
+            else:
+                return redirect(url_for("main.organization_list"))
+        except Exception as e:
+            message = f"Failed to delete organization :: {repr(e)}"
+            logger.error(message)
+            flash(message)
             return redirect(
-                url_for("api.view_organization", org_identifier=org_url_identifier)
-            )
-    else:
-        if request.is_json:
-            if org is None:
-                # org_id wasn't found
-                return make_response(
-                    jsonify({"message": "Organization not found"}), 404
+                url_for(
+                    "api.view_organization",
+                    org_identifier=org_url_identifier,
                 )
-            return jsonify(org.to_dict())
-        form = OrganizationTriggerForm()
-        sources = db.get_harvest_source_by_org(org_id)
-        future_harvest_jobs = {}
-        for source in sources:
-            job = db.get_new_harvest_jobs_by_source_in_future(source.id)
-            if len(job):
-                future_harvest_jobs[source.id] = job[0].date_created
-        harvest_jobs = {}
-        for source in sources:
-            job = db.get_first_harvest_job_by_filter(
-                {"harvest_source_id": source.id, "status": "complete"}
             )
-            if job:
-                harvest_jobs[source.id] = job
-        data = {
-            "ckan_url": CKAN_URL,
-            "organization": org,
-            "organization_dict": db._to_dict(org),
-            "harvest_sources": sources,
-            "harvest_jobs": harvest_jobs,
-            "future_harvest_jobs": future_harvest_jobs,
-        }
-        return render_template(
-            "view_org_data.html",
-            data=data,
-            form=form,
-        ), (200 if org is not None else 404)
+
+    return redirect(url_for("api.view_organization", org_identifier=org_url_identifier))
 
 
 ### Edit Org
@@ -728,7 +736,6 @@ def add_harvest_source():
     )
 
 
-@main.route("/harvest_source/<source_id>", methods=["POST"])
 @api.get("/harvest_source/<source_id>")
 @api.doc(
     responses={  # HTML or JSON output so specify manual response
@@ -822,51 +829,14 @@ def view_harvest_source(source_id: str):
                 data=data,
                 pagination=pagination.to_dict(),
             )
-    elif request.method == "POST":
-        form = HarvestTriggerForm(request.form)
-        if form.data["edit"]:
-            return redirect(url_for("api.edit_harvest_source", source_id=source_id))
-        elif form.data["harvest"]:
-            if form.data["force_check"]:
-                return trigger_manual_job_helper(source_id, "force_harvest")
-            else:
-                return trigger_manual_job_helper(source_id)
-
-        elif form.data["clear"]:
-            return trigger_manual_job_helper(source_id, "clear")
-        elif form.data["delete"]:
-            try:
-                message, status = db.delete_harvest_source(source_id)
-                _log_mutation("delete", "harvest_source", source_id, status=status)
-                flash(message)
-                if status == 409:
-                    return redirect(
-                        url_for("api.view_harvest_source", source_id=source_id)
-                    )
-                else:
-                    return redirect(url_for("main.harvest_source_list"))
-            except Exception as e:
-                message = f"Failed to delete harvest source :: {repr(e)}"
-                logger.error(message)
-                flash(message)
-                return redirect(url_for("api.view_harvest_source", source_id=source_id))
-        else:
-            return redirect(url_for("api.view_harvest_source", source_id=source_id))
-
     else:
         form = HarvestTriggerForm()
         records_count = db.get_latest_harvest_records_by_source_orm(
             source_id=source_id,
             count=True,
         )
-        synced_records_count = db.get_latest_harvest_records_by_source_orm(
-            source_id=source_id,
-            count=True,
-            synced=True,
-        )
         summary_data = {
             "records_count": records_count,
-            "synced_records_count": synced_records_count,
             "last_job_errors": None,
             "last_job_finished": None,
             "next_job_scheduled": None,
@@ -961,7 +931,7 @@ def view_harvest_source(source_id: str):
         logger.info(
             "Rendered harvest source page source_id=%s source_name=%s jobs_total=%s "
             "jobs_returned=%s datasets_total=%s datasets_returned=%s "
-            "records_count=%s synced_records_count=%s active_job_in_progress=%s",
+            "records_count=%s active_job_in_progress=%s",
             source_id,
             getattr(source, "name", None),
             jobs_count,
@@ -969,7 +939,6 @@ def view_harvest_source(source_id: str):
             datasets_count,
             len(datasets),
             records_count,
-            synced_records_count,
             summary_data["active_job_in_progress"],
         )
         return render_template(
@@ -979,6 +948,43 @@ def view_harvest_source(source_id: str):
             datasets_pagination=datasets_pagination.to_dict(),
             data=data,
         )
+
+
+@main.post("/harvest_source/<source_id>")
+@login_required
+@valid_id_required
+def update_harvest_source_actions(source_id: str):
+    """Handle authenticated harvest source action form submissions."""
+    form = HarvestTriggerForm()
+
+    if not form.validate_on_submit():
+        flash(form.errors)
+        return redirect(url_for("api.view_harvest_source", source_id=source_id))
+
+    if form.edit.data:
+        return redirect(url_for("api.edit_harvest_source", source_id=source_id))
+    elif form.harvest.data:
+        if form.force_check.data:
+            return trigger_manual_job_helper(source_id, "force_harvest")
+        return trigger_manual_job_helper(source_id)
+    elif form.clear.data:
+        return trigger_manual_job_helper(source_id, "clear")
+    elif form.delete.data:
+        try:
+            message, status = db.delete_harvest_source(source_id)
+            _log_mutation("delete", "harvest_source", source_id, status=status)
+            flash(message)
+            if status == 409:
+                return redirect(url_for("api.view_harvest_source", source_id=source_id))
+            else:
+                return redirect(url_for("main.harvest_source_list"))
+        except Exception as e:
+            message = f"Failed to delete harvest source :: {repr(e)}"
+            logger.error(message)
+            flash(message)
+            return redirect(url_for("api.view_harvest_source", source_id=source_id))
+
+    return redirect(url_for("api.view_harvest_source", source_id=source_id))
 
 
 @main.route("/harvest_source_list/", methods=["GET"])
