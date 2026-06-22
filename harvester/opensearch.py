@@ -232,8 +232,42 @@ class OpenSearchInterface:
         self._ensure_index()
 
     @staticmethod
-    def _normalize_dcat_dates(dcat: dict) -> dict:
-        """Normalize date fields in DCAT to ensure they're always strings."""
+    def _serialize_dcat_value(value: Any) -> str:
+        if isinstance(value, (dict, list)):
+            return json.dumps(value, sort_keys=True)
+        return str(value)
+
+    @classmethod
+    def _normalize_dcat_metadata_value(cls, value: Any) -> Any:
+        # stringify nested objects/lists because
+        # OpenSearch expect those fields to be text.
+        if isinstance(value, dict):
+            return {
+                field: (
+                    cls._serialize_dcat_value(field_value)
+                    if isinstance(field_value, (dict, list))
+                    else field_value
+                )
+                for field, field_value in value.items()
+            }
+        if isinstance(value, list):
+            return [
+                (
+                    cls._normalize_dcat_metadata_value(item)
+                    if isinstance(item, dict)
+                    else (
+                        cls._serialize_dcat_value(item)
+                        if isinstance(item, list)
+                        else item
+                    )
+                )
+                for item in value
+            ]
+        return value
+
+    @classmethod
+    def _normalize_dcat_dates(cls, dcat: dict) -> dict:
+        """Normalize DCAT values for OpenSearch metadata indexing."""
         normalized_dcat = dcat.copy()
         date_fields = ["modified", "issued", "temporal"]
         for field in date_fields:
@@ -243,6 +277,14 @@ class OpenSearchInterface:
                     normalized_dcat[field] = value.isoformat()
                 elif value is not None and not isinstance(value, str):
                     normalized_dcat[field] = str(value)
+        spatial = normalized_dcat.get("spatial")
+        if spatial is not None and not isinstance(spatial, str):
+            normalized_dcat["spatial"] = cls._serialize_dcat_value(spatial)
+
+        for field, value in normalized_dcat.items():
+            if field in date_fields or field == "spatial":
+                continue
+            normalized_dcat[field] = cls._normalize_dcat_metadata_value(value)
         return normalized_dcat
 
     @staticmethod

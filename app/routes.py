@@ -838,14 +838,8 @@ def view_harvest_source(source_id: str):
             source_id=source_id,
             count=True,
         )
-        synced_records_count = db.get_latest_harvest_records_by_source_orm(
-            source_id=source_id,
-            count=True,
-            synced=True,
-        )
         summary_data = {
             "records_count": records_count,
-            "synced_records_count": synced_records_count,
             "last_job_errors": None,
             "last_job_finished": None,
             "next_job_scheduled": None,
@@ -940,7 +934,7 @@ def view_harvest_source(source_id: str):
         logger.info(
             "Rendered harvest source page source_id=%s source_name=%s jobs_total=%s "
             "jobs_returned=%s datasets_total=%s datasets_returned=%s "
-            "records_count=%s synced_records_count=%s active_job_in_progress=%s",
+            "records_count=%s active_job_in_progress=%s",
             source_id,
             getattr(source, "name", None),
             jobs_count,
@@ -948,7 +942,6 @@ def view_harvest_source(source_id: str):
             datasets_count,
             len(datasets),
             records_count,
-            synced_records_count,
             summary_data["active_job_in_progress"],
         )
         return render_template(
