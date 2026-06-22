@@ -2,10 +2,16 @@
 
 This document tries to list the URL structure for this web app.
 
+Route handlers live under [`app/blueprints/`](../app/blueprints/): HTML pages on
+the `main` blueprint and JSON/OpenAPI routes on the `api` blueprint.
+
 The JSON API and the web frontend are served from separate URLs. The web
 frontend (HTML pages and form submissions) lives at the paths below, while
 the JSON API mirrors the mutating/detail endpoints under an `/api/...`
 prefix. JSON callers authenticate with the `X-API-Key` header.
+
+Authenticated mutation endpoints on the `api` blueprint use `@api.doc(hide=True)`
+and are omitted from the public Swagger docs at `/openapi/docs`.
 
 ## Routes
 

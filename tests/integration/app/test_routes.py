@@ -7,7 +7,7 @@ from unittest.mock import Mock, patch
 import pytest
 from flask import Response
 
-from app.routes import UnsafeTemplateEnvError, render_block
+from app.blueprints.deps import UnsafeTemplateEnvError, render_block
 from harvester.harvest import HarvestSource
 
 # ruff: noqa: F401
@@ -172,13 +172,13 @@ class TestDynamicRouteTable:
             "main.update_organization_actions": {
                 "POST": 'You should be redirected automatically to the target URL: <a href="/organization/1234">/organization/1234</a>',
             },
-            "api.view_harvest_source": {
+            "main.view_harvest_source": {
                 "GET": "Looks like you navigated to a harvest source that doesn't exist",
             },
-            "main.view_harvest_source": {
+            "main.update_harvest_source_actions": {
                 "POST": 'You should be redirected automatically to the target URL: <a href="/harvest_source/1234">/harvest_source/1234</a>',
             },
-            "api.view_harvest_job": {
+            "main.view_harvest_job": {
                 "GET": "Looks like you navigated to a harvest job that doesn't exist"
             },
             "api.download_harvest_errors_by_job": {
@@ -315,10 +315,10 @@ class TestLoginLogging:
         token_response.json.return_value = {"id_token": "encoded-token"}
 
         with (
-            patch("app.routes.create_client_assertion", return_value="assertion"),
-            patch("app.routes.requests.post", return_value=token_response),
+            patch("app.blueprints.main.auth.create_client_assertion", return_value="assertion"),
+            patch("app.blueprints.main.auth.requests.post", return_value=token_response),
             patch(
-                "app.routes.jwt.decode",
+                "app.blueprints.main.auth.jwt.decode",
                 return_value={
                     "email": "test.user@gsa.gov",
                     "sub": "login-gov-subject",
@@ -342,8 +342,8 @@ class TestLoginLogging:
         failed_response.text = "invalid_grant"
 
         with (
-            patch("app.routes.create_client_assertion", return_value="assertion"),
-            patch("app.routes.requests.post", return_value=failed_response),
+            patch("app.blueprints.main.auth.create_client_assertion", return_value="assertion"),
+            patch("app.blueprints.main.auth.requests.post", return_value=failed_response),
         ):
             response = client.get("/callback?code=bad-code&state=expected-state")
 
@@ -363,10 +363,10 @@ class TestLoginLogging:
         token_response.json.return_value = {"id_token": "encoded-token"}
 
         with (
-            patch("app.routes.create_client_assertion", return_value="assertion"),
-            patch("app.routes.requests.post", return_value=token_response),
+            patch("app.blueprints.main.auth.create_client_assertion", return_value="assertion"),
+            patch("app.blueprints.main.auth.requests.post", return_value=token_response),
             patch(
-                "app.routes.jwt.decode",
+                "app.blueprints.main.auth.jwt.decode",
                 return_value={
                     "email": "unregistered@gsa.gov",
                     "sub": "login-gov-subject",
@@ -658,7 +658,7 @@ class TestHarvestRecordRawAPI:
 
 
 class TestAPIBehavior:
-    @patch("app.routes.load_manager")
+    @patch("app.blueprints.deps.load_manager")
     def test_cancel_in_progress_job(
         self,
         LMMock,

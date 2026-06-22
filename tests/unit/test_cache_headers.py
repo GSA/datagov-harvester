@@ -8,7 +8,8 @@ from app import HSTS_HEADER, create_app
 
 
 @pytest.fixture
-def app():
+def app(monkeypatch):
+    monkeypatch.delenv("ENABLE_LOCAL_DEV_LOGIN", raising=False)
     with patch("app.load_manager.start", lambda: True):
         app = create_app()
     app.config.update({"TESTING": True})

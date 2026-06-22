@@ -114,13 +114,14 @@ def interface(session) -> HarvesterDBInterface:
 
 
 @pytest.fixture(autouse=True)
-def default_function_fixture(interface):
+def default_function_fixture(interface, monkeypatch):
+    monkeypatch.delenv("ENABLE_LOCAL_DEV_LOGIN", raising=False)
     logger.info("Patching core.feature.service")
     with (
         patch("harvester.harvest.db_interface", interface),
         patch("harvester.exceptions.db_interface", interface),
         patch("harvester.lib.load_manager.interface", interface),
-        patch("app.routes.db", interface),
+        patch("app.blueprints.deps.db", interface),
         patch(
             "harvester.utils.general_utils._get_geo_lookup_interface",
             lambda: interface,

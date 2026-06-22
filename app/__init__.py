@@ -17,12 +17,11 @@ from app.local_dev_auth import is_running_on_cloud_foundry
 from app.startup_validation import validate_required_env_vars
 from config.logger_config import LOGGING_CONFIG
 from database.models import db
-from harvester.lib.load_manager import LoadManager
 from scripts.sync_datasets import register_cli
 
 logger = logging.getLogger("harvest_admin")
 
-load_manager = LoadManager()
+load_manager = None
 
 load_dotenv()
 logging.config.dictConfig(LOGGING_CONFIG)
@@ -53,6 +52,7 @@ def _external_route_to_server_url(route: str | None) -> str | None:
 
 
 def create_app():
+    global load_manager
     env_values = validate_required_env_vars()
     app = APIFlask(__name__, static_url_path="", static_folder="static", docs_path=None)
 
@@ -225,9 +225,10 @@ def create_app():
     Migrate(app, db)
 
     from .local_dev_auth import log_local_dev_login_status
-    from .routes import register_routes
+    from .blueprints import deps, register_routes
 
     register_routes(app)
+    load_manager = deps.load_manager
 
     log_local_dev_login_status()
 
