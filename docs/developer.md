@@ -22,10 +22,20 @@ Note that you do not need to set the `CF_SERVICE_USER` and `CF_SERVICE_AUTH` var
 
 ### Using the app
 
-Point your web browser to https://localhost:8080
+Point your web browser to http://localhost:8080
 
-You will need to be able to log in! We use login.gov, and for local development you must have an account at the login.gov sandbox `https://idp.int.identitysandbox.gov`. (Click "Create an account" if you don't already have one.)
+#### Local login (no Login.gov account)
 
+To use local login, set `ENABLE_LOCAL_DEV_LOGIN=true` in your `.env`, then visit http://localhost:8080/login and sign in with:
+
+- **Username:** `admin`
+- **Password:** `admin`
+
+This bypasses Login.gov and the `harvest_user` allow list for local development only. It is disabled by default and remains disabled in deployed environments. Login.gov sandbox remains available via the link on the login page.
+
+#### Login.gov sandbox
+
+Alternatively, you can log in with Login.gov. For local development you must have an account at the login.gov sandbox `https://idp.int.identitysandbox.gov`. (Click "Create an account" if you don't already have one.)
 
 Add your user account to the local app, using an email address that matches your login.gov sandbox account (see also "user management" below):
 ```
@@ -33,7 +43,7 @@ Add your user account to the local app, using an email address that matches your
 User added successfully!
 ```
 
-Now you should be able to log in (at https://localhost:8080/login ), add an organization, and add a feed to it.
+Now you should be able to log in at http://localhost:8080/login, add an organization, and add a feed to it.
 
 ## Linting and IDE setup
 
