@@ -39,6 +39,7 @@ class TestDynamicRouteTable:
         whitelisted_routes = [
             "static",
             "main.login",
+            "main.login_oidc",
             "main.logout",
             "main.callback",
         ]
