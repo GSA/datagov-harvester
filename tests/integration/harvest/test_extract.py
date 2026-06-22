@@ -24,6 +24,22 @@ class TestExtract:
 
         assert len(harvest_source.external_records) == 7
 
+    def test_extract_dcatus3_0(
+        self,
+        interface,
+        organization_data,
+        source_data_dcatus3_0,
+        job_data_dcatus3_0,
+    ):
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_dcatus3_0)
+        harvest_job = interface.add_harvest_job(job_data_dcatus3_0)
+
+        harvest_source = HarvestSource(harvest_job.id)
+        harvest_source.acquire_minimum_external_data()
+
+        assert len(harvest_source.external_records) == 2
+
     def test_check_iso_dcatus_schema(
         self,
         interface,

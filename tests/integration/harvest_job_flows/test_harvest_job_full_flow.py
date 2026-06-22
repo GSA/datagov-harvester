@@ -59,6 +59,38 @@ class TestHarvestJobFullFlow:
             assert dataset.last_harvested_date == matching_record["date_finished"]
 
     @patch("harvester.harvest.HarvestSource.send_notification_emails")
+    def test_harvest_dcatus3_0_records_created(
+        self,
+        send_notification_emails_mock: MagicMock,
+        interface,
+        organization_data,
+        source_data_dcatus3_0,
+    ):
+        """AC: a valid DCAT-US 3.0 catalog is harvested into the database."""
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_dcatus3_0)
+        harvest_job = interface.add_harvest_job(
+            {
+                "status": "new",
+                "harvest_source_id": source_data_dcatus3_0["id"],
+            }
+        )
+
+        job_id = harvest_job.id
+        harvest_job_starter(job_id, "harvest")
+
+        records_to_add = download_file(source_data_dcatus3_0["url"], ".json")["dataset"]
+        harvest_job = interface.get_harvest_job(job_id)
+        assert harvest_job.status == "complete"
+        assert harvest_job.records_added == len(records_to_add)
+
+        datasets = interface.db.query(Dataset).all()
+        assert len(datasets) == len(records_to_add)
+        for dataset in datasets:
+            assert dataset.harvest_source_id == source_data_dcatus3_0["id"]
+            assert dataset.harvest_record_id is not None
+
+    @patch("harvester.harvest.HarvestSource.send_notification_emails")
     def test_multiple_harvest_jobs(
         self,
         send_notification_emails_mock: MagicMock,

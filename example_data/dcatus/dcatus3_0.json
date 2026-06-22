@@ -1,0 +1,42 @@
+{
+  "@type": "Catalog",
+  "@id": "https://example.gov/data.json",
+  "conformsTo": {
+    "@type": "Standard",
+    "title": "DCAT-US 3.0"
+  },
+  "title": "Example DCAT-US 3.0 Catalog",
+  "description": "A sample DCAT-US 3.0 catalog used for harvest testing.",
+  "dataset": [
+    {
+      "@type": "Dataset",
+      "title": "Test Dataset One",
+      "description": "First test dataset in the DCAT-US 3.0 catalog.",
+      "identifier": "https://example.gov/datasets/one",
+      "publisher": {
+        "@type": "Organization",
+        "name": "Test Agency"
+      },
+      "contactPoint": {
+        "@type": "Kind",
+        "fn": "Test Contact One",
+        "hasEmail": "mailto:one@example.gov"
+      }
+    },
+    {
+      "@type": "Dataset",
+      "title": "Test Dataset Two",
+      "description": "Second test dataset in the DCAT-US 3.0 catalog.",
+      "identifier": "https://example.gov/datasets/two",
+      "publisher": {
+        "@type": "Organization",
+        "name": "Test Agency"
+      },
+      "contactPoint": {
+        "@type": "Kind",
+        "fn": "Test Contact Two",
+        "hasEmail": "mailto:two@example.gov"
+      }
+    }
+  ]
+}

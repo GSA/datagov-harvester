@@ -204,6 +204,36 @@ def source_data_dcatus_2(organization_data: dict) -> dict:
 
 
 @pytest.fixture
+def source_data_dcatus3_0(organization_data: dict) -> dict:
+    return {
+        "id": "3e4b1d4a-969b-4b80-b299-407c757afe9d",
+        "name": "Test Source DCAT-US 3.0",
+        "notification_emails": ["email@example.com"],
+        "organization_id": organization_data["id"],
+        "frequency": "daily",
+        "url": f"{HARVEST_SOURCE_URL}/dcatus/dcatus3_0.json",
+        "schema_type": "dcatus3.0",
+        "source_type": "document",
+        "notification_frequency": "always",
+    }
+
+
+@pytest.fixture
+def source_data_dcatus3_0_invalid(organization_data: dict) -> dict:
+    return {
+        "id": "59d4cf5b-d98b-4ff4-b10d-3bf20082478b",
+        "name": "Test Source DCAT-US 3.0 (invalid)",
+        "notification_emails": ["email@example.com"],
+        "organization_id": organization_data["id"],
+        "frequency": "daily",
+        "url": f"{HARVEST_SOURCE_URL}/dcatus/dcatus3_0_invalid.json",
+        "schema_type": "dcatus3.0",
+        "source_type": "document",
+        "notification_frequency": "always",
+    }
+
+
+@pytest.fixture
 def source_data_dcatus_same_title(organization_data: dict) -> dict:
     return {
         "id": "50301cdb-5766-46ed-8f46-ca63844315a2",
@@ -471,6 +501,24 @@ def job_data_dcatus_2(source_data_dcatus_2: dict) -> dict:
         "id": "392ac4b3-79a6-414b-a2b3-d6c607d3b8d4",
         "status": "new",
         "harvest_source_id": source_data_dcatus_2["id"],
+    }
+
+
+@pytest.fixture
+def job_data_dcatus3_0(source_data_dcatus3_0: dict) -> dict:
+    return {
+        "id": "d6141347-e91c-41a3-9754-8c1e354b6bb2",
+        "status": "new",
+        "harvest_source_id": source_data_dcatus3_0["id"],
+    }
+
+
+@pytest.fixture
+def job_data_dcatus3_0_invalid(source_data_dcatus3_0_invalid: dict) -> dict:
+    return {
+        "id": "1b3c74e2-71d9-460b-bfcf-5e96c1ab345f",
+        "status": "new",
+        "harvest_source_id": source_data_dcatus3_0_invalid["id"],
     }
 
 

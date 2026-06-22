@@ -34,7 +34,7 @@ from harvester.exceptions import (
     TransformationException,
     log_non_critical_error,
 )
-from harvester.lib.cf_handler import CFHandler
+from harvester.lib.task_handler import create_task_handler
 from harvester.lib.harvest_reporter import HarvestReporter
 from harvester.lib.load_manager import LoadManager
 from harvester.utils.general_utils import (
@@ -42,6 +42,7 @@ from harvester.utils.general_utils import (
     USER_AGENT,
     add_uuid_to_package_name,
     assemble_validation_errors,
+    build_dcatus3_validator,
     dataset_to_hash,
     download_file,
     find_indexes_for_duplicates,
@@ -65,10 +66,7 @@ ROOT_DIR = Path(__file__).parents[1]
 # harvest worker count
 harvest_worker_sync_count = int(os.getenv("HARVEST_WORKER_SYNC_COUNT", 1))
 
-CF_API_URL = os.getenv("CF_API_URL")
-CF_SERVICE_USER = os.getenv("CF_SERVICE_USER")
-CF_SERVICE_AUTH = os.getenv("CF_SERVICE_AUTH")
-
+from harvester.lib.task_handler import create_task_handler
 
 @dataclass
 class HarvestSource:
@@ -115,6 +113,14 @@ class HarvestSource:
             self.schema_file = (
                 self.schemas_root / "dcatus1.1" / "non-federal_dataset.json"
             )
+        elif self.schema_type == "dcatus3.0":
+            # dcatus3.0 has a single dataset schema (no federal/non-federal split).
+            # NOTE: a 3.0 dataset identifier may be a string or an object; the
+            # harvester uses it as a dict key / db identifier, so only string
+            # identifiers are supported. object identifiers are out of scope.
+            self.schema_file = (
+                self.schemas_root / "dcatus3.0" / "definitions" / "Dataset.json"
+            )
         elif self.schema_type.startswith("iso19115"):
             self.schema_file = (
                 self.schemas_root / "dcatus1.1" / "iso-non-federal_dataset.json"
@@ -128,9 +134,17 @@ class HarvestSource:
             raise Exception
 
         self.dataset_schema = open_json(self.schema_file)
-        self._validator = Draft202012Validator(
-            self.dataset_schema, format_checker=FormatChecker()
-        )
+        if self.schema_type == "dcatus3.0":
+            # validate one dataset record at a time against the dcatus3.0 schema,
+            # which plugs into the same per-record validation flow as dcatus1.1.
+            self._validator = build_dcatus3_validator(
+                self.schemas_root / "dcatus3.0" / "definitions",
+                root_ref="https://resources.data.gov/dcat-us/3.0.0/definitions/dataset",
+            )
+        else:
+            self._validator = Draft202012Validator(
+                self.dataset_schema, format_checker=FormatChecker()
+            )
         self._reporter = HarvestReporter()
 
     @property
@@ -1243,13 +1257,21 @@ def harvest_job_starter(job_id, job_type="harvest"):
             harvest_source.finish_job_with_status("error")
             return
     # Check if another task is already running this job
-    handler = CFHandler(CF_API_URL, CF_SERVICE_USER, CF_SERVICE_AUTH)
-    running_tasks = handler.get_running_app_tasks()
-    running_harvest_ids = handler.job_ids_from_tasks(running_tasks)
-    if isinstance(running_harvest_ids, list) and running_harvest_ids.count(job_id) > 1:
-        logger.error(f"Job {job_id} is already running in another task. Exiting.")
-        # Don't finish the job here, just exit to prevent duplicate processing
-        return
+    try:
+        handler = create_task_handler()
+        running_tasks = handler.get_running_app_tasks()
+        running_harvest_ids = handler.job_ids_from_tasks(running_tasks)
+        if (
+            isinstance(running_harvest_ids, list)
+            and running_harvest_ids.count(job_id) > 1
+        ):
+            logger.error(
+                f"Job {job_id} is already running in another task. Exiting."
+            )
+            # Don't finish the job here, just exit to prevent duplicate processing
+            return
+    except Exception as e:
+        logger.debug("Skipping duplicate task check: %s", e)
 
     if job_type in ["harvest", "force_harvest", "clear"]:
         harvest_source.run_full_harvest()

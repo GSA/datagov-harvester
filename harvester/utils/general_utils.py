@@ -1381,9 +1381,17 @@ def is_valid_uuid4(uuid_string) -> bool:
         return False
 
 
-def build_dcatus3_validator(definitions_dir):
+def build_dcatus3_validator(
+    definitions_dir,
+    root_ref="https://resources.data.gov/dcat-us/3.0.0/definitions/catalog",
+):
     """
-    builds a dcatus v3.0 catalog validator based on schema files in [definitions_dir]
+    builds a dcatus v3.0 validator based on schema files in [definitions_dir].
+
+    root_ref selects the entry point into the schema definitions. it defaults to
+    the catalog definition (used by the validator web tool to validate a whole
+    catalog), but can be pointed at the dataset definition so the validator can
+    check a single dataset record at a time during harvest.
     """
     registry = Registry()
 
@@ -1395,7 +1403,7 @@ def build_dcatus3_validator(definitions_dir):
         )
 
     return Draft202012Validator(
-        schema={"$ref": "https://resources.data.gov/dcat-us/3.0.0/definitions/catalog"},
+        schema={"$ref": root_ref},
         registry=registry,
         format_checker=FormatChecker(),
     )
