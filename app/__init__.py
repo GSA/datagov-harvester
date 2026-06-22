@@ -67,7 +67,7 @@ def create_app():
     # don't include auth information in the OpenAPI spec
     @app.spec_processor
     def remove_auth(spec):
-        del spec["components"]["securitySchemes"]
+        spec.get("components", {}).pop("securitySchemes", None)
         return spec
 
     app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv("DATABASE_URI")

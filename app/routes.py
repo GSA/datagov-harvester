@@ -410,52 +410,70 @@ def index():
 @main.route("/organization_list/", methods=["GET"])
 def organization_list():
     organizations = db.get_all_organizations()
-    if request.is_json:
-        return jsonify(db._to_dict(organizations))
-    else:
-        data = {"organizations": organizations}
-        return render_template("view_org_list.html", data=data)
+    data = {"organizations": organizations}
+    return render_template("view_org_list.html", data=data)
 
 
-### Add Org
-@main.route("/organization/add", methods=["GET"])
-@api.post("/organization/add")
+### Get Org List (JSON)
+@api.get("/api/organization_list/")
+@api.doc(
+    responses={
+        200: {
+            "description": "List organizations",
+            "content": {
+                "application/json": {"schema": {"type": "array", "items": OrgInfo}}
+            },
+        }
+    }
+)
+def organization_list_api():
+    """Return the JSON list of all organizations.
+
+    The HTML list page lives on the main blueprint at
+    `GET /organization_list/` (see `organization_list`).
+    """
+    return jsonify(db._to_dict(db.get_all_organizations()))
+
+
+### Add Org (JSON)
+@api.post("/api/organization/add")
 @api.doc(hide=True)  # don't include the authenticated API
 @api.input(OrgCreate, validation=False)  # validated explicitly for API POST
-@api.auth_required(auth)
-def add_organization(**kwargs):
-    if request.is_json:
-        org_data = request.json or {}
-        if request.method == "POST":
-            try:
-                org_data = OrgCreate().load(org_data)
-            except ValidationError as e:
-                return make_response(jsonify({"detail": e.messages}), 422)
+@login_required
+def add_organization_api(**kwargs):
+    org_data = request.json or {}
+    try:
+        org_data = OrgCreate().load(org_data)
+    except ValidationError as e:
+        return make_response(jsonify({"detail": e.messages}), 422)
 
-        org = db.add_organization(org_data)
+    org = db.add_organization(org_data)
+    if org:
+        _log_mutation("create", "organization", org.id, organization_slug=org.slug)
+        return make_response(
+            jsonify({"message": f"Added new organization with ID: {org.id}"}), 200
+        )
+    else:
+        return make_response(jsonify({"error": "Failed to add organization."}), 400)
+
+
+### Add Org (HTML form)
+@main.route("/organization/add", methods=["GET", "POST"])
+@login_required
+def add_organization():
+    form = OrganizationForm(db_interface=db)
+    if form.validate_on_submit():
+        new_org = make_new_org_contract(form)
+        org = db.add_organization(new_org)
         if org:
             _log_mutation("create", "organization", org.id, organization_slug=org.slug)
-            return make_response(
-                jsonify({"message": f"Added new organization with ID: {org.id}"}), 200
-            )
+            flash(f"Added new organization with ID: {org.id}")
         else:
-            return make_response(jsonify({"error": "Failed to add organization."}), 400)
-    else:
-        form = OrganizationForm(db_interface=db)
-        if form.validate_on_submit():
-            new_org = make_new_org_contract(form)
-            org = db.add_organization(new_org)
-            if org:
-                _log_mutation(
-                    "create", "organization", org.id, organization_slug=org.slug
-                )
-                flash(f"Added new organization with ID: {org.id}")
-            else:
-                flash("Failed to add organization.")
-            return redirect(url_for("main.organization_list"))
-        elif form.errors:
-            flash(form.errors)
-            return redirect(url_for("api.add_organization"))
+            flash("Failed to add organization.")
+        return redirect(url_for("main.organization_list"))
+    elif form.errors:
+        flash(form.errors)
+        return redirect(url_for("main.add_organization"))
     return render_template(
         "edit_data.html",
         form=form,
@@ -465,31 +483,23 @@ def add_organization(**kwargs):
     )
 
 
-@api.get("/organization/<string:org_identifier>")
-@api.doc(
-    responses={  # HTML or JSON so specify response manually
-        200: {
-            "description": "View organization info",
-            "content": {"application/json": {"schema": OrgInfo}},
-        }
-    }
-)
+### View Org (HTML detail page)
+@main.get("/organization/<string:org_identifier>")
 def view_organization(org_identifier: str):
-    """View an organization by UUID or slug.
+    """Render the HTML organization detail page by UUID or slug.
 
     This route used to accept only UUIDs. It now resolves either a UUID or a
     slug to an organization, then prefers the slug when linking back to the
     organization page.
+
+    The JSON representation lives on the API blueprint at
+    `GET /api/organization/<org_identifier>` (see `get_organization`).
     """
     org = _get_org_by_identifier(org_identifier)
     org_id = org.id if org is not None else org_identifier
 
-    if request.is_json:
-        if org is None:
-            # org_id wasn't found
-            return make_response(jsonify({"message": "Organization not found"}), 404)
-        return jsonify(org.to_dict())
-    form = OrganizationTriggerForm()
+    # Only authenticated users get the edit/delete action form.
+    form = OrganizationTriggerForm() if session.get("user") else None
     sources = db.get_harvest_source_by_org(org_id)
     future_harvest_jobs = {}
     for source in sources:
@@ -530,7 +540,7 @@ def update_organization_actions(org_identifier: str):
     if not form.validate_on_submit():
         flash(form.errors)
         return redirect(
-            url_for("api.view_organization", org_identifier=org_url_identifier)
+            url_for("main.view_organization", org_identifier=org_url_identifier)
         )
 
     if form.edit.data:
@@ -549,7 +559,7 @@ def update_organization_actions(org_identifier: str):
             if status == 409:
                 return redirect(
                     url_for(
-                        "api.view_organization",
+                        "main.view_organization",
                         org_identifier=org_url_identifier,
                     )
                 )
@@ -561,28 +571,36 @@ def update_organization_actions(org_identifier: str):
             flash(message)
             return redirect(
                 url_for(
-                    "api.view_organization",
+                    "main.view_organization",
                     org_identifier=org_url_identifier,
                 )
             )
 
-    return redirect(url_for("api.view_organization", org_identifier=org_url_identifier))
+    return redirect(
+        url_for("main.view_organization", org_identifier=org_url_identifier)
+    )
 
 
-### Edit Org
+### Edit Org (JSON)
+@api.post("/api/organization/edit/<string:org_id>")
+@api.doc(hide=True)  # don't document the authenticated API
+@login_required
+@valid_id_required
+def edit_organization_api(org_id):
+    org = db.update_organization(org_id, request.json)
+    if org:
+        _log_mutation("edit", "organization", org.id, organization_slug=org.slug)
+        return {"message": f"Updated org with ID: {org.id}"}, 200
+    else:
+        return {"error": "Failed to update organization."}, 400
+
+
+### Edit Org (HTML form)
 @api.route("/organization/edit/<string:org_id>", methods=["GET", "POST"])
 @api.doc(hide=True)  # don't document the authenticated API
-@api.auth_required(auth)
+@login_required
 @valid_id_required  # TODO: Use an HTML 404 page
 def edit_organization(org_id):
-    if request.is_json:
-        org = db.update_organization(org_id, request.json)
-        if org:
-            _log_mutation("edit", "organization", org.id, organization_slug=org.slug)
-            return {"message": f"Updated org with ID: {org.id}"}, 200
-        else:
-            return {"error": "Failed to update organization."}, 400
-
     org = db._to_dict(db.get_organization(org_id))
     form = OrganizationForm(organization_id=org_id, data=org, db_interface=db)
     if form.validate_on_submit():
@@ -595,7 +613,7 @@ def edit_organization(org_id):
             flash("Failed to update organization.")
         return redirect(
             url_for(
-                "api.view_organization",
+                "main.view_organization",
                 org_identifier=_get_org_url_identifier(org) or org_id,
             )
         )
@@ -612,10 +630,32 @@ def edit_organization(org_id):
     )
 
 
+### Get Org (JSON detail)
+@api.get("/api/organization/<string:org_identifier>")
+@api.doc(
+    responses={
+        200: {
+            "description": "View organization info",
+            "content": {"application/json": {"schema": OrgInfo}},
+        }
+    }
+)
+def get_organization(org_identifier: str):
+    """Return the JSON representation of an organization by UUID or slug.
+
+    The HTML detail page lives on the main blueprint at
+    `GET /organization/<org_identifier>` (see `view_organization`).
+    """
+    org = _get_org_by_identifier(org_identifier)
+    if org is None:
+        return make_response(jsonify({"message": "Organization not found"}), 404)
+    return jsonify(org.to_dict())
+
+
 ### Delete Org
-@api.route("/organization/<string:org_id>", methods=["DELETE"])
+@api.route("/api/organization/<string:org_id>", methods=["DELETE"])
 @api.doc(hide=True)  # don't include the authenticated API
-@api.auth_required(auth)
+@login_required
 @valid_id_required
 def delete_organization(org_id):
     try:
@@ -629,62 +669,67 @@ def delete_organization(org_id):
 
 
 ## Harvest Source
-### Add Source
+### Add Source (JSON)
+@api.post("/api/harvest_source/add")
+@api.doc(hide=True)  # don't document the authenticated API
+@login_required
+def add_harvest_source_api():
+    try:
+        source = db.add_harvest_source(request.json)
+        job_message = load_manager.schedule_first_job(source.id)
+        if source and job_message:
+            _log_mutation(
+                "create",
+                "harvest_source",
+                source.id,
+                organization_id=source.organization_id,
+                source_name=source.name,
+            )
+            return make_response(
+                jsonify(
+                    {
+                        "message": f"Added new harvest source with ID: {source.id}. {job_message}"
+                    }
+                ),
+                200,
+            )
+    except Exception as e:
+        message = "Failed to add harvest source."
+        logger.error(f"{message} :: {repr(e)}")
+        return make_response(jsonify({"message": message}), 500)
+
+
+### Add Source (HTML form)
 @api.route("/harvest_source/add", methods=["POST", "GET"])
 @api.doc(hide=True)  # don't document the authenticated API
-@api.auth_required(auth)
+@login_required
 def add_harvest_source():
-    if request.is_json:
-        try:
-            source = db.add_harvest_source(request.json)
-            job_message = load_manager.schedule_first_job(source.id)
-            if source and job_message:
-                _log_mutation(
-                    "create",
-                    "harvest_source",
-                    source.id,
-                    organization_id=source.organization_id,
-                    source_name=source.name,
-                )
-                return make_response(
-                    jsonify(
-                        {
-                            "message": f"Added new harvest source with ID: {source.id}. {job_message}"
-                        }
-                    ),
-                    200,
-                )
-        except Exception as e:
-            message = "Failed to add harvest source."
-            logger.error(f"{message} :: {repr(e)}")
-            return make_response(jsonify({"message": message}), 500)
-    else:
-        form = HarvestSourceForm()
-        organizations = db.get_all_organizations()
-        organization_choices = sorted(
-            [(str(org.id), f"{org.name} - {org.id}") for org in organizations],
-            key=lambda x: x[1].lower(),
-        )
-        form.organization_id.choices = organization_choices
-        if form.validate_on_submit():
-            new_source = make_new_source_contract(form)
-            source = db.add_harvest_source(new_source)
-            job_message = load_manager.schedule_first_job(source.id)
-            if source and job_message:
-                _log_mutation(
-                    "create",
-                    "harvest_source",
-                    source.id,
-                    organization_id=source.organization_id,
-                    source_name=source.name,
-                )
-                flash(f"Added new harvest source with ID: {source.id}. {job_message}")
-            else:
-                flash("Failed to add harvest source.")
-            return redirect(url_for("main.harvest_source_list"))
-        elif form.errors:
-            flash(form.errors)
-            return redirect(url_for("main.add_harvest_source"))
+    form = HarvestSourceForm()
+    organizations = db.get_all_organizations()
+    organization_choices = sorted(
+        [(str(org.id), f"{org.name} - {org.id}") for org in organizations],
+        key=lambda x: x[1].lower(),
+    )
+    form.organization_id.choices = organization_choices
+    if form.validate_on_submit():
+        new_source = make_new_source_contract(form)
+        source = db.add_harvest_source(new_source)
+        job_message = load_manager.schedule_first_job(source.id)
+        if source and job_message:
+            _log_mutation(
+                "create",
+                "harvest_source",
+                source.id,
+                organization_id=source.organization_id,
+                source_name=source.name,
+            )
+            flash(f"Added new harvest source with ID: {source.id}. {job_message}")
+        else:
+            flash("Failed to add harvest source.")
+        return redirect(url_for("main.harvest_source_list"))
+    elif form.errors:
+        flash(form.errors)
+        return redirect(url_for("api.add_harvest_source"))
     return render_template(
         "edit_data.html",
         form=form,
@@ -1037,30 +1082,36 @@ def view_dataset(dataset_slug: str):
     ), (200 if dataset is not None else 404)
 
 
-### Edit Source
+### Edit Source (JSON)
+@api.post("/api/harvest_source/edit/<source_id>")
+@api.doc(hide=True)  # don't list the authenticated API
+@login_required
+@valid_id_required
+def edit_harvest_source_api(source_id: str):
+    updated_source = db.update_harvest_source(source_id, request.json)
+    job_message = load_manager.schedule_first_job(updated_source.id)
+
+    if updated_source and job_message:
+        _log_mutation(
+            "edit",
+            "harvest_source",
+            updated_source.id,
+            organization_id=updated_source.organization_id,
+            source_name=updated_source.name,
+        )
+        return {
+            "message": f"Updated source with ID: {updated_source.id}. {job_message}"
+        }, 200
+    else:
+        return {"error": "Failed to update harvest source"}, 400
+
+
+### Edit Source (HTML form)
 @api.route("/harvest_source/edit/<source_id>", methods=["GET", "POST"])
 @api.doc(hide=True)  # don't list the authenticated API
-@api.auth_required(auth)
+@login_required
 @valid_id_required  # TODO: Use an HTML 404 page
 def edit_harvest_source(source_id: str):
-    if request.is_json:
-        updated_source = db.update_harvest_source(source_id, request.json)
-        job_message = load_manager.schedule_first_job(updated_source.id)
-
-        if updated_source and job_message:
-            _log_mutation(
-                "edit",
-                "harvest_source",
-                updated_source.id,
-                organization_id=updated_source.organization_id,
-                source_name=updated_source.name,
-            )
-            return {
-                "message": f"Updated source with ID: {updated_source.id}. {job_message}"
-            }, 200
-        else:
-            return {"error": "Failed to update harvest source"}, 400
-
     if source_id:
         source = db.get_harvest_source(source_id)
         organizations = db.get_all_organizations()
@@ -1109,15 +1160,6 @@ def edit_harvest_source(source_id: str):
             flash(f"No source with id: {source_id}")
             return redirect(url_for("main.harvest_source_list"))
 
-    organization_id = request.args.get("organization_id")
-    if organization_id:
-        source = db.get_harvest_source_by_org(organization_id)
-        if not source:
-            return "No harvest sources found for this organization", 404
-    else:
-        source = db.get_all_harvest_sources()
-    return jsonify(db._to_dict(source))
-
 
 # Delete Source
 @api.route("/harvest_source/<source_id>", methods=["DELETE"])
@@ -1138,7 +1180,7 @@ def delete_harvest_source(source_id):
 ### Trigger Harvest
 @api.route("/harvest_source/harvest/<source_id>/<job_type>", methods=["GET"])
 @api.doc(hide=True)  # don't document the authenticated API
-@api.auth_required(auth)
+@login_required
 def trigger_harvest_source(source_id, job_type):
     if not is_valid_uuid4(source_id):
         return JSON_NOT_FOUND()
@@ -1151,38 +1193,50 @@ def trigger_harvest_source(source_id, job_type):
 
 
 ## Harvest Job
-### Add Job
-@api.route("/harvest_job/add", methods=["POST"])
+### Add Job (JSON)
+@api.post("/api/harvest_job/add")
 @api.doc(hide=True)  # don't list the autenticated API
-@api.auth_required(auth)
+@login_required
 def add_harvest_job():
-    if request.is_json:
-        job = db.add_harvest_job(request.json)
-        if job:
-            _log_mutation(
-                "create",
-                "harvest_job",
-                job.id,
-                harvest_source_id=job.harvest_source_id,
-                status=job.status,
-            )
-            return {"message": f"Added new harvest job with ID: {job.id}"}, 200
-        else:
-            return {"error": "Failed to add harvest job."}, 400
+    if not request.is_json:
+        return make_response(jsonify({"error": "Request must be JSON"}), 415)
+    job = db.add_harvest_job(request.json)
+    if job:
+        _log_mutation(
+            "create",
+            "harvest_job",
+            job.id,
+            harvest_source_id=job.harvest_source_id,
+            status=job.status,
+        )
+        return {"message": f"Added new harvest job with ID: {job.id}"}, 200
     else:
-        return {"Please provide harvest job with json format."}
+        return {"error": "Failed to add harvest job."}, 400
 
 
-### Get Job
-@api.route("/harvest_job/<job_id>", methods=["GET"])
+### Get Job (JSON)
+@api.get("/api/harvest_job/<job_id>")
 @api.doc(
-    responses={  # HTML or JSON response so specify the response manually
+    responses={
         200: {
             "description": "View harvest job",
             "content": {"application/json": {"schema": JobInfo}},
         }
     }
 )
+@valid_id_required
+def get_harvest_job(job_id):
+    """Return the JSON representation of a harvest job.
+
+    The HTML detail page lives on the api blueprint at
+    `GET /harvest_job/<job_id>` (see `view_harvest_job`).
+    """
+    job = db.get_harvest_job(job_id)
+    return jsonify(db._to_dict(job)) if job else JSON_NOT_FOUND()
+
+
+### Get Job (HTML detail page)
+@api.route("/harvest_job/<job_id>", methods=["GET"])
 @valid_id_required  # TODO: Use an HTML 404 page
 def view_harvest_job(job_id=None):
     def _load_json_title(json_string):
@@ -1241,42 +1295,34 @@ def view_harvest_job(job_id=None):
         )
     else:
         job = db.get_harvest_job(job_id)
-        if request.is_json or (
-            request.accept_mimetypes.accept_json
-            and not request.accept_mimetypes.accept_html
-        ):
-            return jsonify(db._to_dict(job)) if job else JSON_NOT_FOUND()
-        else:
-            data = {
-                "job": job,
-                "record_error_summary": record_error_summary,
-                "record_errors": record_errors_dict,
-                "htmx_vars": htmx_vars,
-            }
-            if job and job.status == "in_progress":
-                data["percent_complete"] = process_job_complete_percentage(
-                    job.to_dict()
-                )
-            logger.info(
-                "Rendered harvest job detail job_id=%s status=%s source_id=%s "
-                "record_error_count=%s record_errors_returned=%s page=%s",
-                job_id,
-                getattr(job, "status", None),
-                getattr(job, "harvest_source_id", None),
-                record_error_count,
-                len(record_errors_dict),
-                pagination.current,
-            )
+        data = {
+            "job": job,
+            "record_error_summary": record_error_summary,
+            "record_errors": record_errors_dict,
+            "htmx_vars": htmx_vars,
+        }
+        if job and job.status == "in_progress":
+            data["percent_complete"] = process_job_complete_percentage(job.to_dict())
+        logger.info(
+            "Rendered harvest job detail job_id=%s status=%s source_id=%s "
+            "record_error_count=%s record_errors_returned=%s page=%s",
+            job_id,
+            getattr(job, "status", None),
+            getattr(job, "harvest_source_id", None),
+            record_error_count,
+            len(record_errors_dict),
+            pagination.current,
+        )
 
-            return render_template(
-                "view_job_data.html", data=data, pagination=pagination.to_dict()
-            )
+        return render_template(
+            "view_job_data.html", data=data, pagination=pagination.to_dict()
+        )
 
 
 ### Update Job
 @api.route("/harvest_job/<job_id>", methods=["PUT"])
 @api.doc(hide=True)  # don't list the authenticated API
-@api.auth_required(auth)
+@login_required
 @valid_id_required
 def update_harvest_job(job_id):
     result = db.update_harvest_job(job_id, request.json)
@@ -1293,7 +1339,7 @@ def update_harvest_job(job_id):
 ### Delete Job
 @api.route("/harvest_job/<job_id>", methods=["DELETE"])
 @api.doc(hide=True)  # don't list the authenticated API
-@api.auth_required(auth)
+@login_required
 @valid_id_required
 def delete_harvest_job(job_id):
     result = db.delete_harvest_job(job_id)
@@ -1303,7 +1349,7 @@ def delete_harvest_job(job_id):
 
 @api.route("/harvest_job/cancel/<job_id>", methods=["GET", "POST"])
 @api.doc(hide=True)
-@api.auth_required(auth)
+@login_required
 @valid_id_required
 def cancel_harvest_job(job_id):
     """Cancels a harvest job"""
@@ -1544,25 +1590,24 @@ def get_harvest_record_transformed(record_id=None):
     return jsonify(transformed), 200
 
 
-## Add record
-@api.route("/harvest_record/add", methods=["POST", "GET"])
+## Add record (JSON)
+@api.post("/api/harvest_record/add")
 @api.doc(hide=True)  # don't list the authenticated API
-@api.auth_required(auth)
+@login_required
 def add_harvest_record():
-    if request.is_json:
-        record = db.add_harvest_record(request.json)
-        if record:
-            _log_mutation(
-                "create",
-                "harvest_record",
-                record.id,
-                harvest_job_id=record.harvest_job_id,
-            )
-            return {"message": f"Added new record with ID: {record.id}"}, 200
-        else:
-            return {"error": "Failed to add harvest record."}, 400
+    if not request.is_json:
+        return make_response(jsonify({"error": "Request must be JSON"}), 415)
+    record = db.add_harvest_record(request.json)
+    if record:
+        _log_mutation(
+            "create",
+            "harvest_record",
+            record.id,
+            harvest_job_id=record.harvest_job_id,
+        )
+        return {"message": f"Added new record with ID: {record.id}"}, 200
     else:
-        return {"Please provide harvest record with json format."}
+        return {"error": "Failed to add harvest record."}, 400
 
 
 ### Get record errors by record id

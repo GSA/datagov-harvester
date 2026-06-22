@@ -165,10 +165,10 @@ class TestDynamicRouteTable:
         # some respond with a template
         # ruff: noqa: E501
         templated_responses_map = {
-            "api.view_organization": {
+            "main.view_organization": {
                 "GET": "Looks like you navigated to an organization that doesn't exist",
             },
-            "main.view_organization": {
+            "main.update_organization_actions": {
                 "POST": 'You should be redirected automatically to the target URL: <a href="/organization/1234">/organization/1234</a>',
             },
             "api.view_harvest_source": {
@@ -262,7 +262,7 @@ class TestLoginAuthHeaders:
             "Content-Type": "application/json",
         }
         data = {"name": "Test Org", "logo": "test_logo.png", "slug": "Test_Org"}
-        response = client.post("/organization/add", json=data, headers=headers)
+        response = client.post("/api/organization/add", json=data, headers=headers)
         assert response.status_code == 422
 
     def test_login_required_invalid_token(self, client):
@@ -394,7 +394,7 @@ class TestAuditLogging:
         }
         caplog.set_level(logging.INFO, logger="harvest_admin")
 
-        response = client.post("/organization/add", json=data, headers=headers)
+        response = client.post("/api/organization/add", json=data, headers=headers)
 
         assert response.status_code == 200
         assert "Audit create organization" in caplog.text
@@ -435,7 +435,7 @@ class TestAuditLogging:
         caplog.set_level(logging.INFO, logger="harvest_admin")
 
         response = client.delete(
-            f"/organization/{organization_data['id']}",
+            f"/api/organization/{organization_data['id']}",
             headers=headers,
         )
 
@@ -461,7 +461,7 @@ class TestJSONResponses:
         organization_data,
     ):
         res = client.get(
-            f"/organization/{organization_data['id']}",
+            f"/api/organization/{organization_data['id']}",
             headers={"Content-type": "application/json"},
         )
         assert res.status_code == 200
@@ -474,7 +474,7 @@ class TestJSONResponses:
         organization_data,
     ):
         res = client.get(
-            f"/organization/{organization_data['id'].replace('a', 'b')}",
+            f"/api/organization/{organization_data['id'].replace('a', 'b')}",
             headers={"Content-type": "application/json"},
         )
         assert res.status_code == 404

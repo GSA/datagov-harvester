@@ -200,7 +200,7 @@ class TestViewHarvestJob:
 
     def test_job_accept_json(self, client, job_with_many_errors):
         resp = client.get(
-            f"/harvest_job/{job_with_many_errors.id}",
+            f"/api/harvest_job/{job_with_many_errors.id}",
             headers={"Accept": "application/json"},
         )
         assert resp.is_json
