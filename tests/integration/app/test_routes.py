@@ -40,6 +40,7 @@ class TestDynamicRouteTable:
             "static",
             "bootstrap.static",
             "main.login",
+            "main.login_oidc",
             "main.logout",
             "main.callback",
         ]
