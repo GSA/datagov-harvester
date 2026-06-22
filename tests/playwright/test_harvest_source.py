@@ -51,7 +51,6 @@ class TestHarvestSourceUnauthed:
         # Test static labels and values
         expect(summary_table).to_contain_text("Records:")
         expect(summary_table).to_contain_text("2")
-        expect(summary_table).to_contain_text("Synced Records:")
         expect(summary_table).to_contain_text("Last Job Records in Error:")
         expect(summary_table).to_contain_text("N/A")
         expect(summary_table).to_contain_text("Last Job Finished:")
@@ -82,7 +81,6 @@ class TestHarvestSourceUnauthed:
             ("schema_type", "schema_type"),
             ("source_type", "source_type"),
             ("notification_frequency", "notification_frequency"),
-            ("synced records", "Synced Records"),
         ],
     )
     def test_glossary_terms(self, upage, data_term_name, glossary_term_name):

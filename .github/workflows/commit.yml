@@ -14,7 +14,7 @@ jobs:
     name: Python Lint
     steps:
       - name: Check out the code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 1
       - name: Set up Python ${{ env.PY_VERSION }}
@@ -46,7 +46,7 @@ jobs:
     name: Pytests
     steps:
       - name: Check out the code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 1
       - name: Create local .env from sample
@@ -86,7 +86,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
       - name: create services
         uses: cloud-gov/cg-cli-tools@main
         with:

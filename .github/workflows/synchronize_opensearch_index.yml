@@ -59,7 +59,7 @@ jobs:
       OPENSEARCH_INDEX_BATCH_FAILURE_PATTERN: failed to index in this batch
     steps:
       - name: Check out the code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
       - name: Store task instance name
         run: |
           echo "OPENSEARCH_INSTANCE_NAME=search-sync-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_ENV"
