@@ -62,9 +62,15 @@ from .forms import (
     DatasetSlugForm,
     HarvestSourceForm,
     HarvestTriggerForm,
+    LocalDevLoginForm,
     OrganizationForm,
     OrganizationTriggerForm,
     ValidatorForm,
+)
+from .local_dev_auth import (
+    LOCAL_DEV_SESSION_EMAIL,
+    is_local_dev_login_enabled,
+    validate_local_dev_credentials,
 )
 from .paginate import Pagination
 from .util import (
@@ -233,8 +239,7 @@ def trigger_manual_job_helper(source_id, job_type="harvest"):
     return redirect(url_for("api.view_harvest_source", source_id=source_id))
 
 
-@main.route("/login")
-def login():
+def _redirect_to_login_gov():
     state = secrets.token_urlsafe(32)
     nonce = secrets.token_urlsafe(32)
     session["state"] = state
@@ -256,6 +261,43 @@ def login():
         f"&state={state}"
     )
     return redirect(auth_request_url)
+
+
+@main.route("/login/oidc", methods=["GET"])
+def login_oidc():
+    return _redirect_to_login_gov()
+
+
+@main.route("/login", methods=["GET", "POST"])
+def login():
+    if not is_local_dev_login_enabled():
+        if request.method == "POST":
+            return make_response("Not Found", 404)
+        return _redirect_to_login_gov()
+
+    form = LocalDevLoginForm(meta={"csrf": False})
+    if request.method == "POST":
+        username = request.form.get("username", "")
+        password = request.form.get("password", "")
+        if validate_local_dev_credentials(username, password):
+            session["user"] = LOCAL_DEV_SESSION_EMAIL
+            session["last_activity"] = current_unix_timestamp()
+            logger.info(
+                "Local dev login succeeded for user=%s ip=%s",
+                LOCAL_DEV_SESSION_EMAIL,
+                request.headers.get("X-Forwarded-For", request.remote_addr),
+            )
+            next_url = session.pop("next", None)
+            if next_url:
+                return redirect(next_url)
+            return redirect(url_for("main.index"))
+        flash("Invalid username or password.", "danger")
+        logger.warning(
+            "Local dev login failed from ip=%s",
+            request.headers.get("X-Forwarded-For", request.remote_addr),
+        )
+
+    return render_template("local_login.html", form=form)
 
 
 @main.route("/logout")
@@ -793,14 +835,8 @@ def view_harvest_source(source_id: str):
             source_id=source_id,
             count=True,
         )
-        synced_records_count = db.get_latest_harvest_records_by_source_orm(
-            source_id=source_id,
-            count=True,
-            synced=True,
-        )
         summary_data = {
             "records_count": records_count,
-            "synced_records_count": synced_records_count,
             "last_job_errors": None,
             "last_job_finished": None,
             "next_job_scheduled": None,
@@ -895,7 +931,7 @@ def view_harvest_source(source_id: str):
         logger.info(
             "Rendered harvest source page source_id=%s source_name=%s jobs_total=%s "
             "jobs_returned=%s datasets_total=%s datasets_returned=%s "
-            "records_count=%s synced_records_count=%s active_job_in_progress=%s",
+            "records_count=%s active_job_in_progress=%s",
             source_id,
             getattr(source, "name", None),
             jobs_count,
@@ -903,7 +939,6 @@ def view_harvest_source(source_id: str):
             datasets_count,
             len(datasets),
             records_count,
-            synced_records_count,
             summary_data["active_job_in_progress"],
         )
         return render_template(

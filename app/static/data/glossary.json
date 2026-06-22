@@ -12,10 +12,6 @@
     "definition": "the metadata standard of the document(s). examples include ISO19115-1, ISO19115-2, CSDGM, and DCAT-US. only 1 schema can be used per harvest source."
   },
   {
-    "term": "Synced Records",
-    "definition": "we use a combination of open source and in-house software in our harvesting. currently, our records are synchronized between these 2 systems by pairing the id of the record in our in-house database with our open source (i.e. CKAN) database. this term describes the number of records which have been synchronized between the 2 systems."
-  },
-  {
     "term": "Notification emails",
     "definition": "email addresses to receive harvesting information"
   },
