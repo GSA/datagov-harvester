@@ -26,11 +26,7 @@ def create_task_handler():
         except Exception as e:
             if on_cloud_foundry:
                 raise
-            logger.warning(
-                "CFHandler init failed (%s); using LocalTaskHandler.", e
-            )
+            logger.warning("CFHandler init failed (%s); using LocalTaskHandler.", e)
 
-    logger.warning(
-        "Cloud Foundry task API is not configured; using LocalTaskHandler."
-    )
+    logger.warning("Cloud Foundry task API is not configured; using LocalTaskHandler.")
     return LocalTaskHandler()

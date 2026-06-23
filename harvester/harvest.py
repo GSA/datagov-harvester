@@ -34,9 +34,9 @@ from harvester.exceptions import (
     TransformationException,
     log_non_critical_error,
 )
-from harvester.lib.task_handler import create_task_handler
 from harvester.lib.harvest_reporter import HarvestReporter
 from harvester.lib.load_manager import LoadManager
+from harvester.lib.task_handler import create_task_handler
 from harvester.utils.general_utils import (
     DT_PLACEHOLDER,
     USER_AGENT,
@@ -67,6 +67,7 @@ ROOT_DIR = Path(__file__).parents[1]
 harvest_worker_sync_count = int(os.getenv("HARVEST_WORKER_SYNC_COUNT", 1))
 
 from harvester.lib.task_handler import create_task_handler
+
 
 @dataclass
 class HarvestSource:
@@ -1265,9 +1266,7 @@ def harvest_job_starter(job_id, job_type="harvest"):
             isinstance(running_harvest_ids, list)
             and running_harvest_ids.count(job_id) > 1
         ):
-            logger.error(
-                f"Job {job_id} is already running in another task. Exiting."
-            )
+            logger.error(f"Job {job_id} is already running in another task. Exiting.")
             # Don't finish the job here, just exit to prevent duplicate processing
             return
     except Exception as e:

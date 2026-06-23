@@ -1,7 +1,7 @@
 from unittest.mock import patch
 
-from harvester.lib.local_task_handler import LocalTaskHandler
 from harvester.lib.load_manager import LoadManager
+from harvester.lib.local_task_handler import LocalTaskHandler
 from harvester.lib.task_handler import create_task_handler
 
 
