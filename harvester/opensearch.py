@@ -282,7 +282,7 @@ class OpenSearchInterface:
             normalized_dcat["spatial"] = cls._serialize_dcat_value(spatial)
 
         for field, value in normalized_dcat.items():
-            if field in date_fields or field == "spatial":
+            if field in date_fields or field in {"publisher", "spatial"}:
                 continue
             normalized_dcat[field] = cls._normalize_dcat_metadata_value(value)
         return normalized_dcat
