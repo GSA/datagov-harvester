@@ -13,7 +13,7 @@ from app.local_dev_auth import (
 
 @pytest.fixture
 def app():
-    with patch("app.load_manager.start", lambda: True):
+    with patch("app.deps.load_manager.start", lambda: True):
         app = create_app()
     app.config.update({"TESTING": True, "WTF_CSRF_ENABLED": False})
     return app
@@ -37,7 +37,7 @@ def dev_login_env():
 
 @pytest.fixture
 def dev_client(dev_login_env):
-    with patch("app.load_manager.start", lambda: True):
+    with patch("app.deps.load_manager.start", lambda: True):
         app = create_app()
     app.config.update({"TESTING": True, "WTF_CSRF_ENABLED": False})
     return app.test_client()
@@ -53,7 +53,7 @@ class TestLocalDevLoginGuards:
             {"VCAP_APPLICATION": '{"application_name": "harvester"}'},
             clear=False,
         ):
-            with patch("app.load_manager.start", lambda: True):
+            with patch("app.deps.load_manager.start", lambda: True):
                 cf_app = create_app()
         assert cf_app.config["SESSION_COOKIE_SECURE"] is True
 
@@ -100,7 +100,7 @@ class TestLocalDevLoginGuards:
             },
             clear=False,
         ):
-            with patch("app.load_manager.start", lambda: True):
+            with patch("app.deps.load_manager.start", lambda: True):
                 cf_app = create_app()
             cf_app.config.update({"TESTING": True, "WTF_CSRF_ENABLED": False})
             response = cf_app.test_client().post(
