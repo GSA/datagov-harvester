@@ -6,9 +6,10 @@ Route handlers live under the `app/api/` and `app/main/` packages: HTML pages on
 the `main` blueprint and JSON/OpenAPI routes on the `api` blueprint.
 
 The JSON API and the web frontend are served from separate URLs. The web
-frontend (HTML pages and form submissions) lives at the paths below, while
-the JSON API mirrors the mutating/detail endpoints under an `/api/...`
-prefix. JSON callers authenticate with the `X-API-Key` header.
+frontend (HTML pages and form submissions) lives at the un-prefixed paths
+below, while **every** route on the `api` blueprint is served under an `/api`
+prefix (applied once via `url_prefix="/api"`, not hand-typed per route). JSON
+callers authenticate with the `X-API-Key` header.
 
 Authenticated mutation endpoints on the `api` blueprint use `@api.doc(hide=True)`
 and are omitted from the public Swagger docs at `/openapi/docs`.
@@ -26,7 +27,7 @@ and are omitted from the public Swagger docs at `/openapi/docs`.
 - `/`: Redirect to "View Organizations", login not required.
 
 
-- `/organizations/`: Lists organizations as JSON, GET only, no login required
+- `/api/organizations/`: Lists organizations as JSON, GET only, no login required
 - `/organization_list/`: HTML list of organizations, GET only, no login required
 - `/api/organization_list/`: JSON list of organizations, GET only, no login
   required
@@ -53,13 +54,13 @@ and are omitted from the public Swagger docs at `/openapi/docs`.
   Login required (JSON API).
 - `/harvest_source/<id>`: Details for a single harvest source. GET only, no
   login required
-- `/harvest_sources/`: List of harvest sources, GET only, no login required
+- `/api/harvest_sources/`: List of harvest sources, GET only, no login required
 - `/harvest_source/edit/<id>`: HTML form to edit an existing source. GET renders
   the `edit_data` template, POST handles the form submission. Login required.
 - `/api/harvest_source/edit/<id>`: Update an existing source via JSON. POST
   only. Login required (JSON API).
-- `/harvest_source/<id>`: Delete a harvest source. DELETE only, login-required
-- `/harvest_source/harvest/<id>/<type>`: trigger a harvest of this source.
+- `/api/harvest_source/<id>`: Delete a harvest source. DELETE only, login-required
+- `/api/harvest_source/harvest/<id>/<type>`: trigger a harvest of this source.
   GET only. Login required.
 
 
@@ -67,25 +68,28 @@ and are omitted from the public Swagger docs at `/openapi/docs`.
   required.
 - `/harvest_job/<id>`: HTML detail page for a job, GET, no login required
 - `/api/harvest_job/<id>`: JSON detail for a job, GET, no login required
-- `/harvest_job/<id>`: PUT, update an existing harvest job, Login required.
-- `/harvest_job/<id>`: DELETE, delete a harvest job, Login required.
-- `/harvest_job/cancel/<id>`: cancel a given job, GET and POST, login required
-- `/harvest_job/`: Details on every job that has errors???, GET only, no login
+- `/api/harvest_job/<id>`: PUT, update an existing harvest job, Login required.
+- `/api/harvest_job/<id>`: DELETE, delete a harvest job, Login required.
+- `/api/harvest_job/cancel/<id>`: cancel a given job, GET and POST, login required
+- `/api/harvest_jobs/`: List all harvest jobs as JSON, GET only, no login
   required
-- `harvest_job/<id>/errors/<type>`: CSV download errors for this job, GET only, no
-  login required
+- `/api/harvest_job/<id>/errors/<type>`: CSV download errors for this job, GET
+  only, no login required
 
-- `/harvest_record/<id>`: Details for a single harvest record, GET only, no
+- `/api/harvest_record/<id>`: Details for a single harvest record, GET only, no
   login required
-- `/harvest_record/<id>/raw`: Raw details for a harvest record, GET only, no
+- `/api/harvest_record/<id>/raw`: Raw details for a harvest record, GET only, no
   login required
-- `/harvest_records/`: List all harvest records, GET only, no login required
+- `/api/harvest_records/`: List all harvest records, GET only, no login required
 - `/api/harvest_record/add`: Add a new harvest record via JSON. POST only.
   Login required.
-- `/harvest_record/<id>/errors`: List errors for a harvest record, GET only,
+- `/api/harvest_record/<id>/errors`: List errors for a harvest record, GET only,
   no login required
-- `/harvest_error/`: List all harvest errors, GET only, no login required
-- `/harvest_error/<id>`: Details for a harvest error, GET only, no login required
+- `/api/harvest_job_errors/`: List harvest job errors as JSON, GET only, no
+  login required
+- `/api/harvest_record_errors/`: List harvest record errors as JSON, GET only,
+  no login required
+- `/api/harvest_error/<id>`: Details for a harvest error, GET only, no login required
 
 
 - `/metrics/`: recent harvest job details, GET only, no login required

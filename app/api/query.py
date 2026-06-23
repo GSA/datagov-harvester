@@ -55,7 +55,8 @@ def json_builder_query(**kwargs):
         else:
             facets = f"harvest_source_id eq {source_id}"
 
-    model = escape(request.path).replace("/", "")
+    # Object type is the last path segment: "/api/harvest_jobs/" -> "harvest_jobs".
+    model = escape(request.path.strip("/").split("/")[-1])
     try:
         res = deps.db.pget_db_query(
             model=model,

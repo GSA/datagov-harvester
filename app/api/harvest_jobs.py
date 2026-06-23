@@ -21,7 +21,7 @@ from harvester.utils.general_utils import is_valid_uuid4
 from . import api
 
 
-@api.post("/api/harvest_job/add")
+@api.post("/harvest_job/add")
 @api.doc(hide=True)
 @login_required
 def add_harvest_job():
@@ -41,7 +41,7 @@ def add_harvest_job():
         return {"error": "Failed to add harvest job."}, 400
 
 
-@api.get("/api/harvest_job/<job_id>")
+@api.get("/harvest_job/<job_id>")
 @api.doc(
     responses={
         200: {

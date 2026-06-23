@@ -13,7 +13,7 @@ from app.util import fetch_json_from_url, validate_records
 from . import api
 
 
-@api.route("/api/validate", methods=["POST"])
+@api.route("/validate", methods=["POST"])
 @api.input(ValidatorInfo)
 @api.output(ValidationResultSchema, status_code=200)
 @api.doc(

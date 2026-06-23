@@ -96,7 +96,7 @@ def get_harvest_record_transformed(record_id=None):
     return jsonify(transformed), 200
 
 
-@api.post("/api/harvest_record/add")
+@api.post("/harvest_record/add")
 @api.doc(hide=True)
 @login_required
 def add_harvest_record():

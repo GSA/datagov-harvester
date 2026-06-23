@@ -13,7 +13,7 @@ from harvester.utils.general_utils import is_valid_uuid4
 from . import api
 
 
-@api.post("/api/harvest_source/add")
+@api.post("/harvest_source/add")
 @api.doc(hide=True)
 @login_required
 def add_harvest_source_api():
@@ -42,7 +42,7 @@ def add_harvest_source_api():
         return make_response(jsonify({"message": message}), 500)
 
 
-@api.post("/api/harvest_source/edit/<source_id>")
+@api.post("/harvest_source/edit/<source_id>")
 @api.doc(hide=True)
 @login_required
 @valid_id_required

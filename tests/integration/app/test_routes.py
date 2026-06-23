@@ -493,47 +493,47 @@ class TestJSONResponses:
         "route,status_code,response",
         [
             (
-                "/harvest_records/?harvest_source_id=2f2652de-91df-4c63-8b53-bfced20b276b",
+                "/api/harvest_records/?harvest_source_id=2f2652de-91df-4c63-8b53-bfced20b276b",
                 200,
                 10,
             ),
             (
-                "/harvest_records/?harvest_job_id=6bce761c-7a39-41c1-ac73-94234c139c76",
+                "/api/harvest_records/?harvest_job_id=6bce761c-7a39-41c1-ac73-94234c139c76",
                 200,
                 10,
             ),
             (
-                "/harvest_records/?harvest_source_id=2f2652de-91df-4c63-8b53-bfced20b276b&facets=status eq success",
+                "/api/harvest_records/?harvest_source_id=2f2652de-91df-4c63-8b53-bfced20b276b&facets=status eq success",
                 200,
                 2,
             ),
             (
-                "/harvest_records/?harvest_source_id=2f2652de-91df-4c63-8b53-bfced20b276b&facets=ckan_id eq 1234",
+                "/api/harvest_records/?harvest_source_id=2f2652de-91df-4c63-8b53-bfced20b276b&facets=ckan_id eq 1234",
                 200,
                 1,
             ),
             (
-                "/harvest_records/?harvest_source_id=2f2652de-91df-4c63-8b53-bfced20b276b&facets=status eq success&count=True",
+                "/api/harvest_records/?harvest_source_id=2f2652de-91df-4c63-8b53-bfced20b276b&facets=status eq success&count=True",
                 200,
                 2,
             ),
             (
-                "/harvest_records/?harvest_source_id=2f2652de-91df-4c63-8b53-bfced20b276b&facets=status eq not_status",
+                "/api/harvest_records/?harvest_source_id=2f2652de-91df-4c63-8b53-bfced20b276b&facets=status eq not_status",
                 400,
                 "Error with query",
             ),
             (
-                "/organizations/",
+                "/api/organizations/",
                 200,
                 1,
             ),
             (
-                "/harvest_sources/",
+                "/api/harvest_sources/",
                 200,
                 1,
             ),
             (
-                "/harvest_sources/?facets=schema_type eq dcatus1.1: non-federal",
+                "/api/harvest_sources/?facets=schema_type eq dcatus1.1: non-federal",
                 404,
                 "No harvest_sources found for this query",
             ),
@@ -558,7 +558,7 @@ class TestJSONResponses:
         """
         checks the content of the json response when navigating to "/organizations/"
         """
-        res = client.get("/organizations/")
+        res = client.get("/api/organizations/")
         assert res.status_code == 200
 
         assert res.json == [
@@ -618,7 +618,7 @@ class TestHarvestRecordRawAPI:
 
         test_iso_2_record.compare()
 
-        response = client.get(f"/harvest_record/{test_iso_2_record.id}/raw")
+        response = client.get(f"/api/harvest_record/{test_iso_2_record.id}/raw")
 
         assert response.status_code == 200
         assert response.text == test_iso_2_record.source_raw
@@ -650,7 +650,7 @@ class TestHarvestRecordRawAPI:
         test_record = next(external_records_to_process)
         test_record.compare()
 
-        response = client.get(f"/harvest_record/{test_record.id}/raw")
+        response = client.get(f"/api/harvest_record/{test_record.id}/raw")
 
         assert response.status_code == 200
         assert response.json == json.loads(test_record.source_raw)
@@ -684,7 +684,7 @@ class TestAPIBehavior:
         LMMock.stop_job.return_value = "a test value"
 
         headers = {"X-API-Key": app.config["API_TOKEN"]}
-        response = client.get(f"/harvest_job/cancel/{job.id}", headers=headers)
+        response = client.get(f"/api/harvest_job/cancel/{job.id}", headers=headers)
         assert response.status_code == 302
         assert response.location == f"/harvest_job/{job.id}"
 
@@ -695,7 +695,7 @@ class TestAPIBehavior:
             "Content-Type": "application/json",
         }
         response = client.get(
-            f"/harvest_source/harvest/{source_data_dcatus['id']}/invalid-job-type",
+            f"/api/harvest_source/harvest/{source_data_dcatus['id']}/invalid-job-type",
             headers=headers,
         )
         assert response.status_code == 404

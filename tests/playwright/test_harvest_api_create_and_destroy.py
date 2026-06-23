@@ -90,7 +90,7 @@ class TestHarvestAPICreateAndDestroy:
             == f"Added new harvest source with ID: {source_id}. No job scheduled for manual source."
         )
         res = apage.request.delete(
-            f"/harvest_source/{source_id}",
+            f"/api/harvest_source/{source_id}",
             headers={
                 "X-API-Key": api_token,
                 "Content-Type": "application/json",

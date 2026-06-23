@@ -14,7 +14,7 @@ from app.deps import (
 from . import api
 
 
-@api.get("/api/organization_list/")
+@api.get("/organization_list/")
 @api.doc(
     responses={
         200: {
@@ -30,7 +30,7 @@ def organization_list_api():
     return jsonify(deps.db._to_dict(deps.db.get_all_organizations()))
 
 
-@api.post("/api/organization/add")
+@api.post("/organization/add")
 @api.doc(hide=True)
 @api.input(OrgCreate, validation=False)
 @login_required
@@ -51,7 +51,7 @@ def add_organization_api(**kwargs):
         return make_response(jsonify({"error": "Failed to add organization."}), 400)
 
 
-@api.post("/api/organization/edit/<string:org_id>")
+@api.post("/organization/edit/<string:org_id>")
 @api.doc(hide=True)
 @login_required
 @valid_id_required
@@ -64,7 +64,7 @@ def edit_organization_api(org_id):
         return {"error": "Failed to update organization."}, 400
 
 
-@api.get("/api/organization/<string:org_identifier>")
+@api.get("/organization/<string:org_identifier>")
 @api.doc(
     responses={
         200: {
@@ -81,7 +81,7 @@ def get_organization(org_identifier: str):
     return jsonify(org.to_dict())
 
 
-@api.route("/api/organization/<string:org_id>", methods=["DELETE"])
+@api.route("/organization/<string:org_id>", methods=["DELETE"])
 @api.doc(hide=True)
 @login_required
 @valid_id_required
