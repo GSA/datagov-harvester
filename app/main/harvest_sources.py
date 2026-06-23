@@ -1,12 +1,11 @@
 from flask import flash, redirect, render_template, request, url_for
 
-from app import htmx
-from app import deps
+from app import deps, htmx
 from app.deps import (
     CKAN_URL,
     _log_mutation,
-    login_required,
     logger,
+    login_required,
     render_block,
     valid_id_required,
 )
@@ -138,8 +137,8 @@ def view_harvest_source(source_id: str):
                 "htmx_vars": jobs_htmx_vars,
             }
             logger.info(
-                "Rendered harvest source jobs partial source_id=%s page=%s jobs_count=%s "
-                "returned=%s",
+                "Rendered harvest source jobs partial source_id=%s page=%s "
+                "jobs_count=%s returned=%s",
                 source_id,
                 pagination.current,
                 pagination.count,

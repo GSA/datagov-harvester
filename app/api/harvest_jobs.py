@@ -7,13 +7,13 @@ from apiflask.schemas import FileSchema
 from flask import Response, flash, jsonify, make_response, redirect, request, url_for
 from markupsafe import escape
 
-from app.api_schemas import JobInfo
 from app import deps
+from app.api_schemas import JobInfo
 from app.deps import (
     JSON_NOT_FOUND,
     _log_mutation,
-    login_required,
     logger,
+    login_required,
     valid_id_required,
 )
 from harvester.utils.general_utils import is_valid_uuid4
@@ -207,7 +207,9 @@ def download_harvest_errors_by_job(job_id, error_type):
                 generate_file_chunks(),
                 mimetype="text/csv",
                 headers={
-                    "Content-Disposition": f"attachment; filename={job_id}_{error_type}_errors.csv",
+                    "Content-Disposition": (
+                        f"attachment; filename={job_id}_{error_type}_errors.csv"
+                    ),
                     "Content-Type": "text/csv",
                 },
             )

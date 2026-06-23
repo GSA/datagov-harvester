@@ -1,6 +1,6 @@
 import json
 
-from flask import jsonify, make_response, request
+from flask import jsonify, make_response
 
 from app.api_schemas import (
     ValidationErrorResponseSchema,

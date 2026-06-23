@@ -2,13 +2,13 @@ import json
 
 from flask import Response, jsonify, make_response, request
 
-from app.api_schemas import ErrorInfo, RecordInfo
 from app import deps
+from app.api_schemas import ErrorInfo, RecordInfo
 from app.deps import (
     JSON_NOT_FOUND,
     _log_mutation,
-    login_required,
     logger,
+    login_required,
     valid_id_required,
 )
 
@@ -131,7 +131,9 @@ def get_all_harvest_record_errors(record_id: str) -> list:
     try:
         record_errors = deps.db.get_harvest_record_errors_by_record(record_id)
         return (
-            jsonify(deps.db._to_dict(record_errors)) if record_errors else JSON_NOT_FOUND()
+            jsonify(deps.db._to_dict(record_errors))
+            if record_errors
+            else JSON_NOT_FOUND()
         )
     except Exception:
         return jsonify({"error": "Please provide a valid record_id"}), 404

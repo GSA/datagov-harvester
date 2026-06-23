@@ -3,8 +3,7 @@ from datetime import timedelta
 
 from flask import flash, redirect, render_template, request, session, url_for
 
-from app import htmx
-from app import deps
+from app import deps, htmx
 from app.deps import (
     _log_mutation,
     logger,
@@ -170,7 +169,10 @@ def view_metrics():
             )
 
         elif "paginated__harvest-errors" in htmx_target:
-            errors_time_filter = f"date_created ge {start_time.isoformat()},date_created le {current_time}"
+            errors_time_filter = (
+                f"date_created ge {start_time.isoformat()},"
+                f"date_created le {current_time}"
+            )
             failures = deps.db.pget_harvest_job_errors(
                 facets=errors_time_filter,
                 page=pagination_errors.db_current,
@@ -290,14 +292,16 @@ def view_validators():
             submitted = True
             errors = validate_records(data, form.schema.data)
             logger.info(
-                "Rendered validator results fetch_method=%s schema=%s validation_errors=%s",
+                "Rendered validator results fetch_method=%s schema=%s "
+                "validation_errors=%s",
                 form.fetch_method.data,
                 form.schema.data,
                 len(errors),
             )
         else:
             logger.warning(
-                "Validator submission failed fetch_method=%s url_errors=%s json_errors=%s",
+                "Validator submission failed fetch_method=%s url_errors=%s "
+                "json_errors=%s",
                 form.fetch_method.data,
                 len(form.url.errors),
                 len(form.json_text.errors),

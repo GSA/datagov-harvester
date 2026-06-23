@@ -4,8 +4,8 @@ from app import deps
 from app.deps import (
     JSON_NOT_FOUND,
     _log_mutation,
-    login_required,
     logger,
+    login_required,
     valid_id_required,
 )
 from harvester.utils.general_utils import is_valid_uuid4
@@ -31,7 +31,10 @@ def add_harvest_source_api():
             return make_response(
                 jsonify(
                     {
-                        "message": f"Added new harvest source with ID: {source.id}. {job_message}"
+                        "message": (
+                            f"Added new harvest source with ID: {source.id}. "
+                            f"{job_message}"
+                        )
                     }
                 ),
                 200,

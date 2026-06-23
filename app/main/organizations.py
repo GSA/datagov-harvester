@@ -1,4 +1,4 @@
-from flask import flash, redirect, render_template, request, session, url_for
+from flask import flash, redirect, render_template, session, url_for
 
 from app import deps
 from app.deps import (
@@ -6,8 +6,8 @@ from app.deps import (
     _get_org_by_identifier,
     _get_org_url_identifier,
     _log_mutation,
-    login_required,
     logger,
+    login_required,
     valid_id_required,
 )
 from app.forms import OrganizationForm, OrganizationTriggerForm

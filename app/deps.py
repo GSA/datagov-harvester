@@ -42,7 +42,8 @@ class UnsafeTemplateEnvError(RuntimeError):
 
 def render_block(template_name: str, block_name: str, **context) -> Response:
     """
-    Render a specific block from a Jinja template, while using the Flask's default environment.
+    Render a specific block from a Jinja template, while using the Flask's
+    default environment.
     """
     env = current_app.jinja_env
     if not getattr(env, "autoescape", None):

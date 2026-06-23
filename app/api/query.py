@@ -1,9 +1,16 @@
 from flask import jsonify, request
 from markupsafe import escape
 
-from app.api_schemas import ErrorInfo, JobInfo, OrgInfo, QueryInfo, RecordInfo, SourceInfo
-from app.deps import logger
 from app import deps
+from app.api_schemas import (
+    ErrorInfo,
+    JobInfo,
+    OrgInfo,
+    QueryInfo,
+    RecordInfo,
+    SourceInfo,
+)
+from app.deps import logger
 from harvester.utils.general_utils import convert_to_int, is_it_true
 
 from . import api

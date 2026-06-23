@@ -33,9 +33,7 @@ class HarvestSources(OutputBase):
                 "&fq=collection_package_id:*%20OR%20"
             )
         else:
-            self.harvest_sources_url = (
-                "https://datagov-harvest.app.cloud.gov/api/harvest_sources/?paginate=false"
-            )
+            self.harvest_sources_url = "https://datagov-harvest.app.cloud.gov/api/harvest_sources/?paginate=false"
             self.harvest_sources_dset_count_url = (
                 f"{CATALOG_NEXT_BASE_URL}/api/action/package_search"
                 f"?facet.field=%5B%22harvest_source_title%22%5D&facet.limit=-1"

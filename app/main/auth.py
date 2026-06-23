@@ -8,10 +8,17 @@ import requests
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.serialization import load_pem_private_key
 from dotenv import load_dotenv
-from flask import flash, make_response, redirect, render_template, request, session, url_for
+from flask import (
+    flash,
+    make_response,
+    redirect,
+    render_template,
+    request,
+    session,
+    url_for,
+)
 
-from app import current_unix_timestamp
-from app import deps
+from app import current_unix_timestamp, deps
 from app.deps import logger
 from app.forms import LocalDevLoginForm
 from app.local_dev_auth import (
@@ -158,7 +165,9 @@ def callback():
         "code": code,
         "redirect_uri": REDIRECT_URI,
         "client_id": CLIENT_ID,
-        "client_assertion_type": "urn:ietf:params:oauth:client-assertion-type:jwt-bearer",
+        "client_assertion_type": (
+            "urn:ietf:params:oauth:client-assertion-type:jwt-bearer"
+        ),
         "client_assertion": client_assertion,
     }
     try:
@@ -184,7 +193,8 @@ def callback():
         token_data = response.json()
     except ValueError as e:
         logger.exception(
-            "Login callback failed: token endpoint returned invalid JSON ip=%s error=%s",
+            "Login callback failed: token endpoint returned invalid JSON "
+            "ip=%s error=%s",
             request_ip,
             repr(e),
         )

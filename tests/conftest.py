@@ -38,7 +38,7 @@ def default_session_fixture():
     with (
         patch("harvester.lib.cf_handler.CloudFoundryClient"),
         patch("harvester.utils.general_utils.smtplib"),
-        patch("app.load_manager.start", lambda: True),
+        patch("app.deps.load_manager.start", lambda: True),
     ):
         yield
 
