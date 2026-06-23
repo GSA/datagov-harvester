@@ -66,8 +66,6 @@ ROOT_DIR = Path(__file__).parents[1]
 # harvest worker count
 harvest_worker_sync_count = int(os.getenv("HARVEST_WORKER_SYNC_COUNT", 1))
 
-from harvester.lib.task_handler import create_task_handler
-
 
 @dataclass
 class HarvestSource:
