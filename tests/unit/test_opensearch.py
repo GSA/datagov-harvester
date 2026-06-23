@@ -141,6 +141,19 @@ def test_normalize_dcat_serializes_nested_metadata_objects():
     assert normalized["contactPoint"]["hasEmail"] == expected_email
 
 
+def test_normalize_dcat_preserves_publisher_suborganization_object():
+    dcat = {
+        "publisher": {
+            "name": "U.S. Commodity Futures Trading Commission",
+            "subOrganizationOf": {"name": "U.S. Government"},
+        }
+    }
+
+    normalized = OpenSearchInterface._normalize_dcat_dates(dcat)
+
+    assert normalized["publisher"]["subOrganizationOf"] == {"name": "U.S. Government"}
+
+
 def test_geometry_centroid_returns_average():
     geometry = {"type": "MultiPoint", "coordinates": [[0, 0], [2, 2]]}
 
