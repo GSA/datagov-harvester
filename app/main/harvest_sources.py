@@ -1,8 +1,8 @@
 from flask import flash, redirect, render_template, request, url_for
 
 from app import htmx
-from app.blueprints import deps
-from app.blueprints.deps import (
+from app import deps
+from app.deps import (
     CKAN_URL,
     _log_mutation,
     login_required,

@@ -2,7 +2,7 @@
 
 This document tries to list the URL structure for this web app.
 
-Route handlers live under [`app/blueprints/`](../app/blueprints/): HTML pages on
+Route handlers live under the `app/api/` and `app/main/` packages: HTML pages on
 the `main` blueprint and JSON/OpenAPI routes on the `api` blueprint.
 
 The JSON API and the web frontend are served from separate URLs. The web

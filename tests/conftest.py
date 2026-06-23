@@ -121,7 +121,7 @@ def default_function_fixture(interface, monkeypatch):
         patch("harvester.harvest.db_interface", interface),
         patch("harvester.exceptions.db_interface", interface),
         patch("harvester.lib.load_manager.interface", interface),
-        patch("app.blueprints.deps.db", interface),
+        patch("app.deps.db", interface),
         patch(
             "harvester.utils.general_utils._get_geo_lookup_interface",
             lambda: interface,

@@ -3,10 +3,10 @@ import json
 from flask import render_template, request
 
 from app import htmx
-from app.blueprints.deps import logger, render_block, valid_id_required
+from app.deps import logger, render_block, valid_id_required
 from app.paginate import Pagination
 from app.util import make_new_record_error_contract
-from app.blueprints import deps
+from app import deps
 from harvester.utils.general_utils import convert_to_int, process_job_complete_percentage
 
 from . import main

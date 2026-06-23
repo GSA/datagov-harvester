@@ -2,8 +2,8 @@ from flask import jsonify, make_response, request
 from marshmallow import ValidationError
 
 from app.api_schemas import OrgCreate, OrgInfo
-from app.blueprints import deps
-from app.blueprints.deps import (
+from app import deps
+from app.deps import (
     _get_org_by_identifier,
     _log_mutation,
     login_required,

@@ -7,7 +7,7 @@ from unittest.mock import Mock, patch
 import pytest
 from flask import Response
 
-from app.blueprints.deps import UnsafeTemplateEnvError, render_block
+from app.deps import UnsafeTemplateEnvError, render_block
 from harvester.harvest import HarvestSource
 
 # ruff: noqa: F401
@@ -315,10 +315,10 @@ class TestLoginLogging:
         token_response.json.return_value = {"id_token": "encoded-token"}
 
         with (
-            patch("app.blueprints.main.auth.create_client_assertion", return_value="assertion"),
-            patch("app.blueprints.main.auth.requests.post", return_value=token_response),
+            patch("app.main.auth.create_client_assertion", return_value="assertion"),
+            patch("app.main.auth.requests.post", return_value=token_response),
             patch(
-                "app.blueprints.main.auth.jwt.decode",
+                "app.main.auth.jwt.decode",
                 return_value={
                     "email": "test.user@gsa.gov",
                     "sub": "login-gov-subject",
@@ -342,8 +342,8 @@ class TestLoginLogging:
         failed_response.text = "invalid_grant"
 
         with (
-            patch("app.blueprints.main.auth.create_client_assertion", return_value="assertion"),
-            patch("app.blueprints.main.auth.requests.post", return_value=failed_response),
+            patch("app.main.auth.create_client_assertion", return_value="assertion"),
+            patch("app.main.auth.requests.post", return_value=failed_response),
         ):
             response = client.get("/callback?code=bad-code&state=expected-state")
 
@@ -363,10 +363,10 @@ class TestLoginLogging:
         token_response.json.return_value = {"id_token": "encoded-token"}
 
         with (
-            patch("app.blueprints.main.auth.create_client_assertion", return_value="assertion"),
-            patch("app.blueprints.main.auth.requests.post", return_value=token_response),
+            patch("app.main.auth.create_client_assertion", return_value="assertion"),
+            patch("app.main.auth.requests.post", return_value=token_response),
             patch(
-                "app.blueprints.main.auth.jwt.decode",
+                "app.main.auth.jwt.decode",
                 return_value={
                     "email": "unregistered@gsa.gov",
                     "sub": "login-gov-subject",
@@ -658,7 +658,7 @@ class TestHarvestRecordRawAPI:
 
 
 class TestAPIBehavior:
-    @patch("app.blueprints.deps.load_manager")
+    @patch("app.deps.load_manager")
     def test_cancel_in_progress_job(
         self,
         LMMock,

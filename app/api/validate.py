@@ -7,7 +7,7 @@ from app.api_schemas import (
     ValidationResultSchema,
     ValidatorInfo,
 )
-from app.blueprints.deps import logger
+from app.deps import logger
 from app.util import fetch_json_from_url, validate_records
 
 from . import api

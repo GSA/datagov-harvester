@@ -8,8 +8,8 @@ from flask import Response, flash, jsonify, make_response, redirect, request, ur
 from markupsafe import escape
 
 from app.api_schemas import JobInfo
-from app.blueprints import deps
-from app.blueprints.deps import (
+from app import deps
+from app.deps import (
     JSON_NOT_FOUND,
     _log_mutation,
     login_required,

@@ -3,8 +3,8 @@ import json
 from flask import Response, jsonify, make_response, request
 
 from app.api_schemas import ErrorInfo, RecordInfo
-from app.blueprints import deps
-from app.blueprints.deps import (
+from app import deps
+from app.deps import (
     JSON_NOT_FOUND,
     _log_mutation,
     login_required,

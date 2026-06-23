@@ -1,19 +1,9 @@
-"""Backward-compatible re-exports; route registration lives in app.blueprints."""
+"""Route registration: HTML pages on `main`, JSON/OpenAPI routes on `api`."""
 
-from app.blueprints import register_routes
-from app.blueprints.deps import (
-    UnsafeTemplateEnvError,
-    db,
-    load_manager,
-    render_block,
-)
-from app.blueprints.main.auth import create_client_assertion
+from app.api import api
+from app.main import main
 
-__all__ = [
-    "UnsafeTemplateEnvError",
-    "create_client_assertion",
-    "db",
-    "load_manager",
-    "register_routes",
-    "render_block",
-]
+
+def register_routes(app):
+    app.register_blueprint(main)
+    app.register_blueprint(api)

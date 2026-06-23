@@ -4,8 +4,8 @@ from datetime import timedelta
 from flask import flash, redirect, render_template, request, session, url_for
 
 from app import htmx
-from app.blueprints import deps
-from app.blueprints.deps import (
+from app import deps
+from app.deps import (
     _log_mutation,
     logger,
     render_block,

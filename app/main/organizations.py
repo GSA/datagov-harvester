@@ -1,7 +1,7 @@
 from flask import flash, redirect, render_template, request, session, url_for
 
-from app.blueprints import deps
-from app.blueprints.deps import (
+from app import deps
+from app.deps import (
     CKAN_URL,
     _get_org_by_identifier,
     _get_org_url_identifier,

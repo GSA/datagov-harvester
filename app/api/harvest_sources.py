@@ -1,7 +1,7 @@
 from flask import flash, jsonify, make_response, redirect, request, url_for
 
-from app.blueprints import deps
-from app.blueprints.deps import (
+from app import deps
+from app.deps import (
     JSON_NOT_FOUND,
     _log_mutation,
     login_required,

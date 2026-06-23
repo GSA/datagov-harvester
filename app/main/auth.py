@@ -11,8 +11,8 @@ from dotenv import load_dotenv
 from flask import flash, make_response, redirect, render_template, request, session, url_for
 
 from app import current_unix_timestamp
-from app.blueprints import deps
-from app.blueprints.deps import logger
+from app import deps
+from app.deps import logger
 from app.forms import LocalDevLoginForm
 from app.local_dev_auth import (
     LOCAL_DEV_SESSION_EMAIL,
