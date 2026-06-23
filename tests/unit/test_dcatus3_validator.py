@@ -7,36 +7,23 @@ DCATUS3_DEFINITIONS = ROOT_DIR / "schemas" / "dcatus3.0" / "definitions"
 
 DATASET_REF = "https://resources.data.gov/dcat-us/3.0.0/definitions/dataset"
 
-VALID_DATASET = {
-    "@type": "Dataset",
-    "title": "Test Dataset",
-    "description": "A valid DCAT-US 3.0 dataset.",
-    "identifier": "https://example.gov/datasets/one",
-    "publisher": {"@type": "Organization", "name": "Test Agency"},
-    "contactPoint": {
-        "@type": "Kind",
-        "fn": "Test Contact",
-        "hasEmail": "mailto:test@example.gov",
-    },
-}
-
 
 class TestBuildDcatus3Validator:
-    def test_dataset_root_ref_validates_single_dataset(self):
+    def test_dataset_root_ref_validates_single_dataset(self, valid_dcatus3_dataset):
         """With the dataset root ref, a single dataset dict validates standalone."""
         validator = build_dcatus3_validator(DCATUS3_DEFINITIONS, root_ref=DATASET_REF)
-        assert validator.is_valid(VALID_DATASET)
+        assert validator.is_valid(valid_dcatus3_dataset)
 
-    def test_dataset_root_ref_flags_missing_required_field(self):
+    def test_dataset_root_ref_flags_missing_required_field(self, valid_dcatus3_dataset):
         """A dataset missing the mandatory contactPoint produces errors."""
         validator = build_dcatus3_validator(DCATUS3_DEFINITIONS, root_ref=DATASET_REF)
-        invalid = {k: v for k, v in VALID_DATASET.items() if k != "contactPoint"}
-        errors = list(validator.iter_errors(invalid))
+        del valid_dcatus3_dataset["contactPoint"]
+        errors = list(validator.iter_errors(valid_dcatus3_dataset))
         assert errors
         assert any("contactPoint" in e.message for e in errors)
 
-    def test_default_root_ref_validates_catalog(self):
+    def test_default_root_ref_validates_catalog(self, valid_dcatus3_dataset):
         """The default root ref still validates a whole catalog (web validator tool)."""
         validator = build_dcatus3_validator(DCATUS3_DEFINITIONS)
-        catalog = {"@type": "Catalog", "dataset": [VALID_DATASET]}
+        catalog = {"@type": "Catalog", "dataset": [valid_dcatus3_dataset]}
         assert validator.is_valid(catalog)

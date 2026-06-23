@@ -1451,3 +1451,19 @@ def dcatus_3_catalog_missing_identifier():
             ],
         }
     )
+
+
+@pytest.fixture
+def valid_dcatus3_dataset() -> dict:
+    return {
+        "@type": "Dataset",
+        "title": "Test Dataset",
+        "description": "A valid DCAT-US 3.0 dataset.",
+        "identifier": "https://example.gov/datasets/one",
+        "publisher": {"@type": "Organization", "name": "Test Agency"},
+        "contactPoint": {
+            "@type": "Kind",
+            "fn": "Test Contact",
+            "hasEmail": "mailto:test@example.gov",
+        },
+    }
