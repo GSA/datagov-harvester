@@ -739,7 +739,7 @@ class HarvesterDBInterface:
             .order_by(Dataset.last_harvested_date.desc().nullslast())
         )
 
-    def get_missing_or_outdated_datasets(self):
+    def get_missing_or_outdated_dataset_count_and_sample(self):
         """
         calculate the number of missing or outdated datasets. "missing" is when
         there's a successful harvest record but no dataset. "outdated" is when
