@@ -10,39 +10,42 @@ import os
 
 from harvester.lib.cf_handler import CFHandler
 from harvester.lib.local_task_handler import LocalTaskHandler
+from harvester.utils.env_utils import is_running_on_cloud_foundry
 
 logger = logging.getLogger("harvest_admin")
 
-
-def is_running_on_cloud_foundry() -> bool:
-    return "VCAP_APPLICATION" in os.environ
+_CF_TASK_API_NOT_CONFIGURED = (
+    "Cloud Foundry task API is not configured; "
+    "CF_API_URL, CF_SERVICE_USER, and CF_SERVICE_AUTH must be set."
+)
 
 
 def create_task_handler():
     """Return Cloud Foundry task handler in deployed envs, local runner otherwise.
 
-    We only attempt CFHandler when it can actually authenticate: either we are
-    running on Cloud Foundry, or all three CF_* credentials are configured.
+    We only attempt CFHandler when all three CF_* credentials are configured.
     This keeps local development from making a doomed OAuth round-trip (and the
     resulting 401) on every LoadManager construction when only CF_API_URL is
     set but the service credentials are not.
+
+    LocalTaskHandler is never used on Cloud Foundry; missing or invalid CF
+    configuration fails fast in deployed environments.
     """
     cf_api_url = os.getenv("CF_API_URL")
     cf_service_user = os.getenv("CF_SERVICE_USER")
     cf_service_auth = os.getenv("CF_SERVICE_AUTH")
     on_cloud_foundry = is_running_on_cloud_foundry()
-
     has_cf_credentials = all((cf_api_url, cf_service_user, cf_service_auth))
 
-    if on_cloud_foundry or has_cf_credentials:
+    if on_cloud_foundry:
+        if not has_cf_credentials:
+            raise RuntimeError(_CF_TASK_API_NOT_CONFIGURED)
+        return CFHandler(cf_api_url, cf_service_user, cf_service_auth)
+
+    if has_cf_credentials:
         try:
             return CFHandler(cf_api_url, cf_service_user, cf_service_auth)
         except Exception as e:
-            if on_cloud_foundry:
-                # in a deployed env we can't run subprocesses meaningfully, so
-                # surface the failure instead of silently degrading
-                raise
             logger.warning("CFHandler init failed (%s); using LocalTaskHandler.", e)
 
-    logger.info("Cloud Foundry task API is not configured; using LocalTaskHandler.")
     return LocalTaskHandler()

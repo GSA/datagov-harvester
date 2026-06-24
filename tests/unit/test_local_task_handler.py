@@ -1,5 +1,7 @@
 from unittest.mock import patch
 
+import pytest
+
 from harvester.lib.load_manager import LoadManager
 from harvester.lib.local_task_handler import LocalTaskHandler
 from harvester.lib.task_handler import create_task_handler
@@ -29,6 +31,19 @@ class TestCreateTaskHandler:
         cf_handler_mock.assert_not_called()
         assert isinstance(handler, LocalTaskHandler)
 
+    def test_raises_on_cloud_foundry_without_cf_credentials(self, monkeypatch):
+        monkeypatch.setenv("VCAP_APPLICATION", '{"application_id":"abc"}')
+        for var in ("CF_API_URL", "CF_SERVICE_USER", "CF_SERVICE_AUTH"):
+            monkeypatch.delenv(var, raising=False)
+
+        with patch("harvester.lib.task_handler.LocalTaskHandler") as local_handler_mock:
+            with pytest.raises(
+                RuntimeError, match="Cloud Foundry task API is not configured"
+            ):
+                create_task_handler()
+
+        local_handler_mock.assert_not_called()
+
     @patch("harvester.lib.task_handler.CFHandler")
     def test_uses_cf_handler_on_cloud_foundry(self, cf_handler_mock, monkeypatch):
         monkeypatch.setenv("VCAP_APPLICATION", '{"application_id":"abc"}')
@@ -44,6 +59,22 @@ class TestCreateTaskHandler:
             "user",
             "pass",
         )
+
+    @patch("harvester.lib.task_handler.LocalTaskHandler")
+    @patch("harvester.lib.task_handler.CFHandler")
+    def test_does_not_fallback_when_cf_handler_fails_on_cloud_foundry(
+        self, cf_handler_mock, local_handler_mock, monkeypatch
+    ):
+        monkeypatch.setenv("VCAP_APPLICATION", '{"application_id":"abc"}')
+        monkeypatch.setenv("CF_API_URL", "https://api.example.com")
+        monkeypatch.setenv("CF_SERVICE_USER", "user")
+        monkeypatch.setenv("CF_SERVICE_AUTH", "pass")
+        cf_handler_mock.side_effect = RuntimeError("cf auth failed")
+
+        with pytest.raises(RuntimeError, match="cf auth failed"):
+            create_task_handler()
+
+        local_handler_mock.assert_not_called()
 
     @patch("harvester.lib.task_handler.CFHandler")
     def test_uses_cf_handler_with_full_credentials_off_cf(
