@@ -1,4 +1,4 @@
-from harvester.harvest import HarvestSource
+from harvester.harvest import DT_PLACEHOLDER, HarvestSource
 from harvester.utils.general_utils import traverse_waf
 
 
@@ -63,3 +63,27 @@ class TestExtract:
             "missing 'identifier' field"
         )
         assert errors[0][0].message == msg
+
+    def test_extract_waf_collection_parent_has_recent_datetime(
+        self,
+        interface,
+        organization_data,
+        source_data_waf_collection,
+    ):
+        """Test that waf-collection parent record gets a datetime of now."""
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_waf_collection)
+        harvest_job = interface.add_harvest_job(
+            {"status": "new", "harvest_source_id": source_data_waf_collection["id"]}
+        )
+
+        harvest_source = HarvestSource(harvest_job.id)
+        harvest_source.acquire_minimum_external_data()
+
+        parent_record = harvest_source.external_records[0]
+        assert (
+            parent_record["identifier"]
+            == source_data_waf_collection["collection_parent_url"]
+        )
+
+        assert parent_record["modified_date"] == DT_PLACEHOLDER

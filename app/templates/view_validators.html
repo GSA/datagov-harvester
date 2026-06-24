@@ -74,23 +74,23 @@
     {{ form.hidden_tag() }}
     
     <!-- schema and fetch_method can't be empty so they won't have errors to display -->
-    <div class="form-group">
-        <label for="{{ form.schema.id }}" class="form-control-label">
+    <div class="usa-form-group">
+        <label for="{{ form.schema.id }}" class="usa-label">
             {{ form.schema.label }}
         </label>
-        {{ form.schema(class="form-select") }}
+        {{ form.schema(class="usa-select") }}
     </div>
 
-    <div class="form-group">
-        <label for="{{ form.fetch_method.id }}" class="form-control-label">
+    <div class="usa-form-group">
+        <label for="{{ form.fetch_method.id }}" class="usa-label">
             {{ form.fetch_method.label }}
         </label>
-        {{ form.fetch_method(class="form-select", id="fetch_method") }}
+        {{ form.fetch_method(class="usa-select", id="fetch_method") }}
     </div>
 
-    <div id="url_field" class="form-group">
+    <div id="url_field" class="usa-form-group">
 
-        <label for="{{ form.url.id }}" class="form-control-label">
+        <label for="{{ form.url.id }}" class="usa-label">
             {{ form.url.label }}
             <button
                 type="button"
@@ -104,34 +104,34 @@
                 </svg>
             </button>
         </label>
-        {{ form.url(class="form-control", placeholder="https://example.com/data.json", type="url") }}
+        {{ form.url(class="usa-input", placeholder="https://example.com/data.json", type="url") }}
         {% for error in form.url.errors %}
-            <div class="text-red">{{ error }}</div>
+            <span class="usa-error-message" role="alert">{{ error }}</span>
         {% endfor %}
     </div>
 
-    <div id="json_field" class="form-group">
-        <label for="{{ form.json_text.id }}" class="form-control-label">
+    <div id="json_field" class="usa-form-group">
+        <label for="{{ form.json_text.id }}" class="usa-label">
             {{ form.json_text.label }}
         </label>
-        {{ form.json_text(class="form-control", rows="10", placeholder='{"key": "value"}') }}
+        {{ form.json_text(class="usa-textarea", rows="10", placeholder='{"key": "value"}') }}
         {% for error in form.json_text.errors %}
-            <div class="text-red">{{ error }}</div>
+            <span class="usa-error-message" role="alert">{{ error }}</span>
         {% endfor %}
     </div>
 
-    <div id="upload_field" class="form-group">
-        <label for="{{ form.json_file.id }}" class="form-control-label">
+    <div id="upload_field" class="usa-form-group">
+        <label for="{{ form.json_file.id }}" class="usa-label">
             {{ form.json_file.label }}
         </label>
-        {{ form.json_file(class="form-control") }}
+        {{ form.json_file(class="usa-file-input") }}
         {% for error in form.json_file.errors %}
-        <div class="text-red">{{ error }}</div>
+        <span class="usa-error-message" role="alert">{{ error }}</span>
         {% endfor %}
     </div>
 
-    <div class="form-group form-submit-group">
-        {{ form.submit(class="btn btn-primary") }}
+    <div class="usa-form-group form-submit-group">
+        {{ form.submit(class="usa-button") }}
     </div>
 </form>
 
@@ -142,9 +142,9 @@
         {% if not data.record_errors %}
             <p>No validation errors found</p>
         {% else %}
-        <button class="btn btn-success" id="btn-download" title="Download all {{ total }} error(s) as CSV"
+        <button class="usa-button" id="btn-download" title="Download all {{ total }} error(s) as CSV"
             aria-label="Download all errors as CSV">
-            <i class="fa fa-download me-1" aria-hidden="true"></i>
+            <i class="fa fa-download margin-right-1" aria-hidden="true"></i>
             Download all errors (.csv)
         </button>
         <script nonce="{{ csp_nonce() }}" id="all-errors-data" type="application/json">{{ data.record_errors | tojson }}</script>
@@ -195,7 +195,7 @@
     }
 
     function clearErrors() {
-        document.querySelectorAll(".section, .text-red").forEach(el => el.remove());
+        document.querySelectorAll(".section, .usa-error-message").forEach(el => el.remove());
     }
 
     document.addEventListener("DOMContentLoaded", toggleInputFields);
