@@ -28,7 +28,7 @@ class TestBuildDcatus3Validator:
         assert validator.is_valid(valid_dcatus3_dataset)
 
     def test_official_complete_example_dataset_passes_validation(self):
-        """The upstream DCAT-US complete dataset example validates against our schema."""
+        """Upstream DCAT-US complete dataset example validates against our schema."""
         validator = build_dcatus3_validator(DCATUS3_DEFINITIONS, root_ref=DATASET_REF)
         dataset = open_json(DCATUS3_COMPLETE_EXAMPLE)
         assert validator.is_valid(dataset)
