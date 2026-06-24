@@ -213,7 +213,7 @@ class TestValidator:
         upage.locator("input[type=file][name=json_file]").set_input_files(str(bad_file))
         upage.locator("input[type=submit]").click()
 
-        expect(upage.locator("#upload_field .text-red")).to_have_text(
+        expect(upage.locator("#upload_field .usa-error-message")).to_have_text(
             "Only .json files are accepted."
         )
         expect(upage.locator(".error-list")).not_to_be_visible()
@@ -230,7 +230,7 @@ class TestValidator:
         upage.locator("input[type=file][name=json_file]").set_input_files(str(bad_file))
         upage.locator("input[type=submit]").click()
 
-        expect(upage.locator("#upload_field .text-red")).to_have_text(
+        expect(upage.locator("#upload_field .usa-error-message")).to_have_text(
             "Invalid JSON in uploaded file: Expecting value: line 1 column 1 (char 0)"
         )
         expect(upage.locator(".error-list")).not_to_be_visible()

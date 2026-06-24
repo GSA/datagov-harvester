@@ -19,6 +19,7 @@
   "scripts": {
     "build": "npm run gulp && npm run rollup",
     "gulp": "gulp",
+    "watch": "gulp watch",
     "rollup": "rollup -c rollup.config.mjs",
     "test": "test"
   },
