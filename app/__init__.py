@@ -7,7 +7,6 @@ from urllib.parse import urlsplit
 from apiflask import APIFlask
 from dotenv import load_dotenv
 from flask import g, request, session
-from flask_bootstrap import Bootstrap5
 from flask_htmx import HTMX
 from flask_migrate import Migrate
 from flask_talisman import Talisman
@@ -216,7 +215,6 @@ def create_app():
 
         return set_public_cache(response, 60)
 
-    Bootstrap5(app)
     global htmx
     htmx = HTMX(app)
 
@@ -257,7 +255,6 @@ def create_app():
             [
                 "'self'",
                 "'unsafe-hashes'",
-                "https://cdn.jsdelivr.net",  # Bootstrap CDN
                 "https://www.googletagmanager.com",
                 "https://unpkg.com",  # Swagger
             ]
@@ -297,7 +294,6 @@ def create_app():
             [
                 "'self'",
                 "'unsafe-hashes'",  # local styles.css
-                "https://cdn.jsdelivr.net",  # Bootstrap CDN
                 "https://cdnjs.cloudflare.com",  # font-awesome
                 "'sha256-faU7yAF8NxuMTNEwVmBz+VcYeIoBQ2EMHW3WaVxCvnk='",  # htmx.min.js
                 "https://unpkg.com",  # Swagger
