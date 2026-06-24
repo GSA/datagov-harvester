@@ -670,6 +670,34 @@ def delete_organization(org_id):
         return make_response(jsonify({"message": message}), 500)
 
 
+def _create_harvest_source(source_data):
+    existing = db.get_harvest_source_by_url(source_data.get("url"))
+    if existing:
+        message = (
+            f"A harvest source with this URL already exists "
+            f"(source ID: {existing.id}). "
+            "Use a different URL or edit the existing source."
+        )
+        return None, message, 409
+
+    source, error = db.try_add_harvest_source(source_data)
+    if not source:
+        return None, error or "Failed to add harvest source.", 400
+
+    job_message = load_manager.schedule_first_job(source.id)
+    if not job_message:
+        return source, "Failed to schedule the first harvest job.", 500
+
+    _log_mutation(
+        "create",
+        "harvest_source",
+        source.id,
+        organization_id=source.organization_id,
+        source_name=source.name,
+    )
+    return source, f"Added new harvest source with ID: {source.id}. {job_message}", 200
+
+
 ## Harvest Source
 ### Add Source
 @api.route("/harvest_source/add", methods=["POST", "GET"])
@@ -678,41 +706,8 @@ def delete_organization(org_id):
 def add_harvest_source():
     if request.is_json:
         try:
-            source_data = request.json
-            existing = db.get_harvest_source_by_url(source_data.get("url"))
-            if existing:
-                message = (
-                    f"A harvest source with this URL already exists "
-                    f"(source ID: {existing.id})."
-                )
-                return make_response(jsonify({"message": message}), 409)
-            source, error = db.try_add_harvest_source(source_data)
-            if not source:
-                return make_response(
-                    jsonify({"message": error or "Failed to add harvest source."}),
-                    400,
-                )
-            job_message = load_manager.schedule_first_job(source.id)
-            if job_message:
-                _log_mutation(
-                    "create",
-                    "harvest_source",
-                    source.id,
-                    organization_id=source.organization_id,
-                    source_name=source.name,
-                )
-                return make_response(
-                    jsonify(
-                        {
-                            "message": f"Added new harvest source with ID: {source.id}. {job_message}"
-                        }
-                    ),
-                    200,
-                )
-            return make_response(
-                jsonify({"message": "Failed to schedule the first harvest job."}),
-                500,
-            )
+            _source, message, status = _create_harvest_source(request.json)
+            return make_response(jsonify({"message": message}), status)
         except Exception as e:
             message = "Failed to add harvest source."
             logger.error(f"{message} :: {repr(e)}")
@@ -726,31 +721,19 @@ def add_harvest_source():
         )
         form.organization_id.choices = organization_choices
         if form.validate_on_submit():
-            new_source = make_new_source_contract(form)
-            existing = db.get_harvest_source_by_url(new_source["url"])
-            if existing:
-                flash(
-                    f"A harvest source with this URL already exists "
-                    f"(source ID: {existing.id}). "
-                    "Use a different URL or edit the existing source."
-                )
+            try:
+                source_data = make_new_source_contract(form)
+                source, message, _status = _create_harvest_source(source_data)
+            except Exception as e:
+                message = "Failed to add harvest source."
+                logger.error(f"{message} :: {repr(e)}")
+                flash(message)
                 return redirect(url_for("api.add_harvest_source"))
-            source, error = db.try_add_harvest_source(new_source)
-            if not source:
-                flash(error or "Failed to add harvest source.")
+            flash(message)
+            if source is None:
+                # Nothing was persisted (duplicate URL or failed insert); send
+                # the user back to the form to fix the input.
                 return redirect(url_for("api.add_harvest_source"))
-            job_message = load_manager.schedule_first_job(source.id)
-            if source and job_message:
-                _log_mutation(
-                    "create",
-                    "harvest_source",
-                    source.id,
-                    organization_id=source.organization_id,
-                    source_name=source.name,
-                )
-                flash(f"Added new harvest source with ID: {source.id}. {job_message}")
-            else:
-                flash("Failed to schedule the first harvest job.")
             return redirect(url_for("main.harvest_source_list"))
         elif form.errors:
             flash(form.errors)
