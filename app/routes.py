@@ -678,9 +678,22 @@ def delete_organization(org_id):
 def add_harvest_source():
     if request.is_json:
         try:
-            source = db.add_harvest_source(request.json)
+            source_data = request.json
+            existing = db.get_harvest_source_by_url(source_data.get("url"))
+            if existing:
+                message = (
+                    f"A harvest source with this URL already exists "
+                    f"(source ID: {existing.id})."
+                )
+                return make_response(jsonify({"message": message}), 409)
+            source, error = db.try_add_harvest_source(source_data)
+            if not source:
+                return make_response(
+                    jsonify({"message": error or "Failed to add harvest source."}),
+                    400,
+                )
             job_message = load_manager.schedule_first_job(source.id)
-            if source and job_message:
+            if job_message:
                 _log_mutation(
                     "create",
                     "harvest_source",
@@ -696,6 +709,10 @@ def add_harvest_source():
                     ),
                     200,
                 )
+            return make_response(
+                jsonify({"message": "Failed to schedule the first harvest job."}),
+                500,
+            )
         except Exception as e:
             message = "Failed to add harvest source."
             logger.error(f"{message} :: {repr(e)}")
@@ -710,7 +727,18 @@ def add_harvest_source():
         form.organization_id.choices = organization_choices
         if form.validate_on_submit():
             new_source = make_new_source_contract(form)
-            source = db.add_harvest_source(new_source)
+            existing = db.get_harvest_source_by_url(new_source["url"])
+            if existing:
+                flash(
+                    f"A harvest source with this URL already exists "
+                    f"(source ID: {existing.id}). "
+                    "Use a different URL or edit the existing source."
+                )
+                return redirect(url_for("api.add_harvest_source"))
+            source, error = db.try_add_harvest_source(new_source)
+            if not source:
+                flash(error or "Failed to add harvest source.")
+                return redirect(url_for("api.add_harvest_source"))
             job_message = load_manager.schedule_first_job(source.id)
             if source and job_message:
                 _log_mutation(
@@ -722,11 +750,11 @@ def add_harvest_source():
                 )
                 flash(f"Added new harvest source with ID: {source.id}. {job_message}")
             else:
-                flash("Failed to add harvest source.")
+                flash("Failed to schedule the first harvest job.")
             return redirect(url_for("main.harvest_source_list"))
         elif form.errors:
             flash(form.errors)
-            return redirect(url_for("main.add_harvest_source"))
+            return redirect(url_for("api.add_harvest_source"))
     return render_template(
         "edit_data.html",
         form=form,
