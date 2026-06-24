@@ -27,7 +27,9 @@ def test_create_harvest_source_success():
         mock_db.try_add_harvest_source.return_value = (new_source, None)
         mock_load_manager.schedule_first_job.return_value = "Job scheduled."
 
-        source, message, status = _create_harvest_source({"url": "https://new.example.com"})
+        source, message, status = _create_harvest_source(
+            {"url": "https://new.example.com"}
+        )
 
     assert source is new_source
     assert status == 200
