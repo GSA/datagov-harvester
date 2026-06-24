@@ -55,9 +55,11 @@ jobs:
     environment: ${{ matrix.environment }}
     env:
       CF_SPACE: ${{ matrix.environment }}
+      # Keep this aligned with OPENSEARCH_INDEX_BATCH_FAILURE_MESSAGE in app/commands/search.py.
+      OPENSEARCH_INDEX_BATCH_FAILURE_PATTERN: failed to index in this batch
     steps:
       - name: Check out the code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
       - name: Store task instance name
         run: |
           echo "OPENSEARCH_INSTANCE_NAME=search-sync-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_ENV"
@@ -104,7 +106,7 @@ jobs:
         with:
           command: >
             bin/monitor_cf_logs.sh datagov-harvest "$OPENSEARCH_INSTANCE_NAME"
-            "failed to index in this batch"
+            "$OPENSEARCH_INDEX_BATCH_FAILURE_PATTERN"
           cf_org: gsa-datagov
           cf_space: ${{ env.CF_SPACE }}
           cf_username: ${{ secrets.CF_SERVICE_USER }}
@@ -120,7 +122,7 @@ jobs:
             echo "task_failed=true" >> "$GITHUB_OUTPUT"
           fi
       - name: Create issue for task failure
-        if: steps.monitor_result.outputs.task_failed == 'true'
+        if: github.event_name == 'schedule' && steps.monitor_result.outputs.task_failed == 'true'
         uses: JasonEtco/create-an-issue@v2
         env:
           GITHUB_TOKEN: ${{ github.token }}
@@ -135,7 +137,7 @@ jobs:
           filename: .github/opensearch_sync_failure.md
           update_existing: true
       - name: Create issue for index batch failures
-        if: steps.monitor_result.outputs.result == 'warning_pattern_matched'
+        if: github.event_name == 'schedule' && steps.monitor_result.outputs.result == 'warning_pattern_matched'
         uses: JasonEtco/create-an-issue@v2
         env:
           GITHUB_TOKEN: ${{ github.token }}

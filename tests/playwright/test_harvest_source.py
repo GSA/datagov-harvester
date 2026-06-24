@@ -51,7 +51,6 @@ class TestHarvestSourceUnauthed:
         # Test static labels and values
         expect(summary_table).to_contain_text("Records:")
         expect(summary_table).to_contain_text("2")
-        expect(summary_table).to_contain_text("Synced Records:")
         expect(summary_table).to_contain_text("Last Job Records in Error:")
         expect(summary_table).to_contain_text("N/A")
         expect(summary_table).to_contain_text("Last Job Finished:")
@@ -82,7 +81,6 @@ class TestHarvestSourceUnauthed:
             ("schema_type", "schema_type"),
             ("source_type", "source_type"),
             ("notification_frequency", "notification_frequency"),
-            ("synced records", "Synced Records"),
         ],
     )
     def test_glossary_terms(self, upage, data_term_name, glossary_term_name):
@@ -129,7 +127,7 @@ class TestHarvestSourceAuthed:
     def test_cant_delete_harvest_source_with_records(self, apage):
         apage.once("dialog", lambda dialog: dialog.accept())
         apage.get_by_role("button", name="Delete", exact=True).click()
-        expect(apage.locator(".alert-warning")).to_contain_text(
+        expect(apage.locator(".usa-alert--warning")).to_contain_text(
             ["Failed: 2 records in the Harvest source, please clear it first."]
         )
 

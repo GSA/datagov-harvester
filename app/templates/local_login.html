@@ -1,0 +1,27 @@
+{% extends 'base.html' %}
+
+{% block title %}
+<title>Log in</title>
+{% endblock %}
+
+{% block content %}
+<h2>Local development login</h2>
+<p class="usa-intro">Use the local admin account for development. This form is only available when local dev login is enabled.</p>
+
+<form action="{{ url_for('main.login') }}" method="POST">
+    {{ form.hidden_tag() }}
+    <div class="usa-form-group">
+        <label for="{{ form.username.id }}" class="usa-label">{{ form.username.label.text }}</label>
+        {{ form.username(class_='usa-input', autocomplete='username') }}
+    </div>
+    <div class="usa-form-group">
+        <label for="{{ form.password.id }}" class="usa-label">{{ form.password.label.text }}</label>
+        {{ form.password(class_='usa-input', autocomplete='current-password') }}
+    </div>
+    <button type="submit" class="usa-button">{{ form.submit.label.text }}</button>
+</form>
+
+<p class="margin-top-3">
+    <a href="{{ url_for('main.login_oidc') }}">Login with Login.gov (sandbox)</a>
+</p>
+{% endblock %}

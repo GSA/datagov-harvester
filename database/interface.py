@@ -816,7 +816,7 @@ class HarvesterDBInterface:
     @count_wrapper
     @count
     def get_latest_harvest_records_by_source_orm(
-        self, source_id, synced=False, **kwargs
+        self, source_id, include_slug=False, **kwargs
     ):
         """Get latest records for each harvest source
 
@@ -829,8 +829,6 @@ class HarvesterDBInterface:
             HarvestRecord.status == "success",
             HarvestRecord.harvest_source_id == source_id,
         ]
-        if synced:
-            queries.append(HarvestRecord.ckan_id.isnot(None))
 
         subq = (
             self.db.query(HarvestRecord)
@@ -841,25 +839,32 @@ class HarvesterDBInterface:
         )
         sq_alias = aliased(HarvestRecord, subq)
 
-        return (
-            self.db.query(
-                sq_alias.identifier,
-                sq_alias.source_hash,
-                sq_alias.ckan_id,
-                sq_alias.date_created,
-                sq_alias.date_finished,
-                sq_alias.id,
-                sq_alias.action,
-                Dataset.slug.label("dataset_slug"),
+        columns = [
+            sq_alias.identifier,
+            sq_alias.source_hash,
+            sq_alias.ckan_id,
+            sq_alias.date_created,
+            sq_alias.date_finished,
+            sq_alias.id,
+            sq_alias.action,
+        ]
+
+        query = self.db.query(*columns).filter(sq_alias.action != "delete")
+
+        if include_slug:
+            query = query.add_columns(Dataset.slug.label("dataset_slug")).outerjoin(
+                Dataset,
+                Dataset.harvest_record_id == sq_alias.id,
             )
-            .outerjoin(Dataset, Dataset.harvest_record_id == sq_alias.id)
-            .filter(sq_alias.action != "delete")
-        )
+
+        return query
 
     def get_latest_harvest_records_by_source(self, source_id):
         return [
             dict(row._mapping)
-            for row in self.get_latest_harvest_records_by_source_orm(source_id)
+            for row in self.get_latest_harvest_records_by_source_orm(
+                source_id, include_slug=True
+            )
         ]
 
     def get_geo_from_string(self, location_name):

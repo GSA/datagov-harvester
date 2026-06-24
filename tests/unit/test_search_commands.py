@@ -1,6 +1,8 @@
 from datetime import datetime
 from unittest.mock import Mock, patch
 
+from app.commands.search import OPENSEARCH_INDEX_BATCH_FAILURE_MESSAGE
+
 
 def test_reset_mapping_recreates_empty_index(app):
     client = Mock()
@@ -92,6 +94,38 @@ def test_compare_update_indexes_missing_and_deletes_extra(app):
     )
     client.client.delete.assert_called_once_with(index="datasets", id="extra-only")
     client._refresh.assert_called_once_with()
+
+
+def test_compare_update_uses_index_batch_failure_message_constant(app):
+    client = Mock()
+    client.INDEX_NAME = "datasets"
+    client.client = Mock()
+    client.index_datasets.return_value = (0, 1, ["index error"])
+
+    missing_dataset = Mock()
+    missing_dataset.id = "db-only"
+    rows_query = Mock()
+    rows_query.all.return_value = [("db-only", datetime(2024, 1, 1))]
+    dataset_query = Mock()
+    dataset_query.filter.return_value.all.return_value = [missing_dataset]
+
+    def query_side_effect(*columns):
+        if len(columns) == 2:
+            return rows_query
+        return dataset_query
+
+    with (
+        patch(
+            "app.commands.search.OpenSearchInterface.from_environment",
+            return_value=client,
+        ),
+        patch("app.commands.search.db.session.query", side_effect=query_side_effect),
+        patch("app.commands.search.scan", return_value=iter([])),
+    ):
+        result = app.test_cli_runner().invoke(args=["search", "compare", "--update"])
+
+    assert result.exit_code == 0
+    assert f"1 dataset(s) {OPENSEARCH_INDEX_BATCH_FAILURE_MESSAGE}." in result.output
 
 
 def test_compare_is_read_only_without_update(app):

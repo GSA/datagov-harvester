@@ -38,8 +38,8 @@ class TestDynamicRouteTable:
         # dont test flask internal or auth routes
         whitelisted_routes = [
             "static",
-            "bootstrap.static",
             "main.login",
+            "main.login_oidc",
             "main.logout",
             "main.callback",
         ]
@@ -153,7 +153,7 @@ class TestDynamicRouteTable:
 
     def test_client_response_on_error(self, client):
         # ignore routes which aren't public GETS and don't accept args
-        whitelisted_route_regex = r"((main|api|bootstrap)?(?:\.)?(add|edit|cancel|update|delete|trigger|view)?(?:_)?(static|index|callback|json_builder_query|view_metrics|view_validators|validator|log(in|out)|organization(?:s)?|harvest_source|harvest_job|harvest_record)|openapi.+|)"
+        whitelisted_route_regex = r"((main|api)?(?:\.)?(add|edit|cancel|update|delete|trigger|view)?(?:_)?(static|index|callback|json_builder_query|view_metrics|view_validators|validator|log(in|out)|organization(?:s)?|harvest_source|harvest_job|harvest_record)|openapi.+|)"
 
         # some endpoints respond with JSON
         json_responses_map = {
@@ -480,13 +480,13 @@ class TestJSONResponses:
         assert res.status_code == 404
         assert res.is_json
 
-    def test_post_organization_uuid_redirects_to_slug(
+    def test_post_organization_uuid_requires_login(
         self, client, interface_with_multiple_jobs, organization_data
     ):
         res = client.post(f'/organization/{organization_data["id"]}')
 
         assert res.status_code == 302
-        assert res.location == f'/organization/{organization_data["slug"]}'
+        assert res.location == "/login"
 
     @pytest.mark.parametrize(
         "route,status_code,response",
