@@ -20,22 +20,48 @@ permissions:
   issues: write
 
 jobs:
-  check-missing-datasets:
+  determine-environments:
     runs-on: ubuntu-latest
-    environment: ${{ github.event_name == 'schedule' && 'prod' || inputs.environment }}
+    outputs:
+      environments: ${{ steps.set-env.outputs.environments }}
+    steps:
+      - id: set-env
+        env:
+          SELECTED_ENV: ${{ inputs.environment || 'development' }}
+        run: |
+          if [[ "${{ github.event_name }}" == "schedule" ]]; then
+            echo 'environments=["staging","prod"]' >> "$GITHUB_OUTPUT"
+          else
+            echo "environments=[\"$SELECTED_ENV\"]" >> "$GITHUB_OUTPUT"
+          fi
+
+  check-missing-datasets:
+    needs: determine-environments
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        environment: ${{ fromJson(needs.determine-environments.outputs.environments) }}
+    environment: ${{ matrix.environment }}
+    env:
+      CF_SPACE: ${{ matrix.environment }}
+      TASK_COMMAND: python scripts/count_missing_outdated_datasets.py
     steps:
       - uses: actions/checkout@v7
+
+      - name: Store task instance name
+        run: |
+          echo "MISSING_DATASETS_INSTANCE_NAME=check-missing-datasets-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_ENV"
 
       - name: run task
         uses: cloud-gov/cg-cli-tools@main
         with:
           command: >
             cf run-task datagov-harvest 
-            --name "check-missing-datasets-${{ github.run_id }}" 
-            --command "python scripts/count_missing_outdated_datasets.py" -m 2G
+            --name "$MISSING_DATASETS_INSTANCE_NAME" 
+            --command "$TASK_COMMAND" -m 2G
           
           cf_org: gsa-datagov
-          cf_space: ${{ github.event_name == 'schedule' && 'prod' || inputs.environment }}
+          cf_space: ${{ env.CF_SPACE }}
           cf_username: ${{secrets.CF_SERVICE_USER}}
           cf_password: ${{secrets.CF_SERVICE_AUTH}}
 
@@ -44,23 +70,24 @@ jobs:
         uses: cloud-gov/cg-cli-tools@main
         with:
           command: >
-            bin/monitor_cf_logs.sh datagov-harvest "check-missing-datasets-${{ github.run_id }}"
+            bin/monitor_cf_logs.sh datagov-harvest "$MISSING_DATASETS_INSTANCE_NAME"
           cf_org: gsa-datagov
-          cf_space: ${{ github.event_name == 'schedule' && 'prod' || inputs.environment }}
+          cf_space: ${{ env.CF_SPACE }}
           cf_username: ${{secrets.CF_SERVICE_USER}}
           cf_password: ${{secrets.CF_SERVICE_AUTH}}
 
       - name: Create Issue for failure
-        if: ${{ failure() }}
+        if: ${{ failure() && github.event_name == 'schedule' }}
         uses: JasonEtco/create-an-issue@v2
         env:
-          GITHUB_TOKEN: ${{ secrets.ADD_TO_PROJECT_PAT }}
-          GITHUB_JOB: ${{ toJson(github)['job'] }}
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_JOB: ${{ github.job }}
           GITHUB_ATTEMPTS: ${{ github.run_attempt }}
           LAST_COMMIT: ${{ github.sha }}
           LAST_RUN_BY: ${{ github.actor }}
           RUN_ID: ${{ github.run_id }}
-          COMMAND: python scripts/count_missing_outdated_datasets.py
-          ENVIRONMENT: ${{ github.event_name == 'schedule' && 'prod' || inputs.environment }}
+          COMMAND: ${{ env.TASK_COMMAND }}
+          ENVIRONMENT: ${{ matrix.environment }}
         with:
           filename: .github/missing_datasets.md
+          update_existing: true
