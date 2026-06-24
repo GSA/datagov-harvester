@@ -726,7 +726,7 @@ def add_harvest_source():
             return redirect(url_for("main.harvest_source_list"))
         elif form.errors:
             flash(form.errors)
-            return redirect(url_for("main.add_harvest_source"))
+            return redirect(url_for("api.add_harvest_source"))
     return render_template(
         "edit_data.html",
         form=form,

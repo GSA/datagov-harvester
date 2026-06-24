@@ -52,7 +52,7 @@ class TestHarvestCreateAndDestroy:
         apage.get_by_role("textbox", name="Logo").click()
         apage.get_by_role("textbox", name="Logo").fill("https://example.com/logo.png")
         apage.get_by_role("button", name="Submit").click()
-        expect(apage.locator(".alert-warning")).to_contain_text(
+        expect(apage.locator(".usa-alert--warning")).to_contain_text(
             ["Added new organization"]
         )
 
@@ -62,7 +62,7 @@ class TestHarvestCreateAndDestroy:
         ).click()
         apage.once("dialog", lambda dialog: dialog.accept())
         apage.get_by_role("button", name="Delete", exact=True).click()
-        expect(apage.locator(".alert-warning")).to_contain_text(
+        expect(apage.locator(".usa-alert--warning")).to_contain_text(
             ["Deleted organization with ID:"]
         )
 
@@ -82,7 +82,7 @@ class TestHarvestCreateAndDestroy:
         apage_with_org.get_by_role("textbox", name="Notification_emails").press("Tab")
         apage_with_org.get_by_label("Frequency", exact=True).press("Tab")
         apage_with_org.get_by_role("button", name="Submit").click()
-        expect(apage_with_org.locator(".alert-warning")).to_contain_text(
+        expect(apage_with_org.locator(".usa-alert--warning")).to_contain_text(
             ["Added new harvest source with ID:"]
         )
 
@@ -99,6 +99,6 @@ class TestHarvestCreateAndDestroy:
         ).get_by_role("link").click()
         apage_with_org.once("dialog", lambda dialog: dialog.accept())
         apage_with_org.get_by_role("button", name="Delete", exact=True).click()
-        expect(apage_with_org.locator(".alert-warning")).to_contain_text(
+        expect(apage_with_org.locator(".usa-alert--warning")).to_contain_text(
             ["Deleted harvest source with ID:"]
         )

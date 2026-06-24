@@ -9,24 +9,27 @@
 <form action="{{ form_action }}" method="{{ method | d('POST') }}">
     {{ form.hidden_tag() }}
     {% for field in form if field.widget.input_type != 'hidden' %}
-    <div class="form-group">
-        <label for="{{ field.id }}" class="form-control-label">
+    {% set field_class = 'usa-textarea' if field.type == 'TextAreaField' else ('usa-select' if field.type == 'SelectField' else 'usa-input') %}
+    <div class="usa-form-group">
+        <label for="{{ field.id }}" class="usa-label">
             {{ field.label.text }}
             {% if field.flags.required %}
-                <span class="text-danger" aria-hidden="true">*</span>
+                <abbr class="usa-hint usa-hint--required" title="required">*</abbr>
             {% endif %}
         </label>
         {% if data_type == "Harvest Source" and action == "Edit" and field.id == 'name' %}
-            {{field(class_='form-control', readonly_=true, aria_label=field.label.text)}}
+            {{field(class_=field_class, readonly_=true, aria_label=field.label.text)}}
         {% else %}
-            {{field(class_='form-control', aria_label=field.label.text)}}
+            {{field(class_=field_class, aria_label=field.label.text)}}
         {% endif %}
         {% if field.description %}
-            <small class="form-text text-muted">{{ field.description }}</small>
+            <span class="usa-hint">{{ field.description }}</span>
         {% endif %}
     </div>
     {% endfor %}
 
-    <button type="submit" class="btn btn-primary">{{button}}</button>
+    <div class="usa-form-group">
+        <button type="submit" class="usa-button">{{button}}</button>
+    </div>
 </form>
 {% endblock %}
