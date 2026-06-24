@@ -79,16 +79,38 @@ class TestHarvestJobFullFlow:
         job_id = harvest_job.id
         harvest_job_starter(job_id, "harvest")
 
-        records_to_add = download_file(source_data_dcatus3_0["url"], ".json")["dataset"]
         harvest_job = interface.get_harvest_job(job_id)
         assert harvest_job.status == "complete"
-        assert harvest_job.records_added == len(records_to_add)
+        assert harvest_job.records_added == 3
 
         datasets = interface.db.query(Dataset).all()
-        assert len(datasets) == len(records_to_add)
+        assert len(datasets) == 3
         for dataset in datasets:
             assert dataset.harvest_source_id == source_data_dcatus3_0["id"]
             assert dataset.harvest_record_id is not None
+
+        object_identifier_dataset = next(
+            dataset
+            for dataset in datasets
+            if dataset.dcat.get("title") == "Test Dataset Three"
+        )
+        assert object_identifier_dataset.dcat["identifier"] == {
+            "@type": "Identifier",
+            "@id": "https://example.gov/datasets/three",
+        }
+
+        records_from_db = interface.get_latest_harvest_records_by_source(
+            source_data_dcatus3_0["id"]
+        )
+        record_identifiers = {record["identifier"] for record in records_from_db}
+        assert "https://example.gov/datasets/three" in record_identifiers
+
+        errors = interface.get_harvest_record_errors_by_job(job_id)
+        assert any(
+            "Test Dataset Four has an object 'identifier' with no usable '@id' field"
+            in error[0].message
+            for error in errors
+        )
 
     @patch("harvester.harvest.HarvestSource.send_notification_emails")
     def test_multiple_harvest_jobs(

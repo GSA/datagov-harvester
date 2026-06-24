@@ -461,6 +461,34 @@ def make_record_mapping(record):
     }
 
 
+def normalize_dataset_identifier(identifier) -> str | None:
+    """Return a canonical string identifier from a DCAT-US identifier value.
+
+    DCAT-US 3.0 allows identifier as a string or an Identifier object. For
+    harvesting, object identifiers must provide @id.
+    """
+    if identifier is None:
+        return None
+    if isinstance(identifier, str):
+        return identifier if identifier.strip() else None
+    if isinstance(identifier, dict):
+        value = identifier.get("@id")
+        if isinstance(value, str) and value.strip():
+            return value
+    return None
+
+
+def describe_identifier_error(identifier) -> str:
+    """Describe why an identifier cannot be used for harvesting."""
+    if identifier is None:
+        return "is missing 'identifier' field"
+    if isinstance(identifier, str) and not identifier.strip():
+        return "is missing 'identifier' field"
+    if isinstance(identifier, dict):
+        return "has an object 'identifier' with no usable '@id' field"
+    return "has an invalid 'identifier' field"
+
+
 def find_indexes_for_duplicates(records: list):
     """
     output is a list of integers representing element positions of
@@ -480,7 +508,7 @@ def find_indexes_for_duplicates(records: list):
     seen = set()
     output = []
     for i in range(len(records)):
-        identifier = records[i]["identifier"]
+        identifier = normalize_dataset_identifier(records[i].get("identifier"))
         if identifier in seen:
             output.append(i)
         seen.add(identifier)

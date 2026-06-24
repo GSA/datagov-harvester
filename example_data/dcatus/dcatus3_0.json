@@ -37,6 +37,44 @@
         "fn": "Test Contact Two",
         "hasEmail": "mailto:two@example.gov"
       }
+    },
+    {
+      "@type": "Dataset",
+      "title": "Test Dataset Three",
+      "description": "Third test dataset with an object identifier.",
+      "identifier": {
+        "@type": "Identifier",
+        "@id": "https://example.gov/datasets/three"
+      },
+      "publisher": {
+        "@type": "Organization",
+        "name": "Test Agency"
+      },
+      "contactPoint": {
+        "@type": "Kind",
+        "fn": "Test Contact Three",
+        "hasEmail": "mailto:three@example.gov"
+      }
+    },
+    {
+      "@type": "Dataset",
+      "title": "Test Dataset Four",
+      "description": "Fourth test dataset with object identifier missing @id.",
+      "identifier": {
+        "@type": "Identifier",
+        "schemaAgency": "National Climate Data Center",
+        "notation": "NCDC-CLIMATE-OBS-2024",
+        "version": "1.0"
+      },
+      "publisher": {
+        "@type": "Organization",
+        "name": "Test Agency"
+      },
+      "contactPoint": {
+        "@type": "Kind",
+        "fn": "Test Contact Four",
+        "hasEmail": "mailto:four@example.gov"
+      }
     }
   ]
 }

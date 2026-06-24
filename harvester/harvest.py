@@ -44,11 +44,13 @@ from harvester.utils.general_utils import (
     assemble_validation_errors,
     build_dcatus3_validator,
     dataset_to_hash,
+    describe_identifier_error,
     download_file,
     find_indexes_for_duplicates,
     get_datetime,
     make_record_mapping,
     munge_title_to_name,
+    normalize_dataset_identifier,
     open_json,
     prepare_distributions,
     prepare_transform_msg,
@@ -118,9 +120,8 @@ class HarvestSource:
             )
         elif self.schema_type == "dcatus3.0":
             # dcatus3.0 has a single dataset schema (no federal/non-federal split).
-            # NOTE: a 3.0 dataset identifier may be a string or an object; the
-            # harvester uses it as a dict key / db identifier, so only string
-            # identifiers are supported. object identifiers are out of scope.
+            # A 3.0 dataset identifier may be a string or an object; object
+            # identifiers must provide @id.
             self.schema_file = (
                 self.schemas_root / "dcatus3.0" / "definitions" / "Dataset.json"
             )
@@ -317,7 +318,10 @@ class HarvestSource:
         indices = find_indexes_for_duplicates(self.external_records)
         for idx in indices:
             try:
-                self.write_duplicate_to_db(self.external_records[idx]["identifier"])
+                identifier = normalize_dataset_identifier(
+                    self.external_records[idx].get("identifier")
+                )
+                self.write_duplicate_to_db(identifier)
             except DuplicateIdentifierException:
                 del self.external_records[idx]
                 self.update_job_record_count_by_action("errored")
@@ -356,15 +360,18 @@ class HarvestSource:
 
     def filter_datasets_with_no_identifier(self) -> None:
         """
-        identifies and removes datasets without an 'identifier' field from self.external_records
-        and logs the error in the db as a record-level error
+        identifies and removes datasets without a harvestable identifier from
+        self.external_records and logs the error in the db as a record-level error.
+
+        string identifiers are used as-is. object identifiers must provide @id.
         """
 
         external_records = []
 
         for record in self.external_records:
             try:
-                if "identifier" not in record:
+                identifier = record.get("identifier")
+                if normalize_dataset_identifier(identifier) is None:
                     # use something identifiable to the dataset otherwise label it accordingly
                     id_substitute = (
                         record.get("title")
@@ -380,7 +387,7 @@ class HarvestSource:
                     new_record = self.db_interface.add_harvest_record(record_data)
 
                     raise NoIdentifierException(
-                        f"{self.name} {new_record.identifier} is missing 'identifier' field",
+                        f"{self.name} {new_record.identifier} {describe_identifier_error(identifier)}",
                         self.job_id,
                         new_record.id,
                     )
@@ -398,7 +405,10 @@ class HarvestSource:
         the identifiers of the records. if the db has the record and the harvest source
         doesn't that means the record needs to be deleted.
         """
-        external_ids = set([record["identifier"] for record in self.external_records])
+        external_ids = {
+            normalize_dataset_identifier(record.get("identifier"))
+            for record in self.external_records
+        }
         internal_ids = set(self.internal_records.keys())
         self.deletions = internal_ids - external_ids
 
@@ -450,10 +460,11 @@ class HarvestSource:
                         dataset = record["content"]
 
                 dataset_hash = dataset_to_hash(dataset)
+                identifier = normalize_dataset_identifier(record.get("identifier"))
 
                 yield Record(
                     self,
-                    record["identifier"],
+                    identifier,
                     dataset,
                     dataset_hash,
                     _parent_identifier=parent_identifier,
@@ -464,7 +475,7 @@ class HarvestSource:
                 self.update_job_record_count_by_action("errored")
 
                 # "record"s in self.external_records are standardized as dicts at this point
-                record_id = record["identifier"] if "identifier" in record else None
+                record_id = normalize_dataset_identifier(record.get("identifier"))
 
                 ExternalRecordToClass(
                     f"{self.name} {record_id} failed to prepare record for harvest :: {repr(e)}",

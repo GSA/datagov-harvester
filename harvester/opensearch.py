@@ -10,6 +10,8 @@ from botocore.credentials import Credentials
 from opensearchpy import AWSV4SignerAuth, OpenSearch, RequestsHttpConnection, helpers
 from opensearchpy.exceptions import ConnectionTimeout
 
+from harvester.utils.general_utils import normalize_dataset_identifier
+
 logger = logging.getLogger(__name__)
 
 
@@ -375,7 +377,8 @@ class OpenSearchInterface:
             "dcat": normalized_dcat,
             "keyword": dataset.dcat.get("keyword", []),
             "theme": dataset.dcat.get("theme", []),
-            "identifier": dataset.dcat.get("identifier", ""),
+            "identifier": normalize_dataset_identifier(dataset.dcat.get("identifier"))
+            or "",
             "has_spatial": has_spatial,
             "organization": organization,
             "distribution_titles": [
