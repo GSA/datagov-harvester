@@ -17,12 +17,15 @@ session = scoped_session(session_factory)
 
 def main():
     interface = HarvesterDBInterface(session=session)
-    count, sample_record = interface.get_missing_or_outdated_datasets()
+    count, sample_record = interface.get_missing_or_outdated_dataset_count_and_sample()
 
     print(f"number of missing/outdated datasets {count}")
 
-    for record in sample_record:
-        print(record[0])
+    if count > 0:
+        print("10 sample record ids for troubleshooting")
+
+        for record in sample_record:
+            print(record[0])
 
     sys.exit(0 if count == 0 else 1)
 
