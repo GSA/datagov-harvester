@@ -6,16 +6,16 @@
 
 {% block content %}
 <div class="bg-base-lighter padding-2 radius-md">
-  <h2 class="font-lang-lg my-0">Find an Organization</h2>
+  <h2 class="font-lang-lg margin-y-0">Find an Organization</h2>
   <div role="region" aria-label="Component search" aria-atomic="true" class="margin-top-1">
     <label for="icon-filter">Filter by name and keyword</label>
     <input class="usa-input" id="icon-filter" type="text">
     <p class="text-base-darker margin-top-1 margin-bottom-0" aria-live="polite"><span id="component-count"></span></p>
   </div>
   {% if session['user'] %}
-  <div class="add-buttons-div mt-3">
-    <ul class="list-unstyled">
-      <li><a href="{{ url_for('api.add_organization') }}" class="btn btn-primary">
+  <div class="add-buttons-div margin-top-3">
+    <ul class="usa-list usa-list--unstyled">
+      <li><a href="{{ url_for('api.add_organization') }}" class="usa-button">
           Add Organization</a></li>
     </ul>
   </div>

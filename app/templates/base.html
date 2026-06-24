@@ -7,7 +7,6 @@
   <title>{{action}} {{data_type}}</title>
   {% endblock %}
   <link rel="stylesheet" href="{{ url_for('static', filename='assets/uswds/css/styles.css') }}">
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
   <script src="{{ url_for('static', filename='assets/uswds/js/uswds-init.js') }}"></script>
   <script src="{{ url_for('static', filename='assets/htmx/htmx.min.js') }}"></script>
@@ -32,7 +31,7 @@
   <!-- End Google Tag Manager (noscript) -->
   {% include '/snippets/banner.html' %}
   <header>
-    <div class="container">
+    <div class="grid-container">
       <strong>
         <nav>
           <ul class="menu">
@@ -62,17 +61,23 @@
 
   {% include 'glossary.html' %}
 
-  <div class="container my-3">
+  <div class="grid-container margin-y-3">
     {% set _category_map = {
-      'success': 'alert-success',
-      'warning': 'alert-warning',
-      'danger':  'alert-danger',
-      'error':   'alert-danger'
+      'success': 'usa-alert--success',
+      'warning': 'usa-alert--warning',
+      'danger':  'usa-alert--error',
+      'error':   'usa-alert--error'
     } %}
     {% for category, message in get_flashed_messages(with_categories=true) %}
-    <div class="alert {{ _category_map.get(category, 'alert-warning') }} alert-dismissible fade show">
-      <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-      {{ message }}
+    <div class="usa-alert {{ _category_map.get(category, 'usa-alert--warning') }} usa-alert--dismissible margin-bottom-2">
+      <div class="usa-alert__body">
+        <p class="usa-alert__text">{{ message }}</p>
+      </div>
+      <button type="button" class="usa-alert__close js-alert-close" aria-label="Close alert">
+        <svg class="usa-icon" aria-hidden="true" role="img" focusable="false">
+          <use href="/assets/uswds/img/sprite.svg#close"></use>
+        </svg>
+      </button>
     </div>
     {% endfor %}
 
@@ -80,7 +85,6 @@
   </div>
   {% include '/snippets/footer.html' %}
   <script src="{{ url_for('static', filename='assets/uswds/js/uswds.js') }}"></script>
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"></script>
   <script src="{{ url_for('static', filename='assets/js/bundle.js') }}"></script>
   {% block scripts %}
   {% endblock %}
