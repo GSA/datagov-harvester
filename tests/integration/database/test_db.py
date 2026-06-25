@@ -516,6 +516,14 @@ class TestDatabase:
         assert filtered_list[0].status == "new"
         assert filtered_list[0].harvest_source_id == source_data_dcatus["id"]
 
+    def test_pget_harvest_jobs_per_page_zero_returns_none(
+        self, interface_with_multiple_jobs
+    ):
+        # Regression test for GSA/data.gov#5910: an explicit per_page=0 must
+        # return zero results, not fall back to the default page size.
+        results = interface_with_multiple_jobs.pget_harvest_jobs(per_page=0)
+        assert len(results) == 0
+
     def get_new_harvest_jobs_in_past(self, interface_with_multiple_jobs):
         filtered_job_list = interface_with_multiple_jobs.get_new_harvest_jobs_in_past()
         all_jobs_list = interface_with_multiple_jobs.get_all_harvest_jobs()
