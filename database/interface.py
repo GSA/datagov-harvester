@@ -976,10 +976,6 @@ class HarvesterDBInterface:
 
         facet_list = query_filter_builder(model_class, facets)
 
-        # TODO: should we add date_created to these models??
-        if model in ["organizations", "harvest_sources"]:
-            return self.db.query(model_class).filter(*facet_list)
-
         order_by_val = order_by_helper(model_class, order_by)
 
         return self.db.query(model_class).filter(*facet_list).order_by(order_by_val)
@@ -1069,4 +1065,21 @@ class HarvesterDBInterface:
 
 
 def order_by_helper(model, order_by):
-    return model.date_created.asc() if order_by == "asc" else model.date_created.desc()
+    sort_column_name = "date_created"
+    if hasattr(model, "name"):
+        sort_column_name = "name"
+
+    if order_by in (None, "", "asc"):
+        return getattr(model, sort_column_name).asc()
+
+    if order_by == "desc":
+        return getattr(model, sort_column_name).desc()
+
+    is_descending = order_by.startswith("-")
+    candidate_column_name = order_by[1:] if is_descending else order_by
+    candidate_column = getattr(model, candidate_column_name, None)
+
+    if candidate_column is None:
+        return getattr(model, sort_column_name).desc()
+
+    return candidate_column.desc() if is_descending else candidate_column.asc()
