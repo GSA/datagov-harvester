@@ -19,7 +19,7 @@ class CFHandler:
             http=os.environ.get("http_proxy", ""),
             https=os.environ.get("https_proxy", ""),
         )
-        self.verify_certificate = os.environ.get("REQUESTS_CA_BUNDLE", False)
+        self.verify_certificate = os.environ.get("REQUESTS_CA_BUNDLE", True)
         self.setup()
 
     @functools.cache
