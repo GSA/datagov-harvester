@@ -536,6 +536,11 @@ class TestJSONResponses:
                 404,
                 "No harvest_sources found for this query",
             ),
+            (
+                "/harvest_sources/?order_by=notafield",
+                422,
+                "Invalid order_by 'notafield', must be 'asc' or 'desc'",
+            ),
         ],
     )
     def test_json_builder_query(
