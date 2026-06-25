@@ -397,22 +397,6 @@ files = [
 ]
 
 [[package]]
-name = "bootstrap-flask"
-version = "2.5.0"
-description = "Bootstrap 4 & 5 helper for your Flask projects."
-optional = false
-python-versions = "*"
-groups = ["main"]
-files = [
-    {file = "bootstrap_flask-2.5.0-py3-none-any.whl", hash = "sha256:dd76203fe4d46062bf1e7fd2a25aaccdc54affde9acc282f6aa4da4f4bbf2a5a"},
-    {file = "bootstrap_flask-2.5.0.tar.gz", hash = "sha256:b6e5ea1ce40616fb289c9e85d4beedd43fea2048b4032f4abc83a582db494978"},
-]
-
-[package.dependencies]
-Flask = "*"
-WTForms = "*"
-
-[[package]]
 name = "botocore"
 version = "1.43.34"
 description = "Low-level, data-driven core of boto 3."
@@ -4601,4 +4585,4 @@ testing = ["coverage[toml]", "zope.event", "zope.testing"]
 [metadata]
 lock-version = "2.1"
 python-versions = "3.12.13"
-content-hash = "a139dd5ee92135072f5b2d13858e972e506e2316420c4a84d1f325631ad99966"
+content-hash = "2f967d8d80fd32411440957ea9828d3e200179a9fb8ac35bbe77cd7300d6d443"

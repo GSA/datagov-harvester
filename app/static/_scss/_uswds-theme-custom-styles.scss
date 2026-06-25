@@ -76,7 +76,7 @@ ul.menu {
   }
 }
 
-.container:first-child {
+header .grid-container {
   display: flex;
   justify-content: space-between;
 }
@@ -89,11 +89,62 @@ ul.menu {
   width: 100%;
 }
 
-/* Keep Bootstrap 4 visual defaults while using Bootstrap 5 assets. */
-body {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
-    "Helvetica Neue", Arial, "Noto Sans", "Liberation Sans", sans-serif,
-    "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji" !important;
+// USWDS has no built-in dismissible alert; use grid so the close button
+// stays out of .usa-alert__body > * icon spacing rules.
+.usa-alert.usa-alert--dismissible {
+  align-items: center;
+  display: grid;
+  grid-template-columns: 1fr auto;
+}
+
+.usa-alert.usa-alert--dismissible .usa-alert__body {
+  grid-column: 1;
+  min-width: 0;
+}
+
+.usa-alert.usa-alert--dismissible .usa-alert__close {
+  align-items: center;
+  align-self: center;
+  appearance: none;
+  background-color: transparent;
+  border: 0;
+  color: color("base");
+  cursor: pointer;
+  display: flex;
+  grid-column: 2;
+  margin: 0 6px 0 0;
+  padding: units(0.5);
+  width: auto;
+
+  &:hover,
+  &:active {
+    background-color: transparent;
+    color: color("ink");
+  }
+
+  &:focus {
+    outline-offset: 0;
+  }
+
+  .usa-icon {
+    height: units(4);
+    width: units(4);
+  }
+}
+
+.config-table {
+  .usa-table {
+    margin-top: 0;
+    margin-bottom: 1rem;
+
+    td:first-child {
+      font-weight: 700;
+      white-space: nowrap;
+      padding-right: 1.5rem;
+      vertical-align: top;
+      width: 1%;
+    }
+  }
 }
 
 a {
@@ -104,18 +155,11 @@ a:hover {
   text-decoration: underline !important;
 }
 
-div.form-group.form-submit-group {
+div.usa-form-group.form-submit-group {
   margin-top: 1rem;
   margin-bottom: 1rem;
 }
 
 button#btn-download {
   margin-bottom: 1rem;
-}
-
-@media (min-width: 1400px) {
-  .container,
-  .container-xxl {
-    max-width: 1140px !important;
-  }
 }
