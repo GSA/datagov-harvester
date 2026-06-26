@@ -4,6 +4,8 @@ import logging
 import os
 import secrets
 
+from harvester.utils.env_utils import is_running_on_cloud_foundry
+
 logger = logging.getLogger("harvest_admin.local_dev_auth")
 
 LOCAL_DEV_USERNAME = "admin"
@@ -13,10 +15,6 @@ LOCAL_DEV_SESSION_EMAIL = "admin@local.gov"
 
 def _env_flag_enabled(name: str) -> bool:
     return os.getenv(name, "").strip().lower() in ("1", "true", "yes")
-
-
-def is_running_on_cloud_foundry() -> bool:
-    return "VCAP_APPLICATION" in os.environ
 
 
 def is_local_dev_login_enabled() -> bool:
