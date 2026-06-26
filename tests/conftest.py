@@ -1475,4 +1475,3 @@ def dcatus_3_catalog_missing_identifier():
             ],
         }
     )
-
