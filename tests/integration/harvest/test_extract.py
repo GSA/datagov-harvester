@@ -24,6 +24,22 @@ class TestExtract:
 
         assert len(harvest_source.external_records) == 7
 
+    def test_extract_dcatus3_0(
+        self,
+        interface,
+        organization_data,
+        source_data_dcatus3_0,
+        job_data_dcatus3_0,
+    ):
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_dcatus3_0)
+        harvest_job = interface.add_harvest_job(job_data_dcatus3_0)
+
+        harvest_source = HarvestSource(harvest_job.id)
+        harvest_source.acquire_minimum_external_data()
+
+        assert len(harvest_source.external_records) == 4
+
     def test_check_iso_dcatus_schema(
         self,
         interface,
@@ -61,6 +77,32 @@ class TestExtract:
         msg = (
             "Test Source (no identifier) Commitment of Traders is "
             "missing 'identifier' field"
+        )
+        assert errors[0][0].message == msg
+
+    def test_extract_dcatus3_0_object_identifier_without_atid(
+        self,
+        interface,
+        organization_data,
+        source_data_dcatus3_0_no_identifier,
+        job_data_dcatus3_0_no_identifier,
+    ):
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_dcatus3_0_no_identifier)
+        harvest_job = interface.add_harvest_job(job_data_dcatus3_0_no_identifier)
+
+        harvest_source = HarvestSource(harvest_job.id)
+        harvest_source.acquire_data_sources()
+        harvest_source.filter_datasets_with_no_identifier()
+
+        assert len(harvest_source.external_records) == 0
+
+        errors = interface.get_harvest_record_errors_by_job(harvest_job.id)
+
+        msg = (
+            "Test Source DCAT-US 3.0 (no identifier) "
+            "Dataset With Invalid Object Identifier has an object "
+            "'identifier' with no usable '@id' field"
         )
         assert errors[0][0].message == msg
 
