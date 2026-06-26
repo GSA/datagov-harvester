@@ -154,6 +154,57 @@ def test_normalize_dcat_preserves_publisher_suborganization_object():
     assert normalized["publisher"]["subOrganizationOf"] == {"name": "U.S. Government"}
 
 
+def test_normalize_dcat_text_compatible_dcatus3_objects():
+    dcat = {
+        "identifier": {
+            "@type": "Identifier",
+            "@id": "https://example.gov/identifiers/dataset-1",
+            "notation": "DATASET-1",
+        },
+        "theme": [
+            {
+                "@id": "https://example.gov/concepts/climate-science",
+                "@type": "Concept",
+                "prefLabel": "Climate Science",
+            }
+        ],
+        "landingPage": {
+            "@id": "https://example.gov/datasets/dataset-1",
+            "@type": "Document",
+            "title": "Dataset landing page",
+        },
+        "conformsTo": [
+            {
+                "@id": "https://example.gov/standards/climate-data",
+                "@type": "Standard",
+                "title": "Climate Data Standard",
+            }
+        ],
+        "status": {
+            "@id": "https://example.gov/concepts/status-published",
+            "@type": "Concept",
+            "prefLabel": "Published",
+        },
+        "temporal": [
+            {
+                "@id": "https://example.gov/periods/2024",
+                "@type": "PeriodOfTime",
+                "startDate": "2024-01-01",
+                "endDate": "2024-12-31",
+            }
+        ],
+    }
+
+    normalized = OpenSearchInterface._normalize_dcat_dates(dcat)
+
+    assert normalized["identifier"] == "https://example.gov/identifiers/dataset-1"
+    assert normalized["theme"] == ["Climate Science"]
+    assert normalized["landingPage"] == "https://example.gov/datasets/dataset-1"
+    assert normalized["conformsTo"] == ["https://example.gov/standards/climate-data"]
+    assert normalized["status"] == "Published"
+    assert normalized["temporal"] == ["https://example.gov/periods/2024"]
+
+
 def test_geometry_centroid_returns_average():
     geometry = {"type": "MultiPoint", "coordinates": [[0, 0], [2, 2]]}
 
@@ -208,6 +259,7 @@ def test_dataset_to_document(sample_dataset, monkeypatch):
     assert document["title"] == "Dataset Title"
     assert document["publisher"] == "Publisher"
     assert document["dcat"]["isPartOf"] == "collection-1"
+    assert document["theme"] == ["theme-1"]
     assert document["distribution_titles"] == ["CSV download", "API endpoint"]
     assert document["has_spatial"] is True
     assert document["harvest_record"] == "https://catalog.data.gov/harvest_record/hr-1"
@@ -287,6 +339,41 @@ def test_dataset_to_document_has_spatial_theme(sample_dataset, theme):
     document = iface.dataset_to_document(sample_dataset)
 
     assert document["has_spatial"] is True
+
+
+def test_dataset_to_document_normalizes_dcatus3_search_fields(sample_dataset):
+    iface = OpenSearchInterface.__new__(OpenSearchInterface)
+    sample_dataset.dcat["identifier"] = {
+        "@type": "Identifier",
+        "@id": "https://example.gov/identifiers/dataset-1",
+        "notation": "DATASET-1",
+    }
+    sample_dataset.dcat["theme"] = [
+        {
+            "@id": "https://example.gov/concepts/geospatial",
+            "@type": "Concept",
+            "prefLabel": "Geospatial",
+        }
+    ]
+    sample_dataset.dcat.pop("spatial", None)
+    sample_dataset.translated_spatial = None
+
+    document = iface.dataset_to_document(sample_dataset)
+
+    assert document["identifier"] == "https://example.gov/identifiers/dataset-1"
+    assert document["theme"] == ["Geospatial"]
+    assert document["dcat"]["identifier"] == "https://example.gov/identifiers/dataset-1"
+    assert document["dcat"]["theme"] == ["Geospatial"]
+    assert document["has_spatial"] is True
+
+
+def test_dataset_to_document_preserves_string_theme_shape(sample_dataset):
+    iface = OpenSearchInterface.__new__(OpenSearchInterface)
+    sample_dataset.dcat["theme"] = "Geospatial"
+
+    document = iface.dataset_to_document(sample_dataset)
+
+    assert document["theme"] == "Geospatial"
 
 
 @pytest.mark.parametrize(
