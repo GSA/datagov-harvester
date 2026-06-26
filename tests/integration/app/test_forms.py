@@ -112,6 +112,37 @@ class TestForms:
             "other@example.com",
         ]
 
+    def test_add_harvest_source_duplicate_url(
+        self, app, client, interface, organization_data, source_data_dcatus
+    ):
+        app.config.update({"WTF_CSRF_ENABLED": False})
+        with client.session_transaction() as sess:
+            sess["user"] = "tester@gsa.gov"
+
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_dcatus)
+
+        form_data = {
+            "organization_id": organization_data["id"],
+            "name": "Duplicate URL Source",
+            "url": source_data_dcatus["url"],
+            "notification_emails": "user@example.com",
+            "frequency": "daily",
+            "schema_type": "dcatus1.1: federal",
+            "source_type": "document",
+            "notification_frequency": "always",
+        }
+        res = client.post("/harvest_source/add", data=form_data, follow_redirects=False)
+
+        assert res.status_code == 302
+        follow = client.get(res.headers["Location"], follow_redirects=True)
+        assert follow.status_code == 200
+        assert b"A harvest source with this URL already exists" in follow.data
+        assert source_data_dcatus["id"].encode() in follow.data
+
+        sources = interface.get_all_harvest_sources()
+        assert len(sources) == 1
+
     def test_edit_organization_updates_all_fields(
         self, app, client, interface, organization_data
     ):

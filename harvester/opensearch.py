@@ -31,6 +31,18 @@ class OpenSearchInterface:
     STOP_FILTER = "datagov_stop"
     KEYWORD_NORMALIZER = "lowercase_normalizer"
     DEFAULT_CATALOG_BASE_URL = "https://catalog.data.gov"
+    DCAT_TEXT_COMPATIBLE_FIELDS = {
+        "accrualPeriodicity",
+        "accessRights",
+        "conformsTo",
+        "identifier",
+        "landingPage",
+        "license",
+        "rights",
+        "status",
+        "temporal",
+        "theme",
+    }
 
     SETTINGS = {
         "analysis": {
@@ -240,6 +252,41 @@ class OpenSearchInterface:
         return str(value)
 
     @classmethod
+    def _dcat_text_from_object(cls, value: dict, field: str) -> str:
+        if field == "identifier":
+            identifier = normalize_dataset_identifier(value)
+            if identifier:
+                return identifier
+
+        preferred_keys = (
+            ("prefLabel", "title", "name", "label", "notation", "@id")
+            if field in {"accessRights", "status", "theme"}
+            else ("@id", "title", "name", "prefLabel", "label", "notation")
+        )
+        for key in preferred_keys:
+            candidate = value.get(key)
+            if isinstance(candidate, str) and candidate.strip():
+                return candidate
+            if isinstance(candidate, list):
+                text_values = [
+                    str(item) for item in candidate if item is not None and str(item)
+                ]
+                if text_values:
+                    return ", ".join(text_values)
+
+        return cls._serialize_dcat_value(value)
+
+    @classmethod
+    def _normalize_dcat_text_value(cls, value: Any, field: str) -> Any:
+        if isinstance(value, dict):
+            return cls._dcat_text_from_object(value, field)
+        if isinstance(value, list):
+            return [cls._normalize_dcat_text_value(item, field) for item in value]
+        if value is None or isinstance(value, str):
+            return value
+        return str(value)
+
+    @classmethod
     def _normalize_dcat_metadata_value(cls, value: Any) -> Any:
         # stringify nested objects/lists because
         # OpenSearch expect those fields to be text.
@@ -278,13 +325,20 @@ class OpenSearchInterface:
                 if isinstance(value, (datetime, date)):
                     normalized_dcat[field] = value.isoformat()
                 elif value is not None and not isinstance(value, str):
-                    normalized_dcat[field] = str(value)
+                    normalized_dcat[field] = (
+                        cls._normalize_dcat_text_value(value, field)
+                        if field == "temporal"
+                        else str(value)
+                    )
         spatial = normalized_dcat.get("spatial")
         if spatial is not None and not isinstance(spatial, str):
             normalized_dcat["spatial"] = cls._serialize_dcat_value(spatial)
 
         for field, value in normalized_dcat.items():
             if field in date_fields or field in {"publisher", "spatial"}:
+                continue
+            if field in cls.DCAT_TEXT_COMPATIBLE_FIELDS:
+                normalized_dcat[field] = cls._normalize_dcat_text_value(value, field)
                 continue
             normalized_dcat[field] = cls._normalize_dcat_metadata_value(value)
         return normalized_dcat
@@ -343,12 +397,16 @@ class OpenSearchInterface:
     def dataset_to_document(self, dataset):
         """Map a dataset into a document for indexing."""
         spatial_value = dataset.dcat.get("spatial")
-        themes = dataset.dcat.get("theme") or []
-        if isinstance(themes, str):
-            themes = [themes]
+        themes = dataset.dcat.get("theme", [])
+        normalized_themes = self._normalize_dcat_text_value(themes, "theme")
+        theme_values = (
+            [normalized_themes]
+            if isinstance(normalized_themes, str)
+            else normalized_themes or []
+        )
         has_spatial_theme = any(
             isinstance(theme, str) and theme.strip().lower() == "geospatial"
-            for theme in themes
+            for theme in theme_values
         )
         has_spatial = (
             bool(spatial_value and str(spatial_value).strip())
@@ -376,7 +434,7 @@ class OpenSearchInterface:
             "publisher": dataset.dcat.get("publisher", {}).get("name", ""),
             "dcat": normalized_dcat,
             "keyword": dataset.dcat.get("keyword", []),
-            "theme": dataset.dcat.get("theme", []),
+            "theme": normalized_themes,
             "identifier": normalize_dataset_identifier(dataset.dcat.get("identifier"))
             or "",
             "has_spatial": has_spatial,
