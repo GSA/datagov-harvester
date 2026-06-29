@@ -5,7 +5,17 @@ from typing import Optional
 
 from flask_sqlalchemy import SQLAlchemy
 from geoalchemy2 import Geometry
-from sqlalchemy import CheckConstraint, Column, Enum, Index, String, func, select, text
+from sqlalchemy import (
+    CheckConstraint,
+    Column,
+    Enum,
+    Index,
+    String,
+    UniqueConstraint,
+    func,
+    select,
+    text,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.mutable import MutableDict
 from sqlalchemy.orm import DeclarativeBase, backref, column_property
@@ -41,11 +51,12 @@ class Error(db.Model):
 
 class Organization(db.Model):
     __tablename__ = "organization"
+    __table_args__ = (UniqueConstraint("slug", name="uq_organization_slug"),)
 
     name = db.Column(db.String, nullable=False, index=True)
     logo = db.Column(db.String)
     description = db.Column(db.Text)
-    slug = db.Column(db.String(100), unique=True, index=True, nullable=False)
+    slug = db.Column(db.String(100), nullable=False)
     organization_type = db.Column(
         Enum(
             *ORGANIZATION_TYPE_VALUES,
@@ -244,6 +255,7 @@ class Dataset(db.Model):
         db.ForeignKey("harvest_record.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
+        unique=True,
     )
 
     popularity = db.Column(db.Integer, server_default="0")
