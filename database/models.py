@@ -5,7 +5,7 @@ from typing import Optional
 
 from flask_sqlalchemy import SQLAlchemy
 from geoalchemy2 import Geometry
-from sqlalchemy import CheckConstraint, Column, Enum, Index, String, func, select
+from sqlalchemy import CheckConstraint, Column, Enum, Index, String, func, select, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.mutable import MutableDict
 from sqlalchemy.orm import DeclarativeBase, backref, column_property
@@ -194,11 +194,12 @@ class HarvestRecord(db.Model):
 
     __table_args__ = (
         Index(
-            "ix_hr_source_status_identifier_created_desc",
-            "harvest_source_id",
-            "status",
-            "identifier",
+            "ix_harvest_record_source_identifier_created_success",
+            harvest_source_id,
+            identifier,
             date_created.desc(),
+            postgresql_where=text("status = 'success'"),
+            postgresql_include=["action"],
         ),
     )
 

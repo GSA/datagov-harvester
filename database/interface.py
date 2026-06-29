@@ -848,6 +848,18 @@ class HarvesterDBInterface:
             HarvestRecord.harvest_source_id == source_id,
         ]
 
+        if kwargs.get("count") is True:
+            subq = (
+                self.db.query(HarvestRecord.identifier, HarvestRecord.action)
+                .filter(*queries)
+                .order_by(HarvestRecord.identifier, desc(HarvestRecord.date_created))
+                .distinct(HarvestRecord.identifier)
+                .subquery()
+            )
+            return self.db.query(subq.c.identifier).filter(
+                subq.c.action != "delete"
+            )
+
         subq = (
             self.db.query(HarvestRecord)
             .filter(*queries)
