@@ -83,6 +83,7 @@ class HarvestSource(db.Model):
             " AND source_type = 'waf-collection')",
             name="wafcollectionparenturl",
         ),
+        Index("ix_harvest_source_organization_id", "organization_id"),
     )
 
     organization_id = db.Column(
@@ -204,6 +205,7 @@ class HarvestRecord(db.Model):
     errors = db.relationship("HarvestRecordError", backref="record", lazy=True)
 
     __table_args__ = (
+        Index("ix_harvest_record_harvest_job_id", "harvest_job_id"),
         Index(
             "ix_harvest_record_source_identifier_created_success",
             harvest_source_id,
@@ -302,6 +304,8 @@ class HarvestJobError(Error):
         db.String(36), db.ForeignKey("harvest_job.id"), nullable=False
     )
 
+    __table_args__ = (Index("ix_harvest_job_error_harvest_job_id", "harvest_job_id"),)
+
 
 class HarvestRecordError(Error):
     __tablename__ = "harvest_record_error"
@@ -313,7 +317,10 @@ class HarvestRecordError(Error):
         db.String(36), db.ForeignKey("harvest_job.id"), nullable=False
     )
 
-    __table_args__ = (Index("ix_hre_job_id", "harvest_job_id"),)
+    __table_args__ = (
+        Index("ix_hre_job_id", "harvest_job_id"),
+        Index("ix_harvest_record_error_harvest_record_id", "harvest_record_id"),
+    )
 
 
 class HarvestUser(db.Model):
