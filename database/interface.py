@@ -458,9 +458,7 @@ class HarvesterDBInterface:
                 func.array_agg(base.c.harvest_job_id)[instance_idx].label(
                     "harvest_job_id"
                 ),
-                func.array_agg(base.c.date_created)[instance_idx].label(
-                    "date_created"
-                ),
+                func.array_agg(base.c.date_created)[instance_idx].label("date_created"),
                 func.array_agg(base.c.type)[instance_idx].label("type"),
                 func.array_to_string(func.array_agg(base.c.message), "::").label(
                     "message"
@@ -564,8 +562,8 @@ class HarvesterDBInterface:
                 ON harvest_record.id = harvest_record_error.harvest_record_id
             WHERE harvest_record_error.harvest_job_id = :job_id
         """)
-        return self.db.execute(query, {"job_id": job_id}).mappings().yield_per(
-            batch_size
+        return (
+            self.db.execute(query, {"job_id": job_id}).mappings().yield_per(batch_size)
         )
 
     def get_harvest_error(self, error_id: str) -> dict:
@@ -932,9 +930,7 @@ class HarvesterDBInterface:
                 .distinct(HarvestRecord.identifier)
                 .subquery()
             )
-            return self.db.query(subq.c.identifier).filter(
-                subq.c.action != "delete"
-            )
+            return self.db.query(subq.c.identifier).filter(subq.c.action != "delete")
 
         subq = (
             self.db.query(HarvestRecord)

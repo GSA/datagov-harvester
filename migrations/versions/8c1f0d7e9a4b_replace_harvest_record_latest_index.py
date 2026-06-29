@@ -17,33 +17,26 @@ depends_on = None
 
 def upgrade():
     with op.get_context().autocommit_block():
-        op.execute(
-            """
+        op.execute("""
             DROP INDEX CONCURRENTLY IF EXISTS
             ix_hr_source_status_identifier_created_desc
-            """
-        )
-        op.execute(
-            """
+            """)
+        op.execute("""
             CREATE INDEX CONCURRENTLY IF NOT EXISTS
             ix_harvest_record_source_identifier_created_success
             ON harvest_record (harvest_source_id, identifier, date_created DESC)
             INCLUDE (action)
             WHERE status = 'success'
-            """
-        )
+            """)
 
 
 def downgrade():
     with op.get_context().autocommit_block():
-        op.execute(
-            """
+        op.execute("""
             DROP INDEX CONCURRENTLY IF EXISTS
             ix_harvest_record_source_identifier_created_success
-            """
-        )
-        op.execute(
-            """
+            """)
+        op.execute("""
             CREATE INDEX CONCURRENTLY IF NOT EXISTS
             ix_hr_source_status_identifier_created_desc
             ON harvest_record (
@@ -52,5 +45,4 @@ def downgrade():
                 identifier,
                 date_created DESC
             )
-            """
-        )
+            """)

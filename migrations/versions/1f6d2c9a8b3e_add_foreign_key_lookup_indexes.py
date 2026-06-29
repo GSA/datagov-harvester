@@ -17,59 +17,43 @@ depends_on = None
 
 def upgrade():
     with op.get_context().autocommit_block():
-        op.execute(
-            """
+        op.execute("""
             CREATE INDEX CONCURRENTLY IF NOT EXISTS
             ix_harvest_record_harvest_job_id
             ON harvest_record (harvest_job_id)
-            """
-        )
-        op.execute(
-            """
+            """)
+        op.execute("""
             CREATE INDEX CONCURRENTLY IF NOT EXISTS
             ix_harvest_record_error_harvest_record_id
             ON harvest_record_error (harvest_record_id)
-            """
-        )
-        op.execute(
-            """
+            """)
+        op.execute("""
             CREATE INDEX CONCURRENTLY IF NOT EXISTS
             ix_harvest_job_error_harvest_job_id
             ON harvest_job_error (harvest_job_id)
-            """
-        )
-        op.execute(
-            """
+            """)
+        op.execute("""
             CREATE INDEX CONCURRENTLY IF NOT EXISTS
             ix_harvest_source_organization_id
             ON harvest_source (organization_id)
-            """
-        )
+            """)
 
 
 def downgrade():
     with op.get_context().autocommit_block():
-        op.execute(
-            """
+        op.execute("""
             DROP INDEX CONCURRENTLY IF EXISTS
             ix_harvest_source_organization_id
-            """
-        )
-        op.execute(
-            """
+            """)
+        op.execute("""
             DROP INDEX CONCURRENTLY IF EXISTS
             ix_harvest_job_error_harvest_job_id
-            """
-        )
-        op.execute(
-            """
+            """)
+        op.execute("""
             DROP INDEX CONCURRENTLY IF EXISTS
             ix_harvest_record_error_harvest_record_id
-            """
-        )
-        op.execute(
-            """
+            """)
+        op.execute("""
             DROP INDEX CONCURRENTLY IF EXISTS
             ix_harvest_record_harvest_job_id
-            """
-        )
+            """)
