@@ -11,7 +11,7 @@ from flask_htmx import HTMX
 from flask_migrate import Migrate
 from flask_talisman import Talisman
 
-from app.filters import else_na, usa_icon, utc_isoformat
+from app.filters import else_na, humanize, usa_icon, utc_isoformat
 from app.local_dev_auth import is_running_on_cloud_foundry
 from app.startup_validation import validate_required_env_vars
 from config.logger_config import LOGGING_CONFIG
@@ -315,5 +315,5 @@ def create_app():
 
 
 def add_template_filters(app):
-    for fn in [usa_icon, else_na, utc_isoformat]:
+    for fn in [usa_icon, else_na, utc_isoformat, humanize]:
         app.add_template_filter(fn)

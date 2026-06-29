@@ -1,21 +1,8 @@
-.icon-glossary {
-  position: relative;
-  color: color('primary');
-  text-decoration: none;
-
-  svg {
-    @include u-text("primary-vivid");
-    fill: currentColor;
-    left: -20px;
-    position: absolute;
-    top: 5px;
-  }
-  
-  &:hover {
-    text-decoration: none;
-  }
-
-  &:hover svg {
-    @include u-text("primary");
-  }
+// Glossary toggle lives in the header's secondary nav as a USWDS unstyled
+// button. Give its leading icon a small, token-based gap so the icon and
+// "Glossary" label read as one control.
+.js-glossary-toggle {
+  align-items: center;
+  display: inline-flex;
+  gap: units(0.5);
 }
