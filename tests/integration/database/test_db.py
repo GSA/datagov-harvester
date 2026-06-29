@@ -1060,7 +1060,9 @@ class TestDatabase:
         )
 
         # 1 missing and 1 outdated dataset
-        count, sample_records = interface.get_missing_or_outdated_datasets()
+        count, sample_records = (
+            interface.get_missing_or_outdated_dataset_count_and_sample()
+        )
         assert count == 2 & len(sample_records) == 2
 
 

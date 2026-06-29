@@ -37,7 +37,7 @@ FREQUENCY_ENUM = {"daily": 1, "weekly": 7, "biweekly": 14, "monthly": 30}
 # User-Agent header for all HTTP requests
 USER_AGENT = "HarvesterBot/0.0 (https://data.gov; datagovhelp@gsa.gov) Data.gov/2.0"
 
-DT_PLACEHOLDER = datetime(1900, 1, 1, 0, 0)
+DT_PLACEHOLDER = datetime.now()
 
 PACKAGE_NAME_MAX_LENGTH = 90
 PACKAGE_NAME_MIN_LENGTH = 2
