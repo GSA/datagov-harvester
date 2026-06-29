@@ -113,19 +113,18 @@ class TestViewHarvestJob:
         data_rows = list(csv_reader)
         assert len(data_rows) == num_errors
 
-        # Verify a few sample rows have expected data
-        first_row = data_rows[0]
-        assert first_row[1] == "test-record-001"  # identifier
-        assert first_row[2] == "Test Dataset Title"  # title
-        assert first_row[3] == str(harvest_record.id)  # harvest_record_id
-        assert first_row[4] == "ValidationException"  # record_error_type
-        assert "Error #1" in first_row[5]  # message contains error number
+        # Verify every error was streamed without relying on database row order
+        expected_messages = {
+            f"{error_messages[i % 5]} (Error #{i + 1})" for i in range(num_errors)
+        }
+        assert {row[5] for row in data_rows} == expected_messages
 
-        # Verify last row to ensure all data was streamed
-        last_row = data_rows[-1]
-        assert last_row[1] == "test-record-001"  # identifier
-        assert last_row[2] == "Test Dataset Title"  # title
-        assert f"Error #{num_errors}" in last_row[5]  # message contains last error num
+        # All errors belong to the same harvest record and have the same type
+        for row in data_rows:
+            assert row[1] == "test-record-001"  # identifier
+            assert row[2] == "Test Dataset Title"  # title
+            assert row[3] == str(harvest_record.id)  # harvest_record_id
+            assert row[4] == "ValidationException"  # record_error_type
 
         # Test that memory wasn't overwhelmed by checking response was properly streamed
         # (The fact that we got a complete response with 5200+ rows indicates streaming
