@@ -128,7 +128,7 @@ def fetch_json_from_url(url: str) -> dict:
     if "application/json" not in content_type:
         raise ValueError("URL did not return JSON.")
 
-    content = response.raw.read(max_content_length + 1)
+    content = response.content
     if len(content) > max_content_length:
         raise ValueError("JSON payload too large.")
 
