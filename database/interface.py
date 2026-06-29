@@ -542,6 +542,32 @@ class HarvesterDBInterface:
 
         return query
 
+    def stream_harvest_record_errors_by_job(self, job_id: str, batch_size=1000):
+        """
+        Stream record errors for CSV export without OFFSET pagination.
+        """
+        query = text("""
+            SELECT
+                harvest_record_error.id,
+                harvest_record.identifier,
+                CASE
+                    WHEN left(ltrim(harvest_record.source_raw), 1) IN ('{', '[')
+                    THEN harvest_record.source_raw
+                    ELSE NULL
+                END AS source_raw,
+                harvest_record_error.harvest_record_id,
+                harvest_record_error.type,
+                harvest_record_error.message,
+                harvest_record_error.date_created
+            FROM harvest_record_error
+            LEFT OUTER JOIN harvest_record
+                ON harvest_record.id = harvest_record_error.harvest_record_id
+            WHERE harvest_record_error.harvest_job_id = :job_id
+        """)
+        return self.db.execute(query, {"job_id": job_id}).mappings().yield_per(
+            batch_size
+        )
+
     def get_harvest_error(self, error_id: str) -> dict:
         job_query = self.db.query(HarvestJobError).filter_by(id=error_id).first()
         record_query = self.db.query(HarvestRecordError).filter_by(id=error_id).first()
