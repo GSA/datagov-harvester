@@ -1146,7 +1146,6 @@ class Record:
                 if not self.dataset_slug:
                     self.dataset_slug = munge_title_to_name(metadata["title"])
 
-            self.status = "success"
             self.harvest_source.update_job_record_count_by_action(self.action)
             self.update_self_in_db()
 
@@ -1173,6 +1172,9 @@ class Record:
                 )
                 if deleted:
                     self._delete_dataset_from_opensearch(dataset)
+
+            # set the status of the record after dataset change
+            self.status = "success"
 
             return True
 
