@@ -13,7 +13,10 @@ function filter(e) {
     // The page tells us what it is listing via data-noun; default to "source".
     var noun = e.getAttribute("data-noun") || "source";
     var word = (componentCount === 1) ? noun : noun + "s";
-    document.getElementById("component-count").innerHTML = `<strong>${componentCount}</strong> ${word} found`
+    var countContainer = document.getElementById("component-count");
+    var strongCount = document.createElement("strong");
+    strongCount.textContent = componentCount;
+    countContainer.replaceChildren(strongCount, ` ${word} found`);
 }
 
 document.addEventListener("DOMContentLoaded", () => {
