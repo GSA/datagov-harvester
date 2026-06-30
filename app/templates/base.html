@@ -7,11 +7,11 @@
   {% block title %}
   <title>{{action}} {{data_type}}</title>
   {% endblock %}
-  <link rel="stylesheet" href="{{ url_for('static', filename='assets/uswds/css/styles.css') }}">
+  <link rel="stylesheet" href="{{ static_url('assets/uswds/css/styles.css') }}">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
-  <script src="{{ url_for('static', filename='assets/uswds/js/uswds-init.js') }}"></script>
-  <script src="{{ url_for('static', filename='assets/htmx/htmx.min.js') }}"></script>
-  <script src="{{ url_for('static', filename='js/datetime.js') }}"></script>
+  <script src="{{ static_url('assets/uswds/js/uswds-init.js') }}"></script>
+  <script src="{{ static_url('assets/htmx/htmx.min.js') }}"></script>
+  <script src="{{ static_url('js/datetime.js') }}"></script>
   <!-- Google Tag Manager -->
   <script nonce="{{ csp_nonce() }}">(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
     new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
@@ -130,7 +130,7 @@
         </div>
         <button type="button" class="usa-alert__close js-alert-close" aria-label="Close alert">
           <svg class="usa-icon" aria-hidden="true" role="img" focusable="false">
-            <use href="/assets/uswds/img/sprite.svg#close"></use>
+            <use href="{{ static_url('assets/uswds/img/sprite.svg') }}#close"></use>
           </svg>
         </button>
       </div>
@@ -141,8 +141,8 @@
   </div>
   </div>
   {% include '/snippets/footer.html' %}
-  <script src="{{ url_for('static', filename='assets/uswds/js/uswds.js') }}"></script>
-  <script src="{{ url_for('static', filename='assets/js/bundle.js') }}"></script>
+  <script src="{{ static_url('assets/uswds/js/uswds.js') }}"></script>
+  <script src="{{ static_url('assets/js/bundle.js') }}"></script>
   {% block scripts %}
   {% endblock %}
 </body>

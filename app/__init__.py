@@ -32,6 +32,20 @@ HSTS_MAX_AGE_SECONDS = 60 * 60 * 24 * 365
 HSTS_HEADER = f"max-age={HSTS_MAX_AGE_SECONDS}; includeSubDomains; preload"
 
 
+class VersionedStaticAPIFlask(APIFlask):
+    def send_static_file(self, filename):
+        from app.static_assets import (
+            DEFAULT_ASSET_VERSION,
+            unversion_static_filename,
+            validate_asset_version,
+        )
+
+        version = validate_asset_version(
+            self.config.get("ASSET_VERSION", DEFAULT_ASSET_VERSION)
+        )
+        return super().send_static_file(unversion_static_filename(filename, version))
+
+
 def current_unix_timestamp() -> int:
     return int(time.time())
 
@@ -53,7 +67,9 @@ def _external_route_to_server_url(route: str | None) -> str | None:
 
 def create_app():
     env_values = validate_required_env_vars()
-    app = APIFlask(__name__, static_url_path="", static_folder="static", docs_path=None)
+    app = VersionedStaticAPIFlask(
+        __name__, static_url_path="", static_folder="static", docs_path=None
+    )
 
     # OpenAPI fields
     app.config["INFO"] = {
@@ -85,6 +101,9 @@ def create_app():
     app.config["SESSION_IDLE_TIMEOUT_SECONDS"] = int(
         os.getenv("SESSION_IDLE_TIMEOUT_SECONDS", "900")
     )
+    from app.static_assets import get_asset_version
+
+    app.config["ASSET_VERSION"] = get_asset_version(app.static_folder)
 
     def get_session_cookie_name():
         return app.config["SESSION_COOKIE_NAME"]
@@ -139,7 +158,7 @@ def create_app():
         g.clear_session_cookie = False
         g.sync_auth_cookie = False
 
-        if request.path.startswith("/assets/"):
+        if request.endpoint == "static":
             return
 
         if not session.get("user"):
@@ -204,7 +223,7 @@ def create_app():
         if path.startswith(("/login", "/callback", "/logout")) or path == "/login/oidc":
             return set_private_no_store(response)
 
-        if path.startswith("/assets/"):
+        if request.endpoint == "static":
             return set_public_cache(response, 3600)
 
         if method not in {"GET", "HEAD"}:
@@ -315,5 +334,8 @@ def create_app():
 
 
 def add_template_filters(app):
+    from app.static_assets import static_url
+
     for fn in [usa_icon, else_na, utc_isoformat, humanize]:
         app.add_template_filter(fn)
+    app.add_template_global(static_url, "static_url")
