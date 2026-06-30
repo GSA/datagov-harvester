@@ -18,6 +18,7 @@ from harvester.utils.general_utils import (
     RetrySession,
     assemble_validation_errors,
     create_retry_session,
+    describe_identifier_error,
     download_file,
     dynamic_map_list_items_to_dict,
     find_indexes_for_duplicates,
@@ -25,6 +26,7 @@ from harvester.utils.general_utils import (
     is_valid_uuid4,
     munge_spatial,
     munge_title_to_name,
+    normalize_dataset_identifier,
     parse_args,
     prepare_distributions,
     prepare_transform_msg,
@@ -328,6 +330,55 @@ class TestGeneralUtils:
             {"identifier": "c"},
         ]
         assert find_indexes_for_duplicates(data) == [4, 2, 1]
+
+    def test_find_indexes_for_duplicates_object_identifier(self):
+        data = [
+            {"identifier": "https://example.gov/datasets/one"},
+            {
+                "identifier": {
+                    "@type": "Identifier",
+                    "@id": "https://example.gov/datasets/one",
+                }
+            },
+            {"identifier": "b"},
+        ]
+        assert find_indexes_for_duplicates(data) == [1]
+
+    @pytest.mark.parametrize(
+        "identifier,expected",
+        [
+            ("https://example.gov/datasets/one", "https://example.gov/datasets/one"),
+            (
+                {"@type": "Identifier", "@id": "https://example.gov/datasets/three"},
+                "https://example.gov/datasets/three",
+            ),
+            (
+                {"@type": "Identifier", "notation": "DS-003"},
+                None,
+            ),
+            ({"@type": "Identifier"}, None),
+            (None, None),
+            ("", None),
+            ("   ", None),
+        ],
+    )
+    def test_normalize_dataset_identifier(self, identifier, expected):
+        assert normalize_dataset_identifier(identifier) == expected
+
+    @pytest.mark.parametrize(
+        "identifier,expected",
+        [
+            (None, "is missing 'identifier' field"),
+            ("", "is missing 'identifier' field"),
+            (
+                {"@type": "Identifier"},
+                "has an object 'identifier' with no usable '@id' field",
+            ),
+            (123, "has an invalid 'identifier' field"),
+        ],
+    )
+    def test_describe_identifier_error(self, identifier, expected):
+        assert describe_identifier_error(identifier) == expected
 
     def test_args_parsing(self):
         args = parse_args(["test-id", "test-type"])
