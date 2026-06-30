@@ -9,8 +9,8 @@
 {% block content %}
 <div class="wrapper job-data">
 
-    <section id="jobs-harvesting">
-      <h2>Jobs In Progress: {{ data.current_jobs | length }}</h2>
+    <section id="jobs-harvesting" class="margin-y-3">
+      <h2>Jobs in progress: {{ data.current_jobs | length }}</h2>
 
       {% if data.current_jobs %}
       {{ job_table.job_table(data.current_jobs, "Jobs In Progress", show_progress=True) }}
@@ -25,8 +25,8 @@
       {% endif %}
     </section>
 
-    <section id="jobs-to-harvest">
-      <h2>Scheduled Jobs In Queue: {{ data.new_jobs_in_past | length }}</h2>
+    <section id="jobs-to-harvest" class="margin-y-3">
+      <h2>Scheduled jobs in queue: {{ data.new_jobs_in_past | length }}</h2>
 
       {% if data.new_jobs_in_past %}
       {{ job_table.job_table(data.new_jobs_in_past, "Scheduled Jobs In Queue") }}
@@ -42,8 +42,8 @@
     </section>
 
 
-    <section id="recent-failed-jobs">
-      <h2>Recent Failed Jobs</h2>
+    <section id="recent-failed-jobs" class="margin-y-3">
+      <h2>Recent failed jobs</h2>
 
         <p class="text-base-dark">
             Showing jobs from {{ data.window_start.strftime('%Y-%m-%d %H:%M:%S UTC') }}
@@ -111,7 +111,7 @@
     </section>
 
     <div class="section margin-y-3">
-        <h2>Recently Completed Harvest Jobs</h2>
+        <h2>Recently completed harvest jobs</h2>
         <p class="text-base-dark">
             Showing jobs from {{ data.window_start.strftime('%Y-%m-%d %H:%M:%S UTC') }}
             to {{ data.current_time.strftime('%Y-%m-%d %H:%M:%S UTC') }}

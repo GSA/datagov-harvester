@@ -1,0 +1,437 @@
+// Header brand: mirror the datagov-catalog DATA.GOV wordmark, then append a
+// "Harvester" label so this admin app is visually related to the catalog but
+// clearly identified. The DATA.GOV mark is a background image on the logo
+// link; the suffix is a real text node for accessibility.
+#logo a {
+  align-items: center;
+  display: inline-flex;
+  gap: units(1);
+  margin-left: 0;
+  text-decoration: none;
+
+  // DATA.GOV wordmark (same asset the catalog uses), sized to the USWDS
+  // header logo height.
+  &::before {
+    background-image: url("../../img/logo.svg");
+    background-position: left center;
+    background-repeat: no-repeat;
+    background-size: contain;
+    content: "";
+    display: block;
+    height: units(5);
+    width: units(15);
+  }
+}
+
+.usa-logo__suffix {
+  @include u-text("primary-dark");
+  @include u-text("bold");
+  border-left: units("2px") solid color("base-lighter");
+  font-family: family("heading");
+  font-size: font-size("heading", "lg");
+  line-height: line-height("heading", 2);
+  padding-left: units(1);
+}
+
+// At the desktop nav breakpoint the logo competes with primary nav for width;
+// shrink the mark, suffix, and reserved logo column until desktop-lg.
+@include at-media("desktop") {
+  @include at-media-max("desktop-lg") {
+    .usa-header--basic {
+      .usa-navbar {
+        flex: none;
+        max-width: none;
+        width: auto;
+      }
+
+      .usa-logo {
+        margin-bottom: units(1);
+        margin-top: units(1);
+        max-width: none;
+      }
+    }
+
+    #logo a {
+      gap: units(0.5);
+
+      &::before {
+        height: units(4);
+        width: units(10);
+      }
+    }
+
+    .usa-logo__suffix {
+      font-size: font-size("heading", "sm");
+      line-height: line-height("heading", 3);
+      padding-left: units(0.5);
+    }
+  }
+}
+
+// Widescreen grid + full nav row overlap here; squeeze logo and links further.
+@media (min-width: 1033px) and (max-width: 1087px) {
+  .usa-header--basic .usa-logo {
+    margin-bottom: units(0.5);
+    margin-top: units(0.5);
+  }
+
+  #logo a {
+    gap: units(0.5);
+
+    &::before {
+      height: units(3);
+      width: units(9);
+    }
+  }
+
+  .usa-logo__suffix {
+    font-size: font-size("heading", "xs");
+    line-height: line-height("heading", 3);
+    padding-left: units(0.5);
+  }
+
+  .harvester-header {
+    .usa-nav__primary > .usa-nav__primary-item {
+      font-size: font-size("ui", "3xs");
+
+      > .usa-nav__link,
+      > button {
+        font-size: font-size("ui", "3xs");
+        padding: units(1);
+      }
+    }
+
+    .harvester-nav__utility-first {
+      margin-left: units(1);
+    }
+
+    .harvester-nav__utility-group {
+      gap: units(1);
+      padding-left: units(1);
+    }
+
+    .harvester-nav__user {
+      max-width: 9rem;
+    }
+
+    .harvester-nav__utility {
+      .js-glossary-toggle,
+      .harvester-nav__utility-link {
+        font-size: font-size("ui", "3xs");
+      }
+    }
+  }
+}
+
+// Subtle divider under the header, matching the catalog's flat header look.
+.usa-header--basic {
+  border-bottom: units("1px") solid color("base-lighter");
+
+  // Align logo with grid-container-widescreen content below (USWDS adds
+  // mobile site-margin on .usa-logo by default).
+  .usa-logo {
+    margin-left: 0;
+  }
+}
+
+// Stack logo and full-width menu on very narrow viewports.
+@media (max-width: 319px) {
+  .usa-header--basic .usa-navbar {
+    align-items: stretch;
+    flex-direction: column;
+    gap: units(1);
+    height: auto;
+    padding-block: units(1);
+  }
+
+  .usa-header--basic .usa-logo {
+    flex: none;
+    margin-left: 0;
+  }
+
+  .usa-header--basic .usa-menu-btn {
+    flex: none;
+    width: 100%;
+  }
+}
+
+// Flatten header utilities (glossary, account, login/logout) into the primary
+// nav row instead of USWDS's floating secondary nav stack.
+.harvester-header {
+  @include at-media($theme-header-min-width) {
+    .harvester-nav__utility-first {
+      margin-left: units(2);
+    }
+
+    .harvester-nav__utility {
+      .usa-nav__link::after,
+      .harvester-nav__utility-link::after {
+        display: none;
+      }
+    }
+
+    .harvester-nav__utility-group {
+      border-left: units("1px") solid color("base-lighter");
+      padding-left: units(2);
+    }
+
+    .harvester-nav__user {
+      max-width: 12rem;
+    }
+  }
+
+  @include at-media-max($theme-header-min-width) {
+    .harvester-nav__utility-first {
+      border-top: units("1px") solid color("base-lighter");
+      margin-top: 0;
+      padding-top: 0;
+    }
+
+    .harvester-nav__account-mobile {
+      border-bottom: units("1px") solid color("base-lighter");
+      display: block;
+      width: 100%;
+    }
+
+    .harvester-nav__account-name {
+      @include u-font("ui", "xs");
+      color: color("base-dark");
+      display: block;
+      font-weight: font-weight("bold");
+      padding: units(1) units(2);
+      word-break: break-word;
+    }
+
+    .harvester-nav__logout-mobile {
+      @include u-font("ui", "xs");
+      border-top: units("1px") solid color("base-lighter");
+      color: color("base-dark");
+      display: block;
+      font-weight: font-weight("bold");
+      padding: units(1) units(2);
+      text-decoration: none;
+      width: 100%;
+
+      &:hover {
+        background-color: color("base-lightest");
+        color: color("primary");
+        text-decoration: none;
+      }
+    }
+
+    .harvester-nav__utility {
+      .harvester-nav__utility-group {
+        align-items: stretch;
+        flex-direction: column;
+        gap: 0;
+        height: auto;
+        width: 100%;
+      }
+
+      .js-glossary-toggle {
+        border-bottom: units("1px") solid color("base-lighter");
+        color: color("base-dark");
+        display: flex;
+        font-weight: font-weight("bold");
+        justify-content: flex-start;
+        padding: units(1) units(2);
+        width: 100%;
+
+        &:hover {
+          background-color: color("base-lightest");
+        }
+      }
+
+      .harvester-nav__account-menu,
+      .harvester-nav__utility-link {
+        width: 100%;
+      }
+
+      .harvester-nav__account-desktop {
+        display: none;
+      }
+
+      .harvester-nav__utility-link {
+        border-top: units("1px") solid color("base-lighter");
+        display: block;
+        font-weight: font-weight("bold");
+        padding: units(1) units(2);
+      }
+    }
+  }
+}
+
+.harvester-nav__utility-group {
+  align-items: center;
+  display: flex;
+  flex-wrap: nowrap;
+  gap: units(1.5);
+  height: 100%;
+
+  @include at-media($theme-header-min-width) {
+    @include u-padding-y(0.5);
+  }
+}
+
+.harvester-nav__account-menu {
+  position: relative;
+}
+
+.harvester-nav__account-mobile {
+  display: none;
+}
+
+@include at-media($theme-header-min-width) {
+  .harvester-nav__account-desktop {
+    display: block;
+  }
+}
+
+@include at-media-max($theme-header-min-width) {
+  .harvester-nav__account-desktop {
+    display: none;
+  }
+
+  .harvester-nav__account-mobile {
+    display: block;
+  }
+}
+
+.harvester-nav__account-toggle {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  color: color("base-dark");
+  cursor: pointer;
+  display: inline-flex;
+  gap: units(0.5);
+  max-width: 100%;
+  min-width: 0;
+  padding: 0;
+
+  // USWDS adds its own expand/collapse icon to primary nav buttons with
+  // aria-expanded via span::after; we render a dedicated SVG chevron instead.
+  // Specificity must beat .usa-nav__primary button[aria-expanded] span::after.
+  .usa-nav__primary &[aria-expanded] span::after {
+    background: none;
+    content: none;
+    display: none;
+    mask: none;
+    -webkit-mask: none;
+  }
+
+  &:hover:not([aria-expanded="true"]) {
+    color: color("primary");
+  }
+
+  &[aria-expanded="true"] {
+    background-color: color("primary-darker");
+    color: color("white");
+  }
+
+  &:focus {
+    outline: units("2px") solid color("primary");
+    outline-offset: units("2px");
+  }
+}
+
+.harvester-nav__account-chevron {
+  color: currentColor;
+  flex: none;
+  height: units(2);
+  width: units(2);
+}
+
+.harvester-nav__account-dropdown {
+  @include u-shadow(2);
+  background-color: color("white");
+  border: units("1px") solid color("base-lighter");
+  list-style: none;
+  margin: units(0.5) 0 0;
+  min-width: units(15);
+  padding: units(0.5) 0;
+  position: absolute;
+  right: 0;
+  top: 100%;
+  z-index: z-index(400);
+}
+
+.harvester-nav__account-dropdown-link {
+  @include u-font("ui", "xs");
+  color: color("ink");
+  display: block;
+  font-weight: font-weight("bold");
+  padding: units(1) units(2);
+  text-decoration: none;
+  white-space: nowrap;
+
+  &:hover {
+    background-color: color("base-lightest");
+    color: color("primary");
+    text-decoration: none;
+  }
+}
+
+.harvester-nav__user {
+  @include u-font("ui", "xs");
+  color: inherit;
+  display: inline-block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.harvester-nav__utility {
+  .harvester-nav__utility-group {
+    width: auto;
+  }
+
+  .js-glossary-toggle {
+    @include u-font("ui", "xs");
+    color: color("base");
+    flex: none;
+    height: auto;
+    padding: 0;
+    width: auto;
+
+    // USWDS adds expand/collapse icons to primary nav buttons with aria-expanded.
+    // Specificity must beat .usa-nav__primary button[aria-expanded] span::after.
+    .usa-nav__primary &[aria-expanded] span::after {
+      background: none;
+      content: none;
+      display: none;
+      mask: none;
+      -webkit-mask: none;
+    }
+
+    &[aria-expanded="true"] {
+      background-color: transparent;
+      color: color("base");
+    }
+
+    &:hover {
+      background-color: transparent;
+      color: color("primary");
+    }
+
+    .usa-icon {
+      height: units(2.5);
+      width: units(2.5);
+    }
+  }
+
+  .harvester-nav__utility-link {
+    @include u-font("ui", "xs");
+    color: color("base");
+    flex: none;
+    font-weight: font-weight("bold");
+    text-decoration: none;
+    white-space: nowrap;
+
+    &:hover {
+      color: color("primary");
+      text-decoration: underline;
+    }
+  }
+}

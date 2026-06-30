@@ -1,0 +1,66 @@
+// Shared list cards (organizations, harvest sources, etc.)
+.site-component-card {
+  @include u-display("flex");
+
+  .usa-card__container {
+    width: 100%;
+  }
+}
+
+// Organization cards always reserve logo space so rows align even when
+// logos or metadata are missing.
+.org-card__img {
+  @include add-aspect("16x9");
+  @include u-display("flex");
+  @include u-flex("align-center", "justify-center");
+  min-height: units(10);
+
+  img {
+    height: 100%;
+    object-fit: contain;
+    padding: units(1.5);
+    width: 100%;
+  }
+}
+
+.org-card__img-placeholder {
+  @include u-display("flex");
+  @include u-flex("align-center", "justify-center");
+  height: 100%;
+  width: 100%;
+
+  .usa-icon {
+    color: color("base");
+    height: units(5);
+    width: units(5);
+  }
+}
+
+.org-card__meta {
+  dt {
+    margin-top: units(1.5);
+
+    &:first-child {
+      margin-top: 0;
+    }
+  }
+
+  dd {
+    margin-bottom: 0;
+    margin-left: 0;
+    margin-top: units(0.5);
+  }
+}
+
+.org-card__description {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+}
+
+.org-card__empty {
+  @include u-font("body", "xs");
+  @include u-text("base");
+  font-style: italic;
+}

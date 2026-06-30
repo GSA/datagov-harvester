@@ -26,18 +26,9 @@ i.e.
 @import "components/icons";
 @import "components/blockview";
 @import "components/progress_bar";
-
-ul.menu {
-  padding-inline-start: 0;
-
-  li {
-    display: inline-block;
-
-    &::after {
-      content: '  |'
-    }
-  }
-}
+@import "components/header";
+@import "components/cards";
+@import "components/layout";
 
 .word-break-all {
   word-break: break-all;
@@ -45,20 +36,20 @@ ul.menu {
 
 .view-buttons {
   button {
-    margin-right: .5rem;
+    margin-right: units(1);
   }
 }
 
 .align-middle {
   vertical-align: middle;
-  top: -1px;
+  top: units("neg-1px");
 
   &.check {
-    color: green;
+    color: color("success");
   }
 
   &.cancel {
-    color: red;
+    color: color("error");
   }
 }
 
@@ -67,7 +58,7 @@ ul.menu {
 }
 
 .usa-card__img img {
-  padding: 10px;
+  padding: units(1);
 }
 
 .usa-pagination {
@@ -76,13 +67,8 @@ ul.menu {
   }
 }
 
-header .grid-container {
-  display: flex;
-  justify-content: space-between;
-}
-
 .usa-table-container--scrollable {
-  overflow: scroll;
+  overflow-x: auto;
 }
 
 .usa-table.usa-table--striped {
@@ -112,7 +98,7 @@ header .grid-container {
   cursor: pointer;
   display: flex;
   grid-column: 2;
-  margin: 0 6px 0 0;
+  margin: 0 units(0.5) 0 0;
   padding: units(0.5);
   width: auto;
 
@@ -135,12 +121,12 @@ header .grid-container {
 .config-table {
   .usa-table {
     margin-top: 0;
-    margin-bottom: 1rem;
+    margin-bottom: units(2);
 
     td:first-child {
-      font-weight: 700;
+      font-weight: font-weight("bold");
       white-space: nowrap;
-      padding-right: 1.5rem;
+      padding-right: units(3);
       vertical-align: top;
       width: 1%;
     }
@@ -155,11 +141,6 @@ a:hover {
   text-decoration: underline !important;
 }
 
-div.usa-form-group.form-submit-group {
-  margin-top: 1rem;
-  margin-bottom: 1rem;
-}
-
 button#btn-download {
-  margin-bottom: 1rem;
+  margin-bottom: units(2);
 }

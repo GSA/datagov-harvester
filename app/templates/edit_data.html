@@ -5,31 +5,37 @@
 {% endblock %}
 
 {% block content %}
-<h2>{{action}} {{data_type}}</h2>
-<form action="{{ form_action }}" method="{{ method | d('POST') }}">
+<h1>{{action}} {{data_type}}</h1>
+<form class="usa-form usa-form--large" action="{{ form_action }}" method="{{ method | d('POST') }}">
     {{ form.hidden_tag() }}
-    {% for field in form if field.widget.input_type != 'hidden' %}
-    {% set field_class = 'usa-textarea' if field.type == 'TextAreaField' else ('usa-select' if field.type == 'SelectField' else 'usa-input') %}
-    <div class="usa-form-group">
-        <label for="{{ field.id }}" class="usa-label">
-            {{ field.label.text }}
-            {% if field.flags.required %}
-                <abbr class="usa-hint usa-hint--required" title="required">*</abbr>
+    <fieldset class="usa-fieldset">
+        <legend class="usa-legend usa-sr-only">{{action}} {{data_type}}</legend>
+        <p class="usa-hint margin-top-0">
+            A red asterisk (<abbr class="usa-hint usa-hint--required" title="required">*</abbr>) indicates a required field.
+        </p>
+        {% for field in form if field.widget.input_type != 'hidden' %}
+        {% set field_class = 'usa-textarea' if field.type == 'TextAreaField' else ('usa-select' if field.type == 'SelectField' else 'usa-input') %}
+        <div class="usa-form-group">
+            <label for="{{ field.id }}" class="usa-label">
+                {{ field.label.text }}
+                {% if field.flags.required %}
+                    <abbr class="usa-hint usa-hint--required" title="required">*</abbr>
+                {% endif %}
+            </label>
+            {% if field.description %}
+                <span class="usa-hint" id="{{ field.id }}-hint">{{ field.description }}</span>
             {% endif %}
-        </label>
-        {% if data_type == "Harvest Source" and action == "Edit" and field.id == 'name' %}
-            {{field(class_=field_class, readonly_=true, aria_label=field.label.text)}}
-        {% else %}
-            {{field(class_=field_class, aria_label=field.label.text)}}
-        {% endif %}
-        {% if field.description %}
-            <span class="usa-hint">{{ field.description }}</span>
-        {% endif %}
-    </div>
-    {% endfor %}
+            {% if data_type == "Harvest Source" and action == "Edit" and field.id == 'name' %}
+                {{field(class_=field_class, readonly_=true, aria_label=field.label.text)}}
+            {% else %}
+                {{field(class_=field_class, aria_label=field.label.text)}}
+            {% endif %}
+        </div>
+        {% endfor %}
 
-    <div class="usa-form-group">
-        <button type="submit" class="usa-button">{{button}}</button>
-    </div>
+        <div class="usa-form-group">
+            <button type="submit" class="usa-button">{{button}}</button>
+        </div>
+    </fieldset>
 </form>
 {% endblock %}

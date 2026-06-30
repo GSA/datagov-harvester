@@ -1,14 +1,14 @@
 [
   {
-    "term": "frequency",
+    "term": "Frequency",
     "definition": "how often the harvest source is harvested ( i.e. extracted, transformed, and loaded into our catalog ). examples include \"weekly\", \"daily\", and \"manual\""
   },
   {
-    "term": "source_type",
+    "term": "Source type",
     "definition": "either a single document ( e.g. data.json ) or a web-accessible folder with many documents"
   },
   {
-    "term": "schema_type",
+    "term": "Schema type",
     "definition": "the metadata standard of the document(s). examples include ISO19115-1, ISO19115-2, CSDGM, and DCAT-US. only 1 schema can be used per harvest source."
   },
   {
@@ -16,7 +16,7 @@
     "definition": "email addresses to receive harvesting information"
   },
   {
-    "term": "records_unchanged",
+    "term": "Records unchanged",
     "definition": "our harvesting process pulls data from our internal database and your external source and compares them to determine which records need to be created, updated, deleted, or ignored on our end. \"ignored\" means nothing needs to be done. we have the most recent copy of your record. in comparison to \"created\", let's say, where we don't have a copy of your record and need to create it on our end."
   },
   {
@@ -28,11 +28,11 @@
     "definition": "also known as \"non-critical\" errors are ones which occur at the record level after the harvester has determined which operations to run. examples include validation and transformation failure."
   },
   {
-    "term": "notification_frequency",
+    "term": "Notification frequency",
     "definition": "when notification emails are sent out. Choices being \"on_error\", \"on_error_or_update\", and \"always\"."
   },
   {
-    "term": "collection_parent_url",
+    "term": "Collection parent URL",
     "definition": "the URL of an ISO-format XML file to use as the parent dataset for all of this collection of datasets"
   }
 ]

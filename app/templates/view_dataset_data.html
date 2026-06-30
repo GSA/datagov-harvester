@@ -7,34 +7,42 @@
 {% block content %}
 <div class="wrapper dataset-data">
     {% if not data.dataset %}
-    <h2>Whooops!</h2>
-    <p>Looks like you navigated to a dataset that doesn't exist.</p>
+    <h1>Dataset not found</h1>
+    <div class="usa-alert usa-alert--error" role="alert">
+        <div class="usa-alert__body">
+            <h2 class="usa-alert__heading">We couldn't find that dataset</h2>
+            <p class="usa-alert__text">
+                The dataset you navigated to doesn't exist.
+                <a href="{{ url_for('main.harvest_source_list') }}">Return to the harvest source list</a>.
+            </p>
+        </div>
+    </div>
     {% else %}
-    <div class="display-flex flex-align-center">
+    <div class="display-flex flex-align-center flex-wrap">
         <h1 class="margin-right-2">{{ data.dataset.slug }}</h1>
     </div>
 
-    <h2>Dataset Details:</h2>
+    <h2>Dataset details</h2>
     <div class="config-table dataset-config-properties">
         <table class="usa-table usa-table--borderless width-full">
             <tr>
-                <td>ID:</td>
-                <td>{{ data.dataset.id }}</td>
+                <td>ID</td>
+                <td class="word-break-all">{{ data.dataset.id }}</td>
             </tr>
             <tr>
-                <td>Slug:</td>
-                <td>{{ data.dataset.slug }}</td>
+                <td>Slug</td>
+                <td class="word-break-all">{{ data.dataset.slug }}</td>
             </tr>
             <tr>
-                <td>Harvest Source:</td>
-                <td>
+                <td>Harvest source</td>
+                <td class="word-break-all">
                     <a href="{{ url_for('api.view_harvest_source', source_id=data.dataset.harvest_source_id) }}">
                         {{ data.dataset.harvest_source_id }}
                     </a>
                 </td>
             </tr>
             <tr>
-                <td>Organization:</td>
+                <td>Organization</td>
                 <td>
                     {% if data.dataset.organization %}
                     <a
@@ -47,11 +55,11 @@
                 </td>
             </tr>
             <tr>
-                <td>Popularity:</td>
+                <td>Popularity</td>
                 <td>{{ data.dataset.popularity | default('N/A', true) }}</td>
             </tr>
             <tr>
-                <td>Last Harvested:</td>
+                <td>Last harvested</td>
                 <td class="utc-date" data-utc-date="{{ data.dataset.last_harvested_date | utc_isoformat }}">
                     {{ data.dataset.last_harvested_date | else_na }}
                 </td>
@@ -61,7 +69,7 @@
 
     {% if session['user'] %}
     <div class="config-actions dataset-config-actions margin-top-3">
-        <h2>Edit Slug:</h2>
+        <h2>Edit slug</h2>
         <form method="POST" action="{{ url_for('main.view_dataset', dataset_slug=data.dataset.slug) }}">
             {{ form.hidden_tag() }}
             <div class="usa-form-group margin-bottom-2">

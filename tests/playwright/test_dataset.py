@@ -29,17 +29,17 @@ class TestDatasetUnauthed:
             upage.locator(".config-table.dataset-config-properties table tr td")
         ).to_have_text(
             [
-                "ID:",
+                "ID",
                 "a1b2c3d4-e5f6-7890-abcd-ef1234567891",
-                "Slug:",
+                "Slug",
                 "fixture-dataset-1",
-                "Harvest Source:",
+                "Harvest source",
                 "2f2652de-91df-4c63-8b53-bfced20b276b",
-                "Organization:",
+                "Organization",
                 "Test Org",
-                "Popularity:",
+                "Popularity",
                 "N/A",
-                "Last Harvested:",
+                "Last harvested",
                 re.compile(
                     r"\d{4}-\d{2}-\d{2} \d{1,2}:\d{2} [AP]M \(GMT(?:[+-]\d{1,2})?\)"
                 ),
@@ -69,17 +69,17 @@ class TestDatasetAuthed:
             apage.locator(".config-table.dataset-config-properties table tr td")
         ).to_have_text(
             [
-                "ID:",
+                "ID",
                 "a1b2c3d4-e5f6-7890-abcd-ef1234567891",
-                "Slug:",
+                "Slug",
                 "fixture-dataset-1",
-                "Harvest Source:",
+                "Harvest source",
                 "2f2652de-91df-4c63-8b53-bfced20b276b",
-                "Organization:",
+                "Organization",
                 "Test Org",
-                "Popularity:",
+                "Popularity",
                 "N/A",
-                "Last Harvested:",
+                "Last harvested",
                 re.compile(
                     r"\d{4}-\d{2}-\d{2} \d{1,2}:\d{2} [AP]M \(GMT(?:[+-]\d{1,2})?\)"
                 ),
