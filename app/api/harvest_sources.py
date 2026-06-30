@@ -4,6 +4,7 @@ from app import deps
 from app.deps import (
     JSON_NOT_FOUND,
     _log_mutation,
+    create_harvest_source,
     logger,
     login_required,
     valid_id_required,
@@ -18,27 +19,8 @@ from . import api
 @login_required
 def add_harvest_source_api():
     try:
-        source = deps.db.add_harvest_source(request.json)
-        job_message = deps.load_manager.schedule_first_job(source.id)
-        if source and job_message:
-            _log_mutation(
-                "create",
-                "harvest_source",
-                source.id,
-                organization_id=source.organization_id,
-                source_name=source.name,
-            )
-            return make_response(
-                jsonify(
-                    {
-                        "message": (
-                            f"Added new harvest source with ID: {source.id}. "
-                            f"{job_message}"
-                        )
-                    }
-                ),
-                200,
-            )
+        _source, message, status = create_harvest_source(request.json)
+        return make_response(jsonify({"message": message}), status)
     except Exception as e:
         message = "Failed to add harvest source."
         logger.error(f"{message} :: {repr(e)}")

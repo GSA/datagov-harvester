@@ -4,6 +4,7 @@ from app import deps, htmx
 from app.deps import (
     CKAN_URL,
     _log_mutation,
+    create_harvest_source,
     logger,
     login_required,
     render_block,
@@ -38,20 +39,17 @@ def add_harvest_source():
     )
     form.organization_id.choices = organization_choices
     if form.validate_on_submit():
-        new_source = make_new_source_contract(form)
-        source = deps.db.add_harvest_source(new_source)
-        job_message = deps.load_manager.schedule_first_job(source.id)
-        if source and job_message:
-            _log_mutation(
-                "create",
-                "harvest_source",
-                source.id,
-                organization_id=source.organization_id,
-                source_name=source.name,
-            )
-            flash(f"Added new harvest source with ID: {source.id}. {job_message}")
-        else:
-            flash("Failed to add harvest source.")
+        try:
+            source_data = make_new_source_contract(form)
+            source, message, _status = create_harvest_source(source_data)
+        except Exception as e:
+            message = "Failed to add harvest source."
+            logger.error(f"{message} :: {repr(e)}")
+            flash(message)
+            return redirect(url_for("main.add_harvest_source"))
+        flash(message)
+        if source is None:
+            return redirect(url_for("main.add_harvest_source"))
         return redirect(url_for("main.harvest_source_list"))
     elif form.errors:
         flash(form.errors)

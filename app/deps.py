@@ -125,3 +125,31 @@ def _log_mutation(action: str, entity: str, entity_id: str | None = None, **deta
         f"{key}=%s" for key in ordered_keys
     )
     logger.info(message, *(detail_fields[key] for key in ordered_keys))
+
+
+def create_harvest_source(source_data):
+    existing = db.get_harvest_source_by_url(source_data.get("url"))
+    if existing:
+        message = (
+            f"A harvest source with this URL already exists "
+            f"(source ID: {existing.id}). "
+            "Use a different URL or edit the existing source."
+        )
+        return None, message, 409
+
+    source, error = db.try_add_harvest_source(source_data)
+    if not source:
+        return None, error or "Failed to add harvest source.", 400
+
+    job_message = load_manager.schedule_first_job(source.id)
+    if not job_message:
+        return source, "Failed to schedule the first harvest job.", 500
+
+    _log_mutation(
+        "create",
+        "harvest_source",
+        source.id,
+        organization_id=source.organization_id,
+        source_name=source.name,
+    )
+    return source, f"Added new harvest source with ID: {source.id}. {job_message}", 200

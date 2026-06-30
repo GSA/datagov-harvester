@@ -183,17 +183,35 @@ class HarvesterDBInterface:
             )
 
     ## HARVEST SOURCES
-    def add_harvest_source(self, source_data):
+    def harvest_source_save_error_message(self, error: Exception) -> str:
+        """Return a user-facing message for harvest source persistence errors."""
+        orig = getattr(error, "orig", error)
+        constraint_name = getattr(getattr(orig, "diag", None), "constraint_name", None)
+        if constraint_name == "harvest_source_url_key":
+            return (
+                "A harvest source with this URL already exists. "
+                "Use a different URL or edit the existing source."
+            )
+        return "Failed to add harvest source."
+
+    def try_add_harvest_source(self, source_data):
         try:
             new_source = HarvestSource(**source_data)
             self.db.add(new_source)
             self.db.commit()
             self.db.refresh(new_source)
-            return new_source
+            return new_source, None
         except Exception as e:
             logger.error("Error: %s", e)
             self.db.rollback()
-            return None
+            return None, self.harvest_source_save_error_message(e)
+
+    def add_harvest_source(self, source_data):
+        source, _ = self.try_add_harvest_source(source_data)
+        return source
+
+    def get_harvest_source_by_url(self, url: str):
+        return self.db.query(HarvestSource).filter_by(url=url).first()
 
     def get_harvest_source(self, source_id):
         result = self.db.query(HarvestSource).filter_by(id=source_id).first()
@@ -739,7 +757,7 @@ class HarvesterDBInterface:
             .order_by(Dataset.last_harvested_date.desc().nullslast())
         )
 
-    def get_missing_or_outdated_datasets(self):
+    def get_missing_or_outdated_dataset_count_and_sample(self):
         """
         calculate the number of missing or outdated datasets. "missing" is when
         there's a successful harvest record but no dataset. "outdated" is when

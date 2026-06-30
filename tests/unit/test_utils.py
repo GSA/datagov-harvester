@@ -13,6 +13,7 @@ from requests.exceptions import ConnectionError
 
 from database.models import HarvestSource
 from harvester.utils.general_utils import (
+    DT_PLACEHOLDER,
     USER_AGENT,
     RetrySession,
     assemble_validation_errors,
@@ -235,6 +236,25 @@ class TestGeneralUtils:
             datetime(2021, 6, 17, 12, 20),
             datetime(2025, 8, 1, 11, 24),
         ]
+
+    def test_default_waf_datetime_is_now(self):
+        """Test that the default waf datetime is now / the time of program execution"""
+
+        page_html = """<html><body><pre>
+          <a href="file1.xml">file1.xml</a>   12K  
+          <a href="file2.xml">file2.xml</a>   12K  
+          </pre></body></html>"""
+
+        soup = BeautifulSoup(page_html)
+        datetimes = get_waf_datetimes(soup, 2)
+
+        # assert that datetimes are not the old default
+        assert datetimes[0] != datetime(1900, 1, 1, 0, 0)
+        assert datetimes[1] != datetime(1900, 1, 1, 0, 0)
+
+        # assert the new default
+        assert datetimes[0] == DT_PLACEHOLDER
+        assert datetimes[1] == DT_PLACEHOLDER
 
     def test_assemble_validation_messages(
         self, dol_distribution_json, dcatus_non_federal_schema

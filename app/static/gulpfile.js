@@ -59,9 +59,17 @@ uswds.paths.dist.theme = './_scss';
 * Add as many as you need
 */
 exports.compile = uswds.compile;
-exports.watch = uswds.watch;
 exports.init = uswds.init;
 exports.copyAll = uswds.copyAll;
 exports.copyAssets = uswds.copyAssets;
 exports.updateUswds = uswds.updateUswds;
-// exports.default = uswds.watch;
+
+function watchDev() {
+    watch('./js/**/*.js', jsTask);
+    watch('./_scss/**/*.scss', uswds.compileSass);
+}
+
+exports.watch = series(
+    parallel(jsTask, uswds.copyAssets, uswds.compile),
+    watchDev
+);

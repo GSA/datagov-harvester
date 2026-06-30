@@ -16,7 +16,7 @@
 
     <h2>Dataset Details:</h2>
     <div class="config-table dataset-config-properties">
-        <table class="table">
+        <table class="usa-table usa-table--borderless width-full">
             <tr>
                 <td>ID:</td>
                 <td>{{ data.dataset.id }}</td>
@@ -60,21 +60,21 @@
     </div>
 
     {% if session['user'] %}
-    <div class="config-actions dataset-config-actions mt-3">
+    <div class="config-actions dataset-config-actions margin-top-3">
         <h2>Edit Slug:</h2>
         <form method="POST" action="{{ url_for('main.view_dataset', dataset_slug=data.dataset.slug) }}">
             {{ form.hidden_tag() }}
-            <div class="form-group mb-2">
-                {{ form.slug.label(class_='form-control-label') }}
-                {{ form.slug(class_='form-control' + (' is-invalid' if form.slug.errors else ''),
+            <div class="usa-form-group margin-bottom-2">
+                {{ form.slug.label(class_='usa-label') }}
+                {{ form.slug(class_='usa-input' + (' usa-input--error' if form.slug.errors else ''),
                 aria_label=form.slug.label.text) }}
                 {% if form.slug.description %}
-                <small class="form-text text-muted">{{ form.slug.description }}</small>
+                <span class="usa-hint">{{ form.slug.description }}</span>
                 {% endif %}
                 {% for error in form.slug.errors %}
-                <div class="invalid-feedback d-block">
+                <span class="usa-error-message" role="alert">
                     <i class="fa-solid fa-circle-exclamation"></i> {{ error }}
-                </div>
+                </span>
                 {% endfor %}
             </div>
             <button type="submit" class="usa-button">Update Slug</button>
