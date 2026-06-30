@@ -23,3 +23,9 @@ html {
     width: 100%;
   }
 }
+
+.usa-identifier {
+  .usa-identifier__container {
+    max-width: units("widescreen");
+  }
+}
