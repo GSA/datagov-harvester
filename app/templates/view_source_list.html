@@ -5,13 +5,22 @@
 {% endblock %}
 
 {% block content %}
-<h1> Harvest Source List </h1>
+<h1>Harvest Source List</h1>
 <div class="bg-base-lighter padding-2 radius-md">
     <h2 class="font-lang-lg margin-y-0">Find a Harvest Source</h2>
-    <div role="region" aria-label="Component search" aria-atomic="true" class="margin-top-1">
-        <label for="icon-filter">Filter by name and keyword</label>
-        <input class="usa-input" id="icon-filter" type="text">
-        <p class="text-base-darker margin-top-1 margin-bottom-0" aria-live="polite"><span id="component-count"></span>
+    <div role="search" aria-label="Filter harvest sources" class="margin-top-1">
+        <label class="usa-label margin-top-0" for="icon-filter">Filter by name and keyword</label>
+        <div class="usa-input-group maxw-mobile-lg bg-white">
+            <div class="usa-input-prefix" aria-hidden="true">
+                <svg class="usa-icon" aria-hidden="true" focusable="false" role="img">
+                    <use href="/assets/uswds/img/sprite.svg#search"></use>
+                </svg>
+            </div>
+            <input class="usa-input usa-input--bare" id="icon-filter" type="text" data-noun="source">
+        </div>
+        <p class="text-base-dark margin-top-1 margin-bottom-0" aria-live="polite"><span id="component-count">
+            <strong>{{ data.harvest_sources | length }}</strong>
+            {{ 'source' if data.harvest_sources | length == 1 else 'sources' }} found</span>
         </p>
     </div>
     {% if session['user'] %}
@@ -24,14 +33,26 @@
     {% endif %}
 </div>
 
-<ul class="usa-card-group flex-row margin-top-3">
+<ul class="usa-card-group margin-top-3">
     {% for source in data.harvest_sources %}
-    <li class="usa-card site-component-card grid-col-6 tablet:grid-col-4" data-meta="{{source.name}}">
+    <li class="usa-card site-component-card grid-col-12 tablet:grid-col-6 desktop:grid-col-4" data-meta="{{source.name}}">
         <div class="usa-card__container">
             <div class="usa-card__header">
-                <h2 class="usa-card__heading">{{source.name}}</h2>
+                <h3 class="usa-card__heading">{{source.name}}</h3>
             </div>
             <div class="usa-card__body">
+                <dl class="margin-0">
+                    {% if source.org %}
+                    <dt class="text-bold">Organization</dt>
+                    <dd class="margin-left-0 margin-bottom-1">{{ source.org.name }}</dd>
+                    {% endif %}
+                    <dt class="text-bold">Source type</dt>
+                    <dd class="margin-left-0 margin-bottom-1">{{ source.source_type }}</dd>
+                    <dt class="text-bold">Frequency</dt>
+                    <dd class="margin-left-0 margin-bottom-1">{{ source.frequency }}</dd>
+                    <dt class="text-bold">URL</dt>
+                    <dd class="margin-left-0 word-break-all">{{ source.url }}</dd>
+                </dl>
             </div>
             <div class="usa-card__footer">
                 <ul class="usa-button-group">

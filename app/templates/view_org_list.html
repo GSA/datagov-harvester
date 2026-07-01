@@ -5,12 +5,22 @@
 {% endblock %}
 
 {% block content %}
+<h1>Organization List</h1>
 <div class="bg-base-lighter padding-2 radius-md">
   <h2 class="font-lang-lg margin-y-0">Find an Organization</h2>
-  <div role="region" aria-label="Component search" aria-atomic="true" class="margin-top-1">
-    <label for="icon-filter">Filter by name and keyword</label>
-    <input class="usa-input" id="icon-filter" type="text">
-    <p class="text-base-darker margin-top-1 margin-bottom-0" aria-live="polite"><span id="component-count"></span></p>
+  <div role="search" aria-label="Filter organizations" class="margin-top-1">
+    <label class="usa-label margin-top-0" for="icon-filter">Filter by name and keyword</label>
+    <div class="usa-input-group maxw-mobile-lg bg-white">
+      <div class="usa-input-prefix" aria-hidden="true">
+        <svg class="usa-icon" aria-hidden="true" focusable="false" role="img">
+          <use href="/assets/uswds/img/sprite.svg#search"></use>
+        </svg>
+      </div>
+      <input class="usa-input usa-input--bare" id="icon-filter" type="text" data-noun="organization">
+    </div>
+    <p class="text-base-dark margin-top-1 margin-bottom-0" aria-live="polite"><span id="component-count">
+      <strong>{{ data.organizations | length }}</strong>
+      {{ 'organization' if data.organizations | length == 1 else 'organizations' }} found</span></p>
   </div>
   {% if session['user'] %}
   <div class="add-buttons-div margin-top-3">
@@ -22,19 +32,48 @@
   {% endif %}
 </div>
 
-<ul class="usa-card-group flex-row margin-top-3">
+<ul class="usa-card-group margin-top-3">
   {% for org in data.organizations %}
-  <li class="usa-card site-component-card grid-col-6 tablet:grid-col-4" data-meta="{{org.name}}">
+  <li class="usa-card site-component-card grid-col-12 tablet:grid-col-6 desktop:grid-col-4" data-meta="{{org.name}}">
     <div class="usa-card__container">
       <div class="usa-card__header">
-        <h4 class="usa-card__heading">{{org.name}}</h4>
+        <h3 class="usa-card__heading">{{org.name}}</h3>
       </div>
-      <div class="usa-card__media">
-        <div class="usa-card__img">
+      <div class="usa-card__media usa-card__media--inset">
+        <div class="usa-card__img org-card__img bg-white">
+          {% if org.logo %}
           <img src="{{org.logo}}" alt="{{org.name}} logo" />
+          {% else %}
+          <div class="org-card__img-placeholder" aria-hidden="true">
+            <svg class="usa-icon" aria-hidden="true" focusable="false" role="img">
+              <use href="/assets/uswds/img/sprite.svg#account_balance"></use>
+            </svg>
+          </div>
+          {% endif %}
         </div>
       </div>
-      <div class="usa-card__body"></div>
+      <div class="usa-card__body">
+        <dl class="org-card__meta margin-0">
+          <dt class="text-bold">Organization type</dt>
+          <dd>
+            {% if org.organization_type %}
+            {{ org.organization_type }}
+            {% else %}
+            <span class="org-card__empty">Not provided</span>
+            {% endif %}
+          </dd>
+          <dt class="text-bold">Harvest sources</dt>
+          <dd>{{ org.source_count }}</dd>
+          <dt class="text-bold">Description</dt>
+          <dd class="org-card__description">
+            {% if org.description %}
+            {{ org.description }}
+            {% else %}
+            <span class="org-card__empty">Not provided</span>
+            {% endif %}
+          </dd>
+        </dl>
+      </div>
       <div class="usa-card__footer">
         <a href="{{ url_for('main.view_organization', org_identifier=org.slug or org.id) }}"
           class="usa-button usa-button--outline">Details</a>

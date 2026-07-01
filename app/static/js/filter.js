@@ -10,8 +10,13 @@ function filter(e) {
         }
     });
     componentCount = document.querySelectorAll('.site-component-card:not(.display-none)').length;
-    var word = (componentCount === 1) ? "source" : "sources";
-    document.getElementById("component-count").innerHTML = `<strong>${componentCount}</strong> ${word} found`
+    // The page tells us what it is listing via data-noun; default to "source".
+    var noun = e.getAttribute("data-noun") || "source";
+    var word = (componentCount === 1) ? noun : noun + "s";
+    var countContainer = document.getElementById("component-count");
+    var strongCount = document.createElement("strong");
+    strongCount.textContent = componentCount;
+    countContainer.replaceChildren(strongCount, document.createTextNode(` ${word} found`));
 }
 
 document.addEventListener("DOMContentLoaded", () => {
