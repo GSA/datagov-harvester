@@ -1217,12 +1217,14 @@ class Record:
         return False
 
     def update_self_in_db(self) -> bool:
-        finished_date = get_datetime()
+        # set date_finished if it hasn't been set yet
+        if not self._date_finished:
+            self._date_finished = get_datetime()
+
         data = {
             "status": self.status,
-            "date_finished": finished_date,
+            "date_finished": self._date_finished,
         }
-        self._date_finished = finished_date
         if self.ckan_id is not None:
             data["ckan_id"] = self.ckan_id
 
