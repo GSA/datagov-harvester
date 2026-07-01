@@ -36,7 +36,7 @@
             <tr>
                 <td>Harvest source</td>
                 <td class="word-break-all">
-                    <a href="{{ url_for('api.view_harvest_source', source_id=data.dataset.harvest_source_id) }}">
+                    <a href="{{ url_for('main.view_harvest_source', source_id=data.dataset.harvest_source_id) }}">
                         {{ data.dataset.harvest_source_id }}
                     </a>
                 </td>
@@ -46,7 +46,7 @@
                 <td>
                     {% if data.dataset.organization %}
                     <a
-                        href="{{ url_for('api.view_organization', org_identifier=data.dataset.organization.slug or data.dataset.organization_id) }}">
+                        href="{{ url_for('main.view_organization', org_identifier=data.dataset.organization.slug or data.dataset.organization_id) }}">
                         {{ data.dataset.organization.name }}
                     </a>
                     {% else %}

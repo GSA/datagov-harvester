@@ -7,7 +7,7 @@ def ures(unauthed_page):
     err_id = unauthed_page.locator(
         "#error_results_pagination .error-list .error-block:first-child h3"
     ).inner_text()
-    res = unauthed_page.goto(f"/harvest_error/{err_id}")
+    res = unauthed_page.goto(f"/api/harvest_error/{err_id}")
     yield res
 
 
