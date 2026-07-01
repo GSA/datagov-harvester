@@ -54,30 +54,44 @@ jobs:
     name: deploy (staging)
     needs:
       - create-cloudgov-services-staging
+    environment: staging
+    runs-on: ubuntu-latest
     permissions:
       actions: write
       contents: read
-    uses: gsa/data.gov/.github/workflows/deploy-template.yml@main
-    with:
-      environ: staging
-      app_url: https://harvest-stage.data.gov
-      app_names: '{"include":[{"app":"datagov-harvest"},{"app":"datagov-harvest-proxy"}]}'
-    secrets: inherit
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v7
+      - name: Deploy via composite action
+        uses: ./.github/actions/deploy
+        with:
+          cf_space: staging
+          python-version: ${{ env.PY_VERSION }}
+          poetry-version: ${{ env.POETRY_VERSION }}
+          cf_username: ${{ secrets.CF_SERVICE_USER }}
+          cf_password: ${{ secrets.CF_SERVICE_AUTH }}
 
   deploy-prod:
     name: deploy (prod)
     needs:
       - create-cloudgov-services-prod
       - deploy-staging
+    environment: prod
+    runs-on: ubuntu-latest
     permissions:
       actions: write
       contents: read
-    uses: gsa/data.gov/.github/workflows/deploy-template.yml@main
-    with:
-      environ: prod
-      app_url: https://harvest.data.gov
-      app_names: '{"include":[{"app":"datagov-harvest"},{"app":"datagov-harvest-proxy"}]}'
-    secrets: inherit
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v7
+      - name: Deploy via composite action
+        uses: ./.github/actions/deploy
+        with:
+          cf_space: prod
+          python-version: ${{ env.PY_VERSION }}
+          poetry-version: ${{ env.POETRY_VERSION }}
+          cf_username: ${{ secrets.CF_SERVICE_USER }}
+          cf_password: ${{ secrets.CF_SERVICE_AUTH }}
 
   network-policies:
     name: Add network-policies
