@@ -1174,7 +1174,7 @@ class Record:
                 if not self.dataset_slug:
                     self.dataset_slug = munge_title_to_name(metadata["title"])
 
-            self.status = "success"
+            self.status = "dataset_pending"
             self.harvest_source.update_job_record_count_by_action(self.action)
             self.update_self_in_db()
 
