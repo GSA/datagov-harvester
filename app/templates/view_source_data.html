@@ -3,8 +3,8 @@
 {% import 'components/job-table/job_table.j2' as job_table %}
 
 {% block script_head %}
-<script src="{{ url_for('static', filename='assets/chartjs/chart.umd.js') }}"></script>
-<script src="{{ url_for('static', filename='js/view_source_data.js') }}"></script>
+<script src="{{ static_url('assets/chartjs/chart.umd.js') }}"></script>
+<script src="{{ static_url('js/view_source_data.js') }}"></script>
 {% endblock %}
 
 {% block title %}
@@ -92,7 +92,7 @@
     {% if data.summary_data["active_job_in_progress"] %}
     <a class="text-secondary-dark" href="{{ url_for('api.view_harvest_job', job_id=data.jobs[0].id)}}">
         <svg class="usa-icon" aria-hidden="true" focusable="false" role="img">
-            <use href="/assets/uswds/img/sprite.svg#alarm"></use>
+            <use href="{{ static_url('assets/uswds/img/sprite.svg') }}#alarm"></use>
         </svg>
         Active Job in Progress. Click here for more info...
     </a>
