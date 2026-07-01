@@ -189,7 +189,9 @@ class HarvestRecord(db.Model):
     )
     # Parent information isn't in source_raw for XML records
     parent_identifier = db.Column(db.String)
-    status = db.Column(Enum("error", "success", name="record_status"), index=True)
+    status = db.Column(
+        Enum("error", "success", "dataset_pending", name="record_status"), index=True
+    )
     errors = db.relationship("HarvestRecordError", backref="record", lazy=True)
 
     __table_args__ = (
