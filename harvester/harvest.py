@@ -1191,6 +1191,8 @@ class Record:
                     dataset = self.harvest_source.db_interface.upsert_dataset(
                         update_payload
                     )
+                    if dataset:
+                        self.status = "success"
                 self._index_dataset_in_opensearch(dataset)
             elif self.action == "delete" and self.dataset_slug:
                 dataset = self.harvest_source.db_interface.get_dataset_by_slug(
@@ -1200,7 +1202,10 @@ class Record:
                     self.dataset_slug
                 )
                 if deleted:
+                    self.status = "success"
                     self._delete_dataset_from_opensearch(dataset)
+
+            self.update_self_in_db()
 
             return True
 
