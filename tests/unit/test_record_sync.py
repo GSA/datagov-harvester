@@ -29,8 +29,9 @@ def mock_record():
 
 class TestRecordSyncStatus:
     def test_sync_sets_dataset_pending_initially(self, mock_record):
-        """Test that status is set to dataset_pending before dataset operations"""
+        """Test that status is set to dataset_pending when dataset operation fails"""
         mock_record._action = "create"
+        mock_record._insert_dataset_with_unique_slug.return_value = None
         mock_record.sync()
 
         assert mock_record._status == "dataset_pending"
@@ -43,7 +44,7 @@ class TestRecordSyncStatus:
         result = mock_record.sync()
 
         assert result is True
-        assert mock_record._status == "dataset_pending"
+        assert mock_record._status == "success"
 
     def test_sync_sets_success_after_update(self, mock_record):
         """Test that status is set to success after successful dataset update"""
