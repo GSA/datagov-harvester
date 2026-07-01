@@ -63,7 +63,9 @@ class TestBaseAuthed:
             apage.locator(".harvester-nav__account-mobile .harvester-nav__account-name")
         ).to_have_text("user@test.local")
         expect(
-            apage.locator(".harvester-nav__account-mobile .harvester-nav__logout-mobile")
+            apage.locator(
+                ".harvester-nav__account-mobile .harvester-nav__logout-mobile"
+            )
         ).to_be_visible()
         expect(apage.locator(".js-account-menu-toggle")).to_be_hidden()
 

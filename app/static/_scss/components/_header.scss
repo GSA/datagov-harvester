@@ -27,7 +27,7 @@
   @include u-text("primary-dark");
   @include u-text("bold");
   border-left: units("2px") solid color("base-lighter");
-  font-family: family("heading");
+  font-family: family("ui");
   font-size: font-size("heading", "lg");
   line-height: line-height("heading", 2);
   padding-left: units(1);
@@ -158,6 +158,15 @@
 // Flatten header utilities (glossary, account, login/logout) into the primary
 // nav row instead of USWDS's floating secondary nav stack.
 .harvester-header {
+  .usa-nav__link:hover,
+  .usa-nav__link:focus,
+  .harvester-nav__utility-link:hover,
+  .harvester-nav__utility-link:focus,
+  .harvester-nav__account-dropdown-link:hover,
+  .harvester-nav__account-dropdown-link:focus {
+    text-decoration: none !important;
+  }
+
   @include at-media($theme-header-min-width) {
     .harvester-nav__utility-first {
       margin-left: units(2);
@@ -431,7 +440,7 @@
 
     &:hover {
       color: color("primary");
-      text-decoration: underline;
+      text-decoration: none;
     }
   }
 }
