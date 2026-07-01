@@ -3,7 +3,6 @@ import json
 import logging
 import os
 import secrets
-import tempfile
 import time
 import uuid
 from datetime import timedelta
@@ -28,6 +27,7 @@ from flask import (
     render_template,
     request,
     session,
+    stream_with_context,
     url_for,
 )
 from markupsafe import escape
@@ -1371,13 +1371,13 @@ def download_harvest_errors_by_job(job_id, error_type):
         if error_type not in ["job", "record"]:
             return "Invalid error type. Must be 'job' or 'record'", 400
 
-        # Create a temporary file to store the CSV data
-        temp_file = tempfile.NamedTemporaryFile(mode="w+", delete=False, suffix=".csv")
-        temp_file_path = temp_file.name
+        class Echo:
+            def write(self, value):
+                return value
 
-        try:
-            csv_writer = csv.writer(temp_file)
+        csv_writer = csv.writer(Echo())
 
+        def generate_csv():
             if error_type == "job":
                 # Write header
                 header = [
@@ -1387,7 +1387,7 @@ def download_harvest_errors_by_job(job_id, error_type):
                     "message",
                     "harvest_job_error_id",
                 ]
-                csv_writer.writerow(header)
+                yield csv_writer.writerow(header)
 
                 # Write job errors
                 errors = db._to_dict(db.get_harvest_job_errors_by_job(job_id))
@@ -1399,7 +1399,7 @@ def download_harvest_errors_by_job(job_id, error_type):
                         str(error_dict.get("message", "")),
                         str(error_dict.get("id", "")),
                     ]
-                    csv_writer.writerow(row)
+                    yield csv_writer.writerow(row)
 
             elif error_type == "record":
                 # Write header
@@ -1412,90 +1412,41 @@ def download_harvest_errors_by_job(job_id, error_type):
                     "message",
                     "date_created",
                 ]
-                csv_writer.writerow(header)
+                yield csv_writer.writerow(header)
 
-                # Process record errors in batches
-                page = 0
-                batch_size = 100
+                for error in db.stream_harvest_record_errors_by_job(job_id):
+                    # Extract title from source_raw JSON
+                    title = ""
+                    source_raw = error["source_raw"]
+                    if source_raw:
+                        try:
+                            title = json.loads(source_raw).get("title", "")
+                        except (json.JSONDecodeError, AttributeError):
+                            title = ""
 
-                while True:
-                    batch_errors = db.get_harvest_record_errors_by_job(
-                        job_id,
-                        paginate=True,
-                        page=page,
-                        per_page=batch_size,
-                    )
+                    row = [
+                        str(error["id"]) if error["id"] else "",
+                        str(error["identifier"]) if error["identifier"] else "",
+                        str(title),
+                        (
+                            str(error["harvest_record_id"])
+                            if error["harvest_record_id"]
+                            else ""
+                        ),
+                        str(error["type"]) if error["type"] else "",
+                        str(error["message"]) if error["message"] else "",
+                        str(error["date_created"]) if error["date_created"] else "",
+                    ]
+                    yield csv_writer.writerow(row)
 
-                    if not batch_errors:
-                        break
-
-                    for error, identifier, source_raw in batch_errors:
-                        # Extract title from source_raw JSON
-                        title = ""
-                        if source_raw:
-                            try:
-                                title = json.loads(source_raw).get("title", "")
-                            except (json.JSONDecodeError, AttributeError):
-                                title = ""
-
-                        row = [
-                            str(error.id) if error.id else "",
-                            str(identifier) if identifier else "",
-                            str(title),
-                            (
-                                str(error.harvest_record_id)
-                                if error.harvest_record_id
-                                else ""
-                            ),
-                            str(error.type) if error.type else "",
-                            str(error.message) if error.message else "",
-                            str(error.date_created) if error.date_created else "",
-                        ]
-                        csv_writer.writerow(row)
-
-                    page += 1
-
-                    # If we got fewer results than batch_size, we're done
-                    if len(batch_errors) < batch_size:
-                        break
-
-            temp_file.close()
-
-            # Create a generator that reads the file in chunks
-            def generate_file_chunks():
-                try:
-                    with open(temp_file_path, "r") as f:
-                        while True:
-                            chunk = f.read(8192)  # Read in 8KB chunks
-                            if not chunk:
-                                break
-                            yield chunk
-                finally:
-                    # Clean up the temporary file
-                    try:
-                        os.unlink(temp_file_path)
-                    except OSError:
-                        pass
-
-            # Create streaming response
-            response = Response(
-                generate_file_chunks(),
-                mimetype="text/csv",
-                headers={
-                    "Content-Disposition": f"attachment; filename={job_id}_{error_type}_errors.csv",
-                    "Content-Type": "text/csv",
-                },
-            )
-
-            return response
-
-        except Exception as e:
-            temp_file.close()
-            try:
-                os.unlink(temp_file_path)
-            except OSError:
-                pass
-            raise e
+        return Response(
+            stream_with_context(generate_csv()),
+            mimetype="text/csv",
+            headers={
+                "Content-Disposition": f"attachment; filename={job_id}_{error_type}_errors.csv",
+                "Content-Type": "text/csv",
+            },
+        )
 
     except Exception as e:
         logger.error(f"Error in download_harvest_errors_by_job: {repr(e)}")
