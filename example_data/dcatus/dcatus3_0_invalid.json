@@ -1,0 +1,37 @@
+{
+  "@type": "Catalog",
+  "@id": "https://example.gov/data_invalid.json",
+  "conformsTo": {
+    "@type": "Standard",
+    "title": "DCAT-US 3.0"
+  },
+  "title": "Example DCAT-US 3.0 Catalog (with an invalid dataset)",
+  "description": "A sample DCAT-US 3.0 catalog whose first dataset is missing the required contactPoint.",
+  "dataset": [
+    {
+      "@type": "Dataset",
+      "title": "Invalid Dataset (missing contactPoint)",
+      "description": "This dataset omits the mandatory contactPoint field and should fail validation.",
+      "identifier": "https://example.gov/datasets/invalid",
+      "publisher": {
+        "@type": "Organization",
+        "name": "Test Agency"
+      }
+    },
+    {
+      "@type": "Dataset",
+      "title": "Valid Dataset",
+      "description": "This dataset is valid.",
+      "identifier": "https://example.gov/datasets/valid",
+      "publisher": {
+        "@type": "Organization",
+        "name": "Test Agency"
+      },
+      "contactPoint": {
+        "@type": "Kind",
+        "fn": "Valid Contact",
+        "hasEmail": "mailto:valid@example.gov"
+      }
+    }
+  ]
+}

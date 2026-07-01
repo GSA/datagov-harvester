@@ -44,6 +44,7 @@ SCHEMA_TYPE_VALUES = [
     "iso19115_2",
     "dcatus1.1: federal",
     "dcatus1.1: non-federal",
+    "dcatus3.0",
 ]
 
 SOURCE_TYPE_VALUES = ["document", "waf", "waf-collection"]

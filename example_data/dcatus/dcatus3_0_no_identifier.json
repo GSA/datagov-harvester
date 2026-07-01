@@ -1,0 +1,29 @@
+{
+  "@type": "Catalog",
+  "@id": "https://example.gov/data-no-identifier.json",
+  "conformsTo": {
+    "@type": "Standard",
+    "title": "DCAT-US 3.0"
+  },
+  "title": "Example DCAT-US 3.0 Catalog (invalid identifier)",
+      "description": "A DCAT-US 3.0 catalog with an unusable object identifier.",
+  "dataset": [
+    {
+      "@type": "Dataset",
+      "title": "Dataset With Invalid Object Identifier",
+      "description": "Object identifier without @id should be rejected.",
+      "identifier": {
+        "@type": "Identifier"
+      },
+      "publisher": {
+        "@type": "Organization",
+        "name": "Test Agency"
+      },
+      "contactPoint": {
+        "@type": "Kind",
+        "fn": "Test Contact",
+        "hasEmail": "mailto:test@example.gov"
+      }
+    }
+  ]
+}
