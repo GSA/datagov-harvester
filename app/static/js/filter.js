@@ -16,7 +16,7 @@ function filter(e) {
     var countContainer = document.getElementById("component-count");
     var strongCount = document.createElement("strong");
     strongCount.textContent = componentCount;
-    countContainer.replaceChildren(strongCount, ` ${word} found`);
+    countContainer.replaceChildren(strongCount, document.createTextNode(` ${word} found`));
 }
 
 document.addEventListener("DOMContentLoaded", () => {
