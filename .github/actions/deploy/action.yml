@@ -1,0 +1,90 @@
+name: "Deploy datagov-harvester"
+description: "Build assets, export dependencies, and deploy to Cloud.gov"
+
+inputs:
+  cf_space:
+    description: "Cloud Foundry space (development, staging, prod)"
+    required: true
+  cf_org:
+    description: "Cloud Foundry org"
+    required: false
+    default: "gsa-datagov"
+  command:
+    description: "cf command to execute"
+    required: false
+    default: "cf push datagov-harvest --strategy rolling --no-wait"
+  node-version-file:
+    description: "Path to node version file"
+    required: false
+    default: "app/static/package.json"
+  python-version:
+    description: "Python version to use"
+    required: false
+    default: "3.12.13"
+  poetry-version:
+    description: "Poetry version to use"
+    required: false
+    default: "latest"
+  cf_username:
+    description: "Cloud Foundry service user"
+    required: true
+  cf_password:
+    description: "Cloud Foundry service auth"
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: checkout
+      uses: actions/checkout@v4
+
+    - name: Install node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version-file: ${{ inputs.node-version-file }}
+
+    - name: Build static assets
+      shell: bash
+      run: make install-static
+
+    - name: Set deploy asset version
+      shell: bash
+      run: |
+        asset_version="$(.github/scripts/compute-asset-version.sh)"
+        echo "asset_version=${asset_version}" >> "$GITHUB_ENV"
+        echo "Static asset version: ${asset_version}"
+
+    - name: Set up Python ${{ inputs.python-version }}
+      uses: actions/setup-python@v6
+      with:
+        python-version: ${{ inputs.python-version }}
+
+    - name: Install Poetry
+      uses: abatilo/actions-poetry@v4
+      with:
+        poetry-version: ${{ inputs.poetry-version }}
+        poetry-plugins: "poetry-plugin-export"
+
+    - name: Add requirements.txt
+      shell: bash
+      run: make update-dependencies && cat requirements.txt
+
+    - name: Deploy datagov-harvest app
+      uses: cloud-gov/cg-cli-tools@main
+      with:
+        command: >-
+          ${{ inputs.command }} --vars-file vars.${{ inputs.cf_space }}.yml --var asset_version=${{ env.asset_version }}
+        cf_org: ${{ inputs.cf_org }}
+        cf_space: ${{ inputs.cf_space }}
+        cf_username: ${{ inputs.cf_username }}
+        cf_password: ${{ inputs.cf_password }}
+
+    - name: Deploy datagov-harvest proxy
+      uses: cloud-gov/cg-cli-tools@main
+      with:
+        command: >-
+          cf push datagov-harvest-proxy --strategy rolling --no-wait --vars-file vars.${{ inputs.cf_space }}.yml
+        cf_org: ${{ inputs.cf_org }}
+        cf_space: ${{ inputs.cf_space }}
+        cf_username: ${{ inputs.cf_username }}
+        cf_password: ${{ inputs.cf_password }}

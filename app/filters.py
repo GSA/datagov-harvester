@@ -1,5 +1,7 @@
 import datetime
 
+from app.static_assets import static_url
+
 # Acronyms that should stay upper-cased when humanizing snake_case keys.
 _HUMANIZE_ACRONYMS = {"id": "ID", "url": "URL", "ckan": "CKAN", "uuid": "UUID"}
 
@@ -26,8 +28,11 @@ def humanize(key):
 
 
 def usa_icon(str):
-    # ruff: noqa: E501
-    return f'<svg class="usa-icon" aria-hidden="true" role="img"><use xlink:href="/assets/uswds/img/sprite.svg#{str}"></use></svg>'
+    sprite_path = static_url("assets/uswds/img/sprite.svg")
+    return (
+        '<svg class="usa-icon" aria-hidden="true" role="img">'
+        f'<use xlink:href="{sprite_path}#{str}"></use></svg>'
+    )
 
 
 def else_na(val):

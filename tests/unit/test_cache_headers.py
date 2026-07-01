@@ -123,6 +123,17 @@ def test_assets_are_cached_for_one_hour(client):
     assert "Expires" not in response.headers
 
 
+def test_versioned_static_assets_are_cached_for_one_hour(app):
+    app.config["ASSET_VERSION"] = "8eb9d3e"
+
+    response = app.test_client().get("/js/datetime.8eb9d3e.js")
+
+    assert response.status_code == 200
+    assert response.headers["Cache-Control"] == "public, max-age=3600, s-maxage=3600"
+    assert "Pragma" not in response.headers
+    assert "Expires" not in response.headers
+
+
 def test_logout_clears_full_session(client):
     with client.session_transaction() as sess:
         sess["user"] = "test.user@gsa.gov"
