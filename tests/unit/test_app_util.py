@@ -14,10 +14,11 @@ class TestFetchJsonFromUrl:
         mock_response = Mock()
         mock_response.status_code = 200
         mock_response.headers = {"Content-Type": "application/json"}
+        mock_response.raise_for_status = Mock()
+        mock_response.close = Mock()
 
         large_content = b"x" * (11 * 1024 * 1024)
-        mock_response.content = large_content
-        mock_response.raise_for_status = Mock()
+        mock_response.iter_content = Mock(return_value=[large_content])
         mock_get.return_value = mock_response
 
         with pytest.raises(
@@ -31,11 +32,11 @@ class TestFetchJsonFromUrl:
         mock_response = Mock()
         mock_response.status_code = 200
         mock_response.headers = {"Content-Type": "application/json"}
+        mock_response.raise_for_status = Mock()
+        mock_response.close = Mock()
 
         small_json = b'{"test": "data"}'
-        mock_response.content = small_json
-        mock_response.json.return_value = {"test": "data"}
-        mock_response.raise_for_status = Mock()
+        mock_response.iter_content = Mock(return_value=[small_json])
         mock_get.return_value = mock_response
 
         result = fetch_json_from_url("https://example.com/small-file.json")

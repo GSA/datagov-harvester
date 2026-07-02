@@ -1,4 +1,5 @@
 import ipaddress
+import json
 import logging
 import os
 import socket
@@ -119,6 +120,7 @@ def fetch_json_from_url(url: str) -> dict:
         response = requests.get(
             url,
             headers={"User-Agent": USER_AGENT},
+            stream=True,
         )
         response.raise_for_status()
     except Exception as e:
@@ -132,12 +134,28 @@ def fetch_json_from_url(url: str) -> dict:
     if "application/json" not in content_type:
         raise ValueError("URL did not return JSON.")
 
-    # fallback in case content-length header is missing
-    content = response.content
+    chunks = []
+    total_size = 0
+
+    try:
+        for chunk in response.iter_content(chunk_size=8192):
+            if chunk:
+                total_size += len(chunk)
+                if total_size > max_content_length:
+                    raise ValueError("JSON payload too large - must be 10MB or less.")
+                chunks.append(chunk)
+    finally:
+        response.close()
+
+    content = b"".join(chunks)
+
     if len(content) > max_content_length:
         raise ValueError("JSON payload too large - must be 10MB or less.")
 
-    return response.json()
+    try:
+        return json.loads(content)
+    except json.JSONDecodeError as e:
+        raise ValueError(f"Invalid JSON: {str(e)}")
 
 
 def validate_records(dcatus_catalog: dict, schema_name: str) -> list:
