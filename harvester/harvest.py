@@ -34,20 +34,23 @@ from harvester.exceptions import (
     TransformationException,
     log_non_critical_error,
 )
-from harvester.lib.cf_handler import CFHandler
 from harvester.lib.harvest_reporter import HarvestReporter
 from harvester.lib.load_manager import LoadManager
+from harvester.lib.task_handler import create_task_handler
 from harvester.utils.general_utils import (
     DT_PLACEHOLDER,
     USER_AGENT,
     add_uuid_to_package_name,
     assemble_validation_errors,
+    build_dcatus3_validator,
     dataset_to_hash,
+    describe_identifier_error,
     download_file,
     find_indexes_for_duplicates,
     get_datetime,
     make_record_mapping,
     munge_title_to_name,
+    normalize_dataset_identifier,
     open_json,
     prepare_distributions,
     prepare_transform_msg,
@@ -64,10 +67,6 @@ ROOT_DIR = Path(__file__).parents[1]
 
 # harvest worker count
 harvest_worker_sync_count = int(os.getenv("HARVEST_WORKER_SYNC_COUNT", 1))
-
-CF_API_URL = os.getenv("CF_API_URL")
-CF_SERVICE_USER = os.getenv("CF_SERVICE_USER")
-CF_SERVICE_AUTH = os.getenv("CF_SERVICE_AUTH")
 
 
 @dataclass
@@ -115,6 +114,13 @@ class HarvestSource:
             self.schema_file = (
                 self.schemas_root / "dcatus1.1" / "non-federal_dataset.json"
             )
+        elif self.schema_type == "dcatus3.0":
+            # dcatus3.0 has a single dataset schema (no federal/non-federal split).
+            # A 3.0 dataset identifier may be a string or an object; object
+            # identifiers must provide @id.
+            self.schema_file = (
+                self.schemas_root / "dcatus3.0" / "definitions" / "Dataset.json"
+            )
         elif self.schema_type.startswith("iso19115"):
             self.schema_file = (
                 self.schemas_root / "dcatus1.1" / "iso-non-federal_dataset.json"
@@ -128,9 +134,17 @@ class HarvestSource:
             raise Exception
 
         self.dataset_schema = open_json(self.schema_file)
-        self._validator = Draft202012Validator(
-            self.dataset_schema, format_checker=FormatChecker()
-        )
+        if self.schema_type == "dcatus3.0":
+            # validate one dataset record at a time against the dcatus3.0 schema,
+            # which plugs into the same per-record validation flow as dcatus1.1.
+            self._validator = build_dcatus3_validator(
+                self.schemas_root / "dcatus3.0" / "definitions",
+                root_ref="https://resources.data.gov/dcat-us/3.0.0/definitions/dataset",
+            )
+        else:
+            self._validator = Draft202012Validator(
+                self.dataset_schema, format_checker=FormatChecker()
+            )
         self._reporter = HarvestReporter()
 
     @property
@@ -300,7 +314,10 @@ class HarvestSource:
         indices = find_indexes_for_duplicates(self.external_records)
         for idx in indices:
             try:
-                self.write_duplicate_to_db(self.external_records[idx]["identifier"])
+                identifier = normalize_dataset_identifier(
+                    self.external_records[idx].get("identifier")
+                )
+                self.write_duplicate_to_db(identifier)
             except DuplicateIdentifierException:
                 del self.external_records[idx]
                 self.update_job_record_count_by_action("errored")
@@ -339,15 +356,18 @@ class HarvestSource:
 
     def filter_datasets_with_no_identifier(self) -> None:
         """
-        identifies and removes datasets without an 'identifier' field from self.external_records
-        and logs the error in the db as a record-level error
+        identifies and removes datasets without a harvestable identifier from
+        self.external_records and logs the error in the db as a record-level error.
+
+        string identifiers are used as-is. object identifiers must provide @id.
         """
 
         external_records = []
 
         for record in self.external_records:
             try:
-                if "identifier" not in record:
+                identifier = record.get("identifier")
+                if normalize_dataset_identifier(identifier) is None:
                     # use something identifiable to the dataset otherwise label it accordingly
                     id_substitute = (
                         record.get("title")
@@ -363,7 +383,7 @@ class HarvestSource:
                     new_record = self.db_interface.add_harvest_record(record_data)
 
                     raise NoIdentifierException(
-                        f"{self.name} {new_record.identifier} is missing 'identifier' field",
+                        f"{self.name} {new_record.identifier} {describe_identifier_error(identifier)}",
                         self.job_id,
                         new_record.id,
                     )
@@ -381,7 +401,10 @@ class HarvestSource:
         the identifiers of the records. if the db has the record and the harvest source
         doesn't that means the record needs to be deleted.
         """
-        external_ids = set([record["identifier"] for record in self.external_records])
+        external_ids = {
+            normalize_dataset_identifier(record.get("identifier"))
+            for record in self.external_records
+        }
         internal_ids = set(self.internal_records.keys())
         self.deletions = internal_ids - external_ids
 
@@ -433,10 +456,11 @@ class HarvestSource:
                         dataset = record["content"]
 
                 dataset_hash = dataset_to_hash(dataset)
+                identifier = normalize_dataset_identifier(record.get("identifier"))
 
                 yield Record(
                     self,
-                    record["identifier"],
+                    identifier,
                     dataset,
                     dataset_hash,
                     _parent_identifier=parent_identifier,
@@ -447,7 +471,7 @@ class HarvestSource:
                 self.update_job_record_count_by_action("errored")
 
                 # "record"s in self.external_records are standardized as dicts at this point
-                record_id = record["identifier"] if "identifier" in record else None
+                record_id = normalize_dataset_identifier(record.get("identifier"))
 
                 ExternalRecordToClass(
                     f"{self.name} {record_id} failed to prepare record for harvest :: {repr(e)}",
@@ -1146,7 +1170,7 @@ class Record:
                 if not self.dataset_slug:
                     self.dataset_slug = munge_title_to_name(metadata["title"])
 
-            self.status = "success"
+            self.status = "dataset_pending"
             self.harvest_source.update_job_record_count_by_action(self.action)
             self.update_self_in_db()
 
@@ -1163,6 +1187,8 @@ class Record:
                     dataset = self.harvest_source.db_interface.upsert_dataset(
                         update_payload
                     )
+                if dataset:
+                    self.status = "success"
                 self._index_dataset_in_opensearch(dataset)
             elif self.action == "delete" and self.dataset_slug:
                 dataset = self.harvest_source.db_interface.get_dataset_by_slug(
@@ -1172,7 +1198,10 @@ class Record:
                     self.dataset_slug
                 )
                 if deleted:
+                    self.status = "success"
                     self._delete_dataset_from_opensearch(dataset)
+
+            self.update_self_in_db()
 
             return True
 
@@ -1184,12 +1213,14 @@ class Record:
         return False
 
     def update_self_in_db(self) -> bool:
-        finished_date = get_datetime()
+        # set date_finished if it hasn't been set yet
+        if not self._date_finished:
+            self._date_finished = get_datetime()
+
         data = {
             "status": self.status,
-            "date_finished": finished_date,
+            "date_finished": self._date_finished,
         }
-        self._date_finished = finished_date
         if self.ckan_id is not None:
             data["ckan_id"] = self.ckan_id
 
@@ -1243,7 +1274,7 @@ def harvest_job_starter(job_id, job_type="harvest"):
             harvest_source.finish_job_with_status("error")
             return
     # Check if another task is already running this job
-    handler = CFHandler(CF_API_URL, CF_SERVICE_USER, CF_SERVICE_AUTH)
+    handler = create_task_handler()
     running_tasks = handler.get_running_app_tasks()
     running_harvest_ids = handler.job_ids_from_tasks(running_tasks)
     if isinstance(running_harvest_ids, list) and running_harvest_ids.count(job_id) > 1:

@@ -5,7 +5,7 @@
 {% endblock %}
 
 {% block script_head %}
-<script src="{{ url_for('static', filename='js/view_org_data.js') }}"></script>
+<script src="{{ static_url('js/view_org_data.js') }}"></script>
 {% endblock %}
 
 {% block content %}
@@ -81,16 +81,16 @@
                     {% for source in data.harvest_sources %}
                     <tr>
                         <td data-sort-value={{source.date_created}}><a
-                                href="{{ url_for('api.view_harvest_source', source_id=source.id) }}">{{source.name}}</a>
+                                href="{{ url_for('main.view_harvest_source', source_id=source.id) }}">{{source.name}}</a>
                         </td>
                         <td scope="row" class="text-center">
                             {% if data.harvest_jobs[source.id] %}
                             {% set last_job_has_errors = (data.harvest_jobs[source.id].errors | length) == 0 %}
-                            <a href="{{ url_for('api.view_harvest_job', job_id=data.harvest_jobs[source.id].id) }}">
+                            <a href="{{ url_for('main.view_harvest_job', job_id=data.harvest_jobs[source.id].id) }}">
                                 <svg class="usa-icon align-middle {% if last_job_has_errors %}check{%else%}cancel{%endif%}"
                                     aria-hidden="true" focusable="false" role="img">
                                     <use
-                                        xlink:href="/assets/uswds/img/sprite.svg#{% if last_job_has_errors %}check{%else%}cancel{%endif%}">
+                                        xlink:href="{{ static_url('assets/uswds/img/sprite.svg') }}#{% if last_job_has_errors %}check{%else%}cancel{%endif%}">
                                     </use>
                                 </svg>
                             </a>

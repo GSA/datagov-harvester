@@ -38,7 +38,7 @@ def default_session_fixture():
     with (
         patch("harvester.lib.cf_handler.CloudFoundryClient"),
         patch("harvester.utils.general_utils.smtplib"),
-        patch("app.load_manager.start", lambda: True),
+        patch("app.deps.load_manager.start", lambda: True),
     ):
         yield
 
@@ -114,13 +114,14 @@ def interface(session) -> HarvesterDBInterface:
 
 
 @pytest.fixture(autouse=True)
-def default_function_fixture(interface):
+def default_function_fixture(interface, monkeypatch):
+    monkeypatch.delenv("ENABLE_LOCAL_DEV_LOGIN", raising=False)
     logger.info("Patching core.feature.service")
     with (
         patch("harvester.harvest.db_interface", interface),
         patch("harvester.exceptions.db_interface", interface),
         patch("harvester.lib.load_manager.interface", interface),
-        patch("app.routes.db", interface),
+        patch("app.deps.db", interface),
         patch(
             "harvester.utils.general_utils._get_geo_lookup_interface",
             lambda: interface,
@@ -198,6 +199,51 @@ def source_data_dcatus_2(organization_data: dict) -> dict:
         "frequency": "daily",
         "url": f"{HARVEST_SOURCE_URL}/dcatus/dcatus_2.json",
         "schema_type": "dcatus1.1: federal",
+        "source_type": "document",
+        "notification_frequency": "always",
+    }
+
+
+@pytest.fixture
+def source_data_dcatus3_0(organization_data: dict) -> dict:
+    return {
+        "id": "3e4b1d4a-969b-4b80-b299-407c757afe9d",
+        "name": "Test Source DCAT-US 3.0",
+        "notification_emails": ["email@example.com"],
+        "organization_id": organization_data["id"],
+        "frequency": "daily",
+        "url": f"{HARVEST_SOURCE_URL}/dcatus/dcatus3_0.json",
+        "schema_type": "dcatus3.0",
+        "source_type": "document",
+        "notification_frequency": "always",
+    }
+
+
+@pytest.fixture
+def source_data_dcatus3_0_invalid(organization_data: dict) -> dict:
+    return {
+        "id": "59d4cf5b-d98b-4ff4-b10d-3bf20082478b",
+        "name": "Test Source DCAT-US 3.0 (invalid)",
+        "notification_emails": ["email@example.com"],
+        "organization_id": organization_data["id"],
+        "frequency": "daily",
+        "url": f"{HARVEST_SOURCE_URL}/dcatus/dcatus3_0_invalid.json",
+        "schema_type": "dcatus3.0",
+        "source_type": "document",
+        "notification_frequency": "always",
+    }
+
+
+@pytest.fixture
+def source_data_dcatus3_0_no_identifier(organization_data: dict) -> dict:
+    return {
+        "id": "7f8a2c1e-4d5b-4a9f-8e6c-1b2d3e4f5a6b",
+        "name": "Test Source DCAT-US 3.0 (no identifier)",
+        "notification_emails": ["email@example.com"],
+        "organization_id": organization_data["id"],
+        "frequency": "daily",
+        "url": f"{HARVEST_SOURCE_URL}/dcatus/dcatus3_0_no_identifier.json",
+        "schema_type": "dcatus3.0",
         "source_type": "document",
         "notification_frequency": "always",
     }
@@ -471,6 +517,33 @@ def job_data_dcatus_2(source_data_dcatus_2: dict) -> dict:
         "id": "392ac4b3-79a6-414b-a2b3-d6c607d3b8d4",
         "status": "new",
         "harvest_source_id": source_data_dcatus_2["id"],
+    }
+
+
+@pytest.fixture
+def job_data_dcatus3_0(source_data_dcatus3_0: dict) -> dict:
+    return {
+        "id": "d6141347-e91c-41a3-9754-8c1e354b6bb2",
+        "status": "new",
+        "harvest_source_id": source_data_dcatus3_0["id"],
+    }
+
+
+@pytest.fixture
+def job_data_dcatus3_0_invalid(source_data_dcatus3_0_invalid: dict) -> dict:
+    return {
+        "id": "1b3c74e2-71d9-460b-bfcf-5e96c1ab345f",
+        "status": "new",
+        "harvest_source_id": source_data_dcatus3_0_invalid["id"],
+    }
+
+
+@pytest.fixture
+def job_data_dcatus3_0_no_identifier(source_data_dcatus3_0_no_identifier: dict) -> dict:
+    return {
+        "id": "8a9b0c1d-2e3f-4a5b-9c8d-7e6f5a4b3c2d",
+        "status": "new",
+        "harvest_source_id": source_data_dcatus3_0_no_identifier["id"],
     }
 
 
