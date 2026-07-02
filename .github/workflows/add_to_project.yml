@@ -6,6 +6,10 @@ on:
     types:
       - opened
 
+permissions:
+  contents: read
+  issues: write
+
 jobs:
   add-to-project:
     name: Add issue to project
