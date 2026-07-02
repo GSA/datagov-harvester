@@ -17,7 +17,7 @@ $ cf env datagov-harvest | grep HARVEST_API_TOKEN
 $ export API_TOKEN=...
 $ cat harvest_source_ids.txt | while read id; do \
     curl -s -H "X-API-Key: ${API_TOKEN}" \
-    https://harvest-dev.data.gov/harvest_job/add \
+    https://harvest-dev.data.gov/api/harvest_job/add \
     --json "{\"harvest_source_id\": \"$id\", \"status\": \"new\", \"date_created\": \"$(TZ=UTC date -Iseconds -j -v +45M)\"}" ;
   done
 ```

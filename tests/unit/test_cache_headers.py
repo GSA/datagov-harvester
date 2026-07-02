@@ -8,8 +8,9 @@ from app import HSTS_HEADER, create_app
 
 
 @pytest.fixture
-def app():
-    with patch("app.load_manager.start", lambda: True):
+def app(monkeypatch):
+    monkeypatch.delenv("ENABLE_LOCAL_DEV_LOGIN", raising=False)
+    with patch("app.deps.load_manager.start", lambda: True):
         app = create_app()
     app.config.update({"TESTING": True})
 
@@ -116,6 +117,17 @@ def test_login_route_is_private_no_store(client):
 
 def test_assets_are_cached_for_one_hour(client):
     response = client.get("/assets/img/icon-glossary.svg")
+
+    assert response.status_code == 200
+    assert response.headers["Cache-Control"] == "public, max-age=3600, s-maxage=3600"
+    assert "Pragma" not in response.headers
+    assert "Expires" not in response.headers
+
+
+def test_versioned_static_assets_are_cached_for_one_hour(app):
+    app.config["ASSET_VERSION"] = "8eb9d3e"
+
+    response = app.test_client().get("/js/datetime.8eb9d3e.js")
 
     assert response.status_code == 200
     assert response.headers["Cache-Control"] == "public, max-age=3600, s-maxage=3600"

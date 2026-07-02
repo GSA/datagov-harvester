@@ -70,7 +70,7 @@ def _ensure_org_harvester(org_data):
         upload_data = _harvester_org_to_upload(org_data)
         logger.debug("Creating harvester organization with data %s", upload_data)
         result = post(
-            CONFIG.harvester_url + "organization/add",
+            CONFIG.harvester_url + "api/organization/add",
             json=upload_data,
             headers=CONFIG.harvester_auth_headers,
         )
@@ -282,7 +282,7 @@ def _upload_source(source):
 
     try:
         result = post(
-            CONFIG.harvester_url + "harvest_source/add",
+            CONFIG.harvester_url + "api/harvest_source/add",
             json=upload_data,
             headers=CONFIG.harvester_auth_headers,
         )
