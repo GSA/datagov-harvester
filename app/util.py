@@ -124,13 +124,18 @@ def fetch_json_from_url(url: str) -> dict:
     except Exception as e:
         raise ValueError(f"Error processing request: {str(e)}")
 
+    content_length = response.headers.get("Content-Length")
+    if content_length and int(content_length) > max_content_length:
+        raise ValueError("JSON payload too large - must be 10MB or less.")
+
     content_type = response.headers.get("Content-Type", "")
     if "application/json" not in content_type:
         raise ValueError("URL did not return JSON.")
 
+    # fallback in case content-length header is missing
     content = response.content
     if len(content) > max_content_length:
-        raise ValueError("JSON payload too large.")
+        raise ValueError("JSON payload too large - must be 10MB or less.")
 
     return response.json()
 
