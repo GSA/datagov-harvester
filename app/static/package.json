@@ -50,5 +50,10 @@
   },
   "optionalDependencies": {
     "@rollup/rollup-linux-x64-gnu": "^4.13.2"
+  },
+  "overrides": {
+    "@uswds/compile": {
+      "postcss": "8.5.15"
+    }
   }
 }
