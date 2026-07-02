@@ -34,9 +34,9 @@ from harvester.exceptions import (
     TransformationException,
     log_non_critical_error,
 )
-from harvester.lib.cf_handler import CFHandler
 from harvester.lib.harvest_reporter import HarvestReporter
 from harvester.lib.load_manager import LoadManager
+from harvester.lib.task_handler import create_task_handler
 from harvester.utils.general_utils import (
     DT_PLACEHOLDER,
     USER_AGENT,
@@ -67,10 +67,6 @@ ROOT_DIR = Path(__file__).parents[1]
 
 # harvest worker count
 harvest_worker_sync_count = int(os.getenv("HARVEST_WORKER_SYNC_COUNT", 1))
-
-CF_API_URL = os.getenv("CF_API_URL")
-CF_SERVICE_USER = os.getenv("CF_SERVICE_USER")
-CF_SERVICE_AUTH = os.getenv("CF_SERVICE_AUTH")
 
 
 @dataclass
@@ -1174,7 +1170,7 @@ class Record:
                 if not self.dataset_slug:
                     self.dataset_slug = munge_title_to_name(metadata["title"])
 
-            self.status = "success"
+            self.status = "dataset_pending"
             self.harvest_source.update_job_record_count_by_action(self.action)
             self.update_self_in_db()
 
@@ -1191,6 +1187,8 @@ class Record:
                     dataset = self.harvest_source.db_interface.upsert_dataset(
                         update_payload
                     )
+                if dataset:
+                    self.status = "success"
                 self._index_dataset_in_opensearch(dataset)
             elif self.action == "delete" and self.dataset_slug:
                 dataset = self.harvest_source.db_interface.get_dataset_by_slug(
@@ -1200,7 +1198,10 @@ class Record:
                     self.dataset_slug
                 )
                 if deleted:
+                    self.status = "success"
                     self._delete_dataset_from_opensearch(dataset)
+
+            self.update_self_in_db()
 
             return True
 
@@ -1212,12 +1213,14 @@ class Record:
         return False
 
     def update_self_in_db(self) -> bool:
-        finished_date = get_datetime()
+        # set date_finished if it hasn't been set yet
+        if not self._date_finished:
+            self._date_finished = get_datetime()
+
         data = {
             "status": self.status,
-            "date_finished": finished_date,
+            "date_finished": self._date_finished,
         }
-        self._date_finished = finished_date
         if self.ckan_id is not None:
             data["ckan_id"] = self.ckan_id
 
@@ -1271,7 +1274,7 @@ def harvest_job_starter(job_id, job_type="harvest"):
             harvest_source.finish_job_with_status("error")
             return
     # Check if another task is already running this job
-    handler = CFHandler(CF_API_URL, CF_SERVICE_USER, CF_SERVICE_AUTH)
+    handler = create_task_handler()
     running_tasks = handler.get_running_app_tasks()
     running_harvest_ids = handler.job_ids_from_tasks(running_tasks)
     if isinstance(running_harvest_ids, list) and running_harvest_ids.count(job_id) > 1:

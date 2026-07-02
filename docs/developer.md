@@ -18,7 +18,11 @@ Build and bring up docker containers:
 
 Refer to the [`Makefile`](/Makefile) for additional commands.
 
-Note that you do not need to set the `CF_SERVICE_USER` and `CF_SERVICE_AUTH` variables. The app will emit a warning about these; they are needed only in the Cloud.gov environment.
+Note that you do not need to set the `CF_SERVICE_USER` and `CF_SERVICE_AUTH` variables. They are needed only in the Cloud.gov environment.
+
+### How harvest jobs run locally
+
+In deployed (Cloud.gov) environments, harvest jobs run as Cloud Foundry tasks via `CFHandler`. Locally there is no CF task API, so the app falls back to `LocalTaskHandler`, which runs the same `python harvester/harvest.py <job_id> <job_type>` command as a child subprocess of the running app. The handler is selected automatically by `create_task_handler()` (`harvester/lib/task_handler.py`): it uses `CFHandler` only when running on Cloud Foundry or when all three `CF_*` credentials are configured, and otherwise uses `LocalTaskHandler`. This means you can register a harvest source and trigger a harvest locally without any Cloud Foundry credentials.
 
 ### Using the app
 
