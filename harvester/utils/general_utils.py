@@ -461,6 +461,34 @@ def make_record_mapping(record):
     }
 
 
+def normalize_dataset_identifier(identifier) -> str | None:
+    """Return a canonical string identifier from a DCAT-US identifier value.
+
+    DCAT-US 3.0 allows identifier as a string or an Identifier object. For
+    harvesting, object identifiers must provide @id.
+    """
+    if identifier is None:
+        return None
+    if isinstance(identifier, str):
+        return identifier if identifier.strip() else None
+    if isinstance(identifier, dict):
+        value = identifier.get("@id")
+        if isinstance(value, str) and value.strip():
+            return value
+    return None
+
+
+def describe_identifier_error(identifier) -> str:
+    """Describe why an identifier cannot be used for harvesting."""
+    if identifier is None:
+        return "is missing 'identifier' field"
+    if isinstance(identifier, str) and not identifier.strip():
+        return "is missing 'identifier' field"
+    if isinstance(identifier, dict):
+        return "has an object 'identifier' with no usable '@id' field"
+    return "has an invalid 'identifier' field"
+
+
 def find_indexes_for_duplicates(records: list):
     """
     output is a list of integers representing element positions of
@@ -480,7 +508,7 @@ def find_indexes_for_duplicates(records: list):
     seen = set()
     output = []
     for i in range(len(records)):
-        identifier = records[i]["identifier"]
+        identifier = normalize_dataset_identifier(records[i].get("identifier"))
         if identifier in seen:
             output.append(i)
         seen.add(identifier)
@@ -1381,9 +1409,17 @@ def is_valid_uuid4(uuid_string) -> bool:
         return False
 
 
-def build_dcatus3_validator(definitions_dir):
+def build_dcatus3_validator(
+    definitions_dir,
+    root_ref="https://resources.data.gov/dcat-us/3.0.0/definitions/catalog",
+):
     """
-    builds a dcatus v3.0 catalog validator based on schema files in [definitions_dir]
+    builds a dcatus v3.0 validator based on schema files in [definitions_dir].
+
+    root_ref selects the entry point into the schema definitions. it defaults to
+    the catalog definition (used by the validator web tool to validate a whole
+    catalog), but can be pointed at the dataset definition so the validator can
+    check a single dataset record at a time during harvest.
     """
     registry = Registry()
 
@@ -1395,7 +1431,7 @@ def build_dcatus3_validator(definitions_dir):
         )
 
     return Draft202012Validator(
-        schema={"$ref": "https://resources.data.gov/dcat-us/3.0.0/definitions/catalog"},
+        schema={"$ref": root_ref},
         registry=registry,
         format_checker=FormatChecker(),
     )

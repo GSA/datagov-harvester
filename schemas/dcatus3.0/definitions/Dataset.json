@@ -718,12 +718,21 @@
     "publisher": {
       "title": "publisher",
       "description": "Organization responsible for publishing and making the dataset available",
-      "$ref": "/dcat-us/3.0.0/definitions/organization",
+      "anyOf": [
+        {
+          "type": "null",
+          "title": "Null allowed when not required"
+        },
+        {
+          "$ref": "/dcat-us/3.0.0/definitions/organization",
+          "description": "inline description of Organization"
+        }
+      ],
       "_oldDocs": {
         "uri": "dcterms:publisher",
         "range": "foaf:Agent"
       },
-      "requirementLevel": "Mandatory"
+      "requirementLevel": "Recommended"
     },
     "relation": {
       "title": "related resource",
@@ -980,13 +989,7 @@
       "requirementLevel": "Optional"
     }
   },
-  "required": [
-    "description",
-    "publisher",
-    "title",
-    "contactPoint",
-    "identifier"
-  ],
+  "required": ["description", "title", "contactPoint", "identifier"],
   "_oldDocs": {
     "rdfClass": "dcat:Dataset",
     "rationale": "The update of dcat:Dataset is crucial as it aligns the DCAT profile with international standards, offering a standardized and widely recognized way to describe datasets. This alignment enhances data interoperability and discoverability, enabling data publishers to provide structured metadata, improving data sharing, and facilitating seamless integration for users and applications.",

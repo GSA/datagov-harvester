@@ -89,7 +89,7 @@ def test_create_app_uses_validated_secrets():
                 "HARVEST_API_TOKEN": "validated-api-token",
             },
         ),
-        patch("app.load_manager.start", lambda: True),
+        patch("app.deps.load_manager.start", lambda: True),
     ):
         app = create_app()
 

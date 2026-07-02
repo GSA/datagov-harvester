@@ -101,15 +101,22 @@ jobs:
     name: deploy (development)
     needs:
       - create-cloudgov-services-development
+    environment: development
+    runs-on: ubuntu-latest
     permissions:
       actions: write
       contents: read
-    uses: gsa/data.gov/.github/workflows/deploy-template.yml@main
-    with:
-      environ: development
-      app_url: https://harvest-dev.data.gov
-      app_names: '{"include":[{"app":"datagov-harvest"},{"app":"datagov-harvest-proxy"}]}'
-    secrets: inherit
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v7
+      - name: Deploy via composite action
+        uses: ./.github/actions/deploy
+        with:
+          cf_space: development
+          python-version: ${{ env.PY_VERSION }}
+          poetry-version: ${{ env.POETRY_VERSION }}
+          cf_username: ${{ secrets.CF_SERVICE_USER }}
+          cf_password: ${{ secrets.CF_SERVICE_AUTH }}
 
   network-policies:
     name: Add network-policies
