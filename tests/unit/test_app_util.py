@@ -57,3 +57,36 @@ class TestFetchJsonFromUrl:
             ValueError, match="JSON payload too large - must be 10MB or less."
         ):
             fetch_json_from_url("https://example.com/large-file.json")
+
+    @patch("app.util.requests.get")
+    def test_fetch_json_from_url_stops_streaming_when_limit_exceeded(self, mock_get):
+        """Test that fetch_json_from_url stops downloading chunks when size exceeds 10MB"""
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.headers = {"Content-Type": "application/json"}
+        mock_response.raise_for_status = Mock()
+        mock_response.close = Mock()
+
+        chunk_size = 1024 * 1024  # 1MB
+        chunks_generated = []
+
+        def generate_chunks():
+            for i in range(15):
+                chunks_generated.append(i)
+                yield b"x" * chunk_size
+
+        mock_response.iter_content = Mock(
+            side_effect=lambda chunk_size: generate_chunks()
+        )
+        mock_get.return_value = mock_response
+
+        with pytest.raises(
+            ValueError, match="JSON payload too large - must be 10MB or less."
+        ):
+            fetch_json_from_url("https://example.com/large-file.json")
+
+        # Verify we stopped after ~10 chunks (10MB), not all 15
+        assert (
+            len(chunks_generated) <= 11
+        ), f"Downloaded {len(chunks_generated)} chunks, should have stopped around 10-11"
+        mock_response.close.assert_called_once()
