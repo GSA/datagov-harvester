@@ -44,7 +44,8 @@ class TestFetchJsonFromUrl:
 
     @patch("app.util.requests.get")
     def test_fetch_json_from_url_content_length_exceeds_limit(self, mock_get):
-        """Test that fetch_json_from_url raises ValueError when Content-Length header exceeds 10MB"""
+        """Test that fetch_json_from_url raises ValueError when Content-Length
+        header exceeds 10MB"""
         mock_response = Mock()
         mock_response.status_code = 200
         mock_response.headers = {
@@ -61,7 +62,8 @@ class TestFetchJsonFromUrl:
 
     @patch("app.util.requests.get")
     def test_fetch_json_from_url_stops_streaming_when_limit_exceeded(self, mock_get):
-        """Test that fetch_json_from_url stops downloading chunks when size exceeds 10MB"""
+        """Test that fetch_json_from_url stops downloading chunks when size
+        exceeds 10MB"""
         mock_response = Mock()
         mock_response.status_code = 200
         mock_response.headers = {"Content-Type": "application/json"}
@@ -87,7 +89,8 @@ class TestFetchJsonFromUrl:
             fetch_json_from_url("https://example.com/large-file.json")
 
         # Verify we stopped after ~10 chunks (10MB), not all 15
-        assert (
-            len(chunks_generated) <= 11
-        ), f"Downloaded {len(chunks_generated)} chunks, should have stopped around 10-11"
+        assert len(chunks_generated) <= 11, (
+            f"Downloaded {len(chunks_generated)} chunks, should have stopped around "
+            f"10-11"
+        )
         mock_response.close.assert_called_once()
