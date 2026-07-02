@@ -1170,7 +1170,7 @@ class Record:
                 if not self.dataset_slug:
                     self.dataset_slug = munge_title_to_name(metadata["title"])
 
-            self.status = "success"
+            self.status = "dataset_pending"
             self.harvest_source.update_job_record_count_by_action(self.action)
             self.update_self_in_db()
 
@@ -1187,6 +1187,8 @@ class Record:
                     dataset = self.harvest_source.db_interface.upsert_dataset(
                         update_payload
                     )
+                if dataset:
+                    self.status = "success"
                 self._index_dataset_in_opensearch(dataset)
             elif self.action == "delete" and self.dataset_slug:
                 dataset = self.harvest_source.db_interface.get_dataset_by_slug(
@@ -1196,7 +1198,10 @@ class Record:
                     self.dataset_slug
                 )
                 if deleted:
+                    self.status = "success"
                     self._delete_dataset_from_opensearch(dataset)
+
+            self.update_self_in_db()
 
             return True
 
@@ -1208,12 +1213,14 @@ class Record:
         return False
 
     def update_self_in_db(self) -> bool:
-        finished_date = get_datetime()
+        # set date_finished if it hasn't been set yet
+        if not self._date_finished:
+            self._date_finished = get_datetime()
+
         data = {
             "status": self.status,
-            "date_finished": finished_date,
+            "date_finished": self._date_finished,
         }
-        self._date_finished = finished_date
         if self.ckan_id is not None:
             data["ckan_id"] = self.ckan_id
 
