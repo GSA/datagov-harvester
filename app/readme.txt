@@ -31,13 +31,13 @@ examples:
 
 Set an API token header for JSON API requests:
 
-curl -X POST http://{site}/organization/add -H "X-API-Key: {api_token}" -H "Content-Type: application/json" -d '
+curl -X POST http://{site}/api/organization/add -H "X-API-Key: {api_token}" -H "Content-Type: application/json" -d '
 {
     "name": "New Org",
     "logo": "test url"
 }'
 
-curl -X POST http://{site}/harvest_source/add -H "X-API-Key: {api_token}" -H "Content-Type: application/json" -d '
+curl -X POST http://{site}/api/harvest_source/add -H "X-API-Key: {api_token}" -H "Content-Type: application/json" -d '
 {
     "organization_id": "4ed9d20a-7de8-4c2d-884f-86b50ec8065d",
     "name": "Example Harvest Source",
@@ -49,13 +49,13 @@ curl -X POST http://{site}/harvest_source/add -H "X-API-Key: {api_token}" -H "Co
 }
 '
 
-curl -X POST http://{site}/harvest_job/add -H "X-API-Key: {api_token}" -H "Content-Type: application/json" -d '
+curl -X POST http://{site}/api/harvest_job/add -H "X-API-Key: {api_token}" -H "Content-Type: application/json" -d '
 {
     "harvest_source_id": "59e93b86-83f1-4b70-afa7-c7ca027aeacb",
     "status": "in_progress"
 }'
 
-curl -X POST http://{site}/harvest_record/add -H "X-API-Key: {api_token}" -H "Content-Type: application/json" -d '
+curl -X POST http://{site}/api/harvest_record/add -H "X-API-Key: {api_token}" -H "Content-Type: application/json" -d '
 {
     "id": "identifier-1",
     "harvest_job_id": "a8c03b83-907c-41c9-95aa-d71c3be626b1",
