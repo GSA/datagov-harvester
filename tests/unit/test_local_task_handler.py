@@ -136,6 +136,7 @@ class TestLocalTaskHandler:
         try:
             assert task["state"] == "RUNNING"
             assert task["name"] == "harvest-job-abc-harvest"
+            assert task["guid"] == "harvest-job-abc-harvest"
             running = handler.get_running_app_tasks()
             assert len(running) == 1
             assert running[0]["name"] == "harvest-job-abc-harvest"
@@ -154,6 +155,15 @@ class TestLocalTaskHandler:
             assert handler.num_running_app_tasks() == 1
         finally:
             handler.stop_task(first["guid"])
+
+    def test_stop_task_looks_up_by_task_name(self):
+        handler = LocalTaskHandler()
+        task = handler.start_task(SLEEP_CMD, "harvest-job-stop-harvest")
+
+        stopped = handler.stop_task(task["name"])
+
+        assert stopped == task
+        assert task["state"] == "CANCELING"
 
     def test_completed_task_is_not_running(self):
         handler = LocalTaskHandler()

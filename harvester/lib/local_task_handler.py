@@ -11,7 +11,6 @@ import logging
 import shlex
 import subprocess
 import threading
-import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -50,7 +49,7 @@ class LocalTaskHandler:
                 cwd=APP_ROOT,
             )
             task = {
-                "guid": str(uuid.uuid4()),
+                "guid": task_id,
                 "name": task_id,
                 "command": command,
                 "state": "RUNNING",
@@ -64,11 +63,11 @@ class LocalTaskHandler:
 
     def stop_task(self, task_id):
         with self._lock:
-            for task in self._tasks.values():
-                if task["guid"] == task_id and task["state"] == "RUNNING":
-                    task["process"].terminate()
-                    task["state"] = "CANCELING"
-                    return task
+            task = self._tasks.get(task_id)
+            if task and task["state"] == "RUNNING":
+                task["process"].terminate()
+                task["state"] = "CANCELING"
+                return task
         return None
 
     def get_all_app_tasks(self, app_guuid=None):
