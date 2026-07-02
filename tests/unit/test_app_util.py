@@ -20,7 +20,9 @@ class TestFetchJsonFromUrl:
         mock_response.raise_for_status = Mock()
         mock_get.return_value = mock_response
 
-        with pytest.raises(ValueError, match="JSON payload too large - must be 10MB or less."):
+        with pytest.raises(
+            ValueError, match="JSON payload too large - must be 10MB or less."
+        ):
             fetch_json_from_url("https://example.com/large-file.json")
 
     @patch("app.util.requests.get")
@@ -46,10 +48,12 @@ class TestFetchJsonFromUrl:
         mock_response.status_code = 200
         mock_response.headers = {
             "Content-Type": "application/json",
-            "Content-Length": str(11 * 1024 * 1024)
+            "Content-Length": str(11 * 1024 * 1024),
         }
         mock_response.raise_for_status = Mock()
         mock_get.return_value = mock_response
 
-        with pytest.raises(ValueError, match="JSON payload too large - must be 10MB or less."):
+        with pytest.raises(
+            ValueError, match="JSON payload too large - must be 10MB or less."
+        ):
             fetch_json_from_url("https://example.com/large-file.json")
