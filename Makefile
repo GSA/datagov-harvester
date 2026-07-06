@@ -81,6 +81,7 @@ re-up: clean up sleep-5 load-test-data ## resets system to clean fixture status
 re-up-debug: clean up-debug load-test-data ## resets system to clean fixture status for flask debugging
 
 up: ## Sets up local flask and harvest runner docker environments. harvest runner gets DATABASE_PORT from .env
+	docker compose pull transformer
 	DATABASE_PORT=5433 docker compose up -d
 	docker compose -p harvest-app up db -d
 

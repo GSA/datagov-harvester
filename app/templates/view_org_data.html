@@ -41,7 +41,7 @@
             <tr>
                 <td>{{ key | humanize }}</td>
                 {% if key == 'logo' %}
-                <td class="word-break-all"><a href="{{value}}" target="_blank">{{value}}</a> {{ 'launch' | usa_icon | safe }}</td>
+                <td class="word-break-all"><a href="{{value}}" target="_blank">{{value}}</a>{{ 'launch' | usa_icon | safe }}</td>
                 {% elif value is iterable and value is not string %}
                 <td class="word-break-all">{{ value | join(', ') if value else 'N/A' }}</td>
                 {% else %}
@@ -123,7 +123,7 @@
                         <td data-sort-value={{source.records_updated}}>{{source.source_type}}</td>
                         <td data-sort-value={{source.records_deleted}}>{{source.frequency}}</td>
                         {% if session['user'] %}
-                        <td data-sort-value={{source.date_finished}}>{{source.notification_emails}} </td>
+                        <td data-sort-value={{source.date_finished}}>{{source.notification_emails}}</td>
                         {% endif %}
                         <td data-sort-value={{source.records_errored}} class="word-break-all"><a target="_blank"
                                 href={{source.url}}>{{source.url}}</a> {{ 'launch' | usa_icon | safe }}</td>

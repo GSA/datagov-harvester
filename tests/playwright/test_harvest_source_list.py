@@ -20,9 +20,9 @@ class TestHarvestSourceListUnauthed:
 
     def test_can_see_source_list(self, upage):
         expect(upage.locator("table.usa-table tbody tr")).to_have_count(1)
-        expect(
-            upage.locator("table.usa-table tbody tr th[scope='row']")
-        ).to_have_text(["Test Source"])
+        expect(upage.locator("table.usa-table tbody tr th[scope='row']")).to_have_text(
+            ["Test Source"]
+        )
 
     def test_cant_add_source(self, upage):
         expect(upage.locator("text=Add Harvest Source")).to_have_count(0)

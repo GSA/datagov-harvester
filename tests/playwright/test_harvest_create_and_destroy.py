@@ -30,9 +30,7 @@ def apage_with_org(apage):
     apage.get_by_role("button", name="Submit").click()
     yield apage
     apage.get_by_role("link", name="Organizations").click()
-    apage.get_by_role("listitem").filter(has_text=org_name).nth(0).get_by_role(
-        "link"
-    ).click()
+    apage.get_by_role("row", name=org_name).get_by_role("link", name="Details").click()
     apage.once("dialog", lambda dialog: dialog.accept())
     apage.get_by_role("button", name="Delete", exact=True).click()
 
@@ -57,8 +55,8 @@ class TestHarvestCreateAndDestroy:
         )
 
         apage.get_by_role("link", name="Organizations").click()
-        apage.get_by_role("listitem").filter(has_text=org_name).nth(0).get_by_role(
-            "link"
+        apage.get_by_role("row", name=org_name).get_by_role(
+            "link", name="Details"
         ).click()
         apage.once("dialog", lambda dialog: dialog.accept())
         apage.get_by_role("button", name="Delete", exact=True).click()
@@ -86,17 +84,17 @@ class TestHarvestCreateAndDestroy:
             ["Added new harvest source with ID:"]
         )
 
-        apage_with_org.get_by_role("listitem").filter(
-            has=apage_with_org.get_by_role("heading", name="Test Source New")
-        ).get_by_role("link").click()
+        apage_with_org.get_by_role("row", name="Test Source New").get_by_role(
+            "link", name="Details"
+        ).click()
         apage_with_org.get_by_role("button", name="Edit", exact=True).click()
         assert apage_with_org.locator("#name").get_attribute("readonly") is not None
 
         apage_with_org.get_by_role("link", name="Harvest Sources").click()
 
-        apage_with_org.get_by_role("listitem").filter(
-            has=apage_with_org.get_by_role("heading", name="Test Source New")
-        ).get_by_role("link").click()
+        apage_with_org.get_by_role("row", name="Test Source New").get_by_role(
+            "link", name="Details"
+        ).click()
         apage_with_org.once("dialog", lambda dialog: dialog.accept())
         apage_with_org.get_by_role("button", name="Delete", exact=True).click()
         expect(apage_with_org.locator(".usa-alert--warning")).to_contain_text(
