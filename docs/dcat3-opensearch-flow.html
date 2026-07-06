@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DCAT3 Harvest → OpenSearch Flow</title>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #0f1419;
+      --panel: #1a2332;
+      --text: #e7ecf3;
+      --muted: #9fb0c5;
+      --accent: #5b9cf5;
+      --border: #2d3a4d;
+    }
+    @media (prefers-color-scheme: light) {
+      :root {
+        --bg: #f4f7fb;
+        --panel: #ffffff;
+        --text: #1a2332;
+        --muted: #5a6b7d;
+        --accent: #2563eb;
+        --border: #d8e0ea;
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+    }
+    header {
+      padding: 1.5rem 2rem;
+      border-bottom: 1px solid var(--border);
+      background: var(--panel);
+    }
+    header h1 {
+      margin: 0 0 0.35rem;
+      font-size: 1.35rem;
+    }
+    header p {
+      margin: 0;
+      color: var(--muted);
+      max-width: 70ch;
+    }
+    main {
+      padding: 1.5rem 2rem 3rem;
+      display: grid;
+      gap: 2rem;
+    }
+    section {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.25rem 1.5rem 1.5rem;
+    }
+    section h2 {
+      margin: 0 0 0.75rem;
+      font-size: 1.05rem;
+      color: var(--accent);
+    }
+    .mermaid {
+      overflow-x: auto;
+    }
+    footer {
+      padding: 0 2rem 2rem;
+      color: var(--muted);
+      font-size: 0.85rem;
+    }
+    code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.9em;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>DCAT-US 3.0 Harvest → OpenSearch Index Flow</h1>
+    <p>
+      Function call stack and data flow for <code>schema_type = dcatus3.0</code> sources.
+      DCAT3 records skip MDTranslator (ISO-only); raw JSON is validated, stored on
+      <code>Dataset.dcat</code>, then transformed at index time into canonical search fields.
+    </p>
+  </header>
+
+  <main>
+    <section>
+      <h2>End-to-end flow (harvest job)</h2>
+      <pre class="mermaid">
+flowchart TD
+  START([harvest_job_starter<br/>harvester/harvest.py]) --> HS[HarvestSource.__post_init__]
+  HS --> SCHEMA[Load dcatus3.0 schema + build_dcatus3_validator]
+  SCHEMA --> RFH[HarvestSource.run_full_harvest]
+
+  RFH --> ADS[acquire_data_sources]
+  ADS --> INT[acquire_minimum_internal_data<br/>→ store_records_as_internal]
+  ADS --> EXT[acquire_minimum_external_data]
+
+  EXT --> DL[download_file url .json<br/>→ external_records = dataset array]
+  DL --> FILT[filter_datasets_with_no_identifier<br/>filter_duplicate_identifiers]
+  FILT --> DEL[determine_internal_deletions<br/>→ iter_internal_records_to_be_deleted]
+  FILT --> ERP[external_records_to_process<br/>yields Record per dataset]
+
+  ERP --> SORT[sort_dataset record<br/>json.dumps → source_raw]
+  SORT --> REC[Record instance<br/>identifier + metadata_hash]
+
+  DEL --> HARVEST
+  REC --> HARVEST[Record.harvest]
+
+  HARVEST --> CMP[compare<br/>create | update | skip]
+  CMP -->|action is None| SKIP([skip record])
+  CMP -->|create/update| VAL[validate<br/>json.loads source_raw<br/>validator.iter_errors]
+
+  VAL -->|invalid| ERR([status=error, no sync])
+  VAL -->|valid| SYNC[sync]
+
+  SYNC --> META[_metadata_for_dataset<br/>returns parsed DCAT3 dict]
+  META --> PAYLOAD[_dataset_payload<br/>dcat, slug, spatial, org, ...]
+  PAYLOAD --> DB{action?}
+  DB -->|create| INS[insert_dataset_with_unique_slug<br/>→ Dataset row]
+  DB -->|update| UPS[db_interface.upsert_dataset]
+  DB -->|delete| DELDB[delete_dataset_by_slug<br/>→ delete_dataset_by_id]
+
+  INS --> IDX[_index_dataset_in_opensearch]
+  UPS --> IDX
+  DELDB --> OSDEL[_delete_dataset_from_opensearch]
+
+  IDX --> OSINIT[HarvestSource.opensearch<br/>OpenSearchInterface.from_environment]
+  OSINIT --> IDXS[index_datasets dataset]
+
+  classDef entry fill:#2563eb22,stroke:#2563eb,color:inherit;
+  classDef data fill:#05966922,stroke:#059669,color:inherit;
+  classDef db fill:#d9770622,stroke:#d97706,color:inherit;
+  classDef os fill:#7c3aed22,stroke:#7c3aed,color:inherit;
+  class START,RFH entry;
+  class DL,SORT,META,PAYLOAD data;
+  class INS,UPS,DELDB db;
+  class IDX,IDXS,OSDEL os;
+      </pre>
+    </section>
+
+    <section>
+      <h2>OpenSearch indexing call stack</h2>
+      <pre class="mermaid">
+flowchart TD
+  IDX[index_datasets<br/>harvester/opensearch.py] --> MAP[dataset_to_document for each Dataset]
+
+  MAP --> XFORM[DCAT_INDEX_TRANSFORMER.transform<br/>dataset.dcat]
+  XFORM --> SPECS[DcatIndexTransformer.transform<br/>iterates DEFAULT_FIELD_SPECS]
+
+  SPECS --> C1[coerce_text → title, description]
+  SPECS --> C2[coerce_publisher_name → publisher]
+  SPECS --> C3[coerce_keywords → keyword]
+  SPECS --> C4[coerce_concepts → theme<br/>DCAT3 Concept objects kept]
+  SPECS --> C5[coerce_identifier → identifier<br/>DCAT3 Identifier @id kept]
+  SPECS --> C6[distribution_titles → distribution_titles]
+  SPECS --> C7[collection_reference → inSeries / isPartOf]
+
+  MAP --> NORM[_normalize_dcat_dates<br/>full dcat blob for nested field]
+  MAP --> GEO[_geometry_centroid<br/>dataset.translated_spatial]
+  MAP --> DOC[Build OpenSearch document<br/>_index, _id, title, slug, theme, ...]
+
+  DOC --> BULK[helpers.streaming_bulk<br/>opensearchpy]
+  BULK --> RETRY[_run_with_timeout_retry<br/>on ConnectionTimeout]
+  RETRY --> REFRESH[_refresh indices.refresh]
+
+  classDef transform fill:#0891b222,stroke:#0891b2,color:inherit;
+  classDef bulk fill:#7c3aed22,stroke:#7c3aed,color:inherit;
+  class XFORM,SPECS,C1,C2,C3,C4,C5,C6,C7 transform;
+  class BULK,RETRY,REFRESH bulk;
+      </pre>
+    </section>
+
+    <section>
+      <h2>Sequence: one DCAT3 dataset through the system</h2>
+      <pre class="mermaid">
+sequenceDiagram
+  autonumber
+  participant Job as harvest_job_starter
+  participant HS as HarvestSource
+  participant Net as download_file
+  participant Rec as Record
+  participant Val as dcatus3 validator
+  participant DB as HarvesterDBInterface
+  participant OS as OpenSearchInterface
+  participant XF as DcatIndexTransformer
+  participant Cluster as OpenSearch cluster
+
+  Job->>HS: run_full_harvest()
+  HS->>DB: get_latest_harvest_records_by_source()
+  HS->>Net: GET data.json
+  Net-->>HS: { dataset: [ DCAT3 dict, ... ] }
+
+  loop each dataset dict
+    HS->>Rec: Record(source_raw=json.dumps(sorted))
+    Rec->>Rec: compare() vs internal hash
+    alt unchanged
+      Rec-->>HS: return early
+    else create or update
+      Rec->>Val: iter_errors(dcat dict)
+      Val-->>Rec: valid
+      Rec->>Rec: sync()
+      Rec->>DB: insert_dataset / upsert_dataset<br/>payload.dcat = DCAT3 metadata
+      DB-->>Rec: Dataset ORM object
+      Rec->>OS: index_datasets([dataset])
+      OS->>XF: transform(dataset.dcat)
+      XF-->>OS: canonical fields (identifier, theme, ...)
+      OS->>OS: dataset_to_document()
+      OS->>Cluster: streaming_bulk index
+      Cluster-->>OS: created / updated
+      OS->>Cluster: indices.refresh
+    end
+  end
+      </pre>
+    </section>
+
+    <section>
+      <h2>Data shape at each stage (DCAT3)</h2>
+      <pre class="mermaid">
+flowchart LR
+  subgraph source["External source"]
+    JSON[data.json<br/>dataset array]
+  end
+
+  subgraph harvest["Harvester memory"]
+    RAW[Record.source_raw<br/>sorted JSON string]
+    DICT[Parsed DCAT3 dict<br/>identifier may be object with @id]
+  end
+
+  subgraph postgres["PostgreSQL Dataset"]
+    DCAT[dataset.dcat JSONB<br/>full DCAT3 metadata]
+    SPAT[dataset.translated_spatial<br/>GeoJSON if spatial present]
+  end
+
+  subgraph index["OpenSearch document"]
+    TOP[Top-level search fields<br/>title, theme, identifier, publisher, ...]
+    NEST[dcat nested object<br/>dates normalized, complex values serialized]
+    GEO2[spatial_shape / spatial_centroid]
+  end
+
+  JSON --> RAW
+  RAW --> DICT
+  DICT --> DCAT
+  DICT --> SPAT
+  DCAT --> TOP
+  DCAT --> NEST
+  SPAT --> GEO2
+
+  classDef store fill:#d9770622,stroke:#d97706,color:inherit;
+  classDef search fill:#7c3aed22,stroke:#7c3aed,color:inherit;
+  class DCAT,SPAT store;
+  class TOP,NEST,GEO2 search;
+      </pre>
+    </section>
+  </main>
+
+  <footer>
+    Generated from <code>harvester/harvest.py</code>, <code>harvester/opensearch.py</code>,
+    and <code>harvester/opensearch_transform.py</code>.
+    Secondary reindex path: <code>flask search compare --update</code> in
+    <code>app/commands/search.py</code> also calls <code>OpenSearchInterface.index_datasets</code>.
+  </footer>
+
+  <script>
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: "neutral",
+      flowchart: { curve: "basis", htmlLabels: true },
+      sequence: { mirrorActors: false }
+    });
+  </script>
+</body>
+</html>

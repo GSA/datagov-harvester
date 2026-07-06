@@ -259,7 +259,14 @@ def test_dataset_to_document(sample_dataset, monkeypatch):
     assert document["title"] == "Dataset Title"
     assert document["publisher"] == "Publisher"
     assert document["dcat"]["isPartOf"] == "collection-1"
-    assert document["theme"] == ["theme-1"]
+    # DCAT-US 1.1 isPartOf is mapped up to a DCAT-US 3.0 DatasetSeries list.
+    assert document["inSeries"] == [{"@id": "collection-1"}]
+    # identifier is always stored as a DCAT-US 3.0 Identifier object; the
+    # DCAT-US 1.1 string "id-1" is mapped up to {"@id": "id-1"}.
+    assert document["identifier"] == {"@id": "id-1"}
+    # theme is always stored as a list of DCAT-US 3.0 Concept objects; the
+    # DCAT-US 1.1 string "theme-1" is mapped up to {"prefLabel": "theme-1"}.
+    assert document["theme"] == [{"prefLabel": "theme-1"}]
     assert document["distribution_titles"] == ["CSV download", "API endpoint"]
     assert document["has_spatial"] is True
     assert document["harvest_record"] == "https://catalog.data.gov/harvest_record/hr-1"
@@ -360,20 +367,28 @@ def test_dataset_to_document_normalizes_dcatus3_search_fields(sample_dataset):
 
     document = iface.dataset_to_document(sample_dataset)
 
-    assert document["identifier"] == "https://example.gov/identifiers/dataset-1"
-    assert document["theme"] == ["Geospatial"]
+    # Top-level searchable fields carry the canonical DCAT-US 3.0 structure.
+    assert document["identifier"] == {
+        "@id": "https://example.gov/identifiers/dataset-1",
+        "notation": "DATASET-1",
+    }
+    assert document["theme"] == [
+        {"@id": "https://example.gov/concepts/geospatial", "prefLabel": "Geospatial"}
+    ]
+    # The free-form `dcat` blob keeps its flattened-to-text representation.
     assert document["dcat"]["identifier"] == "https://example.gov/identifiers/dataset-1"
     assert document["dcat"]["theme"] == ["Geospatial"]
     assert document["has_spatial"] is True
 
 
-def test_dataset_to_document_preserves_string_theme_shape(sample_dataset):
+def test_dataset_to_document_maps_dcat1_string_theme_to_concept(sample_dataset):
     iface = OpenSearchInterface.__new__(OpenSearchInterface)
     sample_dataset.dcat["theme"] = "Geospatial"
 
     document = iface.dataset_to_document(sample_dataset)
 
-    assert document["theme"] == "Geospatial"
+    # A DCAT-US 1.1 bare string theme is mapped up to a DCAT-US 3.0 Concept.
+    assert document["theme"] == [{"prefLabel": "Geospatial"}]
 
 
 @pytest.mark.parametrize(
@@ -425,6 +440,44 @@ def test_mappings_include_catalog_compatible_fields():
 
     assert mappings["dcat"]["properties"]["isPartOf"] == {"type": "keyword"}
     assert mappings["distribution_titles"]["type"] == "text"
+
+    # identifier is indexed as a DCAT-US 3.0 Identifier object with searchable
+    # sub-fields (both a full-text @id and an exact-match @id.keyword).
+    identifier_mapping = mappings["identifier"]
+    assert identifier_mapping["type"] == "object"
+    id_props = identifier_mapping["properties"]
+    assert id_props["@id"]["type"] == "text"
+    assert id_props["@id"]["fields"]["keyword"] == {"type": "keyword"}
+    assert id_props["notation"] == {"type": "keyword"}
+    assert id_props["schemaAgency"]["type"] == "text"
+    assert id_props["version"] == {"type": "keyword"}
+
+    # theme is indexed as a list of DCAT-US 3.0 Concept objects; prefLabel is
+    # searchable full-text with an exact-match keyword sub-field.
+    theme_mapping = mappings["theme"]
+    assert theme_mapping["type"] == "object"
+    theme_props = theme_mapping["properties"]
+    assert theme_props["prefLabel"]["type"] == "text"
+    # prefLabel.keyword is normalized for case-insensitive faceting, matching
+    # the publisher.normalized / keyword.normalized convention.
+    assert theme_props["prefLabel"]["fields"]["keyword"] == {
+        "type": "keyword",
+        "normalizer": OpenSearchInterface.KEYWORD_NORMALIZER,
+    }
+    assert theme_props["@id"]["type"] == "keyword"
+
+    # inSeries is indexed as a list of DCAT-US 3.0 DatasetSeries objects.
+    in_series_mapping = mappings["inSeries"]
+    assert in_series_mapping["type"] == "object"
+    in_series_props = in_series_mapping["properties"]
+    assert in_series_props["@id"]["type"] == "keyword"
+    assert in_series_props["title"]["type"] == "text"
+    assert in_series_props["title"]["fields"]["keyword"] == {
+        "type": "keyword",
+        "normalizer": OpenSearchInterface.KEYWORD_NORMALIZER,
+    }
+    assert in_series_props["description"]["type"] == "text"
+
     assert mappings["publisher"]["fields"]["raw"] == {"type": "keyword"}
     assert mappings["publisher"]["fields"]["normalized"] == {
         "type": "keyword",
