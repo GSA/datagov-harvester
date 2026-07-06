@@ -1,0 +1,244 @@
+// Styles for the shared record-list tables (organizations, harvest sources).
+//
+// Never set display:flex, display:block, or -webkit-box on th/td directly -
+// that overrides display:table-cell and breaks row borders/alignment.
+
+// List-page add buttons: show plus icon before label.
+.list-page-add__button {
+  align-items: center;
+  display: inline-flex;
+  gap: units(0.5);
+
+  .usa-icon {
+    height: units(2);
+    width: units(2);
+  }
+}
+
+.list-page-toolbar {
+  align-items: flex-end;
+  display: flex;
+  flex-wrap: wrap;
+  gap: units(2) units(3);
+}
+
+.list-page-toolbar__search {
+  flex: 1 1 units("tablet");
+  max-width: units("tablet-lg");
+  min-width: units("mobile");
+}
+
+.list-page-results-header {
+  align-items: baseline;
+  display: flex;
+  gap: units(2);
+  justify-content: space-between;
+}
+
+.list-page-results-title {
+  font-size: font-size("heading", "lg");
+}
+
+.list-page-results {
+  margin: 0 0 units(0.5);
+  margin-left: auto;
+  text-align: right;
+}
+
+.list-page-search__label {
+  color: color("base-darker");
+  font-size: font-size("body", "sm");
+  font-weight: font-weight("normal");
+  margin-bottom: units(0.5);
+  margin-top: 0;
+}
+
+// List-page search: compact input/button with icon + "Search" label.
+.list-page-search {
+  display: flex;
+  max-width: none;
+
+  [type="search"] {
+    flex: 1 1 auto;
+    font-size: font-size("body", "sm");
+    height: units(6);
+    min-width: 0;
+  }
+
+  [type="submit"].list-page-search__submit {
+    align-items: center;
+    display: inline-flex;
+    font-size: font-size("body", "sm");
+    gap: units(0.5);
+    height: units(6);
+    padding-left: units(2);
+    padding-right: units(2);
+
+    &::before {
+      content: none;
+    }
+
+    .usa-icon {
+      height: units(3);
+      width: units(3);
+    }
+  }
+}
+
+@include at-media-max("mobile-lg") {
+  .list-page-add__button {
+    margin-top: 10px;
+  }
+
+  .list-page-toolbar__search {
+    flex-basis: 100%;
+    max-width: none;
+    min-width: 0;
+  }
+
+  .list-page-results {
+    width: 100%;
+  }
+
+  .list-page-results-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .list-page-results {
+    margin-left: 0;
+    text-align: left;
+  }
+}
+
+.usa-table.list-table {
+  thead {
+    th {
+      border-bottom: units("2px") solid color("ink");
+    }
+  }
+
+  tbody {
+    tr:first-child {
+      th,
+      td {
+        border-top: 0;
+      }
+    }
+
+    th[scope="row"] {
+      background-color: color($table-background-color);
+      color: color($table-text-color);
+      font-weight: font-weight("bold");
+    }
+
+    th,
+    td {
+      vertical-align: middle;
+    }
+
+    th:last-child,
+    td:last-child {
+      text-align: right;
+    }
+  }
+}
+
+.usa-table.list-table.usa-table--striped {
+  tbody {
+    tr:nth-child(odd) {
+      th[scope="row"] {
+        background-color: color($theme-table-stripe-background-color);
+        color: $table-stripe-text-color;
+      }
+    }
+  }
+}
+
+.usa-table.list-table.usa-table--striped.usa-table--stacked-header {
+  @include at-media-max("mobile-lg") {
+    tbody {
+      tr:nth-child(odd) {
+        th,
+        td {
+          background-color: color($table-background-color);
+          color: color($table-text-color);
+        }
+      }
+
+      tr {
+        th:first-child,
+        td:first-child {
+          background-color: color($theme-table-header-background-color);
+          color: $table-header-text-color;
+        }
+      }
+    }
+  }
+}
+
+// Organization name content: logo thumbnail beside the org name.
+// Scope to span so this cannot accidentally affect the table header cell.
+span.org-list__name-cell {
+  align-items: center;
+  display: inline-flex;
+  gap: units(1);
+  vertical-align: middle;
+}
+
+.org-list__logo-wrap {
+  @include u-display("flex");
+  @include u-flex("align-center", "justify-center");
+  flex-shrink: 0;
+  width: units(6);
+}
+
+.org-list__logo {
+  display: block;
+  height: units(4);
+  max-height: units(4);
+  max-width: 100%;
+  object-fit: contain;
+  width: auto;
+}
+
+.org-list__logo-placeholder {
+  @include u-display("flex");
+  @include u-flex("align-center", "justify-center");
+  height: units(4);
+  width: units(6);
+
+  .usa-icon {
+    color: color("base");
+    height: units(3);
+    width: units(3);
+  }
+}
+
+// Keep long descriptions from stretching the row; clamp to a few lines.
+// Line-clamp must live on an inner element - applying display:-webkit-box to
+// a table cell breaks row borders and stripe backgrounds.
+.org-list__description {
+  max-width: units("card-lg");
+}
+
+.org-list__description-text {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+}
+
+// Stacked mobile: left-align numeric columns and allow description to wrap fully.
+.usa-table--stacked-header {
+  @include at-media-max("mobile-lg") {
+    .org-list__description-text {
+      -webkit-line-clamp: unset;
+      display: block;
+    }
+
+    .text-right[data-label] {
+      text-align: left;
+    }
+  }
+}

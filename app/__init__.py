@@ -294,6 +294,7 @@ def create_app():
                 "https://raw.githubusercontent.com",  # github logos repo
                 "https://*.google-analytics.com",  # GA4 beacons
                 "https://*.googletagmanager.com",  # GTM beacons
+                "*",
             ]
         ),
         "connect-src": " ".join(

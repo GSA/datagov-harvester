@@ -27,7 +27,7 @@ i.e.
 @import "components/blockview";
 @import "components/progress_bar";
 @import "components/header";
-@import "components/cards";
+@import "components/list-tables";
 @import "components/layout";
 
 .word-break-all {
@@ -55,10 +55,6 @@ i.e.
 
 .text-center {
   text-align: center;
-}
-
-.usa-card__img img {
-  padding: units(1);
 }
 
 .usa-pagination {
