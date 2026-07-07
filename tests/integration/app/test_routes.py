@@ -462,8 +462,7 @@ class TestJSONResponses:
         assert res.status_code == 200
         assert (
             f'data-meta="{organization_data["name"]} {organization_data["slug"]} '
-            f'{" ".join(organization_data["aliases"])}"'.encode()
-            in res.data
+            f'{" ".join(organization_data["aliases"])}"'.encode() in res.data
         )
 
     def test_get_organization_by_slug_json(
