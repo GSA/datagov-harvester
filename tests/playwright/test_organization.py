@@ -93,4 +93,4 @@ class TestOrganizationAuthed:
             apage.locator(".organization-harvest-source-list table.usa-table tbody tr")
             .filter(has_text="Test Source")
             .first
-        ).to_contain_text("['email@example.com']")
+        ).to_contain_text("email@example.com")

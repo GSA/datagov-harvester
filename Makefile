@@ -80,13 +80,11 @@ re-up: clean up sleep-5 load-test-data ## resets system to clean fixture status
 
 re-up-debug: clean up-debug load-test-data ## resets system to clean fixture status for flask debugging
 
-up: ## Sets up local flask and harvest runner docker environments. harvest runner gets DATABASE_PORT from .env
+up: ## Brings up the local dev stack (app, db, opensearch, transformer, harvest source)
 	docker compose pull transformer
-	DATABASE_PORT=5433 docker compose up -d
-	docker compose -p harvest-app up db -d
-
-up-unified: ## For testing when you want a shared db between flask and harvester
 	docker compose up -d
+
+up-unified: up ## Deprecated alias; use `make up`
 
 up-debug: ## Sets up local docker environment with VSCODE debug support enabled
 	docker compose -f docker-compose.yml -f docker-compose_debug.yml up -d
@@ -94,11 +92,10 @@ up-debug: ## Sets up local docker environment with VSCODE debug support enabled
 up-prod: ## Sets up local flask env running gunicorn instead of standard dev server
 	docker compose -f docker-compose.yml -f docker-compose_prod.yml up -d
 
-down: ## Tears down the flask and harvester containers
+down: ## Tears down the local dev stack
 	docker compose down
-	docker compose -p harvest-app down
 
-clean: ## Cleans docker images
+clean: ## Tears down the stack and removes volumes (also cleans legacy harvest-app project)
 	docker compose down -v --remove-orphans
 	docker compose -p harvest-app down -v --remove-orphans
 	

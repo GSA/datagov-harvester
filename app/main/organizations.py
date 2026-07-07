@@ -50,7 +50,7 @@ def add_organization():
 
 @main.get("/organization/<string:org_identifier>")
 def view_organization(org_identifier: str):
-    """Render the HTML organization detail page by UUID or slug."""
+    """Render the HTML organization detail page by UUID, slug, or alias."""
     org = _get_org_by_identifier(org_identifier)
     org_id = org.id if org is not None else org_identifier
 

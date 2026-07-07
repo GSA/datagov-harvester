@@ -141,6 +141,13 @@ class HarvesterDBInterface:
     def get_organization_by_slug(self, slug):
         return self.db.query(Organization).filter(Organization.slug == slug).first()
 
+    def get_organization_by_alias(self, alias):
+        return (
+            self.db.query(Organization)
+            .filter(Organization.aliases.any(alias))
+            .first()
+        )
+
     def update_organization(self, org_id, updates):
         try:
             org = self.db.get(Organization, org_id)

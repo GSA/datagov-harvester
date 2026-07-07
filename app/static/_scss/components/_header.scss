@@ -383,11 +383,11 @@
 
 .harvester-nav__user {
   @include u-font("ui", "xs");
+  @include u-line-height("ui", 3);
   color: inherit;
-  display: inline-block;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
-  vertical-align: middle;
   white-space: nowrap;
 }
 

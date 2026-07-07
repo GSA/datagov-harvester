@@ -177,49 +177,16 @@
   }
 }
 
-// Organization name content: logo thumbnail beside the org name.
-// Scope to span so this cannot accidentally affect the table header cell.
-span.org-list__name-cell {
-  align-items: center;
-  display: inline-flex;
-  gap: units(1);
-  vertical-align: middle;
-}
-
-.org-list__logo-wrap {
-  @include u-display("flex");
-  @include u-flex("align-center", "justify-center");
-  flex-shrink: 0;
-  width: units(6);
-}
-
-.org-list__logo {
-  display: block;
-  height: units(4);
-  max-height: units(4);
-  max-width: 100%;
-  object-fit: contain;
-  width: auto;
-}
-
-.org-list__logo-placeholder {
-  @include u-display("flex");
-  @include u-flex("align-center", "justify-center");
-  height: units(4);
-  width: units(6);
-
-  .usa-icon {
-    color: color("base");
-    height: units(3);
-    width: units(3);
-  }
-}
-
 // Keep long descriptions from stretching the row; clamp to a few lines.
 // Line-clamp must live on an inner element - applying display:-webkit-box to
 // a table cell breaks row borders and stripe backgrounds.
 .org-list__description {
   max-width: units("card-lg");
+  text-align: left;
+}
+
+.source-list__url {
+  text-align: left;
 }
 
 .org-list__description-text {

@@ -454,6 +454,58 @@ class TestJSONResponses:
         assert res.status_code == 200
         assert f'/organization/{organization_data["slug"]}"'.encode() in res.data
 
+    def test_organization_list_search_includes_slug_and_aliases(
+        self, client, interface_with_multiple_jobs, organization_data
+    ):
+        res = client.get("/organization_list/")
+
+        assert res.status_code == 200
+        assert (
+            f'data-meta="{organization_data["name"]} {organization_data["slug"]} '
+            f'{" ".join(organization_data["aliases"])}"'.encode()
+            in res.data
+        )
+
+    def test_get_organization_by_slug_json(
+        self,
+        client,
+        interface_with_multiple_jobs,
+        organization_data,
+    ):
+        res = client.get(
+            f"/api/organization/{organization_data['slug']}",
+            headers={"Content-type": "application/json"},
+        )
+        assert res.status_code == 200
+        assert res.is_json
+        assert res.json["slug"] == organization_data["slug"]
+
+    def test_get_organization_by_alias_json(
+        self,
+        client,
+        interface_with_multiple_jobs,
+        organization_data,
+    ):
+        res = client.get(
+            f"/api/organization/{organization_data['aliases'][0]}",
+            headers={"Content-type": "application/json"},
+        )
+        assert res.status_code == 200
+        assert res.is_json
+        assert res.json["id"] == organization_data["id"]
+
+    def test_get_organization_by_alias_html(
+        self,
+        client,
+        interface_with_multiple_jobs,
+        organization_data,
+    ):
+        res = client.get(
+            f"/organization/{organization_data['aliases'][0]}",
+        )
+        assert res.status_code == 200
+        assert organization_data["name"].encode() in res.data
+
     def test_get_organization_json(
         self,
         client,
