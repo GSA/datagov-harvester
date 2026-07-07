@@ -58,7 +58,7 @@
                 <td data-label="Organization">{{ source.org.name if source.org else "N/A" }}</td>
                 <td data-label="Source type">{{ source.source_type | else_na }}</td>
                 <td data-label="Frequency">{{ source.frequency | else_na }}</td>
-                <td class="word-break-all source-list__url" data-label="URL">{{ source.url | else_na }}</td>
+                <td class="word-break-all" data-label="URL">{{ source.url | else_na }}</td>
             </tr>
             {% endfor %}
         </tbody>

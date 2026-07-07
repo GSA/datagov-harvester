@@ -44,7 +44,7 @@
       <tr>
         <th scope="col">Name</th>
         <th scope="col">Organization type</th>
-        <th scope="col" class="text-right">Harvest sources</th>
+        <th scope="col">Harvest sources</th>
         <th scope="col">Description</th>
       </tr>
     </thead>
@@ -58,7 +58,7 @@
           {% if org.organization_type %}{{ org.organization_type }}{% else %}<span
             class="text-italic text-base">Not provided</span>{% endif %}
         </td>
-        <td class="text-right" data-label="Harvest sources">{{ org.source_count }}</td>
+        <td data-label="Harvest sources">{{ org.source_count }}</td>
         <td class="org-list__description" data-label="Description">
           {% if org.description %}<span class="org-list__description-text">{{ org.description }}</span>{% else %}<span
             class="text-italic text-base">Not provided</span>{% endif %}

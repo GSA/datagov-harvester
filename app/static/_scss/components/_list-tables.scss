@@ -136,11 +136,6 @@
     td {
       vertical-align: middle;
     }
-
-    th:last-child,
-    td:last-child {
-      text-align: right;
-    }
   }
 }
 
@@ -180,13 +175,8 @@
 // Keep long descriptions from stretching the row; clamp to a few lines.
 // Line-clamp must live on an inner element - applying display:-webkit-box to
 // a table cell breaks row borders and stripe backgrounds.
-.org-list__description {
+.usa-table.list-table tbody td.org-list__description {
   max-width: units("card-lg");
-  text-align: left;
-}
-
-.source-list__url {
-  text-align: left;
 }
 
 .org-list__description-text {
@@ -196,16 +186,12 @@
   overflow: hidden;
 }
 
-// Stacked mobile: left-align numeric columns and allow description to wrap fully.
+// Stacked mobile: allow description to wrap fully.
 .usa-table--stacked-header {
   @include at-media-max("mobile-lg") {
     .org-list__description-text {
       -webkit-line-clamp: unset;
       display: block;
-    }
-
-    .text-right[data-label] {
-      text-align: left;
     }
   }
 }
