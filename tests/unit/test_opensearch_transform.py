@@ -472,7 +472,9 @@ def test_transform_real_dcat3_complete_example():
         {
             "@id": "https://example.gov/series/annual-climate-observations",
             "title": "Annual Climate Observations Series",
-            "description": "An annual series of national climate observations datasets.",
+            "description": (
+                "An annual series of national climate observations datasets."
+            ),
         }
     ]
 
