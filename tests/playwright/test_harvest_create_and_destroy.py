@@ -30,7 +30,7 @@ def apage_with_org(apage):
     apage.get_by_role("button", name="Submit").click()
     yield apage
     apage.get_by_role("link", name="Organizations").click()
-    apage.get_by_role("row", name=org_name).get_by_role("link", name="Details").click()
+    apage.get_by_role("link", name=org_name).click()
     apage.once("dialog", lambda dialog: dialog.accept())
     apage.get_by_role("button", name="Delete", exact=True).click()
 
@@ -55,9 +55,7 @@ class TestHarvestCreateAndDestroy:
         )
 
         apage.get_by_role("link", name="Organizations").click()
-        apage.get_by_role("row", name=org_name).get_by_role(
-            "link", name="Details"
-        ).click()
+        apage.get_by_role("link", name=org_name).click()
         apage.once("dialog", lambda dialog: dialog.accept())
         apage.get_by_role("button", name="Delete", exact=True).click()
         expect(apage.locator(".usa-alert--warning")).to_contain_text(
