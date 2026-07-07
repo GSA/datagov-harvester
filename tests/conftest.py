@@ -38,7 +38,7 @@ def default_session_fixture():
     with (
         patch("harvester.lib.cf_handler.CloudFoundryClient"),
         patch("harvester.utils.general_utils.smtplib"),
-        patch("app.load_manager.start", lambda: True),
+        patch("app.deps.load_manager.start", lambda: True),
     ):
         yield
 
@@ -114,13 +114,14 @@ def interface(session) -> HarvesterDBInterface:
 
 
 @pytest.fixture(autouse=True)
-def default_function_fixture(interface):
+def default_function_fixture(interface, monkeypatch):
+    monkeypatch.delenv("ENABLE_LOCAL_DEV_LOGIN", raising=False)
     logger.info("Patching core.feature.service")
     with (
         patch("harvester.harvest.db_interface", interface),
         patch("harvester.exceptions.db_interface", interface),
         patch("harvester.lib.load_manager.interface", interface),
-        patch("app.routes.db", interface),
+        patch("app.deps.db", interface),
         patch(
             "harvester.utils.general_utils._get_geo_lookup_interface",
             lambda: interface,
@@ -1000,10 +1001,38 @@ def iso19115_2_transform() -> dict:
         "distribution": [
             {
                 "@type": "dcat:Distribution",
+                "description": "Continuous Monitoring Data From Herring River Wetlands, Cape Cod, Massachusetts, 2015 to January 2020",
+                "accessURL": "https://www.sciencebase.gov/catalog/item/5eab1f3582cefae35a225504",
+                "mediaType": "text/html",
+                "title": "https://www.sciencebase.gov/catalog/item/5eab1f3582cefae35a225504",
+            },
+            {
+                "@type": "dcat:Distribution",
+                "description": "Datasets have been archived and will be made publicly available in September 2021 at the CCRCN Carbon Atlas. Prior to fall 2021, individuals may reach out to Dr. Jim Tang, Associate Scientist, Marine Biological Laboratory (jtang@mbl.edu) to discuss potential applications and request access to the data.",
+                "accessURL": "https://serc.si.edu/coastalcarbon",
+                "mediaType": "text/html",
+                "title": "https://serc.si.edu/coastalcarbon",
+            },
+            {
+                "@type": "dcat:Distribution",
+                "description": "The data are being released in two waves, coincident with two separate papers in 2021. Prior to fall 2021, individuals may reach out to Meagan Eagle, Ph.D. / Research Scientist, U.S. Geological Survey Woods Hole Coastal and Marine Science Center, mgonneea@usgs.gov to discuss potential applications and access to the data.",
+                "accessURL": "https://www.sciencebase.gov/catalog/item/5a748e35e4b00f54eb19f96c",
+                "mediaType": "text/html",
+                "title": "https://www.sciencebase.gov/catalog/item/5a748e35e4b00f54eb19f96c",
+            },
+            {
+                "@type": "dcat:Distribution",
+                "description": "This site provides a project overview and links to all associated products, including data.",
+                "accessURL": "http://www.nerrssciencecollaborative.org/project/Rassman15",
+                "mediaType": "text/html",
+                "title": "http://www.nerrssciencecollaborative.org/project/Rassman15",
+            },
+            {
+                "@type": "dcat:Distribution",
                 "description": "NOAA Data Management Plan for this record on InPort.",
                 "downloadURL": "https://www.fisheries.noaa.gov/inportserve/waf/noaa/nos/ocm/dmp/pdf/47598.pdf",
-                "title": "NOAA Data Management Plan (DMP)",
                 "mediaType": "placeholder/value",
+                "title": "NOAA Data Management Plan (DMP)",
             },
             {
                 "@type": "dcat:Distribution",
