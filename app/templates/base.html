@@ -47,7 +47,7 @@
       <nav aria-label="Primary navigation" class="usa-nav">
         <button type="button" class="usa-nav__close">
           <svg class="usa-icon" aria-hidden="true" focusable="false" role="img">
-            <use href="/assets/uswds/img/sprite.svg#close"></use>
+            <use href="{{ static_url('assets/uswds/img/sprite.svg') }}#close"></use>
           </svg>
         </button>
         {% if session['user'] %}
@@ -76,7 +76,7 @@
             <div class="harvester-nav__utility-group">
               <button type="button" class="usa-button usa-button--unstyled js-glossary-toggle">
                 <svg class="usa-icon" aria-hidden="true" focusable="false" role="img">
-                  <use href="/assets/uswds/img/sprite.svg#local_library"></use>
+                  <use href="{{ static_url('assets/uswds/img/sprite.svg') }}#local_library"></use>
                 </svg>
                 <span>Glossary</span>
               </button>
@@ -93,7 +93,7 @@
                   >
                     <span class="harvester-nav__user">{{ session['user'] }}</span>
                     <svg class="usa-icon harvester-nav__account-chevron" aria-hidden="true" focusable="false" role="img">
-                      <use href="/assets/uswds/img/sprite.svg#expand_more"></use>
+                      <use href="{{ static_url('assets/uswds/img/sprite.svg') }}#expand_more"></use>
                     </svg>
                   </button>
                   <ul id="account-menu" class="harvester-nav__account-dropdown" role="menu" hidden>
