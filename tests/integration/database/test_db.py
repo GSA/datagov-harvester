@@ -73,6 +73,26 @@ class TestDatabase:
         assert len(orgs) > 0
         assert orgs[0].name == "Test Org"
 
+    def test_get_organization_by_slug(self, interface, organization_data):
+        interface.add_organization(organization_data)
+
+        org = interface.get_organization_by_slug(organization_data["slug"])
+        assert org is not None
+        assert org.id == organization_data["id"]
+
+    def test_get_organization_by_alias(self, interface, organization_data):
+        interface.add_organization(organization_data)
+
+        org = interface.get_organization_by_alias(organization_data["aliases"][0])
+        assert org is not None
+        assert org.id == organization_data["id"]
+
+    def test_get_organization_by_alias_not_found(self, interface, organization_data):
+        interface.add_organization(organization_data)
+
+        org = interface.get_organization_by_alias("nonexistent-alias")
+        assert org is None
+
     def test_update_organization(self, interface, organization_data):
         org = interface.add_organization(organization_data)
 

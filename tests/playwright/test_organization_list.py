@@ -19,12 +19,12 @@ class TestOrganizationListUnauthed:
         expect(upage).to_have_title("Organization List")
 
     def test_can_see_org_list(self, upage):
-        # at least one card exists
-        expect(upage.locator("ul.usa-card-group li.usa-card")).not_to_have_count(0)
+        # at least one row exists
+        expect(upage.locator("table.usa-table tbody tr")).not_to_have_count(0)
         expect(
-            upage.locator(
-                "ul.usa-card-group li.usa-card .usa-card__heading"
-            ).get_by_text("Test Org")
+            upage.locator("table.usa-table tbody tr th[scope='row']").get_by_text(
+                "Test Org"
+            )
         ).not_to_have_count(0)
 
     def test_cant_add_org(self, upage):

@@ -94,8 +94,8 @@ class TestLogin:
             '<div class="config-actions harvest-source-config-actions">'
         )
         source_edit_text = '<input class="usa-button" id="edit" name="edit" type="submit" value="Edit">'
-        source_harvest_text = '<input class="usa-button usa-button--base" id="harvest" name="harvest" type="submit" value="Harvest">'
-        source_clear_text = ' <input class="usa-button usa-button--accent-cool confirm-submit" data-action="clear" id="clear" name="clear" type="submit" value="Clear">'
+        source_harvest_text = '<input class="usa-button usa-button--outline" id="harvest" name="harvest" type="submit" value="Harvest">'
+        source_clear_text = ' <input class="usa-button usa-button--outline confirm-submit" data-action="clear" id="clear" name="clear" type="submit" value="Clear">'
         source_delete_text = '<input class="usa-button usa-button--secondary confirm-submit" data-action="delete" id="delete" name="delete" type="submit" value="Delete">'
         assert res.status_code == 200
         assert res.text.find(button_string_text) != -1
@@ -113,8 +113,8 @@ class TestLogin:
             '<div class="config-actions harvest-source-config-actions">'
         )
         source_edit_text = '<input class="usa-button" id="edit" name="edit" type="submit" value="Edit">'
-        source_harvest_text = '<input class="usa-button usa-button--base" id="harvest" name="harvest" type="submit" value="Harvest">'
-        source_clear_text = ' <input class="usa-button usa-button--accent-cool confirm-submit" data-action="clear" id="clear" name="clear" type="submit" value="Clear">'
+        source_harvest_text = '<input class="usa-button usa-button--outline" id="harvest" name="harvest" type="submit" value="Harvest">'
+        source_clear_text = ' <input class="usa-button usa-button--outline confirm-submit" data-action="clear" id="clear" name="clear" type="submit" value="Clear">'
         source_delete_text = '<input class="usa-button usa-button--secondary confirm-submit" data-action="delete" id="delete" name="delete" type="submit" value="Delete">'
         assert res.status_code == 200
         assert res.text.find(button_string_text) == -1
