@@ -1439,6 +1439,8 @@ def download_harvest_errors_by_job(job_id, error_type):
                     ]
                     yield csv_writer.writerow(row)
 
+        # Keep the Flask-SQLAlchemy session available while the query is
+        # consumed lazily by the streaming response.
         return Response(
             stream_with_context(generate_csv()),
             mimetype="text/csv",
