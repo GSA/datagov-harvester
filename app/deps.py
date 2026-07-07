@@ -80,12 +80,14 @@ def valid_id_required(f):
 
 
 def _get_org_by_identifier(org_identifier: str):
-    """Resolve an organization by UUID id or slug."""
+    """Resolve an organization by UUID id, slug, or alias."""
     org = None
     if is_valid_uuid4(org_identifier):
         org = db.get_organization(org_identifier)
     if org is None:
         org = db.get_organization_by_slug(org_identifier)
+    if org is None:
+        org = db.get_organization_by_alias(org_identifier)
     return org
 
 

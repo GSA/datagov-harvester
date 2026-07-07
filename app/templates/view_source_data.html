@@ -14,46 +14,52 @@
 {% block content %}
 <div class="wrapper source-data">
     {% if not data.source %}
-    <h2>Whooops!</h2>
-    <p>Looks like you navigated to a harvest source that doesn't exist.</p>
+    <h1>Harvest source not found</h1>
+    <div class="usa-alert usa-alert--error" role="alert">
+        <div class="usa-alert__body">
+            <h2 class="usa-alert__heading">We couldn't find that harvest source</h2>
+            <p class="usa-alert__text">
+                The harvest source you navigated to doesn't exist.
+                <a href="{{ url_for('main.harvest_source_list') }}">Return to the harvest source list</a>.
+            </p>
+        </div>
+    </div>
     {% else %}
-    <div class="display-flex flex-align-center">
+    <div class="display-flex flex-align-center flex-wrap">
         <h1 class="margin-right-2">{{data.source.name}}</h1>
     </div>
 
 
-    <h2>Configuration:</h2>
+    <h2>Configuration</h2>
     <div class="config-table harvest-source-config-properties">
         <table class="usa-table usa-table--borderless width-full">
             {% for key, value in data.source.to_dict().items() %}
             <tr>
                 {% if key == 'organization_id' %}
-                <td>Organization:</td>
+                <td>Organization</td>
                 <td><a
                         href="{{ url_for('main.view_organization', org_identifier=data.source.org.slug or value) }}">{{data.source.org.name}}</a>
                 </td>
                 {% elif key == 'notification_emails' %}
                 {% if session['user'] %}
-                <td>Notification emails:</td>
-                <td>{{ value | join(', ') if value else 'N/A' }}</td>
+                <td>Notification emails</td>
+                <td class="word-break-all">{{ value | join(', ') if value else 'N/A' }}</td>
                 {% endif %}
                 {% elif key == 'url' %}
-                <td>{{key}}:</td>
-                <td>
-                    <i class="fa-solid fa-arrow-up-right-from-square"></i> <a href="{{value}}"
-                        target="_blank">{{value}}</a>
+                <td>{{ key | humanize }}</td>
+                <td class="word-break-all">
+                    <a href="{{value}}" target="_blank">{{value}}</a> {{ 'launch' | usa_icon | safe }}
                 </td>
                 {% elif key == 'collection_parent_url' %}
                 {% if value %}
-                <td>{{key}}:</td>
-                <td>
-                    <i class="fa-solid fa-arrow-up-right-from-square"></i> <a href="{{value}}"
-                        target="_blank">{{value}}</a>
+                <td>{{ key | humanize }}</td>
+                <td class="word-break-all">
+                    <a href="{{value}}" target="_blank">{{value}}</a> {{ 'launch' | usa_icon | safe }}
                 </td>
                 {% endif %}
                 {% else %}
-                <td>{{key}}:</td>
-                <td>{{value}}</td>
+                <td>{{ key | humanize }}</td>
+                <td class="word-break-all">{{value}}</td>
                 {% endif %}
             </tr>
             {% endfor %}
@@ -68,17 +74,17 @@
                     {{form.edit(class_='usa-button')}}
                 </li>
                 <li class="usa-button-group__item">
-                    {{form.harvest(class_='usa-button usa-button--base')}}
+                    {{form.harvest(class_='usa-button usa-button--outline')}}
                 </li>
                 <li class="usa-button-group__item">
-                    {{form.clear(class_='usa-button usa-button--accent-cool confirm-submit', data_action="clear")}}
+                    {{form.clear(class_='usa-button usa-button--outline confirm-submit', data_action="clear")}}
                 </li>
                 <li class="usa-button-group__item">
                     {{form.delete(class_='usa-button usa-button--secondary confirm-submit', data_action="delete")}}
 
                 </li>
             </ul>
-            <fieldset class="usa-fieldset">
+            <fieldset class="usa-fieldset margin-top-2">
                 <div class="usa-checkbox">
                     {{form.force_check(class_='usa-checkbox__input')}}
                     {{form.force_check.label(class_='usa-checkbox__label')}}
@@ -87,8 +93,7 @@
         </form>
     </div>
     {% endif %}
-    <br>
-    <h2>Summary: </h2>
+    <h2 class="margin-top-4">Summary</h2>
     {% if data.summary_data["active_job_in_progress"] %}
     <a class="text-secondary-dark" href="{{ url_for('main.view_harvest_job', job_id=data.jobs[0].id)}}">
         <svg class="usa-icon" aria-hidden="true" focusable="false" role="img">
@@ -101,23 +106,23 @@
     <div class="config-table harvest-source-config-summary">
         <table class="usa-table usa-table--borderless width-full">
             <tr>
-                <td>Records:</td>
+                <td>Records</td>
                 <td>{{data.summary_data["records_count"]}}</td>
             </tr>
             <tr>
-                <td>Last Job Records in Error:</td>
+                <td>Last job records in error</td>
                 <td>
                     {{data.summary_data["last_job_errors"] | else_na }}
                 </td>
             </tr>
             <tr>
-                <td>Last Job Finished:</td>
+                <td>Last job finished</td>
                 <td class="utc-date" data-utc-date="{{ data.summary_data['last_job_finished'] | utc_isoformat }}">
                     {{data.summary_data["last_job_finished"] | else_na }}
                 </td>
             </tr>
             <tr>
-                <td>Next Job Scheduled:</td>
+                <td>Next job scheduled</td>
                 <td class="utc-date" data-utc-date="{{ data.summary_data['next_job_scheduled'] | utc_isoformat }}">
                     {{data.summary_data["next_job_scheduled"] | else_na }}
                 </td>
@@ -125,9 +130,13 @@
         </table>
     </div>
     <div class="section margin-top-3">
-        <h2>Harvest Job History:</h2>
+        <h2>Harvest job history</h2>
         {% if not data.jobs %}
-        No harvest jobs found
+        <div class="usa-alert usa-alert--info">
+            <div class="usa-alert__body">
+                <p class="usa-alert__text">No harvest jobs found for this source.</p>
+            </div>
+        </div>
         {% else %}
         <canvas id="datagov-line-chart" height="200"></canvas>
         {% block htmx_paginated %}
@@ -146,7 +155,7 @@
     </div>
 
     <div class="section margin-top-3">
-        <h2>Datasets:</h2>
+        <h2>Datasets</h2>
         {% block htmx_paginated_datasets %}
         <div id="paginated__datasets">
             {% set pagination = datasets_pagination %}
@@ -154,7 +163,7 @@
             {% if data.datasets %}
             <div class="usa-table-container--scrollable" tabindex="0">
                 <table class="usa-table usa-table--striped">
-                    <caption>Datasets for Harvest Source: {{ data.source.id }}</caption>
+                    <caption class="usa-sr-only">Datasets for harvest source {{ data.source.id }}</caption>
                     <thead>
                         <tr>
                             <th scope="col">ID</th>
@@ -164,7 +173,7 @@
                     <tbody>
                         {% for dataset in data.datasets %}
                         <tr>
-                            <td>{{ dataset.id }}</td>
+                            <td class="word-break-all">{{ dataset.id }}</td>
                             <td>
                                 <a href="{{ url_for('main.view_dataset', dataset_slug=dataset.slug) }}">
                                     {{ dataset.slug }}
@@ -180,7 +189,11 @@
             {% include '/components/pagination/pagination.html' %}
             {% endif %}
             {% else %}
-            <p>No datasets found for this harvest source.</p>
+            <div class="usa-alert usa-alert--info">
+                <div class="usa-alert__body">
+                    <p class="usa-alert__text">No datasets found for this harvest source.</p>
+                </div>
+            </div>
             {% endif %}
         </div>
         {% endblock %}
