@@ -36,6 +36,8 @@ def paginate(fn):
     @wraps(fn)
     def _impl(self, *args, **kwargs):
         query = fn(self, *args, **kwargs)
+        if isinstance(query, list):
+            return query
         if kwargs.get("count") is True:
             return query
         elif kwargs.get("paginate") is False:
@@ -426,38 +428,84 @@ class HarvesterDBInterface:
         job = self.get_harvest_job(job_id)
         return [error for error in job.errors or []]
 
-    def get_harvest_record_errors_by_job_for_view(self, query):
+    def get_harvest_record_errors_by_job_for_view(self, job_id: str, **kwargs):
         """
         groups validation messages based on harvest record id. aggregates the error
-        messages into a comma-separated string. for all other fields, the 1st row in the group
-        is used.
-        """
-        query = query.subquery()
+        messages into a comma-separated string. for all other fields, the 1st row in
+        the group is used.
 
+        This path is used by the harvest job detail page. Keep the expensive grouping
+        work on harvest_record_error, page those grouped results, then join
+        harvest_record only for the displayed rows.
+        """
         error_types = ["ValidationException", "ValidationError"]
+        base = (
+            self.db.query(
+                HarvestRecordError.harvest_record_id.label("harvest_record_id"),
+                HarvestRecordError.harvest_job_id.label("harvest_job_id"),
+                HarvestRecordError.date_created.label("date_created"),
+                HarvestRecordError.type.label("type"),
+                HarvestRecordError.message.label("message"),
+                HarvestRecordError.id.label("id"),
+            )
+            .filter(HarvestRecordError.harvest_job_id == job_id)
+            .subquery()
+        )
 
         # aggregate the validation messages by harvest_record_id using 1st row for
         # all other fields. sql indexing starts at 1
         instance_idx = 1
         agg = (
             self.db.query(
-                func.array_agg(query.c.harvest_record_id)[instance_idx],
-                func.array_agg(query.c.harvest_job_id)[instance_idx],
-                func.array_agg(query.c.date_created)[instance_idx],
-                func.array_agg(query.c.type)[instance_idx],
-                func.array_to_string(func.array_agg(query.c.message), "::"),
-                func.array_agg(query.c.id)[instance_idx],
-                func.array_agg(query.c.identifier)[instance_idx],
-                func.array_agg(query.c.source_raw)[instance_idx],
+                func.array_agg(base.c.harvest_record_id)[instance_idx].label(
+                    "harvest_record_id"
+                ),
+                func.array_agg(base.c.harvest_job_id)[instance_idx].label(
+                    "harvest_job_id"
+                ),
+                func.array_agg(base.c.date_created)[instance_idx].label("date_created"),
+                func.array_agg(base.c.type)[instance_idx].label("type"),
+                func.array_to_string(func.array_agg(base.c.message), "::").label(
+                    "message"
+                ),
+                func.array_agg(base.c.id)[instance_idx].label("id"),
             )
-            .filter(query.c.type.in_(error_types))
-            .group_by(query.c.harvest_record_id)
+            .filter(base.c.type.in_(error_types))
+            .group_by(base.c.harvest_record_id)
         )
 
         # get all other messages as-is and combine
-        other = self.db.query(query).filter(query.c.type.not_in(error_types))
+        other = self.db.query(
+            base.c.harvest_record_id,
+            base.c.harvest_job_id,
+            base.c.date_created,
+            base.c.type,
+            base.c.message,
+            base.c.id,
+        ).filter(base.c.type.not_in(error_types))
 
-        return agg.union(other)
+        grouped = agg.union_all(other).subquery()
+        if kwargs.get("count") is True:
+            return self.db.query(grouped.c.harvest_record_id)
+
+        per_page = kwargs.get("per_page") or PAGINATE_ENTRIES_PER_PAGE
+        page = kwargs.get("page") or PAGINATE_START_PAGE
+        paged = grouped.select().limit(per_page).offset(page * per_page).subquery()
+
+        return (
+            self.db.query(
+                paged.c.harvest_record_id,
+                paged.c.harvest_job_id,
+                paged.c.date_created,
+                paged.c.type,
+                paged.c.message,
+                paged.c.id,
+                HarvestRecord.identifier,
+                HarvestRecord.source_raw,
+            )
+            .outerjoin(HarvestRecord, HarvestRecord.id == paged.c.harvest_record_id)
+            .all()
+        )
 
     @count
     @paginate
@@ -493,9 +541,35 @@ class HarvesterDBInterface:
 
         for_view = kwargs.get("for_view", False)
         if for_view:
-            return self.get_harvest_record_errors_by_job_for_view(query)
+            return self.get_harvest_record_errors_by_job_for_view(job_id, **kwargs)
 
         return query
+
+    def stream_harvest_record_errors_by_job(self, job_id: str, batch_size=1000):
+        """
+        Stream record errors for CSV export without OFFSET pagination.
+        """
+        query = text("""
+            SELECT
+                harvest_record_error.id,
+                harvest_record.identifier,
+                CASE
+                    WHEN left(ltrim(harvest_record.source_raw), 1) IN ('{', '[')
+                    THEN harvest_record.source_raw
+                    ELSE NULL
+                END AS source_raw,
+                harvest_record_error.harvest_record_id,
+                harvest_record_error.type,
+                harvest_record_error.message,
+                harvest_record_error.date_created
+            FROM harvest_record_error
+            LEFT OUTER JOIN harvest_record
+                ON harvest_record.id = harvest_record_error.harvest_record_id
+            WHERE harvest_record_error.harvest_job_id = :job_id
+        """)
+        return (
+            self.db.execute(query, {"job_id": job_id}).mappings().yield_per(batch_size)
+        )
 
     def get_harvest_error(self, error_id: str) -> dict:
         job_query = self.db.query(HarvestJobError).filter_by(id=error_id).first()
@@ -852,6 +926,16 @@ class HarvesterDBInterface:
             HarvestRecord.status == "success",
             HarvestRecord.harvest_source_id == source_id,
         ]
+
+        if kwargs.get("count") is True:
+            subq = (
+                self.db.query(HarvestRecord.identifier, HarvestRecord.action)
+                .filter(*queries)
+                .order_by(HarvestRecord.identifier, desc(HarvestRecord.date_created))
+                .distinct(HarvestRecord.identifier)
+                .subquery()
+            )
+            return self.db.query(subq.c.identifier).filter(subq.c.action != "delete")
 
         subq = (
             self.db.query(HarvestRecord)
