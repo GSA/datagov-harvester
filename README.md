@@ -1,11 +1,7 @@
 # datagov-harvester
 
-| Test Suite | Count | Coverage |
-| --- | --- | --- |
-| Unit | [![Unit Test Count](./tests/badges/unit/tests.svg)](./tests/unit)| [![Unit Test Coverage](./tests/badges/unit/coverage.svg)](./tests/unit)|
-| Integration | [![Unit Test Count](./tests/badges/integration/tests.svg)](./tests/integration)| [![Unit Test Coverage](./tests/badges/integration/coverage.svg)](./tests/integration)|
-| Playwright | [![Playwright Test Count](./tests/badges/playwright/tests.svg)](./tests/playwright)| [![Playwright Test Coverage](./tests/badges/playwright/coverage.svg)](./tests/playwright)|
-| Functional | [![Functional Test Count](tests/badges/functional/tests.svg)](./tests/functional)| [![Unit Test Coverage](./tests/badges/functional/coverage.svg)](./tests/functional/)|
+[![CI](https://github.com/GSA/datagov-harvester/actions/workflows/commit.yml/badge.svg?branch=main&event=push)](https://github.com/GSA/datagov-harvester/actions/workflows/commit.yml?query=branch%3Amain)
+[![Snyk Scan](https://github.com/GSA/datagov-harvester/actions/workflows/snyk.yml/badge.svg?branch=main)](https://github.com/GSA/datagov-harvester/actions/workflows/snyk.yml?query=branch%3Amain)
 
 This repository holds the source code the Data.gov Harvester 2.0, which includes three applications applications:
 
