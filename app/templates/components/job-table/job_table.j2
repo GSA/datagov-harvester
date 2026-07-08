@@ -1,3 +1,10 @@
+{# Map a job status to AA-contrast USWDS tag background utilities. Unknown
+   statuses fall back to a plain usa-tag (neutral). #}
+{% set _status_tag = {
+    'error': 'bg-error-dark text-white',
+    'in_progress': 'bg-warning',
+    'complete': 'bg-success-dark text-white',
+} %}
 {% macro job_table(jobs, caption, show_source=true, show_progress=False) -%}
 <div class="usa-table-container" tabindex="0">
     <table class="usa-table usa-table--striped usa-table--borderless">
@@ -13,40 +20,33 @@
                 <th scope="col" title="Job Type">Type</th>
                 <th scope="col" title="Start Date">Started</th>
                 <th scope="col" title="Completion Date">Finished</th>
-                <th scope="col" title="Records Added">Added</th>
-                <th scope="col" title="Records Updated">Updated</th>
-                <th scope="col" title="Records Deleted">Deleted</th>
-                <th scope="col" title="Records Errored">Errored</th>
-                <th scope="col" title="Records Unchanged">Unchanged</th>
+                <th scope="col" class="text-right" title="Records Added">Added</th>
+                <th scope="col" class="text-right" title="Records Updated">Updated</th>
+                <th scope="col" class="text-right" title="Records Deleted">Deleted</th>
+                <th scope="col" class="text-right" title="Records Errored">Errored</th>
+                <th scope="col" class="text-right" title="Records Unchanged">Unchanged</th>
             </tr>
         </thead>
         <tbody id="paginated_harvest_jobs">
             {% for job in jobs %}
+            {% set status_class = _status_tag.get(job.status, '') %}
             <tr>
                 <td data-sort-value="{{ job.id }}">
-                    <a href="{{ url_for('api.view_harvest_job', job_id=job.id) }}">
+                    <a href="{{ url_for('main.view_harvest_job', job_id=job.id) }}">
                         {{ job.id[:6] }}
                     </a>
                 </td>
                 {% if show_source %}
                 <td data-sort-value="{{ job.source.name }}">
-                    <a href="{{ url_for('api.view_harvest_source', source_id=job.source.id) }}" title="{{ job.source.name }}">
+                    <a href="{{ url_for('main.view_harvest_source', source_id=job.source.id) }}" title="{{ job.source.name }}">
                         <span class="display-none tablet:display-inline">{{ job.source.name[:25] }}{% if job.source.name|length > 25 %}...{% endif %}</span>
                         <span class="tablet:display-none">{{ job.source.name[:12] }}{% if job.source.name|length > 12 %}...{% endif %}</span>
                     </a>
                 </td>
                 {% endif %}
                 <td>
-                    <span class="usa-tag {% if job.status == 'error' %}bg-error
-                                        {% elif job.status == 'in_progress' %}bg-warning
-                                        {% elif job.status == 'complete' %}bg-success
-                                        {% endif %}
-                                        display-none tablet:display-inline">{{ job.status }}</span>
-                    <span class="usa-tag {% if job.status == 'error' %}bg-error
-                                        {% elif job.status == 'in_progress' %}bg-warning
-                                        {% elif job.status == 'complete' %}bg-success
-                                        {% endif %}
-                                        tablet:display-none">{{ job.status[:4] }}</span>
+                    <span class="usa-tag {{ status_class }} display-none tablet:display-inline">{{ job.status }}</span>
+                    <span class="usa-tag {{ status_class }} tablet:display-none">{{ job.status[:4] }}</span>
                 </td>
                 {% if show_progress %}
                     <td>
@@ -62,17 +62,17 @@
                     </td>
                 {% endif %}
                 <td class="text-tabular">{{ job.job_type }}</td>
-                <td class="font-mono-sm utc-date" data-utc-date="{{ job.date_created | utc_isoformat }}">
+                <td class="font-mono-sm text-no-wrap utc-date" data-utc-date="{{ job.date_created | utc_isoformat }}">
                     {{ job.date_created | else_na}}
                 </td>
-                <td class="font-mono-sm utc-date" data-utc-date="{{ job.date_finished | utc_isoformat }}">
+                <td class="font-mono-sm text-no-wrap utc-date" data-utc-date="{{ job.date_finished | utc_isoformat }}">
                     {{ job.date_finished | else_na }}
                 </td>
-                <td class="text-tabular">{{ job.records_added }}</td>
-                <td class="text-tabular">{{ job.records_updated }}</td>
-                <td class="text-tabular">{{ job.records_deleted }}</td>
-                <td class="text-tabular">{{ job.records_errored }}</td>
-                <td class="text-tabular">{{ job.records_ignored }}</td>
+                <td class="text-tabular text-right">{{ job.records_added }}</td>
+                <td class="text-tabular text-right">{{ job.records_updated }}</td>
+                <td class="text-tabular text-right">{{ job.records_deleted }}</td>
+                <td class="text-tabular text-right">{{ job.records_errored }}</td>
+                <td class="text-tabular text-right">{{ job.records_ignored }}</td>
             </tr>
             {% endfor %}
         </tbody>

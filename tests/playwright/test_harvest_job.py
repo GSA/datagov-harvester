@@ -22,30 +22,30 @@ class TestHarvestJobUnauthed:
         table = upage.locator(".harvest-job-config-properties table")
 
         # Test static content that should always be present
-        expect(table).not_to_contain_text("Percent complete:")  # job is not in progress
-        expect(table).to_contain_text("Harvest Source:")
+        expect(table).not_to_contain_text("Percent complete")  # job is not in progress
+        expect(table).to_contain_text("Harvest source")
         expect(table).to_contain_text("Test Source")
-        expect(table).to_contain_text("status:")
+        expect(table).to_contain_text("Status")
         expect(table).to_contain_text("error")  # From fixtures
-        expect(table).to_contain_text("job_type:")
+        expect(table).to_contain_text("Job type")
         expect(table).to_contain_text("harvest")
-        expect(table).to_contain_text("records_total:")
+        expect(table).to_contain_text("Records total")
         expect(table).to_contain_text("10")
-        expect(table).to_contain_text("records_added:")
+        expect(table).to_contain_text("Records added")
         expect(table).to_contain_text("2")
-        expect(table).to_contain_text("records_updated:")
+        expect(table).to_contain_text("Records updated")
         expect(table).to_contain_text("0")
-        expect(table).to_contain_text("records_deleted:")
-        expect(table).to_contain_text("records_errored:")
+        expect(table).to_contain_text("Records deleted")
+        expect(table).to_contain_text("Records errored")
         expect(table).to_contain_text("8")
-        expect(table).to_contain_text("records_unchanged:")
-        expect(table).to_contain_text("records_validated:")
-        expect(table).to_contain_text("id:")
+        expect(table).to_contain_text("Records unchanged")
+        expect(table).to_contain_text("Records validated")
+        expect(table).to_contain_text("ID")
         expect(table).to_contain_text("6bce761c-7a39-41c1-ac73-94234c139c76")
 
         # Test that date fields exist but don't check exact values
-        expect(table).to_contain_text("date_created:")
-        expect(table).to_contain_text("date_finished:")
+        expect(table).to_contain_text("Date created")
+        expect(table).to_contain_text("Date finished")
 
     def test_harvest_job_record_errors_display(self, upage):
         expect(
@@ -60,7 +60,7 @@ class TestHarvestJobUnauthed:
             )
         ).to_have_attribute(
             "href",
-            "/harvest_record/0779c855-df20-49c8-9108-66359d82b77c",
+            "/api/harvest_record/0779c855-df20-49c8-9108-66359d82b77c",
         )
 
     def test_harvest_job_record_errors_summary(self, upage):
@@ -124,7 +124,7 @@ class TestHarvestJobUnauthed:
     @pytest.mark.parametrize(
         "data_term_name, glossary_term_name",
         [
-            ("records_unchanged", "records_unchanged"),
+            ("records unchanged", "Records unchanged"),
             ("job error", "Job Error"),
             ("record error", "Record Error"),
         ],

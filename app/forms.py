@@ -88,7 +88,9 @@ class HarvestSourceForm(FlaskForm):
         filters=[strip_filter],
     )
     notification_emails = EmailListField(
-        "Notification_emails", validators=[DataRequired(), validate_email_list]
+        "Notification emails",
+        validators=[DataRequired(), validate_email_list],
+        description="Separate multiple addresses with commas.",
     )
     frequency = SelectField(
         "Frequency",
@@ -100,6 +102,7 @@ class HarvestSourceForm(FlaskForm):
         choices=[
             "dcatus1.1: federal",
             "dcatus1.1: non-federal",
+            "dcatus3.0",
             "iso19115_1",
             "iso19115_2",
         ],

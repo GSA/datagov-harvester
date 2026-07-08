@@ -8,6 +8,9 @@ admin_instances: 2
 admin_memory_quota: 2G
 admin_disk_quota: 4G
 
+# Placeholder for manifest ((asset_version)); CI overrides via --var on deploy
+asset_version: set-at-deploy
+
 CF_API_URL: https://api.fr.cloud.gov
 CATALOG_BASE_URL: https://catalog.data.gov
 

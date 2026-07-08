@@ -72,6 +72,7 @@ services:
       CF_SERVICE_USER: ${CF_SERVICE_USER}
       CF_SERVICE_AUTH: ${CF_SERVICE_AUTH}
       FLASK_APP: run.py
+      FLASK_DEBUG: "1"
     ports:
       - "8080:8080"
     command:
@@ -79,7 +80,7 @@ services:
       - -c
       - |
         flask db upgrade
-        flask run --host=0.0.0.0 --port=8080 --reload
+        flask run --host=0.0.0.0 --port=8080 --debug --reload --extra-files app/templates
 
 volumes:
   postgres_data:

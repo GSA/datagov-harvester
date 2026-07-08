@@ -5,49 +5,68 @@
 {% endblock %}
 
 {% block content %}
-<h1> Harvest Source List </h1>
-<div class="bg-base-lighter padding-2 radius-md">
-    <h2 class="font-lang-lg margin-y-0">Find a Harvest Source</h2>
-    <div role="region" aria-label="Component search" aria-atomic="true" class="margin-top-1">
-        <label for="icon-filter">Filter by name and keyword</label>
-        <input class="usa-input" id="icon-filter" type="text">
-        <p class="text-base-darker margin-top-1 margin-bottom-0" aria-live="polite"><span id="component-count"></span>
-        </p>
-    </div>
-    {% if session['user'] %}
-    <div class="add-buttons-div margin-top-3">
-        <ul class="usa-list usa-list--unstyled">
-            <li><a href="{{ url_for('api.add_harvest_source') }}" class="usa-button">
-                    Add Harvest Source</a></li>
-        </ul>
-    </div>
-    {% endif %}
+<div class="display-flex flex-align-center flex-wrap margin-bottom-3">
+  <h1 class="margin-y-0">Harvest Source List</h1>
+  {% if session['user'] %}
+  <a href="{{ url_for('main.add_harvest_source') }}" class="usa-button list-page-add__button margin-left-auto">
+    {{ 'add' | usa_icon | safe }}
+    Add Harvest Source
+  </a>
+  {% endif %}
 </div>
 
-<ul class="usa-card-group flex-row margin-top-3">
-    {% for source in data.harvest_sources %}
-    <li class="usa-card site-component-card grid-col-6 tablet:grid-col-4" data-meta="{{source.name}}">
-        <div class="usa-card__container">
-            <div class="usa-card__header">
-                <h2 class="usa-card__heading">{{source.name}}</h2>
-            </div>
-            <div class="usa-card__body">
-            </div>
-            <div class="usa-card__footer">
-                <ul class="usa-button-group">
-                    <li class="usa-button-group__item">
-                        <a href="{{ url_for('api.view_harvest_source', source_id=source.id) }}"
-                            class="usa-button usa-button--outline">Details</a>
-                    </li>
-                </ul>
-            </div>
-        </div>
-    </li>
-    {% endfor %}
-</ul>
+<div class="list-page-toolbar margin-bottom-3">
+  <div class="list-page-toolbar__search">
+    <label class="usa-label list-page-search__label" for="icon-filter">Search by name or keyword</label>
+    <form class="usa-search list-page-search float-none width-full" role="search"
+      aria-label="Filter harvest sources by name or keyword">
+      <input class="usa-input" id="icon-filter" type="search" data-noun="source"
+        placeholder="Enter name or keyword">
+      <button class="usa-button usa-button--outline list-page-search__submit" type="submit">
+        {{ 'search' | usa_icon | safe }}
+        <span class="usa-search__submit-text">Search</span>
+      </button>
+    </form>
+  </div>
+</div>
+
+<div class="list-page-results-header margin-bottom-1">
+  <h2 class="list-page-results-title margin-y-0">Results</h2>
+  <p class="list-page-results text-base-dark" aria-live="polite"><span id="component-count">
+    <strong>{{ data.harvest_sources | length }}</strong>
+    {{ 'source' if data.harvest_sources | length == 1 else 'sources' }} found</span></p>
+</div>
+
+<div class="usa-table-container margin-top-0" tabindex="0">
+    <table class="usa-table usa-table--striped usa-table--borderless usa-table--stacked-header list-table width-full">
+        <caption class="usa-sr-only">Harvest sources</caption>
+        <thead>
+            <tr>
+                <th scope="col">Name</th>
+                <th scope="col">Organization</th>
+                <th scope="col">Source type</th>
+                <th scope="col">Frequency</th>
+                <th scope="col">URL</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for source in data.harvest_sources %}
+            <tr data-meta="{{ source.name }}">
+                <th scope="row" data-label="Name">
+                    <a href="{{ url_for('main.view_harvest_source', source_id=source.id) }}">{{ source.name }}</a>
+                </th>
+                <td data-label="Organization">{{ source.org.name if source.org else "N/A" }}</td>
+                <td data-label="Source type">{{ source.source_type | else_na }}</td>
+                <td data-label="Frequency">{{ source.frequency | else_na }}</td>
+                <td class="word-break-all" data-label="URL">{{ source.url | else_na }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
 
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/filter.js') }}"></script>"
+<script src="{{ static_url('js/filter.js') }}"></script>
 {% endblock %}

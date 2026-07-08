@@ -1,25 +1,26 @@
 .error-list {
     display: flex;
     flex-direction: column;
-    gap: 1rem;
+    gap: units(2);
 }
 
 .error-block {
-    border: 1px solid color('gray-cool-10');
-    padding: 1rem;
-    border-radius: 0.25rem;
+    border: units("2px") solid color('gray-cool-10');
+    padding: units(2);
+    border-radius: radius("md");
     background-color: color('gray-5');
 
     h3 {
         margin: 0;
-        font-size: 1.2rem;
-        font-weight: 900;
+        font-size: font-size("body", "lg");
+        font-weight: font-weight("bold");
         color: color('gray-90');
+    }
 
     p {
-        margin: 0.3rem 0;
-        font-size: 1rem;
-        text-indent: 1.25rem;
+        margin: units("05") 0;
+        font-size: font-size("body", "sm");
+        text-indent: units(2);
     }
 
     a {
@@ -29,6 +30,5 @@
         &:hover {
             text-decoration: underline;
         }
-    }
     }
 }

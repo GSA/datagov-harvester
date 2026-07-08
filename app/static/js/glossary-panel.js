@@ -192,7 +192,8 @@ Glossary.prototype.findTerm = function(term) {
   this.accordion.expand(button);
 };
 
-Glossary.prototype.toggle = function() {
+Glossary.prototype.toggle = function(e) {
+  e.stopPropagation();
   var method = this.isOpen ? this.hide : this.show;
   method.apply(this);
 };
@@ -231,9 +232,9 @@ Glossary.prototype.handleKeyup = function(e) {
 
 // Close glossary when clicking outside of glossary
 Glossary.prototype.closeOpenGlossary = function(e) {
-  if ( e.target !== this.toggleBtn && this.isOpen) {
-    if (!(closest(e.target, this.selectors.glossaryID))) {
-        this.hide();
+  if (this.isOpen) {
+    if (!closest(e.target, this.selectors.glossaryID) && !closest(e.target, this.selectors.toggle)) {
+      this.hide();
     }
   }
 };

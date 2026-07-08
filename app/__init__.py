@@ -11,17 +11,16 @@ from flask_htmx import HTMX
 from flask_migrate import Migrate
 from flask_talisman import Talisman
 
-from app.filters import else_na, usa_icon, utc_isoformat
+from app.filters import else_na, humanize, usa_icon, utc_isoformat
 from app.local_dev_auth import is_running_on_cloud_foundry
 from app.startup_validation import validate_required_env_vars
 from config.logger_config import LOGGING_CONFIG
 from database.models import db
-from harvester.lib.load_manager import LoadManager
 from scripts.sync_datasets import register_cli
 
 logger = logging.getLogger("harvest_admin")
 
-load_manager = LoadManager()
+load_manager = None
 
 load_dotenv()
 logging.config.dictConfig(LOGGING_CONFIG)
@@ -30,6 +29,20 @@ logging.config.dictConfig(LOGGING_CONFIG)
 htmx = None
 HSTS_MAX_AGE_SECONDS = 60 * 60 * 24 * 365
 HSTS_HEADER = f"max-age={HSTS_MAX_AGE_SECONDS}; includeSubDomains; preload"
+
+
+class VersionedStaticAPIFlask(APIFlask):
+    def send_static_file(self, filename):
+        from app.static_assets import (
+            DEFAULT_ASSET_VERSION,
+            unversion_static_filename,
+            validate_asset_version,
+        )
+
+        version = validate_asset_version(
+            self.config.get("ASSET_VERSION", DEFAULT_ASSET_VERSION)
+        )
+        return super().send_static_file(unversion_static_filename(filename, version))
 
 
 def current_unix_timestamp() -> int:
@@ -52,8 +65,11 @@ def _external_route_to_server_url(route: str | None) -> str | None:
 
 
 def create_app():
+    global load_manager
     env_values = validate_required_env_vars()
-    app = APIFlask(__name__, static_url_path="", static_folder="static", docs_path=None)
+    app = VersionedStaticAPIFlask(
+        __name__, static_url_path="", static_folder="static", docs_path=None
+    )
 
     # OpenAPI fields
     app.config["INFO"] = {
@@ -67,13 +83,16 @@ def create_app():
     # don't include auth information in the OpenAPI spec
     @app.spec_processor
     def remove_auth(spec):
-        del spec["components"]["securitySchemes"]
+        spec.get("components", {}).pop("securitySchemes", None)
         return spec
 
     app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv("DATABASE_URI")
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
     app.config["SECRET_KEY"] = env_values["FLASK_APP_SECRET_KEY"]
     app.config["API_TOKEN"] = env_values["HARVEST_API_TOKEN"]
+    if os.getenv("FLASK_ENV") != "production":
+        # Pick up template edits during local dev without restarting the process.
+        app.config["TEMPLATES_AUTO_RELOAD"] = True
     app.config["MAX_CONTENT_LENGTH"] = 10 * 1024 * 1024
     app.config["SESSION_COOKIE_NAME"] = os.getenv(
         "SESSION_COOKIE_NAME", "harvest_session"
@@ -85,6 +104,9 @@ def create_app():
     app.config["SESSION_IDLE_TIMEOUT_SECONDS"] = int(
         os.getenv("SESSION_IDLE_TIMEOUT_SECONDS", "900")
     )
+    from app.static_assets import get_asset_version
+
+    app.config["ASSET_VERSION"] = get_asset_version(app.static_folder)
 
     def get_session_cookie_name():
         return app.config["SESSION_COOKIE_NAME"]
@@ -139,7 +161,7 @@ def create_app():
         g.clear_session_cookie = False
         g.sync_auth_cookie = False
 
-        if request.path.startswith("/assets/"):
+        if request.endpoint == "static":
             return
 
         if not session.get("user"):
@@ -204,7 +226,7 @@ def create_app():
         if path.startswith(("/login", "/callback", "/logout")) or path == "/login/oidc":
             return set_private_no_store(response)
 
-        if path.startswith("/assets/"):
+        if request.endpoint == "static":
             return set_public_cache(response, 3600)
 
         if method not in {"GET", "HEAD"}:
@@ -222,10 +244,12 @@ def create_app():
 
     Migrate(app, db)
 
+    from . import deps
     from .local_dev_auth import log_local_dev_login_status
     from .routes import register_routes
 
     register_routes(app)
+    load_manager = deps.load_manager
 
     log_local_dev_login_status()
 
@@ -315,5 +339,8 @@ def create_app():
 
 
 def add_template_filters(app):
-    for fn in [usa_icon, else_na, utc_isoformat]:
+    from app.static_assets import static_url
+
+    for fn in [usa_icon, else_na, utc_isoformat, humanize]:
         app.add_template_filter(fn)
+    app.add_template_global(static_url, "static_url")

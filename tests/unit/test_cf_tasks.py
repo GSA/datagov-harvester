@@ -70,7 +70,15 @@ class TestCFTasking:
         organization_data,
         source_data_dcatus_single_record,
         caplog,
+        monkeypatch,
     ):
+        # this test exercises CF-backed duplicate detection, so make the task
+        # handler factory choose CFHandler (which is mocked above) by providing
+        # full CF credentials.
+        monkeypatch.setenv("CF_API_URL", "https://api.example.com")
+        monkeypatch.setenv("CF_SERVICE_USER", "user")
+        monkeypatch.setenv("CF_SERVICE_AUTH", "pass")
+
         interface.add_organization(organization_data)
         interface.add_harvest_source(source_data_dcatus_single_record)
         harvest_job = interface.add_harvest_job(

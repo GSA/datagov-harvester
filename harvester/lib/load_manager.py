@@ -3,7 +3,7 @@ import os
 from datetime import datetime
 
 from harvester import SMTP_CONFIG
-from harvester.lib.cf_handler import CFHandler
+from harvester.lib.task_handler import create_task_handler
 from harvester.utils.general_utils import (
     create_future_date,
     get_datetime,
@@ -13,10 +13,6 @@ from harvester.utils.general_utils import (
 # use the session scoped interface already made for the harvester
 from .. import db_interface as interface
 
-CF_API_URL = os.getenv("CF_API_URL")
-CF_SERVICE_USER = os.getenv("CF_SERVICE_USER")
-CF_SERVICE_AUTH = os.getenv("CF_SERVICE_AUTH")
-
 MAX_TASKS_COUNT = int(os.getenv("HARVEST_RUNNER_MAX_TASKS", 5))
 
 
@@ -25,11 +21,7 @@ logger = logging.getLogger("harvest_admin")
 
 class LoadManager:
     def __init__(self):
-        try:
-            self.handler = CFHandler(CF_API_URL, CF_SERVICE_USER, CF_SERVICE_AUTH)
-        except Exception as e:
-            logger.info(f"err {e} :: CFHandler is not configured correctly. \
-                Check your env vars.")
+        self.handler = create_task_handler()
 
     def _handle_failed_job(self, job):
         """Handle a HarvestJob that failed.

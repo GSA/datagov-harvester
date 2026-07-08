@@ -14,11 +14,48 @@ Build and bring up docker containers:
 ```
 % make build
 % make up
+% make load-test-data   # optional: load fixture orgs, sources, and jobs
+```
+
+`make up` starts one Compose stack with a single database. The Flask app,
+OpenSearch, transformer, and harvest source nginx all share that network, so
+the app can reach the database at the `db` hostname and harvest jobs started
+via `LocalTaskHandler` use the same database.
+
+This is the default local workflow: run `make up`, use the app at
+http://localhost:8080, and trigger harvests from the UI. You do not need a
+separate harvest-runner container or a second database.
+
+To reset to a clean database with fixtures loaded:
+```
+% make re-up
 ```
 
 Refer to the [`Makefile`](/Makefile) for additional commands.
 
-Note that you do not need to set the `CF_SERVICE_USER` and `CF_SERVICE_AUTH` variables. The app will emit a warning about these; they are needed only in the Cloud.gov environment.
+Note that you do not need to set the `CF_SERVICE_USER` and `CF_SERVICE_AUTH` variables. They are needed only in the Cloud.gov environment.
+
+### How harvest jobs run locally
+
+In deployed (Cloud.gov) environments, harvest jobs run as Cloud Foundry tasks via `CFHandler`. Locally there is no CF task API, so the app falls back to `LocalTaskHandler`, which runs the same `python harvester/harvest.py <job_id> <job_type>` command as a child subprocess of the running app. The handler is selected automatically by `create_task_handler()` (`harvester/lib/task_handler.py`): it uses `CFHandler` only when running on Cloud Foundry or when all three `CF_*` credentials are configured, and otherwise uses `LocalTaskHandler`. This means you can register a harvest source and trigger a harvest locally without any Cloud Foundry credentials.
+
+#### Optional: running the harvest runner on the host
+
+The normal path is to trigger harvests from the app (UI or API) and let
+`LocalTaskHandler` run `harvester/harvest.py` inside the app container.
+
+For debugging harvester code directly — for example to use a debugger in your
+IDE on harvester modules — you can still run the harvest runner on the host
+after `make up`:
+
+```bash
+poetry install
+poetry run python harvester/harvest.py <job_id> <job_type>
+```
+
+Host-side runs use `DATABASE_URI` from `.env` (`localhost:5432`), which is the
+same database exposed by `make up`. No second database or separate `make`
+target is required.
 
 ### Using the app
 
@@ -99,6 +136,11 @@ To update poetry itself locally (matching CI, which will always use the latest v
 A number of "test" and "test-*" targets are defined in the `Makefile`.
 
 For tests to pass, you may have to pull the latest MDTranslator. Use `docker compose pull` to get the latest versions of the docker images.
+
+`make test` and `make test-integration` run against the database in `.env`
+(`localhost:5432`). Integration tests reset schema/data during the run, so use
+`make re-up` or `make load-test-data` afterward if you need fixture data back in
+the dev app.
 
 
 ### Exporting requirements.txt

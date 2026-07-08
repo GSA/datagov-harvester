@@ -3,7 +3,7 @@ import pytest
 
 @pytest.fixture()
 def ures(unauthed_page):
-    res = unauthed_page.goto("/harvest_record/0779c855-df20-49c8-9108-66359d82b77c")
+    res = unauthed_page.goto("/api/harvest_record/0779c855-df20-49c8-9108-66359d82b77c")
     yield res
 
 

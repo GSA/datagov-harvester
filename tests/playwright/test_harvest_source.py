@@ -20,21 +20,21 @@ class TestHarvestSourceUnauthed:
             upage.locator(".harvest-source-config-properties table tr td")
         ).to_have_text(
             [
-                "Organization:",
+                "Organization",
                 "Test Org",
-                "name:",
+                "Name",
                 "Test Source",
-                "url:",
+                "URL",
                 "http://localhost:80/dcatus/dcatus.json",
-                "frequency:",
+                "Frequency",
                 "daily",
-                "schema_type:",
+                "Schema type",
                 "dcatus1.1: federal",
-                "source_type:",
+                "Source type",
                 "document",
-                "notification_frequency:",
+                "Notification frequency",
                 "always",
-                "id:",
+                "ID",
                 "2f2652de-91df-4c63-8b53-bfced20b276b",
             ]
         )
@@ -49,12 +49,12 @@ class TestHarvestSourceUnauthed:
         summary_table = upage.locator(".harvest-source-config-summary table")
 
         # Test static labels and values
-        expect(summary_table).to_contain_text("Records:")
+        expect(summary_table).to_contain_text("Records")
         expect(summary_table).to_contain_text("2")
-        expect(summary_table).to_contain_text("Last Job Records in Error:")
+        expect(summary_table).to_contain_text("Last job records in error")
         expect(summary_table).to_contain_text("N/A")
-        expect(summary_table).to_contain_text("Last Job Finished:")
-        expect(summary_table).to_contain_text("Next Job Scheduled:")
+        expect(summary_table).to_contain_text("Last job finished")
+        expect(summary_table).to_contain_text("Next job scheduled")
 
     def test_job_summary(self, upage):
         expect(upage.locator("#paginated__harvest-jobs table tbody tr")).to_have_count(
@@ -77,10 +77,10 @@ class TestHarvestSourceUnauthed:
     @pytest.mark.parametrize(
         "data_term_name, glossary_term_name",
         [
-            ("frequency", "frequency"),
-            ("schema_type", "schema_type"),
-            ("source_type", "source_type"),
-            ("notification_frequency", "notification_frequency"),
+            ("frequency", "Frequency"),
+            ("schema type", "Schema type"),
+            ("source type", "Source type"),
+            ("notification frequency", "Notification frequency"),
         ],
     )
     def test_glossary_terms(self, upage, data_term_name, glossary_term_name):
@@ -136,7 +136,7 @@ class TestHarvestSourceAuthed:
             apage.locator(".harvest-source-config-properties table td")
         ).to_contain_text(
             [
-                "Notification emails:",
+                "Notification emails",
                 "email@example.com",
             ]
         )

@@ -2,75 +2,32 @@
 
 {% block content %}
 
-<h2>JSON Schema Validator</h2>
+<h1>JSON Schema Validator</h1>
 
 <div class="usa-alert usa-alert--info margin-bottom-4" id="dcatus3-validator-info" role="region" aria-labelledby="validator-doc-heading">
   <div class="usa-alert__body">
 
-    <h2 class="usa-alert__heading">
-      Validate DCAT-US 3.0 Metadata
+    <h2 class="usa-alert__heading" id="validator-doc-heading">
+      Validate DCAT-US 3.0 metadata
     </h2>
 
-    <p class="margin-top-2 margin-bottom-2">
-      Use this tool to validate catalog metadata against the DCAT-US 3.0 schema. 
-      Validation results identify schema errors to help improve metadata 
+    <p class="usa-alert__text margin-top-2 margin-bottom-2">
+      Use this tool to validate catalog metadata against the DCAT-US 3.0 schema.
+      Validation results identify schema errors to help improve metadata
       quality and interoperability.
     </p>
 
     <p class="usa-alert__text">
-      The validator checks submitted metadata for:
+      The validator checks submitted metadata for required fields, data
+      structure and formatting, schema compliance, and invalid or unsupported
+      values. Provide a URL to a DCAT-US 3.0 JSON catalog document, paste raw
+      JSON, or upload a document below.
     </p>
-
-    <ul class="usa-list margin-top-1 margin-bottom-3">
-      <li>Required fields</li>
-      <li>Data structure and formatting</li>
-      <li>Schema compliance</li>
-      <li>Invalid or unsupported values</li>
-    </ul>
-
-    <p class="usa-alert__text">
-      You can validate metadata by:
-    </p>
-
-    <ul class="usa-list margin-top-1 margin-bottom-3">
-      <li>Providing a URL to a DCAT-US 3.0 JSON catalog document to fetch</li>
-      <li>Pasting raw JSON directly into the form</li>
-      <li>Uploading a DCAT-US 3.0 JSON catalog document into the browser</li>
-    </ul>
-
-    <p class="usa-alert__text margin-top-3 margin-bottom-0">
-      For official DCAT-US 3.0 specification documentation, implementation
-      guidance, and schema details, see:
-    </p>
-
-    <ul class="usa-list margin-top-1 margin-bottom-0">
-      <li>
-        <a
-          class="usa-link"
-          href="https://resources.data.gov/resources/dcat-us3/"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          DCAT-US 3.0 Documentation
-        </a>
-      </li>
-
-      <li>
-        <a
-          class="usa-link"
-          href="https://github.com/GSA/dcat-us"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          DCAT-US 3.0 Specification (GitHub)
-        </a>
-      </li>
-    </ul>
 
   </div>
 </div>
 
-<form method="POST" enctype="multipart/form-data">
+<form class="usa-form usa-form--large" method="POST" enctype="multipart/form-data">
     {{ form.hidden_tag() }}
     
     <!-- schema and fetch_method can't be empty so they won't have errors to display -->
@@ -100,7 +57,7 @@
                 title="We restrict what documents can be fetched by TLD. Only .gov and .mil are allowed."
             >
                 <svg class="usa-icon" aria-hidden="true">
-                    <use href="/assets/uswds/img/sprite.svg#info"></use>
+                    <use href="{{ static_url('assets/uswds/img/sprite.svg') }}#info"></use>
                 </svg>
             </button>
         </label>
@@ -130,14 +87,32 @@
         {% endfor %}
     </div>
 
-    <div class="usa-form-group form-submit-group">
+    <div class="usa-form-group">
         {{ form.submit(class="usa-button") }}
     </div>
 </form>
 
+<div class="usa-summary-box margin-top-4" role="region" aria-labelledby="validator-resources-heading">
+    <div class="usa-summary-box__body">
+        <h2 class="usa-summary-box__heading" id="validator-resources-heading">DCAT-US 3.0 resources</h2>
+        <div class="usa-summary-box__text">
+            <ul class="usa-list">
+                <li>
+                    <a class="usa-link" href="https://resources.data.gov/resources/dcat-us3/"
+                        target="_blank" rel="noopener noreferrer">DCAT-US 3.0 documentation</a>
+                </li>
+                <li>
+                    <a class="usa-link" href="https://github.com/GSA/dcat-us"
+                        target="_blank" rel="noopener noreferrer">DCAT-US 3.0 specification (GitHub)</a>
+                </li>
+            </ul>
+        </div>
+    </div>
+</div>
+
 <div class="section">
     {% if submitted %}
-        <h2>Validation Results</h2>
+        <h2>Validation results</h2>
         {% set total = data.record_errors | length %}
         {% if not data.record_errors %}
             <p>No validation errors found</p>

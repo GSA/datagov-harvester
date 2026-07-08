@@ -7,7 +7,7 @@ from unittest.mock import Mock, patch
 import pytest
 from flask import Response
 
-from app.routes import UnsafeTemplateEnvError, render_block
+from app.deps import UnsafeTemplateEnvError, render_block
 from harvester.harvest import HarvestSource
 
 # ruff: noqa: F401
@@ -165,19 +165,19 @@ class TestDynamicRouteTable:
         # some respond with a template
         # ruff: noqa: E501
         templated_responses_map = {
-            "api.view_organization": {
+            "main.view_organization": {
                 "GET": "Looks like you navigated to an organization that doesn't exist",
             },
-            "main.view_organization": {
+            "main.update_organization_actions": {
                 "POST": 'You should be redirected automatically to the target URL: <a href="/organization/1234">/organization/1234</a>',
             },
-            "api.view_harvest_source": {
+            "main.view_harvest_source": {
                 "GET": "Looks like you navigated to a harvest source that doesn't exist",
             },
-            "main.view_harvest_source": {
+            "main.update_harvest_source_actions": {
                 "POST": 'You should be redirected automatically to the target URL: <a href="/harvest_source/1234">/harvest_source/1234</a>',
             },
-            "api.view_harvest_job": {
+            "main.view_harvest_job": {
                 "GET": "Looks like you navigated to a harvest job that doesn't exist"
             },
             "api.download_harvest_errors_by_job": {
@@ -262,7 +262,7 @@ class TestLoginAuthHeaders:
             "Content-Type": "application/json",
         }
         data = {"name": "Test Org", "logo": "test_logo.png", "slug": "Test_Org"}
-        response = client.post("/organization/add", json=data, headers=headers)
+        response = client.post("/api/organization/add", json=data, headers=headers)
         assert response.status_code == 422
 
     def test_login_required_invalid_token(self, client):
@@ -314,10 +314,10 @@ class TestLoginLogging:
         token_response.json.return_value = {"id_token": "encoded-token"}
 
         with (
-            patch("app.routes.create_client_assertion", return_value="assertion"),
-            patch("app.routes.requests.post", return_value=token_response),
+            patch("app.main.auth.create_client_assertion", return_value="assertion"),
+            patch("app.main.auth.requests.post", return_value=token_response),
             patch(
-                "app.routes.jwt.decode",
+                "app.main.auth.jwt.decode",
                 return_value={
                     "email": "test.user@gsa.gov",
                     "sub": "login-gov-subject",
@@ -341,8 +341,8 @@ class TestLoginLogging:
         failed_response.text = "invalid_grant"
 
         with (
-            patch("app.routes.create_client_assertion", return_value="assertion"),
-            patch("app.routes.requests.post", return_value=failed_response),
+            patch("app.main.auth.create_client_assertion", return_value="assertion"),
+            patch("app.main.auth.requests.post", return_value=failed_response),
         ):
             response = client.get("/callback?code=bad-code&state=expected-state")
 
@@ -362,10 +362,10 @@ class TestLoginLogging:
         token_response.json.return_value = {"id_token": "encoded-token"}
 
         with (
-            patch("app.routes.create_client_assertion", return_value="assertion"),
-            patch("app.routes.requests.post", return_value=token_response),
+            patch("app.main.auth.create_client_assertion", return_value="assertion"),
+            patch("app.main.auth.requests.post", return_value=token_response),
             patch(
-                "app.routes.jwt.decode",
+                "app.main.auth.jwt.decode",
                 return_value={
                     "email": "unregistered@gsa.gov",
                     "sub": "login-gov-subject",
@@ -394,7 +394,7 @@ class TestAuditLogging:
         }
         caplog.set_level(logging.INFO, logger="harvest_admin")
 
-        response = client.post("/organization/add", json=data, headers=headers)
+        response = client.post("/api/organization/add", json=data, headers=headers)
 
         assert response.status_code == 200
         assert "Audit create organization" in caplog.text
@@ -435,7 +435,7 @@ class TestAuditLogging:
         caplog.set_level(logging.INFO, logger="harvest_admin")
 
         response = client.delete(
-            f"/organization/{organization_data['id']}",
+            f"/api/organization/{organization_data['id']}",
             headers=headers,
         )
 
@@ -454,6 +454,57 @@ class TestJSONResponses:
         assert res.status_code == 200
         assert f'/organization/{organization_data["slug"]}"'.encode() in res.data
 
+    def test_organization_list_search_includes_slug_and_aliases(
+        self, client, interface_with_multiple_jobs, organization_data
+    ):
+        res = client.get("/organization_list/")
+
+        assert res.status_code == 200
+        assert (
+            f'data-meta="{organization_data["name"]} {organization_data["slug"]} '
+            f'{" ".join(organization_data["aliases"])}"'.encode() in res.data
+        )
+
+    def test_get_organization_by_slug_json(
+        self,
+        client,
+        interface_with_multiple_jobs,
+        organization_data,
+    ):
+        res = client.get(
+            f"/api/organization/{organization_data['slug']}",
+            headers={"Content-type": "application/json"},
+        )
+        assert res.status_code == 200
+        assert res.is_json
+        assert res.json["slug"] == organization_data["slug"]
+
+    def test_get_organization_by_alias_json(
+        self,
+        client,
+        interface_with_multiple_jobs,
+        organization_data,
+    ):
+        res = client.get(
+            f"/api/organization/{organization_data['aliases'][0]}",
+            headers={"Content-type": "application/json"},
+        )
+        assert res.status_code == 200
+        assert res.is_json
+        assert res.json["id"] == organization_data["id"]
+
+    def test_get_organization_by_alias_html(
+        self,
+        client,
+        interface_with_multiple_jobs,
+        organization_data,
+    ):
+        res = client.get(
+            f"/organization/{organization_data['aliases'][0]}",
+        )
+        assert res.status_code == 200
+        assert organization_data["name"].encode() in res.data
+
     def test_get_organization_json(
         self,
         client,
@@ -461,7 +512,7 @@ class TestJSONResponses:
         organization_data,
     ):
         res = client.get(
-            f"/organization/{organization_data['id']}",
+            f"/api/organization/{organization_data['id']}",
             headers={"Content-type": "application/json"},
         )
         assert res.status_code == 200
@@ -474,7 +525,7 @@ class TestJSONResponses:
         organization_data,
     ):
         res = client.get(
-            f"/organization/{organization_data['id'].replace('a', 'b')}",
+            f"/api/organization/{organization_data['id'].replace('a', 'b')}",
             headers={"Content-type": "application/json"},
         )
         assert res.status_code == 404
@@ -492,47 +543,47 @@ class TestJSONResponses:
         "route,status_code,response",
         [
             (
-                "/harvest_records/?harvest_source_id=2f2652de-91df-4c63-8b53-bfced20b276b",
+                "/api/harvest_records/?harvest_source_id=2f2652de-91df-4c63-8b53-bfced20b276b",
                 200,
                 10,
             ),
             (
-                "/harvest_records/?harvest_job_id=6bce761c-7a39-41c1-ac73-94234c139c76",
+                "/api/harvest_records/?harvest_job_id=6bce761c-7a39-41c1-ac73-94234c139c76",
                 200,
                 10,
             ),
             (
-                "/harvest_records/?harvest_source_id=2f2652de-91df-4c63-8b53-bfced20b276b&facets=status eq success",
+                "/api/harvest_records/?harvest_source_id=2f2652de-91df-4c63-8b53-bfced20b276b&facets=status eq success",
                 200,
                 2,
             ),
             (
-                "/harvest_records/?harvest_source_id=2f2652de-91df-4c63-8b53-bfced20b276b&facets=ckan_id eq 1234",
+                "/api/harvest_records/?harvest_source_id=2f2652de-91df-4c63-8b53-bfced20b276b&facets=ckan_id eq 1234",
                 200,
                 1,
             ),
             (
-                "/harvest_records/?harvest_source_id=2f2652de-91df-4c63-8b53-bfced20b276b&facets=status eq success&count=True",
+                "/api/harvest_records/?harvest_source_id=2f2652de-91df-4c63-8b53-bfced20b276b&facets=status eq success&count=True",
                 200,
                 2,
             ),
             (
-                "/harvest_records/?harvest_source_id=2f2652de-91df-4c63-8b53-bfced20b276b&facets=status eq not_status",
+                "/api/harvest_records/?harvest_source_id=2f2652de-91df-4c63-8b53-bfced20b276b&facets=status eq not_status",
                 400,
                 "Error with query",
             ),
             (
-                "/organizations/",
+                "/api/organizations/",
                 200,
                 1,
             ),
             (
-                "/harvest_sources/",
+                "/api/harvest_sources/",
                 200,
                 1,
             ),
             (
-                "/harvest_sources/?facets=schema_type eq dcatus1.1: non-federal",
+                "/api/harvest_sources/?facets=schema_type eq dcatus1.1: non-federal",
                 404,
                 "No harvest_sources found for this query",
             ),
@@ -557,7 +608,7 @@ class TestJSONResponses:
         """
         checks the content of the json response when navigating to "/organizations/"
         """
-        res = client.get("/organizations/")
+        res = client.get("/api/organizations/")
         assert res.status_code == 200
 
         assert res.json == [
@@ -617,7 +668,7 @@ class TestHarvestRecordRawAPI:
 
         test_iso_2_record.compare()
 
-        response = client.get(f"/harvest_record/{test_iso_2_record.id}/raw")
+        response = client.get(f"/api/harvest_record/{test_iso_2_record.id}/raw")
 
         assert response.status_code == 200
         assert response.text == test_iso_2_record.source_raw
@@ -649,7 +700,7 @@ class TestHarvestRecordRawAPI:
         test_record = next(external_records_to_process)
         test_record.compare()
 
-        response = client.get(f"/harvest_record/{test_record.id}/raw")
+        response = client.get(f"/api/harvest_record/{test_record.id}/raw")
 
         assert response.status_code == 200
         assert response.json == json.loads(test_record.source_raw)
@@ -657,7 +708,7 @@ class TestHarvestRecordRawAPI:
 
 
 class TestAPIBehavior:
-    @patch("app.routes.load_manager")
+    @patch("app.deps.load_manager")
     def test_cancel_in_progress_job(
         self,
         LMMock,
@@ -683,7 +734,7 @@ class TestAPIBehavior:
         LMMock.stop_job.return_value = "a test value"
 
         headers = {"X-API-Key": app.config["API_TOKEN"]}
-        response = client.get(f"/harvest_job/cancel/{job.id}", headers=headers)
+        response = client.get(f"/api/harvest_job/cancel/{job.id}", headers=headers)
         assert response.status_code == 302
         assert response.location == f"/harvest_job/{job.id}"
 
@@ -694,7 +745,7 @@ class TestAPIBehavior:
             "Content-Type": "application/json",
         }
         response = client.get(
-            f"/harvest_source/harvest/{source_data_dcatus['id']}/invalid-job-type",
+            f"/api/harvest_source/harvest/{source_data_dcatus['id']}/invalid-job-type",
             headers=headers,
         )
         assert response.status_code == 404
