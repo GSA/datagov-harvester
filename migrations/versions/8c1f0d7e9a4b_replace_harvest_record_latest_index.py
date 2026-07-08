@@ -1,7 +1,7 @@
 """Replace harvest record latest index with success partial index.
 
 Revision ID: 8c1f0d7e9a4b
-Revises: 4bc26ce5f9f7
+Revises: c7fec7091cf5
 Create Date: 2026-06-24 16:05:00.000000
 
 """
@@ -10,7 +10,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = "8c1f0d7e9a4b"
-down_revision = "4bc26ce5f9f7"
+down_revision = "c7fec7091cf5"
 branch_labels = None
 depends_on = None
 
