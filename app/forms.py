@@ -88,7 +88,9 @@ class HarvestSourceForm(FlaskForm):
         filters=[strip_filter],
     )
     notification_emails = EmailListField(
-        "Notification_emails", validators=[DataRequired(), validate_email_list]
+        "Notification emails",
+        validators=[DataRequired(), validate_email_list],
+        description="Separate multiple addresses with commas.",
     )
     frequency = SelectField(
         "Frequency",

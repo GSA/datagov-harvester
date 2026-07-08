@@ -30,9 +30,7 @@ def apage_with_org(apage):
     apage.get_by_role("button", name="Submit").click()
     yield apage
     apage.get_by_role("link", name="Organizations").click()
-    apage.get_by_role("listitem").filter(has_text=org_name).nth(0).get_by_role(
-        "link"
-    ).click()
+    apage.get_by_role("link", name=org_name).click()
     apage.once("dialog", lambda dialog: dialog.accept())
     apage.get_by_role("button", name="Delete", exact=True).click()
 
@@ -57,9 +55,7 @@ class TestHarvestCreateAndDestroy:
         )
 
         apage.get_by_role("link", name="Organizations").click()
-        apage.get_by_role("listitem").filter(has_text=org_name).nth(0).get_by_role(
-            "link"
-        ).click()
+        apage.get_by_role("link", name=org_name).click()
         apage.once("dialog", lambda dialog: dialog.accept())
         apage.get_by_role("button", name="Delete", exact=True).click()
         expect(apage.locator(".usa-alert--warning")).to_contain_text(
@@ -76,27 +72,23 @@ class TestHarvestCreateAndDestroy:
             "https://harvestsourceurl.gov/data.json"
         )
         apage_with_org.get_by_role("textbox", name="URL").press("Tab")
-        apage_with_org.get_by_role("textbox", name="Notification_emails").fill(
+        apage_with_org.get_by_role("textbox", name="Notification emails").fill(
             "a@a.com"
         )
-        apage_with_org.get_by_role("textbox", name="Notification_emails").press("Tab")
+        apage_with_org.get_by_role("textbox", name="Notification emails").press("Tab")
         apage_with_org.get_by_label("Frequency", exact=True).press("Tab")
         apage_with_org.get_by_role("button", name="Submit").click()
         expect(apage_with_org.locator(".usa-alert--warning")).to_contain_text(
             ["Added new harvest source with ID:"]
         )
 
-        apage_with_org.get_by_role("listitem").filter(
-            has_text="Test Source New Details"
-        ).get_by_role("link").click()
+        apage_with_org.get_by_role("link", name="Test Source New").click()
         apage_with_org.get_by_role("button", name="Edit", exact=True).click()
         assert apage_with_org.locator("#name").get_attribute("readonly") is not None
 
         apage_with_org.get_by_role("link", name="Harvest Sources").click()
 
-        apage_with_org.get_by_role("listitem").filter(
-            has_text="Test Source New Details"
-        ).get_by_role("link").click()
+        apage_with_org.get_by_role("link", name="Test Source New").click()
         apage_with_org.once("dialog", lambda dialog: dialog.accept())
         apage_with_org.get_by_role("button", name="Delete", exact=True).click()
         expect(apage_with_org.locator(".usa-alert--warning")).to_contain_text(

@@ -20,21 +20,21 @@ class TestOrganizationUnauthed:
             upage.locator(".organization-config-properties table tr td")
         ).to_have_text(
             [
-                "name:",
+                "Name",
                 "Test Org",
-                "logo:",
+                "Logo",
                 "https://raw.githubusercontent.com/GSA/datagov-harvester/refs/heads/main/app/static/assets/img/placeholder-organization.png",
-                "description:",
+                "Description",
                 "Fixture org description",
-                "slug:",
+                "Slug",
                 "fixture-org",
-                "organization_type:",
+                "Organization type",
                 "Federal Government",
-                "aliases:",
-                "['testorg']",
-                "id:",
+                "Aliases",
+                "testorg",
+                "ID",
                 "d925f84d-955b-4cb7-812f-dcfd6681a18f",
-                "source_count:",
+                "Source count",
                 "1",
             ]
         )
@@ -91,4 +91,6 @@ class TestOrganizationAuthed:
         ).to_contain_text("Notification Emails")
         expect(
             apage.locator(".organization-harvest-source-list table.usa-table tbody tr")
-        ).to_contain_text("['email@example.com'] ")
+            .filter(has_text="Test Source")
+            .first
+        ).to_contain_text("email@example.com")

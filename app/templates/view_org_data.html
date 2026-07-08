@@ -11,30 +11,41 @@
 {% block content %}
 <div class="wrapper">
     {% if not data.organization %}
-    <h2>Whooops!</h2>
-    <p>Looks like you navigated to an organization that doesn't exist.</p>
+    <h1>Organization not found</h1>
+    <div class="usa-alert usa-alert--error" role="alert">
+        <div class="usa-alert__body">
+            <h2 class="usa-alert__heading">We couldn't find that organization</h2>
+            <p class="usa-alert__text">
+                The organization you navigated to doesn't exist.
+                <a href="{{ url_for('main.organization_list') }}">Return to the organization list</a>.
+            </p>
+        </div>
+    </div>
     {% else %}
-    <div class="display-flex flex-align-center">
+    <div class="display-flex flex-align-center flex-wrap">
         <h1 class="margin-right-2">{{data.organization.name}}</h1>
         <a
             class="usa-button usa-button--outline"
             target="_blank"
             href="{{ data.ckan_url }}/organization/{{ data.organization.slug or data.organization.id }}"
         >
-            <i class="fa-solid fa-arrow-up-right-from-square"></i>View on catalog
+            View on catalog
+            {{ 'launch' | usa_icon | safe }}
         </a>
     </div>
 
-    <h2>Organization Config Table</h2>
+    <h2>Details</h2>
     <div class="config-table organization-config-properties">
         <table class="usa-table usa-table--borderless width-full">
             {% for key, value in data.organization_dict.items() %}
             <tr>
-                <td>{{key}}:</td>
+                <td>{{ key | humanize }}</td>
                 {% if key == 'logo' %}
-                <td><i class="fa-solid fa-arrow-up-right-from-square"></i> <a href="{{value}}">{{value}}</a></td>
+                <td class="word-break-all"><a href="{{value}}" target="_blank">{{value}}</a>{{ 'launch' | usa_icon | safe }}</td>
+                {% elif value is iterable and value is not string %}
+                <td class="word-break-all">{{ value | join(', ') if value else 'N/A' }}</td>
                 {% else %}
-                <td>{{value}}</td>
+                <td class="word-break-all">{{value}}</td>
                 {% endif %}
             </tr>
             {% endfor %}
@@ -57,13 +68,17 @@
     </div>
     {% endif %}
     <div class="section margin-top-5 organization-harvest-source-list">
-        <h2> Harvest Sources for {{data.organization.name}} </h2>
+        <h2>Harvest sources</h2>
         {% if not data.harvest_sources %}
-        No harvest sources found
+        <div class="usa-alert usa-alert--info">
+            <div class="usa-alert__body">
+                <p class="usa-alert__text">No harvest sources found for this organization.</p>
+            </div>
+        </div>
         {% else %}
         <div class="usa-table-container--scrollable" tabindex="0">
             <table class="usa-table usa-table--striped">
-                <caption> Harvest Sources for {{data.organization.name}} </caption>
+                <caption class="usa-sr-only">Harvest sources for {{data.organization.name}}</caption>
                 <thead>
                     <tr>
                         <th data-sortable scope="col" role="columnheader">Name</th>
@@ -108,10 +123,10 @@
                         <td data-sort-value={{source.records_updated}}>{{source.source_type}}</td>
                         <td data-sort-value={{source.records_deleted}}>{{source.frequency}}</td>
                         {% if session['user'] %}
-                        <td data-sort-value={{source.date_finished}}>{{source.notification_emails}} </td>
+                        <td data-sort-value={{source.date_finished}}>{{ source.notification_emails | join(', ') if source.notification_emails else 'N/A' }}</td>
                         {% endif %}
-                        <td data-sort-value={{source.records_errored}}><i class="fa-solid fa-arrow-up-right-from-square"></i> <a target="_blank"
-                                href={{source.url}}>{{source.url}}</a></td>
+                        <td data-sort-value={{source.records_errored}} class="word-break-all"><a target="_blank"
+                                href={{source.url}}>{{source.url}}</a> {{ 'launch' | usa_icon | safe }}</td>
                     </tr>
                     {% endfor %}
                 </tbody>

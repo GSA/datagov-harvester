@@ -11,7 +11,7 @@ from flask_htmx import HTMX
 from flask_migrate import Migrate
 from flask_talisman import Talisman
 
-from app.filters import else_na, usa_icon, utc_isoformat
+from app.filters import else_na, humanize, usa_icon, utc_isoformat
 from app.local_dev_auth import is_running_on_cloud_foundry
 from app.startup_validation import validate_required_env_vars
 from config.logger_config import LOGGING_CONFIG
@@ -90,6 +90,9 @@ def create_app():
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
     app.config["SECRET_KEY"] = env_values["FLASK_APP_SECRET_KEY"]
     app.config["API_TOKEN"] = env_values["HARVEST_API_TOKEN"]
+    if os.getenv("FLASK_ENV") != "production":
+        # Pick up template edits during local dev without restarting the process.
+        app.config["TEMPLATES_AUTO_RELOAD"] = True
     app.config["MAX_CONTENT_LENGTH"] = 10 * 1024 * 1024
     app.config["SESSION_COOKIE_NAME"] = os.getenv(
         "SESSION_COOKIE_NAME", "harvest_session"
@@ -344,6 +347,6 @@ def create_app():
 def add_template_filters(app):
     from app.static_assets import static_url
 
-    for fn in [usa_icon, else_na, utc_isoformat]:
+    for fn in [usa_icon, else_na, utc_isoformat, humanize]:
         app.add_template_filter(fn)
     app.add_template_global(static_url, "static_url")
