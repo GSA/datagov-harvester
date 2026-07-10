@@ -11,12 +11,9 @@ from pathlib import Path
 import pytest
 
 from harvester.opensearch_transform import (
-    DEFAULT_FIELD_SPECS,
     DcatIndexTransformer,
-    FieldSpec,
     coerce_concepts,
     coerce_identifier,
-    coerce_in_series,
     coerce_keywords,
     coerce_publisher_name,
     coerce_text,
@@ -272,62 +269,6 @@ def test_distribution_titles_empty(value):
 
 
 # ---------------------------------------------------------------------------
-# inSeries: DCAT-US 1.1 isPartOf -> DCAT-US 3.0 list[DatasetSeries]
-# ---------------------------------------------------------------------------
-
-
-def test_coerce_in_series_maps_dcat1_ispartof_to_dataset_series():
-    assert coerce_in_series({"isPartOf": "collection-1"}) == [{"@id": "collection-1"}]
-
-
-def test_coerce_in_series_keeps_dcat3_inseries_object():
-    dcat = {
-        "inSeries": [
-            {
-                "@id": "https://example.gov/series/annual-climate",
-                "@type": "DatasetSeries",
-                "title": "Annual Climate Observations Series",
-                "description": "An annual series of climate datasets.",
-                "seriesMember": [{"@id": "https://example.gov/datasets/2024"}],
-            }
-        ]
-    }
-    assert coerce_in_series(dcat) == [
-        {
-            "@id": "https://example.gov/series/annual-climate",
-            "title": "Annual Climate Observations Series",
-            "description": "An annual series of climate datasets.",
-        }
-    ]
-
-
-def test_coerce_in_series_keeps_title_without_id():
-    dcat = {"inSeries": [{"@type": "DatasetSeries", "title": "Annual Series"}]}
-    assert coerce_in_series(dcat) == [{"title": "Annual Series"}]
-
-
-def test_coerce_in_series_prefers_inseries_over_ispartof():
-    dcat = {
-        "isPartOf": "collection-1",
-        "inSeries": [{"@id": "https://example.gov/series/annual"}],
-    }
-    assert coerce_in_series(dcat) == [{"@id": "https://example.gov/series/annual"}]
-
-
-def test_coerce_in_series_falls_back_to_ispartof_when_inseries_empty():
-    dcat = {"isPartOf": "collection-1", "inSeries": []}
-    assert coerce_in_series(dcat) == [{"@id": "collection-1"}]
-
-
-@pytest.mark.parametrize(
-    "dcat",
-    [{}, {"isPartOf": ""}, {"isPartOf": "   "}, {"inSeries": []}, {"inSeries": [{}]}],
-)
-def test_coerce_in_series_empty(dcat):
-    assert coerce_in_series(dcat) == []
-
-
-# ---------------------------------------------------------------------------
 # DcatIndexTransformer.transform: full aggregation
 # ---------------------------------------------------------------------------
 
@@ -360,7 +301,6 @@ def test_transform_dcat1_dataset():
         "theme": [{"prefLabel": "geospatial"}],
         "identifier": {"@id": "cftc-dc1"},
         "distribution_titles": ["Report CSV"],
-        "inSeries": [{"@id": "collection-1"}],
     }
 
 
@@ -423,12 +363,6 @@ def test_transform_dcat3_dataset():
             "Climate Observations CSV",
             "Climate Observations JSON",
         ],
-        "inSeries": [
-            {
-                "@id": "https://example.gov/series/annual-climate-observations",
-                "title": "Annual Climate Observations Series",
-            }
-        ],
     }
 
 
@@ -468,15 +402,6 @@ def test_transform_real_dcat3_complete_example():
         "Climate Observations CSV",
         "Climate Observations JSON",
     ]
-    assert result["inSeries"] == [
-        {
-            "@id": "https://example.gov/series/annual-climate-observations",
-            "title": "Annual Climate Observations Series",
-            "description": (
-                "An annual series of national climate observations datasets."
-            ),
-        }
-    ]
 
 
 def test_transform_handles_empty_dcat():
@@ -488,68 +413,9 @@ def test_transform_handles_empty_dcat():
         "theme": [],
         "identifier": None,
         "distribution_titles": [],
-        "inSeries": [],
     }
 
 
 def test_transform_handles_none_dcat():
     # A dataset with no dcat payload should not raise.
     assert DcatIndexTransformer().transform(None)["identifier"] is None
-
-
-# ---------------------------------------------------------------------------
-# Configurability: the field spec table is the public knob
-# ---------------------------------------------------------------------------
-
-
-def test_transformer_uses_default_field_specs():
-    names = {spec.name for spec in DEFAULT_FIELD_SPECS}
-    assert names == {
-        "title",
-        "description",
-        "publisher",
-        "keyword",
-        "theme",
-        "identifier",
-        "distribution_titles",
-        "inSeries",
-    }
-
-
-def test_transformer_accepts_custom_field_specs():
-    specs = [
-        FieldSpec(name="identifier", source="identifier", coerce=coerce_identifier),
-        FieldSpec(name="title", source="title", coerce=coerce_text),
-    ]
-
-    result = DcatIndexTransformer(field_specs=specs).transform(
-        {"identifier": "abc", "title": "Hi", "theme": ["ignored"]}
-    )
-
-    assert result == {"identifier": {"@id": "abc"}, "title": "Hi"}
-
-
-def test_field_spec_can_override_source_key():
-    spec = FieldSpec(
-        name="identifier", source="otherIdentifier", coerce=coerce_identifier
-    )
-
-    result = DcatIndexTransformer(field_specs=[spec]).transform(
-        {"otherIdentifier": "doi:123", "identifier": "primary"}
-    )
-
-    assert result == {"identifier": {"@id": "doi:123"}}
-
-
-def test_field_spec_from_document_receives_full_dcat():
-    spec = FieldSpec(
-        name="inSeries",
-        coerce=coerce_in_series,
-        from_document=True,
-    )
-
-    result = DcatIndexTransformer(field_specs=[spec]).transform(
-        {"inSeries": [{"@id": "series-1"}]}
-    )
-
-    assert result == {"inSeries": [{"@id": "series-1"}]}

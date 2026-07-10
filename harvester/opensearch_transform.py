@@ -17,14 +17,12 @@ up with a single, stable shape no matter which schema version produced it:
 * ``keyword``         -> list of strings (unchanged)
 * ``title``/``description`` -> string (unchanged)
 * ``distribution_titles``   -> list of distribution titles (unchanged)
-* ``inSeries``          -> list of DCAT-US 3.0 ``DatasetSeries`` objects
-* DCAT-US 1.1 ``isPartOf`` strings map up to ``[{"@id": ...}]``
 
 The module intentionally exposes a *narrow* interface:
-:class:`DcatIndexTransformer` (configured with a list of :class:`FieldSpec`)
-plus a set of small, individually testable coercion helpers. It performs no
-I/O and knows nothing about OpenSearch itself, which keeps it trivial to unit
-test in isolation.
+:class:`DcatIndexTransformer` plus a couple of small helpers used by downstream
+search logic. Coercion helpers live in this module for unit testing but are not
+part of the public API. The module performs no I/O and knows nothing about
+OpenSearch itself.
 
 Only the fields currently stored in the OpenSearch mapping are handled here.
 Fields that live solely inside the free-form ``dcat`` blob (e.g.
@@ -33,21 +31,12 @@ Fields that live solely inside the free-form ``dcat`` blob (e.g.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Any, Callable, Iterable
+from typing import Any, Iterable
 
 __all__ = [
-    "FieldSpec",
     "DcatIndexTransformer",
-    "DEFAULT_FIELD_SPECS",
-    "coerce_identifier",
-    "coerce_concepts",
     "concept_labels",
-    "coerce_keywords",
-    "coerce_publisher_name",
-    "coerce_text",
     "distribution_titles",
-    "coerce_in_series",
 ]
 
 
@@ -59,12 +48,6 @@ _IDENTIFIER_SCALAR_KEYS = ("@id", "schemaAgency", "notation", "version")
 # Scalar / simple-list sub-fields of a DCAT-US 3.0 Concept worth searching on.
 # "inScheme" (a nested ConceptScheme object) and "@type" are dropped.
 _CONCEPT_KEYS = ("@id", "prefLabel", "altLabel", "notation", "definition")
-
-# Scalar sub-fields of a DCAT-US 3.0 DatasetSeries worth searching on.
-# Nested members (seriesMember, first, last, publisher, ...) and "@type"
-# are dropped so the OpenSearch object mapping stays flat and predictable.
-_IN_SERIES_KEYS = ("@id", "title", "description")
-
 
 def _clean_string(value: Any) -> str | None:
     """Return a non-empty, stripped string or ``None``."""
@@ -222,120 +205,18 @@ def distribution_titles(value: Any) -> list[str]:
     return titles
 
 
-def _coerce_dataset_series(value: Any) -> dict | None:
-    """Coerce a single series value into a DCAT-US 3.0 ``DatasetSeries``."""
-    text = _clean_string(value)
-    if text is not None:
-        return {"@id": text}
-
-    if isinstance(value, dict):
-        reduced: dict[str, Any] = {}
-        for key in _IN_SERIES_KEYS:
-            scalar = _clean_string(value.get(key))
-            if scalar is not None:
-                reduced[key] = scalar
-        return reduced or None
-
-    return None
-
-
-def coerce_in_series(dcat: Any) -> list[dict]:
-    """Coerce collection membership into a list of DCAT-US 3.0 ``DatasetSeries``.
-
-    * DCAT-US 1.1: ``isPartOf`` string -> ``[{"@id": <string>}]``.
-    * DCAT-US 3.0: ``inSeries`` list of ``DatasetSeries`` objects, kept but
-      reduced to scalar search fields (``@id``, ``title``, ``description``).
-
-    When ``inSeries`` is present and non-empty, it takes precedence over
-    ``isPartOf``.
-    """
-    if not isinstance(dcat, dict):
-        return []
-
-    in_series = dcat.get("inSeries")
-    if isinstance(in_series, list) and in_series:
-        series_list = []
-        for item in in_series:
-            series = _coerce_dataset_series(item)
-            if series is not None:
-                series_list.append(series)
-        if series_list:
-            return series_list
-
-    part_of = _clean_string(dcat.get("isPartOf"))
-    if part_of is not None:
-        return [{"@id": part_of}]
-
-    return []
-
-
-@dataclass(frozen=True)
-class FieldSpec:
-    """Configuration for a single derived index field.
-
-    Attributes:
-        name: The key produced in the transformed document.
-        coerce: A callable that turns the source value (or the whole dcat dict
-            when ``from_document`` is ``True``) into the indexed value.
-        source: The dcat key to read. Defaults to ``name``. Ignored when
-            ``from_document`` is ``True``.
-        from_document: When ``True``, ``coerce`` receives the entire dcat dict
-            rather than a single field value (used for cross-field derivations
-            such as ``inSeries``).
-    """
-
-    name: str
-    coerce: Callable[[Any], Any]
-    source: str | None = None
-    from_document: bool = False
-
-    @property
-    def source_key(self) -> str:
-        return self.source if self.source is not None else self.name
-
-
-# The default field table. This is the single place to configure which DCAT
-# fields are indexed and how each DCAT-US 1.1 value maps up into DCAT-US 3.0.
-DEFAULT_FIELD_SPECS: tuple[FieldSpec, ...] = (
-    FieldSpec(name="title", coerce=coerce_text),
-    FieldSpec(name="description", coerce=coerce_text),
-    FieldSpec(name="publisher", coerce=coerce_publisher_name),
-    FieldSpec(name="keyword", coerce=coerce_keywords),
-    FieldSpec(name="theme", coerce=coerce_concepts),
-    FieldSpec(name="identifier", coerce=coerce_identifier),
-    FieldSpec(
-        name="distribution_titles",
-        source="distribution",
-        coerce=distribution_titles,
-    ),
-    FieldSpec(
-        name="inSeries",
-        coerce=coerce_in_series,
-        from_document=True,
-    ),
-)
-
-
 class DcatIndexTransformer:
-    """Map a DCAT metadata dict into canonical OpenSearch index fields.
-
-    The transformer is driven entirely by its :class:`FieldSpec` table, so
-    callers can add, remove, or re-map fields without touching the coercion
-    helpers. With no arguments it uses :data:`DEFAULT_FIELD_SPECS`.
-    """
-
-    def __init__(self, field_specs: Iterable[FieldSpec] | None = None):
-        self.field_specs = (
-            tuple(field_specs) if field_specs is not None else DEFAULT_FIELD_SPECS
-        )
+    """Map a DCAT metadata dict into canonical OpenSearch index fields."""
 
     def transform(self, dcat: dict | None) -> dict:
         """Return the canonical index-field dict for ``dcat``."""
         dcat = dcat or {}
-        document: dict[str, Any] = {}
-        for spec in self.field_specs:
-            if spec.from_document:
-                document[spec.name] = spec.coerce(dcat)
-            else:
-                document[spec.name] = spec.coerce(dcat.get(spec.source_key))
-        return document
+        return {
+            "title": coerce_text(dcat.get("title")),
+            "description": coerce_text(dcat.get("description")),
+            "publisher": coerce_publisher_name(dcat.get("publisher")),
+            "keyword": coerce_keywords(dcat.get("keyword")),
+            "theme": coerce_concepts(dcat.get("theme")),
+            "identifier": coerce_identifier(dcat.get("identifier")),
+            "distribution_titles": distribution_titles(dcat.get("distribution")),
+        }

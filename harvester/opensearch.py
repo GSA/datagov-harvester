@@ -31,19 +31,6 @@ class OpenSearchInterface:
     STOP_FILTER = "datagov_stop"
     KEYWORD_NORMALIZER = "lowercase_normalizer"
     DEFAULT_CATALOG_BASE_URL = "https://catalog.data.gov"
-    DCAT_TEXT_COMPATIBLE_FIELDS = {
-        "accrualPeriodicity",
-        "accessRights",
-        "conformsTo",
-        "identifier",
-        "landingPage",
-        "license",
-        "rights",
-        "status",
-        "temporal",
-        "theme",
-    }
-
     # Produces the canonical DCAT-US 3.0-shaped search fields (identifier,
     # theme, publisher, ...) from a dataset's DCAT metadata, mapping DCAT-US 1.1
     # values up into the DCAT-US 3.0 structure. See harvester/opensearch_transform.py.
@@ -84,6 +71,7 @@ class OpenSearchInterface:
             "last_harvested_date": {"type": "date"},
             "dcat": {
                 "type": "nested",
+                "dynamic": False,
                 "properties": {
                     "modified": {"type": "keyword"},
                     "issued": {"type": "keyword"},
@@ -171,32 +159,6 @@ class OpenSearchInterface:
                         "search_analyzer": TEXT_ANALYZER,
                     },
                     "version": {"type": "keyword"},
-                },
-            },
-            # inSeries is stored as a list of DCAT-US 3.0 DatasetSeries objects.
-            # DCAT-US 1.1 isPartOf strings are mapped up to {"@id": <string>}
-            # before indexing, so the shape is uniform. title is full-text
-            # searchable with an exact-match keyword sub-field for faceting.
-            "inSeries": {
-                "type": "object",
-                "properties": {
-                    "@id": {"type": "keyword"},
-                    "title": {
-                        "type": "text",
-                        "analyzer": TEXT_ANALYZER,
-                        "search_analyzer": TEXT_ANALYZER,
-                        "fields": {
-                            "keyword": {
-                                "type": "keyword",
-                                "normalizer": KEYWORD_NORMALIZER,
-                            }
-                        },
-                    },
-                    "description": {
-                        "type": "text",
-                        "analyzer": TEXT_ANALYZER,
-                        "search_analyzer": TEXT_ANALYZER,
-                    },
                 },
             },
             "has_spatial": {"type": "boolean"},
@@ -327,83 +289,29 @@ class OpenSearchInterface:
         return str(value)
 
     @staticmethod
-    def _normalize_dataset_identifier(identifier: Any) -> str | None:
-        if identifier is None:
+    def _first_in_series_identifier(dcat: dict) -> str | None:
+        in_series = dcat.get("inSeries")
+        if not isinstance(in_series, list):
             return None
-        if isinstance(identifier, str):
-            return identifier if identifier.strip() else None
-        if isinstance(identifier, dict):
-            value = identifier.get("@id")
-            if isinstance(value, str) and value.strip():
-                return value
+
+        for series in in_series:
+            if not isinstance(series, dict):
+                continue
+            identifier = series.get("@id")
+            if isinstance(identifier, str) and identifier.strip():
+                return identifier.strip()
         return None
 
     @classmethod
-    def _dcat_text_from_object(cls, value: dict, field: str) -> str:
-        if field == "identifier":
-            identifier = cls._normalize_dataset_identifier(value)
-            if identifier:
-                return identifier
-
-        preferred_keys = (
-            ("prefLabel", "title", "name", "label", "notation", "@id")
-            if field in {"accessRights", "status", "theme"}
-            else ("@id", "title", "name", "prefLabel", "label", "notation")
-        )
-        for key in preferred_keys:
-            candidate = value.get(key)
-            if isinstance(candidate, str) and candidate.strip():
-                return candidate
-            if isinstance(candidate, list):
-                text_values = [
-                    str(item) for item in candidate if item is not None and str(item)
-                ]
-                if text_values:
-                    return ", ".join(text_values)
-
-        return cls._serialize_dcat_value(value)
-
-    @classmethod
-    def _normalize_dcat_text_value(cls, value: Any, field: str) -> Any:
-        if isinstance(value, dict):
-            return cls._dcat_text_from_object(value, field)
-        if isinstance(value, list):
-            return [cls._normalize_dcat_text_value(item, field) for item in value]
-        if value is None or isinstance(value, str):
-            return value
-        return str(value)
-
-    @classmethod
-    def _normalize_dcat_metadata_value(cls, value: Any) -> Any:
-        # stringify nested objects/lists because
-        # OpenSearch expect those fields to be text.
-        if isinstance(value, dict):
-            return {
-                field: (
-                    cls._serialize_dcat_value(field_value)
-                    if isinstance(field_value, (dict, list))
-                    else field_value
-                )
-                for field, field_value in value.items()
-            }
-        if isinstance(value, list):
-            return [
-                (
-                    cls._normalize_dcat_metadata_value(item)
-                    if isinstance(item, dict)
-                    else (
-                        cls._serialize_dcat_value(item)
-                        if isinstance(item, list)
-                        else item
-                    )
-                )
-                for item in value
-            ]
-        return value
-
-    @classmethod
     def _normalize_dcat_dates(cls, dcat: dict) -> dict:
-        """Normalize DCAT values for OpenSearch metadata indexing."""
+        """Prepare the ``dcat`` blob for OpenSearch indexing.
+
+        The blob is a near-copy of ``Dataset.dcat`` from Postgres. Only date
+        fields and ``spatial`` are normalized so the document is JSON-safe and
+        indexable. For current catalog collection filtering, DCAT-US 3.0
+        ``inSeries`` also gets a legacy ``isPartOf`` alias when ``isPartOf`` is
+        absent.
+        """
         normalized_dcat = dcat.copy()
         date_fields = ["modified", "issued", "temporal"]
         for field in date_fields:
@@ -412,22 +320,17 @@ class OpenSearchInterface:
                 if isinstance(value, (datetime, date)):
                     normalized_dcat[field] = value.isoformat()
                 elif value is not None and not isinstance(value, str):
-                    normalized_dcat[field] = (
-                        cls._normalize_dcat_text_value(value, field)
-                        if field == "temporal"
-                        else str(value)
-                    )
+                    if not isinstance(value, (dict, list)):
+                        normalized_dcat[field] = str(value)
         spatial = normalized_dcat.get("spatial")
         if spatial is not None and not isinstance(spatial, str):
             normalized_dcat["spatial"] = cls._serialize_dcat_value(spatial)
 
-        for field, value in normalized_dcat.items():
-            if field in date_fields or field in {"publisher", "spatial"}:
-                continue
-            if field in cls.DCAT_TEXT_COMPATIBLE_FIELDS:
-                normalized_dcat[field] = cls._normalize_dcat_text_value(value, field)
-                continue
-            normalized_dcat[field] = cls._normalize_dcat_metadata_value(value)
+        is_part_of = normalized_dcat.get("isPartOf")
+        if not (isinstance(is_part_of, str) and is_part_of.strip()):
+            in_series_identifier = cls._first_in_series_identifier(dcat)
+            if in_series_identifier is not None:
+                normalized_dcat["isPartOf"] = in_series_identifier
         return normalized_dcat
 
     @staticmethod
@@ -487,7 +390,7 @@ class OpenSearchInterface:
         DCAT-derived search fields are produced by ``DCAT_INDEX_TRANSFORMER``,
         which maps DCAT-US 1.1 values up into the canonical DCAT-US 3.0 shape so
         that each OpenSearch field has a single, stable data type. The full
-        ``dcat`` blob is still stored (flattened to text) for reference.
+        ``dcat`` blob is still stored as a near-copy of the Postgres record.
         """
         indexed = self.DCAT_INDEX_TRANSFORMER.transform(dataset.dcat)
 
@@ -524,7 +427,6 @@ class OpenSearchInterface:
             "keyword": indexed["keyword"],
             "theme": indexed["theme"],
             "identifier": indexed["identifier"],
-            "inSeries": indexed["inSeries"],
             "has_spatial": has_spatial,
             "organization": organization,
             "distribution_titles": indexed["distribution_titles"],
