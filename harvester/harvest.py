@@ -982,7 +982,7 @@ class Record:
         if not self.is_valid_describedByType(
             self.transformed_data.get("describedByType", "")
         ):
-            self.transformed_data["describedByType"] = "application/octet-steam"
+            self.transformed_data["describedByType"] = "application/octet-stream"
 
         # If distribution items have a downloadURL or accessURL,
         # check if it just needs an "https://" at the beginning
