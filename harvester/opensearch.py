@@ -273,18 +273,34 @@ class OpenSearchInterface:
         return str(value)
 
     @staticmethod
-    def _first_in_series_identifier(dcat: dict) -> str | None:
-        in_series = dcat.get("inSeries")
-        if not isinstance(in_series, list):
-            return None
-
-        for series in in_series:
-            if not isinstance(series, dict):
-                continue
-            identifier = series.get("@id")
+    def _id_from_string_or_object(value: Any) -> str | None:
+        if isinstance(value, str):
+            stripped = value.strip()
+            return stripped or None
+        if isinstance(value, dict):
+            identifier = value.get("@id")
             if isinstance(identifier, str) and identifier.strip():
                 return identifier.strip()
         return None
+
+    @classmethod
+    def _first_in_series_identifier(cls, dcat: dict) -> str | None:
+        in_series = dcat.get("inSeries")
+        if not isinstance(in_series, list):
+            return cls._id_from_string_or_object(in_series)
+
+        for series in in_series:
+            identifier = cls._id_from_string_or_object(series)
+            if identifier:
+                return identifier
+        return None
+
+    @classmethod
+    def _collection_uri_from_dcat(cls, dcat: dict) -> str | None:
+        is_part_of = cls._id_from_string_or_object(dcat.get("isPartOf"))
+        if is_part_of:
+            return is_part_of
+        return cls._first_in_series_identifier(dcat)
 
     @classmethod
     def _normalize_dcat_dates(cls, dcat: dict) -> dict:
@@ -310,11 +326,9 @@ class OpenSearchInterface:
         if spatial is not None and not isinstance(spatial, str):
             normalized_dcat["spatial"] = cls._serialize_dcat_value(spatial)
 
-        is_part_of = normalized_dcat.get("isPartOf")
-        if not (isinstance(is_part_of, str) and is_part_of.strip()):
-            in_series_identifier = cls._first_in_series_identifier(dcat)
-            if in_series_identifier is not None:
-                normalized_dcat["isPartOf"] = in_series_identifier
+        collection_uri = cls._collection_uri_from_dcat(dcat)
+        if collection_uri:
+            normalized_dcat["isPartOf"] = collection_uri
         return normalized_dcat
 
     @staticmethod

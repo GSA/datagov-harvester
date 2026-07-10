@@ -416,6 +416,37 @@ def test_dataset_to_document_preserves_existing_is_part_of(sample_dataset):
     assert document["dcat"]["isPartOf"] == "legacy-collection"
 
 
+def test_dataset_to_document_coerces_object_is_part_of(sample_dataset):
+    iface = OpenSearchInterface.__new__(OpenSearchInterface)
+    sample_dataset.dcat["isPartOf"] = {
+        "@id": "https://example.gov/series/object-collection",
+        "@type": "DatasetSeries",
+    }
+    sample_dataset.dcat["inSeries"] = [
+        {"@id": "https://example.gov/series/annual-climate"}
+    ]
+
+    document = iface.dataset_to_document(sample_dataset)
+
+    assert "inSeries" not in document
+    assert document["dcat"]["isPartOf"] == (
+        "https://example.gov/series/object-collection"
+    )
+
+
+def test_dataset_to_document_falls_back_when_is_part_of_is_blank(sample_dataset):
+    iface = OpenSearchInterface.__new__(OpenSearchInterface)
+    sample_dataset.dcat["isPartOf"] = "   "
+    sample_dataset.dcat["inSeries"] = [
+        {"@id": "https://example.gov/series/annual-climate"}
+    ]
+
+    document = iface.dataset_to_document(sample_dataset)
+
+    assert "inSeries" not in document
+    assert document["dcat"]["isPartOf"] == "https://example.gov/series/annual-climate"
+
+
 def test_dataset_to_document_maps_dcat1_string_theme_to_concept(sample_dataset):
     iface = OpenSearchInterface.__new__(OpenSearchInterface)
     sample_dataset.dcat["theme"] = "Geospatial"
