@@ -131,6 +131,9 @@ def create_app():
             get_session_cookie_name(),
             path=get_cookie_path(),
             domain=get_cookie_domain(),
+            secure=get_cookie_secure(),
+            httponly=True,
+            samesite=get_cookie_samesite(),
         )
         return response
 
@@ -153,6 +156,9 @@ def create_app():
             get_auth_cookie_name(),
             path=get_cookie_path(),
             domain=get_cookie_domain(),
+            secure=get_cookie_secure(),
+            httponly=True,
+            samesite=get_cookie_samesite(),
         )
         return response
 
