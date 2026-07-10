@@ -259,9 +259,8 @@ def test_dataset_to_document(sample_dataset, monkeypatch):
     assert document["title"] == "Dataset Title"
     assert document["publisher"] == "Publisher"
     assert document["dcat"]["isPartOf"] == "collection-1"
-    # identifier is always stored as a DCAT-US 3.0 Identifier object; the
-    # DCAT-US 1.1 string "id-1" is mapped up to {"@id": "id-1"}.
-    assert document["identifier"] == {"@id": "id-1"}
+    # identifier stays on the legacy scalar search-field contract.
+    assert document["identifier"] == "id-1"
     # theme is always stored as a list of DCAT-US 3.0 Concept objects; the
     # DCAT-US 1.1 string "theme-1" is mapped up to {"prefLabel": "theme-1"}.
     assert document["theme"] == [{"prefLabel": "theme-1"}]
@@ -365,11 +364,8 @@ def test_dataset_to_document_normalizes_dcatus3_search_fields(sample_dataset):
 
     document = iface.dataset_to_document(sample_dataset)
 
-    # Top-level searchable fields carry the canonical DCAT-US 3.0 structure.
-    assert document["identifier"] == {
-        "@id": "https://example.gov/identifiers/dataset-1",
-        "notation": "DATASET-1",
-    }
+    # Top-level searchable fields are normalized independently from the dcat blob.
+    assert document["identifier"] == "https://example.gov/identifiers/dataset-1"
     assert document["theme"] == [
         {"@id": "https://example.gov/concepts/geospatial", "prefLabel": "Geospatial"}
     ]
@@ -481,16 +477,12 @@ def test_mappings_include_catalog_compatible_fields():
     assert mappings["dcat"]["dynamic"] is False
     assert mappings["distribution_titles"]["type"] == "text"
 
-    # identifier is indexed as a DCAT-US 3.0 Identifier object with searchable
-    # sub-fields (both a full-text @id and an exact-match @id.keyword).
-    identifier_mapping = mappings["identifier"]
-    assert identifier_mapping["type"] == "object"
-    id_props = identifier_mapping["properties"]
-    assert id_props["@id"]["type"] == "text"
-    assert id_props["@id"]["fields"]["keyword"] == {"type": "keyword"}
-    assert id_props["notation"] == {"type": "keyword"}
-    assert id_props["schemaAgency"]["type"] == "text"
-    assert id_props["version"] == {"type": "keyword"}
+    # identifier is indexed as the legacy scalar text field.
+    assert mappings["identifier"] == {
+        "type": "text",
+        "analyzer": OpenSearchInterface.TEXT_ANALYZER,
+        "search_analyzer": OpenSearchInterface.TEXT_ANALYZER,
+    }
 
     # theme is indexed as a list of DCAT-US 3.0 Concept objects; prefLabel is
     # searchable full-text with an exact-match keyword sub-field.

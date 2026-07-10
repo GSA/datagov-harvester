@@ -1,8 +1,8 @@
 """Unit tests for the DCAT -> OpenSearch index field transformer.
 
-These tests pin down, field by field, how DCAT-US 1.1 values are mapped *up*
-into the DCAT-US 3.0 structure so that every OpenSearch field has a single,
-stable shape regardless of the source schema version.
+These tests pin down, field by field, how DCAT-US values are normalized so
+every OpenSearch field has a single, stable shape regardless of the source
+schema version.
 """
 
 import json
@@ -34,28 +34,25 @@ DCAT3_COMPLETE_EXAMPLE = (
 
 
 # ---------------------------------------------------------------------------
-# identifier: DCAT-US 1.1 string  ->  DCAT-US 3.0 Identifier object
+# identifier: string search field
 # ---------------------------------------------------------------------------
 
 
-def test_coerce_identifier_wraps_dcat1_string_as_object():
-    assert coerce_identifier("cftc-dc1") == {"@id": "cftc-dc1"}
+def test_coerce_identifier_keeps_dcat1_string():
+    assert coerce_identifier("cftc-dc1") == "cftc-dc1"
 
 
-def test_coerce_identifier_keeps_dcat3_object_with_id():
+def test_coerce_identifier_extracts_dcat3_object_id():
     value = {
         "@type": "Identifier",
         "@id": "https://example.gov/identifiers/dataset-1",
         "notation": "DATASET-1",
     }
 
-    assert coerce_identifier(value) == {
-        "@id": "https://example.gov/identifiers/dataset-1",
-        "notation": "DATASET-1",
-    }
+    assert coerce_identifier(value) == "https://example.gov/identifiers/dataset-1"
 
 
-def test_coerce_identifier_keeps_dcat3_object_without_id():
+def test_coerce_identifier_returns_none_for_dcat3_object_without_id():
     value = {
         "@type": "Identifier",
         "schemaAgency": "National Climate Data Center",
@@ -63,25 +60,17 @@ def test_coerce_identifier_keeps_dcat3_object_without_id():
         "version": "1.0",
     }
 
-    assert coerce_identifier(value) == {
-        "schemaAgency": "National Climate Data Center",
-        "notation": "NCDC-CLIMATE-OBS-2024",
-        "version": "1.0",
-    }
+    assert coerce_identifier(value) is None
 
 
-def test_coerce_identifier_drops_nested_non_scalar_fields():
+def test_coerce_identifier_ignores_extra_dcat3_object_fields():
     value = {
         "@id": "https://example.gov/identifiers/dataset-1",
         "creator": {"@type": "Organization", "name": "NCDC"},
         "issued": {"@type": "date", "value": "2024-01-01"},
     }
 
-    # Only searchable scalar sub-fields survive so the OpenSearch object mapping
-    # stays flat and predictable.
-    assert coerce_identifier(value) == {
-        "@id": "https://example.gov/identifiers/dataset-1"
-    }
+    assert coerce_identifier(value) == "https://example.gov/identifiers/dataset-1"
 
 
 @pytest.mark.parametrize("value", [None, "", "   "])
@@ -299,7 +288,7 @@ def test_transform_dcat1_dataset():
         "publisher": "U.S. Commodity Futures Trading Commission",
         "keyword": ["commitment of traders", "cot"],
         "theme": [{"prefLabel": "geospatial"}],
-        "identifier": {"@id": "cftc-dc1"},
+        "identifier": "cftc-dc1",
         "distribution_titles": ["Report CSV"],
     }
 
@@ -354,11 +343,7 @@ def test_transform_dcat3_dataset():
                 "prefLabel": "Climate Science",
             }
         ],
-        "identifier": {
-            "schemaAgency": "National Climate Data Center",
-            "notation": "NCDC-CLIMATE-OBS-2024",
-            "version": "1.0",
-        },
+        "identifier": None,
         "distribution_titles": [
             "Climate Observations CSV",
             "Climate Observations JSON",
@@ -373,11 +358,7 @@ def test_transform_real_dcat3_complete_example():
 
     assert result["title"] == "National Climate Observations 2024"
     assert result["publisher"] == "National Climate Data Center"
-    assert result["identifier"] == {
-        "schemaAgency": "National Climate Data Center",
-        "notation": "NCDC-CLIMATE-OBS-2024",
-        "version": "1.0",
-    }
+    assert result["identifier"] is None
     assert result["theme"] == [
         {
             "@id": "https://example.gov/concepts/climate-science",

@@ -31,9 +31,8 @@ class OpenSearchInterface:
     STOP_FILTER = "datagov_stop"
     KEYWORD_NORMALIZER = "lowercase_normalizer"
     DEFAULT_CATALOG_BASE_URL = "https://catalog.data.gov"
-    # Produces the canonical DCAT-US 3.0-shaped search fields (identifier,
-    # theme, publisher, ...) from a dataset's DCAT metadata, mapping DCAT-US 1.1
-    # values up into the DCAT-US 3.0 structure. See harvester/opensearch_transform.py.
+    # Produces stable search fields (identifier, theme, publisher, ...) from a
+    # dataset's DCAT metadata. See harvester/opensearch_transform.py.
     DCAT_INDEX_TRANSFORMER = DcatIndexTransformer()
 
     SETTINGS = {
@@ -139,27 +138,12 @@ class OpenSearchInterface:
                     "notation": {"type": "keyword"},
                 },
             },
-            # identifier is stored as a DCAT-US 3.0 Identifier object. DCAT-US
-            # 1.1 string identifiers are mapped up to {"@id": <string>} before
-            # indexing. @id is full-text searchable with an exact-match keyword
-            # sub-field so it can be searched as free text or matched exactly.
+            # identifier stays on the legacy scalar contract. DCAT-US 3.0
+            # Identifier objects are reduced to @id before indexing.
             "identifier": {
-                "type": "object",
-                "properties": {
-                    "@id": {
-                        "type": "text",
-                        "analyzer": TEXT_ANALYZER,
-                        "search_analyzer": TEXT_ANALYZER,
-                        "fields": {"keyword": {"type": "keyword"}},
-                    },
-                    "notation": {"type": "keyword"},
-                    "schemaAgency": {
-                        "type": "text",
-                        "analyzer": TEXT_ANALYZER,
-                        "search_analyzer": TEXT_ANALYZER,
-                    },
-                    "version": {"type": "keyword"},
-                },
+                "type": "text",
+                "analyzer": TEXT_ANALYZER,
+                "search_analyzer": TEXT_ANALYZER,
             },
             "has_spatial": {"type": "boolean"},
             "popularity": {"type": "integer"},
@@ -387,9 +371,8 @@ class OpenSearchInterface:
     def dataset_to_document(self, dataset):
         """Map a dataset into a document for indexing.
 
-        DCAT-derived search fields are produced by ``DCAT_INDEX_TRANSFORMER``,
-        which maps DCAT-US 1.1 values up into the canonical DCAT-US 3.0 shape so
-        that each OpenSearch field has a single, stable data type. The full
+        DCAT-derived search fields are produced by ``DCAT_INDEX_TRANSFORMER``
+        so each OpenSearch field has a single, stable data type. The full
         ``dcat`` blob is still stored as a near-copy of the Postgres record.
         """
         indexed = self.DCAT_INDEX_TRANSFORMER.transform(dataset.dcat)

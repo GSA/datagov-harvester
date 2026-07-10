@@ -2,16 +2,15 @@
 
 The OpenSearch ``datasets`` index stores a handful of fields derived from a
 dataset's DCAT metadata (``title``, ``identifier``, ``theme``, ...). DCAT-US
-1.1 and DCAT-US 3.0 describe several of these fields with *different shapes*:
-``identifier`` went from a plain string to an :class:`Identifier` object,
-``theme`` from a list of strings to a list of :class:`Concept` objects, and so
-on.
+1.1 and DCAT-US 3.0 describe several of these fields with *different shapes*,
+such as ``theme`` moving from a list of strings to a list of
+:class:`Concept` objects.
 
 OpenSearch cannot index a field as two different data types, so this module
-maps DCAT-US 1.1 values *up* into the DCAT-US 3.0 structure. Every field ends
-up with a single, stable shape no matter which schema version produced it:
+normalizes each derived field into a single, stable shape no matter which
+schema version produced it:
 
-* ``identifier``      -> DCAT-US 3.0 ``Identifier`` object ``{"@id": ...}``
+* ``identifier``      -> string (legacy search-field contract)
 * ``theme``           -> list of DCAT-US 3.0 ``Concept`` objects
 * ``publisher``       -> organization display name (string, unchanged contract)
 * ``keyword``         -> list of strings (unchanged)
@@ -40,11 +39,6 @@ __all__ = [
 ]
 
 
-# Scalar sub-fields of a DCAT-US 3.0 Identifier that are worth searching on.
-# Nested objects (creator, issued-as-object) and the redundant "@type" marker
-# are dropped so the OpenSearch object mapping stays flat and predictable.
-_IDENTIFIER_SCALAR_KEYS = ("@id", "schemaAgency", "notation", "version")
-
 # Scalar / simple-list sub-fields of a DCAT-US 3.0 Concept worth searching on.
 # "inScheme" (a nested ConceptScheme object) and "@type" are dropped.
 _CONCEPT_KEYS = ("@id", "prefLabel", "altLabel", "notation", "definition")
@@ -66,26 +60,20 @@ def coerce_text(value: Any) -> str:
     return value if isinstance(value, str) else ""
 
 
-def coerce_identifier(value: Any) -> dict | None:
-    """Coerce a DCAT identifier into a DCAT-US 3.0 ``Identifier`` object.
+def coerce_identifier(value: Any) -> str | None:
+    """Coerce a DCAT identifier into the legacy scalar index field.
 
-    * DCAT-US 1.1: a plain string ``"cftc-dc1"`` -> ``{"@id": "cftc-dc1"}``.
-    * DCAT-US 3.0: an ``Identifier`` object, kept but reduced to its scalar
-      search fields (``@id``, ``schemaAgency``, ``notation``, ``version``).
+    * DCAT-US 1.1: a plain string ``"cftc-dc1"`` -> ``"cftc-dc1"``.
+    * DCAT-US 3.0: an ``Identifier`` object contributes only its ``@id``.
 
     Returns ``None`` when there is nothing indexable.
     """
     text = _clean_string(value)
     if text is not None:
-        return {"@id": text}
+        return text
 
     if isinstance(value, dict):
-        reduced: dict[str, Any] = {}
-        for key in _IDENTIFIER_SCALAR_KEYS:
-            scalar = _clean_string(value.get(key))
-            if scalar is not None:
-                reduced[key] = scalar
-        return reduced or None
+        return _clean_string(value.get("@id"))
 
     return None
 
