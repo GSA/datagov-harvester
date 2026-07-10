@@ -74,13 +74,13 @@ def sample_dataset():
     )
 
 
-def test_normalize_dcat_dates():
+def test_normalize_dcat_blob():
     dcat = {
         "modified": date(2024, 1, 2),
         "issued": datetime(2024, 1, 3, 4, 5, 6),
         "temporal": 123,
     }
-    normalized = OpenSearchInterface._normalize_dcat_dates(dcat)
+    normalized = OpenSearchInterface._normalize_dcat_blob(dcat)
 
     assert normalized["modified"] == "2024-01-02"
     assert normalized["issued"].startswith("2024-01-03T04:05:06")
@@ -95,7 +95,7 @@ def test_normalize_dcat_spatial_object():
         },
     }
 
-    normalized = OpenSearchInterface._normalize_dcat_dates(dcat)
+    normalized = OpenSearchInterface._normalize_dcat_blob(dcat)
 
     assert (
         normalized["spatial"] == '{"@type": "Location", "prefLabel": "United States"}'
@@ -116,7 +116,7 @@ def test_normalize_dcat_distribution_structured_field():
         ]
     }
 
-    normalized = OpenSearchInterface._normalize_dcat_dates(dcat)
+    normalized = OpenSearchInterface._normalize_dcat_blob(dcat)
 
     assert normalized["distribution"][0]["title"] == "CSV download"
     assert normalized["distribution"][0]["conformsTo"] == {
@@ -134,7 +134,7 @@ def test_normalize_dcat_serializes_nested_metadata_objects():
         }
     }
 
-    normalized = OpenSearchInterface._normalize_dcat_dates(dcat)
+    normalized = OpenSearchInterface._normalize_dcat_blob(dcat)
 
     expected_email = {"@id": "mailto:data@example.gov"}
     assert normalized["contactPoint"]["fn"] == "Data contact"
@@ -149,7 +149,7 @@ def test_normalize_dcat_preserves_publisher_suborganization_object():
         }
     }
 
-    normalized = OpenSearchInterface._normalize_dcat_dates(dcat)
+    normalized = OpenSearchInterface._normalize_dcat_blob(dcat)
 
     assert normalized["publisher"]["subOrganizationOf"] == {"name": "U.S. Government"}
 
@@ -195,7 +195,7 @@ def test_normalize_dcat_blob_preserves_dcatus3_objects():
         ],
     }
 
-    normalized = OpenSearchInterface._normalize_dcat_dates(dcat)
+    normalized = OpenSearchInterface._normalize_dcat_blob(dcat)
 
     assert normalized["identifier"] == dcat["identifier"]
     assert normalized["theme"] == dcat["theme"]

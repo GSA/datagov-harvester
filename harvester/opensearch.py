@@ -303,14 +303,14 @@ class OpenSearchInterface:
         return cls._first_in_series_identifier(dcat)
 
     @classmethod
-    def _normalize_dcat_dates(cls, dcat: dict) -> dict:
+    def _normalize_dcat_blob(cls, dcat: dict) -> dict:
         """Prepare the ``dcat`` blob for OpenSearch indexing.
 
-        The blob is a near-copy of ``Dataset.dcat`` from Postgres. Only date
-        fields and ``spatial`` are normalized so the document is JSON-safe and
-        indexable. For current catalog collection filtering, DCAT-US 3.0
-        ``inSeries`` also gets a legacy ``isPartOf`` alias when ``isPartOf`` is
-        absent.
+        The blob is a near-copy of ``Dataset.dcat`` from Postgres. Date fields
+        and ``spatial`` are normalized so the document is JSON-safe and
+        indexable. Collection membership is also reduced to the legacy
+        ``isPartOf`` URI because catalog collection filters still query that
+        field.
         """
         normalized_dcat = dcat.copy()
         date_fields = ["modified", "issued", "temporal"]
@@ -401,7 +401,7 @@ class OpenSearchInterface:
             or dataset.translated_spatial is not None
             or has_spatial_theme
         )
-        normalized_dcat = self._normalize_dcat_dates(dataset.dcat)
+        normalized_dcat = self._normalize_dcat_blob(dataset.dcat)
         spatial_centroid = self._geometry_centroid(dataset.translated_spatial)
         last_harvested = (
             dataset.last_harvested_date.isoformat()
