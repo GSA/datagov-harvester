@@ -43,6 +43,7 @@ __all__ = [
 # "inScheme" (a nested ConceptScheme object) and "@type" are dropped.
 _CONCEPT_KEYS = ("@id", "prefLabel", "altLabel", "notation", "definition")
 
+
 def _clean_string(value: Any) -> str | None:
     """Return a non-empty, stripped string or ``None``."""
     if isinstance(value, str):
