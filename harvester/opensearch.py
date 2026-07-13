@@ -10,6 +10,8 @@ from botocore.credentials import Credentials
 from opensearchpy import AWSV4SignerAuth, OpenSearch, RequestsHttpConnection, helpers
 from opensearchpy.exceptions import ConnectionTimeout
 
+from harvester.opensearch_transform import DcatIndexTransformer
+
 logger = logging.getLogger(__name__)
 
 
@@ -29,6 +31,7 @@ class OpenSearchInterface:
     STOP_FILTER = "datagov_stop"
     KEYWORD_NORMALIZER = "lowercase_normalizer"
     DEFAULT_CATALOG_BASE_URL = "https://catalog.data.gov"
+    DCAT_INDEX_TRANSFORMER = DcatIndexTransformer()
 
     SETTINGS = {
         "analysis": {
@@ -65,6 +68,10 @@ class OpenSearchInterface:
             "last_harvested_date": {"type": "date"},
             "dcat": {
                 "type": "nested",
+                # DCAT-US 1.1 and 3.0 nest differently shaped fields under dcat.
+                # Disable dynamic mapping so the first indexed schema version
+                # cannot lock incompatible types for later records.
+                "dynamic": False,
                 "properties": {
                     "modified": {"type": "keyword"},
                     "issued": {"type": "keyword"},
@@ -339,14 +346,16 @@ class OpenSearchInterface:
         return {"lat": lat_total / count, "lon": lon_total / count}
 
     def dataset_to_document(self, dataset):
-        """Map a dataset into a document for indexing."""
+        """Map a dataset into a document for indexing.
+
+        DCAT-derived search fields are produced by ``DCAT_INDEX_TRANSFORMER``
+        so DCAT-US 1.1 and 3.0 share the existing OpenSearch field shapes.
+        """
+        indexed = self.DCAT_INDEX_TRANSFORMER.transform(dataset.dcat)
+
         spatial_value = dataset.dcat.get("spatial")
-        themes = dataset.dcat.get("theme") or []
-        if isinstance(themes, str):
-            themes = [themes]
         has_spatial_theme = any(
-            isinstance(theme, str) and theme.strip().lower() == "geospatial"
-            for theme in themes
+            label.strip().lower() == "geospatial" for label in indexed["theme"]
         )
         has_spatial = (
             bool(spatial_value and str(spatial_value).strip())
@@ -354,6 +363,9 @@ class OpenSearchInterface:
             or has_spatial_theme
         )
         normalized_dcat = self._normalize_dcat_dates(dataset.dcat)
+        # Keep nested dcat theme/identifier compatible with text/keyword shapes.
+        normalized_dcat["theme"] = indexed["theme"]
+        normalized_dcat["identifier"] = indexed["identifier"]
         spatial_centroid = self._geometry_centroid(dataset.translated_spatial)
         last_harvested = (
             dataset.last_harvested_date.isoformat()
@@ -367,22 +379,18 @@ class OpenSearchInterface:
         document = {
             "_index": self.INDEX_NAME,
             "_id": dataset.id,
-            "title": dataset.dcat.get("title", ""),
+            "title": indexed["title"],
             "slug": dataset.slug,
             "last_harvested_date": last_harvested,
-            "description": dataset.dcat.get("description", ""),
-            "publisher": dataset.dcat.get("publisher", {}).get("name", ""),
+            "description": indexed["description"],
+            "publisher": indexed["publisher"],
             "dcat": normalized_dcat,
-            "keyword": dataset.dcat.get("keyword", []),
-            "theme": dataset.dcat.get("theme", []),
-            "identifier": dataset.dcat.get("identifier", ""),
+            "keyword": indexed["keyword"],
+            "theme": indexed["theme"],
+            "identifier": indexed["identifier"],
             "has_spatial": has_spatial,
             "organization": organization,
-            "distribution_titles": [
-                dist["title"]
-                for dist in (dataset.dcat.get("distribution") or [])
-                if isinstance(dist, dict) and dist.get("title")
-            ],
+            "distribution_titles": indexed["distribution_titles"],
             "popularity": popularity,
             "spatial_shape": dataset.translated_spatial,
             "spatial_centroid": spatial_centroid,
