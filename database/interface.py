@@ -514,9 +514,7 @@ class HarvesterDBInterface:
 
     @count
     @paginate
-    def get_harvest_record_errors_by_job(
-        self, job_id: str, severity="error", **kwargs
-    ):
+    def get_harvest_record_errors_by_job(self, job_id: str, severity="error", **kwargs):
         """
         Retrieves harvest record errors for a given job.
 

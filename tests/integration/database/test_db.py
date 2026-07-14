@@ -531,16 +531,24 @@ class TestDatabase:
         assert {e[0].severity for e in warnings} == {"warning"}
 
         # by_record: same defaulting behavior
-        assert {e.severity for e in
-                interface.get_harvest_record_errors_by_record(record.id)} == {"error"}
-        assert {e.severity for e in interface.get_harvest_record_errors_by_record(
-            record.id, severity=None)} == {"error", "warning"}
+        assert {
+            e.severity for e in interface.get_harvest_record_errors_by_record(record.id)
+        } == {"error"}
+        assert {
+            e.severity
+            for e in interface.get_harvest_record_errors_by_record(
+                record.id, severity=None
+            )
+        } == {"error", "warning"}
 
         # pget: default returns only errors, None returns all
-        assert {e.severity for e in
-                interface.pget_harvest_record_errors(paginate=False)} == {"error"}
-        assert {e.severity for e in interface.pget_harvest_record_errors(
-            severity=None, paginate=False)} == {"error", "warning"}
+        assert {
+            e.severity for e in interface.pget_harvest_record_errors(paginate=False)
+        } == {"error"}
+        assert {
+            e.severity
+            for e in interface.pget_harvest_record_errors(severity=None, paginate=False)
+        } == {"error", "warning"}
 
         # for_view: filters by severity (severity is not surfaced in the rows).
         # default returns only the error row; None returns both.
