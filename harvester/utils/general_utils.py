@@ -1035,9 +1035,9 @@ def translate_spatial_to_geojson(spatial_input):
         return json.loads(translated_value)
     except json.JSONDecodeError as exc:  # pragma: no cover - defensive
         logger.warning(
-            "Unable to decode translated spatial value %s: %s",
-            translated_value,
-            exc,
+            "Unable to decode translated spatial value as JSON (length=%s, error=%s)",
+            len(translated_value),
+            exc.__class__.__name__,
         )
         return None
 
