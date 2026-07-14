@@ -8,7 +8,20 @@ than the full templated string, so message wording can change without churning
 every test.
 """
 
+from pathlib import Path
+
 from harvester.utils.dcat_warnings import DcatWarning, detect_dcat_warnings
+from harvester.utils.general_utils import open_json
+
+COMPLETE_EXAMPLE = (
+    Path(__file__).parents[2]
+    / "schemas"
+    / "dcatus3.0"
+    / "examples"
+    / "Dataset"
+    / "good"
+    / "complete_example.json"
+)
 
 
 def types(warnings):
@@ -313,6 +326,101 @@ class TestLocationSpatial:
         assert "could not be resolved" in warnings[0].message
 
 
+class TestLanguage:
+    def test_recognized_code_passes(self):
+        data = {"@type": "Dataset", "language": "en"}
+        assert detect_dcat_warnings(data) == []
+
+    def test_array_of_codes_passes(self):
+        data = {"@type": "Dataset", "language": ["en", "es"]}
+        assert detect_dcat_warnings(data) == []
+
+    def test_unrecognized_code_warns(self):
+        data = {"@type": "Dataset", "language": "zz"}
+        warnings = detect_dcat_warnings(data)
+        assert types(warnings) == ["invalid_language"]
+        assert "not a recognized ISO 639-1" in warnings[0].message
+
+    def test_too_short_code_warns(self):
+        data = {"@type": "Dataset", "language": "e"}
+        warnings = detect_dcat_warnings(data)
+        assert types(warnings) == ["invalid_language"]
+        assert "too short" in warnings[0].message
+
+    def test_applies_per_entry_in_array(self):
+        data = {"@type": "Distribution", "language": ["en", "zz"]}
+        warnings = detect_dcat_warnings(data)
+        assert types(warnings) == ["invalid_language"]
+        assert '"zz"' in warnings[0].message
+
+
+class TestCharacterEncoding:
+    def test_recognized_charset_passes(self):
+        data = {"@type": "Distribution", "characterEncoding": ["UTF-8"]}
+        assert detect_dcat_warnings(data) == []
+
+    def test_unrecognized_charset_warns(self):
+        data = {"@type": "Distribution", "characterEncoding": ["bogus"]}
+        warnings = detect_dcat_warnings(data)
+        assert types(warnings) == ["invalid_character_encoding"]
+        assert "IANA character set" in warnings[0].message
+
+
+class TestMediaType:
+    def test_recognized_media_type_passes(self):
+        data = {"@type": "Distribution", "mediaType": "text/csv"}
+        assert detect_dcat_warnings(data) == []
+
+    def test_document_recognized_media_type_passes(self):
+        data = {"@type": "Document", "mediaType": "application/pdf"}
+        assert detect_dcat_warnings(data) == []
+
+    def test_unrecognized_media_type_warns(self):
+        data = {"@type": "Distribution", "mediaType": "application/notreal"}
+        warnings = detect_dcat_warnings(data)
+        assert types(warnings) == ["invalid_media_type"]
+        assert "IANA media type" in warnings[0].message
+
+
+class TestRestrictions:
+    def test_recognized_access_restriction_status_passes(self):
+        data = {"@type": "AccessRestriction", "restrictionStatus": "Unrestricted"}
+        assert detect_dcat_warnings(data) == []
+
+    def test_unrecognized_access_restriction_status_warns(self):
+        data = {"@type": "AccessRestriction", "restrictionStatus": "Bogus"}
+        warnings = detect_dcat_warnings(data)
+        assert types(warnings) == ["invalid_restriction_status"]
+        assert "NARA access restriction status" in warnings[0].message
+
+    def test_concept_object_preflabel_is_checked(self):
+        data = {
+            "@type": "UseRestriction",
+            "restrictionStatus": {"@type": "Concept", "prefLabel": "Unrestricted"},
+        }
+        assert detect_dcat_warnings(data) == []
+
+    def test_concept_object_unrecognized_preflabel_warns(self):
+        data = {
+            "@type": "UseRestriction",
+            "restrictionStatus": {"@type": "Concept", "prefLabel": "Bogus"},
+        }
+        warnings = detect_dcat_warnings(data)
+        assert types(warnings) == ["invalid_restriction_status"]
+        assert "NARA use restriction status" in warnings[0].message
+
+    def test_specific_restriction_uses_its_own_authority_list(self):
+        # "Copyright" is valid for specific *use* restriction but is not an
+        # access-restriction term.
+        ok = {"@type": "UseRestriction", "specificRestriction": "Copyright"}
+        assert detect_dcat_warnings(ok) == []
+
+        bad = {"@type": "AccessRestriction", "specificRestriction": "Copyright"}
+        warnings = detect_dcat_warnings(bad)
+        assert types(warnings) == ["invalid_specific_restriction"]
+        assert "NARA specific access restriction" in warnings[0].message
+
+
 class TestTraversalAndCleanRecord:
     def test_clean_minimal_record_has_no_warnings(self):
         data = {
@@ -326,6 +434,22 @@ class TestTraversalAndCleanRecord:
             "modified": "2024-06-01",
         }
         assert detect_dcat_warnings(data) == []
+
+    def test_complete_example_reference_data_fields_do_not_warn(self):
+        # The upstream complete example uses valid language ("en"), media types
+        # (text/csv, application/json, application/pdf), etc. Guard against the
+        # reference-data rules producing false positives on it. The vanity tel
+        # and WKT geometry warnings are expected and unrelated.
+        dataset = open_json(COMPLETE_EXAMPLE)
+        reference_data_types = {
+            "invalid_language",
+            "invalid_character_encoding",
+            "invalid_media_type",
+            "invalid_restriction_status",
+            "invalid_specific_restriction",
+        }
+        produced = set(types(detect_dcat_warnings(dataset)))
+        assert produced.isdisjoint(reference_data_types)
 
     def test_warnings_collected_from_multiple_nested_objects(self):
         data = {
