@@ -428,7 +428,9 @@ class HarvesterDBInterface:
         job = self.get_harvest_job(job_id)
         return [error for error in job.errors or []]
 
-    def get_harvest_record_errors_by_job_for_view(self, job_id: str, **kwargs):
+    def get_harvest_record_errors_by_job_for_view(
+        self, job_id: str, severity="error", **kwargs
+    ):
         """
         groups validation messages based on harvest record id. aggregates the error
         messages into a comma-separated string. for all other fields, the 1st row in
@@ -437,20 +439,23 @@ class HarvesterDBInterface:
         This path is used by the harvest job detail page. Keep the expensive grouping
         work on harvest_record_error, page those grouped results, then join
         harvest_record only for the displayed rows.
+
+        severity defaults to "error" to preserve existing behavior; pass
+        severity=None to include all issues (errors and warnings). Severity is
+        filtered but not surfaced in the returned rows.
         """
         error_types = ["ValidationException", "ValidationError"]
-        base = (
-            self.db.query(
-                HarvestRecordError.harvest_record_id.label("harvest_record_id"),
-                HarvestRecordError.harvest_job_id.label("harvest_job_id"),
-                HarvestRecordError.date_created.label("date_created"),
-                HarvestRecordError.type.label("type"),
-                HarvestRecordError.message.label("message"),
-                HarvestRecordError.id.label("id"),
-            )
-            .filter(HarvestRecordError.harvest_job_id == job_id)
-            .subquery()
-        )
+        base = self.db.query(
+            HarvestRecordError.harvest_record_id.label("harvest_record_id"),
+            HarvestRecordError.harvest_job_id.label("harvest_job_id"),
+            HarvestRecordError.date_created.label("date_created"),
+            HarvestRecordError.type.label("type"),
+            HarvestRecordError.message.label("message"),
+            HarvestRecordError.id.label("id"),
+        ).filter(HarvestRecordError.harvest_job_id == job_id)
+        if severity is not None:
+            base = base.filter(HarvestRecordError.severity == severity)
+        base = base.subquery()
 
         # aggregate the validation messages by harvest_record_id using 1st row for
         # all other fields. sql indexing starts at 1
@@ -529,7 +534,8 @@ class HarvesterDBInterface:
 
         severity filters the returned rows. It defaults to "error" to preserve
         existing behavior; pass severity=None to return all issues (errors and
-        warnings). Note: severity filtering does not apply to the for_view path.
+        warnings). The for_view path filters by severity too, but does not
+        surface it in the returned rows.
 
         Returns:
             Query: A SQLAlchemy Query object that, when executed, yields tuples of:
@@ -550,7 +556,9 @@ class HarvesterDBInterface:
 
         for_view = kwargs.get("for_view", False)
         if for_view:
-            return self.get_harvest_record_errors_by_job_for_view(job_id, **kwargs)
+            return self.get_harvest_record_errors_by_job_for_view(
+                job_id, severity=severity, **kwargs
+            )
 
         return query
 

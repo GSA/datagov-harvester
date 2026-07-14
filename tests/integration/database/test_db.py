@@ -542,6 +542,17 @@ class TestDatabase:
         assert {e.severity for e in interface.pget_harvest_record_errors(
             severity=None, paginate=False)} == {"error", "warning"}
 
+        # for_view: filters by severity (severity is not surfaced in the rows).
+        # default returns only the error row; None returns both.
+        view_errors = interface.get_harvest_record_errors_by_job(
+            job.id, for_view=True, per_page=999
+        )
+        assert len(view_errors) == 1
+        view_all = interface.get_harvest_record_errors_by_job(
+            job.id, severity=None, for_view=True, per_page=999
+        )
+        assert len(view_all) == 2
+
     def test_get_harvest_record_issues(
         self,
         interface,
