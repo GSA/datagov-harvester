@@ -4,9 +4,14 @@ Warnings are semantic / content-quality signals that sit *above* schema
 validation: they do not fail a record, they flag likely data-quality issues or
 incomplete v1.1 -> v3 migrations. Each rule is a small pure function that takes
 the offending value (and any sibling value a cross-field rule needs) and returns
-a templated message, or None when the value is fine. The entry point
+a `DcatWarning`, or None when the value is fine. The entry point
 `detect_dcat_warnings` walks a dataset record, dispatches each typed object to
-its class rules, and returns a flat list of message strings.
+its class rules, and returns a flat list of `DcatWarning` tuples.
+
+Each warning carries a stable `warning_type` slug alongside its human-readable
+message so the storage-wiring story can populate `harvest_record_error.type`
+without parsing message text (mirroring how harvest errors are typed by
+exception class name in `harvester/harvest.py`).
 
 Rules follow the agreed spec: GSA/data.gov#6093 (comment 4799323747).
 """
@@ -14,11 +19,19 @@ Rules follow the agreed spec: GSA/data.gov#6093 (comment 4799323747).
 import re
 from collections import Counter
 from datetime import date, datetime
-from typing import Optional
+from typing import NamedTuple, Optional
 
 from jsonschema import FormatChecker
 
 from harvester.utils.general_utils import is_number, translate_spatial
+
+
+class DcatWarning(NamedTuple):
+    """A detected content-quality warning: a stable type slug + a message."""
+
+    warning_type: str
+    message: str
+
 
 _IRI_FORMAT_CHECKER = FormatChecker()
 
@@ -27,6 +40,20 @@ _IRI_FORMAT_CHECKER = FormatChecker()
 _XSD_DURATION_RE = re.compile(
     r"^-?P(?!$)(\d+Y)?(\d+M)?(\d+W)?(\d+D)?(T(?!$)(\d+H)?(\d+M)?(\d+(\.\d+)?S)?)?$"
 )
+
+# spatialResolutionInMeters: digits with an optional decimal point. A leading
+# sign is allowed through so negative values still reach the "> zero" check
+# rather than being reported as non-numeric; unlike is_number this rejects
+# float-parseable non-numbers such as "1e3", "inf", and "nan".
+_DECIMAL_RE = re.compile(r"^-?\d+(\.\d+)?$")
+
+# Message tails for the shared temporalResolution check. The spec words the
+# Dataset case as ISO 8601 and the Distribution/DataService case as xsd:duration
+# even though they share the same grammar.
+_ISO_8601_DURATION_MSG = (
+    'does not appear to be a valid ISO 8601 duration (e.g., "P1Y", "P6M", "P1D").'
+)
+_XSD_DURATION_MSG = "does not appear to be a valid xsd:duration."
 
 # Legacy DCAT-US 1.1 accessLevel terms that should have been migrated to a v3
 # accessRights value.
@@ -73,11 +100,11 @@ def _date_later_than(value, other) -> bool:
     return parsed_value > parsed_other
 
 
-def _warn_iri(field: str, value) -> Optional[str]:
+def _warn_iri(field: str, value) -> Optional[DcatWarning]:
     """Warn if a single field value is not a valid IRI."""
     if value is None or _is_valid_iri(value):
         return None
-    return f'`{field}` value "{value}" is not a valid IRI.'
+    return DcatWarning("invalid_iri", f'`{field}` value "{value}" is not a valid IRI.')
 
 
 def _warn_iris(field: str, values) -> list:
@@ -91,7 +118,11 @@ def _warn_iris(field: str, values) -> list:
     warnings = []
     for value in values:
         if isinstance(value, str) and not _is_valid_iri(value):
-            warnings.append(f'`{field}` value "{value}" is not a valid IRI.')
+            warnings.append(
+                DcatWarning(
+                    "invalid_iri", f'`{field}` value "{value}" is not a valid IRI.'
+                )
+            )
     return warnings
 
 
@@ -101,60 +132,65 @@ def _warn_duplicate_keywords(keywords) -> list:
         return []
     counts = Counter(k for k in keywords if isinstance(k, str))
     return [
-        f'Duplicate keyword detected: "{value}". Keywords should be unique.'
+        DcatWarning(
+            "duplicate_keyword",
+            f'Duplicate keyword detected: "{value}". Keywords should be unique.',
+        )
         for value, count in counts.items()
         if count > 1
     ]
 
 
-def _warn_spatial_resolution(value) -> Optional[str]:
+def _warn_spatial_resolution(value) -> Optional[DcatWarning]:
     """Warn if spatialResolutionInMeters is non-numeric or not greater than zero."""
     if value is None:
         return None
-    if not is_number(value):
-        return (
+    if not _DECIMAL_RE.match(str(value)):
+        return DcatWarning(
+            "invalid_spatial_resolution",
             f'`spatialResolutionInMeters` value "{value}" '
-            "does not appear to be a valid number."
+            "does not appear to be a valid number.",
         )
     if float(value) <= 0:
-        return f'`spatialResolutionInMeters` value "{value}" must be greater than zero.'
+        return DcatWarning(
+            "invalid_spatial_resolution",
+            f'`spatialResolutionInMeters` value "{value}" must be greater than zero.',
+        )
     return None
 
 
-def _warn_iso8601_duration(value) -> Optional[str]:
-    """Warn if a Dataset temporalResolution is not an ISO 8601 duration."""
+def _warn_temporal_resolution(value, invalid_msg: str) -> Optional[DcatWarning]:
+    """Warn if temporalResolution is not a valid duration.
+
+    `invalid_msg` supplies the class-specific message tail (ISO 8601 for Dataset,
+    xsd:duration for Distribution/DataService); the grammar checked is identical.
+    """
     if value is None or (isinstance(value, str) and _XSD_DURATION_RE.match(value)):
         return None
-    return (
-        f'`temporalResolution` value "{value}" does not appear to be a valid '
-        'ISO 8601 duration (e.g., "P1Y", "P6M", "P1D").'
+    return DcatWarning(
+        "invalid_temporal_resolution",
+        f'`temporalResolution` value "{value}" {invalid_msg}',
     )
 
 
-def _warn_xsd_duration(value) -> Optional[str]:
-    """Warn if a Distribution/DataService temporalResolution is not xsd:duration."""
-    if value is None or (isinstance(value, str) and _XSD_DURATION_RE.match(value)):
-        return None
-    return (
-        f'`temporalResolution` value "{value}" '
-        "does not appear to be a valid xsd:duration."
-    )
-
-
-def _warn_byte_size(value) -> Optional[str]:
+def _warn_byte_size(value) -> Optional[DcatWarning]:
     """Warn if byteSize does not parse to a number."""
     if value is None or is_number(value):
         return None
-    return f'`byteSize` value "{value}" does not appear to be a valid number.'
+    return DcatWarning(
+        "invalid_byte_size",
+        f'`byteSize` value "{value}" does not appear to be a valid number.',
+    )
 
 
-def _warn_legacy_access_rights(value) -> Optional[str]:
+def _warn_legacy_access_rights(value) -> Optional[DcatWarning]:
     """Warn if accessRights is a legacy v1.1 accessLevel term."""
     if isinstance(value, str) and value.strip().lower() in _LEGACY_ACCESS_LEVEL_TERMS:
-        return (
+        return DcatWarning(
+            "legacy_access_rights",
             f'`accessRights` value "{value}" appears to be a legacy DCAT-US 1.1 '
             "`accessLevel` term. Migrate to an appropriate DCAT-US 3 access "
-            "rights value."
+            "rights value.",
         )
     return None
 
@@ -165,39 +201,45 @@ def _warn_created_after(created, modified, issued) -> list:
     for other_field, other_value in (("modified", modified), ("issued", issued)):
         if other_value is not None and _date_later_than(created, other_value):
             warnings.append(
-                f'`created` value "{created}" is later than `{other_field}` value '
-                f'"{other_value}". A dataset cannot be created after it was '
-                "modified or issued."
+                DcatWarning(
+                    "date_out_of_order",
+                    f'`created` value "{created}" is later than `{other_field}` '
+                    f'value "{other_value}". A dataset cannot be created after it '
+                    "was modified or issued.",
+                )
             )
     return warnings
 
 
-def _warn_issued_after_modified(issued, modified) -> Optional[str]:
+def _warn_issued_after_modified(issued, modified) -> Optional[DcatWarning]:
     """Warn if issued is later than modified, where modified is present."""
     if modified is not None and _date_later_than(issued, modified):
-        return (
+        return DcatWarning(
+            "date_out_of_order",
             f'`issued` value "{issued}" is later than `modified` value '
-            f'"{modified}". A dataset cannot be issued after it was last modified.'
+            f'"{modified}". A dataset cannot be issued after it was last modified.',
         )
     return None
 
 
-def _warn_period_start_after_end(start, end) -> Optional[str]:
+def _warn_period_start_after_end(start, end) -> Optional[DcatWarning]:
     """Warn if a PeriodOfTime startDate is later than its endDate."""
     if start is not None and end is not None and _date_later_than(start, end):
-        return (
+        return DcatWarning(
+            "date_out_of_order",
             f'`startDate` value "{start}" is later than `endDate` value "{end}". '
-            "The start of a time period cannot be after its end."
+            "The start of a time period cannot be after its end.",
         )
     return None
 
 
-def _warn_tel_has_letters(value) -> Optional[str]:
+def _warn_tel_has_letters(value) -> Optional[DcatWarning]:
     """Warn if a tel value contains letters."""
     if isinstance(value, str) and re.search(r"[A-Za-z]", value):
-        return (
+        return DcatWarning(
+            "invalid_tel",
             f'`tel` value "{value}" contains letters and may not be a valid '
-            "telephone number."
+            "telephone number.",
         )
     return None
 
@@ -209,40 +251,45 @@ def _warn_expected_data_type(value) -> list:
     for entry in values:
         if isinstance(entry, str) and not entry.startswith("xsd:"):
             warnings.append(
-                f'`expectedDataType` value "{entry}" does not appear to be a valid '
-                'XSD type. Expected format begins with "xsd:" (e.g., "xsd:string", '
-                '"xsd:decimal").'
+                DcatWarning(
+                    "invalid_expected_data_type",
+                    f'`expectedDataType` value "{entry}" does not appear to be a '
+                    'valid XSD type. Expected format begins with "xsd:" (e.g., '
+                    '"xsd:string", "xsd:decimal").',
+                )
             )
     return warnings
 
 
-def _warn_spatial_unresolved(field: str, value) -> Optional[str]:
+def _warn_spatial_unresolved(field: str, value) -> Optional[DcatWarning]:
     """Warn if a spatial value cannot be resolved to a geographic area."""
     if value is None:
         return None
     if translate_spatial(value):
         return None
-    return (
+    return DcatWarning(
+        "unresolvable_spatial_value",
         f'spatial value "{value}" could not be resolved to a recognized '
-        "geographic area."
+        "geographic area.",
     )
 
 
-def _warn_us_postal_code(postal_code, country_name) -> Optional[str]:
+def _warn_us_postal_code(postal_code, country_name) -> Optional[DcatWarning]:
     """Warn if a US address postal code contains letters."""
     is_us = (
         isinstance(country_name, str)
         and country_name.strip().lower() in _US_COUNTRY_NAMES
     )
     if is_us and isinstance(postal_code, str) and re.search(r"[A-Za-z]", postal_code):
-        return (
+        return DcatWarning(
+            "invalid_postal_code",
             f'Postal code "{postal_code}" contains letters, which is not valid '
-            "for a US address."
+            "for a US address.",
         )
     return None
 
 
-def _warn_empty_address(address: dict) -> Optional[str]:
+def _warn_empty_address(address: dict) -> Optional[DcatWarning]:
     """Warn if an Address object has no populated fields."""
     fields = (
         "street-address",
@@ -252,22 +299,23 @@ def _warn_empty_address(address: dict) -> Optional[str]:
         "country-name",
     )
     if all(not (address.get(field) or "") for field in fields):
-        return "Address object has no populated fields."
+        return DcatWarning("empty_address", "Address object has no populated fields.")
     return None
 
 
-def _warn_cui_banner_marking(value) -> Optional[str]:
+def _warn_cui_banner_marking(value) -> Optional[DcatWarning]:
     """Warn if a CUI banner marking does not follow the expected format."""
     if isinstance(value, str) and not value.startswith("CUI//"):
-        return (
+        return DcatWarning(
+            "invalid_cui_banner_marking",
             f'`cuiBannerMarking` value "{value}" does not appear to follow the CUI '
-            'banner marking format. Expected format begins with "CUI//".'
+            'banner marking format. Expected format begins with "CUI//".',
         )
     return None
 
 
 def _append(warnings: list, result) -> None:
-    """Append a single optional message or extend with a list of messages."""
+    """Append a single optional warning or extend with a list of warnings."""
     if result is None:
         return
     if isinstance(result, list):
@@ -280,7 +328,12 @@ def _dataset_warnings(obj: dict) -> list:
     warnings = []
     _append(warnings, _warn_duplicate_keywords(obj.get("keyword")))
     _append(warnings, _warn_spatial_resolution(obj.get("spatialResolutionInMeters")))
-    _append(warnings, _warn_iso8601_duration(obj.get("temporalResolution")))
+    _append(
+        warnings,
+        _warn_temporal_resolution(
+            obj.get("temporalResolution"), _ISO_8601_DURATION_MSG
+        ),
+    )
     _append(warnings, _warn_legacy_access_rights(obj.get("accessRights")))
     _append(
         warnings,
@@ -301,7 +354,10 @@ def _distribution_warnings(obj: dict) -> list:
     warnings = []
     _append(warnings, _warn_byte_size(obj.get("byteSize")))
     _append(warnings, _warn_spatial_resolution(obj.get("spatialResolutionInMeters")))
-    _append(warnings, _warn_xsd_duration(obj.get("temporalResolution")))
+    _append(
+        warnings,
+        _warn_temporal_resolution(obj.get("temporalResolution"), _XSD_DURATION_MSG),
+    )
     _append(warnings, _warn_iris("conformsTo", obj.get("conformsTo")))
     return warnings
 
@@ -309,7 +365,10 @@ def _distribution_warnings(obj: dict) -> list:
 def _dataservice_warnings(obj: dict) -> list:
     warnings = []
     _append(warnings, _warn_spatial_resolution(obj.get("spatialResolutionInMeters")))
-    _append(warnings, _warn_xsd_duration(obj.get("temporalResolution")))
+    _append(
+        warnings,
+        _warn_temporal_resolution(obj.get("temporalResolution"), _XSD_DURATION_MSG),
+    )
     _append(warnings, _warn_iris("conformsTo", obj.get("conformsTo")))
     return warnings
 
@@ -389,7 +448,7 @@ def detect_dcat_warnings(data: dict) -> list:
 
     Walks the record, runs the universal `@id` IRI check on every object, and
     dispatches each typed object to its class rules. Returns a flat list of
-    warning message strings (empty when the record is clean).
+    `DcatWarning` tuples (empty when the record is clean).
     """
     warnings = []
     for obj in _walk_objects(data):
