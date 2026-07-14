@@ -509,7 +509,9 @@ class HarvesterDBInterface:
 
     @count
     @paginate
-    def get_harvest_record_errors_by_job(self, job_id: str, **kwargs):
+    def get_harvest_record_errors_by_job(
+        self, job_id: str, severity="error", **kwargs
+    ):
         """
         Retrieves harvest record errors for a given job.
 
@@ -525,6 +527,10 @@ class HarvesterDBInterface:
             - identifier (retrieved from HarvestRecord, can be None)
             - source_raw (retrieved from HarvestRecord, containing 'title', can be None)
 
+        severity filters the returned rows. It defaults to "error" to preserve
+        existing behavior; pass severity=None to return all issues (errors and
+        warnings). Note: severity filtering does not apply to the for_view path.
+
         Returns:
             Query: A SQLAlchemy Query object that, when executed, yields tuples of:
                 (HarvestRecordError, identifier, source_raw).
@@ -538,6 +544,9 @@ class HarvesterDBInterface:
             )
             .filter(HarvestRecordError.harvest_job_id == job_id)
         )
+
+        if severity is not None:
+            query = query.filter(HarvestRecordError.severity == severity)
 
         for_view = kwargs.get("for_view", False)
         if for_view:
@@ -581,10 +590,17 @@ class HarvesterDBInterface:
         else:
             return None
 
-    def get_harvest_record_errors_by_record(self, record_id: str):
+    def get_harvest_record_errors_by_record(self, record_id: str, severity="error"):
+        """Retrieve harvest record errors for a given record.
+
+        severity defaults to "error" to preserve existing behavior; pass
+        severity=None to return all issues (errors and warnings).
+        """
         errors = self.db.query(HarvestRecordError).filter_by(
             harvest_record_id=record_id
         )
+        if severity is not None:
+            errors = errors.filter_by(severity=severity)
         return [err for err in errors or []]
 
     def get_record_errors_summary_by_job(self, job_id: str):
@@ -1113,7 +1129,17 @@ class HarvesterDBInterface:
             model="harvest_job_errors", facets=facets, order_by=order_by, **kwargs
         )
 
-    def pget_harvest_record_errors(self, facets="", order_by="asc", **kwargs):
+    def pget_harvest_record_errors(
+        self, facets="", order_by="asc", severity="error", **kwargs
+    ):
+        """Paged harvest record errors.
+
+        severity defaults to "error" to preserve existing behavior; pass
+        severity=None to return all issues (errors and warnings).
+        """
+        if severity is not None:
+            severity_facet = f"severity eq {severity}"
+            facets = f"{facets},{severity_facet}" if facets else severity_facet
         return self.pget_db_query(
             model="harvest_record_errors", facets=facets, order_by=order_by, **kwargs
         )

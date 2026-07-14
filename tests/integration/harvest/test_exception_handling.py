@@ -175,7 +175,8 @@ class TestHarvestRecordExceptionHandling:
             severity="warning",
         )
 
-        errors = interface.get_harvest_record_errors_by_record(record.id)
+        # severity=None so both the error and the warning are returned
+        errors = interface.get_harvest_record_errors_by_record(record.id, severity=None)
         severities = {err.message: err.severity for err in errors}
         assert severities["an error"] == "error"
         assert severities["a warning"] == "warning"
