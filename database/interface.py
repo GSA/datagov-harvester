@@ -554,6 +554,15 @@ class HarvesterDBInterface:
 
         return query
 
+    def get_harvest_record_issues(self, job_id: str, **kwargs):
+        """Retrieve all harvest record issues (errors and warnings) for a job.
+
+        This is a convenience wrapper over get_harvest_record_errors_by_job with
+        severity=None. It returns the same tuple shape and honors the same
+        count/pagination kwargs.
+        """
+        return self.get_harvest_record_errors_by_job(job_id, severity=None, **kwargs)
+
     def stream_harvest_record_errors_by_job(self, job_id: str, batch_size=1000):
         """
         Stream record errors for CSV export without OFFSET pagination.

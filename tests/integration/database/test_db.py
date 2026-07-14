@@ -542,6 +542,44 @@ class TestDatabase:
         assert {e.severity for e in interface.pget_harvest_record_errors(
             severity=None, paginate=False)} == {"error", "warning"}
 
+    def test_get_harvest_record_issues(
+        self,
+        interface,
+        organization_data,
+        source_data_dcatus,
+        job_data_dcatus,
+        record_data_dcatus,
+    ):
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_dcatus)
+        job = interface.add_harvest_job(job_data_dcatus)
+        record = interface.add_harvest_record(record_data_dcatus[2])
+
+        interface.add_harvest_record_error(
+            {
+                "message": "an error",
+                "type": "TestException",
+                "harvest_job_id": job.id,
+                "harvest_record_id": record.id,
+                "severity": "error",
+            }
+        )
+        interface.add_harvest_record_error(
+            {
+                "message": "a warning",
+                "type": "TestException",
+                "harvest_job_id": job.id,
+                "harvest_record_id": record.id,
+                "severity": "warning",
+            }
+        )
+
+        # returns both errors and warnings
+        issues = interface.get_harvest_record_issues(job.id, per_page=999)
+        assert {i[0].severity for i in issues} == {"error", "warning"}
+        # honors the count kwarg
+        assert interface.get_harvest_record_issues(job.id, count=True) == 2
+
     def test_record_errors_summary_by_job(
         self,
         interface_with_multiple_sources,
