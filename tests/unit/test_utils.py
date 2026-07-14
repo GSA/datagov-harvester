@@ -203,6 +203,22 @@ class TestCKANUtils:
             "coordinates": [-88.9718, 36.52033],
         }
 
+    def test_translate_spatial_to_geojson_does_not_log_translated_value(self, caplog):
+        translated_value = "invalid spatial payload with private-token"
+
+        with (
+            patch(
+                "harvester.utils.general_utils.translate_spatial",
+                return_value=translated_value,
+            ),
+            caplog.at_level(logging.WARNING),
+        ):
+            geojson = translate_spatial_to_geojson("source spatial")
+
+        assert geojson is None
+        assert translated_value not in caplog.text
+        assert "Unable to decode translated spatial value as JSON" in caplog.text
+
 
 # Point example
 # "{\"type\": \"Point\", \"coordinates\": [-87.08258, 24.9579]}"
