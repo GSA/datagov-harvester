@@ -10,6 +10,7 @@ from botocore.credentials import Credentials
 from opensearchpy import AWSV4SignerAuth, OpenSearch, RequestsHttpConnection, helpers
 from opensearchpy.exceptions import ConnectionTimeout
 
+from database.models import Dataset
 from harvester.opensearch_transform import DcatIndexTransformer
 
 logger = logging.getLogger(__name__)
@@ -345,27 +346,26 @@ class OpenSearchInterface:
         count = len(points)
         return {"lat": lat_total / count, "lon": lon_total / count}
 
-    def dataset_to_document(self, dataset):
-        """Map a dataset into a document for indexing.
+    def dataset_to_document(self, dataset: Dataset) -> dict:
+        """Map a Dataset ORM row into an OpenSearch index document.
 
-        DCAT-derived search fields are produced by ``DCAT_INDEX_TRANSFORMER``
-        so DCAT-US 1.1 and 3.0 share the existing OpenSearch field shapes.
+        Top-level search fields come from ``DCAT_INDEX_TRANSFORMER``
+        (``index_fields``); nested ``dcat`` keeps original DCAT shapes
+        (``nested_dcat``), with only date/metadata normalization applied.
         """
-        indexed = self.DCAT_INDEX_TRANSFORMER.transform(dataset.dcat)
+        # Flat top-level search fields; nested_dcat keeps original DCAT shapes.
+        index_fields = self.DCAT_INDEX_TRANSFORMER.transform(dataset.dcat)
 
         spatial_value = dataset.dcat.get("spatial")
         has_spatial_theme = any(
-            label.strip().lower() == "geospatial" for label in indexed["theme"]
+            label.strip().lower() == "geospatial" for label in index_fields["theme"]
         )
         has_spatial = (
             bool(spatial_value and str(spatial_value).strip())
             or dataset.translated_spatial is not None
             or has_spatial_theme
         )
-        normalized_dcat = self._normalize_dcat_dates(dataset.dcat)
-        # Keep nested dcat theme/identifier compatible with text/keyword shapes.
-        normalized_dcat["theme"] = indexed["theme"]
-        normalized_dcat["identifier"] = indexed["identifier"]
+        nested_dcat = self._normalize_dcat_dates(dataset.dcat)
         spatial_centroid = self._geometry_centroid(dataset.translated_spatial)
         last_harvested = (
             dataset.last_harvested_date.isoformat()
@@ -379,18 +379,18 @@ class OpenSearchInterface:
         document = {
             "_index": self.INDEX_NAME,
             "_id": dataset.id,
-            "title": indexed["title"],
+            "title": index_fields["title"],
             "slug": dataset.slug,
             "last_harvested_date": last_harvested,
-            "description": indexed["description"],
-            "publisher": indexed["publisher"],
-            "dcat": normalized_dcat,
-            "keyword": indexed["keyword"],
-            "theme": indexed["theme"],
-            "identifier": indexed["identifier"],
+            "description": index_fields["description"],
+            "publisher": index_fields["publisher"],
+            "dcat": nested_dcat,
+            "keyword": index_fields["keyword"],
+            "theme": index_fields["theme"],
+            "identifier": index_fields["identifier"],
             "has_spatial": has_spatial,
             "organization": organization,
-            "distribution_titles": indexed["distribution_titles"],
+            "distribution_titles": index_fields["distribution_titles"],
             "popularity": popularity,
             "spatial_shape": dataset.translated_spatial,
             "spatial_centroid": spatial_centroid,

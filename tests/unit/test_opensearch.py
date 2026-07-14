@@ -341,8 +341,9 @@ def test_dataset_to_document_flattens_dcat3_theme_and_identifier(sample_dataset)
 
     assert document["theme"] == ["Climate Science", "weather"]
     assert document["identifier"] == "https://example.gov/identifiers/dataset-1"
-    assert document["dcat"]["theme"] == ["Climate Science", "weather"]
-    assert document["dcat"]["identifier"] == "https://example.gov/identifiers/dataset-1"
+    # Nested dcat keeps original DCAT shapes; only top-level fields are flattened.
+    assert document["dcat"]["theme"] == sample_dataset.dcat["theme"]
+    assert document["dcat"]["identifier"] == sample_dataset.dcat["identifier"]
     # inSeries is not aliased onto isPartOf.
     assert document["dcat"]["isPartOf"] == "collection-1"
 
