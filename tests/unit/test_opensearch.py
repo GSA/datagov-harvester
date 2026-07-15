@@ -276,6 +276,9 @@ def test_dataset_to_document_has_translated_spatial(sample_dataset):
         ["GEOSPATIAL"],
         ["Health", " geospatial "],
         "Geospatial",
+        [{"prefLabel": "geospatial"}],
+        [{"@type": "Concept", "prefLabel": "Geospatial"}],
+        ["Health", {"prefLabel": " geospatial "}],
     ],
 )
 def test_dataset_to_document_has_spatial_theme(sample_dataset, theme):
@@ -291,7 +294,15 @@ def test_dataset_to_document_has_spatial_theme(sample_dataset, theme):
 
 @pytest.mark.parametrize(
     "theme",
-    [None, [], ["Health"], "Environment", "Spatial"],
+    [
+        None,
+        [],
+        ["Health"],
+        "Environment",
+        "Spatial",
+        [{"prefLabel": "Environment"}],
+        [{"@type": "Concept", "prefLabel": "Health"}],
+    ],
 )
 def test_dataset_to_document_without_spatial_data_or_theme(sample_dataset, theme):
     iface = OpenSearchInterface.__new__(OpenSearchInterface)
@@ -302,6 +313,39 @@ def test_dataset_to_document_without_spatial_data_or_theme(sample_dataset, theme
     document = iface.dataset_to_document(sample_dataset)
 
     assert document["has_spatial"] is False
+
+
+def test_dataset_to_document_flattens_dcat3_theme_and_identifier(sample_dataset):
+    iface = OpenSearchInterface.__new__(OpenSearchInterface)
+    sample_dataset.dcat["theme"] = [
+        {
+            "@id": "https://example.gov/concepts/climate-science",
+            "@type": "Concept",
+            "prefLabel": "Climate Science",
+        },
+        "weather",
+    ]
+    sample_dataset.dcat["identifier"] = {
+        "@type": "Identifier",
+        "@id": "https://example.gov/identifiers/dataset-1",
+    }
+    sample_dataset.dcat["inSeries"] = [
+        {
+            "@id": "https://example.gov/series/annual",
+            "@type": "DatasetSeries",
+            "title": "Annual Series",
+        }
+    ]
+
+    document = iface.dataset_to_document(sample_dataset)
+
+    assert document["theme"] == ["Climate Science", "weather"]
+    assert document["identifier"] == "https://example.gov/identifiers/dataset-1"
+    # Nested dcat keeps original DCAT shapes; only top-level fields are flattened.
+    assert document["dcat"]["theme"] == sample_dataset.dcat["theme"]
+    assert document["dcat"]["identifier"] == sample_dataset.dcat["identifier"]
+    # inSeries is not aliased onto isPartOf.
+    assert document["dcat"]["isPartOf"] == "collection-1"
 
 
 def test_dataset_to_document_omits_transformed_url_without_payload(sample_dataset):
@@ -337,6 +381,11 @@ def test_mappings_include_catalog_compatible_fields():
     ]
 
     assert mappings["dcat"]["properties"]["isPartOf"] == {"type": "keyword"}
+    assert mappings["theme"] == {
+        "type": "text",
+        "analyzer": OpenSearchInterface.TEXT_ANALYZER,
+        "search_analyzer": OpenSearchInterface.TEXT_ANALYZER,
+    }
     assert mappings["distribution_titles"]["type"] == "text"
     assert mappings["publisher"]["fields"]["raw"] == {"type": "keyword"}
     assert mappings["publisher"]["fields"]["normalized"] == {
