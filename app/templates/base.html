@@ -104,7 +104,7 @@
                 </div>
               </div>
               {% else %}
-              <a class="harvester-nav__utility-link" href="{{ url_for('main.login') }}">Login</a>
+              <a class="harvester-nav__utility-link" href="{{ url_for('main.login', next=request.full_path) }}">Login</a>
               {% endif %}
             </div>
           </li>
