@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
-# Refresh the running dev app after editing templates/SCSS, then screenshot.
+# Refresh the running dev app after editing SCSS (or to force a Python reload),
+# then optionally screenshot.
 #
-# The container runs `flask run --reload`, which only watches .py files and
-# Jinja caches templates — so an HTML edit becomes visible only after a watched
-# .py file changes, and SCSS must be recompiled with gulp. This bundles both.
+# Template edits hot-reload via FLASK_DEBUG + TEMPLATES_AUTO_RELOAD (see
+# docker-compose.yml). SCSS must still be recompiled with gulp — run
+# `make watch-static` in another terminal for continuous rebuilds.
 #
 # Usage:
 #   scripts/ui_refresh.sh [--scss] [--out DIR] [label path ...]

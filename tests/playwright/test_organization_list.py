@@ -19,26 +19,13 @@ class TestOrganizationListUnauthed:
         expect(upage).to_have_title("Organization List")
 
     def test_can_see_org_list(self, upage):
-        # at least one card exists
-        expect(upage.locator("ul.usa-card-group li.usa-card")).not_to_have_count(0)
+        # at least one row exists
+        expect(upage.locator("table.usa-table tbody tr")).not_to_have_count(0)
         expect(
-            upage.locator(
-                "ul.usa-card-group li.usa-card .usa-card__heading"
-            ).get_by_text("Test Org")
+            upage.locator("table.usa-table tbody tr th[scope='row']").get_by_text(
+                "Test Org"
+            )
         ).not_to_have_count(0)
-
-    def test_mobile_cards_stack_vertically(self, upage):
-        upage.set_viewport_size({"width": 375, "height": 667})
-
-        cards = upage.locator("ul.usa-card-group li.usa-card")
-        expect(cards).not_to_have_count(0)
-        expect(cards.nth(1)).to_be_visible()
-
-        first_box = cards.nth(0).bounding_box()
-        second_box = cards.nth(1).bounding_box()
-        assert first_box is not None
-        assert second_box is not None
-        assert second_box["y"] > first_box["y"] + first_box["height"]
 
     def test_cant_add_org(self, upage):
         expect(upage.locator("text=Add Organization")).to_have_count(0)

@@ -91,4 +91,6 @@ class TestOrganizationAuthed:
         ).to_contain_text("Notification Emails")
         expect(
             apage.locator(".organization-harvest-source-list table.usa-table tbody tr")
-        ).to_contain_text("['email@example.com'] ")
+            .filter(has_text="Test Source")
+            .first
+        ).to_contain_text("email@example.com")

@@ -5,83 +5,69 @@
 {% endblock %}
 
 {% block content %}
-<h1>Organization List</h1>
-<div class="bg-base-lighter padding-2 radius-md">
-  <h2 class="font-lang-lg margin-y-0">Find an Organization</h2>
-  <div role="search" aria-label="Filter organizations" class="margin-top-1">
-    <label class="usa-label margin-top-0" for="icon-filter">Filter by name and keyword</label>
-    <div class="usa-input-group maxw-mobile-lg bg-white">
-      <div class="usa-input-prefix" aria-hidden="true">
-        <svg class="usa-icon" aria-hidden="true" focusable="false" role="img">
-          <use href="/assets/uswds/img/sprite.svg#search"></use>
-        </svg>
-      </div>
-      <input class="usa-input usa-input--bare" id="icon-filter" type="text" data-noun="organization">
-    </div>
-    <p class="text-base-dark margin-top-1 margin-bottom-0" aria-live="polite"><span id="component-count">
-      <strong>{{ data.organizations | length }}</strong>
-      {{ 'organization' if data.organizations | length == 1 else 'organizations' }} found</span></p>
-  </div>
+<div class="display-flex flex-align-center flex-wrap margin-bottom-3">
+  <h1 class="margin-y-0">Organization List</h1>
   {% if session['user'] %}
-  <div class="add-buttons-div margin-top-3">
-    <ul class="usa-list usa-list--unstyled">
-      <li><a href="{{ url_for('main.add_organization') }}" class="usa-button">
-          Add Organization</a></li>
-    </ul>
-  </div>
+  <a href="{{ url_for('main.add_organization') }}" class="usa-button list-page-add__button margin-left-auto">
+    {{ 'add' | usa_icon | safe }}
+    Add Organization
+  </a>
   {% endif %}
 </div>
 
-<ul class="usa-card-group margin-top-3">
-  {% for org in data.organizations %}
-  <li class="usa-card site-component-card grid-col-12 tablet:grid-col-6 desktop:grid-col-4" data-meta="{{org.name}}">
-    <div class="usa-card__container">
-      <div class="usa-card__header">
-        <h3 class="usa-card__heading">{{org.name}}</h3>
-      </div>
-      <div class="usa-card__media usa-card__media--inset">
-        <div class="usa-card__img org-card__img bg-white">
-          {% if org.logo %}
-          <img src="{{org.logo}}" alt="{{org.name}} logo" />
-          {% else %}
-          <div class="org-card__img-placeholder" aria-hidden="true">
-            <svg class="usa-icon" aria-hidden="true" focusable="false" role="img">
-              <use href="/assets/uswds/img/sprite.svg#account_balance"></use>
-            </svg>
-          </div>
-          {% endif %}
-        </div>
-      </div>
-      <div class="usa-card__body">
-        <dl class="org-card__meta margin-0">
-          <dt class="text-bold">Organization type</dt>
-          <dd>
-            {% if org.organization_type %}
-            {{ org.organization_type }}
-            {% else %}
-            <span class="org-card__empty">Not provided</span>
-            {% endif %}
-          </dd>
-          <dt class="text-bold">Harvest sources</dt>
-          <dd>{{ org.source_count }}</dd>
-          <dt class="text-bold">Description</dt>
-          <dd class="org-card__description">
-            {% if org.description %}
-            {{ org.description }}
-            {% else %}
-            <span class="org-card__empty">Not provided</span>
-            {% endif %}
-          </dd>
-        </dl>
-      </div>
-      <div class="usa-card__footer">
-        <a href="{{ url_for('main.view_organization', org_identifier=org.slug or org.id) }}"
-          class="usa-button usa-button--outline">Details</a>
-      </div>
-    </div>
-  </li>
-  {% endfor %}
-</ul>
+<div class="list-page-toolbar margin-bottom-3">
+  <div class="list-page-toolbar__search">
+    <label class="usa-label list-page-search__label" for="icon-filter">Search by name, slug, or alias</label>
+    <form class="usa-search list-page-search float-none width-full" role="search"
+      aria-label="Filter organizations by name, slug, or alias">
+      <input class="usa-input" id="icon-filter" type="search" data-noun="organization"
+        placeholder="Enter name, slug, or alias">
+      <button class="usa-button usa-button--outline list-page-search__submit" type="submit">
+        {{ 'search' | usa_icon | safe }}
+        <span class="usa-search__submit-text">Search</span>
+      </button>
+    </form>
+  </div>
+</div>
+
+<div class="list-page-results-header margin-bottom-1">
+  <h2 class="list-page-results-title margin-y-0">Results</h2>
+  <p class="list-page-results text-base-dark" aria-live="polite"><span id="component-count">
+    <strong>{{ data.organizations | length }}</strong>
+    {{ 'organization' if data.organizations | length == 1 else 'organizations' }} found</span></p>
+</div>
+
+<div class="usa-table-container margin-top-0" tabindex="0">
+  <table class="usa-table usa-table--striped usa-table--borderless usa-table--stacked-header list-table width-full">
+    <caption class="usa-sr-only">Organizations</caption>
+    <thead>
+      <tr>
+        <th scope="col">Name</th>
+        <th scope="col">Organization type</th>
+        <th scope="col">Harvest sources</th>
+        <th scope="col">Description</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for org in data.organizations %}
+      <tr data-meta="{{ ([org.name, org.slug] + (org.aliases or [])) | join(' ') }}">
+        <th scope="row" data-label="Name">
+          <a href="{{ url_for('main.view_organization', org_identifier=org.slug or org.id) }}">{{ org.name }}</a>
+        </th>
+        <td data-label="Organization type">
+          {% if org.organization_type %}{{ org.organization_type }}{% else %}<span
+            class="text-italic text-base">Not provided</span>{% endif %}
+        </td>
+        <td data-label="Harvest sources">{{ org.source_count }}</td>
+        <td class="org-list__description" data-label="Description">
+          {% if org.description %}<span class="org-list__description-text">{{ org.description }}</span>{% else %}<span
+            class="text-italic text-base">Not provided</span>{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
 {% endblock %}
 
 {% block scripts %}

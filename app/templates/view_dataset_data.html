@@ -34,8 +34,8 @@
                 <td class="word-break-all">{{ data.dataset.slug }}</td>
             </tr>
             <tr>
-                <td>Harvest Source:</td>
-                <td>
+                <td>Harvest source</td>
+                <td class="word-break-all">
                     <a href="{{ url_for('main.view_harvest_source', source_id=data.dataset.harvest_source_id) }}">
                         {{ data.dataset.harvest_source_id }}
                     </a>

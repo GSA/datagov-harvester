@@ -5,7 +5,17 @@ from typing import Optional
 
 from flask_sqlalchemy import SQLAlchemy
 from geoalchemy2 import Geometry
-from sqlalchemy import CheckConstraint, Column, Enum, Index, String, func, select
+from sqlalchemy import (
+    CheckConstraint,
+    Column,
+    Enum,
+    Index,
+    String,
+    UniqueConstraint,
+    func,
+    select,
+    text,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.mutable import MutableDict
 from sqlalchemy.orm import DeclarativeBase, backref, column_property
@@ -16,6 +26,7 @@ from shared.constants import (
     NOTIFICATION_FREQUENCY_VALUES,
     ORGANIZATION_TYPE_VALUES,
     SCHEMA_TYPE_VALUES,
+    SEVERITY_VALUES,
     SOURCE_TYPE_VALUES,
 )
 
@@ -41,11 +52,12 @@ class Error(db.Model):
 
 class Organization(db.Model):
     __tablename__ = "organization"
+    __table_args__ = (UniqueConstraint("slug", name="uq_organization_slug"),)
 
     name = db.Column(db.String, nullable=False, index=True)
     logo = db.Column(db.String)
     description = db.Column(db.Text)
-    slug = db.Column(db.String(100), unique=True, index=True, nullable=False)
+    slug = db.Column(db.String(100), nullable=False)
     organization_type = db.Column(
         Enum(
             *ORGANIZATION_TYPE_VALUES,
@@ -72,6 +84,7 @@ class HarvestSource(db.Model):
             " AND source_type = 'waf-collection')",
             name="wafcollectionparenturl",
         ),
+        Index("ix_harvest_source_organization_id", "organization_id"),
     )
 
     organization_id = db.Column(
@@ -195,12 +208,14 @@ class HarvestRecord(db.Model):
     errors = db.relationship("HarvestRecordError", backref="record", lazy=True)
 
     __table_args__ = (
+        Index("ix_harvest_record_harvest_job_id", "harvest_job_id"),
         Index(
-            "ix_hr_source_status_identifier_created_desc",
-            "harvest_source_id",
-            "status",
-            "identifier",
+            "ix_harvest_record_source_identifier_created_success",
+            harvest_source_id,
+            identifier,
             date_created.desc(),
+            postgresql_where=text("status = 'success'"),
+            postgresql_include=["action"],
         ),
     )
 
@@ -245,6 +260,7 @@ class Dataset(db.Model):
         db.ForeignKey("harvest_record.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
+        unique=True,
     )
 
     popularity = db.Column(db.Integer, server_default="0")
@@ -291,6 +307,8 @@ class HarvestJobError(Error):
         db.String(36), db.ForeignKey("harvest_job.id"), nullable=False
     )
 
+    __table_args__ = (Index("ix_harvest_job_error_harvest_job_id", "harvest_job_id"),)
+
 
 class HarvestRecordError(Error):
     __tablename__ = "harvest_record_error"
@@ -301,8 +319,16 @@ class HarvestRecordError(Error):
     harvest_job_id = db.Column(
         db.String(36), db.ForeignKey("harvest_job.id"), nullable=False
     )
+    severity = db.Column(
+        db.Enum(*SEVERITY_VALUES, name="error_severity"),
+        nullable=False,
+        server_default="error",
+    )
 
-    __table_args__ = (Index("ix_hre_job_id", "harvest_job_id"),)
+    __table_args__ = (
+        Index("ix_hre_job_id", "harvest_job_id"),
+        Index("ix_harvest_record_error_harvest_record_id", "harvest_record_id"),
+    )
 
 
 class HarvestUser(db.Model):

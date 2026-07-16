@@ -74,7 +74,7 @@ def edit_organization_api(org_id):
     }
 )
 def get_organization(org_identifier: str):
-    """Return the JSON representation of an organization by UUID or slug."""
+    """Return the JSON representation of an organization by UUID, slug, or alias."""
     org = _get_org_by_identifier(org_identifier)
     if org is None:
         return make_response(jsonify({"message": "Organization not found"}), 404)
