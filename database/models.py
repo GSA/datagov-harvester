@@ -26,6 +26,7 @@ from shared.constants import (
     NOTIFICATION_FREQUENCY_VALUES,
     ORGANIZATION_TYPE_VALUES,
     SCHEMA_TYPE_VALUES,
+    SEVERITY_VALUES,
     SOURCE_TYPE_VALUES,
 )
 
@@ -317,6 +318,11 @@ class HarvestRecordError(Error):
     )
     harvest_job_id = db.Column(
         db.String(36), db.ForeignKey("harvest_job.id"), nullable=False
+    )
+    severity = db.Column(
+        db.Enum(*SEVERITY_VALUES, name="error_severity"),
+        nullable=False,
+        server_default="error",
     )
 
     __table_args__ = (

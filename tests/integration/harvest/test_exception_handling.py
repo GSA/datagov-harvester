@@ -11,6 +11,7 @@ from harvester.exceptions import (
     ExtractExternalException,
     ExtractInternalException,
     SendNotificationException,
+    log_non_critical_error,
 )
 from harvester.harvest import HarvestSource
 
@@ -141,3 +142,41 @@ class TestHarvestRecordExceptionHandling:
         assert interface_record.id == interface_errors[0].harvest_record_id
         assert interface_record.status == "error"
         assert interface_errors[0].type == "ValidationError"
+        assert interface_errors[0].severity == "error"
+
+    def test_log_non_critical_error_severity(
+        self,
+        interface,
+        organization_data,
+        source_data_dcatus,
+        job_data_dcatus,
+        record_data_dcatus,
+    ):
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_dcatus)
+        harvest_job = interface.add_harvest_job(job_data_dcatus)
+        record = interface.add_harvest_record(record_data_dcatus[2])
+
+        # severity defaults to "error"
+        log_non_critical_error(
+            "an error",
+            harvest_job.id,
+            record.id,
+            "TestException",
+            emit_log=False,
+        )
+        # severity can be set to "warning"
+        log_non_critical_error(
+            "a warning",
+            harvest_job.id,
+            record.id,
+            "TestException",
+            emit_log=False,
+            severity="warning",
+        )
+
+        # severity=None so both the error and the warning are returned
+        errors = interface.get_harvest_record_errors_by_record(record.id, severity=None)
+        severities = {err.message: err.severity for err in errors}
+        assert severities["an error"] == "error"
+        assert severities["a warning"] == "warning"

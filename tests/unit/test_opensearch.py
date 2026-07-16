@@ -381,7 +381,6 @@ def test_mappings_include_catalog_compatible_fields():
     ]
 
     assert mappings["dcat"]["properties"]["isPartOf"] == {"type": "keyword"}
-    assert mappings["dcat"]["dynamic"] is False
     assert mappings["theme"] == {
         "type": "text",
         "analyzer": OpenSearchInterface.TEXT_ANALYZER,

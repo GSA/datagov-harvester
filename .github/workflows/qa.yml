@@ -1,5 +1,8 @@
 name: Harvester QA script
 
+permissions:
+  contents: read
+
 env:
   PY_VERSION: "3.12.13"
   POETRY_VERSION: "latest"

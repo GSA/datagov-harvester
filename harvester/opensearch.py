@@ -69,10 +69,6 @@ class OpenSearchInterface:
             "last_harvested_date": {"type": "date"},
             "dcat": {
                 "type": "nested",
-                # DCAT-US 1.1 and 3.0 nest differently shaped fields under dcat.
-                # Disable dynamic mapping so the first indexed schema version
-                # cannot lock incompatible types for later records.
-                "dynamic": False,
                 "properties": {
                     "modified": {"type": "keyword"},
                     "issued": {"type": "keyword"},
