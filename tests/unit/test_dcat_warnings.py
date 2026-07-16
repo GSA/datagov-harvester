@@ -381,6 +381,17 @@ class TestMediaType:
         assert types(warnings) == ["invalid_media_type"]
         assert "IANA media type" in warnings[0].message
 
+    def test_media_type_with_parameter_passes(self):
+        data = {"@type": "Distribution", "mediaType": "text/csv; charset=UTF-8"}
+        assert detect_dcat_warnings(data) == []
+
+    def test_unrecognized_media_type_with_parameter_still_warns(self):
+        data = {"@type": "Distribution", "mediaType": "application/notreal; v=1"}
+        warnings = detect_dcat_warnings(data)
+        assert types(warnings) == ["invalid_media_type"]
+        # The message echoes the full original value, parameter included.
+        assert "application/notreal; v=1" in warnings[0].message
+
 
 class TestRestrictions:
     def test_recognized_access_restriction_status_passes(self):

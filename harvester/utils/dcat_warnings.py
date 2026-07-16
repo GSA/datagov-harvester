@@ -407,8 +407,16 @@ def _warn_character_encoding(value) -> list:
 
 
 def _warn_media_type(value) -> Optional[DcatWarning]:
-    """Warn if a mediaType is not from the IANA media types registry."""
-    if isinstance(value, str) and value.lower() not in _IANA_MEDIA_TYPES:
+    """Warn if a mediaType is not from the IANA media types registry.
+
+    A media type may carry parameters (e.g. "text/csv; charset=UTF-8"); the
+    registry lists bare type/subtype only, so match on the portion before the
+    first ";".
+    """
+    if not isinstance(value, str):
+        return None
+    essence = value.split(";", 1)[0].strip()
+    if essence.lower() not in _IANA_MEDIA_TYPES:
         return DcatWarning(
             "invalid_media_type",
             f'`mediaType` value "{value}" is not a recognized IANA media type.',
