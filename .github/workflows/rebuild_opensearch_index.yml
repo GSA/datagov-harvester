@@ -15,18 +15,21 @@ on:
           - development
           - staging
           - prod
+  push:
+    branches:
+      - test-opensearch-rebuild-action
 
 jobs:
   rebuild:
-    name: Rebuild OpenSearch index (${{ inputs.environment }})
+    name: Rebuild OpenSearch index (${{ inputs.environment || 'development' }})
     runs-on: ubuntu-latest
     timeout-minutes: 240
-    environment: ${{ inputs.environment }}
+    environment: ${{ inputs.environment || 'development' }}
     concurrency:
-      group: opensearch-maintenance-${{ inputs.environment }}
+      group: opensearch-maintenance-${{ inputs.environment || 'development' }}
       cancel-in-progress: false
     env:
-      CF_SPACE: ${{ inputs.environment }}
+      CF_SPACE: ${{ inputs.environment || 'development' }}
     steps:
       - name: Check out the code
         uses: actions/checkout@v7
