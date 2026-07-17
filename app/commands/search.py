@@ -1,3 +1,5 @@
+import difflib
+import json
 from datetime import datetime, timezone
 
 import click
@@ -46,6 +48,9 @@ def _normalize_mapping_for_comparison(value):
         normalized = {
             key: _normalize_mapping_for_comparison(item) for key, item in value.items()
         }
+        dynamic = normalized.get("dynamic")
+        if isinstance(dynamic, str) and dynamic in {"true", "false"}:
+            normalized["dynamic"] = dynamic == "true"
         if normalized.get("search_analyzer") is not None and normalized.get(
             "search_analyzer"
         ) == normalized.get("analyzer"):
@@ -56,6 +61,20 @@ def _normalize_mapping_for_comparison(value):
         return [_normalize_mapping_for_comparison(item) for item in value]
 
     return value
+
+
+def _mapping_diff(expected, actual) -> str:
+    expected_lines = json.dumps(expected, indent=2, sort_keys=True).splitlines()
+    actual_lines = json.dumps(actual, indent=2, sort_keys=True).splitlines()
+    return "\n".join(
+        difflib.unified_diff(
+            expected_lines,
+            actual_lines,
+            fromfile="expected",
+            tofile="actual",
+            lineterm="",
+        )
+    )
 
 
 def _default_rebuild_index_name(alias_name: str) -> str:
@@ -122,11 +141,12 @@ def reset_opensearch_mapping():
 
     mapping = client.client.indices.get_mapping(index=client.INDEX_NAME)
     actual_mapping = mapping[client.INDEX_NAME]["mappings"]
-    if _normalize_mapping_for_comparison(
-        actual_mapping
-    ) != _normalize_mapping_for_comparison(client.MAPPINGS):
+    normalized_actual = _normalize_mapping_for_comparison(actual_mapping)
+    normalized_expected = _normalize_mapping_for_comparison(client.MAPPINGS)
+    if normalized_actual != normalized_expected:
         raise click.ClickException(
-            "Created index mapping does not match application mapping."
+            "Created index mapping does not match application mapping:\n"
+            + _mapping_diff(normalized_expected, normalized_actual)
         )
 
     click.echo("Mapping reset successfully. The index is empty.")
@@ -198,11 +218,12 @@ def rebuild_opensearch_index(
 
     mapping = client.client.indices.get_mapping(index=target_index)
     actual_mapping = mapping[target_index]["mappings"]
-    if _normalize_mapping_for_comparison(
-        actual_mapping
-    ) != _normalize_mapping_for_comparison(client.MAPPINGS):
+    normalized_actual = _normalize_mapping_for_comparison(actual_mapping)
+    normalized_expected = _normalize_mapping_for_comparison(client.MAPPINGS)
+    if normalized_actual != normalized_expected:
         raise click.ClickException(
-            "New index mapping does not match the application mapping."
+            "New index mapping does not match the application mapping:\n"
+            + _mapping_diff(normalized_expected, normalized_actual)
         )
 
     click.echo(f"Backfilling {initial_db_count} PostgreSQL dataset(s)...")
