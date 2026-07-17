@@ -1,7 +1,15 @@
 from datetime import datetime
 from unittest.mock import Mock, patch
 
-from app.commands.search import OPENSEARCH_INDEX_BATCH_FAILURE_MESSAGE
+from app.commands.search import (
+    OPENSEARCH_INDEX_BATCH_FAILURE_MESSAGE,
+    _normalize_mapping_for_comparison,
+)
+
+
+def test_mapping_comparison_normalizes_dynamic_boolean_strings():
+    assert _normalize_mapping_for_comparison({"dynamic": "false"}) == {"dynamic": False}
+    assert _normalize_mapping_for_comparison({"dynamic": "true"}) == {"dynamic": True}
 
 
 def test_reset_mapping_recreates_empty_index(app):
@@ -54,7 +62,11 @@ def test_reset_mapping_rejects_real_mapping_mismatch(app):
         result = app.test_cli_runner().invoke(args=["search", "reset-mapping"])
 
     assert result.exit_code != 0
-    assert "Created index mapping does not match application mapping." in result.output
+    assert "Created index mapping does not match application mapping:" in result.output
+    assert "--- expected" in result.output
+    assert "+++ actual" in result.output
+    assert '-      "type": "text"' in result.output
+    assert '+      "type": "keyword"' in result.output
 
 
 def test_reset_mapping_refuses_to_delete_alias_target(app):
