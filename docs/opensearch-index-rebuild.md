@@ -270,10 +270,25 @@ for the same environment do not overlap.
 4. Confirm queued harvest jobs have started.
 5. Exercise catalog searches and inspect OpenSearch/harvester logs.
 
-### Remove a retained physical index
+### Remove the retained physical index manually
 
-After the new index has been verified and the rollback window has passed, use
-**Actions → Delete OpenSearch Physical Index** to remove an old index:
+The rebuild workflow intentionally retains the previous physical index for
+rollback and does not delete it automatically. The **Monitor index rebuild**
+step prints `Previous index retained: <index-name>` and identifies the new
+index targeted by the `datasets` alias.
+
+Deleting the old index is a manual post-rebuild step. In production, the
+operator should use their discretion and delete it only after the workflow,
+catalog searches, harvest processing, and application logs indicate that the
+new index is operating correctly and the rollback window has passed.
+
+> [!WARNING]
+> Do not retain obsolete indexes longer than necessary. They consume cluster
+> storage and resources, and failure to delete them may result in degradation
+> of the OpenSearch cluster. After verifying that production is operating
+> correctly, delete the old index.
+
+Use **Actions → Delete OpenSearch Physical Index** to remove the old index:
 
 1. Select the Cloud Foundry environment.
 2. Enter the exact physical index name printed by the rebuild, such as
