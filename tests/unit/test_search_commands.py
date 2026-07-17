@@ -62,7 +62,7 @@ def test_reset_mapping_rejects_real_mapping_mismatch(app):
         result = app.test_cli_runner().invoke(args=["search", "reset-mapping"])
 
     assert result.exit_code != 0
-    assert "Created index mapping does not match application mapping." in result.output
+    assert "Created index mapping does not match application mapping:" in result.output
     assert "--- expected" in result.output
     assert "+++ actual" in result.output
     assert '-      "type": "text"' in result.output
