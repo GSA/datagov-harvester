@@ -104,7 +104,7 @@ def login():
             session["user"] = LOCAL_DEV_SESSION_EMAIL
             session["last_activity"] = current_unix_timestamp()
             logger.info(
-                "Local dev login succeeded for user=%s ip=%s",
+                "event=user_login method=local_dev user=%s ip=%s",
                 LOCAL_DEV_SESSION_EMAIL,
                 request.headers.get("X-Forwarded-For", request.remote_addr),
             )
