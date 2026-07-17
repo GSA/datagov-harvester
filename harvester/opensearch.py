@@ -69,6 +69,7 @@ class OpenSearchInterface:
             "last_harvested_date": {"type": "date"},
             "dcat": {
                 "type": "nested",
+                "dynamic": False,
                 "properties": {
                     "modified": {"type": "keyword"},
                     "issued": {"type": "keyword"},
