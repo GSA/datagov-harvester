@@ -60,6 +60,18 @@ class TestDatabase:
 
         return payload
 
+    def test_harvest_scheduling_control_defaults_enabled_and_can_toggle(
+        self, interface
+    ):
+        assert interface.is_harvest_scheduling_paused() is False
+
+        control = interface.set_harvest_scheduling_paused(True)
+        assert control.scheduling_paused is True
+        assert interface.is_harvest_scheduling_paused() is True
+
+        interface.set_harvest_scheduling_paused(False)
+        assert interface.is_harvest_scheduling_paused() is False
+
     def test_add_organization(self, interface, organization_data):
         org = interface.add_organization(organization_data)
 
@@ -1339,6 +1351,21 @@ class TestDatasetSlugProtection:
         (indexed_datasets,), _ = mock_client.index_datasets.call_args
         assert len(indexed_datasets) == 1
         assert indexed_datasets[0].slug == "reindex-slug-check"
+
+    def test_update_dataset_slug_is_blocked_during_opensearch_maintenance(
+        self, interface, slug_protection_dataset
+    ):
+        interface.set_harvest_scheduling_paused(True)
+
+        dataset, synced, error = interface.update_dataset_slug(
+            slug_protection_dataset.id,
+            "maintenance-should-not-apply",
+        )
+
+        assert dataset is None
+        assert synced is False
+        assert "paused" in error
+        assert slug_protection_dataset.slug != "maintenance-should-not-apply"
 
     def test_update_dataset_slug_logs_error_on_opensearch_failure(
         self, interface, slug_protection_dataset, caplog

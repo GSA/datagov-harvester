@@ -185,10 +185,77 @@ class OpenSearchInterface:
     def _ensure_index(self):
         """Ensure that the named index exists."""
         if not self.client.indices.exists(index=self.INDEX_NAME):
-            body = {"mappings": self.MAPPINGS}
-            if self.SETTINGS:
-                body["settings"] = self.SETTINGS
-            self.client.indices.create(index=self.INDEX_NAME, body=body)
+            self.client.indices.create(
+                index=self.INDEX_NAME,
+                body=self._index_definition(),
+            )
+
+    def _index_definition(self) -> dict:
+        body = {"mappings": self.MAPPINGS}
+        if self.SETTINGS:
+            body["settings"] = self.SETTINGS
+        return body
+
+    def create_index(self, index_name: str) -> None:
+        """Create an empty physical index with the application schema."""
+        if self.client.indices.exists(index=index_name):
+            raise ValueError(f"OpenSearch index already exists: {index_name}")
+        self.client.indices.create(index=index_name, body=self._index_definition())
+
+    def index_count(self, index_name: str | None = None) -> int:
+        """Return the number of documents in an index or alias."""
+        response = self.client.count(index=index_name or self.INDEX_NAME)
+        return int(response["count"])
+
+    def alias_indices(self, alias_name: str | None = None) -> list[str]:
+        """Return physical indexes currently attached to an alias."""
+        alias_name = alias_name or self.INDEX_NAME
+        if not self.client.indices.exists_alias(name=alias_name):
+            return []
+        return sorted(self.client.indices.get_alias(name=alias_name))
+
+    def switch_alias(
+        self,
+        target_index: str,
+        alias_name: str | None = None,
+    ) -> tuple[list[str], bool]:
+        """Atomically point the logical index name at a physical index.
+
+        The first cutover may find a legacy concrete index using the logical
+        name. OpenSearch can atomically remove that index and create the alias
+        in the same alias update request.
+        """
+        alias_name = alias_name or self.INDEX_NAME
+        if not self.client.indices.exists(index=target_index):
+            raise ValueError(f"OpenSearch target index does not exist: {target_index}")
+
+        old_indices = self.alias_indices(alias_name)
+        if old_indices == [target_index]:
+            return old_indices, False
+
+        actions = [
+            {"remove": {"index": index, "alias": alias_name}} for index in old_indices
+        ]
+        removed_legacy_index = False
+        if not old_indices and self.client.indices.exists(index=alias_name):
+            if alias_name == target_index:
+                raise ValueError("Alias name and target index must be different")
+            actions.append({"remove_index": {"index": alias_name}})
+            removed_legacy_index = True
+
+        actions.append(
+            {
+                "add": {
+                    "index": target_index,
+                    "alias": alias_name,
+                    "is_write_index": True,
+                }
+            }
+        )
+        response = self.client.indices.update_aliases(body={"actions": actions})
+        if not response.get("acknowledged"):
+            raise RuntimeError("OpenSearch did not acknowledge the alias switch")
+        return old_indices, removed_legacy_index
 
     @staticmethod
     def _extract_hostname(host_or_url: str) -> str | None:
@@ -342,7 +409,11 @@ class OpenSearchInterface:
         count = len(points)
         return {"lat": lat_total / count, "lon": lon_total / count}
 
-    def dataset_to_document(self, dataset: Dataset) -> dict:
+    def dataset_to_document(
+        self,
+        dataset: Dataset,
+        index_name: str | None = None,
+    ) -> dict:
         """Map a Dataset ORM row into an OpenSearch index document.
 
         Top-level search fields come from ``DCAT_INDEX_TRANSFORMER``
@@ -373,7 +444,7 @@ class OpenSearchInterface:
         popularity = dataset.popularity if dataset.popularity is not None else None
 
         document = {
-            "_index": self.INDEX_NAME,
+            "_index": index_name or self.INDEX_NAME,
             "_id": dataset.id,
             "title": index_fields["title"],
             "slug": dataset.slug,
@@ -487,10 +558,12 @@ class OpenSearchInterface:
         timeout_retries: int = DEFAULT_TIMEOUT_RETRIES,
         timeout_backoff_base: float = DEFAULT_TIMEOUT_BACKOFF_BASE,
         request_timeout: int = DEFAULT_REFRESH_REQUEST_TIMEOUT_SECONDS,
+        index_name: str | None = None,
     ):
         def _do_refresh():
             return self.client.indices.refresh(
-                index=self.INDEX_NAME, request_timeout=request_timeout
+                index=index_name or self.INDEX_NAME,
+                request_timeout=request_timeout,
             )
 
         self._run_with_timeout_retry(
@@ -504,12 +577,16 @@ class OpenSearchInterface:
         self,
         dataset_iter,
         refresh_after=True,
+        index_name: str | None = None,
         timeout_retries: int = DEFAULT_TIMEOUT_RETRIES,
         timeout_backoff_base: float = DEFAULT_TIMEOUT_BACKOFF_BASE,
     ):
         """Index an iterator of dataset objects into OpenSearch."""
         datasets = getattr(dataset_iter, "items", dataset_iter)
-        documents = [self.dataset_to_document(dataset) for dataset in datasets]
+        documents = [
+            self.dataset_to_document(dataset, index_name=index_name)
+            for dataset in datasets
+        ]
 
         def _stream_bulk():
             succeeded_local = 0
@@ -559,7 +636,7 @@ class OpenSearchInterface:
         )
 
         if refresh_after:
-            self._refresh()
+            self._refresh(index_name=index_name)
 
         return (succeeded, failed, errors)
 

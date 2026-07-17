@@ -92,6 +92,44 @@ class TestLoadManager:
         assert future_job.harvest_source_id == job.harvest_source_id
         assert future_job.date_created == create_future_date(harvest_source.frequency)
 
+    @patch("harvester.lib.cf_handler.CloudFoundryClient")
+    def test_load_manager_does_not_start_tasks_while_scheduling_is_paused(
+        self,
+        CFCMock,
+        interface_no_jobs,
+        source_data_dcatus_orm,
+        mock_good_cf_index,
+    ):
+        job = interface_no_jobs.add_harvest_job(
+            {
+                "status": "new",
+                "harvest_source_id": source_data_dcatus_orm.id,
+                "date_created": datetime.now() - timedelta(minutes=1),
+            }
+        )
+        interface_no_jobs.set_harvest_scheduling_paused(True)
+
+        LoadManager()._start_new_jobs()
+
+        assert interface_no_jobs.get_harvest_job(job.id).status == "new"
+        CFCMock.return_value.v3.tasks.create.assert_not_called()
+
+    @patch("harvester.lib.cf_handler.CloudFoundryClient")
+    def test_manual_trigger_does_not_queue_or_start_job_while_paused(
+        self,
+        CFCMock,
+        interface_no_jobs,
+        source_data_dcatus,
+        mock_good_cf_index,
+    ):
+        interface_no_jobs.set_harvest_scheduling_paused(True)
+
+        message = LoadManager().trigger_manual_job(source_data_dcatus["id"])
+
+        assert message == "Harvest task scheduling is paused."
+        assert interface_no_jobs.get_new_harvest_jobs_in_past() == []
+        CFCMock.return_value.v3.tasks.create.assert_not_called()
+
     @patch("harvester.lib.load_manager.logger")
     @patch("harvester.lib.cf_handler.CloudFoundryClient")
     @patch("harvester.lib.load_manager.MAX_TASKS_COUNT", 3)
@@ -485,14 +523,22 @@ class TestLoadManager:
         assert interface_with_multiple_jobs.db.query(HarvestJobError).count() == 0
 
     @patch("harvester.lib.cf_handler.CloudFoundryClient")
-    def test_clean_old_jobs_api_error(self, CFCMock, caplog):
+    def test_clean_old_jobs_api_error(
+        self,
+        CFCMock,
+        caplog,
+        interface_with_multiple_jobs,
+    ):
         """Doesn't fail if API is down."""
+        in_progress_jobs = interface_with_multiple_jobs.get_in_progress_jobs()
+        assert len(in_progress_jobs) == 3
         # CF tasks list call fails
         CFCMock.return_value.v3.apps.get.side_effect = InvalidStatusCode(500, "")
 
         load_manager = LoadManager()
         load_manager._clean_old_jobs()
         assert "task information is not accurate" in caplog.text
+        assert len(interface_with_multiple_jobs.get_in_progress_jobs()) == 3
 
     @patch("harvester.lib.cf_handler.CloudFoundryClient")
     def test_start_new_jobs_api_error(self, CFCMock, caplog):

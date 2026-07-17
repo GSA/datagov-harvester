@@ -164,6 +164,7 @@ class TestLocalTaskHandler:
 
         assert stopped == task
         assert task["state"] == "CANCELING"
+        assert handler.get_active_harvest_tasks()[0]["state"] == "CANCELING"
 
     def test_completed_task_is_not_running(self):
         handler = LocalTaskHandler()
