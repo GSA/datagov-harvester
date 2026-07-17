@@ -10,6 +10,9 @@ from botocore.credentials import Credentials
 from opensearchpy import AWSV4SignerAuth, OpenSearch, RequestsHttpConnection, helpers
 from opensearchpy.exceptions import ConnectionTimeout
 
+from database.models import Dataset
+from harvester.opensearch_transform import DcatIndexTransformer
+
 logger = logging.getLogger(__name__)
 
 
@@ -29,6 +32,7 @@ class OpenSearchInterface:
     STOP_FILTER = "datagov_stop"
     KEYWORD_NORMALIZER = "lowercase_normalizer"
     DEFAULT_CATALOG_BASE_URL = "https://catalog.data.gov"
+    DCAT_INDEX_TRANSFORMER = DcatIndexTransformer()
 
     SETTINGS = {
         "analysis": {
@@ -405,22 +409,28 @@ class OpenSearchInterface:
         count = len(points)
         return {"lat": lat_total / count, "lon": lon_total / count}
 
-    def dataset_to_document(self, dataset, index_name: str | None = None):
-        """Map a dataset into a document for indexing."""
+    def dataset_to_document(
+        self, dataset: Dataset, index_name: str | None = None
+    ) -> dict:
+        """Map a Dataset ORM row into an OpenSearch index document.
+
+        Top-level search fields come from ``DCAT_INDEX_TRANSFORMER``
+        (``index_fields``); nested ``dcat`` keeps original DCAT shapes
+        (``nested_dcat``), with only date/metadata normalization applied.
+        """
+        # Flat top-level search fields; nested_dcat keeps original DCAT shapes.
+        index_fields = self.DCAT_INDEX_TRANSFORMER.transform(dataset.dcat)
+
         spatial_value = dataset.dcat.get("spatial")
-        themes = dataset.dcat.get("theme") or []
-        if isinstance(themes, str):
-            themes = [themes]
         has_spatial_theme = any(
-            isinstance(theme, str) and theme.strip().lower() == "geospatial"
-            for theme in themes
+            label.strip().lower() == "geospatial" for label in index_fields["theme"]
         )
         has_spatial = (
             bool(spatial_value and str(spatial_value).strip())
             or dataset.translated_spatial is not None
             or has_spatial_theme
         )
-        normalized_dcat = self._normalize_dcat_dates(dataset.dcat)
+        nested_dcat = self._normalize_dcat_dates(dataset.dcat)
         spatial_centroid = self._geometry_centroid(dataset.translated_spatial)
         last_harvested = (
             dataset.last_harvested_date.isoformat()
@@ -434,22 +444,18 @@ class OpenSearchInterface:
         document = {
             "_index": index_name or self.INDEX_NAME,
             "_id": dataset.id,
-            "title": dataset.dcat.get("title", ""),
+            "title": index_fields["title"],
             "slug": dataset.slug,
             "last_harvested_date": last_harvested,
-            "description": dataset.dcat.get("description", ""),
-            "publisher": dataset.dcat.get("publisher", {}).get("name", ""),
-            "dcat": normalized_dcat,
-            "keyword": dataset.dcat.get("keyword", []),
-            "theme": dataset.dcat.get("theme", []),
-            "identifier": dataset.dcat.get("identifier", ""),
+            "description": index_fields["description"],
+            "publisher": index_fields["publisher"],
+            "dcat": nested_dcat,
+            "keyword": index_fields["keyword"],
+            "theme": index_fields["theme"],
+            "identifier": index_fields["identifier"],
             "has_spatial": has_spatial,
             "organization": organization,
-            "distribution_titles": [
-                dist["title"]
-                for dist in (dataset.dcat.get("distribution") or [])
-                if isinstance(dist, dict) and dist.get("title")
-            ],
+            "distribution_titles": index_fields["distribution_titles"],
             "popularity": popularity,
             "spatial_shape": dataset.translated_spatial,
             "spatial_centroid": spatial_centroid,

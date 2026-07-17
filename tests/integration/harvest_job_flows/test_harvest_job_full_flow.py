@@ -567,6 +567,9 @@ class TestHarvestJobFullFlow:
             harvest_job.record_errors[0].message
             == 'unable to spatially fix [[{"WestBoundingCoordinate":-54.185,"NorthBoundingCoordinate":-3.007,"EastBoundingCoordinate":-51.798,"SouthBoundingCoordinate":-11.491}],"CARTESIAN"]'
         )
+        # is_error=False keeps the record out of "error" status, but the logged
+        # issue still defaults to "error" severity
+        assert harvest_job.record_errors[0].severity == "error"
 
         # notification email was sent (configured to "always")
         assert send_notification_emails_mock.called
