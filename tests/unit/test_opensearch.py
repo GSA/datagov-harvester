@@ -1,5 +1,6 @@
 from datetime import date, datetime
 from types import SimpleNamespace
+from unittest.mock import Mock
 
 import pytest
 
@@ -220,6 +221,72 @@ def test_dataset_to_document(sample_dataset, monkeypatch):
         == "https://catalog.data.gov/harvest_record/hr-1/transformed"
     )
     assert document["spatial_centroid"] == {"lat": 2.0, "lon": 1.0}
+
+
+def test_dataset_to_document_accepts_physical_index(sample_dataset):
+    iface = OpenSearchInterface.__new__(OpenSearchInterface)
+
+    document = iface.dataset_to_document(
+        sample_dataset,
+        index_name="datasets-20260716",
+    )
+
+    assert document["_index"] == "datasets-20260716"
+
+
+def test_switch_alias_keeps_previous_physical_index():
+    iface = OpenSearchInterface.__new__(OpenSearchInterface)
+    iface.client = Mock()
+    iface.client.indices.exists.return_value = True
+    iface.client.indices.exists_alias.return_value = True
+    iface.client.indices.get_alias.return_value = {"datasets-old": {"aliases": {}}}
+    iface.client.indices.update_aliases.return_value = {"acknowledged": True}
+
+    old_indices, removed_legacy = iface.switch_alias("datasets-new")
+
+    assert old_indices == ["datasets-old"]
+    assert removed_legacy is False
+    iface.client.indices.update_aliases.assert_called_once_with(
+        body={
+            "actions": [
+                {"remove": {"index": "datasets-old", "alias": "datasets"}},
+                {
+                    "add": {
+                        "index": "datasets-new",
+                        "alias": "datasets",
+                        "is_write_index": True,
+                    }
+                },
+            ]
+        }
+    )
+
+
+def test_switch_alias_atomically_replaces_legacy_concrete_index():
+    iface = OpenSearchInterface.__new__(OpenSearchInterface)
+    iface.client = Mock()
+    iface.client.indices.exists.return_value = True
+    iface.client.indices.exists_alias.return_value = False
+    iface.client.indices.update_aliases.return_value = {"acknowledged": True}
+
+    old_indices, removed_legacy = iface.switch_alias("datasets-new")
+
+    assert old_indices == []
+    assert removed_legacy is True
+    iface.client.indices.update_aliases.assert_called_once_with(
+        body={
+            "actions": [
+                {"remove_index": {"index": "datasets"}},
+                {
+                    "add": {
+                        "index": "datasets-new",
+                        "alias": "datasets",
+                        "is_write_index": True,
+                    }
+                },
+            ]
+        }
+    )
 
 
 def test_dataset_to_document_handles_missing_date_and_organization(sample_dataset):

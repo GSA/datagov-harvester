@@ -14,6 +14,7 @@ from harvester.utils.general_utils import (
 from .. import db_interface as interface
 
 MAX_TASKS_COUNT = int(os.getenv("HARVEST_RUNNER_MAX_TASKS", 5))
+SCHEDULING_PAUSED_MESSAGE = "Harvest task scheduling is paused."
 
 
 logger = logging.getLogger("harvest_admin")
@@ -64,6 +65,11 @@ class LoadManager:
         """Check for in_progress jobs in the database that aren't running."""
         in_progress_jobs = interface.get_in_progress_jobs()
         running_tasks = self.handler.get_running_app_tasks()
+        if running_tasks is None:
+            logger.warning(
+                "Not cleaning in-progress jobs because tasks could not be listed"
+            )
+            return
         running_harvest_ids = set(self.handler.job_ids_from_tasks(running_tasks))
 
         failed_jobs = [
@@ -79,6 +85,10 @@ class LoadManager:
         task before it stops so we adjust the running_tasks calculation and
         only schedule at most one new job.
         """
+        if interface.is_harvest_scheduling_paused():
+            logger.info(SCHEDULING_PAUSED_MESSAGE)
+            return
+
         running_tasks = self.handler.num_running_app_tasks()
         if running_tasks is None:
             # None here indicates that tasks couldn't be listed with the API
@@ -106,6 +116,8 @@ class LoadManager:
         jobs = interface.get_new_harvest_jobs_in_past(limit=slots)
         for job in jobs:
             self.start_job(job.id, job.job_type)
+            if interface.get_harvest_job(job.id).status != "in_progress":
+                continue
             self.schedule_next_job(job.harvest_source_id)
 
     def start(self):
@@ -131,6 +143,10 @@ class LoadManager:
         """
 
         try:
+            if interface.is_harvest_scheduling_paused():
+                logger.info(SCHEDULING_PAUSED_MESSAGE)
+                return SCHEDULING_PAUSED_MESSAGE
+
             """Check if a job is already running for this source."""
             harvest_job = interface.get_harvest_job(job_id)
             jobs_in_progress = interface.pget_harvest_jobs(
@@ -257,6 +273,10 @@ class LoadManager:
     def trigger_manual_job(self, source_id, job_type="harvest"):
         """manual trigger harvest job, takes a source_id"""
         try:
+            if interface.is_harvest_scheduling_paused():
+                logger.info(SCHEDULING_PAUSED_MESSAGE)
+                return SCHEDULING_PAUSED_MESSAGE
+
             source = interface.get_harvest_source(source_id)
             jobs_in_progress = interface.pget_harvest_jobs(
                 facets=f"harvest_source_id eq {source.id},status eq in_progress",

@@ -7,6 +7,7 @@ from app.commands.search import OPENSEARCH_INDEX_BATCH_FAILURE_MESSAGE
 def test_reset_mapping_recreates_empty_index(app):
     client = Mock()
     client.INDEX_NAME = "datasets"
+    client.alias_indices.return_value = []
     client.MAPPINGS = {
         "properties": {
             "title": {
@@ -40,6 +41,7 @@ def test_reset_mapping_recreates_empty_index(app):
 def test_reset_mapping_rejects_real_mapping_mismatch(app):
     client = Mock()
     client.INDEX_NAME = "datasets"
+    client.alias_indices.return_value = []
     client.MAPPINGS = {"properties": {"title": {"type": "text"}}}
     client.client.indices.get_mapping.return_value = {
         "datasets": {"mappings": {"properties": {"title": {"type": "keyword"}}}}
@@ -53,6 +55,81 @@ def test_reset_mapping_rejects_real_mapping_mismatch(app):
 
     assert result.exit_code != 0
     assert "Created index mapping does not match application mapping." in result.output
+
+
+def test_reset_mapping_refuses_to_delete_alias_target(app):
+    client = Mock()
+    client.alias_indices.return_value = ["datasets-current"]
+
+    with patch(
+        "app.commands.search.OpenSearchInterface.from_environment",
+        return_value=client,
+    ):
+        result = app.test_cli_runner().invoke(args=["search", "reset-mapping"])
+
+    assert result.exit_code != 0
+    assert "cannot run after datasets becomes an alias" in result.output
+    client.client.indices.delete.assert_not_called()
+
+
+def test_rebuild_index_requires_paused_scheduling(app):
+    control = Mock()
+    control.is_harvest_scheduling_paused.return_value = False
+
+    with patch(
+        "app.commands.search.HarvesterDBInterface",
+        return_value=control,
+    ):
+        result = app.test_cli_runner().invoke(
+            args=["search", "rebuild-index", "--target-index", "datasets-new"]
+        )
+
+    assert result.exit_code != 0
+    assert "scheduling must be paused" in result.output
+
+
+def test_rebuild_index_backfills_validates_and_switches_alias(app):
+    control = Mock()
+    control.is_harvest_scheduling_paused.return_value = True
+    handler = Mock()
+    handler.get_active_harvest_tasks.return_value = []
+    client = Mock()
+    client.INDEX_NAME = "datasets"
+    client.MAPPINGS = {"properties": {"title": {"type": "text"}}}
+    client.alias_indices.return_value = ["datasets-old"]
+    client.index_count.return_value = 2
+    client.client.indices.get_mapping.return_value = {
+        "datasets-new": {"mappings": client.MAPPINGS}
+    }
+    client.switch_alias.return_value = (["datasets-old"], False)
+    dataset_query = Mock()
+    dataset_query.count.side_effect = [2, 2]
+
+    with (
+        patch(
+            "app.commands.search.HarvesterDBInterface",
+            return_value=control,
+        ),
+        patch(
+            "app.commands.search.create_task_handler",
+            return_value=handler,
+        ),
+        patch(
+            "app.commands.search.OpenSearchInterface.from_environment",
+            return_value=client,
+        ),
+        patch("app.commands.search.db.session.query", return_value=dataset_query),
+        patch("app.commands.search._backfill_index", return_value=(2, 0)),
+    ):
+        result = app.test_cli_runner().invoke(
+            args=["search", "rebuild-index", "--target-index", "datasets-new"]
+        )
+
+    assert result.exit_code == 0
+    client.create_index.assert_called_once_with("datasets-new")
+    client._refresh.assert_called_once_with(index_name="datasets-new")
+    client.switch_alias.assert_called_once_with("datasets-new")
+    assert "datasets now points to datasets-new" in result.output
 
 
 def test_compare_update_indexes_missing_and_deletes_extra(app):

@@ -4,7 +4,9 @@ import click
 from flask import Blueprint
 from opensearchpy.helpers import scan
 
+from database.interface import HarvesterDBInterface
 from database.models import Dataset, db
+from harvester.lib.task_handler import create_task_handler
 from harvester.opensearch import OpenSearchInterface
 
 search = Blueprint("search", __name__)
@@ -56,10 +58,60 @@ def _normalize_mapping_for_comparison(value):
     return value
 
 
+def _default_rebuild_index_name(alias_name: str) -> str:
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
+    return f"{alias_name}-{timestamp}"
+
+
+def _backfill_index(
+    client: OpenSearchInterface,
+    target_index: str,
+    batch_size: int,
+) -> tuple[int, int]:
+    total_indexed = 0
+    total_failed = 0
+    last_dataset_id = None
+    batch_number = 0
+
+    while True:
+        query = db.session.query(Dataset).order_by(Dataset.id)
+        if last_dataset_id is not None:
+            query = query.filter(Dataset.id > last_dataset_id)
+        datasets = query.limit(batch_size).all()
+        if not datasets:
+            break
+
+        batch_number += 1
+        click.echo(
+            f"Backfill batch {batch_number}: indexing {len(datasets)} dataset(s)..."
+        )
+        succeeded, failed, errors = client.index_datasets(
+            datasets,
+            refresh_after=False,
+            index_name=target_index,
+        )
+        total_indexed += succeeded
+        total_failed += failed
+        for error in errors:
+            click.echo(f"  OpenSearch error: {error}")
+        last_dataset_id = datasets[-1].id
+        db.session.expunge_all()
+
+        if failed:
+            break
+
+    return total_indexed, total_failed
+
+
 @search.cli.command("reset-mapping")
 def reset_opensearch_mapping():
     """Delete the dataset index and recreate its empty mapping and settings."""
     client = OpenSearchInterface.from_environment()
+    if client.alias_indices():
+        raise click.ClickException(
+            "reset-mapping cannot run after datasets becomes an alias; "
+            "use search rebuild-index instead."
+        )
 
     click.echo("Deleting OpenSearch dataset index...")
     client.client.indices.delete(index=client.INDEX_NAME)
@@ -78,6 +130,110 @@ def reset_opensearch_mapping():
         )
 
     click.echo("Mapping reset successfully. The index is empty.")
+
+
+@search.cli.command("rebuild-index")
+@click.option(
+    "--target-index",
+    help="Physical index name. Defaults to datasets-<UTC timestamp>.",
+)
+@click.option(
+    "--batch-size",
+    default=1000,
+    show_default=True,
+    type=click.IntRange(min=1),
+)
+@click.option(
+    "--allow-legacy-index-removal",
+    is_flag=True,
+    help=(
+        "Allow the first alias cutover to atomically remove a legacy concrete "
+        "index named datasets."
+    ),
+)
+def rebuild_opensearch_index(
+    target_index: str | None,
+    batch_size: int,
+    allow_legacy_index_removal: bool,
+):
+    """Build a physical index from PostgreSQL and atomically switch the alias."""
+    control = HarvesterDBInterface()
+    if not control.is_harvest_scheduling_paused():
+        raise click.ClickException(
+            "Harvest task scheduling must be paused before rebuilding the index."
+        )
+
+    handler = create_task_handler()
+    active_tasks = handler.get_active_harvest_tasks()
+    if active_tasks is None:
+        raise click.ClickException("Could not verify active harvest CF tasks.")
+    if active_tasks:
+        raise click.ClickException(
+            f"{len(active_tasks)} harvest task(s) are still active."
+        )
+
+    client = OpenSearchInterface.from_environment()
+    target_index = target_index or _default_rebuild_index_name(client.INDEX_NAME)
+    if target_index == client.INDEX_NAME or not target_index.startswith(
+        f"{client.INDEX_NAME}-"
+    ):
+        raise click.ClickException(
+            f"Target index must start with '{client.INDEX_NAME}-'."
+        )
+
+    current_alias_indices = client.alias_indices()
+    has_legacy_concrete_index = (
+        not current_alias_indices
+        and client.client.indices.exists(index=client.INDEX_NAME)
+    )
+    if has_legacy_concrete_index and not allow_legacy_index_removal:
+        raise click.ClickException(
+            "The logical index name is still a concrete index. Re-run with "
+            "--allow-legacy-index-removal to perform the one-time atomic conversion."
+        )
+
+    initial_db_count = db.session.query(Dataset).count()
+    click.echo(f"Creating physical index {target_index}...")
+    client.create_index(target_index)
+
+    mapping = client.client.indices.get_mapping(index=target_index)
+    actual_mapping = mapping[target_index]["mappings"]
+    if _normalize_mapping_for_comparison(
+        actual_mapping
+    ) != _normalize_mapping_for_comparison(client.MAPPINGS):
+        raise click.ClickException(
+            "New index mapping does not match the application mapping."
+        )
+
+    click.echo(f"Backfilling {initial_db_count} PostgreSQL dataset(s)...")
+    indexed, failed = _backfill_index(client, target_index, batch_size)
+    if failed or indexed != initial_db_count:
+        raise click.ClickException(
+            f"Backfill failed: indexed={indexed}, failed={failed}, "
+            f"expected={initial_db_count}."
+        )
+
+    click.echo("Refreshing and validating the new index...")
+    client._refresh(index_name=target_index)
+    final_db_count = db.session.query(Dataset).count()
+    index_count = client.index_count(target_index)
+    if final_db_count != initial_db_count:
+        raise click.ClickException(
+            "PostgreSQL dataset count changed during the paused backfill."
+        )
+    if index_count != final_db_count:
+        raise click.ClickException(
+            f"Validation failed: PostgreSQL has {final_db_count} datasets but "
+            f"{target_index} has {index_count} documents."
+        )
+
+    click.echo(f"Atomically switching alias {client.INDEX_NAME} to {target_index}...")
+    old_indices, removed_legacy = client.switch_alias(target_index)
+    if removed_legacy:
+        click.echo("Removed the legacy concrete index during the alias switch.")
+    elif old_indices:
+        click.echo("Previous index retained: " + ", ".join(old_indices))
+    click.echo(f"Rebuild complete: {client.INDEX_NAME} now points to {target_index}.")
 
 
 @search.cli.command("compare")

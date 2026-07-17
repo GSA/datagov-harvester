@@ -1,0 +1,112 @@
+permissions:
+  contents: read
+
+name: Rebuild OpenSearch Index
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Cloud Foundry environment"
+        required: true
+        default: development
+        type: choice
+        options:
+          - development
+          - staging
+          - prod
+
+jobs:
+  rebuild:
+    name: Rebuild OpenSearch index (${{ inputs.environment }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    environment: ${{ inputs.environment }}
+    concurrency:
+      group: opensearch-maintenance-${{ inputs.environment }}
+      cancel-in-progress: false
+    env:
+      CF_SPACE: ${{ inputs.environment }}
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v7
+
+      - name: Set operation names
+        run: |
+          echo "PAUSE_TASK=search-pause-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_ENV"
+          echo "REBUILD_TASK=search-rebuild-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_ENV"
+          echo "RESUME_TASK=search-resume-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_ENV"
+          echo "TARGET_INDEX=datasets-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_ENV"
+
+      - name: Pause harvest task scheduling
+        uses: cloud-gov/cg-cli-tools@main
+        with:
+          command: >
+            cf run-task datagov-harvest --name "$PAUSE_TASK"
+            --command "flask harvest_job pause-scheduling"
+          cf_org: gsa-datagov
+          cf_space: ${{ env.CF_SPACE }}
+          cf_username: ${{ secrets.CF_SERVICE_USER }}
+          cf_password: ${{ secrets.CF_SERVICE_AUTH }}
+
+      - name: Confirm scheduling is paused
+        uses: cloud-gov/cg-cli-tools@main
+        with:
+          command: bin/monitor_cf_logs.sh datagov-harvest "$PAUSE_TASK"
+          cf_org: gsa-datagov
+          cf_space: ${{ env.CF_SPACE }}
+          cf_username: ${{ secrets.CF_SERVICE_USER }}
+          cf_password: ${{ secrets.CF_SERVICE_AUTH }}
+
+      - name: Wait for running harvest tasks
+        uses: cloud-gov/cg-cli-tools@main
+        with:
+          command: bin/wait_for_harvest_tasks.sh datagov-harvest 7200
+          cf_org: gsa-datagov
+          cf_space: ${{ env.CF_SPACE }}
+          cf_username: ${{ secrets.CF_SERVICE_USER }}
+          cf_password: ${{ secrets.CF_SERVICE_AUTH }}
+
+      - name: Start index rebuild
+        uses: cloud-gov/cg-cli-tools@main
+        with:
+          command: >
+            cf run-task datagov-harvest --name "$REBUILD_TASK" -k 4G -m 2G
+            --command "flask search rebuild-index --target-index $TARGET_INDEX
+            --allow-legacy-index-removal"
+          cf_org: gsa-datagov
+          cf_space: ${{ env.CF_SPACE }}
+          cf_username: ${{ secrets.CF_SERVICE_USER }}
+          cf_password: ${{ secrets.CF_SERVICE_AUTH }}
+
+      - name: Monitor index rebuild
+        uses: cloud-gov/cg-cli-tools@main
+        with:
+          command: bin/monitor_cf_logs.sh datagov-harvest "$REBUILD_TASK"
+          cf_org: gsa-datagov
+          cf_space: ${{ env.CF_SPACE }}
+          cf_username: ${{ secrets.CF_SERVICE_USER }}
+          cf_password: ${{ secrets.CF_SERVICE_AUTH }}
+
+      - name: Resume harvest task scheduling
+        id: resume_scheduling
+        if: always()
+        uses: cloud-gov/cg-cli-tools@main
+        with:
+          command: >
+            cf run-task datagov-harvest --name "$RESUME_TASK"
+            --command "flask harvest_job resume-scheduling --start-jobs"
+          cf_org: gsa-datagov
+          cf_space: ${{ env.CF_SPACE }}
+          cf_username: ${{ secrets.CF_SERVICE_USER }}
+          cf_password: ${{ secrets.CF_SERVICE_AUTH }}
+
+      - name: Confirm scheduling is resumed
+        if: always() && steps.resume_scheduling.outcome == 'success'
+        uses: cloud-gov/cg-cli-tools@main
+        with:
+          command: bin/monitor_cf_logs.sh datagov-harvest "$RESUME_TASK"
+          cf_org: gsa-datagov
+          cf_space: ${{ env.CF_SPACE }}
+          cf_username: ${{ secrets.CF_SERVICE_USER }}
+          cf_password: ${{ secrets.CF_SERVICE_AUTH }}

@@ -33,6 +33,24 @@ class TestCFTasking:
         running_tasks = CFUtil.get_running_app_tasks()
         assert len(running_tasks) == 1
 
+    def test_get_active_harvest_tasks(self, CFClientMock):
+        CFUtil = CFHandler("url", "user", "password")
+        CFClientMock.return_value.v3.apps._pagination.return_value = [
+            {"state": "PENDING", "name": "harvest-job-pending"},
+            {"state": "RUNNING", "name": "harvest-job-running"},
+            {"state": "CANCELING", "name": "harvest-job-canceling"},
+            {"state": "SUCCEEDED", "name": "harvest-job-complete"},
+            {"state": "RUNNING", "name": "other-task"},
+        ]
+
+        active_tasks = CFUtil.get_active_harvest_tasks()
+
+        assert [task["state"] for task in active_tasks] == [
+            "PENDING",
+            "RUNNING",
+            "CANCELING",
+        ]
+
     def test_num_running_app_tasks(self, CFClientMock):
         CFUtil = CFHandler("url", "user", "password")
         CFClientMock.return_value.v3.apps._pagination.return_value = [

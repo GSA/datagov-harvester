@@ -11,6 +11,7 @@ from sqlalchemy.orm import aliased
 from harvester.opensearch import OpenSearchInterface
 from harvester.utils.general_utils import query_filter_builder
 
+from .harvest_models import HarvestTaskControl
 from .models import (
     Dataset,
     DatasetViewCount,
@@ -30,6 +31,8 @@ PAGINATE_START_PAGE = 0
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger()
+
+HARVEST_TASK_CONTROL_ID = "global"
 
 
 def paginate(fn):
@@ -119,6 +122,33 @@ class HarvesterDBInterface:
             return [to_list_helper(x) for x in obj]
         else:
             return to_list_helper(obj)
+
+    ## HARVEST TASK CONTROL
+    def is_harvest_scheduling_paused(self) -> bool:
+        paused = (
+            self.db.query(HarvestTaskControl.scheduling_paused)
+            .filter(HarvestTaskControl.id == HARVEST_TASK_CONTROL_ID)
+            .scalar()
+        )
+        return bool(paused)
+
+    def set_harvest_scheduling_paused(self, paused: bool) -> HarvestTaskControl:
+        try:
+            control = self.db.get(HarvestTaskControl, HARVEST_TASK_CONTROL_ID)
+            if control is None:
+                control = HarvestTaskControl(
+                    id=HARVEST_TASK_CONTROL_ID,
+                    scheduling_paused=paused,
+                )
+                self.db.add(control)
+            else:
+                control.scheduling_paused = paused
+            self.db.commit()
+            self.db.refresh(control)
+            return control
+        except Exception:
+            self.db.rollback()
+            raise
 
     ## ORGANIZATIONS
     def add_organization(self, org_data):
@@ -791,6 +821,12 @@ class HarvesterDBInterface:
         """
         if not dataset_id or not new_slug:
             raise ValueError("dataset_id and new_slug are required")
+        if self.is_harvest_scheduling_paused():
+            return (
+                None,
+                False,
+                "Dataset updates are paused during OpenSearch maintenance.",
+            )
 
         try:
             dataset = self.db.get(Dataset, dataset_id)

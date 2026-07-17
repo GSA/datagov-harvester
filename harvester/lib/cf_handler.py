@@ -9,6 +9,8 @@ from cloudfoundry_client.errors import InvalidStatusCode
 
 logger = logging.getLogger("harvest_admin")
 
+ACTIVE_HARVEST_TASK_STATES = {"PENDING", "RUNNING", "CANCELING"}
+
 
 class CFHandler:
     def __init__(self, url: str, user: str, password: str):
@@ -131,6 +133,19 @@ class CFHandler:
             task
             for task in tasks
             if task.get("state", "") == "RUNNING"
+            and task.get("name", "").startswith("harvest-job-")
+        ]
+
+    def get_active_harvest_tasks(self, app_guuid=None):
+        """Return harvest tasks that have not reached a terminal state."""
+        tasks = self.get_all_app_tasks(app_guuid)
+        if tasks is None:
+            return None
+
+        return [
+            task
+            for task in tasks
+            if task.get("state", "") in ACTIVE_HARVEST_TASK_STATES
             and task.get("name", "").startswith("harvest-job-")
         ]
 
