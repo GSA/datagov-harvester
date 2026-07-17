@@ -1,5 +1,6 @@
 import difflib
 import json
+import re
 from datetime import datetime, timezone
 
 import click
@@ -255,6 +256,54 @@ def rebuild_opensearch_index(
     elif old_indices:
         click.echo("Previous index retained: " + ", ".join(old_indices))
     click.echo(f"Rebuild complete: {client.INDEX_NAME} now points to {target_index}.")
+
+
+@search.cli.command("delete-index")
+@click.option(
+    "--index-name",
+    required=True,
+    help="Exact name of an unused physical index, such as datasets-123456-1.",
+)
+def delete_opensearch_index(index_name: str):
+    """Delete an unused physical dataset index."""
+    client = OpenSearchInterface.from_environment()
+    physical_index_pattern = rf"{re.escape(client.INDEX_NAME)}-[a-z0-9._-]+"
+    if not re.fullmatch(physical_index_pattern, index_name):
+        raise click.ClickException(
+            f"Index name must be a physical index starting with "
+            f"'{client.INDEX_NAME}-'."
+        )
+
+    active_indices = client.alias_indices()
+    if index_name in active_indices:
+        raise click.ClickException(
+            f"Cannot delete {index_name}; the {client.INDEX_NAME} alias currently "
+            "points to it."
+        )
+    if not client.client.indices.exists(index=index_name):
+        raise click.ClickException(f"OpenSearch index does not exist: {index_name}")
+
+    alias_response = client.client.indices.get_alias(index=index_name)
+    attached_aliases = sorted(
+        {
+            alias
+            for index_details in alias_response.values()
+            for alias in index_details.get("aliases", {})
+        }
+    )
+    if attached_aliases:
+        raise click.ClickException(
+            f"Cannot delete {index_name}; attached aliases: "
+            + ", ".join(attached_aliases)
+        )
+
+    click.echo(f"Deleting unused physical index {index_name}...")
+    response = client.client.indices.delete(index=index_name)
+    if not response.get("acknowledged"):
+        raise click.ClickException(
+            f"OpenSearch did not acknowledge deletion of {index_name}."
+        )
+    click.echo(f"Deleted OpenSearch index {index_name}.")
 
 
 @search.cli.command("compare")

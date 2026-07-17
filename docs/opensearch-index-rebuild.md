@@ -270,12 +270,29 @@ for the same environment do not overlap.
 4. Confirm queued harvest jobs have started.
 5. Exercise catalog searches and inspect OpenSearch/harvester logs.
 
+### Remove a retained physical index
+
+After the new index has been verified and the rollback window has passed, use
+**Actions → Delete OpenSearch Physical Index** to remove an old index:
+
+1. Select the Cloud Foundry environment.
+2. Enter the exact physical index name printed by the rebuild, such as
+   `datasets-123456-1`.
+3. Run the workflow and verify the Cloud Foundry task succeeds.
+
+The workflow shares the environment-specific OpenSearch maintenance concurrency
+group with rebuild and synchronization operations. The command only accepts
+physical names beginning with `datasets-`, verifies that the index exists, and
+refuses to delete the index currently targeted by the `datasets` alias. The
+logical `datasets` name and aliases cannot be deleted through this workflow.
+
 ## Related implementation
 
 - `.github/workflows/rebuild_opensearch_index.yml` — operation orchestration.
+- `.github/workflows/delete_opensearch_index.yml` — guarded old-index cleanup.
 - `bin/wait_for_harvest_tasks.sh` — active-task drain and quiet period.
 - `app/commands/job.py` — pause, status, and resume commands.
-- `app/commands/search.py` — candidate creation, backfill, validation, and cutover.
+- `app/commands/search.py` — candidate creation, validation, cutover, and cleanup.
 - `database/harvest_models.py` — singleton scheduling control model.
 - `database/interface.py` — uncached scheduling flag access.
 - `harvester/lib/load_manager.py` — scheduling gates.

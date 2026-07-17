@@ -144,6 +144,103 @@ def test_rebuild_index_backfills_validates_and_switches_alias(app):
     assert "datasets now points to datasets-new" in result.output
 
 
+def test_delete_index_deletes_unused_physical_index(app):
+    client = Mock()
+    client.INDEX_NAME = "datasets"
+    client.alias_indices.return_value = ["datasets-current"]
+    client.client.indices.exists.return_value = True
+    client.client.indices.get_alias.return_value = {"datasets-old": {"aliases": {}}}
+    client.client.indices.delete.return_value = {"acknowledged": True}
+
+    with patch(
+        "app.commands.search.OpenSearchInterface.from_environment",
+        return_value=client,
+    ):
+        result = app.test_cli_runner().invoke(
+            args=["search", "delete-index", "--index-name", "datasets-old"]
+        )
+
+    assert result.exit_code == 0
+    client.client.indices.delete.assert_called_once_with(index="datasets-old")
+    assert "Deleted OpenSearch index datasets-old." in result.output
+
+
+def test_delete_index_refuses_active_alias_target(app):
+    client = Mock()
+    client.INDEX_NAME = "datasets"
+    client.alias_indices.return_value = ["datasets-current"]
+
+    with patch(
+        "app.commands.search.OpenSearchInterface.from_environment",
+        return_value=client,
+    ):
+        result = app.test_cli_runner().invoke(
+            args=["search", "delete-index", "--index-name", "datasets-current"]
+        )
+
+    assert result.exit_code != 0
+    assert "datasets alias currently points to it" in result.output
+    client.client.indices.delete.assert_not_called()
+
+
+def test_delete_index_rejects_non_physical_index_name(app):
+    client = Mock()
+    client.INDEX_NAME = "datasets"
+
+    with patch(
+        "app.commands.search.OpenSearchInterface.from_environment",
+        return_value=client,
+    ):
+        result = app.test_cli_runner().invoke(
+            args=["search", "delete-index", "--index-name", "datasets"]
+        )
+
+    assert result.exit_code != 0
+    assert "must be a physical index starting with 'datasets-'" in result.output
+    client.client.indices.delete.assert_not_called()
+
+
+def test_delete_index_reports_missing_index(app):
+    client = Mock()
+    client.INDEX_NAME = "datasets"
+    client.alias_indices.return_value = ["datasets-current"]
+    client.client.indices.exists.return_value = False
+
+    with patch(
+        "app.commands.search.OpenSearchInterface.from_environment",
+        return_value=client,
+    ):
+        result = app.test_cli_runner().invoke(
+            args=["search", "delete-index", "--index-name", "datasets-missing"]
+        )
+
+    assert result.exit_code != 0
+    assert "OpenSearch index does not exist: datasets-missing" in result.output
+    client.client.indices.delete.assert_not_called()
+
+
+def test_delete_index_refuses_index_with_attached_alias(app):
+    client = Mock()
+    client.INDEX_NAME = "datasets"
+    client.alias_indices.return_value = []
+    client.client.indices.exists.return_value = True
+    client.client.indices.get_alias.return_value = {
+        "datasets-old": {"aliases": {"rollback": {}}}
+    }
+
+    with patch(
+        "app.commands.search.OpenSearchInterface.from_environment",
+        return_value=client,
+    ):
+        result = app.test_cli_runner().invoke(
+            args=["search", "delete-index", "--index-name", "datasets-old"]
+        )
+
+    assert result.exit_code != 0
+    assert "attached aliases: rollback" in result.output
+    client.client.indices.delete.assert_not_called()
+
+
 def test_compare_update_indexes_missing_and_deletes_extra(app):
     client = Mock()
     client.INDEX_NAME = "datasets"
