@@ -84,25 +84,20 @@ def test_reset_mapping_refuses_to_delete_alias_target(app):
     client.client.indices.delete.assert_not_called()
 
 
-def test_rebuild_index_requires_paused_scheduling(app):
-    control = Mock()
-    control.is_harvest_scheduling_paused.return_value = False
-
+def test_rebuild_index_requires_zero_harvest_capacity(app):
     with patch(
-        "app.commands.search.HarvesterDBInterface",
-        return_value=control,
+        "app.commands.search.harvest_scheduling_is_disabled",
+        return_value=False,
     ):
         result = app.test_cli_runner().invoke(
             args=["search", "rebuild-index", "--target-index", "datasets-new"]
         )
 
     assert result.exit_code != 0
-    assert "scheduling must be paused" in result.output
+    assert "HARVEST_RUNNER_MAX_TASKS must be 0" in result.output
 
 
 def test_rebuild_index_backfills_validates_and_switches_alias(app):
-    control = Mock()
-    control.is_harvest_scheduling_paused.return_value = True
     handler = Mock()
     handler.get_active_harvest_tasks.return_value = []
     client = Mock()
@@ -119,8 +114,8 @@ def test_rebuild_index_backfills_validates_and_switches_alias(app):
 
     with (
         patch(
-            "app.commands.search.HarvesterDBInterface",
-            return_value=control,
+            "app.commands.search.harvest_scheduling_is_disabled",
+            return_value=True,
         ),
         patch(
             "app.commands.search.create_task_handler",
@@ -142,6 +137,53 @@ def test_rebuild_index_backfills_validates_and_switches_alias(app):
     client._refresh.assert_called_once_with(index_name="datasets-new")
     client.switch_alias.assert_called_once_with("datasets-new")
     assert "datasets now points to datasets-new" in result.output
+
+
+def test_rebuild_index_can_validate_without_switching_alias(app):
+    handler = Mock()
+    handler.get_active_harvest_tasks.return_value = []
+    client = Mock()
+    client.INDEX_NAME = "datasets"
+    client.MAPPINGS = {"properties": {"title": {"type": "text"}}}
+    client.alias_indices.return_value = []
+    client.client.indices.exists.return_value = True
+    client.index_count.return_value = 1
+    client.client.indices.get_mapping.return_value = {
+        "datasets-new": {"mappings": client.MAPPINGS}
+    }
+    dataset_query = Mock()
+    dataset_query.count.side_effect = [1, 1]
+
+    with (
+        patch(
+            "app.commands.search.harvest_scheduling_is_disabled",
+            return_value=True,
+        ),
+        patch(
+            "app.commands.search.create_task_handler",
+            return_value=handler,
+        ),
+        patch(
+            "app.commands.search.OpenSearchInterface.from_environment",
+            return_value=client,
+        ),
+        patch("app.commands.search.db.session.query", return_value=dataset_query),
+        patch("app.commands.search._backfill_index", return_value=(1, 0)),
+    ):
+        result = app.test_cli_runner().invoke(
+            args=[
+                "search",
+                "rebuild-index",
+                "--target-index",
+                "datasets-new",
+                "--no-switch-alias",
+            ]
+        )
+
+    assert result.exit_code == 0
+    client.create_index.assert_called_once_with("datasets-new")
+    client.switch_alias.assert_not_called()
+    assert "datasets-new is validated; datasets was not changed" in result.output
 
 
 def test_delete_index_deletes_unused_physical_index(app):

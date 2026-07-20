@@ -7,10 +7,10 @@ import click
 from flask import Blueprint
 from opensearchpy.helpers import scan
 
-from database.interface import HarvesterDBInterface
 from database.models import Dataset, db
 from harvester.lib.task_handler import create_task_handler
 from harvester.opensearch import OpenSearchInterface
+from harvester.runner_settings import harvest_scheduling_is_disabled
 
 search = Blueprint("search", __name__)
 # we use this message to detect index failure in GH actions
@@ -172,16 +172,22 @@ def reset_opensearch_mapping():
         "index named datasets."
     ),
 )
+@click.option(
+    "--switch-alias/--no-switch-alias",
+    default=True,
+    show_default=True,
+    help="Switch the logical datasets alias after a successful backfill.",
+)
 def rebuild_opensearch_index(
     target_index: str | None,
     batch_size: int,
     allow_legacy_index_removal: bool,
+    switch_alias: bool,
 ):
-    """Build a physical index from PostgreSQL and atomically switch the alias."""
-    control = HarvesterDBInterface()
-    if not control.is_harvest_scheduling_paused():
+    """Build and validate a physical index, optionally switching the alias."""
+    if not harvest_scheduling_is_disabled():
         raise click.ClickException(
-            "Harvest task scheduling must be paused before rebuilding the index."
+            "HARVEST_RUNNER_MAX_TASKS must be 0 before rebuilding the index."
         )
 
     handler = create_task_handler()
@@ -207,7 +213,7 @@ def rebuild_opensearch_index(
         not current_alias_indices
         and client.client.indices.exists(index=client.INDEX_NAME)
     )
-    if has_legacy_concrete_index and not allow_legacy_index_removal:
+    if switch_alias and has_legacy_concrete_index and not allow_legacy_index_removal:
         raise click.ClickException(
             "The logical index name is still a concrete index. Re-run with "
             "--allow-legacy-index-removal to perform the one-time atomic conversion."
@@ -248,6 +254,13 @@ def rebuild_opensearch_index(
             f"Validation failed: PostgreSQL has {final_db_count} datasets but "
             f"{target_index} has {index_count} documents."
         )
+
+    if not switch_alias:
+        click.echo(
+            f"Rebuild complete: {target_index} is validated; "
+            f"{client.INDEX_NAME} was not changed."
+        )
+        return
 
     click.echo(f"Atomically switching alias {client.INDEX_NAME} to {target_index}...")
     old_indices, removed_legacy = client.switch_alias(target_index)

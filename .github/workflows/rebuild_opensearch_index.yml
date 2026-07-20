@@ -15,6 +15,16 @@ on:
           - development
           - staging
           - prod
+      force_kill_running_jobs:
+        description: "Cancel harvest jobs still running after 15 minutes"
+        required: true
+        default: false
+        type: boolean
+      switch_alias:
+        description: "Switch the datasets alias to the rebuilt index"
+        required: true
+        default: true
+        type: boolean
 
 jobs:
   rebuild:
@@ -25,34 +35,34 @@ jobs:
     concurrency:
       group: opensearch-maintenance-${{ inputs.environment }}
       cancel-in-progress: false
+      queue: max
     env:
       CF_SPACE: ${{ inputs.environment }}
     steps:
       - name: Check out the code
+        id: checkout
         uses: actions/checkout@v7
 
       - name: Set operation names
+        env:
+          SWITCH_ALIAS: ${{ inputs.switch_alias }}
         run: |
-          echo "PAUSE_TASK=search-pause-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_ENV"
           echo "REBUILD_TASK=search-rebuild-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_ENV"
-          echo "RESUME_TASK=search-resume-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_ENV"
           echo "TARGET_INDEX=datasets-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_ENV"
+          echo "CAPACITY_STATE=.harvest-runner-capacity-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.json" >> "$GITHUB_ENV"
+          if [[ "$SWITCH_ALIAS" == "true" ]]; then
+            echo "ALIAS_OPTION=--switch-alias" >> "$GITHUB_ENV"
+          else
+            echo "ALIAS_OPTION=--no-switch-alias" >> "$GITHUB_ENV"
+          fi
 
-      - name: Pause harvest task scheduling
+      - name: Disable harvest task scheduling and restart
+        id: pause_capacity
         uses: cloud-gov/cg-cli-tools@main
         with:
           command: >
-            cf run-task datagov-harvest --name "$PAUSE_TASK"
-            --command "flask harvest_job pause-scheduling"
-          cf_org: gsa-datagov
-          cf_space: ${{ env.CF_SPACE }}
-          cf_username: ${{ secrets.CF_SERVICE_USER }}
-          cf_password: ${{ secrets.CF_SERVICE_AUTH }}
-
-      - name: Confirm scheduling is paused
-        uses: cloud-gov/cg-cli-tools@main
-        with:
-          command: bin/monitor_cf_logs.sh datagov-harvest "$PAUSE_TASK"
+            bin/manage_harvest_runner_capacity.sh pause
+            datagov-harvest "$CAPACITY_STATE"
           cf_org: gsa-datagov
           cf_space: ${{ env.CF_SPACE }}
           cf_username: ${{ secrets.CF_SERVICE_USER }}
@@ -61,7 +71,9 @@ jobs:
       - name: Wait for running harvest tasks
         uses: cloud-gov/cg-cli-tools@main
         with:
-          command: bin/wait_for_harvest_tasks.sh datagov-harvest 7200
+          command: >
+            bin/wait_for_harvest_tasks.sh datagov-harvest 7200
+            ${{ inputs.force_kill_running_jobs && '--force-kill-running-jobs' || '' }}
           cf_org: gsa-datagov
           cf_space: ${{ env.CF_SPACE }}
           cf_username: ${{ secrets.CF_SERVICE_USER }}
@@ -73,7 +85,7 @@ jobs:
           command: >
             cf run-task datagov-harvest --name "$REBUILD_TASK" -k 4G -m 2G
             --command "flask search rebuild-index --target-index $TARGET_INDEX
-            --allow-legacy-index-removal"
+            --allow-legacy-index-removal $ALIAS_OPTION"
           cf_org: gsa-datagov
           cf_space: ${{ env.CF_SPACE }}
           cf_username: ${{ secrets.CF_SERVICE_USER }}
@@ -88,24 +100,14 @@ jobs:
           cf_username: ${{ secrets.CF_SERVICE_USER }}
           cf_password: ${{ secrets.CF_SERVICE_AUTH }}
 
-      - name: Resume harvest task scheduling
-        id: resume_scheduling
-        if: always()
+      - name: Restore harvest runner capacity and restart
+        id: restore_capacity
+        if: always() && steps.checkout.outcome == 'success'
         uses: cloud-gov/cg-cli-tools@main
         with:
           command: >
-            cf run-task datagov-harvest --name "$RESUME_TASK"
-            --command "flask harvest_job resume-scheduling --start-jobs"
-          cf_org: gsa-datagov
-          cf_space: ${{ env.CF_SPACE }}
-          cf_username: ${{ secrets.CF_SERVICE_USER }}
-          cf_password: ${{ secrets.CF_SERVICE_AUTH }}
-
-      - name: Confirm scheduling is resumed
-        if: always() && steps.resume_scheduling.outcome == 'success'
-        uses: cloud-gov/cg-cli-tools@main
-        with:
-          command: bin/monitor_cf_logs.sh datagov-harvest "$RESUME_TASK"
+            bin/manage_harvest_runner_capacity.sh restore
+            datagov-harvest "$CAPACITY_STATE"
           cf_org: gsa-datagov
           cf_space: ${{ env.CF_SPACE }}
           cf_username: ${{ secrets.CF_SERVICE_USER }}

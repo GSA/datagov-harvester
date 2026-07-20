@@ -3,7 +3,7 @@
 This document describes how Data.gov rebuilds the OpenSearch dataset index
 without interrupting search traffic. Harvest processing is paused during the
 rebuild so PostgreSQL remains the stable source of truth. A replay or change-log
-table is not required.
+table and a database-backed scheduling flag are not required.
 
 ## Goals
 
@@ -22,15 +22,15 @@ the duration of the backfill.
 flowchart LR
     Operator[Operator] --> GHA[GitHub Actions<br>Rebuild OpenSearch Index]
 
-    GHA --> Pause[Pause scheduling<br>CF task]
+    GHA --> Pause[Set max tasks to 0<br>rolling restart]
     GHA --> Drain[Poll active<br>harvest tasks]
     GHA --> Rebuild[Rebuild index<br>CF task]
-    GHA --> Resume[Resume scheduling<br>CF task]
+    GHA --> Resume[Restore max tasks<br>rolling restart]
 
-    Pause --> Control[(harvest_task_control)]
-    Resume --> Control
-    Scheduler[LoadManager schedulers] --> Control
-    Manual[Manual harvest triggers] --> Control
+    Pause --> App[Harvester web instances]
+    Resume --> App
+    Scheduler[LoadManager schedulers] --> App
+    Manual[Manual harvest triggers] --> App
 
     Drain --> CFAPI[Cloud Foundry v3 task API]
     Rebuild --> PG[(PostgreSQL datasets)]
@@ -40,8 +40,8 @@ flowchart LR
     Alias --> Harvester[Harvester OpenSearch writes]
 ```
 
-The `harvest_task_control` table contains a singleton row. When
-`scheduling_paused` is true:
+The workflow saves the current `HARVEST_RUNNER_MAX_TASKS` setting, changes it to
+`0`, and performs a rolling restart. When the setting is `0`:
 
 - `_start_new_jobs()` does not dispatch scheduled jobs.
 - `start_job()` cannot create a CF task.
@@ -50,9 +50,13 @@ The `harvest_task_control` table contains a singleton row. When
   `check_for_more_work()`.
 - Manual dataset slug edits are rejected.
 
-The flag is read directly from PostgreSQL at each scheduling boundary; it is not
-cached and does not require an application restart or load-balancer fan-out.
-Future scheduled jobs may remain in the database with status `new`.
+The setting is read when each process starts, so changing it requires a restart.
+The workflow initiates that restart directly rather than waiting for the
+periodic restart workflow. It confirms that no rolling deployment remains
+active, the desired number of web instances are present, every instance is
+running with a new instance GUID, and the application environment has the
+requested value. Future scheduled jobs may remain in the database with status
+`new`.
 
 ## Automated rebuild sequence
 
@@ -70,20 +74,25 @@ sequenceDiagram
     participant OS as OpenSearch
 
     O->>GH: Run "Rebuild OpenSearch Index"
-    GH->>CF: Run pause-scheduling task
-    CF->>DB: Set scheduling_paused = true
-    DB-->>CF: Pause committed
-    CF-->>GH: Pause task succeeds
+    GH->>CF: Save current max task setting
+    GH->>CF: Set HARVEST_RUNNER_MAX_TASKS = 0
+    GH->>CF: Start rolling restart
+    CF-->>GH: All web instances restarted and running
 
     loop Until drained
         GH->>CF: List harvest-job-* tasks
         CF-->>GH: PENDING, RUNNING, and CANCELING tasks
-        H-->>CF: Existing tasks reach terminal states
+        alt Force-kill enabled and tasks remain after 15 minutes
+            GH->>CF: Cancel each active harvest task
+            CF-->>GH: Tasks transition through CANCELING
+        else Normal drain
+            H-->>CF: Existing tasks reach terminal states
+        end
     end
     Note over GH,CF: Require a 30-second stable-zero period
 
     GH->>CF: Run rebuild-index task
-    CF->>DB: Confirm scheduling is paused
+    CF->>CF: Confirm HARVEST_RUNNER_MAX_TASKS = 0
     CF->>CF: Confirm no active harvest tasks
     CF->>OS: Create datasets-<run>-<attempt>
     CF->>OS: Validate initial mapping
@@ -98,27 +107,35 @@ sequenceDiagram
     CF->>OS: Refresh candidate
     CF->>DB: Recheck dataset count
     CF->>OS: Read candidate document count
-    CF->>OS: Atomically switch datasets alias
-    OS-->>CF: Alias update acknowledged
+    alt Alias switching enabled
+        CF->>OS: Atomically switch datasets alias
+        OS-->>CF: Alias update acknowledged
+    else Build-only mode
+        CF-->>GH: Leave datasets alias unchanged
+    end
     CF-->>GH: Rebuild task succeeds
 
-    GH->>CF: Run resume-scheduling task
-    CF->>DB: Set scheduling_paused = false
-    CF->>CF: Start queued jobs
-    CF-->>GH: Resume task succeeds
+    GH->>CF: Restore saved max task setting
+    GH->>CF: Start rolling restart
+    CF-->>GH: All web instances restarted and running
 ```
 
 ### 1. Pause dispatch
 
-The workflow runs:
+The workflow reads the application environment through the Cloud Foundry API,
+saves whether `HARVEST_RUNNER_MAX_TASKS` was set and its exact value, and then
+runs:
 
 ```shell
-flask harvest_job pause-scheduling
+cf set-env datagov-harvest HARVEST_RUNNER_MAX_TASKS 0
+cf restart datagov-harvest --strategy rolling
 ```
 
-Running harvest tasks are not canceled. They finish normally, including their
-database and OpenSearch writes. Their final attempt to schedule more work sees
-the shared pause flag and does nothing.
+It waits for Cloud Foundry to confirm the rolling restart is complete and every
+desired web instance is running with the new application environment. Running
+harvest tasks are not restarted or canceled. Tasks that began with the previous
+setting may schedule one final follow-on task, so the workflow still drains the
+Cloud Foundry task queue before starting the rebuild.
 
 ### 2. Drain active tasks
 
@@ -130,8 +147,14 @@ the shared pause flag and does nothing.
 - `CANCELING`
 
 After the active count reaches zero, it must remain zero for 30 seconds. The
-default drain timeout is two hours. An API failure or timeout fails the workflow
-instead of assuming the system is drained.
+default behavior waits up to two hours and fails the workflow on timeout.
+
+For manually dispatched workflows, the optional **Cancel harvest jobs still
+running after 15 minutes** input changes the drain behavior. After 15 minutes,
+the workflow requests cancellation of every active `harvest-job-*` task through
+the Cloud Foundry API. It continues polling until all canceled tasks reach a
+terminal state and the 30-second quiet period passes. API failures still fail
+the workflow instead of assuming the system is drained.
 
 ### 3. Create and backfill the candidate
 
@@ -146,11 +169,12 @@ It then invokes:
 ```shell
 flask search rebuild-index \
   --target-index datasets-<run-id>-<attempt> \
-  --allow-legacy-index-removal
+  --allow-legacy-index-removal \
+  --switch-alias
 ```
 
-The command refuses to proceed unless scheduling is paused and no active
-harvest tasks remain. It:
+The command refuses to proceed unless `HARVEST_RUNNER_MAX_TASKS` is `0` and no
+active harvest tasks remain. It:
 
 1. Creates the empty physical index with the application mappings and settings.
 2. Validates the mapping before indexing dynamic dataset fields.
@@ -205,68 +229,105 @@ The legacy index is not retained, so take an OpenSearch snapshot first if its
 contents must be independently recoverable. Later rebuilds retain the previous
 versioned index.
 
+### Build without switching the alias
+
+The workflow input **Switch the datasets alias to the rebuilt index** is enabled
+by default. Disabling it passes `--no-switch-alias`, which creates, backfills,
+and validates the physical index but leaves `datasets` unchanged. The workflow
+still restores harvest capacity afterward.
+
+This is a build-only mode, not currently a safe production handoff for a
+breaking schema change:
+
+- Data.gov Catalog and Harvester currently address the hardcoded logical name
+  `datasets`; redeploying Catalog alone cannot select the generated physical
+  name.
+- Once harvesting resumes, Harvester writes to the existing `datasets` target,
+  so the unswitched candidate can become stale.
+- A rolling Catalog deployment is not an atomic reader cutover.
+
+A coordinated incompatible-schema rollout must keep writers paused while both
+applications are configured for the new schema and target. Prefer a
+configurable, versioned logical alias over embedding a generated physical index
+name in application code. Resume harvesting only after Harvester writes and all
+Catalog readers target the same new logical index.
+
 ## Failure behavior
 
 ```mermaid
 flowchart TD
-    Start[Scheduling paused] --> Build{Create, backfill,<br>and validation succeed?}
+    Start[Capacity set to 0] --> Build{Create, backfill,<br>and validation succeed?}
     Build -- No --> Old[Existing alias/index remains live]
-    Build -- Yes --> Flip{Alias switch acknowledged?}
+    Build -- Yes --> Switch{Alias switch enabled?}
+    Switch -- No --> Candidate[Validated candidate retained]
+    Switch -- Yes --> Flip{Alias switch acknowledged?}
     Flip -- No --> Old
     Flip -- Yes --> New[New index serves traffic]
-    Old --> Finally[Always attempt resume]
+    Old --> Finally[Always attempt capacity restore]
+    Candidate --> Finally
     New --> Finally
-    Finally --> Resume{Resume task succeeds?}
+    Finally --> Resume{Restore and restart succeed?}
     Resume -- Yes --> Running[Queued harvest jobs restart]
-    Resume -- No --> Safe[Search remains available;<br>verify scheduling status]
+    Resume -- No --> Safe[Search remains available;<br>verify application environment]
 ```
 
 - A failure before alias cutover leaves the existing live index unchanged.
 - A partially built candidate may remain for diagnosis and can be deleted
   manually.
 - Alias changes are submitted as one atomic OpenSearch operation.
-- The workflow uses `if: always()` to attempt scheduling recovery after earlier
-  failures.
-- If the runner is force-canceled or the recovery task fails, scheduling may
-  remain paused as the safe failure mode. Search continues to work.
+- The workflow uses `if: always()` to restore the exact saved capacity setting
+  and perform another verified rolling restart after earlier failures.
+- If the runner is force-canceled or recovery fails,
+  `HARVEST_RUNNER_MAX_TASKS` may remain `0` as the safe failure mode. Search
+  continues to work.
 
 Manual recovery:
 
 ```shell
-flask harvest_job scheduling-status
-flask harvest_job resume-scheduling --start-jobs
+cf env datagov-harvest
+cf set-env datagov-harvest HARVEST_RUNNER_MAX_TASKS <environment-value>
+cf restart datagov-harvest --strategy rolling
 ```
 
-Run these as CF tasks against the affected environment. Only resume after
-confirming that no index rebuild is still running.
+Use the value in the environment's `vars.<environment>.yml` file. Only restore
+capacity after confirming that no index rebuild is still running, then verify
+all desired app instances are running.
 
 ## Operational runbook
 
 ### Prerequisites
 
-1. Deploy the application version containing the migration and rebuild command.
-2. Confirm the database migration created `harvest_task_control`.
-3. Confirm external consumers access `datasets` by name and can use an alias.
-4. For the first conversion, decide whether an OpenSearch snapshot is required.
-5. Avoid direct database writes or uncoordinated maintenance commands during the
+1. Deploy the application version containing the zero-capacity scheduling gates
+   and rebuild command.
+2. Confirm external consumers access `datasets` by name and can use an alias.
+3. For the first conversion, decide whether an OpenSearch snapshot is required.
+4. Avoid direct database writes or uncoordinated maintenance commands during the
    rebuild.
 
 ### Run
 
 1. Open **Actions → Rebuild OpenSearch Index**.
 2. Select `development`, `staging`, or `prod`.
-3. Run the workflow.
-4. Monitor the pause, drain, rebuild, validation, alias switch, and resume steps.
+3. Optionally enable **Cancel harvest jobs still running after 15 minutes**.
+4. Leave **Switch the datasets alias to the rebuilt index** enabled for the
+   normal atomic cutover, or disable it for build-only mode.
+5. Run the workflow.
+6. Monitor the capacity change, rolling restart, drain, rebuild, validation,
+   optional alias switch, capacity restore, and final rolling restart.
 
 GitHub Actions applies the concurrency group
 `opensearch-maintenance-<environment>`, so rebuild and synchronization workflows
-for the same environment do not overlap.
+and the periodic Harvester restart workflow for the same environment do not
+overlap. The group uses `queue: max`, so later maintenance requests wait instead
+of replacing an already queued operation.
 
 ### Verify
 
 1. Confirm the workflow completed successfully.
-2. Run `flask harvest_job scheduling-status`; it should report `enabled`.
-3. Confirm the `datasets` alias points to the new physical index.
+2. Run `cf env datagov-harvest` and confirm
+   `HARVEST_RUNNER_MAX_TASKS` has its original value.
+3. If alias switching was enabled, confirm the `datasets` alias points to the
+   new physical index. Otherwise, confirm it did not change.
 4. Confirm queued harvest jobs have started.
 5. Exercise catalog searches and inspect OpenSearch/harvester logs.
 
@@ -305,11 +366,11 @@ logical `datasets` name and aliases cannot be deleted through this workflow.
 
 - `.github/workflows/rebuild_opensearch_index.yml` — operation orchestration.
 - `.github/workflows/delete_opensearch_index.yml` — guarded old-index cleanup.
+- `bin/manage_harvest_runner_capacity.sh` — capacity capture, rolling restarts,
+  health confirmation, and restoration.
 - `bin/wait_for_harvest_tasks.sh` — active-task drain and quiet period.
-- `app/commands/job.py` — pause, status, and resume commands.
 - `app/commands/search.py` — candidate creation, validation, cutover, and cleanup.
-- `database/harvest_models.py` — singleton scheduling control model.
-- `database/interface.py` — uncached scheduling flag access.
+- `harvester/runner_settings.py` — shared harvest capacity configuration.
 - `harvester/lib/load_manager.py` — scheduling gates.
 - `harvester/lib/cf_handler.py` — active CF harvest-task discovery.
 - `harvester/opensearch.py` — physical-index and alias operations.

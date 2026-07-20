@@ -60,18 +60,6 @@ class TestDatabase:
 
         return payload
 
-    def test_harvest_scheduling_control_defaults_enabled_and_can_toggle(
-        self, interface
-    ):
-        assert interface.is_harvest_scheduling_paused() is False
-
-        control = interface.set_harvest_scheduling_paused(True)
-        assert control.scheduling_paused is True
-        assert interface.is_harvest_scheduling_paused() is True
-
-        interface.set_harvest_scheduling_paused(False)
-        assert interface.is_harvest_scheduling_paused() is False
-
     def test_add_organization(self, interface, organization_data):
         org = interface.add_organization(organization_data)
 
@@ -1353,9 +1341,9 @@ class TestDatasetSlugProtection:
         assert indexed_datasets[0].slug == "reindex-slug-check"
 
     def test_update_dataset_slug_is_blocked_during_opensearch_maintenance(
-        self, interface, slug_protection_dataset
+        self, interface, slug_protection_dataset, monkeypatch
     ):
-        interface.set_harvest_scheduling_paused(True)
+        monkeypatch.setenv("HARVEST_RUNNER_MAX_TASKS", "0")
 
         dataset, synced, error = interface.update_dataset_slug(
             slug_protection_dataset.id,
