@@ -1,0 +1,99 @@
+{
+  "_note": "Hand-curated NARA access/use restriction authority lists. These pages are HTML-only (no CSV/JSON/API) and hold a small, stable set of terms, so they are maintained here rather than scraped by scripts/refresh_dcat_reference_data.py. Retrieved 2026-07-14. Re-check the source URLs when refreshing.",
+  "access_restriction_status": {
+    "source": "https://www.archives.gov/research/catalog/lcdrg/authority-lists/access-restriction-status",
+    "values": [
+      "Restricted - Fully",
+      "Restricted - Partly",
+      "Restricted - Possibly",
+      "Undetermined",
+      "Unrestricted"
+    ]
+  },
+  "specific_access_restriction": {
+    "source": "https://www.archives.gov/research/catalog/lcdrg/authority-lists/specific-access-restriction",
+    "values": [
+      "CRCCRCA 4(1)(a)",
+      "CRCCRCA 4(1)(b)",
+      "CRCCRCA 4(2)",
+      "CRCCRCA 4(3)",
+      "CRCCRCA 4(4)",
+      "CRCCRCA 4(5)",
+      "CRCCRCA 4(6)",
+      "CRCCRCA SEALED",
+      "CRCCRCA FGJ",
+      "CRCCRCA DPP",
+      "CRCCRCA ACP",
+      "CRCCRCA AWP",
+      "Donated - Security Classified",
+      "Donated - Statute",
+      "Donor Restricted",
+      "Executive Privilege",
+      "Freedom of Information Act (FOIA)",
+      "FOIA (b)(1) National Security",
+      "FOIA (b)(2) Internal Personnel Rules and Practices",
+      "FOIA (b)(3) Statute",
+      "FOIA (b)(4) Trade Secrets and Commercial or Financial Information",
+      "FOIA (b)(5) Inter-agency or Intra-agency Memorandums or Letters Not Available by Law",
+      "FOIA (b)(6) Personal Information",
+      "FOIA (b)(7) Law Enforcement",
+      "FOIA (b)(7a) Law Enforcement",
+      "FOIA (b)(7b) Law Enforcement",
+      "FOIA (b)(7c) Law Enforcement",
+      "FOIA (b)(7d) Law Enforcement",
+      "FOIA (b)(7e) Law Enforcement",
+      "FOIA (b)(7f) Law Enforcement",
+      "FOIA (b)(8) Regulation or Supervision of Financial Institutions",
+      "FOIA (b)(9) Geological or Geophysical Information and Data",
+      "House Rule",
+      "John F. Kennedy Assassination Records Collection Act",
+      "Presidential Records Act (p)(1) National Security Classified",
+      "Presidential Records Act (p)(2) Appointments to Federal Office",
+      "Presidential Records Act (p)(3) Statute",
+      "Presidential Records Act (p)(4) Trade Secrets and Commercial or Financial Information",
+      "Presidential Records Act (p)(5) Confidential Communications",
+      "Presidential Records Act (p)(6) Personal Privacy",
+      "Presidential Records Act (PRA)",
+      "Presidential Recordings and Materials Preservation Act of 1974 (PRMPA)",
+      "PRM - Personal Record Misfile",
+      "PRMPA - Individual Rights Pending (C)",
+      "PRMPA - Investigatory Information (F)",
+      "PRMPA - National Security Classified (B)",
+      "PRMPA - Non-Historical Information (H)",
+      "PRMPA - Personal Information (G)",
+      "PRMPA - Personal Privacy (D)",
+      "PRMPA - Statute (A)",
+      "PRMPA - Trade Secrets and Commercial or Financial Information (E)",
+      "Senate",
+      "UAP Records Collection Postponement Code 1843(a)(1)(a)",
+      "UAP Records Collection Postponement Code 1843(a)(1)(b)",
+      "UAP Records Collection Postponement Code 1843(a)(1)(c)",
+      "UAP Records Collection Postponement Code 1843(a)(2)",
+      "UAP Records Collection Postponement Code 1843(a)(3)",
+      "UAP Records Collection Postponement Code 1843(a)(4)",
+      "UAP Records Collection Postponement Code EO 13526",
+      "Other"
+    ]
+  },
+  "use_restriction_status": {
+    "source": "https://www.archives.gov/research/catalog/lcdrg/authority-lists/use-restriction-status",
+    "values": [
+      "Restricted - Fully",
+      "Restricted - Partly",
+      "Restricted - Possibly",
+      "Undetermined",
+      "Unrestricted"
+    ]
+  },
+  "specific_use_restriction": {
+    "source": "https://www.archives.gov/research/catalog/lcdrg/authority-lists/specific-use-restriction",
+    "values": [
+      "Copyright",
+      "Donor Restrictions",
+      "Public Law 101-246",
+      "Service Mark",
+      "Trademark",
+      "Other"
+    ]
+  }
+}
