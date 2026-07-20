@@ -506,6 +506,10 @@ class TestValidateWarnings:
         assert harvest_source.reporter.warned == 1
         assert harvest_source.reporter.errored == 0
 
+        # the count is persisted to the harvest_job row, not just the reporter
+        harvest_job = interface.get_harvest_job(harvest_source.job_id)
+        assert harvest_job.records_warned == 1
+
         # default (error) query excludes the warning
         errors = interface.get_harvest_record_errors_by_job(harvest_source.job_id)
         assert len(errors) == 0
