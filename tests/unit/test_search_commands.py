@@ -3,6 +3,8 @@ from unittest.mock import Mock, patch
 
 from app.commands.search import (
     OPENSEARCH_INDEX_BATCH_FAILURE_MESSAGE,
+    _backfill_index,
+    _format_duration,
     _normalize_mapping_for_comparison,
 )
 
@@ -10,6 +12,47 @@ from app.commands.search import (
 def test_mapping_comparison_normalizes_dynamic_boolean_strings():
     assert _normalize_mapping_for_comparison({"dynamic": "false"}) == {"dynamic": False}
     assert _normalize_mapping_for_comparison({"dynamic": "true"}) == {"dynamic": True}
+
+
+def test_format_duration_uses_operator_friendly_units():
+    assert _format_duration(0) == "0s"
+    assert _format_duration(65) == "1m 5s"
+    assert _format_duration(3661) == "1h 1m 1s"
+
+
+def test_backfill_index_reports_progress_rate_and_eta(capsys):
+    client = Mock()
+    client.index_datasets.side_effect = [
+        (2, 0, []),
+        (2, 0, []),
+    ]
+    dataset_query = Mock()
+    dataset_query.order_by.return_value = dataset_query
+    dataset_query.filter.return_value = dataset_query
+    dataset_query.limit.return_value.all.side_effect = [
+        [Mock(id=1), Mock(id=2)],
+        [Mock(id=3), Mock(id=4)],
+        [],
+    ]
+
+    with (
+        patch("app.commands.search.db.session.query", return_value=dataset_query),
+        patch("app.commands.search.db.session.expunge_all"),
+        patch("app.commands.search.monotonic", side_effect=[100, 110, 120]),
+    ):
+        indexed, failed = _backfill_index(client, "datasets-new", 2, 4)
+
+    assert (indexed, failed) == (4, 0)
+    output = capsys.readouterr().out
+    assert "Backfill batch 1/2: indexing 2 dataset(s)..." in output
+    assert (
+        "Progress: 2/4 datasets (50.0%); elapsed 10s; "
+        "average 0.2 datasets/s; ETA 10s."
+    ) in output
+    assert (
+        "Progress: 4/4 datasets (100.0%); elapsed 20s; "
+        "average 0.2 datasets/s; ETA 0s."
+    ) in output
 
 
 def test_reset_mapping_recreates_empty_index(app):

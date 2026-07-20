@@ -2,6 +2,7 @@ import difflib
 import json
 import re
 from datetime import datetime, timezone
+from time import monotonic
 
 import click
 from flask import Blueprint
@@ -83,15 +84,33 @@ def _default_rebuild_index_name(alias_name: str) -> str:
     return f"{alias_name}-{timestamp}"
 
 
+def _format_duration(seconds: float) -> str:
+    total_seconds = max(0, round(seconds))
+    hours, remainder = divmod(total_seconds, 3600)
+    minutes, seconds = divmod(remainder, 60)
+
+    parts = []
+    if hours:
+        parts.append(f"{hours}h")
+    if minutes:
+        parts.append(f"{minutes}m")
+    if seconds or not parts:
+        parts.append(f"{seconds}s")
+    return " ".join(parts)
+
+
 def _backfill_index(
     client: OpenSearchInterface,
     target_index: str,
     batch_size: int,
+    total_datasets: int,
 ) -> tuple[int, int]:
     total_indexed = 0
     total_failed = 0
     last_dataset_id = None
     batch_number = 0
+    total_batches = (total_datasets + batch_size - 1) // batch_size
+    started_at = monotonic()
 
     while True:
         query = db.session.query(Dataset).order_by(Dataset.id)
@@ -103,7 +122,8 @@ def _backfill_index(
 
         batch_number += 1
         click.echo(
-            f"Backfill batch {batch_number}: indexing {len(datasets)} dataset(s)..."
+            f"Backfill batch {batch_number}/{total_batches}: "
+            f"indexing {len(datasets)} dataset(s)..."
         )
         succeeded, failed, errors = client.index_datasets(
             datasets,
@@ -116,6 +136,25 @@ def _backfill_index(
             click.echo(f"  OpenSearch error: {error}")
         last_dataset_id = datasets[-1].id
         db.session.expunge_all()
+
+        elapsed_seconds = monotonic() - started_at
+        progress_percent = (
+            total_indexed / total_datasets * 100 if total_datasets else 100
+        )
+        if elapsed_seconds > 0 and total_indexed:
+            average_rate = total_indexed / elapsed_seconds
+            eta_seconds = (total_datasets - total_indexed) / average_rate
+            rate_and_eta = (
+                f"average {average_rate:.1f} datasets/s; "
+                f"ETA {_format_duration(eta_seconds)}"
+            )
+        else:
+            rate_and_eta = "average rate and ETA unavailable"
+        click.echo(
+            f"Progress: {total_indexed:,}/{total_datasets:,} datasets "
+            f"({progress_percent:.1f}%); elapsed {_format_duration(elapsed_seconds)}; "
+            f"{rate_and_eta}."
+        )
 
         if failed:
             break
@@ -234,7 +273,9 @@ def rebuild_opensearch_index(
         )
 
     click.echo(f"Backfilling {initial_db_count} PostgreSQL dataset(s)...")
-    indexed, failed = _backfill_index(client, target_index, batch_size)
+    indexed, failed = _backfill_index(
+        client, target_index, batch_size, initial_db_count
+    )
     if failed or indexed != initial_db_count:
         raise click.ClickException(
             f"Backfill failed: indexed={indexed}, failed={failed}, "
