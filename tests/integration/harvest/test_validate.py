@@ -1,3 +1,5 @@
+import json
+
 import pytest
 
 from harvester.harvest import HarvestSource, Record
@@ -462,3 +464,121 @@ class TestValidateDataset:
             valid_iso_2_record.transformed_data["distribution"][0]["describedByType"]
             == "application/octet-stream"
         )
+
+
+class TestValidateWarnings:
+    """DCAT-US 3 warning detection wired into Record.validate (#6128)."""
+
+    def _first_dcatus3_record(
+        self, interface, organization_data, source_data, job_data
+    ) -> Record:
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data)
+        harvest_job = interface.add_harvest_job(job_data)
+
+        harvest_source = HarvestSource(harvest_job.id)
+        harvest_source.acquire_minimum_external_data()
+        return next(harvest_source.external_records_to_process())
+
+    def test_valid_record_with_warning(
+        self,
+        interface,
+        organization_data,
+        source_data_dcatus3_0,
+        job_data_dcatus3_0,
+    ):
+        """A valid dcatus3.0 record with warning-triggering content still
+        validates, is counted as both validated and warned, and its warning is
+        stored at severity="warning" (excluded from the default error query)."""
+        test_record = self._first_dcatus3_record(
+            interface, organization_data, source_data_dcatus3_0, job_data_dcatus3_0
+        )
+
+        # an unknown ISO 639-1 language is a content warning, not a schema error
+        record = json.loads(test_record.source_raw)
+        record["language"] = ["zz"]
+        test_record._source_raw = json.dumps(record)
+
+        assert test_record.validate()
+
+        harvest_source = test_record.harvest_source
+        assert harvest_source.reporter.validated == 1
+        assert harvest_source.reporter.warned == 1
+        assert harvest_source.reporter.errored == 0
+
+        # default (error) query excludes the warning
+        errors = interface.get_harvest_record_errors_by_job(harvest_source.job_id)
+        assert len(errors) == 0
+
+        warnings = interface.get_harvest_record_errors_by_job(
+            harvest_source.job_id, severity="warning"
+        )
+        assert len(warnings) == 1
+        assert warnings[0][0].type == "invalid_language"
+        assert warnings[0][0].severity == "warning"
+
+    def test_invalid_record_with_warning_preserves_error_status(
+        self,
+        interface,
+        organization_data,
+        source_data_dcatus3_0_invalid,
+        job_data_dcatus3_0_invalid,
+    ):
+        """An invalid record that also warns is counted as errored and warned,
+        and reporting the warning must not clobber the record's error status."""
+        test_record = self._first_dcatus3_record(
+            interface,
+            organization_data,
+            source_data_dcatus3_0_invalid,
+            job_data_dcatus3_0_invalid,
+        )
+
+        # give the record a real db id so we can assert its persisted status
+        test_record.compare()
+
+        # a bad @id is both a schema error (format: iri) and an invalid_iri warning
+        record = json.loads(test_record.source_raw)
+        record["@id"] = "not a valid iri"
+        test_record._source_raw = json.dumps(record)
+
+        assert not test_record.validate()
+
+        harvest_source = test_record.harvest_source
+        assert harvest_source.reporter.errored == 1
+        assert harvest_source.reporter.warned == 1
+        assert harvest_source.reporter.validated == 0
+
+        # the warning write must not have overwritten the error status
+        stored = interface.get_harvest_record(test_record.id)
+        assert stored.status == "error"
+
+        warnings = interface.get_harvest_record_errors_by_job(
+            harvest_source.job_id, severity="warning"
+        )
+        assert any(w[0].type == "invalid_iri" for w in warnings)
+
+    def test_non_dcatus3_record_is_not_warned(
+        self,
+        interface,
+        organization_data,
+        source_data_dcatus_single_record_non_federal,
+        job_data_dcatus_non_federal,
+    ):
+        """Warning detection is gated on schema_type == "dcatus3.0"; a 1.1
+        record is never walked and never counted as warned."""
+        test_record = self._first_dcatus3_record(
+            interface,
+            organization_data,
+            source_data_dcatus_single_record_non_federal,
+            job_data_dcatus_non_federal,
+        )
+
+        test_record.validate()
+
+        harvest_source = test_record.harvest_source
+        assert harvest_source.reporter.warned == 0
+
+        warnings = interface.get_harvest_record_errors_by_job(
+            harvest_source.job_id, severity="warning"
+        )
+        assert len(warnings) == 0
