@@ -1,4 +1,5 @@
 import os
+import time
 from unittest.mock import patch
 
 import pytest
@@ -431,3 +432,49 @@ class TestAuthLogging:
                     if "event=login_rejected" in call[0][0]
                 ]
                 assert len(rejection_calls) > 0
+
+    class TestLogout:
+        @pytest.fixture
+        def client_with_session(self, app):
+            client = app.test_client()
+            # Set up a logged-in session
+            with client.session_transaction() as sess:
+                sess["user"] = "test@gsa.gov"
+                sess["last_activity"] = int(time.time())
+            return client
+
+        def test_logs_event_tag(self, client_with_session):
+            with patch("app.main.auth.logger") as mock_logger:
+                client_with_session.get("/logout")
+
+                mock_logger.info.assert_called_once()
+                log_message = mock_logger.info.call_args[0][0]
+                assert "event=user_logout" in log_message
+
+        def test_logs_user_email_when_logged_in(self, client_with_session):
+            with patch("app.main.auth.logger") as mock_logger:
+                client_with_session.get("/logout")
+
+                mock_logger.info.assert_called_once()
+                call_args = mock_logger.info.call_args[0]
+                assert "test@gsa.gov" in str(call_args)
+
+        def test_logs_anonymous_when_no_user(self, app):
+            client = app.test_client()
+            with patch("app.main.auth.logger") as mock_logger:
+                client.get("/logout")
+
+                mock_logger.info.assert_called_once()
+                call_args = mock_logger.info.call_args[0]
+                assert "<anonymous>" in str(call_args)
+
+        def test_logs_ip_address(self, client_with_session):
+            with patch("app.main.auth.logger") as mock_logger:
+                client_with_session.get(
+                    "/logout",
+                    headers={"X-Forwarded-For": "203.0.113.99"},
+                )
+
+                mock_logger.info.assert_called_once()
+                call_args = mock_logger.info.call_args[0]
+                assert "203.0.113.99" in str(call_args)

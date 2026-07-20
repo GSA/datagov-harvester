@@ -126,7 +126,7 @@ def logout():
     user = session.get("user")
     session.clear()
     logger.info(
-        "Logout completed for user=%s ip=%s",
+        "event=user_logout user=%s ip=%s",
         user or "<anonymous>",
         request.headers.get("X-Forwarded-For", request.remote_addr),
     )
