@@ -4,6 +4,9 @@ permissions:
 name: Rebuild OpenSearch Index
 
 on:
+  push:
+    branches:
+      - test-opensearch-rebuild-action-v2
   workflow_dispatch:
     inputs:
       environment:
@@ -28,16 +31,15 @@ on:
 
 jobs:
   rebuild:
-    name: Rebuild OpenSearch index (${{ inputs.environment }})
+    name: Rebuild OpenSearch index (${{ inputs.environment || 'development' }})
     runs-on: ubuntu-latest
     timeout-minutes: 240
-    environment: ${{ inputs.environment }}
+    environment: ${{ inputs.environment || 'development' }}
     concurrency:
-      group: opensearch-maintenance-${{ inputs.environment }}
+      group: opensearch-maintenance-${{ inputs.environment || 'development' }}
       cancel-in-progress: false
-      queue: max
     env:
-      CF_SPACE: ${{ inputs.environment }}
+      CF_SPACE: ${{ inputs.environment || 'development' }}
     steps:
       - name: Check out the code
         id: checkout
@@ -45,7 +47,7 @@ jobs:
 
       - name: Set operation names
         env:
-          SWITCH_ALIAS: ${{ inputs.switch_alias }}
+          SWITCH_ALIAS: ${{ github.event_name == 'push' || inputs.switch_alias }}
         run: |
           echo "REBUILD_TASK=search-rebuild-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_ENV"
           echo "TARGET_INDEX=datasets-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_ENV"
