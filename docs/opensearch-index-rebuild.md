@@ -1,16 +1,21 @@
 # OpenSearch Index Rebuild and Alias Cutover
 
 This document describes how Data.gov rebuilds the OpenSearch dataset index
-without interrupting search traffic. Harvest processing is paused during the
-rebuild so PostgreSQL remains the stable source of truth. A replay or change-log
-table and a database-backed scheduling flag are not required.
+without interrupting search traffic. Harvest capacity is set to zero and the
+harvester is restarted so no new jobs run while a candidate index is built from
+PostgreSQL. Queued jobs remain in the database and resume after capacity is
+restored.
+
+For the operator-facing steps, see
+[docs/ops/rebuild-opensearch-index.md](ops/rebuild-opensearch-index.md).
 
 ## Goals
 
 - Keep the existing OpenSearch index available to readers during the backfill.
 - Prevent dataset mutations while the new index is being built.
 - Fail before cutover if any dataset cannot be indexed or validation fails.
-- Switch all readers and writers atomically through the `datasets` alias.
+- Switch all readers and writers atomically through the `datasets` alias when
+  the schema is compatible.
 - Preserve queued harvest jobs and resume them after the operation.
 
 Search remains available throughout the operation. Harvest jobs are delayed for
@@ -236,21 +241,26 @@ by default. Disabling it passes `--no-switch-alias`, which creates, backfills,
 and validates the physical index but leaves `datasets` unchanged. The workflow
 still restores harvest capacity afterward.
 
-This is a build-only mode, not currently a safe production handoff for a
-breaking schema change:
+Use this mode for incompatible mapping changes (for example renaming a field).
+Switching the live alias immediately would expose the new schema to Catalog
+while it still expects the old one. The coordinated rollout is:
 
-- Data.gov Catalog and Harvester currently address the hardcoded logical name
-  `datasets`; redeploying Catalog alone cannot select the generated physical
-  name.
-- Once harvesting resumes, Harvester writes to the existing `datasets` target,
-  so the unswitched candidate can become stale.
-- A rolling Catalog deployment is not an atomic reader cutover.
+1. Run the rebuild with alias switching disabled. Note the physical index name
+   printed by the workflow (for example `datasets-<run-id>-<attempt>`).
+2. Deploy Catalog (and Harvester, if its writers also depend on the new schema)
+   configured to read that physical index directly, not through `datasets`.
+3. After Catalog is healthy on the new schema, point the `datasets` alias at the
+   physical index so other consumers can return to the logical name.
+4. Redeploy Catalog/Harvester back to the `datasets` alias once that is safe.
 
-A coordinated incompatible-schema rollout must keep writers paused while both
-applications are configured for the new schema and target. Prefer a
-configurable, versioned logical alias over embedding a generated physical index
-name in application code. Resume harvesting only after Harvester writes and all
-Catalog readers target the same new logical index.
+There is no standalone GitHub Actions workflow or Flask CLI today that only
+points `datasets` at an existing physical index. Alias cutover is performed by
+`OpenSearchInterface.switch_alias()` inside `flask search rebuild-index` when
+`--switch-alias` is set. For a post-deploy cutover after a build-only rebuild,
+an operator must either add a thin CLI wrapper around that method or invoke the
+same `update_aliases` request manually against OpenSearch. Do not re-run
+`rebuild-index --switch-alias` just to flip the alias; that recreates and
+backfills another candidate.
 
 ## Failure behavior
 
@@ -295,6 +305,9 @@ all desired app instances are running.
 
 ## Operational runbook
 
+Operator steps for compatible rebuilds and breaking schema changes are in
+[docs/ops/rebuild-opensearch-index.md](ops/rebuild-opensearch-index.md).
+
 ### Prerequisites
 
 1. Deploy the application version containing the zero-capacity scheduling gates
@@ -309,10 +322,11 @@ all desired app instances are running.
 1. Open **Actions → Rebuild OpenSearch Index**.
 2. Select `development`, `staging`, or `prod`.
 3. Optionally enable **Cancel harvest jobs still running after 15 minutes**.
-4. Leave **Switch the datasets alias to the rebuilt index** enabled for the
-   normal atomic cutover, or disable it for build-only mode.
+4. Leave **Switch the datasets alias to the rebuilt index** enabled for a
+   compatible atomic cutover, or disable it for a breaking-schema build-only
+   rebuild.
 5. Run the workflow.
-6. Monitor the capacity change, rolling restart, drain, rebuild, validation,
+6. Monitor capacity change, rolling restart, drain, rebuild, validation,
    optional alias switch, capacity restore, and final rolling restart.
 
 GitHub Actions applies the concurrency group

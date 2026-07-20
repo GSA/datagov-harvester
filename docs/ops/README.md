@@ -2,6 +2,15 @@
 
 This is miscellaneous notes on operating the Harvester system.
 
+## OpenSearch index rebuild
+
+See [rebuild-opensearch-index.md](rebuild-opensearch-index.md) for the operator
+runbook covering compatible rebuilds, breaking schema changes, and capacity
+recovery. Design details are in
+[docs/opensearch-index-rebuild.md](../opensearch-index-rebuild.md). A pasteable
+PR description is in
+[rebuild-opensearch-index-pr.md](rebuild-opensearch-index-pr.md).
+
 ## Scheduling many harvest jobs
 
 Using the API's `/harvest_source/harvest/<id>/<type>` endpoint circumvents the
