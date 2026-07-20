@@ -1,0 +1,68 @@
+permissions:
+  contents: read
+
+name: Delete OpenSearch Physical Index
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Cloud Foundry environment"
+        required: true
+        default: development
+        type: choice
+        options:
+          - development
+          - staging
+          - prod
+      index_name:
+        description: "Exact unused physical index name (for example, datasets-123456-1)"
+        required: true
+        type: string
+
+jobs:
+  delete:
+    name: Delete OpenSearch index (${{ inputs.environment }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: ${{ inputs.environment }}
+    concurrency:
+      group: opensearch-maintenance-${{ inputs.environment }}
+      cancel-in-progress: false
+      queue: max
+    env:
+      CF_SPACE: ${{ inputs.environment }}
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v7
+
+      - name: Validate physical index name
+        env:
+          REQUESTED_INDEX: ${{ inputs.index_name }}
+        run: |
+          if [[ ! "$REQUESTED_INDEX" =~ ^datasets-[a-z0-9._-]+$ ]]; then
+            echo "Index name must match datasets-[a-z0-9._-]+." >&2
+            exit 1
+          fi
+          echo "INDEX_NAME=$REQUESTED_INDEX" >> "$GITHUB_ENV"
+          echo "DELETE_TASK=search-delete-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_ENV"
+
+      - name: Delete unused physical index
+        uses: cloud-gov/cg-cli-tools@main
+        with:
+          command: >
+            cf run-task datagov-harvest --name "$DELETE_TASK" -k 2G -m 2G
+            --command "flask search delete-index --index-name $INDEX_NAME"
+          cf_org: gsa-datagov
+          cf_space: ${{ env.CF_SPACE }}
+          cf_username: ${{ secrets.CF_SERVICE_USER }}
+          cf_password: ${{ secrets.CF_SERVICE_AUTH }}
+
+      - name: Monitor index deletion
+        uses: cloud-gov/cg-cli-tools@main
+        with:
+          command: bin/monitor_cf_logs.sh datagov-harvest "$DELETE_TASK"
+          cf_org: gsa-datagov
+          cf_space: ${{ env.CF_SPACE }}
+          cf_username: ${{ secrets.CF_SERVICE_USER }}
+          cf_password: ${{ secrets.CF_SERVICE_AUTH }}

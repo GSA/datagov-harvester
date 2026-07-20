@@ -1,15 +1,16 @@
 import difflib
 import json
+import re
 from datetime import datetime, timezone
 
 import click
 from flask import Blueprint
 from opensearchpy.helpers import scan
 
-from database.interface import HarvesterDBInterface
 from database.models import Dataset, db
 from harvester.lib.task_handler import create_task_handler
 from harvester.opensearch import OpenSearchInterface
+from harvester.runner_settings import harvest_scheduling_is_disabled
 
 search = Blueprint("search", __name__)
 # we use this message to detect index failure in GH actions
@@ -171,16 +172,22 @@ def reset_opensearch_mapping():
         "index named datasets."
     ),
 )
+@click.option(
+    "--switch-alias/--no-switch-alias",
+    default=True,
+    show_default=True,
+    help="Switch the logical datasets alias after a successful backfill.",
+)
 def rebuild_opensearch_index(
     target_index: str | None,
     batch_size: int,
     allow_legacy_index_removal: bool,
+    switch_alias: bool,
 ):
-    """Build a physical index from PostgreSQL and atomically switch the alias."""
-    control = HarvesterDBInterface()
-    if not control.is_harvest_scheduling_paused():
+    """Build and validate a physical index, optionally switching the alias."""
+    if not harvest_scheduling_is_disabled():
         raise click.ClickException(
-            "Harvest task scheduling must be paused before rebuilding the index."
+            "HARVEST_RUNNER_MAX_TASKS must be 0 before rebuilding the index."
         )
 
     handler = create_task_handler()
@@ -206,7 +213,7 @@ def rebuild_opensearch_index(
         not current_alias_indices
         and client.client.indices.exists(index=client.INDEX_NAME)
     )
-    if has_legacy_concrete_index and not allow_legacy_index_removal:
+    if switch_alias and has_legacy_concrete_index and not allow_legacy_index_removal:
         raise click.ClickException(
             "The logical index name is still a concrete index. Re-run with "
             "--allow-legacy-index-removal to perform the one-time atomic conversion."
@@ -248,6 +255,13 @@ def rebuild_opensearch_index(
             f"{target_index} has {index_count} documents."
         )
 
+    if not switch_alias:
+        click.echo(
+            f"Rebuild complete: {target_index} is validated; "
+            f"{client.INDEX_NAME} was not changed."
+        )
+        return
+
     click.echo(f"Atomically switching alias {client.INDEX_NAME} to {target_index}...")
     old_indices, removed_legacy = client.switch_alias(target_index)
     if removed_legacy:
@@ -255,6 +269,54 @@ def rebuild_opensearch_index(
     elif old_indices:
         click.echo("Previous index retained: " + ", ".join(old_indices))
     click.echo(f"Rebuild complete: {client.INDEX_NAME} now points to {target_index}.")
+
+
+@search.cli.command("delete-index")
+@click.option(
+    "--index-name",
+    required=True,
+    help="Exact name of an unused physical index, such as datasets-123456-1.",
+)
+def delete_opensearch_index(index_name: str):
+    """Delete an unused physical dataset index."""
+    client = OpenSearchInterface.from_environment()
+    physical_index_pattern = rf"{re.escape(client.INDEX_NAME)}-[a-z0-9._-]+"
+    if not re.fullmatch(physical_index_pattern, index_name):
+        raise click.ClickException(
+            f"Index name must be a physical index starting with "
+            f"'{client.INDEX_NAME}-'."
+        )
+
+    active_indices = client.alias_indices()
+    if index_name in active_indices:
+        raise click.ClickException(
+            f"Cannot delete {index_name}; the {client.INDEX_NAME} alias currently "
+            "points to it."
+        )
+    if not client.client.indices.exists(index=index_name):
+        raise click.ClickException(f"OpenSearch index does not exist: {index_name}")
+
+    alias_response = client.client.indices.get_alias(index=index_name)
+    attached_aliases = sorted(
+        {
+            alias
+            for index_details in alias_response.values()
+            for alias in index_details.get("aliases", {})
+        }
+    )
+    if attached_aliases:
+        raise click.ClickException(
+            f"Cannot delete {index_name}; attached aliases: "
+            + ", ".join(attached_aliases)
+        )
+
+    click.echo(f"Deleting unused physical index {index_name}...")
+    response = client.client.indices.delete(index=index_name)
+    if not response.get("acknowledged"):
+        raise click.ClickException(
+            f"OpenSearch did not acknowledge deletion of {index_name}."
+        )
+    click.echo(f"Deleted OpenSearch index {index_name}.")
 
 
 @search.cli.command("compare")

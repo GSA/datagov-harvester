@@ -19,6 +19,10 @@ jobs:
       matrix:
         environ: ["development", "staging", "prod"]
     environment: ${{ matrix.environ }}
+    concurrency:
+      group: opensearch-maintenance-${{ matrix.environ }}
+      cancel-in-progress: false
+      queue: max
     runs-on: ubuntu-latest
     steps:
       - name: checkout repo
