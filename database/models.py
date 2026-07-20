@@ -165,6 +165,7 @@ class HarvestJob(db.Model):
     records_errored = db.Column(db.Integer, default=0)
     records_ignored = db.Column(db.Integer, default=0)
     records_validated = db.Column(db.Integer, default=0)
+    records_warned = db.Column(db.Integer, default=0)
     errors = db.relationship(
         "HarvestJobError",
         backref=backref("job", lazy="joined"),
