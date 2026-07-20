@@ -256,7 +256,8 @@ def callback():
             return redirect(url_for("main.index"))
     else:
         logger.warning(
-            "Login rejected for unregistered user=%s ssoid=%s ip=%s",
+            "event=login_rejected reason=unregistered_user method=oidc "
+            "user=%s ssoid=%s ip=%s",
             usr_email,
             usr_ssoid,
             request_ip,

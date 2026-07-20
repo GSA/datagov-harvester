@@ -226,3 +226,208 @@ class TestAuthLogging:
 
                 call_args = login_success_call[0]
                 assert "198.51.100.23" in str(call_args)
+
+    class TestOIDCLoginRejection:
+        @pytest.fixture
+        def oidc_client(self, app):
+            return app.test_client()
+
+        @pytest.fixture
+        def mock_oidc_flow_unregistered_user(self):
+            """Mock OIDC flow where user authenticates but is not registered"""
+            with patch("app.main.auth.requests.post") as mock_post, patch(
+                "app.main.auth.jwt.decode"
+            ) as mock_jwt_decode, patch("app.deps.db.verify_user") as mock_verify_user:
+                # Mock token endpoint response
+                mock_post.return_value.status_code = 200
+                mock_post.return_value.json.return_value = {
+                    "id_token": "mock_id_token",
+                    "access_token": "mock_access_token",
+                }
+
+                # Mock JWT decode to return user claims
+                mock_jwt_decode.return_value = {
+                    "email": "unregistered@example.com",
+                    "sub": "mock-sso-id-99999",
+                }
+
+                # Mock user verification to return None (user not registered)
+                mock_verify_user.return_value = None
+
+                yield {
+                    "post": mock_post,
+                    "jwt_decode": mock_jwt_decode,
+                    "verify_user": mock_verify_user,
+                }
+
+        def test_logs_event_tag(self, oidc_client, mock_oidc_flow_unregistered_user):
+            with oidc_client.session_transaction() as sess:
+                sess["state"] = "test_state"
+                sess["nonce"] = "test_nonce"
+
+            with patch("app.main.auth.logger") as mock_logger:
+                oidc_client.get(
+                    "/callback?code=test_code&state=test_state",
+                )
+
+                # Find the warning log call about login rejection
+                warning_calls = [
+                    call
+                    for call in mock_logger.warning.call_args_list
+                    if len(call[0]) > 1
+                ]
+                rejection_call = [
+                    call
+                    for call in warning_calls
+                    if "event=login_rejected" in call[0][0]
+                ][0]
+
+                log_message = rejection_call[0][0]
+                assert "event=login_rejected" in log_message
+
+        def test_logs_reason_tag(self, oidc_client, mock_oidc_flow_unregistered_user):
+            with oidc_client.session_transaction() as sess:
+                sess["state"] = "test_state"
+                sess["nonce"] = "test_nonce"
+
+            with patch("app.main.auth.logger") as mock_logger:
+                oidc_client.get(
+                    "/callback?code=test_code&state=test_state",
+                )
+
+                warning_calls = [
+                    call
+                    for call in mock_logger.warning.call_args_list
+                    if len(call[0]) > 1
+                ]
+                rejection_call = [
+                    call
+                    for call in warning_calls
+                    if "event=login_rejected" in call[0][0]
+                ][0]
+
+                log_message = rejection_call[0][0]
+                assert "reason=unregistered_user" in log_message
+
+        def test_logs_method_tag(self, oidc_client, mock_oidc_flow_unregistered_user):
+            with oidc_client.session_transaction() as sess:
+                sess["state"] = "test_state"
+                sess["nonce"] = "test_nonce"
+
+            with patch("app.main.auth.logger") as mock_logger:
+                oidc_client.get(
+                    "/callback?code=test_code&state=test_state",
+                )
+
+                warning_calls = [
+                    call
+                    for call in mock_logger.warning.call_args_list
+                    if len(call[0]) > 1
+                ]
+                rejection_call = [
+                    call
+                    for call in warning_calls
+                    if "event=login_rejected" in call[0][0]
+                ][0]
+
+                log_message = rejection_call[0][0]
+                assert "method=oidc" in log_message
+
+        def test_logs_user_email(self, oidc_client, mock_oidc_flow_unregistered_user):
+            with oidc_client.session_transaction() as sess:
+                sess["state"] = "test_state"
+                sess["nonce"] = "test_nonce"
+
+            with patch("app.main.auth.logger") as mock_logger:
+                oidc_client.get(
+                    "/callback?code=test_code&state=test_state",
+                )
+
+                warning_calls = [
+                    call
+                    for call in mock_logger.warning.call_args_list
+                    if len(call[0]) > 1
+                ]
+                rejection_call = [
+                    call
+                    for call in warning_calls
+                    if "event=login_rejected" in call[0][0]
+                ][0]
+
+                call_args = rejection_call[0]
+                assert "unregistered@example.com" in str(call_args)
+
+        def test_logs_ssoid(self, oidc_client, mock_oidc_flow_unregistered_user):
+            with oidc_client.session_transaction() as sess:
+                sess["state"] = "test_state"
+                sess["nonce"] = "test_nonce"
+
+            with patch("app.main.auth.logger") as mock_logger:
+                oidc_client.get(
+                    "/callback?code=test_code&state=test_state",
+                )
+
+                warning_calls = [
+                    call
+                    for call in mock_logger.warning.call_args_list
+                    if len(call[0]) > 1
+                ]
+                rejection_call = [
+                    call
+                    for call in warning_calls
+                    if "event=login_rejected" in call[0][0]
+                ][0]
+
+                call_args = rejection_call[0]
+                assert "mock-sso-id-99999" in str(call_args)
+
+        def test_logs_ip_address(self, oidc_client, mock_oidc_flow_unregistered_user):
+            with oidc_client.session_transaction() as sess:
+                sess["state"] = "test_state"
+                sess["nonce"] = "test_nonce"
+
+            with patch("app.main.auth.logger") as mock_logger:
+                oidc_client.get(
+                    "/callback?code=test_code&state=test_state",
+                    headers={"X-Forwarded-For": "192.0.2.100"},
+                )
+
+                warning_calls = [
+                    call
+                    for call in mock_logger.warning.call_args_list
+                    if len(call[0]) > 1
+                ]
+                rejection_call = [
+                    call
+                    for call in warning_calls
+                    if "event=login_rejected" in call[0][0]
+                ][0]
+
+                call_args = rejection_call[0]
+                assert "192.0.2.100" in str(call_args)
+
+        def test_uses_warning_log_level(
+            self, oidc_client, mock_oidc_flow_unregistered_user
+        ):
+            with oidc_client.session_transaction() as sess:
+                sess["state"] = "test_state"
+                sess["nonce"] = "test_nonce"
+
+            with patch("app.main.auth.logger") as mock_logger:
+                oidc_client.get(
+                    "/callback?code=test_code&state=test_state",
+                )
+
+                # Verify warning was called and has our structured message
+                assert mock_logger.warning.called
+                warning_calls = [
+                    call
+                    for call in mock_logger.warning.call_args_list
+                    if len(call[0]) > 1
+                ]
+                rejection_calls = [
+                    call
+                    for call in warning_calls
+                    if "event=login_rejected" in call[0][0]
+                ]
+                assert len(rejection_calls) > 0
