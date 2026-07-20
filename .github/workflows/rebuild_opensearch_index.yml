@@ -47,7 +47,7 @@ jobs:
 
       - name: Set operation names
         env:
-          SWITCH_ALIAS: ${{ github.event_name == 'push' || inputs.switch_alias }}
+          SWITCH_ALIAS: ${{ inputs.switch_alias }}
         run: |
           echo "REBUILD_TASK=search-rebuild-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_ENV"
           echo "TARGET_INDEX=datasets-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_ENV"
