@@ -244,7 +244,7 @@ def callback():
         session["user"] = usr_email
         session["last_activity"] = current_unix_timestamp()
         logger.info(
-            "Login succeeded for user=%s ssoid=%s ip=%s",
+            "event=user_login method=oidc user=%s ssoid=%s ip=%s",
             usr_email,
             usr_ssoid,
             request_ip,

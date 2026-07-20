@@ -91,3 +91,138 @@ class TestAuthLogging:
                 mock_logger.info.assert_called_once()
                 call_args = mock_logger.info.call_args[0]
                 assert "127.0.0.1" in str(call_args)
+
+    class TestOIDCLoginSuccess:
+        @pytest.fixture
+        def oidc_client(self, app):
+            return app.test_client()
+
+        @pytest.fixture
+        def mock_oidc_flow(self):
+            """Mock the complete OIDC authentication flow"""
+            with patch("app.main.auth.requests.post") as mock_post, patch(
+                "app.main.auth.jwt.decode"
+            ) as mock_jwt_decode, patch("app.deps.db.verify_user") as mock_verify_user:
+                # Mock token endpoint response
+                mock_post.return_value.status_code = 200
+                mock_post.return_value.json.return_value = {
+                    "id_token": "mock_id_token",
+                    "access_token": "mock_access_token",
+                }
+
+                # Mock JWT decode to return user claims
+                mock_jwt_decode.return_value = {
+                    "email": "test@gsa.gov",
+                    "sub": "mock-sso-id-12345",
+                }
+
+                # Mock user verification to return valid user
+                mock_verify_user.return_value = True
+
+                yield {
+                    "post": mock_post,
+                    "jwt_decode": mock_jwt_decode,
+                    "verify_user": mock_verify_user,
+                }
+
+        def test_logs_event_tag(self, oidc_client, mock_oidc_flow):
+            with oidc_client.session_transaction() as sess:
+                sess["state"] = "test_state"
+                sess["nonce"] = "test_nonce"
+
+            with patch("app.main.auth.logger") as mock_logger:
+                oidc_client.get(
+                    "/callback?code=test_code&state=test_state",
+                )
+
+                # Find the info log call about login success (has event=user_login)
+                info_calls = [
+                    call for call in mock_logger.info.call_args_list if len(call[0]) > 1
+                ]
+                login_success_call = [
+                    call for call in info_calls if "event=user_login" in call[0][0]
+                ][0]
+
+                log_message = login_success_call[0][0]
+                assert "event=user_login" in log_message
+
+        def test_logs_method_tag(self, oidc_client, mock_oidc_flow):
+            with oidc_client.session_transaction() as sess:
+                sess["state"] = "test_state"
+                sess["nonce"] = "test_nonce"
+
+            with patch("app.main.auth.logger") as mock_logger:
+                oidc_client.get(
+                    "/callback?code=test_code&state=test_state",
+                )
+
+                info_calls = [
+                    call for call in mock_logger.info.call_args_list if len(call[0]) > 1
+                ]
+                login_success_call = [
+                    call for call in info_calls if "event=user_login" in call[0][0]
+                ][0]
+
+                log_message = login_success_call[0][0]
+                assert "method=oidc" in log_message
+
+        def test_logs_user_email(self, oidc_client, mock_oidc_flow):
+            with oidc_client.session_transaction() as sess:
+                sess["state"] = "test_state"
+                sess["nonce"] = "test_nonce"
+
+            with patch("app.main.auth.logger") as mock_logger:
+                oidc_client.get(
+                    "/callback?code=test_code&state=test_state",
+                )
+
+                info_calls = [
+                    call for call in mock_logger.info.call_args_list if len(call[0]) > 1
+                ]
+                login_success_call = [
+                    call for call in info_calls if "event=user_login" in call[0][0]
+                ][0]
+
+                call_args = login_success_call[0]
+                assert "test@gsa.gov" in str(call_args)
+
+        def test_logs_ssoid(self, oidc_client, mock_oidc_flow):
+            with oidc_client.session_transaction() as sess:
+                sess["state"] = "test_state"
+                sess["nonce"] = "test_nonce"
+
+            with patch("app.main.auth.logger") as mock_logger:
+                oidc_client.get(
+                    "/callback?code=test_code&state=test_state",
+                )
+
+                info_calls = [
+                    call for call in mock_logger.info.call_args_list if len(call[0]) > 1
+                ]
+                login_success_call = [
+                    call for call in info_calls if "event=user_login" in call[0][0]
+                ][0]
+
+                call_args = login_success_call[0]
+                assert "mock-sso-id-12345" in str(call_args)
+
+        def test_logs_ip_address(self, oidc_client, mock_oidc_flow):
+            with oidc_client.session_transaction() as sess:
+                sess["state"] = "test_state"
+                sess["nonce"] = "test_nonce"
+
+            with patch("app.main.auth.logger") as mock_logger:
+                oidc_client.get(
+                    "/callback?code=test_code&state=test_state",
+                    headers={"X-Forwarded-For": "198.51.100.23"},
+                )
+
+                info_calls = [
+                    call for call in mock_logger.info.call_args_list if len(call[0]) > 1
+                ]
+                login_success_call = [
+                    call for call in info_calls if "event=user_login" in call[0][0]
+                ][0]
+
+                call_args = login_success_call[0]
+                assert "198.51.100.23" in str(call_args)
