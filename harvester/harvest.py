@@ -37,6 +37,7 @@ from harvester.exceptions import (
 from harvester.lib.harvest_reporter import HarvestReporter
 from harvester.lib.load_manager import LoadManager
 from harvester.lib.task_handler import create_task_handler
+from harvester.utils.dcat_warnings import DcatWarning, detect_dcat_warnings
 from harvester.utils.general_utils import (
     DT_PLACEHOLDER,
     USER_AGENT,
@@ -253,6 +254,7 @@ class HarvestSource:
             None (unchanged)
             errored
             validated
+            warned
         """
         self.reporter.update(action)
         self.db_interface.update_harvest_job(self.job_id, self.reporter.report())
@@ -1043,6 +1045,24 @@ class Record:
             emit_log=False,
         )
 
+    def _report_warning(self, warning: DcatWarning) -> None:
+        """Persist a DCAT-US 3 content-quality warning.
+
+        Unlike _report_error, this never changes the record's status: a
+        warning is not a failure and must not clobber an errored (or
+        successful) record's status.
+        """
+        self.harvest_source.db_interface.add_harvest_record_error(
+            {
+                "message": warning.message,
+                "type": warning.warning_type,
+                "date_created": get_datetime(),
+                "harvest_job_id": self.harvest_source.job_id,
+                "harvest_record_id": self.id,
+                "severity": "warning",
+            }
+        )
+
     def validate(self) -> None:
         """Validate a single record.
 
@@ -1073,6 +1093,16 @@ class Record:
         for error in errors:
             valid = False
             self._report_error(error)
+
+        # DCAT-US 3 content-quality warnings are detected regardless of schema
+        # validity and never change the record's status. A record can be both
+        # validated (or errored) and warned.
+        if self.harvest_source.schema_type == "dcatus3.0":
+            warnings = detect_dcat_warnings(record)
+            for warning in warnings:
+                self._report_warning(warning)
+            if warnings:
+                self.harvest_source.update_job_record_count_by_action("warned")
 
         if valid:
             self.harvest_source.update_job_record_count_by_action("validated")
