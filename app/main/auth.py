@@ -123,7 +123,7 @@ def login():
                 request.headers.get("X-Forwarded-For", request.remote_addr),
             )
             next_url = session.pop("next", None)
-            if next_url:
+            if next_url and _is_safe_redirect_target(next_url):
                 return redirect(next_url)
             return redirect(url_for("main.index"))
         flash("Invalid username or password.", "danger")
