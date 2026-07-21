@@ -112,6 +112,12 @@ class HarvestSourceForm(FlaskForm):
     source_type = SelectField(
         "Source Type", choices=SOURCE_TYPE_VALUES, validators=[DataRequired()]
     )
+    collection_parent_url = StringField(
+        "Collection Parent URL",
+        validators=[Optional(), URL(require_tld=is_prod)],
+        filters=[strip_filter],
+        description="Required when Source Type is waf-collection.",
+    )
     notification_frequency = SelectField(
         "Notification Frequency",
         choices=[
@@ -121,6 +127,18 @@ class HarvestSourceForm(FlaskForm):
         ],
         validators=[DataRequired()],
     )
+
+    def validate(self, extra_validators=None):
+        valid = super().validate(extra_validators=extra_validators)
+        if (
+            self.source_type.data == "waf-collection"
+            and not self.collection_parent_url.data
+        ):
+            self.collection_parent_url.errors.append(
+                "Collection Parent URL is required for waf-collection sources."
+            )
+            valid = False
+        return valid
 
 
 class OrganizationForm(FlaskForm):

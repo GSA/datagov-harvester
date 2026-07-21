@@ -131,6 +131,60 @@ class TestForms:
         assert [option["value"] for option in source_type.find_all("option")] == (
             SOURCE_TYPE_VALUES
         )
+        assert soup.find("input", {"name": "collection_parent_url"}) is not None
+
+    def test_add_harvest_source_waf_collection(
+        self, app, client, interface, organization_data
+    ):
+        app.config.update({"WTF_CSRF_ENABLED": False})
+        with client.session_transaction() as sess:
+            sess["user"] = "tester@gsa.gov"
+
+        interface.add_organization(organization_data)
+
+        form_data = {
+            "organization_id": organization_data["id"],
+            "name": "Test WAF Collection Source",
+            "url": "https://example.com/waf/",
+            "notification_emails": "user@example.com",
+            "frequency": "daily",
+            "schema_type": "iso19115_2",
+            "source_type": "waf-collection",
+            "collection_parent_url": "https://example.com/parent.xml",
+            "notification_frequency": "always",
+        }
+        res = client.post("/harvest_source/add", data=form_data)
+
+        assert res.status_code == 302
+        sources = interface.get_all_harvest_sources()
+        assert len(sources) == 1
+        assert sources[0].source_type == "waf-collection"
+        assert sources[0].collection_parent_url == "https://example.com/parent.xml"
+
+    def test_add_harvest_source_waf_collection_requires_parent_url(
+        self, app, client, interface, organization_data
+    ):
+        app.config.update({"WTF_CSRF_ENABLED": False})
+        with client.session_transaction() as sess:
+            sess["user"] = "tester@gsa.gov"
+
+        interface.add_organization(organization_data)
+
+        form_data = {
+            "organization_id": organization_data["id"],
+            "name": "Test WAF Collection Source",
+            "url": "https://example.com/waf/",
+            "notification_emails": "user@example.com",
+            "frequency": "daily",
+            "schema_type": "iso19115_2",
+            "source_type": "waf-collection",
+            "notification_frequency": "always",
+        }
+        res = client.post("/harvest_source/add", data=form_data, follow_redirects=True)
+
+        assert res.status_code == 200
+        assert b"Collection Parent URL is required" in res.data
+        assert interface.get_all_harvest_sources() == []
 
     def test_add_harvest_source_duplicate_url(
         self, app, client, interface, organization_data, source_data_dcatus
