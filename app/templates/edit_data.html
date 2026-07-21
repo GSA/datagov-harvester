@@ -15,7 +15,12 @@
         </p>
         {% for field in form if field.widget.input_type != 'hidden' %}
         {% set field_class = 'usa-textarea' if field.type == 'TextAreaField' else ('usa-select' if field.type == 'SelectField' else 'usa-input') %}
-        <div class="usa-form-group">
+        {% set show_collection_parent_url = form.source_type is defined and form.source_type.data == 'waf-collection' %}
+        <div class="usa-form-group"
+            {% if field.id == 'collection_parent_url' %}
+                data-collection-parent-url-group
+                {% if not show_collection_parent_url %}hidden{% endif %}
+            {% endif %}>
             <label for="{{ field.id }}" class="usa-label">
                 {{ field.label.text }}
                 {% if field.flags.required %}

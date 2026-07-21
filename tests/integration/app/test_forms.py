@@ -131,7 +131,37 @@ class TestForms:
         assert [option["value"] for option in source_type.find_all("option")] == (
             SOURCE_TYPE_VALUES
         )
-        assert soup.find("input", {"name": "collection_parent_url"}) is not None
+        parent_url = soup.find("input", {"name": "collection_parent_url"})
+        assert parent_url is not None
+        parent_url_group = parent_url.find_parent(
+            attrs={"data-collection-parent-url-group": True}
+        )
+        assert parent_url_group is not None
+        assert parent_url_group.has_attr("hidden")
+
+    def test_edit_harvest_source_waf_collection_shows_parent_url(
+        self, app, client, interface, organization_data, source_data_waf_collection
+    ):
+        with client.session_transaction() as sess:
+            sess["user"] = "tester@gsa.gov"
+
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_waf_collection)
+
+        res = client.get(f"/harvest_source/edit/{source_data_waf_collection['id']}")
+
+        assert res.status_code == 200
+        soup = BeautifulSoup(res.data, "html.parser")
+        parent_url = soup.find("input", {"name": "collection_parent_url"})
+        assert parent_url is not None
+        assert (
+            parent_url["value"] == source_data_waf_collection["collection_parent_url"]
+        )
+        parent_url_group = parent_url.find_parent(
+            attrs={"data-collection-parent-url-group": True}
+        )
+        assert parent_url_group is not None
+        assert not parent_url_group.has_attr("hidden")
 
     def test_add_harvest_source_waf_collection(
         self, app, client, interface, organization_data
