@@ -50,7 +50,8 @@ class LoginRequiredAuth(APIKeyHeaderAuth):
                     g.request_actor = "<api_token>"
                     g.request_auth_type = "api_token"
                     logger.info(
-                        "event=user_login method=api_token user=<api_token> ip=%s path=%s",
+                        "event=user_login method=api_token user=<api_token> "
+                        "ip=%s path=%s",
                         get_client_ip(),
                         request.path,
                     )
