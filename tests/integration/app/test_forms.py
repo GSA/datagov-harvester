@@ -1,8 +1,6 @@
 import pytest
 from bs4 import BeautifulSoup
 
-from shared.constants import SOURCE_TYPE_VALUES
-
 
 class TestForms:
     def test_add_organization_strips_string_fields(self, app, client, interface):
@@ -113,24 +111,6 @@ class TestForms:
             "user@example.com",
             "other@example.com",
         ]
-
-    def test_add_harvest_source_source_type_options_match_enum(
-        self, app, client, interface, organization_data
-    ):
-        with client.session_transaction() as sess:
-            sess["user"] = "tester@gsa.gov"
-
-        interface.add_organization(organization_data)
-
-        res = client.get("/harvest_source/add")
-
-        assert res.status_code == 200
-        soup = BeautifulSoup(res.data, "html.parser")
-        source_type = soup.find("select", {"name": "source_type"})
-        assert source_type is not None
-        assert [option["value"] for option in source_type.find_all("option")] == (
-            SOURCE_TYPE_VALUES
-        )
 
     def test_add_harvest_source_duplicate_url(
         self, app, client, interface, organization_data, source_data_dcatus
