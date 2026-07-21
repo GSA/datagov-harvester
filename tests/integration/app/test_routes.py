@@ -328,7 +328,9 @@ class TestLoginLogging:
 
         assert response.status_code == 302
         assert "Login callback received" in caplog.text
-        assert "Login succeeded for user=test.user@gsa.gov" in caplog.text
+        assert "event=user_login" in caplog.text
+        assert "method=login.gov" in caplog.text
+        assert "user=test.user@gsa.gov" in caplog.text
 
     def test_callback_redirects_to_next_url(self, client, interface, caplog):
         caplog.set_level("INFO", logger="harvest_admin")
@@ -409,9 +411,10 @@ class TestLoginLogging:
             response = client.get("/callback?code=abc123&state=expected-state")
 
         assert response.status_code == 302
-        assert (
-            "Login rejected for unregistered user=unregistered@gsa.gov" in caplog.text
-        )
+        assert "event=login_rejected" in caplog.text
+        assert "reason=unregistered_user" in caplog.text
+        assert "method=login.gov" in caplog.text
+        assert "user=unregistered@gsa.gov" in caplog.text
 
 
 class TestAuditLogging:
