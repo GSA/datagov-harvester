@@ -478,3 +478,105 @@ class TestAuthLogging:
                 mock_logger.info.assert_called_once()
                 call_args = mock_logger.info.call_args[0]
                 assert "203.0.113.99" in str(call_args)
+
+    class TestAPITokenLogin:
+        @pytest.fixture
+        def api_client(self, app):
+            app.config["API_TOKEN"] = "test-api-token-12345"
+            return app.test_client()
+
+        def test_logs_event_tag(self, api_client):
+            # Import here to get the actual logger instance
+            import app.auth as auth_module
+
+            with patch.object(auth_module, "logger") as mock_logger:
+                # Use an authenticated endpoint (POST requires auth)
+                api_client.post(
+                    "/api/organization/add",
+                    json={"name": "Test Org"},
+                    headers={"X-API-Key": "test-api-token-12345"},
+                )
+
+                # Find the info log call with event=user_login
+                info_calls = mock_logger.info.call_args_list
+                login_calls = [
+                    call for call in info_calls if "event=user_login" in str(call)
+                ]
+                assert len(login_calls) > 0
+                log_message = login_calls[0][0][0]
+                assert "event=user_login" in log_message
+
+        def test_logs_method_tag(self, api_client):
+            import app.auth as auth_module
+
+            with patch.object(auth_module, "logger") as mock_logger:
+                api_client.post(
+                    "/api/organization/add",
+                    json={"name": "Test Org"},
+                    headers={"X-API-Key": "test-api-token-12345"},
+                )
+
+                info_calls = mock_logger.info.call_args_list
+                login_calls = [
+                    call for call in info_calls if "event=user_login" in str(call)
+                ]
+                assert len(login_calls) > 0
+                log_message = login_calls[0][0][0]
+                assert "method=api_token" in log_message
+
+        def test_logs_user_as_api_token(self, api_client):
+            import app.auth as auth_module
+
+            with patch.object(auth_module, "logger") as mock_logger:
+                api_client.post(
+                    "/api/organization/add",
+                    json={"name": "Test Org"},
+                    headers={"X-API-Key": "test-api-token-12345"},
+                )
+
+                info_calls = mock_logger.info.call_args_list
+                login_calls = [
+                    call for call in info_calls if "event=user_login" in str(call)
+                ]
+                assert len(login_calls) > 0
+                call_args = login_calls[0][0]
+                assert "<api_token>" in str(call_args)
+
+        def test_logs_ip_address(self, api_client):
+            import app.auth as auth_module
+
+            with patch.object(auth_module, "logger") as mock_logger:
+                api_client.post(
+                    "/api/organization/add",
+                    json={"name": "Test Org"},
+                    headers={
+                        "X-API-Key": "test-api-token-12345",
+                        "X-Forwarded-For": "198.51.100.50",
+                    },
+                )
+
+                info_calls = mock_logger.info.call_args_list
+                login_calls = [
+                    call for call in info_calls if "event=user_login" in str(call)
+                ]
+                assert len(login_calls) > 0
+                call_args = login_calls[0][0]
+                assert "198.51.100.50" in str(call_args)
+
+        def test_logs_request_path(self, api_client):
+            import app.auth as auth_module
+
+            with patch.object(auth_module, "logger") as mock_logger:
+                api_client.post(
+                    "/api/organization/add",
+                    json={"name": "Test Org"},
+                    headers={"X-API-Key": "test-api-token-12345"},
+                )
+
+                info_calls = mock_logger.info.call_args_list
+                login_calls = [
+                    call for call in info_calls if "event=user_login" in str(call)
+                ]
+                assert len(login_calls) > 0
+                call_args = login_calls[0][0]
+                assert "/api/organization/add" in str(call_args)
