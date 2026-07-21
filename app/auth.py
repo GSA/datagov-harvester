@@ -58,7 +58,8 @@ class LoginRequiredAuth(APIKeyHeaderAuth):
 
                 # check session-based authentication for web users
                 if "user" not in session:
-                    session["next"] = request.url
+                    if request.method == "GET":
+                        session["next"] = request.url
                     logger.info(
                         "Web auth redirecting anonymous request for %s %s to login",
                         request.method,

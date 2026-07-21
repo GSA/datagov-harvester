@@ -2,6 +2,7 @@ import os
 import secrets
 import time
 import uuid
+from urllib.parse import urlparse
 
 import jwt
 import requests
@@ -61,6 +62,14 @@ def create_client_assertion():
     return jwt.encode(payload, private_key, algorithm="RS256")
 
 
+def _is_safe_redirect_target(next_url):
+    """Only allow relative, same-origin paths to avoid open redirects."""
+    if not next_url or next_url.startswith("//"):
+        return False
+    parsed = urlparse(next_url)
+    return not parsed.scheme and not parsed.netloc and next_url.startswith("/")
+
+
 def _redirect_to_login_gov():
     state = secrets.token_urlsafe(32)
     nonce = secrets.token_urlsafe(32)
@@ -92,6 +101,11 @@ def login_oidc():
 
 @main.route("/login", methods=["GET", "POST"])
 def login():
+    if request.method == "GET":
+        requested_next = request.args.get("next", "").rstrip("?")
+        if _is_safe_redirect_target(requested_next):
+            session["next"] = requested_next
+
     if not is_local_dev_login_enabled():
         if request.method == "POST":
             return make_response("Not Found", 404)
@@ -252,7 +266,7 @@ def callback():
         )
         next_url = session.pop("next", None)
         if next_url:
-            return redirect(url_for(next_url))
+            return redirect(next_url)
         else:
             return redirect(url_for("main.index"))
     else:
