@@ -20,6 +20,7 @@ from flask import (
 )
 
 from app import current_unix_timestamp, deps
+from app.auth_logging import get_client_ip
 from app.deps import logger
 from app.forms import LocalDevLoginForm
 from app.local_dev_auth import (
@@ -76,7 +77,7 @@ def _redirect_to_login_gov():
     session["nonce"] = nonce
     logger.info(
         "Login initiated from ip=%s next=%s",
-        request.headers.get("X-Forwarded-For", request.remote_addr),
+        get_client_ip(),
         session.get("next"),
     )
 
@@ -118,9 +119,9 @@ def login():
             session["user"] = LOCAL_DEV_SESSION_EMAIL
             session["last_activity"] = current_unix_timestamp()
             logger.info(
-                "Local dev login succeeded for user=%s ip=%s",
+                "event=user_login method=local_dev user=%s ip=%s",
                 LOCAL_DEV_SESSION_EMAIL,
-                request.headers.get("X-Forwarded-For", request.remote_addr),
+                get_client_ip(),
             )
             next_url = session.pop("next", None)
             if next_url and _is_safe_redirect_target(next_url):
@@ -129,7 +130,7 @@ def login():
         flash("Invalid username or password.", "danger")
         logger.warning(
             "Local dev login failed from ip=%s",
-            request.headers.get("X-Forwarded-For", request.remote_addr),
+            get_client_ip(),
         )
 
     return render_template("local_login.html", form=form)
@@ -140,9 +141,9 @@ def logout():
     user = session.get("user")
     session.clear()
     logger.info(
-        "Logout completed for user=%s ip=%s",
+        "event=user_logout user=%s ip=%s",
         user or "<anonymous>",
-        request.headers.get("X-Forwarded-For", request.remote_addr),
+        get_client_ip(),
     )
     return redirect(url_for("main.index"))
 
@@ -151,7 +152,7 @@ def logout():
 def callback():
     code = request.args.get("code")
     state = request.args.get("state")
-    request_ip = request.headers.get("X-Forwarded-For", request.remote_addr)
+    request_ip = get_client_ip()
 
     logger.info(
         "Login callback received ip=%s has_code=%s has_state=%s",
@@ -258,7 +259,7 @@ def callback():
         session["user"] = usr_email
         session["last_activity"] = current_unix_timestamp()
         logger.info(
-            "Login succeeded for user=%s ssoid=%s ip=%s",
+            "event=user_login method=login.gov user=%s ssoid=%s ip=%s",
             usr_email,
             usr_ssoid,
             request_ip,
@@ -270,7 +271,8 @@ def callback():
             return redirect(url_for("main.index"))
     else:
         logger.warning(
-            "Login rejected for unregistered user=%s ssoid=%s ip=%s",
+            "event=login_rejected reason=unregistered_user method=login.gov "
+            "user=%s ssoid=%s ip=%s",
             usr_email,
             usr_ssoid,
             request_ip,
