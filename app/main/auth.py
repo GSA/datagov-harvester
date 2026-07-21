@@ -245,7 +245,7 @@ def callback():
         session["user"] = usr_email
         session["last_activity"] = current_unix_timestamp()
         logger.info(
-            "event=user_login method=oidc user=%s ssoid=%s ip=%s",
+            "event=user_login method=login.gov user=%s ssoid=%s ip=%s",
             usr_email,
             usr_ssoid,
             request_ip,
@@ -257,7 +257,7 @@ def callback():
             return redirect(url_for("main.index"))
     else:
         logger.warning(
-            "event=login_rejected reason=unregistered_user method=oidc "
+            "event=login_rejected reason=unregistered_user method=login.gov "
             "user=%s ssoid=%s ip=%s",
             usr_email,
             usr_ssoid,

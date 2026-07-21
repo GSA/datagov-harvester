@@ -93,14 +93,14 @@ class TestAuthLogging:
                 call_args = mock_logger.info.call_args[0]
                 assert "127.0.0.1" in str(call_args)
 
-    class TestOIDCLoginSuccess:
+    class TestLoginGovSuccess:
         @pytest.fixture
-        def oidc_client(self, app):
+        def logingov_client(self, app):
             return app.test_client()
 
         @pytest.fixture
-        def mock_oidc_flow(self):
-            """Mock the complete OIDC authentication flow"""
+        def mock_logingov_flow(self):
+            """Mock the complete Login.gov authentication flow"""
             with patch("app.main.auth.requests.post") as mock_post, patch(
                 "app.main.auth.jwt.decode"
             ) as mock_jwt_decode, patch("app.deps.db.verify_user") as mock_verify_user:
@@ -126,13 +126,13 @@ class TestAuthLogging:
                     "verify_user": mock_verify_user,
                 }
 
-        def test_logs_event_tag(self, oidc_client, mock_oidc_flow):
-            with oidc_client.session_transaction() as sess:
+        def test_logs_event_tag(self, logingov_client, mock_logingov_flow):
+            with logingov_client.session_transaction() as sess:
                 sess["state"] = "test_state"
                 sess["nonce"] = "test_nonce"
 
             with patch("app.main.auth.logger") as mock_logger:
-                oidc_client.get(
+                logingov_client.get(
                     "/callback?code=test_code&state=test_state",
                 )
 
@@ -147,13 +147,13 @@ class TestAuthLogging:
                 log_message = login_success_call[0][0]
                 assert "event=user_login" in log_message
 
-        def test_logs_method_tag(self, oidc_client, mock_oidc_flow):
-            with oidc_client.session_transaction() as sess:
+        def test_logs_method_tag(self, logingov_client, mock_logingov_flow):
+            with logingov_client.session_transaction() as sess:
                 sess["state"] = "test_state"
                 sess["nonce"] = "test_nonce"
 
             with patch("app.main.auth.logger") as mock_logger:
-                oidc_client.get(
+                logingov_client.get(
                     "/callback?code=test_code&state=test_state",
                 )
 
@@ -165,15 +165,15 @@ class TestAuthLogging:
                 ][0]
 
                 log_message = login_success_call[0][0]
-                assert "method=oidc" in log_message
+                assert "method=login.gov" in log_message
 
-        def test_logs_user_email(self, oidc_client, mock_oidc_flow):
-            with oidc_client.session_transaction() as sess:
+        def test_logs_user_email(self, logingov_client, mock_logingov_flow):
+            with logingov_client.session_transaction() as sess:
                 sess["state"] = "test_state"
                 sess["nonce"] = "test_nonce"
 
             with patch("app.main.auth.logger") as mock_logger:
-                oidc_client.get(
+                logingov_client.get(
                     "/callback?code=test_code&state=test_state",
                 )
 
@@ -187,13 +187,13 @@ class TestAuthLogging:
                 call_args = login_success_call[0]
                 assert "test@gsa.gov" in str(call_args)
 
-        def test_logs_ssoid(self, oidc_client, mock_oidc_flow):
-            with oidc_client.session_transaction() as sess:
+        def test_logs_ssoid(self, logingov_client, mock_logingov_flow):
+            with logingov_client.session_transaction() as sess:
                 sess["state"] = "test_state"
                 sess["nonce"] = "test_nonce"
 
             with patch("app.main.auth.logger") as mock_logger:
-                oidc_client.get(
+                logingov_client.get(
                     "/callback?code=test_code&state=test_state",
                 )
 
@@ -207,13 +207,13 @@ class TestAuthLogging:
                 call_args = login_success_call[0]
                 assert "mock-sso-id-12345" in str(call_args)
 
-        def test_logs_ip_address(self, oidc_client, mock_oidc_flow):
-            with oidc_client.session_transaction() as sess:
+        def test_logs_ip_address(self, logingov_client, mock_logingov_flow):
+            with logingov_client.session_transaction() as sess:
                 sess["state"] = "test_state"
                 sess["nonce"] = "test_nonce"
 
             with patch("app.main.auth.logger") as mock_logger:
-                oidc_client.get(
+                logingov_client.get(
                     "/callback?code=test_code&state=test_state",
                     headers={"X-Forwarded-For": "198.51.100.23"},
                 )
@@ -228,13 +228,13 @@ class TestAuthLogging:
                 call_args = login_success_call[0]
                 assert "198.51.100.23" in str(call_args)
 
-    class TestOIDCLoginRejection:
+    class TestLoginGovRejection:
         @pytest.fixture
-        def oidc_client(self, app):
+        def logingov_client(self, app):
             return app.test_client()
 
         @pytest.fixture
-        def mock_oidc_flow_unregistered_user(self):
+        def mock_logingov_flow_unregistered_user(self):
             """Mock OIDC flow where user authenticates but is not registered"""
             with patch("app.main.auth.requests.post") as mock_post, patch(
                 "app.main.auth.jwt.decode"
@@ -261,13 +261,15 @@ class TestAuthLogging:
                     "verify_user": mock_verify_user,
                 }
 
-        def test_logs_event_tag(self, oidc_client, mock_oidc_flow_unregistered_user):
-            with oidc_client.session_transaction() as sess:
+        def test_logs_event_tag(
+            self, logingov_client, mock_logingov_flow_unregistered_user
+        ):
+            with logingov_client.session_transaction() as sess:
                 sess["state"] = "test_state"
                 sess["nonce"] = "test_nonce"
 
             with patch("app.main.auth.logger") as mock_logger:
-                oidc_client.get(
+                logingov_client.get(
                     "/callback?code=test_code&state=test_state",
                 )
 
@@ -286,13 +288,15 @@ class TestAuthLogging:
                 log_message = rejection_call[0][0]
                 assert "event=login_rejected" in log_message
 
-        def test_logs_reason_tag(self, oidc_client, mock_oidc_flow_unregistered_user):
-            with oidc_client.session_transaction() as sess:
+        def test_logs_reason_tag(
+            self, logingov_client, mock_logingov_flow_unregistered_user
+        ):
+            with logingov_client.session_transaction() as sess:
                 sess["state"] = "test_state"
                 sess["nonce"] = "test_nonce"
 
             with patch("app.main.auth.logger") as mock_logger:
-                oidc_client.get(
+                logingov_client.get(
                     "/callback?code=test_code&state=test_state",
                 )
 
@@ -310,13 +314,15 @@ class TestAuthLogging:
                 log_message = rejection_call[0][0]
                 assert "reason=unregistered_user" in log_message
 
-        def test_logs_method_tag(self, oidc_client, mock_oidc_flow_unregistered_user):
-            with oidc_client.session_transaction() as sess:
+        def test_logs_method_tag(
+            self, logingov_client, mock_logingov_flow_unregistered_user
+        ):
+            with logingov_client.session_transaction() as sess:
                 sess["state"] = "test_state"
                 sess["nonce"] = "test_nonce"
 
             with patch("app.main.auth.logger") as mock_logger:
-                oidc_client.get(
+                logingov_client.get(
                     "/callback?code=test_code&state=test_state",
                 )
 
@@ -332,15 +338,17 @@ class TestAuthLogging:
                 ][0]
 
                 log_message = rejection_call[0][0]
-                assert "method=oidc" in log_message
+                assert "method=login.gov" in log_message
 
-        def test_logs_user_email(self, oidc_client, mock_oidc_flow_unregistered_user):
-            with oidc_client.session_transaction() as sess:
+        def test_logs_user_email(
+            self, logingov_client, mock_logingov_flow_unregistered_user
+        ):
+            with logingov_client.session_transaction() as sess:
                 sess["state"] = "test_state"
                 sess["nonce"] = "test_nonce"
 
             with patch("app.main.auth.logger") as mock_logger:
-                oidc_client.get(
+                logingov_client.get(
                     "/callback?code=test_code&state=test_state",
                 )
 
@@ -358,13 +366,15 @@ class TestAuthLogging:
                 call_args = rejection_call[0]
                 assert "unregistered@example.com" in str(call_args)
 
-        def test_logs_ssoid(self, oidc_client, mock_oidc_flow_unregistered_user):
-            with oidc_client.session_transaction() as sess:
+        def test_logs_ssoid(
+            self, logingov_client, mock_logingov_flow_unregistered_user
+        ):
+            with logingov_client.session_transaction() as sess:
                 sess["state"] = "test_state"
                 sess["nonce"] = "test_nonce"
 
             with patch("app.main.auth.logger") as mock_logger:
-                oidc_client.get(
+                logingov_client.get(
                     "/callback?code=test_code&state=test_state",
                 )
 
@@ -382,13 +392,15 @@ class TestAuthLogging:
                 call_args = rejection_call[0]
                 assert "mock-sso-id-99999" in str(call_args)
 
-        def test_logs_ip_address(self, oidc_client, mock_oidc_flow_unregistered_user):
-            with oidc_client.session_transaction() as sess:
+        def test_logs_ip_address(
+            self, logingov_client, mock_logingov_flow_unregistered_user
+        ):
+            with logingov_client.session_transaction() as sess:
                 sess["state"] = "test_state"
                 sess["nonce"] = "test_nonce"
 
             with patch("app.main.auth.logger") as mock_logger:
-                oidc_client.get(
+                logingov_client.get(
                     "/callback?code=test_code&state=test_state",
                     headers={"X-Forwarded-For": "192.0.2.100"},
                 )
@@ -408,14 +420,14 @@ class TestAuthLogging:
                 assert "192.0.2.100" in str(call_args)
 
         def test_uses_warning_log_level(
-            self, oidc_client, mock_oidc_flow_unregistered_user
+            self, logingov_client, mock_logingov_flow_unregistered_user
         ):
-            with oidc_client.session_transaction() as sess:
+            with logingov_client.session_transaction() as sess:
                 sess["state"] = "test_state"
                 sess["nonce"] = "test_nonce"
 
             with patch("app.main.auth.logger") as mock_logger:
-                oidc_client.get(
+                logingov_client.get(
                     "/callback?code=test_code&state=test_state",
                 )
 
