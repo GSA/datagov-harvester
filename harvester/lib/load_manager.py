@@ -4,7 +4,6 @@ from datetime import datetime
 
 from harvester import SMTP_CONFIG
 from harvester.lib.task_handler import create_task_handler
-from harvester.runner_settings import harvest_runner_max_tasks
 from harvester.utils.general_utils import (
     create_future_date,
     get_datetime,
@@ -14,10 +13,7 @@ from harvester.utils.general_utils import (
 # use the session scoped interface already made for the harvester
 from .. import db_interface as interface
 
-MAX_TASKS_COUNT = harvest_runner_max_tasks()
-SCHEDULING_DISABLED_MESSAGE = (
-    "Harvest task scheduling is disabled by HARVEST_RUNNER_MAX_TASKS=0."
-)
+MAX_TASKS_COUNT = int(os.getenv("HARVEST_RUNNER_MAX_TASKS", 5))
 
 
 logger = logging.getLogger("harvest_admin")
@@ -83,10 +79,6 @@ class LoadManager:
         task before it stops so we adjust the running_tasks calculation and
         only schedule at most one new job.
         """
-        if MAX_TASKS_COUNT <= 0:
-            logger.info(SCHEDULING_DISABLED_MESSAGE)
-            return
-
         running_tasks = self.handler.num_running_app_tasks()
         if running_tasks is None:
             # None here indicates that tasks couldn't be listed with the API
@@ -139,10 +131,6 @@ class LoadManager:
         """
 
         try:
-            if MAX_TASKS_COUNT <= 0:
-                logger.info(SCHEDULING_DISABLED_MESSAGE)
-                return SCHEDULING_DISABLED_MESSAGE
-
             """Check if a job is already running for this source."""
             harvest_job = interface.get_harvest_job(job_id)
             jobs_in_progress = interface.pget_harvest_jobs(
@@ -269,10 +257,6 @@ class LoadManager:
     def trigger_manual_job(self, source_id, job_type="harvest"):
         """manual trigger harvest job, takes a source_id"""
         try:
-            if MAX_TASKS_COUNT <= 0:
-                logger.info(SCHEDULING_DISABLED_MESSAGE)
-                return SCHEDULING_DISABLED_MESSAGE
-
             source = interface.get_harvest_source(source_id)
             jobs_in_progress = interface.pget_harvest_jobs(
                 facets=f"harvest_source_id eq {source.id},status eq in_progress",

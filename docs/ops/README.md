@@ -24,8 +24,9 @@ files, so Cloud Foundry's additive manifest behavior preserves its current value
 across deployments. If the variable or application does not exist, it defaults
 to `3`, enabling harvesting.
 
-Disabling prevents scheduled and manually requested harvest tasks from
-starting. Tasks that were already running are not stopped.
+Disabling prevents scheduled harvest tasks from starting. Tasks that were
+already running are not stopped. Manual triggers do not use the scheduler's
+task-limit setting.
 
 ## Scheduling many harvest jobs
 
