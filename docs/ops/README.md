@@ -2,6 +2,34 @@
 
 This is miscellaneous notes on operating the Harvester system.
 
+## Enabling or disabling harvesting
+
+Run the **Toggle Harvester** GitHub Actions workflow and select the target
+environment and desired state. The workflow sets `HARVEST_RUNNER_ENABLED` to
+`false` when disabling or `true` when enabling. It preserves
+`HARVEST_RUNNER_MAX_TASKS` and every other credential in the environment's
+`datagov-harvest-secrets` service, then rolling-restarts `datagov-harvest`.
+
+Set `HARVEST_RUNNER_MAX_TASKS` in each environment's secrets service to its
+desired positive capacity. It defaults to `3` when absent.
+`HARVEST_RUNNER_ENABLED` defaults to `true`. The effective capacity is the
+configured maximum when enabled and `0` when disabled.
+
+The workflow completes only after all previous application instance GUIDs have
+been replaced, every desired instance is running, and every new instance has
+logged the expected setting. The same startup logs can be checked manually:
+
+```bash
+cf logs datagov-harvest --recent | grep 'Harvester startup: HARVEST_RUNNER_MAX_TASKS='
+```
+
+Both values are read from the bound secrets service when the application
+starts. Deployments do not set them, so a merge to `main` does not change the
+configured capacity or re-enable a disabled environment.
+
+Disabling prevents scheduled and manually requested harvest tasks from
+starting. Tasks that were already running are not stopped.
+
 ## Scheduling many harvest jobs
 
 Using the API's `/harvest_source/harvest/<id>/<type>` endpoint circumvents the

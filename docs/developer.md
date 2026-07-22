@@ -217,6 +217,8 @@ A user provided service by the name of `datagov-harvest-secrets` is also expecte
 - CF_SERVICE_USER
 - FLASK_APP_SECRET_KEY
 - HARVEST_API_TOKEN
+- HARVEST_RUNNER_ENABLED (optional; defaults to `true`)
+- HARVEST_RUNNER_MAX_TASKS (optional; defaults to `3`)
 - OPENID_PRIVATE_KEY
 
 CF_SERVICE_* variables can be extracted from from service-keys by running `cf service-key ci-deployer datagov-harvest-deployer` in the appropriate space.

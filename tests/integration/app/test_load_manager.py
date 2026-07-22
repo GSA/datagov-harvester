@@ -92,6 +92,72 @@ class TestLoadManager:
         assert future_job.harvest_source_id == job.harvest_source_id
         assert future_job.date_created == create_future_date(harvest_source.frequency)
 
+    @patch("harvester.lib.cf_handler.CloudFoundryClient")
+    @patch("harvester.lib.load_manager.MAX_TASKS_COUNT", 0)
+    def test_load_manager_does_not_start_tasks_when_capacity_is_zero(
+        self,
+        CFCMock,
+        interface_no_jobs,
+        source_data_dcatus_orm,
+        mock_good_cf_index,
+    ):
+        job = interface_no_jobs.add_harvest_job(
+            {
+                "status": "new",
+                "harvest_source_id": source_data_dcatus_orm.id,
+                "date_created": datetime.now() - timedelta(minutes=1),
+            }
+        )
+
+        LoadManager()._start_new_jobs()
+
+        assert interface_no_jobs.get_harvest_job(job.id).status == "new"
+        CFCMock.return_value.v3.tasks.create.assert_not_called()
+
+    @patch("harvester.lib.cf_handler.CloudFoundryClient")
+    @patch("harvester.lib.load_manager.MAX_TASKS_COUNT", 0)
+    def test_manual_trigger_does_not_queue_or_start_job_when_capacity_is_zero(
+        self,
+        CFCMock,
+        interface_no_jobs,
+        source_data_dcatus,
+        mock_good_cf_index,
+    ):
+        message = LoadManager().trigger_manual_job(source_data_dcatus["id"])
+
+        assert (
+            message
+            == "Harvest task scheduling is disabled by HARVEST_RUNNER_ENABLED=false."
+        )
+        assert interface_no_jobs.get_new_harvest_jobs_in_past() == []
+        CFCMock.return_value.v3.tasks.create.assert_not_called()
+
+    @patch("harvester.lib.cf_handler.CloudFoundryClient")
+    @patch("harvester.lib.load_manager.MAX_TASKS_COUNT", 0)
+    def test_start_job_does_not_bypass_zero_capacity(
+        self,
+        CFCMock,
+        interface_no_jobs,
+        source_data_dcatus_orm,
+        mock_good_cf_index,
+    ):
+        job = interface_no_jobs.add_harvest_job(
+            {
+                "status": "new",
+                "harvest_source_id": source_data_dcatus_orm.id,
+                "date_created": datetime.now(),
+            }
+        )
+
+        message = LoadManager().start_job(job.id)
+
+        assert (
+            message
+            == "Harvest task scheduling is disabled by HARVEST_RUNNER_ENABLED=false."
+        )
+        assert interface_no_jobs.get_harvest_job(job.id).status == "new"
+        CFCMock.return_value.v3.tasks.create.assert_not_called()
+
     @patch("harvester.lib.load_manager.logger")
     @patch("harvester.lib.cf_handler.CloudFoundryClient")
     @patch("harvester.lib.load_manager.MAX_TASKS_COUNT", 3)
