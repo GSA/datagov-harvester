@@ -31,9 +31,6 @@ export FLASK_APP_SECRET_KEY=$(vcap_get_service secrets .credentials.FLASK_APP_SE
 export HARVEST_API_TOKEN=$(vcap_get_service secrets .credentials.HARVEST_API_TOKEN)
 export OPENID_PRIVATE_KEY=$(vcap_get_service secrets .credentials.OPENID_PRIVATE_KEY)
 export HARVEST_RUNNER_MAX_TASKS=${HARVEST_RUNNER_MAX_TASKS:-3}
-echo "Harvester startup:" \
-  "HARVEST_RUNNER_MAX_TASKS=${HARVEST_RUNNER_MAX_TASKS}" \
-  "CF_INSTANCE_GUID=${CF_INSTANCE_GUID:-unknown}"
 
 # New Relic
 export NEW_RELIC_LICENSE_KEY=$(vcap_get_service secrets .credentials.NEW_RELIC_LICENSE_KEY)

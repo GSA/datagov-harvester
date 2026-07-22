@@ -11,13 +11,9 @@ environment and desired state. The workflow sets `HARVEST_RUNNER_MAX_TASKS` to
 production's previous value of `3` and is ignored when disabling. The workflow
 does not read or update the application's bound secrets service.
 
-The workflow completes only after all previous application instance GUIDs have
-been replaced, every desired instance is running, and every new instance has
-logged the expected setting. The same startup logs can be checked manually:
-
-```bash
-cf logs datagov-harvest --recent | grep 'Harvester startup: HARVEST_RUNNER_MAX_TASKS='
-```
+The workflow uses the blocking form of `cf restart --strategy rolling` (without
+`--no-wait`), so it completes only after Cloud Foundry reports that the rolling
+deployment has finished and its replacement instances are healthy.
 
 `HARVEST_RUNNER_MAX_TASKS` is intentionally omitted from the manifest and vars
 files, so Cloud Foundry's additive manifest behavior preserves its current value

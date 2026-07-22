@@ -11,7 +11,6 @@ PROFILE = Path(__file__).resolve().parents[2] / ".profile"
 def _profile_environment(runner_environment):
     environment = {
         **os.environ,
-        "CF_INSTANCE_GUID": "instance-guid",
         "VCAP_APPLICATION": json.dumps({"application_name": "datagov-harvest"}),
         "VCAP_SERVICES": json.dumps(
             {
@@ -78,8 +77,4 @@ def test_profile_loads_max_tasks_from_environment_with_default(
     )
 
     assert result.returncode == 0, result.stderr
-    assert (
-        f"Harvester startup: HARVEST_RUNNER_MAX_TASKS={max_tasks} "
-        "CF_INSTANCE_GUID=instance-guid"
-    ) in result.stdout
     assert result.stdout.endswith(max_tasks)
