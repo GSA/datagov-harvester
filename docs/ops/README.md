@@ -2,6 +2,31 @@
 
 This is miscellaneous notes on operating the Harvester system.
 
+## Enabling or disabling harvesting
+
+Run the **Toggle Harvester** GitHub Actions workflow and select the target
+environment and desired state. The workflow sets `HARVEST_RUNNER_MAX_TASKS` to
+`0` when disabling or to the optional maximum-tasks input when enabling with
+`cf set-env`, then rolling-restarts `datagov-harvest`. The input defaults to
+production's previous value of `3` and is ignored when disabling. The workflow
+does not read or update the application's bound secrets service.
+
+The workflow completes only after all previous application instance GUIDs have
+been replaced, every desired instance is running, and every new instance has
+logged the expected setting. The same startup logs can be checked manually:
+
+```bash
+cf logs datagov-harvest --recent | grep 'Harvester startup: HARVEST_RUNNER_MAX_TASKS='
+```
+
+`HARVEST_RUNNER_MAX_TASKS` is intentionally omitted from the manifest and vars
+files, so Cloud Foundry's additive manifest behavior preserves its current value
+across deployments. If the variable or application does not exist, it defaults
+to `3`, enabling harvesting.
+
+Disabling prevents scheduled and manually requested harvest tasks from
+starting. Tasks that were already running are not stopped.
+
 ## Scheduling many harvest jobs
 
 Using the API's `/harvest_source/harvest/<id>/<type>` endpoint circumvents the

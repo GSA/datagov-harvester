@@ -1,0 +1,57 @@
+name: Toggle Harvester
+
+on:
+  workflow_dispatch:
+    inputs:
+      state:
+        description: "Enable harvesting or disable it with 0 tasks"
+        required: true
+        default: disable
+        type: choice
+        options:
+          - disable
+          - enable
+      max_tasks:
+        description: "Maximum tasks when enabling (ignored when disabling)"
+        required: false
+        default: "3"
+        type: string
+      environment:
+        description: "Cloud Foundry environment"
+        required: true
+        default: development
+        type: choice
+        options:
+          - development
+          - staging
+          - prod
+
+permissions:
+  contents: read
+
+jobs:
+  toggle:
+    name: ${{ inputs.state }} harvesting (${{ inputs.environment }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    environment: ${{ inputs.environment }}
+    concurrency:
+      group: toggle-harvester-${{ inputs.environment }}
+      cancel-in-progress: false
+    env:
+      HARVESTER_STATE: ${{ inputs.state }}
+      HARVESTER_MAX_TASKS: ${{ inputs.max_tasks }}
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v7
+
+      - name: Update harvester capacity and restart
+        uses: cloud-gov/cg-cli-tools@main
+        with:
+          command: >
+            bin/set_harvest_runner_capacity.sh "$HARVESTER_STATE"
+            datagov-harvest "$HARVESTER_MAX_TASKS"
+          cf_org: gsa-datagov
+          cf_space: ${{ inputs.environment }}
+          cf_username: ${{ secrets.CF_SERVICE_USER }}
+          cf_password: ${{ secrets.CF_SERVICE_AUTH }}
