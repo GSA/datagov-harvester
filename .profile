@@ -30,19 +30,9 @@ export CF_SERVICE_USER=$(vcap_get_service secrets .credentials.CF_SERVICE_USER)
 export FLASK_APP_SECRET_KEY=$(vcap_get_service secrets .credentials.FLASK_APP_SECRET_KEY)
 export HARVEST_API_TOKEN=$(vcap_get_service secrets .credentials.HARVEST_API_TOKEN)
 export OPENID_PRIVATE_KEY=$(vcap_get_service secrets .credentials.OPENID_PRIVATE_KEY)
-HARVEST_RUNNER_MAX_TASKS=$(vcap_get_service secrets .credentials.HARVEST_RUNNER_MAX_TASKS)
 export HARVEST_RUNNER_MAX_TASKS=${HARVEST_RUNNER_MAX_TASKS:-3}
-HARVEST_RUNNER_ENABLED=$(vcap_get_service secrets .credentials.HARVEST_RUNNER_ENABLED)
-export HARVEST_RUNNER_ENABLED=${HARVEST_RUNNER_ENABLED:-true}
-if [[ $(echo "$HARVEST_RUNNER_ENABLED" | tr '[:upper:]' '[:lower:]') == "true" ]]; then
-  EFFECTIVE_HARVEST_RUNNER_MAX_TASKS=$HARVEST_RUNNER_MAX_TASKS
-else
-  EFFECTIVE_HARVEST_RUNNER_MAX_TASKS=0
-fi
 echo "Harvester startup:" \
   "HARVEST_RUNNER_MAX_TASKS=${HARVEST_RUNNER_MAX_TASKS}" \
-  "HARVEST_RUNNER_ENABLED=${HARVEST_RUNNER_ENABLED}" \
-  "EFFECTIVE_HARVEST_RUNNER_MAX_TASKS=${EFFECTIVE_HARVEST_RUNNER_MAX_TASKS}" \
   "CF_INSTANCE_GUID=${CF_INSTANCE_GUID:-unknown}"
 
 # New Relic

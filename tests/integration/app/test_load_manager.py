@@ -127,7 +127,7 @@ class TestLoadManager:
 
         assert (
             message
-            == "Harvest task scheduling is disabled by HARVEST_RUNNER_ENABLED=false."
+            == "Harvest task scheduling is disabled by HARVEST_RUNNER_MAX_TASKS=0."
         )
         assert interface_no_jobs.get_new_harvest_jobs_in_past() == []
         CFCMock.return_value.v3.tasks.create.assert_not_called()
@@ -153,7 +153,7 @@ class TestLoadManager:
 
         assert (
             message
-            == "Harvest task scheduling is disabled by HARVEST_RUNNER_ENABLED=false."
+            == "Harvest task scheduling is disabled by HARVEST_RUNNER_MAX_TASKS=0."
         )
         assert interface_no_jobs.get_harvest_job(job.id).status == "new"
         CFCMock.return_value.v3.tasks.create.assert_not_called()

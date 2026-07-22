@@ -16,7 +16,7 @@ from .. import db_interface as interface
 
 MAX_TASKS_COUNT = harvest_runner_max_tasks()
 SCHEDULING_DISABLED_MESSAGE = (
-    "Harvest task scheduling is disabled by HARVEST_RUNNER_ENABLED=false."
+    "Harvest task scheduling is disabled by HARVEST_RUNNER_MAX_TASKS=0."
 )
 
 

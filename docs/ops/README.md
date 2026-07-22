@@ -5,15 +5,11 @@ This is miscellaneous notes on operating the Harvester system.
 ## Enabling or disabling harvesting
 
 Run the **Toggle Harvester** GitHub Actions workflow and select the target
-environment and desired state. The workflow sets `HARVEST_RUNNER_ENABLED` to
-`false` when disabling or `true` when enabling. It preserves
-`HARVEST_RUNNER_MAX_TASKS` and every other credential in the environment's
-`datagov-harvest-secrets` service, then rolling-restarts `datagov-harvest`.
-
-Set `HARVEST_RUNNER_MAX_TASKS` in each environment's secrets service to its
-desired positive capacity. It defaults to `3` when absent.
-`HARVEST_RUNNER_ENABLED` defaults to `true`. The effective capacity is the
-configured maximum when enabled and `0` when disabled.
+environment and desired state. The workflow sets `HARVEST_RUNNER_MAX_TASKS` to
+`0` when disabling or to the optional maximum-tasks input when enabling with
+`cf set-env`, then rolling-restarts `datagov-harvest`. The input defaults to
+production's previous value of `3` and is ignored when disabling. The workflow
+does not read or update the application's bound secrets service.
 
 The workflow completes only after all previous application instance GUIDs have
 been replaced, every desired instance is running, and every new instance has
@@ -23,9 +19,10 @@ logged the expected setting. The same startup logs can be checked manually:
 cf logs datagov-harvest --recent | grep 'Harvester startup: HARVEST_RUNNER_MAX_TASKS='
 ```
 
-Both values are read from the bound secrets service when the application
-starts. Deployments do not set them, so a merge to `main` does not change the
-configured capacity or re-enable a disabled environment.
+`HARVEST_RUNNER_MAX_TASKS` is intentionally omitted from the manifest and vars
+files, so Cloud Foundry's additive manifest behavior preserves its current value
+across deployments. If the variable or application does not exist, it defaults
+to `3`, enabling harvesting.
 
 Disabling prevents scheduled and manually requested harvest tasks from
 starting. Tasks that were already running are not stopped.

@@ -8,8 +8,8 @@ import pytest
 PROFILE = Path(__file__).resolve().parents[2] / ".profile"
 
 
-def _profile_environment(secret_credentials):
-    return {
+def _profile_environment(runner_environment):
+    environment = {
         **os.environ,
         "CF_INSTANCE_GUID": "instance-guid",
         "VCAP_APPLICATION": json.dumps({"application_name": "datagov-harvest"}),
@@ -18,7 +18,7 @@ def _profile_environment(secret_credentials):
                 "user-provided": [
                     {
                         "name": "datagov-harvest-secrets",
-                        "credentials": secret_credentials,
+                        "credentials": {},
                     }
                 ],
                 "database": [
@@ -47,40 +47,32 @@ def _profile_environment(secret_credentials):
             }
         ),
     }
+    environment.pop("HARVEST_RUNNER_MAX_TASKS", None)
+    environment.update(runner_environment)
+    return environment
 
 
 @pytest.mark.parametrize(
-    ("secret_credentials", "max_tasks", "enabled", "effective_max_tasks"),
+    ("runner_environment", "max_tasks"),
     [
-        ({}, "3", "true", "3"),
-        ({"HARVEST_RUNNER_MAX_TASKS": "5"}, "5", "true", "5"),
-        (
-            {
-                "HARVEST_RUNNER_MAX_TASKS": "5",
-                "HARVEST_RUNNER_ENABLED": "false",
-            },
-            "5",
-            "false",
-            "0",
-        ),
+        ({}, "3"),
+        ({"HARVEST_RUNNER_MAX_TASKS": "0"}, "0"),
+        ({"HARVEST_RUNNER_MAX_TASKS": "3"}, "3"),
     ],
 )
-def test_profile_loads_runner_settings_from_secrets_with_defaults(
-    secret_credentials, max_tasks, enabled, effective_max_tasks
+def test_profile_loads_max_tasks_from_environment_with_default(
+    runner_environment, max_tasks
 ):
     result = subprocess.run(
         [
             "bash",
             "-c",
-            (
-                'source "$1"; printf "%s:%s" '
-                '"$HARVEST_RUNNER_MAX_TASKS" "$HARVEST_RUNNER_ENABLED"'
-            ),
+            'source "$1"; printf "%s" "$HARVEST_RUNNER_MAX_TASKS"',
             "bash",
             str(PROFILE),
         ],
         capture_output=True,
-        env=_profile_environment(secret_credentials),
+        env=_profile_environment(runner_environment),
         text=True,
         timeout=10,
     )
@@ -88,8 +80,6 @@ def test_profile_loads_runner_settings_from_secrets_with_defaults(
     assert result.returncode == 0, result.stderr
     assert (
         f"Harvester startup: HARVEST_RUNNER_MAX_TASKS={max_tasks} "
-        f"HARVEST_RUNNER_ENABLED={enabled} "
-        f"EFFECTIVE_HARVEST_RUNNER_MAX_TASKS={effective_max_tasks} "
         "CF_INSTANCE_GUID=instance-guid"
     ) in result.stdout
-    assert result.stdout.endswith(f"{max_tasks}:{enabled}")
+    assert result.stdout.endswith(max_tasks)

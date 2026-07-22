@@ -2,21 +2,23 @@
 
 set -euo pipefail
 
-usage="Usage: set_harvest_runner_capacity.sh <enable|disable> [app_name] [secrets_service]"
+usage="Usage: set_harvest_runner_capacity.sh <enable|disable> [app_name] [enabled_max_tasks]"
 action=${1:-}
 app_name=${2:-datagov-harvest}
-secrets_service=${3:-${app_name}-secrets}
-credential_name=HARVEST_RUNNER_ENABLED
-max_tasks_credential_name=HARVEST_RUNNER_MAX_TASKS
+max_tasks_env=HARVEST_RUNNER_MAX_TASKS
 poll_seconds=${CF_RESTART_POLL_SECONDS:-5}
 timeout_seconds=${CF_RESTART_TIMEOUT_SECONDS:-900}
 
 case "$action" in
   enable)
-    desired_value=true
+    desired_value=${3:-3}
+    if [[ ! "$desired_value" =~ ^[1-9][0-9]*$ ]]; then
+      echo "enabled_max_tasks must be a positive integer." >&2
+      exit 2
+    fi
     ;;
   disable)
-    desired_value=false
+    desired_value=0
     ;;
   *)
     echo "$usage" >&2
@@ -33,20 +35,9 @@ if ! command -v jq >/dev/null; then
   fi
 fi
 
-credentials_file=$(mktemp)
-updated_credentials_file=$(mktemp)
-trap 'rm -f "$credentials_file" "$updated_credentials_file"' EXIT
-chmod 600 "$credentials_file" "$updated_credentials_file"
-
 app_guid=$(cf app "$app_name" --guid)
 if [[ -z "$app_guid" ]]; then
   echo "Could not find the GUID for $app_name." >&2
-  exit 1
-fi
-
-service_guid=$(cf service "$secrets_service" --guid)
-if [[ -z "$service_guid" ]]; then
-  echo "Could not find the GUID for $secrets_service." >&2
   exit 1
 fi
 
@@ -80,46 +71,7 @@ if [[ $(echo "$before_instance_guids" | jq 'length') -ne "$before_desired_instan
   exit 1
 fi
 
-cf curl "/v3/service_instances/${service_guid}/credentials" > "$credentials_file"
-if ! jq -e 'type == "object"' "$credentials_file" >/dev/null; then
-  echo "$secrets_service did not return a credential object." >&2
-  exit 1
-fi
-
-configured_max_tasks=$(
-  jq -r --arg name "$max_tasks_credential_name" \
-    '.[$name] // "3" | tostring' "$credentials_file"
-)
-if [[ ! "$configured_max_tasks" =~ ^[1-9][0-9]*$ ]]; then
-  echo "$max_tasks_credential_name must be a positive integer; got '$configured_max_tasks'." >&2
-  exit 1
-fi
-if [[ "$desired_value" == "true" ]]; then
-  effective_max_tasks=$configured_max_tasks
-else
-  effective_max_tasks=0
-fi
-
-current_value=$(
-  jq -r --arg name "$credential_name" \
-    'if has($name) then .[$name] | tostring else "<unset>" end' \
-    "$credentials_file"
-)
-jq --arg name "$credential_name" --arg value "$desired_value" \
-  '.[$name] = $value' "$credentials_file" > "$updated_credentials_file"
-
-cf update-user-provided-service "$secrets_service" \
-  -p "$updated_credentials_file"
-
-confirmed_value=$(
-  cf curl "/v3/service_instances/${service_guid}/credentials" |
-    jq -r --arg name "$credential_name" '.[$name] // empty | tostring'
-)
-if [[ "$confirmed_value" != "$desired_value" ]]; then
-  echo "Failed to confirm $credential_name=$desired_value in $secrets_service." >&2
-  exit 1
-fi
-
+cf set-env "$app_name" "$max_tasks_env" "$desired_value"
 cf restart "$app_name" --strategy rolling
 
 deadline=$(( $(date +%s) + timeout_seconds ))
@@ -170,10 +122,14 @@ while true; do
 
     recent_logs=$(cf logs "$app_name" --recent 2>&1 || true)
     while IFS= read -r instance_guid; do
-      marker="Harvester startup: ${max_tasks_credential_name}=${configured_max_tasks} ${credential_name}=${desired_value} EFFECTIVE_HARVEST_RUNNER_MAX_TASKS=${effective_max_tasks} CF_INSTANCE_GUID=${instance_guid}"
-      if [[ "$recent_logs" == *"$marker"* ]]; then
-        logged_instances=$((logged_instances + 1))
-      fi
+      while IFS= read -r log_line; do
+        if [[ "$log_line" == *"Harvester startup:"* &&
+              "$log_line" == *"${max_tasks_env}=${desired_value}"* &&
+              "$log_line" == *"CF_INSTANCE_GUID=${instance_guid}"* ]]; then
+          logged_instances=$((logged_instances + 1))
+          break
+        fi
+      done <<< "$recent_logs"
     done < <(echo "$instance_guids" | jq -r '.[]')
   fi
 
@@ -185,7 +141,7 @@ while true; do
         $(echo "$instance_guids" | jq 'length') -eq "$desired_instances" &&
         "$reused_instance_guids" -eq 0 &&
         "$logged_instances" -eq "$desired_instances" ]]; then
-    echo "Confirmed all $desired_instances instance(s) restarted with $credential_name=$desired_value and effective max tasks $effective_max_tasks."
+    echo "Confirmed all $desired_instances instance(s) restarted with $max_tasks_env=$desired_value."
     break
   fi
 
@@ -199,5 +155,5 @@ while true; do
   sleep "$poll_seconds"
 done
 
-echo "$credential_name changed from $current_value to $desired_value."
+echo "$max_tasks_env set to $desired_value."
 echo "The $app_name rolling restart completed."
