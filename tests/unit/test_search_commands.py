@@ -55,6 +55,26 @@ def test_backfill_index_reports_progress_rate_and_eta(capsys):
     ) in output
 
 
+def test_backfill_index_stops_after_failed_batch(capsys):
+    client = Mock()
+    client.index_datasets.return_value = (1, 1, ["failed document"])
+    dataset_query = Mock()
+    dataset_query.order_by.return_value = dataset_query
+    dataset_query.limit.return_value.all.return_value = [Mock(id=1), Mock(id=2)]
+
+    with (
+        patch("app.commands.search.db.session.query", return_value=dataset_query),
+        patch("app.commands.search.monotonic", side_effect=[100, 110]),
+    ):
+        indexed, failed = _backfill_index(client, "datasets-new", 2, 4)
+
+    assert (indexed, failed) == (1, 1)
+    client.index_datasets.assert_called_once()
+    output = capsys.readouterr().out
+    assert "1 dataset(s) failed to index in this batch" in output
+    assert "OpenSearch error: failed document" in output
+
+
 def test_reset_mapping_recreates_empty_index(app):
     client = Mock()
     client.INDEX_NAME = "datasets"
@@ -140,6 +160,53 @@ def test_rebuild_index_requires_zero_harvest_capacity(app):
     assert "HARVEST_RUNNER_MAX_TASKS must be 0" in result.output
 
 
+def test_rebuild_index_rejects_old_index_deletion_without_alias_switch(app):
+    result = app.test_cli_runner().invoke(
+        args=[
+            "search",
+            "rebuild-index",
+            "--target-index",
+            "datasets-new",
+            "--no-switch-alias",
+            "--delete-old-index",
+        ]
+    )
+
+    assert result.exit_code != 0
+    assert "--delete-old-index requires --switch-alias" in result.output
+
+
+def test_rebuild_index_requires_explicit_legacy_index_removal(app):
+    handler = Mock()
+    handler.get_active_harvest_tasks.return_value = []
+    client = Mock()
+    client.INDEX_NAME = "datasets"
+    client.alias_indices.return_value = []
+    client.client.indices.exists.return_value = True
+
+    with (
+        patch(
+            "app.commands.search.harvest_scheduling_is_disabled",
+            return_value=True,
+        ),
+        patch(
+            "app.commands.search.create_task_handler",
+            return_value=handler,
+        ),
+        patch(
+            "app.commands.search.OpenSearchInterface.from_environment",
+            return_value=client,
+        ),
+    ):
+        result = app.test_cli_runner().invoke(
+            args=["search", "rebuild-index", "--target-index", "datasets-new"]
+        )
+
+    assert result.exit_code != 0
+    assert "--allow-legacy-index-removal" in result.output
+    client.create_index.assert_not_called()
+
+
 def test_rebuild_index_backfills_validates_and_switches_alias(app):
     handler = Mock()
     handler.get_active_harvest_tasks.return_value = []
@@ -179,7 +246,66 @@ def test_rebuild_index_backfills_validates_and_switches_alias(app):
     client.create_index.assert_called_once_with("datasets-new")
     client._refresh.assert_called_once_with(index_name="datasets-new")
     client.switch_alias.assert_called_once_with("datasets-new")
+    client.client.indices.delete.assert_not_called()
+    assert "Previous index retained: datasets-old" in result.output
     assert "datasets now points to datasets-new" in result.output
+
+
+def test_rebuild_index_can_delete_previous_index_after_alias_switch(app):
+    events = []
+    handler = Mock()
+    handler.get_active_harvest_tasks.return_value = []
+    client = Mock()
+    client.INDEX_NAME = "datasets"
+    client.MAPPINGS = {"properties": {"title": {"type": "text"}}}
+    client.alias_indices.side_effect = [["datasets-old"], ["datasets-new"]]
+    client.index_count.return_value = 2
+    client.client.indices.exists.return_value = True
+    client.client.indices.get_mapping.return_value = {
+        "datasets-new": {"mappings": client.MAPPINGS}
+    }
+    client.client.indices.get_alias.return_value = {"datasets-old": {"aliases": {}}}
+    client.switch_alias.side_effect = lambda target: (
+        events.append(("switch", target)) or (["datasets-old"], False)
+    )
+    client.client.indices.delete.side_effect = lambda index: (
+        events.append(("delete", index)) or {"acknowledged": True}
+    )
+    dataset_query = Mock()
+    dataset_query.count.side_effect = [2, 2]
+
+    with (
+        patch(
+            "app.commands.search.harvest_scheduling_is_disabled",
+            return_value=True,
+        ),
+        patch(
+            "app.commands.search.create_task_handler",
+            return_value=handler,
+        ),
+        patch(
+            "app.commands.search.OpenSearchInterface.from_environment",
+            return_value=client,
+        ),
+        patch("app.commands.search.db.session.query", return_value=dataset_query),
+        patch("app.commands.search._backfill_index", return_value=(2, 0)),
+    ):
+        result = app.test_cli_runner().invoke(
+            args=[
+                "search",
+                "rebuild-index",
+                "--target-index",
+                "datasets-new",
+                "--delete-old-index",
+            ]
+        )
+
+    assert result.exit_code == 0
+    assert events == [
+        ("switch", "datasets-new"),
+        ("delete", "datasets-old"),
+    ]
+    assert "Deleted OpenSearch index datasets-old." in result.output
 
 
 def test_rebuild_index_can_validate_without_switching_alias(app):

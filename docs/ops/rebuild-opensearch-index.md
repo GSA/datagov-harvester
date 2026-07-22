@@ -10,12 +10,13 @@ Design details, validation rules, and failure modes live in
 
 In short:
 
-1. Saves the current `HARVEST_RUNNER_MAX_TASKS` value.
+1. Validates the current `HARVEST_RUNNER_MAX_TASKS` value against the selected
+   environment's checked-in vars file.
 2. Sets `HARVEST_RUNNER_MAX_TASKS=0` and rolling-restarts the harvester.
 3. Waits for active `harvest-job-*` Cloud Foundry tasks to drain.
 4. Builds and validates a versioned physical index from PostgreSQL.
 5. Optionally switches the logical `datasets` alias to that physical index.
-6. Restores the saved max-tasks value (for example `2`, `3`, or `4`) and
+6. Restores the canonical max-tasks value from the vars file and
    rolling-restarts the harvester again.
 
 Search traffic keeps using the current `datasets` target while the candidate is
@@ -29,6 +30,8 @@ again after capacity is restored.
 - Prefer an OpenSearch snapshot before the **first** alias conversion in an
   environment, because that cutover removes the legacy concrete `datasets`
   index.
+- Enable **Allow the one-time replacement of a concrete datasets index** only
+  for that first alias conversion. Leave it disabled for normal rebuilds.
 - Do not run overlapping OpenSearch maintenance or harvester restart workflows
   for the same environment; concurrency already queues them.
 
@@ -40,17 +43,24 @@ app (no renamed/removed fields that Catalog still queries).
 1. Open **Actions → Rebuild OpenSearch Index**.
 2. Choose `development`, `staging`, or `prod`.
 3. Leave **Switch the datasets alias to the rebuilt index** enabled.
-4. Optionally enable **Cancel harvest jobs still running after 15 minutes** if
+4. For the first alias conversion only, enable **Allow the one-time replacement
+   of a concrete datasets index**. Otherwise, leave it disabled.
+5. Leave **Delete the previous physical index after a successful alias switch**
+   disabled to preserve rollback. Enable it only when immediate cleanup is
+   preferred and the rollback index is not needed.
+6. Optionally enable **Cancel harvest jobs still running after 15 minutes** if
    you cannot wait for a long drain.
-5. Run the workflow and watch:
+7. Run the workflow and watch:
    - capacity set to `0` + rolling restart
    - harvest-task drain
    - candidate create / backfill / validate
    - alias switch
+   - optional previous-index deletion
    - capacity restore + rolling restart
-6. Verify:
+8. Verify:
    - workflow succeeded
-   - `cf env datagov-harvest` shows the original `HARVEST_RUNNER_MAX_TASKS`
+   - `cf env datagov-harvest` shows the checked-in
+     `HARVEST_RUNNER_MAX_TASKS`
    - `datasets` points at the new physical index
    - catalog search and harvest processing look healthy
 
@@ -106,11 +116,34 @@ again. If you need a post-deploy cutover, add a thin CLI around
 `switch_alias()` or run the equivalent OpenSearch `update_aliases` request
 manually.
 
+## Inspect cluster status
+
+From a workstation authenticated with the Cloud Foundry CLI, run:
+
+```shell
+scripts/opensearch_status.sh datagov-harvest
+```
+
+The shell wrapper sources the deployed app profile over `cf ssh` and streams
+the standalone `scripts/opensearch_status.py` file to remote Python. The Python
+file does not need to be deployed or copied to the app.
+
+To stream a different local Python status script:
+
+```shell
+scripts/opensearch_status.sh datagov-harvest /path/to/status_script.py
+```
+
 ## Aftercare: delete the previous physical index
 
-Rebuilds keep the previous physical index for rollback. After you are confident
-the new index is healthy, delete the old one with
-**Actions → Delete OpenSearch Physical Index**.
+By default, rebuilds keep the previous physical index for rollback. The
+**Delete the previous physical index after a successful alias switch** input
+defaults to disabled. When enabled, the rebuild task deletes the previous index
+only after OpenSearch acknowledges the alias switch.
+
+If the input was disabled, delete the old index later with
+**Actions → Delete OpenSearch Physical Index** after you are confident the new
+index is healthy.
 
 That workflow refuses to delete:
 
@@ -141,7 +174,8 @@ capacity after confirming no rebuild task is still running.
 | **Actions → Rebuild OpenSearch Index** | Main operator entrypoint |
 | **Actions → Delete OpenSearch Physical Index** | Remove retained old indexes |
 | **Actions → Synchronize OpenSearch Index** | Separate sync maintenance; shares concurrency |
-| `bin/manage_harvest_runner_capacity.sh` | Save/set/restore max tasks + verified restart |
+| `bin/manage_harvest_runner_capacity.sh` | Validate/set/restore canonical max tasks + verified restart |
 | `bin/wait_for_harvest_tasks.sh` | Drain active harvest CF tasks |
 | `flask search rebuild-index` | Create, backfill, validate, optional alias switch |
-| `scripts/opensearch_status.sh` | Inspect whether `datasets` is alias or concrete |
+| `scripts/opensearch_status.sh` | Stream the status payload through `cf ssh` |
+| `scripts/opensearch_status.py` | Query alias, index, health, disk, node, and JVM status |

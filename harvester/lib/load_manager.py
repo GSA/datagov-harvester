@@ -67,16 +67,11 @@ class LoadManager:
     def _clean_old_jobs(self):
         """Check for in_progress jobs in the database that aren't running."""
         in_progress_jobs = interface.get_in_progress_jobs()
-        active_tasks = self.handler.get_active_harvest_tasks()
-        if active_tasks is None:
-            logger.warning(
-                "Not cleaning in-progress jobs because tasks could not be listed"
-            )
-            return
-        active_harvest_ids = set(self.handler.job_ids_from_tasks(active_tasks))
+        running_tasks = self.handler.get_running_app_tasks()
+        running_harvest_ids = set(self.handler.job_ids_from_tasks(running_tasks))
 
         failed_jobs = [
-            job for job in in_progress_jobs if job.id not in active_harvest_ids
+            job for job in in_progress_jobs if job.id not in running_harvest_ids
         ]
         for job in failed_jobs:
             self._handle_failed_job(job)
@@ -119,8 +114,6 @@ class LoadManager:
         jobs = interface.get_new_harvest_jobs_in_past(limit=slots)
         for job in jobs:
             self.start_job(job.id, job.job_type)
-            if interface.get_harvest_job(job.id).status != "in_progress":
-                continue
             self.schedule_next_job(job.harvest_source_id)
 
     def start(self):

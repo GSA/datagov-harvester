@@ -137,7 +137,12 @@ class CFHandler:
         ]
 
     def get_active_harvest_tasks(self, app_guuid=None):
-        """Return harvest tasks that have not reached a terminal state."""
+        """Return harvest tasks that have not reached a terminal state.
+
+        PENDING, RUNNING, and CANCELING tasks are active. Return an empty list
+        when the API request succeeds and none exist; return None when tasks
+        cannot be listed so maintenance callers fail closed.
+        """
         tasks = self.get_all_app_tasks(app_guuid)
         if tasks is None:
             return None

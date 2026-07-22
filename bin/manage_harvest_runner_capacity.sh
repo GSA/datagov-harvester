@@ -2,12 +2,45 @@
 
 set -euo pipefail
 
-action=${1:?Usage: manage_harvest_runner_capacity.sh <pause|restore> <app_name> [state_file]}
-app_name=${2:?Usage: manage_harvest_runner_capacity.sh <pause|restore> <app_name> [state_file]}
-state_file=${3:-.harvest_runner_max_tasks_state.json}
+usage="Usage: manage_harvest_runner_capacity.sh <pause|restore> <app_name> <vars_file>"
+action=${1:?$usage}
+app_name=${2:?$usage}
+vars_file=${3:?$usage}
 poll_seconds=${CF_RESTART_POLL_SECONDS:-10}
 timeout_seconds=${CF_RESTART_TIMEOUT_SECONDS:-900}
 max_tasks_env=HARVEST_RUNNER_MAX_TASKS
+
+if [[ ! -f "$vars_file" ]]; then
+  echo "Vars file does not exist: $vars_file" >&2
+  exit 1
+fi
+
+if ! configured_value=$(
+  awk -v key="$max_tasks_env" '
+    $0 ~ "^[[:space:]]*" key "[[:space:]]*:" {
+      value = $0
+      sub("^[[:space:]]*" key "[[:space:]]*:[[:space:]]*", "", value)
+      sub(/[[:space:]]*#.*/, "", value)
+      gsub(/^[[:space:]]+|[[:space:]]+$/, "", value)
+      configured_value = value
+      count++
+    }
+    END {
+      if (count == 1) {
+        print configured_value
+      } else {
+        exit 1
+      }
+    }
+  ' "$vars_file"
+); then
+  echo "Expected exactly one $max_tasks_env value in $vars_file." >&2
+  exit 1
+fi
+if [[ ! "$configured_value" =~ ^[0-9]+$ || "$configured_value" -eq 0 ]]; then
+  echo "Expected $max_tasks_env in $vars_file to be a positive integer; got '$configured_value'." >&2
+  exit 1
+fi
 
 if ! command -v jq >/dev/null; then
   apk add --no-cache jq
@@ -120,23 +153,15 @@ restart_and_confirm() {
 
 case "$action" in
   pause)
-    if [[ -e "$state_file" ]]; then
-      echo "Refusing to overwrite existing capacity state: $state_file" >&2
-      exit 1
-    fi
-
     environment=$(cf curl "/v3/apps/${app_guid}/env")
     if echo "$environment" | jq -e --arg name "$max_tasks_env" '.environment_variables | has($name)' >/dev/null; then
-      previous_value=$(echo "$environment" | jq -r --arg name "$max_tasks_env" '.environment_variables[$name]')
-      if [[ ! "$previous_value" =~ ^[0-9]+$ || "$previous_value" -eq 0 ]]; then
-        echo "Expected the current $max_tasks_env value to be a positive integer; got '$previous_value'." >&2
-        exit 1
-      fi
-      umask 077
-      jq -n --arg value "$previous_value" '{was_set: true, value: $value}' > "$state_file"
+      current_value=$(echo "$environment" | jq -r --arg name "$max_tasks_env" '.environment_variables[$name]')
     else
-      umask 077
-      jq -n '{was_set: false, value: null}' > "$state_file"
+      current_value="<unset>"
+    fi
+    if [[ "$current_value" != "$configured_value" ]]; then
+      echo "Current $max_tasks_env value '$current_value' does not match canonical value '$configured_value' from $vars_file." >&2
+      exit 1
     fi
 
     cf set-env "$app_name" "$max_tasks_env" 0
@@ -144,29 +169,24 @@ case "$action" in
     echo "Harvest task scheduling is disabled."
     ;;
   restore)
-    if [[ ! -f "$state_file" ]]; then
-      echo "No saved harvest runner capacity was found; nothing to restore."
-      exit 0
+    environment=$(cf curl "/v3/apps/${app_guid}/env")
+    if echo "$environment" | jq -e --arg name "$max_tasks_env" '.environment_variables | has($name)' >/dev/null; then
+      current_value=$(echo "$environment" | jq -r --arg name "$max_tasks_env" '.environment_variables[$name]')
+    else
+      current_value="<unset>"
     fi
 
-    was_set=$(jq -r '.was_set' "$state_file")
-    if [[ "$was_set" == true ]]; then
-      previous_value=$(jq -r '.value' "$state_file")
-      if [[ ! "$previous_value" =~ ^[0-9]+$ || "$previous_value" -eq 0 ]]; then
-        echo "Saved $max_tasks_env value is invalid: '$previous_value'." >&2
-        exit 1
-      fi
-      cf set-env "$app_name" "$max_tasks_env" "$previous_value"
-      restart_and_confirm true "$previous_value"
-    elif [[ "$was_set" == false ]]; then
-      cf unset-env "$app_name" "$max_tasks_env"
-      restart_and_confirm false
-    else
-      echo "Saved capacity state is invalid: $state_file" >&2
+    if [[ "$current_value" == "$configured_value" ]]; then
+      echo "Harvest runner capacity already matches $vars_file; nothing to restore."
+      exit 0
+    fi
+    if [[ "$current_value" != 0 ]]; then
+      echo "Refusing to restore $max_tasks_env: current value '$current_value' is neither paused nor canonical ('$configured_value')." >&2
       exit 1
     fi
 
-    rm -f "$state_file"
+    cf set-env "$app_name" "$max_tasks_env" "$configured_value"
+    restart_and_confirm true "$configured_value"
     echo "Harvest runner capacity was restored."
     ;;
   *)

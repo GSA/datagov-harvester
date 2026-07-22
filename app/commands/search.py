@@ -99,44 +99,91 @@ def _format_duration(seconds: float) -> str:
     return " ".join(parts)
 
 
+def _index_dataset_batches(
+    client: OpenSearchInterface,
+    batches,
+    total_batches: int,
+    *,
+    index_name: str | None = None,
+    batch_label: str = "Batch",
+    indent: str = "",
+    sample_size: int = 10,
+    log_all_errors: bool = False,
+    stop_on_failure: bool = False,
+    progress_callback=None,
+) -> tuple[int, int, int]:
+    """Index preloaded dataset batches with shared reporting and failure handling."""
+    total_indexed = 0
+    total_failed = 0
+    total_skipped = 0
+
+    for batch_number, (datasets, skipped_ids) in enumerate(batches, start=1):
+        click.echo(
+            f"{indent}{batch_label} {batch_number}/{total_batches}: "
+            f"indexing {len(datasets)} dataset(s)..."
+        )
+        total_skipped += len(skipped_ids)
+        if skipped_ids:
+            click.echo(
+                f"{indent}  Warning: Skipping missing DB IDs: "
+                + ", ".join(skipped_ids[:sample_size])
+            )
+
+        if not datasets:
+            click.echo(f"{indent}  No datasets found for this batch; skipping.")
+            continue
+
+        index_options = {"refresh_after": False}
+        if index_name is not None:
+            index_options["index_name"] = index_name
+        succeeded, failed, errors = client.index_datasets(
+            datasets,
+            **index_options,
+        )
+        total_indexed += succeeded
+        total_failed += failed
+
+        if failed:
+            click.echo(
+                f"{indent}  Warning: {failed} dataset(s) "
+                f"{OPENSEARCH_INDEX_BATCH_FAILURE_MESSAGE}."
+            )
+        if log_all_errors:
+            for error in errors:
+                click.echo(f"{indent}  OpenSearch error: {error}")
+
+        if progress_callback is not None:
+            progress_callback(total_indexed)
+        if failed and stop_on_failure:
+            break
+
+    return total_indexed, total_failed, total_skipped
+
+
 def _backfill_index(
     client: OpenSearchInterface,
     target_index: str,
     batch_size: int,
     total_datasets: int,
 ) -> tuple[int, int]:
-    total_indexed = 0
-    total_failed = 0
-    last_dataset_id = None
-    batch_number = 0
     total_batches = (total_datasets + batch_size - 1) // batch_size
     started_at = monotonic()
 
-    while True:
-        query = db.session.query(Dataset).order_by(Dataset.id)
-        if last_dataset_id is not None:
-            query = query.filter(Dataset.id > last_dataset_id)
-        datasets = query.limit(batch_size).all()
-        if not datasets:
-            break
+    def batches():
+        last_dataset_id = None
+        while True:
+            query = db.session.query(Dataset).order_by(Dataset.id)
+            if last_dataset_id is not None:
+                query = query.filter(Dataset.id > last_dataset_id)
+            datasets = query.limit(batch_size).all()
+            if not datasets:
+                return
 
-        batch_number += 1
-        click.echo(
-            f"Backfill batch {batch_number}/{total_batches}: "
-            f"indexing {len(datasets)} dataset(s)..."
-        )
-        succeeded, failed, errors = client.index_datasets(
-            datasets,
-            refresh_after=False,
-            index_name=target_index,
-        )
-        total_indexed += succeeded
-        total_failed += failed
-        for error in errors:
-            click.echo(f"  OpenSearch error: {error}")
-        last_dataset_id = datasets[-1].id
-        db.session.expunge_all()
+            yield datasets, []
+            last_dataset_id = datasets[-1].id
+            db.session.expunge_all()
 
+    def report_progress(total_indexed: int):
         elapsed_seconds = monotonic() - started_at
         progress_percent = (
             total_indexed / total_datasets * 100 if total_datasets else 100
@@ -156,9 +203,16 @@ def _backfill_index(
             f"{rate_and_eta}."
         )
 
-        if failed:
-            break
-
+    total_indexed, total_failed, _ = _index_dataset_batches(
+        client,
+        batches(),
+        total_batches,
+        index_name=target_index,
+        batch_label="Backfill batch",
+        log_all_errors=True,
+        stop_on_failure=True,
+        progress_callback=report_progress,
+    )
     return total_indexed, total_failed
 
 
@@ -192,6 +246,49 @@ def reset_opensearch_mapping():
     click.echo("Mapping reset successfully. The index is empty.")
 
 
+def _delete_physical_index(
+    client: OpenSearchInterface,
+    index_name: str,
+) -> None:
+    physical_index_pattern = rf"{re.escape(client.INDEX_NAME)}-[a-z0-9._-]+"
+    if not re.fullmatch(physical_index_pattern, index_name):
+        raise click.ClickException(
+            f"Index name must be a physical index starting with "
+            f"'{client.INDEX_NAME}-'."
+        )
+
+    active_indices = client.alias_indices()
+    if index_name in active_indices:
+        raise click.ClickException(
+            f"Cannot delete {index_name}; the {client.INDEX_NAME} alias currently "
+            "points to it."
+        )
+    if not client.client.indices.exists(index=index_name):
+        raise click.ClickException(f"OpenSearch index does not exist: {index_name}")
+
+    alias_response = client.client.indices.get_alias(index=index_name)
+    attached_aliases = sorted(
+        {
+            alias
+            for index_details in alias_response.values()
+            for alias in index_details.get("aliases", {})
+        }
+    )
+    if attached_aliases:
+        raise click.ClickException(
+            f"Cannot delete {index_name}; attached aliases: "
+            + ", ".join(attached_aliases)
+        )
+
+    click.echo(f"Deleting unused physical index {index_name}...")
+    response = client.client.indices.delete(index=index_name)
+    if not response.get("acknowledged"):
+        raise click.ClickException(
+            f"OpenSearch did not acknowledge deletion of {index_name}."
+        )
+    click.echo(f"Deleted OpenSearch index {index_name}.")
+
+
 @search.cli.command("rebuild-index")
 @click.option(
     "--target-index",
@@ -217,13 +314,24 @@ def reset_opensearch_mapping():
     show_default=True,
     help="Switch the logical datasets alias after a successful backfill.",
 )
+@click.option(
+    "--delete-old-index",
+    is_flag=True,
+    help="Delete the previous physical index after a successful alias switch.",
+)
 def rebuild_opensearch_index(
     target_index: str | None,
     batch_size: int,
     allow_legacy_index_removal: bool,
     switch_alias: bool,
+    delete_old_index: bool,
 ):
     """Build and validate a physical index, optionally switching the alias."""
+    if delete_old_index and not switch_alias:
+        raise click.ClickException(
+            "--delete-old-index requires --switch-alias so the previous index "
+            "is no longer active."
+        )
     if not harvest_scheduling_is_disabled():
         raise click.ClickException(
             "HARVEST_RUNNER_MAX_TASKS must be 0 before rebuilding the index."
@@ -308,7 +416,13 @@ def rebuild_opensearch_index(
     if removed_legacy:
         click.echo("Removed the legacy concrete index during the alias switch.")
     elif old_indices:
-        click.echo("Previous index retained: " + ", ".join(old_indices))
+        if delete_old_index:
+            for old_index in old_indices:
+                _delete_physical_index(client, old_index)
+        else:
+            click.echo("Previous index retained: " + ", ".join(old_indices))
+    elif delete_old_index:
+        click.echo("No previous physical index was attached to the alias.")
     click.echo(f"Rebuild complete: {client.INDEX_NAME} now points to {target_index}.")
 
 
@@ -321,43 +435,7 @@ def rebuild_opensearch_index(
 def delete_opensearch_index(index_name: str):
     """Delete an unused physical dataset index."""
     client = OpenSearchInterface.from_environment()
-    physical_index_pattern = rf"{re.escape(client.INDEX_NAME)}-[a-z0-9._-]+"
-    if not re.fullmatch(physical_index_pattern, index_name):
-        raise click.ClickException(
-            f"Index name must be a physical index starting with "
-            f"'{client.INDEX_NAME}-'."
-        )
-
-    active_indices = client.alias_indices()
-    if index_name in active_indices:
-        raise click.ClickException(
-            f"Cannot delete {index_name}; the {client.INDEX_NAME} alias currently "
-            "points to it."
-        )
-    if not client.client.indices.exists(index=index_name):
-        raise click.ClickException(f"OpenSearch index does not exist: {index_name}")
-
-    alias_response = client.client.indices.get_alias(index=index_name)
-    attached_aliases = sorted(
-        {
-            alias
-            for index_details in alias_response.values()
-            for alias in index_details.get("aliases", {})
-        }
-    )
-    if attached_aliases:
-        raise click.ClickException(
-            f"Cannot delete {index_name}; attached aliases: "
-            + ", ".join(attached_aliases)
-        )
-
-    click.echo(f"Deleting unused physical index {index_name}...")
-    response = client.client.indices.delete(index=index_name)
-    if not response.get("acknowledged"):
-        raise click.ClickException(
-            f"OpenSearch did not acknowledge deletion of {index_name}."
-        )
-    click.echo(f"Deleted OpenSearch index {index_name}.")
+    _delete_physical_index(client, index_name)
 
 
 @search.cli.command("compare")
@@ -390,47 +468,29 @@ def compare_opensearch(sample_size: int, update: bool, force_update: bool):
         click.echo(intro_message)
         batch_size = 1000
         total_batches = (len(dataset_ids) + batch_size - 1) // batch_size
-        total_indexed = 0
-        total_skipped = 0
 
-        for batch_number, offset in enumerate(
-            range(0, len(dataset_ids), batch_size), start=1
-        ):
-            batch_ids = dataset_ids[offset : offset + batch_size]
-            click.echo(
-                f"  Batch {batch_number}/{total_batches}: "
-                f"indexing {len(batch_ids)} dataset(s)..."
-            )
-            datasets = db.session.query(Dataset).filter(Dataset.id.in_(batch_ids)).all()
-            found_ids = {dataset.id for dataset in datasets}
-            skipped = [
-                dataset_id for dataset_id in batch_ids if dataset_id not in found_ids
-            ]
-            total_skipped += len(skipped)
-
-            if skipped:
-                click.echo(
-                    "    Warning: Skipping missing DB IDs: "
-                    + ", ".join(skipped[:sample_size])
+        def batches():
+            for offset in range(0, len(dataset_ids), batch_size):
+                batch_ids = dataset_ids[offset : offset + batch_size]
+                datasets = (
+                    db.session.query(Dataset).filter(Dataset.id.in_(batch_ids)).all()
                 )
+                found_ids = {dataset.id for dataset in datasets}
+                skipped_ids = [
+                    dataset_id
+                    for dataset_id in batch_ids
+                    if dataset_id not in found_ids
+                ]
+                yield datasets, skipped_ids
 
-            if not datasets:
-                click.echo("    No datasets found for this batch; skipping.")
-                continue
-
-            succeeded, failed, errors = client.index_datasets(
-                datasets, refresh_after=False
-            )
-            total_indexed += succeeded
-            if failed:
-                click.echo(
-                    f"    Warning: {failed} dataset(s) "
-                    f"{OPENSEARCH_INDEX_BATCH_FAILURE_MESSAGE}."
-                )
-                if log_all_errors:
-                    for error in errors:
-                        click.echo(error)
-
+        total_indexed, _, total_skipped = _index_dataset_batches(
+            client,
+            batches(),
+            total_batches,
+            indent="  ",
+            sample_size=sample_size,
+            log_all_errors=log_all_errors,
+        )
         click.echo(
             f"Indexed {total_indexed} datasets. "
             f"Skipped {total_skipped} missing DB rows."

@@ -92,9 +92,15 @@ esac
     return env, calls_file, environment_file
 
 
-def _run(action, state_file, env):
+def _write_vars_file(tmp_path, value="3"):
+    vars_file = tmp_path / "vars.test.yml"
+    vars_file.write_text(f"HARVEST_RUNNER_MAX_TASKS: {value}\n")
+    return vars_file
+
+
+def _run(action, vars_file, env):
     return subprocess.run(
-        [str(SCRIPT), action, "datagov-harvest", str(state_file)],
+        [str(SCRIPT), action, "datagov-harvest", str(vars_file)],
         capture_output=True,
         env=env,
         text=True,
@@ -102,16 +108,15 @@ def _run(action, state_file, env):
     )
 
 
-def test_pause_and_restore_existing_capacity(tmp_path):
+def test_pause_and_restore_canonical_capacity(tmp_path):
     env, calls_file, environment_file = _setup_fake_cf(
         tmp_path, {"HARVEST_RUNNER_MAX_TASKS": "3"}
     )
-    state_file = tmp_path / "capacity-state.json"
+    vars_file = _write_vars_file(tmp_path)
 
-    pause_result = _run("pause", state_file, env)
+    pause_result = _run("pause", vars_file, env)
 
     assert pause_result.returncode == 0
-    assert json.loads(state_file.read_text()) == {"was_set": True, "value": "3"}
     assert json.loads(environment_file.read_text())["environment_variables"] == {
         "HARVEST_RUNNER_MAX_TASKS": "0"
     }
@@ -120,10 +125,9 @@ def test_pause_and_restore_existing_capacity(tmp_path):
         in pause_result.stdout
     )
 
-    restore_result = _run("restore", state_file, env)
+    restore_result = _run("restore", vars_file, env)
 
     assert restore_result.returncode == 0
-    assert not state_file.exists()
     assert json.loads(environment_file.read_text())["environment_variables"] == {
         "HARVEST_RUNNER_MAX_TASKS": "3"
     }
@@ -133,40 +137,68 @@ def test_pause_and_restore_existing_capacity(tmp_path):
     assert calls.count("restart datagov-harvest --strategy rolling") == 2
 
 
-def test_restore_unsets_capacity_when_it_was_initially_absent(tmp_path):
-    env, calls_file, environment_file = _setup_fake_cf(tmp_path, {})
-    state_file = tmp_path / "capacity-state.json"
-
-    assert _run("pause", state_file, env).returncode == 0
-    assert _run("restore", state_file, env).returncode == 0
-
-    assert json.loads(environment_file.read_text())["environment_variables"] == {}
-    assert (
-        "unset-env datagov-harvest HARVEST_RUNNER_MAX_TASKS" in calls_file.read_text()
+def test_pause_rejects_runtime_capacity_drift(tmp_path):
+    env, calls_file, environment_file = _setup_fake_cf(
+        tmp_path, {"HARVEST_RUNNER_MAX_TASKS": "2"}
     )
+    vars_file = _write_vars_file(tmp_path)
 
-
-def test_pause_refuses_to_overwrite_an_existing_zero_capacity(tmp_path):
-    env, calls_file, _ = _setup_fake_cf(tmp_path, {"HARVEST_RUNNER_MAX_TASKS": "0"})
-    state_file = tmp_path / "capacity-state.json"
-
-    result = _run("pause", state_file, env)
+    result = _run("pause", vars_file, env)
 
     assert result.returncode == 1
-    assert "positive integer" in result.stderr
-    assert not state_file.exists()
+    assert "does not match canonical value '3'" in result.stderr
+    assert json.loads(environment_file.read_text())["environment_variables"] == {
+        "HARVEST_RUNNER_MAX_TASKS": "2"
+    }
     calls = calls_file.read_text()
     assert "set-env" not in calls
     assert "restart" not in calls
+
+
+def test_restore_is_noop_when_capacity_is_already_canonical(tmp_path):
+    env, calls_file, _ = _setup_fake_cf(tmp_path, {"HARVEST_RUNNER_MAX_TASKS": "3"})
+    vars_file = _write_vars_file(tmp_path)
+
+    result = _run("restore", vars_file, env)
+
+    assert result.returncode == 0
+    assert "already matches" in result.stdout
+    calls = calls_file.read_text()
+    assert "set-env" not in calls
+    assert "restart" not in calls
+
+
+def test_restore_refuses_to_overwrite_runtime_drift(tmp_path):
+    env, calls_file, _ = _setup_fake_cf(tmp_path, {"HARVEST_RUNNER_MAX_TASKS": "2"})
+    vars_file = _write_vars_file(tmp_path)
+
+    result = _run("restore", vars_file, env)
+
+    assert result.returncode == 1
+    assert "is neither paused nor canonical ('3')" in result.stderr
+    calls = calls_file.read_text()
+    assert "set-env" not in calls
+    assert "restart" not in calls
+
+
+def test_rejects_invalid_canonical_capacity(tmp_path):
+    env, calls_file, _ = _setup_fake_cf(tmp_path, {"HARVEST_RUNNER_MAX_TASKS": "3"})
+    vars_file = _write_vars_file(tmp_path, value="0")
+
+    result = _run("pause", vars_file, env)
+
+    assert result.returncode == 1
+    assert "to be a positive integer" in result.stderr
+    assert not calls_file.exists()
 
 
 def test_pause_requires_every_instance_guid_to_change(tmp_path):
     env, _, _ = _setup_fake_cf(tmp_path, {"HARVEST_RUNNER_MAX_TASKS": "3"})
     env["CF_KEEP_INSTANCE_GUIDS"] = "true"
     env["CF_RESTART_TIMEOUT_SECONDS"] = "0"
-    state_file = tmp_path / "capacity-state.json"
+    vars_file = _write_vars_file(tmp_path)
 
-    result = _run("pause", state_file, env)
+    result = _run("pause", vars_file, env)
 
     assert result.returncode == 1
     assert "Timed out confirming the rolling restart" in result.stderr

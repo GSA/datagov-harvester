@@ -45,8 +45,9 @@ flowchart LR
     Alias --> Harvester[Harvester OpenSearch writes]
 ```
 
-The workflow saves the current `HARVEST_RUNNER_MAX_TASKS` setting, changes it to
-`0`, and performs a rolling restart. When the setting is `0`:
+The workflow reads `HARVEST_RUNNER_MAX_TASKS` from the selected environment's
+checked-in vars file, validates that the running application matches it, changes
+the setting to `0`, and performs a rolling restart. When the setting is `0`:
 
 - `_start_new_jobs()` does not dispatch scheduled jobs.
 - `start_job()` cannot create a CF task.
@@ -79,7 +80,7 @@ sequenceDiagram
     participant OS as OpenSearch
 
     O->>GH: Run "Rebuild OpenSearch Index"
-    GH->>CF: Save current max task setting
+    GH->>CF: Validate max task setting against vars file
     GH->>CF: Set HARVEST_RUNNER_MAX_TASKS = 0
     GH->>CF: Start rolling restart
     CF-->>GH: All web instances restarted and running
@@ -115,21 +116,26 @@ sequenceDiagram
     alt Alias switching enabled
         CF->>OS: Atomically switch datasets alias
         OS-->>CF: Alias update acknowledged
+        opt Previous-index deletion enabled
+            CF->>OS: Delete previous physical index
+            OS-->>CF: Deletion acknowledged
+        end
     else Build-only mode
         CF-->>GH: Leave datasets alias unchanged
     end
     CF-->>GH: Rebuild task succeeds
 
-    GH->>CF: Restore saved max task setting
+    GH->>CF: Restore canonical max task setting
     GH->>CF: Start rolling restart
     CF-->>GH: All web instances restarted and running
 ```
 
 ### 1. Pause dispatch
 
-The workflow reads the application environment through the Cloud Foundry API,
-saves whether `HARVEST_RUNNER_MAX_TASKS` was set and its exact value, and then
-runs:
+The workflow reads `HARVEST_RUNNER_MAX_TASKS` from
+`vars.<environment>.yml` and compares it with the application environment
+reported by the Cloud Foundry API. It stops without changing capacity if the
+runtime value has drifted from the checked-in value. After validation, it runs:
 
 ```shell
 cf set-env datagov-harvest HARVEST_RUNNER_MAX_TASKS 0
@@ -174,9 +180,12 @@ It then invokes:
 ```shell
 flask search rebuild-index \
   --target-index datasets-<run-id>-<attempt> \
-  --allow-legacy-index-removal \
   --switch-alias
 ```
+
+For the first alias conversion only, the workflow adds
+`--allow-legacy-index-removal` when the operator explicitly enables the
+corresponding checkbox.
 
 The command refuses to proceed unless `HARVEST_RUNNER_MAX_TASKS` is `0` and no
 active harvest tasks remain. It:
@@ -210,7 +219,7 @@ flowchart TB
 
     subgraph After["After cutover"]
         A2[datasets alias] --> N2[(datasets-new)]
-        O2[(datasets-old<br>retained for recovery)]
+        O2[(datasets-old<br>retained by default)]
     end
 
     Before --> Switch --> After
@@ -218,7 +227,11 @@ flowchart TB
 
 For subsequent rebuilds, one `update_aliases` request removes the alias from the
 old physical index and adds it to the candidate with `is_write_index: true`.
-The old physical index is retained.
+The old physical index is retained unless the operator explicitly enables
+**Delete the previous physical index after a successful alias switch**. That
+input defaults to disabled. When enabled, deletion runs only after OpenSearch
+acknowledges the alias switch, and the same physical-name and alias guards used
+by the standalone cleanup command still apply.
 
 ### First alias conversion
 
@@ -229,10 +242,13 @@ index. The first cutover therefore performs these actions atomically:
 1. `remove_index` for the legacy concrete `datasets` index.
 2. Add the `datasets` alias to the validated candidate.
 
-The `--allow-legacy-index-removal` option makes this one-time deletion explicit.
-The legacy index is not retained, so take an OpenSearch snapshot first if its
-contents must be independently recoverable. Later rebuilds retain the previous
-versioned index.
+The workflow checkbox **Allow the one-time replacement of a concrete datasets
+index** defaults to disabled. Enabling it passes
+`--allow-legacy-index-removal`, making this one-time deletion explicit. Without
+that opt-in, the command fails before creating the candidate. The legacy index
+is not retained, so take an OpenSearch snapshot first if its contents must be
+independently recoverable. Later rebuilds retain the previous versioned index
+and do not require the checkbox.
 
 ### Build without switching the alias
 
@@ -285,8 +301,12 @@ flowchart TD
 - A partially built candidate may remain for diagnosis and can be deleted
   manually.
 - Alias changes are submitted as one atomic OpenSearch operation.
-- The workflow uses `if: always()` to restore the exact saved capacity setting
-  and perform another verified rolling restart after earlier failures.
+- Optional previous-index deletion occurs only after an acknowledged alias
+  switch. If deletion fails, the new alias target remains active and the
+  rebuild task reports failure.
+- The workflow uses `if: always()` to restore the canonical capacity setting
+  from `vars.<environment>.yml` and perform another verified rolling restart
+  after earlier failures. If capacity already matches, restoration is a no-op.
 - If the runner is force-canceled or recovery fails,
   `HARVEST_RUNNER_MAX_TASKS` may remain `0` as the safe failure mode. Search
   continues to work.
@@ -325,9 +345,13 @@ Operator steps for compatible rebuilds and breaking schema changes are in
 4. Leave **Switch the datasets alias to the rebuilt index** enabled for a
    compatible atomic cutover, or disable it for a breaking-schema build-only
    rebuild.
-5. Run the workflow.
-6. Monitor capacity change, rolling restart, drain, rebuild, validation,
-   optional alias switch, capacity restore, and final rolling restart.
+5. Leave **Delete the previous physical index after a successful alias switch**
+   disabled to retain a rollback index. Enable it only when immediate cleanup
+   is preferred.
+6. Run the workflow.
+7. Monitor capacity change, rolling restart, drain, rebuild, validation,
+   optional alias switch and cleanup, capacity restore, and final rolling
+   restart.
 
 GitHub Actions applies the concurrency group
 `opensearch-maintenance-<environment>`, so rebuild and synchronization workflows
@@ -339,7 +363,7 @@ of replacing an already queued operation.
 
 1. Confirm the workflow completed successfully.
 2. Run `cf env datagov-harvest` and confirm
-   `HARVEST_RUNNER_MAX_TASKS` has its original value.
+   `HARVEST_RUNNER_MAX_TASKS` matches `vars.<environment>.yml`.
 3. If alias switching was enabled, confirm the `datasets` alias points to the
    new physical index. Otherwise, confirm it did not change.
 4. Confirm queued harvest jobs have started.
@@ -347,15 +371,15 @@ of replacing an already queued operation.
 
 ### Remove the retained physical index manually
 
-The rebuild workflow intentionally retains the previous physical index for
-rollback and does not delete it automatically. The **Monitor index rebuild**
-step prints `Previous index retained: <index-name>` and identifies the new
-index targeted by the `datasets` alias.
+The rebuild workflow retains the previous physical index for rollback by
+default. The **Monitor index rebuild** step prints
+`Previous index retained: <index-name>` and identifies the new index targeted
+by the `datasets` alias.
 
-Deleting the old index is a manual post-rebuild step. In production, the
-operator should use their discretion and delete it only after the workflow,
-catalog searches, harvest processing, and application logs indicate that the
-new index is operating correctly and the rollback window has passed.
+An operator can instead enable **Delete the previous physical index after a
+successful alias switch**. This performs guarded cleanup immediately after the
+cutover succeeds, but removes the rollback index. When the input is disabled,
+deleting the old index remains a manual post-rebuild step.
 
 > [!WARNING]
 > Do not retain obsolete indexes longer than necessary. They consume cluster
@@ -380,8 +404,8 @@ logical `datasets` name and aliases cannot be deleted through this workflow.
 
 - `.github/workflows/rebuild_opensearch_index.yml` — operation orchestration.
 - `.github/workflows/delete_opensearch_index.yml` — guarded old-index cleanup.
-- `bin/manage_harvest_runner_capacity.sh` — capacity capture, rolling restarts,
-  health confirmation, and restoration.
+- `bin/manage_harvest_runner_capacity.sh` — canonical capacity validation,
+  rolling restarts, health confirmation, and restoration.
 - `bin/wait_for_harvest_tasks.sh` — active-task drain and quiet period.
 - `app/commands/search.py` — candidate creation, validation, cutover, and cleanup.
 - `harvester/runner_settings.py` — shared harvest capacity configuration.

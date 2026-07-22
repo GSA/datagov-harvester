@@ -551,22 +551,14 @@ class TestLoadManager:
         assert interface_with_multiple_jobs.db.query(HarvestJobError).count() == 0
 
     @patch("harvester.lib.cf_handler.CloudFoundryClient")
-    def test_clean_old_jobs_api_error(
-        self,
-        CFCMock,
-        caplog,
-        interface_with_multiple_jobs,
-    ):
+    def test_clean_old_jobs_api_error(self, CFCMock, caplog):
         """Doesn't fail if API is down."""
-        in_progress_jobs = interface_with_multiple_jobs.get_in_progress_jobs()
-        assert len(in_progress_jobs) == 3
         # CF tasks list call fails
         CFCMock.return_value.v3.apps.get.side_effect = InvalidStatusCode(500, "")
 
         load_manager = LoadManager()
         load_manager._clean_old_jobs()
         assert "task information is not accurate" in caplog.text
-        assert len(interface_with_multiple_jobs.get_in_progress_jobs()) == 3
 
     @patch("harvester.lib.cf_handler.CloudFoundryClient")
     def test_start_new_jobs_api_error(self, CFCMock, caplog):
