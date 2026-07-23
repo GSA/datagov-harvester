@@ -2,6 +2,13 @@
 
 This is miscellaneous notes on operating the Harvester system.
 
+## OpenSearch index rebuild
+
+See [rebuild-opensearch-index.md](rebuild-opensearch-index.md) for the operator
+runbook covering compatible rebuilds, breaking schema changes, and capacity
+recovery. Design details are in
+[docs/opensearch-index-rebuild.md](../opensearch-index-rebuild.md).
+
 ## Enabling or disabling harvesting
 
 Run the **Toggle Harvester** GitHub Actions workflow and select the target

@@ -1,0 +1,142 @@
+permissions:
+  contents: read
+
+name: Rebuild OpenSearch Index
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Cloud Foundry environment"
+        required: true
+        default: development
+        type: choice
+        options:
+          - development
+          - staging
+          - prod
+      force_kill_running_jobs:
+        description: "Cancel harvest jobs still running after 15 minutes"
+        required: true
+        default: false
+        type: boolean
+      switch_alias:
+        description: "Switch the datasets alias to the rebuilt index"
+        required: true
+        default: true
+        type: boolean
+      allow_legacy_index_removal:
+        description: "Allow the one-time replacement of a concrete datasets index"
+        required: true
+        default: false
+        type: boolean
+      delete_previous_index:
+        description: "Delete the previous physical index after a successful alias switch"
+        required: true
+        default: false
+        type: boolean
+
+jobs:
+  rebuild:
+    name: Rebuild OpenSearch index (${{ inputs.environment }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    environment: ${{ inputs.environment }}
+    concurrency:
+      group: opensearch-maintenance-${{ inputs.environment }}
+      cancel-in-progress: false
+      queue: max
+    env:
+      CF_SPACE: ${{ inputs.environment }}
+    steps:
+      - name: Check out the code
+        id: checkout
+        uses: actions/checkout@v7
+
+      - name: Set operation names
+        env:
+          SWITCH_ALIAS: ${{ inputs.switch_alias }}
+          ALLOW_LEGACY_INDEX_REMOVAL: ${{ inputs.allow_legacy_index_removal }}
+          DELETE_PREVIOUS_INDEX: ${{ inputs.delete_previous_index }}
+        run: |
+          if [[ "$DELETE_PREVIOUS_INDEX" == "true" && "$SWITCH_ALIAS" != "true" ]]; then
+            echo "Deleting the previous index requires alias switching." >&2
+            exit 1
+          fi
+          if [[ "$SWITCH_ALIAS" == "true" ]]; then
+            alias_option=--switch-alias
+          else
+            alias_option=--no-switch-alias
+          fi
+          if [[ "$ALLOW_LEGACY_INDEX_REMOVAL" == "true" ]]; then
+            legacy_index_option=--allow-legacy-index-removal
+          else
+            legacy_index_option=
+          fi
+          if [[ "$DELETE_PREVIOUS_INDEX" == "true" ]]; then
+            delete_old_index_option=--delete-old-index
+          else
+            delete_old_index_option=
+          fi
+          {
+            echo "REBUILD_TASK=search-rebuild-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+            echo "TARGET_INDEX=datasets-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+            echo "ALIAS_OPTION=$alias_option"
+            echo "LEGACY_INDEX_OPTION=$legacy_index_option"
+            echo "DELETE_OLD_INDEX_OPTION=$delete_old_index_option"
+          } >> "$GITHUB_ENV"
+
+      - name: Disable harvest task scheduling and restart
+        id: disable_capacity
+        uses: cloud-gov/cg-cli-tools@main
+        with:
+          command: >
+            bin/set_harvest_runner_capacity.sh disable datagov-harvest
+          cf_org: gsa-datagov
+          cf_space: ${{ env.CF_SPACE }}
+          cf_username: ${{ secrets.CF_SERVICE_USER }}
+          cf_password: ${{ secrets.CF_SERVICE_AUTH }}
+
+      - name: Wait for running harvest tasks
+        uses: cloud-gov/cg-cli-tools@main
+        with:
+          command: >
+            bin/wait_for_harvest_tasks.sh datagov-harvest 7200
+            ${{ inputs.force_kill_running_jobs && '--force-kill-running-jobs' || '' }}
+          cf_org: gsa-datagov
+          cf_space: ${{ env.CF_SPACE }}
+          cf_username: ${{ secrets.CF_SERVICE_USER }}
+          cf_password: ${{ secrets.CF_SERVICE_AUTH }}
+
+      - name: Start index rebuild
+        uses: cloud-gov/cg-cli-tools@main
+        with:
+          command: >
+            cf run-task datagov-harvest --name "$REBUILD_TASK" -k 4G -m 2G
+            --command "flask search rebuild-index --target-index $TARGET_INDEX
+            $LEGACY_INDEX_OPTION $DELETE_OLD_INDEX_OPTION $ALIAS_OPTION"
+          cf_org: gsa-datagov
+          cf_space: ${{ env.CF_SPACE }}
+          cf_username: ${{ secrets.CF_SERVICE_USER }}
+          cf_password: ${{ secrets.CF_SERVICE_AUTH }}
+
+      - name: Monitor index rebuild
+        uses: cloud-gov/cg-cli-tools@main
+        with:
+          command: bin/monitor_cf_logs.sh datagov-harvest "$REBUILD_TASK"
+          cf_org: gsa-datagov
+          cf_space: ${{ env.CF_SPACE }}
+          cf_username: ${{ secrets.CF_SERVICE_USER }}
+          cf_password: ${{ secrets.CF_SERVICE_AUTH }}
+
+      - name: Enable harvest task scheduling and restart
+        id: enable_capacity
+        if: always() && steps.checkout.outcome == 'success'
+        uses: cloud-gov/cg-cli-tools@main
+        with:
+          command: >
+            bin/set_harvest_runner_capacity.sh enable datagov-harvest
+          cf_org: gsa-datagov
+          cf_space: ${{ env.CF_SPACE }}
+          cf_username: ${{ secrets.CF_SERVICE_USER }}
+          cf_password: ${{ secrets.CF_SERVICE_AUTH }}

@@ -14,7 +14,7 @@ import threading
 from datetime import datetime, timezone
 from pathlib import Path
 
-from harvester.lib.cf_handler import CFHandler
+from harvester.lib.cf_handler import ACTIVE_HARVEST_TASK_STATES, CFHandler
 
 logger = logging.getLogger("harvest_admin")
 
@@ -81,6 +81,15 @@ class LocalTaskHandler:
             task
             for task in tasks
             if task.get("state") == "RUNNING"
+            and task.get("name", "").startswith("harvest-job-")
+        ]
+
+    def get_active_harvest_tasks(self, app_guuid=None):
+        tasks = self.get_all_app_tasks(app_guuid)
+        return [
+            task
+            for task in tasks
+            if task.get("state") in ACTIVE_HARVEST_TASK_STATES
             and task.get("name", "").startswith("harvest-job-")
         ]
 

@@ -53,6 +53,10 @@ jobs:
         environment: ${{ fromJson(needs.determine-environments.outputs.environments) }}
     name: Sync OpenSearch index
     environment: ${{ matrix.environment }}
+    concurrency:
+      group: opensearch-maintenance-${{ matrix.environment }}
+      cancel-in-progress: false
+      queue: max
     env:
       CF_SPACE: ${{ matrix.environment }}
       # Keep this aligned with OPENSEARCH_INDEX_BATCH_FAILURE_MESSAGE in app/commands/search.py.

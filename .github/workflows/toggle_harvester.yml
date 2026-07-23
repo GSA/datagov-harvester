@@ -42,8 +42,9 @@ jobs:
     timeout-minutes: 40
     environment: ${{ inputs.environment }}
     concurrency:
-      group: toggle-harvester-${{ inputs.environment }}
+      group: opensearch-maintenance-${{ inputs.environment }}
       cancel-in-progress: false
+      queue: max
     env:
       HARVESTER_STATE: ${{ inputs.state }}
       HARVESTER_MAX_TASKS: ${{ inputs.max_tasks }}

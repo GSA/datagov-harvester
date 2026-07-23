@@ -17,6 +17,8 @@ There is further documentation in the [developer](/docs/developer.md) quickstart
 ## Documentation
 
  - [Developer setup](docs/developer.md)
+ - [Rebuild OpenSearch index (operators)](docs/ops/rebuild-opensearch-index.md)
+ - [OpenSearch index rebuild design](docs/opensearch-index-rebuild.md)
  - [Harvester wiki](https://github.com/GSA/data.gov/wiki/harvest.data.gov)
  - The latest sequence diagrams are available in the [/docs/diagrams/mermaid/dest](docs/diagrams/mermaid/dest) folder. (Click "Raw" for a full-page view of any diagram.)
  - The [docs](docs) folder in general.

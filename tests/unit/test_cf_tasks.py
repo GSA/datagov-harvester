@@ -1,6 +1,8 @@
 import logging
 from unittest.mock import patch
 
+from cloudfoundry_client.errors import InvalidStatusCode
+
 from harvester.harvest import harvest_job_starter
 from harvester.lib.cf_handler import CFHandler
 
@@ -32,6 +34,36 @@ class TestCFTasking:
         ]
         running_tasks = CFUtil.get_running_app_tasks()
         assert len(running_tasks) == 1
+
+    def test_get_active_harvest_tasks(self, CFClientMock):
+        CFUtil = CFHandler("url", "user", "password")
+        CFClientMock.return_value.v3.apps._pagination.return_value = [
+            {"state": "PENDING", "name": "harvest-job-pending"},
+            {"state": "RUNNING", "name": "harvest-job-running"},
+            {"state": "CANCELING", "name": "harvest-job-canceling"},
+            {"state": "SUCCEEDED", "name": "harvest-job-complete"},
+            {"state": "RUNNING", "name": "other-task"},
+        ]
+
+        active_tasks = CFUtil.get_active_harvest_tasks()
+
+        assert [task["state"] for task in active_tasks] == [
+            "PENDING",
+            "RUNNING",
+            "CANCELING",
+        ]
+
+    def test_get_active_harvest_tasks_distinguishes_empty_from_api_error(
+        self, CFClientMock
+    ):
+        CFUtil = CFHandler("url", "user", "password")
+        CFClientMock.return_value.v3.apps._pagination.return_value = []
+
+        assert CFUtil.get_active_harvest_tasks() == []
+
+        CFClientMock.return_value.v3.apps.get.side_effect = InvalidStatusCode(500, "")
+
+        assert CFUtil.get_active_harvest_tasks() is None
 
     def test_num_running_app_tasks(self, CFClientMock):
         CFUtil = CFHandler("url", "user", "password")
