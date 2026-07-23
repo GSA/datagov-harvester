@@ -32,6 +32,10 @@ case "$1" in
     [[ "$2" == "datagov-harvest" && "$3" == "--strategy" && "$4" == "rolling" ]]
     exit "${CF_RESTART_EXIT_CODE:-0}"
     ;;
+  env)
+    [[ "$2" == "datagov-harvest" ]]
+    printf '%s\n' "${CF_ENV_OUTPUT:-User-Provided:}"
+    ;;
   *)
     echo "Unexpected cf command: $*" >&2
     exit 1
@@ -69,6 +73,48 @@ def test_updates_only_max_tasks_and_restarts(tmp_path, action, max_tasks):
     assert "restart datagov-harvest --strategy rolling" in calls
     assert f"HARVEST_RUNNER_MAX_TASKS set to {max_tasks}" in result.stdout
     assert "Confirmed the datagov-harvest rolling restart completed." in result.stdout
+
+
+def test_check_reports_current_max_tasks_without_exposing_other_environment_values(
+    tmp_path,
+):
+    env, calls_file = _setup_fake_cf(tmp_path)
+    env["CF_ENV_OUTPUT"] = """System-Provided:
+SENSITIVE_VALUE: do-not-print
+User-Provided:
+HARVEST_RUNNER_MAX_TASKS: 5"""
+
+    result = subprocess.run(
+        [str(SCRIPT), "check"],
+        capture_output=True,
+        env=env,
+        text=True,
+        timeout=10,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert calls_file.read_text() == "env datagov-harvest\n"
+    assert "HARVEST_RUNNER_MAX_TASKS is currently set to 5." in result.stdout
+    assert "do-not-print" not in result.stdout
+
+
+def test_check_reports_default_when_max_tasks_is_not_set(tmp_path):
+    env, calls_file = _setup_fake_cf(tmp_path)
+
+    result = subprocess.run(
+        [str(SCRIPT), "check"],
+        capture_output=True,
+        env=env,
+        text=True,
+        timeout=10,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert calls_file.read_text() == "env datagov-harvest\n"
+    assert (
+        "HARVEST_RUNNER_MAX_TASKS is not set in Cloud Foundry; "
+        "the application defaults to 3."
+    ) in result.stdout
 
 
 def test_enable_uses_custom_max_tasks(tmp_path):
