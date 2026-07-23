@@ -2,14 +2,16 @@ from datetime import datetime, timezone
 
 import click
 from flask import Blueprint
-from opensearchpy.helpers import scan
 
-from database.models import Dataset, db
-from harvester.opensearch import OpenSearchInterface
+from database.interface import HarvesterDBInterface
+from database.models import Dataset
+from harvester.opensearch import OpenSearchClient, OpenSearchReader, OpenSearchWriter
 
 search = Blueprint("search", __name__)
 # we use this message to detect index failure in GH actions
 OPENSEARCH_INDEX_BATCH_FAILURE_MESSAGE = "failed to index in this batch"
+
+db_interface = HarvesterDBInterface()
 
 
 def _normalize_last_harvested(value):
@@ -59,7 +61,7 @@ def _normalize_mapping_for_comparison(value):
 @search.cli.command("reset-mapping")
 def reset_opensearch_mapping():
     """Delete the dataset index and recreate its empty mapping and settings."""
-    client = OpenSearchInterface.from_environment()
+    client = OpenSearchClient.from_environment()
 
     click.echo("Deleting OpenSearch dataset index...")
     client.client.indices.delete(index=client.INDEX_NAME)
@@ -102,62 +104,12 @@ def reset_opensearch_mapping():
 )
 def compare_opensearch(sample_size: int, update: bool, force_update: bool):
     """Report and optionally repair DB/OpenSearch dataset discrepancies."""
-    client = OpenSearchInterface.from_environment()
-
-    def index_dataset_batches(
-        dataset_ids: list[str], intro_message: str, log_all_errors=False
-    ):
-        click.echo(intro_message)
-        batch_size = 1000
-        total_batches = (len(dataset_ids) + batch_size - 1) // batch_size
-        total_indexed = 0
-        total_skipped = 0
-
-        for batch_number, offset in enumerate(
-            range(0, len(dataset_ids), batch_size), start=1
-        ):
-            batch_ids = dataset_ids[offset : offset + batch_size]
-            click.echo(
-                f"  Batch {batch_number}/{total_batches}: "
-                f"indexing {len(batch_ids)} dataset(s)..."
-            )
-            datasets = db.session.query(Dataset).filter(Dataset.id.in_(batch_ids)).all()
-            found_ids = {dataset.id for dataset in datasets}
-            skipped = [
-                dataset_id for dataset_id in batch_ids if dataset_id not in found_ids
-            ]
-            total_skipped += len(skipped)
-
-            if skipped:
-                click.echo(
-                    "    Warning: Skipping missing DB IDs: "
-                    + ", ".join(skipped[:sample_size])
-                )
-
-            if not datasets:
-                click.echo("    No datasets found for this batch; skipping.")
-                continue
-
-            succeeded, failed, errors = client.index_datasets(
-                datasets, refresh_after=False
-            )
-            total_indexed += succeeded
-            if failed:
-                click.echo(
-                    f"    Warning: {failed} dataset(s) "
-                    f"{OPENSEARCH_INDEX_BATCH_FAILURE_MESSAGE}."
-                )
-                if log_all_errors:
-                    for error in errors:
-                        click.echo(error)
-
-        click.echo(
-            f"Indexed {total_indexed} datasets. "
-            f"Skipped {total_skipped} missing DB rows."
-        )
+    os_client = OpenSearchClient.from_environment()
+    os_writer = OpenSearchWriter(os_client)
+    os_reader = OpenSearchReader(os_client)
 
     click.echo("Collecting dataset IDs from DB...")
-    db_rows = db.session.query(Dataset.id, Dataset.last_harvested_date).all()
+    db_rows = db_interface.db.query(Dataset.id, Dataset.last_harvested_date).all()
     db_last_harvested = {
         dataset_id: _normalize_last_harvested(last_harvested)
         for dataset_id, last_harvested in db_rows
@@ -167,11 +119,11 @@ def compare_opensearch(sample_size: int, update: bool, force_update: bool):
 
     click.echo("Collecting document IDs from OpenSearch...")
     os_docs = {}
-    for hit in scan(
-        client.client,
-        index=client.INDEX_NAME,
+
+    for hit in os_reader.scan_index(
+        index_name=os_client.INDEX_NAME,
         size=200,
-        _source=False,
+        source=False,
         stored_fields=[],
         docvalue_fields=["last_harvested_date"],
     ):
@@ -204,8 +156,7 @@ def compare_opensearch(sample_size: int, update: bool, force_update: bool):
         "Example extra IDs: " + (", ".join(extra[:sample_size]) if extra else "none")
     )
     click.echo(
-        "Updated in OpenSearch (last_harvested_date differs): "
-        f"{len(updated_details)}"
+        f"Updated in OpenSearch (last_harvested_date differs): {len(updated_details)}"
     )
     if updated_details:
         sample_entries = [
@@ -224,31 +175,36 @@ def compare_opensearch(sample_size: int, update: bool, force_update: bool):
     click.echo("\nUpdating discrepancies...")
     force_reindex_ids = sorted(db_ids) if force_update else []
     if force_reindex_ids:
-        index_dataset_batches(
+        os_writer.index_dataset_batches(
             force_reindex_ids,
             f"Force re-indexing {len(force_reindex_ids)} datasets...",
+            db_interface,
+            sample_size=sample_size,
             log_all_errors=True,
         )
     else:
         if missing:
-            index_dataset_batches(
+            os_writer.index_dataset_batches(
                 missing,
                 f"Indexing {len(missing)} missing datasets...",
+                db_interface,
+                sample_size=sample_size,
                 log_all_errors=True,
             )
         if updated_ids:
-            index_dataset_batches(
+            os_writer.index_dataset_batches(
                 updated_ids,
                 f"Re-indexing {len(updated_ids)} updated datasets...",
+                db_interface,
+                sample_size=sample_size,
                 log_all_errors=True,
             )
-
     if extra:
         click.echo(f"Deleting {len(extra)} extra documents from OpenSearch...")
         deleted = 0
         for doc_id in extra:
             try:
-                client.client.delete(index=client.INDEX_NAME, id=doc_id)
+                os_writer.client.delete(index=os_client.INDEX_NAME, id=doc_id)
                 deleted += 1
             except Exception as exc:  # pragma: no cover - best-effort cleanup
                 click.echo(f"    Failed to delete document {doc_id}: {exc}")
@@ -256,7 +212,7 @@ def compare_opensearch(sample_size: int, update: bool, force_update: bool):
 
     if missing or extra or updated_ids or force_reindex_ids:
         click.echo("Refreshing OpenSearch index...")
-        client._refresh()
+        os_writer._refresh()
         click.echo("Done.")
     else:
         click.echo("Nothing to update; datasets and index are already in sync.")
