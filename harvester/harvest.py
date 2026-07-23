@@ -187,9 +187,13 @@ class HarvestSource:
             return None
 
         try:
-            from harvester.opensearch import OpenSearchInterface
+            from datagov_data_access.search.client import OpenSearchClient
+            from datagov_data_access.search.writer import OpenSearchWriter
 
-            self._opensearch = OpenSearchInterface.from_environment()
+            client = OpenSearchClient.from_environment()
+            writer = OpenSearchWriter(client)
+
+            self._opensearch = writer
         except Exception as e:
             logger.exception("Failed to initialize OpenSearch client: %s", e)
             self._opensearch = None
