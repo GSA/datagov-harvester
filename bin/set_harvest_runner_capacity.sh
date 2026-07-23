@@ -2,60 +2,51 @@
 
 set -euo pipefail
 
-usage="Usage: manage_harvest_runner_capacity.sh <pause|restore> <app_name> <vars_file>"
-action=${1:?$usage}
-app_name=${2:?$usage}
-vars_file=${3:?$usage}
+usage="Usage: set_harvest_runner_capacity.sh <check|enable|disable> [app_name] [enabled_max_tasks]"
+action=${1:-}
+app_name=${2:-datagov-harvest}
+max_tasks_env=HARVEST_RUNNER_MAX_TASKS
+default_max_tasks=3
 poll_seconds=${CF_RESTART_POLL_SECONDS:-10}
 timeout_seconds=${CF_RESTART_TIMEOUT_SECONDS:-900}
-max_tasks_env=HARVEST_RUNNER_MAX_TASKS
+app_guid=
 
-if [[ ! -f "$vars_file" ]]; then
-  echo "Vars file does not exist: $vars_file" >&2
-  exit 1
-fi
+ensure_jq() {
+  if ! command -v jq >/dev/null; then
+    apk add --no-cache jq >&2
+  fi
+}
 
-if ! configured_value=$(
-  awk -v key="$max_tasks_env" '
-    $0 ~ "^[[:space:]]*" key "[[:space:]]*:" {
-      value = $0
-      sub("^[[:space:]]*" key "[[:space:]]*:[[:space:]]*", "", value)
-      sub(/[[:space:]]*#.*/, "", value)
-      gsub(/^[[:space:]]+|[[:space:]]+$/, "", value)
-      configured_value = value
-      count++
-    }
-    END {
-      if (count == 1) {
-        print configured_value
-      } else {
-        exit 1
-      }
-    }
-  ' "$vars_file"
-); then
-  echo "Expected exactly one $max_tasks_env value in $vars_file." >&2
-  exit 1
-fi
-if [[ ! "$configured_value" =~ ^[0-9]+$ || "$configured_value" -eq 0 ]]; then
-  echo "Expected $max_tasks_env in $vars_file to be a positive integer; got '$configured_value'." >&2
-  exit 1
-fi
+ensure_cf_context() {
+  ensure_jq
+  if [[ -z "$app_guid" ]]; then
+    app_guid=$(cf app "$app_name" --guid)
+  fi
+}
 
-if ! command -v jq >/dev/null; then
-  apk add --no-cache jq
-fi
-
-app_guid=$(cf app "$app_name" --guid)
+current_capacity() {
+  ensure_cf_context
+  local environment
+  environment=$(cf curl "/v3/apps/${app_guid}/env")
+  if echo "$environment" |
+    jq -e --arg name "$max_tasks_env" \
+      '.environment_variables | has($name)' >/dev/null; then
+    echo "$environment" |
+      jq -r --arg name "$max_tasks_env" \
+        '.environment_variables[$name] | tostring'
+  else
+    echo "unset"
+  fi
+}
 
 restart_and_confirm() {
-  local expected_is_set=$1
-  local expected_value=${2:-}
+  local expected_value=$1
   local deadline=$(( $(date +%s) + timeout_seconds ))
   local before_processes before_process_count before_process_guid
   local before_desired_instances before_stats before_running_instances
   local before_instance_guids before_instance_guid_count
 
+  ensure_cf_context
   before_processes=$(cf curl "/v3/apps/${app_guid}/processes")
   before_process_count=$(echo "$before_processes" | jq '[.resources[] | select(.type == "web")] | length')
   before_process_guid=$(echo "$before_processes" | jq -r '[.resources[] | select(.type == "web")][0].guid // empty')
@@ -64,7 +55,7 @@ restart_and_confirm() {
         -z "$before_process_guid" ||
         "$before_desired_instances" -le 0 ]]; then
     echo "Could not identify one running web process before restarting $app_name." >&2
-    exit 1
+    return 1
   fi
 
   before_stats=$(cf curl "/v3/processes/${before_process_guid}/stats")
@@ -74,15 +65,15 @@ restart_and_confirm() {
   if [[ "$before_running_instances" -ne "$before_desired_instances" ||
         "$before_instance_guid_count" -ne "$before_desired_instances" ]]; then
     echo "All desired web instances must be running and report instance GUIDs before restart." >&2
-    exit 1
+    return 1
   fi
 
   cf restart "$app_name" --strategy rolling
 
   while true; do
     local deployments processes process_count process_guid desired_instances stats
-    local active_deployments observed_instances running_instances environment env_matches
-    local instance_guids instance_guid_count reused_instance_guids
+    local active_deployments observed_instances running_instances environment
+    local env_matches instance_guids instance_guid_count reused_instance_guids
 
     deployments=$(cf curl "/v3/deployments?status_values=ACTIVE&per_page=5000")
     active_deployments=$(
@@ -116,16 +107,10 @@ restart_and_confirm() {
     fi
 
     environment=$(cf curl "/v3/apps/${app_guid}/env")
-    if [[ "$expected_is_set" == true ]]; then
-      if [[ $(echo "$environment" | jq -r --arg name "$max_tasks_env" '.environment_variables[$name] // empty') == "$expected_value" ]]; then
-        env_matches=true
-      else
-        env_matches=false
-      fi
-    elif echo "$environment" | jq -e --arg name "$max_tasks_env" '.environment_variables | has($name)' >/dev/null; then
-      env_matches=false
-    else
+    if [[ $(echo "$environment" | jq -r --arg name "$max_tasks_env" '.environment_variables[$name] // empty') == "$expected_value" ]]; then
       env_matches=true
+    else
+      env_matches=false
     fi
 
     if [[ "$active_deployments" -eq 0 &&
@@ -143,7 +128,7 @@ restart_and_confirm() {
     if [[ $(date +%s) -ge "$deadline" ]]; then
       echo "Timed out confirming the rolling restart of $app_name." >&2
       echo "active_deployments=$active_deployments desired_instances=$desired_instances observed_instances=$observed_instances running_instances=$running_instances instance_guid_count=$instance_guid_count reused_instance_guids=$reused_instance_guids env_matches=$env_matches" >&2
-      exit 1
+      return 1
     fi
 
     echo "Waiting for rolling restart: active_deployments=$active_deployments running_instances=$running_instances/$desired_instances reused_instance_guids=$reused_instance_guids"
@@ -151,46 +136,36 @@ restart_and_confirm() {
   done
 }
 
+set_capacity() {
+  local desired_value=$1
+  cf set-env "$app_name" "$max_tasks_env" "$desired_value"
+  restart_and_confirm "$desired_value"
+  echo "$max_tasks_env set to $desired_value."
+}
+
 case "$action" in
-  pause)
-    environment=$(cf curl "/v3/apps/${app_guid}/env")
-    if echo "$environment" | jq -e --arg name "$max_tasks_env" '.environment_variables | has($name)' >/dev/null; then
-      current_value=$(echo "$environment" | jq -r --arg name "$max_tasks_env" '.environment_variables[$name]')
+  check)
+    current_value=$(current_capacity)
+    if [[ "$current_value" != "unset" ]]; then
+      echo "$max_tasks_env is currently set to $current_value."
     else
-      current_value="<unset>"
+      echo "$max_tasks_env is not set in Cloud Foundry; the application defaults to $default_max_tasks."
     fi
-    if [[ "$current_value" != "$configured_value" ]]; then
-      echo "Current $max_tasks_env value '$current_value' does not match canonical value '$configured_value' from $vars_file." >&2
-      exit 1
-    fi
-
-    cf set-env "$app_name" "$max_tasks_env" 0
-    restart_and_confirm true 0
-    echo "Harvest task scheduling is disabled."
+    exit 0
     ;;
-  restore)
-    environment=$(cf curl "/v3/apps/${app_guid}/env")
-    if echo "$environment" | jq -e --arg name "$max_tasks_env" '.environment_variables | has($name)' >/dev/null; then
-      current_value=$(echo "$environment" | jq -r --arg name "$max_tasks_env" '.environment_variables[$name]')
-    else
-      current_value="<unset>"
+  enable)
+    desired_value=${3:-$default_max_tasks}
+    if [[ ! "$desired_value" =~ ^[1-9][0-9]*$ ]]; then
+      echo "enabled_max_tasks must be a positive integer." >&2
+      exit 2
     fi
-
-    if [[ "$current_value" == "$configured_value" ]]; then
-      echo "Harvest runner capacity already matches $vars_file; nothing to restore."
-      exit 0
-    fi
-    if [[ "$current_value" != 0 ]]; then
-      echo "Refusing to restore $max_tasks_env: current value '$current_value' is neither paused nor canonical ('$configured_value')." >&2
-      exit 1
-    fi
-
-    cf set-env "$app_name" "$max_tasks_env" "$configured_value"
-    restart_and_confirm true "$configured_value"
-    echo "Harvest runner capacity was restored."
+    set_capacity "$desired_value"
+    ;;
+  disable)
+    set_capacity 0
     ;;
   *)
-    echo "Unknown action: $action" >&2
+    echo "$usage" >&2
     exit 2
     ;;
 esac

@@ -43,7 +43,7 @@ jobs:
         uses: JasonEtco/create-an-issue@v2
         env:
           GITHUB_TOKEN: ${{ secrets.ADD_TO_PROJECT_PAT }}
-          GITHUB_JOB: ${{ toJson(github)['job'] }}
+          GITHUB_JOB: ${{ github.job }}
           GITHUB_ATTEMPTS: ${{ github.run_attempt }}
           LAST_COMMIT: ${{ github.sha }}
           LAST_RUN_BY: ${{ github.actor }}

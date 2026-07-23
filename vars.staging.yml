@@ -14,8 +14,6 @@ asset_version: set-at-deploy
 CF_API_URL: https://api.fr.cloud.gov
 CATALOG_BASE_URL: https://catalog-stage.data.gov
 
-# CKAN can't handle too many tasks talking to it
-HARVEST_RUNNER_MAX_TASKS: 3
 HARVEST_RETRY_ON_ERROR: true
 
 MDTRANSLATOR_URL: https://mdtranslator-staging.apps.internal:61443/translates

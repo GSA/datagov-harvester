@@ -10,18 +10,17 @@ Design details, validation rules, and failure modes live in
 
 In short:
 
-1. Validates the current `HARVEST_RUNNER_MAX_TASKS` value against the selected
-   environment's checked-in vars file.
-2. Sets `HARVEST_RUNNER_MAX_TASKS=0` and rolling-restarts the harvester.
-3. Waits for active `harvest-job-*` Cloud Foundry tasks to drain.
-4. Builds and validates a versioned physical index from PostgreSQL.
-5. Optionally switches the logical `datasets` alias to that physical index.
-6. Restores the canonical max-tasks value from the vars file and
-   rolling-restarts the harvester again.
+1. Uses the same capacity-control script as **Toggle Harvester** to set
+   `HARVEST_RUNNER_MAX_TASKS=0` and rolling-restart the harvester.
+2. Waits for active `harvest-job-*` Cloud Foundry tasks to drain.
+3. Builds and validates a versioned physical index from PostgreSQL.
+4. Optionally switches the logical `datasets` alias to that physical index.
+5. Enables harvesting with `HARVEST_RUNNER_MAX_TASKS=3` and rolling-restarts
+   the harvester again, even if harvesting was disabled before the rebuild.
 
 Search traffic keeps using the current `datasets` target while the candidate is
 built. Harvest jobs already queued as `new` stay in the database and can start
-again after capacity is restored.
+again after harvesting is enabled.
 
 ## Prerequisites
 
@@ -33,7 +32,8 @@ again after capacity is restored.
 - Enable **Allow the one-time replacement of a concrete datasets index** only
   for that first alias conversion. Leave it disabled for normal rebuilds.
 - Do not run overlapping OpenSearch maintenance or harvester restart workflows
-  for the same environment; concurrency already queues them.
+  for the same environment. Rebuild, synchronization, restart, cleanup, and
+  Toggle Harvester workflows share an environment-specific concurrency group.
 
 ## Compatible rebuild (normal path)
 
@@ -56,11 +56,10 @@ app (no renamed/removed fields that Catalog still queries).
    - candidate create / backfill / validate
    - alias switch
    - optional previous-index deletion
-   - capacity restore + rolling restart
+   - capacity set to `3` + rolling restart
 8. Verify:
    - workflow succeeded
-   - `cf env datagov-harvest` shows the checked-in
-     `HARVEST_RUNNER_MAX_TASKS`
+   - `cf env datagov-harvest` shows `HARVEST_RUNNER_MAX_TASKS=3`
    - `datasets` points at the new physical index
    - catalog search and harvest processing look healthy
 
@@ -86,7 +85,7 @@ before Catalog understands it. Instead:
    - sets max tasks to `0` and restarts
    - drains active harvest tasks
    - builds and validates the physical index
-   - restores max tasks and restarts
+   - sets max tasks to `3` and restarts
 5. Copy the physical index name from the workflow logs (for example
    `datasets-29762881914-1`). The live `datasets` alias is unchanged.
 6. Deploy Catalog hardcoded to that physical index name (and deploy Harvester
@@ -153,28 +152,28 @@ That workflow refuses to delete:
 Do not leave obsolete indexes around longer than needed; they consume cluster
 storage.
 
-## Manual recovery if capacity restore fails
+## Manual recovery if re-enabling fails
 
-If the workflow is canceled mid-run or restore fails, capacity may remain at
+If the workflow is canceled mid-run or re-enabling fails, capacity may remain at
 `0` (safe mode: search still works, harvests do not start).
 
 ```shell
 cf env datagov-harvest
-cf set-env datagov-harvest HARVEST_RUNNER_MAX_TASKS <environment-value>
+cf set-env datagov-harvest HARVEST_RUNNER_MAX_TASKS 3
 cf restart datagov-harvest --strategy rolling
 ```
 
-Use the value from `vars.<environment>.yml` for that space. Only restore
-capacity after confirming no rebuild task is still running.
+Only enable harvesting after confirming no rebuild task is still running.
 
 ## Related workflows and scripts
 
 | Piece | Role |
 | --- | --- |
 | **Actions → Rebuild OpenSearch Index** | Main operator entrypoint |
+| **Actions → Toggle Harvester** | Manual capacity check, enable, and disable |
 | **Actions → Delete OpenSearch Physical Index** | Remove retained old indexes |
 | **Actions → Synchronize OpenSearch Index** | Separate sync maintenance; shares concurrency |
-| `bin/manage_harvest_runner_capacity.sh` | Validate/set/restore canonical max tasks + verified restart |
+| `bin/set_harvest_runner_capacity.sh` | Shared check/enable/disable commands and verified restart |
 | `bin/wait_for_harvest_tasks.sh` | Drain active harvest CF tasks |
 | `flask search rebuild-index` | Create, backfill, validate, optional alias switch |
 | `scripts/opensearch_status.sh` | Stream the status payload through `cf ssh` |

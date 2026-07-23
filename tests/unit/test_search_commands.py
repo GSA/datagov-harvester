@@ -6,6 +6,7 @@ from app.commands.search import (
     _backfill_index,
     _format_duration,
     _normalize_mapping_for_comparison,
+    db_interface,
 )
 
 
@@ -36,8 +37,8 @@ def test_backfill_index_reports_progress_rate_and_eta(capsys):
     ]
 
     with (
-        patch("app.commands.search.db.session.query", return_value=dataset_query),
-        patch("app.commands.search.db.session.expunge_all"),
+        patch("app.commands.search.db_interface.db.query", return_value=dataset_query),
+        patch("app.commands.search.db_interface.db.expunge_all"),
         patch("app.commands.search.monotonic", side_effect=[100, 110, 120]),
     ):
         indexed, failed = _backfill_index(client, "datasets-new", 2, 4)
@@ -63,7 +64,7 @@ def test_backfill_index_stops_after_failed_batch(capsys):
     dataset_query.limit.return_value.all.return_value = [Mock(id=1), Mock(id=2)]
 
     with (
-        patch("app.commands.search.db.session.query", return_value=dataset_query),
+        patch("app.commands.search.db_interface.db.query", return_value=dataset_query),
         patch("app.commands.search.monotonic", side_effect=[100, 110]),
     ):
         indexed, failed = _backfill_index(client, "datasets-new", 2, 4)
@@ -97,7 +98,7 @@ def test_reset_mapping_recreates_empty_index(app):
     }
 
     with patch(
-        "app.commands.search.OpenSearchInterface.from_environment",
+        "app.commands.search.OpenSearchClient.from_environment",
         return_value=client,
     ):
         result = app.test_cli_runner().invoke(args=["search", "reset-mapping"])
@@ -119,7 +120,7 @@ def test_reset_mapping_rejects_real_mapping_mismatch(app):
     }
 
     with patch(
-        "app.commands.search.OpenSearchInterface.from_environment",
+        "app.commands.search.OpenSearchClient.from_environment",
         return_value=client,
     ):
         result = app.test_cli_runner().invoke(args=["search", "reset-mapping"])
@@ -137,7 +138,7 @@ def test_reset_mapping_refuses_to_delete_alias_target(app):
     client.alias_indices.return_value = ["datasets-current"]
 
     with patch(
-        "app.commands.search.OpenSearchInterface.from_environment",
+        "app.commands.search.OpenSearchClient.from_environment",
         return_value=client,
     ):
         result = app.test_cli_runner().invoke(args=["search", "reset-mapping"])
@@ -194,7 +195,7 @@ def test_rebuild_index_requires_explicit_legacy_index_removal(app):
             return_value=handler,
         ),
         patch(
-            "app.commands.search.OpenSearchInterface.from_environment",
+            "app.commands.search.OpenSearchClient.from_environment",
             return_value=client,
         ),
     ):
@@ -211,6 +212,7 @@ def test_rebuild_index_backfills_validates_and_switches_alias(app):
     handler = Mock()
     handler.get_active_harvest_tasks.return_value = []
     client = Mock()
+    writer = Mock()
     client.INDEX_NAME = "datasets"
     client.MAPPINGS = {"properties": {"title": {"type": "text"}}}
     client.alias_indices.return_value = ["datasets-old"]
@@ -232,10 +234,11 @@ def test_rebuild_index_backfills_validates_and_switches_alias(app):
             return_value=handler,
         ),
         patch(
-            "app.commands.search.OpenSearchInterface.from_environment",
+            "app.commands.search.OpenSearchClient.from_environment",
             return_value=client,
         ),
-        patch("app.commands.search.db.session.query", return_value=dataset_query),
+        patch("app.commands.search.OpenSearchWriter", return_value=writer),
+        patch("app.commands.search.db_interface.db.query", return_value=dataset_query),
         patch("app.commands.search._backfill_index", return_value=(2, 0)),
     ):
         result = app.test_cli_runner().invoke(
@@ -244,7 +247,7 @@ def test_rebuild_index_backfills_validates_and_switches_alias(app):
 
     assert result.exit_code == 0
     client.create_index.assert_called_once_with("datasets-new")
-    client._refresh.assert_called_once_with(index_name="datasets-new")
+    writer._refresh.assert_called_once_with(index_name="datasets-new")
     client.switch_alias.assert_called_once_with("datasets-new")
     client.client.indices.delete.assert_not_called()
     assert "Previous index retained: datasets-old" in result.output
@@ -256,6 +259,7 @@ def test_rebuild_index_can_delete_previous_index_after_alias_switch(app):
     handler = Mock()
     handler.get_active_harvest_tasks.return_value = []
     client = Mock()
+    writer = Mock()
     client.INDEX_NAME = "datasets"
     client.MAPPINGS = {"properties": {"title": {"type": "text"}}}
     client.alias_indices.side_effect = [["datasets-old"], ["datasets-new"]]
@@ -284,10 +288,11 @@ def test_rebuild_index_can_delete_previous_index_after_alias_switch(app):
             return_value=handler,
         ),
         patch(
-            "app.commands.search.OpenSearchInterface.from_environment",
+            "app.commands.search.OpenSearchClient.from_environment",
             return_value=client,
         ),
-        patch("app.commands.search.db.session.query", return_value=dataset_query),
+        patch("app.commands.search.OpenSearchWriter", return_value=writer),
+        patch("app.commands.search.db_interface.db.query", return_value=dataset_query),
         patch("app.commands.search._backfill_index", return_value=(2, 0)),
     ):
         result = app.test_cli_runner().invoke(
@@ -312,6 +317,7 @@ def test_rebuild_index_can_validate_without_switching_alias(app):
     handler = Mock()
     handler.get_active_harvest_tasks.return_value = []
     client = Mock()
+    writer = Mock()
     client.INDEX_NAME = "datasets"
     client.MAPPINGS = {"properties": {"title": {"type": "text"}}}
     client.alias_indices.return_value = []
@@ -333,10 +339,11 @@ def test_rebuild_index_can_validate_without_switching_alias(app):
             return_value=handler,
         ),
         patch(
-            "app.commands.search.OpenSearchInterface.from_environment",
+            "app.commands.search.OpenSearchClient.from_environment",
             return_value=client,
         ),
-        patch("app.commands.search.db.session.query", return_value=dataset_query),
+        patch("app.commands.search.OpenSearchWriter", return_value=writer),
+        patch("app.commands.search.db_interface.db.query", return_value=dataset_query),
         patch("app.commands.search._backfill_index", return_value=(1, 0)),
     ):
         result = app.test_cli_runner().invoke(
@@ -364,7 +371,7 @@ def test_delete_index_deletes_unused_physical_index(app):
     client.client.indices.delete.return_value = {"acknowledged": True}
 
     with patch(
-        "app.commands.search.OpenSearchInterface.from_environment",
+        "app.commands.search.OpenSearchClient.from_environment",
         return_value=client,
     ):
         result = app.test_cli_runner().invoke(
@@ -382,7 +389,7 @@ def test_delete_index_refuses_active_alias_target(app):
     client.alias_indices.return_value = ["datasets-current"]
 
     with patch(
-        "app.commands.search.OpenSearchInterface.from_environment",
+        "app.commands.search.OpenSearchClient.from_environment",
         return_value=client,
     ):
         result = app.test_cli_runner().invoke(
@@ -399,7 +406,7 @@ def test_delete_index_rejects_non_physical_index_name(app):
     client.INDEX_NAME = "datasets"
 
     with patch(
-        "app.commands.search.OpenSearchInterface.from_environment",
+        "app.commands.search.OpenSearchClient.from_environment",
         return_value=client,
     ):
         result = app.test_cli_runner().invoke(
@@ -418,7 +425,7 @@ def test_delete_index_reports_missing_index(app):
     client.client.indices.exists.return_value = False
 
     with patch(
-        "app.commands.search.OpenSearchInterface.from_environment",
+        "app.commands.search.OpenSearchClient.from_environment",
         return_value=client,
     ):
         result = app.test_cli_runner().invoke(
@@ -440,7 +447,7 @@ def test_delete_index_refuses_index_with_attached_alias(app):
     }
 
     with patch(
-        "app.commands.search.OpenSearchInterface.from_environment",
+        "app.commands.search.OpenSearchClient.from_environment",
         return_value=client,
     ):
         result = app.test_cli_runner().invoke(
@@ -452,11 +459,11 @@ def test_delete_index_refuses_index_with_attached_alias(app):
     client.client.indices.delete.assert_not_called()
 
 
-def test_compare_update_indexes_missing_and_deletes_extra(app):
+def test_compare_update_indexes_missing_and_deletes_extra(app, caplog):
     client = Mock()
     client.INDEX_NAME = "datasets"
     client.client = Mock()
-    client.index_datasets.return_value = (1, 0, [])
+    client.index_dataset_batches.return_value = None
 
     missing_dataset = Mock()
     missing_dataset.id = "db-only"
@@ -472,12 +479,18 @@ def test_compare_update_indexes_missing_and_deletes_extra(app):
 
     with (
         patch(
-            "app.commands.search.OpenSearchInterface.from_environment",
+            "app.commands.search.OpenSearchClient.from_environment",
             return_value=client,
         ),
-        patch("app.commands.search.db.session.query", side_effect=query_side_effect),
         patch(
-            "app.commands.search.scan",
+            "app.commands.search.OpenSearchWriter",
+            return_value=client,
+        ),
+        patch(
+            "app.commands.search.db_interface.db.query", side_effect=query_side_effect
+        ),
+        patch(
+            "app.commands.search.OpenSearchReader.scan_index",
             return_value=iter(
                 [{"_id": "extra-only", "fields": {"last_harvested_date": []}}]
             ),
@@ -486,14 +499,18 @@ def test_compare_update_indexes_missing_and_deletes_extra(app):
         result = app.test_cli_runner().invoke(args=["search", "compare", "--update"])
 
     assert result.exit_code == 0
-    client.index_datasets.assert_called_once_with(
-        [missing_dataset], refresh_after=False
+    client.index_dataset_batches.assert_called_once_with(
+        ["db-only"],
+        "Indexing 1 missing datasets...",
+        db_interface,
+        sample_size=10,
+        log_all_errors=True,
     )
     client.client.delete.assert_called_once_with(index="datasets", id="extra-only")
     client._refresh.assert_called_once_with()
 
 
-def test_compare_update_uses_index_batch_failure_message_constant(app):
+def test_compare_update_uses_index_batch_failure_message_constant(app, caplog):
     client = Mock()
     client.INDEX_NAME = "datasets"
     client.client = Mock()
@@ -513,16 +530,22 @@ def test_compare_update_uses_index_batch_failure_message_constant(app):
 
     with (
         patch(
-            "app.commands.search.OpenSearchInterface.from_environment",
+            "app.commands.search.OpenSearchClient.from_environment",
             return_value=client,
         ),
-        patch("app.commands.search.db.session.query", side_effect=query_side_effect),
-        patch("app.commands.search.scan", return_value=iter([])),
+        patch(
+            "app.commands.search.OpenSearchWriter.index_datasets",
+            return_value=(0, 1, ["index error"]),
+        ),
+        patch(
+            "app.commands.search.db_interface.db.query", side_effect=query_side_effect
+        ),
+        patch("app.commands.search.OpenSearchReader.scan_index", return_value=iter([])),
     ):
         result = app.test_cli_runner().invoke(args=["search", "compare", "--update"])
 
     assert result.exit_code == 0
-    assert f"1 dataset(s) {OPENSEARCH_INDEX_BATCH_FAILURE_MESSAGE}." in result.output
+    assert f"1 dataset(s) {OPENSEARCH_INDEX_BATCH_FAILURE_MESSAGE}." in caplog.text
 
 
 def test_compare_is_read_only_without_update(app):
@@ -534,11 +557,11 @@ def test_compare_is_read_only_without_update(app):
 
     with (
         patch(
-            "app.commands.search.OpenSearchInterface.from_environment",
+            "app.commands.search.OpenSearchClient.from_environment",
             return_value=client,
         ),
-        patch("app.commands.search.db.session.query", return_value=rows_query),
-        patch("app.commands.search.scan", return_value=iter([])),
+        patch("app.commands.search.db_interface.db.query", return_value=rows_query),
+        patch("app.commands.search.OpenSearchReader.scan_index", return_value=iter([])),
     ):
         result = app.test_cli_runner().invoke(args=["search", "compare"])
 

@@ -1,252 +1,54 @@
-from datetime import date, datetime
-from types import SimpleNamespace
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
-import pytest
-
-import harvester.opensearch as opensearch
-from harvester.opensearch import (
-    DEFAULT_DELETE_REQUEST_TIMEOUT_SECONDS,
-    ConnectionTimeout,
-    OpenSearchInterface,
-)
+from harvester.opensearch import OpenSearchClient, OpenSearchWriter
 
 
-class DummyOrg:
-    def to_dict(self):
-        return {"id": "org-1", "name": "Test Org"}
+def test_writer_can_target_physical_index():
+    raw_client = Mock()
+    writer = OpenSearchWriter(Mock(client=raw_client))
+    document = {"_index": "datasets", "_id": "dataset-1"}
 
+    with (
+        patch("harvester.opensearch.DatasetDocument") as document_class,
+        patch(
+            "harvester.opensearch.helpers.streaming_bulk",
+            return_value=iter(
+                [(True, {"index": {"result": "created", "_id": "dataset-1"}})]
+            ),
+        ) as streaming_bulk,
+    ):
+        document_class.return_value.dataset_to_document.return_value = document
+        result = writer.index_datasets(
+            [Mock()],
+            refresh_after=False,
+            index_name="datasets-20260716",
+        )
 
-class FakeIndices:
-    def __init__(self, exists=True):
-        self._exists = exists
-        self.created = None
-        self.refreshed = []
-
-    def exists(self, index):
-        return self._exists
-
-    def create(self, index, body):
-        self.created = {"index": index, "body": body}
-        return {"acknowledged": True}
-
-    def refresh(self, index, request_timeout):
-        self.refreshed.append((index, request_timeout))
-        return {"result": "refreshed"}
-
-
-class FakeClient:
-    def __init__(self, exists=True):
-        self.indices = FakeIndices(exists=exists)
-        self.deleted = []
-
-    def delete(self, index, id, ignore, request_timeout):
-        self.deleted.append((index, id, ignore, request_timeout))
-        return {"result": "deleted"}
-
-
-@pytest.fixture()
-def sample_dataset():
-    return SimpleNamespace(
-        id="dataset-1",
-        slug="dataset-1",
-        dcat={
-            "title": "Dataset Title",
-            "description": "Dataset description",
-            "publisher": {"name": "Publisher"},
-            "keyword": ["kw-1"],
-            "theme": ["theme-1"],
-            "identifier": "id-1",
-            "spatial": "POINT(1 2)",
-            "modified": date(2024, 1, 2),
-            "isPartOf": "collection-1",
-            "distribution": [
-                {"title": "CSV download"},
-                {"title": "API endpoint"},
-                {"accessURL": "https://example.com/no-title"},
-            ],
-        },
-        last_harvested_date=datetime(2024, 1, 3, 4, 5, 6),
-        translated_spatial={"type": "Point", "coordinates": [1, 2]},
-        organization=DummyOrg(),
-        popularity=7,
-        harvest_record_id="hr-1",
-        harvest_record=SimpleNamespace(source_transform={"title": "Transformed"}),
-    )
-
-
-def test_normalize_dcat_dates():
-    dcat = {
-        "modified": date(2024, 1, 2),
-        "issued": datetime(2024, 1, 3, 4, 5, 6),
-        "temporal": 123,
-    }
-    normalized = OpenSearchInterface._normalize_dcat_dates(dcat)
-
-    assert normalized["modified"] == "2024-01-02"
-    assert normalized["issued"].startswith("2024-01-03T04:05:06")
-    assert normalized["temporal"] == "123"
-
-
-def test_normalize_dcat_spatial_object():
-    dcat = {
-        "spatial": {
-            "@type": "Location",
-            "prefLabel": "United States",
-        },
-    }
-
-    normalized = OpenSearchInterface._normalize_dcat_dates(dcat)
-
-    assert (
-        normalized["spatial"] == '{"@type": "Location", "prefLabel": "United States"}'
-    )
-
-
-def test_normalize_dcat_distribution_structured_field():
-    dcat = {
-        "distribution": [
-            {
-                "title": "CSV download",
-                "conformsTo": {
-                    "@type": "Standard",
-                    "identifier": "https://www.w3.org/TR/tabular-data-primer/",
-                    "title": "CSV on the Web",
-                },
-            }
-        ]
-    }
-
-    normalized = OpenSearchInterface._normalize_dcat_dates(dcat)
-
-    assert normalized["distribution"][0]["title"] == "CSV download"
-    assert normalized["distribution"][0]["conformsTo"] == (
-        '{"@type": "Standard", '
-        '"identifier": "https://www.w3.org/TR/tabular-data-primer/", '
-        '"title": "CSV on the Web"}'
-    )
-
-
-def test_normalize_dcat_serializes_nested_metadata_objects():
-    dcat = {
-        "contactPoint": {
-            "fn": "Data contact",
-            "hasEmail": {"@id": "mailto:data@example.gov"},
-        }
-    }
-
-    normalized = OpenSearchInterface._normalize_dcat_dates(dcat)
-
-    expected_email = '{"@id": "mailto:data@example.gov"}'
-    assert normalized["contactPoint"]["fn"] == "Data contact"
-    assert normalized["contactPoint"]["hasEmail"] == expected_email
-
-
-def test_normalize_dcat_preserves_publisher_suborganization_object():
-    dcat = {
-        "publisher": {
-            "name": "U.S. Commodity Futures Trading Commission",
-            "subOrganizationOf": {"name": "U.S. Government"},
-        }
-    }
-
-    normalized = OpenSearchInterface._normalize_dcat_dates(dcat)
-
-    assert normalized["publisher"]["subOrganizationOf"] == {"name": "U.S. Government"}
-
-
-def test_geometry_centroid_returns_average():
-    geometry = {"type": "MultiPoint", "coordinates": [[0, 0], [2, 2]]}
-
-    centroid = OpenSearchInterface._geometry_centroid(geometry)
-
-    assert centroid == {"lat": 1.0, "lon": 1.0}
-
-
-def test_geometry_centroid_accepts_json_string():
-    geometry = '{"type": "Point", "coordinates": [10, 20]}'
-
-    centroid = OpenSearchInterface._geometry_centroid(geometry)
-
-    assert centroid == {"lat": 20.0, "lon": 10.0}
-
-
-@pytest.mark.parametrize(
-    "geometry",
-    [
-        {"type": "Point", "coordinates": [185.0, 45.0]},
-        {"type": "Point", "coordinates": [-74.0, -91.0]},
-    ],
-)
-def test_geometry_centroid_skips_out_of_range_coordinates(geometry):
-    assert OpenSearchInterface._geometry_centroid(geometry) is None
-
-
-def test_geometry_centroid_uses_valid_points_when_some_are_out_of_range():
-    geometry = {
-        "type": "MultiPoint",
-        "coordinates": [
-            [10.0, 20.0],
-            [185.0, 45.0],
-            [30.0, -91.0],
-            [50.0, 60.0],
-        ],
-    }
-
-    centroid = OpenSearchInterface._geometry_centroid(geometry)
-
-    assert centroid == {"lat": 40.0, "lon": 30.0}
-
-
-def test_dataset_to_document(sample_dataset, monkeypatch):
-    monkeypatch.delenv("CATALOG_BASE_URL", raising=False)
-    iface = OpenSearchInterface.__new__(OpenSearchInterface)
-
-    document = iface.dataset_to_document(sample_dataset)
-
-    assert document["_index"] == OpenSearchInterface.INDEX_NAME
-    assert document["_id"] == sample_dataset.id
-    assert document["title"] == "Dataset Title"
-    assert document["publisher"] == "Publisher"
-    assert document["dcat"]["isPartOf"] == "collection-1"
-    assert document["distribution_titles"] == ["CSV download", "API endpoint"]
-    assert document["has_spatial"] is True
-    assert document["harvest_record"] == "https://catalog.data.gov/harvest_record/hr-1"
-    assert (
-        document["harvest_record_raw"]
-        == "https://catalog.data.gov/harvest_record/hr-1/raw"
-    )
-    assert (
-        document["harvest_record_transformed"]
-        == "https://catalog.data.gov/harvest_record/hr-1/transformed"
-    )
-    assert document["spatial_centroid"] == {"lat": 2.0, "lon": 1.0}
-
-
-def test_dataset_to_document_accepts_physical_index(sample_dataset):
-    iface = OpenSearchInterface.__new__(OpenSearchInterface)
-
-    document = iface.dataset_to_document(
-        sample_dataset,
-        index_name="datasets-20260716",
-    )
-
+    assert result == (1, 0, [])
     assert document["_index"] == "datasets-20260716"
+    streaming_bulk.assert_called_once_with(
+        raw_client,
+        [document],
+        raise_on_error=False,
+        max_retries=8,
+    )
 
 
 def test_switch_alias_keeps_previous_physical_index():
-    iface = OpenSearchInterface.__new__(OpenSearchInterface)
-    iface.client = Mock()
-    iface.client.indices.exists.return_value = True
-    iface.client.indices.exists_alias.return_value = True
-    iface.client.indices.get_alias.return_value = {"datasets-old": {"aliases": {}}}
-    iface.client.indices.update_aliases.return_value = {"acknowledged": True}
+    client = OpenSearchClient.__new__(OpenSearchClient)
+    client.client = Mock()
+    client.client.indices.exists.return_value = True
+    client.client.indices.exists_alias.return_value = True
+    client.client.indices.get_alias.return_value = {
+        "datasets-old": {"aliases": {}}
+    }
+    client.client.indices.update_aliases.return_value = {"acknowledged": True}
 
-    old_indices, removed_legacy = iface.switch_alias("datasets-new")
+    old_indices, removed_legacy = client.switch_alias("datasets-new")
 
     assert old_indices == ["datasets-old"]
     assert removed_legacy is False
-    iface.client.indices.update_aliases.assert_called_once_with(
+    client.client.indices.update_aliases.assert_called_once_with(
         body={
             "actions": [
                 {"remove": {"index": "datasets-old", "alias": "datasets"}},
@@ -263,17 +65,17 @@ def test_switch_alias_keeps_previous_physical_index():
 
 
 def test_switch_alias_atomically_replaces_legacy_concrete_index():
-    iface = OpenSearchInterface.__new__(OpenSearchInterface)
-    iface.client = Mock()
-    iface.client.indices.exists.return_value = True
-    iface.client.indices.exists_alias.return_value = False
-    iface.client.indices.update_aliases.return_value = {"acknowledged": True}
+    client = OpenSearchClient.__new__(OpenSearchClient)
+    client.client = Mock()
+    client.client.indices.exists.return_value = True
+    client.client.indices.exists_alias.return_value = False
+    client.client.indices.update_aliases.return_value = {"acknowledged": True}
 
-    old_indices, removed_legacy = iface.switch_alias("datasets-new")
+    old_indices, removed_legacy = client.switch_alias("datasets-new")
 
     assert old_indices == []
     assert removed_legacy is True
-    iface.client.indices.update_aliases.assert_called_once_with(
+    client.client.indices.update_aliases.assert_called_once_with(
         body={
             "actions": [
                 {"remove_index": {"index": "datasets"}},
@@ -287,302 +89,3 @@ def test_switch_alias_atomically_replaces_legacy_concrete_index():
             ]
         }
     )
-
-
-def test_dataset_to_document_handles_missing_date_and_organization(sample_dataset):
-    iface = OpenSearchInterface.__new__(OpenSearchInterface)
-    sample_dataset.last_harvested_date = None
-    sample_dataset.organization = None
-
-    document = iface.dataset_to_document(sample_dataset)
-
-    assert document["last_harvested_date"] is None
-    assert document["organization"] == {}
-
-
-def test_dataset_to_document_uses_configured_catalog_base_url(
-    sample_dataset, monkeypatch
-):
-    iface = OpenSearchInterface.__new__(OpenSearchInterface)
-    monkeypatch.setenv("CATALOG_BASE_URL", "https://example.gov/")
-
-    document = iface.dataset_to_document(sample_dataset)
-
-    assert document["harvest_record"] == "https://example.gov/harvest_record/hr-1"
-    assert (
-        document["harvest_record_raw"] == "https://example.gov/harvest_record/hr-1/raw"
-    )
-    assert (
-        document["harvest_record_transformed"]
-        == "https://example.gov/harvest_record/hr-1/transformed"
-    )
-
-
-def test_dataset_to_document_has_dcat_spatial(sample_dataset):
-    iface = OpenSearchInterface.__new__(OpenSearchInterface)
-    sample_dataset.translated_spatial = None
-
-    document = iface.dataset_to_document(sample_dataset)
-
-    assert document["has_spatial"] is True
-
-
-def test_dataset_to_document_has_translated_spatial(sample_dataset):
-    iface = OpenSearchInterface.__new__(OpenSearchInterface)
-    sample_dataset.dcat.pop("spatial", None)
-
-    document = iface.dataset_to_document(sample_dataset)
-
-    assert document["has_spatial"] is True
-
-
-@pytest.mark.parametrize(
-    "theme",
-    [
-        ["Geospatial"],
-        ["GEOSPATIAL"],
-        ["Health", " geospatial "],
-        "Geospatial",
-        [{"prefLabel": "geospatial"}],
-        [{"@type": "Concept", "prefLabel": "Geospatial"}],
-        ["Health", {"prefLabel": " geospatial "}],
-    ],
-)
-def test_dataset_to_document_has_spatial_theme(sample_dataset, theme):
-    iface = OpenSearchInterface.__new__(OpenSearchInterface)
-    sample_dataset.dcat.pop("spatial", None)
-    sample_dataset.dcat["theme"] = theme
-    sample_dataset.translated_spatial = None
-
-    document = iface.dataset_to_document(sample_dataset)
-
-    assert document["has_spatial"] is True
-
-
-@pytest.mark.parametrize(
-    "theme",
-    [
-        None,
-        [],
-        ["Health"],
-        "Environment",
-        "Spatial",
-        [{"prefLabel": "Environment"}],
-        [{"@type": "Concept", "prefLabel": "Health"}],
-    ],
-)
-def test_dataset_to_document_without_spatial_data_or_theme(sample_dataset, theme):
-    iface = OpenSearchInterface.__new__(OpenSearchInterface)
-    sample_dataset.dcat.pop("spatial", None)
-    sample_dataset.dcat["theme"] = theme
-    sample_dataset.translated_spatial = None
-
-    document = iface.dataset_to_document(sample_dataset)
-
-    assert document["has_spatial"] is False
-
-
-def test_dataset_to_document_flattens_dcat3_theme_and_identifier(sample_dataset):
-    iface = OpenSearchInterface.__new__(OpenSearchInterface)
-    sample_dataset.dcat["theme"] = [
-        {
-            "@id": "https://example.gov/concepts/climate-science",
-            "@type": "Concept",
-            "prefLabel": "Climate Science",
-        },
-        "weather",
-    ]
-    sample_dataset.dcat["identifier"] = {
-        "@type": "Identifier",
-        "@id": "https://example.gov/identifiers/dataset-1",
-    }
-    sample_dataset.dcat["inSeries"] = [
-        {
-            "@id": "https://example.gov/series/annual",
-            "@type": "DatasetSeries",
-            "title": "Annual Series",
-        }
-    ]
-
-    document = iface.dataset_to_document(sample_dataset)
-
-    assert document["theme"] == ["Climate Science", "weather"]
-    assert document["identifier"] == "https://example.gov/identifiers/dataset-1"
-    # Nested dcat keeps original DCAT shapes; only top-level fields are flattened.
-    assert document["dcat"]["theme"] == sample_dataset.dcat["theme"]
-    assert document["dcat"]["identifier"] == sample_dataset.dcat["identifier"]
-    # inSeries is not aliased onto isPartOf.
-    assert document["dcat"]["isPartOf"] == "collection-1"
-
-
-def test_dataset_to_document_omits_transformed_url_without_payload(sample_dataset):
-    iface = OpenSearchInterface.__new__(OpenSearchInterface)
-    sample_dataset.harvest_record = SimpleNamespace(source_transform=None)
-
-    document = iface.dataset_to_document(sample_dataset)
-
-    assert "harvest_record_transformed" not in document
-
-
-def test_init_creates_index_when_missing(monkeypatch):
-    fake_client = FakeClient(exists=False)
-    monkeypatch.setattr(
-        OpenSearchInterface,
-        "_create_test_opensearch_client",
-        staticmethod(lambda host: fake_client),
-    )
-
-    OpenSearchInterface(test_host="localhost")
-
-    created = fake_client.indices.created
-    assert created is not None
-    assert created["index"] == OpenSearchInterface.INDEX_NAME
-    assert created["body"]["mappings"] == OpenSearchInterface.MAPPINGS
-    assert created["body"]["settings"] == OpenSearchInterface.SETTINGS
-
-
-def test_mappings_include_catalog_compatible_fields():
-    mappings = OpenSearchInterface.MAPPINGS["properties"]
-    normalizer = OpenSearchInterface.SETTINGS["analysis"]["normalizer"][
-        OpenSearchInterface.KEYWORD_NORMALIZER
-    ]
-
-    assert mappings["dcat"]["properties"]["isPartOf"] == {"type": "keyword"}
-    assert mappings["theme"] == {
-        "type": "text",
-        "analyzer": OpenSearchInterface.TEXT_ANALYZER,
-        "search_analyzer": OpenSearchInterface.TEXT_ANALYZER,
-    }
-    assert mappings["distribution_titles"]["type"] == "text"
-    assert mappings["publisher"]["fields"]["raw"] == {"type": "keyword"}
-    assert mappings["publisher"]["fields"]["normalized"] == {
-        "type": "keyword",
-        "normalizer": OpenSearchInterface.KEYWORD_NORMALIZER,
-    }
-    assert mappings["keyword"]["fields"]["normalized"] == {
-        "type": "keyword",
-        "normalizer": OpenSearchInterface.KEYWORD_NORMALIZER,
-    }
-    assert normalizer == {
-        "type": "custom",
-        "filter": ["lowercase"],
-    }
-
-
-def test_from_environment_uses_aws_client(monkeypatch):
-    fake_client = FakeClient(exists=True)
-    captured = {}
-
-    def fake_aws_client(host):
-        captured["host"] = host
-        return fake_client
-
-    monkeypatch.setenv("OPENSEARCH_HOST", "search.example.es.amazonaws.com")
-    monkeypatch.setattr(
-        OpenSearchInterface,
-        "_create_aws_opensearch_client",
-        staticmethod(fake_aws_client),
-    )
-    monkeypatch.setattr(
-        OpenSearchInterface,
-        "_create_test_opensearch_client",
-        staticmethod(lambda host: FakeClient(exists=True)),
-    )
-
-    iface = OpenSearchInterface.from_environment()
-
-    assert iface.client is fake_client
-    assert captured["host"] == "search.example.es.amazonaws.com"
-
-
-def test_from_environment_requires_host(monkeypatch):
-    monkeypatch.delenv("OPENSEARCH_HOST", raising=False)
-
-    with pytest.raises(ValueError):
-        OpenSearchInterface.from_environment()
-
-
-def test_run_with_timeout_retry(monkeypatch):
-    iface = OpenSearchInterface.__new__(OpenSearchInterface)
-    calls = {"count": 0}
-    sleeps = []
-
-    def action():
-        calls["count"] += 1
-        if calls["count"] < 3:
-            raise ConnectionTimeout("timeout")
-        return "ok"
-
-    def fake_sleep(seconds):
-        sleeps.append(seconds)
-
-    monkeypatch.setattr(opensearch.time, "sleep", fake_sleep)
-
-    result = iface._run_with_timeout_retry(
-        action,
-        action_name="test",
-        timeout_retries=3,
-        timeout_backoff_base=2.0,
-    )
-
-    assert result == "ok"
-    assert calls["count"] == 3
-    assert sleeps == [2.0, 4.0]
-
-
-def test_index_datasets_counts_errors(monkeypatch, sample_dataset):
-    iface = OpenSearchInterface.__new__(OpenSearchInterface)
-    iface.client = FakeClient(exists=True)
-
-    def fake_streaming_bulk(client, documents, raise_on_error, max_retries):
-        assert client is iface.client
-        assert len(documents) == 1
-        yield True, {"index": {"result": "created", "_id": "dataset-1"}}
-        yield False, {
-            "index": {
-                "status": 400,
-                "error": {
-                    "type": "mapper_parsing_exception",
-                    "reason": "bad",
-                    "caused_by": {"type": "illegal_argument_exception"},
-                },
-            }
-        }
-
-    monkeypatch.setattr(opensearch.helpers, "streaming_bulk", fake_streaming_bulk)
-
-    succeeded, failed, errors = iface.index_datasets(
-        [sample_dataset],
-        refresh_after=False,
-    )
-
-    assert succeeded == 1
-    assert failed == 1
-    assert len(errors) == 2
-
-
-def test_delete_dataset_by_id_calls_client():
-    iface = OpenSearchInterface.__new__(OpenSearchInterface)
-    iface.client = FakeClient(exists=True)
-
-    result = iface.delete_dataset_by_id("dataset-1", refresh_after=False)
-
-    assert result is True
-    assert iface.client.deleted == [
-        (
-            OpenSearchInterface.INDEX_NAME,
-            "dataset-1",
-            [404],
-            DEFAULT_DELETE_REQUEST_TIMEOUT_SECONDS,
-        )
-    ]
-
-
-def test_delete_dataset_by_id_no_id():
-    iface = OpenSearchInterface.__new__(OpenSearchInterface)
-    iface.client = FakeClient(exists=True)
-
-    result = iface.delete_dataset_by_id("", refresh_after=False)
-
-    assert result is False
-    assert iface.client.deleted == []

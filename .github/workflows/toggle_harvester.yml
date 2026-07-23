@@ -1,0 +1,76 @@
+name: Toggle Harvester
+
+on:
+  workflow_dispatch:
+    inputs:
+      state:
+        description: "Check, enable, or disable harvesting. Disabling does not stop running jobs; stop them manually in Harvester."
+        required: true
+        default: check
+        type: choice
+        options:
+          - check
+          - disable
+          - enable
+      max_tasks:
+        description: "Maximum tasks when enabling (ignored when checking or disabling)"
+        required: false
+        default: "3"
+        type: string
+      environment:
+        description: "Cloud Foundry environment"
+        required: true
+        default: development
+        type: choice
+        options:
+          - development
+          - staging
+          - prod
+      notification:
+        description: "Send toggle notification to Slack?"
+        required: true
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  toggle:
+    name: ${{ inputs.state }} harvesting (${{ inputs.environment }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    environment: ${{ inputs.environment }}
+    concurrency:
+      group: opensearch-maintenance-${{ inputs.environment }}
+      cancel-in-progress: false
+      queue: max
+    env:
+      HARVESTER_STATE: ${{ inputs.state }}
+      HARVESTER_MAX_TASKS: ${{ inputs.max_tasks }}
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v7
+
+      - name: Check or update harvester capacity
+        uses: cloud-gov/cg-cli-tools@main
+        with:
+          command: >
+            bin/set_harvest_runner_capacity.sh "$HARVESTER_STATE"
+            datagov-harvest "$HARVESTER_MAX_TASKS"
+          cf_org: gsa-datagov
+          cf_space: ${{ inputs.environment }}
+          cf_username: ${{ secrets.CF_SERVICE_USER }}
+          cf_password: ${{ secrets.CF_SERVICE_AUTH }}
+
+      - name: Send notification to Slack
+        if: ${{ inputs.notification && inputs.state != 'check' }}
+        uses: slackapi/slack-github-action@v3
+        with:
+          webhook-type: incoming-webhook
+          payload: |
+            {
+              "text": "Scheduled harvesting in the ${{ inputs.environment }} space was ${{ inputs.state }}d by ${{ github.actor }}. HARVEST_RUNNER_MAX_TASKS is now ${{ inputs.state == 'disable' && '0' || inputs.max_tasks }}."
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}

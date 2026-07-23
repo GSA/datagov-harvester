@@ -63,31 +63,35 @@ jobs:
             echo "Deleting the previous index requires alias switching." >&2
             exit 1
           fi
-          echo "REBUILD_TASK=search-rebuild-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_ENV"
-          echo "TARGET_INDEX=datasets-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_ENV"
           if [[ "$SWITCH_ALIAS" == "true" ]]; then
-            echo "ALIAS_OPTION=--switch-alias" >> "$GITHUB_ENV"
+            alias_option=--switch-alias
           else
-            echo "ALIAS_OPTION=--no-switch-alias" >> "$GITHUB_ENV"
+            alias_option=--no-switch-alias
           fi
           if [[ "$ALLOW_LEGACY_INDEX_REMOVAL" == "true" ]]; then
-            echo "LEGACY_INDEX_OPTION=--allow-legacy-index-removal" >> "$GITHUB_ENV"
+            legacy_index_option=--allow-legacy-index-removal
           else
-            echo "LEGACY_INDEX_OPTION=" >> "$GITHUB_ENV"
+            legacy_index_option=
           fi
           if [[ "$DELETE_PREVIOUS_INDEX" == "true" ]]; then
-            echo "DELETE_OLD_INDEX_OPTION=--delete-old-index" >> "$GITHUB_ENV"
+            delete_old_index_option=--delete-old-index
           else
-            echo "DELETE_OLD_INDEX_OPTION=" >> "$GITHUB_ENV"
+            delete_old_index_option=
           fi
+          {
+            echo "REBUILD_TASK=search-rebuild-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+            echo "TARGET_INDEX=datasets-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+            echo "ALIAS_OPTION=$alias_option"
+            echo "LEGACY_INDEX_OPTION=$legacy_index_option"
+            echo "DELETE_OLD_INDEX_OPTION=$delete_old_index_option"
+          } >> "$GITHUB_ENV"
 
       - name: Disable harvest task scheduling and restart
-        id: pause_capacity
+        id: disable_capacity
         uses: cloud-gov/cg-cli-tools@main
         with:
           command: >
-            bin/manage_harvest_runner_capacity.sh pause
-            datagov-harvest "vars.${CF_SPACE}.yml"
+            bin/set_harvest_runner_capacity.sh disable datagov-harvest
           cf_org: gsa-datagov
           cf_space: ${{ env.CF_SPACE }}
           cf_username: ${{ secrets.CF_SERVICE_USER }}
@@ -125,14 +129,13 @@ jobs:
           cf_username: ${{ secrets.CF_SERVICE_USER }}
           cf_password: ${{ secrets.CF_SERVICE_AUTH }}
 
-      - name: Restore harvest runner capacity and restart
-        id: restore_capacity
+      - name: Enable harvest task scheduling and restart
+        id: enable_capacity
         if: always() && steps.checkout.outcome == 'success'
         uses: cloud-gov/cg-cli-tools@main
         with:
           command: >
-            bin/manage_harvest_runner_capacity.sh restore
-            datagov-harvest "vars.${CF_SPACE}.yml"
+            bin/set_harvest_runner_capacity.sh enable datagov-harvest
           cf_org: gsa-datagov
           cf_space: ${{ env.CF_SPACE }}
           cf_username: ${{ secrets.CF_SERVICE_USER }}

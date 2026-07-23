@@ -1,194 +1,25 @@
-import json
-import logging
-import os
-import time
-from datetime import date, datetime
-from typing import Any, Callable, TypeVar
-from urllib.parse import urlparse
+# ruff: noqa: F401
+from opensearchpy import helpers
 
-from botocore.credentials import Credentials
-from opensearchpy import AWSV4SignerAuth, OpenSearch, RequestsHttpConnection, helpers
-from opensearchpy.exceptions import ConnectionTimeout
-
-from database.models import Dataset
-from harvester.opensearch_transform import DcatIndexTransformer
-
-logger = logging.getLogger(__name__)
-
-
-DEFAULT_TIMEOUT_RETRIES = 3
-DEFAULT_TIMEOUT_BACKOFF_BASE = 2.0
-DEFAULT_DELETE_REQUEST_TIMEOUT_SECONDS = 120
-DEFAULT_REFRESH_REQUEST_TIMEOUT_SECONDS = 120
-DEFAULT_CLIENT_MAX_RETRIES = 3
+from datagov_data_access.search.client import (
+    OpenSearchClient as DataAccessOpenSearchClient,
+)
+from datagov_data_access.search.config import (
+    DEFAULT_CLIENT_MAX_RETRIES,
+    DEFAULT_DELETE_REQUEST_TIMEOUT_SECONDS,
+    DEFAULT_REFRESH_REQUEST_TIMEOUT_SECONDS,
+    DEFAULT_TIMEOUT_BACKOFF_BASE,
+    DEFAULT_TIMEOUT_RETRIES,
+)
+from datagov_data_access.search.documents import DatasetDocument
+from datagov_data_access.search.reader import OpenSearchReader
+from datagov_data_access.search.writer import (
+    OpenSearchWriter as DataAccessOpenSearchWriter,
+)
 
 
-T = TypeVar("T")
-
-
-class OpenSearchInterface:
-    INDEX_NAME = "datasets"
-    TEXT_ANALYZER = "datagov_text"
-    STOP_FILTER = "datagov_stop"
-    KEYWORD_NORMALIZER = "lowercase_normalizer"
-    DEFAULT_CATALOG_BASE_URL = "https://catalog.data.gov"
-    DCAT_INDEX_TRANSFORMER = DcatIndexTransformer()
-
-    SETTINGS = {
-        "analysis": {
-            "filter": {
-                STOP_FILTER: {
-                    "type": "stop",
-                    "stopwords": "_english_",
-                }
-            },
-            "analyzer": {
-                TEXT_ANALYZER: {
-                    "type": "custom",
-                    "tokenizer": "standard",
-                    "filter": ["lowercase", STOP_FILTER],
-                }
-            },
-            "normalizer": {
-                KEYWORD_NORMALIZER: {
-                    "type": "custom",
-                    "filter": ["lowercase"],
-                }
-            },
-        }
-    }
-
-    MAPPINGS = {
-        "properties": {
-            "title": {
-                "type": "text",
-                "analyzer": TEXT_ANALYZER,
-                "search_analyzer": TEXT_ANALYZER,
-            },
-            "slug": {"type": "keyword"},
-            "last_harvested_date": {"type": "date"},
-            "dcat": {
-                "type": "nested",
-                "properties": {
-                    "modified": {"type": "keyword"},
-                    "issued": {"type": "keyword"},
-                    "isPartOf": {"type": "keyword"},
-                },
-            },
-            "description": {
-                "type": "text",
-                "analyzer": TEXT_ANALYZER,
-                "search_analyzer": TEXT_ANALYZER,
-            },
-            "publisher": {
-                "type": "text",
-                "analyzer": TEXT_ANALYZER,
-                "search_analyzer": TEXT_ANALYZER,
-                "fields": {
-                    "raw": {"type": "keyword"},
-                    "normalized": {
-                        "type": "keyword",
-                        "normalizer": KEYWORD_NORMALIZER,
-                    },
-                },
-            },
-            "keyword": {
-                "type": "text",
-                "analyzer": TEXT_ANALYZER,
-                "search_analyzer": TEXT_ANALYZER,
-                "fields": {
-                    "raw": {"type": "keyword"},
-                    "normalized": {
-                        "type": "keyword",
-                        "normalizer": KEYWORD_NORMALIZER,
-                    },
-                },
-            },
-            "theme": {
-                "type": "text",
-                "analyzer": TEXT_ANALYZER,
-                "search_analyzer": TEXT_ANALYZER,
-            },
-            "identifier": {
-                "type": "text",
-                "analyzer": TEXT_ANALYZER,
-                "search_analyzer": TEXT_ANALYZER,
-            },
-            "has_spatial": {"type": "boolean"},
-            "popularity": {"type": "integer"},
-            "organization": {
-                "type": "nested",
-                "properties": {
-                    "id": {"type": "keyword"},
-                    "name": {
-                        "type": "text",
-                        "analyzer": TEXT_ANALYZER,
-                        "search_analyzer": TEXT_ANALYZER,
-                    },
-                    "description": {
-                        "type": "text",
-                        "analyzer": TEXT_ANALYZER,
-                        "search_analyzer": TEXT_ANALYZER,
-                    },
-                    "slug": {"type": "keyword"},
-                    "organization_type": {"type": "keyword"},
-                },
-            },
-            "distribution_titles": {
-                "type": "text",
-                "analyzer": TEXT_ANALYZER,
-                "search_analyzer": TEXT_ANALYZER,
-            },
-            "spatial_shape": {"type": "geo_shape", "ignore_malformed": True},
-            "spatial_centroid": {"type": "geo_point"},
-        }
-    }
-
-    @staticmethod
-    def _create_test_opensearch_client(host):
-        """Get an OpenSearch client instance configured for our test cluster."""
-        return OpenSearch(
-            hosts=[{"host": host, "port": 9200}],
-            http_compress=True,
-            http_auth=("admin", "admin"),
-            use_ssl=True,
-            verify_certs=False,
-            ssl_assert_hostname=False,
-            ssl_show_warn=False,
-            timeout=10,
-            max_retries=DEFAULT_CLIENT_MAX_RETRIES,
-            retry_on_timeout=True,
-        )
-
-    @staticmethod
-    def _create_aws_opensearch_client(host):
-        """Get an OpenSearch client instance configured for an AWS cluster."""
-        access_key = os.getenv("OPENSEARCH_ACCESS_KEY")
-        secret_key = os.getenv("OPENSEARCH_SECRET_KEY")
-        auth = AWSV4SignerAuth(
-            Credentials(access_key=access_key, secret_key=secret_key),
-            "us-gov-west-1",
-            "es",
-        )
-        return OpenSearch(
-            hosts=[{"host": host, "port": 443}],
-            http_auth=auth,
-            use_ssl=True,
-            verify_certs=True,
-            connection_class=RequestsHttpConnection,
-            pool_maxsize=20,
-            timeout=60,
-            max_retries=DEFAULT_CLIENT_MAX_RETRIES,
-            retry_on_timeout=True,
-        )
-
-    def _ensure_index(self):
-        """Ensure that the named index exists."""
-        if not self.client.indices.exists(index=self.INDEX_NAME):
-            self.client.indices.create(
-                index=self.INDEX_NAME,
-                body=self._index_definition(),
-            )
+class OpenSearchClient(DataAccessOpenSearchClient):
+    """Application OpenSearch client with physical-index management helpers."""
 
     def _index_definition(self) -> dict:
         body = {"mappings": self.MAPPINGS}
@@ -219,12 +50,7 @@ class OpenSearchInterface:
         target_index: str,
         alias_name: str | None = None,
     ) -> tuple[list[str], bool]:
-        """Atomically point the logical index name at a physical index.
-
-        The first cutover may find a legacy concrete index using the logical
-        name. OpenSearch can atomically remove that index and create the alias
-        in the same alias update request.
-        """
+        """Atomically point the logical alias at a physical index."""
         alias_name = alias_name or self.INDEX_NAME
         if not self.client.indices.exists(index=target_index):
             raise ValueError(f"OpenSearch target index does not exist: {target_index}")
@@ -257,299 +83,9 @@ class OpenSearchInterface:
             raise RuntimeError("OpenSearch did not acknowledge the alias switch")
         return old_indices, removed_legacy_index
 
-    @staticmethod
-    def _extract_hostname(host_or_url: str) -> str | None:
-        """
-        Extract a hostname from a value that may be a bare host or a full URL.
 
-        This helps ensure that host-based checks are performed on the actual
-        hostname portion, not on an arbitrary string containing a host.
-        """
-        if not host_or_url:
-            return None
-        # If a scheme is present, parse as a URL to get the hostname.
-        if "://" in host_or_url:
-            parsed = urlparse(host_or_url)
-            return parsed.hostname
-        # Otherwise, treat the value as a bare hostname.
-        return host_or_url
-
-    @classmethod
-    def from_environment(cls):
-        """Factory method to return a best-guess instance from environment variables."""
-        opensearch_host = os.getenv("OPENSEARCH_HOST")
-        if not opensearch_host:
-            raise ValueError("OPENSEARCH_HOST is not set")
-        parsed_host = cls._extract_hostname(opensearch_host)
-        if parsed_host and (
-            parsed_host == "es.amazonaws.com"
-            or parsed_host.endswith(".es.amazonaws.com")
-        ):
-            return cls(aws_host=opensearch_host)
-        return cls(test_host=opensearch_host)
-
-    def __init__(self, test_host=None, aws_host=None):
-        """Interface for our OpenSearch cluster."""
-        if aws_host is not None:
-            if test_host is not None:
-                raise ValueError("Cannot specify both test_host and aws_host")
-            self.client = self._create_aws_opensearch_client(aws_host)
-        else:
-            if test_host is not None:
-                self.client = self._create_test_opensearch_client(test_host)
-            else:
-                raise ValueError("Must specify either test_host or aws_host")
-
-        self._ensure_index()
-
-    @staticmethod
-    def _serialize_dcat_value(value: Any) -> str:
-        if isinstance(value, (dict, list)):
-            return json.dumps(value, sort_keys=True)
-        return str(value)
-
-    @classmethod
-    def _normalize_dcat_metadata_value(cls, value: Any) -> Any:
-        # stringify nested objects/lists because
-        # OpenSearch expect those fields to be text.
-        if isinstance(value, dict):
-            return {
-                field: (
-                    cls._serialize_dcat_value(field_value)
-                    if isinstance(field_value, (dict, list))
-                    else field_value
-                )
-                for field, field_value in value.items()
-            }
-        if isinstance(value, list):
-            return [
-                (
-                    cls._normalize_dcat_metadata_value(item)
-                    if isinstance(item, dict)
-                    else (
-                        cls._serialize_dcat_value(item)
-                        if isinstance(item, list)
-                        else item
-                    )
-                )
-                for item in value
-            ]
-        return value
-
-    @classmethod
-    def _normalize_dcat_dates(cls, dcat: dict) -> dict:
-        """Normalize DCAT values for OpenSearch metadata indexing."""
-        normalized_dcat = dcat.copy()
-        date_fields = ["modified", "issued", "temporal"]
-        for field in date_fields:
-            if field in normalized_dcat:
-                value = normalized_dcat[field]
-                if isinstance(value, (datetime, date)):
-                    normalized_dcat[field] = value.isoformat()
-                elif value is not None and not isinstance(value, str):
-                    normalized_dcat[field] = str(value)
-        spatial = normalized_dcat.get("spatial")
-        if spatial is not None and not isinstance(spatial, str):
-            normalized_dcat["spatial"] = cls._serialize_dcat_value(spatial)
-
-        for field, value in normalized_dcat.items():
-            if field in date_fields or field in {"publisher", "spatial"}:
-                continue
-            normalized_dcat[field] = cls._normalize_dcat_metadata_value(value)
-        return normalized_dcat
-
-    @staticmethod
-    def _geometry_centroid(geometry: Any) -> dict | None:
-        """Calculate the centroid of a geometry."""
-        if geometry is None:
-            return None
-
-        if isinstance(geometry, str):
-            try:
-                geometry = json.loads(geometry)
-            except json.JSONDecodeError:
-                return None
-
-        if not isinstance(geometry, dict):
-            return None
-
-        coords = geometry.get("coordinates")
-        if coords is None:
-            return None
-
-        points: list[tuple[float, float]] = []
-
-        def _add_point(value: Any) -> bool:
-            if not isinstance(value, (list, tuple)):
-                return False
-            if len(value) < 2:
-                return False
-            lon, lat = value[0], value[1]
-            if not isinstance(lon, (int, float)) or not isinstance(lat, (int, float)):
-                return False
-            if not (-90.0 <= lat <= 90.0) or not (-180.0 <= lon <= 180.0):
-                return False
-            points.append((float(lon), float(lat)))
-            return True
-
-        def _walk(value: Any) -> None:
-            if _add_point(value):
-                return
-            if isinstance(value, (list, tuple)):
-                for item in value:
-                    _walk(item)
-
-        _walk(coords)
-
-        if not points:
-            return None
-
-        lon_total = sum(point[0] for point in points)
-        lat_total = sum(point[1] for point in points)
-        count = len(points)
-        return {"lat": lat_total / count, "lon": lon_total / count}
-
-    def dataset_to_document(
-        self, dataset: Dataset, index_name: str | None = None
-    ) -> dict:
-        """Map a Dataset ORM row into an OpenSearch index document.
-
-        Top-level search fields come from ``DCAT_INDEX_TRANSFORMER``
-        (``index_fields``); nested ``dcat`` keeps original DCAT shapes
-        (``nested_dcat``), with only date/metadata normalization applied.
-        """
-        # Flat top-level search fields; nested_dcat keeps original DCAT shapes.
-        index_fields = self.DCAT_INDEX_TRANSFORMER.transform(dataset.dcat)
-
-        spatial_value = dataset.dcat.get("spatial")
-        has_spatial_theme = any(
-            label.strip().lower() == "geospatial" for label in index_fields["theme"]
-        )
-        has_spatial = (
-            bool(spatial_value and str(spatial_value).strip())
-            or dataset.translated_spatial is not None
-            or has_spatial_theme
-        )
-        nested_dcat = self._normalize_dcat_dates(dataset.dcat)
-        spatial_centroid = self._geometry_centroid(dataset.translated_spatial)
-        last_harvested = (
-            dataset.last_harvested_date.isoformat()
-            if dataset.last_harvested_date
-            else None
-        )
-        organization = dataset.organization.to_dict() if dataset.organization else {}
-
-        popularity = dataset.popularity if dataset.popularity is not None else None
-
-        document = {
-            "_index": index_name or self.INDEX_NAME,
-            "_id": dataset.id,
-            "title": index_fields["title"],
-            "slug": dataset.slug,
-            "last_harvested_date": last_harvested,
-            "description": index_fields["description"],
-            "publisher": index_fields["publisher"],
-            "dcat": nested_dcat,
-            "keyword": index_fields["keyword"],
-            "theme": index_fields["theme"],
-            "identifier": index_fields["identifier"],
-            "has_spatial": has_spatial,
-            "organization": organization,
-            "distribution_titles": index_fields["distribution_titles"],
-            "popularity": popularity,
-            "spatial_shape": dataset.translated_spatial,
-            "spatial_centroid": spatial_centroid,
-            "harvest_record": self._create_harvest_record_url(dataset),
-            "harvest_record_raw": self._create_harvest_record_raw_url(dataset),
-        }
-        if self._has_harvest_record_transformed(dataset):
-            document["harvest_record_transformed"] = (
-                self._create_harvest_record_transformed_url(dataset)
-            )
-        return document
-
-    @staticmethod
-    def _catalog_base_url() -> str:
-        return os.getenv(
-            "CATALOG_BASE_URL", OpenSearchInterface.DEFAULT_CATALOG_BASE_URL
-        ).rstrip("/")
-
-    @staticmethod
-    def _create_harvest_record_url(dataset) -> str | None:
-        if not getattr(dataset, "harvest_record_id", None):
-            return None
-        return (
-            f"{OpenSearchInterface._catalog_base_url()}/harvest_record/"
-            f"{dataset.harvest_record_id}"
-        )
-
-    @staticmethod
-    def _create_harvest_record_raw_url(dataset) -> str | None:
-        if not getattr(dataset, "harvest_record_id", None):
-            return None
-        return (
-            f"{OpenSearchInterface._catalog_base_url()}/harvest_record/"
-            f"{dataset.harvest_record_id}/raw"
-        )
-
-    @staticmethod
-    def _create_harvest_record_transformed_url(dataset) -> str | None:
-        if not getattr(dataset, "harvest_record_id", None):
-            return None
-        return (
-            f"{OpenSearchInterface._catalog_base_url()}/harvest_record/"
-            f"{dataset.harvest_record_id}/transformed"
-        )
-
-    @staticmethod
-    def _has_harvest_record_transformed(dataset) -> bool:
-        record = getattr(dataset, "harvest_record", None)
-        if record is None:
-            return False
-
-        transformed = getattr(record, "source_transform", None)
-        if transformed is None:
-            return False
-
-        if isinstance(transformed, str) and not transformed.strip():
-            return False
-
-        return True
-
-    def _run_with_timeout_retry(
-        self,
-        action: Callable[[], T],
-        *,
-        action_name: str,
-        timeout_retries: int,
-        timeout_backoff_base: float,
-    ) -> T:
-        attempt = 0
-
-        while True:
-            try:
-                return action()
-            except ConnectionTimeout as exc:
-                attempt += 1
-                if attempt > timeout_retries:
-                    logger.error(
-                        "%s timed out after %s retries; giving up.",
-                        action_name,
-                        timeout_retries,
-                        exc_info=exc,
-                    )
-                    raise
-
-                wait_seconds = min(timeout_backoff_base**attempt, 60)
-                logger.warning(
-                    "%s timed out (attempt %s/%s); retrying in %.1f seconds.",
-                    action_name,
-                    attempt,
-                    timeout_retries,
-                    wait_seconds,
-                    exc_info=exc,
-                )
-                time.sleep(wait_seconds)
+class OpenSearchWriter(DataAccessOpenSearchWriter):
+    """OpenSearch writer that can target a new physical index during rebuilds."""
 
     def _refresh(
         self,
@@ -579,16 +115,24 @@ class OpenSearchInterface:
         timeout_retries: int = DEFAULT_TIMEOUT_RETRIES,
         timeout_backoff_base: float = DEFAULT_TIMEOUT_BACKOFF_BASE,
     ):
-        """Index an iterator of dataset objects into OpenSearch."""
+        if index_name is None:
+            return super().index_datasets(
+                dataset_iter,
+                refresh_after=refresh_after,
+                timeout_retries=timeout_retries,
+                timeout_backoff_base=timeout_backoff_base,
+            )
+
         datasets = getattr(dataset_iter, "items", dataset_iter)
         documents = [
-            self.dataset_to_document(dataset, index_name=index_name)
-            for dataset in datasets
+            DatasetDocument(dataset).dataset_to_document() for dataset in datasets
         ]
+        for document in documents:
+            document["_index"] = index_name
 
         def _stream_bulk():
-            succeeded_local = 0
-            failed_local = 0
+            succeeded = 0
+            failed = 0
             errors = []
             for success, item in helpers.streaming_bulk(
                 self.client,
@@ -599,21 +143,20 @@ class OpenSearchInterface:
                 index_info = item.get("index")
                 index_error = index_info.get("error")
                 if success:
-                    succeeded_local += 1
-                    if item["index"]["result"].lower() not in ["created", "updated"]:
-                        if index_info:
-                            errors.append(
-                                {
-                                    "dataset_id": index_info.get("_id"),
-                                    "status_code": index_info["_shards"].get("status"),
-                                    "error_type": "Silent Error",
-                                    "error_reason": "Unknown",
-                                    "caused_by": index_info,
-                                }
-                            )
+                    succeeded += 1
+                    if index_info["result"].lower() not in ["created", "updated"]:
+                        errors.append(
+                            {
+                                "dataset_id": index_info.get("_id"),
+                                "status_code": index_info["_shards"].get("status"),
+                                "error_type": "Silent Error",
+                                "error_reason": "Unknown",
+                                "caused_by": index_info,
+                            }
+                        )
                 else:
-                    failed_local += 1
-                    if index_info and index_error:
+                    failed += 1
+                    if index_error:
                         errors.append(
                             {
                                 "dataset_id": index_info.get("_id"),
@@ -624,46 +167,14 @@ class OpenSearchInterface:
                             }
                         )
                     errors.append(item)
-            return succeeded_local, failed_local, errors
+            return succeeded, failed, errors
 
-        succeeded, failed, errors = self._run_with_timeout_retry(
+        result = self._run_with_timeout_retry(
             _stream_bulk,
             action_name="OpenSearch bulk index",
             timeout_retries=timeout_retries,
             timeout_backoff_base=timeout_backoff_base,
         )
-
         if refresh_after:
             self._refresh(index_name=index_name)
-
-        return (succeeded, failed, errors)
-
-    def delete_dataset_by_id(
-        self,
-        dataset_id: str,
-        refresh_after: bool = True,
-        timeout_retries: int = DEFAULT_TIMEOUT_RETRIES,
-        timeout_backoff_base: float = DEFAULT_TIMEOUT_BACKOFF_BASE,
-    ) -> bool:
-        if not dataset_id:
-            return False
-
-        def _do_delete():
-            return self.client.delete(
-                index=self.INDEX_NAME,
-                id=dataset_id,
-                ignore=[404],
-                request_timeout=DEFAULT_DELETE_REQUEST_TIMEOUT_SECONDS,
-            )
-
-        self._run_with_timeout_retry(
-            _do_delete,
-            action_name="OpenSearch delete",
-            timeout_retries=timeout_retries,
-            timeout_backoff_base=timeout_backoff_base,
-        )
-
-        if refresh_after:
-            self._refresh()
-
-        return True
+        return result

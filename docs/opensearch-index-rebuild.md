@@ -3,8 +3,8 @@
 This document describes how Data.gov rebuilds the OpenSearch dataset index
 without interrupting search traffic. Harvest capacity is set to zero and the
 harvester is restarted so no new jobs run while a candidate index is built from
-PostgreSQL. Queued jobs remain in the database and resume after capacity is
-restored.
+PostgreSQL. Queued jobs remain in the database, and harvesting is enabled with
+the standard capacity of three tasks afterward.
 
 For the operator-facing steps, see
 [docs/ops/rebuild-opensearch-index.md](ops/rebuild-opensearch-index.md).
@@ -30,7 +30,7 @@ flowchart LR
     GHA --> Pause[Set max tasks to 0<br>rolling restart]
     GHA --> Drain[Poll active<br>harvest tasks]
     GHA --> Rebuild[Rebuild index<br>CF task]
-    GHA --> Resume[Restore max tasks<br>rolling restart]
+    GHA --> Resume[Set max tasks to 3<br>rolling restart]
 
     Pause --> App[Harvester web instances]
     Resume --> App
@@ -45,9 +45,9 @@ flowchart LR
     Alias --> Harvester[Harvester OpenSearch writes]
 ```
 
-The workflow reads `HARVEST_RUNNER_MAX_TASKS` from the selected environment's
-checked-in vars file, validates that the running application matches it, changes
-the setting to `0`, and performs a rolling restart. When the setting is `0`:
+The workflow uses the same capacity-control script as **Toggle Harvester**. It
+sets `HARVEST_RUNNER_MAX_TASKS` to `0` and performs a rolling restart. When the
+setting is `0`:
 
 - `_start_new_jobs()` does not dispatch scheduled jobs.
 - `start_job()` cannot create a CF task.
@@ -80,7 +80,6 @@ sequenceDiagram
     participant OS as OpenSearch
 
     O->>GH: Run "Rebuild OpenSearch Index"
-    GH->>CF: Validate max task setting against vars file
     GH->>CF: Set HARVEST_RUNNER_MAX_TASKS = 0
     GH->>CF: Start rolling restart
     CF-->>GH: All web instances restarted and running
@@ -125,17 +124,14 @@ sequenceDiagram
     end
     CF-->>GH: Rebuild task succeeds
 
-    GH->>CF: Restore canonical max task setting
+    GH->>CF: Set HARVEST_RUNNER_MAX_TASKS = 3
     GH->>CF: Start rolling restart
     CF-->>GH: All web instances restarted and running
 ```
 
 ### 1. Pause dispatch
 
-The workflow reads `HARVEST_RUNNER_MAX_TASKS` from
-`vars.<environment>.yml` and compares it with the application environment
-reported by the Cloud Foundry API. It stops without changing capacity if the
-runtime value has drifted from the checked-in value. After validation, it runs:
+The workflow uses the shared toggle script to run:
 
 ```shell
 cf set-env datagov-harvest HARVEST_RUNNER_MAX_TASKS 0
@@ -255,7 +251,7 @@ and do not require the checkbox.
 The workflow input **Switch the datasets alias to the rebuilt index** is enabled
 by default. Disabling it passes `--no-switch-alias`, which creates, backfills,
 and validates the physical index but leaves `datasets` unchanged. The workflow
-still restores harvest capacity afterward.
+still enables harvesting with capacity `3` afterward.
 
 Use this mode for incompatible mapping changes (for example renaming a field).
 Switching the live alias immediately would expose the new schema to Catalog
@@ -289,10 +285,10 @@ flowchart TD
     Switch -- Yes --> Flip{Alias switch acknowledged?}
     Flip -- No --> Old
     Flip -- Yes --> New[New index serves traffic]
-    Old --> Finally[Always attempt capacity restore]
+    Old --> Finally[Always attempt to enable harvesting]
     Candidate --> Finally
     New --> Finally
-    Finally --> Resume{Restore and restart succeed?}
+    Finally --> Resume{Enable and restart succeed?}
     Resume -- Yes --> Running[Queued harvest jobs restart]
     Resume -- No --> Safe[Search remains available;<br>verify application environment]
 ```
@@ -304,9 +300,9 @@ flowchart TD
 - Optional previous-index deletion occurs only after an acknowledged alias
   switch. If deletion fails, the new alias target remains active and the
   rebuild task reports failure.
-- The workflow uses `if: always()` to restore the canonical capacity setting
-  from `vars.<environment>.yml` and perform another verified rolling restart
-  after earlier failures. If capacity already matches, restoration is a no-op.
+- The workflow uses `if: always()` to set capacity to `3` and perform another
+  verified rolling restart after earlier failures. This enables harvesting
+  even when it was disabled before the rebuild began.
 - If the runner is force-canceled or recovery fails,
   `HARVEST_RUNNER_MAX_TASKS` may remain `0` as the safe failure mode. Search
   continues to work.
@@ -315,13 +311,12 @@ Manual recovery:
 
 ```shell
 cf env datagov-harvest
-cf set-env datagov-harvest HARVEST_RUNNER_MAX_TASKS <environment-value>
+cf set-env datagov-harvest HARVEST_RUNNER_MAX_TASKS 3
 cf restart datagov-harvest --strategy rolling
 ```
 
-Use the value in the environment's `vars.<environment>.yml` file. Only restore
-capacity after confirming that no index rebuild is still running, then verify
-all desired app instances are running.
+Only enable capacity after confirming that no index rebuild is still running,
+then verify all desired app instances are running.
 
 ## Operational runbook
 
@@ -350,20 +345,22 @@ Operator steps for compatible rebuilds and breaking schema changes are in
    is preferred.
 6. Run the workflow.
 7. Monitor capacity change, rolling restart, drain, rebuild, validation,
-   optional alias switch and cleanup, capacity restore, and final rolling
+   optional alias switch and cleanup, capacity enablement, and final rolling
    restart.
 
 GitHub Actions applies the concurrency group
-`opensearch-maintenance-<environment>`, so rebuild and synchronization workflows
-and the periodic Harvester restart workflow for the same environment do not
-overlap. The group uses `queue: max`, so later maintenance requests wait instead
-of replacing an already queued operation.
+`opensearch-maintenance-<environment>`, so rebuild and synchronization
+workflows, the periodic Harvester restart workflow, physical-index cleanup,
+and **Toggle Harvester** for the same environment do not overlap.
+`cancel-in-progress: false` protects the running operation, and `queue: max`
+allows up to 100 pending operations to wait instead of replacing older pending
+runs.
 
 ### Verify
 
 1. Confirm the workflow completed successfully.
 2. Run `cf env datagov-harvest` and confirm
-   `HARVEST_RUNNER_MAX_TASKS` matches `vars.<environment>.yml`.
+   `HARVEST_RUNNER_MAX_TASKS` matches its state before the rebuild.
 3. If alias switching was enabled, confirm the `datasets` alias points to the
    new physical index. Otherwise, confirm it did not change.
 4. Confirm queued harvest jobs have started.
@@ -403,9 +400,10 @@ logical `datasets` name and aliases cannot be deleted through this workflow.
 ## Related implementation
 
 - `.github/workflows/rebuild_opensearch_index.yml` — operation orchestration.
+- `.github/workflows/toggle_harvester.yml` — manual check/enable/disable entrypoint.
 - `.github/workflows/delete_opensearch_index.yml` — guarded old-index cleanup.
-- `bin/manage_harvest_runner_capacity.sh` — canonical capacity validation,
-  rolling restarts, health confirmation, and restoration.
+- `bin/set_harvest_runner_capacity.sh` — shared check/enable/disable commands,
+  rolling restarts, and health confirmation.
 - `bin/wait_for_harvest_tasks.sh` — active-task drain and quiet period.
 - `app/commands/search.py` — candidate creation, validation, cutover, and cleanup.
 - `harvester/runner_settings.py` — shared harvest capacity configuration.
