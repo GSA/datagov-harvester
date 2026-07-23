@@ -444,7 +444,7 @@ class TestValidateDataset:
         assert valid_iso_2_record.validate()
         assert (
             valid_iso_2_record.transformed_data["describedByType"]
-            == "application/octet-steam"
+            == "application/octet-stream"
         )
 
     def test_transformed_iso_distribution_describedByType_placeholder(
