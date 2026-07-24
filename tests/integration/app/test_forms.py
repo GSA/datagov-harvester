@@ -163,6 +163,36 @@ class TestForms:
         assert parent_url_group is not None
         assert not parent_url_group.has_attr("hidden")
 
+    def test_edit_harvest_source_document_clears_collection_parent_url(
+        self, app, client, interface, organization_data, source_data_waf_collection
+    ):
+        app.config.update({"WTF_CSRF_ENABLED": False})
+        with client.session_transaction() as sess:
+            sess["user"] = "tester@gsa.gov"
+
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_waf_collection)
+
+        form_data = {
+            "organization_id": organization_data["id"],
+            "name": source_data_waf_collection["name"],
+            "url": "https://example.com/datasets.json",
+            "notification_emails": "user@example.com",
+            "frequency": "daily",
+            "schema_type": "iso19115_2",
+            "source_type": "document",
+            "notification_frequency": "always",
+        }
+        res = client.post(
+            f"/harvest_source/edit/{source_data_waf_collection['id']}",
+            data=form_data,
+        )
+
+        assert res.status_code == 302
+        source = interface.get_harvest_source(source_data_waf_collection["id"])
+        assert source.source_type == "document"
+        assert source.collection_parent_url is None
+
     def test_add_harvest_source_waf_collection(
         self, app, client, interface, organization_data
     ):
