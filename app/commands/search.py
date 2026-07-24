@@ -2,12 +2,12 @@ import re
 from datetime import datetime, timezone
 
 import click
+from datagov_data_access.search.documents import DatasetDocument
 from flask import Blueprint
 from opensearchpy import helpers
 
 from database.interface import HarvesterDBInterface
 from database.models import Dataset
-from datagov_data_access.search.documents import DatasetDocument
 from harvester.opensearch import OpenSearchClient, OpenSearchReader, OpenSearchWriter
 
 search = Blueprint("search", __name__)
