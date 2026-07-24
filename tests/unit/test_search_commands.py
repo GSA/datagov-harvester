@@ -157,3 +157,265 @@ def test_compare_is_read_only_without_update(app):
     client.index_datasets.assert_not_called()
     client.client.delete.assert_not_called()
     client._refresh.assert_not_called()
+
+
+def _rebuild_client(alias_indices=None, legacy_concrete=False, target_count=5):
+    """Build a mocked OpenSearchClient for rebuild-index tests.
+
+    ``indices.exists`` is stateful because rebuild-index queries it before the
+    new index is created (expects False) and again during the alias switch
+    (expects True). ``created`` tracks that transition. ``target_count`` is what
+    ``count(target_index)`` reports for the post-backfill validation.
+    """
+    client = Mock()
+    client.INDEX_NAME = "datasets"
+    client.MAPPINGS = {"properties": {"title": {"type": "text"}}}
+    client.SETTINGS = {"analysis": {}}
+
+    created = set(alias_indices or [])
+    if legacy_concrete:
+        created.add("datasets")
+
+    def exists(index):
+        return index in created
+
+    def create(index, body):
+        created.add(index)
+        return {"acknowledged": True}
+
+    client.client.indices.exists.side_effect = exists
+    client.client.indices.create.side_effect = create
+    client.client.indices.exists_alias.return_value = bool(alias_indices)
+    client.client.indices.get_alias.return_value = {
+        index: {} for index in (alias_indices or [])
+    }
+    client.client.indices.get_mapping.side_effect = lambda index: {
+        index: {"mappings": {"properties": {"title": {"type": "text"}}}}
+    }
+    client.client.count.return_value = {"count": target_count}
+    client.client.indices.update_aliases.return_value = {"acknowledged": True}
+    return client
+
+
+def _run_rebuild(app, client, args, db_count=5, backfill=None):
+    """Invoke rebuild-index with the PostgreSQL backfill path mocked out.
+
+    ``backfill`` overrides the (indexed, failed, errors) return of
+    ``_backfill_from_postgres``; by default it reports ``db_count`` indexed with
+    no failures. A single query mock answers the two ``.count()`` calls the
+    command makes before and after the backfill.
+    """
+    if backfill is None:
+        backfill = (db_count, 0, [])
+    query_result = Mock()
+    query_result.count.return_value = db_count
+    with (
+        patch(
+            "app.commands.search.OpenSearchClient.from_environment",
+            return_value=client,
+        ),
+        patch("app.commands.search.db_interface.db.query", return_value=query_result),
+        patch(
+            "app.commands.search._backfill_from_postgres", return_value=backfill
+        ) as backfill_mock,
+    ):
+        result = app.test_cli_runner().invoke(args=["search", "rebuild-index", *args])
+    return result, backfill_mock
+
+
+def test_rebuild_index_backfills_and_switches_alias(app):
+    client = _rebuild_client(alias_indices=["datasets-old"])
+
+    result, backfill_mock = _run_rebuild(
+        app, client, ["--target-index", "datasets-new"]
+    )
+
+    assert result.exit_code == 0, result.output
+    create_kwargs = client.client.indices.create.call_args.kwargs
+    assert create_kwargs["index"] == "datasets-new"
+    # Backfill targets the new physical index, sourced from PostgreSQL.
+    backfill_mock.assert_called_once()
+    assert backfill_mock.call_args.args[1] == "datasets-new"
+
+    client.client.indices.update_aliases.assert_called_once()
+    actions = client.client.indices.update_aliases.call_args.kwargs["body"]["actions"]
+    assert {"remove": {"index": "datasets-old", "alias": "datasets"}} in actions
+    assert {"add": {"index": "datasets-new", "alias": "datasets"}} in actions
+    assert "datasets now points to datasets-new" in result.output
+
+
+def test_rebuild_index_aborts_before_alias_switch_on_count_mismatch(app):
+    # PostgreSQL has 5 datasets but only 4 land in the new index.
+    client = _rebuild_client(alias_indices=["datasets-old"], target_count=4)
+
+    result, _ = _run_rebuild(
+        app, client, ["--target-index", "datasets-new"], db_count=5
+    )
+
+    assert result.exit_code != 0
+    assert OPENSEARCH_INDEX_BATCH_FAILURE_MESSAGE in result.output
+    client.client.indices.update_aliases.assert_not_called()
+
+
+def test_rebuild_index_aborts_on_backfill_failures(app):
+    client = _rebuild_client(alias_indices=["datasets-old"])
+
+    result, _ = _run_rebuild(
+        app,
+        client,
+        ["--target-index", "datasets-new"],
+        db_count=5,
+        backfill=(4, 1, [{"index": {"error": "boom"}}]),
+    )
+
+    assert result.exit_code != 0
+    assert OPENSEARCH_INDEX_BATCH_FAILURE_MESSAGE in result.output
+    client.client.indices.update_aliases.assert_not_called()
+
+
+def test_rebuild_index_requires_flag_to_convert_legacy_concrete_index(app):
+    client = _rebuild_client(alias_indices=None, legacy_concrete=True)
+
+    result, _ = _run_rebuild(app, client, ["--target-index", "datasets-new"])
+
+    assert result.exit_code != 0
+    assert "--allow-legacy-index-removal" in result.output
+    client.client.indices.create.assert_not_called()
+
+
+def test_rebuild_index_converts_legacy_concrete_index_with_flag(app):
+    client = _rebuild_client(alias_indices=None, legacy_concrete=True)
+
+    result, _ = _run_rebuild(
+        app,
+        client,
+        ["--target-index", "datasets-new", "--allow-legacy-index-removal"],
+    )
+
+    assert result.exit_code == 0, result.output
+    actions = client.client.indices.update_aliases.call_args.kwargs["body"]["actions"]
+    assert {"remove_index": {"index": "datasets"}} in actions
+    assert {"add": {"index": "datasets-new", "alias": "datasets"}} in actions
+
+
+def test_rebuild_index_no_switch_alias_leaves_alias_untouched(app):
+    client = _rebuild_client(alias_indices=["datasets-old"])
+
+    result, backfill_mock = _run_rebuild(
+        app, client, ["--target-index", "datasets-new", "--no-switch-alias"]
+    )
+
+    assert result.exit_code == 0, result.output
+    backfill_mock.assert_called_once()
+    client.client.indices.update_aliases.assert_not_called()
+
+
+def test_rebuild_index_deletes_old_index_after_switch(app):
+    client = _rebuild_client(alias_indices=["datasets-old"])
+    # After the switch, delete-old-index re-checks that the old index is no
+    # longer attached to any alias before deleting it.
+    client.client.indices.delete.return_value = {"acknowledged": True}
+
+    result, _ = _run_rebuild(
+        app, client, ["--target-index", "datasets-new", "--delete-old-index"]
+    )
+
+    assert result.exit_code == 0, result.output
+    client.client.indices.delete.assert_called_once_with(index="datasets-old")
+
+
+def test_backfill_from_postgres_overrides_index_and_tallies_failures(app):
+    from app.commands.search import _backfill_from_postgres
+
+    client = Mock()
+    first, second = Mock(), Mock()
+    first.id, second.id = "a", "b"
+
+    # Keyset pagination: first batch returns two datasets, second is empty.
+    chain = Mock()
+    chain.filter.return_value = chain
+    chain.limit.return_value.all.side_effect = [[first, second], []]
+    query_result = Mock()
+    query_result.order_by.return_value = chain
+
+    def fake_streaming_bulk(_client, documents, **_kwargs):
+        # First doc succeeds, second fails; both should target the new index.
+        assert all(doc["_index"] == "datasets-new" for doc in documents)
+        yield True, {"index": {"_id": "a"}}
+        yield False, {"index": {"_id": "b", "error": "boom"}}
+
+    with (
+        patch("app.commands.search.db_interface.db.query", return_value=query_result),
+        patch("app.commands.search.DatasetDocument") as document_cls,
+        patch(
+            "app.commands.search.helpers.streaming_bulk",
+            side_effect=fake_streaming_bulk,
+        ),
+    ):
+        document_cls.side_effect = lambda dataset: Mock(
+            dataset_to_document=lambda: {"_index": "datasets", "_id": dataset.id}
+        )
+        indexed, failed, errors = _backfill_from_postgres(
+            client, "datasets-new", batch_size=1000
+        )
+
+    assert indexed == 1
+    assert failed == 1
+    assert len(errors) == 1
+
+
+def test_delete_index_removes_unused_physical_index(app):
+    client = Mock()
+    client.INDEX_NAME = "datasets"
+    client.client.indices.exists.return_value = True
+    client.client.indices.get_alias.return_value = {"datasets-old": {"aliases": {}}}
+    client.client.indices.delete.return_value = {"acknowledged": True}
+
+    with patch(
+        "app.commands.search.OpenSearchClient.from_environment",
+        return_value=client,
+    ):
+        result = app.test_cli_runner().invoke(
+            args=["search", "delete-index", "--index-name", "datasets-old"]
+        )
+
+    assert result.exit_code == 0, result.output
+    client.client.indices.delete.assert_called_once_with(index="datasets-old")
+
+
+def test_delete_index_refuses_index_still_attached_to_alias(app):
+    client = Mock()
+    client.INDEX_NAME = "datasets"
+    client.client.indices.exists.return_value = True
+    client.client.indices.get_alias.return_value = {
+        "datasets-live": {"aliases": {"datasets": {}}}
+    }
+
+    with patch(
+        "app.commands.search.OpenSearchClient.from_environment",
+        return_value=client,
+    ):
+        result = app.test_cli_runner().invoke(
+            args=["search", "delete-index", "--index-name", "datasets-live"]
+        )
+
+    assert result.exit_code != 0
+    assert "still attached to alias" in result.output
+    client.client.indices.delete.assert_not_called()
+
+
+def test_delete_index_refuses_logical_alias_name(app):
+    client = Mock()
+    client.INDEX_NAME = "datasets"
+
+    with patch(
+        "app.commands.search.OpenSearchClient.from_environment",
+        return_value=client,
+    ):
+        result = app.test_cli_runner().invoke(
+            args=["search", "delete-index", "--index-name", "datasets"]
+        )
+
+    assert result.exit_code != 0
+    assert "physical index starting with" in result.output
+    client.client.indices.delete.assert_not_called()
