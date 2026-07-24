@@ -2,6 +2,32 @@
 
 This is miscellaneous notes on operating the Harvester system.
 
+## Enabling or disabling harvesting
+
+Run the **Toggle Harvester** GitHub Actions workflow and select the target
+environment and desired action. The **check** action displays the current
+`HARVEST_RUNNER_MAX_TASKS` without changing or restarting the application. The
+workflow sets the variable to `0` when disabling or to the optional
+maximum-tasks input when enabling with `cf set-env`, then rolling-restarts
+`datagov-harvest`. The input defaults to production's previous value of `3` and
+is ignored when checking or disabling. Enable and disable actions send a Slack
+notification by default. The workflow does not read or update the application's
+bound secrets service.
+
+The workflow uses the blocking form of `cf restart --strategy rolling` (without
+`--no-wait`), so it completes only after Cloud Foundry reports that the rolling
+deployment has finished and its replacement instances are healthy.
+
+`HARVEST_RUNNER_MAX_TASKS` is intentionally omitted from the manifest and vars
+files, so Cloud Foundry's additive manifest behavior preserves its current value
+across deployments. If the variable or application does not exist, it defaults
+to `3`, enabling harvesting.
+
+Disabling prevents scheduled harvest tasks from starting. Tasks that were
+already running are not stopped; log in to Harvester and stop those jobs
+manually if needed. Manual triggers do not use the scheduler's task-limit
+setting.
+
 ## Scheduling many harvest jobs
 
 Using the API's `/harvest_source/harvest/<id>/<type>` endpoint circumvents the

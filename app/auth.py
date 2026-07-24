@@ -7,6 +7,8 @@ from functools import wraps
 from apiflask.security import APIKeyHeaderAuth
 from flask import current_app, g, redirect, request, session, url_for
 
+from app.auth_logging import get_client_ip
+
 logger = logging.getLogger("harvest_admin.auth")
 
 
@@ -47,6 +49,12 @@ class LoginRequiredAuth(APIKeyHeaderAuth):
                         return "error: Unauthorized", 401
                     g.request_actor = "<api_token>"
                     g.request_auth_type = "api_token"
+                    logger.info(
+                        "event=user_login method=api_token user=<api_token> "
+                        "ip=%s path=%s",
+                        get_client_ip(),
+                        request.path,
+                    )
                     return f(*args, **kwargs)
 
                 # check session-based authentication for web users

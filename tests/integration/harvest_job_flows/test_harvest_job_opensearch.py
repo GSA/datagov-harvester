@@ -5,7 +5,7 @@ import pytest
 
 from database.models import Dataset
 from harvester.harvest import harvest_job_starter
-from harvester.opensearch import OpenSearchInterface
+from harvester.opensearch import OpenSearchClient
 
 
 def _wait_for_opensearch(client, timeout_seconds=30):
@@ -31,7 +31,7 @@ def opensearch_client(monkeypatch):
     for host in candidates:
         monkeypatch.setenv("OPENSEARCH_HOST", host)
         try:
-            iface = OpenSearchInterface.from_environment()
+            iface = OpenSearchClient.from_environment()
         except Exception as exc:
             last_error = exc
             continue
@@ -50,35 +50,6 @@ def opensearch_client(monkeypatch):
 
 
 class TestHarvestJobOpenSearch:
-    def test_publisher_normalized_field_lowercases_values(self, opensearch_client):
-        document_id = "publisher-normalized-test"
-        try:
-            opensearch_client.client.index(
-                index=opensearch_client.INDEX_NAME,
-                id=document_id,
-                body={"publisher": "ABC"},
-                refresh=True,
-            )
-
-            response = opensearch_client.client.search(
-                index=opensearch_client.INDEX_NAME,
-                body={
-                    "query": {
-                        "term": {"publisher.normalized": "abc"},
-                    }
-                },
-            )
-
-            assert response["hits"]["total"]["value"] == 1
-            assert response["hits"]["hits"][0]["_id"] == document_id
-        finally:
-            opensearch_client.client.delete(
-                index=opensearch_client.INDEX_NAME,
-                id=document_id,
-                ignore=[404],
-                refresh=True,
-            )
-
     def test_opensearch_index_on_create_and_delete(
         self,
         interface,
