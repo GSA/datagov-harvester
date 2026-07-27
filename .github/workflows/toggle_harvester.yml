@@ -31,6 +31,37 @@ on:
         required: true
         type: boolean
         default: true
+  # Callable by other workflows (e.g. rebuild_opensearch_index.yml) so the
+  # disable/enable logic lives in exactly one place. workflow_call inputs cannot
+  # use the "choice" type, so state/environment are strings here; the job body
+  # reads inputs.* and behaves identically for both triggers.
+  workflow_call:
+    inputs:
+      state:
+        description: "check, disable, or enable"
+        required: true
+        type: string
+      max_tasks:
+        description: "Maximum tasks when enabling (ignored when checking or disabling)"
+        required: false
+        default: "3"
+        type: string
+      environment:
+        description: "Cloud Foundry environment (development, staging, prod)"
+        required: true
+        type: string
+      notification:
+        description: "Send toggle notification to Slack?"
+        required: false
+        type: boolean
+        default: true
+    secrets:
+      CF_SERVICE_USER:
+        required: true
+      CF_SERVICE_AUTH:
+        required: true
+      SLACK_WEBHOOK_URL:
+        required: false
 
 permissions:
   contents: read
