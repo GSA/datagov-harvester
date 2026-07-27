@@ -111,4 +111,4 @@ jobs:
             --base main \
             --head "$BRANCH" \
             --title "Update datagov-data-access to ${VERSION}" \
-            --template "$TEMPLATE"
+            --body-file "$TEMPLATE"
