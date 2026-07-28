@@ -1,7 +1,13 @@
 from datetime import datetime
 from unittest.mock import Mock, patch
 
-from app.commands.search import OPENSEARCH_INDEX_BATCH_FAILURE_MESSAGE, db_interface
+from opensearchpy.exceptions import RequestError
+
+from app.commands.search import (
+    OPENSEARCH_CREATE_INDEX_TIMEOUT_SECONDS,
+    OPENSEARCH_INDEX_BATCH_FAILURE_MESSAGE,
+    db_interface,
+)
 
 
 def test_reset_mapping_recreates_empty_index(app):
@@ -179,7 +185,7 @@ def _rebuild_client(alias_indices=None, legacy_concrete=False, target_count=5):
     def exists(index):
         return index in created
 
-    def create(index, body):
+    def create(index, body, request_timeout=None):
         created.add(index)
         return {"acknowledged": True}
 
@@ -322,6 +328,69 @@ def test_rebuild_index_deletes_old_index_after_switch(app):
 
     assert result.exit_code == 0, result.output
     client.client.indices.delete.assert_called_once_with(index="datasets-old")
+
+
+def test_rebuild_index_creates_with_extended_request_timeout(app):
+    # indices.create waits for shards to become active, which can outlast the
+    # client's default 60s socket timeout on a loaded cluster.
+    client = _rebuild_client(alias_indices=["datasets-old"])
+
+    result, _ = _run_rebuild(app, client, ["--target-index", "datasets-new"])
+
+    assert result.exit_code == 0, result.output
+    create_kwargs = client.client.indices.create.call_args.kwargs
+    assert create_kwargs["request_timeout"] == OPENSEARCH_CREATE_INDEX_TIMEOUT_SECONDS
+
+
+def test_rebuild_index_survives_already_exists_after_timed_out_create(app):
+    """A create that times out client-side but succeeded server-side must not abort.
+
+    Reproduces the staging failure of 2026-07-28: the first PUT hit the 60s socket
+    timeout, opensearch-py retried, and the retry got
+    ``resource_already_exists_exception`` because the original request had in fact
+    created the index. The rebuild aborted and left an orphaned empty index.
+    """
+    client = _rebuild_client(alias_indices=["datasets-old"])
+    # The timed-out first attempt did create the index server-side, so record it
+    # as existing before raising the error the retry actually received.
+    original_create = client.client.indices.create.side_effect
+
+    def create_then_conflict(index, body, request_timeout=None):
+        original_create(index, body)
+        raise RequestError(
+            400,
+            "resource_already_exists_exception",
+            {"error": {"index": index}, "status": 400},
+        )
+
+    client.client.indices.create.side_effect = create_then_conflict
+
+    result, backfill_mock = _run_rebuild(
+        app, client, ["--target-index", "datasets-new"]
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "treating the earlier attempt as successful" in result.output
+    # The rebuild must carry on to backfill and swap the alias.
+    backfill_mock.assert_called_once()
+    client.client.indices.update_aliases.assert_called_once()
+
+
+def test_rebuild_index_still_aborts_on_other_create_errors(app):
+    client = _rebuild_client(alias_indices=["datasets-old"])
+    client.client.indices.create.side_effect = RequestError(
+        400,
+        "invalid_index_name_exception",
+        {"error": {"reason": "bad name"}, "status": 400},
+    )
+
+    result, backfill_mock = _run_rebuild(
+        app, client, ["--target-index", "datasets-new"]
+    )
+
+    assert result.exit_code != 0
+    backfill_mock.assert_not_called()
+    client.client.indices.update_aliases.assert_not_called()
 
 
 def test_backfill_from_postgres_overrides_index_and_tallies_failures(app):

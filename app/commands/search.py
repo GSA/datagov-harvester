@@ -5,6 +5,7 @@ import click
 from datagov_data_access.search.documents import DatasetDocument
 from flask import Blueprint
 from opensearchpy import helpers
+from opensearchpy.exceptions import RequestError
 
 from database.interface import HarvesterDBInterface
 from database.models import Dataset
@@ -13,6 +14,9 @@ from harvester.opensearch import OpenSearchClient, OpenSearchReader, OpenSearchW
 search = Blueprint("search", __name__)
 # we use this message to detect index failure in GH actions
 OPENSEARCH_INDEX_BATCH_FAILURE_MESSAGE = "failed to index in this batch"
+# indices.create waits for shards to become active, which can exceed the client's
+# default 60s socket timeout on a loaded cluster; see _create_rebuild_index.
+OPENSEARCH_CREATE_INDEX_TIMEOUT_SECONDS = 300
 
 db_interface = HarvesterDBInterface()
 
@@ -227,6 +231,35 @@ def _default_rebuild_index_name(alias_name: str) -> str:
     return f"{alias_name}-{timestamp}"
 
 
+def _create_rebuild_index(client, target_index: str, body: dict):
+    """Create the candidate index, tolerating a timed-out-but-successful attempt.
+
+    ``indices.create`` waits for shards to become active before responding, which
+    can outlast the client's 60s socket timeout on a busy cluster. The client then
+    retries (``retry_on_timeout=True``), but the first attempt already created the
+    index server-side, so the retry fails with ``resource_already_exists_exception``
+    and the whole rebuild aborts -- leaving an orphaned empty index behind.
+
+    Passing an explicit ``request_timeout`` gives the call room to finish, and
+    treating "already exists" as success makes the retry idempotent. The caller has
+    already established that ``target_index`` did not exist before this point, so
+    an existing index here can only be this command's own timed-out attempt.
+    """
+    try:
+        client.client.indices.create(
+            index=target_index,
+            body=body,
+            request_timeout=OPENSEARCH_CREATE_INDEX_TIMEOUT_SECONDS,
+        )
+    except RequestError as error:
+        if error.error != "resource_already_exists_exception":
+            raise
+        click.echo(
+            f"  {target_index} already exists after a timed-out create; "
+            "treating the earlier attempt as successful."
+        )
+
+
 def _alias_indices(client, alias_name: str) -> list[str]:
     """Return the physical indices currently attached to an alias.
 
@@ -420,7 +453,7 @@ def rebuild_opensearch_index(
     body = {"mappings": client.MAPPINGS}
     if client.SETTINGS:
         body["settings"] = client.SETTINGS
-    client.client.indices.create(index=target_index, body=body)
+    _create_rebuild_index(client, target_index, body)
 
     mapping = client.client.indices.get_mapping(index=target_index)
     actual_mapping = mapping[target_index]["mappings"]
