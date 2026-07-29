@@ -1,0 +1,520 @@
+Monitoring https://catalog-stage.data.gov/
+  output dir  /Users/cseibert/Workspace/gsa/datagov-harvester/monitor-runs/20260728T232626
+  phase file  monitor-runs/20260728T232626/phase.txt  (currently: baseline)
+  SEARCH      every 10s  q="school OR <random-no-match>"
+  DASHBOARD   every 30s  expect >= 547,883 datasets
+  OPENSEARCH  every 60s  via cf ssh datagov-harvest/0
+
+TIMESTAMP                  CHECK      RES        COUNT   LATENCY  DETAIL
+--------------------------------------------------------------------------------------------------------------
+2026-07-28 23:26:27 EDT    DASHBOARD  PASS     547,909    0.183s  datasets available (>= 547,883)
+2026-07-28 23:26:28 EDT    SEARCH     PASS      10,000    1.568s  hits  q="school OR zzaezya113t3y3ol9xdx6ev6jj"
+2026-07-28 23:26:31 EDT    OPENSEARCH PASS   2,837,724     4.20s  green cpu max/avg 23%/7% heap max 69% idx 0/s docs 2,837,724 alias none rejected 0
+2026-07-28 23:26:39 EDT    SEARCH     PASS      10,000    0.917s  hits  q="school OR zzs6fzowtts8m7k8jsu8o4s4mh"
+2026-07-28 23:26:49 EDT    SEARCH     PASS      10,000    0.556s  hits  q="school OR zzko8rw7yr3xrrd8kt4fx4tttm"
+2026-07-28 23:26:57 EDT    DASHBOARD  PASS     547,909    0.474s  datasets available (>= 547,883)
+2026-07-28 23:27:00 EDT    SEARCH     PASS      10,000    0.615s  hits  q="school OR zz4u1v9i667umkua6g26s7xy81"
+2026-07-28 23:27:11 EDT    SEARCH     PASS      10,000    1.129s  hits  q="school OR zzw9w30e4yj2w5mxmqozxnpa8b"
+2026-07-28 23:27:22 EDT    SEARCH     PASS      10,000    0.770s  hits  q="school OR zz2xgu557itvdvkyfywdawpkvo"
+2026-07-28 23:27:27 EDT    DASHBOARD  PASS     547,909    0.191s  datasets available (>= 547,883)
+2026-07-28 23:27:33 EDT    SEARCH     PASS      10,000    0.655s  hits  q="school OR zzzlww71kvaaj374grndv4o91c"
+2026-07-28 23:27:34 EDT    OPENSEARCH PASS   2,837,724     3.76s  green cpu max/avg 23%/9% heap max 72% idx 0/s docs 2,837,724 alias none rejected 0
+2026-07-28 23:27:43 EDT    SEARCH     PASS      10,000    0.511s  hits  q="school OR zzp2jjmhs44pg7mu2xe7yavc6p"
+2026-07-28 23:27:54 EDT    SEARCH     PASS      10,000    0.758s  hits  q="school OR zzr60g6ygs45ta55xqag9lhfrr"
+2026-07-28 23:27:58 EDT    DASHBOARD  PASS     547,909    0.281s  datasets available (>= 547,883)
+2026-07-28 23:28:05 EDT    SEARCH     PASS      10,000    0.779s  hits  q="school OR zzc0vhiho9e21y2a9dvd8b4ngf"
+2026-07-28 23:28:16 EDT    SEARCH     PASS      10,000    0.858s  hits  q="school OR zzr3goetg1q19m6onwghjh39qe"
+2026-07-28 23:28:26 EDT    SEARCH     PASS      10,000    0.690s  hits  q="school OR zzbs53cruihxeqnyem45fxfe7x"
+2026-07-28 23:28:28 EDT    DASHBOARD  PASS     547,909    0.183s  datasets available (>= 547,883)
+2026-07-28 23:28:37 EDT    SEARCH     PASS      10,000    0.702s  hits  q="school OR zz9p1cde8nrr2l7qlr47w4vprn"
+2026-07-28 23:28:39 EDT    OPENSEARCH PASS   2,837,724     4.67s  green cpu max/avg 9%/4% heap max 54% idx 0/s docs 2,837,724 alias none rejected 0
+2026-07-28 23:28:48 EDT    SEARCH     PASS      10,000    1.401s  hits  q="school OR zzpx0j6jb77z6ejiqf798ys8l6"
+2026-07-28 23:28:58 EDT    DASHBOARD  PASS     547,909    0.218s  datasets available (>= 547,883)
+2026-07-28 23:28:59 EDT    SEARCH     PASS      10,000    0.644s  hits  q="school OR zzse7h4zimzar77yjec2oc17gx"
+2026-07-28 23:29:10 EDT    SEARCH     PASS      10,000    0.836s  hits  q="school OR zzfpfngn5xglqmwm3vlt6w0jmb"
+2026-07-28 23:29:20 EDT    SEARCH     PASS      10,000    0.571s  hits  q="school OR zzofsjczhi68fr17hmuzr7cosu"
+2026-07-28 23:29:28 EDT    DASHBOARD  PASS     547,909    0.183s  datasets available (>= 547,883)
+2026-07-28 23:29:31 EDT    SEARCH     PASS      10,000    0.634s  hits  q="school OR zzaj26xb7m45pt3tcxr9zuhue5"
+2026-07-28 23:29:42 EDT    SEARCH     PASS      10,000    0.758s  hits  q="school OR zzy7rszkfrlueh01vous4o8s1u"
+2026-07-28 23:29:43 EDT    OPENSEARCH PASS   2,837,724     3.86s  green cpu max/avg 62%/12% heap max 62% idx 0/s docs 2,837,724 alias none rejected 0
+2026-07-28 23:29:52 EDT    SEARCH     PASS      10,000    0.569s  hits  q="school OR zznowd076tzv9nmthv9tfns7ph"
+2026-07-28 23:29:58 EDT    DASHBOARD  PASS     547,909    0.172s  datasets available (>= 547,883)
+2026-07-28 23:30:03 EDT    SEARCH     PASS      10,000    0.987s  hits  q="school OR zzuqk5p3mrhj5qc65ffrctj6d7"
+2026-07-28 23:30:14 EDT    SEARCH     PASS      10,000    0.966s  hits  q="school OR zzbjcu6m8toy8nfn04zep3gm3g"
+2026-07-28 23:30:25 EDT    SEARCH     PASS      10,000    0.816s  hits  q="school OR zzyhaysrglogh7qzn77vvwrhz4"
+2026-07-28 23:30:29 EDT    DASHBOARD  PASS     547,909    0.241s  datasets available (>= 547,883)
+2026-07-28 23:30:46 EDT    SEARCH     PASS      10,000   10.355s  hits  q="school OR zzgf8tjsa7unq918iwxm7rctfu"
+2026-07-28 23:30:47 EDT    OPENSEARCH PASS   2,837,724     4.08s  green cpu max/avg 16%/6% heap max 71% idx 0/s docs 2,837,724 alias none rejected 0
+2026-07-28 23:30:56 EDT    SEARCH     PASS      10,000    0.910s  hits  q="school OR zz14fc1ws720ub080pr6c40144"
+2026-07-28 23:30:59 EDT    DASHBOARD  PASS     547,909    0.175s  datasets available (>= 547,883)
+2026-07-28 23:31:19 EDT    SEARCH     PASS      10,000   12.527s  hits  q="school OR zziiplhr5nzopbd27l8a7et77x"
+2026-07-28 23:31:29 EDT    DASHBOARD  PASS     547,909    0.380s  datasets available (>= 547,883)
+2026-07-28 23:31:32 EDT    SEARCH     PASS      10,000    2.755s  hits  q="school OR zznv9lh1ryy3x2luym7w77eqtd"
+2026-07-28 23:31:43 EDT    SEARCH     PASS      10,000    0.772s  hits  q="school OR zzw51m6fm2sc7k611jultlkiap"
+2026-07-28 23:31:51 EDT    OPENSEARCH PASS   2,837,724     4.22s  green cpu max/avg 12%/4% heap max 61% idx 0/s docs 2,837,724 alias none rejected 0
+2026-07-28 23:31:53 EDT    SEARCH     PASS      10,000    0.772s  hits  q="school OR zzjtfjvzuel6474o8j7hl323e8"
+2026-07-28 23:31:59 EDT    DASHBOARD  PASS     547,909    0.265s  datasets available (>= 547,883)
+2026-07-28 23:32:05 EDT    SEARCH     PASS      10,000    1.745s  hits  q="school OR zzl1t8h9kryxll8kv0h1vc6kme"
+2026-07-28 23:32:16 EDT    SEARCH     PASS      10,000    0.957s  hits  q="school OR zzn0pv1u5527cp7o0p58ub8fns"
+2026-07-28 23:32:27 EDT    SEARCH     PASS      10,000    0.635s  hits  q="school OR zzz3e03eg3fmu95yv7dl3g672r"
+2026-07-28 23:32:30 EDT    DASHBOARD  PASS     547,909    0.423s  datasets available (>= 547,883)
+2026-07-28 23:32:37 EDT    SEARCH     PASS      10,000    0.644s  hits  q="school OR zzsdap6a4edncuk72yskjspx11"
+2026-07-28 23:32:49 EDT    SEARCH     PASS      10,000    1.287s  hits  q="school OR zzp6m20s7pevkkqquxtwj6h57q"
+2026-07-28 23:32:57 EDT    OPENSEARCH PASS   2,837,724     5.30s  green cpu max/avg 20%/7% heap max 66% idx 0/s docs 2,837,724 alias none rejected 0
+2026-07-28 23:32:59 EDT    SEARCH     PASS      10,000    0.548s  hits  q="school OR zzuombeg1c8i1xxc5k9yii58d0"
+2026-07-28 23:33:00 EDT    DASHBOARD  PASS     547,909    0.253s  datasets available (>= 547,883)
+2026-07-28 23:33:10 EDT    SEARCH     PASS      10,000    0.847s  hits  q="school OR zzx7147aesn8ru7yyvjv6fjb4n"
+2026-07-28 23:33:21 EDT    SEARCH     PASS      10,000    0.993s  hits  q="school OR zzp3n3znt1amhqkpmgsixdj1y1"
+2026-07-28 23:33:30 EDT    DASHBOARD  PASS     547,909    0.172s  datasets available (>= 547,883)
+2026-07-28 23:33:32 EDT    SEARCH     PASS      10,000    0.636s  hits  q="school OR zzq0f8xondydatttutdg8h32zo"
+2026-07-28 23:33:43 EDT    SEARCH     PASS      10,000    0.837s  hits  q="school OR zzi4a314y4vgnz5dj0jflxp8hc"
+2026-07-28 23:33:54 EDT    SEARCH     PASS      10,000    1.327s  hits  q="school OR zz0ricptgu4rqef0q4lbr1qd4o"
+2026-07-28 23:34:00 EDT    OPENSEARCH PASS   2,837,724     3.79s  green cpu max/avg 37%/7% heap max 70% idx 0/s docs 2,837,724 alias none rejected 0
+2026-07-28 23:34:00 EDT    DASHBOARD  PASS     547,909    0.248s  datasets available (>= 547,883)
+2026-07-28 23:34:05 EDT    SEARCH     PASS      10,000    1.210s  hits  q="school OR zz7sb0qdfi02oqyh1s3l2c7zkd"
+2026-07-28 23:34:16 EDT    SEARCH     PASS      10,000    0.693s  hits  q="school OR zzohqyu4el86kentm8qhw8od4t"
+2026-07-28 23:34:27 EDT    SEARCH     PASS      10,000    0.907s  hits  q="school OR zz94i80t7esaaxij5glsfj0uxj"
+2026-07-28 23:34:31 EDT    DASHBOARD  PASS     547,909    0.585s  datasets available (>= 547,883)
+2026-07-28 23:34:37 EDT    SEARCH     PASS      10,000    0.657s  hits  q="school OR zz6oq3whtfg7euxa0l0ysanam7"
+2026-07-28 23:34:48 EDT    SEARCH     PASS      10,000    0.673s  hits  q="school OR zzq9qodeid0gbqp2632c6flmh0"
+2026-07-28 23:34:59 EDT    SEARCH     PASS      10,000    0.650s  hits  q="school OR zzhfapv38d80hkucjmcymdtdw5"
+2026-07-28 23:35:01 EDT    DASHBOARD  PASS     547,909    0.223s  datasets available (>= 547,883)
+2026-07-28 23:35:04 EDT    OPENSEARCH PASS   2,837,724     4.08s  green cpu max/avg 100%/100% heap max 54% idx 0/s docs 2,837,724 alias none rejected 0
+2026-07-28 23:35:10 EDT    SEARCH     PASS      10,000    1.374s  hits  q="school OR zzjnk6rpztb0gybmovhdytc87t"
+2026-07-28 23:35:22 EDT    SEARCH     PASS      10,000    1.550s  hits  q="school OR zzn2s7qin1imuq959lb0c9b358"
+2026-07-28 23:35:32 EDT    DASHBOARD  PASS     547,909    0.299s  datasets available (>= 547,883)
+2026-07-28 23:35:32 EDT    SEARCH     PASS      10,000    0.711s  hits  q="school OR zzedq6vpp0msn8ra18tazit0s3"
+2026-07-28 23:35:43 EDT    SEARCH     PASS      10,000    0.509s  hits  q="school OR zzm4djol5yod8srpi5tlks5t8v"
+2026-07-28 23:35:54 EDT    SEARCH     PASS      10,000    0.866s  hits  q="school OR zzhfu6ixiy6yn00rl6xns1earl"
+2026-07-28 23:36:02 EDT    DASHBOARD  PASS     547,909    0.192s  datasets available (>= 547,883)
+2026-07-28 23:36:05 EDT    SEARCH     PASS      10,000    1.665s  hits  q="school OR zzdjoxhhd9in44055h9kih02ir"
+2026-07-28 23:36:10 EDT    OPENSEARCH PASS   2,837,724     6.04s  green cpu max/avg 37%/29% heap max 63% idx 0/s docs 2,837,724 alias none rejected 0
+2026-07-28 23:36:16 EDT    SEARCH     PASS      10,000    0.950s  hits  q="school OR zzsdlao9mlh8j8qkrmg0jtc5an"
+2026-07-28 23:36:27 EDT    SEARCH     PASS      10,000    0.879s  hits  q="school OR zz76v0yuor6lizkqcnnrr40zxn"
+2026-07-28 23:36:32 EDT    DASHBOARD  PASS     547,909    0.206s  datasets available (>= 547,883)
+2026-07-28 23:36:38 EDT    SEARCH     PASS      10,000    1.036s  hits  q="school OR zzptlrc71tnbeotjrii9ad13wi"
+2026-07-28 23:36:50 EDT    SEARCH     PASS      10,000    1.255s  hits  q="school OR zzqq1dyiuf4ey6wsby5v7dac1a"
+2026-07-28 23:37:01 EDT    SEARCH     PASS      10,000    1.220s  hits  q="school OR zz6762wxej6mgrrg6qhktlbmft"
+2026-07-28 23:37:02 EDT    DASHBOARD  PASS     547,909    0.272s  datasets available (>= 547,883)
+2026-07-28 23:37:11 EDT    SEARCH     PASS      10,000    0.676s  hits  q="school OR zz647bdq269s03zpcfsluo1k7c"
+2026-07-28 23:37:19 EDT    OPENSEARCH PASS   2,837,724     8.67s  green cpu max/avg 12%/7% heap max 73% idx 0/s docs 2,837,724 alias none rejected 0
+2026-07-28 23:37:22 EDT    SEARCH     PASS      10,000    0.691s  hits  q="school OR zzbemu6tdum6z7ehi58rdch51v"
+2026-07-28 23:37:32 EDT    DASHBOARD  PASS     547,909    0.153s  datasets available (>= 547,883)
+2026-07-28 23:37:46 EDT    SEARCH     PASS      10,000   13.913s  hits  q="school OR zzb8ygdp3ekabsuy3ehj78aedo"
+2026-07-28 23:37:58 EDT    SEARCH     PASS      10,000    2.252s  hits  q="school OR zz8abt001hit9v48u9hu0kh5p0"
+2026-07-28 23:38:03 EDT    DASHBOARD  PASS     547,909    0.256s  datasets available (>= 547,883)
+2026-07-28 23:38:09 EDT    SEARCH     PASS      10,000    0.827s  hits  q="school OR zz5cmm0x07emiahphehqn5jyvx"
+2026-07-28 23:38:21 EDT    SEARCH     PASS      10,000    2.117s  hits  q="school OR zzlb6o25y5l6w534mjcwla2yqe"
+2026-07-28 23:38:24 EDT    OPENSEARCH PASS   2,837,724     4.44s  green cpu max/avg 19%/9% heap max 64% idx 0/s docs 2,837,724 alias none rejected 0
+2026-07-28 23:38:32 EDT    SEARCH     PASS      10,000    0.663s  hits  q="school OR zzpwdu5gqqq4o0xatqvo8ljasr"
+2026-07-28 23:38:33 EDT    DASHBOARD  PASS     547,909    0.238s  datasets available (>= 547,883)
+2026-07-28 23:38:57 EDT    SEARCH     PASS      10,000   14.760s  hits  q="school OR zz6ps9r2b766ieq7zo0ehj73kg"
+2026-07-28 23:39:03 EDT    DASHBOARD  PASS     547,909    0.226s  datasets available (>= 547,883)
+2026-07-28 23:39:12 EDT    SEARCH     PASS      10,000    4.866s  hits  q="school OR zzstik1povld9atl0e6tq72bwp"
+2026-07-28 23:39:22 EDT    SEARCH     PASS      10,000    0.664s  hits  q="school OR zz9jam519tz43zvvfoxdbizfwh"
+2026-07-28 23:39:28 EDT    OPENSEARCH PASS   2,837,724     4.70s  green cpu max/avg 13%/6% heap max 67% idx 0/s docs 2,837,724 alias none rejected 0
+2026-07-28 23:39:33 EDT    DASHBOARD  PASS     547,909    0.209s  datasets available (>= 547,883)
+2026-07-28 23:39:34 EDT    SEARCH     PASS      10,000    1.527s  hits  q="school OR zz9gvt0nm9ea835qyzx8mqxqcz"
+2026-07-28 23:39:45 EDT    SEARCH     PASS      10,000    0.797s  hits  q="school OR zzmjxp9c05ftoe5ueva5teqm24"
+2026-07-28 23:39:56 EDT    SEARCH     PASS      10,000    0.984s  hits  q="school OR zzr9d8zozgoh6dwwq63ka0tovo"
+2026-07-28 23:40:04 EDT    DASHBOARD  PASS     547,909    0.156s  datasets available (>= 547,883)
+2026-07-28 23:40:10 EDT    SEARCH     PASS      10,000    4.400s  hits  q="school OR zzv5fe65bk84oz4o83m6cgrfnh"
+2026-07-28 23:40:22 EDT    SEARCH     PASS      10,000    1.822s  hits  q="school OR zz4q4w8eqan4bd03byz16dnr6o"
+2026-07-28 23:40:32 EDT    OPENSEARCH PASS   2,837,724     3.67s  green cpu max/avg 24%/6% heap max 71% idx 0/s docs 2,837,724 alias none rejected 0
+2026-07-28 23:40:33 EDT    SEARCH     PASS      10,000    0.735s  hits  q="school OR zzutnwj0zkilugenfi97yl1mea"
+2026-07-28 23:40:34 EDT    DASHBOARD  PASS     547,909    0.175s  datasets available (>= 547,883)
+2026-07-28 23:40:43 EDT    SEARCH     PASS      10,000    0.502s  hits  q="school OR zzemclpajvd4bw7n73jqxpfmph"
+2026-07-28 23:40:54 EDT    SEARCH     PASS      10,000    0.724s  hits  q="school OR zz779p4qsudbtb73gb6q3gk359"
+2026-07-28 23:41:04 EDT    DASHBOARD  PASS     547,909    0.262s  datasets available (>= 547,883)
+2026-07-28 23:41:05 EDT    SEARCH     PASS      10,000    1.062s  hits  q="school OR zz7t1mvrcyap4fgzcz4lcqzh5y"
+2026-07-28 23:41:16 EDT    SEARCH     PASS      10,000    0.794s  hits  q="school OR zzpzqvpwm14xkipjfawbpwpwck"
+2026-07-28 23:41:27 EDT    SEARCH     PASS      10,000    1.314s  hits  q="school OR zz8ythwfmydmp05h24bwj8fhym"
+2026-07-28 23:41:34 EDT    DASHBOARD  PASS     547,909    0.170s  datasets available (>= 547,883)
+2026-07-28 23:41:36 EDT    OPENSEARCH PASS   2,838,615     4.17s  green cpu max/avg 15%/7% heap max 55% idx 14/s docs 2,838,615 alias none rejected 0
+2026-07-28 23:41:38 EDT    SEARCH     PASS      10,000    0.727s  hits  q="school OR zzi1qtvvqe83broo4k48q8v2i6"
+2026-07-28 23:41:59 EDT    SEARCH     PASS      10,000   10.792s  hits  q="school OR zzfvoc8mjny4clb6eoio9ze391"
+2026-07-28 23:42:04 EDT    DASHBOARD  PASS     547,909    0.192s  datasets available (>= 547,883)
+2026-07-28 23:42:10 EDT    SEARCH     PASS      10,000    1.492s  hits  q="school OR zze2lk2evuhju5vktcdqp0mrtl"
+2026-07-28 23:42:21 EDT    SEARCH     PASS      10,000    0.547s  hits  q="school OR zzzlxcs6hqe37klvmykj9k7c11"
+2026-07-28 23:42:33 EDT    SEARCH     PASS      10,000    2.171s  hits  q="school OR zzvveag9gk8miocnuyrzbvqheg"
+2026-07-28 23:42:35 EDT    DASHBOARD  PASS     547,909    0.169s  datasets available (>= 547,883)
+2026-07-28 23:42:42 EDT    OPENSEARCH PASS   2,849,724     6.23s  green cpu max/avg 13%/7% heap max 59% idx 392/s docs 2,849,724 alias none rejected 0
+2026-07-28 23:42:44 EDT    SEARCH     PASS      10,000    0.800s  hits  q="school OR zz7pz99i505k5y3txy1a1aptyz"
+2026-07-28 23:42:59 EDT    SEARCH     PASS      10,000    5.267s  hits  q="school OR zzwgorq8r7vvv659k0biyrz6pl"
+2026-07-28 23:43:05 EDT    DASHBOARD  PASS     547,909    0.168s  datasets available (>= 547,883)
+2026-07-28 23:43:10 EDT    SEARCH     PASS      10,000    0.729s  hits  q="school OR zzvmkc5k3yygo06da8ui3zenfh"
+2026-07-28 23:43:21 EDT    SEARCH     PASS      10,000    1.369s  hits  q="school OR zziluuzokhwyzkgasepixiwnnw"
+2026-07-28 23:43:32 EDT    SEARCH     PASS      10,000    0.904s  hits  q="school OR zzk136323ah4foezk52vn84f23"
+2026-07-28 23:43:35 EDT    DASHBOARD  PASS     547,909    0.263s  datasets available (>= 547,883)
+2026-07-28 23:43:43 EDT    SEARCH     PASS      10,000    0.659s  hits  q="school OR zzx42nedzma3hll1y3v26x5q6v"
+2026-07-28 23:43:46 EDT    OPENSEARCH PASS   2,849,724     3.96s  green cpu max/avg 17%/6% heap max 62% idx 518/s docs 2,849,724 alias none rejected 0
+2026-07-28 23:44:00 EDT    SEARCH     PASS      10,000    7.538s  hits  q="school OR zzkpcupf2pv456xzbd6wmg6b5i"
+2026-07-28 23:44:05 EDT    DASHBOARD  PASS     547,909    0.178s  datasets available (>= 547,883)
+2026-07-28 23:44:13 EDT    SEARCH     PASS      10,000    2.578s  hits  q="school OR zzl9a3bf44hkzp85j3zp6cduyo"
+2026-07-28 23:44:35 EDT    DASHBOARD  PASS     547,909    0.190s  datasets available (>= 547,883)
+2026-07-28 23:44:42 EDT    SEARCH     PASS      10,000   18.869s  hits  q="school OR zzzahnkzjviquux2dd19os2o31"
+2026-07-28 23:44:50 EDT    OPENSEARCH PASS   2,849,724     3.58s  green cpu max/avg 21%/8% heap max 66% idx 469/s docs 2,849,724 alias none rejected 0
+2026-07-28 23:44:53 EDT    SEARCH     PASS      10,000    1.566s  hits  q="school OR zzg0j38e0wuk2d8fpsti5qg0ik"
+2026-07-28 23:45:06 EDT    DASHBOARD  PASS     547,909    0.144s  datasets available (>= 547,883)
+2026-07-28 23:45:19 EDT    SEARCH     PASS      10,000   15.728s  hits  q="school OR zz7y5884y2q0u3r5z2t7pss6qz"
+2026-07-28 23:45:30 EDT    SEARCH     PASS      10,000    1.014s  hits  q="school OR zzbo3muqub3st71pisboa86mlu"
+2026-07-28 23:45:36 EDT    DASHBOARD  PASS     547,909    0.195s  datasets available (>= 547,883)
+2026-07-28 23:45:48 EDT    SEARCH     PASS      10,000    7.739s  hits  q="school OR zz3ygltl88wslgtlgt6u5e8874"
+2026-07-28 23:45:59 EDT    SEARCH     PASS      10,000    1.191s  hits  q="school OR zz7i9aacjlqg4fpb7y6zvdxmuc"
+2026-07-28 23:46:06 EDT    DASHBOARD  PASS     547,909    0.253s  datasets available (>= 547,883)
+2026-07-28 23:46:08 EDT    OPENSEARCH PASS   2,849,724    18.14s  green cpu max/avg 38%/21% heap max 71% idx 335/s docs 2,849,724 alias none rejected 0
+2026-07-28 23:46:10 EDT    SEARCH     PASS      10,000    1.019s  hits  q="school OR zzucqmjljajon3g6hub5m4r3q9"
+2026-07-28 23:46:21 EDT    SEARCH     PASS      10,000    1.016s  hits  q="school OR zzc88gktx13ifl8yycsnubtrs0"
+2026-07-28 23:46:33 EDT    SEARCH     PASS      10,000    2.056s  hits  q="school OR zza1j4hkqfyjguq2ytzb0nbcch"
+2026-07-28 23:46:36 EDT    DASHBOARD  PASS     547,909    0.163s  datasets available (>= 547,883)
+2026-07-28 23:46:44 EDT    SEARCH     PASS      10,000    0.794s  hits  q="school OR zzxrd0h2k0o69eiqtr0okwwa62"
+2026-07-28 23:47:06 EDT    DASHBOARD  PASS     547,909    0.225s  datasets available (>= 547,883)
+2026-07-28 23:47:10 EDT    SEARCH     PASS      10,000   15.845s  hits  q="school OR zzmyqidx0qx3woviue0mus06gd"
+2026-07-28 23:47:13 EDT    OPENSEARCH PASS   2,849,724     4.81s  green cpu max/avg 62%/18% heap max 67% idx 401/s docs 2,849,724 alias none rejected 0
+2026-07-28 23:47:21 EDT    SEARCH     PASS      10,000    1.475s  hits  q="school OR zz245ta7simpsdt3mvwmj5fbvp"
+2026-07-28 23:47:37 EDT    DASHBOARD  PASS     547,909    0.269s  datasets available (>= 547,883)
+2026-07-28 23:47:44 EDT    SEARCH     PASS      10,000   12.965s  hits  q="school OR zzcv4dqklix2z39yz5q6nmvj8a"
+2026-07-28 23:47:56 EDT    SEARCH     PASS      10,000    1.578s  hits  q="school OR zzrd9n64f60371xab7li4j9noy"
+2026-07-28 23:48:07 EDT    DASHBOARD  PASS     547,909    0.195s  datasets available (>= 547,883)
+2026-07-28 23:48:16 EDT    SEARCH     PASS      10,000   10.190s  hits  q="school OR zzvngg7vwrbc696612k39efqkk"
+2026-07-28 23:48:18 EDT    OPENSEARCH PASS   2,849,724     5.22s  green cpu max/avg 61%/18% heap max 69% idx 399/s docs 2,849,724 alias none rejected 0
+2026-07-28 23:48:29 EDT    SEARCH     PASS      10,000    3.325s  hits  q="school OR zz4ib61kyxb031ukptavl4kgqx"
+2026-07-28 23:48:37 EDT    DASHBOARD  PASS     547,909    0.199s  datasets available (>= 547,883)
+2026-07-28 23:48:41 EDT    SEARCH     PASS      10,000    1.592s  hits  q="school OR zzh6spptzuarym8gd0elnxlbdr"
+2026-07-28 23:48:51 EDT    SEARCH     PASS      10,000    0.756s  hits  q="school OR zzsna7a4gf9lpeqmaegwvs1qlj"
+2026-07-28 23:49:07 EDT    DASHBOARD  PASS     547,909    0.299s  datasets available (>= 547,883)
+2026-07-28 23:49:22 EDT    SEARCH     PASS      10,000   20.557s  hits  q="school OR zzlqct3s5ft3fdfkjd9o6xcuvn"
+2026-07-28 23:49:24 EDT    OPENSEARCH PASS   3,016,497     6.15s  green cpu max/avg 67%/19% heap max 64% idx 392/s docs 3,016,497 alias none rejected 0
+2026-07-28 23:49:34 EDT    SEARCH     PASS      10,000    1.533s  hits  q="school OR zzwloy2cuh5zc6kpa9vn347qw0"
+2026-07-28 23:49:38 EDT    DASHBOARD  PASS     547,909    0.200s  datasets available (>= 547,883)
+2026-07-28 23:49:51 EDT    SEARCH     PASS      10,000    7.365s  hits  q="school OR zztmvruing9v12ohin5c3y7zx2"
+2026-07-28 23:50:03 EDT    SEARCH     PASS      10,000    1.563s  hits  q="school OR zzqeehraada5jq1x07hyakq5ea"
+2026-07-28 23:50:08 EDT    DASHBOARD  PASS     547,909    0.205s  datasets available (>= 547,883)
+2026-07-28 23:50:31 EDT    SEARCH     PASS      10,000   18.853s  hits  q="school OR zzxsxlpf6spb4e3wndkjqchv73"
+2026-07-28 23:50:33 EDT    OPENSEARCH PASS   3,128,118     8.92s  green cpu max/avg 17%/7% heap max 58% idx 537/s docs 3,128,118 alias none rejected 0
+2026-07-28 23:50:38 EDT    DASHBOARD  PASS     547,909    0.253s  datasets available (>= 547,883)
+2026-07-28 23:50:48 EDT    SEARCH     PASS      10,000    6.611s  hits  q="school OR zzw2dag212pm50c4iubfll45ad"
+2026-07-28 23:51:08 EDT    DASHBOARD  PASS     547,909    0.178s  datasets available (>= 547,883)
+2026-07-28 23:51:12 EDT    SEARCH     PASS      10,000   14.181s  hits  q="school OR zzeoi50pm0q6dakxkctzpx393w"
+2026-07-28 23:51:23 EDT    SEARCH     PASS      10,000    0.977s  hits  q="school OR zzrs83wbtck62ubwr4mptd4o0s"
+2026-07-28 23:51:35 EDT    SEARCH     PASS      10,000    1.550s  hits  q="school OR zz8zoxxvt4kieiq97aylh9bcwy"
+2026-07-28 23:51:37 EDT    OPENSEARCH PASS   3,128,118     3.97s  green cpu max/avg 26%/8% heap max 66% idx 485/s docs 3,128,118 alias none rejected 0
+2026-07-28 23:51:38 EDT    DASHBOARD  PASS     547,909    0.244s  datasets available (>= 547,883)
+2026-07-28 23:51:51 EDT    SEARCH     PASS      10,000    5.902s  hits  q="school OR zzoxka2smzyss05ayyinpgln6v"
+2026-07-28 23:52:02 EDT    SEARCH     PASS      10,000    1.622s  hits  q="school OR zzt28ggfqnz38v5mc7seqscs61"
+2026-07-28 23:52:09 EDT    DASHBOARD  PASS     547,909    0.249s  datasets available (>= 547,883)
+2026-07-28 23:52:22 EDT    SEARCH     PASS      10,000    9.202s  hits  q="school OR zzmkk7pm36pxt7pfoudgk8jusn"
+2026-07-28 23:52:32 EDT    SEARCH     PASS      10,000    0.942s  hits  q="school OR zz4zgk25twits5fsj7q9jwqr61"
+2026-07-28 23:52:39 EDT    DASHBOARD  PASS     547,909    0.185s  datasets available (>= 547,883)
+2026-07-28 23:52:41 EDT    OPENSEARCH PASS   3,128,118     3.85s  green cpu max/avg 32%/13% heap max 69% idx 407/s docs 3,128,118 alias none rejected 0
+2026-07-28 23:52:43 EDT    SEARCH     PASS      10,000    0.895s  hits  q="school OR zz9ayu2f5sw1qpodouudtymbxj"
+2026-07-28 23:53:05 EDT    SEARCH     PASS      10,000   11.481s  hits  q="school OR zzp1c9jkbrz4ylzmxgutkg3la9"
+2026-07-28 23:53:09 EDT    DASHBOARD  PASS     547,909    0.240s  datasets available (>= 547,883)
+2026-07-28 23:53:16 EDT    SEARCH     PASS      10,000    1.123s  hits  q="school OR zzik4x9v2iopsh8dvvq7680r9d"
+2026-07-28 23:53:27 EDT    SEARCH     PASS      10,000    0.606s  hits  q="school OR zzuaoqo5rbh48wbv66qxsd77ec"
+2026-07-28 23:53:40 EDT    DASHBOARD  PASS     547,909    0.590s  datasets available (>= 547,883)
+2026-07-28 23:54:10 EDT    DASHBOARD  PASS     547,909    0.374s  datasets available (>= 547,883)
+2026-07-28 23:54:16 EDT    SEARCH     PASS      10,000   39.870s  hits  q="school OR zzcb47qf2a7e62ke4s5mk6dgw8"
+2026-07-28 23:54:18 EDT    OPENSEARCH PASS   3,128,118    36.66s  green cpu max/avg 34%/15% heap max 73% idx 331/s docs 3,128,118 alias none rejected 0
+2026-07-28 23:54:40 EDT    SEARCH     PASS      10,000   13.487s  hits  q="school OR zzz5t5g87cxmrr9norr8yfjrz6"
+2026-07-28 23:54:41 EDT    DASHBOARD  PASS     547,909    0.344s  datasets available (>= 547,883)
+2026-07-28 23:55:11 EDT    DASHBOARD  PASS     547,909    0.310s  datasets available (>= 547,883)
+2026-07-28 23:55:41 EDT    DASHBOARD  PASS     547,909    0.650s  datasets available (>= 547,883)
+2026-07-28 23:55:49 EDT    OPENSEARCH PASS   3,017,292    30.91s  green cpu max/avg 15%/7% heap max 62% idx 47/s docs 3,017,292 alias none rejected 0
+2026-07-28 23:55:50 EDT    SEARCH     FAIL           -   60.070s  TimeoutError: The read operation timed out  q="school OR zzo1z9lfbdrnpnyd50u7hvdbfr"
+2026-07-28 23:56:12 EDT    DASHBOARD  PASS     547,909    0.174s  datasets available (>= 547,883)
+2026-07-28 23:56:19 EDT    SEARCH     PASS      10,000   19.002s  hits  q="school OR zzxq6ieevb0iioxay28uahf79y"
+2026-07-28 23:56:42 EDT    DASHBOARD  PASS     547,909    0.261s  datasets available (>= 547,883)
+2026-07-28 23:56:45 EDT    SEARCH     PASS      10,000   15.823s  hits  q="school OR zzukjlx8ffd74r1ee4hlm8x0jz"
+2026-07-28 23:56:56 EDT    SEARCH     PASS      10,000    1.035s  hits  q="school OR zzn0f27fmff2xddligh10wmpjz"
+2026-07-28 23:57:06 EDT    OPENSEARCH PASS   3,248,688    16.98s  yellow cpu max/avg 37%/17% heap max 62% idx 77/s docs 3,248,688 alias none rejected 0
+2026-07-28 23:57:07 EDT    SEARCH     PASS      10,000    1.540s  hits  q="school OR zz257hqk33l7gnn0af3f3b3sc7"
+2026-07-28 23:57:12 EDT    DASHBOARD  PASS     547,909    0.159s  datasets available (>= 547,883)
+2026-07-28 23:57:19 EDT    SEARCH     PASS      10,000    1.171s  hits  q="school OR zz6y9cx9y0axru6akjgbus84bb"
+2026-07-28 23:57:42 EDT    DASHBOARD  PASS     547,909    0.221s  datasets available (>= 547,883)
+2026-07-28 23:58:03 EDT    SEARCH     PASS      10,000   34.737s  hits  q="school OR zz5g0j7yuaiahf0yks8hw0ngg4"
+2026-07-28 23:58:11 EDT    OPENSEARCH PASS   3,258,858     5.03s  green cpu max/avg 53%/25% heap max 62% idx 262/s docs 3,258,858 alias none rejected 0
+2026-07-28 23:58:13 EDT    DASHBOARD  PASS     547,909    0.357s  datasets available (>= 547,883)
+2026-07-28 23:58:15 EDT    SEARCH     PASS      10,000    2.103s  hits  q="school OR zz3kzalelmr0erd1ikf2dews1h"
+2026-07-28 23:58:30 EDT    SEARCH     PASS      10,000    4.419s  hits  q="school OR zzhs1i2lo9ewbxde10wq65846u"
+2026-07-28 23:58:41 EDT    SEARCH     PASS      10,000    0.987s  hits  q="school OR zzr6evepgatpayau57dea78cpp"
+2026-07-28 23:58:43 EDT    DASHBOARD  PASS     547,909    0.167s  datasets available (>= 547,883)
+2026-07-28 23:59:03 EDT    SEARCH     PASS      10,000   12.250s  hits  q="school OR zzguqpctpf2k2nk3zxqnt2kdy3"
+2026-07-28 23:59:13 EDT    DASHBOARD  PASS     547,909    0.173s  datasets available (>= 547,883)
+2026-07-28 23:59:22 EDT    OPENSEARCH PASS   3,258,858    11.24s  green cpu max/avg 53%/13% heap max 66% idx 349/s docs 3,258,858 alias none rejected 0
+2026-07-28 23:59:22 EDT    SEARCH     PASS      10,000    8.992s  hits  q="school OR zz1l2a815itg1otn6a76crjs52"
+2026-07-28 23:59:42 EDT    SEARCH     PASS      10,000   10.150s  hits  q="school OR zzd1sgcwwhe3k708lrdqhnv0zc"
+2026-07-28 23:59:43 EDT    DASHBOARD  PASS     547,909    0.351s  datasets available (>= 547,883)
+2026-07-28 23:59:53 EDT    SEARCH     PASS      10,000    1.028s  hits  q="school OR zz7ze8xqpqwg2ojr3j6eh2jf9s"
+2026-07-29 00:00:14 EDT    DASHBOARD  PASS     547,909    0.196s  datasets available (>= 547,883)
+2026-07-29 00:00:17 EDT    SEARCH     PASS      10,000   13.590s  hits  q="school OR zztii79ciotc547v1bs0f23rpa"
+2026-07-29 00:00:35 EDT    SEARCH     PASS      10,000    7.718s  hits  q="school OR zzo6hrxtbnx89j30jisjsda71b"
+2026-07-29 00:00:44 EDT    DASHBOARD  PASS     547,909    0.158s  datasets available (>= 547,883)
+2026-07-29 00:00:45 EDT    OPENSEARCH PASS   3,258,858    23.49s  green cpu max/avg 29%/12% heap max 70% idx 384/s docs 3,258,858 alias none rejected 0
+2026-07-29 00:00:47 EDT    SEARCH     PASS      10,000    2.262s  hits  q="school OR zzxf4j7l1uh0mepp97recnefbk"
+2026-07-29 00:01:14 EDT    DASHBOARD  PASS     547,909    0.275s  datasets available (>= 547,883)
+2026-07-29 00:01:14 EDT    SEARCH     PASS      10,000   17.234s  hits  q="school OR zzr5kk2o3ua2ckv7pskhsx980f"
+2026-07-29 00:01:26 EDT    SEARCH     PASS      10,000    1.594s  hits  q="school OR zz08mhxyb1kvzb6rowfl89bnva"
+2026-07-29 00:01:37 EDT    SEARCH     PASS      10,000    1.499s  hits  q="school OR zz0o9c20bndl1pgu4wdbcoy5v5"
+2026-07-29 00:01:44 EDT    DASHBOARD  PASS     547,909    0.167s  datasets available (>= 547,883)
+2026-07-29 00:02:15 EDT    DASHBOARD  PASS     547,909    0.333s  datasets available (>= 547,883)
+2026-07-29 00:02:21 EDT    OPENSEARCH PASS   3,258,858    35.24s  green cpu max/avg 19%/10% heap max 57% idx 263/s docs 3,258,858 alias none rejected 0
+2026-07-29 00:02:24 EDT    SEARCH     PASS      10,000   37.194s  hits  q="school OR zz04fmia3i3lladnlwk104zfbr"
+2026-07-29 00:02:45 EDT    DASHBOARD  PASS     547,909    0.241s  datasets available (>= 547,883)
+2026-07-29 00:02:46 EDT    SEARCH     PASS      10,000   11.596s  hits  q="school OR zz3slp78hs2lupl1gr7dfttqwn"
+2026-07-29 00:02:57 EDT    SEARCH     PASS      10,000    1.026s  hits  q="school OR zzp65bexajaxgkyx8lzqwfwldt"
+2026-07-29 00:03:09 EDT    SEARCH     PASS      10,000    1.501s  hits  q="school OR zzzmvuzw12xzg27id24zmzb4gw"
+2026-07-29 00:03:15 EDT    DASHBOARD  PASS     547,909    0.169s  datasets available (>= 547,883)
+2026-07-29 00:03:32 EDT    SEARCH     PASS      10,000   13.606s  hits  q="school OR zz3vjbc19au8vi4urxxj0i3tw3"
+2026-07-29 00:03:33 EDT    OPENSEARCH PASS   3,258,858    12.77s  green cpu max/avg 46%/11% heap max 65% idx 344/s docs 3,258,858 alias none rejected 0
+2026-07-29 00:03:45 EDT    DASHBOARD  PASS     547,909    0.211s  datasets available (>= 547,883)
+2026-07-29 00:03:54 EDT    SEARCH     PASS      10,000   11.719s  hits  q="school OR zzdxivikmjky5cb3qy6ckpp3f5"
+2026-07-29 00:04:11 EDT    SEARCH     PASS      10,000    6.946s  hits  q="school OR zz7lbpmduklmup06m5orm7ynpt"
+2026-07-29 00:04:15 EDT    DASHBOARD  PASS     547,909    0.257s  datasets available (>= 547,883)
+2026-07-29 00:04:38 EDT    SEARCH     PASS      10,000   16.860s  hits  q="school OR zzqvvf63iiowdnno1tli8alokn"
+2026-07-29 00:04:38 EDT    OPENSEARCH PASS   3,335,925     4.89s  green cpu max/avg 21%/9% heap max 65% idx 245/s docs 3,335,925 alias none rejected 0
+2026-07-29 00:04:46 EDT    DASHBOARD  PASS     547,909    0.369s  datasets available (>= 547,883)
+2026-07-29 00:04:50 EDT    SEARCH     PASS      10,000    2.573s  hits  q="school OR zzesuwrwwx061la3sro5x55oxe"
+2026-07-29 00:05:11 EDT    SEARCH     PASS      10,000   10.509s  hits  q="school OR zzoqr92sq7uzhas79kt6tx4je1"
+2026-07-29 00:05:16 EDT    DASHBOARD  PASS     547,909    0.172s  datasets available (>= 547,883)
+2026-07-29 00:05:23 EDT    SEARCH     PASS      10,000    1.653s  hits  q="school OR zzc6yzk4khum4zz87oww1ngld2"
+2026-07-29 00:05:39 EDT    SEARCH     PASS      10,000    6.806s  hits  q="school OR zz1sxpiqzuu7r1j6azi9qnj4ob"
+2026-07-29 00:05:42 EDT    OPENSEARCH PASS   3,335,925     4.07s  green cpu max/avg 26%/8% heap max 68% idx 329/s docs 3,335,925 alias none rejected 0
+2026-07-29 00:05:46 EDT    DASHBOARD  PASS     547,909    0.263s  datasets available (>= 547,883)
+2026-07-29 00:05:50 EDT    SEARCH     PASS      10,000    1.137s  hits  q="school OR zz0dazjefx8pwp3bzaotjoq2iz"
+2026-07-29 00:06:16 EDT    DASHBOARD  PASS     547,909    0.160s  datasets available (>= 547,883)
+2026-07-29 00:06:22 EDT    SEARCH     PASS      10,000   21.936s  hits  q="school OR zz0ebrthbqd9dnz1hj2n52taq9"
+2026-07-29 00:06:33 EDT    SEARCH     PASS      10,000    1.047s  hits  q="school OR zzkzdadabg4mervonjfo2ydoie"
+2026-07-29 00:06:46 EDT    SEARCH     PASS      10,000    2.462s  hits  q="school OR zziyd891m3ulm4xdxvkzbff21b"
+2026-07-29 00:06:47 EDT    DASHBOARD  PASS     547,909    0.184s  datasets available (>= 547,883)
+2026-07-29 00:06:57 EDT    SEARCH     PASS      10,000    0.998s  hits  q="school OR zzzxuzt9c3smx243k0ya8zx2xj"
+2026-07-29 00:07:02 EDT    OPENSEARCH PASS   3,335,925    19.16s  green cpu max/avg 30%/11% heap max 74% idx 466/s docs 3,335,925 alias none rejected 0
+2026-07-29 00:07:13 EDT    SEARCH     PASS      10,000    6.186s  hits  q="school OR zzo8c2uirmlqlhbf4u5lywwez3"
+2026-07-29 00:07:17 EDT    DASHBOARD  PASS     547,909    0.286s  datasets available (>= 547,883)
+2026-07-29 00:07:37 EDT    SEARCH     PASS      10,000   13.805s  hits  q="school OR zzfk4w9s9poeo3qeg3e4swg1oh"
+2026-07-29 00:07:47 EDT    DASHBOARD  PASS     547,909    0.157s  datasets available (>= 547,883)
+2026-07-29 00:07:48 EDT    SEARCH     PASS      10,000    1.086s  hits  q="school OR zz8qy0cpaovtqq90vqklh4r1qv"
+2026-07-29 00:07:59 EDT    SEARCH     PASS      10,000    0.793s  hits  q="school OR zzsflfs6dherpl6uina5minkat"
+2026-07-29 00:08:17 EDT    DASHBOARD  PASS     547,909    0.165s  datasets available (>= 547,883)
+2026-07-29 00:08:23 EDT    OPENSEARCH PASS   3,335,925    21.45s  green cpu max/avg 20%/8% heap max 66% idx 185/s docs 3,335,925 alias none rejected 0
+2026-07-29 00:08:24 EDT    SEARCH     PASS      10,000   14.674s  hits  q="school OR zzeu61t51hb9wzg8a5lkz8jl3n"
+2026-07-29 00:08:47 EDT    DASHBOARD  PASS     547,909    0.162s  datasets available (>= 547,883)
+2026-07-29 00:08:54 EDT    SEARCH     PASS      10,000   20.875s  hits  q="school OR zzoazt2xy89oojraa6tccyl1q9"
+2026-07-29 00:09:06 EDT    SEARCH     PASS      10,000    1.198s  hits  q="school OR zzvpujcxt8fvzclywjyvkpwcrx"
+2026-07-29 00:09:17 EDT    SEARCH     PASS      10,000    1.857s  hits  q="school OR zzxeahd8fzyyahb3cwxuxe3l87"
+2026-07-29 00:09:18 EDT    DASHBOARD  PASS     547,909    0.152s  datasets available (>= 547,883)
+2026-07-29 00:09:43 EDT    OPENSEARCH PASS   3,335,925    19.60s  green cpu max/avg 16%/6% heap max 62% idx 389/s docs 3,335,925 alias none rejected 0
+2026-07-29 00:09:43 EDT    SEARCH     PASS      10,000   15.365s  hits  q="school OR zzjx6n3s1f208ac1jztcu94ji8"
+2026-07-29 00:09:48 EDT    DASHBOARD  PASS     547,909    0.260s  datasets available (>= 547,883)
+2026-07-29 00:09:54 EDT    SEARCH     PASS      10,000    0.945s  hits  q="school OR zze69bm1qwmlkxpiosh1pl0cj8"
+2026-07-29 00:10:18 EDT    DASHBOARD  PASS     547,909    0.162s  datasets available (>= 547,883)
+2026-07-29 00:10:20 EDT    SEARCH     PASS      10,000   15.973s  hits  q="school OR zz9c54gwrct4ohzyaum4xdfpdw"
+2026-07-29 00:10:43 EDT    SEARCH     PASS      10,000   13.186s  hits  q="school OR zzod9eqzcshkpuywm2vnto9935"
+2026-07-29 00:10:48 EDT    DASHBOARD  PASS     547,909    0.228s  datasets available (>= 547,883)
+2026-07-29 00:10:51 EDT    OPENSEARCH PASS   3,455,169     8.56s  green cpu max/avg 49%/12% heap max 70% idx 278/s docs 3,455,169 alias none rejected 0
+2026-07-29 00:10:54 EDT    SEARCH     PASS      10,000    1.401s  hits  q="school OR zzldnr3qa1ll91odfusgif1000"
+2026-07-29 00:11:18 EDT    DASHBOARD  PASS     547,909    0.171s  datasets available (>= 547,883)
+2026-07-29 00:11:22 EDT    SEARCH     PASS      10,000   17.354s  hits  q="school OR zzf8dsjv78fyj3sg4n8ia5ifx8"
+2026-07-29 00:11:49 EDT    DASHBOARD  PASS     547,909    0.174s  datasets available (>= 547,883)
+2026-07-29 00:11:54 EDT    SEARCH     PASS      10,000   22.583s  hits  q="school OR zzeieagj6i4f4m459heu1dn04k"
+2026-07-29 00:11:55 EDT    OPENSEARCH PASS   3,455,169     3.96s  green cpu max/avg 15%/6% heap max 50% idx 188/s docs 3,455,169 alias none rejected 0
+2026-07-29 00:12:06 EDT    SEARCH     PASS      10,000    2.107s  hits  q="school OR zzdjfu16qafdngp6xeb5r8qq3y"
+2026-07-29 00:12:19 EDT    DASHBOARD  PASS     547,909    0.247s  datasets available (>= 547,883)
+2026-07-29 00:12:27 EDT    SEARCH     PASS      10,000   10.988s  hits  q="school OR zzp858csr5t0zxa1a2oj0abn2v"
+2026-07-29 00:12:39 EDT    SEARCH     PASS      10,000    1.448s  hits  q="school OR zzlvgmgu855oyul3jhc710unr1"
+2026-07-29 00:12:49 EDT    DASHBOARD  PASS     547,909    0.138s  datasets available (>= 547,883)
+2026-07-29 00:12:53 EDT    SEARCH     PASS      10,000    4.323s  hits  q="school OR zzal9c8wvvle64g1unqulhf5o8"
+2026-07-29 00:13:19 EDT    DASHBOARD  PASS     547,909    0.253s  datasets available (>= 547,883)
+2026-07-29 00:13:39 EDT    SEARCH     PASS      10,000   36.143s  hits  q="school OR zzd3zqn23thsw5nez5yji9bzpx"
+2026-07-29 00:13:39 EDT    OPENSEARCH PASS   3,630,474    44.32s  green cpu max/avg 25%/11% heap max 46% idx 256/s docs 3,630,474 alias none rejected 0
+2026-07-29 00:13:52 EDT    DASHBOARD  PASS     547,909    2.448s  datasets available (>= 547,883)
+2026-07-29 00:13:52 EDT    SEARCH     PASS      10,000    2.349s  hits  q="school OR zzy1fgmiivb8m2ey6xg68a69tp"
+2026-07-29 00:14:03 EDT    SEARCH     PASS      10,000    0.985s  hits  q="school OR zzr90kubri2ljp6tkcy4lphypc"
+2026-07-29 00:14:22 EDT    DASHBOARD  PASS     547,909    0.155s  datasets available (>= 547,883)
+2026-07-29 00:14:52 EDT    DASHBOARD  PASS     547,909    0.201s  datasets available (>= 547,883)
+2026-07-29 00:14:57 EDT    OPENSEARCH PASS   3,630,474    18.00s  green cpu max/avg 30%/12% heap max 48% idx 288/s docs 3,630,474 alias none rejected 0
+2026-07-29 00:14:59 EDT    SEARCH     PASS      10,000   46.510s  hits  q="school OR zzgl46ajkm4xp7hgz60rqvb205"
+2026-07-29 00:15:22 EDT    DASHBOARD  PASS     547,909    0.243s  datasets available (>= 547,883)
+2026-07-29 00:15:52 EDT    DASHBOARD  PASS     547,909    0.159s  datasets available (>= 547,883)
+2026-07-29 00:15:56 EDT    SEARCH     PASS      10,000   46.673s  hits  q="school OR zzi2iv1m4ev6nmqhpmy6n41yfh"
+2026-07-29 00:16:02 EDT    OPENSEARCH PASS   3,630,474     4.16s  green cpu max/avg 33%/10% heap max 60% idx 234/s docs 3,630,474 alias none rejected 0
+2026-07-29 00:16:10 EDT    SEARCH     PASS      10,000    3.761s  hits  q="school OR zzuofkmeh8pop2neu5fkrd3pla"
+2026-07-29 00:16:21 EDT    SEARCH     PASS      10,000    0.992s  hits  q="school OR zz3suzqq9x6rut4mz1v7pj038g"
+2026-07-29 00:16:23 EDT    DASHBOARD  PASS     547,909    0.286s  datasets available (>= 547,883)
+2026-07-29 00:16:32 EDT    SEARCH     PASS      10,000    1.866s  hits  q="school OR zz8j1g8756w6yndzc16c8dofu0"
+2026-07-29 00:16:53 EDT    DASHBOARD  PASS     547,909    0.144s  datasets available (>= 547,883)
+2026-07-29 00:17:14 EDT    OPENSEARCH PASS   3,630,474    12.09s  green cpu max/avg 21%/9% heap max 59% idx 232/s docs 3,630,474 alias none rejected 0
+2026-07-29 00:17:16 EDT    SEARCH     PASS      10,000   33.812s  hits  q="school OR zzwsy7vung112crcv5g17y4f7j"
+2026-07-29 00:17:23 EDT    DASHBOARD  PASS     547,909    0.251s  datasets available (>= 547,883)
+2026-07-29 00:17:53 EDT    DASHBOARD  PASS     547,909    0.273s  datasets available (>= 547,883)
+2026-07-29 00:17:59 EDT    SEARCH     PASS      10,000   32.734s  hits  q="school OR zzj3ck7m5vd6mkjwxwa2plycbn"
+2026-07-29 00:18:24 EDT    DASHBOARD  PASS     547,909    0.257s  datasets available (>= 547,883)
+2026-07-29 00:18:24 EDT    OPENSEARCH PASS   3,630,474     9.89s  green cpu max/avg 32%/13% heap max 65% idx 162/s docs 3,630,474 alias none rejected 0
+2026-07-29 00:18:25 EDT    SEARCH     PASS      10,000   15.666s  hits  q="school OR zzgzt57k87pzi8m7mns4r0ljd9"
+2026-07-29 00:18:36 EDT    SEARCH     PASS      10,000    1.134s  hits  q="school OR zzvvbdjswlisgx226h43axr1j0"
+2026-07-29 00:18:54 EDT    DASHBOARD  PASS     547,909    0.193s  datasets available (>= 547,883)
+2026-07-29 00:18:57 EDT    SEARCH     PASS      10,000   10.925s  hits  q="school OR zztphvhn6yqebzoiqnilgc38iu"
+2026-07-29 00:19:08 EDT    SEARCH     PASS      10,000    0.982s  hits  q="school OR zzf7oskstixyuk2ag0j78k4sig"
+2026-07-29 00:19:19 EDT    SEARCH     PASS      10,000    1.119s  hits  q="school OR zzl6tvqfv72c7f5etrq67h4gni"
+2026-07-29 00:19:24 EDT    DASHBOARD  PASS     547,909    0.213s  datasets available (>= 547,883)
+2026-07-29 00:19:40 EDT    OPENSEARCH PASS   3,630,474    16.68s  green cpu max/avg 23%/8% heap max 67% idx 339/s docs 3,630,474 alias none rejected 0
+2026-07-29 00:19:41 EDT    SEARCH     PASS      10,000   11.992s  hits  q="school OR zzmio9szve2b3z7tkms40kks0v"
+2026-07-29 00:19:52 EDT    SEARCH     PASS      10,000    1.432s  hits  q="school OR zzua0x5rtu1x21wap1nbmdowpc"
+2026-07-29 00:19:54 EDT    DASHBOARD  PASS     547,909    0.177s  datasets available (>= 547,883)
+2026-07-29 00:20:24 EDT    DASHBOARD  PASS     547,909    0.187s  datasets available (>= 547,883)
+2026-07-29 00:20:43 EDT    SEARCH     PASS      10,000   40.293s  hits  q="school OR zzfj4fniasxpaykyti2p91byvu"
+2026-07-29 00:20:47 EDT    OPENSEARCH PASS   3,712,530     6.51s  green cpu max/avg 19%/10% heap max 72% idx 241/s docs 3,712,530 alias none rejected 0
+2026-07-29 00:20:55 EDT    SEARCH     PASS      10,000    2.023s  hits  q="school OR zzj8gsxhoboj7t8mkcdbt2hmlm"
+2026-07-29 00:20:55 EDT    DASHBOARD  PASS     547,909    0.269s  datasets available (>= 547,883)
+2026-07-29 00:21:22 EDT    SEARCH     PASS      10,000   17.436s  hits  q="school OR zzm9nuw3ive9r9c8h8ro5h02fx"
+2026-07-29 00:21:25 EDT    DASHBOARD  PASS     547,909    0.436s  datasets available (>= 547,883)
+2026-07-29 00:21:33 EDT    SEARCH     PASS      10,000    0.986s  hits  q="school OR zz3b7d9roto2teurzvdvesb5ml"
+2026-07-29 00:21:54 EDT    OPENSEARCH PASS   3,712,530     7.40s  green cpu max/avg 16%/7% heap max 71% idx 368/s docs 3,712,530 alias none rejected 0
+2026-07-29 00:21:55 EDT    DASHBOARD  PASS     547,909    0.170s  datasets available (>= 547,883)
+2026-07-29 00:21:56 EDT    SEARCH     PASS      10,000   12.386s  hits  q="school OR zzpbd5h6543yzqlxcs69ip604c"
+2026-07-29 00:22:07 EDT    SEARCH     PASS      10,000    1.128s  hits  q="school OR zzdc1d91u87qrgftl9rtaszpja"
+2026-07-29 00:22:18 EDT    SEARCH     PASS      10,000    0.921s  hits  q="school OR zzdy6whiz4vsdcf8d7edtgx9nj"
+2026-07-29 00:22:26 EDT    DASHBOARD  PASS     547,909    0.165s  datasets available (>= 547,883)
+2026-07-29 00:22:44 EDT    SEARCH     PASS      10,000   16.609s  hits  q="school OR zzd7suhrfhv86plk7vtjksq5ts"
+2026-07-29 00:22:56 EDT    DASHBOARD  PASS     547,909    0.241s  datasets available (>= 547,883)
+2026-07-29 00:23:03 EDT    OPENSEARCH PASS   3,842,640     8.42s  green cpu max/avg 37%/16% heap max 62% idx 218/s docs 3,842,640 alias none rejected 0
+2026-07-29 00:23:08 EDT    SEARCH     PASS      10,000   13.736s  hits  q="school OR zzg22xl75djlvgqh3457cuhkax"
+2026-07-29 00:23:19 EDT    SEARCH     PASS      10,000    1.407s  hits  q="school OR zzbxt2dsk87xo1j67209q8grg7"
+2026-07-29 00:23:26 EDT    DASHBOARD  PASS     547,909    0.164s  datasets available (>= 547,883)
+2026-07-29 00:23:51 EDT    SEARCH     PASS      10,000   21.171s  hits  q="school OR zzut58vil08fe5rakhbtik66sv"
+2026-07-29 00:23:56 EDT    DASHBOARD  PASS     547,909    0.280s  datasets available (>= 547,883)
+2026-07-29 00:24:02 EDT    SEARCH     PASS      10,000    1.249s  hits  q="school OR zzqtlyrd80o15v9ee68wzu6nxq"
+2026-07-29 00:24:07 EDT    OPENSEARCH PASS   3,850,695     3.98s  green cpu max/avg 97%/48% heap max 65% idx 472/s docs 3,850,695 alias none rejected 0
+2026-07-29 00:24:13 EDT    SEARCH     PASS      10,000    1.167s  hits  q="school OR zz8xcfznkxb8d8o1u2yo1ruz04"
+2026-07-29 00:24:24 EDT    SEARCH     PASS      10,000    0.926s  hits  q="school OR zzxtqji5wk4caf5hcqbv6vn4f6"
+2026-07-29 00:24:27 EDT    DASHBOARD  PASS     547,909    0.336s  datasets available (>= 547,883)
+2026-07-29 00:24:37 EDT    SEARCH     PASS      10,000    2.665s  hits  q="school OR zzy5plc7jf6srtfx22pa9b3hpa"
+2026-07-29 00:24:47 EDT    SEARCH     PASS      10,000    0.642s  hits  q="school OR zz7e0630d7mbqgwe7znzr6v77i"
+2026-07-29 00:24:57 EDT    DASHBOARD  PASS     547,909    0.158s  datasets available (>= 547,883)
+2026-07-29 00:24:59 EDT    SEARCH     PASS      10,000    1.713s  hits  q="school OR zzl8mk8pmz75k011ml02ik6f4k"
+2026-07-29 00:25:23 EDT    SEARCH     PASS      10,000   14.288s  hits  q="school OR zzvq4imy3s0k7dmkpi4v1injvf"
+2026-07-29 00:25:27 EDT    DASHBOARD  PASS     547,909    0.317s  datasets available (>= 547,883)
+2026-07-29 00:25:29 EDT    OPENSEARCH PASS   3,906,270    22.16s  green cpu max/avg 39%/17% heap max 70% idx 434/s docs 3,906,270 alias none rejected 0
+2026-07-29 00:25:38 EDT    SEARCH     PASS      10,000    5.093s  hits  q="school OR zz0qhn9yclmju292fin5e4dtbc"
+2026-07-29 00:25:57 EDT    SEARCH     PASS      10,000    8.498s  hits  q="school OR zzddf5rnoac4ei0kucm7slrnl4"
+2026-07-29 00:25:57 EDT    DASHBOARD  PASS     547,909    0.257s  datasets available (>= 547,883)
+2026-07-29 00:26:10 EDT    SEARCH     PASS      10,000    3.430s  hits  q="school OR zztebqkvgayeyan28n1ejo9irh"
+2026-07-29 00:26:27 EDT    DASHBOARD  PASS     547,909    0.145s  datasets available (>= 547,883)
+2026-07-29 00:26:42 EDT    SEARCH     PASS      10,000   22.021s  hits  q="school OR zz75n27x7jq8qxs122qwrdtp8q"
+2026-07-29 00:26:43 EDT    OPENSEARCH PASS   3,906,270    14.27s  green cpu max/avg 18%/8% heap max 53% idx 301/s docs 3,906,270 alias none rejected 0
+2026-07-29 00:26:54 EDT    SEARCH     PASS      10,000    1.214s  hits  q="school OR zzf465lxd2foishqp4kzmtskwm"
+2026-07-29 00:26:58 EDT    DASHBOARD  PASS     547,909    0.214s  datasets available (>= 547,883)
+2026-07-29 00:27:21 EDT    SEARCH     PASS      10,000   17.182s  hits  q="school OR zzkqnrdnw41xbymlg71gpdm89g"
+2026-07-29 00:27:28 EDT    DASHBOARD  PASS     547,909    0.282s  datasets available (>= 547,883)
+2026-07-29 00:27:32 EDT    SEARCH     PASS      10,000    0.832s  hits  q="school OR zzlww4k7mrdx177wlg44khseva"
+2026-07-29 00:27:43 EDT    SEARCH     PASS      10,000    1.146s  hits  q="school OR zz4wzbmxv80wyg4ot9rmis9k0l"
+2026-07-29 00:27:58 EDT    DASHBOARD  PASS     547,909    0.169s  datasets available (>= 547,883)
+2026-07-29 00:28:06 EDT    OPENSEARCH PASS   3,906,270    22.49s  green cpu max/avg 45%/28% heap max 60% idx 412/s docs 3,906,270 alias none rejected 0
+2026-07-29 00:28:06 EDT    SEARCH     PASS      10,000   13.380s  hits  q="school OR zz2frhvcngrgjhraf7hsqo25bv"
+2026-07-29 00:28:17 EDT    SEARCH     PASS      10,000    1.220s  hits  q="school OR zzxbqbxa1atufi6lmf53eypdh0"
+2026-07-29 00:28:28 EDT    DASHBOARD  PASS     547,909    0.173s  datasets available (>= 547,883)
+2026-07-29 00:28:37 EDT    SEARCH     PASS      10,000   10.026s  hits  q="school OR zzis1ztvn2kwdoe53c5px1xq8t"
+2026-07-29 00:28:49 EDT    SEARCH     PASS      10,000    1.714s  hits  q="school OR zz1691tmva4omttj2n56rjmgz8"
+2026-07-29 00:28:59 EDT    DASHBOARD  PASS     547,909    0.553s  datasets available (>= 547,883)
+2026-07-29 00:29:00 EDT    SEARCH     PASS      10,000    0.912s  hits  q="school OR zz155r14acw0c4mj6k7ocjs72u"
+2026-07-29 00:29:10 EDT    OPENSEARCH PASS   3,906,270     4.65s  green cpu max/avg 50%/20% heap max 67% idx 402/s docs 3,906,270 alias none rejected 0
+2026-07-29 00:29:11 EDT    SEARCH     PASS      10,000    1.097s  hits  q="school OR zzc62d4abi0wkkfpnuhf5qrse7"
+2026-07-29 00:29:29 EDT    DASHBOARD  PASS     547,909    0.233s  datasets available (>= 547,883)
+2026-07-29 00:29:39 EDT    SEARCH     PASS      10,000   17.988s  hits  q="school OR zzsqtpsz0sbknvltyko7y8902i"
+2026-07-29 00:29:57 EDT    SEARCH     PASS      10,000    7.715s  hits  q="school OR zzg42bdpzcrx62pp3r5i0xayx4"
+2026-07-29 00:30:00 EDT    DASHBOARD  PASS     547,909    0.596s  datasets available (>= 547,883)
+2026-07-29 00:30:20 EDT    SEARCH     PASS      10,000   13.180s  hits  q="school OR zzv278lfzpt4alqpvou6k5a7v1"
+2026-07-29 00:30:24 EDT    OPENSEARCH PASS   3,906,270    13.42s  green cpu max/avg 60%/35% heap max 63% idx 300/s docs 3,906,270 alias none rejected 0
+2026-07-29 00:30:30 EDT    DASHBOARD  PASS     547,909    0.363s  datasets available (>= 547,883)
+2026-07-29 00:30:31 EDT    SEARCH     PASS      10,000    1.062s  hits  q="school OR zzrn3qrg3nveu6crt8co5xkqm6"
+2026-07-29 00:31:00 EDT    DASHBOARD  PASS     547,909    0.225s  datasets available (>= 547,883)
+2026-07-29 00:31:19 EDT    SEARCH     PASS      10,000   37.801s  hits  q="school OR zz4mjic9xeof1rr3sbke3toi2g"
+2026-07-29 00:31:30 EDT    DASHBOARD  PASS     547,909    0.134s  datasets available (>= 547,883)
+2026-07-29 00:31:35 EDT    OPENSEARCH PASS   3,906,270    11.68s  green cpu max/avg 19%/7% heap max 64% idx 153/s docs 3,906,270 alias none rejected 0
+2026-07-29 00:31:36 EDT    SEARCH     PASS      10,000    6.625s  hits  q="school OR zzjln56u23w8fcqamsfryw33t0"
+2026-07-29 00:31:59 EDT    SEARCH     PASS      10,000   13.413s  hits  q="school OR zzdg1wukkmm97vyeoyq8c2ufpm"
+2026-07-29 00:32:01 EDT    DASHBOARD  PASS     547,909    0.176s  datasets available (>= 547,883)
+2026-07-29 00:32:20 EDT    SEARCH     PASS      10,000   10.942s  hits  q="school OR zzgt9hgupo2e4mytbbplt6m9gx"
+2026-07-29 00:32:31 EDT    DASHBOARD  PASS     547,909    0.259s  datasets available (>= 547,883)
+2026-07-29 00:32:33 EDT    SEARCH     PASS      10,000    2.750s  hits  q="school OR zze1s8n54ez1iz2hgctm7wlpau"
+2026-07-29 00:32:51 EDT    OPENSEARCH PASS   3,979,248    15.64s  green cpu max/avg 40%/11% heap max 63% idx 291/s docs 3,979,248 alias none rejected 0
+2026-07-29 00:32:51 EDT    SEARCH     PASS      10,000    8.502s  hits  q="school OR zzjfmk9kn4z0e0wwuqr6unqrj3"
+2026-07-29 00:33:01 EDT    DASHBOARD  PASS     547,909    0.182s  datasets available (>= 547,883)
+2026-07-29 00:33:03 EDT    SEARCH     PASS      10,000    1.424s  hits  q="school OR zz0pr4qoaw1r0wh1qrkcvaac5t"
+2026-07-29 00:33:22 EDT    SEARCH     PASS      10,000    9.684s  hits  q="school OR zzveehf3f0kzjscldsf03t96er"
+2026-07-29 00:33:31 EDT    DASHBOARD  PASS     547,909    0.242s  datasets available (>= 547,883)
+2026-07-29 00:33:46 EDT    SEARCH     PASS      10,000   13.181s  hits  q="school OR zzdvhdllyichnk6t5y7koy7p35"
+2026-07-29 00:33:56 EDT    SEARCH     PASS      10,000    0.888s  hits  q="school OR zz5bksjlw40itno423yqghsb22"
+2026-07-29 00:34:02 EDT    DASHBOARD  PASS     547,909    0.253s  datasets available (>= 547,883)
+2026-07-29 00:34:07 EDT    OPENSEARCH PASS   4,222,554    15.46s  green cpu max/avg 46%/24% heap max 68% idx 239/s docs 4,222,554 alias none rejected 0
+2026-07-29 00:34:08 EDT    SEARCH     PASS      10,000    1.184s  hits  q="school OR zzoavm5cbyj6s2rdvxrfhpe8ji"
+2026-07-29 00:34:30 EDT    SEARCH     PASS      10,000   12.867s  hits  q="school OR zzhnvmofvwug5uh7djeyaezzu5"
+2026-07-29 00:34:32 EDT    DASHBOARD  PASS     547,909    0.167s  datasets available (>= 547,883)
+2026-07-29 00:35:02 EDT    DASHBOARD  PASS     547,909    0.233s  datasets available (>= 547,883)
+2026-07-29 00:35:23 EDT    OPENSEARCH PASS   4,222,554    16.14s  green cpu max/avg 39%/14% heap max 73% idx 236/s docs 4,222,554 alias none rejected 0
+2026-07-29 00:35:23 EDT    SEARCH     PASS      10,000   42.276s  hits  q="school OR zz5ng8h6f3fl9x9j0zhpmnx63z"
+2026-07-29 00:35:32 EDT    DASHBOARD  PASS     547,909    0.142s  datasets available (>= 547,883)
+2026-07-29 00:35:37 EDT    SEARCH     PASS      10,000    3.765s  hits  q="school OR zz959c84d7sbx0pnsdjfxp426z"
+2026-07-29 00:35:48 EDT    SEARCH     PASS      10,000    1.829s  hits  q="school OR zzk3td5vlqirr995hito8lar0b"
+2026-07-29 00:36:02 EDT    DASHBOARD  PASS     547,909    0.162s  datasets available (>= 547,883)
+2026-07-29 00:36:11 EDT    SEARCH     PASS      10,000   12.341s  hits  q="school OR zzj0r8dpn5t466skvxxf5ffm02"
+2026-07-29 00:36:30 EDT    OPENSEARCH PASS   4,222,554     7.40s  green cpu max/avg 18%/8% heap max 61% idx 384/s docs 4,222,554 alias none rejected 0
+2026-07-29 00:36:32 EDT    SEARCH     PASS      10,000   10.870s  hits  q="school OR zzxww46h3gh367e1zf592iwsyn"
+2026-07-29 00:36:33 EDT    DASHBOARD  PASS     547,909    0.603s  datasets available (>= 547,883)
+2026-07-29 00:36:43 EDT    SEARCH     PASS      10,000    1.006s  hits  q="school OR zz3sjzev6csmzsbl4xrlje9sy7"
+2026-07-29 00:37:03 EDT    SEARCH     PASS      10,000   10.474s  hits  q="school OR zz9i4rzpokqml74nhzw0irilml"
+2026-07-29 00:37:03 EDT    DASHBOARD  PASS     547,909    0.179s  datasets available (>= 547,883)
+2026-07-29 00:37:14 EDT    SEARCH     PASS      10,000    1.016s  hits  q="school OR zzj6s715uyrnux4cttcmkq1vh7"
+2026-07-29 00:37:25 EDT    SEARCH     PASS      10,000    0.674s  hits  q="school OR zzp1whqw7864ng937kx5m56uxl"
+2026-07-29 00:37:33 EDT    DASHBOARD  PASS     547,909    0.255s  datasets available (>= 547,883)
+2026-07-29 00:37:36 EDT    SEARCH     PASS      10,000    0.968s  hits  q="school OR zzdglra2bcmdpfdlnajksh3vb3"
+2026-07-29 00:37:49 EDT    OPENSEARCH PASS   4,296,573    18.41s  green cpu max/avg 20%/7% heap max 59% idx 269/s docs 4,296,573 alias none rejected 0
+2026-07-29 00:37:49 EDT    SEARCH     PASS      10,000    2.854s  hits  q="school OR zz440xni3gr4w3t33a5zs82rxz"
+2026-07-29 00:38:00 EDT    SEARCH     PASS      10,000    1.187s  hits  q="school OR zzoov3jmvvu94p4n7evz794x0n"
+2026-07-29 00:38:04 EDT    DASHBOARD  PASS     547,909    0.161s  datasets available (>= 547,883)
+2026-07-29 00:38:14 EDT    SEARCH     PASS      10,000    4.141s  hits  q="school OR zzel4sglxxpdlmy6e5b790m2r9"
+2026-07-29 00:38:25 EDT    SEARCH     PASS      10,000    0.666s  hits  q="school OR zz7ucl4xf6cjq3a1jnk6lqrw2v"
+2026-07-29 00:38:34 EDT    DASHBOARD  PASS     547,909    0.274s  datasets available (>= 547,883)
+2026-07-29 00:38:36 EDT    SEARCH     PASS      10,000    1.243s  hits  q="school OR zz6714a62wrjtcfbifylgfejg4"
+2026-07-29 00:39:00 EDT    SEARCH     PASS      10,000   13.925s  hits  q="school OR zzwkoa5pkboebg5ajb44mh71i2"
+2026-07-29 00:39:00 EDT    OPENSEARCH PASS   4,296,573    11.74s  green cpu max/avg 16%/6% heap max 63% idx 361/s docs 4,296,573 alias none rejected 0
+2026-07-29 00:39:04 EDT    DASHBOARD  PASS     547,909    0.158s  datasets available (>= 547,883)
+2026-07-29 00:39:11 EDT    SEARCH     PASS      10,000    1.236s  hits  q="school OR zzxh8p3q1yo9kp6hjop8zhj8di"
+2026-07-29 00:39:23 EDT    SEARCH     PASS      10,000    1.647s  hits  q="school OR zzm30j844ry7bcj9fqu42vk095"
+2026-07-29 00:39:34 EDT    SEARCH     PASS      10,000    1.407s  hits  q="school OR zzwcu54yqlahf05q5hupleaaou"
+2026-07-29 00:39:34 EDT    DASHBOARD  PASS     547,909    0.162s  datasets available (>= 547,883)
+2026-07-29 00:39:45 EDT    SEARCH     PASS      10,000    0.925s  hits  q="school OR zztxgh80lv5yff1vd9nvzljcs1"
+2026-07-29 00:39:56 EDT    SEARCH     PASS      10,000    1.373s  hits  q="school OR zz9jhylms2naxu7wxm9c09p31i"
+2026-07-29 00:40:04 EDT    DASHBOARD  PASS     547,909    0.288s  datasets available (>= 547,883)
+2026-07-29 00:40:26 EDT    SEARCH     PASS      10,000   19.885s  hits  q="school OR zzzap5nt6f0j97xy1goj7vjehf"
+2026-07-29 00:40:26 EDT    OPENSEARCH PASS   2,837,835    26.18s  green cpu max/avg 34%/12% heap max 67% idx 0/s docs 2,837,835 alias datasets-30420116330-1 rejected 0
+2026-07-29 00:40:35 EDT    DASHBOARD  PASS     547,909    0.152s  datasets available (>= 547,883)
+2026-07-29 00:40:37 EDT    SEARCH     PASS      10,000    0.875s  hits  q="school OR zzh44iwxcqxrqj1gc02dtbkbeg"
+2026-07-29 00:40:49 EDT    SEARCH     PASS      10,000    1.322s  hits  q="school OR zz8onmrw6bmhotwctxmyvc5dcs"
+2026-07-29 00:40:59 EDT    SEARCH     PASS      10,000    0.753s  hits  q="school OR zzd7vfwxt6i685fc243bcwg0b7"
+2026-07-29 00:41:05 EDT    DASHBOARD  PASS     547,909    0.185s  datasets available (>= 547,883)
+2026-07-29 00:41:10 EDT    SEARCH     PASS      10,000    0.946s  hits  q="school OR zzyggbj7invvpxb4g27nodg3bi"
+2026-07-29 00:41:21 EDT    SEARCH     PASS      10,000    0.953s  hits  q="school OR zz7kyrz3slklx669cb6qddge3s"
+2026-07-29 00:41:32 EDT    SEARCH     PASS      10,000    0.629s  hits  q="school OR zzbt43zf3y36hdez0jux3ihr63"
+2026-07-29 00:41:32 EDT    OPENSEARCH PASS   2,837,835     5.43s  green cpu max/avg 35%/13% heap max 71% idx 0/s docs 2,837,835 alias datasets-30420116330-1 rejected 0
+2026-07-29 00:41:35 EDT    DASHBOARD  PASS     547,909    0.162s  datasets available (>= 547,883)
+2026-07-29 00:41:43 EDT    SEARCH     PASS      10,000    0.841s  hits  q="school OR zz37bct4rpndhwxlvzlj65j4za"
+2026-07-29 00:41:53 EDT    SEARCH     PASS      10,000    0.639s  hits  q="school OR zzjrs2qdj16nhjn9pxqhqhytgv"
+2026-07-29 00:42:05 EDT    SEARCH     PASS      10,000    1.178s  hits  q="school OR zz1ogssxfrnbnqi1d4jr804v14"
+2026-07-29 00:42:05 EDT    DASHBOARD  PASS     547,909    0.147s  datasets available (>= 547,883)
+2026-07-29 00:42:15 EDT    SEARCH     PASS      10,000    0.772s  hits  q="school OR zzi1dst1gbsuvicxdm15qbzruh"
+2026-07-29 00:42:26 EDT    SEARCH     PASS      10,000    0.765s  hits  q="school OR zznjiva8867ret8a8t0yxtlkj4"
+2026-07-29 00:42:35 EDT    DASHBOARD  PASS     547,909    0.147s  datasets available (>= 547,883)
+2026-07-29 00:42:36 EDT    OPENSEARCH PASS   2,837,835     3.83s  green cpu max/avg 23%/9% heap max 62% idx 0/s docs 2,837,835 alias datasets-30420116330-1 rejected 0
+2026-07-29 00:42:37 EDT    SEARCH     PASS      10,000    0.711s  hits  q="school OR zzj46fp3shrtfaabo5w7nbvcsb"
+2026-07-29 00:42:48 EDT    SEARCH     PASS      10,000    0.737s  hits  q="school OR zzd97nr6p6ur8e88jx4xagsksc"
+2026-07-29 00:42:58 EDT    SEARCH     PASS      10,000    0.615s  hits  q="school OR zzvyo6h67k4duae413bd9nf6xl"
+2026-07-29 00:43:05 EDT    DASHBOARD  PASS     547,909    0.160s  datasets available (>= 547,883)
+2026-07-29 00:43:09 EDT    SEARCH     PASS      10,000    0.786s  hits  q="school OR zzrpvrubhpuw8nz2ar7zoq7blu"
+2026-07-29 00:43:20 EDT    SEARCH     PASS      10,000    0.854s  hits  q="school OR zzd5r0006flkfca3ftvwfd56us"
+2026-07-29 00:43:31 EDT    SEARCH     PASS      10,000    0.829s  hits  q="school OR zzelu69ayb26boibmnms15bqma"
+2026-07-29 00:43:36 EDT    DASHBOARD  PASS     547,909    0.143s  datasets available (>= 547,883)
+2026-07-29 00:43:41 EDT    OPENSEARCH PASS   2,837,835     5.41s  green cpu max/avg 15%/4% heap max 66% idx 0/s docs 2,837,835 alias datasets-30420116330-1 rejected 0
+2026-07-29 00:43:41 EDT    SEARCH     PASS      10,000    0.634s  hits  q="school OR zzc3r6kenf4apz952pjyf4q9hk"
+2026-07-29 00:43:52 EDT    SEARCH     PASS      10,000    0.756s  hits  q="school OR zzpns4wdny3evtgindoh5x8zd2"
+2026-07-29 00:44:04 EDT    SEARCH     PASS      10,000    1.530s  hits  q="school OR zz83jeh188k8u1x7vjmhxvd3zt"

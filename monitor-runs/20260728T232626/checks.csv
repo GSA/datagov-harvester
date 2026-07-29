@@ -1,0 +1,446 @@
+timestamp,epoch,elapsed_s,phase,check,ok,http_status,count,latency_s,os_sample_inflight,query,detail
+2026-07-28T23:26:27-04:00,1785295587.055,0.2,baseline,dashboard,1,200,547909,0.183,1,,"datasets available (>= 547,883)"
+2026-07-28T23:26:28-04:00,1785295588.44,1.6,baseline,search,1,200,10000,1.568,1,school OR zzaezya113t3y3ol9xdx6ev6jj,hits
+2026-07-28T23:26:39-04:00,1785295599.363,12.5,baseline,search,1,200,10000,0.917,0,school OR zzs6fzowtts8m7k8jsu8o4s4mh,hits
+2026-07-28T23:26:49-04:00,1785295609.926,23.1,baseline,search,1,200,10000,0.556,0,school OR zzko8rw7yr3xrrd8kt4fx4tttm,hits
+2026-07-28T23:26:57-04:00,1785295617.53,30.7,baseline,dashboard,1,200,547909,0.474,0,,"datasets available (>= 547,883)"
+2026-07-28T23:27:00-04:00,1785295620.547,33.7,baseline,search,1,200,10000,0.615,0,school OR zz4u1v9i667umkua6g26s7xy81,hits
+2026-07-28T23:27:11-04:00,1785295631.683,44.8,baseline,search,1,200,10000,1.129,0,school OR zzw9w30e4yj2w5mxmqozxnpa8b,hits
+2026-07-28T23:27:22-04:00,1785295642.456,55.6,baseline,search,1,200,10000,0.77,0,school OR zz2xgu557itvdvkyfywdawpkvo,hits
+2026-07-28T23:27:27-04:00,1785295647.727,60.9,baseline,dashboard,1,200,547909,0.191,0,,"datasets available (>= 547,883)"
+2026-07-28T23:27:33-04:00,1785295653.118,66.2,baseline,search,1,200,10000,0.655,1,school OR zzzlww71kvaaj374grndv4o91c,hits
+2026-07-28T23:27:43-04:00,1785295663.635,76.8,baseline,search,1,200,10000,0.511,0,school OR zzp2jjmhs44pg7mu2xe7yavc6p,hits
+2026-07-28T23:27:54-04:00,1785295674.4,87.5,baseline,search,1,200,10000,0.758,0,school OR zzr60g6ygs45ta55xqag9lhfrr,hits
+2026-07-28T23:27:58-04:00,1785295678.009,91.1,baseline,dashboard,1,200,547909,0.281,0,,"datasets available (>= 547,883)"
+2026-07-28T23:28:05-04:00,1785295685.189,98.3,baseline,search,1,200,10000,0.779,0,school OR zzc0vhiho9e21y2a9dvd8b4ngf,hits
+2026-07-28T23:28:16-04:00,1785295696.055,109.2,baseline,search,1,200,10000,0.858,0,school OR zzr3goetg1q19m6onwghjh39qe,hits
+2026-07-28T23:28:26-04:00,1785295706.747,119.9,baseline,search,1,200,10000,0.69,0,school OR zzbs53cruihxeqnyem45fxfe7x,hits
+2026-07-28T23:28:28-04:00,1785295708.198,121.3,baseline,dashboard,1,200,547909,0.183,0,,"datasets available (>= 547,883)"
+2026-07-28T23:28:37-04:00,1785295717.455,130.6,baseline,search,1,200,10000,0.702,1,school OR zz9p1cde8nrr2l7qlr47w4vprn,hits
+2026-07-28T23:28:48-04:00,1785295728.863,142.0,baseline,search,1,200,10000,1.401,0,school OR zzpx0j6jb77z6ejiqf798ys8l6,hits
+2026-07-28T23:28:58-04:00,1785295738.418,151.5,baseline,dashboard,1,200,547909,0.218,0,,"datasets available (>= 547,883)"
+2026-07-28T23:28:59-04:00,1785295739.516,152.6,baseline,search,1,200,10000,0.644,0,school OR zzse7h4zimzar77yjec2oc17gx,hits
+2026-07-28T23:29:10-04:00,1785295750.357,163.5,baseline,search,1,200,10000,0.836,0,school OR zzfpfngn5xglqmwm3vlt6w0jmb,hits
+2026-07-28T23:29:20-04:00,1785295760.932,174.1,baseline,search,1,200,10000,0.571,0,school OR zzofsjczhi68fr17hmuzr7cosu,hits
+2026-07-28T23:29:28-04:00,1785295768.602,181.7,baseline,dashboard,1,200,547909,0.183,0,,"datasets available (>= 547,883)"
+2026-07-28T23:29:31-04:00,1785295771.573,184.7,baseline,search,1,200,10000,0.634,0,school OR zzaj26xb7m45pt3tcxr9zuhue5,hits
+2026-07-28T23:29:42-04:00,1785295782.339,195.5,baseline,search,1,200,10000,0.758,1,school OR zzy7rszkfrlueh01vous4o8s1u,hits
+2026-07-28T23:29:52-04:00,1785295792.914,206.0,baseline,search,1,200,10000,0.569,0,school OR zznowd076tzv9nmthv9tfns7ph,hits
+2026-07-28T23:29:58-04:00,1785295798.78,211.9,baseline,dashboard,1,200,547909,0.172,0,,"datasets available (>= 547,883)"
+2026-07-28T23:30:03-04:00,1785295803.907,217.0,baseline,search,1,200,10000,0.987,0,school OR zzuqk5p3mrhj5qc65ffrctj6d7,hits
+2026-07-28T23:30:14-04:00,1785295814.88,228.0,baseline,search,1,200,10000,0.966,0,school OR zzbjcu6m8toy8nfn04zep3gm3g,hits
+2026-07-28T23:30:25-04:00,1785295825.702,238.8,baseline,search,1,200,10000,0.816,0,school OR zzyhaysrglogh7qzn77vvwrhz4,hits
+2026-07-28T23:30:29-04:00,1785295829.024,242.2,baseline,dashboard,1,200,547909,0.241,0,,"datasets available (>= 547,883)"
+2026-07-28T23:30:46-04:00,1785295846.054,259.2,baseline,search,1,200,10000,10.355,1,school OR zzgf8tjsa7unq918iwxm7rctfu,hits
+2026-07-28T23:30:56-04:00,1785295856.967,270.1,baseline,search,1,200,10000,0.91,0,school OR zz14fc1ws720ub080pr6c40144,hits
+2026-07-28T23:30:59-04:00,1785295859.197,272.3,baseline,dashboard,1,200,547909,0.175,0,,"datasets available (>= 547,883)"
+2026-07-28T23:31:19-04:00,1785295879.499,292.6,baseline,search,1,200,10000,12.527,0,school OR zziiplhr5nzopbd27l8a7et77x,hits
+2026-07-28T23:31:29-04:00,1785295889.582,302.7,baseline,dashboard,1,200,547909,0.38,0,,"datasets available (>= 547,883)"
+2026-07-28T23:31:32-04:00,1785295892.262,305.4,baseline,search,1,200,10000,2.755,0,school OR zznv9lh1ryy3x2luym7w77eqtd,hits
+2026-07-28T23:31:43-04:00,1785295903.039,316.2,baseline,search,1,200,10000,0.772,0,school OR zzw51m6fm2sc7k611jultlkiap,hits
+2026-07-28T23:31:53-04:00,1785295913.818,327.0,baseline,search,1,200,10000,0.772,0,school OR zzjtfjvzuel6474o8j7hl323e8,hits
+2026-07-28T23:31:59-04:00,1785295919.853,333.0,baseline,dashboard,1,200,547909,0.265,0,,"datasets available (>= 547,883)"
+2026-07-28T23:32:05-04:00,1785295925.566,338.7,baseline,search,1,200,10000,1.745,0,school OR zzl1t8h9kryxll8kv0h1vc6kme,hits
+2026-07-28T23:32:16-04:00,1785295936.526,349.7,baseline,search,1,200,10000,0.957,0,school OR zzn0pv1u5527cp7o0p58ub8fns,hits
+2026-07-28T23:32:27-04:00,1785295947.166,360.3,baseline,search,1,200,10000,0.635,0,school OR zzz3e03eg3fmu95yv7dl3g672r,hits
+2026-07-28T23:32:30-04:00,1785295950.281,363.4,baseline,dashboard,1,200,547909,0.423,0,,"datasets available (>= 547,883)"
+2026-07-28T23:32:37-04:00,1785295957.818,371.0,baseline,search,1,200,10000,0.644,0,school OR zzsdap6a4edncuk72yskjspx11,hits
+2026-07-28T23:32:49-04:00,1785295969.111,382.3,baseline,search,1,200,10000,1.287,0,school OR zzp6m20s7pevkkqquxtwj6h57q,hits
+2026-07-28T23:32:59-04:00,1785295979.67,392.8,baseline,search,1,200,10000,0.548,0,school OR zzuombeg1c8i1xxc5k9yii58d0,hits
+2026-07-28T23:33:00-04:00,1785295980.537,393.7,baseline,dashboard,1,200,547909,0.253,0,,"datasets available (>= 547,883)"
+2026-07-28T23:33:10-04:00,1785295990.529,403.7,baseline,search,1,200,10000,0.847,0,school OR zzx7147aesn8ru7yyvjv6fjb4n,hits
+2026-07-28T23:33:21-04:00,1785296001.536,414.7,baseline,search,1,200,10000,0.993,0,school OR zzp3n3znt1amhqkpmgsixdj1y1,hits
+2026-07-28T23:33:30-04:00,1785296010.713,423.9,baseline,dashboard,1,200,547909,0.172,0,,"datasets available (>= 547,883)"
+2026-07-28T23:33:32-04:00,1785296012.177,425.3,baseline,search,1,200,10000,0.636,0,school OR zzq0f8xondydatttutdg8h32zo,hits
+2026-07-28T23:33:43-04:00,1785296023.027,436.2,baseline,search,1,200,10000,0.837,0,school OR zzi4a314y4vgnz5dj0jflxp8hc,hits
+2026-07-28T23:33:54-04:00,1785296034.366,447.5,baseline,search,1,200,10000,1.327,0,school OR zz0ricptgu4rqef0q4lbr1qd4o,hits
+2026-07-28T23:34:00-04:00,1785296040.964,454.1,baseline,dashboard,1,200,547909,0.248,1,,"datasets available (>= 547,883)"
+2026-07-28T23:34:05-04:00,1785296045.587,458.7,baseline,search,1,200,10000,1.21,0,school OR zz7sb0qdfi02oqyh1s3l2c7zkd,hits
+2026-07-28T23:34:16-04:00,1785296056.287,469.4,baseline,search,1,200,10000,0.693,0,school OR zzohqyu4el86kentm8qhw8od4t,hits
+2026-07-28T23:34:27-04:00,1785296067.2,480.3,baseline,search,1,200,10000,0.907,0,school OR zz94i80t7esaaxij5glsfj0uxj,hits
+2026-07-28T23:34:31-04:00,1785296071.554,484.7,baseline,dashboard,1,200,547909,0.585,0,,"datasets available (>= 547,883)"
+2026-07-28T23:34:37-04:00,1785296077.861,491.0,baseline,search,1,200,10000,0.657,0,school OR zz6oq3whtfg7euxa0l0ysanam7,hits
+2026-07-28T23:34:48-04:00,1785296088.54,501.7,baseline,search,1,200,10000,0.673,0,school OR zzq9qodeid0gbqp2632c6flmh0,hits
+2026-07-28T23:34:59-04:00,1785296099.193,512.3,baseline,search,1,200,10000,0.65,0,school OR zzhfapv38d80hkucjmcymdtdw5,hits
+2026-07-28T23:35:01-04:00,1785296101.781,514.9,baseline,dashboard,1,200,547909,0.223,1,,"datasets available (>= 547,883)"
+2026-07-28T23:35:10-04:00,1785296110.574,523.7,baseline,search,1,200,10000,1.374,0,school OR zzjnk6rpztb0gybmovhdytc87t,hits
+2026-07-28T23:35:22-04:00,1785296122.128,535.3,baseline,search,1,200,10000,1.55,0,school OR zzn2s7qin1imuq959lb0c9b358,hits
+2026-07-28T23:35:32-04:00,1785296132.084,545.2,baseline,dashboard,1,200,547909,0.299,0,,"datasets available (>= 547,883)"
+2026-07-28T23:35:32-04:00,1785296132.847,546.0,baseline,search,1,200,10000,0.711,0,school OR zzedq6vpp0msn8ra18tazit0s3,hits
+2026-07-28T23:35:43-04:00,1785296143.362,556.5,baseline,search,1,200,10000,0.509,0,school OR zzm4djol5yod8srpi5tlks5t8v,hits
+2026-07-28T23:35:54-04:00,1785296154.234,567.4,baseline,search,1,200,10000,0.866,0,school OR zzhfu6ixiy6yn00rl6xns1earl,hits
+2026-07-28T23:36:02-04:00,1785296162.282,575.4,baseline,dashboard,1,200,547909,0.192,0,,"datasets available (>= 547,883)"
+2026-07-28T23:36:05-04:00,1785296165.905,579.0,baseline,search,1,200,10000,1.665,1,school OR zzdjoxhhd9in44055h9kih02ir,hits
+2026-07-28T23:36:16-04:00,1785296176.861,590.0,baseline,search,1,200,10000,0.95,0,school OR zzsdlao9mlh8j8qkrmg0jtc5an,hits
+2026-07-28T23:36:27-04:00,1785296187.746,600.9,baseline,search,1,200,10000,0.879,0,school OR zz76v0yuor6lizkqcnnrr40zxn,hits
+2026-07-28T23:36:32-04:00,1785296192.493,605.6,baseline,dashboard,1,200,547909,0.206,0,,"datasets available (>= 547,883)"
+2026-07-28T23:36:38-04:00,1785296198.788,611.9,baseline,search,1,200,10000,1.036,0,school OR zzptlrc71tnbeotjrii9ad13wi,hits
+2026-07-28T23:36:50-04:00,1785296210.05,623.2,baseline,search,1,200,10000,1.255,0,school OR zzqq1dyiuf4ey6wsby5v7dac1a,hits
+2026-07-28T23:37:01-04:00,1785296221.278,634.4,baseline,search,1,200,10000,1.22,0,school OR zz6762wxej6mgrrg6qhktlbmft,hits
+2026-07-28T23:37:02-04:00,1785296222.771,635.9,baseline,dashboard,1,200,547909,0.272,0,,"datasets available (>= 547,883)"
+2026-07-28T23:37:11-04:00,1785296231.958,645.1,baseline,search,1,200,10000,0.676,1,school OR zz647bdq269s03zpcfsluo1k7c,hits
+2026-07-28T23:37:22-04:00,1785296242.655,655.8,baseline,search,1,200,10000,0.691,0,school OR zzbemu6tdum6z7ehi58rdch51v,hits
+2026-07-28T23:37:32-04:00,1785296252.931,666.1,baseline,dashboard,1,200,547909,0.153,0,,"datasets available (>= 547,883)"
+2026-07-28T23:37:46-04:00,1785296266.575,679.7,baseline,search,1,200,10000,13.913,0,school OR zzb8ygdp3ekabsuy3ehj78aedo,hits
+2026-07-28T23:37:58-04:00,1785296278.828,692.0,baseline,search,1,200,10000,2.252,0,school OR zz8abt001hit9v48u9hu0kh5p0,hits
+2026-07-28T23:38:03-04:00,1785296283.192,696.3,baseline,dashboard,1,200,547909,0.256,0,,"datasets available (>= 547,883)"
+2026-07-28T23:38:09-04:00,1785296289.663,702.8,baseline,search,1,200,10000,0.827,0,school OR zz5cmm0x07emiahphehqn5jyvx,hits
+2026-07-28T23:38:21-04:00,1785296301.787,714.9,baseline,search,1,200,10000,2.117,1,school OR zzlb6o25y5l6w534mjcwla2yqe,hits
+2026-07-28T23:38:32-04:00,1785296312.457,725.6,baseline,search,1,200,10000,0.663,0,school OR zzpwdu5gqqq4o0xatqvo8ljasr,hits
+2026-07-28T23:38:33-04:00,1785296313.432,726.6,baseline,dashboard,1,200,547909,0.238,0,,"datasets available (>= 547,883)"
+2026-07-28T23:38:57-04:00,1785296337.224,750.4,baseline,search,1,200,10000,14.76,0,school OR zz6ps9r2b766ieq7zo0ehj73kg,hits
+2026-07-28T23:39:03-04:00,1785296343.664,756.8,baseline,dashboard,1,200,547909,0.226,0,,"datasets available (>= 547,883)"
+2026-07-28T23:39:12-04:00,1785296352.096,765.2,baseline,search,1,200,10000,4.866,0,school OR zzstik1povld9atl0e6tq72bwp,hits
+2026-07-28T23:39:22-04:00,1785296362.767,775.9,baseline,search,1,200,10000,0.664,0,school OR zz9jam519tz43zvvfoxdbizfwh,hits
+2026-07-28T23:39:33-04:00,1785296373.875,787.0,baseline,dashboard,1,200,547909,0.209,0,,"datasets available (>= 547,883)"
+2026-07-28T23:39:34-04:00,1785296374.302,787.4,baseline,search,1,200,10000,1.527,0,school OR zz9gvt0nm9ea835qyzx8mqxqcz,hits
+2026-07-28T23:39:45-04:00,1785296385.106,798.2,baseline,search,1,200,10000,0.797,0,school OR zzmjxp9c05ftoe5ueva5teqm24,hits
+2026-07-28T23:39:56-04:00,1785296396.096,809.2,baseline,search,1,200,10000,0.984,0,school OR zzr9d8zozgoh6dwwq63ka0tovo,hits
+2026-07-28T23:40:04-04:00,1785296404.038,817.2,baseline,dashboard,1,200,547909,0.156,0,,"datasets available (>= 547,883)"
+2026-07-28T23:40:10-04:00,1785296410.502,823.6,baseline,search,1,200,10000,4.4,0,school OR zzv5fe65bk84oz4o83m6cgrfnh,hits
+2026-07-28T23:40:22-04:00,1785296422.331,835.5,baseline,search,1,200,10000,1.822,0,school OR zz4q4w8eqan4bd03byz16dnr6o,hits
+2026-07-28T23:40:33-04:00,1785296433.073,846.2,baseline,search,1,200,10000,0.735,1,school OR zzutnwj0zkilugenfi97yl1mea,hits
+2026-07-28T23:40:34-04:00,1785296434.218,847.4,baseline,dashboard,1,200,547909,0.175,0,,"datasets available (>= 547,883)"
+2026-07-28T23:40:43-04:00,1785296443.581,856.7,rebuilding,search,1,200,10000,0.502,0,school OR zzemclpajvd4bw7n73jqxpfmph,hits
+2026-07-28T23:40:54-04:00,1785296454.311,867.5,rebuilding,search,1,200,10000,0.724,0,school OR zz779p4qsudbtb73gb6q3gk359,hits
+2026-07-28T23:41:04-04:00,1785296464.485,877.6,rebuilding,dashboard,1,200,547909,0.262,0,,"datasets available (>= 547,883)"
+2026-07-28T23:41:05-04:00,1785296465.381,878.5,rebuilding,search,1,200,10000,1.062,0,school OR zz7t1mvrcyap4fgzcz4lcqzh5y,hits
+2026-07-28T23:41:16-04:00,1785296476.181,889.3,rebuilding,search,1,200,10000,0.794,0,school OR zzpzqvpwm14xkipjfawbpwpwck,hits
+2026-07-28T23:41:27-04:00,1785296487.498,900.6,rebuilding,search,1,200,10000,1.314,0,school OR zz8ythwfmydmp05h24bwj8fhym,hits
+2026-07-28T23:41:34-04:00,1785296494.659,907.8,rebuilding,dashboard,1,200,547909,0.17,1,,"datasets available (>= 547,883)"
+2026-07-28T23:41:38-04:00,1785296498.235,911.4,rebuilding,search,1,200,10000,0.727,0,school OR zzi1qtvvqe83broo4k48q8v2i6,hits
+2026-07-28T23:41:59-04:00,1785296519.034,932.2,rebuilding,search,1,200,10000,10.792,0,school OR zzfvoc8mjny4clb6eoio9ze391,hits
+2026-07-28T23:42:04-04:00,1785296524.859,938.0,rebuilding,dashboard,1,200,547909,0.192,0,,"datasets available (>= 547,883)"
+2026-07-28T23:42:10-04:00,1785296530.535,943.7,rebuilding,search,1,200,10000,1.492,0,school OR zze2lk2evuhju5vktcdqp0mrtl,hits
+2026-07-28T23:42:21-04:00,1785296541.089,954.2,rebuilding,search,1,200,10000,0.547,0,school OR zzzlxcs6hqe37klvmykj9k7c11,hits
+2026-07-28T23:42:33-04:00,1785296553.269,966.4,rebuilding,search,1,200,10000,2.171,0,school OR zzvveag9gk8miocnuyrzbvqheg,hits
+2026-07-28T23:42:35-04:00,1785296555.034,968.2,rebuilding,dashboard,1,200,547909,0.169,0,,"datasets available (>= 547,883)"
+2026-07-28T23:42:44-04:00,1785296564.077,977.2,rebuilding,search,1,200,10000,0.8,0,school OR zz7pz99i505k5y3txy1a1aptyz,hits
+2026-07-28T23:42:59-04:00,1785296579.352,992.5,rebuilding,search,1,200,10000,5.267,0,school OR zzwgorq8r7vvv659k0biyrz6pl,hits
+2026-07-28T23:43:05-04:00,1785296585.208,998.4,rebuilding,dashboard,1,200,547909,0.168,0,,"datasets available (>= 547,883)"
+2026-07-28T23:43:10-04:00,1785296590.089,1003.2,rebuilding,search,1,200,10000,0.729,0,school OR zzvmkc5k3yygo06da8ui3zenfh,hits
+2026-07-28T23:43:21-04:00,1785296601.465,1014.6,rebuilding,search,1,200,10000,1.369,0,school OR zziluuzokhwyzkgasepixiwnnw,hits
+2026-07-28T23:43:32-04:00,1785296612.377,1025.5,rebuilding,search,1,200,10000,0.904,0,school OR zzk136323ah4foezk52vn84f23,hits
+2026-07-28T23:43:35-04:00,1785296615.477,1028.6,rebuilding,dashboard,1,200,547909,0.263,0,,"datasets available (>= 547,883)"
+2026-07-28T23:43:43-04:00,1785296623.042,1036.2,rebuilding,search,1,200,10000,0.659,1,school OR zzx42nedzma3hll1y3v26x5q6v,hits
+2026-07-28T23:44:00-04:00,1785296640.588,1053.7,rebuilding,search,1,200,10000,7.538,0,school OR zzkpcupf2pv456xzbd6wmg6b5i,hits
+2026-07-28T23:44:05-04:00,1785296645.657,1058.8,rebuilding,dashboard,1,200,547909,0.178,0,,"datasets available (>= 547,883)"
+2026-07-28T23:44:13-04:00,1785296653.172,1066.3,rebuilding,search,1,200,10000,2.578,0,school OR zzl9a3bf44hkzp85j3zp6cduyo,hits
+2026-07-28T23:44:35-04:00,1785296675.853,1089.0,rebuilding,dashboard,1,200,547909,0.19,0,,"datasets available (>= 547,883)"
+2026-07-28T23:44:42-04:00,1785296682.049,1095.2,rebuilding,search,1,200,10000,18.869,0,school OR zzzahnkzjviquux2dd19os2o31,hits
+2026-07-28T23:44:53-04:00,1785296693.621,1106.8,rebuilding,search,1,200,10000,1.566,0,school OR zzg0j38e0wuk2d8fpsti5qg0ik,hits
+2026-07-28T23:45:06-04:00,1785296706.004,1119.1,rebuilding,dashboard,1,200,547909,0.144,0,,"datasets available (>= 547,883)"
+2026-07-28T23:45:19-04:00,1785296719.356,1132.5,rebuilding,search,1,200,10000,15.728,0,school OR zz7y5884y2q0u3r5z2t7pss6qz,hits
+2026-07-28T23:45:30-04:00,1785296730.377,1143.5,rebuilding,search,1,200,10000,1.014,0,school OR zzbo3muqub3st71pisboa86mlu,hits
+2026-07-28T23:45:36-04:00,1785296736.208,1149.4,rebuilding,dashboard,1,200,547909,0.195,0,,"datasets available (>= 547,883)"
+2026-07-28T23:45:48-04:00,1785296748.12,1161.3,rebuilding,search,1,200,10000,7.739,0,school OR zz3ygltl88wslgtlgt6u5e8874,hits
+2026-07-28T23:45:59-04:00,1785296759.316,1172.5,rebuilding,search,1,200,10000,1.191,1,school OR zz7i9aacjlqg4fpb7y6zvdxmuc,hits
+2026-07-28T23:46:06-04:00,1785296766.467,1179.6,rebuilding,dashboard,1,200,547909,0.253,1,,"datasets available (>= 547,883)"
+2026-07-28T23:46:10-04:00,1785296770.341,1183.5,rebuilding,search,1,200,10000,1.019,0,school OR zzucqmjljajon3g6hub5m4r3q9,hits
+2026-07-28T23:46:21-04:00,1785296781.364,1194.5,rebuilding,search,1,200,10000,1.016,0,school OR zzc88gktx13ifl8yycsnubtrs0,hits
+2026-07-28T23:46:33-04:00,1785296793.425,1206.6,rebuilding,search,1,200,10000,2.056,0,school OR zza1j4hkqfyjguq2ytzb0nbcch,hits
+2026-07-28T23:46:36-04:00,1785296796.635,1209.8,rebuilding,dashboard,1,200,547909,0.163,0,,"datasets available (>= 547,883)"
+2026-07-28T23:46:44-04:00,1785296804.227,1217.4,rebuilding,search,1,200,10000,0.794,0,school OR zzxrd0h2k0o69eiqtr0okwwa62,hits
+2026-07-28T23:47:06-04:00,1785296826.862,1240.0,rebuilding,dashboard,1,200,547909,0.225,0,,"datasets available (>= 547,883)"
+2026-07-28T23:47:10-04:00,1785296830.075,1243.2,rebuilding,search,1,200,10000,15.845,1,school OR zzmyqidx0qx3woviue0mus06gd,hits
+2026-07-28T23:47:21-04:00,1785296841.556,1254.7,rebuilding,search,1,200,10000,1.475,0,school OR zz245ta7simpsdt3mvwmj5fbvp,hits
+2026-07-28T23:47:37-04:00,1785296857.137,1270.3,rebuilding,dashboard,1,200,547909,0.269,0,,"datasets available (>= 547,883)"
+2026-07-28T23:47:44-04:00,1785296864.528,1277.7,rebuilding,search,1,200,10000,12.965,0,school OR zzcv4dqklix2z39yz5q6nmvj8a,hits
+2026-07-28T23:47:56-04:00,1785296876.11,1289.3,rebuilding,search,1,200,10000,1.578,0,school OR zzrd9n64f60371xab7li4j9noy,hits
+2026-07-28T23:48:07-04:00,1785296887.336,1300.5,rebuilding,dashboard,1,200,547909,0.195,0,,"datasets available (>= 547,883)"
+2026-07-28T23:48:16-04:00,1785296896.307,1309.4,rebuilding,search,1,200,10000,10.19,1,school OR zzvngg7vwrbc696612k39efqkk,hits
+2026-07-28T23:48:29-04:00,1785296909.639,1322.8,rebuilding,search,1,200,10000,3.325,0,school OR zz4ib61kyxb031ukptavl4kgqx,hits
+2026-07-28T23:48:37-04:00,1785296917.541,1330.7,rebuilding,dashboard,1,200,547909,0.199,0,,"datasets available (>= 547,883)"
+2026-07-28T23:48:41-04:00,1785296921.237,1334.4,rebuilding,search,1,200,10000,1.592,0,school OR zzh6spptzuarym8gd0elnxlbdr,hits
+2026-07-28T23:48:51-04:00,1785296931.995,1345.1,rebuilding,search,1,200,10000,0.756,0,school OR zzsna7a4gf9lpeqmaegwvs1qlj,hits
+2026-07-28T23:49:07-04:00,1785296947.847,1361.0,rebuilding,dashboard,1,200,547909,0.299,0,,"datasets available (>= 547,883)"
+2026-07-28T23:49:22-04:00,1785296962.553,1375.7,rebuilding,search,1,200,10000,20.557,1,school OR zzlqct3s5ft3fdfkjd9o6xcuvn,hits
+2026-07-28T23:49:34-04:00,1785296974.093,1387.2,rebuilding,search,1,200,10000,1.533,0,school OR zzwloy2cuh5zc6kpa9vn347qw0,hits
+2026-07-28T23:49:38-04:00,1785296978.054,1391.2,rebuilding,dashboard,1,200,547909,0.2,0,,"datasets available (>= 547,883)"
+2026-07-28T23:49:51-04:00,1785296991.463,1404.6,rebuilding,search,1,200,10000,7.365,0,school OR zztmvruing9v12ohin5c3y7zx2,hits
+2026-07-28T23:50:03-04:00,1785297003.029,1416.2,rebuilding,search,1,200,10000,1.563,0,school OR zzqeehraada5jq1x07hyakq5ea,hits
+2026-07-28T23:50:08-04:00,1785297008.268,1421.4,rebuilding,dashboard,1,200,547909,0.205,0,,"datasets available (>= 547,883)"
+2026-07-28T23:50:31-04:00,1785297031.894,1445.0,rebuilding,search,1,200,10000,18.853,1,school OR zzxsxlpf6spb4e3wndkjqchv73,hits
+2026-07-28T23:50:38-04:00,1785297038.529,1451.7,rebuilding,dashboard,1,200,547909,0.253,0,,"datasets available (>= 547,883)"
+2026-07-28T23:50:48-04:00,1785297048.516,1461.7,rebuilding,search,1,200,10000,6.611,0,school OR zzw2dag212pm50c4iubfll45ad,hits
+2026-07-28T23:51:08-04:00,1785297068.71,1481.9,rebuilding,dashboard,1,200,547909,0.178,0,,"datasets available (>= 547,883)"
+2026-07-28T23:51:12-04:00,1785297072.708,1485.9,rebuilding,search,1,200,10000,14.181,0,school OR zzeoi50pm0q6dakxkctzpx393w,hits
+2026-07-28T23:51:23-04:00,1785297083.699,1496.8,rebuilding,search,1,200,10000,0.977,0,school OR zzrs83wbtck62ubwr4mptd4o0s,hits
+2026-07-28T23:51:35-04:00,1785297095.26,1508.4,rebuilding,search,1,200,10000,1.55,1,school OR zz8zoxxvt4kieiq97aylh9bcwy,hits
+2026-07-28T23:51:38-04:00,1785297098.965,1512.1,rebuilding,dashboard,1,200,547909,0.244,0,,"datasets available (>= 547,883)"
+2026-07-28T23:51:51-04:00,1785297111.173,1524.3,rebuilding,search,1,200,10000,5.902,0,school OR zzoxka2smzyss05ayyinpgln6v,hits
+2026-07-28T23:52:02-04:00,1785297122.8,1535.9,rebuilding,search,1,200,10000,1.622,0,school OR zzt28ggfqnz38v5mc7seqscs61,hits
+2026-07-28T23:52:09-04:00,1785297129.225,1542.4,rebuilding,dashboard,1,200,547909,0.249,0,,"datasets available (>= 547,883)"
+2026-07-28T23:52:22-04:00,1785297142.012,1555.2,rebuilding,search,1,200,10000,9.202,0,school OR zzmkk7pm36pxt7pfoudgk8jusn,hits
+2026-07-28T23:52:32-04:00,1785297152.962,1566.1,rebuilding,search,1,200,10000,0.942,0,school OR zz4zgk25twits5fsj7q9jwqr61,hits
+2026-07-28T23:52:39-04:00,1785297159.422,1572.6,rebuilding,dashboard,1,200,547909,0.185,1,,"datasets available (>= 547,883)"
+2026-07-28T23:52:43-04:00,1785297163.861,1577.0,rebuilding,search,1,200,10000,0.895,0,school OR zz9ayu2f5sw1qpodouudtymbxj,hits
+2026-07-28T23:53:05-04:00,1785297185.353,1598.5,rebuilding,search,1,200,10000,11.481,0,school OR zzp1c9jkbrz4ylzmxgutkg3la9,hits
+2026-07-28T23:53:09-04:00,1785297189.672,1602.8,rebuilding,dashboard,1,200,547909,0.24,0,,"datasets available (>= 547,883)"
+2026-07-28T23:53:16-04:00,1785297196.481,1609.6,rebuilding,search,1,200,10000,1.123,0,school OR zzik4x9v2iopsh8dvvq7680r9d,hits
+2026-07-28T23:53:27-04:00,1785297207.093,1620.2,rebuilding,search,1,200,10000,0.606,0,school OR zzuaoqo5rbh48wbv66qxsd77ec,hits
+2026-07-28T23:53:40-04:00,1785297220.273,1633.4,rebuilding,dashboard,1,200,547909,0.59,0,,"datasets available (>= 547,883)"
+2026-07-28T23:54:10-04:00,1785297250.658,1663.8,rebuilding,dashboard,1,200,547909,0.374,1,,"datasets available (>= 547,883)"
+2026-07-28T23:54:16-04:00,1785297256.97,1670.1,rebuilding,search,1,200,10000,39.87,1,school OR zzcb47qf2a7e62ke4s5mk6dgw8,hits
+2026-07-28T23:54:40-04:00,1785297280.46,1693.6,rebuilding,search,1,200,10000,13.487,0,school OR zzz5t5g87cxmrr9norr8yfjrz6,hits
+2026-07-28T23:54:41-04:00,1785297281.009,1694.2,rebuilding,dashboard,1,200,547909,0.344,0,,"datasets available (>= 547,883)"
+2026-07-28T23:55:11-04:00,1785297311.325,1724.5,rebuilding,dashboard,1,200,547909,0.31,0,,"datasets available (>= 547,883)"
+2026-07-28T23:55:41-04:00,1785297341.981,1755.1,rebuilding,dashboard,1,200,547909,0.65,1,,"datasets available (>= 547,883)"
+2026-07-28T23:55:50-04:00,1785297350.537,1763.7,rebuilding,search,0,,,60.07,0,school OR zzo1z9lfbdrnpnyd50u7hvdbfr,TimeoutError: The read operation timed out
+2026-07-28T23:56:12-04:00,1785297372.156,1785.3,rebuilding,dashboard,1,200,547909,0.174,0,,"datasets available (>= 547,883)"
+2026-07-28T23:56:19-04:00,1785297379.544,1792.7,rebuilding,search,1,200,10000,19.002,0,school OR zzxq6ieevb0iioxay28uahf79y,hits
+2026-07-28T23:56:42-04:00,1785297402.422,1815.6,rebuilding,dashboard,1,200,547909,0.261,0,,"datasets available (>= 547,883)"
+2026-07-28T23:56:45-04:00,1785297405.374,1818.5,rebuilding,search,1,200,10000,15.823,0,school OR zzukjlx8ffd74r1ee4hlm8x0jz,hits
+2026-07-28T23:56:56-04:00,1785297416.416,1829.6,rebuilding,search,1,200,10000,1.035,1,school OR zzn0f27fmff2xddligh10wmpjz,hits
+2026-07-28T23:57:07-04:00,1785297427.963,1841.1,rebuilding,search,1,200,10000,1.54,0,school OR zz257hqk33l7gnn0af3f3b3sc7,hits
+2026-07-28T23:57:12-04:00,1785297432.586,1845.7,rebuilding,dashboard,1,200,547909,0.159,0,,"datasets available (>= 547,883)"
+2026-07-28T23:57:19-04:00,1785297439.14,1852.3,rebuilding,search,1,200,10000,1.171,0,school OR zz6y9cx9y0axru6akjgbus84bb,hits
+2026-07-28T23:57:42-04:00,1785297462.809,1876.0,rebuilding,dashboard,1,200,547909,0.221,0,,"datasets available (>= 547,883)"
+2026-07-28T23:58:03-04:00,1785297483.886,1897.0,rebuilding,search,1,200,10000,34.737,0,school OR zz5g0j7yuaiahf0yks8hw0ngg4,hits
+2026-07-28T23:58:13-04:00,1785297493.17,1906.3,rebuilding,dashboard,1,200,547909,0.357,0,,"datasets available (>= 547,883)"
+2026-07-28T23:58:15-04:00,1785297495.996,1909.1,rebuilding,search,1,200,10000,2.103,0,school OR zz3kzalelmr0erd1ikf2dews1h,hits
+2026-07-28T23:58:30-04:00,1785297510.423,1923.6,rebuilding,search,1,200,10000,4.419,0,school OR zzhs1i2lo9ewbxde10wq65846u,hits
+2026-07-28T23:58:41-04:00,1785297521.419,1934.6,rebuilding,search,1,200,10000,0.987,0,school OR zzr6evepgatpayau57dea78cpp,hits
+2026-07-28T23:58:43-04:00,1785297523.342,1936.5,rebuilding,dashboard,1,200,547909,0.167,0,,"datasets available (>= 547,883)"
+2026-07-28T23:59:03-04:00,1785297543.677,1956.8,rebuilding,search,1,200,10000,12.25,0,school OR zzguqpctpf2k2nk3zxqnt2kdy3,hits
+2026-07-28T23:59:13-04:00,1785297553.515,1966.7,rebuilding,dashboard,1,200,547909,0.173,1,,"datasets available (>= 547,883)"
+2026-07-28T23:59:22-04:00,1785297562.674,1975.8,rebuilding,search,1,200,10000,8.992,1,school OR zz1l2a815itg1otn6a76crjs52,hits
+2026-07-28T23:59:42-04:00,1785297582.827,1996.0,rebuilding,search,1,200,10000,10.15,0,school OR zzd1sgcwwhe3k708lrdqhnv0zc,hits
+2026-07-28T23:59:43-04:00,1785297583.87,1997.0,rebuilding,dashboard,1,200,547909,0.351,0,,"datasets available (>= 547,883)"
+2026-07-28T23:59:53-04:00,1785297593.861,2007.0,rebuilding,search,1,200,10000,1.028,0,school OR zz7ze8xqpqwg2ojr3j6eh2jf9s,hits
+2026-07-29T00:00:14-04:00,1785297614.072,2027.2,rebuilding,dashboard,1,200,547909,0.196,0,,"datasets available (>= 547,883)"
+2026-07-29T00:00:17-04:00,1785297617.457,2030.6,rebuilding,search,1,200,10000,13.59,0,school OR zztii79ciotc547v1bs0f23rpa,hits
+2026-07-29T00:00:35-04:00,1785297635.18,2048.3,rebuilding,search,1,200,10000,7.718,1,school OR zzo6hrxtbnx89j30jisjsda71b,hits
+2026-07-29T00:00:44-04:00,1785297644.239,2057.4,rebuilding,dashboard,1,200,547909,0.158,1,,"datasets available (>= 547,883)"
+2026-07-29T00:00:47-04:00,1785297647.448,2060.6,rebuilding,search,1,200,10000,2.262,1,school OR zzxf4j7l1uh0mepp97recnefbk,hits
+2026-07-29T00:01:14-04:00,1785297674.52,2087.7,rebuilding,dashboard,1,200,547909,0.275,0,,"datasets available (>= 547,883)"
+2026-07-29T00:01:14-04:00,1785297674.685,2087.8,rebuilding,search,1,200,10000,17.234,0,school OR zzr5kk2o3ua2ckv7pskhsx980f,hits
+2026-07-29T00:01:26-04:00,1785297686.284,2099.4,rebuilding,search,1,200,10000,1.594,0,school OR zz08mhxyb1kvzb6rowfl89bnva,hits
+2026-07-29T00:01:37-04:00,1785297697.792,2110.9,rebuilding,search,1,200,10000,1.499,0,school OR zz0o9c20bndl1pgu4wdbcoy5v5,hits
+2026-07-29T00:01:44-04:00,1785297704.692,2117.8,rebuilding,dashboard,1,200,547909,0.167,0,,"datasets available (>= 547,883)"
+2026-07-29T00:02:15-04:00,1785297735.03,2148.2,rebuilding,dashboard,1,200,547909,0.333,1,,"datasets available (>= 547,883)"
+2026-07-29T00:02:24-04:00,1785297744.99,2158.1,rebuilding,search,1,200,10000,37.194,1,school OR zz04fmia3i3lladnlwk104zfbr,hits
+2026-07-29T00:02:45-04:00,1785297765.276,2178.4,rebuilding,dashboard,1,200,547909,0.241,0,,"datasets available (>= 547,883)"
+2026-07-29T00:02:46-04:00,1785297766.589,2179.7,rebuilding,search,1,200,10000,11.596,0,school OR zz3slp78hs2lupl1gr7dfttqwn,hits
+2026-07-29T00:02:57-04:00,1785297777.621,2190.8,rebuilding,search,1,200,10000,1.026,0,school OR zzp65bexajaxgkyx8lzqwfwldt,hits
+2026-07-29T00:03:09-04:00,1785297789.124,2202.3,rebuilding,search,1,200,10000,1.501,0,school OR zzzmvuzw12xzg27id24zmzb4gw,hits
+2026-07-29T00:03:15-04:00,1785297795.445,2208.6,rebuilding,dashboard,1,200,547909,0.169,0,,"datasets available (>= 547,883)"
+2026-07-29T00:03:32-04:00,1785297812.731,2225.9,rebuilding,search,1,200,10000,13.606,1,school OR zz3vjbc19au8vi4urxxj0i3tw3,hits
+2026-07-29T00:03:45-04:00,1785297825.662,2238.8,rebuilding,dashboard,1,200,547909,0.211,0,,"datasets available (>= 547,883)"
+2026-07-29T00:03:54-04:00,1785297834.457,2247.6,rebuilding,search,1,200,10000,11.719,0,school OR zzdxivikmjky5cb3qy6ckpp3f5,hits
+2026-07-29T00:04:11-04:00,1785297851.406,2264.5,rebuilding,search,1,200,10000,6.946,0,school OR zz7lbpmduklmup06m5orm7ynpt,hits
+2026-07-29T00:04:15-04:00,1785297855.924,2269.1,rebuilding,dashboard,1,200,547909,0.257,0,,"datasets available (>= 547,883)"
+2026-07-29T00:04:38-04:00,1785297878.273,2291.4,rebuilding,search,1,200,10000,16.86,1,school OR zzqvvf63iiowdnno1tli8alokn,hits
+2026-07-29T00:04:46-04:00,1785297886.294,2299.4,rebuilding,dashboard,1,200,547909,0.369,0,,"datasets available (>= 547,883)"
+2026-07-29T00:04:50-04:00,1785297890.852,2304.0,rebuilding,search,1,200,10000,2.573,0,school OR zzesuwrwwx061la3sro5x55oxe,hits
+2026-07-29T00:05:11-04:00,1785297911.366,2324.5,rebuilding,search,1,200,10000,10.509,0,school OR zzoqr92sq7uzhas79kt6tx4je1,hits
+2026-07-29T00:05:16-04:00,1785297916.473,2329.6,rebuilding,dashboard,1,200,547909,0.172,0,,"datasets available (>= 547,883)"
+2026-07-29T00:05:23-04:00,1785297923.025,2336.2,rebuilding,search,1,200,10000,1.653,0,school OR zzc6yzk4khum4zz87oww1ngld2,hits
+2026-07-29T00:05:39-04:00,1785297939.838,2353.0,rebuilding,search,1,200,10000,6.806,1,school OR zz1sxpiqzuu7r1j6azi9qnj4ob,hits
+2026-07-29T00:05:46-04:00,1785297946.738,2359.9,rebuilding,dashboard,1,200,547909,0.263,0,,"datasets available (>= 547,883)"
+2026-07-29T00:05:50-04:00,1785297950.982,2364.1,rebuilding,search,1,200,10000,1.137,0,school OR zz0dazjefx8pwp3bzaotjoq2iz,hits
+2026-07-29T00:06:16-04:00,1785297976.904,2390.0,rebuilding,dashboard,1,200,547909,0.16,0,,"datasets available (>= 547,883)"
+2026-07-29T00:06:22-04:00,1785297982.924,2396.1,rebuilding,search,1,200,10000,21.936,0,school OR zz0ebrthbqd9dnz1hj2n52taq9,hits
+2026-07-29T00:06:33-04:00,1785297993.976,2407.1,rebuilding,search,1,200,10000,1.047,0,school OR zzkzdadabg4mervonjfo2ydoie,hits
+2026-07-29T00:06:46-04:00,1785298006.444,2419.6,rebuilding,search,1,200,10000,2.462,1,school OR zziyd891m3ulm4xdxvkzbff21b,hits
+2026-07-29T00:06:47-04:00,1785298007.093,2420.2,rebuilding,dashboard,1,200,547909,0.184,1,,"datasets available (>= 547,883)"
+2026-07-29T00:06:57-04:00,1785298017.45,2430.6,rebuilding,search,1,200,10000,0.998,1,school OR zzzxuzt9c3smx243k0ya8zx2xj,hits
+2026-07-29T00:07:13-04:00,1785298033.643,2446.8,rebuilding,search,1,200,10000,6.186,0,school OR zzo8c2uirmlqlhbf4u5lywwez3,hits
+2026-07-29T00:07:17-04:00,1785298037.386,2450.5,rebuilding,dashboard,1,200,547909,0.286,0,,"datasets available (>= 547,883)"
+2026-07-29T00:07:37-04:00,1785298057.451,2470.6,rebuilding,search,1,200,10000,13.805,0,school OR zzfk4w9s9poeo3qeg3e4swg1oh,hits
+2026-07-29T00:07:47-04:00,1785298067.548,2480.7,rebuilding,dashboard,1,200,547909,0.157,0,,"datasets available (>= 547,883)"
+2026-07-29T00:07:48-04:00,1785298068.542,2481.7,rebuilding,search,1,200,10000,1.086,0,school OR zz8qy0cpaovtqq90vqklh4r1qv,hits
+2026-07-29T00:07:59-04:00,1785298079.34,2492.5,rebuilding,search,1,200,10000,0.793,0,school OR zzsflfs6dherpl6uina5minkat,hits
+2026-07-29T00:08:17-04:00,1785298097.719,2510.9,rebuilding,dashboard,1,200,547909,0.165,1,,"datasets available (>= 547,883)"
+2026-07-29T00:08:24-04:00,1785298104.017,2517.2,rebuilding,search,1,200,10000,14.674,1,school OR zzeu61t51hb9wzg8a5lkz8jl3n,hits
+2026-07-29T00:08:47-04:00,1785298127.887,2541.0,rebuilding,dashboard,1,200,547909,0.162,0,,"datasets available (>= 547,883)"
+2026-07-29T00:08:54-04:00,1785298134.898,2548.0,rebuilding,search,1,200,10000,20.875,0,school OR zzoazt2xy89oojraa6tccyl1q9,hits
+2026-07-29T00:09:06-04:00,1785298146.101,2559.2,rebuilding,search,1,200,10000,1.198,0,school OR zzvpujcxt8fvzclywjyvkpwcrx,hits
+2026-07-29T00:09:17-04:00,1785298157.964,2571.1,rebuilding,search,1,200,10000,1.857,0,school OR zzxeahd8fzyyahb3cwxuxe3l87,hits
+2026-07-29T00:09:18-04:00,1785298158.045,2571.2,rebuilding,dashboard,1,200,547909,0.152,0,,"datasets available (>= 547,883)"
+2026-07-29T00:09:43-04:00,1785298183.333,2596.5,rebuilding,search,1,200,10000,15.365,1,school OR zzjx6n3s1f208ac1jztcu94ji8,hits
+2026-07-29T00:09:48-04:00,1785298188.31,2601.5,rebuilding,dashboard,1,200,547909,0.26,0,,"datasets available (>= 547,883)"
+2026-07-29T00:09:54-04:00,1785298194.285,2607.4,rebuilding,search,1,200,10000,0.945,0,school OR zze69bm1qwmlkxpiosh1pl0cj8,hits
+2026-07-29T00:10:18-04:00,1785298218.478,2631.6,rebuilding,dashboard,1,200,547909,0.162,0,,"datasets available (>= 547,883)"
+2026-07-29T00:10:20-04:00,1785298220.266,2633.4,rebuilding,search,1,200,10000,15.973,0,school OR zz9c54gwrct4ohzyaum4xdfpdw,hits
+2026-07-29T00:10:43-04:00,1785298243.46,2656.6,rebuilding,search,1,200,10000,13.186,1,school OR zzod9eqzcshkpuywm2vnto9935,hits
+2026-07-29T00:10:48-04:00,1785298248.71,2661.9,rebuilding,dashboard,1,200,547909,0.228,1,,"datasets available (>= 547,883)"
+2026-07-29T00:10:54-04:00,1785298254.868,2668.0,rebuilding,search,1,200,10000,1.401,0,school OR zzldnr3qa1ll91odfusgif1000,hits
+2026-07-29T00:11:18-04:00,1785298278.887,2692.0,rebuilding,dashboard,1,200,547909,0.171,0,,"datasets available (>= 547,883)"
+2026-07-29T00:11:22-04:00,1785298282.23,2695.4,rebuilding,search,1,200,10000,17.354,0,school OR zzf8dsjv78fyj3sg4n8ia5ifx8,hits
+2026-07-29T00:11:49-04:00,1785298309.038,2722.2,rebuilding,dashboard,1,200,547909,0.174,0,,"datasets available (>= 547,883)"
+2026-07-29T00:11:54-04:00,1785298314.785,2728.0,rebuilding,search,1,200,10000,22.583,1,school OR zzeieagj6i4f4m459heu1dn04k,hits
+2026-07-29T00:12:06-04:00,1785298326.893,2740.1,rebuilding,search,1,200,10000,2.107,0,school OR zzdjfu16qafdngp6xeb5r8qq3y,hits
+2026-07-29T00:12:19-04:00,1785298339.281,2752.5,rebuilding,dashboard,1,200,547909,0.247,0,,"datasets available (>= 547,883)"
+2026-07-29T00:12:27-04:00,1785298347.885,2761.1,rebuilding,search,1,200,10000,10.988,0,school OR zzp858csr5t0zxa1a2oj0abn2v,hits
+2026-07-29T00:12:39-04:00,1785298359.338,2772.5,rebuilding,search,1,200,10000,1.448,0,school OR zzlvgmgu855oyul3jhc710unr1,hits
+2026-07-29T00:12:49-04:00,1785298369.419,2782.6,rebuilding,dashboard,1,200,547909,0.138,0,,"datasets available (>= 547,883)"
+2026-07-29T00:12:53-04:00,1785298373.667,2786.8,rebuilding,search,1,200,10000,4.323,0,school OR zzal9c8wvvle64g1unqulhf5o8,hits
+2026-07-29T00:13:19-04:00,1785298399.673,2812.9,rebuilding,dashboard,1,200,547909,0.253,1,,"datasets available (>= 547,883)"
+2026-07-29T00:13:39-04:00,1785298419.815,2833.0,rebuilding,search,1,200,10000,36.143,1,school OR zzd3zqn23thsw5nez5yji9bzpx,hits
+2026-07-29T00:13:52-04:00,1785298432.126,2845.3,rebuilding,dashboard,1,200,547909,2.448,0,,"datasets available (>= 547,883)"
+2026-07-29T00:13:52-04:00,1785298432.166,2845.3,rebuilding,search,1,200,10000,2.349,0,school OR zzy1fgmiivb8m2ey6xg68a69tp,hits
+2026-07-29T00:14:03-04:00,1785298443.157,2856.3,rebuilding,search,1,200,10000,0.985,0,school OR zzr90kubri2ljp6tkcy4lphypc,hits
+2026-07-29T00:14:22-04:00,1785298462.286,2875.5,rebuilding,dashboard,1,200,547909,0.155,0,,"datasets available (>= 547,883)"
+2026-07-29T00:14:52-04:00,1785298492.493,2905.7,rebuilding,dashboard,1,200,547909,0.201,1,,"datasets available (>= 547,883)"
+2026-07-29T00:14:59-04:00,1785298499.672,2912.9,rebuilding,search,1,200,10000,46.51,0,school OR zzgl46ajkm4xp7hgz60rqvb205,hits
+2026-07-29T00:15:22-04:00,1785298522.741,2935.9,rebuilding,dashboard,1,200,547909,0.243,0,,"datasets available (>= 547,883)"
+2026-07-29T00:15:52-04:00,1785298552.902,2966.1,rebuilding,dashboard,1,200,547909,0.159,0,,"datasets available (>= 547,883)"
+2026-07-29T00:15:56-04:00,1785298556.346,2969.5,rebuilding,search,1,200,10000,46.673,0,school OR zzi2iv1m4ev6nmqhpmy6n41yfh,hits
+2026-07-29T00:16:10-04:00,1785298570.12,2983.3,rebuilding,search,1,200,10000,3.761,0,school OR zzuofkmeh8pop2neu5fkrd3pla,hits
+2026-07-29T00:16:21-04:00,1785298581.118,2994.3,rebuilding,search,1,200,10000,0.992,0,school OR zz3suzqq9x6rut4mz1v7pj038g,hits
+2026-07-29T00:16:23-04:00,1785298583.19,2996.4,rebuilding,dashboard,1,200,547909,0.286,0,,"datasets available (>= 547,883)"
+2026-07-29T00:16:32-04:00,1785298592.995,3006.2,rebuilding,search,1,200,10000,1.866,0,school OR zz8j1g8756w6yndzc16c8dofu0,hits
+2026-07-29T00:16:53-04:00,1785298613.338,3026.5,rebuilding,dashboard,1,200,547909,0.144,0,,"datasets available (>= 547,883)"
+2026-07-29T00:17:16-04:00,1785298636.817,3050.0,rebuilding,search,1,200,10000,33.812,0,school OR zzwsy7vung112crcv5g17y4f7j,hits
+2026-07-29T00:17:23-04:00,1785298643.596,3056.8,rebuilding,dashboard,1,200,547909,0.251,0,,"datasets available (>= 547,883)"
+2026-07-29T00:17:53-04:00,1785298673.879,3087.1,rebuilding,dashboard,1,200,547909,0.273,0,,"datasets available (>= 547,883)"
+2026-07-29T00:17:59-04:00,1785298679.563,3092.7,rebuilding,search,1,200,10000,32.734,0,school OR zzj3ck7m5vd6mkjwxwa2plycbn,hits
+2026-07-29T00:18:24-04:00,1785298704.144,3117.3,rebuilding,dashboard,1,200,547909,0.257,1,,"datasets available (>= 547,883)"
+2026-07-29T00:18:25-04:00,1785298705.241,3118.4,rebuilding,search,1,200,10000,15.666,0,school OR zzgzt57k87pzi8m7mns4r0ljd9,hits
+2026-07-29T00:18:36-04:00,1785298716.387,3129.6,rebuilding,search,1,200,10000,1.134,0,school OR zzvvbdjswlisgx226h43axr1j0,hits
+2026-07-29T00:18:54-04:00,1785298734.346,3147.5,rebuilding,dashboard,1,200,547909,0.193,0,,"datasets available (>= 547,883)"
+2026-07-29T00:18:57-04:00,1785298737.317,3150.5,rebuilding,search,1,200,10000,10.925,0,school OR zztphvhn6yqebzoiqnilgc38iu,hits
+2026-07-29T00:19:08-04:00,1785298748.31,3161.5,rebuilding,search,1,200,10000,0.982,0,school OR zzf7oskstixyuk2ag0j78k4sig,hits
+2026-07-29T00:19:19-04:00,1785298759.443,3172.6,rebuilding,search,1,200,10000,1.119,0,school OR zzl6tvqfv72c7f5etrq67h4gni,hits
+2026-07-29T00:19:24-04:00,1785298764.571,3177.8,rebuilding,dashboard,1,200,547909,0.213,1,,"datasets available (>= 547,883)"
+2026-07-29T00:19:41-04:00,1785298781.441,3194.6,rebuilding,search,1,200,10000,11.992,1,school OR zzmio9szve2b3z7tkms40kks0v,hits
+2026-07-29T00:19:52-04:00,1785298792.882,3206.1,rebuilding,search,1,200,10000,1.432,0,school OR zzua0x5rtu1x21wap1nbmdowpc,hits
+2026-07-29T00:19:54-04:00,1785298794.752,3207.9,rebuilding,dashboard,1,200,547909,0.177,0,,"datasets available (>= 547,883)"
+2026-07-29T00:20:24-04:00,1785298824.941,3238.1,rebuilding,dashboard,1,200,547909,0.187,0,,"datasets available (>= 547,883)"
+2026-07-29T00:20:43-04:00,1785298843.177,3256.4,rebuilding,search,1,200,10000,40.293,1,school OR zzfj4fniasxpaykyti2p91byvu,hits
+2026-07-29T00:20:55-04:00,1785298855.209,3268.4,rebuilding,search,1,200,10000,2.023,0,school OR zzj8gsxhoboj7t8mkcdbt2hmlm,hits
+2026-07-29T00:20:55-04:00,1785298855.216,3268.4,rebuilding,dashboard,1,200,547909,0.269,0,,"datasets available (>= 547,883)"
+2026-07-29T00:21:22-04:00,1785298882.648,3295.8,rebuilding,search,1,200,10000,17.436,0,school OR zzm9nuw3ive9r9c8h8ro5h02fx,hits
+2026-07-29T00:21:25-04:00,1785298885.658,3298.8,rebuilding,dashboard,1,200,547909,0.436,0,,"datasets available (>= 547,883)"
+2026-07-29T00:21:33-04:00,1785298893.641,3306.8,rebuilding,search,1,200,10000,0.986,0,school OR zz3b7d9roto2teurzvdvesb5ml,hits
+2026-07-29T00:21:55-04:00,1785298915.83,3329.0,rebuilding,dashboard,1,200,547909,0.17,0,,"datasets available (>= 547,883)"
+2026-07-29T00:21:56-04:00,1785298916.035,3329.2,rebuilding,search,1,200,10000,12.386,0,school OR zzpbd5h6543yzqlxcs69ip604c,hits
+2026-07-29T00:22:07-04:00,1785298927.17,3340.4,rebuilding,search,1,200,10000,1.128,0,school OR zzdc1d91u87qrgftl9rtaszpja,hits
+2026-07-29T00:22:18-04:00,1785298938.095,3351.3,rebuilding,search,1,200,10000,0.921,0,school OR zzdy6whiz4vsdcf8d7edtgx9nj,hits
+2026-07-29T00:22:26-04:00,1785298946.0,3359.2,rebuilding,dashboard,1,200,547909,0.165,0,,"datasets available (>= 547,883)"
+2026-07-29T00:22:44-04:00,1785298964.71,3377.9,rebuilding,search,1,200,10000,16.609,0,school OR zzd7suhrfhv86plk7vtjksq5ts,hits
+2026-07-29T00:22:56-04:00,1785298976.247,3389.4,rebuilding,dashboard,1,200,547909,0.241,1,,"datasets available (>= 547,883)"
+2026-07-29T00:23:08-04:00,1785298988.453,3401.6,rebuilding,search,1,200,10000,13.736,0,school OR zzg22xl75djlvgqh3457cuhkax,hits
+2026-07-29T00:23:19-04:00,1785298999.868,3413.1,rebuilding,search,1,200,10000,1.407,0,school OR zzbxt2dsk87xo1j67209q8grg7,hits
+2026-07-29T00:23:26-04:00,1785299006.417,3419.6,rebuilding,dashboard,1,200,547909,0.164,0,,"datasets available (>= 547,883)"
+2026-07-29T00:23:51-04:00,1785299031.048,3444.2,rebuilding,search,1,200,10000,21.171,0,school OR zzut58vil08fe5rakhbtik66sv,hits
+2026-07-29T00:23:56-04:00,1785299036.702,3449.9,rebuilding,dashboard,1,200,547909,0.28,0,,"datasets available (>= 547,883)"
+2026-07-29T00:24:02-04:00,1785299042.305,3455.5,rebuilding,search,1,200,10000,1.249,0,school OR zzqtlyrd80o15v9ee68wzu6nxq,hits
+2026-07-29T00:24:13-04:00,1785299053.479,3466.7,rebuilding,search,1,200,10000,1.167,0,school OR zz8xcfznkxb8d8o1u2yo1ruz04,hits
+2026-07-29T00:24:24-04:00,1785299064.414,3477.6,rebuilding,search,1,200,10000,0.926,0,school OR zzxtqji5wk4caf5hcqbv6vn4f6,hits
+2026-07-29T00:24:27-04:00,1785299067.041,3480.2,rebuilding,dashboard,1,200,547909,0.336,0,,"datasets available (>= 547,883)"
+2026-07-29T00:24:37-04:00,1785299077.085,3490.3,rebuilding,search,1,200,10000,2.665,0,school OR zzy5plc7jf6srtfx22pa9b3hpa,hits
+2026-07-29T00:24:47-04:00,1785299087.73,3500.9,rebuilding,search,1,200,10000,0.642,0,school OR zz7e0630d7mbqgwe7znzr6v77i,hits
+2026-07-29T00:24:57-04:00,1785299097.205,3510.4,rebuilding,dashboard,1,200,547909,0.158,0,,"datasets available (>= 547,883)"
+2026-07-29T00:24:59-04:00,1785299099.451,3512.6,rebuilding,search,1,200,10000,1.713,0,school OR zzl8mk8pmz75k011ml02ik6f4k,hits
+2026-07-29T00:25:23-04:00,1785299123.751,3536.9,rebuilding,search,1,200,10000,14.288,1,school OR zzvq4imy3s0k7dmkpi4v1injvf,hits
+2026-07-29T00:25:27-04:00,1785299127.527,3540.7,rebuilding,dashboard,1,200,547909,0.317,1,,"datasets available (>= 547,883)"
+2026-07-29T00:25:38-04:00,1785299138.853,3552.0,rebuilding,search,1,200,10000,5.093,0,school OR zz0qhn9yclmju292fin5e4dtbc,hits
+2026-07-29T00:25:57-04:00,1785299157.356,3570.5,rebuilding,search,1,200,10000,8.498,0,school OR zzddf5rnoac4ei0kucm7slrnl4,hits
+2026-07-29T00:25:57-04:00,1785299157.785,3571.0,rebuilding,dashboard,1,200,547909,0.257,0,,"datasets available (>= 547,883)"
+2026-07-29T00:26:10-04:00,1785299170.798,3584.0,rebuilding,search,1,200,10000,3.43,0,school OR zztebqkvgayeyan28n1ejo9irh,hits
+2026-07-29T00:26:27-04:00,1785299187.941,3601.1,rebuilding,dashboard,1,200,547909,0.145,0,,"datasets available (>= 547,883)"
+2026-07-29T00:26:42-04:00,1785299202.824,3616.0,rebuilding,search,1,200,10000,22.021,1,school OR zz75n27x7jq8qxs122qwrdtp8q,hits
+2026-07-29T00:26:54-04:00,1785299214.044,3627.2,rebuilding,search,1,200,10000,1.214,0,school OR zzf465lxd2foishqp4kzmtskwm,hits
+2026-07-29T00:26:58-04:00,1785299218.159,3631.3,rebuilding,dashboard,1,200,547909,0.214,0,,"datasets available (>= 547,883)"
+2026-07-29T00:27:21-04:00,1785299241.236,3654.4,rebuilding,search,1,200,10000,17.182,0,school OR zzkqnrdnw41xbymlg71gpdm89g,hits
+2026-07-29T00:27:28-04:00,1785299248.446,3661.6,rebuilding,dashboard,1,200,547909,0.282,0,,"datasets available (>= 547,883)"
+2026-07-29T00:27:32-04:00,1785299252.081,3665.3,rebuilding,search,1,200,10000,0.832,0,school OR zzlww4k7mrdx177wlg44khseva,hits
+2026-07-29T00:27:43-04:00,1785299263.232,3676.4,rebuilding,search,1,200,10000,1.146,0,school OR zz4wzbmxv80wyg4ot9rmis9k0l,hits
+2026-07-29T00:27:58-04:00,1785299278.626,3691.8,rebuilding,dashboard,1,200,547909,0.169,1,,"datasets available (>= 547,883)"
+2026-07-29T00:28:06-04:00,1785299286.623,3699.8,rebuilding,search,1,200,10000,13.38,1,school OR zz2frhvcngrgjhraf7hsqo25bv,hits
+2026-07-29T00:28:17-04:00,1785299297.855,3711.0,rebuilding,search,1,200,10000,1.22,0,school OR zzxbqbxa1atufi6lmf53eypdh0,hits
+2026-07-29T00:28:28-04:00,1785299308.805,3722.0,rebuilding,dashboard,1,200,547909,0.173,0,,"datasets available (>= 547,883)"
+2026-07-29T00:28:37-04:00,1785299317.888,3731.1,rebuilding,search,1,200,10000,10.026,0,school OR zzis1ztvn2kwdoe53c5px1xq8t,hits
+2026-07-29T00:28:49-04:00,1785299329.612,3742.8,rebuilding,search,1,200,10000,1.714,0,school OR zz1691tmva4omttj2n56rjmgz8,hits
+2026-07-29T00:28:59-04:00,1785299339.368,3752.6,rebuilding,dashboard,1,200,547909,0.553,0,,"datasets available (>= 547,883)"
+2026-07-29T00:29:00-04:00,1785299340.53,3753.7,rebuilding,search,1,200,10000,0.912,0,school OR zz155r14acw0c4mj6k7ocjs72u,hits
+2026-07-29T00:29:11-04:00,1785299351.635,3764.8,rebuilding,search,1,200,10000,1.097,1,school OR zzc62d4abi0wkkfpnuhf5qrse7,hits
+2026-07-29T00:29:29-04:00,1785299369.602,3782.8,rebuilding,dashboard,1,200,547909,0.233,0,,"datasets available (>= 547,883)"
+2026-07-29T00:29:39-04:00,1785299379.632,3792.8,rebuilding,search,1,200,10000,17.988,0,school OR zzsqtpsz0sbknvltyko7y8902i,hits
+2026-07-29T00:29:57-04:00,1785299397.355,3810.5,rebuilding,search,1,200,10000,7.715,0,school OR zzg42bdpzcrx62pp3r5i0xayx4,hits
+2026-07-29T00:30:00-04:00,1785299400.208,3813.4,rebuilding,dashboard,1,200,547909,0.596,0,,"datasets available (>= 547,883)"
+2026-07-29T00:30:20-04:00,1785299420.546,3833.7,rebuilding,search,1,200,10000,13.18,1,school OR zzv278lfzpt4alqpvou6k5a7v1,hits
+2026-07-29T00:30:30-04:00,1785299430.583,3843.8,rebuilding,dashboard,1,200,547909,0.363,0,,"datasets available (>= 547,883)"
+2026-07-29T00:30:31-04:00,1785299431.618,3844.8,rebuilding,search,1,200,10000,1.062,0,school OR zzrn3qrg3nveu6crt8co5xkqm6,hits
+2026-07-29T00:31:00-04:00,1785299460.819,3874.0,rebuilding,dashboard,1,200,547909,0.225,0,,"datasets available (>= 547,883)"
+2026-07-29T00:31:19-04:00,1785299479.429,3892.6,rebuilding,search,1,200,10000,37.801,0,school OR zz4mjic9xeof1rr3sbke3toi2g,hits
+2026-07-29T00:31:30-04:00,1785299490.965,3904.2,rebuilding,dashboard,1,200,547909,0.134,1,,"datasets available (>= 547,883)"
+2026-07-29T00:31:36-04:00,1785299496.067,3909.3,rebuilding,search,1,200,10000,6.625,1,school OR zzjln56u23w8fcqamsfryw33t0,hits
+2026-07-29T00:31:59-04:00,1785299519.483,3932.7,rebuilding,search,1,200,10000,13.413,0,school OR zzdg1wukkmm97vyeoyq8c2ufpm,hits
+2026-07-29T00:32:01-04:00,1785299521.144,3934.3,rebuilding,dashboard,1,200,547909,0.176,0,,"datasets available (>= 547,883)"
+2026-07-29T00:32:20-04:00,1785299540.429,3953.6,rebuilding,search,1,200,10000,10.942,0,school OR zzgt9hgupo2e4mytbbplt6m9gx,hits
+2026-07-29T00:32:31-04:00,1785299551.414,3964.6,rebuilding,dashboard,1,200,547909,0.259,0,,"datasets available (>= 547,883)"
+2026-07-29T00:32:33-04:00,1785299553.183,3966.4,rebuilding,search,1,200,10000,2.75,0,school OR zze1s8n54ez1iz2hgctm7wlpau,hits
+2026-07-29T00:32:51-04:00,1785299571.695,3984.9,rebuilding,search,1,200,10000,8.502,1,school OR zzjfmk9kn4z0e0wwuqr6unqrj3,hits
+2026-07-29T00:33:01-04:00,1785299581.607,3994.8,rebuilding,dashboard,1,200,547909,0.182,0,,"datasets available (>= 547,883)"
+2026-07-29T00:33:03-04:00,1785299583.122,3996.3,rebuilding,search,1,200,10000,1.424,0,school OR zz0pr4qoaw1r0wh1qrkcvaac5t,hits
+2026-07-29T00:33:22-04:00,1785299602.818,4016.0,rebuilding,search,1,200,10000,9.684,0,school OR zzveehf3f0kzjscldsf03t96er,hits
+2026-07-29T00:33:31-04:00,1785299611.852,4025.0,rebuilding,dashboard,1,200,547909,0.242,0,,"datasets available (>= 547,883)"
+2026-07-29T00:33:46-04:00,1785299626.006,4039.2,rebuilding,search,1,200,10000,13.181,0,school OR zzdvhdllyichnk6t5y7koy7p35,hits
+2026-07-29T00:33:56-04:00,1785299636.897,4050.1,rebuilding,search,1,200,10000,0.888,1,school OR zz5bksjlw40itno423yqghsb22,hits
+2026-07-29T00:34:02-04:00,1785299642.115,4055.3,rebuilding,dashboard,1,200,547909,0.253,1,,"datasets available (>= 547,883)"
+2026-07-29T00:34:08-04:00,1785299648.085,4061.3,rebuilding,search,1,200,10000,1.184,1,school OR zzoavm5cbyj6s2rdvxrfhpe8ji,hits
+2026-07-29T00:34:30-04:00,1785299670.964,4084.2,rebuilding,search,1,200,10000,12.867,0,school OR zzhnvmofvwug5uh7djeyaezzu5,hits
+2026-07-29T00:34:32-04:00,1785299672.291,4085.5,rebuilding,dashboard,1,200,547909,0.167,0,,"datasets available (>= 547,883)"
+2026-07-29T00:35:02-04:00,1785299702.529,4115.7,rebuilding,dashboard,1,200,547909,0.233,0,,"datasets available (>= 547,883)"
+2026-07-29T00:35:23-04:00,1785299723.246,4136.4,rebuilding,search,1,200,10000,42.276,0,school OR zz5ng8h6f3fl9x9j0zhpmnx63z,hits
+2026-07-29T00:35:32-04:00,1785299732.677,4145.9,rebuilding,dashboard,1,200,547909,0.142,0,,"datasets available (>= 547,883)"
+2026-07-29T00:35:37-04:00,1785299737.015,4150.2,rebuilding,search,1,200,10000,3.765,0,school OR zz959c84d7sbx0pnsdjfxp426z,hits
+2026-07-29T00:35:48-04:00,1785299748.868,4162.0,rebuilding,search,1,200,10000,1.829,0,school OR zzk3td5vlqirr995hito8lar0b,hits
+2026-07-29T00:36:02-04:00,1785299762.87,4176.0,rebuilding,dashboard,1,200,547909,0.162,0,,"datasets available (>= 547,883)"
+2026-07-29T00:36:11-04:00,1785299771.228,4184.4,rebuilding,search,1,200,10000,12.341,0,school OR zzj0r8dpn5t466skvxxf5ffm02,hits
+2026-07-29T00:36:32-04:00,1785299792.102,4205.3,rebuilding,search,1,200,10000,10.87,0,school OR zzxww46h3gh367e1zf592iwsyn,hits
+2026-07-29T00:36:33-04:00,1785299793.484,4206.6,rebuilding,dashboard,1,200,547909,0.603,0,,"datasets available (>= 547,883)"
+2026-07-29T00:36:43-04:00,1785299803.114,4216.3,rebuilding,search,1,200,10000,1.006,0,school OR zz3sjzev6csmzsbl4xrlje9sy7,hits
+2026-07-29T00:37:03-04:00,1785299823.596,4236.8,rebuilding,search,1,200,10000,10.474,0,school OR zz9i4rzpokqml74nhzw0irilml,hits
+2026-07-29T00:37:03-04:00,1785299823.67,4236.8,rebuilding,dashboard,1,200,547909,0.179,0,,"datasets available (>= 547,883)"
+2026-07-29T00:37:14-04:00,1785299834.619,4247.8,rebuilding,search,1,200,10000,1.016,0,school OR zzj6s715uyrnux4cttcmkq1vh7,hits
+2026-07-29T00:37:25-04:00,1785299845.299,4258.5,rebuilding,search,1,200,10000,0.674,0,school OR zzp1whqw7864ng937kx5m56uxl,hits
+2026-07-29T00:37:33-04:00,1785299853.925,4267.1,rebuilding,dashboard,1,200,547909,0.255,1,,"datasets available (>= 547,883)"
+2026-07-29T00:37:36-04:00,1785299856.275,4269.4,rebuilding,search,1,200,10000,0.968,1,school OR zzdglra2bcmdpfdlnajksh3vb3,hits
+2026-07-29T00:37:49-04:00,1785299869.134,4282.3,rebuilding,search,1,200,10000,2.854,1,school OR zz440xni3gr4w3t33a5zs82rxz,hits
+2026-07-29T00:38:00-04:00,1785299880.328,4293.5,rebuilding,search,1,200,10000,1.187,0,school OR zzoov3jmvvu94p4n7evz794x0n,hits
+2026-07-29T00:38:04-04:00,1785299884.092,4297.3,rebuilding,dashboard,1,200,547909,0.161,0,,"datasets available (>= 547,883)"
+2026-07-29T00:38:14-04:00,1785299894.474,4307.6,rebuilding,search,1,200,10000,4.141,0,school OR zzel4sglxxpdlmy6e5b790m2r9,hits
+2026-07-29T00:38:25-04:00,1785299905.146,4318.3,rebuilding,search,1,200,10000,0.666,0,school OR zz7ucl4xf6cjq3a1jnk6lqrw2v,hits
+2026-07-29T00:38:34-04:00,1785299914.367,4327.5,rebuilding,dashboard,1,200,547909,0.274,0,,"datasets available (>= 547,883)"
+2026-07-29T00:38:36-04:00,1785299916.397,4329.6,rebuilding,search,1,200,10000,1.243,0,school OR zz6714a62wrjtcfbifylgfejg4,hits
+2026-07-29T00:39:00-04:00,1785299940.328,4353.5,rebuilding,search,1,200,10000,13.925,1,school OR zzwkoa5pkboebg5ajb44mh71i2,hits
+2026-07-29T00:39:04-04:00,1785299944.528,4357.7,rebuilding,dashboard,1,200,547909,0.158,0,,"datasets available (>= 547,883)"
+2026-07-29T00:39:11-04:00,1785299951.571,4364.7,rebuilding,search,1,200,10000,1.236,0,school OR zzxh8p3q1yo9kp6hjop8zhj8di,hits
+2026-07-29T00:39:23-04:00,1785299963.225,4376.4,rebuilding,search,1,200,10000,1.647,0,school OR zzm30j844ry7bcj9fqu42vk095,hits
+2026-07-29T00:39:34-04:00,1785299974.639,4387.8,rebuilding,search,1,200,10000,1.407,0,school OR zzwcu54yqlahf05q5hupleaaou,hits
+2026-07-29T00:39:34-04:00,1785299974.697,4387.9,rebuilding,dashboard,1,200,547909,0.162,0,,"datasets available (>= 547,883)"
+2026-07-29T00:39:45-04:00,1785299985.57,4398.7,rebuilding,search,1,200,10000,0.925,0,school OR zztxgh80lv5yff1vd9nvzljcs1,hits
+2026-07-29T00:39:56-04:00,1785299996.949,4410.1,rebuilding,search,1,200,10000,1.373,0,school OR zz9jhylms2naxu7wxm9c09p31i,hits
+2026-07-29T00:40:04-04:00,1785300004.99,4418.2,rebuilding,dashboard,1,200,547909,0.288,1,,"datasets available (>= 547,883)"
+2026-07-29T00:40:26-04:00,1785300026.84,4440.0,rebuilding,search,1,200,10000,19.885,1,school OR zzzap5nt6f0j97xy1goj7vjehf,hits
+2026-07-29T00:40:35-04:00,1785300035.147,4448.3,rebuilding,dashboard,1,200,547909,0.152,0,,"datasets available (>= 547,883)"
+2026-07-29T00:40:37-04:00,1785300037.722,4450.9,rebuilding,search,1,200,10000,0.875,0,school OR zzh44iwxcqxrqj1gc02dtbkbeg,hits
+2026-07-29T00:40:49-04:00,1785300049.049,4462.2,finished,search,1,200,10000,1.322,0,school OR zz8onmrw6bmhotwctxmyvc5dcs,hits
+2026-07-29T00:40:59-04:00,1785300059.806,4473.0,finished,search,1,200,10000,0.753,0,school OR zzd7vfwxt6i685fc243bcwg0b7,hits
+2026-07-29T00:41:05-04:00,1785300065.337,4478.5,finished,dashboard,1,200,547909,0.185,0,,"datasets available (>= 547,883)"
+2026-07-29T00:41:10-04:00,1785300070.758,4483.9,finished,search,1,200,10000,0.946,0,school OR zzyggbj7invvpxb4g27nodg3bi,hits
+2026-07-29T00:41:21-04:00,1785300081.719,4494.9,finished,search,1,200,10000,0.953,0,school OR zz7kyrz3slklx669cb6qddge3s,hits
+2026-07-29T00:41:32-04:00,1785300092.355,4505.5,finished,search,1,200,10000,0.629,1,school OR zzbt43zf3y36hdez0jux3ihr63,hits
+2026-07-29T00:41:35-04:00,1785300095.506,4508.7,finished,dashboard,1,200,547909,0.162,0,,"datasets available (>= 547,883)"
+2026-07-29T00:41:43-04:00,1785300103.204,4516.4,finished,search,1,200,10000,0.841,0,school OR zz37bct4rpndhwxlvzlj65j4za,hits
+2026-07-29T00:41:53-04:00,1785300113.85,4527.0,finished,search,1,200,10000,0.639,0,school OR zzjrs2qdj16nhjn9pxqhqhytgv,hits
+2026-07-29T00:42:05-04:00,1785300125.037,4538.2,finished,search,1,200,10000,1.178,0,school OR zz1ogssxfrnbnqi1d4jr804v14,hits
+2026-07-29T00:42:05-04:00,1785300125.658,4538.8,finished,dashboard,1,200,547909,0.147,0,,"datasets available (>= 547,883)"
+2026-07-29T00:42:15-04:00,1785300135.814,4549.0,finished,search,1,200,10000,0.772,0,school OR zzi1dst1gbsuvicxdm15qbzruh,hits
+2026-07-29T00:42:26-04:00,1785300146.586,4559.8,finished,search,1,200,10000,0.765,0,school OR zznjiva8867ret8a8t0yxtlkj4,hits
+2026-07-29T00:42:35-04:00,1785300155.808,4569.0,finished,dashboard,1,200,547909,0.147,1,,"datasets available (>= 547,883)"
+2026-07-29T00:42:37-04:00,1785300157.306,4570.5,finished,search,1,200,10000,0.711,0,school OR zzj46fp3shrtfaabo5w7nbvcsb,hits
+2026-07-29T00:42:48-04:00,1785300168.052,4581.2,finished,search,1,200,10000,0.737,0,school OR zzd97nr6p6ur8e88jx4xagsksc,hits
+2026-07-29T00:42:58-04:00,1785300178.675,4591.8,finished,search,1,200,10000,0.615,0,school OR zzvyo6h67k4duae413bd9nf6xl,hits
+2026-07-29T00:43:05-04:00,1785300185.973,4599.1,finished,dashboard,1,200,547909,0.16,0,,"datasets available (>= 547,883)"
+2026-07-29T00:43:09-04:00,1785300189.467,4602.6,finished,search,1,200,10000,0.786,0,school OR zzrpvrubhpuw8nz2ar7zoq7blu,hits
+2026-07-29T00:43:20-04:00,1785300200.331,4613.5,finished,search,1,200,10000,0.854,0,school OR zzd5r0006flkfca3ftvwfd56us,hits
+2026-07-29T00:43:31-04:00,1785300211.168,4624.3,finished,search,1,200,10000,0.829,0,school OR zzelu69ayb26boibmnms15bqma,hits
+2026-07-29T00:43:36-04:00,1785300216.119,4629.3,finished,dashboard,1,200,547909,0.143,0,,"datasets available (>= 547,883)"
+2026-07-29T00:43:41-04:00,1785300221.808,4635.0,finished,search,1,200,10000,0.634,1,school OR zzc3r6kenf4apz952pjyf4q9hk,hits
+2026-07-29T00:43:52-04:00,1785300232.569,4645.7,finished,search,1,200,10000,0.756,0,school OR zzpns4wdny3evtgindoh5x8zd2,hits
+2026-07-29T00:44:04-04:00,1785300244.103,4657.3,finished,search,1,200,10000,1.53,0,school OR zz83jeh188k8u1x7vjmhxvd3zt,hits
