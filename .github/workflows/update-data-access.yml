@@ -16,7 +16,8 @@ on:
         type: string
 
 permissions:
-  contents: read
+  contents: write
+  pull-requests: write
 
 concurrency:
   group: data-access-update
@@ -29,19 +30,14 @@ env:
 jobs:
   update:
     runs-on: ubuntu-latest
-
     env:
       VERSION: >-
         ${{ github.event.client_payload.version || inputs.version }}
       RELEASE_URL: >-
         ${{ github.event.client_payload.release_url || inputs.release_url }}
-
     steps:
       - name: Check out repository
         uses: actions/checkout@v6
-        with:
-          token: ${{ secrets.DATA_ACCESS_RELEASE_TOKEN }}
-          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v6
@@ -57,15 +53,9 @@ jobs:
         run: |
           poetry add --lock "git+https://github.com/GSA/datagov_data_access.git#${VERSION}"
 
-      - name: Configure Git
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email \
-            "41898282+github-actions[bot]@users.noreply.github.com"
-
-      - name: Create pull request
+      - name: Commit and open pull request
         env:
-          GH_TOKEN: ${{ secrets.DATA_ACCESS_RELEASE_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
         run: |
           set -euo pipefail
@@ -84,15 +74,42 @@ jobs:
             exit 0
           fi
 
-          git checkout -B "$BRANCH"
+          HEAD_SHA="$(git rev-parse HEAD)"
 
-          git add pyproject.toml poetry.lock
-          git commit \
-            -m "chore: update datagov-data-access to ${VERSION}"
+          # Point the branch at the base commit: create it, or reset it on re-run.
+          if ! gh api --method POST "repos/${GITHUB_REPOSITORY}/git/refs" \
+                 -f ref="refs/heads/${BRANCH}" \
+                 -f sha="$HEAD_SHA" >/dev/null 2>&1; then
+            gh api --method PATCH \
+              "repos/${GITHUB_REPOSITORY}/git/refs/heads/${BRANCH}" \
+              -f sha="$HEAD_SHA" \
+              -F force=true >/dev/null
+          fi
 
-          git push \
-            --force-with-lease \
-            --set-upstream origin "$BRANCH"
+          # createCommitOnBranch: GitHub signs the resulting commit server-side.
+          # Body is piped as JSON so large lockfiles don't hit the shell's
+          # 128 KB single-argument limit.
+          jq -n \
+            --arg repo "$GITHUB_REPOSITORY" \
+            --arg branch "$BRANCH" \
+            --arg oid "$HEAD_SHA" \
+            --arg msg "chore: update datagov-data-access to ${VERSION}" \
+            --rawfile pyproject pyproject.toml \
+            --rawfile lock poetry.lock \
+            '{
+              query: "mutation($repo:String!,$branch:String!,$oid:GitObjectID!,$msg:String!,$files:[FileAddition!]!){createCommitOnBranch(input:{branch:{repositoryNameWithOwner:$repo,branchName:$branch},expectedHeadOid:$oid,message:{headline:$msg},fileChanges:{additions:$files}}){commit{url}}}",
+              variables: {
+                repo: $repo,
+                branch: $branch,
+                oid: $oid,
+                msg: $msg,
+                files: [
+                  { path: "pyproject.toml", contents: ($pyproject | @base64) },
+                  { path: "poetry.lock",    contents: ($lock      | @base64) }
+                ]
+              }
+            }' |
+          gh api graphql --input -
 
           EXISTING_PR="$(
             gh pr list \
