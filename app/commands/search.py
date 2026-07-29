@@ -48,11 +48,17 @@ def _normalize_last_harvested(value):
 
 
 def _normalize_mapping_for_comparison(value):
-    """Normalize mapping defaults omitted by OpenSearch responses."""
+    """Normalize equivalent mapping representations returned by OpenSearch."""
     if isinstance(value, dict):
         normalized = {
             key: _normalize_mapping_for_comparison(item) for key, item in value.items()
         }
+        # The application mapping declares `dynamic` as a Python bool, but
+        # OpenSearch stores and returns it as the string "false"/"true". Compare
+        # both as the string form so an equivalent mapping is not read as a
+        # mismatch.
+        if isinstance(normalized.get("dynamic"), bool):
+            normalized["dynamic"] = str(normalized["dynamic"]).lower()
         if normalized.get("search_analyzer") is not None and normalized.get(
             "search_analyzer"
         ) == normalized.get("analyzer"):

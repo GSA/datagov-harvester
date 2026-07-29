@@ -172,10 +172,19 @@ def _rebuild_client(alias_indices=None, legacy_concrete=False, target_count=5):
     new index is created (expects False) and again during the alias switch
     (expects True). ``created`` tracks that transition. ``target_count`` is what
     ``count(target_index)`` reports for the post-backfill validation.
+
+    The mapping includes a ``dynamic`` flag declared as a Python bool, and
+    ``get_mapping`` echoes it back as OpenSearch really does -- the string
+    ``"false"`` -- so the round-trip comparison is exercised rather than assumed.
     """
     client = Mock()
     client.INDEX_NAME = "datasets"
-    client.MAPPINGS = {"properties": {"title": {"type": "text"}}}
+    client.MAPPINGS = {
+        "properties": {
+            "title": {"type": "text"},
+            "dcat": {"type": "nested", "dynamic": False},
+        }
+    }
     client.SETTINGS = {"analysis": {}}
 
     created = set(alias_indices or [])
@@ -196,7 +205,14 @@ def _rebuild_client(alias_indices=None, legacy_concrete=False, target_count=5):
         index: {} for index in (alias_indices or [])
     }
     client.client.indices.get_mapping.side_effect = lambda index: {
-        index: {"mappings": {"properties": {"title": {"type": "text"}}}}
+        index: {
+            "mappings": {
+                "properties": {
+                    "title": {"type": "text"},
+                    "dcat": {"type": "nested", "dynamic": "false"},
+                }
+            }
+        }
     }
     client.client.count.return_value = {"count": target_count}
     client.client.indices.update_aliases.return_value = {"acknowledged": True}
