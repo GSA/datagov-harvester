@@ -209,6 +209,8 @@ Alternately, you can just push the app up and it will bind with the services so 
 
 The harvester also expects an OpenSearch service named `datagov-catalog-opensearch`. The provisioning script creates it with Cloud.gov's `aws-elasticsearch` broker and requests `OpenSearch_2.11`, using `es-medium` in development and `es-medium-ha` in staging and `es-large` in production.
 
+The cluster is shared with `datagov-catalog`, which binds the same instance and is the main read consumer — hence the catalog-flavored name. Rather than hardcoding it, `.profile` resolves the live instance *by name* from `OPENSEARCH_SERVICE_NAME` (defaulting to `datagov-catalog-opensearch`), and exports a second set of `OPENSEARCH_NEXT_*` credentials when `OPENSEARCH_NEXT_SERVICE_NAME` names another bound instance. That lets `flask search rebuild-index --cluster next` rebuild the index on a replacement cluster without loading the live one, and makes moving to that cluster a `cf set-env` plus a rolling restart. Note the broker cannot change an instance's plan, so a new instance is the only way to resize. See [docs/ops/migrate-opensearch-cluster.md](ops/migrate-opensearch-cluster.md).
+
 #### User provided
 
 A user provided service by the name of `datagov-harvest-secrets` is also expected to be in place and populated with the following secrets:

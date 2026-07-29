@@ -2,6 +2,13 @@
 
 This is miscellaneous notes on operating the Harvester system.
 
+## Runbooks
+
+- [Migrating to a new OpenSearch cluster](migrate-opensearch-cluster.md) —
+  rebuild the dataset index on a freshly provisioned cloud.gov cluster so live
+  search sees no degradation, then cut the harvester and catalog over to it.
+  Also the only way to resize, since the broker cannot change an instance's plan.
+
 ## Enabling or disabling harvesting
 
 Run the **Toggle Harvester** GitHub Actions workflow and select the target

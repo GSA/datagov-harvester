@@ -1,12 +1,17 @@
+import os
 from datetime import datetime
 from unittest.mock import Mock, patch
 
+import click
+import pytest
 from opensearchpy.exceptions import RequestError
 
 from app.commands.search import (
     OPENSEARCH_CREATE_INDEX_TIMEOUT_SECONDS,
     OPENSEARCH_INDEX_BATCH_FAILURE_MESSAGE,
     OPENSEARCH_SKIPPED_DOCUMENTS_BANNER,
+    _is_aws_opensearch_host,
+    _next_cluster_environment,
     db_interface,
 )
 
@@ -696,3 +701,434 @@ def test_delete_index_refuses_logical_alias_name(app):
     assert result.exit_code != 0
     assert "physical index starting with" in result.output
     client.client.indices.delete.assert_not_called()
+
+
+# --- Cluster targeting -------------------------------------------------------
+#
+# A rebuild loads whichever cluster it runs against, so `--cluster next` exists
+# to keep that load off the cluster serving live queries. These tests pin the
+# credential swap, its restoration, and the fact that `live` is unchanged.
+
+
+@pytest.fixture
+def next_cluster_environment(monkeypatch):
+    """Bind a replacement cluster the way .profile does, and a live one."""
+    monkeypatch.setenv("OPENSEARCH_HOST", "live.example")
+    monkeypatch.setenv("OPENSEARCH_ACCESS_KEY", "live-access")
+    monkeypatch.setenv("OPENSEARCH_SECRET_KEY", "live-secret")
+    monkeypatch.setenv("OPENSEARCH_NEXT_HOST", "next.example")
+    monkeypatch.setenv("OPENSEARCH_NEXT_ACCESS_KEY", "next-access")
+    monkeypatch.setenv("OPENSEARCH_NEXT_SECRET_KEY", "next-secret")
+
+
+@pytest.fixture
+def aws_next_cluster_environment(monkeypatch, next_cluster_environment):
+    """A replacement cluster on a host that selects the AWS SigV4 path."""
+    monkeypatch.setenv("OPENSEARCH_NEXT_HOST", "next.us-gov-west-1.es.amazonaws.com")
+
+
+def test_next_cluster_environment_swaps_and_restores_credentials(
+    next_cluster_environment,
+):
+    with _next_cluster_environment():
+        # Inside the block the client's fixed env var names resolve to the
+        # replacement cluster, which is what pins a constructed client to it.
+        assert os.environ["OPENSEARCH_HOST"] == "next.example"
+        assert os.environ["OPENSEARCH_ACCESS_KEY"] == "next-access"
+        assert os.environ["OPENSEARCH_SECRET_KEY"] == "next-secret"
+
+    assert os.environ["OPENSEARCH_HOST"] == "live.example"
+    assert os.environ["OPENSEARCH_ACCESS_KEY"] == "live-access"
+    assert os.environ["OPENSEARCH_SECRET_KEY"] == "live-secret"
+
+
+def test_next_cluster_environment_restores_credentials_on_error(
+    next_cluster_environment,
+):
+    """A failed rebuild must not leave the process pointed at the wrong cluster."""
+    with pytest.raises(RuntimeError):
+        with _next_cluster_environment():
+            raise RuntimeError("backfill exploded")
+
+    assert os.environ["OPENSEARCH_HOST"] == "live.example"
+    assert os.environ["OPENSEARCH_ACCESS_KEY"] == "live-access"
+    assert os.environ["OPENSEARCH_SECRET_KEY"] == "live-secret"
+
+
+def test_next_cluster_refuses_when_it_resolves_to_the_live_host(monkeypatch):
+    """The one state where `--cluster next` would silently hit production.
+
+    Reachable in normal operation: once a replacement cluster has been adopted,
+    OPENSEARCH_SERVICE_NAME and OPENSEARCH_NEXT_SERVICE_NAME both name it until
+    the latter is unset. Every `--cluster next` command would then target live
+    while reporting "next".
+    """
+    monkeypatch.setenv("OPENSEARCH_HOST", "same.example")
+    monkeypatch.setenv("OPENSEARCH_NEXT_HOST", "same.example")
+
+    with pytest.raises(click.ClickException) as excinfo:
+        with _next_cluster_environment():
+            pytest.fail("must not yield when both names resolve to one host")
+
+    assert "same host as the live cluster" in str(excinfo.value)
+    assert "OPENSEARCH_NEXT_SERVICE_NAME" in str(excinfo.value)
+
+
+def test_next_cluster_restores_when_interrupted_mid_swap(monkeypatch):
+    """A signal landing partway through the swap must not leave a mixed set.
+
+    Without entering the try before mutating, an interruption here strands the
+    process on the replacement host holding the live cluster's secret key.
+    """
+    monkeypatch.setenv("OPENSEARCH_HOST", "live.example")
+    monkeypatch.setenv("OPENSEARCH_ACCESS_KEY", "live-access")
+    monkeypatch.setenv("OPENSEARCH_SECRET_KEY", "live-secret")
+    monkeypatch.setenv("OPENSEARCH_NEXT_HOST", "next.example")
+    monkeypatch.setenv("OPENSEARCH_NEXT_ACCESS_KEY", "next-access")
+    monkeypatch.setenv("OPENSEARCH_NEXT_SECRET_KEY", "next-secret")
+
+    # Interrupt the swap once it has applied the host but not yet the secret key:
+    # the state that would otherwise strand a mismatched credential pair. Patch
+    # the type, not the instance -- `os.environ[k] = v` resolves __setitem__ on
+    # os._Environ, so patching the instance attribute would never fire.
+    real_setitem = type(os.environ).__setitem__
+
+    def exploding_setitem(self, key, value):
+        if key == "OPENSEARCH_SECRET_KEY" and value == "next-secret":
+            raise KeyboardInterrupt("signal mid-swap")
+        real_setitem(self, key, value)
+
+    with patch.object(type(os.environ), "__setitem__", exploding_setitem):
+        with pytest.raises(KeyboardInterrupt):
+            with _next_cluster_environment():
+                pytest.fail("should not reach the body")
+
+    assert os.environ["OPENSEARCH_HOST"] == "live.example"
+    assert os.environ["OPENSEARCH_ACCESS_KEY"] == "live-access"
+    assert os.environ["OPENSEARCH_SECRET_KEY"] == "live-secret"
+
+
+@pytest.mark.parametrize(
+    ("host", "is_aws"),
+    [
+        ("vpc-x.us-gov-west-1.es.amazonaws.com", True),
+        # Case, a trailing FQDN dot, and an explicit port must not smuggle a real
+        # AWS endpoint past the credential requirement onto the admin:admin path.
+        ("VPC-X.US-GOV-WEST-1.ES.AMAZONAWS.COM", True),
+        ("vpc-x.us-gov-west-1.es.amazonaws.com.", True),
+        ("vpc-x.us-gov-west-1.es.amazonaws.com:443", True),
+        ("https://vpc-x.us-gov-west-1.es.amazonaws.com", True),
+        ("es.amazonaws.com", True),
+        ("evil.es.amazonaws.com.attacker.net", False),
+        ("opensearch-next", False),
+        # urlparse raises on this; it must not escape as a traceback.
+        ("http://[::1", False),
+        ("", False),
+    ],
+)
+def test_is_aws_opensearch_host_classification(host, is_aws):
+    assert _is_aws_opensearch_host(host) is is_aws
+
+
+def test_rebuild_index_validates_target_name_before_touching_a_cluster(
+    app, next_cluster_environment
+):
+    """A name typo must abort before a client exists.
+
+    Constructing a client runs _ensure_index(), which creates a concrete
+    `datasets`. Validating the name afterwards would leave that index behind on
+    the target cluster even though the command failed.
+    """
+    with patch(
+        "app.commands.search.OpenSearchClient.from_environment"
+    ) as from_environment:
+        result = app.test_cli_runner().invoke(
+            args=[
+                "search",
+                "rebuild-index",
+                "--target-index",
+                "totally-bogus-name",
+                "--cluster",
+                "next",
+            ]
+        )
+
+    assert result.exit_code != 0
+    assert "physical index starting with" in result.output
+    from_environment.assert_not_called()
+
+
+def test_next_cluster_environment_removes_vars_that_were_unset(monkeypatch):
+    """Restoring must not invent a live host that was never set."""
+    monkeypatch.delenv("OPENSEARCH_HOST", raising=False)
+    monkeypatch.delenv("OPENSEARCH_ACCESS_KEY", raising=False)
+    monkeypatch.delenv("OPENSEARCH_SECRET_KEY", raising=False)
+    monkeypatch.setenv("OPENSEARCH_NEXT_HOST", "next.example")
+    monkeypatch.setenv("OPENSEARCH_NEXT_ACCESS_KEY", "next-access")
+    monkeypatch.setenv("OPENSEARCH_NEXT_SECRET_KEY", "next-secret")
+
+    with _next_cluster_environment():
+        assert os.environ["OPENSEARCH_HOST"] == "next.example"
+
+    assert "OPENSEARCH_HOST" not in os.environ
+    assert "OPENSEARCH_ACCESS_KEY" not in os.environ
+    assert "OPENSEARCH_SECRET_KEY" not in os.environ
+
+
+@pytest.mark.parametrize(
+    "missing",
+    [
+        "OPENSEARCH_NEXT_HOST",
+        "OPENSEARCH_NEXT_ACCESS_KEY",
+        "OPENSEARCH_NEXT_SECRET_KEY",
+    ],
+)
+def test_rebuild_index_next_cluster_requires_its_credentials(
+    app, monkeypatch, aws_next_cluster_environment, missing
+):
+    monkeypatch.delenv(missing, raising=False)
+    client = _rebuild_client(alias_indices=["datasets-old"])
+
+    result, backfill_mock = _run_rebuild(
+        app, client, ["--target-index", "datasets-new", "--cluster", "next"]
+    )
+
+    assert result.exit_code != 0
+    # The error has to name the variable and how to get it, since the operator
+    # is reading this out of a cf task log.
+    assert missing in result.output
+    assert "OPENSEARCH_NEXT_SERVICE_NAME" in result.output
+    # Nothing was created or indexed anywhere.
+    backfill_mock.assert_not_called()
+    client.client.indices.create.assert_not_called()
+    client.client.indices.update_aliases.assert_not_called()
+
+
+def test_next_cluster_allows_a_local_host_without_aws_keys(monkeypatch):
+    """A local replacement node needs no keys; the client uses admin:admin there.
+
+    Requiring them anyway would force dummy values just to exercise this path
+    against docker-compose's opensearch-next node.
+    """
+    monkeypatch.setenv("OPENSEARCH_HOST", "opensearch")
+    monkeypatch.setenv("OPENSEARCH_NEXT_HOST", "opensearch-next")
+    monkeypatch.delenv("OPENSEARCH_NEXT_ACCESS_KEY", raising=False)
+    monkeypatch.delenv("OPENSEARCH_NEXT_SECRET_KEY", raising=False)
+
+    with _next_cluster_environment():
+        assert os.environ["OPENSEARCH_HOST"] == "opensearch-next"
+
+    assert os.environ["OPENSEARCH_HOST"] == "opensearch"
+
+
+def test_rebuild_index_next_cluster_builds_client_against_replacement(
+    app, next_cluster_environment
+):
+    """The whole rebuild must resolve the replacement cluster's credentials."""
+    client = _rebuild_client(alias_indices=["datasets-old"])
+    observed = {}
+
+    def record_host():
+        observed["host"] = os.environ["OPENSEARCH_HOST"]
+        observed["access_key"] = os.environ["OPENSEARCH_ACCESS_KEY"]
+        return client
+
+    query_result = Mock()
+    query_result.count.return_value = 5
+    with (
+        patch(
+            "app.commands.search.OpenSearchClient.from_environment",
+            side_effect=record_host,
+        ),
+        patch("app.commands.search.db_interface.db.query", return_value=query_result),
+        patch("app.commands.search._backfill_from_postgres", return_value=(5, 0, [])),
+    ):
+        result = app.test_cli_runner().invoke(
+            args=[
+                "search",
+                "rebuild-index",
+                "--target-index",
+                "datasets-new",
+                "--cluster",
+                "next",
+            ]
+        )
+
+    assert result.exit_code == 0, result.output
+    assert observed == {"host": "next.example", "access_key": "next-access"}
+    # The log names the cluster actually loaded, not the live one it restored to.
+    assert "Target cluster: next (next.example)" in result.output
+    # Live credentials are back in place for anything that runs afterward.
+    assert os.environ["OPENSEARCH_HOST"] == "live.example"
+
+
+def test_rebuild_index_next_cluster_refuses_to_skip_the_alias_switch(
+    app, next_cluster_environment
+):
+    """A replacement cluster left without the alias would serve zero results.
+
+    Client construction auto-creates an empty concrete ``datasets``, so skipping
+    the switch strands the populated index behind a name nothing points at --
+    and cutting over to that cluster fails silently rather than loudly.
+    """
+    client = _rebuild_client(alias_indices=["datasets-old"])
+
+    result, backfill_mock = _run_rebuild(
+        app,
+        client,
+        [
+            "--target-index",
+            "datasets-new",
+            "--cluster",
+            "next",
+            "--no-switch-alias",
+        ],
+    )
+
+    assert result.exit_code != 0
+    assert "requires the alias switch" in result.output
+    # Refused before doing any work at all.
+    backfill_mock.assert_not_called()
+    client.client.indices.create.assert_not_called()
+
+
+def test_rebuild_index_live_cluster_still_allows_no_switch_alias(
+    app, next_cluster_environment
+):
+    """The guard must not restrict the existing live-cluster staging workflow."""
+    client = _rebuild_client(alias_indices=["datasets-old"])
+
+    result, _ = _run_rebuild(
+        app, client, ["--target-index", "datasets-new", "--no-switch-alias"]
+    )
+
+    assert result.exit_code == 0, result.output
+    client.client.indices.update_aliases.assert_not_called()
+
+
+def test_rebuild_index_defaults_to_the_live_cluster(app, next_cluster_environment):
+    """Omitting --cluster must behave exactly as before this option existed."""
+    client = _rebuild_client(alias_indices=["datasets-old"])
+    observed = {}
+
+    def record_host():
+        observed["host"] = os.environ["OPENSEARCH_HOST"]
+        return client
+
+    query_result = Mock()
+    query_result.count.return_value = 5
+    with (
+        patch(
+            "app.commands.search.OpenSearchClient.from_environment",
+            side_effect=record_host,
+        ),
+        patch("app.commands.search.db_interface.db.query", return_value=query_result),
+        patch("app.commands.search._backfill_from_postgres", return_value=(5, 0, [])),
+    ):
+        result = app.test_cli_runner().invoke(
+            args=["search", "rebuild-index", "--target-index", "datasets-new"]
+        )
+
+    assert result.exit_code == 0, result.output
+    assert observed["host"] == "live.example"
+    assert "Target cluster: live (live.example)" in result.output
+
+
+def test_rebuild_index_on_fresh_cluster_converts_auto_created_index_to_alias(
+    app, next_cluster_environment
+):
+    """Cover the state a brand-new cluster is actually in.
+
+    Constructing a client calls ``_ensure_index()``, which creates a *concrete*
+    index named ``datasets``. A fresh replacement cluster therefore always starts
+    in the "legacy concrete index" state, and the rebuild has to convert it to an
+    alias in the same atomic request so future in-cluster rebuilds keep working.
+    """
+    client = _rebuild_client(legacy_concrete=True)
+
+    result, _ = _run_rebuild(
+        app,
+        client,
+        [
+            "--target-index",
+            "datasets-new",
+            "--cluster",
+            "next",
+            "--allow-legacy-index-removal",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    actions = client.client.indices.update_aliases.call_args.kwargs["body"]["actions"]
+    assert {"remove_index": {"index": "datasets"}} in actions
+    assert {"add": {"index": "datasets-new", "alias": "datasets"}} in actions
+    assert "Converted the legacy concrete index 'datasets' into an alias." in (
+        result.output
+    )
+
+
+def test_compare_targets_the_replacement_cluster(app, next_cluster_environment):
+    """`compare --cluster next` verifies the rebuild without touching live."""
+    client = Mock()
+    client.INDEX_NAME = "datasets"
+    client.client = Mock()
+    observed = {}
+
+    def record_host():
+        observed["host"] = os.environ["OPENSEARCH_HOST"]
+        return client
+
+    rows_query = Mock()
+    rows_query.all.return_value = [("shared", datetime(2024, 1, 1))]
+
+    with (
+        patch(
+            "app.commands.search.OpenSearchClient.from_environment",
+            side_effect=record_host,
+        ),
+        patch("app.commands.search.OpenSearchWriter", return_value=client),
+        patch("app.commands.search.db_interface.db.query", return_value=rows_query),
+        patch(
+            "app.commands.search.OpenSearchReader.scan_index",
+            return_value=iter([]),
+        ),
+    ):
+        result = app.test_cli_runner().invoke(
+            args=["search", "compare", "--cluster", "next"]
+        )
+
+    assert result.exit_code == 0, result.output
+    assert observed["host"] == "next.example"
+
+
+def test_delete_index_targets_the_replacement_cluster(app, next_cluster_environment):
+    """Cleaning up a failed rebuild must be possible on the replacement cluster."""
+    client = Mock()
+    client.INDEX_NAME = "datasets"
+    client.client.indices.exists.return_value = True
+    client.client.indices.get_alias.return_value = {"datasets-stale": {"aliases": {}}}
+    client.client.indices.delete.return_value = {"acknowledged": True}
+    observed = {}
+
+    def record_host():
+        observed["host"] = os.environ["OPENSEARCH_HOST"]
+        return client
+
+    with patch(
+        "app.commands.search.OpenSearchClient.from_environment",
+        side_effect=record_host,
+    ):
+        result = app.test_cli_runner().invoke(
+            args=[
+                "search",
+                "delete-index",
+                "--index-name",
+                "datasets-stale",
+                "--cluster",
+                "next",
+            ]
+        )
+
+    assert result.exit_code == 0, result.output
+    assert observed["host"] == "next.example"
+    client.client.indices.delete.assert_called_once_with(index="datasets-stale")

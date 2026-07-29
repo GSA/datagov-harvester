@@ -22,6 +22,13 @@ applications:
     routes:
       - route: ((route_internal))
     services:
+      # The OpenSearch cluster is shared with catalog, hence the catalog name.
+      # A replacement cluster used during a migration is deliberately NOT listed
+      # here: a manifest cannot reference a service instance that does not exist,
+      # so listing it would break deploys in every space that has not been
+      # provisioned yet. Manifest application is additive and does not remove
+      # existing bindings, so `cf bind-service` survives deploys on its own.
+      # See docs/ops/migrate-opensearch-cluster.md.
       - ((app_name))-db
       - ((app_name))-secrets
       - datagov-catalog-opensearch

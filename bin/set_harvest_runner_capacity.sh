@@ -2,6 +2,9 @@
 
 set -euo pipefail
 
+# shellcheck source=bin/lib/cf_env.sh
+source "$(dirname "${BASH_SOURCE[0]}")/lib/cf_env.sh"
+
 usage="Usage: set_harvest_runner_capacity.sh <check|enable|disable> [app_name] [enabled_max_tasks]"
 action=${1:-}
 app_name=${2:-datagov-harvest}
@@ -9,21 +12,7 @@ max_tasks_env=HARVEST_RUNNER_MAX_TASKS
 
 case "$action" in
   check)
-    current_value=$(
-      cf env "$app_name" |
-        awk -v key="$max_tasks_env" '
-          !found && $0 ~ "^[[:space:]]*" key ":[[:space:]]*" {
-            sub("^[[:space:]]*" key ":[[:space:]]*", "")
-            value = $0
-            found = 1
-          }
-          END {
-            if (found) {
-              print value
-            }
-          }
-        '
-    )
+    current_value=$(cf_env_value "$app_name" "$max_tasks_env")
 
     if [[ -n "$current_value" ]]; then
       echo "$max_tasks_env is currently set to $current_value."

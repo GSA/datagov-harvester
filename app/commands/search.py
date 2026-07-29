@@ -1,4 +1,6 @@
+import os
 import re
+from contextlib import contextmanager
 from datetime import datetime, timezone
 
 import click
@@ -20,7 +22,175 @@ OPENSEARCH_CREATE_INDEX_TIMEOUT_SECONDS = 300
 # Grep target for the skipped-id block in CI logs and task output.
 OPENSEARCH_SKIPPED_DOCUMENTS_BANNER = "SKIPPED DATASET IDS (not indexed)"
 
+# Which cluster a command talks to. ``live`` is the cluster currently serving
+# catalog and harvester traffic; ``next`` is a replacement cluster bound
+# alongside it during a migration. See docs/ops/migrate-opensearch-cluster.md.
+CLUSTER_LIVE = "live"
+CLUSTER_NEXT = "next"
+# ``OpenSearchClient`` reads the cluster host and credentials from these fixed
+# environment variable names, so pointing it at the replacement cluster means
+# rebinding them for the duration of the constructor call.
+OPENSEARCH_NEXT_ENVIRONMENT_VARIABLES = {
+    "OPENSEARCH_HOST": "OPENSEARCH_NEXT_HOST",
+    "OPENSEARCH_ACCESS_KEY": "OPENSEARCH_NEXT_ACCESS_KEY",
+    "OPENSEARCH_SECRET_KEY": "OPENSEARCH_NEXT_SECRET_KEY",
+}
+
 db_interface = HarvesterDBInterface()
+
+
+def _is_aws_opensearch_host(host: str | None) -> bool:
+    """Whether ``host`` selects the client's AWS SigV4 path.
+
+    Delegates to ``OpenSearchClient._extract_hostname`` so this check cannot
+    drift from the suffix test ``from_environment`` uses to choose between the
+    signed AWS transport and the local admin:admin one.
+    """
+    if not host:
+        return False
+    try:
+        hostname = OpenSearchClient._extract_hostname(host)
+    except ValueError:
+        # urlparse raises on malformed URLs such as "http://[::1". Treat an
+        # unparseable value as non-AWS; the client will fail on it anyway, and a
+        # raw traceback out of a cf task log helps nobody.
+        return False
+    if not hostname:
+        return False
+    # Normalize before the suffix test. Without this, a real AWS endpoint written
+    # with different case, a trailing FQDN dot, or an explicit port classifies as
+    # "local", which drops the credential requirement and sends the client down
+    # the admin:admin path against a signed endpoint.
+    hostname = hostname.strip().lower().rstrip(".")
+    hostname = hostname.rsplit(":", 1)[0] if hostname.count(":") == 1 else hostname
+    return hostname == "es.amazonaws.com" or hostname.endswith(".es.amazonaws.com")
+
+
+@contextmanager
+def _next_cluster_environment():
+    """Expose the replacement cluster under the env names the client reads.
+
+    ``OpenSearchClient._create_aws_opensearch_client`` reads ``OPENSEARCH_HOST``
+    and the access/secret key pair from fixed environment variable names, and
+    captures all three at construction time -- the host goes into the transport's
+    host list and the keys into the SigV4 signer. Temporarily rebinding those
+    names around the constructor therefore yields a client permanently pinned to
+    the replacement cluster, without having to fork the shared
+    ``datagov_data_access`` package or pass credentials on a command line (which
+    would leak them into ``cf run-task`` strings and CI logs).
+    """
+    next_host = (os.environ.get("OPENSEARCH_NEXT_HOST") or "").strip()
+    live_host = (os.environ.get("OPENSEARCH_HOST") or "").strip()
+    # The access/secret pair is only consulted on the AWS SigV4 path, which the
+    # client selects by hostname suffix. Requiring them for a local host would
+    # mean inventing dummy values just to exercise this path in development.
+    required = (
+        list(OPENSEARCH_NEXT_ENVIRONMENT_VARIABLES.values())
+        if _is_aws_opensearch_host(next_host)
+        else ["OPENSEARCH_NEXT_HOST"]
+    )
+    missing = sorted(
+        name for name in required if not (os.environ.get(name) or "").strip()
+    )
+    if missing:
+        raise click.ClickException(
+            f"--cluster {CLUSTER_NEXT} requires " + ", ".join(missing) + ". Bind the "
+            "replacement OpenSearch service and set OPENSEARCH_NEXT_SERVICE_NAME so "
+            ".profile exports its credentials."
+        )
+
+    if next_host == live_host:
+        # The whole point of --cluster next is to keep load and destructive
+        # operations off the live cluster. If both names resolve to the same host
+        # every such command would silently hit production while reporting
+        # "next" -- so refuse rather than pretend. This is reachable in normal
+        # operation: after adopting a replacement cluster, both variables name it
+        # until OPENSEARCH_NEXT_SERVICE_NAME is unset.
+        raise click.ClickException(
+            f"OPENSEARCH_NEXT_HOST is the same host as the live cluster "
+            f"({live_host}), so --cluster {CLUSTER_NEXT} would operate on live. "
+            "Unset OPENSEARCH_NEXT_SERVICE_NAME (the replacement cluster is now "
+            "the live one), or point it at a different instance."
+        )
+
+    def _apply(values: dict):
+        """Set each live name, or unset it when the paired value is absent.
+
+        Unsetting matters: an absent replacement key must not leave the live
+        cluster's credential visible to a client aimed at the other host.
+        """
+        for name, value in values.items():
+            if value is None:
+                os.environ.pop(name, None)
+            else:
+                os.environ[name] = value
+
+    previous = {
+        live_name: os.environ.get(live_name)
+        for live_name in OPENSEARCH_NEXT_ENVIRONMENT_VARIABLES
+    }
+    # Enter the try BEFORE mutating, so an interruption partway through the swap
+    # (a SIGTERM during a cf run-task, say) cannot leave a half-swapped, mismatched
+    # credential set behind.
+    try:
+        _apply(
+            {
+                live_name: os.environ.get(next_name)
+                for live_name, next_name in (
+                    OPENSEARCH_NEXT_ENVIRONMENT_VARIABLES.items()
+                )
+            }
+        )
+        yield
+    finally:
+        # Restore unconditionally: a later command in the same process (and the
+        # harvest write path) must still resolve the live cluster.
+        _apply(previous)
+
+
+def _client_for_cluster(cluster: str, announce: bool = False):
+    """Build an ``OpenSearchClient`` for the live or the replacement cluster.
+
+    With ``announce``, echo which cluster and host was resolved. Every command
+    that can mutate or verify a cluster should say which one it touched -- that
+    line is the operator's only cross-check that a ``next`` run really did stay
+    off the live cluster.
+    """
+    if cluster == CLUSTER_NEXT:
+        with _next_cluster_environment():
+            client = OpenSearchClient.from_environment()
+    else:
+        client = OpenSearchClient.from_environment()
+    if announce:
+        click.echo(f"Target cluster: {cluster} ({_cluster_host(cluster)})")
+    return client
+
+
+def _cluster_host(cluster: str) -> str | None:
+    """Return the host a ``--cluster`` choice resolves to, for logging.
+
+    Read from the cluster's own variable rather than ``OPENSEARCH_HOST``, because
+    ``_next_cluster_environment`` has already restored the live value by the time
+    a command reports where it is pointed.
+    """
+    if cluster == CLUSTER_NEXT:
+        return os.environ.get("OPENSEARCH_NEXT_HOST")
+    return os.environ.get("OPENSEARCH_HOST")
+
+
+def cluster_option(command):
+    """Attach the shared ``--cluster`` option to a command."""
+    return click.option(
+        "--cluster",
+        type=click.Choice([CLUSTER_LIVE, CLUSTER_NEXT]),
+        default=CLUSTER_LIVE,
+        show_default=True,
+        help=(
+            "Which OpenSearch cluster to operate on. 'next' targets the "
+            "replacement cluster bound as OPENSEARCH_NEXT_SERVICE_NAME, leaving "
+            "the live cluster completely untouched."
+        ),
+    )(command)
 
 
 def _normalize_last_harvested(value):
@@ -75,7 +245,13 @@ def _normalize_mapping_for_comparison(value):
 
 @search.cli.command("reset-mapping")
 def reset_opensearch_mapping():
-    """Delete the dataset index and recreate its empty mapping and settings."""
+    """Delete the dataset index and recreate its empty mapping and settings.
+
+    Deliberately has no ``--cluster`` option: it empties the index it runs
+    against, and the only reason to touch a replacement cluster is to *fill* it.
+    Use ``rebuild-index --cluster next`` for that, which creates the mapping as
+    part of the rebuild.
+    """
     client = OpenSearchClient.from_environment()
 
     click.echo("Deleting OpenSearch dataset index...")
@@ -117,9 +293,12 @@ def reset_opensearch_mapping():
     is_flag=True,
     help="Re-index all datasets from DB regardless of last_harvested_date.",
 )
-def compare_opensearch(sample_size: int, update: bool, force_update: bool):
+@cluster_option
+def compare_opensearch(
+    sample_size: int, update: bool, force_update: bool, cluster: str
+):
     """Report and optionally repair DB/OpenSearch dataset discrepancies."""
-    os_client = OpenSearchClient.from_environment()
+    os_client = _client_for_cluster(cluster, announce=True)
     os_writer = OpenSearchWriter(os_client)
     os_reader = OpenSearchReader(os_client)
 
@@ -482,6 +661,7 @@ def _backfill_from_postgres(
         "rejection."
     ),
 )
+@cluster_option
 def rebuild_opensearch_index(
     target_index: str | None,
     switch_alias: bool,
@@ -489,6 +669,7 @@ def rebuild_opensearch_index(
     batch_size: int,
     delete_old_index: bool,
     max_skipped: int,
+    cluster: str,
 ):
     """Zero-downtime rebuild: backfill datasets into a fresh index, then swap alias.
 
@@ -501,15 +682,39 @@ def rebuild_opensearch_index(
     Backfilling from PostgreSQL (rather than an OpenSearch ``_reindex``) means the
     rebuild also picks up document-shape changes, not just mapping changes, and
     reuses the same repair path as ``compare --force-update``.
-    """
-    client = OpenSearchClient.from_environment()
-    alias_name = client.INDEX_NAME
 
+    With ``--cluster next`` the whole rebuild runs on a *replacement* cluster, so
+    the live cluster serves queries at full speed instead of competing with the
+    backfill for CPU and I/O. The index keeps the same ``datasets`` name there --
+    a separate cluster means there is no name to collide with -- so cutting over
+    is purely a matter of repointing the apps. See
+    docs/ops/migrate-opensearch-cluster.md.
+    """
+    if cluster == CLUSTER_NEXT and not switch_alias:
+        # Constructing a client calls _ensure_index(), so a replacement cluster
+        # already holds an *empty concrete* index named datasets. Skipping the
+        # switch would leave that empty index in place next to a populated
+        # datasets-<ts> that nothing points at, and cutting over to it would
+        # return zero results with no error anywhere.
+        raise click.ClickException(
+            f"--cluster {CLUSTER_NEXT} requires the alias switch: the replacement "
+            "cluster must end up with 'datasets' as an alias before anything reads "
+            "it. Drop --no-switch-alias."
+        )
+
+    # Validate the target-index NAME before building a client. Constructing one
+    # calls _ensure_index(), which creates a concrete `datasets` index as a side
+    # effect -- so a name typo caught after construction would still have left an
+    # index behind on the target cluster.
+    alias_name = OpenSearchClient.INDEX_NAME
     target_index = target_index or _default_rebuild_index_name(alias_name)
     if target_index == alias_name or not target_index.startswith(f"{alias_name}-"):
         raise click.ClickException(
             f"Target index must be a physical index starting with '{alias_name}-'."
         )
+
+    client = _client_for_cluster(cluster, announce=True)
+
     if client.client.indices.exists(index=target_index):
         raise click.ClickException(f"OpenSearch index already exists: {target_index}")
 
@@ -650,7 +855,8 @@ def _delete_physical_index(client, index_name: str):
     required=True,
     help="Exact name of an unused physical index, such as datasets-20260723152900.",
 )
-def delete_opensearch_index(index_name: str):
+@cluster_option
+def delete_opensearch_index(index_name: str, cluster: str):
     """Delete an unused physical dataset index."""
-    client = OpenSearchClient.from_environment()
+    client = _client_for_cluster(cluster, announce=True)
     _delete_physical_index(client, index_name)
