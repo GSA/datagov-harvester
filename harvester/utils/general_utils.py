@@ -444,6 +444,46 @@ def download_file(url: str, file_type: str) -> Union[str, dict]:
     raise Exception
 
 
+# DCAT-US 3.0 Catalog fields that are harvested as their own records rather
+# than stored inline on the catalog metadata.
+DCATUS3_CATALOG_HARVESTED_FIELDS = ("dataset", "service", "record")
+
+
+def strip_dcatus3_catalog_objects(catalog: dict) -> dict:
+    """
+    return a shallow copy of a DCAT-US3 Catalog dict with "dataset", "service",
+    and "record" removed, since those are harvested and stored as their own
+    records. nested catalogs (the "catalog" field) are cleaned the same way,
+    recursively, so their own metadata is preserved.
+    """
+    cleaned = {
+        key: value
+        for key, value in catalog.items()
+        if key not in DCATUS3_CATALOG_HARVESTED_FIELDS
+    }
+
+    if cleaned.get("catalog"):
+        cleaned["catalog"] = [
+            strip_dcatus3_catalog_objects(sub_catalog)
+            for sub_catalog in cleaned["catalog"]
+        ]
+
+    return cleaned
+
+
+def extract_dcatus3_catalog_datasets(catalog: dict) -> list:
+    """
+    recursively collect every dataset from a DCAT-US3 Catalog dict, including
+    datasets nested arbitrarily deep within its "catalog" (sub-catalog) field.
+    """
+    datasets = list(catalog.get("dataset") or [])
+
+    for sub_catalog in catalog.get("catalog") or []:
+        datasets.extend(extract_dcatus3_catalog_datasets(sub_catalog))
+
+    return datasets
+
+
 def make_record_mapping(record):
     """Helper to make a Harvest record dict"""
 
