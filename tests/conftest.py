@@ -235,6 +235,21 @@ def source_data_dcatus3_0_invalid(organization_data: dict) -> dict:
 
 
 @pytest.fixture
+def source_data_dcatus3_0_nested_catalog(organization_data: dict) -> dict:
+    return {
+        "id": "0d3d6d0d-6b6a-4b5e-9d6a-8f9b1a7c9d1e",
+        "name": "Test Source DCAT-US 3.0 (nested catalog)",
+        "notification_emails": ["email@example.com"],
+        "organization_id": organization_data["id"],
+        "frequency": "daily",
+        "url": f"{HARVEST_SOURCE_URL}/dcatus/dcatus3_0_nested_catalog.json",
+        "schema_type": "dcatus3.0",
+        "source_type": "document",
+        "notification_frequency": "always",
+    }
+
+
+@pytest.fixture
 def source_data_dcatus3_0_no_identifier(organization_data: dict) -> dict:
     return {
         "id": "7f8a2c1e-4d5b-4a9f-8e6c-1b2d3e4f5a6b",
@@ -526,6 +541,17 @@ def job_data_dcatus3_0(source_data_dcatus3_0: dict) -> dict:
         "id": "d6141347-e91c-41a3-9754-8c1e354b6bb2",
         "status": "new",
         "harvest_source_id": source_data_dcatus3_0["id"],
+    }
+
+
+@pytest.fixture
+def job_data_dcatus3_0_nested_catalog(
+    source_data_dcatus3_0_nested_catalog: dict,
+) -> dict:
+    return {
+        "id": "1f2e3d4c-5b6a-7980-8f1e-2d3c4b5a6978",
+        "status": "new",
+        "harvest_source_id": source_data_dcatus3_0_nested_catalog["id"],
     }
 
 
