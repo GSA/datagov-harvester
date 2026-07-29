@@ -6,6 +6,7 @@ from opensearchpy.exceptions import RequestError
 from app.commands.search import (
     OPENSEARCH_CREATE_INDEX_TIMEOUT_SECONDS,
     OPENSEARCH_INDEX_BATCH_FAILURE_MESSAGE,
+    OPENSEARCH_SKIPPED_DOCUMENTS_BANNER,
     db_interface,
 )
 
@@ -279,19 +280,103 @@ def test_rebuild_index_aborts_before_alias_switch_on_count_mismatch(app):
     client.client.indices.update_aliases.assert_not_called()
 
 
-def test_rebuild_index_aborts_on_backfill_failures(app):
+def test_rebuild_index_aborts_when_skipped_exceeds_budget(app):
     client = _rebuild_client(alias_indices=["datasets-old"])
+
+    result, _ = _run_rebuild(
+        app,
+        client,
+        ["--target-index", "datasets-new", "--max-skipped", "0"],
+        db_count=5,
+        backfill=(4, 1, [{"index": {"_id": "doomed", "error": "boom"}}]),
+    )
+
+    assert result.exit_code != 0
+    assert OPENSEARCH_INDEX_BATCH_FAILURE_MESSAGE in result.output
+    client.client.indices.update_aliases.assert_not_called()
+    # Even on abort, the ids must be reported so they can be investigated.
+    assert "doomed" in result.output
+
+
+def test_rebuild_index_skips_rejected_document_and_completes(app):
+    """One malformed record must not discard the whole rebuild.
+
+    Mirrors the staging failure of 2026-07-29: a single dataset carrying an
+    empty-string JSON key was rejected by OpenSearch, and the all-or-nothing
+    backfill threw away 397,999 successfully indexed documents.
+    """
+    # 4 of 5 datasets land; the rejected one is skipped, so the index holds 4.
+    client = _rebuild_client(alias_indices=["datasets-old"], target_count=4)
+    rejection = {
+        "index": {
+            "_id": "ba35e626-c015-4c15-819f-892ce8e6baa9",
+            "error": {
+                "type": "mapper_parsing_exception",
+                "reason": "failed to parse",
+                "caused_by": {"reason": "field name cannot be an empty string"},
+            },
+        }
+    }
 
     result, _ = _run_rebuild(
         app,
         client,
         ["--target-index", "datasets-new"],
         db_count=5,
-        backfill=(4, 1, [{"index": {"error": "boom"}}]),
+        backfill=(4, 1, [rejection]),
+    )
+
+    assert result.exit_code == 0, result.output
+    # The rebuild proceeds all the way through the alias switch.
+    client.client.indices.update_aliases.assert_called_once()
+    # The id, the error, and the reason are all reported for follow-up.
+    assert OPENSEARCH_SKIPPED_DOCUMENTS_BANNER in result.output
+    assert "ba35e626-c015-4c15-819f-892ce8e6baa9" in result.output
+    assert "mapper_parsing_exception" in result.output
+    assert "field name cannot be an empty string" in result.output
+    assert "1 skipped" in result.output
+
+
+def test_rebuild_index_reports_every_skipped_id_without_truncating(app):
+    client = _rebuild_client(alias_indices=["datasets-old"], target_count=94)
+    rejections = [
+        {
+            "index": {
+                "_id": f"dataset-{n:03d}",
+                "error": {"type": "mapper_parsing_exception", "reason": "failed"},
+            }
+        }
+        for n in range(6)
+    ]
+
+    result, _ = _run_rebuild(
+        app,
+        client,
+        ["--target-index", "datasets-new"],
+        db_count=100,
+        backfill=(94, 6, rejections),
+    )
+
+    assert result.exit_code == 0, result.output
+    for n in range(6):
+        assert f"dataset-{n:03d}" in result.output
+
+
+def test_rebuild_index_validation_accounts_for_skipped_documents(app):
+    """A document missing for any reason *other* than a skip must still fail."""
+    # 1 skipped out of 5 means 4 expected, but the index only has 3.
+    client = _rebuild_client(alias_indices=["datasets-old"], target_count=3)
+
+    result, _ = _run_rebuild(
+        app,
+        client,
+        ["--target-index", "datasets-new"],
+        db_count=5,
+        backfill=(4, 1, [{"index": {"_id": "skipped-one", "error": "boom"}}]),
     )
 
     assert result.exit_code != 0
-    assert OPENSEARCH_INDEX_BATCH_FAILURE_MESSAGE in result.output
+    assert "should have 4 document(s) but has 3" in result.output
     client.client.indices.update_aliases.assert_not_called()
 
 
@@ -447,6 +532,113 @@ def test_backfill_from_postgres_overrides_index_and_tallies_failures(app):
     assert indexed == 1
     assert failed == 1
     assert len(errors) == 1
+
+
+def test_backfill_continues_past_rejection_within_budget(app):
+    """With budget remaining, the backfill keeps paginating instead of breaking.
+
+    This is the behavior the all-or-nothing version lacked: batch 2 must still be
+    read and indexed after batch 1 had a rejected document.
+    """
+    from app.commands.search import _backfill_from_postgres
+
+    client = Mock()
+
+    def dataset(name):
+        d = Mock()
+        d.id = name
+        return d
+
+    chain = Mock()
+    chain.filter.return_value = chain
+    # Three pages: the first has a bad doc, the second is clean, then exhausted.
+    chain.limit.return_value.all.side_effect = [
+        [dataset("a"), dataset("bad")],
+        [dataset("c")],
+        [],
+    ]
+    query_result = Mock()
+    query_result.order_by.return_value = chain
+
+    def fake_streaming_bulk(_client, documents, **_kwargs):
+        for doc in documents:
+            if doc["_id"] == "bad":
+                yield (
+                    False,
+                    {
+                        "index": {
+                            "_id": "bad",
+                            "error": {
+                                "type": "mapper_parsing_exception",
+                                "reason": "failed to parse",
+                            },
+                        }
+                    },
+                )
+            else:
+                yield True, {"index": {"_id": doc["_id"]}}
+
+    with (
+        patch("app.commands.search.db_interface.db.query", return_value=query_result),
+        patch("app.commands.search.DatasetDocument") as document_cls,
+        patch(
+            "app.commands.search.helpers.streaming_bulk",
+            side_effect=fake_streaming_bulk,
+        ),
+    ):
+        document_cls.side_effect = lambda dataset: Mock(
+            dataset_to_document=lambda: {"_index": "datasets", "_id": dataset.id}
+        )
+        indexed, failed, errors = _backfill_from_postgres(
+            client, "datasets-new", batch_size=2, max_skipped=10
+        )
+
+    # "c" from the second page proves pagination continued past the rejection.
+    assert indexed == 2
+    assert failed == 1
+    assert len(errors) == 1
+
+
+def test_backfill_stops_once_skip_budget_is_exhausted(app):
+    from app.commands.search import _backfill_from_postgres
+
+    client = Mock()
+
+    def dataset(name):
+        d = Mock()
+        d.id = name
+        return d
+
+    chain = Mock()
+    chain.filter.return_value = chain
+    pages = [[dataset("bad1")], [dataset("bad2")], [dataset("never-read")], []]
+    chain.limit.return_value.all.side_effect = pages
+    query_result = Mock()
+    query_result.order_by.return_value = chain
+
+    def fake_streaming_bulk(_client, documents, **_kwargs):
+        for doc in documents:
+            yield False, {"index": {"_id": doc["_id"], "error": {"type": "bad_doc"}}}
+
+    with (
+        patch("app.commands.search.db_interface.db.query", return_value=query_result),
+        patch("app.commands.search.DatasetDocument") as document_cls,
+        patch(
+            "app.commands.search.helpers.streaming_bulk",
+            side_effect=fake_streaming_bulk,
+        ),
+    ):
+        document_cls.side_effect = lambda dataset: Mock(
+            dataset_to_document=lambda: {"_index": "datasets", "_id": dataset.id}
+        )
+        indexed, failed, errors = _backfill_from_postgres(
+            client, "datasets-new", batch_size=1, max_skipped=1
+        )
+
+    # Budget of 1 tolerates the first rejection, aborts after the second.
+    assert indexed == 0
+    assert failed == 2
+    assert [e["index"]["_id"] for e in errors] == ["bad1", "bad2"]
 
 
 def test_delete_index_removes_unused_physical_index(app):

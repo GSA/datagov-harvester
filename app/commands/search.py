@@ -17,6 +17,8 @@ OPENSEARCH_INDEX_BATCH_FAILURE_MESSAGE = "failed to index in this batch"
 # indices.create waits for shards to become active, which can exceed the client's
 # default 60s socket timeout on a loaded cluster; see _create_rebuild_index.
 OPENSEARCH_CREATE_INDEX_TIMEOUT_SECONDS = 300
+# Grep target for the skipped-id block in CI logs and task output.
+OPENSEARCH_SKIPPED_DOCUMENTS_BANNER = "SKIPPED DATASET IDS (not indexed)"
 
 db_interface = HarvesterDBInterface()
 
@@ -321,7 +323,54 @@ def _switch_datasets_alias(client, target_index: str, allow_legacy_index_removal
     return old_indices, removed_legacy_index
 
 
-def _backfill_from_postgres(client, target_index: str, batch_size: int):
+def _rejection_details(item: dict) -> tuple[str, str, str]:
+    """Pull ``(doc_id, error_type, reason)`` out of a bulk-rejection item."""
+    action = next(iter(item.values()), {}) if isinstance(item, dict) else {}
+    error = action.get("error") or {}
+    if isinstance(error, str):
+        return str(action.get("_id", "?")), "error", error
+    reason = error.get("reason", "")
+    caused_by = error.get("caused_by") or {}
+    if caused_by.get("reason"):
+        reason = f"{reason}: {caused_by['reason']}"
+    return (
+        str(action.get("_id", "?")),
+        str(error.get("type", "unknown")),
+        str(reason),
+    )
+
+
+def _report_skipped_documents(errors: list):
+    """Print every skipped dataset id so an admin can investigate each record.
+
+    Emitted as a block at the end of the run, grouped by error type, because the
+    per-batch lines scroll far out of view during a multi-hundred-thousand
+    document backfill. The ids are printed in full -- never truncated with an
+    ellipsis -- since chasing the source record is the whole point.
+    """
+    grouped: dict[tuple[str, str], list[str]] = {}
+    for item in errors:
+        doc_id, error_type, reason = _rejection_details(item)
+        grouped.setdefault((error_type, reason), []).append(doc_id)
+
+    click.echo("")
+    click.echo(f"{OPENSEARCH_SKIPPED_DOCUMENTS_BANNER} ({len(errors)} total)")
+    for (error_type, reason), doc_ids in sorted(grouped.items()):
+        click.echo(f"  {error_type}: {reason}")
+        click.echo(f"    {len(doc_ids)} dataset id(s):")
+        for doc_id in doc_ids:
+            click.echo(f"      {doc_id}")
+    click.echo(
+        "  Investigate each id with: "
+        "flask search compare --sample-size 50  (or query the dataset table "
+        "directly by id)"
+    )
+    click.echo("")
+
+
+def _backfill_from_postgres(
+    client, target_index: str, batch_size: int, max_skipped: int = 0
+):
     """Regenerate every dataset document from PostgreSQL into ``target_index``.
 
     PostgreSQL is the source of truth, so we rebuild documents with the same
@@ -331,7 +380,14 @@ def _backfill_from_postgres(client, target_index: str, batch_size: int):
     changes, and mirrors the ``compare --force-update`` repair path. Datasets are
     read in keyset-paginated batches to bound memory on large tables.
 
-    Returns ``(indexed, failed, errors)``.
+    A single malformed upstream record should not discard a whole rebuild. Up to
+    ``max_skipped`` documents that OpenSearch *rejects individually* are logged
+    and skipped; exceeding that budget aborts, because a large rejection count
+    means something systemic (bad mapping, cluster trouble) rather than dirty
+    source data. Every skipped id is reported so an admin can chase the record.
+
+    Returns ``(indexed, failed, errors)`` where ``failed`` counts skipped
+    documents and ``errors`` holds their raw rejection items.
     """
     total_indexed = 0
     total_failed = 0
@@ -365,14 +421,17 @@ def _backfill_from_postgres(client, target_index: str, batch_size: int):
         ):
             if success:
                 total_indexed += 1
-            else:
-                total_failed += 1
-                errors.append(item)
+                continue
+
+            total_failed += 1
+            errors.append(item)
+            doc_id, error_type, reason = _rejection_details(item)
+            click.echo(f"  Skipping {doc_id}: {error_type}: {reason}")
 
         last_id = datasets[-1].id
         db_interface.db.expunge_all()
 
-        if total_failed:
+        if total_failed > max_skipped:
             break
 
     return total_indexed, total_failed, errors
@@ -412,12 +471,24 @@ def _backfill_from_postgres(client, target_index: str, batch_size: int):
         "previously pointed at. Ignored with --no-switch-alias."
     ),
 )
+@click.option(
+    "--max-skipped",
+    default=10,
+    show_default=True,
+    type=click.IntRange(min=0),
+    help=(
+        "How many individually-rejected documents to skip (with their ids "
+        "reported) before aborting the rebuild. Use 0 to fail on the first "
+        "rejection."
+    ),
+)
 def rebuild_opensearch_index(
     target_index: str | None,
     switch_alias: bool,
     allow_legacy_index_removal: bool,
     batch_size: int,
     delete_old_index: bool,
+    max_skipped: int,
 ):
     """Zero-downtime rebuild: backfill datasets into a fresh index, then swap alias.
 
@@ -472,26 +543,40 @@ def rebuild_opensearch_index(
 
     db_count = db_interface.db.query(Dataset).count()
     click.echo(f"Backfilling {db_count} PostgreSQL dataset(s) into {target_index}...")
-    indexed, failed, errors = _backfill_from_postgres(client, target_index, batch_size)
+    indexed, failed, errors = _backfill_from_postgres(
+        client, target_index, batch_size, max_skipped=max_skipped
+    )
     if failed:
-        for error in errors:
-            click.echo(f"  OpenSearch error: {error}")
+        _report_skipped_documents(errors)
+    if failed > max_skipped:
         raise click.ClickException(
             f"Backfill {OPENSEARCH_INDEX_BATCH_FAILURE_MESSAGE}: "
-            f"indexed={indexed}, failed={failed}."
+            f"indexed={indexed}, failed={failed}, which exceeds "
+            f"--max-skipped={max_skipped}."
         )
 
-    # Harvesting is paused and drained before this runs, so the DB is stable;
-    # the index must end up with exactly one document per dataset.
+    # Harvesting is paused and drained before this runs, so the DB is stable, so
+    # the index must hold one document per dataset -- minus any we deliberately
+    # skipped above. Keeping the skipped count in the expectation is what makes
+    # tolerant skipping safe: a document lost for any *other* reason still fails
+    # this check.
     client.client.indices.refresh(index=target_index)
     target_count = client.client.count(index=target_index)["count"]
-    if target_count != db_count:
+    expected_count = db_count - failed
+    if target_count != expected_count:
         raise click.ClickException(
             f"Validation failed ({OPENSEARCH_INDEX_BATCH_FAILURE_MESSAGE}): "
-            f"PostgreSQL has {db_count} dataset(s) but {target_index} has "
-            f"{target_count} document(s)."
+            f"PostgreSQL has {db_count} dataset(s) and {failed} were skipped, so "
+            f"{target_index} should have {expected_count} document(s) but has "
+            f"{target_count}."
         )
-    click.echo(f"Validated {target_index}: {target_count} document(s).")
+    if failed:
+        click.echo(
+            f"Validated {target_index}: {target_count} document(s) "
+            f"({failed} skipped)."
+        )
+    else:
+        click.echo(f"Validated {target_index}: {target_count} document(s).")
 
     if not switch_alias:
         click.echo(
