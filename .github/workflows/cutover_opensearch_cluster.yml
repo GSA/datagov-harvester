@@ -15,8 +15,8 @@ name: Cutover OpenSearch Cluster
 # And the last step of a decommission, when the new cluster has been renamed to
 # the canonical name.
 #
-# Nothing here touches indexes. Both apps resolve the index through the shared
-# `datasets` alias, so there is no index name to coordinate. See
+# Nothing here touches indexes. Both apps read the `datasets` index, and index
+# names are scoped to a cluster, so there is no index name to coordinate. See
 # docs/ops/migrate-opensearch-cluster.md.
 
 on:

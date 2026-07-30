@@ -1,20 +1,22 @@
 name: Rebuild OpenSearch Index
 
-# Zero-downtime rebuild of the OpenSearch dataset index.
+# Rebuild the OpenSearch `datasets` index from PostgreSQL.
 #
 #   disable harvester (reuse Toggle Harvester)
 #     -> wait for in-flight harvest jobs to drain (optionally force-kill after 15m)
-#     -> rebuild-index: create a fresh index, backfill from PostgreSQL, validate,
-#        atomically switch the datasets alias, optionally delete the old index
+#     -> rebuild-index: recreate `datasets` with the current mapping, backfill from
+#        PostgreSQL, validate the document count
 #     -> re-enable harvester (always, even if the rebuild failed)
 #
-# Search stays available throughout: the old index keeps serving reads until the
-# atomic alias switch, so catalog and harvester never see a missing index.
+# The rebuild is DESTRUCTIVE to the cluster it runs against: it drops `datasets`
+# and refills it, so that cluster returns no results until the backfill finishes.
 #
-# With cluster=next the rebuild runs entirely on a replacement cluster, so the
-# live cluster keeps serving queries at full speed instead of competing with the
-# backfill for CPU and I/O. That run does NOT affect live search at all -- the
-# cutover is a separate, manual step. See docs/ops/migrate-opensearch-cluster.md.
+# Run it with cluster=next against a freshly provisioned replacement cluster and
+# cut over afterwards -- the live cluster is then never touched and keeps serving
+# queries at full speed. The cutover is a separate, manual step. cluster=live
+# rebuilds in place and takes search down for the duration; use it only when a
+# search outage in that space is acceptable.
+# See docs/ops/migrate-opensearch-cluster.md.
 
 on:
   workflow_dispatch:
@@ -29,25 +31,15 @@ on:
           - staging
           - prod
       cluster:
-        description: "Which cluster to rebuild in ('next' leaves live search untouched)"
+        description: "Which cluster to rebuild in ('next' leaves live search untouched; 'live' takes search down)"
         required: true
-        default: live
+        default: next
         type: choice
         options:
-          - live
           - next
+          - live
       force_kill_running_jobs:
         description: "Cancel harvest jobs still running after 15 minutes"
-        required: true
-        default: false
-        type: boolean
-      switch_alias:
-        description: "Switch the datasets alias to the rebuilt index"
-        required: true
-        default: true
-        type: boolean
-      delete_old_index:
-        description: "Delete the previous index after a successful alias switch"
         required: true
         default: false
         type: boolean
@@ -90,23 +82,10 @@ jobs:
 
       - name: Set operation names and options
         env:
-          SWITCH_ALIAS: ${{ inputs.switch_alias }}
-          DELETE_OLD_INDEX: ${{ inputs.delete_old_index }}
           CLUSTER: ${{ inputs.cluster }}
         run: |
           echo "REBUILD_TASK=search-rebuild-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_ENV"
-          echo "TARGET_INDEX=datasets-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_ENV"
           echo "CLUSTER_OPTION=--cluster ${CLUSTER}" >> "$GITHUB_ENV"
-          if [[ "$SWITCH_ALIAS" == "true" ]]; then
-            echo "ALIAS_OPTION=--switch-alias" >> "$GITHUB_ENV"
-          else
-            echo "ALIAS_OPTION=--no-switch-alias" >> "$GITHUB_ENV"
-          fi
-          if [[ "$DELETE_OLD_INDEX" == "true" ]]; then
-            echo "DELETE_OPTION=--delete-old-index" >> "$GITHUB_ENV"
-          else
-            echo "DELETE_OPTION=" >> "$GITHUB_ENV"
-          fi
 
       - name: Wait for running harvest tasks
         uses: cloud-gov/cg-cli-tools@main
@@ -124,9 +103,7 @@ jobs:
         with:
           command: >
             cf run-task datagov-harvest --name "$REBUILD_TASK" -k 4G -m 2G
-            --command "flask search rebuild-index --target-index $TARGET_INDEX
-            --allow-legacy-index-removal $CLUSTER_OPTION $ALIAS_OPTION
-            $DELETE_OPTION"
+            --command "flask search rebuild-index $CLUSTER_OPTION"
           cf_org: gsa-datagov
           cf_space: ${{ env.CF_SPACE }}
           cf_username: ${{ secrets.CF_SERVICE_USER }}

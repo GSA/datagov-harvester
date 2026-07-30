@@ -171,13 +171,17 @@ def test_compare_is_read_only_without_update(app):
     client._refresh.assert_not_called()
 
 
-def _rebuild_client(alias_indices=None, legacy_concrete=False, target_count=5):
+def _rebuild_client(existing_index=True, aliased_indices=None, target_count=5):
     """Build a mocked OpenSearchClient for rebuild-index tests.
 
-    ``indices.exists`` is stateful because rebuild-index queries it before the
-    new index is created (expects False) and again during the alias switch
-    (expects True). ``created`` tracks that transition. ``target_count`` is what
-    ``count(target_index)`` reports for the post-backfill validation.
+    ``indices.exists`` is stateful: rebuild-index checks for ``datasets`` before
+    deleting it, then recreates it. ``created`` tracks that transition.
+    ``existing_index`` seeds whether ``datasets`` is already present -- it
+    normally is, because constructing a client calls ``_ensure_index()``.
+    ``aliased_indices`` instead makes ``datasets`` an *alias* over those indices,
+    the state a cluster rebuilt by an older release is left in; ``indices.delete``
+    then rejects the bare name the way OpenSearch really does.
+    ``target_count`` is what ``count()`` reports for the post-backfill validation.
 
     The mapping includes a ``dynamic`` flag declared as a Python bool, and
     ``get_mapping`` echoes it back as OpenSearch really does -- the string
@@ -193,22 +197,47 @@ def _rebuild_client(alias_indices=None, legacy_concrete=False, target_count=5):
     }
     client.SETTINGS = {"analysis": {}}
 
-    created = set(alias_indices or [])
-    if legacy_concrete:
+    aliases = set(aliased_indices or [])
+    created = set(aliases)
+    if existing_index and not aliases:
         created.add("datasets")
 
     def exists(index):
-        return index in created
+        return index in created or (index == "datasets" and bool(aliases))
 
     def create(index, body, request_timeout=None):
         created.add(index)
         return {"acknowledged": True}
 
+    def delete(index):
+        names = index.split(",")
+        # OpenSearch refuses to delete an alias by name; the caller must name the
+        # concrete indices behind it. Reproduce that rather than assuming it.
+        if "datasets" in names and aliases:
+            raise RequestError(
+                400,
+                "illegal_argument_exception",
+                {
+                    "error": {
+                        "reason": (
+                            "The provided expression [datasets] matches an alias, "
+                            "specify the corresponding concrete indices instead."
+                        )
+                    },
+                    "status": 400,
+                },
+            )
+        for name in names:
+            created.discard(name)
+            aliases.discard(name)
+        return {"acknowledged": True}
+
     client.client.indices.exists.side_effect = exists
     client.client.indices.create.side_effect = create
-    client.client.indices.exists_alias.return_value = bool(alias_indices)
-    client.client.indices.get_alias.return_value = {
-        index: {} for index in (alias_indices or [])
+    client.client.indices.delete.side_effect = delete
+    client.client.indices.exists_alias.side_effect = lambda name: bool(aliases)
+    client.client.indices.get_alias.side_effect = lambda name: {
+        index: {"aliases": {"datasets": {}}} for index in sorted(aliases)
     }
     client.client.indices.get_mapping.side_effect = lambda index: {
         index: {
@@ -221,7 +250,6 @@ def _rebuild_client(alias_indices=None, legacy_concrete=False, target_count=5):
         }
     }
     client.client.count.return_value = {"count": target_count}
-    client.client.indices.update_aliases.return_value = {"acknowledged": True}
     return client
 
 
@@ -251,54 +279,90 @@ def _run_rebuild(app, client, args, db_count=5, backfill=None):
     return result, backfill_mock
 
 
-def test_rebuild_index_backfills_and_switches_alias(app):
-    client = _rebuild_client(alias_indices=["datasets-old"])
+def test_rebuild_index_recreates_datasets_and_backfills(app):
+    client = _rebuild_client()
 
-    result, backfill_mock = _run_rebuild(
-        app, client, ["--target-index", "datasets-new"]
-    )
+    result, backfill_mock = _run_rebuild(app, client, [])
 
     assert result.exit_code == 0, result.output
+    # The pre-existing index is dropped, then recreated with the current mapping.
+    client.client.indices.delete.assert_called_once_with(index="datasets")
     create_kwargs = client.client.indices.create.call_args.kwargs
-    assert create_kwargs["index"] == "datasets-new"
-    # Backfill targets the new physical index, sourced from PostgreSQL.
+    assert create_kwargs["index"] == "datasets"
+    # Backfill targets `datasets` itself, sourced from PostgreSQL.
     backfill_mock.assert_called_once()
-    assert backfill_mock.call_args.args[1] == "datasets-new"
-
-    client.client.indices.update_aliases.assert_called_once()
-    actions = client.client.indices.update_aliases.call_args.kwargs["body"]["actions"]
-    assert {"remove": {"index": "datasets-old", "alias": "datasets"}} in actions
-    assert {"add": {"index": "datasets-new", "alias": "datasets"}} in actions
-    assert "datasets now points to datasets-new" in result.output
+    assert backfill_mock.call_args.args[1] == "datasets"
+    assert "Rebuild complete: datasets is ready on the live cluster." in result.output
 
 
-def test_rebuild_index_aborts_before_alias_switch_on_count_mismatch(app):
-    # PostgreSQL has 5 datasets but only 4 land in the new index.
-    client = _rebuild_client(alias_indices=["datasets-old"], target_count=4)
+def test_rebuild_index_creates_datasets_when_absent(app):
+    """A cluster with no `datasets` index yet needs no delete."""
+    client = _rebuild_client(existing_index=False)
 
-    result, _ = _run_rebuild(
-        app, client, ["--target-index", "datasets-new"], db_count=5
+    result, _ = _run_rebuild(app, client, [])
+
+    assert result.exit_code == 0, result.output
+    client.client.indices.delete.assert_not_called()
+    assert client.client.indices.create.call_args.kwargs["index"] == "datasets"
+
+
+def test_rebuild_index_replaces_a_leftover_alias(app):
+    """A cluster last rebuilt by an older release has `datasets` as an alias.
+
+    Reproduces the development failure of 2026-07-29: `indices.delete("datasets")`
+    returned ``illegal_argument_exception`` because the name matched an alias, and
+    the rebuild aborted. Both dev clusters -- and staging/prod after any earlier
+    rebuild -- start in exactly this state.
+    """
+    client = _rebuild_client(aliased_indices=["datasets-30503327609-1"])
+
+    result, backfill_mock = _run_rebuild(app, client, [])
+
+    assert result.exit_code == 0, result.output
+    # The concrete index behind the alias is what gets deleted, by name.
+    client.client.indices.delete.assert_called_once_with(index="datasets-30503327609-1")
+    assert "leftover alias" in result.output
+    # `datasets` is then recreated as a plain index and backfilled.
+    assert client.client.indices.create.call_args.kwargs["index"] == "datasets"
+    assert backfill_mock.call_args.args[1] == "datasets"
+
+
+def test_rebuild_index_deletes_every_index_behind_a_multi_index_alias(app):
+    """An alias spanning several indices must not leave any of them behind."""
+    client = _rebuild_client(aliased_indices=["datasets-one", "datasets-two"])
+
+    result, _ = _run_rebuild(app, client, [])
+
+    assert result.exit_code == 0, result.output
+    # One atomic request naming both, so the alias never outlives its indices.
+    client.client.indices.delete.assert_called_once_with(
+        index="datasets-one,datasets-two"
     )
+
+
+def test_rebuild_index_aborts_on_count_mismatch(app):
+    # PostgreSQL has 5 datasets but only 4 land in the index.
+    client = _rebuild_client(target_count=4)
+
+    result, _ = _run_rebuild(app, client, [], db_count=5)
 
     assert result.exit_code != 0
     assert OPENSEARCH_INDEX_BATCH_FAILURE_MESSAGE in result.output
-    client.client.indices.update_aliases.assert_not_called()
 
 
 def test_rebuild_index_aborts_when_skipped_exceeds_budget(app):
-    client = _rebuild_client(alias_indices=["datasets-old"])
+    client = _rebuild_client()
 
     result, _ = _run_rebuild(
         app,
         client,
-        ["--target-index", "datasets-new", "--max-skipped", "0"],
+        ["--max-skipped", "0"],
         db_count=5,
         backfill=(4, 1, [{"index": {"_id": "doomed", "error": "boom"}}]),
     )
 
     assert result.exit_code != 0
     assert OPENSEARCH_INDEX_BATCH_FAILURE_MESSAGE in result.output
-    client.client.indices.update_aliases.assert_not_called()
     # Even on abort, the ids must be reported so they can be investigated.
     assert "doomed" in result.output
 
@@ -311,7 +375,7 @@ def test_rebuild_index_skips_rejected_document_and_completes(app):
     backfill threw away 397,999 successfully indexed documents.
     """
     # 4 of 5 datasets land; the rejected one is skipped, so the index holds 4.
-    client = _rebuild_client(alias_indices=["datasets-old"], target_count=4)
+    client = _rebuild_client(target_count=4)
     rejection = {
         "index": {
             "_id": "ba35e626-c015-4c15-819f-892ce8e6baa9",
@@ -326,14 +390,14 @@ def test_rebuild_index_skips_rejected_document_and_completes(app):
     result, _ = _run_rebuild(
         app,
         client,
-        ["--target-index", "datasets-new"],
+        [],
         db_count=5,
         backfill=(4, 1, [rejection]),
     )
 
     assert result.exit_code == 0, result.output
-    # The rebuild proceeds all the way through the alias switch.
-    client.client.indices.update_aliases.assert_called_once()
+    # The rebuild runs to completion rather than discarding the indexed documents.
+    assert "Rebuild complete" in result.output
     # The id, the error, and the reason are all reported for follow-up.
     assert OPENSEARCH_SKIPPED_DOCUMENTS_BANNER in result.output
     assert "ba35e626-c015-4c15-819f-892ce8e6baa9" in result.output
@@ -343,7 +407,7 @@ def test_rebuild_index_skips_rejected_document_and_completes(app):
 
 
 def test_rebuild_index_reports_every_skipped_id_without_truncating(app):
-    client = _rebuild_client(alias_indices=["datasets-old"], target_count=94)
+    client = _rebuild_client(target_count=94)
     rejections = [
         {
             "index": {
@@ -357,7 +421,7 @@ def test_rebuild_index_reports_every_skipped_id_without_truncating(app):
     result, _ = _run_rebuild(
         app,
         client,
-        ["--target-index", "datasets-new"],
+        [],
         db_count=100,
         backfill=(94, 6, rejections),
     )
@@ -370,78 +434,26 @@ def test_rebuild_index_reports_every_skipped_id_without_truncating(app):
 def test_rebuild_index_validation_accounts_for_skipped_documents(app):
     """A document missing for any reason *other* than a skip must still fail."""
     # 1 skipped out of 5 means 4 expected, but the index only has 3.
-    client = _rebuild_client(alias_indices=["datasets-old"], target_count=3)
+    client = _rebuild_client(target_count=3)
 
     result, _ = _run_rebuild(
         app,
         client,
-        ["--target-index", "datasets-new"],
+        [],
         db_count=5,
         backfill=(4, 1, [{"index": {"_id": "skipped-one", "error": "boom"}}]),
     )
 
     assert result.exit_code != 0
     assert "should have 4 document(s) but has 3" in result.output
-    client.client.indices.update_aliases.assert_not_called()
-
-
-def test_rebuild_index_requires_flag_to_convert_legacy_concrete_index(app):
-    client = _rebuild_client(alias_indices=None, legacy_concrete=True)
-
-    result, _ = _run_rebuild(app, client, ["--target-index", "datasets-new"])
-
-    assert result.exit_code != 0
-    assert "--allow-legacy-index-removal" in result.output
-    client.client.indices.create.assert_not_called()
-
-
-def test_rebuild_index_converts_legacy_concrete_index_with_flag(app):
-    client = _rebuild_client(alias_indices=None, legacy_concrete=True)
-
-    result, _ = _run_rebuild(
-        app,
-        client,
-        ["--target-index", "datasets-new", "--allow-legacy-index-removal"],
-    )
-
-    assert result.exit_code == 0, result.output
-    actions = client.client.indices.update_aliases.call_args.kwargs["body"]["actions"]
-    assert {"remove_index": {"index": "datasets"}} in actions
-    assert {"add": {"index": "datasets-new", "alias": "datasets"}} in actions
-
-
-def test_rebuild_index_no_switch_alias_leaves_alias_untouched(app):
-    client = _rebuild_client(alias_indices=["datasets-old"])
-
-    result, backfill_mock = _run_rebuild(
-        app, client, ["--target-index", "datasets-new", "--no-switch-alias"]
-    )
-
-    assert result.exit_code == 0, result.output
-    backfill_mock.assert_called_once()
-    client.client.indices.update_aliases.assert_not_called()
-
-
-def test_rebuild_index_deletes_old_index_after_switch(app):
-    client = _rebuild_client(alias_indices=["datasets-old"])
-    # After the switch, delete-old-index re-checks that the old index is no
-    # longer attached to any alias before deleting it.
-    client.client.indices.delete.return_value = {"acknowledged": True}
-
-    result, _ = _run_rebuild(
-        app, client, ["--target-index", "datasets-new", "--delete-old-index"]
-    )
-
-    assert result.exit_code == 0, result.output
-    client.client.indices.delete.assert_called_once_with(index="datasets-old")
 
 
 def test_rebuild_index_creates_with_extended_request_timeout(app):
     # indices.create waits for shards to become active, which can outlast the
     # client's default 60s socket timeout on a loaded cluster.
-    client = _rebuild_client(alias_indices=["datasets-old"])
+    client = _rebuild_client()
 
-    result, _ = _run_rebuild(app, client, ["--target-index", "datasets-new"])
+    result, _ = _run_rebuild(app, client, [])
 
     assert result.exit_code == 0, result.output
     create_kwargs = client.client.indices.create.call_args.kwargs
@@ -456,7 +468,7 @@ def test_rebuild_index_survives_already_exists_after_timed_out_create(app):
     ``resource_already_exists_exception`` because the original request had in fact
     created the index. The rebuild aborted and left an orphaned empty index.
     """
-    client = _rebuild_client(alias_indices=["datasets-old"])
+    client = _rebuild_client()
     # The timed-out first attempt did create the index server-side, so record it
     # as existing before raising the error the retry actually received.
     original_create = client.client.indices.create.side_effect
@@ -471,32 +483,26 @@ def test_rebuild_index_survives_already_exists_after_timed_out_create(app):
 
     client.client.indices.create.side_effect = create_then_conflict
 
-    result, backfill_mock = _run_rebuild(
-        app, client, ["--target-index", "datasets-new"]
-    )
+    result, backfill_mock = _run_rebuild(app, client, [])
 
     assert result.exit_code == 0, result.output
     assert "treating the earlier attempt as successful" in result.output
-    # The rebuild must carry on to backfill and swap the alias.
+    # The rebuild must carry on to the backfill rather than aborting.
     backfill_mock.assert_called_once()
-    client.client.indices.update_aliases.assert_called_once()
 
 
 def test_rebuild_index_still_aborts_on_other_create_errors(app):
-    client = _rebuild_client(alias_indices=["datasets-old"])
+    client = _rebuild_client()
     client.client.indices.create.side_effect = RequestError(
         400,
         "invalid_index_name_exception",
         {"error": {"reason": "bad name"}, "status": 400},
     )
 
-    result, backfill_mock = _run_rebuild(
-        app, client, ["--target-index", "datasets-new"]
-    )
+    result, backfill_mock = _run_rebuild(app, client, [])
 
     assert result.exit_code != 0
     backfill_mock.assert_not_called()
-    client.client.indices.update_aliases.assert_not_called()
 
 
 def test_backfill_from_postgres_overrides_index_and_tallies_failures(app):
@@ -646,11 +652,10 @@ def test_backfill_stops_once_skip_budget_is_exhausted(app):
     assert [e["index"]["_id"] for e in errors] == ["bad1", "bad2"]
 
 
-def test_delete_index_removes_unused_physical_index(app):
+def test_delete_index_removes_leftover_index(app):
     client = Mock()
     client.INDEX_NAME = "datasets"
     client.client.indices.exists.return_value = True
-    client.client.indices.get_alias.return_value = {"datasets-old": {"aliases": {}}}
     client.client.indices.delete.return_value = {"acknowledged": True}
 
     with patch(
@@ -665,28 +670,12 @@ def test_delete_index_removes_unused_physical_index(app):
     client.client.indices.delete.assert_called_once_with(index="datasets-old")
 
 
-def test_delete_index_refuses_index_still_attached_to_alias(app):
-    client = Mock()
-    client.INDEX_NAME = "datasets"
-    client.client.indices.exists.return_value = True
-    client.client.indices.get_alias.return_value = {
-        "datasets-live": {"aliases": {"datasets": {}}}
-    }
+def test_delete_index_refuses_the_live_datasets_index(app):
+    """The suffix requirement is the only thing protecting live search.
 
-    with patch(
-        "app.commands.search.OpenSearchClient.from_environment",
-        return_value=client,
-    ):
-        result = app.test_cli_runner().invoke(
-            args=["search", "delete-index", "--index-name", "datasets-live"]
-        )
-
-    assert result.exit_code != 0
-    assert "still attached to alias" in result.output
-    client.client.indices.delete.assert_not_called()
-
-
-def test_delete_index_refuses_logical_alias_name(app):
+    Rebuilds write to `datasets` directly, so an unsuffixed name here would take
+    search down rather than reclaim disk from a leftover.
+    """
     client = Mock()
     client.INDEX_NAME = "datasets"
 
@@ -699,7 +688,7 @@ def test_delete_index_refuses_logical_alias_name(app):
         )
 
     assert result.exit_code != 0
-    assert "physical index starting with" in result.output
+    assert "cannot be deleted this way" in result.output
     client.client.indices.delete.assert_not_called()
 
 
@@ -830,34 +819,6 @@ def test_is_aws_opensearch_host_classification(host, is_aws):
     assert _is_aws_opensearch_host(host) is is_aws
 
 
-def test_rebuild_index_validates_target_name_before_touching_a_cluster(
-    app, next_cluster_environment
-):
-    """A name typo must abort before a client exists.
-
-    Constructing a client runs _ensure_index(), which creates a concrete
-    `datasets`. Validating the name afterwards would leave that index behind on
-    the target cluster even though the command failed.
-    """
-    with patch(
-        "app.commands.search.OpenSearchClient.from_environment"
-    ) as from_environment:
-        result = app.test_cli_runner().invoke(
-            args=[
-                "search",
-                "rebuild-index",
-                "--target-index",
-                "totally-bogus-name",
-                "--cluster",
-                "next",
-            ]
-        )
-
-    assert result.exit_code != 0
-    assert "physical index starting with" in result.output
-    from_environment.assert_not_called()
-
-
 def test_next_cluster_environment_removes_vars_that_were_unset(monkeypatch):
     """Restoring must not invent a live host that was never set."""
     monkeypatch.delenv("OPENSEARCH_HOST", raising=False)
@@ -887,21 +848,19 @@ def test_rebuild_index_next_cluster_requires_its_credentials(
     app, monkeypatch, aws_next_cluster_environment, missing
 ):
     monkeypatch.delenv(missing, raising=False)
-    client = _rebuild_client(alias_indices=["datasets-old"])
+    client = _rebuild_client()
 
-    result, backfill_mock = _run_rebuild(
-        app, client, ["--target-index", "datasets-new", "--cluster", "next"]
-    )
+    result, backfill_mock = _run_rebuild(app, client, ["--cluster", "next"])
 
     assert result.exit_code != 0
     # The error has to name the variable and how to get it, since the operator
     # is reading this out of a cf task log.
     assert missing in result.output
     assert "OPENSEARCH_NEXT_SERVICE_NAME" in result.output
-    # Nothing was created or indexed anywhere.
+    # Nothing was created, deleted, or indexed anywhere.
     backfill_mock.assert_not_called()
     client.client.indices.create.assert_not_called()
-    client.client.indices.update_aliases.assert_not_called()
+    client.client.indices.delete.assert_not_called()
 
 
 def test_next_cluster_allows_a_local_host_without_aws_keys(monkeypatch):
@@ -925,7 +884,7 @@ def test_rebuild_index_next_cluster_builds_client_against_replacement(
     app, next_cluster_environment
 ):
     """The whole rebuild must resolve the replacement cluster's credentials."""
-    client = _rebuild_client(alias_indices=["datasets-old"])
+    client = _rebuild_client()
     observed = {}
 
     def record_host():
@@ -944,14 +903,7 @@ def test_rebuild_index_next_cluster_builds_client_against_replacement(
         patch("app.commands.search._backfill_from_postgres", return_value=(5, 0, [])),
     ):
         result = app.test_cli_runner().invoke(
-            args=[
-                "search",
-                "rebuild-index",
-                "--target-index",
-                "datasets-new",
-                "--cluster",
-                "next",
-            ]
+            args=["search", "rebuild-index", "--cluster", "next"]
         )
 
     assert result.exit_code == 0, result.output
@@ -962,53 +914,9 @@ def test_rebuild_index_next_cluster_builds_client_against_replacement(
     assert os.environ["OPENSEARCH_HOST"] == "live.example"
 
 
-def test_rebuild_index_next_cluster_refuses_to_skip_the_alias_switch(
-    app, next_cluster_environment
-):
-    """A replacement cluster left without the alias would serve zero results.
-
-    Client construction auto-creates an empty concrete ``datasets``, so skipping
-    the switch strands the populated index behind a name nothing points at --
-    and cutting over to that cluster fails silently rather than loudly.
-    """
-    client = _rebuild_client(alias_indices=["datasets-old"])
-
-    result, backfill_mock = _run_rebuild(
-        app,
-        client,
-        [
-            "--target-index",
-            "datasets-new",
-            "--cluster",
-            "next",
-            "--no-switch-alias",
-        ],
-    )
-
-    assert result.exit_code != 0
-    assert "requires the alias switch" in result.output
-    # Refused before doing any work at all.
-    backfill_mock.assert_not_called()
-    client.client.indices.create.assert_not_called()
-
-
-def test_rebuild_index_live_cluster_still_allows_no_switch_alias(
-    app, next_cluster_environment
-):
-    """The guard must not restrict the existing live-cluster staging workflow."""
-    client = _rebuild_client(alias_indices=["datasets-old"])
-
-    result, _ = _run_rebuild(
-        app, client, ["--target-index", "datasets-new", "--no-switch-alias"]
-    )
-
-    assert result.exit_code == 0, result.output
-    client.client.indices.update_aliases.assert_not_called()
-
-
 def test_rebuild_index_defaults_to_the_live_cluster(app, next_cluster_environment):
-    """Omitting --cluster must behave exactly as before this option existed."""
-    client = _rebuild_client(alias_indices=["datasets-old"])
+    """Omitting --cluster must target live, not the replacement cluster."""
+    client = _rebuild_client()
     observed = {}
 
     def record_host():
@@ -1025,46 +933,31 @@ def test_rebuild_index_defaults_to_the_live_cluster(app, next_cluster_environmen
         patch("app.commands.search.db_interface.db.query", return_value=query_result),
         patch("app.commands.search._backfill_from_postgres", return_value=(5, 0, [])),
     ):
-        result = app.test_cli_runner().invoke(
-            args=["search", "rebuild-index", "--target-index", "datasets-new"]
-        )
+        result = app.test_cli_runner().invoke(args=["search", "rebuild-index"])
 
     assert result.exit_code == 0, result.output
     assert observed["host"] == "live.example"
     assert "Target cluster: live (live.example)" in result.output
 
 
-def test_rebuild_index_on_fresh_cluster_converts_auto_created_index_to_alias(
+def test_rebuild_index_on_fresh_cluster_recreates_auto_created_index(
     app, next_cluster_environment
 ):
     """Cover the state a brand-new cluster is actually in.
 
-    Constructing a client calls ``_ensure_index()``, which creates a *concrete*
-    index named ``datasets``. A fresh replacement cluster therefore always starts
-    in the "legacy concrete index" state, and the rebuild has to convert it to an
-    alias in the same atomic request so future in-cluster rebuilds keep working.
+    Constructing a client calls ``_ensure_index()``, which creates an empty
+    ``datasets`` index. The rebuild must drop that and recreate it with the
+    current mapping rather than backfilling into whatever shape it was given.
     """
-    client = _rebuild_client(legacy_concrete=True)
+    client = _rebuild_client()
 
-    result, _ = _run_rebuild(
-        app,
-        client,
-        [
-            "--target-index",
-            "datasets-new",
-            "--cluster",
-            "next",
-            "--allow-legacy-index-removal",
-        ],
-    )
+    result, backfill_mock = _run_rebuild(app, client, ["--cluster", "next"])
 
     assert result.exit_code == 0, result.output
-    actions = client.client.indices.update_aliases.call_args.kwargs["body"]["actions"]
-    assert {"remove_index": {"index": "datasets"}} in actions
-    assert {"add": {"index": "datasets-new", "alias": "datasets"}} in actions
-    assert "Converted the legacy concrete index 'datasets' into an alias." in (
-        result.output
-    )
+    client.client.indices.delete.assert_called_once_with(index="datasets")
+    assert client.client.indices.create.call_args.kwargs["index"] == "datasets"
+    backfill_mock.assert_called_once()
+    assert "Rebuild complete: datasets is ready on the next cluster." in result.output
 
 
 def test_compare_targets_the_replacement_cluster(app, next_cluster_environment):
@@ -1106,7 +999,6 @@ def test_delete_index_targets_the_replacement_cluster(app, next_cluster_environm
     client = Mock()
     client.INDEX_NAME = "datasets"
     client.client.indices.exists.return_value = True
-    client.client.indices.get_alias.return_value = {"datasets-stale": {"aliases": {}}}
     client.client.indices.delete.return_value = {"acknowledged": True}
     observed = {}
 

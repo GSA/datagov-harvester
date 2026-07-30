@@ -1,9 +1,8 @@
 name: Delete OpenSearch Physical Index
 
-# Manually delete an unused physical dataset index (for example, one left behind
-# by a rebuild that was run with --no-delete-old-index). The command refuses to
-# delete an index still attached to the datasets alias, so live search cannot be
-# removed by mistake.
+# Manually delete a leftover `datasets-*` index (for example, one left behind by
+# an older rebuild). The command only accepts a suffixed name, so the live
+# `datasets` index cannot be removed by mistake.
 
 on:
   workflow_dispatch:
@@ -18,9 +17,17 @@ on:
           - staging
           - prod
       index_name:
-        description: "Exact unused physical index name (for example, datasets-20260723152900)"
+        description: "Exact leftover index name (for example, datasets-20260723152900)"
         required: true
         type: string
+      cluster:
+        description: "Which cluster to delete from"
+        required: true
+        default: live
+        type: choice
+        options:
+          - live
+          - next
 
 permissions:
   contents: read
@@ -41,23 +48,28 @@ jobs:
       - name: Check out the code
         uses: actions/checkout@v7
 
-      - name: Validate physical index name
+      - name: Validate index name
         env:
           REQUESTED_INDEX: ${{ inputs.index_name }}
+          CLUSTER: ${{ inputs.cluster }}
         run: |
+          # The suffix is required: rebuilds now write to `datasets` itself, so a
+          # bare `datasets` here would delete live search rather than a leftover.
           if [[ ! "$REQUESTED_INDEX" =~ ^datasets-[a-z0-9._-]+$ ]]; then
             echo "Index name must match datasets-[a-z0-9._-]+." >&2
             exit 1
           fi
           echo "INDEX_NAME=$REQUESTED_INDEX" >> "$GITHUB_ENV"
+          echo "CLUSTER_OPTION=--cluster ${CLUSTER}" >> "$GITHUB_ENV"
           echo "DELETE_TASK=search-delete-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_ENV"
 
-      - name: Delete unused physical index
+      - name: Delete leftover index
         uses: cloud-gov/cg-cli-tools@main
         with:
           command: >
             cf run-task datagov-harvest --name "$DELETE_TASK" -k 2G -m 2G
-            --command "flask search delete-index --index-name $INDEX_NAME"
+            --command "flask search delete-index --index-name $INDEX_NAME
+            $CLUSTER_OPTION"
           cf_org: gsa-datagov
           cf_space: ${{ env.CF_SPACE }}
           cf_username: ${{ secrets.CF_SERVICE_USER }}

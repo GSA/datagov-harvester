@@ -6,15 +6,18 @@ search and no downtime.
 
 ## Why this exists
 
-`flask search rebuild-index` is already zero-*downtime*: it builds a new physical
-index, backfills from PostgreSQL, and atomically swaps the `datasets` alias, so
-readers never see a missing index. But run against the live cluster it is not
-zero-*impact* — bulk-indexing the whole dataset table competes with catalog
-queries for CPU and I/O, and search latency suffers for the hours it takes.
+`flask search rebuild-index` drops the `datasets` index and refills it from
+PostgreSQL, so the cluster it runs against returns nothing until the backfill
+finishes — and bulk-indexing the whole dataset table competes with catalog queries
+for CPU and I/O the whole time.
 
-Rebuilding on a separate cluster removes that entirely: the live cluster receives
-no rebuild traffic at all. Cutting over afterwards is a `cf set-env` plus a
-rolling restart.
+Rebuilding on a separate cluster removes both problems: the live cluster receives
+no rebuild traffic at all and keeps serving its existing index at full speed.
+Cutting over afterwards is a `cf set-env` plus a rolling restart.
+
+**Every rebuild should therefore target a replacement cluster.** `--cluster live`
+still exists, but it takes search down for the duration and is only appropriate
+where that is acceptable.
 
 This is also the only way to **resize**. The cloud.gov broker does not support
 changing an instance's plan (`cf update-service` can change the engine version,
@@ -37,13 +40,12 @@ not the plan), so a bigger cluster necessarily means a new instance.
 
 ### There is no index to coordinate
 
-Worth being explicit, because it is the part that sounds hardest: **neither app
-ever names an index.** Both read `INDEX_NAME = "datasets"` from the shared
-`datagov_data_access` package, and `datasets` is an *alias*. The rebuild creates a
-physical index (`datasets-<runid>-<attempt>`) and repoints the alias atomically
-inside OpenSearch, so the physical name is an internal detail that never leaves
-the cluster. Nothing to tell catalog, nothing to deploy in lockstep, no window
-where the two apps disagree about which index to read.
+Worth being explicit, because it is the part that sounds hardest: **the index is
+called `datasets` on every cluster.** Both apps read `INDEX_NAME = "datasets"` from
+the shared `datagov_data_access` package, and index names are scoped to a cluster,
+so a replacement cluster has nothing to collide with. Nothing to tell catalog,
+nothing to deploy in lockstep, no window where the two apps disagree about which
+index to read.
 
 The only thing the two apps must agree on is **which cluster**, and that is one
 environment variable per app. Which is why the whole cutover is a single workflow
@@ -181,8 +183,6 @@ Run the **Rebuild OpenSearch Index** workflow with:
 
 - `environment`: `<space>`
 - `cluster`: **`next`**
-- `switch_alias`: `true` (required for `next`; the command refuses otherwise)
-- `delete_old_index`: `false`
 
 Confirm in the task log that it names the *new* host — this line is the proof the
 live cluster was left alone:
@@ -191,13 +191,12 @@ live cluster was left alone:
 Target cluster: next (<new host>)
 ```
 
-A fresh cluster always starts with an empty concrete index named `datasets`,
-created as a side effect of the first connection. The rebuild converts it to an
-alias in the same atomic request, and says so:
+A fresh cluster always starts with an empty `datasets` index, created as a side
+effect of the first connection. The rebuild drops it and recreates it with the
+current mapping before backfilling, and finishes with:
 
 ```
-Converted the legacy concrete index 'datasets' into an alias.
-Rebuild complete: datasets now points to datasets-<runid>-<attempt>.
+Rebuild complete: datasets is ready on the next cluster.
 ```
 
 Live search is unaffected for this entire step. Watch catalog's latency in New

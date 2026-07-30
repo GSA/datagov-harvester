@@ -412,14 +412,34 @@ def compare_opensearch(
         click.echo("Nothing to update; datasets and index are already in sync.")
 
 
-def _default_rebuild_index_name(alias_name: str) -> str:
-    """Build a versioned physical index name like datasets-20260723152900."""
-    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
-    return f"{alias_name}-{timestamp}"
+def _clear_datasets_index(client, index_name: str):
+    """Remove whatever currently answers to ``index_name``.
+
+    Constructing a client calls ``_ensure_index()``, so the name always resolves
+    to something by the time this runs. It is usually a plain index, but on any
+    cluster that was rebuilt by an older release it is an *alias* pointing at a
+    ``datasets-<suffix>`` index -- and ``indices.delete`` rejects an alias with
+    ``illegal_argument_exception``. Drop the alias and the indices behind it so a
+    cluster in either state ends up equally clean.
+    """
+    if client.client.indices.exists_alias(name=index_name):
+        aliased = sorted(client.client.indices.get_alias(name=index_name))
+        click.echo(
+            f"'{index_name}' is a leftover alias for {', '.join(aliased)}; "
+            "removing both so it becomes a plain index."
+        )
+        # One atomic request: dropping an aliased index removes its alias with it,
+        # so this never leaves the name pointing at something already deleted.
+        client.client.indices.delete(index=",".join(aliased))
+        return
+
+    if client.client.indices.exists(index=index_name):
+        click.echo(f"Deleting existing index {index_name}...")
+        client.client.indices.delete(index=index_name)
 
 
 def _create_rebuild_index(client, target_index: str, body: dict):
-    """Create the candidate index, tolerating a timed-out-but-successful attempt.
+    """Create the index, tolerating a timed-out-but-successful attempt.
 
     ``indices.create`` waits for shards to become active before responding, which
     can outlast the client's 60s socket timeout on a busy cluster. The client then
@@ -429,8 +449,8 @@ def _create_rebuild_index(client, target_index: str, body: dict):
 
     Passing an explicit ``request_timeout`` gives the call room to finish, and
     treating "already exists" as success makes the retry idempotent. The caller has
-    already established that ``target_index`` did not exist before this point, so
-    an existing index here can only be this command's own timed-out attempt.
+    already deleted any pre-existing ``target_index``, so an existing index here
+    can only be this command's own timed-out attempt.
     """
     try:
         client.client.indices.create(
@@ -445,61 +465,6 @@ def _create_rebuild_index(client, target_index: str, body: dict):
             f"  {target_index} already exists after a timed-out create; "
             "treating the earlier attempt as successful."
         )
-
-
-def _alias_indices(client, alias_name: str) -> list[str]:
-    """Return the physical indices currently attached to an alias.
-
-    Returns an empty list when the name is not (yet) an alias, which is the
-    case on the very first cutover while ``datasets`` is still a concrete index.
-    """
-    if not client.client.indices.exists_alias(name=alias_name):
-        return []
-    return sorted(client.client.indices.get_alias(name=alias_name))
-
-
-def _switch_datasets_alias(client, target_index: str, allow_legacy_index_removal: bool):
-    """Atomically point the logical ``datasets`` name at ``target_index``.
-
-    All alias changes are submitted in a single ``update_aliases`` request so
-    readers (catalog + harvester) never observe a moment without an index. The
-    first cutover finds a legacy *concrete* index named ``datasets``; OpenSearch
-    can remove that index and create the alias in the same atomic request.
-
-    Returns ``(old_indices, removed_legacy_index)``.
-    """
-    alias_name = client.INDEX_NAME
-    if not client.client.indices.exists(index=target_index):
-        raise click.ClickException(
-            f"OpenSearch target index does not exist: {target_index}"
-        )
-
-    old_indices = _alias_indices(client, alias_name)
-    if old_indices == [target_index]:
-        return old_indices, False
-
-    actions = [
-        {"remove": {"index": index, "alias": alias_name}} for index in old_indices
-    ]
-
-    removed_legacy_index = False
-    if not old_indices and client.client.indices.exists(index=alias_name):
-        # ``datasets`` is still a concrete index rather than an alias.
-        if not allow_legacy_index_removal:
-            raise click.ClickException(
-                f"'{alias_name}' is still a concrete index. Re-run with "
-                "--allow-legacy-index-removal to perform the one-time atomic "
-                "conversion to an alias."
-            )
-        actions.append({"remove_index": {"index": alias_name}})
-        removed_legacy_index = True
-
-    actions.append({"add": {"index": target_index, "alias": alias_name}})
-
-    response = client.client.indices.update_aliases(body={"actions": actions})
-    if not response.get("acknowledged"):
-        raise click.ClickException("OpenSearch did not acknowledge the alias switch.")
-    return old_indices, removed_legacy_index
 
 
 def _rejection_details(item: dict) -> tuple[str, str, str]:
@@ -618,37 +583,11 @@ def _backfill_from_postgres(
 
 @search.cli.command("rebuild-index")
 @click.option(
-    "--target-index",
-    help="Physical index name. Defaults to datasets-<UTC timestamp>.",
-)
-@click.option(
-    "--switch-alias/--no-switch-alias",
-    default=True,
-    show_default=True,
-    help="Switch the datasets alias to the rebuilt index after validation.",
-)
-@click.option(
-    "--allow-legacy-index-removal",
-    is_flag=True,
-    help=(
-        "Allow the first cutover to atomically remove a legacy concrete index "
-        "named datasets so it can become an alias."
-    ),
-)
-@click.option(
     "--batch-size",
     default=1000,
     show_default=True,
     type=click.IntRange(min=1),
     help="Number of datasets read from PostgreSQL per backfill batch.",
-)
-@click.option(
-    "--delete-old-index",
-    is_flag=True,
-    help=(
-        "After a successful alias switch, delete the index(es) the alias "
-        "previously pointed at. Ignored with --no-switch-alias."
-    ),
 )
 @click.option(
     "--max-skipped",
@@ -663,75 +602,32 @@ def _backfill_from_postgres(
 )
 @cluster_option
 def rebuild_opensearch_index(
-    target_index: str | None,
-    switch_alias: bool,
-    allow_legacy_index_removal: bool,
     batch_size: int,
-    delete_old_index: bool,
     max_skipped: int,
     cluster: str,
 ):
-    """Zero-downtime rebuild: backfill datasets into a fresh index, then swap alias.
+    """Rebuild the ``datasets`` index from PostgreSQL on a replacement cluster.
 
-    Builds a new physical index with the current application mapping, regenerates
-    every document from PostgreSQL (the source of truth) into it, validates the
-    document count, and (by default) atomically switches the ``datasets`` alias to
-    the new index. Search stays available throughout because the old index keeps
-    serving reads until the atomic alias switch.
+    Recreates the ``datasets`` index with the current application mapping and
+    regenerates every document from PostgreSQL (the source of truth) into it, then
+    validates the document count.
 
     Backfilling from PostgreSQL (rather than an OpenSearch ``_reindex``) means the
     rebuild also picks up document-shape changes, not just mapping changes, and
     reuses the same repair path as ``compare --force-update``.
 
-    With ``--cluster next`` the whole rebuild runs on a *replacement* cluster, so
-    the live cluster serves queries at full speed instead of competing with the
-    backfill for CPU and I/O. The index keeps the same ``datasets`` name there --
-    a separate cluster means there is no name to collide with -- so cutting over
-    is purely a matter of repointing the apps. See
+    This is destructive to the index it runs against, so run it with
+    ``--cluster next`` against a freshly provisioned replacement cluster and cut
+    over afterwards -- the live cluster is then never touched and serves queries at
+    full speed throughout. ``--cluster live`` rebuilds in place and search returns
+    nothing until the backfill finishes. See
     docs/ops/migrate-opensearch-cluster.md.
     """
-    if cluster == CLUSTER_NEXT and not switch_alias:
-        # Constructing a client calls _ensure_index(), so a replacement cluster
-        # already holds an *empty concrete* index named datasets. Skipping the
-        # switch would leave that empty index in place next to a populated
-        # datasets-<ts> that nothing points at, and cutting over to it would
-        # return zero results with no error anywhere.
-        raise click.ClickException(
-            f"--cluster {CLUSTER_NEXT} requires the alias switch: the replacement "
-            "cluster must end up with 'datasets' as an alias before anything reads "
-            "it. Drop --no-switch-alias."
-        )
-
-    # Validate the target-index NAME before building a client. Constructing one
-    # calls _ensure_index(), which creates a concrete `datasets` index as a side
-    # effect -- so a name typo caught after construction would still have left an
-    # index behind on the target cluster.
-    alias_name = OpenSearchClient.INDEX_NAME
-    target_index = target_index or _default_rebuild_index_name(alias_name)
-    if target_index == alias_name or not target_index.startswith(f"{alias_name}-"):
-        raise click.ClickException(
-            f"Target index must be a physical index starting with '{alias_name}-'."
-        )
-
+    target_index = OpenSearchClient.INDEX_NAME
     client = _client_for_cluster(cluster, announce=True)
+    _clear_datasets_index(client, target_index)
 
-    if client.client.indices.exists(index=target_index):
-        raise click.ClickException(f"OpenSearch index already exists: {target_index}")
-
-    # Fail fast, before creating anything, if the one-time legacy conversion is
-    # needed but has not been explicitly allowed.
-    current_alias_indices = _alias_indices(client, alias_name)
-    has_legacy_concrete_index = not current_alias_indices and (
-        client.client.indices.exists(index=alias_name)
-    )
-    if switch_alias and has_legacy_concrete_index and not allow_legacy_index_removal:
-        raise click.ClickException(
-            f"'{alias_name}' is still a concrete index. Re-run with "
-            "--allow-legacy-index-removal to perform the one-time atomic "
-            "conversion to an alias."
-        )
-
-    click.echo(f"Creating physical index {target_index} with current mapping...")
+    click.echo(f"Creating index {target_index} with current mapping...")
     body = {"mappings": client.MAPPINGS}
     if client.SETTINGS:
         body["settings"] = client.SETTINGS
@@ -783,64 +679,28 @@ def rebuild_opensearch_index(
     else:
         click.echo(f"Validated {target_index}: {target_count} document(s).")
 
-    if not switch_alias:
-        click.echo(
-            f"Rebuild complete: {target_index} is validated. The {alias_name} "
-            "alias was not changed."
-        )
-        return
-
-    click.echo(f"Atomically switching alias {alias_name} to {target_index}...")
-    old_indices, removed_legacy = _switch_datasets_alias(
-        client, target_index, allow_legacy_index_removal
-    )
-    if removed_legacy:
-        click.echo(f"Converted the legacy concrete index '{alias_name}' into an alias.")
-    click.echo(f"Rebuild complete: {alias_name} now points to {target_index}.")
-
-    if old_indices:
-        if delete_old_index:
-            for old_index in old_indices:
-                _delete_physical_index(client, old_index)
-        else:
-            click.echo(
-                "Previous index no longer serving traffic (safe to delete with "
-                f"'flask search delete-index'): {', '.join(old_indices)}"
-            )
+    click.echo(f"Rebuild complete: {target_index} is ready on the {cluster} cluster.")
 
 
 def _delete_physical_index(client, index_name: str):
-    """Delete a physical dataset index after guarding against unsafe removals.
+    """Delete a leftover ``datasets-*`` index.
 
-    Refuses to delete the logical alias name itself or any index still attached
-    to an alias, so this can only ever remove an old index left behind by a
-    rebuild.
+    The name must carry a suffix, which is what keeps the live ``datasets`` index
+    itself un-deletable: rebuilds write to ``datasets`` directly, so deleting that
+    name would take search down rather than reclaim disk.
     """
-    alias_name = client.INDEX_NAME
+    index_prefix = client.INDEX_NAME
 
-    physical_index_pattern = rf"{re.escape(alias_name)}-[a-z0-9._-]+"
-    if not re.fullmatch(physical_index_pattern, index_name):
+    suffixed_index_pattern = rf"{re.escape(index_prefix)}-[a-z0-9._-]+"
+    if not re.fullmatch(suffixed_index_pattern, index_name):
         raise click.ClickException(
-            f"Index name must be a physical index starting with '{alias_name}-'."
+            f"Index name must start with '{index_prefix}-'. The live "
+            f"'{index_prefix}' index cannot be deleted this way."
         )
     if not client.client.indices.exists(index=index_name):
         raise click.ClickException(f"OpenSearch index does not exist: {index_name}")
 
-    alias_response = client.client.indices.get_alias(index=index_name)
-    attached_aliases = sorted(
-        {
-            alias
-            for index_details in alias_response.values()
-            for alias in index_details.get("aliases", {})
-        }
-    )
-    if attached_aliases:
-        raise click.ClickException(
-            f"Cannot delete {index_name}; it is still attached to alias(es): "
-            + ", ".join(attached_aliases)
-        )
-
-    click.echo(f"Deleting unused physical index {index_name}...")
+    click.echo(f"Deleting unused index {index_name}...")
     response = client.client.indices.delete(index=index_name)
     if not response.get("acknowledged"):
         raise click.ClickException(
@@ -853,10 +713,10 @@ def _delete_physical_index(client, index_name: str):
 @click.option(
     "--index-name",
     required=True,
-    help="Exact name of an unused physical index, such as datasets-20260723152900.",
+    help="Exact name of a leftover index, such as datasets-20260723152900.",
 )
 @cluster_option
 def delete_opensearch_index(index_name: str, cluster: str):
-    """Delete an unused physical dataset index."""
+    """Delete a leftover ``datasets-*`` index."""
     client = _client_for_cluster(cluster, announce=True)
     _delete_physical_index(client, index_name)
