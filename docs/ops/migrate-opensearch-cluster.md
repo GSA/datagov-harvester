@@ -51,22 +51,33 @@ The only thing the two apps must agree on is **which cluster**, and that is one
 environment variable per app. Which is why the whole cutover is a single workflow
 run.
 
-### The whole migration, in steps
+### The whole migration is one workflow
 
-| # | Step | How |
+Dispatch **Migrate OpenSearch Cluster** and it runs the entire thing:
+
+| # | Stage | What it does |
 | --- | --- | --- |
-| 1 | Provision + bind the new cluster | one `cf create-service` + two `cf bind-service` (or the provisioning script) |
-| 2 | Expose its credentials to the harvester | one `cf set-env` + rolling restart |
-| 3 | Pause harvesting and the nightly sync | **Toggle Harvester**, one repo variable |
-| 4 | Rebuild into the new cluster | **Rebuild OpenSearch Index** (`cluster: next`) |
-| 5 | Verify | one `cf run-task` (`compare --cluster next`) |
-| 6 | Move both apps | **Cutover OpenSearch Cluster** (one run, both apps) |
-| 7 | Verify and resume | **Toggle Harvester**, clear the repo variable |
+| 1 | disable harvesting | calls **Toggle Harvester** |
+| 2 | provision | `cf create-service` + bind both apps + expose the credentials to the harvester |
+| 3 | drain | waits for in-flight harvest jobs |
+| 4 | rebuild | `rebuild-index --cluster next` into the new cluster |
+| 5 | verify | `compare --cluster next` — must be 0 missing, 0 extra, 0 updated |
+| 6 | promote | moves both apps and gives the new cluster the canonical name |
+| 7 | verify | resolved host per app, then `compare --cluster live` |
+| 8 | decommission | deletes the cluster it replaced |
+| 9 | re-enable harvesting | always, even if something above failed |
 
-Six of the seven are a single command or one workflow dispatch. Rollback is step 6
-re-run with the old name. The optional decommission rename adds four more steps
-and is the only part with a real failure window — see
-[Decommission](#decommission-delete-old-rename-new-to-canonical).
+Everything through stage 5 leaves the live cluster **completely untouched**, so it
+keeps serving search at full speed and any failure there costs nothing: the
+half-built replacement is deleted automatically and the live cluster is exactly as
+it was.
+
+Deletion happens **last**, after both verification gates, so the replaced cluster
+stays available for rollback through every risky step. Pass
+`keep_old_cluster: true` to skip it entirely and delete by hand later.
+
+The one-run default is what you want for a routine migration or a resize. For a
+**schema-breaking change**, use [two-phase mode](#two-phase-mode-schema-breaking-changes).
 
 Two properties make this safe:
 
@@ -77,30 +88,102 @@ Two properties make this safe:
   so the replacement instance is bound out-of-band and deliberately *not* listed
   in `manifest.yml` (a manifest cannot reference an instance that does not exist).
 
+### Two-phase mode: schema-breaking changes
+
+When the new mapping is incompatible with the currently deployed code, both apps have
+to ship that code *before* they read the new cluster. Dispatch twice:
+
+```
+run 1   stop_after: verify     build and verify, then STOP
+        ── deploy harvester and catalog code carrying the new schema ──
+run 2   start_at: cutover      promote, verify, delete
+```
+
+After run 1 the new cluster is built, bound, verified, and **parked**: both apps are
+still serving the old cluster and nothing reads the new one. That state is safe
+indefinitely — binding does not affect a running app — so run 1 can happen days
+ahead. Rollback during the gap is "do nothing". The only cost is paying for two
+clusters. Run 1 prints the exact command to finish.
+
+The new cluster carries whatever mapping the *deployed* harvester code had when the
+rebuild ran, so the two schemas coexist: old cluster with the old mapping serving
+live, new cluster with the new mapping waiting.
+
+> **Why the split is before the promote and not inside it.** `datagov-catalog`'s
+> `.profile` resolves `${APP_NAME}-opensearch` — literally
+> `datagov-catalog-opensearch` — and does **not** read `OPENSEARCH_SERVICE_NAME`, so
+> the rename is the only thing that can move catalog. Stopping between moving the
+> harvester and renaming would leave the harvester writing the new schema to one
+> cluster while catalog reads the old schema from another, and dataset changes would
+> silently not appear in search. Both apps move together, in run 2, or neither moves.
+
 ## Before you start
 
-- [ ] Both repos deployed with the `OPENSEARCH_SERVICE_NAME` indirection in the
-      target space (this repo, and `GSA/datagov-catalog` — see
-      [Catalog-side changes](#catalog-side-changes)).
-- [ ] **Catalog's `no_proxy` fix is deployed.** See the warning below. Blocking.
+- [ ] This repo deployed with the `OPENSEARCH_SERVICE_NAME` indirection in the
+      target space.
 - [ ] Quota headroom for a second cluster of the same size. A duplicate prod
       `es-large` is a real cost; confirm with cloud.gov it fits the
       `gsa-datagov` quota before provisioning.
 - [ ] Rehearsed end to end in `development`, then `staging`, including a
       rollback.
+- [ ] For staging and prod only: confirmed the new cluster's hostname is reachable
+      from `datagov-catalog`. See the egress-proxy note below.
 
-> **Blocking: catalog's egress proxy.** This repo's `.profile` excludes
-> `$OPENSEARCH_HOST` from the egress proxy; catalog's sets `no_proxy` to
-> `.apps.internal` only, so catalog's OpenSearch traffic goes *through* the proxy,
-> which has a hostname allowlist maintained outside both repos. The new cluster
-> has a new hostname. Either get it allowlisted, or (preferred) change catalog's
-> `.profile` to match this repo's and remove the dependency. Verify in staging
-> first — otherwise catalog search breaks the moment you cut it over, and nothing
-> in either repo explains why.
+**Catalog needs no code change.** It resolves the canonical name, so the promote
+stage's rename moves it. No `OPENSEARCH_SERVICE_NAME` plumbing on the catalog side is
+required, and setting that variable on `datagov-catalog` does nothing at all.
+
+> **Check catalog's egress proxy in staging and prod.** This repo's `.profile`
+> excludes both OpenSearch hosts from the egress proxy; catalog's sets `no_proxy` to
+> `.apps.internal` only, so where a proxy is attached, catalog's OpenSearch traffic
+> goes *through* it — and the proxy has a hostname allowlist maintained outside both
+> repos. Every new cluster gets a new broker-generated hostname, and a rename does
+> not preserve it.
+>
+> In `development` this does not apply: catalog runs with no egress proxy attached
+> (`no_proxy` and `https_proxy` are both empty inside the container), so it reaches
+> any cluster directly. Verify per space before promoting rather than assuming —
+> either get the new hostname allowlisted, or change catalog's `.profile` to match
+> this repo's. Otherwise catalog search breaks the moment the rename lands and
+> nothing in either repo explains why.
+>
+> `bin/report_opensearch_cluster.sh datagov-harvest datagov-catalog` is the fastest
+> check that both apps actually resolved the cluster you expect.
 
 Throughout, `<space>` is `development`, `staging`, or `prod`, and the new instance
 is `datagov-catalog-opensearch-next` (named after catalog, like the live one,
 because both apps bind it).
+
+## Running it
+
+Actions → **Migrate OpenSearch Cluster** → *Run workflow*:
+
+| Input | Use |
+| --- | --- |
+| `environment` | the target space |
+| `start_at` | `provision` normally; `rebuild` or `cutover` to resume a failed run |
+| `stop_after` | `decommission` normally; `verify` for [two-phase mode](#two-phase-mode-schema-breaking-changes) |
+| `next_service_name` | the replacement instance, default `datagov-catalog-opensearch-next` |
+| `next_plan` | blank matches the live plan; set it to **resize** |
+| `keep_old_cluster` | `true` keeps the replaced cluster for a manual soak |
+| `force_kill_running_jobs` | cancel harvest jobs still running after 15 minutes |
+| `max_tasks` | `HARVEST_RUNNER_MAX_TASKS` to restore afterwards (`3` for prod) |
+
+**Resuming.** Every stage is idempotent and detects work already done, so a re-dispatch
+is always safe. `start_at` exists to skip the expensive part: a prod `es-large` provision
+can take a couple of hours, so a run that fails at the promote should be re-dispatched
+with `start_at: cutover` rather than from the beginning.
+
+**If it fails.** Before the promote, the replacement cluster is deleted automatically
+and the live cluster is untouched — just fix the cause and re-dispatch. *During* the
+promote, the workflow deliberately leaves everything in place, because renames may be
+half-applied: run
+`bin/report_opensearch_cluster.sh datagov-harvest datagov-catalog` to see where each app
+actually landed, then finish or reverse the renames by hand. Harvesting is re-enabled
+either way.
+
+The rest of this document is the by-hand equivalent — useful for understanding what the
+workflow does, for recovering from a partial failure, and for rollback.
 
 ## 1. Provision the cluster
 
@@ -162,10 +245,15 @@ bin/report_opensearch_cluster.sh datagov-harvest
 Two things write to OpenSearch unattended and both must stop:
 
 1. **Harvesting** — run **Toggle Harvester** → `disable` for `<space>`.
-2. **The nightly sync** — set the repository variable
+2. **The nightly sync** — for `staging` and `prod` only, set the repository variable
    `OPENSEARCH_SYNC_PAUSED_ENVIRONMENTS` to include `<space>` (comma-separated).
    Otherwise the 6am `compare --update` cron writes into whichever cluster is
    live mid-migration.
+
+   Do **not** put `development` in that variable: the nightly sync is only scheduled
+   for `staging` and `prod`, and `synchronize_opensearch_index.yml` validates the
+   value against exactly those two names and *fails the workflow* on anything else.
+   A `development` migration needs no sync pause.
 
 Then wait for in-flight jobs to drain. The rebuild workflow does this for you
 (`bin/wait_for_harvest_tasks.sh`); it is listed here because a manual run must
@@ -270,8 +358,8 @@ binding pre-check exists to catch that before anything changes.
 Then:
 
 1. **Toggle Harvester** → `enable` (`max_tasks` = `3` for prod).
-2. Clear `<space>` from `OPENSEARCH_SYNC_PAUSED_ENVIRONMENTS` — if you forget,
-   the nightly sync stays off indefinitely.
+2. Clear `<space>` from `OPENSEARCH_SYNC_PAUSED_ENVIRONMENTS` if you set it — if you
+   forget, the nightly sync stays off indefinitely.
 3. Re-index any dataset ids whose slugs were edited during the window.
 
 ## Rollback
@@ -307,15 +395,27 @@ reason not to delete it for a week or two.
 
 ## Decommission (delete old, rename new to canonical)
 
-After a soak period (a week minimum), once you are certain you will not roll back.
+> **The workflow does this for you**, in an order that avoids the failure window
+> described below: it moves the harvester explicitly, renames old→`-old` and
+> new→canonical back to back, then *clears* the harvester's overrides so it resolves
+> the canonical name via the `.profile` default, and finally restarts catalog. The
+> old cluster is deleted last, after both verification gates.
+>
+> `bin/promote_opensearch_cluster.sh` and `bin/delete_opensearch_cluster.sh` do
+> exactly that and can be run directly. The manual sequence below is retained for
+> recovering from a partial failure and for understanding the hazard.
+
+Do this after a soak period, once you are certain you will not roll back — or let the
+workflow do it immediately, which is the default. `keep_old_cluster: true` gives you
+the soak while still automating everything else.
 
 The goal is to end with the new cluster holding the canonical name
 `datagov-catalog-opensearch` and no env overrides, so steady state matches what
 it was before the migration.
 
-> **Read this first — this sequence has a real failure window.**
+> **Read this first — the naive sequence has a real failure window.**
 >
-> Between the rename and the final repoint, both apps' `OPENSEARCH_SERVICE_NAME`
+> If you rename before repointing, both apps' `OPENSEARCH_SERVICE_NAME`
 > names `datagov-catalog-opensearch-next`, which no longer exists.
 >
 > - **Running instances are fine.** `VCAP_SERVICES` is read at container start
@@ -413,26 +513,32 @@ Also delete the leftover physical index from any aborted rebuild with the
 ## Catalog-side changes
 
 `GSA/datagov-catalog` is the main read consumer. It binds the *same* instance
-(`manifest.yml` → `((app_name))-opensearch` = `datagov-catalog-opensearch`) and
-reads the same three credential keys. It needs less than the harvester — no
-`--cluster` plumbing and no `OPENSEARCH_NEXT_*`:
+(`manifest.yml` → `((app_name))-opensearch` = `datagov-catalog-opensearch`) and reads
+the same three credential keys.
 
-1. **`.profile`** — the same `OPENSEARCH_SERVICE_NAME` indirection: a
-   `vcap_get_service_by_name` helper, `OPENSEARCH_SERVICE_NAME` defaulting to
-   `datagov-catalog-opensearch`, and the same empty-host guard.
-2. **`.profile` `no_proxy`** — add `${OPENSEARCH_HOST}`, per the warning above.
-3. **`manifest.yml`** — leave alone, same reasoning as here.
-4. **Cutover** — handled by the workflow in step 6; no catalog-side action.
+**Nothing is required on the catalog side.** Catalog's `.profile` resolves
+`${APP_NAME}-opensearch` — literally `datagov-catalog-opensearch` — so it always reads
+whichever instance currently holds the canonical name. The promote stage's rename is
+what moves it; it just needs the restart that the workflow performs. No `--cluster`
+plumbing, no `OPENSEARCH_NEXT_*`, no query or index-name changes (`datasets` is
+unchanged).
 
-No query or index-name changes: `datasets` is unchanged.
+> **Corollary worth knowing: `cf set-env datagov-catalog OPENSEARCH_SERVICE_NAME` does
+> nothing.** Catalog does not read that variable. Any procedure that tries to move
+> catalog by setting it will appear to succeed while leaving catalog on the old
+> cluster — `bin/cutover_opensearch_cluster.sh` included, which is why it is a
+> harvester-side tool. `bin/report_opensearch_cluster.sh` exposes the mismatch: the
+> `cf env` value and the resolved host disagree.
 
-> **Blocking prerequisite.** Catalog's `.profile` does **not** read
-> `OPENSEARCH_SERVICE_NAME` today — it resolves the instance as
-> `${APP_NAME}-opensearch`. Until change 1 ships, setting that variable on
-> `datagov-catalog` has no effect and the cutover will silently leave catalog on
-> the old cluster. `bin/report_opensearch_cluster.sh` will show the mismatch
-> (the `cf env` value and the resolved host disagreeing), which is the fastest
-> way to catch it.
+Two optional improvements, neither required by the workflow:
+
+1. **`.profile` `no_proxy`** — add `${OPENSEARCH_HOST}` so catalog's OpenSearch traffic
+   bypasses the egress proxy, removing the hostname-allowlist dependency in spaces that
+   have a proxy attached. See the warning under
+   [Before you start](#before-you-start).
+2. **`OPENSEARCH_SERVICE_NAME` indirection** — a `vcap_get_service_by_name` helper and
+   the same empty-host guard as this repo. This would allow moving catalog without a
+   rename, making the rename purely cosmetic rather than load-bearing.
 
 ## Emergency fallback: rename-service swap
 
@@ -461,16 +567,21 @@ Avoid this when you have the choice:
 
 | Workflow | Purpose |
 | --- | --- |
-| Rebuild OpenSearch Index | `cluster: next` to build on the replacement cluster |
-| Cutover OpenSearch Cluster | Point both apps at a cluster; also the rollback tool |
+| **Migrate OpenSearch Cluster** | **The whole migration in one dispatch — start here** |
+| Rebuild OpenSearch Index | Rebuild only, without provisioning or promoting |
+| Cutover OpenSearch Cluster | Point apps at a named instance; the rollback tool |
 | Toggle Harvester | Pause and resume harvesting |
 | Sync OpenSearch | `compare` / `compare --update`; nightly cron |
-| Delete OpenSearch Physical Index | Remove an unused `datasets-*` index |
+| Delete OpenSearch Physical Index | Remove a leftover `datasets-*` index |
 
 | Script | Purpose |
 | --- | --- |
 | `bin/report_opensearch_cluster.sh` | Which cluster each app actually resolved (`cf env` cannot show this) |
+| `bin/provision_opensearch_cluster.sh` | Create + bind the replacement cluster and expose it to the harvester |
+| `bin/promote_opensearch_cluster.sh` | Move both apps and give the replacement the canonical name, in the window-free order |
+| `bin/delete_opensearch_cluster.sh` | Unbind and delete an instance, refusing if any app still serves from it |
 | `bin/cutover_opensearch_cluster.sh` | Check bindings, then set the env var and roll each app in order |
+| `bin/lib/opensearch_plan.sh` | Plan per space and engine version, shared so clusters cannot differ |
 
 - `docs/ops/README.md` — other operational notes
 - `create_cloudgov_services.sh` — service provisioning

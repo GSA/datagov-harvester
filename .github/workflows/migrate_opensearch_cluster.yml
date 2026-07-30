@@ -1,0 +1,506 @@
+name: Migrate OpenSearch Cluster
+
+# The whole OpenSearch cluster migration, in one dispatch.
+#
+#   disable harvesting
+#     -> provision a replacement cluster and bind both apps
+#     -> drain in-flight harvest jobs
+#     -> rebuild the `datasets` index into the replacement cluster
+#     -> verify it matches PostgreSQL exactly
+#     -> promote it: move both apps over and give it the canonical name
+#     -> verify again
+#     -> delete the cluster it replaced
+#   re-enable harvesting (always, even on failure)
+#
+# The live cluster is untouched until the promote step, so everything up to that
+# point is free to fail: search keeps serving at full speed the whole time. If the
+# rebuild fails, the half-built replacement cluster is deleted and the live cluster
+# is left exactly as it was.
+#
+# TWO-PHASE MODE (stop_after: verify) exists for schema-breaking changes, where both
+# apps must deploy new code before they read the new mapping:
+#
+#   run 1: stop_after=verify    build and verify, then STOP with both apps still on
+#                               the live cluster and the replacement parked, bound
+#                               and inert. Safe to leave for days.
+#   ...    deploy harvester and catalog code carrying the new schema
+#   run 2: start_at=cutover     promote, verify, delete
+#
+# Both apps move together in run 2 and never disagree about the schema. That is why
+# the split is before the promote rather than inside it: datagov-catalog's .profile
+# resolves ${APP_NAME}-opensearch with no override, so the rename is the only thing
+# that can move catalog, and splitting it from the harvester's move would leave
+# catalog reading a different cluster than the harvester writes.
+#
+# See docs/ops/migrate-opensearch-cluster.md.
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Cloud Foundry environment"
+        required: true
+        default: development
+        type: choice
+        options:
+          - development
+          - staging
+          - prod
+      start_at:
+        description: "Resume point (a prod es-large provision can take hours; don't repeat it)"
+        required: true
+        default: provision
+        type: choice
+        options:
+          - provision
+          - rebuild
+          - cutover
+      stop_after:
+        description: "'verify' parks the built cluster without moving any app (for schema-breaking changes)"
+        required: true
+        default: decommission
+        type: choice
+        options:
+          - decommission
+          - verify
+      next_service_name:
+        description: "Replacement service instance to build/promote"
+        required: true
+        default: datagov-catalog-opensearch-next
+        type: string
+      canonical_service_name:
+        description: "The name both apps resolve at rest"
+        required: true
+        default: datagov-catalog-opensearch
+        type: string
+      next_plan:
+        description: "Plan override (blank = match the live plan for this space; set this to resize)"
+        required: false
+        default: ""
+        type: string
+      force_kill_running_jobs:
+        description: "Cancel harvest jobs still running after 15 minutes"
+        required: true
+        default: false
+        type: boolean
+      keep_old_cluster:
+        description: "Promote but do NOT delete the replaced cluster (keeps rollback available)"
+        required: true
+        default: false
+        type: boolean
+      max_tasks:
+        description: "HARVEST_RUNNER_MAX_TASKS to restore when re-enabling"
+        required: false
+        default: "3"
+        type: string
+
+permissions:
+  contents: read
+
+# Shares the per-environment OpenSearch lock with Rebuild / Sync / Cutover / Delete,
+# so none of them can run against this space while a migration is in flight.
+#
+# Note this workflow deliberately does NOT call rebuild_opensearch_index.yml: that
+# workflow holds this same group, so calling it would queue the child behind its own
+# parent forever. The rebuild steps are inlined below instead. Calling
+# toggle_harvester.yml IS safe -- it uses a different group.
+concurrency:
+  group: opensearch-maintenance-${{ inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    name: Plan the migration
+    runs-on: ubuntu-latest
+    outputs:
+      do_provision: ${{ steps.stages.outputs.do_provision }}
+      do_rebuild: ${{ steps.stages.outputs.do_rebuild }}
+      do_cutover: ${{ steps.stages.outputs.do_cutover }}
+      do_decommission: ${{ steps.stages.outputs.do_decommission }}
+    steps:
+      - name: Validate inputs and resolve stages
+        id: stages
+        env:
+          NEXT_SERVICE: ${{ inputs.next_service_name }}
+          CANONICAL_SERVICE: ${{ inputs.canonical_service_name }}
+          NEXT_PLAN: ${{ inputs.next_plan }}
+          START_AT: ${{ inputs.start_at }}
+          STOP_AFTER: ${{ inputs.stop_after }}
+          KEEP_OLD: ${{ inputs.keep_old_cluster }}
+        run: |
+          # These reach a cf command line, so constrain them to CF-legal names
+          # rather than trusting free-text workflow input.
+          for pair in "service_name:$NEXT_SERVICE" "canonical_service_name:$CANONICAL_SERVICE"; do
+            name=${pair%%:*}
+            value=${pair#*:}
+            if [[ ! "$value" =~ ^[a-zA-Z0-9._-]+$ ]]; then
+              echo "::error::$name must match [a-zA-Z0-9._-]+ (got: '$value')."
+              exit 1
+            fi
+          done
+          if [[ -n "$NEXT_PLAN" && ! "$NEXT_PLAN" =~ ^[a-zA-Z0-9._-]+$ ]]; then
+            echo "::error::next_plan must match [a-zA-Z0-9._-]+ (got: '$NEXT_PLAN')."
+            exit 1
+          fi
+          if [[ "$NEXT_SERVICE" == "$CANONICAL_SERVICE" ]]; then
+            echo "::error::next_service_name and canonical_service_name are both" \
+                 "'$NEXT_SERVICE'. The replacement needs its own name until it is promoted."
+            exit 1
+          fi
+
+          # start_at skips earlier stages; stop_after truncates later ones.
+          case "$START_AT" in
+            provision) provision=true;  rebuild=true;  cutover=true ;;
+            rebuild)   provision=false; rebuild=true;  cutover=true ;;
+            cutover)   provision=false; rebuild=false; cutover=true ;;
+          esac
+          if [[ "$STOP_AFTER" == "verify" ]]; then
+            cutover=false
+          fi
+          decommission=$cutover
+          if [[ "$KEEP_OLD" == "true" ]]; then
+            decommission=false
+          fi
+
+          {
+            echo "do_provision=$provision"
+            echo "do_rebuild=$rebuild"
+            echo "do_cutover=$cutover"
+            echo "do_decommission=$decommission"
+          } >> "$GITHUB_OUTPUT"
+
+          echo "Stages: provision=$provision rebuild=$rebuild cutover=$cutover decommission=$decommission"
+          if [[ "$STOP_AFTER" == "verify" ]]; then
+            echo "::notice::Two-phase mode: the replacement cluster will be built and" \
+                 "verified, but NO app will be moved. Deploy your code, then re-dispatch" \
+                 "with start_at=cutover."
+          fi
+
+  disable-harvester:
+    name: Disable harvesting (${{ inputs.environment }})
+    needs: plan
+    uses: ./.github/workflows/toggle_harvester.yml
+    with:
+      state: disable
+      environment: ${{ inputs.environment }}
+    secrets:
+      CF_SERVICE_USER: ${{ secrets.CF_SERVICE_USER }}
+      CF_SERVICE_AUTH: ${{ secrets.CF_SERVICE_AUTH }}
+      SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+  # Everything that leaves the live cluster untouched. Split from `promote` below so
+  # the teardown decision can key on a reliable job result rather than on an output
+  # read out of a failed job.
+  build:
+    name: Build ${{ inputs.next_service_name }} (${{ inputs.environment }})
+    needs: [plan, disable-harvester]
+    runs-on: ubuntu-latest
+    # A prod es-large provision alone can take ~2h; the backfill adds to that.
+    timeout-minutes: 350
+    environment: ${{ inputs.environment }}
+    env:
+      CF_SPACE: ${{ inputs.environment }}
+      NEXT_SERVICE: ${{ inputs.next_service_name }}
+      CANONICAL_SERVICE: ${{ inputs.canonical_service_name }}
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v7
+
+      - name: Set task names
+        run: |
+          echo "REBUILD_TASK=search-rebuild-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_ENV"
+          echo "VERIFY_NEXT_TASK=search-verify-next-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_ENV"
+
+      # --- provision ---------------------------------------------------------
+      - name: Provision and bind the replacement cluster
+        if: needs.plan.outputs.do_provision == 'true'
+        uses: cloud-gov/cg-cli-tools@main
+        with:
+          command: >
+            bin/provision_opensearch_cluster.sh "$NEXT_SERVICE" "${{ inputs.next_plan }}"
+          cf_org: gsa-datagov
+          cf_space: ${{ env.CF_SPACE }}
+          cf_username: ${{ secrets.CF_SERVICE_USER }}
+          cf_password: ${{ secrets.CF_SERVICE_AUTH }}
+
+      # --- rebuild -----------------------------------------------------------
+      - name: Wait for running harvest tasks
+        if: needs.plan.outputs.do_rebuild == 'true'
+        uses: cloud-gov/cg-cli-tools@main
+        with:
+          command: >
+            bin/wait_for_harvest_tasks.sh datagov-harvest 7200
+            ${{ inputs.force_kill_running_jobs && '--force-kill-running-jobs' || '' }}
+          cf_org: gsa-datagov
+          cf_space: ${{ env.CF_SPACE }}
+          cf_username: ${{ secrets.CF_SERVICE_USER }}
+          cf_password: ${{ secrets.CF_SERVICE_AUTH }}
+
+      - name: Start the index rebuild on the replacement cluster
+        if: needs.plan.outputs.do_rebuild == 'true'
+        uses: cloud-gov/cg-cli-tools@main
+        with:
+          command: >
+            cf run-task datagov-harvest --name "$REBUILD_TASK" -k 4G -m 2G
+            --command "flask search rebuild-index --cluster next"
+          cf_org: gsa-datagov
+          cf_space: ${{ env.CF_SPACE }}
+          cf_username: ${{ secrets.CF_SERVICE_USER }}
+          cf_password: ${{ secrets.CF_SERVICE_AUTH }}
+
+      - name: Monitor the index rebuild
+        if: needs.plan.outputs.do_rebuild == 'true'
+        uses: cloud-gov/cg-cli-tools@main
+        with:
+          command: bin/monitor_cf_logs.sh datagov-harvest "$REBUILD_TASK"
+          cf_org: gsa-datagov
+          cf_space: ${{ env.CF_SPACE }}
+          cf_username: ${{ secrets.CF_SERVICE_USER }}
+          cf_password: ${{ secrets.CF_SERVICE_AUTH }}
+
+      # --- verify the replacement cluster ------------------------------------
+      #
+      # The gate before anything moves. compare exits non-zero on a mismatch, and
+      # monitor_cf_logs.sh turns the task's exit status into this step's, so a
+      # discrepancy stops the run with the live cluster still serving.
+      - name: Verify the replacement cluster matches PostgreSQL
+        if: needs.plan.outputs.do_rebuild == 'true'
+        uses: cloud-gov/cg-cli-tools@main
+        with:
+          command: >
+            cf run-task datagov-harvest --name "$VERIFY_NEXT_TASK" -k 2G -m 3G
+            --command "flask search compare --cluster next"
+          cf_org: gsa-datagov
+          cf_space: ${{ env.CF_SPACE }}
+          cf_username: ${{ secrets.CF_SERVICE_USER }}
+          cf_password: ${{ secrets.CF_SERVICE_AUTH }}
+
+      - name: Monitor the verification
+        if: needs.plan.outputs.do_rebuild == 'true'
+        uses: cloud-gov/cg-cli-tools@main
+        with:
+          command: bin/monitor_cf_logs.sh datagov-harvest "$VERIFY_NEXT_TASK"
+          cf_org: gsa-datagov
+          cf_space: ${{ env.CF_SPACE }}
+          cf_username: ${{ secrets.CF_SERVICE_USER }}
+          cf_password: ${{ secrets.CF_SERVICE_AUTH }}
+
+      # --- park (two-phase mode) ---------------------------------------------
+      - name: Report the parked cluster and stop
+        if: needs.plan.outputs.do_cutover != 'true'
+        uses: cloud-gov/cg-cli-tools@main
+        with:
+          # Proves the claim that matters in two-phase mode: both apps are still on
+          # the live cluster, and the replacement is built but unused.
+          command: >
+            bin/report_opensearch_cluster.sh datagov-harvest datagov-catalog
+          cf_org: gsa-datagov
+          cf_space: ${{ env.CF_SPACE }}
+          cf_username: ${{ secrets.CF_SERVICE_USER }}
+          cf_password: ${{ secrets.CF_SERVICE_AUTH }}
+
+      - name: Explain how to finish the migration
+        if: needs.plan.outputs.do_cutover != 'true'
+        run: |
+          {
+            echo "### Replacement cluster parked"
+            echo
+            echo "\`$NEXT_SERVICE\` is built, bound, and verified against PostgreSQL."
+            echo "**Both apps are still serving from \`$CANONICAL_SERVICE\`** -- nothing moved."
+            echo
+            echo "Deploy any code that depends on the new mapping, then re-dispatch this"
+            echo "workflow with:"
+            echo
+            echo '```'
+            echo "start_at: cutover"
+            echo "next_service_name: $NEXT_SERVICE"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # Undo a failed build. Depends on `build` failing -- so by construction nothing has
+  # ever served from the cluster it deletes. `promote` is a separate job below, which
+  # is what makes this condition trustworthy: a promotion that fails partway can never
+  # reach here, because renames may already have happened and the safe move is then to
+  # stop for a human rather than delete.
+  #
+  # Deliberately `needs.build.result == 'failure'` and not the broader `failure()`:
+  # `failure()` is also true when an earlier job failed and `build` never ran, which in
+  # two-phase mode would delete an already-parked cluster from a previous run just
+  # because this run's input validation failed.
+  teardown-replacement:
+    name: Delete the half-built replacement cluster
+    needs: [plan, build]
+    if: needs.build.result == 'failure'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    environment: ${{ inputs.environment }}
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v7
+
+      - name: Delete the replacement cluster
+        uses: cloud-gov/cg-cli-tools@main
+        with:
+          command: >
+            bin/delete_opensearch_cluster.sh "${{ inputs.next_service_name }}"
+            datagov-harvest datagov-catalog
+          cf_org: gsa-datagov
+          cf_space: ${{ inputs.environment }}
+          cf_username: ${{ secrets.CF_SERVICE_USER }}
+          cf_password: ${{ secrets.CF_SERVICE_AUTH }}
+
+      - name: Clear the harvester's replacement-cluster pointer
+        uses: cloud-gov/cg-cli-tools@main
+        with:
+          # Left set, .profile would export credentials for a deleted instance and
+          # `--cluster next` would fail confusingly on the next attempt.
+          command: >
+            cf unset-env datagov-harvest OPENSEARCH_NEXT_SERVICE_NAME
+          cf_org: gsa-datagov
+          cf_space: ${{ inputs.environment }}
+          cf_username: ${{ secrets.CF_SERVICE_USER }}
+          cf_password: ${{ secrets.CF_SERVICE_AUTH }}
+
+  # Everything that moves traffic. Separate job so `teardown-replacement` above can
+  # never fire once a promotion has begun.
+  promote:
+    name: Promote ${{ inputs.next_service_name }} to canonical (${{ inputs.environment }})
+    needs: [plan, build]
+    if: needs.plan.outputs.do_cutover == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    environment: ${{ inputs.environment }}
+    env:
+      CF_SPACE: ${{ inputs.environment }}
+      NEXT_SERVICE: ${{ inputs.next_service_name }}
+      CANONICAL_SERVICE: ${{ inputs.canonical_service_name }}
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v7
+
+      - name: Set task names
+        run: |
+          echo "VERIFY_LIVE_TASK=search-verify-live-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_ENV"
+
+      - name: Promote the replacement cluster to canonical
+        uses: cloud-gov/cg-cli-tools@main
+        with:
+          command: >
+            bin/promote_opensearch_cluster.sh "$NEXT_SERVICE" "$CANONICAL_SERVICE"
+            datagov-harvest datagov-catalog
+          cf_org: gsa-datagov
+          cf_space: ${{ env.CF_SPACE }}
+          cf_username: ${{ secrets.CF_SERVICE_USER }}
+          cf_password: ${{ secrets.CF_SERVICE_AUTH }}
+
+      - name: Report the resolved cluster per app
+        uses: cloud-gov/cg-cli-tools@main
+        with:
+          command: >
+            bin/report_opensearch_cluster.sh datagov-harvest datagov-catalog
+          cf_org: gsa-datagov
+          cf_space: ${{ env.CF_SPACE }}
+          cf_username: ${{ secrets.CF_SERVICE_USER }}
+          cf_password: ${{ secrets.CF_SERVICE_AUTH }}
+
+      - name: Verify the promoted cluster
+        uses: cloud-gov/cg-cli-tools@main
+        with:
+          # Now that the promotion is done, `live` IS the new cluster.
+          command: >
+            cf run-task datagov-harvest --name "$VERIFY_LIVE_TASK" -k 2G -m 3G
+            --command "flask search compare --cluster live"
+          cf_org: gsa-datagov
+          cf_space: ${{ env.CF_SPACE }}
+          cf_username: ${{ secrets.CF_SERVICE_USER }}
+          cf_password: ${{ secrets.CF_SERVICE_AUTH }}
+
+      - name: Monitor the promoted-cluster verification
+        uses: cloud-gov/cg-cli-tools@main
+        with:
+          command: bin/monitor_cf_logs.sh datagov-harvest "$VERIFY_LIVE_TASK"
+          cf_org: gsa-datagov
+          cf_space: ${{ env.CF_SPACE }}
+          cf_username: ${{ secrets.CF_SERVICE_USER }}
+          cf_password: ${{ secrets.CF_SERVICE_AUTH }}
+
+      # Last, and only after both verifications passed, so the replaced cluster stays
+      # available for rollback through every risky step. The script independently
+      # refuses to delete anything an app still resolves.
+      - name: Delete the replaced cluster
+        if: needs.plan.outputs.do_decommission == 'true'
+        uses: cloud-gov/cg-cli-tools@main
+        with:
+          command: >
+            bin/delete_opensearch_cluster.sh "${CANONICAL_SERVICE}-old"
+            datagov-harvest datagov-catalog
+          cf_org: gsa-datagov
+          cf_space: ${{ env.CF_SPACE }}
+          cf_username: ${{ secrets.CF_SERVICE_USER }}
+          cf_password: ${{ secrets.CF_SERVICE_AUTH }}
+
+      - name: Note the retained cluster
+        if: needs.plan.outputs.do_decommission != 'true'
+        run: |
+          echo "::notice::${CANONICAL_SERVICE}-old was kept. Delete it once you are" \
+               "sure you will not roll back: bin/delete_opensearch_cluster.sh ${CANONICAL_SERVICE}-old"
+
+  enable-harvester:
+    name: Re-enable harvesting (${{ inputs.environment }})
+    needs: [build, teardown-replacement, promote]
+    # Always resume harvesting, whatever happened above -- including cancellation,
+    # and including when teardown-replacement was skipped.
+    if: always()
+    uses: ./.github/workflows/toggle_harvester.yml
+    with:
+      state: enable
+      max_tasks: ${{ inputs.max_tasks }}
+      environment: ${{ inputs.environment }}
+    secrets:
+      CF_SERVICE_USER: ${{ secrets.CF_SERVICE_USER }}
+      CF_SERVICE_AUTH: ${{ secrets.CF_SERVICE_AUTH }}
+      SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+  notify:
+    name: Notify
+    needs: [plan, build, teardown-replacement, promote, enable-harvester]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Build notification text
+        id: notification
+        # Interpolate through env, not into the JSON payload: this runs even when
+        # validation failed, so the inputs may still hold arbitrary text, and a quote
+        # would break the JSON or inject sibling fields.
+        env:
+          ENVIRONMENT: ${{ inputs.environment }}
+          ACTOR: ${{ github.actor }}
+          NEXT_SERVICE: ${{ inputs.next_service_name }}
+          BUILD_RESULT: ${{ needs.build.result }}
+          PROMOTE_RESULT: ${{ needs.promote.result }}
+          TEARDOWN_RESULT: ${{ needs.teardown-replacement.result }}
+        run: |
+          if [[ "$PROMOTE_RESULT" == "success" ]]; then
+            summary="OpenSearch migration in ${ENVIRONMENT} by ${ACTOR}: both apps are now on ${NEXT_SERVICE}, promoted to the canonical name."
+          elif [[ "$BUILD_RESULT" == "success" && "$PROMOTE_RESULT" == "skipped" ]]; then
+            summary="OpenSearch migration in ${ENVIRONMENT} by ${ACTOR}: ${NEXT_SERVICE} is built and PARKED. No app was moved; re-dispatch with start_at=cutover to finish."
+          elif [[ "$PROMOTE_RESULT" == "failure" ]]; then
+            summary="OpenSearch migration in ${ENVIRONMENT} by ${ACTOR} FAILED DURING PROMOTION. Renames may be half-applied and the replacement cluster was deliberately NOT deleted -- check bin/report_opensearch_cluster.sh output for both apps before retrying."
+          elif [[ "$TEARDOWN_RESULT" == "success" ]]; then
+            summary="OpenSearch migration in ${ENVIRONMENT} by ${ACTOR} FAILED while building (${BUILD_RESULT}). The replacement cluster was deleted; the live cluster was never touched."
+          else
+            summary="OpenSearch migration in ${ENVIRONMENT} by ${ACTOR} FAILED (build=${BUILD_RESULT}, teardown=${TEARDOWN_RESULT}). Check the run and the state of ${NEXT_SERVICE}."
+          fi
+          # jq -Rs emits a correctly escaped JSON string for any input.
+          printf 'text=%s\n' "$(printf '%s' "$summary" | jq -Rs .)" >> "$GITHUB_OUTPUT"
+
+      - name: Send notification to Slack
+        uses: slackapi/slack-github-action@v3
+        with:
+          webhook-type: incoming-webhook
+          payload: |
+            {
+              "text": ${{ steps.notification.outputs.text }}
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}

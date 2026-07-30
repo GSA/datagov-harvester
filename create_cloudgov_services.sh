@@ -6,8 +6,11 @@ set -e
 # Otherwise default to "datagov-harvest".
 app_name=${1:-datagov-harvest}
 
+# shellcheck source=bin/lib/opensearch_plan.sh
+. "$(dirname "$0")/bin/lib/opensearch_plan.sh"
+
 # Get the current space and trim leading whitespace
-space=$(cf target | grep space | cut -d : -f 2 | xargs)
+space=$(opensearch_current_space)
 
 # create email service
 cf service "${app_name}-smtp"  > /dev/null 2>&1 || cf create-service --wait aws-ses domain "${app_name}-smtp" -c '{"admin_email": "datagovhelp@gsa.gov"}'
@@ -15,18 +18,10 @@ cf service "${app_name}-smtp"  > /dev/null 2>&1 || cf create-service --wait aws-
 # create the secrets service if necessary
 cf service "${app_name}-secrets"  > /dev/null 2>&1 || cf cups "${app_name}-secrets"
 
-# OpenSearch plan and engine version per space. Single source of truth, so a
-# replacement cluster provisioned below cannot silently differ from the live one.
-# Non-HA plans are 3 primary + 2 data nodes; -ha doubles the data nodes to 4.
-# An unrecognized space gets no plan, so a sandbox space never provisions a
-# multi-node cluster by accident.
-case "$space" in
-    prod)        opensearch_plan=es-large ;;
-    staging)     opensearch_plan=es-medium-ha ;;
-    development) opensearch_plan=es-medium ;;
-    *)           opensearch_plan= ;;
-esac
-opensearch_version=OpenSearch_2.11
+# Plan per space and engine version come from bin/lib/opensearch_plan.sh, shared
+# with bin/provision_opensearch_cluster.sh so the two cannot drift.
+opensearch_plan=$(opensearch_plan_for_space "$space")
+opensearch_version=$OPENSEARCH_ENGINE_VERSION
 
 # create the OpenSearch service if necessary
 if [ -n "$opensearch_plan" ]; then
