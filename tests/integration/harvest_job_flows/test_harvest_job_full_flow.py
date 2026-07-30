@@ -223,6 +223,12 @@ class TestHarvestJobFullFlow:
             record for record in harvest_job.records if record.status == "success"
         ]
 
+        # all ISO records must have "geospatial" in theme
+        assert all(
+            "geospatial" in record.source_transform["theme"]
+            for record in successful_records
+        )
+
         assert successful_records  # at least one record should have succeeded
         for record in successful_records:
             assert isinstance(record.source_transform, dict)
