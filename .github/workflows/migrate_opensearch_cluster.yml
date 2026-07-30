@@ -475,26 +475,64 @@ jobs:
           cf_username: ${{ secrets.CF_SERVICE_USER }}
           cf_password: ${{ secrets.CF_SERVICE_AUTH }}
 
-      # Last, and only after both verifications passed, so the replaced cluster stays
-      # available for rollback through every risky step. The script independently
-      # refuses to delete anything an app still resolves.
+  # Deleting the replaced cluster is its own job, not a final step of `promote`.
+  #
+  # `cf delete-service --wait` blocks until AWS has torn down every node, which is slow
+  # and unbounded: an es-medium in development took over 10 minutes, and an es-large is
+  # 5 nodes. Inside `promote` a slow delete would fail that job on timeout and the run
+  # would report "FAILED DURING PROMOTION" -- sending an operator to inspect
+  # half-applied renames -- when in fact the migration succeeded and only the cleanup of
+  # an already-unused cluster was still running.
+  #
+  # Separating it also means the migration is *complete* the moment `promote` succeeds.
+  # Everything here is housekeeping on a cluster nothing reads.
+  decommission:
+    name: Delete the replaced cluster (${{ inputs.environment }})
+    needs: [plan, promote]
+    if: needs.plan.outputs.do_decommission == 'true'
+    runs-on: ubuntu-latest
+    # Generous: AWS teardown time scales with node count and is not ours to control.
+    timeout-minutes: 180
+    environment: ${{ inputs.environment }}
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v7
+
+      # Only after both of promote's verification gates passed, so the replaced cluster
+      # stayed available for rollback through every risky step. The script
+      # independently refuses to delete anything an app still resolves.
       - name: Delete the replaced cluster
-        if: needs.plan.outputs.do_decommission == 'true'
         uses: cloud-gov/cg-cli-tools@main
         with:
           command: >
-            bin/delete_opensearch_cluster.sh "${CANONICAL_SERVICE}-old"
+            bin/delete_opensearch_cluster.sh
+            "${{ inputs.canonical_service_name }}-old"
             datagov-harvest datagov-catalog
           cf_org: gsa-datagov
-          cf_space: ${{ env.CF_SPACE }}
+          cf_space: ${{ inputs.environment }}
           cf_username: ${{ secrets.CF_SERVICE_USER }}
           cf_password: ${{ secrets.CF_SERVICE_AUTH }}
 
-      - name: Note the retained cluster
-        if: needs.plan.outputs.do_decommission != 'true'
+  note-retained-cluster:
+    name: Note the retained cluster
+    needs: [plan, promote]
+    if: needs.plan.outputs.do_decommission != 'true' && needs.promote.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Say how to delete it later
+        env:
+          RETIRED: ${{ inputs.canonical_service_name }}-old
         run: |
-          echo "::notice::${CANONICAL_SERVICE}-old was kept. Delete it once you are" \
-               "sure you will not roll back: bin/delete_opensearch_cluster.sh ${CANONICAL_SERVICE}-old"
+          {
+            echo "### \`$RETIRED\` was kept"
+            echo
+            echo "The migration is complete; the replaced cluster is still provisioned"
+            echo "and billing, and is your rollback path. Delete it once you are sure:"
+            echo
+            echo '```'
+            echo "bin/delete_opensearch_cluster.sh $RETIRED datagov-harvest datagov-catalog"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
   enable-harvester:
     name: Re-enable harvesting (${{ inputs.environment }})
@@ -514,7 +552,8 @@ jobs:
 
   notify:
     name: Notify
-    needs: [plan, build, teardown-replacement, promote, enable-harvester]
+    needs:
+      [plan, build, teardown-replacement, promote, decommission, enable-harvester]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -530,9 +569,18 @@ jobs:
           BUILD_RESULT: ${{ needs.build.result }}
           PROMOTE_RESULT: ${{ needs.promote.result }}
           TEARDOWN_RESULT: ${{ needs.teardown-replacement.result }}
+          DECOMMISSION_RESULT: ${{ needs.decommission.result }}
         run: |
           if [[ "$PROMOTE_RESULT" == "success" ]]; then
             summary="OpenSearch migration in ${ENVIRONMENT} by ${ACTOR}: both apps are now on ${NEXT_SERVICE}, promoted to the canonical name."
+            # The migration itself is done either way; deleting the replaced cluster is
+            # housekeeping, so a failure there is reported without calling the
+            # migration failed.
+            case "$DECOMMISSION_RESULT" in
+              success) summary="${summary} The replaced cluster was deleted." ;;
+              skipped) summary="${summary} The replaced cluster was kept." ;;
+              *)       summary="${summary} NOTE: deleting the replaced cluster did not complete (${DECOMMISSION_RESULT}); it is still provisioned and billing." ;;
+            esac
           elif [[ "$BUILD_RESULT" == "success" && "$PROMOTE_RESULT" == "skipped" ]]; then
             summary="OpenSearch migration in ${ENVIRONMENT} by ${ACTOR}: ${NEXT_SERVICE} is built and PARKED. No app was moved; re-dispatch with start_at=cutover to finish."
           elif [[ "$PROMOTE_RESULT" == "failure" ]]; then

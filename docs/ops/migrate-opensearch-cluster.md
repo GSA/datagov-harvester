@@ -67,6 +67,11 @@ Dispatch **Migrate OpenSearch Cluster** and it runs the entire thing:
 | 8 | decommission | deletes the cluster it replaced |
 | 9 | re-enable harvesting | always, even if something above failed |
 
+The migration is complete the moment stage 7 passes. Stage 8 runs as its own job because
+`cf delete-service --wait` blocks until AWS has torn down every node — over 10 minutes
+for a development `es-medium`, longer for a 5-node `es-large` — and a slow teardown of
+an already-unused cluster must not be reported as a failed migration.
+
 Everything through stage 5 leaves the live cluster **completely untouched**, so it
 keeps serving search at full speed and any failure there costs nothing: the
 half-built replacement is deleted automatically and the live cluster is exactly as
