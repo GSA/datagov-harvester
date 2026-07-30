@@ -171,6 +171,97 @@ def test_compare_is_read_only_without_update(app):
     client._refresh.assert_not_called()
 
 
+def _run_compare(app, args, db_rows=(), os_hits=()):
+    """Invoke compare with the DB and OpenSearch id sets stubbed."""
+    client = Mock()
+    client.INDEX_NAME = "datasets"
+    client.client = Mock()
+
+    rows_query = Mock()
+    rows_query.all.return_value = list(db_rows)
+    dataset_query = Mock()
+    dataset_query.filter.return_value.all.return_value = []
+
+    def query_side_effect(*columns):
+        return rows_query if len(columns) == 2 else dataset_query
+
+    with (
+        patch(
+            "app.commands.search.OpenSearchClient.from_environment",
+            return_value=client,
+        ),
+        patch(
+            "app.commands.search.db_interface.db.query", side_effect=query_side_effect
+        ),
+        patch(
+            "app.commands.search.OpenSearchReader.scan_index",
+            return_value=iter(list(os_hits)),
+        ),
+        patch("app.commands.search.OpenSearchWriter", return_value=client),
+    ):
+        return app.test_cli_runner().invoke(args=["search", "compare", *args])
+
+
+# One dataset in the DB that is not indexed, and one indexed document with no
+# dataset -- i.e. 1 missing and 1 extra.
+_MISMATCH = {
+    "db_rows": [("db-only", datetime(2024, 1, 1))],
+    "os_hits": [{"_id": "extra-only", "fields": {"last_harvested_date": []}}],
+}
+
+
+def test_compare_reports_but_does_not_fail_by_default(app):
+    """The default stays a report, so the nightly sync and manual runs are unchanged."""
+    result = _run_compare(app, [], **_MISMATCH)
+
+    assert result.exit_code == 0
+    assert "Missing in OpenSearch (should be indexed): 1" in result.output
+
+
+def test_compare_fails_on_discrepancy_when_asked(app):
+    """Without this flag `compare` cannot gate anything: it prints the counts and
+    exits 0, so a CI step that treats it as a verification gate would pass an index
+    that is missing documents."""
+    result = _run_compare(app, ["--fail-on-discrepancy"], **_MISMATCH)
+
+    assert result.exit_code != 0
+    assert "Discrepancies found: 1 missing, 1 extra, 0 updated." in result.output
+
+
+def test_compare_succeeds_with_the_flag_when_in_sync(app):
+    result = _run_compare(app, ["--fail-on-discrepancy"])
+
+    assert result.exit_code == 0
+    assert "Missing in OpenSearch (should be indexed): 0" in result.output
+
+
+def test_compare_fails_on_stale_documents_too(app):
+    """A stale last_harvested_date is a discrepancy even though the id set matches --
+    which is exactly what a slug edit during a migration window looks like."""
+    result = _run_compare(
+        app,
+        ["--fail-on-discrepancy"],
+        db_rows=[("shared", datetime(2024, 2, 1))],
+        os_hits=[
+            {
+                "_id": "shared",
+                "fields": {"last_harvested_date": ["2024-01-01T00:00:00"]},
+            }
+        ],
+    )
+
+    assert result.exit_code != 0
+    assert "1 updated" in result.output
+
+
+def test_compare_fails_before_repairing_when_both_flags_are_given(app):
+    """The verification verdict must survive a repair, so the raise comes first."""
+    result = _run_compare(app, ["--update", "--fail-on-discrepancy"], **_MISMATCH)
+
+    assert result.exit_code != 0
+    assert "Updating discrepancies..." not in result.output
+
+
 def _rebuild_client(existing_index=True, aliased_indices=None, target_count=5):
     """Build a mocked OpenSearchClient for rebuild-index tests.
 

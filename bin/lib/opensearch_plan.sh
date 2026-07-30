@@ -8,6 +8,7 @@
 # (bash), so keep this POSIX-compatible: no arrays, no [[ ]], no local.
 
 # The engine version both clusters are created with.
+# shellcheck disable=SC2034  # read by the scripts that source this file
 OPENSEARCH_ENGINE_VERSION=OpenSearch_2.11
 
 # Print the default plan for a space, or nothing when the space is unrecognized.

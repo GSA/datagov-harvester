@@ -22,13 +22,21 @@ def _write_executable(path, contents):
     path.chmod(0o755)
 
 
-def _run_promote(tmp_path, *arguments, existing_services=None, bound=True):
+def _run_promote(
+    tmp_path,
+    *arguments,
+    existing_services=None,
+    bound=True,
+    existing_apps=("datagov-harvest", "datagov-catalog"),
+    catalog_restart_fails=False,
+):
     """Run the script against a stubbed cf and return (result, cf call log).
 
     ``existing_services`` controls which instance names ``cf service`` reports as
     present; defaults to the replacement and the canonical one, which is the normal
-    pre-promotion state. ``bound`` toggles whether the apps are bound to the
-    replacement instance.
+    pre-promotion state. After the rename the stub reports the canonical name as
+    present regardless, mirroring the real rename. ``bound`` toggles whether the apps
+    are bound to the replacement instance.
     """
     if existing_services is None:
         existing_services = [NEXT, CANONICAL]
@@ -43,8 +51,16 @@ def _run_promote(tmp_path, *arguments, existing_services=None, bound=True):
         """#!/bin/bash
 echo "$*" >> "$CF_CALLS_FILE"
 
+renamed_marker="${CF_CALLS_FILE}.renamed"
+
 case "$1" in
   service)
+    # A rename makes the canonical name resolve; mirror that so the script's
+    # post-rename check sees what it would really see.
+    if [[ -f "$renamed_marker" && "$2" == "$CF_CANONICAL" ]]; then
+      echo "name: $2"
+      exit 0
+    fi
     # $CF_EXISTING_SERVICES is a space-separated list of instance names.
     for existing in $CF_EXISTING_SERVICES; do
       if [[ "$2" == "$existing" ]]; then
@@ -53,6 +69,15 @@ case "$1" in
       fi
     done
     echo "Service instance $2 not found" >&2
+    exit 1
+    ;;
+  app)
+    for existing in $CF_EXISTING_APPS; do
+      if [[ "$2" == "$existing" ]]; then
+        exit 0
+      fi
+    done
+    echo "App $2 not found" >&2
     exit 1
     ;;
   curl)
@@ -65,7 +90,21 @@ case "$1" in
   env)
     echo "OPENSEARCH_SERVICE_NAME: $CF_EXISTING_ENV"
     ;;
-  set-env|unset-env|restart|rename-service)
+  rename-service)
+    # Record that the canonical name now exists again.
+    if [[ "$3" == "$CF_CANONICAL" ]]; then
+      touch "$renamed_marker"
+    fi
+    exit 0
+    ;;
+  restart)
+    if [[ "$2" == "datagov-catalog" && "$CF_CATALOG_RESTART_FAILS" == "true" ]]; then
+      echo "deployment superseded" >&2
+      exit 1
+    fi
+    exit 0
+    ;;
+  set-env|unset-env)
     exit 0
     ;;
   *)
@@ -81,8 +120,13 @@ esac
         "PATH": f"{fake_bin}:{os.environ['PATH']}",
         "CF_CALLS_FILE": str(calls_file),
         "CF_EXISTING_SERVICES": " ".join(existing_services),
+        "CF_EXISTING_APPS": " ".join(existing_apps),
+        "CF_CANONICAL": CANONICAL,
         "CF_EXISTING_ENV": CANONICAL,
         "CF_BOUND": "true" if bound else "false",
+        "CF_CATALOG_RESTART_FAILS": "true" if catalog_restart_fails else "false",
+        # Skip the real backoff between catalog restart attempts.
+        "CATALOG_RESTART_RETRY_SECONDS": "0",
     }
     result = subprocess.run(
         [str(SCRIPT), *arguments],
@@ -201,3 +245,41 @@ def test_promote_requires_both_service_names(tmp_path):
 
     assert result.returncode == 1
     assert "Usage:" in result.stderr
+
+
+def test_promote_skips_a_catalog_that_is_not_in_the_space(tmp_path):
+    """Detected during pre-flight, not at the restart -- which happens after the
+    renames, where a failure is far more awkward."""
+    result, calls = _run_promote(
+        tmp_path, NEXT, CANONICAL, existing_apps=("datagov-harvest",)
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "no app named 'datagov-catalog'" in result.stderr
+    assert "restart datagov-catalog" not in calls
+    # The harvester half still completed.
+    assert f"rename-service {NEXT} {CANONICAL}" in calls
+
+
+def test_promote_refuses_when_the_harvester_is_missing(tmp_path):
+    result, calls = _run_promote(
+        tmp_path, NEXT, CANONICAL, existing_apps=("datagov-catalog",)
+    )
+
+    assert result.returncode == 1
+    assert "No app named 'datagov-harvest'" in result.stderr
+    assert _mutating_calls(calls) == []
+
+
+def test_promote_tolerates_a_catalog_restart_losing_to_its_cron(tmp_path):
+    """Catalog's own 15-minute restart cron can supersede this deployment, which makes
+    cf restart return non-zero even though the migration is complete. The rename has
+    already landed, so catalog converges on its own; failing here would report a broken
+    migration that is fine."""
+    result, calls = _run_promote(tmp_path, NEXT, CANONICAL, catalog_restart_fails=True)
+
+    assert result.returncode == 0, result.stderr
+    # Retried, then warned rather than failed.
+    assert calls.count("restart datagov-catalog --strategy rolling") == 3
+    assert "could not roll datagov-catalog" in result.stderr
+    assert "report_opensearch_cluster.sh" in result.stderr

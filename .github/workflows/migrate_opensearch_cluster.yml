@@ -88,6 +88,14 @@ on:
         required: true
         default: false
         type: boolean
+      on_build_failure:
+        description: "If the build fails: delete the replacement, or keep it to resume with start_at=rebuild"
+        required: true
+        default: delete
+        type: choice
+        options:
+          - delete
+          - keep
       max_tasks:
         description: "HARVEST_RUNNER_MAX_TASKS to restore when re-enabling"
         required: false
@@ -97,13 +105,18 @@ on:
 permissions:
   contents: read
 
-# Shares the per-environment OpenSearch lock with Rebuild / Sync / Cutover / Delete,
-# so none of them can run against this space while a migration is in flight.
+# Shares the per-environment OpenSearch lock with Rebuild / Sync / Cutover / Delete
+# AND with Restart Apps, so none of them can run against this space while a migration
+# is in flight. Including the restart cron matters: it fires every 10 minutes, and a
+# rolling restart landing mid-rename either fails .profile's empty-host guard or
+# supersedes this workflow's own deployment. Queueing it is structural -- there is no
+# "re-enable" step that a cancelled run could skip.
 #
-# Note this workflow deliberately does NOT call rebuild_opensearch_index.yml: that
-# workflow holds this same group, so calling it would queue the child behind its own
-# parent forever. The rebuild steps are inlined below instead. Calling
-# toggle_harvester.yml IS safe -- it uses a different group.
+# Note this workflow deliberately does NOT call rebuild_opensearch_index.yml. That
+# workflow is workflow_dispatch-only, so `uses:` would fail validation outright; and
+# were it callable, it holds this same group and would queue behind its own parent
+# forever. The rebuild steps are inlined below instead. Calling toggle_harvester.yml
+# IS safe -- it uses a different group.
 concurrency:
   group: opensearch-maintenance-${{ inputs.environment }}
   cancel-in-progress: false
@@ -145,6 +158,14 @@ jobs:
           if [[ "$NEXT_SERVICE" == "$CANONICAL_SERVICE" ]]; then
             echo "::error::next_service_name and canonical_service_name are both" \
                  "'$NEXT_SERVICE'. The replacement needs its own name until it is promoted."
+            exit 1
+          fi
+          # start_at=cutover skips the build, and stop_after=verify skips the promote,
+          # so together they would run a job in which every step is skipped.
+          if [[ "$START_AT" == "cutover" && "$STOP_AFTER" == "verify" ]]; then
+            echo "::error::start_at=cutover with stop_after=verify would do nothing:" \
+                 "the build stages are skipped and the promote is truncated. Use" \
+                 "start_at=rebuild to re-verify, or stop_after=decommission to promote."
             exit 1
           fi
 
@@ -260,16 +281,17 @@ jobs:
 
       # --- verify the replacement cluster ------------------------------------
       #
-      # The gate before anything moves. compare exits non-zero on a mismatch, and
-      # monitor_cf_logs.sh turns the task's exit status into this step's, so a
-      # discrepancy stops the run with the live cluster still serving.
+      # The gate before anything moves. --fail-on-discrepancy is what makes it a
+      # gate: without it `compare` only reports and exits 0, so an unverified cluster
+      # would sail through. monitor_cf_logs.sh turns the task's exit status into this
+      # step's, so a discrepancy stops the run with the live cluster still serving.
       - name: Verify the replacement cluster matches PostgreSQL
         if: needs.plan.outputs.do_rebuild == 'true'
         uses: cloud-gov/cg-cli-tools@main
         with:
           command: >
             cf run-task datagov-harvest --name "$VERIFY_NEXT_TASK" -k 2G -m 3G
-            --command "flask search compare --cluster next"
+            --command "flask search compare --cluster next --fail-on-discrepancy"
           cf_org: gsa-datagov
           cf_space: ${{ env.CF_SPACE }}
           cf_username: ${{ secrets.CF_SERVICE_USER }}
@@ -330,7 +352,7 @@ jobs:
   teardown-replacement:
     name: Delete the half-built replacement cluster
     needs: [plan, build]
-    if: needs.build.result == 'failure'
+    if: needs.build.result == 'failure' && inputs.on_build_failure == 'delete'
     runs-on: ubuntu-latest
     timeout-minutes: 60
     environment: ${{ inputs.environment }}
@@ -360,6 +382,35 @@ jobs:
           cf_space: ${{ inputs.environment }}
           cf_username: ${{ secrets.CF_SERVICE_USER }}
           cf_password: ${{ secrets.CF_SERVICE_AUTH }}
+
+  # Say how to resume when the replacement cluster was deliberately kept, so the hours
+  # already spent provisioning are not silently wasted.
+  explain-resume:
+    name: Explain how to resume
+    needs: [plan, build]
+    if: needs.build.result == 'failure' && inputs.on_build_failure == 'keep'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Write the resume command
+        env:
+          NEXT_SERVICE: ${{ inputs.next_service_name }}
+        run: |
+          {
+            echo "### Build failed; \`$NEXT_SERVICE\` was kept"
+            echo
+            echo "The live cluster was never touched. Provisioning is idempotent, so"
+            echo "re-dispatch with the following to retry without rebuilding the cluster:"
+            echo
+            echo '```'
+            echo "start_at: rebuild"
+            echo "next_service_name: $NEXT_SERVICE"
+            echo '```'
+            echo
+            echo "Or delete it by hand:"
+            echo '```'
+            echo "bin/delete_opensearch_cluster.sh $NEXT_SERVICE"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
   # Everything that moves traffic. Separate job so `teardown-replacement` above can
   # never fire once a promotion has begun.
@@ -409,7 +460,7 @@ jobs:
           # Now that the promotion is done, `live` IS the new cluster.
           command: >
             cf run-task datagov-harvest --name "$VERIFY_LIVE_TASK" -k 2G -m 3G
-            --command "flask search compare --cluster live"
+            --command "flask search compare --cluster live --fail-on-discrepancy"
           cf_org: gsa-datagov
           cf_space: ${{ env.CF_SPACE }}
           cf_username: ${{ secrets.CF_SERVICE_USER }}

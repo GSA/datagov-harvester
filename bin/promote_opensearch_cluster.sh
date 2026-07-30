@@ -46,6 +46,9 @@ canonical_service=${2:-}
 harvest_app=${3:-datagov-harvest}
 catalog_app=${4:-datagov-catalog}
 retired_service="${canonical_service}-old"
+# How long to wait between catalog restart attempts. Overridable so tests do not
+# have to sit through the real backoff.
+catalog_retry_seconds=${CATALOG_RESTART_RETRY_SECONDS:-60}
 
 if [[ -z "$next_service" || -z "$canonical_service" ]]; then
   echo "$usage" >&2
@@ -79,11 +82,31 @@ if cf service "$retired_service" > /dev/null 2>&1; then
   exit 1
 fi
 
-# Both apps must be bound to the replacement instance. Bindings survive renames,
-# so a binding missing here stays missing after step 3, and the app then cannot
-# resolve the canonical name at all -- .profile exits 1 and the app will not start.
+# The harvester must exist -- it is the app this script repoints and restarts.
+if ! cf app "$harvest_app" > /dev/null 2>&1; then
+  echo "No app named '${harvest_app}' in this space." >&2
+  exit 1
+fi
+
+# Catalog is optional: a space may not run it. Detect that now rather than failing at
+# the restart in step 5, which happens *after* the renames.
+catalog_present=yes
+if ! cf app "$catalog_app" > /dev/null 2>&1; then
+  catalog_present=no
+  echo "NOTE: no app named '${catalog_app}' in this space; skipping its restart." >&2
+fi
+
+# Every app that will exist must be bound to the replacement instance. Bindings
+# survive renames, so a binding missing here stays missing after step 3, and the app
+# then cannot resolve the canonical name at all -- .profile exits 1 and the app will
+# not start. This is the check that catches create_cloudgov_services.sh having
+# downgraded a failed catalog bind to a warning.
+apps_to_check=("$harvest_app")
+if [[ "$catalog_present" == yes ]]; then
+  apps_to_check+=("$catalog_app")
+fi
 unbound=()
-for app in "$harvest_app" "$catalog_app"; do
+for app in "${apps_to_check[@]}"; do
   if ! cf curl "/v3/service_credential_bindings?app_names=${app}&service_instance_names=${next_service}" \
     | jq -e '.pagination.total_results > 0' > /dev/null 2>&1; then
     unbound+=("$app")
@@ -127,6 +150,16 @@ cf rename-service "$canonical_service" "$retired_service"
 echo "=== 3/5 rename ${next_service} -> ${canonical_service} ==="
 cf rename-service "$next_service" "$canonical_service"
 
+# Confirm the name actually moved. Everything after this assumes the canonical name
+# resolves again, and "renamed" vs "silently did not" is worth one cheap check at the
+# one point in the script where the window is open.
+if ! cf service "$canonical_service" > /dev/null 2>&1; then
+  echo "'${canonical_service}' does not resolve after the rename." >&2
+  echo "The window is still open. Recover with:" >&2
+  echo "  cf rename-service ${retired_service} ${canonical_service}" >&2
+  exit 1
+fi
+
 # --- 4. Return the harvester to a bare steady state ------------------------
 #
 # unset rather than set: OPENSEARCH_SERVICE_NAME defaults to the canonical name in
@@ -145,8 +178,32 @@ cf restart "$harvest_app" --strategy rolling
 #
 # Catalog has been resolving the canonical name all along; the rename in step 3 is
 # what changed which cluster that is. It needs a restart to see it.
-echo "=== 5/5 restart ${catalog_app} onto ${canonical_service} ==="
-cf restart "$catalog_app" --strategy rolling
+#
+# Retried rather than fatal. Catalog is restarted by a cron in its own repo every 15
+# minutes, so two rolling deployments can collide and one supersedes the other --
+# which makes `cf restart` return non-zero even though nothing is wrong. The rename
+# has already landed at this point, so catalog converges on its own cron regardless;
+# failing here would report a broken migration that is in fact complete.
+if [[ "$catalog_present" == yes ]]; then
+  echo "=== 5/5 restart ${catalog_app} onto ${canonical_service} ==="
+  catalog_rolled=no
+  for attempt in 1 2 3; do
+    if cf restart "$catalog_app" --strategy rolling; then
+      catalog_rolled=yes
+      break
+    fi
+    echo "  attempt ${attempt} failed (a restart cron may have been mid-deployment);" >&2
+    echo "  retrying in ${catalog_retry_seconds}s..." >&2
+    sleep "$catalog_retry_seconds"
+  done
+  if [[ "$catalog_rolled" != yes ]]; then
+    echo "WARNING: could not roll ${catalog_app} after 3 attempts. Its own restart" >&2
+    echo "cron will pick up the rename within ~15 minutes. Confirm with:" >&2
+    echo "  bin/report_opensearch_cluster.sh ${catalog_app}" >&2
+  fi
+else
+  echo "=== 5/5 skipped: ${catalog_app} is not in this space ==="
+fi
 
 echo ""
 echo "Promotion complete: ${canonical_service} is now the replacement cluster."

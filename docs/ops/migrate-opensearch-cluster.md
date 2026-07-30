@@ -166,6 +166,7 @@ Actions → **Migrate OpenSearch Cluster** → *Run workflow*:
 | `next_service_name` | the replacement instance, default `datagov-catalog-opensearch-next` |
 | `next_plan` | blank matches the live plan; set it to **resize** |
 | `keep_old_cluster` | `true` keeps the replaced cluster for a manual soak |
+| `on_build_failure` | `delete` removes a failed replacement (default); `keep` retains it so you can resume with `start_at: rebuild` |
 | `force_kill_running_jobs` | cancel harvest jobs still running after 15 minutes |
 | `max_tasks` | `HARVEST_RUNNER_MAX_TASKS` to restore afterwards (`3` for prod) |
 
@@ -175,7 +176,9 @@ can take a couple of hours, so a run that fails at the promote should be re-disp
 with `start_at: cutover` rather than from the beginning.
 
 **If it fails.** Before the promote, the replacement cluster is deleted automatically
-and the live cluster is untouched — just fix the cause and re-dispatch. *During* the
+and the live cluster is untouched — just fix the cause and re-dispatch. On a slow space
+where re-provisioning costs hours, pass `on_build_failure: keep` so the cluster survives
+and you can resume with `start_at: rebuild`. *During* the
 promote, the workflow deliberately leaves everything in place, because renames may be
 half-applied: run
 `bin/report_opensearch_cluster.sh datagov-harvest datagov-catalog` to see where each app

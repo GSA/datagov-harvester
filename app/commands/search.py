@@ -293,9 +293,21 @@ def reset_opensearch_mapping():
     is_flag=True,
     help="Re-index all datasets from DB regardless of last_harvested_date.",
 )
+@click.option(
+    "--fail-on-discrepancy",
+    is_flag=True,
+    help=(
+        "Exit non-zero when anything is missing, extra, or stale. Without this the "
+        "command only reports, so an automated gate must pass it to actually gate."
+    ),
+)
 @cluster_option
 def compare_opensearch(
-    sample_size: int, update: bool, force_update: bool, cluster: str
+    sample_size: int,
+    update: bool,
+    force_update: bool,
+    fail_on_discrepancy: bool,
+    cluster: str,
 ):
     """Report and optionally repair DB/OpenSearch dataset discrepancies."""
     os_client = _client_for_cluster(cluster, announce=True)
@@ -360,6 +372,16 @@ def compare_opensearch(
         click.echo("Example updated IDs: " + "; ".join(sample_entries))
     else:
         click.echo("Example updated IDs: none")
+
+    # Raise before any repair: a CI gate wants the verification verdict, and a run
+    # that both repaired and reported success would hide the fact that the index was
+    # wrong. Checked even with --update so `compare --update --fail-on-discrepancy`
+    # still surfaces anything the repair could not fix.
+    if fail_on_discrepancy and (missing or extra or updated_details):
+        raise click.ClickException(
+            f"Discrepancies found: {len(missing)} missing, {len(extra)} extra, "
+            f"{len(updated_details)} updated."
+        )
 
     if force_update:
         update = True
