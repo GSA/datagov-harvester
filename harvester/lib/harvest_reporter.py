@@ -10,6 +10,7 @@ class HarvestReporter:
         self.ignored = 0
         self.errored = 0
         self.validated = 0
+        self.warned = 0
         self.action_map = {
             "create": "added",
             "update": "updated",
@@ -17,6 +18,7 @@ class HarvestReporter:
             None: "ignored",
             "errored": "errored",
             "validated": "validated",
+            "warned": "warned",
         }
 
     @property
@@ -44,4 +46,5 @@ class HarvestReporter:
             "records_ignored": self.ignored,
             "records_errored": self.errored,
             "records_validated": self.validated,
+            "records_warned": self.warned,
         }
