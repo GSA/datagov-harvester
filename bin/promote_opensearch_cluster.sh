@@ -6,27 +6,37 @@
 # The ordering here is the whole point of the script. The obvious sequence (delete
 # the old instance, rename the new one, then repoint the apps) leaves both apps
 # naming an instance that does not exist, and every new container start fails
-# .profile's empty-host guard for as long as that lasts. This order instead keeps a
-# real, bound instance behind every name an app resolves:
+# .profile's empty-host guard for as long as that lasts. This order instead moves
+# the cluster *underneath* a name that never stops resolving:
 #
-#   1. harvester -> <next> explicitly, and roll it.       (canonical still = old)
-#   2. rename <canonical> -> <canonical>-old.             (frees the canonical name)
-#   3. rename <next> -> <canonical>.                      (catalog now resolves NEW)
-#   4. unset the harvester's overrides, and roll it.      (falls back to the
-#                                                          .profile default, which
-#                                                          is <canonical> = NEW)
-#   5. roll catalog so it picks up the renamed instance.
+#   1. rename <canonical> -> <canonical>-old.   (frees the canonical name)
+#   2. rename <next> -> <canonical>.            (canonical now IS the new cluster)
+#   3. roll the harvester.                      (re-resolves; picks up the new host)
+#   4. roll catalog.                            (same)
+#   5. unset OPENSEARCH_NEXT_SERVICE_NAME.      (housekeeping, off the hot path)
 #
-# Steps 2->3 and 3->4 are adjacent command pairs, so the residual exposure is
-# seconds and affects only *new* container starts; running instances are unaffected
-# because VCAP_SERVICES is read at container start and a rename is metadata-only
-# (the AWS endpoint and credentials do not change). Every restart is a blocking
-# rolling restart, so existing instances keep serving if a start fails.
+# NEITHER app is repointed with cf set-env, because neither needs to be: both
+# resolve the canonical name, and after step 2 that name is the new cluster. The
+# whole migration is two renames plus two restarts.
 #
-# Why catalog needs no cf set-env: datagov-catalog's .profile resolves
+# The restarts in 3 and 4 are mandatory, not cosmetic. A rename is metadata-only --
+# the AWS endpoint and credentials do not change -- and .profile resolves the host
+# exactly once, at container start. So a running instance keeps talking to whatever
+# endpoint it resolved at boot, and would stay on the old cluster indefinitely
+# without a restart. Both are blocking rolling restarts, so existing instances keep
+# serving if a start fails.
+#
+# An earlier version set OPENSEARCH_SERVICE_NAME=<next> on the harvester before the
+# renames and unset it after. That was removed: the two cancelled out, and between
+# them the variable named <next>, which step 2 had just renamed out of existence --
+# a window spanning two commands and a full rolling restart, in which any container
+# start (a cron restart, a crash, CF rescheduling) failed the empty-host guard. The
+# only surviving exposure is between steps 1 and 2, which is a single command.
+#
+# Why catalog needs no cf set-env either: datagov-catalog's .profile resolves
 # ${APP_NAME}-opensearch -- literally datagov-catalog-opensearch -- and does NOT
 # read OPENSEARCH_SERVICE_NAME. Setting that variable on catalog is a silent no-op.
-# The rename in step 3 is the only thing that moves catalog.
+# The rename in step 2 is the only thing that can move catalog.
 #
 # Does NOT delete the old cluster: that is bin/delete_opensearch_cluster.sh, run
 # only after verification, so rollback survives this whole script. To roll back,
@@ -125,29 +135,35 @@ echo "Promoting ${next_service} to ${canonical_service}."
 echo "  ${canonical_service} will be retired as ${retired_service} (NOT deleted)."
 echo ""
 
-# --- 1. Move the writer first ----------------------------------------------
-#
-# The harvester is the only writer. Moving it first means that once harvesting
-# resumes no write lands on the cluster being left behind.
-echo "=== 1/5 ${harvest_app} -> ${next_service} ==="
-previous=$(cf_env_value "$harvest_app" OPENSEARCH_SERVICE_NAME)
-if [[ -n "$previous" ]]; then
-  echo "  previous OPENSEARCH_SERVICE_NAME: $previous"
-else
-  echo "  previous OPENSEARCH_SERVICE_NAME: (unset -- .profile default)"
-fi
-cf set-env "$harvest_app" OPENSEARCH_SERVICE_NAME "$next_service"
-echo "  rolling restart..."
-cf restart "$harvest_app" --strategy rolling
-
-# --- 2 & 3. Swap the names -------------------------------------------------
+# --- 1 & 2. Swap the names -------------------------------------------------
 #
 # Adjacent on purpose: between them the canonical name does not exist, so keep the
-# gap to one command. Running instances are unaffected either way.
-echo "=== 2/5 rename ${canonical_service} -> ${retired_service} ==="
+# gap to a single command. Running instances of both apps are unaffected either way,
+# because a rename does not change the endpoint they already resolved.
+#
+# Report the harvester's current override, if any, purely so the log records the
+# state this ran against -- at rest it should be unset or already the canonical name.
+current=$(cf_env_value "$harvest_app" OPENSEARCH_SERVICE_NAME)
+if [[ -n "$current" ]]; then
+  echo "${harvest_app} OPENSEARCH_SERVICE_NAME: ${current}"
+  if [[ "$current" != "$canonical_service" ]]; then
+    # Anything else means an operator or an aborted run left an override behind. It
+    # would survive this script and keep the app pinned to a name we are about to
+    # move, so refuse rather than produce a half-migrated app.
+    echo "Refusing to promote: ${harvest_app} is pinned to '${current}', not" >&2
+    echo "'${canonical_service}'. Clear it first so the rename takes effect:" >&2
+    echo "  cf unset-env ${harvest_app} OPENSEARCH_SERVICE_NAME" >&2
+    exit 1
+  fi
+else
+  echo "${harvest_app} OPENSEARCH_SERVICE_NAME: (unset -- .profile default)"
+fi
+echo ""
+
+echo "=== 1/5 rename ${canonical_service} -> ${retired_service} ==="
 cf rename-service "$canonical_service" "$retired_service"
 
-echo "=== 3/5 rename ${next_service} -> ${canonical_service} ==="
+echo "=== 2/5 rename ${next_service} -> ${canonical_service} ==="
 cf rename-service "$next_service" "$canonical_service"
 
 # Confirm the name actually moved. Everything after this assumes the canonical name
@@ -160,24 +176,18 @@ if ! cf service "$canonical_service" > /dev/null 2>&1; then
   exit 1
 fi
 
-# --- 4. Return the harvester to a bare steady state ------------------------
+# --- 3. Move the writer ----------------------------------------------------
 #
-# unset rather than set: OPENSEARCH_SERVICE_NAME defaults to the canonical name in
-# .profile, and the canonical name is now the new cluster. Leaving the override at
-# <next> would point at a name that no longer exists.
+# The harvester has been resolving the canonical name all along; step 2 changed which
+# cluster that is. The restart is what makes it re-resolve -- without it the app keeps
+# using the endpoint it captured at its last boot.
 #
-# OPENSEARCH_NEXT_SERVICE_NAME must go too. It also names the now-promoted cluster,
-# and `--cluster next` refuses to run when next and live resolve to the same host.
-echo "=== 4/5 clear ${harvest_app} overrides (falls back to ${canonical_service}) ==="
-cf unset-env "$harvest_app" OPENSEARCH_SERVICE_NAME
-cf unset-env "$harvest_app" OPENSEARCH_NEXT_SERVICE_NAME
-echo "  rolling restart..."
+# The harvester goes first because it is the only writer: once harvesting resumes, no
+# write should land on the cluster being left behind.
+echo "=== 3/5 restart ${harvest_app} onto ${canonical_service} ==="
 cf restart "$harvest_app" --strategy rolling
 
-# --- 5. Move the reader ----------------------------------------------------
-#
-# Catalog has been resolving the canonical name all along; the rename in step 3 is
-# what changed which cluster that is. It needs a restart to see it.
+# --- 4. Move the reader ----------------------------------------------------
 #
 # Retried rather than fatal. Catalog is restarted by a cron in its own repo every 15
 # minutes, so two rolling deployments can collide and one supersedes the other --
@@ -185,7 +195,7 @@ cf restart "$harvest_app" --strategy rolling
 # has already landed at this point, so catalog converges on its own cron regardless;
 # failing here would report a broken migration that is in fact complete.
 if [[ "$catalog_present" == yes ]]; then
-  echo "=== 5/5 restart ${catalog_app} onto ${canonical_service} ==="
+  echo "=== 4/5 restart ${catalog_app} onto ${canonical_service} ==="
   catalog_rolled=no
   for attempt in 1 2 3; do
     if cf restart "$catalog_app" --strategy rolling; then
@@ -202,8 +212,20 @@ if [[ "$catalog_present" == yes ]]; then
     echo "  bin/report_opensearch_cluster.sh ${catalog_app}" >&2
   fi
 else
-  echo "=== 5/5 skipped: ${catalog_app} is not in this space ==="
+  echo "=== 4/5 skipped: ${catalog_app} is not in this space ==="
 fi
+
+# --- 5. Housekeeping -------------------------------------------------------
+#
+# OPENSEARCH_NEXT_SERVICE_NAME now names the cluster that just became live, and
+# `--cluster next` refuses to run when next and live resolve to the same host. Clear
+# it so a later rebuild can name a genuinely new replacement.
+#
+# Deliberately last: it is off the critical path, and .profile has no guard on this
+# variable (unlike OPENSEARCH_SERVICE_NAME), so a stale value cannot stop an app from
+# starting. No restart needed -- nothing reads it until the next rebuild task.
+echo "=== 5/5 clear ${harvest_app} OPENSEARCH_NEXT_SERVICE_NAME ==="
+cf unset-env "$harvest_app" OPENSEARCH_NEXT_SERVICE_NAME
 
 echo ""
 echo "Promotion complete: ${canonical_service} is now the replacement cluster."

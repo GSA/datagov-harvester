@@ -62,7 +62,7 @@ Dispatch **Migrate OpenSearch Cluster** and it runs the entire thing:
 | 3 | drain | waits for in-flight harvest jobs |
 | 4 | rebuild | `rebuild-index --cluster next` into the new cluster |
 | 5 | verify | `compare --cluster next` — must be 0 missing, 0 extra, 0 updated |
-| 6 | promote | moves both apps and gives the new cluster the canonical name |
+| 6 | promote | renames the new cluster to the canonical name, then restarts both apps |
 | 7 | verify | resolved host per app, then `compare --cluster live` |
 | 8 | decommission | deletes the cluster it replaced |
 | 9 | re-enable harvesting | always, even if something above failed |
@@ -134,9 +134,18 @@ live, new cluster with the new mapping waiting.
 - [ ] For staging and prod only: confirmed the new cluster's hostname is reachable
       from `datagov-catalog`. See the egress-proxy note below.
 
-**Catalog needs no code change.** It resolves the canonical name, so the promote
-stage's rename moves it. No `OPENSEARCH_SERVICE_NAME` plumbing on the catalog side is
-required, and setting that variable on `datagov-catalog` does nothing at all.
+**Neither app is repointed.** Both resolve the canonical service-instance name, so the
+promote stage renames the *cluster* underneath that name rather than telling the apps to
+look elsewhere: `<canonical>` → `<canonical>-old`, then `<next>` → `<canonical>`. Two
+renames and two restarts, no `cf set-env` on either app.
+
+The restarts are mandatory, not cosmetic. A rename is metadata-only — the AWS endpoint
+and credentials do not change — and `.profile` resolves the host exactly once, at
+container start, so a running app keeps using the endpoint it captured at boot and would
+stay on the old cluster indefinitely without one.
+
+Catalog therefore needs no code change, and `cf set-env datagov-catalog
+OPENSEARCH_SERVICE_NAME` does nothing at all.
 
 > **Check catalog's egress proxy in staging and prod.** This repo's `.profile`
 > excludes both OpenSearch hosts from the egress proxy; catalog's sets `no_proxy` to

@@ -29,6 +29,7 @@ def _run_promote(
     bound=True,
     existing_apps=("datagov-harvest", "datagov-catalog"),
     catalog_restart_fails=False,
+    harvester_env=CANONICAL,
 ):
     """Run the script against a stubbed cf and return (result, cf call log).
 
@@ -122,7 +123,7 @@ esac
         "CF_EXISTING_SERVICES": " ".join(existing_services),
         "CF_EXISTING_APPS": " ".join(existing_apps),
         "CF_CANONICAL": CANONICAL,
-        "CF_EXISTING_ENV": CANONICAL,
+        "CF_EXISTING_ENV": harvester_env,
         "CF_BOUND": "true" if bound else "false",
         "CF_CATALOG_RESTART_FAILS": "true" if catalog_restart_fails else "false",
         # Skip the real backoff between catalog restart attempts.
@@ -153,40 +154,81 @@ def test_promote_moves_apps_and_renames_in_the_safe_order(tmp_path):
 
     assert result.returncode == 0, result.stderr
     assert _mutating_calls(calls) == [
-        # 1. the writer moves first, explicitly, while canonical is still the old one
-        f"set-env datagov-harvest OPENSEARCH_SERVICE_NAME {NEXT}",
-        "restart datagov-harvest --strategy rolling",
-        # 2 & 3. adjacent renames -- the canonical name is unresolvable only between
-        # these two commands
+        # 1 & 2. adjacent renames -- the canonical name is unresolvable only between
+        # these two commands, and only for new container starts
         f"rename-service {CANONICAL} {RETIRED}",
         f"rename-service {NEXT} {CANONICAL}",
-        # 4. drop the overrides so the harvester resolves canonical via the default
-        "unset-env datagov-harvest OPENSEARCH_SERVICE_NAME",
-        "unset-env datagov-harvest OPENSEARCH_NEXT_SERVICE_NAME",
+        # 3. the writer re-resolves first, so no write lands on the old cluster
         "restart datagov-harvest --strategy rolling",
-        # 5. catalog picks up the renamed instance
+        # 4. then the reader
         "restart datagov-catalog --strategy rolling",
+        # 5. housekeeping, deliberately last and off the critical path
+        "unset-env datagov-harvest OPENSEARCH_NEXT_SERVICE_NAME",
     ]
 
 
-def test_promote_clears_rather_than_repoints_the_harvester(tmp_path):
-    """Step 4 must unset, not set.
+def test_promote_never_repoints_an_app_with_set_env(tmp_path):
+    """Both apps resolve the canonical name, so the rename alone moves them.
 
-    Setting OPENSEARCH_SERVICE_NAME to the replacement's old name would leave the
-    harvester pointing at a name that no longer exists after step 3.
+    An earlier version set OPENSEARCH_SERVICE_NAME=<next> on the harvester before the
+    renames and unset it after. The two cancelled out, and in between the variable
+    named an instance the rename had just removed -- so any container start in that
+    span failed .profile's empty-host guard. There is no reason to write that variable
+    here at all.
+    """
+    _, calls = _run_promote(tmp_path, NEXT, CANONICAL)
+
+    # Match on whole commands: the substring "set-env" also appears in "unset-env".
+    commands = [line.split()[0] for line in calls.strip().splitlines()]
+    assert "set-env" not in commands
+    # OPENSEARCH_SERVICE_NAME is neither set nor unset -- it is simply left alone.
+    assert "OPENSEARCH_SERVICE_NAME" not in calls.replace(
+        "OPENSEARCH_NEXT_SERVICE_NAME", ""
+    )
+
+
+def test_promote_restarts_both_apps_after_the_rename(tmp_path):
+    """The restarts are mandatory, not cosmetic.
+
+    A rename is metadata-only and .profile resolves the host once at container start,
+    so a running app keeps using the endpoint it captured at boot and would stay on the
+    old cluster indefinitely without a restart.
     """
     _, calls = _run_promote(tmp_path, NEXT, CANONICAL)
 
     mutations = _mutating_calls(calls)
-    final_env_writes = [
-        line for line in mutations if line.startswith(("set-env", "unset-env"))
-    ]
-    # The only set-env is step 1's temporary pointer; everything after is an unset.
-    assert final_env_writes[0].startswith("set-env")
-    assert all(line.startswith("unset-env") for line in final_env_writes[1:])
-    # And the replacement-cluster pointer is cleared too, so a later
-    # `--cluster next` cannot resolve to what is now live.
-    assert "unset-env datagov-harvest OPENSEARCH_NEXT_SERVICE_NAME" in mutations
+    last_rename = max(
+        i for i, line in enumerate(mutations) if line.startswith("rename-service")
+    )
+    restarts = [i for i, line in enumerate(mutations) if line.startswith("restart")]
+    assert restarts, "both apps must be restarted"
+    assert min(restarts) > last_rename, "restarts must follow the renames"
+    # Blocking rolling restarts: a failed start fails the step rather than silently
+    # leaving an app on the old cluster.
+    assert calls.count("--strategy rolling") >= 2
+    assert "--no-wait" not in calls
+
+
+def test_promote_clears_the_replacement_pointer_last(tmp_path):
+    """OPENSEARCH_NEXT_SERVICE_NAME now names what just became live, and
+    `--cluster next` refuses to run when next and live are the same host."""
+    _, calls = _run_promote(tmp_path, NEXT, CANONICAL)
+
+    mutations = _mutating_calls(calls)
+    assert mutations[-1] == "unset-env datagov-harvest OPENSEARCH_NEXT_SERVICE_NAME"
+
+
+def test_promote_refuses_when_the_harvester_is_pinned_elsewhere(tmp_path):
+    """A leftover override would survive this script and keep the app pinned to a name
+    the rename is about to move."""
+    result, calls = _run_promote(
+        tmp_path, NEXT, CANONICAL, harvester_env="some-other-cluster"
+    )
+
+    assert result.returncode == 1
+    assert "pinned to 'some-other-cluster'" in result.stderr
+    assert "cf unset-env datagov-harvest OPENSEARCH_SERVICE_NAME" in result.stderr
+    assert _mutating_calls(calls) == []
 
 
 def test_promote_never_deletes_anything(tmp_path):
