@@ -267,8 +267,9 @@ def _rebuild_client(existing_index=True, aliased_indices=None, target_count=5):
 
     ``indices.exists`` is stateful: rebuild-index checks for ``datasets`` before
     deleting it, then recreates it. ``created`` tracks that transition.
-    ``existing_index`` seeds whether ``datasets`` is already present -- it
-    normally is, because constructing a client calls ``_ensure_index()``.
+    ``existing_index`` seeds whether ``datasets`` is already present, as it can
+    be on a retry or live-cluster rebuild. A fresh replacement starts without it
+    because ``rebuild-index`` suppresses the client's create-if-missing behavior.
     ``aliased_indices`` instead makes ``datasets`` an *alias* over those indices,
     the state a cluster rebuilt by an older release is left in; ``indices.delete``
     then rejects the bare name the way OpenSearch really does.
@@ -344,7 +345,14 @@ def _rebuild_client(existing_index=True, aliased_indices=None, target_count=5):
     return client
 
 
-def _run_rebuild(app, client, args, db_count=5, backfill=None):
+def _run_rebuild(
+    app,
+    client,
+    args,
+    db_count=5,
+    backfill=None,
+    expected_ensure_index=None,
+):
     """Invoke rebuild-index with the PostgreSQL backfill path mocked out.
 
     ``backfill`` overrides the (indexed, failed, errors) return of
@@ -360,13 +368,15 @@ def _run_rebuild(app, client, args, db_count=5, backfill=None):
         patch(
             "app.commands.search.OpenSearchClient.from_environment",
             return_value=client,
-        ),
+        ) as client_factory,
         patch("app.commands.search.db_interface.db.query", return_value=query_result),
         patch(
             "app.commands.search._backfill_from_postgres", return_value=backfill
         ) as backfill_mock,
     ):
         result = app.test_cli_runner().invoke(args=["search", "rebuild-index", *args])
+    if expected_ensure_index is not None:
+        client_factory.assert_called_once_with(ensure_index=expected_ensure_index)
     return result, backfill_mock
 
 
@@ -978,7 +988,8 @@ def test_rebuild_index_next_cluster_builds_client_against_replacement(
     client = _rebuild_client()
     observed = {}
 
-    def record_host():
+    def record_host(ensure_index=True):
+        observed["ensure_index"] = ensure_index
         observed["host"] = os.environ["OPENSEARCH_HOST"]
         observed["access_key"] = os.environ["OPENSEARCH_ACCESS_KEY"]
         return client
@@ -998,7 +1009,11 @@ def test_rebuild_index_next_cluster_builds_client_against_replacement(
         )
 
     assert result.exit_code == 0, result.output
-    assert observed == {"host": "next.example", "access_key": "next-access"}
+    assert observed == {
+        "ensure_index": False,
+        "host": "next.example",
+        "access_key": "next-access",
+    }
     # The log names the cluster actually loaded, not the live one it restored to.
     assert "Target cluster: next (next.example)" in result.output
     # Live credentials are back in place for anything that runs afterward.
@@ -1010,7 +1025,8 @@ def test_rebuild_index_defaults_to_the_live_cluster(app, next_cluster_environmen
     client = _rebuild_client()
     observed = {}
 
-    def record_host():
+    def record_host(ensure_index=True):
+        observed["ensure_index"] = ensure_index
         observed["host"] = os.environ["OPENSEARCH_HOST"]
         return client
 
@@ -1028,24 +1044,26 @@ def test_rebuild_index_defaults_to_the_live_cluster(app, next_cluster_environmen
 
     assert result.exit_code == 0, result.output
     assert observed["host"] == "live.example"
+    assert observed["ensure_index"] is False
     assert "Target cluster: live (live.example)" in result.output
 
 
-def test_rebuild_index_on_fresh_cluster_recreates_auto_created_index(
+def test_rebuild_index_on_fresh_cluster_creates_index_once(
     app, next_cluster_environment
 ):
-    """Cover the state a brand-new cluster is actually in.
+    """A fresh replacement skips the constructor's redundant index creation."""
+    client = _rebuild_client(existing_index=False)
 
-    Constructing a client calls ``_ensure_index()``, which creates an empty
-    ``datasets`` index. The rebuild must drop that and recreate it with the
-    current mapping rather than backfilling into whatever shape it was given.
-    """
-    client = _rebuild_client()
-
-    result, backfill_mock = _run_rebuild(app, client, ["--cluster", "next"])
+    result, backfill_mock = _run_rebuild(
+        app,
+        client,
+        ["--cluster", "next"],
+        expected_ensure_index=False,
+    )
 
     assert result.exit_code == 0, result.output
-    client.client.indices.delete.assert_called_once_with(index="datasets")
+    client.client.indices.delete.assert_not_called()
+    client.client.indices.create.assert_called_once()
     assert client.client.indices.create.call_args.kwargs["index"] == "datasets"
     backfill_mock.assert_called_once()
     assert "Rebuild complete: datasets is ready on the next cluster." in result.output
@@ -1058,7 +1076,7 @@ def test_compare_targets_the_replacement_cluster(app, next_cluster_environment):
     client.client = Mock()
     observed = {}
 
-    def record_host():
+    def record_host(ensure_index=True):
         observed["host"] = os.environ["OPENSEARCH_HOST"]
         return client
 
@@ -1093,7 +1111,7 @@ def test_delete_index_targets_the_replacement_cluster(app, next_cluster_environm
     client.client.indices.delete.return_value = {"acknowledged": True}
     observed = {}
 
-    def record_host():
+    def record_host(ensure_index=True):
         observed["host"] = os.environ["OPENSEARCH_HOST"]
         return client
 

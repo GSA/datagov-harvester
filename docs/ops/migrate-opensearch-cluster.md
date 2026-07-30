@@ -296,9 +296,10 @@ live cluster was left alone:
 Target cluster: next (<new host>)
 ```
 
-A fresh cluster always starts with an empty `datasets` index, created as a side
-effect of the first connection. The rebuild drops it and recreates it with the
-current mapping before backfilling, and finishes with:
+A fresh cluster starts with no `datasets` index. `rebuild-index` connects with
+automatic index creation disabled, then creates the index once with the current
+mapping, the extended 300-second timeout, and idempotent timeout recovery before
+backfilling. It finishes with:
 
 ```
 Rebuild complete: datasets is ready on the next cluster.

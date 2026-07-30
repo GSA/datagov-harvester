@@ -148,19 +148,24 @@ def _next_cluster_environment():
         _apply(previous)
 
 
-def _client_for_cluster(cluster: str, announce: bool = False):
+def _client_for_cluster(
+    cluster: str, announce: bool = False, ensure_index: bool = True
+):
     """Build an ``OpenSearchClient`` for the live or the replacement cluster.
 
     With ``announce``, echo which cluster and host was resolved. Every command
     that can mutate or verify a cluster should say which one it touched -- that
     line is the operator's only cross-check that a ``next`` run really did stay
     off the live cluster.
+
+    ``ensure_index=False`` is for ``rebuild-index``, which owns index creation
+    and applies its longer timeout and idempotent retry handling.
     """
     if cluster == CLUSTER_NEXT:
         with _next_cluster_environment():
-            client = OpenSearchClient.from_environment()
+            client = OpenSearchClient.from_environment(ensure_index=ensure_index)
     else:
-        client = OpenSearchClient.from_environment()
+        client = OpenSearchClient.from_environment(ensure_index=ensure_index)
     if announce:
         click.echo(f"Target cluster: {cluster} ({_cluster_host(cluster)})")
     return client
@@ -437,12 +442,12 @@ def compare_opensearch(
 def _clear_datasets_index(client, index_name: str):
     """Remove whatever currently answers to ``index_name``.
 
-    Constructing a client calls ``_ensure_index()``, so the name always resolves
-    to something by the time this runs. It is usually a plain index, but on any
-    cluster that was rebuilt by an older release it is an *alias* pointing at a
-    ``datasets-<suffix>`` index -- and ``indices.delete`` rejects an alias with
-    ``illegal_argument_exception``. Drop the alias and the indices behind it so a
-    cluster in either state ends up equally clean.
+    A fresh replacement has no index because ``rebuild-index`` suppresses the
+    client's create-if-missing behavior. A retry can have a partial plain index,
+    while a cluster rebuilt by an older release can have an *alias* pointing at
+    a ``datasets-<suffix>`` index. ``indices.delete`` rejects an alias with
+    ``illegal_argument_exception``, so drop the alias and the indices behind it
+    and leave every starting state equally clean.
     """
     if client.client.indices.exists_alias(name=index_name):
         aliased = sorted(client.client.indices.get_alias(name=index_name))
@@ -646,7 +651,7 @@ def rebuild_opensearch_index(
     docs/ops/migrate-opensearch-cluster.md.
     """
     target_index = OpenSearchClient.INDEX_NAME
-    client = _client_for_cluster(cluster, announce=True)
+    client = _client_for_cluster(cluster, announce=True, ensure_index=False)
     _clear_datasets_index(client, target_index)
 
     click.echo(f"Creating index {target_index} with current mapping...")
