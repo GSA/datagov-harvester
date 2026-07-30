@@ -1,0 +1,114 @@
+name: Update data-access dependency
+
+on:
+  repository_dispatch:
+    types: [data-access-released]
+
+  workflow_dispatch:
+    inputs:
+      version:
+        description: datagov-databases Git tag
+        required: true
+        type: string
+      release_url:
+        description: GitHub release URL
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: data-access-update
+  cancel-in-progress: false
+
+env:
+  PY_VERSION: "3.12.13"
+  POETRY_VERSION: "latest"
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+
+    env:
+      VERSION: >-
+        ${{ github.event.client_payload.version || inputs.version }}
+      RELEASE_URL: >-
+        ${{ github.event.client_payload.release_url || inputs.release_url }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+        with:
+          token: ${{ secrets.DATA_ACCESS_RELEASE_TOKEN }}
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.PY_VERSION }}
+
+      - name: Install Poetry
+        uses: abatilo/actions-poetry@v4
+        with:
+          poetry-version: ${{ env.POETRY_VERSION }}
+
+      - name: Update data-access dependency
+        run: |
+          poetry add --lock "git+https://github.com/GSA/datagov_data_access.git#${VERSION}"
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email \
+            "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Create pull request
+        env:
+          GH_TOKEN: ${{ secrets.DATA_ACCESS_RELEASE_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          SAFE_VERSION="${VERSION//\//-}"
+          BRANCH="dependencies/datagov-data-access-${SAFE_VERSION}"
+          TEMPLATE=".github/PULL_REQUEST_TEMPLATE/data-access-release.md"
+
+          if [[ ! -f "$TEMPLATE" ]]; then
+            echo "::error::PR template not found: $TEMPLATE"
+            exit 1
+          fi
+
+          if git diff --quiet -- pyproject.toml poetry.lock; then
+            echo "Already using datagov-data-access ${VERSION}"
+            exit 0
+          fi
+
+          git checkout -B "$BRANCH"
+
+          git add pyproject.toml poetry.lock
+          git commit \
+            -m "chore: update datagov-data-access to ${VERSION}"
+
+          git push \
+            --force-with-lease \
+            --set-upstream origin "$BRANCH"
+
+          EXISTING_PR="$(
+            gh pr list \
+              --head "$BRANCH" \
+              --state open \
+              --json number \
+              --jq '.[0].number // empty'
+          )"
+
+          if [[ -n "$EXISTING_PR" ]]; then
+            echo "Updated existing PR #${EXISTING_PR}"
+            exit 0
+          fi
+
+          gh pr create \
+            --base main \
+            --head "$BRANCH" \
+            --title "Update datagov-data-access to ${VERSION}" \
+            --body-file "$TEMPLATE"

@@ -1440,7 +1440,7 @@ def mock_opensearch():
     mock_client = MagicMock()
     mock_client.index_datasets.return_value = (1, 0, [])
     with patch(
-        "database.interface.OpenSearchInterface.from_environment",
+        "harvester.opensearch.OpenSearchClient.from_environment",
         return_value=mock_client,
     ):
         yield mock_client
