@@ -15,7 +15,7 @@ scan, and the later VALIDATE CONSTRAINT only needs SHARE UPDATE EXCLUSIVE. That
 matters because harvest_record is large in prod.
 
 Revision ID: b3f7a91c24de
-Revises: e2356e60edfb
+Revises: b3f4a9c1d7e2
 Create Date: 2026-07-29 16:05:00.000000
 
 """
@@ -24,7 +24,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = "b3f7a91c24de"
-down_revision = "e2356e60edfb"
+down_revision = "b3f4a9c1d7e2"
 branch_labels = None
 depends_on = None
 
