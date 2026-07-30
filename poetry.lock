@@ -1053,7 +1053,7 @@ ssh = ["bcrypt (>=3.1.5)"]
 
 [[package]]
 name = "datagov-data-access"
-version = "1.1.0"
+version = "1.2.0"
 description = ""
 optional = false
 python-versions = "<4,>=3.10"
@@ -1072,8 +1072,8 @@ sqlalchemy = ">=2.0.51,<3.0.0"
 [package.source]
 type = "git"
 url = "https://github.com/GSA/datagov_data_access.git"
-reference = "1.1.0"
-resolved_reference = "36d144076d61051c921007ff91eb1ff5f8b749e3"
+reference = "1.2.0"
+resolved_reference = "eb793c8c1dbf9c57a72c622453a6c57d88f65d40"
 
 [[package]]
 name = "debugpy"
@@ -4622,4 +4622,4 @@ testing = ["coverage[toml]", "zope.event", "zope.testing"]
 [metadata]
 lock-version = "2.1"
 python-versions = "3.12.13"
-content-hash = "a564a36c718b9b68ab6454848740d758d01a0b114625f850b8334063fa76bb28"
+content-hash = "41dd12646048af934d77aeb43c733e82bb99d45a96f9576a3f6c6d6d7fafb8b3"
