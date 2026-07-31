@@ -24,6 +24,10 @@ IS_PROD = os.getenv("FLASK_ENV") == "production"
 
 # Helper Functions
 def make_new_source_contract(form):
+    collection_parent_url = None
+    if form.source_type.data == "waf-collection":
+        collection_parent_url = form.collection_parent_url.data
+
     return {
         "organization_id": form.organization_id.data,
         "name": form.name.data,
@@ -32,6 +36,7 @@ def make_new_source_contract(form):
         "frequency": form.frequency.data,
         "schema_type": form.schema_type.data,
         "source_type": form.source_type.data,
+        "collection_parent_url": collection_parent_url,
         "notification_frequency": form.notification_frequency.data,
     }
 
