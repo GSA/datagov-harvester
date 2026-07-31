@@ -104,6 +104,7 @@ class TestViewHarvestJob:
             "title",
             "harvest_record_id",
             "record_error_type",
+            "severity",
             "message",
             "date_created",
         ]
@@ -117,7 +118,7 @@ class TestViewHarvestJob:
         expected_messages = {
             f"{error_messages[i % 5]} (Error #{i + 1})" for i in range(num_errors)
         }
-        assert {row[5] for row in data_rows} == expected_messages
+        assert {row[6] for row in data_rows} == expected_messages
 
         # All errors belong to the same harvest record and have the same type
         for row in data_rows:
@@ -125,6 +126,7 @@ class TestViewHarvestJob:
             assert row[2] == "Test Dataset Title"  # title
             assert row[3] == str(harvest_record.id)  # harvest_record_id
             assert row[4] == "ValidationException"  # record_error_type
+            assert row[5] == "error"  # severity
 
         # Test that memory wasn't overwhelmed by checking response was properly streamed
         # (The fact that we got a complete response with 5200+ rows indicates streaming
@@ -193,9 +195,38 @@ class TestViewHarvestJob:
     def test_record_error_summary(self, client, job_with_many_errors):
         resp = client.get(f"/harvest_job/{job_with_many_errors.id}")
         # fixture errors are of type "testing"
-        assert "Error type" in resp.text
-        assert "Number of errors" in resp.text
+        assert "Record issue type summary" in resp.text
+        assert "Severity" in resp.text
+        assert "Number of issues" in resp.text
         assert "testing" in resp.text
+
+    def test_record_warnings_display_on_job_page(self, client, interface, job):
+        harvest_record = interface.add_harvest_record(
+            {
+                "harvest_job_id": job.id,
+                "harvest_source_id": job.source.id,
+                "identifier": "warning-record-001",
+                "status": "success",
+            }
+        )
+        interface.add_harvest_record_error(
+            {
+                "harvest_job_id": job.id,
+                "harvest_record_id": harvest_record.id,
+                "type": "SpatialTransformationException",
+                "message": "unable to spatially fix Virginia",
+                "severity": "warning",
+            }
+        )
+        interface.update_harvest_job(job.id, {"records_warned": 1})
+
+        resp = client.get(f"/harvest_job/{job.id}")
+
+        assert "Records warned" in resp.text
+        assert "<td>1</td>" in resp.text
+        assert "unable to spatially fix Virginia" in resp.text
+        assert "SpatialTransformationException" in resp.text
+        assert "warning" in resp.text
 
     def test_job_accept_json(self, client, job_with_many_errors):
         resp = client.get(

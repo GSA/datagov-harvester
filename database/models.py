@@ -37,4 +37,17 @@ if "records_warned" not in HarvestJob.__table__.c:
         server_default=text("0"),
     )
 
+
+def _harvest_job_to_dict(self):
+    column_names = [c.name for c in self.__table__.columns]
+    if "records_warned" in column_names:
+        column_names.remove("records_warned")
+        errored_index = column_names.index("records_errored")
+        column_names.insert(errored_index + 1, "records_warned")
+
+    return {name: getattr(self, name) for name in column_names}
+
+
+HarvestJob.to_dict = _harvest_job_to_dict
+
 db = SQLAlchemy(model_class=Base)
