@@ -52,6 +52,7 @@ def make_new_record_error_contract(error: tuple) -> dict:
         "date_created",
         "type",
         "message",
+        "severity",
         "id",
     ]
 
