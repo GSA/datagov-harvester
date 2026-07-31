@@ -658,6 +658,7 @@ class HarvestSource:
                 f"- Records Deleted: {job_results['records_deleted']}\n"
                 f"- Records Unchanged: {job_results['records_ignored']}\n"
                 f"- Records Errored: {job_results['records_errored']}\n"
+                f"- Records Warned: {job_results['records_warned']}\n"
                 f"- Records Validated: {job_results['records_validated']}\n\n"
                 "====\n"
                 "You received this email because you subscribed to harvester updates.\n"
@@ -1153,8 +1154,10 @@ class Record:
                     self.harvest_source.job_id,
                     self.id,
                     is_error=False,
+                    severity="warning",
                 )
         except SpatialTransformationException:
+            self.harvest_source.update_job_record_count_by_action("warned")
             pass
 
         return payload
