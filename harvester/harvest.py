@@ -972,6 +972,20 @@ class Record:
         if self.parent_identifier:
             self.transformed_data["isPartOf"] = self.parent_identifier
 
+    def add_geospatial(self) -> None:
+        """
+        adds the term "geospatial" in the "theme" array when not present
+        """
+        if not self.transformed_data.get("theme"):
+            self.transformed_data["theme"] = ["geospatial"]
+        else:
+            has_spatial_theme = any(
+                label.strip().lower() == "geospatial"
+                for label in self.transformed_data["theme"]
+            )
+            if not has_spatial_theme:
+                self.transformed_data["theme"].append("geospatial")
+
     def fill_placeholders(self) -> None:
         """Fill in placeholder values to prevent some validation errors.
 
@@ -1019,6 +1033,9 @@ class Record:
             _guess_better_url_in_item(dist_item, "accessURL")
             if not self.is_valid_describedByType(dist_item.get("describedByType", "")):
                 dist_item["describedByType"] = "application/octet-stream"
+
+        # add geospatial placeholder for ISO records
+        self.add_geospatial()
 
     def improve_distributions(self) -> None:
         """
