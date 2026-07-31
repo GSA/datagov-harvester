@@ -371,6 +371,7 @@ class HarvestSource:
         external_records = []
 
         for record in self.external_records:
+            error_identifier = None
             try:
                 identifier = record.get("identifier")
                 if normalize_dataset_identifier(identifier) is None:
@@ -387,16 +388,21 @@ class HarvestSource:
                         "status": "error",
                     }
                     new_record = self.db_interface.add_harvest_record(record_data)
+                    error_identifier = (
+                        new_record.identifier if new_record else id_substitute
+                    )
+                    harvest_record_id = new_record.id if new_record else None
 
                     raise NoIdentifierException(
-                        f"{self.name} {new_record.identifier} {describe_identifier_error(identifier)}",
+                        f"{self.name} {error_identifier} {describe_identifier_error(identifier)}",
                         self.job_id,
-                        new_record.id,
+                        harvest_record_id,
                     )
                 else:
                     external_records.append(record)
 
             except NoIdentifierException:
+                self.update_job_record_count_by_action("errored")
                 continue
 
         self.external_records = external_records
@@ -574,8 +580,13 @@ class HarvestSource:
 
             external_records_to_process = self.external_records_to_process()
 
-            # amount of work to be done
-            self.reporter.total = len(self.deletions) + len(self.external_records)
+            # amount of work to be done. Some filters record errors/ignored records
+            # before this point, so include work already counted by the reporter.
+            self.reporter.total = (
+                self.reporter.processed_count
+                + len(self.deletions)
+                + len(self.external_records)
+            )
 
             # deletions would occur first based on the arg positions
             records = chain(internal_records_to_delete, external_records_to_process)
