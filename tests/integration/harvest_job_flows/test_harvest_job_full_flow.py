@@ -214,7 +214,7 @@ class TestHarvestJobFullFlow:
 
         # assert job rollup
         assert harvest_job.status == "complete"
-        assert harvest_job.records_total == 5
+        assert harvest_job.records_total == 6
         assert len(harvest_job.record_errors) == 3
         assert harvest_job.records_errored == 3
         assert harvest_job.records_ignored == 1

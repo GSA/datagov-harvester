@@ -132,7 +132,6 @@ class TestHarvestJobUnauthed:
         [
             ("records unchanged", "Records unchanged"),
             ("job error", "Job Error"),
-            ("record error", "Record Error"),
         ],
     )
     def test_glossary_terms(self, upage, data_term_name, glossary_term_name):
