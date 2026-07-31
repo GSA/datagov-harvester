@@ -16,6 +16,13 @@ and the delete fails with IntegrityError instead of cascading.
 Rows are committed on their own connection because the app under test is a
 separate process; the shared `session` fixture rolls back, so anything seeded
 through it would be invisible to the browser.
+
+They also have to land in the *app's* database, which is not the one
+`DATABASE_URI` names. `make up` runs two stacks: the app under test with its db
+on APP_DATABASE_PORT, and a second db on DATABASE_PORT that host-side pytest
+owns and that the autouse `dbapp` fixture drops and recreates per test. Seeding
+through DATABASE_URI would write to that second db, so the browser would 404 on
+the source and never render a Delete button.
 """
 
 import os
@@ -24,17 +31,27 @@ import uuid
 import pytest
 from playwright.sync_api import expect
 from sqlalchemy import create_engine, text
+from sqlalchemy.engine import make_url
 
 RECORD_COUNT = 25
+
+# Host port of the db belonging to the app under test. Kept in step with the
+# `DATABASE_PORT=5433` override in the Makefile's `up` target.
+APP_DATABASE_PORT = int(os.getenv("APP_DATABASE_PORT", "5433"))
 
 
 @pytest.fixture()
 def engine():
+    """Engine on the app-under-test's db, not the host pytest db.
+
+    Credentials, host and database name are reused from DATABASE_URI; only the
+    port differs between the two stacks.
+    """
     database_uri = os.getenv("DATABASE_URI")
     if not database_uri:
         pytest.skip("DATABASE_URI is required to seed cascade fixtures")
 
-    engine = create_engine(database_uri)
+    engine = create_engine(make_url(database_uri).set(port=APP_DATABASE_PORT))
     yield engine
     engine.dispose()
 
@@ -237,6 +254,13 @@ class TestHarvestSourceDeleteCascade:
         }
 
         authed_page.goto(f"/harvest_source/{source_id}")
+
+        # Assert the page found the source before reaching for the Delete
+        # button. If the fixture ever seeds a db the app isn't reading, the
+        # button is simply absent and the bare click would fail as an opaque
+        # locator timeout rather than naming the real problem.
+        expect(authed_page.locator("h1")).not_to_have_text("Harvest source not found")
+
         authed_page.once("dialog", lambda dialog: dialog.accept())
         authed_page.get_by_role("button", name="Delete", exact=True).click()
 
