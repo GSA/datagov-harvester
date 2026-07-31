@@ -1072,8 +1072,8 @@ sqlalchemy = ">=2.0.51,<3.0.0"
 [package.source]
 type = "git"
 url = "https://github.com/GSA/datagov_data_access.git"
-reference = "cb41aff01c1610b50432c714ebfef66df4a2107d"
-resolved_reference = "cb41aff01c1610b50432c714ebfef66df4a2107d"
+reference = "1.2.1"
+resolved_reference = "41bdc79d2ccbeaff9a29229544a56ba8093aa45d"
 
 [[package]]
 name = "debugpy"
@@ -4621,4 +4621,4 @@ testing = ["coverage[toml]", "zope.event", "zope.testing"]
 [metadata]
 lock-version = "2.1"
 python-versions = "3.12.13"
-content-hash = "1a70ef9d2185f37ee589656ea564db06099be3ae56db0dfc2fd3e02ead70fef4"
+content-hash = "ac00a4afa4051dea554ebd75e880ce5ac50f30d0f92b74f4044acfa1ac00bf18"
