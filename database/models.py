@@ -1,6 +1,7 @@
 import uuid
 from typing import Optional
 
+from flask_sqlalchemy import SQLAlchemy
 from geoalchemy2 import Geometry
 from sqlalchemy import (
     CheckConstraint,
@@ -395,3 +396,6 @@ class Locations(Base):
     display_name = Column(String)
     the_geom = Column(Geometry(geometry_type="MULTIPOLYGON"))
     type_order = Column(Integer)
+
+
+db = SQLAlchemy(model_class=Base)

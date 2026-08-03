@@ -10,11 +10,9 @@ from database.models import Dataset
 from search.client import OpenSearchClient
 from search.documents import DatasetDocument
 from search.reader import OpenSearchReader
-from search.writer import OpenSearchWriter
+from search.writer import OPENSEARCH_INDEX_BATCH_FAILURE_MESSAGE, OpenSearchWriter
 
 search = Blueprint("search", __name__)
-# we use this message to detect index failure in GH actions
-OPENSEARCH_INDEX_BATCH_FAILURE_MESSAGE = "failed to index in this batch"
 
 db_interface = HarvesterDBInterface()
 

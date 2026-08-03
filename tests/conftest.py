@@ -1446,7 +1446,7 @@ def mock_opensearch():
     mock_client = MagicMock()
     mock_client.index_datasets.return_value = (1, 0, [])
     with patch(
-        "harvester.opensearch.OpenSearchClient.from_environment",
+        "search.client.OpenSearchClient.from_environment",
         return_value=mock_client,
     ):
         yield mock_client

@@ -21,9 +21,8 @@ from database.models import (
     HarvestUser,
     Locations,
     Organization,
+    db,
 )
-from search.client import OpenSearchClient
-from search.writer import OpenSearchWriter
 
 PAGINATE_ENTRIES_PER_PAGE = 10
 PAGINATE_START_PAGE = 0
@@ -38,8 +37,8 @@ class HarvesterDBInterface:
         start_page=PAGINATE_START_PAGE,
     )
 
-    def __init__(self, session):
-        self.db = session
+    def __init__(self, session=None):
+        self.db = session if session else db.session
 
     @staticmethod
     def query_filter_builder(model, facets_string):
@@ -810,6 +809,12 @@ class HarvesterDBInterface:
             return None, False, str(e)
 
         try:
+            # imported lazily: database.interface is imported by harvester/__init__.py,
+            # and search.client/search.writer are plain top-level modules, so this
+            # avoids a needless module-level dependency for the one method that uses it.
+            from search.client import OpenSearchClient
+            from search.writer import OpenSearchWriter
+
             os_client = OpenSearchClient.from_environment()
             client = OpenSearchWriter(os_client)
 

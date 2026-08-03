@@ -37,7 +37,7 @@ ORGANIZATION_TYPE_SELECT_CHOICES = [
     ("", "Select an organization type"),
 ] + [(value, value) for value in ORGANIZATION_TYPE_VALUES]
 
-RECORD_STATUS_VALUES = ["error", "success"]
+RECORD_STATUS_VALUES = ["error", "success", "dataset_pending"]
 
 SEVERITY_VALUES = ["error", "warning"]
 
