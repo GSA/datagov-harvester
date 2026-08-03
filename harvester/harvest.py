@@ -188,8 +188,7 @@ class HarvestSource:
             return None
 
         try:
-            from datagov_data_access.search.client import OpenSearchClient
-            from datagov_data_access.search.writer import OpenSearchWriter
+            from harvester.opensearch import OpenSearchClient, OpenSearchWriter
 
             client = OpenSearchClient.from_environment()
             writer = OpenSearchWriter(client)

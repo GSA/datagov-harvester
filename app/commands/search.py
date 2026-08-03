@@ -2,13 +2,17 @@ import re
 from datetime import datetime, timezone
 
 import click
-from datagov_data_access.search.documents import DatasetDocument
 from flask import Blueprint
 from opensearchpy import helpers
 
 from database.interface import HarvesterDBInterface
 from database.models import Dataset
-from harvester.opensearch import OpenSearchClient, OpenSearchReader, OpenSearchWriter
+from harvester.opensearch import (
+    DatasetDocument,
+    OpenSearchClient,
+    OpenSearchReader,
+    OpenSearchWriter,
+)
 
 search = Blueprint("search", __name__)
 # we use this message to detect index failure in GH actions

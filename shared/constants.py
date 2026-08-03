@@ -1,4 +1,5 @@
-# NOTE: Keep this file in sync between datagov-harvester and datagov-catalog
+# Canonical constants for the harvester DB models and the API schemas.
+# datagov-catalog keeps its own copy; this file is no longer shared.
 
 ACTION_VALUES = ["create", "update", "delete"]
 
@@ -37,7 +38,7 @@ ORGANIZATION_TYPE_SELECT_CHOICES = [
     ("", "Select an organization type"),
 ] + [(value, value) for value in ORGANIZATION_TYPE_VALUES]
 
-RECORD_STATUS_VALUES = ["error", "success"]
+RECORD_STATUS_VALUES = ["error", "success", "dataset_pending"]
 
 SEVERITY_VALUES = ["error", "warning"]
 
