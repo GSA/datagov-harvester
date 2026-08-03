@@ -1657,6 +1657,51 @@ def make_dataset_by_dcat(dcat: dict, mock_organization: Mock) -> Mock:
     return dataset
 
 
+def create_record_for_dataset(
+    interface,
+    organization_data,
+    source_data_dcatus,
+    job_data_dcatus,
+    identifier="dataset-popularity-record",
+):
+    interface.add_organization(organization_data)
+    interface.add_harvest_source(source_data_dcatus)
+    job_data_dcatus["harvest_source_id"] = source_data_dcatus["id"]
+    interface.add_harvest_job(job_data_dcatus)
+    return interface.add_harvest_record(
+        {
+            "identifier": identifier,
+            "harvest_job_id": job_data_dcatus["id"],
+            "harvest_source_id": source_data_dcatus["id"],
+            "status": "success",
+            "action": "create",
+            "source_raw": "{}",
+        }
+    )
+
+
+def dataset_payload(
+    slug,
+    record,
+    organization_data,
+    source_data_dcatus,
+    translated_spatial=None,
+):
+    payload = {
+        "slug": slug,
+        "dcat": {"title": slug},
+        "organization_id": organization_data["id"],
+        "harvest_source_id": source_data_dcatus["id"],
+        "harvest_record_id": record.id,
+        "last_harvested_date": datetime.now(timezone.utc),
+    }
+
+    if translated_spatial is not None:
+        payload["translated_spatial"] = translated_spatial
+
+    return payload
+
+
 @pytest.fixture()
 def slug_protection_dataset(
     interface,
