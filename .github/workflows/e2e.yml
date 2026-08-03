@@ -39,7 +39,7 @@ jobs:
         npm ci
         npm run build
     - name: Set up Python ${{ env.PY_VERSION }}
-      uses: actions/setup-python@v6
+      uses: actions/setup-python@v7
       with:
         python-version: ${{ env.PY_VERSION }}
     - name: Install Poetry ${{ env.POETRY_VERSION }}
