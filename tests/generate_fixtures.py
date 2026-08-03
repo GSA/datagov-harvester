@@ -170,6 +170,7 @@ def generate_dynamic_fixtures() -> Dict[str, Any]:
             "records_errored": 8,
             "records_ignored": 0,
             "records_validated": 0,
+            "records_warned": 3,
         },
         {
             "status": "new",
@@ -188,6 +189,7 @@ def generate_dynamic_fixtures() -> Dict[str, Any]:
             "records_errored": 5,
             "records_ignored": 42,
             "records_validated": 80,
+            "records_warned": 6,
         },
         {
             "id": "1a2b3c4d-5e6f-7890-abcd-ef1234567890",
@@ -201,6 +203,7 @@ def generate_dynamic_fixtures() -> Dict[str, Any]:
             "records_errored": 45,
             "records_ignored": 0,
             "records_validated": 0,
+            "records_warned": 0,
         },
         {
             "id": "9f8e7d6c-5b4a-3928-1765-fedcba098765",
@@ -214,6 +217,7 @@ def generate_dynamic_fixtures() -> Dict[str, Any]:
             "records_errored": 2,
             "records_ignored": 15,
             "records_validated": 65,
+            "records_warned": 4,
         },
         {
             "id": "4e5f6a7b-8c9d-0123-4567-890abcdef123",
@@ -227,6 +231,7 @@ def generate_dynamic_fixtures() -> Dict[str, Any]:
             "records_errored": 0,
             "records_ignored": 0,
             "records_validated": 0,
+            "records_warned": 0,
         },
     ]
 
@@ -261,6 +266,7 @@ def generate_dynamic_fixtures() -> Dict[str, Any]:
                 "records_errored": i % 10,
                 "records_ignored": 5 + (i % 5),
                 "records_validated": 25 + (i * 4),
+                "records_warned": 2 + (i % 4),
             }
         )
 
@@ -294,6 +300,7 @@ def generate_dynamic_fixtures() -> Dict[str, Any]:
             "records_errored",
             "records_ignored",
             "records_validated",
+            "records_warned",
         ]:
             if field in template:
                 job[field] = template[field]
