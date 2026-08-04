@@ -98,30 +98,40 @@ services:
       - -c
       - |
         set -e
-        # Run catalog's code against harvester's *vendored* search package rather
-        # than the datagov_data_access release catalog pins. Without this the test
-        # is a closed loop: catalog's own OpenSearchWriter would produce the
-        # documents catalog then reads, so a harvester-side change to MAPPINGS,
-        # DatasetDocument, the writer, or the filter registry would go undetected.
+        # Run catalog's code against *harvester's* vendored search modules rather
+        # than catalog's own copy. Without this the test is a closed loop: catalog's
+        # own OpenSearchWriter would produce the documents catalog then reads, so a
+        # harvester-side change to MAPPINGS, DatasetDocument, the writer, or the
+        # filter registry would go undetected.
         #
-        # Harvester vendored this code in (GSA/data.gov#6209) and no longer depends
-        # on datagov_data_access, so the two repos no longer share a package. Until
-        # catalog is migrated off it too, overlaying is what keeps the contract
-        # honest. Only import paths differ, so rewriting them is enough.
-        PKG=$$(python -c 'import datagov_data_access.search.mappings as m, os; print(os.path.dirname(os.path.dirname(m.__file__)))')
-        cp -r /harvester-search/. "$$PKG/search/"
-        cp /harvester-shared-constants.py "$$PKG/shared/constants.py"
-        # Unanchored so the indented lazy imports (search/queries/criteria.py,
-        # search/queries/filters/base.py) get rewritten too.
-        find "$$PKG/search" -name '*.py' -exec sed -i \
-          -e 's|\bfrom database\.models import|from datagov_data_access.db.models import|' \
-          -e 's|\bfrom shared\.constants import|from datagov_data_access.shared.constants import|' \
-          -e 's|\bfrom search\.|from datagov_data_access.search.|' \
-          -e 's|\bfrom search import|from datagov_data_access.search import|' {} +
+        # Both repos vendored the same datagov_data_access 1.1.0 code and dropped the
+        # dependency (GSA/data.gov#6209 harvester-side, #6211 catalog-side), so there
+        # is no longer a shared package. The two trees are identical apart from import
+        # prefixes; this overlay is what keeps them from silently diverging.
+        #
+        # Copy file-by-file rather than replacing the tree: catalog's app/search/
+        # legitimately owns files harvester has no equivalent for (__init__.py's
+        # public façade, url_helpers.py), and clobbering them breaks catalog's imports.
+        for f in $$(cd /harvester-search && find . -name '*.py' ! -name '__init__.py'); do
+          if [ -f "/app/app/search/$$f" ]; then
+            cp "/harvester-search/$$f" "/app/app/search/$$f"
+          else
+            echo "ERROR: harvester has search/$$f but catalog has no counterpart." >&2
+            echo "       The two vendored trees have diverged structurally." >&2
+            exit 1
+          fi
+        done
+        cp /harvester-shared-constants.py /app/shared/constants.py
+        # Unanchored so the indented lazy imports (queries/criteria.py,
+        # queries/filters/base.py) get rewritten too.
+        find /app/app/search -name '*.py' -exec sed -i \
+          -e 's|\bfrom database\.models import|from app.models import|' \
+          -e 's|\bfrom search\.|from app.search.|' \
+          -e 's|\bfrom search import|from app.search import|' {} +
         # Fail loudly rather than silently testing catalog's own copy.
-        if grep -rnE '\bfrom (database|search|shared)[. ]' "$$PKG/search"; then
+        if grep -rnE '\bfrom (database|search)[. ]' /app/app/search; then
           echo "ERROR: unrewritten harvester import paths remain in the overlay" >&2
           exit 1
         fi
-        echo "Overlaid harvester's vendored search/ and shared/constants.py onto $$PKG"
+        echo "Overlaid harvester's vendored search modules onto /app/app/search"
         pytest tests/unit -v --junitxml=/app/reports/catalog-contract.xml

@@ -6,11 +6,12 @@ Harvester owns the Postgres schema (`migrations/`), the OpenSearch index mapping
 them — it has no migrations of its own. So a harvester change can break catalog, and until
 this test existed nothing caught it before deploy.
 
-This matters more since [#6209](https://github.com/GSA/data.gov/issues/6209) vendored the
-`datagov_data_access` code into `database/` and `search/` and dropped the dependency.
-Catalog still pins `datagov-data-access@1.1.0`, so the two repos no longer share a package —
-the code is currently identical apart from import paths, but nothing enforces that. This
-test is what keeps the two copies honest until catalog is migrated off the library too.
+This matters more now that both repos have vendored the shared `datagov_data_access` 1.1.0
+code and dropped the dependency — harvester into `database/` and `search/`
+([#6209](https://github.com/GSA/data.gov/issues/6209)), catalog into `app/models.py` and
+`app/search/` ([#6211](https://github.com/GSA/data.gov/issues/6211)). There is no longer a
+shared package anywhere. The two trees are currently identical apart from import prefixes,
+but nothing enforces that. This test is what keeps them honest.
 
 The `Catalog Contract` GitHub Action runs on every harvester pull request. It provisions
 Postgres and OpenSearch using *harvester's* migrations and mapping, then runs *catalog's*
@@ -29,23 +30,27 @@ Three things, in one run:
    `OpenSearchWriter`, so `DatasetDocument` output is exercised end to end:
    writer → index → reader → template.
 
-Point 3 only holds because the job **overlays harvester's vendored `search/` package (and
-`shared/constants.py`) onto catalog's `datagov_data_access` install** before running pytest.
-Without that the test is a closed loop — catalog's own pinned writer would produce the
-documents catalog then reads, so a harvester-side change to `MAPPINGS`, `DatasetDocument`,
-the writer, or the filter registry would go completely undetected.
+Point 3 only holds because the job **overlays harvester's vendored `search/` modules (and
+`shared/constants.py`) onto catalog's `app/search/`** before running pytest. Without that the
+test is a closed loop — catalog's own copy of the writer would produce the documents catalog
+then reads, so a harvester-side change to `MAPPINGS`, `DatasetDocument`, the writer, or the
+filter registry would go completely undetected.
 
-The overlay copies the files in and rewrites import paths (`search.*` →
-`datagov_data_access.search.*`, `database.models` → `datagov_data_access.db.models`,
-`shared.constants` → `datagov_data_access.shared.constants`), which is sufficient because
-the vendored code is otherwise identical to the release. It then greps for any unrewritten
-path and fails hard if one remains, so a silent fallback to catalog's own copy is not
-possible.
+The overlay copies module-for-module and rewrites import prefixes (`search.*` →
+`app.search.*`, `database.models` → `app.models`), which is sufficient because the two
+vendored trees are otherwise identical. It then greps for any unrewritten path and fails
+hard if one remains, so a silent fallback to catalog's own copy is not possible.
 
-Note the overlay deliberately stops at `search/` and `shared/constants.py`. `database/models.py`
-is **not** overlaid: catalog's fixtures must exercise the schema that harvester's migrations
-actually built, and substituting harvester's model definitions would make that check
-tautological.
+Two deliberate limits:
+
+- **It copies files, it does not replace the tree.** Catalog's `app/search/` legitimately
+  owns modules harvester has no counterpart for (`__init__.py`'s public façade,
+  `url_helpers.py`); clobbering them breaks catalog's imports. If harvester ever gains a
+  `search/` module catalog lacks, the overlay fails loudly rather than silently skipping it.
+- **`database/models.py` is not overlaid.** Catalog's fixtures must exercise the schema
+  harvester's migrations actually built; substituting harvester's model definitions would
+  make that check tautological. Catalog's own slim models in `app/models.py` are the client
+  under test.
 
 ## Running it locally
 
@@ -101,8 +106,8 @@ broken migration.
 
 ## When this job fails
 
-Read it as "this harvester change breaks catalog." Two failure modes are worth calling out
-because neither is a flaky test:
+Read it as "this harvester change breaks catalog." Three failure modes are worth calling out
+because none of them is a flaky test:
 
 - **A migration removed or changed something catalog reads.** Either keep it, or land the
   catalog change first.
@@ -113,9 +118,9 @@ because neither is a flaky test:
   `flask db check` in the `Pytests` job catches most of this class; anything that slips
   through surfaces here as a catalog failure. Either way it's a real bug, not a false
   positive — write the migration.
-- **`search/` changed in a way catalog can't read.** Since the vendored copy and catalog's
-  pinned `datagov-data-access@1.1.0` are meant to stay equivalent, a mapping, document, or
-  filter-registry change that breaks catalog needs a coordinated catalog release. Once
-  catalog is migrated off the library ([#6211](https://github.com/GSA/data.gov/issues/6211)
-  and follow-ons), the overlay in `docker-compose.catalog-contract.yml` can be dropped and
-  catalog can import the vendored code directly.
+- **`search/` changed in a way catalog can't read.** Harvester's `search/` and catalog's
+  `app/search/` are two copies of the same vendored code and are meant to stay equivalent,
+  so a mapping, document, or filter-registry change that breaks catalog needs a matching
+  catalog change. Catalog's `commit.yml` has a non-blocking text-diff of harvester's
+  `search/mappings.py` that makes drift visible; this job is the blocking version, and
+  covers the whole module set rather than just the mapping.
