@@ -1,12 +1,13 @@
 # Catalog contract test (GSA/data.gov#6210).
 #
-# Harvester owns the Postgres schema (migrations/) and the OpenSearch index
-# mapping (flask search reset-mapping). Catalog reads both and owns neither, so a
-# harvester change to either can break catalog without any harvester test noticing.
+# Harvester owns the Postgres schema (migrations/), the OpenSearch index mapping
+# (search/mappings.py), and the document shape (search/documents.py). Catalog reads
+# all three and owns none of them, so a harvester change can break catalog without
+# any harvester test noticing.
 #
-# This stack provisions services with *harvester's* migrations and mapping, then
-# runs *catalog's* test suite against them. See `make test-catalog-contract` and
-# docs/catalog-contract-test.md.
+# This stack provisions services with *harvester's* migrations and mapping, runs
+# catalog against *harvester's* vendored search code, then runs *catalog's* test
+# suite. See `make test-catalog-contract` and docs/catalog-contract-test.md.
 #
 # No host ports are published: every step runs inside this compose network, so
 # the stack can't collide with `make up` (which already occupies 5432, 5433 and
@@ -87,23 +88,40 @@ services:
       # Tells catalog's dbapp fixture to TRUNCATE rather than drop_all/create_all,
       # preserving the schema harvester's migrations just built.
       CATALOG_TEST_EXTERNAL_SCHEMA: "true"
-      # Harvester's pinned datagov-data-access ref, injected by the Makefile.
-      DATA_ACCESS_REF: ${DATA_ACCESS_REF:?set by the Makefile from pyproject.toml}
     volumes:
       - ./reports:/app/reports
+      # Harvester's vendored search code, overlaid onto catalog's copy below.
+      - ./search:/harvester-search:ro
+      - ./shared/constants.py:/harvester-shared-constants.py:ro
     command:
       - /bin/sh
       - -c
       - |
         set -e
-        echo "Image ships datagov-data-access: $$(python -c 'import importlib.metadata as m; print(m.version("datagov-data-access"))')"
-        echo "Harvester pins datagov-data-access: $${DATA_ACCESS_REF}"
-        # Run catalog's code against harvester's data_access, not its own pin.
-        # Without this the test is a closed loop: catalog's OpenSearchWriter would
-        # write the documents catalog then reads, so a harvester-side change to
-        # models / MAPPINGS / DatasetDocument would go undetected.
-        # A tarball (not git+) because the Alpine image has no git binary.
-        pip install --no-deps --force-reinstall --quiet \
-          "datagov-data-access @ https://github.com/GSA/datagov_data_access/archive/refs/tags/$${DATA_ACCESS_REF}.tar.gz"
-        echo "Now testing against datagov-data-access: $$(python -c 'import importlib.metadata as m; print(m.version("datagov-data-access"))')"
+        # Run catalog's code against harvester's *vendored* search package rather
+        # than the datagov_data_access release catalog pins. Without this the test
+        # is a closed loop: catalog's own OpenSearchWriter would produce the
+        # documents catalog then reads, so a harvester-side change to MAPPINGS,
+        # DatasetDocument, the writer, or the filter registry would go undetected.
+        #
+        # Harvester vendored this code in (GSA/data.gov#6209) and no longer depends
+        # on datagov_data_access, so the two repos no longer share a package. Until
+        # catalog is migrated off it too, overlaying is what keeps the contract
+        # honest. Only import paths differ, so rewriting them is enough.
+        PKG=$$(python -c 'import datagov_data_access.search.mappings as m, os; print(os.path.dirname(os.path.dirname(m.__file__)))')
+        cp -r /harvester-search/. "$$PKG/search/"
+        cp /harvester-shared-constants.py "$$PKG/shared/constants.py"
+        # Unanchored so the indented lazy imports (search/queries/criteria.py,
+        # search/queries/filters/base.py) get rewritten too.
+        find "$$PKG/search" -name '*.py' -exec sed -i \
+          -e 's|\bfrom database\.models import|from datagov_data_access.db.models import|' \
+          -e 's|\bfrom shared\.constants import|from datagov_data_access.shared.constants import|' \
+          -e 's|\bfrom search\.|from datagov_data_access.search.|' \
+          -e 's|\bfrom search import|from datagov_data_access.search import|' {} +
+        # Fail loudly rather than silently testing catalog's own copy.
+        if grep -rnE '\bfrom (database|search|shared)[. ]' "$$PKG/search"; then
+          echo "ERROR: unrewritten harvester import paths remain in the overlay" >&2
+          exit 1
+        fi
+        echo "Overlaid harvester's vendored search/ and shared/constants.py onto $$PKG"
         pytest tests/unit -v --junitxml=/app/reports/catalog-contract.xml

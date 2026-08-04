@@ -42,10 +42,8 @@ jobs:
       - name: Create local .env from sample
         run: cp .env.sample .env
 
-      - name: Report the versions under test
-        run: |
-          echo "Catalog image:      ${CATALOG_IMAGE}"
-          echo "data-access ref:    $(make --no-print-directory print-data-access-ref)"
+      - name: Report the image under test
+        run: echo "Catalog image: ${CATALOG_IMAGE}"
 
       - name: Start Postgres and OpenSearch
         run: make catalog-contract-up

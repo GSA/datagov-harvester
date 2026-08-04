@@ -2,12 +2,7 @@ SHELL=/bin/bash -o pipefail
 
 # Catalog contract test (GSA/data.gov#6210). Its own project name and no published
 # ports, so it never collides with `make up`.
-CATALOG_CONTRACT = DATA_ACCESS_REF=$(DATA_ACCESS_REF) \
-	docker compose -p catalog-contract -f docker-compose.catalog-contract.yml
-
-# The datagov-data-access ref harvester pins. Catalog's image is forced onto this
-# ref at runtime so catalog's code runs against harvester's models and mappings.
-DATA_ACCESS_REF = $(shell python3 -c 'import tomllib; print(tomllib.load(open("pyproject.toml","rb"))["tool"]["poetry"]["dependencies"]["datagov-data-access"]["rev"])')
+CATALOG_CONTRACT = docker compose -p catalog-contract -f docker-compose.catalog-contract.yml
 
 all: help
 
@@ -110,9 +105,6 @@ clean: ## Cleans docker images
 	docker compose down -v --remove-orphans
 	docker compose -p harvest-app down -v --remove-orphans
 	$(MAKE) catalog-contract-down
-
-print-data-access-ref: ## Prints the pinned datagov-data-access ref
-	@echo $(DATA_ACCESS_REF)
 
 catalog-contract-up: ## Starts db + opensearch for the catalog contract test
 	$(CATALOG_CONTRACT) up -d --wait db opensearch
