@@ -20,14 +20,12 @@ from uuid import UUID
 import geojson_validator
 import requests
 import sansjson
-import sqlalchemy.sql.operators as sa_operators
 from bs4 import BeautifulSoup
 from bs4.element import Tag
 from jsonschema import Draft202012Validator, FormatChecker
 from jsonschema.exceptions import ValidationError
 from referencing import Registry
 from referencing.jsonschema import DRAFT202012
-from sqlalchemy import literal
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger()
@@ -612,34 +610,6 @@ def traverse_waf(
         files[i]["modified_date"] = datetimes[i]
 
     return files
-
-
-def query_filter_builder(model, facets_string):
-    """Builds a list of filter expressions from a comma-separated string of facets
-
-    Each facet is of the form "column op value" where `column` is a
-    column name from the model, `op` is one of the operators in
-    `sqlalchemy.sql.operators` like "eq" or "like_op", and `value` is
-    a literal value for the operator.
-
-    The facet string is split on comma characters, so it isn't possible
-    to include commas in the literal values.
-
-    This can raise exceptions if the filters specify nonsensical things about
-    the model. Callers should handle these exceptions.
-    """
-    # empty facet string doesn't play well with our loop below
-    if not facets_string:
-        return []
-
-    facets = []
-    for this_facet in facets_string.split(","):
-        column_name, op, value = this_facet.split(maxsplit=2)
-        # these could raise attribute errors
-        column = getattr(model, column_name)
-        operator = getattr(sa_operators, op)
-        facets.append(operator(column, literal(value, type_=column.type)))
-    return facets
 
 
 def is_it_true(value):

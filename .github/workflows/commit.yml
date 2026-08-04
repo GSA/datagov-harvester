@@ -70,6 +70,12 @@ jobs:
       - name: Run Pytest
         run: make test-ci
 
+      - name: Verify database/interface.py imports standalone
+        run: poetry run python -c "import database.interface"
+
+      - name: Verify migrations match vendored models
+        run: docker compose exec -T app flask db check
+
       - name: Report test coverage
         uses: MishaKav/pytest-coverage-comment@main
         continue-on-error: true

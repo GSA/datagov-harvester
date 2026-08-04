@@ -11,6 +11,7 @@ from bs4 import BeautifulSoup
 from jsonschema import Draft202012Validator, FormatChecker
 from requests.exceptions import ConnectionError
 
+from database.interface import HarvesterDBInterface
 from database.models import HarvestSource
 from harvester.utils.general_utils import (
     DT_PLACEHOLDER,
@@ -31,7 +32,6 @@ from harvester.utils.general_utils import (
     prepare_distributions,
     prepare_transform_msg,
     process_job_complete_percentage,
-    query_filter_builder,
     translate_spatial,
     translate_spatial_to_geojson,
     validate_geojson,
@@ -386,23 +386,37 @@ class TestGeneralUtils:
         assert args.jobType == "test-type"
 
     def test_facet_builder_empty(self):
-        assert query_filter_builder(HarvestSource, "") == []
+        assert HarvesterDBInterface.query_filter_builder(HarvestSource, "") == []
 
     def test_facet_builder_single(self):
-        assert len(query_filter_builder(HarvestSource, "id eq 1")) == 1
+        assert (
+            len(HarvesterDBInterface.query_filter_builder(HarvestSource, "id eq 1"))
+            == 1
+        )
 
     def test_facet_builder_notequal(self):
-        assert len(query_filter_builder(HarvestSource, "url startswith_op http:")) == 1
+        assert (
+            len(
+                HarvesterDBInterface.query_filter_builder(
+                    HarvestSource, "url startswith_op http:"
+                )
+            )
+            == 1
+        )
 
     def test_facet_builder_multiple(self):
         assert (
-            len(query_filter_builder(HarvestSource, "id eq 1,organization_id eq 2"))
+            len(
+                HarvesterDBInterface.query_filter_builder(
+                    HarvestSource, "id eq 1,organization_id eq 2"
+                )
+            )
             == 2
         )
 
     def test_facet_builder_exception(self):
         with pytest.raises(AttributeError):
-            query_filter_builder(HarvestSource, "nonexistent eq 1")
+            HarvesterDBInterface.query_filter_builder(HarvestSource, "nonexistent eq 1")
 
     @pytest.mark.parametrize(
         "original,expected",

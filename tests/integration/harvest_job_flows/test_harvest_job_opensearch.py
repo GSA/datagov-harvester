@@ -5,7 +5,7 @@ import pytest
 
 from database.models import Dataset
 from harvester.harvest import harvest_job_starter
-from harvester.opensearch import OpenSearchClient
+from search.client import OpenSearchClient
 
 
 def _wait_for_opensearch(client, timeout_seconds=30):
