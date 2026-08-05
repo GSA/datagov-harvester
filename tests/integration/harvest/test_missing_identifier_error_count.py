@@ -77,11 +77,11 @@ class TestMissingIdentifierErrorCount:
         interface,
         organization_data,
         source_data_dcatus_multiple_no_identifier,
-        job_data_dcatus_no_identifier,
+        job_data_dcatus_multiple_no_identifier,
     ):
         interface.add_organization(organization_data)
         interface.add_harvest_source(source_data_dcatus_multiple_no_identifier)
-        harvest_job = interface.add_harvest_job(job_data_dcatus_no_identifier)
+        harvest_job = interface.add_harvest_job(job_data_dcatus_multiple_no_identifier)
 
         harvest_source = HarvestSource(harvest_job.id)
         harvest_source.acquire_data_sources()
@@ -94,11 +94,11 @@ class TestMissingIdentifierErrorCount:
         interface,
         organization_data,
         source_data_dcatus_multiple_no_identifier,
-        job_data_dcatus_no_identifier,
+        job_data_dcatus_multiple_no_identifier,
     ):
         interface.add_organization(organization_data)
         interface.add_harvest_source(source_data_dcatus_multiple_no_identifier)
-        harvest_job = interface.add_harvest_job(job_data_dcatus_no_identifier)
+        harvest_job = interface.add_harvest_job(job_data_dcatus_multiple_no_identifier)
 
         harvest_source = HarvestSource(harvest_job.id)
         harvest_source.acquire_data_sources()
@@ -112,11 +112,11 @@ class TestMissingIdentifierErrorCount:
         interface,
         organization_data,
         source_data_dcatus_mixed_identifiers,
-        job_data_dcatus_no_identifier,
+        job_data_dcatus_mixed_identifiers,
     ):
         interface.add_organization(organization_data)
         interface.add_harvest_source(source_data_dcatus_mixed_identifiers)
-        harvest_job = interface.add_harvest_job(job_data_dcatus_no_identifier)
+        harvest_job = interface.add_harvest_job(job_data_dcatus_mixed_identifiers)
 
         harvest_source = HarvestSource(harvest_job.id)
         harvest_source.acquire_data_sources()
@@ -130,11 +130,11 @@ class TestMissingIdentifierErrorCount:
         interface,
         organization_data,
         source_data_dcatus_empty_identifier,
-        job_data_dcatus_no_identifier,
+        job_data_dcatus_empty_identifier,
     ):
         interface.add_organization(organization_data)
         interface.add_harvest_source(source_data_dcatus_empty_identifier)
-        harvest_job = interface.add_harvest_job(job_data_dcatus_no_identifier)
+        harvest_job = interface.add_harvest_job(job_data_dcatus_empty_identifier)
 
         harvest_source = HarvestSource(harvest_job.id)
         harvest_source.acquire_data_sources()
@@ -147,11 +147,11 @@ class TestMissingIdentifierErrorCount:
         interface,
         organization_data,
         source_data_dcatus_whitespace_identifier,
-        job_data_dcatus_no_identifier,
+        job_data_dcatus_whitespace_identifier,
     ):
         interface.add_organization(organization_data)
         interface.add_harvest_source(source_data_dcatus_whitespace_identifier)
-        harvest_job = interface.add_harvest_job(job_data_dcatus_no_identifier)
+        harvest_job = interface.add_harvest_job(job_data_dcatus_whitespace_identifier)
 
         harvest_source = HarvestSource(harvest_job.id)
         harvest_source.acquire_data_sources()

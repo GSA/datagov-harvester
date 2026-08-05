@@ -623,6 +623,50 @@ def job_data_dcatus_no_identifier(source_data_dcatus_no_identifier: dict) -> dic
 
 
 @pytest.fixture
+def job_data_dcatus_multiple_no_identifier(
+    source_data_dcatus_multiple_no_identifier: dict,
+) -> dict:
+    return {
+        "id": "c9457afe-d5a3-48e3-ab97-2e9f728013a2",
+        "status": "new",
+        "harvest_source_id": source_data_dcatus_multiple_no_identifier["id"],
+    }
+
+
+@pytest.fixture
+def job_data_dcatus_mixed_identifiers(
+    source_data_dcatus_mixed_identifiers: dict,
+) -> dict:
+    return {
+        "id": "d9457afe-d5a3-48e3-ab97-2e9f728013a3",
+        "status": "new",
+        "harvest_source_id": source_data_dcatus_mixed_identifiers["id"],
+    }
+
+
+@pytest.fixture
+def job_data_dcatus_empty_identifier(
+    source_data_dcatus_empty_identifier: dict,
+) -> dict:
+    return {
+        "id": "e9457afe-d5a3-48e3-ab97-2e9f728013a4",
+        "status": "new",
+        "harvest_source_id": source_data_dcatus_empty_identifier["id"],
+    }
+
+
+@pytest.fixture
+def job_data_dcatus_whitespace_identifier(
+    source_data_dcatus_whitespace_identifier: dict,
+) -> dict:
+    return {
+        "id": "f9457afe-d5a3-48e3-ab97-2e9f728013a5",
+        "status": "new",
+        "harvest_source_id": source_data_dcatus_whitespace_identifier["id"],
+    }
+
+
+@pytest.fixture
 def job_data_waf_iso19115_2(source_data_waf_iso19115_2: dict) -> dict:
     return {
         "id": "83c431e6-0f53-4471-8003-b6afc0541101",
