@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 
 import sqlalchemy.sql.operators as sa_operators
-from sqlalchemy import asc, desc, exists, func, inspect, literal, text
+from sqlalchemy import Text, asc, cast, desc, exists, func, inspect, literal, text
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import NoResultFound
 from sqlalchemy.orm import aliased
@@ -479,7 +479,9 @@ class HarvesterDBInterface:
                 paged.c.message,
                 paged.c.id,
                 HarvestRecord.identifier,
-                HarvestRecord.source_raw,
+                func.coalesce(
+                    cast(HarvestRecord.source_transform, Text), HarvestRecord.source_raw
+                ),
             )
             .outerjoin(HarvestRecord, HarvestRecord.id == paged.c.harvest_record_id)
             .all()
