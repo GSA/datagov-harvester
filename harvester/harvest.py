@@ -47,6 +47,7 @@ from harvester.utils.general_utils import (
     dataset_to_hash,
     describe_identifier_error,
     download_file,
+    extract_dcatus3_catalog_datasets,
     find_indexes_for_duplicates,
     get_datetime,
     make_record_mapping,
@@ -57,6 +58,7 @@ from harvester.utils.general_utils import (
     prepare_transform_msg,
     send_email_to_recipients,
     sort_dataset,
+    strip_dcatus3_catalog_objects,
     translate_spatial_to_geojson,
     traverse_waf,
 )
@@ -498,7 +500,18 @@ class HarvestSource:
         try:
             if self.source_type == "document":
                 if self.schema_type.startswith("dcatus"):
-                    self.external_records = download_file(self.url, ".json")["dataset"]
+                    catalog = download_file(self.url, ".json")
+
+                    if self.schema_type == "dcatus3.0":
+                        self.external_records = extract_dcatus3_catalog_datasets(
+                            catalog
+                        )
+                        self.db_interface.update_harvest_job(
+                            self.job_id,
+                            {"dcatus_catalog": strip_dcatus3_catalog_objects(catalog)},
+                        )
+                    else:
+                        self.external_records = catalog["dataset"]
                 elif self.schema_type.startswith("iso19115"):
                     # mimic the output of traverse_waf with a single file
                     self.external_records = [{"identifier": self.url}]
