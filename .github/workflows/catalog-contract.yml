@@ -43,7 +43,8 @@ jobs:
         run: cp .env.sample .env
 
       - name: Report the image under test
-        run: echo "Catalog image: ${CATALOG_IMAGE}"
+        run: |
+          echo "Catalog image: ${CATALOG_IMAGE}"
 
       - name: Start Postgres and OpenSearch
         run: make catalog-contract-up
