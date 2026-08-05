@@ -37,6 +37,43 @@ def test_reset_mapping_recreates_empty_index(app):
     assert "Mapping reset successfully. The index is empty." in result.output
 
 
+def test_reset_mapping_accepts_stringified_dynamic_flag(app):
+    """OpenSearch echoes `dynamic` back as the string "false", not a bool."""
+    client = Mock()
+    client.INDEX_NAME = "datasets"
+    client.MAPPINGS = {
+        "properties": {
+            "dcat": {
+                "type": "nested",
+                "dynamic": False,
+                "properties": {"modified": {"type": "keyword"}},
+            }
+        }
+    }
+    client.client.indices.get_mapping.return_value = {
+        "datasets": {
+            "mappings": {
+                "properties": {
+                    "dcat": {
+                        "type": "nested",
+                        "dynamic": "false",
+                        "properties": {"modified": {"type": "keyword"}},
+                    }
+                }
+            }
+        }
+    }
+
+    with patch(
+        "app.commands.search.OpenSearchClient.from_environment",
+        return_value=client,
+    ):
+        result = app.test_cli_runner().invoke(args=["search", "reset-mapping"])
+
+    assert result.exit_code == 0
+    assert "Mapping reset successfully. The index is empty." in result.output
+
+
 def test_reset_mapping_rejects_real_mapping_mismatch(app):
     client = Mock()
     client.INDEX_NAME = "datasets"
