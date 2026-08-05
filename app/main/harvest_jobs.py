@@ -19,6 +19,9 @@ from . import main
 def view_harvest_job(job_id=None):
     def _load_json_title(json_string):
         try:
+            if json_string is None:
+                logger.warning("harvest record doesn't have a source_raw")
+                return None
             return json.loads(json_string).get("title", None)
         except Exception as e:
             logger.error(f"Error loading json source_raw: {repr(e)}")

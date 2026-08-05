@@ -23,6 +23,17 @@ class TestHarvestRecordErrorUnauthed:
         for key in fixture_dict.keys():
             assert fixture_dict[key] == res[key]
 
+    def test_iso(self, unauthed_page):
+        unauthed_page.goto("/harvest_job/8c90626b-09c6-4098-8828-76c7b981639a")
+
+        assert (
+            unauthed_page.locator(
+                "#error_results_pagination .error-list .error-block:first-child p"
+            )
+            .nth(1)
+            .inner_text()
+        ) == "Title: Test ISO19115 title"
+
 
 class TestHarvestRecordErrorAuthed:
     pass
