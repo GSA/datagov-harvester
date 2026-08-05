@@ -70,6 +70,10 @@ services:
         flask search reset-mapping
 
   catalog-tests:
+    # Catalog publishes amd64 only; without this the stack won't start on an
+    # Apple Silicon machine ("no image found in image index for architecture
+    # arm64"). CI runners are amd64, so this only matters locally.
+    platform: linux/amd64
     image: ${CATALOG_IMAGE:-ghcr.io/gsa/datagov-catalog:main}
     depends_on:
       db:
