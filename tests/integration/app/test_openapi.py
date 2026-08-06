@@ -35,6 +35,23 @@ class TestOpenAPI:
         assert "records_warned" in schemas["JobInfo"]["properties"]
         assert "severity" in schemas["ErrorInfo"]["properties"]
 
+    def test_openapi_documents_severity_query_param(self, client):
+        """Both record-issue routes must advertise the severity filter.
+
+        The per-record route documents it via a query schema rather than
+        @api.doc, so this guards a mechanism the collection route doesn't use.
+        """
+        paths = client.get("/openapi.json").json["paths"]
+
+        for path in [
+            "/api/harvest_record_errors/",
+            "/api/harvest_record/{record_id}/errors",
+        ]:
+            params = paths[path]["get"]["parameters"]
+            severity = [p for p in params if p["name"] == "severity"]
+            assert severity, f"severity not documented on {path}"
+            assert severity[0]["schema"]["enum"] == ["error", "warning"]
+
     def test_openapi_swagger(self, client):
         response = client.get("/openapi/docs")
         assert "OpenAPI Documentation" in response.text

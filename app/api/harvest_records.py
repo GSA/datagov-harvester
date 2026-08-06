@@ -3,7 +3,7 @@ import json
 from flask import Response, jsonify, make_response, request
 
 from app import deps
-from app.api_schemas import ErrorInfo, RecordInfo
+from app.api_schemas import ErrorInfo, RecordInfo, RecordIssueQuery
 from app.deps import (
     JSON_INVALID_SEVERITY,
     JSON_NOT_FOUND,
@@ -130,7 +130,10 @@ def add_harvest_record():
     }
 )
 @valid_id_required
-def get_all_harvest_record_errors(record_id: str) -> list:
+# below valid_id_required on purpose: that decorator asserts every argument is a
+# UUID, so the injected query dict has to arrive after it has run, not before.
+@api.input(RecordIssueQuery, location="query", validation=False)
+def get_all_harvest_record_errors(record_id: str, **kwargs) -> list:
     """List issues for a record.
 
     Accepts an optional `severity` query param ("error" or "warning").

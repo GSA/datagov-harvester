@@ -109,6 +109,17 @@ class OrgInfo(OrgCreate):
     source_count = Integer()
 
 
+class RecordIssueQuery(Schema):
+    """Query input for the per-record issue route.
+
+    Query schemas are inlined as OpenAPI `parameters` rather than added to
+    `components.schemas`, so this documents the filter without adding a
+    schema definition.
+    """
+
+    severity = Enum(SEVERITY_ENUM)
+
+
 class QueryInfo(Schema):
     """Query input for various object types."""
 
