@@ -5,7 +5,6 @@ from typing import Callable, TypeVar
 from opensearchpy import helpers
 from opensearchpy.exceptions import ConnectionTimeout
 
-from database.models import Dataset
 from search.client import OpenSearchClient
 from search.config import (
     DEFAULT_DELETE_REQUEST_TIMEOUT_SECONDS,
@@ -199,6 +198,12 @@ class OpenSearchWriter:
                 f"  Batch {batch_number}/{total_batches}: "
                 f"indexing {len(batch_ids)} dataset(s)..."
             )
+            # Imported lazily so this module can be used without harvester's ORM.
+            # index_datasets() below is duck-typed and is the only entry point
+            # datagov-catalog uses (see docs/catalog-contract-test.md); a
+            # module-level import would drag the whole model tree into its image.
+            from database.models import Dataset
+
             datasets = (
                 db_interface.db.query(Dataset).filter(Dataset.id.in_(batch_ids)).all()
             )

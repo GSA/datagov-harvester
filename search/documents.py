@@ -1,12 +1,21 @@
+from __future__ import annotations
+
 import json
 import os
 from datetime import date, datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from database.models import Dataset
 from search.config import DEFAULT_CATALOG_BASE_URL, INDEX_NAME
 from search.spatial import calc_geometry_centroid
 from search.transforms import DcatIndexTransformer
+
+if TYPE_CHECKING:
+    # Annotation only. This module reads a fixed set of attributes off whatever
+    # it is handed (dcat, id, slug, organization, popularity, translated_spatial,
+    # harvest_record_id, last_harvested_date), so it does not need harvester's
+    # ORM at runtime -- which is what lets datagov-catalog's contract test drive
+    # this exact code with its own model rows. See docs/catalog-contract-test.md.
+    from database.models import Dataset
 
 
 class DatasetDocument:

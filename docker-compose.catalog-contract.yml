@@ -133,15 +133,23 @@ services:
       # Tells catalog's dbapp fixture to TRUNCATE rather than drop_all/create_all,
       # preserving the schema harvester's migrations just built.
       CATALOG_TEST_EXTERNAL_SCHEMA: "true"
+      # Index through *harvester's* OpenSearchWriter instead of catalog's vendored
+      # copy, so catalog's full fixture set (DCAT-US 3.0, isPartOf collections,
+      # spatial bboxes, stopword titles) is written by harvester's real production
+      # write path and read back by catalog's real read path. Without this,
+      # catalog writes and reads with its own copy of the writer -- a closed loop
+      # that cannot notice a harvester-side change to DatasetDocument or the
+      # writer. Consumed by catalog's tests/writer_provider.py.
+      HARVESTER_SEARCH_PATH: /harvester/search
     volumes:
       - ./reports:/app/reports
-    # Catalog's own code, unmodified. Harvester's vendored search/ is deliberately
-    # NOT overlaid here: harvester and catalog are allowed to drift, and this job
-    # exists to answer "does catalog still work against harvester's schema and
-    # mapping?", not "are the two vendored trees in sync?". An earlier version
-    # copied harvester's search/ over catalog's and failed when harvester added a
-    # module catalog lacked, which made every additive harvester change a blocking
-    # cross-repo dependency. See docs/catalog-contract-test.md.
+      # Harvester's search package, mounted under its own namespace. This is NOT
+      # the file overlay that was removed from this job: nothing in app/search/ is
+      # clobbered, no filename parity between the repos is required, and harvester
+      # adding a module catalog lacks is a non-event. Only the writer is swapped;
+      # catalog's reader, models, routes and templates stay catalog's.
+      - ./search:/harvester/search:ro
+      - ./shared:/harvester/shared:ro
     command:
       - /bin/sh
       - -c
