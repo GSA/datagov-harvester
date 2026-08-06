@@ -6,51 +6,54 @@ Harvester owns the Postgres schema (`migrations/`), the OpenSearch index mapping
 them — it has no migrations of its own. So a harvester change can break catalog, and until
 this test existed nothing caught it before deploy.
 
-This matters more now that both repos have vendored the shared `datagov_data_access` 1.1.0
-code and dropped the dependency — harvester into `database/` and `search/`
-([#6209](https://github.com/GSA/data.gov/issues/6209)), catalog into `app/models.py` and
-`app/search/` ([#6211](https://github.com/GSA/data.gov/issues/6211)). There is no longer a
-shared package anywhere. The two trees are currently identical apart from import prefixes,
-but nothing enforces that. This test is what keeps them honest.
-
 The `Catalog Contract` GitHub Action runs on every harvester pull request. It provisions
 Postgres and OpenSearch using *harvester's* migrations and mapping, then runs *catalog's*
-test suite against them. Implements [GSA/data.gov#6210](https://github.com/GSA/data.gov/issues/6210).
+test suite — catalog's own code, exactly as it ships — against them.
+Implements [GSA/data.gov#6210](https://github.com/GSA/data.gov/issues/6210).
 
-## What it actually proves
+## The one question it answers
 
-Three things, in one run:
+**Will this harvester change break catalog?** That is the whole scope. If the job is green,
+the harvester change can ship without waiting on catalog. If it's red, catalog needs a
+change first — ideally one that supports both the old and new shape, so the two deploys
+don't have to be timed together.
+
+Two things it proves, in one run:
 
 1. **Schema contract** — catalog's queries work against the schema `flask db upgrade`
-   produces. Catalog's test fixtures insert rows through the shared SQLAlchemy models, so a
+   produces. Catalog's test fixtures insert rows through its own SQLAlchemy models, so a
    dropped/renamed column, a changed enum, or a missing constraint fails loudly.
 2. **Mapping contract** — catalog's searches, aggregations, and filters work against the
    index `flask search reset-mapping` creates.
-3. **Document-shape contract** — catalog's tests index their fixtures through the
-   `OpenSearchWriter`, so `DatasetDocument` output is exercised end to end:
-   writer → index → reader → template.
 
-Point 3 only holds because the job **overlays harvester's vendored `search/` modules (and
-`shared/constants.py`) onto catalog's `app/search/`** before running pytest. Without that the
-test is a closed loop — catalog's own copy of the writer would produce the documents catalog
-then reads, so a harvester-side change to `MAPPINGS`, `DatasetDocument`, the writer, or the
-filter registry would go completely undetected.
+Catalog's `tests/unit` runs against real Postgres and real OpenSearch — only the HTTP layer
+is faked, via Flask's in-process `test_client()`. So these are integration tests in
+everything but the directory name.
 
-The overlay copies module-for-module and rewrites import prefixes (`search.*` →
-`app.search.*`, `database.models` → `app.models`), which is sufficient because the two
-vendored trees are otherwise identical. It then greps for any unrewritten path and fails
-hard if one remains, so a silent fallback to catalog's own copy is not possible.
+## What it deliberately does *not* check
 
-Two deliberate limits:
+**Drift between harvester's `search/` and catalog's `app/search/`.** Both repos vendored the
+same `datagov_data_access` 1.1.0 code and dropped the dependency — harvester into `database/`
+and `search/` ([#6209](https://github.com/GSA/data.gov/issues/6209)), catalog into
+`app/models.py` and `app/search/` ([#6211](https://github.com/GSA/data.gov/issues/6211)).
+The two trees are **allowed to diverge**, and nothing here enforces otherwise.
 
-- **It copies files, it does not replace the tree.** Catalog's `app/search/` legitimately
-  owns modules harvester has no counterpart for (`__init__.py`'s public façade,
-  `url_helpers.py`); clobbering them breaks catalog's imports. If harvester ever gains a
-  `search/` module catalog lacks, the overlay fails loudly rather than silently skipping it.
-- **`database/models.py` is not overlaid.** Catalog's fixtures must exercise the schema
-  harvester's migrations actually built; substituting harvester's model definitions would
-  make that check tautological. Catalog's own slim models in `app/models.py` are the client
-  under test.
+An earlier version of this job copied harvester's `search/` modules over catalog's before
+running pytest, and hard-failed when harvester had a module catalog lacked. That turned every
+purely additive harvester change into a blocking cross-repo dependency — exactly the lockstep
+coupling this test is meant to avoid. Harvester and catalog should not have to ship together.
+
+The cost of dropping the overlay, stated plainly: catalog's tests index their fixtures
+through *catalog's* `OpenSearchWriter`, so the document-shape path (`DatasetDocument`, the
+writer) is a closed loop and a harvester-side change to it won't be caught here. The schema
+and mapping contracts are unaffected. Catalog's committed
+`tests/data/harvester_snapshot/` — a real dump from a migrated, fixture-loaded harvester —
+covers part of that gap from catalog's side.
+
+Also not checked: `database/models.py` is not substituted into catalog. Catalog's fixtures
+must exercise the schema harvester's migrations actually built; swapping in harvester's model
+definitions would make that check tautological. Catalog's own slim models in `app/models.py`
+are the client under test.
 
 ## Running it locally
 
@@ -106,21 +109,34 @@ broken migration.
 
 ## When this job fails
 
-Read it as "this harvester change breaks catalog." Three failure modes are worth calling out
-because none of them is a flaky test:
+Read it as "this harvester change breaks catalog" — never as "harvester and catalog have
+drifted." A failure means catalog, running its current production code, could not work
+against the schema or mapping this PR produces. Three failure modes, none of them flaky:
 
-- **A migration removed or changed something catalog reads.** Either keep it, or land the
-  catalog change first.
+- **A migration removed or changed something catalog reads.** A dropped or renamed column, a
+  changed enum, a tightened constraint.
 - **`database/models.py` changed without a matching migration.** The ORM then expects
   DB-level behavior the schema doesn't have — for example, adding `ondelete="CASCADE"` plus
   `passive_deletes=True` tells SQLAlchemy to stop emitting child deletes and rely on the
   database to cascade, which produces integrity errors if the constraint was never migrated.
   `flask db check` in the `Pytests` job catches most of this class; anything that slips
-  through surfaces here as a catalog failure. Either way it's a real bug, not a false
-  positive — write the migration.
-- **`search/` changed in a way catalog can't read.** Harvester's `search/` and catalog's
-  `app/search/` are two copies of the same vendored code and are meant to stay equivalent,
-  so a mapping, document, or filter-registry change that breaks catalog needs a matching
-  catalog change. Catalog's `commit.yml` has a non-blocking text-diff of harvester's
-  `search/mappings.py` that makes drift visible; this job is the blocking version, and
-  covers the whole module set rather than just the mapping.
+  through surfaces here. Either way it's a real bug — write the migration.
+- **A mapping change catalog can't read.** Changing an existing field's type or analyzer, or
+  removing a field catalog queries. Note that *adding* a field is additive and will not fail
+  this job — catalog ignores mapping fields it doesn't know about.
+
+### Getting unblocked without timing two deploys
+
+The point of a red check is to catch the breakage before deploy, not to force a synchronized
+release. Preferred order:
+
+1. **Make the catalog change dual-support** — able to read both the current and the proposed
+   shape (tolerate the old column and the new one, both mapping types, etc.).
+2. **Ship that to catalog first.** This job goes green once the change is on catalog's `main`
+   and the image republishes.
+3. **Ship the harvester change.**
+4. **Simplify catalog** to drop the old branch once harvester is fully deployed.
+
+That sequence has no window where either app is broken, regardless of deploy timing. To verify
+step 1 before it merges, point the job at your catalog branch's image with `CATALOG_IMAGE`
+(see above) — no need to guess.
