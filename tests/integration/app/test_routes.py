@@ -837,3 +837,113 @@ class TestRenderBlock:
                 )
 
             assert "Jinja autoescape is disabled" in str(exc_info.value)
+
+
+class TestRecordIssueSeverityAPI:
+    """Severity filtering on the record-issue endpoints.
+
+    The seeded fixtures contain only errors (severity falls to the column's
+    "error" server default), so each test adds its own warning row rather than
+    changing the shared fixture, whose row count other suites assert on.
+    """
+
+    ERROR_ID = "3ccb48db-21fc-427a-9ec7-36b0d0f621d3"
+    RECORD_ID = "1c004473-0802-4f22-a16d-7a2d7559719e"
+
+    @pytest.fixture
+    def interface_with_warning(self, interface_with_fixture_json, job_data_dcatus):
+        interface_with_fixture_json.add_harvest_record_error(
+            {
+                "harvest_record_id": self.RECORD_ID,
+                "harvest_job_id": job_data_dcatus["id"],
+                "message": "a dcat-us 3 warning",
+                "type": "InvalidIriWarning",
+                "severity": "warning",
+            }
+        )
+        return interface_with_fixture_json
+
+    def test_collection_severity_warning(self, client, interface_with_warning):
+        """?severity=warning returns only the warning row."""
+        res = client.get("/api/harvest_record_errors/?severity=warning")
+
+        assert res.status_code == 200
+        assert [e["severity"] for e in res.json] == ["warning"]
+        assert res.json[0]["message"] == "a dcat-us 3 warning"
+
+    def test_collection_severity_error_excludes_warnings(
+        self, client, interface_with_warning
+    ):
+        """?severity=error excludes warnings."""
+        res = client.get(
+            "/api/harvest_record_errors/?severity=error&paginate=False&count=True"
+        )
+
+        assert res.status_code == 200
+        # 16 seeded errors; the added warning is filtered out
+        assert res.json["count"] == 16
+
+    def test_collection_severity_is_case_sensitive(
+        self, client, interface_with_warning
+    ):
+        """The DB enum is lowercase, so "Warning" is a client error, not a match."""
+        res = client.get("/api/harvest_record_errors/?severity=Warning")
+
+        assert res.status_code == 400
+        assert "Invalid severity 'Warning'" in res.json["error"]
+
+    def test_collection_invalid_severity(self, client, interface_with_warning):
+        res = client.get("/api/harvest_record_errors/?severity=bogus")
+
+        assert res.status_code == 400
+        assert "Invalid severity 'bogus'" in res.json["error"]
+        assert "error, warning" in res.json["error"]
+
+    def test_collection_severity_composes_with_facets(
+        self, client, interface_with_warning
+    ):
+        """severity narrows an existing facet rather than replacing it.
+
+        The record facet alone matches this record's two errors plus the
+        warning, so the assertion only holds if both filters are applied.
+        """
+        route = (
+            f"/api/harvest_record_errors/?facets=harvest_record_id eq {self.RECORD_ID}"
+        )
+
+        unfiltered = client.get(route)
+        assert unfiltered.status_code == 200
+        assert len(unfiltered.json) == 3
+
+        res = client.get(f"{route}&severity=warning")
+        assert res.status_code == 200
+        assert [e["severity"] for e in res.json] == ["warning"]
+
+    def test_severity_ignored_on_other_models(self, client, interface_with_warning):
+        """harvest_job_error has no severity column; the param must not leak there."""
+        res = client.get("/api/harvest_job_errors/?severity=warning")
+
+        assert res.status_code == 200
+        assert len(res.json) == 1
+
+    def test_record_route_reaches_warnings(self, client, interface_with_warning):
+        res = client.get(
+            f"/api/harvest_record/{self.RECORD_ID}/errors?severity=warning"
+        )
+
+        assert res.status_code == 200
+        assert [e["severity"] for e in res.json] == ["warning"]
+
+    def test_record_route_defaults_to_errors(self, client, interface_with_warning):
+        """Warnings must be asked for explicitly on the per-record route."""
+        res = client.get(f"/api/harvest_record/{self.RECORD_ID}/errors")
+
+        assert res.status_code == 200
+        assert {e["severity"] for e in res.json} == {"error"}
+
+    def test_record_route_invalid_severity(self, client, interface_with_warning):
+        """A bad severity is a 400, not the route's catch-all 404."""
+        res = client.get(f"/api/harvest_record/{self.RECORD_ID}/errors?severity=bogus")
+
+        assert res.status_code == 400
+        assert "Invalid severity 'bogus'" in res.json["error"]
