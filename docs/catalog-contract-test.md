@@ -1,56 +1,60 @@
 # Catalog contract test
 
-Harvester owns the Postgres schema (`migrations/`), the OpenSearch index mapping
-(`search/mappings.py`), and the indexed document shape (`search/documents.py`).
-[datagov-catalog](https://github.com/GSA/datagov-catalog) reads all three and owns none of
-them — it has no migrations of its own. So a harvester change can break catalog, and until
-this test existed nothing caught it before deploy.
+Harvester owns the Postgres schema (`migrations/`) and the OpenSearch index mapping
+(`search/mappings.py`). [datagov-catalog](https://github.com/GSA/datagov-catalog) reads both
+and owns neither — it has no migrations of its own. So a harvester change to the schema or
+mapping can break catalog, and until this test existed nothing caught it before deploy.
 
-This matters more now that both repos have vendored the shared `datagov_data_access` 1.1.0
-code and dropped the dependency — harvester into `database/` and `search/`
-([#6209](https://github.com/GSA/data.gov/issues/6209)), catalog into `app/models.py` and
-`app/search/` ([#6211](https://github.com/GSA/data.gov/issues/6211)). There is no longer a
-shared package anywhere. The two trees are currently identical apart from import prefixes,
-but nothing enforces that. This test is what keeps them honest.
+This is deliberately **one-directional**: it checks that catalog's code, as it exists today
+in its published `:main` image, still works against the Postgres schema and OpenSearch
+mapping a harvester PR is proposing. It does not require harvester's and catalog's vendored
+`search/` trees (each repo's copy of the former `datagov_data_access` code —
+[#6209](https://github.com/GSA/data.gov/issues/6209) harvester-side,
+[#6211](https://github.com/GSA/data.gov/issues/6211) catalog-side) to match file-for-file.
+The two applications are allowed to diverge there over time; see "Why not tree parity?"
+below.
 
 The `Catalog Contract` GitHub Action runs on every harvester pull request. It provisions
-Postgres and OpenSearch using *harvester's* migrations and mapping, then runs *catalog's*
-test suite against them. Implements [GSA/data.gov#6210](https://github.com/GSA/data.gov/issues/6210).
+Postgres and OpenSearch using *harvester's* migrations and mapping, then runs *catalog's own,
+unmodified* test suite against them. Implements
+[GSA/data.gov#6210](https://github.com/GSA/data.gov/issues/6210).
 
 ## What it actually proves
 
-Three things, in one run:
+Two things, in one run:
 
 1. **Schema contract** — catalog's queries work against the schema `flask db upgrade`
-   produces. Catalog's test fixtures insert rows through the shared SQLAlchemy models, so a
+   produces. Catalog's test fixtures insert rows through its own SQLAlchemy models, so a
    dropped/renamed column, a changed enum, or a missing constraint fails loudly.
 2. **Mapping contract** — catalog's searches, aggregations, and filters work against the
    index `flask search reset-mapping` creates.
-3. **Document-shape contract** — catalog's tests index their fixtures through the
-   `OpenSearchWriter`, so `DatasetDocument` output is exercised end to end:
-   writer → index → reader → template.
 
-Point 3 only holds because the job **overlays harvester's vendored `search/` modules (and
-`shared/constants.py`) onto catalog's `app/search/`** before running pytest. Without that the
-test is a closed loop — catalog's own copy of the writer would produce the documents catalog
-then reads, so a harvester-side change to `MAPPINGS`, `DatasetDocument`, the writer, or the
-filter registry would go completely undetected.
+Catalog's own `OpenSearchWriter`, `DatasetDocument`, and filter registry index the test
+fixtures and read them back — none of that is touched or replaced by harvester's copies.
+That is intentional: this job answers "does catalog's current code still work," not "are the
+two vendored trees identical." A harvester-side change to `MAPPINGS`, `DatasetDocument`, the
+writer, or the filter registry that catalog's copy doesn't know about yet will not, by
+itself, fail this job — see below for why.
 
-The overlay copies module-for-module and rewrites import prefixes (`search.*` →
-`app.search.*`, `database.models` → `app.models`), which is sufficient because the two
-vendored trees are otherwise identical. It then greps for any unrewritten path and fails
-hard if one remains, so a silent fallback to catalog's own copy is not possible.
+## Why not tree parity?
 
-Two deliberate limits:
+An earlier version of this job overlaid harvester's vendored `search/` modules onto
+catalog's tree before running catalog's tests, and hard-failed if harvester had a module
+catalog lacked. That check answered a different question — "are the two trees identical" —
+which has two problems:
 
-- **It copies files, it does not replace the tree.** Catalog's `app/search/` legitimately
-  owns modules harvester has no counterpart for (`__init__.py`'s public façade,
-  `url_helpers.py`); clobbering them breaks catalog's imports. If harvester ever gains a
-  `search/` module catalog lacks, the overlay fails loudly rather than silently skipping it.
-- **`database/models.py` is not overlaid.** Catalog's fixtures must exercise the schema
-  harvester's migrations actually built; substituting harvester's model definitions would
-  make that check tautological. Catalog's own slim models in `app/models.py` are the client
-  under test.
+- It penalizes pure additions (e.g. a new filter module) exactly as hard as a breaking
+  change, because it can't tell the two apart.
+- It forces the two repos' releases into lockstep: harvester couldn't ship a `search/`
+  addition until catalog had already merged and released a matching file to `main`, even
+  when nothing about catalog's current behavior was at risk. Timing that across two
+  independently deployed apps is itself an outage risk if the timing slips.
+
+What actually matters operationally is whether harvester's *schema and mapping* changes
+break catalog's *current, deployed* code — that's what a bad migration or mapping change
+does in production, independent of whether the two `search/` trees match. This job checks
+that directly by running catalog's real test suite against harvester's proposed services,
+and leaves `search/` drift between the repos as an accepted, unenforced condition.
 
 ## Running it locally
 
@@ -106,8 +110,8 @@ broken migration.
 
 ## When this job fails
 
-Read it as "this harvester change breaks catalog." Three failure modes are worth calling out
-because none of them is a flaky test:
+Read it as "this harvester change breaks catalog's current, deployed code." Two failure
+modes are worth calling out because neither is a flaky test:
 
 - **A migration removed or changed something catalog reads.** Either keep it, or land the
   catalog change first.
@@ -118,9 +122,11 @@ because none of them is a flaky test:
   `flask db check` in the `Pytests` job catches most of this class; anything that slips
   through surfaces here as a catalog failure. Either way it's a real bug, not a false
   positive — write the migration.
-- **`search/` changed in a way catalog can't read.** Harvester's `search/` and catalog's
-  `app/search/` are two copies of the same vendored code and are meant to stay equivalent,
-  so a mapping, document, or filter-registry change that breaks catalog needs a matching
-  catalog change. Catalog's `commit.yml` has a non-blocking text-diff of harvester's
-  `search/mappings.py` that makes drift visible; this job is the blocking version, and
-  covers the whole module set rather than just the mapping.
+
+A harvester-side `search/` change (mapping, document shape, filter registry) that catalog's
+own copy doesn't know about yet will **not** fail this job by itself, since catalog's copy
+isn't touched — see "Why not tree parity?" above. If such a change also alters the
+OpenSearch mapping in a way catalog's current queries can't handle, that still surfaces here
+as a mapping-contract failure; only the module-for-module identity check was removed.
+Catalog's `commit.yml` has a non-blocking text-diff of harvester's `search/mappings.py` that
+makes `search/` drift between the repos visible without blocking either side.

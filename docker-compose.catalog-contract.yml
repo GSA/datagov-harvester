@@ -1,13 +1,15 @@
 # Catalog contract test (GSA/data.gov#6210).
 #
-# Harvester owns the Postgres schema (migrations/), the OpenSearch index mapping
-# (search/mappings.py), and the document shape (search/documents.py). Catalog reads
-# all three and owns none of them, so a harvester change can break catalog without
-# any harvester test noticing.
+# Harvester owns the Postgres schema (migrations/) and the OpenSearch index mapping
+# (search/mappings.py). Catalog reads both and owns neither, so a harvester change to
+# either can break catalog without any harvester test noticing.
 #
-# This stack provisions services with *harvester's* migrations and mapping, runs
-# catalog against *harvester's* vendored search code, then runs *catalog's* test
-# suite. See `make test-catalog-contract` and docs/catalog-contract-test.md.
+# This stack provisions services with *harvester's* migrations and mapping, then runs
+# *catalog's own, unmodified* test suite against them -- catalog's search/ code is not
+# touched or overlaid. The two vendored search/ trees are allowed to diverge; this is a
+# one-directional check that harvester's schema/mapping changes don't break the catalog
+# code running in production today. See `make test-catalog-contract` and
+# docs/catalog-contract-test.md.
 #
 # No host ports are published: every step runs inside this compose network, so
 # the stack can't collide with `make up` (which already occupies 5432, 5433 and
@@ -94,48 +96,16 @@ services:
       CATALOG_TEST_EXTERNAL_SCHEMA: "true"
     volumes:
       - ./reports:/app/reports
-      # Harvester's vendored search code, overlaid onto catalog's copy below.
-      - ./search:/harvester-search:ro
-      - ./shared/constants.py:/harvester-shared-constants.py:ro
     command:
       - /bin/sh
       - -c
       - |
         set -e
-        # Run catalog's code against *harvester's* vendored search modules rather
-        # than catalog's own copy. Without this the test is a closed loop: catalog's
-        # own OpenSearchWriter would produce the documents catalog then reads, so a
-        # harvester-side change to MAPPINGS, DatasetDocument, the writer, or the
-        # filter registry would go undetected.
-        #
-        # Both repos vendored the same datagov_data_access 1.1.0 code and dropped the
-        # dependency (GSA/data.gov#6209 harvester-side, #6211 catalog-side), so there
-        # is no longer a shared package. The two trees are identical apart from import
-        # prefixes; this overlay is what keeps them from silently diverging.
-        #
-        # Copy file-by-file rather than replacing the tree: catalog's app/search/
-        # legitimately owns files harvester has no equivalent for (__init__.py's
-        # public façade, url_helpers.py), and clobbering them breaks catalog's imports.
-        for f in $$(cd /harvester-search && find . -name '*.py' ! -name '__init__.py'); do
-          if [ -f "/app/app/search/$$f" ]; then
-            cp "/harvester-search/$$f" "/app/app/search/$$f"
-          else
-            echo "ERROR: harvester has search/$$f but catalog has no counterpart." >&2
-            echo "       The two vendored trees have diverged structurally." >&2
-            exit 1
-          fi
-        done
-        cp /harvester-shared-constants.py /app/shared/constants.py
-        # Unanchored so the indented lazy imports (queries/criteria.py,
-        # queries/filters/base.py) get rewritten too.
-        find /app/app/search -name '*.py' -exec sed -i \
-          -e 's|\bfrom database\.models import|from app.models import|' \
-          -e 's|\bfrom search\.|from app.search.|' \
-          -e 's|\bfrom search import|from app.search import|' {} +
-        # Fail loudly rather than silently testing catalog's own copy.
-        if grep -rnE '\bfrom (database|search)[. ]' /app/app/search; then
-          echo "ERROR: unrewritten harvester import paths remain in the overlay" >&2
-          exit 1
-        fi
-        echo "Overlaid harvester's vendored search modules onto /app/app/search"
+        # Run catalog's own, unmodified code and tests -- no overlay of harvester's
+        # search/ modules. Harvester and catalog are allowed to vendor their own
+        # copies of the search/document code and let them diverge over time; this
+        # job only checks that catalog's code, as it exists today, still works
+        # against the Postgres schema and OpenSearch mapping harvester is proposing.
+        # A harvester-side search/ change that catalog can't read yet is not, by
+        # itself, a reason to fail this job -- see docs/catalog-contract-test.md.
         pytest tests/unit -v --junitxml=/app/reports/catalog-contract.xml

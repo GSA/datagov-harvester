@@ -1,8 +1,10 @@
 name: Catalog Contract
 
 # Verifies that harvester changes to the Postgres schema or the OpenSearch mapping
-# don't break catalog, which reads both and owns neither. Provisions services with
-# harvester's migrations and mapping, then runs catalog's test suite against them.
+# don't break catalog's own, unmodified code, which reads both and owns neither.
+# Provisions services with harvester's migrations and mapping, then runs catalog's
+# real test suite against them -- catalog's search/ code is not touched, and the
+# two repos' vendored search/ trees are not required to match file-for-file.
 # See GSA/data.gov#6210 and docs/catalog-contract-test.md.
 #
 # No branch filter: harvester PRs target both main and develop, and DB changes tend
