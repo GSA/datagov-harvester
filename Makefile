@@ -109,8 +109,11 @@ clean: ## Cleans docker images
 catalog-contract-up: ## Starts db + opensearch for the catalog contract test
 	$(CATALOG_CONTRACT) up -d --wait db opensearch
 
-catalog-contract-provision: ## Applies harvester migrations and OpenSearch mapping
+catalog-contract-provision: ## Applies harvester migrations + mapping, seeds and indexes fixtures
 	$(CATALOG_CONTRACT) run --rm --build provision
+
+catalog-contract-document-shape: ## Checks catalog can read harvester-written documents
+	$(CATALOG_CONTRACT) run --rm catalog-document-shape
 
 catalog-contract-test: ## Runs catalog's test suite against harvester's schema
 	mkdir -p reports
@@ -122,9 +125,13 @@ catalog-contract-logs: ## Dumps catalog contract stack logs
 catalog-contract-down: ## Tears down the catalog contract stack
 	$(CATALOG_CONTRACT) down -v --remove-orphans
 
-# Provision strictly before test: catalog creates the index with its own mapping
-# on import if harvester hasn't already, and migrations terminate other backends.
-test-catalog-contract: catalog-contract-up catalog-contract-provision catalog-contract-test ## Verifies harvester DB/OpenSearch changes don't break catalog
+# Order matters:
+#  - provision before everything: catalog creates the index with its own mapping on
+#    import if harvester hasn't already, and migrations terminate other backends.
+#  - document-shape before test: catalog's `interface` fixture calls
+#    delete_by_query(match_all) around every test in tests/unit, which would wipe
+#    the documents harvester's writer produced.
+test-catalog-contract: catalog-contract-up catalog-contract-provision catalog-contract-document-shape catalog-contract-test ## Verifies harvester DB/OpenSearch changes don't break catalog
 
 sleep-5:
 	sleep 5

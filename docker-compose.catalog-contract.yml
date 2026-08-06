@@ -44,8 +44,9 @@ services:
       retries: 12
       start_period: 10s
 
-  # One-shot: applies harvester's migrations and resets the OpenSearch mapping.
-  # Must complete before catalog-tests starts -- catalog's create_app() connects
+  # One-shot: applies harvester's migrations and resets the OpenSearch mapping,
+  # then seeds Postgres and indexes those rows with harvester's *own* writer.
+  # Must complete before the read stages start -- catalog's create_app() connects
   # to OpenSearch at import and will create the index with *its* mapping if the
   # index is missing, which would quietly defeat the whole test.
   provision:
@@ -69,6 +70,45 @@ services:
         set -e
         flask db upgrade
         flask search reset-mapping
+        # Seed Postgres, then index those rows through harvester's real
+        # OpenSearchWriter / DatasetDocument. This is what makes the
+        # document-shape check below a genuine cross-repo test: harvester
+        # writes the documents with its production code, catalog reads them
+        # with its production code, and neither side is substituted.
+        flask testdata load_test_data
+        flask search compare --update
+
+  # Document-shape contract. Runs BEFORE catalog-tests, because catalog's own
+  # `interface` fixture calls delete_by_query(match_all) on the index around every
+  # test, which would destroy the documents harvester's writer just produced.
+  #
+  # Reads the harvester-written documents through catalog's real search stack --
+  # catalog's SearchCriteria, reader, and routes, none of them substituted. If
+  # harvester renames or drops a field in documents.py that catalog reads, this
+  # fails; if harvester adds one, it passes. That is the discrimination the old
+  # file-overlay could not make.
+  catalog-document-shape:
+    platform: linux/amd64
+    image: ${CATALOG_IMAGE:-ghcr.io/gsa/datagov-catalog:main}
+    depends_on:
+      db:
+        condition: service_healthy
+      opensearch:
+        condition: service_healthy
+    working_dir: /app
+    environment:
+      DATABASE_URI: postgresql+psycopg://myuser:mypassword@db:5432/mydb
+      OPENSEARCH_HOST: opensearch
+      FLASK_SECRET_KEY: catalog-contract-secret
+      CATALOG_BASE_URL: http://0.0.0.0:8080
+    volumes:
+      - ./tests/contract/test_document_shape.py:/app/tests/contract/test_document_shape.py:ro
+    command:
+      - /bin/sh
+      - -c
+      - |
+        set -e
+        pytest tests/contract/test_document_shape.py -v -p no:cacheprovider
 
   catalog-tests:
     # Catalog publishes amd64 only; without this the stack won't start on an

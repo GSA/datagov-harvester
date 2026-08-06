@@ -49,8 +49,13 @@ jobs:
       - name: Start Postgres and OpenSearch
         run: make catalog-contract-up
 
-      - name: Apply harvester migrations and OpenSearch mapping
+      - name: Apply harvester migrations and mapping, index fixtures
         run: make catalog-contract-provision
+
+      # Before the main suite: catalog's own fixtures wipe the index, which would
+      # destroy the documents harvester's writer just produced.
+      - name: Check catalog can read harvester-written documents
+        run: make catalog-contract-document-shape
 
       - name: Run catalog tests
         run: make catalog-contract-test
