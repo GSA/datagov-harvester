@@ -863,6 +863,34 @@ class TestRecordIssueSeverityAPI:
         )
         return interface_with_fixture_json
 
+    def test_collection_defaults_to_errors_only(self, client, interface_with_warning):
+        """No severity param means errors only, not a mix.
+
+        This endpoint previously returned whatever was in the table, which
+        started including warnings once DCAT-US 3 detection began writing
+        them. Errors-only matches every other record-error read path.
+        """
+        res = client.get("/api/harvest_record_errors/?paginate=False")
+
+        assert res.status_code == 200
+        assert {e["severity"] for e in res.json} == {"error"}
+        assert len(res.json) == 16
+
+    def test_severity_facet_suppresses_the_default(
+        self, client, interface_with_warning
+    ):
+        """A caller who facets on severity owns the filter outright.
+
+        Without the suppression the injected `severity eq error` default would
+        be ANDed onto this facet and the response would be empty.
+        """
+        res = client.get(
+            "/api/harvest_record_errors/?facets=severity eq warning&paginate=False"
+        )
+
+        assert res.status_code == 200
+        assert {e["severity"] for e in res.json} == {"warning"}
+
     def test_collection_severity_warning(self, client, interface_with_warning):
         """?severity=warning returns only the warning row."""
         res = client.get("/api/harvest_record_errors/?severity=warning")
@@ -902,22 +930,23 @@ class TestRecordIssueSeverityAPI:
     def test_collection_severity_composes_with_facets(
         self, client, interface_with_warning
     ):
-        """severity narrows an existing facet rather than replacing it.
+        """severity narrows a non-severity facet rather than replacing it.
 
-        The record facet alone matches this record's two errors plus the
-        warning, so the assertion only holds if both filters are applied.
+        The record facet matches this record's two errors and its warning, so
+        each severity selects a different, non-empty subset of the same facet.
         """
         route = (
             f"/api/harvest_record_errors/?facets=harvest_record_id eq {self.RECORD_ID}"
         )
 
-        unfiltered = client.get(route)
-        assert unfiltered.status_code == 200
-        assert len(unfiltered.json) == 3
+        errors = client.get(f"{route}&severity=error")
+        assert errors.status_code == 200
+        assert {e["severity"] for e in errors.json} == {"error"}
+        assert len(errors.json) == 2
 
-        res = client.get(f"{route}&severity=warning")
-        assert res.status_code == 200
-        assert [e["severity"] for e in res.json] == ["warning"]
+        warnings = client.get(f"{route}&severity=warning")
+        assert warnings.status_code == 200
+        assert [e["severity"] for e in warnings.json] == ["warning"]
 
     def test_severity_ignored_on_other_models(self, client, interface_with_warning):
         """harvest_job_error has no severity column; the param must not leak there."""

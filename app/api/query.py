@@ -21,6 +21,20 @@ from harvester.utils.general_utils import convert_to_int, is_it_true
 from . import api
 
 
+def _facets_on_severity(facets: str) -> bool:
+    """Report whether a facet string already constrains `severity`.
+
+    Parses the same way query_filter_builder does — comma-separated
+    "column op value" triples — so this agrees with what actually reaches
+    the query. Malformed facets are left for the interface layer to reject.
+    """
+    for facet in facets.split(","):
+        parts = facet.split(maxsplit=2)
+        if parts and parts[0] == "severity":
+            return True
+    return False
+
+
 @api.route("/organizations/", methods=["GET"])
 @api.route("/harvest_sources/", methods=["GET"])
 @api.route("/harvest_records/", methods=["GET"])
@@ -71,9 +85,15 @@ def json_builder_query(**kwargs):
     model = escape(request.path.strip("/").split("/")[-1])
 
     # severity only exists on harvest_record_error, so it is ignored elsewhere.
-    if model == "harvest_record_errors":
+    # Defaults to "error" to match every other record-error read path, so this
+    # endpoint doesn't return warnings under a name that promises errors.
+    #
+    # A caller who already filtered on severity via ?facets= has said what they
+    # want. Injecting the default there would AND a second, contradictory
+    # severity condition onto their query and return nothing.
+    if model == "harvest_record_errors" and not _facets_on_severity(facets):
         try:
-            severity = get_requested_severity(default=None)
+            severity = get_requested_severity()
         except InvalidSeverityError as e:
             return JSON_INVALID_SEVERITY(str(e))
         if severity is not None:
