@@ -1,0 +1,111 @@
+# Catalog contract test (GSA/data.gov#6210).
+#
+# Harvester owns the Postgres schema (migrations/) and the OpenSearch index mapping
+# (search/mappings.py). Catalog reads both and owns neither, so a harvester change to
+# either can break catalog without any harvester test noticing.
+#
+# This stack provisions services with *harvester's* migrations and mapping, then runs
+# *catalog's own, unmodified* test suite against them -- catalog's search/ code is not
+# touched or overlaid. The two vendored search/ trees are allowed to diverge; this is a
+# one-directional check that harvester's schema/mapping changes don't break the catalog
+# code running in production today. See `make test-catalog-contract` and
+# docs/catalog-contract-test.md.
+#
+# No host ports are published: every step runs inside this compose network, so
+# the stack can't collide with `make up` (which already occupies 5432, 5433 and
+# 9200) and doesn't care that the OpenSearch port is hardcoded to 9200 client-side.
+services:
+  db:
+    # Deliberately harvester's PostGIS version, not catalog's (15-3.4): the point
+    # is to test the stack harvester ships. PostGIS (not plain postgres) is
+    # required -- the base migration does CREATE EXTENSION postgis.
+    platform: linux/amd64
+    image: postgis/postgis:17-3.5
+    environment:
+      POSTGRES_USER: myuser
+      POSTGRES_PASSWORD: mypassword
+      POSTGRES_DB: mydb
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  opensearch:
+    # Do not bump to >= 2.12: it requires OPENSEARCH_INITIAL_ADMIN_PASSWORD, and
+    # datagov_data_access hardcodes admin:admin over https on port 9200.
+    image: opensearchproject/opensearch:2.11.1
+    environment:
+      discovery.type: single-node
+      cluster.routing.allocation.disk.threshold_enabled: "false"
+    healthcheck:
+      test: ['CMD-SHELL', 'curl -sk -u admin:admin https://localhost:9200/_cluster/health?wait_for_status=yellow\&timeout=1s | grep -q ''"timed_out":false''']
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+  # One-shot: applies harvester's migrations and resets the OpenSearch mapping.
+  # Must complete before catalog-tests starts -- catalog's create_app() connects
+  # to OpenSearch at import and will create the index with *its* mapping if the
+  # index is missing, which would quietly defeat the whole test.
+  provision:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+      opensearch:
+        condition: service_healthy
+    environment:
+      DATABASE_URI: postgresql+psycopg://myuser:mypassword@db:5432/mydb
+      OPENSEARCH_HOST: opensearch
+      FLASK_APP: run.py
+      # Required by app/startup_validation.py; values are irrelevant here.
+      FLASK_APP_SECRET_KEY: catalog-contract-secret
+      HARVEST_API_TOKEN: catalog-contract-token
+    command:
+      - /bin/sh
+      - -c
+      - |
+        set -e
+        flask db upgrade
+        flask search reset-mapping
+
+  catalog-tests:
+    # Catalog publishes amd64 only; without this the stack won't start on an
+    # Apple Silicon machine ("no image found in image index for architecture
+    # arm64"). CI runners are amd64, so this only matters locally.
+    platform: linux/amd64
+    image: ${CATALOG_IMAGE:-ghcr.io/gsa/datagov-catalog:main}
+    depends_on:
+      db:
+        condition: service_healthy
+      opensearch:
+        condition: service_healthy
+    working_dir: /app
+    environment:
+      DATABASE_URI: postgresql+psycopg://myuser:mypassword@db:5432/mydb
+      OPENSEARCH_HOST: opensearch
+      # Catalog's env var name, not harvester's FLASK_APP_SECRET_KEY.
+      FLASK_SECRET_KEY: catalog-contract-secret
+      # Must be 0.0.0.0 (catalog's .env.sample): tests/unit/test_routes.py
+      # asserts the indexed harvest_record URL starts with http://0.0.0.0:8080/.
+      CATALOG_BASE_URL: http://0.0.0.0:8080
+      # Tells catalog's dbapp fixture to TRUNCATE rather than drop_all/create_all,
+      # preserving the schema harvester's migrations just built.
+      CATALOG_TEST_EXTERNAL_SCHEMA: "true"
+    volumes:
+      - ./reports:/app/reports
+    command:
+      - /bin/sh
+      - -c
+      - |
+        set -e
+        # Run catalog's own, unmodified code and tests -- no overlay of harvester's
+        # search/ modules. Harvester and catalog are allowed to vendor their own
+        # copies of the search/document code and let them diverge over time; this
+        # job only checks that catalog's code, as it exists today, still works
+        # against the Postgres schema and OpenSearch mapping harvester is proposing.
+        # A harvester-side search/ change that catalog can't read yet is not, by
+        # itself, a reason to fail this job -- see docs/catalog-contract-test.md.
+        pytest tests/unit -v --junitxml=/app/reports/catalog-contract.xml
