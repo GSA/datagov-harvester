@@ -23,6 +23,18 @@ class TestOpenAPI:
 
         assert spec["info"]["title"] == "Datagov Harvester"
 
+    def test_openapi_documents_warning_fields(self, client):
+        """Warnings are written by the harvester, so the spec must describe them.
+
+        Both fields are already present in responses because _to_dict reflects
+        every mapper column; these assertions keep them from silently falling
+        back out of the published contract.
+        """
+        schemas = client.get("/openapi.json").json["components"]["schemas"]
+
+        assert "records_warned" in schemas["JobInfo"]["properties"]
+        assert "severity" in schemas["ErrorInfo"]["properties"]
+
     def test_openapi_swagger(self, client):
         response = client.get("/openapi/docs")
         assert "OpenAPI Documentation" in response.text
