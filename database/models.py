@@ -72,6 +72,7 @@ class Organization(Base):
         "HarvestSource",
         backref=backref("org", lazy="joined"),
         cascade="all, delete-orphan",
+        passive_deletes=True,
         lazy=True,
     )
 
@@ -92,7 +93,7 @@ class HarvestSource(Base):
 
     organization_id = Column(
         String(36),
-        ForeignKey("organization.id"),
+        ForeignKey("organization.id", ondelete="CASCADE"),
         nullable=False,
     )
 
@@ -129,6 +130,7 @@ class HarvestSource(Base):
         "HarvestJob",
         backref=backref("source", lazy="joined"),
         cascade="all, delete-orphan",
+        passive_deletes=True,
         lazy=True,
     )
 
@@ -156,9 +158,11 @@ Organization.source_count = column_property(
 class HarvestJob(Base):
     __tablename__ = "harvest_job"
 
+    __table_args__ = (Index("ix_harvest_job_harvest_source_id", "harvest_source_id"),)
+
     harvest_source_id = Column(
         String(36),
-        ForeignKey("harvest_source.id"),
+        ForeignKey("harvest_source.id", ondelete="CASCADE"),
         nullable=False,
     )
 
@@ -188,6 +192,7 @@ class HarvestJob(Base):
         "HarvestJobError",
         backref=backref("job", lazy="joined"),
         cascade="all, delete-orphan",
+        passive_deletes=True,
         lazy=True,
     )
 
@@ -195,6 +200,7 @@ class HarvestJob(Base):
         "HarvestRecord",
         backref="job",
         cascade="all, delete-orphan",
+        passive_deletes=True,
         lazy=True,
     )
 
@@ -202,6 +208,7 @@ class HarvestJob(Base):
         "HarvestRecordError",
         backref="job",
         cascade="all, delete-orphan",
+        passive_deletes=True,
         lazy=True,
     )
 
@@ -213,13 +220,13 @@ class HarvestRecord(Base):
 
     harvest_job_id = Column(
         String(36),
-        ForeignKey("harvest_job.id"),
+        ForeignKey("harvest_job.id", ondelete="CASCADE"),
         nullable=False,
     )
 
     harvest_source_id = Column(
         String(36),
-        ForeignKey("harvest_source.id"),
+        ForeignKey("harvest_source.id", ondelete="CASCADE"),
         nullable=False,
     )
 
@@ -245,6 +252,10 @@ class HarvestRecord(Base):
         index=True,
     )
 
+    # No delete cascade here on purpose: record errors outlive their record so
+    # error history survives record cleanup (see test_harvest_record_error_remains).
+    # harvest_record_id is nullable and stays SET NULL; the errors are still
+    # cleaned up when the owning job or source goes away, via harvest_job_id.
     errors = relationship("HarvestRecordError", backref="record", lazy=True)
 
     __table_args__ = (
@@ -306,21 +317,27 @@ class Dataset(Base):
     popularity = Column(Integer, server_default="0")
     last_harvested_date = Column(DateTime, index=True)
 
+    # The `datasets` / `dataset` backrefs below are the one-to-many side, so
+    # passive_deletes belongs on the backref. Without it SQLAlchemy tries to NULL
+    # these non-nullable FKs when a parent is deleted, raising IntegrityError.
+    # "all" rather than True so a warm collection is handled by the database too,
+    # and without delete-orphan, which would delete a row merely reassigned to a
+    # different parent.
     organization = relationship(
         "Organization",
-        backref=backref("datasets", lazy=True),
+        backref=backref("datasets", lazy=True, passive_deletes="all"),
         lazy="joined",
     )
 
     harvest_source = relationship(
         "HarvestSource",
-        backref=backref("datasets", lazy=True),
+        backref=backref("datasets", lazy=True, passive_deletes="all"),
         lazy="joined",
     )
 
     harvest_record = relationship(
         "HarvestRecord",
-        backref=backref("dataset", uselist=False, lazy=True),
+        backref=backref("dataset", uselist=False, lazy=True, passive_deletes="all"),
         lazy="joined",
         uselist=False,
     )
@@ -346,7 +363,7 @@ class HarvestJobError(Error):
 
     harvest_job_id = Column(
         String(36),
-        ForeignKey("harvest_job.id"),
+        ForeignKey("harvest_job.id", ondelete="CASCADE"),
         nullable=False,
     )
 
@@ -356,15 +373,17 @@ class HarvestJobError(Error):
 class HarvestRecordError(Error):
     __tablename__ = "harvest_record_error"
 
+    # SET NULL, not CASCADE: a record error outlives the record it describes.
+    # Deleting a job or source still removes it via harvest_job_id's CASCADE.
     harvest_record_id = Column(
         String,
-        ForeignKey("harvest_record.id"),
+        ForeignKey("harvest_record.id", ondelete="SET NULL"),
         nullable=True,
     )
 
     harvest_job_id = Column(
         String(36),
-        ForeignKey("harvest_job.id"),
+        ForeignKey("harvest_job.id", ondelete="CASCADE"),
         nullable=False,
     )
 
