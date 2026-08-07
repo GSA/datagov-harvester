@@ -402,7 +402,7 @@ class HarvesterDBInterface:
         return [error for error in job.errors or []]
 
     def get_harvest_record_errors_by_job_for_view(
-        self, job_id: str, severity="error", **kwargs
+        self, job_id: str, severity=None, **kwargs
     ):
         """
         groups validation messages based on harvest record id. aggregates the error
@@ -413,9 +413,8 @@ class HarvesterDBInterface:
         work on harvest_record_error, page those grouped results, then join
         harvest_record only for the displayed rows.
 
-        severity defaults to "error" to preserve existing behavior; pass
-        severity=None to include all issues (errors and warnings). Severity is
-        filtered but not surfaced in the returned rows.
+        severity defaults to None to include all issues (errors and warnings).
+        Pass severity="error" or severity="warning" to narrow the returned rows.
         """
         error_types = ["ValidationException", "ValidationError"]
         base = self.db.query(
@@ -423,6 +422,7 @@ class HarvesterDBInterface:
             HarvestRecordError.harvest_job_id.label("harvest_job_id"),
             HarvestRecordError.date_created.label("date_created"),
             HarvestRecordError.type.label("type"),
+            HarvestRecordError.severity.label("severity"),
             HarvestRecordError.message.label("message"),
             HarvestRecordError.id.label("id"),
         ).filter(HarvestRecordError.harvest_job_id == job_id)
@@ -443,6 +443,7 @@ class HarvesterDBInterface:
                 ),
                 func.array_agg(base.c.date_created)[instance_idx].label("date_created"),
                 func.array_agg(base.c.type)[instance_idx].label("type"),
+                func.array_agg(base.c.severity)[instance_idx].label("severity"),
                 func.array_to_string(func.array_agg(base.c.message), "::").label(
                     "message"
                 ),
@@ -458,6 +459,7 @@ class HarvesterDBInterface:
             base.c.harvest_job_id,
             base.c.date_created,
             base.c.type,
+            base.c.severity,
             base.c.message,
             base.c.id,
         ).filter(base.c.type.not_in(error_types))
@@ -476,6 +478,7 @@ class HarvesterDBInterface:
                 paged.c.harvest_job_id,
                 paged.c.date_created,
                 paged.c.type,
+                paged.c.severity,
                 paged.c.message,
                 paged.c.id,
                 HarvestRecord.identifier,
@@ -489,7 +492,7 @@ class HarvesterDBInterface:
 
     @count
     @paginate
-    def get_harvest_record_errors_by_job(self, job_id: str, severity="error", **kwargs):
+    def get_harvest_record_errors_by_job(self, job_id: str, severity=None, **kwargs):
         """
         Retrieves harvest record errors for a given job.
 
@@ -505,10 +508,9 @@ class HarvesterDBInterface:
             - identifier (retrieved from HarvestRecord, can be None)
             - source_raw (retrieved from HarvestRecord, containing 'title', can be None)
 
-        severity filters the returned rows. It defaults to "error" to preserve
-        existing behavior; pass severity=None to return all issues (errors and
-        warnings). The for_view path filters by severity too, but does not
-        surface it in the returned rows.
+        severity filters the returned rows. It defaults to None to return all
+        issues (errors and warnings). Pass severity="error" or
+        severity="warning" to narrow the returned rows.
 
         Returns:
             Query: A SQLAlchemy Query object that, when executed, yields tuples of:
@@ -559,6 +561,7 @@ class HarvesterDBInterface:
                 END AS source_raw,
                 harvest_record_error.harvest_record_id,
                 harvest_record_error.type,
+                harvest_record_error.severity,
                 harvest_record_error.message,
                 harvest_record_error.date_created
             FROM harvest_record_error
@@ -594,13 +597,21 @@ class HarvesterDBInterface:
         return [err for err in errors or []]
 
     def get_record_errors_summary_by_job(self, job_id: str):
-        """Get a summary of all the record errors for this job."""
+        """Get a summary of all record issues for this job, grouped by severity."""
         query = (
-            self.db.query(HarvestRecordError.type, func.count())
+            self.db.query(
+                HarvestRecordError.severity,
+                HarvestRecordError.type,
+                func.count(),
+            )
             .where(HarvestRecordError.harvest_job_id == job_id)
-            .group_by(HarvestRecordError.type)
+            .group_by(HarvestRecordError.severity, HarvestRecordError.type)
+            .order_by(HarvestRecordError.severity, HarvestRecordError.type)
         )
-        return {error_type: error_count for error_type, error_count in query}
+        return [
+            {"severity": severity, "type": error_type, "count": error_count}
+            for severity, error_type, error_count in query
+        ]
 
     ## HARVEST RECORD
     def add_harvest_record(self, record_data):

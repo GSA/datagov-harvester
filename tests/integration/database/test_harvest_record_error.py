@@ -139,13 +139,13 @@ def test_record_errors_by_severity(
         }
     )
 
-    # by_job: default returns only errors, None returns all
-    errors = interface.get_harvest_record_errors_by_job(job.id, per_page=999)
-    assert {e[0].severity for e in errors} == {"error"}
-    all_issues = interface.get_harvest_record_errors_by_job(
-        job.id, severity=None, per_page=999
-    )
+    # by_job: default returns all issues, explicit severity narrows it
+    all_issues = interface.get_harvest_record_errors_by_job(job.id, per_page=999)
     assert {e[0].severity for e in all_issues} == {"error", "warning"}
+    errors = interface.get_harvest_record_errors_by_job(
+        job.id, severity="error", per_page=999
+    )
+    assert {e[0].severity for e in errors} == {"error"}
     warnings = interface.get_harvest_record_errors_by_job(
         job.id, severity="warning", per_page=999
     )
@@ -169,16 +169,13 @@ def test_record_errors_by_severity(
         for e in interface.pget_harvest_record_errors(severity=None, paginate=False)
     } == {"error", "warning"}
 
-    # for_view: filters by severity (severity is not surfaced in the rows).
-    # default returns only the error row; None returns both.
-    view_errors = interface.get_harvest_record_errors_by_job(
+    # the view and CSV paths expose severity too
+    view_issues = interface.get_harvest_record_errors_by_job(
         job.id, for_view=True, per_page=999
     )
-    assert len(view_errors) == 1
-    view_all = interface.get_harvest_record_errors_by_job(
-        job.id, severity=None, for_view=True, per_page=999
-    )
-    assert len(view_all) == 2
+    assert {issue.severity for issue in view_issues} == {"error", "warning"}
+    streamed_issues = list(interface.stream_harvest_record_errors_by_job(job.id))
+    assert {issue["severity"] for issue in streamed_issues} == {"error", "warning"}
 
 
 def test_get_harvest_record_issues(
