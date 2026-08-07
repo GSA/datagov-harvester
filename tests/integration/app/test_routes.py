@@ -863,26 +863,26 @@ class TestRecordIssueSeverityAPI:
         )
         return interface_with_fixture_json
 
-    def test_collection_defaults_to_errors_only(self, client, interface_with_warning):
-        """No severity param means errors only, not a mix.
+    def test_collection_defaults_to_all_issues(self, client, interface_with_warning):
+        """No severity param returns both severities, per #799.
 
-        This endpoint previously returned whatever was in the table, which
-        started including warnings once DCAT-US 3 detection began writing
-        them. Errors-only matches every other record-error read path.
+        Job-level reads default to every issue and surface `severity` on each
+        row rather than filtering; this endpoint matches that. The severity of
+        each row is in the response, so nothing is ambiguous.
         """
         res = client.get("/api/harvest_record_errors/?paginate=False")
 
         assert res.status_code == 200
-        assert {e["severity"] for e in res.json} == {"error"}
-        assert len(res.json) == 16
+        assert {e["severity"] for e in res.json} == {"error", "warning"}
+        assert len(res.json) == 17
 
-    def test_severity_facet_suppresses_the_default(
+    def test_severity_facet_is_not_double_filtered(
         self, client, interface_with_warning
     ):
-        """A caller who facets on severity owns the filter outright.
+        """The facet DSL reaches severity without competing with a default.
 
-        Without the suppression the injected `severity eq error` default would
-        be ANDed onto this facet and the response would be empty.
+        Nothing is injected when severity is absent, so a severity facet is the
+        only condition on the column and can't be ANDed into an empty result.
         """
         res = client.get(
             "/api/harvest_record_errors/?facets=severity eq warning&paginate=False"
@@ -918,14 +918,17 @@ class TestRecordIssueSeverityAPI:
         res = client.get("/api/harvest_record_errors/?severity=Warning")
 
         assert res.status_code == 400
-        assert "Invalid severity 'Warning'" in res.json["error"]
+        assert "Invalid severity" in res.json["error"]
 
     def test_collection_invalid_severity(self, client, interface_with_warning):
         res = client.get("/api/harvest_record_errors/?severity=bogus")
 
         assert res.status_code == 400
-        assert "Invalid severity 'bogus'" in res.json["error"]
+        assert "Invalid severity" in res.json["error"]
         assert "error, warning" in res.json["error"]
+        # the rejected value is deliberately not echoed back (CodeQL: information
+        # exposure through an exception)
+        assert "bogus" not in res.json["error"]
 
     def test_collection_severity_composes_with_facets(
         self, client, interface_with_warning
@@ -963,16 +966,21 @@ class TestRecordIssueSeverityAPI:
         assert res.status_code == 200
         assert [e["severity"] for e in res.json] == ["warning"]
 
-    def test_record_route_defaults_to_errors(self, client, interface_with_warning):
-        """Warnings must be asked for explicitly on the per-record route."""
+    def test_record_route_defaults_to_all_issues(self, client, interface_with_warning):
+        """No param returns both severities here too.
+
+        Worth asserting separately: the interface function this route calls
+        still defaults to "error", so the route has to pass None explicitly.
+        """
         res = client.get(f"/api/harvest_record/{self.RECORD_ID}/errors")
 
         assert res.status_code == 200
-        assert {e["severity"] for e in res.json} == {"error"}
+        assert {e["severity"] for e in res.json} == {"error", "warning"}
+        assert len(res.json) == 3
 
     def test_record_route_invalid_severity(self, client, interface_with_warning):
         """A bad severity is a 400, not the route's catch-all 404."""
         res = client.get(f"/api/harvest_record/{self.RECORD_ID}/errors?severity=bogus")
 
         assert res.status_code == 400
-        assert "Invalid severity 'bogus'" in res.json["error"]
+        assert "Invalid severity" in res.json["error"]

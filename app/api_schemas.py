@@ -131,7 +131,7 @@ class QueryInfo(Schema):
     paginate = Boolean()
     count = Boolean()
     order_by = String()
-    # only meaningful for harvest_record_errors, which defaults to "error"
+    # only meaningful for harvest_record_errors; omit it to get every issue
     severity = Enum(SEVERITY_ENUM)
 
 

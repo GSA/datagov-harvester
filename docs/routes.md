@@ -83,19 +83,18 @@ and are omitted from the public Swagger docs at `/openapi/docs`.
 - `/api/harvest_records/`: List all harvest records, GET only, no login required
 - `/api/harvest_record/add`: Add a new harvest record via JSON. POST only.
   Login required.
-- `/api/harvest_record/<id>/errors`: List errors for a harvest record, GET only,
+- `/api/harvest_record/<id>/errors`: List issues for a harvest record, GET only,
   no login required. Takes an optional `severity` query parameter, either
-  `error` or `warning`; defaults to `error`, so DCAT-US v3 warnings must be
-  asked for explicitly. Any other value is a 400.
+  `error` or `warning`; any other value is a 400. With no parameter every issue
+  is returned, errors and DCAT-US v3 warnings alike, and each row carries its
+  own `severity`.
 - `/api/harvest_job_errors/`: List harvest job errors as JSON, GET only, no
   login required
-- `/api/harvest_record_errors/`: List harvest record errors as JSON, GET only,
+- `/api/harvest_record_errors/`: List harvest record issues as JSON, GET only,
   no login required. Takes the same optional `severity` query parameter, and
-  likewise defaults to `error`. Because severity is also an ordinary column,
-  `?facets=severity eq warning` works too, and an explicit severity facet
-  replaces the default rather than being ANDed with it. So, in order of
-  precedence: a severity facet wins outright; otherwise `severity` is applied
-  if given; otherwise the response is errors only.
+  likewise returns every issue when it is omitted. Because severity is also an
+  ordinary column, `?facets=severity eq warning` works too; nothing is injected
+  when the parameter is absent, so a severity facet is never double-filtered.
 - `/api/harvest_error/<id>`: Details for a harvest error, GET only, no login required
 
 

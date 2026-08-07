@@ -608,8 +608,14 @@ class TestValidateWarnings:
         stored_job = interface.get_harvest_job(harvest_job.id)
         assert stored_job.records_warned == 2
 
-        # the job-level default (error) query stays empty
-        assert len(interface.get_harvest_record_errors_by_job(harvest_job.id)) == 0
+        # job-level reads default to all issues (#799), so the warnings show up
+        # there; narrowing to errors is what comes back empty
+        job_issues = interface.get_harvest_record_errors_by_job(harvest_job.id)
+        assert {issue[0].severity for issue in job_issues} == {"warning"}
+        assert (
+            interface.get_harvest_record_errors_by_job(harvest_job.id, severity="error")
+            == []
+        )
 
         warned = {
             "https://example.gov/datasets/warning-one": "date_out_of_order",

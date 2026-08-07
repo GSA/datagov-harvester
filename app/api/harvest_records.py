@@ -136,12 +136,14 @@ def add_harvest_record():
 def get_all_harvest_record_errors(record_id: str, **kwargs) -> list:
     """List issues for a record.
 
-    Accepts an optional `severity` query param ("error" or "warning").
-    Defaults to "error", so warnings must be asked for explicitly.
+    Accepts an optional `severity` query param ("error" or "warning"). With no
+    param every issue is returned, matching the job-level reads (#799); the
+    severity of each row is in the response. The interface function still
+    defaults to "error", so None is passed explicitly.
     """
     # validated outside the try below so the 400 isn't swallowed as a 404
     try:
-        severity = get_requested_severity()
+        severity = get_requested_severity(default=None)
     except InvalidSeverityError:
         return JSON_INVALID_SEVERITY()
 
