@@ -17,15 +17,21 @@ from . import main
 @main.route("/harvest_job/<job_id>", methods=["GET"])
 @valid_id_required
 def view_harvest_job(job_id=None):
-    def _load_json_title(json_string):
+    def _load_json_title(json_string, error_type):
         try:
             if json_string is None:
-                logger.warning("harvest record doesn't have a source_raw")
-                return None
+                logger.warning("harvest record doesn't have a source to load")
+                return
+            if error_type == "TransformationException":
+                logger.warning(
+                    "transformation error produced no source_transform. "
+                    "can't json load an xml doc"
+                )
+                return
             return json.loads(json_string).get("title", None)
         except Exception as e:
             logger.error(f"Error loading json source_raw: {repr(e)}")
-            return None
+            return
 
     record_error_count = deps.db.get_harvest_record_errors_by_job(
         job_id,
@@ -49,7 +55,7 @@ def view_harvest_job(job_id=None):
         {
             "error": make_new_record_error_contract(row),
             "identifier": row[-2],
-            "title": _load_json_title(row[-1]),
+            "title": _load_json_title(row[-1], row[3]),
         }
         for row in record_errors
     ]
