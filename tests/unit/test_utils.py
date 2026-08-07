@@ -666,6 +666,7 @@ class TestDcatus3Catalog:
             "dataset": [{"identifier": "ds-1"}],
             "service": [{"identifier": "svc-1"}],
             "record": [{"identifier": "rec-1"}],
+            "datasetSeries": [{"identifier": "series-1"}],
         }
 
         stripped = strip_dcatus3_catalog_objects(catalog)
