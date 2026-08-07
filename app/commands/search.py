@@ -53,11 +53,6 @@ def _normalize_mapping_for_comparison(value):
             "search_analyzer"
         ) == normalized.get("analyzer"):
             normalized.pop("search_analyzer")
-        # OpenSearch echoes `dynamic` back as a string ("false"), while the
-        # application mapping declares it as a bool. Compare them as strings so
-        # the round trip doesn't look like a mismatch.
-        if "dynamic" in normalized and isinstance(normalized["dynamic"], bool):
-            normalized["dynamic"] = str(normalized["dynamic"]).lower()
         return normalized
 
     if isinstance(value, list):
