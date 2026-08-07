@@ -73,12 +73,14 @@ class TestExtract:
         assert len(harvest_source.external_records) == 0
 
         errors = interface.get_harvest_record_errors_by_job(harvest_job.id)
+        harvest_job = interface.get_harvest_job(harvest_job.id)
 
         msg = (
             "Test Source (no identifier) Commitment of Traders is "
             "missing 'identifier' field"
         )
         assert errors[0][0].message == msg
+        assert harvest_job.records_errored == 1
 
     def test_extract_dcatus3_0_object_identifier_without_atid(
         self,

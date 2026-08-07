@@ -184,9 +184,9 @@ class HarvestJob(Base):
     records_updated = Column(Integer, default=0)
     records_deleted = Column(Integer, default=0)
     records_errored = Column(Integer, default=0)
+    records_warned = Column(Integer, default=0)
     records_ignored = Column(Integer, default=0)
     records_validated = Column(Integer, default=0)
-    records_warned = Column(Integer, default=0)
 
     errors = relationship(
         "HarvestJobError",

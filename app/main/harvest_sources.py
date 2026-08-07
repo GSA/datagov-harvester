@@ -187,6 +187,7 @@ def view_harvest_source(source_id: str):
                 "records_updated",
                 "records_deleted",
                 "records_errored",
+                "records_warned",
                 "records_ignored",
             ],
         )
@@ -216,6 +217,12 @@ def view_harvest_source(source_id: str):
                     "data": chart_data_values["records_errored"],
                     "borderColor": "red",
                     "backgroundColor": "red",
+                },
+                {
+                    "label": "Warned",
+                    "data": chart_data_values["records_warned"],
+                    "borderColor": "orange",
+                    "backgroundColor": "orange",
                 },
                 {
                     "label": "Unchanged",

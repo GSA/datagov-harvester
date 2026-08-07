@@ -510,8 +510,12 @@ class TestValidateWarnings:
         harvest_job = interface.get_harvest_job(harvest_source.job_id)
         assert harvest_job.records_warned == 1
 
-        # default (error) query excludes the warning
-        errors = interface.get_harvest_record_errors_by_job(harvest_source.job_id)
+        issues = interface.get_harvest_record_errors_by_job(harvest_source.job_id)
+        assert len(issues) == 1
+
+        errors = interface.get_harvest_record_errors_by_job(
+            harvest_source.job_id, severity="error"
+        )
         assert len(errors) == 0
 
         warnings = interface.get_harvest_record_errors_by_job(
