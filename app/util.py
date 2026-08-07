@@ -51,6 +51,7 @@ def make_new_record_error_contract(error: tuple) -> dict:
         "harvest_job_id",
         "date_created",
         "type",
+        "severity",
         "message",
         "id",
     ]

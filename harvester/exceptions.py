@@ -63,8 +63,9 @@ def log_non_critical_error(
     """Log a non-critical error into the database and logs.
 
     severity records whether the issue is an "error" or a "warning" on the
-    stored harvest_record_error row. It is distinct from is_error, which drives
-    the record's status.
+    stored harvest_record_error row. It is distinct from is_error, which marks
+    the record as failed when True. When is_error is False, leave the current
+    record status unchanged.
 
     If emit_log is False, then don't print the error into our logs.
     """
@@ -77,11 +78,9 @@ def log_non_critical_error(
         "severity": severity,
     }
 
-    # spatial translate failure doesn't mean the record is in "error"
-    status = "error" if is_error else "success"
-
     db_interface.add_harvest_record_error(error_data)
-    db_interface.update_harvest_record(record_id, {"status": status})
+    if is_error:
+        db_interface.update_harvest_record(record_id, {"status": "error"})
 
     if emit_log:
         logger.error(msg, exc_info=True)

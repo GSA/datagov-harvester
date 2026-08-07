@@ -180,3 +180,6 @@ class TestHarvestRecordExceptionHandling:
         severities = {err.message: err.severity for err in errors}
         assert severities["an error"] == "error"
         assert severities["a warning"] == "warning"
+
+        record = interface.get_harvest_record(record.id)
+        assert record.status == "error"
