@@ -58,6 +58,7 @@ MAPPINGS = {
             "search_analyzer": TEXT_ANALYZER,
         },
         "has_spatial": {"type": "boolean"},
+        "has_download": {"type": "boolean"},
         "popularity": {"type": "integer"},
         "organization": {
             "type": "nested",
