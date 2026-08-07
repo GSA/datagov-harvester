@@ -94,8 +94,8 @@ def json_builder_query(**kwargs):
     if model == "harvest_record_errors" and not _facets_on_severity(facets):
         try:
             severity = get_requested_severity()
-        except InvalidSeverityError as e:
-            return JSON_INVALID_SEVERITY(str(e))
+        except InvalidSeverityError:
+            return JSON_INVALID_SEVERITY()
         if severity is not None:
             if facets:
                 facets += f",severity eq {severity}"

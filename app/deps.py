@@ -41,14 +41,11 @@ class InvalidSeverityError(ValueError):
     """Raised when a request asks for a severity outside SEVERITY_VALUES."""
 
 
-def JSON_INVALID_SEVERITY(value: str):
-    """Return a 400 naming the offending value and the allowed ones."""
+def JSON_INVALID_SEVERITY():
+    """Return a generic 400 for invalid severity values."""
     response = jsonify(
         {
-            "error": (
-                f"Invalid severity '{value}'. "
-                f"Must be one of: {', '.join(SEVERITY_VALUES)}."
-            )
+            "error": f"Invalid severity. Must be one of: {', '.join(SEVERITY_VALUES)}."
         }
     )
     response.status_code = 400

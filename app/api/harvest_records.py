@@ -142,8 +142,8 @@ def get_all_harvest_record_errors(record_id: str, **kwargs) -> list:
     # validated outside the try below so the 400 isn't swallowed as a 404
     try:
         severity = get_requested_severity()
-    except InvalidSeverityError as e:
-        return JSON_INVALID_SEVERITY(str(e))
+    except InvalidSeverityError:
+        return JSON_INVALID_SEVERITY()
 
     try:
         record_errors = deps.db.get_harvest_record_errors_by_record(
