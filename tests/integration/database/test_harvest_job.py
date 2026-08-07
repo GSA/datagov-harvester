@@ -58,9 +58,10 @@ def test_record_errors_summary_by_job(
     summary = interface.get_record_errors_summary_by_job(
         job_id,
     )
-    assert sum(count for count in summary.values()) == len(
+    assert sum(item["count"] for item in summary) == len(
         interface.get_harvest_record_errors_by_job(job_id, per_page=999)
     )
+    assert all(set(item) == {"severity", "type", "count"} for item in summary)
 
 
 def test_add_harvest_job_with_id(

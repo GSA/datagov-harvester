@@ -100,6 +100,7 @@ def test_dataset_to_document(sample_dataset, monkeypatch):
     assert document["dcat"]["isPartOf"] == "collection-1"
     assert document["distribution_titles"] == ["CSV download", "API endpoint"]
     assert document["has_spatial"] is True
+    assert document["has_download"] is False
     assert document["harvest_record"] == "https://catalog.data.gov/harvest_record/hr-1"
     assert (
         document["harvest_record_raw"]
@@ -203,6 +204,51 @@ def test_dataset_to_document_without_spatial_data_or_theme(sample_dataset, theme
     document = dataset_doc.dataset_to_document()
 
     assert document["has_spatial"] is False
+
+
+def test_dataset_to_document_has_download_when_download_url_present(sample_dataset):
+    sample_dataset.dcat["distribution"].append(
+        {"title": "Data file", "downloadURL": "https://example.gov/data.csv"}
+    )
+
+    dataset_doc = DatasetDocument(sample_dataset)
+    document = dataset_doc.dataset_to_document()
+
+    assert document["has_download"] is True
+
+
+def test_dataset_to_document_has_download_false_for_access_url_only(sample_dataset):
+    sample_dataset.dcat["distribution"] = [
+        {"title": "API endpoint", "accessURL": "https://example.gov/api"}
+    ]
+
+    dataset_doc = DatasetDocument(sample_dataset)
+    document = dataset_doc.dataset_to_document()
+
+    assert document["has_download"] is False
+
+
+@pytest.mark.parametrize("distribution", [None, [], "not-a-list"])
+def test_dataset_to_document_has_download_false_when_distribution_missing(
+    sample_dataset, distribution
+):
+    sample_dataset.dcat["distribution"] = distribution
+
+    dataset_doc = DatasetDocument(sample_dataset)
+    document = dataset_doc.dataset_to_document()
+
+    assert document["has_download"] is False
+
+
+def test_dataset_to_document_has_download_false_for_blank_download_url(
+    sample_dataset,
+):
+    sample_dataset.dcat["distribution"] = [{"title": "Blank", "downloadURL": "   "}]
+
+    dataset_doc = DatasetDocument(sample_dataset)
+    document = dataset_doc.dataset_to_document()
+
+    assert document["has_download"] is False
 
 
 def test_dataset_to_document_omits_transformed_url_without_payload(sample_dataset):

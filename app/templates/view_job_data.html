@@ -124,11 +124,11 @@
     </div>
 
     <div class="section">
-        <h2>Record error details</h2>
+        <h2>Record issue details</h2>
         {% if not data.record_errors %}
         <div class="usa-alert usa-alert--info">
             <div class="usa-alert__body">
-                <p class="usa-alert__text">No record errors found.</p>
+                <p class="usa-alert__text">No record errors or warnings found.</p>
             </div>
         </div>
         {% else %}
@@ -138,18 +138,20 @@
         </a>
 
         <table class="usa-table usa-table--striped" id="harvest-job-error-summary">
-          <caption>Error type summary</caption>
+          <caption>Record issue type summary</caption>
           <thead>
             <tr>
+              <td scope="col">Severity</td>
               <td scope="col">Error type</td>
-              <td scope="col">Number of errors</td>
+              <td scope="col">Number of issues</td>
             </tr>
           </thead>
           <tbody>
-            {% for error_type, count in data.record_error_summary.items() %}
+            {% for row in data.record_error_summary %}
             <tr>
-              <td>{{ error_type }}</td>
-              <td>{{ count }}</td>
+              <td>{{ row.severity }}</td>
+              <td>{{ row.type }}</td>
+              <td>{{ row.count }}</td>
             </tr>
             {% endfor %}
           </tbody>
@@ -188,6 +190,7 @@
                         {% else %}
                             <p><strong>Error Message:</strong> {{ record_error.error.message }}</p>
                         {% endif %} 
+                        <p><strong>Severity:</strong> {{ record_error.error.severity | else_na }}</p>
                         <p><strong>Type:</strong> {{ record_error.error.type }}</p>
                         <p class="utc-date" data-utc-date="{{record_error.error.date_created | utc_isoformat }}">
                             <strong>Date Created:</strong> {{ record_error.error.date_created | else_na }}

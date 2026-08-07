@@ -27,6 +27,7 @@ def test_search_criteria_parses_registered_filters():
             "org_slug": "city-example",
             "spatial_filter": "geospatial",
             "collection": "collection-id",
+            "has_download": "true",
             "sort": "popularity",
         },
         route_context=MAIN_CONTEXT,
@@ -39,6 +40,7 @@ def test_search_criteria_parses_registered_filters():
     assert criteria.get_filter("organization") == "city-example"
     assert criteria.get_filter("spatial_data") == "geospatial"
     assert criteria.get_filter("collection") == "collection-id"
+    assert criteria.get_filter("has_download") is True
     assert criteria.sort_by == "popularity"
 
 
@@ -51,6 +53,13 @@ def test_search_criteria_rejects_malformed_spatial_geometry():
 
     assert excinfo.value.parameter == "spatial_geometry"
     assert excinfo.value.message == "spatial_geometry parameter is malformed"
+
+
+def test_has_download_filter_defaults_to_inactive():
+    criteria = SearchCriteria.from_request_args({}, route_context=MAIN_CONTEXT)
+
+    assert criteria.get_filter("has_download") is None
+    assert build_filter_clauses(criteria) == []
 
 
 def test_query_params_are_generated_from_registered_filters():
@@ -85,6 +94,7 @@ def test_filter_clauses_are_built_from_registered_filters():
             "publisher": "City Publisher",
             "spatial_filter": "non-geospatial",
             "collection": "collection-id",
+            "has_download": "true",
         },
         route_context=MAIN_CONTEXT,
     )
@@ -96,6 +106,7 @@ def test_filter_clauses_are_built_from_registered_filters():
     assert {"term": {"keyword.normalized": "health"}} in clauses
     assert {"term": {"publisher.normalized": "city publisher"}} in clauses
     assert {"term": {"has_spatial": False}} in clauses
+    assert {"term": {"has_download": True}} in clauses
     assert {
         "nested": {
             "path": "organization",
@@ -147,6 +158,7 @@ def test_fixed_option_sections_are_built_by_filter_definitions():
         filters={
             "org_type": ["City Government"],
             "spatial_data": "geospatial",
+            "has_download": True,
         }
     )
 
@@ -159,6 +171,9 @@ def test_fixed_option_sections_are_built_by_filter_definitions():
     assert by_name["spatial_data"]["field_name"] == "spatial_filter"
     assert by_name["spatial_data"]["value"] == "geospatial"
     assert by_name["spatial_data"]["active_summary"] == "Geospatial only"
+    assert by_name["has_download"]["field_name"] == "has_download"
+    assert by_name["has_download"]["values"] == ["true"]
+    assert by_name["has_download"]["active_summary"] is not None
 
 
 def test_geography_section_exposes_template_fields_only():
@@ -202,6 +217,7 @@ def test_visible_filter_query_params_come_from_registered_sections():
         "spatial_geometry",
         "spatial_within",
         "geography_label",
+        "has_download",
     }
     assert "collection" not in visible_filter_query_params(MAIN_CONTEXT)
 

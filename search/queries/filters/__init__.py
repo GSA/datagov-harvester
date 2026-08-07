@@ -7,6 +7,7 @@ from search.queries.filters.base import (
 )
 from search.queries.filters.collection import COLLECTION_FILTER
 from search.queries.filters.geography import GEOGRAPHY_FILTER
+from search.queries.filters.has_download import HAS_DOWNLOAD_FILTER
 from search.queries.filters.keyword import KEYWORD_FILTER
 from search.queries.filters.organization import ORGANIZATION_FILTER
 from search.queries.filters.organization_type import (
@@ -32,4 +33,5 @@ FILTERS = (
     PUBLISHER_FILTER,
     SPATIAL_DATA_FILTER,
     COLLECTION_FILTER,
+    HAS_DOWNLOAD_FILTER,
 )
