@@ -46,12 +46,6 @@ tests/badges/**
 # qa data
 qa_output/
 
-# catalog contract test output
-reports/
-
-# local git worktrees
-.worktrees/
-
 .env
 .env.*
 !.env.sample
