@@ -24,8 +24,24 @@ def job_with_many_errors(interface_with_fixture_json):
     return job
 
 
-class TestViewHarvestJob:
+@pytest.fixture
+def job_with_transformation_error(interface_with_fixture_json):
+    job = interface_with_fixture_json.get_first_harvest_job_by_filter({})
+    record_id = job.records[0].id
+    # add 1 ISO transformation error
+    interface_with_fixture_json.add_harvest_record_error(
+        {
+            "type": "TransformationException",
+            "message": "failed to transform",
+            "harvest_job_id": job.id,
+            "harvest_record_id": record_id,
+        }
+    )
 
+    return job
+
+
+class TestViewHarvestJob:
     def test_harvest_source_name(self, client, job):
         """The harvest source's name appear on the harvest job page."""
         resp = client.get(f"/harvest_job/{job.id}")
@@ -204,3 +220,15 @@ class TestViewHarvestJob:
         )
         assert resp.is_json
         assert "id" in resp.json
+
+    def test_iso_transformation_no_exception(
+        self, client, caplog, job_with_transformation_error
+    ):
+
+        client.get(
+            f"/harvest_job/{job_with_transformation_error.id}?page=2",
+        )
+        assert (
+            caplog.messages[0] == "transformation error produced no source_transform. "
+            "can't json load an xml doc"
+        )

@@ -1,3 +1,9 @@
+from sqlalchemy import event, text
+
+from database.models import Dataset, HarvestRecord
+from tests.conftest import create_record_for_dataset, dataset_payload
+
+
 def test_add_harvest_source(interface, organization_data, source_data_dcatus):
     interface.add_organization(organization_data)
     source = interface.add_harvest_source(source_data_dcatus)
@@ -132,6 +138,145 @@ def test_delete_harvest_source(
 
     deleted_source = interface.get_harvest_source(source.id)
     assert deleted_source is None
+
+
+def test_delete_harvest_source_does_not_load_children(
+    interface,
+    organization_data,
+    source_data_dcatus,
+    job_data_dcatus,
+):
+    """Deleting a source must not load or delete child rows one at a time.
+
+    Regression test for an OOM: with passive_deletes=False SQLAlchemy pulled every
+    harvest_record (including source_raw) into memory and emitted one DELETE per
+    row, killing the web worker on large sources. Postgres now does the cascade.
+    """
+    interface.add_organization(organization_data)
+    source = interface.add_harvest_source(source_data_dcatus)
+    job_data_dcatus["harvest_source_id"] = source.id
+    interface.add_harvest_job(job_data_dcatus)
+
+    for i in range(50):
+        interface.add_harvest_record(
+            {
+                "identifier": f"bulk-delete-{i}",
+                "harvest_job_id": job_data_dcatus["id"],
+                "harvest_source_id": source.id,
+                "action": "delete",  # so the 409 guard allows the delete
+                "status": "success",
+                "source_raw": "x" * 1000,
+            }
+        )
+
+    assert (
+        interface.db.query(HarvestRecord).filter_by(harvest_source_id=source.id).count()
+        == 50
+    )
+
+    statements = []
+
+    def record_statement(conn, cursor, statement, params, context, executemany):
+        statements.append(" ".join(statement.split()))
+
+    engine = interface.db.get_bind()
+    event.listen(engine, "before_cursor_execute", record_statement)
+    try:
+        message, status = interface.delete_harvest_source(source.id)
+    finally:
+        event.remove(engine, "before_cursor_execute", record_statement)
+
+    assert status == 200
+
+    # Match on the statement text, not the statement count. SQLAlchemy batches
+    # its per-row deletes into a single executemany, so counting would pass even
+    # in the broken configuration this test exists to catch.
+    child_deletes = [
+        s
+        for s in statements
+        if s.upper().startswith("DELETE FROM HARVEST_RECORD")
+        or s.upper().startswith("DELETE FROM HARVEST_JOB")
+    ]
+    assert child_deletes == [], f"expected DB-side cascade, got: {child_deletes}"
+
+    interface.db.expire_all()
+    assert interface.get_harvest_source(source.id) is None
+    assert (
+        interface.db.query(HarvestRecord).filter_by(harvest_source_id=source.id).count()
+        == 0
+    )
+
+
+def test_delete_harvest_source_with_datasets(
+    interface,
+    organization_data,
+    source_data_dcatus,
+    job_data_dcatus,
+):
+    """A source that has dataset rows must delete cleanly.
+
+    The dataset FKs are non-nullable with ON DELETE CASCADE, but without
+    passive_deletes on the `datasets` backref SQLAlchemy tried to NULL them and
+    raised IntegrityError instead of letting Postgres cascade.
+    """
+    record = create_record_for_dataset(
+        interface,
+        organization_data,
+        source_data_dcatus,
+        job_data_dcatus,
+        identifier="delete-source-with-dataset",
+    )
+    slug = "delete-source-with-dataset"
+    interface.insert_dataset(
+        dataset_payload(slug, record, organization_data, source_data_dcatus)
+    )
+
+    source_id = source_data_dcatus["id"]
+    assert (
+        interface.db.query(Dataset).filter_by(harvest_source_id=source_id).count() == 1
+    )
+
+    # latest record action is "create", so clear it first to pass the 409 guard
+    interface.update_harvest_record(record.id, {"action": "delete"})
+
+    message, status = interface.delete_harvest_source(source_id)
+    assert status == 200
+
+    interface.db.expire_all()
+    assert interface.get_harvest_source(source_id) is None
+    assert (
+        interface.db.query(Dataset).filter_by(harvest_source_id=source_id).count() == 0
+    )
+
+
+def test_harvest_fk_delete_actions(interface):
+    """The schema, not the ORM, is what has to carry the cascade.
+
+    Integration tests build their schema from the models via create_all, so this
+    pins the ondelete rules the OOM fix depends on. harvest_record_error's link to
+    its record is deliberately SET NULL ("n") -- record errors outlive the record
+    they describe -- while everything else cascades ("c").
+    """
+    expected = {
+        "harvest_source_organization_id_fkey": "c",
+        "harvest_job_harvest_source_id_fkey": "c",
+        "harvest_record_harvest_job_id_fkey": "c",
+        "harvest_record_harvest_source_id_fkey": "c",
+        "harvest_job_error_harvest_job_id_fkey": "c",
+        "harvest_record_error_harvest_job_id_fkey": "c",
+        "harvest_record_error_harvest_record_id_fkey": "n",
+    }
+
+    rows = interface.db.execute(
+        text("""
+            SELECT conname, confdeltype
+            FROM pg_constraint
+            WHERE contype = 'f' AND conname = ANY(:names)
+        """),
+        {"names": list(expected)},
+    ).all()
+
+    assert dict(rows) == expected
 
 
 def test_harvest_source_by_jobid(
