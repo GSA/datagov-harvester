@@ -1,0 +1,54 @@
+{
+  "@context": "https://project-open-data.cio.gov/v1.1/schema/catalog.jsonld",
+  "@id": "http://www.example.gov/data.json",
+  "@type": "dcat:Catalog",
+  "conformsTo": "https://project-open-data.cio.gov/v1.1/schema",
+  "describedBy": "https://project-open-data.cio.gov/v1.1/schema/catalog.json",
+  "dataset": [
+    {
+      "contactPoint": {
+        "fn": "John Doe",
+        "hasEmail": "mailto:jdoe@example.gov"
+      },
+      "description": "First dataset without identifier",
+      "title": "Dataset One",
+      "accessLevel": "public",
+      "bureauCode": ["339:00"],
+      "programCode": ["000:000"],
+      "publisher": {
+        "name": "Example Agency"
+      },
+      "keyword": ["test"]
+    },
+    {
+      "contactPoint": {
+        "fn": "Jane Smith",
+        "hasEmail": "mailto:jsmith@example.gov"
+      },
+      "description": "Second dataset without identifier",
+      "title": "Dataset Two",
+      "accessLevel": "public",
+      "bureauCode": ["339:00"],
+      "programCode": ["000:000"],
+      "publisher": {
+        "name": "Example Agency"
+      },
+      "keyword": ["test"]
+    },
+    {
+      "contactPoint": {
+        "fn": "Bob Johnson",
+        "hasEmail": "mailto:bjohnson@example.gov"
+      },
+      "description": "Third dataset without identifier",
+      "title": "Dataset Three",
+      "accessLevel": "public",
+      "bureauCode": ["339:00"],
+      "programCode": ["000:000"],
+      "publisher": {
+        "name": "Example Agency"
+      },
+      "keyword": ["test"]
+    }
+  ]
+}

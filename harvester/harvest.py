@@ -397,6 +397,7 @@ class HarvestSource:
                     external_records.append(record)
 
             except NoIdentifierException:
+                self.update_job_record_count_by_action("errored")
                 continue
 
         self.external_records = external_records

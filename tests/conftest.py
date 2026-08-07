@@ -286,6 +286,66 @@ def source_data_dcatus_no_identifier(organization_data: dict) -> dict:
 
 
 @pytest.fixture
+def source_data_dcatus_multiple_no_identifier(organization_data: dict) -> dict:
+    return {
+        "id": "e8f1b0d6-ecd7-4b5f-9e5d-9e2146e21f88",
+        "name": "Test Source (multiple missing identifiers)",
+        "notification_emails": ["email@example.com"],
+        "organization_id": organization_data["id"],
+        "frequency": "daily",
+        "url": f"{HARVEST_SOURCE_URL}/dcatus/dcatus_multiple_no_identifier.json",
+        "schema_type": "dcatus1.1: federal",
+        "source_type": "document",
+        "notification_frequency": "always",
+    }
+
+
+@pytest.fixture
+def source_data_dcatus_mixed_identifiers(organization_data: dict) -> dict:
+    return {
+        "id": "f9f1b0d6-ecd7-4b5f-9e5d-9e2146e21f99",
+        "name": "Test Source (mixed valid and missing identifiers)",
+        "notification_emails": ["email@example.com"],
+        "organization_id": organization_data["id"],
+        "frequency": "daily",
+        "url": f"{HARVEST_SOURCE_URL}/dcatus/dcatus_mixed_identifiers.json",
+        "schema_type": "dcatus1.1: federal",
+        "source_type": "document",
+        "notification_frequency": "always",
+    }
+
+
+@pytest.fixture
+def source_data_dcatus_empty_identifier(organization_data: dict) -> dict:
+    return {
+        "id": "a1f1b0d6-ecd7-4b5f-9e5d-9e2146e21faa",
+        "name": "Test Source (empty identifier)",
+        "notification_emails": ["email@example.com"],
+        "organization_id": organization_data["id"],
+        "frequency": "daily",
+        "url": f"{HARVEST_SOURCE_URL}/dcatus/dcatus_empty_identifier.json",
+        "schema_type": "dcatus1.1: federal",
+        "source_type": "document",
+        "notification_frequency": "always",
+    }
+
+
+@pytest.fixture
+def source_data_dcatus_whitespace_identifier(organization_data: dict) -> dict:
+    return {
+        "id": "b2f1b0d6-ecd7-4b5f-9e5d-9e2146e21fbb",
+        "name": "Test Source (whitespace identifier)",
+        "notification_emails": ["email@example.com"],
+        "organization_id": organization_data["id"],
+        "frequency": "daily",
+        "url": f"{HARVEST_SOURCE_URL}/dcatus/dcatus_whitespace_identifier.json",
+        "schema_type": "dcatus1.1: federal",
+        "source_type": "document",
+        "notification_frequency": "always",
+    }
+
+
+@pytest.fixture
 def source_data_dcatus_cant_translate_spatial(organization_data: dict) -> dict:
     return {
         "id": "b3360061-bdf6-4fb5-885f-805d90726f92",
@@ -559,6 +619,50 @@ def job_data_dcatus_no_identifier(source_data_dcatus_no_identifier: dict) -> dic
         "id": "b9457afe-d5a3-48e3-ab97-2e9f728013a1",
         "status": "new",
         "harvest_source_id": source_data_dcatus_no_identifier["id"],
+    }
+
+
+@pytest.fixture
+def job_data_dcatus_multiple_no_identifier(
+    source_data_dcatus_multiple_no_identifier: dict,
+) -> dict:
+    return {
+        "id": "c9457afe-d5a3-48e3-ab97-2e9f728013a2",
+        "status": "new",
+        "harvest_source_id": source_data_dcatus_multiple_no_identifier["id"],
+    }
+
+
+@pytest.fixture
+def job_data_dcatus_mixed_identifiers(
+    source_data_dcatus_mixed_identifiers: dict,
+) -> dict:
+    return {
+        "id": "d9457afe-d5a3-48e3-ab97-2e9f728013a3",
+        "status": "new",
+        "harvest_source_id": source_data_dcatus_mixed_identifiers["id"],
+    }
+
+
+@pytest.fixture
+def job_data_dcatus_empty_identifier(
+    source_data_dcatus_empty_identifier: dict,
+) -> dict:
+    return {
+        "id": "e9457afe-d5a3-48e3-ab97-2e9f728013a4",
+        "status": "new",
+        "harvest_source_id": source_data_dcatus_empty_identifier["id"],
+    }
+
+
+@pytest.fixture
+def job_data_dcatus_whitespace_identifier(
+    source_data_dcatus_whitespace_identifier: dict,
+) -> dict:
+    return {
+        "id": "f9457afe-d5a3-48e3-ab97-2e9f728013a5",
+        "status": "new",
+        "harvest_source_id": source_data_dcatus_whitespace_identifier["id"],
     }
 
 

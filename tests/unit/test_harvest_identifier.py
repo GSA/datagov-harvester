@@ -17,6 +17,7 @@ def harvest_source_for_identifier_filter():
         id="error-record-id",
         identifier="Dataset With Invalid Object Identifier",
     )
+    source._reporter = MagicMock()
     return source
 
 
@@ -36,6 +37,9 @@ class TestFilterDatasetsWithNoIdentifier:
 
         assert harvest_source_for_identifier_filter.external_records == []
         harvest_source_for_identifier_filter._db_interface.add_harvest_record.assert_called_once()
+        harvest_source_for_identifier_filter._reporter.update.assert_called_once_with(
+            "errored"
+        )
 
     def test_keeps_object_identifier_with_atid(
         self, harvest_source_for_identifier_filter
