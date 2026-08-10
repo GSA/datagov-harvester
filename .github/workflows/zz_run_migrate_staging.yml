@@ -1,0 +1,70 @@
+name: SCRATCH - Run Migrate OpenSearch Cluster against staging
+
+# SCRATCH-ONLY. Delete this file before merging; it exists to test
+# migrate_opensearch_cluster.yml against staging without merging it to main first.
+#
+# Why it exists: `workflow_dispatch` runs a workflow's YAML from whatever ref you
+# pass, but GitHub only *registers* the workflow if the file exists on the default
+# branch. migrate_opensearch_cluster.yml is new on this branch, so dispatching it
+# returns:
+#
+#   HTTP 404: workflow migrate_opensearch_cluster.yml not found on the default branch
+#
+# A `push` trigger has no equivalent gate -- it fires from any branch. So this file
+# is triggered by pushing this branch, and calls the real migration workflow as a
+# reusable workflow. The migration's own jobs, order, conditions, concurrency group
+# and scripts are used verbatim; only the trigger differs from a post-merge dispatch.
+#
+# Scoped to this branch by `branches:` so that if it ever reaches another branch it
+# does nothing. Re-run by pushing an empty commit to this branch:
+#
+#   git commit --allow-empty -m "rerun" && git push
+#
+# Watch it with: gh run watch "$(gh run list --workflow=zz_run_migrate_staging.yml \
+#   --limit 1 --json databaseId --jq '.[0].databaseId')"
+
+on:
+  push:
+    branches:
+      - scratch/migrate-opensearch-staging-test
+    # Only re-run when something the migration actually depends on changes, so
+    # unrelated commits on this branch do not start a cluster migration.
+    paths:
+      - ".github/workflows/migrate_opensearch_cluster.yml"
+      - ".github/workflows/zz_run_migrate_staging.yml"
+      - ".github/workflows/toggle_harvester.yml"
+      - "bin/**"
+
+permissions:
+  contents: read
+
+jobs:
+  migrate:
+    name: Migrate (staging)
+    uses: ./.github/workflows/migrate_opensearch_cluster.yml
+    with:
+      environment: staging
+      # The full run: provision the replacement, rebuild, verify, promote, verify,
+      # delete the replaced cluster.
+      start_at: provision
+      stop_after: decommission
+      next_service_name: datagov-catalog-opensearch-next
+      canonical_service_name: datagov-catalog-opensearch
+      # Blank matches the live plan for the space (es-medium-ha in staging), which is
+      # the honest rehearsal of a prod migration. Set to resize instead.
+      next_plan: ""
+      # Delete the replaced cluster, so the `decommission` job is exercised too and
+      # this is a full rehearsal of the prod migration rather than a partial one.
+      # Irreversible once it runs: after the delete there is no rollback target, so
+      # the two verification gates above are what this relies on.
+      keep_old_cluster: false
+      # Keep a half-built replacement so a failure can be resumed with
+      # start_at=rebuild rather than paying for provisioning twice.
+      on_build_failure: keep
+      force_kill_running_jobs: false
+      max_tasks: "3"
+    # `inherit`, not an explicit list: CF_SERVICE_USER/CF_SERVICE_AUTH are environment
+    # secrets, so there is nothing for this job (which cannot declare an `environment`,
+    # being a `uses:` job) to forward. Inheriting lets the called workflow's own jobs
+    # resolve them from `environment: staging` exactly as they will after merge.
+    secrets: inherit

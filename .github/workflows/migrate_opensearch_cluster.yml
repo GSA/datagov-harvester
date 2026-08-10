@@ -102,6 +102,68 @@ on:
         default: "3"
         type: string
 
+  # SCRATCH-ONLY (branch scratch/migrate-opensearch-staging-test; do not merge).
+  #
+  # workflow_dispatch is only *registered* for workflow files that exist on the
+  # default branch, so this file 404s on dispatch until it lands on main. A push
+  # trigger has no such gate, so .github/workflows/zz_run_migrate_staging.yml
+  # pushes on the scratch branch and calls this workflow here.
+  #
+  # workflow_call shares the same `inputs.*` context as workflow_dispatch, so every
+  # job below is reached unmodified -- the trigger is the only difference between
+  # what runs here and what will run from main after merge. `choice` is not a legal
+  # workflow_call type, so those inputs are strings; the plan job validates them
+  # anyway. Defaults are duplicated from above so the runner passes only what it
+  # deliberately overrides.
+  workflow_call:
+    inputs:
+      environment:
+        required: true
+        type: string
+      start_at:
+        required: false
+        default: provision
+        type: string
+      stop_after:
+        required: false
+        default: decommission
+        type: string
+      next_service_name:
+        required: false
+        default: datagov-catalog-opensearch-next
+        type: string
+      canonical_service_name:
+        required: false
+        default: datagov-catalog-opensearch
+        type: string
+      next_plan:
+        required: false
+        default: ""
+        type: string
+      force_kill_running_jobs:
+        required: false
+        default: false
+        type: boolean
+      keep_old_cluster:
+        required: false
+        default: false
+        type: boolean
+      on_build_failure:
+        required: false
+        default: delete
+        type: string
+      max_tasks:
+        required: false
+        default: "3"
+        type: string
+    # Deliberately no `secrets:` block. CF_SERVICE_USER/CF_SERVICE_AUTH exist only as
+    # *environment* secrets (staging/prod/development), never at repo level, and every
+    # job that runs a cf command already declares `environment: ${{ inputs.environment }}`
+    # and resolves them from there. Declaring them here would let the caller pass an
+    # empty value for a name that must resolve per-environment. Omitting the block
+    # means the caller uses `secrets: inherit` and secret resolution is byte-for-byte
+    # what it will be under workflow_dispatch after merge.
+
 permissions:
   contents: read
 
