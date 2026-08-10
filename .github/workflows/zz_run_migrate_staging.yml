@@ -49,9 +49,15 @@ jobs:
     uses: ./.github/workflows/migrate_opensearch_cluster.yml
     with:
       environment: staging
-      # The full run: provision the replacement, rebuild, verify, promote, verify,
-      # delete the replaced cluster.
-      start_at: provision
+      # `rebuild`, not `provision`: datagov-catalog-opensearch-next already exists
+      # and is bound (the previous run built it, then failed at the rebuild because
+      # a merge to main had redeployed staging over the --cluster flag mid-run).
+      # Provisioning now deliberately REFUSES an existing instance, so resuming is
+      # the supported path and skips ~20 minutes of es-medium-ha provisioning.
+      #
+      # Still covers everything that has not passed yet: rebuild, verify, promote,
+      # verify, delete.
+      start_at: rebuild
       stop_after: decommission
       next_service_name: datagov-catalog-opensearch-next
       canonical_service_name: datagov-catalog-opensearch
