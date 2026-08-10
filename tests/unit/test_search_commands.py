@@ -1,3 +1,4 @@
+import logging
 import os
 from datetime import datetime
 from unittest.mock import Mock, patch
@@ -49,6 +50,43 @@ def test_reset_mapping_recreates_empty_index(app):
     assert "Mapping reset successfully. The index is empty." in result.output
 
 
+def test_reset_mapping_accepts_stringified_dynamic_flag(app):
+    """OpenSearch echoes `dynamic` back as the string "false", not a bool."""
+    client = Mock()
+    client.INDEX_NAME = "datasets"
+    client.MAPPINGS = {
+        "properties": {
+            "dcat": {
+                "type": "nested",
+                "dynamic": False,
+                "properties": {"modified": {"type": "keyword"}},
+            }
+        }
+    }
+    client.client.indices.get_mapping.return_value = {
+        "datasets": {
+            "mappings": {
+                "properties": {
+                    "dcat": {
+                        "type": "nested",
+                        "dynamic": "false",
+                        "properties": {"modified": {"type": "keyword"}},
+                    }
+                }
+            }
+        }
+    }
+
+    with patch(
+        "app.commands.search.OpenSearchClient.from_environment",
+        return_value=client,
+    ):
+        result = app.test_cli_runner().invoke(args=["search", "reset-mapping"])
+
+    assert result.exit_code == 0
+    assert "Mapping reset successfully. The index is empty." in result.output
+
+
 def test_reset_mapping_rejects_real_mapping_mismatch(app):
     client = Mock()
     client.INDEX_NAME = "datasets"
@@ -68,10 +106,11 @@ def test_reset_mapping_rejects_real_mapping_mismatch(app):
 
 
 def test_compare_update_indexes_missing_and_deletes_extra(app, caplog):
-    client = Mock()
-    client.INDEX_NAME = "datasets"
-    client.client = Mock()
-    client.index_dataset_batches.return_value = None
+    os_client = Mock()
+    os_client.INDEX_NAME = "datasets"
+    writer = Mock()
+    writer.client = Mock()
+    writer.index_dataset_batches.return_value = None
 
     missing_dataset = Mock()
     missing_dataset.id = "db-only"
@@ -87,8 +126,12 @@ def test_compare_update_indexes_missing_and_deletes_extra(app, caplog):
 
     with (
         patch(
+            "app.commands.search.OpenSearchClient.from_environment",
+            return_value=os_client,
+        ),
+        patch(
             "app.commands.search.OpenSearchWriter",
-            return_value=client,
+            return_value=writer,
         ),
         patch(
             "app.commands.search.db_interface.db.query", side_effect=query_side_effect
@@ -103,22 +146,26 @@ def test_compare_update_indexes_missing_and_deletes_extra(app, caplog):
         result = app.test_cli_runner().invoke(args=["search", "compare", "--update"])
 
     assert result.exit_code == 0
-    client.index_dataset_batches.assert_called_once_with(
+    writer.index_dataset_batches.assert_called_once_with(
         ["db-only"],
         "Indexing 1 missing datasets...",
         db_interface,
         sample_size=10,
         log_all_errors=True,
     )
-    client.client.delete.assert_called_once_with(index="datasets", id="extra-only")
-    client._refresh.assert_called_once_with()
+    writer.client.delete.assert_called_once_with(index="datasets", id="extra-only")
+    writer._refresh.assert_called_once_with()
 
 
 def test_compare_update_uses_index_batch_failure_message_constant(app, caplog):
-    client = Mock()
-    client.INDEX_NAME = "datasets"
-    client.client = Mock()
-    client.index_datasets.return_value = (0, 1, ["index error"])
+    os_client = Mock()
+    os_client.INDEX_NAME = "datasets"
+    writer = Mock()
+
+    def log_index_failure(*args, **kwargs):
+        logging.info(f"1 dataset(s) {OPENSEARCH_INDEX_BATCH_FAILURE_MESSAGE}.")
+
+    writer.index_dataset_batches.side_effect = log_index_failure
 
     missing_dataset = Mock()
     missing_dataset.id = "db-only"
@@ -134,8 +181,12 @@ def test_compare_update_uses_index_batch_failure_message_constant(app, caplog):
 
     with (
         patch(
-            "app.commands.search.OpenSearchWriter.index_datasets",
-            return_value=(0, 1, ["index error"]),
+            "app.commands.search.OpenSearchClient.from_environment",
+            return_value=os_client,
+        ),
+        patch(
+            "app.commands.search.OpenSearchWriter",
+            return_value=writer,
         ),
         patch(
             "app.commands.search.db_interface.db.query", side_effect=query_side_effect

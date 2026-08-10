@@ -2,11 +2,12 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from harvester import exceptions as harvest_exceptions
 from harvester.harvest import HarvestSource
 
 
 @pytest.fixture
-def harvest_source_for_identifier_filter():
+def harvest_source_for_identifier_filter(monkeypatch):
     source = HarvestSource.__new__(HarvestSource)
     source._job_id = "test-job-id"
     source.id = "test-source-id"
@@ -17,6 +18,9 @@ def harvest_source_for_identifier_filter():
         id="error-record-id",
         identifier="Dataset With Invalid Object Identifier",
     )
+    source.update_job_record_count_by_action = MagicMock()
+    source.error_db_interface = MagicMock()
+    monkeypatch.setattr(harvest_exceptions, "db_interface", source.error_db_interface)
     return source
 
 
@@ -36,6 +40,10 @@ class TestFilterDatasetsWithNoIdentifier:
 
         assert harvest_source_for_identifier_filter.external_records == []
         harvest_source_for_identifier_filter._db_interface.add_harvest_record.assert_called_once()
+        update_job_record_count = (
+            harvest_source_for_identifier_filter.update_job_record_count_by_action
+        )
+        update_job_record_count.assert_called_once_with("errored")
 
     def test_keeps_object_identifier_with_atid(
         self, harvest_source_for_identifier_filter
@@ -54,3 +62,4 @@ class TestFilterDatasetsWithNoIdentifier:
 
         assert harvest_source_for_identifier_filter.external_records == [dataset]
         harvest_source_for_identifier_filter._db_interface.add_harvest_record.assert_not_called()
+        harvest_source_for_identifier_filter.update_job_record_count_by_action.assert_not_called()

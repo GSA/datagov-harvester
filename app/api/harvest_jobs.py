@@ -148,6 +148,7 @@ def download_harvest_errors_by_job(job_id, error_type):
                     "title",
                     "harvest_record_id",
                     "record_error_type",
+                    "severity",
                     "message",
                     "date_created",
                 ]
@@ -172,6 +173,7 @@ def download_harvest_errors_by_job(job_id, error_type):
                             else ""
                         ),
                         str(error["type"]) if error["type"] else "",
+                        str(error["severity"]) if error["severity"] else "",
                         str(error["message"]) if error["message"] else "",
                         str(error["date_created"]) if error["date_created"] else "",
                     ]

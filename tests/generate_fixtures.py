@@ -109,6 +109,56 @@ _SUCCESSFUL_RECORDS = [
 ]
 
 
+def iso_fixture_data_ui(fixtures: dict) -> dict:
+    fixtures["source"].append(
+        {
+            "id": "55d45b51-fbb8-4b4a-b5e5-bf1e586351d7",
+            "name": "Test ISO19115 source",
+            "notification_emails": ["email@example.com"],
+            "organization_id": _ORG_ID,
+            "frequency": "daily",
+            "url": "http://localhost:80/waf",
+            "schema_type": "iso19115_1",
+            "source_type": "waf",
+            "notification_frequency": "always",
+        }
+    )
+    fixtures["job"].append(
+        {
+            "id": "8c90626b-09c6-4098-8828-76c7b981639a",
+            "harvest_source_id": "55d45b51-fbb8-4b4a-b5e5-bf1e586351d7",
+            "status": "complete",
+        },
+    )
+
+    fixtures["record"].append(
+        {
+            "id": "3e9e024b-9d70-4383-ad0d-4941c44513b5",
+            "identifier": "test identifier for iso19115",
+            "harvest_job_id": "8c90626b-09c6-4098-8828-76c7b981639a",
+            "harvest_source_id": "55d45b51-fbb8-4b4a-b5e5-bf1e586351d7",
+            "action": "create",
+            "status": "success",
+            "source_transform": {
+                "title": "Test ISO19115 title",
+                "identifier": "identifer of ISO record",
+            },
+            "source_raw": "<xml>value</xml>",
+        }
+    )
+
+    fixtures["record_error"].append(
+        {
+            "id": "cefa8fe5-a1ad-4100-b6a9-f20d3c08ca30",
+            "harvest_record_id": "3e9e024b-9d70-4383-ad0d-4941c44513b5",
+            "harvest_job_id": "8c90626b-09c6-4098-8828-76c7b981639a",
+            "message": "example record error message",
+            "type": "ValidationException",
+        }
+    )
+    return fixtures
+
+
 def generate_dynamic_fixtures() -> Dict[str, Any]:
     """Generate fixtures with dates from the last 7 days."""
 

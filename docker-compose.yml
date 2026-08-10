@@ -17,8 +17,13 @@ services:
         POSTGRES_USER: ${DATABASE_USER}
         POSTGRES_PASSWORD: ${DATABASE_PASSWORD}
         POSTGRES_DB: ${DATABASE_NAME}
+      # PGPORT above makes postgres listen on DATABASE_PORT, so the container
+      # side of this mapping has to be DATABASE_PORT too -- not 5432. With
+      # `make up` (DATABASE_PORT=5433) the old "5433:5432" pointed the host at
+      # a port nothing was listening on, leaving this db unreachable from
+      # outside the compose network.
       ports:
-        - "${DATABASE_PORT}:5432"
+        - "${DATABASE_PORT}:${DATABASE_PORT}"
       volumes:
         - postgres_data:/var/lib/postgresql/data
       healthcheck:

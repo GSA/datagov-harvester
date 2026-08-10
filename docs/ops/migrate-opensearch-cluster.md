@@ -42,7 +42,7 @@ not the plan), so a bigger cluster necessarily means a new instance.
 
 Worth being explicit, because it is the part that sounds hardest: **the index is
 called `datasets` on every cluster.** Both apps read `INDEX_NAME = "datasets"` from
-the shared `datagov_data_access` package, and index names are scoped to a cluster,
+their vendored copy of the same search code, and index names are scoped to a cluster,
 so a replacement cluster has nothing to collide with. Nothing to tell catalog,
 nothing to deploy in lockstep, no window where the two apps disagree about which
 index to read.

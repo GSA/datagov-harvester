@@ -51,7 +51,7 @@ class TestHarvestSourceUnauthed:
         # Test static labels and values
         expect(summary_table).to_contain_text("Records")
         expect(summary_table).to_contain_text("2")
-        expect(summary_table).to_contain_text("Last job records in error")
+        expect(summary_table).to_contain_text("Last job errors and warnings")
         expect(summary_table).to_contain_text("N/A")
         expect(summary_table).to_contain_text("Last job finished")
         expect(summary_table).to_contain_text("Next job scheduled")
@@ -67,12 +67,13 @@ class TestHarvestSourceUnauthed:
         # Test static content that doesn't change
         expect(first_row.nth(0)).to_contain_text("4e5f6a")  # Job ID (truncated)
         expect(first_row.nth(1)).to_contain_text("in_progress")  # Status
-        # Skip columns 2 and 3 (date_created and date_finished) as they're dynamic
-        expect(first_row.nth(4)).to_contain_text("0")  # records_added
-        expect(first_row.nth(5)).to_contain_text("0")  # records_updated
-        expect(first_row.nth(6)).to_contain_text("0")  # records_deleted
-        expect(first_row.nth(7)).to_contain_text("0")  # records_errored
-        expect(first_row.nth(8)).to_contain_text("0")  # records_ignored
+        # Skip columns 2-4 (type, date_created, date_finished) as they're dynamic
+        expect(first_row.nth(5)).to_contain_text("0")  # records_added
+        expect(first_row.nth(6)).to_contain_text("0")  # records_updated
+        expect(first_row.nth(7)).to_contain_text("0")  # records_deleted
+        expect(first_row.nth(8)).to_contain_text("0")  # records_errored
+        expect(first_row.nth(9)).to_contain_text("0")  # records_warned
+        expect(first_row.nth(10)).to_contain_text("0")  # records_ignored
 
     @pytest.mark.parametrize(
         "data_term_name, glossary_term_name",

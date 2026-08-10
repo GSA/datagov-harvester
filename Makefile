@@ -56,10 +56,10 @@ ensure-badge-dirs: ## Creates local badge output dirs used by pytest-local-badge
 	mkdir -p tests/badges/unit tests/badges/integration tests/badges/functional tests/badges/playwright
 
 test-unit: ensure-badge-dirs ## Runs unit tests.
-	poetry run pytest  --local-badge-output-dir tests/badges/unit/ --cov-report term-missing --junitxml=pytest-unit.xml --cov=harvester ./tests/unit | tee pytest-coverage-unit.txt
+	poetry run pytest  --local-badge-output-dir tests/badges/unit/ --cov-report term-missing --junitxml=pytest-unit.xml --cov=harvester --cov=database --cov=search ./tests/unit | tee pytest-coverage-unit.txt
 
 test-integration: ensure-badge-dirs ## Runs integration tests.
-	poetry run pytest --local-badge-output-dir tests/badges/integration/ --cov-report term-missing --junitxml=pytest-integration.xml --cov=harvester ./tests/integration | tee pytest-coverage-integration.txt
+	poetry run pytest --local-badge-output-dir tests/badges/integration/ --cov-report term-missing --junitxml=pytest-integration.xml --cov=harvester --cov=database --cov=search ./tests/integration | tee pytest-coverage-integration.txt
 
 test-functional: ensure-badge-dirs ## Runs functional tests.
 	poetry run pytest --local-badge-output-dir tests/badges/functional/ --noconftest --cov-report term-missing --junitxml=pytest-functional.xml --cov=harvester ./tests/functional | tee pytest-coverage-functional.txt

@@ -4,18 +4,18 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 
 import click
-from datagov_data_access.search.documents import DatasetDocument
 from flask import Blueprint
 from opensearchpy import helpers
 from opensearchpy.exceptions import RequestError
 
 from database.interface import HarvesterDBInterface
 from database.models import Dataset
-from harvester.opensearch import OpenSearchClient, OpenSearchReader, OpenSearchWriter
+from search.client import OpenSearchClient
+from search.documents import DatasetDocument
+from search.reader import OpenSearchReader
+from search.writer import OPENSEARCH_INDEX_BATCH_FAILURE_MESSAGE, OpenSearchWriter
 
 search = Blueprint("search", __name__)
-# we use this message to detect index failure in GH actions
-OPENSEARCH_INDEX_BATCH_FAILURE_MESSAGE = "failed to index in this batch"
 # indices.create waits for shards to become active, which can exceed the client's
 # default 60s socket timeout on a loaded cluster; see _create_rebuild_index.
 OPENSEARCH_CREATE_INDEX_TIMEOUT_SECONDS = 300
@@ -75,9 +75,12 @@ def _next_cluster_environment():
     captures all three at construction time -- the host goes into the transport's
     host list and the keys into the SigV4 signer. Temporarily rebinding those
     names around the constructor therefore yields a client permanently pinned to
-    the replacement cluster, without having to fork the shared
-    ``datagov_data_access`` package or pass credentials on a command line (which
-    would leak them into ``cf run-task`` strings and CI logs).
+    the replacement cluster, without having to pass credentials on a command line
+    (which would leak them into ``cf run-task`` strings and CI logs).
+
+    Now that ``search/`` is vendored rather than an external dependency, a
+    ``for_host(host, access_key=..., secret_key=...)`` constructor there could
+    replace this whole dance; see GSA/data.gov#6211.
     """
     next_host = (os.environ.get("OPENSEARCH_NEXT_HOST") or "").strip()
     live_host = (os.environ.get("OPENSEARCH_HOST") or "").strip()

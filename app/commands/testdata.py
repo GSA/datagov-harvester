@@ -24,7 +24,7 @@ def fixtures(reset: bool) -> None:
 
     Use --reset to wipe the database and recreate all tables before loading.
     """
-    from tests.generate_fixtures import generate_dynamic_fixtures
+    from tests.generate_fixtures import generate_dynamic_fixtures, iso_fixture_data_ui
 
     if reset:
         db.drop_all()
@@ -32,6 +32,7 @@ def fixtures(reset: bool) -> None:
         click.echo("Database reset: all tables dropped and recreated.")
 
     fixture = generate_dynamic_fixtures()
+    fixture = iso_fixture_data_ui(fixture)
 
     for item in fixture["organization"]:
         db_interface.add_organization(item)

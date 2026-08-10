@@ -38,6 +38,8 @@ class TestHarvestJobUnauthed:
         expect(table).to_contain_text("Records deleted")
         expect(table).to_contain_text("Records errored")
         expect(table).to_contain_text("8")
+        expect(table).to_contain_text("Records warned")
+        expect(table).to_contain_text("0")
         expect(table).to_contain_text("Records unchanged")
         expect(table).to_contain_text("Records validated")
         expect(table).to_contain_text("ID")
@@ -71,7 +73,9 @@ class TestHarvestJobUnauthed:
         )
         expect(
             upage.locator("table#harvest-job-error-summary tbody tr td")
-        ).to_have_text(["TestException", "7", "ValidationException", "9"])
+        ).to_have_text(
+            ["error", "TestException", "7", "error", "ValidationException", "9"]
+        )
 
     def test_harvest_job_validation_errors_aggregated(self, upage):
         validation_msgs = upage.locator(
@@ -99,6 +103,7 @@ class TestHarvestJobUnauthed:
                         "title",
                         "harvest_record_id",
                         "record_error_type",
+                        "severity",
                         "message",
                         "date_created",
                     ]
@@ -110,11 +115,12 @@ class TestHarvestJobUnauthed:
                         "test-0",
                         "0779c855-df20-49c8-9108-66359d82b77c",
                         "ValidationException",
+                        "error",
                         "record is invalid",
                         "2025-03-12 16:55:01.716308",
                     ]
                     for index, item in enumerate(row):
-                        if index == 6:
+                        if index == 7:
                             pass  # avoid date_created which is dynamic
                         else:
                             assert item == expected[index]
@@ -126,7 +132,6 @@ class TestHarvestJobUnauthed:
         [
             ("records unchanged", "Records unchanged"),
             ("job error", "Job Error"),
-            ("record error", "Record Error"),
         ],
     )
     def test_glossary_terms(self, upage, data_term_name, glossary_term_name):
