@@ -74,6 +74,11 @@ jobs:
       on_build_failure: keep
       force_kill_running_jobs: false
       max_tasks: "3"
+      # The default, stated explicitly so this run's threshold is visible in the file
+      # rather than inherited silently. Staging has one known-unindexable dataset
+      # (an empty-string key in its dcat JSON), so this run should tolerate 1 of
+      # 547,987 and log its id.
+      max_failed_records: "50"
     # `inherit`, not an explicit list: CF_SERVICE_USER/CF_SERVICE_AUTH are environment
     # secrets, so there is nothing for this job (which cannot declare an `environment`,
     # being a `uses:` job) to forward. Inheriting lets the called workflow's own jobs
