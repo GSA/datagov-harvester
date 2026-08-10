@@ -23,6 +23,7 @@ from harvester.utils.general_utils import (
     download_file,
     dynamic_map_list_items_to_dict,
     extract_dcatus3_catalog_datasets,
+    extract_dcatus3_catalog_services,
     find_indexes_for_duplicates,
     get_waf_datetimes,
     is_valid_uuid4,
@@ -736,6 +737,49 @@ class TestDcatus3Catalog:
         assert extract_dcatus3_catalog_datasets({}) == []
         assert extract_dcatus3_catalog_datasets({"catalog": None}) == []
         assert extract_dcatus3_catalog_datasets({"dataset": None}) == []
+
+    def test_extract_dcatus3_catalog_services_flat(self):
+        catalog = {"service": [{"identifier": "svc-1"}, {"identifier": "svc-2"}]}
+
+        assert extract_dcatus3_catalog_services(catalog) == [
+            {"identifier": "svc-1"},
+            {"identifier": "svc-2"},
+        ]
+
+    def test_extract_dcatus3_catalog_services_recurses_arbitrarily_deep(self):
+        catalog = {
+            "service": [{"identifier": "parent-svc"}],
+            "catalog": [
+                {
+                    "service": [{"identifier": "child-svc"}],
+                    "catalog": [
+                        {"service": [{"identifier": "grandchild-svc"}]},
+                    ],
+                }
+            ],
+        }
+
+        assert extract_dcatus3_catalog_services(catalog) == [
+            {"identifier": "parent-svc"},
+            {"identifier": "child-svc"},
+            {"identifier": "grandchild-svc"},
+        ]
+
+    def test_extract_dcatus3_catalog_services_missing_fields(self):
+        assert extract_dcatus3_catalog_services({}) == []
+        assert extract_dcatus3_catalog_services({"catalog": None}) == []
+        assert extract_dcatus3_catalog_services({"service": None}) == []
+
+    def test_extract_dcatus3_catalog_services_independent_of_datasets(self):
+        """A catalog with both dataset and service arrays extracts each
+        independently of the other."""
+        catalog = {
+            "dataset": [{"identifier": "ds-1"}],
+            "service": [{"identifier": "svc-1"}],
+        }
+
+        assert extract_dcatus3_catalog_datasets(catalog) == [{"identifier": "ds-1"}]
+        assert extract_dcatus3_catalog_services(catalog) == [{"identifier": "svc-1"}]
 
 
 class TestRetrySession:

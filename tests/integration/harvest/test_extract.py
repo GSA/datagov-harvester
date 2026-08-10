@@ -95,6 +95,59 @@ class TestExtract:
             ],
         }
 
+    def test_extract_dcatus3_0_with_services(
+        self,
+        interface,
+        organization_data,
+        source_data_dcatus3_0_with_services,
+        job_data_dcatus3_0_with_services,
+    ):
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_dcatus3_0_with_services)
+        harvest_job = interface.add_harvest_job(job_data_dcatus3_0_with_services)
+
+        harvest_source = HarvestSource(harvest_job.id)
+        harvest_source.acquire_minimum_external_data()
+
+        # dataset and service objects are extracted independently
+        assert len(harvest_source.external_records) == 1
+        assert len(harvest_source.external_service_records) == 2
+        service_identifiers = {
+            record["identifier"] for record in harvest_source.external_service_records
+        }
+        assert service_identifiers == {
+            "https://example.gov/services/one",
+            "https://example.gov/services/two",
+        }
+
+    def test_extract_dcatus3_0_service_missing_identifier(
+        self,
+        interface,
+        organization_data,
+        source_data_dcatus3_0_service_no_identifier,
+        job_data_dcatus3_0_service_no_identifier,
+    ):
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_dcatus3_0_service_no_identifier)
+        harvest_job = interface.add_harvest_job(
+            job_data_dcatus3_0_service_no_identifier
+        )
+
+        harvest_source = HarvestSource(harvest_job.id)
+        harvest_source.acquire_data_sources()
+        harvest_source.filter_datasets_with_no_identifier()
+
+        # the dataset is unaffected by the service's missing identifier
+        assert len(harvest_source.external_records) == 1
+        assert len(harvest_source.external_service_records) == 0
+
+        errors = interface.get_harvest_record_errors_by_job(harvest_job.id)
+        msg = (
+            "Test Source DCAT-US 3.0 (service no identifier) "
+            "Data Service Without Identifier is missing 'identifier' field"
+        )
+        assert errors[0][0].message == msg
+
     def test_check_iso_dcatus_schema(
         self,
         interface,

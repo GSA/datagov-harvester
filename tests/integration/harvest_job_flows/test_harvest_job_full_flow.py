@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 
 from jsonschema.exceptions import ValidationError
 
-from database.models import Dataset
+from database.models import Dataset, HarvestRecord
 from harvester.harvest import HarvestSource, check_for_more_work, harvest_job_starter
 from harvester.utils.general_utils import download_file
 
@@ -111,6 +111,63 @@ class TestHarvestJobFullFlow:
             in error[0].message
             for error in errors
         )
+
+    @patch("harvester.harvest.HarvestSource.send_notification_emails")
+    def test_harvest_dcatus3_0_dataset_and_data_service_independent(
+        self,
+        send_notification_emails_mock: MagicMock,
+        interface,
+        organization_data,
+        source_data_dcatus3_0_with_services,
+    ):
+        """AC: a source with both Dataset and DataService objects harvests
+        each independently of the other."""
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_dcatus3_0_with_services)
+        harvest_job = interface.add_harvest_job(
+            {
+                "status": "new",
+                "harvest_source_id": source_data_dcatus3_0_with_services["id"],
+            }
+        )
+
+        job_id = harvest_job.id
+        harvest_job_starter(job_id, "harvest")
+
+        harvest_job = interface.get_harvest_job(job_id)
+        assert harvest_job.status == "complete"
+        assert harvest_job.records_added == 3
+
+        # only the Dataset record gets a Dataset row; DataService records
+        # are persisted as HarvestRecords only.
+        datasets = interface.db.query(Dataset).all()
+        assert len(datasets) == 1
+        assert datasets[0].harvest_source_id == (
+            source_data_dcatus3_0_with_services["id"]
+        )
+
+        records = (
+            interface.db.query(HarvestRecord)
+            .filter(
+                HarvestRecord.harvest_source_id
+                == source_data_dcatus3_0_with_services["id"]
+            )
+            .all()
+        )
+        assert len(records) == 3
+
+        dataset_records = [r for r in records if r.record_type == "dataset"]
+        service_records = [r for r in records if r.record_type == "data_service"]
+        assert len(dataset_records) == 1
+        assert len(service_records) == 2
+        assert all(r.status == "success" for r in dataset_records)
+        assert all(r.status == "success" for r in service_records)
+
+        service_identifiers = {r.identifier for r in service_records}
+        assert service_identifiers == {
+            "https://example.gov/services/one",
+            "https://example.gov/services/two",
+        }
 
     @patch("harvester.harvest.HarvestSource.send_notification_emails")
     def test_multiple_harvest_jobs(
