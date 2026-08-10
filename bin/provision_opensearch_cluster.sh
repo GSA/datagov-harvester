@@ -34,9 +34,9 @@ apps=("$@")
 if [[ ${#apps[@]} -eq 0 ]]; then
   apps=(datagov-harvest datagov-catalog)
 fi
-# The harvester is the only app that needs the NEXT credentials: it runs the
-# rebuild. Catalog only ever reads the cluster the canonical name resolves to.
-harvest_app=${apps[0]}
+# No app is singled out any more. Both consumers are bound identically, and the
+# harvester needs no per-app treatment now that the replacement's name is derived
+# rather than published to it with `cf set-env`.
 
 # How long to keep rebinding while the broker has not published an endpoint yet.
 # Overridable so tests do not sleep. 10 x 30s covers the gap seen in staging with
