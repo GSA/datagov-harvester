@@ -23,6 +23,11 @@ DCATUS3_COMPLETE_EXAMPLE = (
 DATASET_REF = "https://resources.data.gov/dcat-us/3.0.0/definitions/dataset"
 DATASET_VALIDATOR = build_dcatus3_validator(DCATUS3_DEFINITIONS, root_ref=DATASET_REF)
 
+DATASERVICE_REF = "https://resources.data.gov/dcat-us/3.0.0/definitions/dataservice"
+DATASERVICE_VALIDATOR = build_dcatus3_validator(
+    DCATUS3_DEFINITIONS, root_ref=DATASERVICE_REF
+)
+
 
 @pytest.fixture
 def valid_dcatus3_dataset() -> dict:
@@ -37,6 +42,25 @@ def valid_dcatus3_dataset() -> dict:
             "fn": "Test Contact",
             "hasEmail": "mailto:test@example.gov",
         },
+    }
+
+
+@pytest.fixture
+def valid_dcatus3_dataservice() -> dict:
+    return {
+        "@type": "DataService",
+        "title": "Test Data Service",
+        "description": "A valid DCAT-US 3.0 data service.",
+        "identifier": "https://example.gov/services/one",
+        "endpointURL": ["https://api.example.gov/v1"],
+        "publisher": {"@type": "Organization", "name": "Test Agency"},
+        "contactPoint": [
+            {
+                "@type": "Kind",
+                "fn": "Test Contact",
+                "hasEmail": "mailto:test@example.gov",
+            }
+        ],
     }
 
 
@@ -67,3 +91,30 @@ class TestBuildDcatus3Validator:
         validator = build_dcatus3_validator(DCATUS3_DEFINITIONS)
         catalog = {"@type": "Catalog", "dataset": [valid_dcatus3_dataset]}
         assert validator.is_valid(catalog)
+
+
+class TestBuildDcatus3ValidatorDataService:
+    def test_dataservice_root_ref_validates_single_dataservice(
+        self, valid_dcatus3_dataservice
+    ):
+        """With the dataservice root ref, a single DataService dict validates
+        standalone."""
+        assert DATASERVICE_VALIDATOR.is_valid(valid_dcatus3_dataservice)
+
+    def test_dataservice_root_ref_flags_missing_required_field(
+        self, valid_dcatus3_dataservice
+    ):
+        """A DataService missing the mandatory endpointURL produces errors."""
+        del valid_dcatus3_dataservice["endpointURL"]
+        errors = list(DATASERVICE_VALIDATOR.iter_errors(valid_dcatus3_dataservice))
+        assert errors
+        assert any("endpointURL" in e.message for e in errors)
+
+    def test_dataservice_root_ref_does_not_require_identifier(
+        self, valid_dcatus3_dataservice
+    ):
+        """DCAT-US 3.0 doesn't mark identifier as schema-required for DataService;
+        the harvester enforces it separately (see filter_datasets_with_no_identifier).
+        """
+        del valid_dcatus3_dataservice["identifier"]
+        assert DATASERVICE_VALIDATOR.is_valid(valid_dcatus3_dataservice)
