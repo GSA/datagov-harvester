@@ -471,17 +471,35 @@ def strip_dcatus3_catalog_objects(catalog: dict) -> dict:
     return cleaned
 
 
+def _extract_dcatus3_catalog_objects(catalog: dict, field: str) -> list:
+    """
+    recursively collect every entry of [field] ("dataset" or "service") from a
+    DCAT-US3 Catalog dict, including entries nested arbitrarily deep within
+    its "catalog" (sub-catalog) field.
+    """
+    objects = list(catalog.get(field) or [])
+
+    for sub_catalog in catalog.get("catalog") or []:
+        objects.extend(_extract_dcatus3_catalog_objects(sub_catalog, field))
+
+    return objects
+
+
 def extract_dcatus3_catalog_datasets(catalog: dict) -> list:
     """
     recursively collect every dataset from a DCAT-US3 Catalog dict, including
     datasets nested arbitrarily deep within its "catalog" (sub-catalog) field.
     """
-    datasets = list(catalog.get("dataset") or [])
+    return _extract_dcatus3_catalog_objects(catalog, "dataset")
 
-    for sub_catalog in catalog.get("catalog") or []:
-        datasets.extend(extract_dcatus3_catalog_datasets(sub_catalog))
 
-    return datasets
+def extract_dcatus3_catalog_services(catalog: dict) -> list:
+    """
+    recursively collect every DataService from a DCAT-US3 Catalog dict,
+    including services nested arbitrarily deep within its "catalog"
+    (sub-catalog) field.
+    """
+    return _extract_dcatus3_catalog_objects(catalog, "service")
 
 
 def make_record_mapping(record):
@@ -496,6 +514,7 @@ def make_record_mapping(record):
         "action": record.action,
         "ckan_id": record.ckan_id,
         "parent_identifier": record.parent_identifier,
+        "record_type": record.record_type,
     }
 
 
