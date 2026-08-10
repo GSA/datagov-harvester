@@ -22,6 +22,7 @@ from harvester.utils.general_utils import (
     describe_identifier_error,
     download_file,
     dynamic_map_list_items_to_dict,
+    extract_dcatus3_catalog_datasets,
     find_indexes_for_duplicates,
     get_waf_datetimes,
     is_valid_uuid4,
@@ -32,6 +33,7 @@ from harvester.utils.general_utils import (
     prepare_distributions,
     prepare_transform_msg,
     process_job_complete_percentage,
+    strip_dcatus3_catalog_objects,
     translate_spatial,
     translate_spatial_to_geojson,
     validate_geojson,
@@ -654,6 +656,86 @@ class TestGeneralUtils:
 
         # the mediatype isn't in RESOURCE_MAPPING so format shouldn't exist
         "format" not in prepared_dcatus_doc["distribution"][-1]
+
+
+class TestDcatus3Catalog:
+    def test_strip_dcatus3_catalog_objects_removes_harvested_fields(self):
+        catalog = {
+            "@type": "Catalog",
+            "title": "Test Catalog",
+            "dataset": [{"identifier": "ds-1"}],
+            "service": [{"identifier": "svc-1"}],
+            "record": [{"identifier": "rec-1"}],
+            "datasetSeries": [{"identifier": "series-1"}],
+        }
+
+        stripped = strip_dcatus3_catalog_objects(catalog)
+
+        assert stripped == {"@type": "Catalog", "title": "Test Catalog"}
+        # original is untouched
+        assert "dataset" in catalog
+
+    def test_strip_dcatus3_catalog_objects_recurses_into_nested_catalogs(self):
+        catalog = {
+            "title": "Parent Catalog",
+            "dataset": [{"identifier": "parent-ds"}],
+            "catalog": [
+                {
+                    "title": "Child Catalog",
+                    "dataset": [{"identifier": "child-ds"}],
+                    "catalog": [
+                        {
+                            "title": "Grandchild Catalog",
+                            "dataset": [{"identifier": "grandchild-ds"}],
+                        }
+                    ],
+                }
+            ],
+        }
+
+        stripped = strip_dcatus3_catalog_objects(catalog)
+
+        assert stripped == {
+            "title": "Parent Catalog",
+            "catalog": [
+                {
+                    "title": "Child Catalog",
+                    "catalog": [{"title": "Grandchild Catalog"}],
+                }
+            ],
+        }
+
+    def test_extract_dcatus3_catalog_datasets_flat(self):
+        catalog = {"dataset": [{"identifier": "ds-1"}, {"identifier": "ds-2"}]}
+
+        assert extract_dcatus3_catalog_datasets(catalog) == [
+            {"identifier": "ds-1"},
+            {"identifier": "ds-2"},
+        ]
+
+    def test_extract_dcatus3_catalog_datasets_recurses_arbitrarily_deep(self):
+        catalog = {
+            "dataset": [{"identifier": "parent-ds"}],
+            "catalog": [
+                {
+                    "dataset": [{"identifier": "child-ds"}],
+                    "catalog": [
+                        {"dataset": [{"identifier": "grandchild-ds"}]},
+                    ],
+                }
+            ],
+        }
+
+        assert extract_dcatus3_catalog_datasets(catalog) == [
+            {"identifier": "parent-ds"},
+            {"identifier": "child-ds"},
+            {"identifier": "grandchild-ds"},
+        ]
+
+    def test_extract_dcatus3_catalog_datasets_missing_fields(self):
+        assert extract_dcatus3_catalog_datasets({}) == []
+        assert extract_dcatus3_catalog_datasets({"catalog": None}) == []
+        assert extract_dcatus3_catalog_datasets({"dataset": None}) == []
 
 
 class TestRetrySession:
