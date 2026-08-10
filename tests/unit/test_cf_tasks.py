@@ -87,19 +87,39 @@ class TestCFTasking:
                 "harvest_source_id": source_data_dcatus_single_record["id"],
             }
         )
+        # Save the id before running the job to avoid detached-instance issues
+        # after the DB/session lifecycle changes during harvest_job_starter().
+        job_id = harvest_job.id
 
         CFClientMock.return_value.v3.apps._pagination.return_value = [
-            {"state": "RUNNING", "name": f"harvest-job-{harvest_job.id}-harvest"},
-            {"state": "RUNNING", "name": f"harvest-job-{harvest_job.id}-harvest"},
             {
+                "guid": "task-a",
+                "state": "RUNNING",
+                "name": f"harvest-job-{job_id}-harvest",
+            },
+            {
+                "guid": "task-b",
+                "state": "RUNNING",
+                "name": f"harvest-job-{job_id}-harvest",
+            },
+            {
+                "guid": "task-other-job",
                 "state": "RUNNING",
                 "name": "harvest-job-1c3d686c-6156-429d-b27b-5ab163750e76-harvest",
             },
         ]
 
-        caplog.set_level(logging.INFO)
-        harvest_job_starter(harvest_job.id, "harvest")
-        assert (
-            f"Job {harvest_job.id} is already running in another task. Exiting."
-            in caplog.text
-        )
+        caplog.set_level(logging.WARNING)
+
+        harvest_job_starter(job_id, "harvest")
+
+        assert f"Detected 2 running tasks for job {job_id}." in caplog.text
+        assert "continuing without exiting" in caplog.text
+
+        assert CFClientMock.return_value.v3.tasks.cancel.call_count == 1
+        cancelled_task_id = CFClientMock.return_value.v3.tasks.cancel.call_args[0][0]
+        assert cancelled_task_id in {"task-a", "task-b"}
+        assert cancelled_task_id != "task-other-job"
+
+        updated_job = interface.get_harvest_job(job_id)
+        assert updated_job.status != "error"

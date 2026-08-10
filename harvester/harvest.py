@@ -1540,44 +1540,41 @@ def harvest_job_starter(job_id, job_type="harvest"):
     logger.info(f"Harvest job starting for JobId: {job_id}")
     harvest_source = HarvestSource(job_id, job_type)
 
-    # Check if another job is already in progress for this source
-    jobs = harvest_source.db_interface.get_in_progress_jobs()
-    for job in jobs:
-        if job.harvest_source_id == harvest_source.id and job.id != job_id:
-            logger.error(
-                f"Job {job.id} is already in progress for source {harvest_source.name}. Exiting."
-            )
-            harvest_source.finish_job_with_status("error")
-            return
-    # Check if another task is already running this job
-    handler = create_task_handler()
-    running_tasks = handler.get_running_app_tasks()
-    running_harvest_ids = handler.job_ids_from_tasks(running_tasks)
-    if isinstance(running_harvest_ids, list) and running_harvest_ids.count(job_id) > 1:
-        logger.error(f"Job {job_id} is already running in another task. Exiting.")
-        # Don't finish the job here, just exit to prevent duplicate processing
-        return
+    try:
+        # Check if another job is already in progress for this source
+        jobs = harvest_source.db_interface.get_in_progress_jobs()
+        for job in jobs:
+            if job.harvest_source_id == harvest_source.id and job.id != job_id:
+                logger.error(
+                    f"Job {job.id} is already in progress for source "
+                    f"{harvest_source.name}. Exiting."
+                )
+                harvest_source.finish_job_with_status("error")
+                return
 
-    if job_type in ["harvest", "force_harvest", "clear"]:
-        harvest_source.run_full_harvest()
+        handler = create_task_handler()
+        _stop_duplicate_job_tasks(handler, job_id)
 
-    if job_type == "validate":
-        harvest_source.acquire_minimum_external_data()
-        for record in harvest_source.external_records_to_process():
-            if harvest_source.schema_type.startswith("iso19115"):
-                record.transform()
-            try:
-                record.validate()
-            except:  # noqa: E722
-                pass
+        if job_type in ["harvest", "force_harvest", "clear"]:
+            harvest_source.run_full_harvest()
 
-    # generate harvest job report
-    harvest_source.report()
+        if job_type == "validate":
+            harvest_source.acquire_minimum_external_data()
+            for record in harvest_source.external_records_to_process():
+                if harvest_source.schema_type.startswith("iso19115"):
+                    record.transform()
+                try:
+                    record.validate()
+                except:  # noqa: E722
+                    pass
 
-    logger.info(f"Harvest job completed for JobId: {job_id}")
+        harvest_source.report()
 
-    # close the db connection after job to prevent persistent open connections
-    harvest_source.db_interface.close()
+        logger.info(f"Harvest job completed for JobId: {job_id}")
+
+    finally:
+        # close the db connection after job to prevent persistent open connections
+        harvest_source.db_interface.close()
 
 
 def check_for_more_work():
@@ -1596,6 +1593,49 @@ def check_for_more_work():
         # The application should pick up jobs every 15 minutes,
         # this is only for speed.
         return
+
+
+def _stop_duplicate_job_tasks(handler, job_id):
+    """
+    Stop duplicate running tasks for the given job_id, keeping one task.
+
+    If tasks cannot be listed, do nothing and allow processing to continue.
+    """
+    running_tasks = handler.get_running_app_tasks()
+    if not running_tasks:
+        return
+
+    job_id = str(job_id)
+    matching_tasks = [
+        task for task in running_tasks if handler.job_id_from_task(task) == job_id
+    ]
+
+    if len(matching_tasks) <= 1:
+        return
+
+    task_to_keep = matching_tasks[0]
+    keep_task_id = handler.task_id(task_to_keep)
+    duplicate_tasks = matching_tasks[1:]
+
+    logger.warning(
+        f"Detected {len(matching_tasks)} running tasks for job {job_id}. "
+        f"Keeping task {keep_task_id}, stopping {len(duplicate_tasks)} duplicate "
+        f"task(s), and continuing without exiting."
+    )
+
+    for task in duplicate_tasks:
+        duplicate_task_id = handler.task_id(task)
+        try:
+            handler.stop_task(duplicate_task_id)
+            logger.warning(
+                f"Stopped duplicate task {duplicate_task_id} for job {job_id}. "
+                f"Task {keep_task_id} will continue processing."
+            )
+        except Exception as exc:
+            logger.warning(
+                f"Failed to stop duplicate task {duplicate_task_id} "
+                f"for job {job_id}: {exc}"
+            )
 
 
 if __name__ == "__main__":
