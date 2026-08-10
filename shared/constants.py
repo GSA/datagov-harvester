@@ -39,6 +39,11 @@ ORGANIZATION_TYPE_SELECT_CHOICES = [
 
 RECORD_STATUS_VALUES = ["error", "success", "dataset_pending"]
 
+# All four DCAT-US 3.0 record types from GSA/data.gov#6000 are defined up
+# front so sibling tickets (data_series, catalog_record) don't need another
+# enum migration; only "dataset" and "data_service" are produced as of #6178.
+RECORD_TYPE_VALUES = ["dataset", "data_service", "data_series", "catalog_record"]
+
 SEVERITY_VALUES = ["error", "warning"]
 
 SCHEMA_TYPE_VALUES = [
@@ -59,6 +64,7 @@ __all__ = [
     "ORGANIZATION_TYPE_VALUES",
     "ORGANIZATION_TYPE_SELECT_CHOICES",
     "RECORD_STATUS_VALUES",
+    "RECORD_TYPE_VALUES",
     "SEVERITY_VALUES",
     "SCHEMA_TYPE_VALUES",
     "SOURCE_TYPE_VALUES",
