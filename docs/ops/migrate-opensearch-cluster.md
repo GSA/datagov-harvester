@@ -193,7 +193,7 @@ Actions → **Migrate OpenSearch Cluster** → *Run workflow*:
 | `on_build_failure` | `delete` removes a failed replacement (default); `keep` retains it so you can resume with `start_at: rebuild` |
 | `force_kill_running_jobs` | cancel harvest jobs still running after 15 minutes |
 | `max_tasks` | `HARVEST_RUNNER_MAX_TASKS` to restore afterwards (`3` for prod) |
-| `max_failure_percent` | percent of datasets that may fail to index and still pass, default `1.0`; used by the rebuild *and* the verification. `0` requires an exact match. Failed ids are always logged in full — see [step 5](#5-verify-before-cutting-over) |
+| `max_failed_records` | how many records may fail to index and still pass, default `50` — set it to the number of bad records you expect. Used by the rebuild *and* both verifications. `0` requires an exact match. Failed ids are always logged in full — see [step 5](#5-verify-before-cutting-over) |
 
 **Resuming.** Use `start_at` to skip stages already done — that is what makes a
 re-dispatch safe, not blanket idempotence. Provisioning deliberately **refuses** when
@@ -342,19 +342,26 @@ neither is explained by bad source data. Use `compare --cluster next --update` t
 repair, then re-verify. (3G because `compare` holds every DB id and every OpenSearch
 id in memory at once.)
 
-**Missing documents get a 1% budget** (`--max-failure-percent`, default `1.0`).
-Some records simply cannot be indexed — one staging dataset carries an empty-string
-key in its `dcat` JSON, which OpenSearch rejects with `mapper_parsing_exception`, so
-no rebuild will ever land it. Without a tolerance, one such record blocks the
-migration permanently; that is exactly what happened on 2026-08-10.
+**Missing documents get an allowance** — `--max-failed-records`, default `50`. Set
+it to the number of bad records you expect. Some records simply cannot be indexed:
+one staging dataset carries an empty-string key in its `dcat` JSON, which OpenSearch
+rejects with `mapper_parsing_exception`, so no rebuild will ever land it. Without an
+allowance, one such record blocks the migration permanently — which is exactly what
+happened on 2026-08-10.
 
-The same percentage is passed to **both** `rebuild-index` and `compare`, and they
-must agree — otherwise the gate rejects precisely the records the rebuild was
-designed to skip.
+It is an absolute count, not a percentage, deliberately. The number you type is the
+number of failures that will pass, at any corpus size. A percentage of a large corpus
+silently authorizes far more than any real backlog (1% of 548k is ~5.5k), which is
+enough to hide a systemic indexing failure.
+
+The same number is passed to **both** `rebuild-index` and `compare`, and they must
+agree — otherwise the gate rejects precisely the records the rebuild was designed to
+skip. The workflow does this from one input for that reason; if you run the commands
+by hand, pass the same value to each.
 
 Tolerated does not mean unnoticed. Every missing id is printed in full under
-`MISSING DATASET IDS (not in OpenSearch)`, with the tolerated count and percentage,
-so they become a backlog rather than a surprise. The rebuild log's
+`MISSING DATASET IDS (not in OpenSearch)`, with the count and the percentage it
+represents, so they become a backlog rather than a surprise. The rebuild log's
 `SKIPPED DATASET IDS (not indexed)` block gives the reason for each. Grep either
 banner in the task log:
 
@@ -363,7 +370,9 @@ banner in the task log:
 cf logs datagov-harvest --recent | grep -A20 "SKIPPED DATASET IDS"
 ```
 
-Pass `--max-failure-percent 0` to require an exact match.
+Pass `--max-failed-records 0` to require an exact match. Raise it only after
+checking *why* the extra records were rejected — a jump in the count is the signal
+that something systemic broke, and a large allowance suppresses that signal.
 
 ## 6. Cut over
 

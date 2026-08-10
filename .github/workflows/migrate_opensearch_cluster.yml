@@ -101,13 +101,14 @@ on:
         required: false
         default: "3"
         type: string
-      max_failure_percent:
+      max_failed_records:
         description: >-
-          Percent of datasets that may fail to index and still pass. Some records
-          are unindexable (e.g. an empty JSON key); their ids are always logged.
-          Used by both the rebuild and the verification, which must agree. 0 = exact.
+          How many records may fail to index and still pass. Set it to the number of
+          bad records you expect. Some are unindexable (e.g. an empty JSON key) and
+          no rebuild will ever land them; every failed id is logged in full. Used by
+          the rebuild AND both verifications, which must agree. 0 = require exact.
         required: false
-        default: "1.0"
+        default: "50"
         type: string
 
   # SCRATCH-ONLY (branch scratch/migrate-opensearch-staging-test; do not merge).
@@ -164,9 +165,9 @@ on:
         required: false
         default: "3"
         type: string
-      max_failure_percent:
+      max_failed_records:
         required: false
-        default: "1.0"
+        default: "50"
         type: string
     # Deliberately no `secrets:` block. CF_SERVICE_USER/CF_SERVICE_AUTH exist only as
     # *environment* secrets (staging/prod/development), never at repo level, and every
@@ -214,7 +215,7 @@ jobs:
           START_AT: ${{ inputs.start_at }}
           STOP_AFTER: ${{ inputs.stop_after }}
           KEEP_OLD: ${{ inputs.keep_old_cluster }}
-          MAX_FAILURE_PERCENT: ${{ inputs.max_failure_percent }}
+          MAX_FAILED_RECORDS: ${{ inputs.max_failed_records }}
         run: |
           # These reach a cf command line, so constrain them to CF-legal names
           # rather than trusting free-text workflow input.
@@ -231,20 +232,21 @@ jobs:
             exit 1
           fi
           # This one is interpolated into a `cf run-task --command "..."` string, so
-          # it must be a bare number: anything else could close the quote and append
+          # it must be a bare integer: anything else could close the quote and append
           # a command. Click also range-checks it, but that is after the injection.
-          if [[ ! "$MAX_FAILURE_PERCENT" =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
-            echo "::error::max_failure_percent must be a non-negative number" \
-                 "(got: '$MAX_FAILURE_PERCENT')."
+          if [[ ! "$MAX_FAILED_RECORDS" =~ ^[0-9]+$ ]]; then
+            echo "::error::max_failed_records must be a non-negative whole number" \
+                 "(got: '$MAX_FAILED_RECORDS')."
             exit 1
           fi
-          # A budget near 100% would promote a cluster with almost no documents.
-          # Compared on the integer part only, to avoid depending on bc(1) being
-          # present on the runner for what is a coarse sanity bound.
-          if [[ "${MAX_FAILURE_PERCENT%%.*}" -gt 50 ]]; then
-            echo "::error::max_failure_percent of ${MAX_FAILURE_PERCENT}% would let a" \
-                 "mostly-empty index pass verification. Use 50 or less."
-            exit 1
+          # Advisory only. A large allowance is legitimate on a big corpus with a
+          # known backlog, so this warns rather than refuses -- but a value this size
+          # is worth a second look, since it can mask a systemic indexing failure.
+          if [[ "$MAX_FAILED_RECORDS" -gt 5000 ]]; then
+            echo "::warning::max_failed_records=${MAX_FAILED_RECORDS} is high." \
+                 "A number this large can hide a systemic indexing failure rather" \
+                 "than a handful of known-bad records. Every failed id is logged;" \
+                 "check them before trusting the promoted cluster."
           fi
           if [[ "$NEXT_SERVICE" == "$CANONICAL_SERVICE" ]]; then
             echo "::error::next_service_name and canonical_service_name are both" \
@@ -355,7 +357,7 @@ jobs:
           command: >
             cf run-task datagov-harvest --name "$REBUILD_TASK" -k 4G -m 2G
             --command "flask search rebuild-index --cluster next
-            --max-failure-percent ${{ inputs.max_failure_percent }}"
+            --max-failed-records ${{ inputs.max_failed_records }}"
           cf_org: gsa-datagov
           cf_space: ${{ env.CF_SPACE }}
           cf_username: ${{ secrets.CF_SERVICE_USER }}
@@ -378,11 +380,11 @@ jobs:
       # would sail through. monitor_cf_logs.sh turns the task's exit status into this
       # step's, so a discrepancy stops the run with the live cluster still serving.
       #
-      # --max-failure-percent must match the rebuild's, or the gate rejects exactly
+      # --max-failed-records must match the rebuild's, or the gate rejects exactly
       # the records the rebuild was designed to tolerate -- which is what blocked
-      # staging on 2026-08-10 over a single unindexable dataset. Missing ids are
-      # printed in full either way, so a tolerated shortfall is still visible in
-      # this step's log.
+      # staging on 2026-08-10 over a single unindexable dataset. Both read the one
+      # workflow input for that reason. Missing ids are printed in full either way,
+      # so a tolerated shortfall is still visible in this step's log.
       - name: Verify the replacement cluster matches PostgreSQL
         if: needs.plan.outputs.do_rebuild == 'true'
         uses: cloud-gov/cg-cli-tools@main
@@ -390,7 +392,7 @@ jobs:
           command: >
             cf run-task datagov-harvest --name "$VERIFY_NEXT_TASK" -k 2G -m 3G
             --command "flask search compare --cluster next --fail-on-discrepancy
-            --max-failure-percent ${{ inputs.max_failure_percent }}"
+            --max-failed-records ${{ inputs.max_failed_records }}"
           cf_org: gsa-datagov
           cf_space: ${{ env.CF_SPACE }}
           cf_username: ${{ secrets.CF_SERVICE_USER }}
@@ -562,7 +564,7 @@ jobs:
           command: >
             cf run-task datagov-harvest --name "$VERIFY_LIVE_TASK" -k 2G -m 3G
             --command "flask search compare --cluster live --fail-on-discrepancy
-            --max-failure-percent ${{ inputs.max_failure_percent }}"
+            --max-failed-records ${{ inputs.max_failed_records }}"
           cf_org: gsa-datagov
           cf_space: ${{ env.CF_SPACE }}
           cf_username: ${{ secrets.CF_SERVICE_USER }}

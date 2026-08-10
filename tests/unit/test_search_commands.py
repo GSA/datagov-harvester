@@ -12,7 +12,6 @@ from app.commands.search import (
     OPENSEARCH_INDEX_BATCH_FAILURE_MESSAGE,
     OPENSEARCH_MISSING_DOCUMENTS_BANNER,
     OPENSEARCH_SKIPPED_DOCUMENTS_BANNER,
-    _failure_budget,
     _is_aws_opensearch_host,
     _next_cluster_environment,
     db_interface,
@@ -263,30 +262,6 @@ _MISMATCH = {
 }
 
 
-@pytest.mark.parametrize(
-    ("total", "percent", "expected"),
-    [
-        # The real corpus at the default: ~5.4k of 548k tolerated.
-        (547_987, 1.0, 5479),
-        (100_000, 1.0, 1000),
-        # Floored, never rounded up past the stated percentage.
-        (150, 1.0, 1),
-        (99, 1.0, 0),
-        # 0% is strict, which is what an exact-match gate needs.
-        (547_987, 0.0, 0),
-        # A percentage of nothing is nothing -- and an empty corpus must not
-        # divide by zero anywhere.
-        (0, 1.0, 0),
-        (100, 100.0, 100),
-    ],
-)
-def test_failure_budget_arithmetic(total, percent, expected):
-    """Floored deliberately: rounding up would permit more than the stated
-    percentage, and a budget that silently exceeds its own label is worse than a
-    slightly tight one."""
-    assert _failure_budget(total, percent) == expected
-
-
 def test_compare_reports_but_does_not_fail_by_default(app):
     """The default stays a report, so the nightly sync and manual runs are unchanged."""
     result = _run_compare(app, [], **_MISMATCH)
@@ -327,21 +302,22 @@ def test_compare_tolerates_missing_within_the_budget(app):
 
     result = _run_compare(
         app,
-        ["--fail-on-discrepancy", "--max-failure-percent", "1"],
+        ["--fail-on-discrepancy", "--max-failed-records", "5"],
         db_rows=db_rows,
         os_hits=os_hits,
     )
 
-    # 1 missing of 200 is 0.5%, inside the 1% budget (2 documents).
+    # 1 missing, 5 allowed.
     assert result.exit_code == 0, result.output
     assert "TOLERATED" in result.output
+    assert "allowed up to 5 record(s)" in result.output
     # The id is printed in full so it becomes a backlog item, not a silent pass.
     assert OPENSEARCH_MISSING_DOCUMENTS_BANNER in result.output
     assert "ok-199" in result.output
 
 
-def test_compare_fails_when_missing_exceeds_the_budget(app):
-    """The budget must still catch a systemic shortfall."""
+def test_compare_fails_when_missing_exceeds_the_allowance(app):
+    """The allowance must still catch a systemic shortfall."""
     db_rows = [(f"ok-{n}", datetime(2024, 1, 1)) for n in range(200)]
     os_hits = [
         {"_id": f"ok-{n}", "fields": {"last_harvested_date": ["2024-01-01T00:00:00"]}}
@@ -350,27 +326,51 @@ def test_compare_fails_when_missing_exceeds_the_budget(app):
 
     result = _run_compare(
         app,
-        ["--fail-on-discrepancy", "--max-failure-percent", "1"],
+        ["--fail-on-discrepancy", "--max-failed-records", "5"],
         db_rows=db_rows,
         os_hits=os_hits,
     )
 
     assert result.exit_code != 0
     assert "50 of 200 (25.000%) failed" in result.output
+    assert "allowed up to 5 record(s)" in result.output
     # Every missing id is still reported, since these are the triage list.
     assert OPENSEARCH_MISSING_DOCUMENTS_BANNER in result.output
     assert "ok-150" in result.output
 
 
+def test_compare_allowance_boundary_is_inclusive(app):
+    """Exactly the configured number passes; one more fails. The operator sets this
+    to the count they expect, so the number they type must itself be acceptable."""
+    db_rows = [(f"ok-{n}", datetime(2024, 1, 1)) for n in range(10)]
+
+    def run(present):
+        return _run_compare(
+            app,
+            ["--fail-on-discrepancy", "--max-failed-records", "2"],
+            db_rows=db_rows,
+            os_hits=[
+                {
+                    "_id": f"ok-{n}",
+                    "fields": {"last_harvested_date": ["2024-01-01T00:00:00"]},
+                }
+                for n in range(present)
+            ],
+        )
+
+    assert run(8).exit_code == 0, "2 missing with 2 allowed must pass"
+    assert run(7).exit_code != 0, "3 missing with 2 allowed must fail"
+
+
 def test_compare_never_tolerates_extra_or_stale_documents(app):
-    """The budget is for records OpenSearch refuses to accept, which can only show
+    """The allowance is for records OpenSearch refuses to accept, which can only show
     up as *missing*. An extra document means a delete did not happen and a stale one
     means an update did not -- real defects, not known-bad source data. A generous
-    budget must not excuse either.
+    allowance must not excuse either.
     """
     result = _run_compare(
         app,
-        ["--fail-on-discrepancy", "--max-failure-percent", "100"],
+        ["--fail-on-discrepancy", "--max-failed-records", "1000"],
         db_rows=[("shared", datetime(2024, 2, 1))],
         os_hits=[
             {
@@ -601,13 +601,13 @@ def test_rebuild_index_aborts_on_count_mismatch(app):
     assert OPENSEARCH_INDEX_BATCH_FAILURE_MESSAGE in result.output
 
 
-def test_rebuild_index_aborts_when_skipped_exceeds_budget(app):
+def test_rebuild_index_aborts_when_failures_exceed_the_allowance(app):
     client = _rebuild_client()
 
     result, _ = _run_rebuild(
         app,
         client,
-        ["--max-failure-percent", "0"],
+        ["--max-failed-records", "0"],
         db_count=5,
         backfill=(4, 1, [{"index": {"_id": "doomed", "error": "boom"}}]),
     )
@@ -616,28 +616,50 @@ def test_rebuild_index_aborts_when_skipped_exceeds_budget(app):
     assert OPENSEARCH_INDEX_BATCH_FAILURE_MESSAGE in result.output
     # Even on abort, the ids must be reported so they can be investigated.
     assert "doomed" in result.output
-    # The verdict states the arithmetic, so an operator can tell "one bad record"
-    # from "the mapping is wrong" without re-reading the whole log.
+    # The verdict states the counts, so an operator can tell "one bad record" from
+    # "the mapping is wrong" without re-reading the whole log.
     assert "1 of 5 (20.000%) failed" in result.output
-    assert "budget is 0.0%" in result.output
+    assert "allowed up to 0 record(s)" in result.output
 
 
-def test_rebuild_index_budget_scales_with_the_corpus(app):
-    """1% of a large corpus tolerates real-world dirt; the same 1% of a small one
-    does not, because a percentage of a small number is a small number."""
-    client = _rebuild_client(target_count=99_000)
+def test_rebuild_index_default_allowance_is_fifty_records(app):
+    """The default is an absolute count, independent of corpus size: the same 50
+    records whether the table holds 500 rows or 500,000. A percentage would instead
+    scale the allowance up with the corpus, silently authorizing thousands of
+    failures on a large table.
+    """
+    client = _rebuild_client(target_count=99_950)
+    rejections = [{"index": {"_id": f"bad-{n}"}} for n in range(50)]
 
     result, _ = _run_rebuild(
         app,
         client,
         [],
         db_count=100_000,
-        backfill=(99_000, 1_000, [{"index": {"_id": f"bad-{i}"}} for i in range(1000)]),
+        backfill=(99_950, 50, rejections),
     )
 
-    # 1000 failures out of 100_000 is exactly 1%, and the budget is 1000.
     assert result.exit_code == 0, result.output
-    assert "budget is 1.0% (1000 document(s))" in result.output
+    assert "allowed up to 50 record(s)" in result.output
+
+
+def test_rebuild_index_default_allowance_rejects_fifty_one(app):
+    """One past the default fails, on a corpus large enough that a percentage-based
+    allowance would have waved it through."""
+    client = _rebuild_client(target_count=99_949)
+    rejections = [{"index": {"_id": f"bad-{n}"}} for n in range(51)]
+
+    result, _ = _run_rebuild(
+        app,
+        client,
+        [],
+        db_count=100_000,
+        backfill=(99_949, 51, rejections),
+    )
+
+    assert result.exit_code != 0
+    assert "51 of 100000" in result.output
+    assert "allowed up to 50 record(s)" in result.output
 
 
 def test_rebuild_index_skips_rejected_document_and_completes(app):
@@ -660,12 +682,13 @@ def test_rebuild_index_skips_rejected_document_and_completes(app):
         }
     }
 
-    # 20% here only because the fixture corpus is 5 datasets; 1% of 5 floors to 0.
-    # The real corpus is ~548k, where the 1% default is ~5.4k documents.
+    # No flag needed: one rejection is inside the default allowance of 50, whatever
+    # the corpus size -- which is the practical advantage of a count over a
+    # percentage on a small table.
     result, _ = _run_rebuild(
         app,
         client,
-        ["--max-failure-percent", "20"],
+        [],
         db_count=5,
         backfill=(4, 1, [rejection]),
     )
@@ -696,7 +719,7 @@ def test_rebuild_index_reports_every_skipped_id_without_truncating(app):
     result, _ = _run_rebuild(
         app,
         client,
-        ["--max-failure-percent", "10"],
+        [],
         db_count=100,
         backfill=(94, 6, rejections),
     )
@@ -723,7 +746,7 @@ def test_rebuild_index_reports_every_skipped_id_even_when_it_fails(app):
     result, _ = _run_rebuild(
         app,
         client,
-        ["--max-failure-percent", "1"],
+        ["--max-failed-records", "5"],
         db_count=100,
         backfill=(94, 6, rejections),
     )
@@ -733,6 +756,7 @@ def test_rebuild_index_reports_every_skipped_id_even_when_it_fails(app):
     for n in range(6):
         assert f"dataset-{n:03d}" in result.output
     assert "6 of 100 (6.000%) failed" in result.output
+    assert "allowed up to 5 record(s)" in result.output
 
 
 def test_rebuild_index_validation_accounts_for_skipped_documents(app):
@@ -743,7 +767,7 @@ def test_rebuild_index_validation_accounts_for_skipped_documents(app):
     result, _ = _run_rebuild(
         app,
         client,
-        ["--max-failure-percent", "20"],
+        [],
         db_count=5,
         backfill=(4, 1, [{"index": {"_id": "skipped-one", "error": "boom"}}]),
     )
