@@ -193,6 +193,7 @@ Actions → **Migrate OpenSearch Cluster** → *Run workflow*:
 | `on_build_failure` | `delete` removes a failed replacement (default); `keep` retains it so you can resume with `start_at: rebuild` |
 | `force_kill_running_jobs` | cancel harvest jobs still running after 15 minutes |
 | `max_tasks` | `HARVEST_RUNNER_MAX_TASKS` to restore afterwards (`3` for prod) |
+| `max_failure_percent` | percent of datasets that may fail to index and still pass, default `1.0`; used by the rebuild *and* the verification. `0` requires an exact match. Failed ids are always logged in full — see [step 5](#5-verify-before-cutting-over) |
 
 **Resuming.** Use `start_at` to skip stages already done — that is what makes a
 re-dispatch safe, not blanket idempotence. Provisioning deliberately **refuses** when
@@ -335,9 +336,34 @@ cf run-task datagov-harvest -k 2G -m 3G --name os-verify \
 bin/monitor_cf_logs.sh datagov-harvest os-verify
 ```
 
-**Must report 0 missing, 0 extra, 0 updated.** Do not continue otherwise; use
-`compare --cluster next --update` to repair, then re-verify. (3G because
-`compare` holds every DB id and every OpenSearch id in memory at once.)
+**Must report 0 extra and 0 updated.** Those never get a tolerance: an extra
+document means a delete did not happen and a stale one means an update did not, and
+neither is explained by bad source data. Use `compare --cluster next --update` to
+repair, then re-verify. (3G because `compare` holds every DB id and every OpenSearch
+id in memory at once.)
+
+**Missing documents get a 1% budget** (`--max-failure-percent`, default `1.0`).
+Some records simply cannot be indexed — one staging dataset carries an empty-string
+key in its `dcat` JSON, which OpenSearch rejects with `mapper_parsing_exception`, so
+no rebuild will ever land it. Without a tolerance, one such record blocks the
+migration permanently; that is exactly what happened on 2026-08-10.
+
+The same percentage is passed to **both** `rebuild-index` and `compare`, and they
+must agree — otherwise the gate rejects precisely the records the rebuild was
+designed to skip.
+
+Tolerated does not mean unnoticed. Every missing id is printed in full under
+`MISSING DATASET IDS (not in OpenSearch)`, with the tolerated count and percentage,
+so they become a backlog rather than a surprise. The rebuild log's
+`SKIPPED DATASET IDS (not indexed)` block gives the reason for each. Grep either
+banner in the task log:
+
+```bash
+# Why a given id was rejected
+cf logs datagov-harvest --recent | grep -A20 "SKIPPED DATASET IDS"
+```
+
+Pass `--max-failure-percent 0` to require an exact match.
 
 ## 6. Cut over
 

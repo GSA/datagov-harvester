@@ -21,6 +21,24 @@ search = Blueprint("search", __name__)
 OPENSEARCH_CREATE_INDEX_TIMEOUT_SECONDS = 300
 # Grep target for the skipped-id block in CI logs and task output.
 OPENSEARCH_SKIPPED_DOCUMENTS_BANNER = "SKIPPED DATASET IDS (not indexed)"
+# Grep target for the missing-id block `compare` prints when it tolerates a
+# shortfall, so the ids are findable in a cf task log after the fact.
+OPENSEARCH_MISSING_DOCUMENTS_BANNER = "MISSING DATASET IDS (not in OpenSearch)"
+
+# What share of the corpus may fail to index before a rebuild or a verification is
+# treated as broken rather than merely imperfect.
+#
+# Some upstream records simply cannot be indexed -- e.g. a dcat blob carrying an
+# empty-string key, which OpenSearch rejects with mapper_parsing_exception, so no
+# amount of retrying or rebuilding will land it. Failing the whole migration for a
+# handful of those means the migration can never complete, while accepting an
+# unbounded number would let a systemic breakage (bad mapping, cluster trouble)
+# sail through. A percentage does both jobs: it scales with the corpus and stays
+# tight in relative terms.
+#
+# Every tolerated id is always printed in full, so "tolerated" never means
+# "unnoticed" -- the point is to unblock the migration and fix the records after.
+OPENSEARCH_MAX_FAILURE_PERCENT = 1.0
 
 # Which cluster a command talks to. ``live`` is the cluster currently serving
 # catalog and harvester traffic; ``next`` is a replacement cluster bound
@@ -313,12 +331,27 @@ def reset_opensearch_mapping():
         "command only reports, so an automated gate must pass it to actually gate."
     ),
 )
+@click.option(
+    "--max-failure-percent",
+    default=OPENSEARCH_MAX_FAILURE_PERCENT,
+    show_default=True,
+    type=click.FloatRange(min=0, max=100),
+    help=(
+        "With --fail-on-discrepancy, what percentage of datasets may be missing "
+        "and still pass. Matches rebuild-index's budget, so a rejection the "
+        "rebuild tolerates does not then fail verification. Missing ids are "
+        "always printed in full. Applies only to missing documents: extra and "
+        "stale ones always fail, since neither is explained by an unindexable "
+        "record. Use 0 to require an exact match."
+    ),
+)
 @cluster_option
 def compare_opensearch(
     sample_size: int,
     update: bool,
     force_update: bool,
     fail_on_discrepancy: bool,
+    max_failure_percent: float,
     cluster: str,
 ):
     """Report and optionally repair DB/OpenSearch dataset discrepancies."""
@@ -389,11 +422,46 @@ def compare_opensearch(
     # that both repaired and reported success would hide the fact that the index was
     # wrong. Checked even with --update so `compare --update --fail-on-discrepancy`
     # still surfaces anything the repair could not fix.
-    if fail_on_discrepancy and (missing or extra or updated_details):
-        raise click.ClickException(
-            f"Discrepancies found: {len(missing)} missing, {len(extra)} extra, "
-            f"{len(updated_details)} updated."
+    #
+    # Missing documents get a percentage budget; extra and stale ones never do.
+    # The budget exists for records OpenSearch refuses to accept at all (an empty
+    # field name, say), which can only ever manifest as *missing*. An extra document
+    # means a delete did not happen and a stale one means an update did not, and
+    # neither has anything to do with unindexable source data -- so tolerating those
+    # would be hiding a real defect rather than accepting a known one.
+    if fail_on_discrepancy:
+        missing_budget = _failure_budget(len(db_ids), max_failure_percent)
+        # `len(missing) <= budget` rather than `missing and ...`: with nothing
+        # missing this must be True (there is nothing to forgive), not an empty list.
+        within_budget = len(missing) <= missing_budget
+        budget_summary = _describe_budget(
+            len(missing), len(db_ids), max_failure_percent
         )
+
+        # Print every missing id, not just a sample, on BOTH paths: when failing they
+        # are the triage list, and when tolerated they are the backlog to fix later.
+        # Tolerated must never mean unnoticed.
+        if missing:
+            _report_document_ids(
+                OPENSEARCH_MISSING_DOCUMENTS_BANNER,
+                missing,
+                "Each id is in PostgreSQL but not in OpenSearch. A rebuild log's "
+                f"'{OPENSEARCH_SKIPPED_DOCUMENTS_BANNER}' block gives the reason "
+                "OpenSearch rejected it.",
+            )
+
+        if extra or updated_details or not within_budget:
+            raise click.ClickException(
+                f"Discrepancies found: {len(missing)} missing, {len(extra)} extra, "
+                f"{len(updated_details)} updated"
+                + (f" ({budget_summary})" if missing else "")
+                + "."
+            )
+        if missing:
+            click.echo(
+                f"TOLERATED: {budget_summary}. Every missing id is listed above; "
+                "they are a backlog to fix, not a reason to block this migration."
+            )
 
     if force_update:
         update = True
@@ -518,6 +586,44 @@ def _rejection_details(item: dict) -> tuple[str, str, str]:
     )
 
 
+def _failure_budget(total: int, max_percent: float) -> int:
+    """How many failures are tolerable out of ``total`` at ``max_percent``.
+
+    Floored, so the budget is never rounded up into permitting more than the stated
+    percentage: at 1% of 547,987 this is 5,479, not 5,480. A 0 percentage therefore
+    yields 0 -- strict -- and any non-zero percentage on an empty corpus also
+    yields 0, since there is nothing to be a percentage of.
+    """
+    if total <= 0 or max_percent <= 0:
+        return 0
+    return int(total * max_percent / 100)
+
+
+def _describe_budget(failed: int, total: int, max_percent: float) -> str:
+    """One-line "N of M (P%), budget B" summary for logs and error messages."""
+    budget = _failure_budget(total, max_percent)
+    share = (failed / total * 100) if total > 0 else 0.0
+    return (
+        f"{failed} of {total} ({share:.3f}%) failed; "
+        f"budget is {max_percent}% ({budget} document(s))"
+    )
+
+
+def _report_document_ids(banner: str, doc_ids: list, follow_up: str):
+    """Print a labelled block of dataset ids, in full and never truncated.
+
+    Separate from ``_report_skipped_documents`` because ``compare`` has only ids to
+    report -- it reads which documents are absent, not why the write failed -- while
+    a rebuild also has each rejection's error type and reason.
+    """
+    click.echo("")
+    click.echo(f"{banner} ({len(doc_ids)} total)")
+    for doc_id in sorted(doc_ids):
+        click.echo(f"  {doc_id}")
+    click.echo(f"  {follow_up}")
+    click.echo("")
+
+
 def _report_skipped_documents(errors: list):
     """Print every skipped dataset id so an admin can investigate each record.
 
@@ -558,11 +664,15 @@ def _backfill_from_postgres(
     changes, and mirrors the ``compare --force-update`` repair path. Datasets are
     read in keyset-paginated batches to bound memory on large tables.
 
-    A single malformed upstream record should not discard a whole rebuild. Up to
-    ``max_skipped`` documents that OpenSearch *rejects individually* are logged
-    and skipped; exceeding that budget aborts, because a large rejection count
-    means something systemic (bad mapping, cluster trouble) rather than dirty
-    source data. Every skipped id is reported so an admin can chase the record.
+    A malformed upstream record should not discard a whole rebuild. Documents that
+    OpenSearch *rejects individually* are logged and skipped up to ``max_skipped``;
+    exceeding that budget aborts the backfill early, because a large rejection count
+    means something systemic (bad mapping, cluster trouble) rather than dirty source
+    data. Every skipped id is reported so an admin can chase the record.
+
+    Aborting early matters on a corpus this size: once the budget is blown the
+    remaining batches cannot change the verdict, and stopping at that point saves
+    the operator the rest of a multi-hundred-thousand document write.
 
     Returns ``(indexed, failed, errors)`` where ``failed`` counts skipped
     documents and ``errors`` holds their raw rejection items.
@@ -624,20 +734,20 @@ def _backfill_from_postgres(
     help="Number of datasets read from PostgreSQL per backfill batch.",
 )
 @click.option(
-    "--max-skipped",
-    default=10,
+    "--max-failure-percent",
+    default=OPENSEARCH_MAX_FAILURE_PERCENT,
     show_default=True,
-    type=click.IntRange(min=0),
+    type=click.FloatRange(min=0, max=100),
     help=(
-        "How many individually-rejected documents to skip (with their ids "
-        "reported) before aborting the rebuild. Use 0 to fail on the first "
-        "rejection."
+        "What percentage of the corpus may be rejected by OpenSearch before the "
+        "rebuild is treated as failed. Rejected ids are always reported in full. "
+        "Use 0 to fail on the first rejection."
     ),
 )
 @cluster_option
 def rebuild_opensearch_index(
     batch_size: int,
-    max_skipped: int,
+    max_failure_percent: float,
     cluster: str,
 ):
     """Rebuild the ``datasets`` index from PostgreSQL on a replacement cluster.
@@ -677,17 +787,28 @@ def rebuild_opensearch_index(
         )
 
     db_count = db_interface.db.query(Dataset).count()
+    # Derive the absolute budget from the corpus size now that it is known, so the
+    # backfill can abort as soon as it is exceeded rather than writing the remaining
+    # batches to reach a verdict already decided.
+    max_skipped = _failure_budget(db_count, max_failure_percent)
     click.echo(f"Backfilling {db_count} PostgreSQL dataset(s) into {target_index}...")
+    click.echo(
+        f"  Tolerating up to {max_failure_percent}% rejected "
+        f"({max_skipped} document(s)) before failing."
+    )
     indexed, failed, errors = _backfill_from_postgres(
         client, target_index, batch_size, max_skipped=max_skipped
     )
+    # Report before deciding: the ids are the actionable output whether or not the
+    # budget was blown, and on failure they are what an operator needs to triage.
     if failed:
         _report_skipped_documents(errors)
     if failed > max_skipped:
         raise click.ClickException(
-            f"Backfill {OPENSEARCH_INDEX_BATCH_FAILURE_MESSAGE}: "
-            f"indexed={indexed}, failed={failed}, which exceeds "
-            f"--max-skipped={max_skipped}."
+            f"Backfill {OPENSEARCH_INDEX_BATCH_FAILURE_MESSAGE}: indexed={indexed}, "
+            f"{_describe_budget(failed, db_count, max_failure_percent)}. "
+            "The ids are listed above. A rejection count this high usually means a "
+            "systemic problem (mapping or cluster) rather than dirty records."
         )
 
     # Harvesting is paused and drained before this runs, so the DB is stable, so
@@ -707,7 +828,8 @@ def rebuild_opensearch_index(
         )
     if failed:
         click.echo(
-            f"Validated {target_index}: {target_count} document(s) ({failed} skipped)."
+            f"Validated {target_index}: {target_count} document(s) "
+            f"({_describe_budget(failed, db_count, max_failure_percent)})."
         )
     else:
         click.echo(f"Validated {target_index}: {target_count} document(s).")

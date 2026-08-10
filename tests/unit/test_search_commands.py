@@ -10,7 +10,9 @@ from opensearchpy.exceptions import RequestError
 from app.commands.search import (
     OPENSEARCH_CREATE_INDEX_TIMEOUT_SECONDS,
     OPENSEARCH_INDEX_BATCH_FAILURE_MESSAGE,
+    OPENSEARCH_MISSING_DOCUMENTS_BANNER,
     OPENSEARCH_SKIPPED_DOCUMENTS_BANNER,
+    _failure_budget,
     _is_aws_opensearch_host,
     _next_cluster_environment,
     db_interface,
@@ -261,6 +263,30 @@ _MISMATCH = {
 }
 
 
+@pytest.mark.parametrize(
+    ("total", "percent", "expected"),
+    [
+        # The real corpus at the default: ~5.4k of 548k tolerated.
+        (547_987, 1.0, 5479),
+        (100_000, 1.0, 1000),
+        # Floored, never rounded up past the stated percentage.
+        (150, 1.0, 1),
+        (99, 1.0, 0),
+        # 0% is strict, which is what an exact-match gate needs.
+        (547_987, 0.0, 0),
+        # A percentage of nothing is nothing -- and an empty corpus must not
+        # divide by zero anywhere.
+        (0, 1.0, 0),
+        (100, 100.0, 100),
+    ],
+)
+def test_failure_budget_arithmetic(total, percent, expected):
+    """Floored deliberately: rounding up would permit more than the stated
+    percentage, and a budget that silently exceeds its own label is worse than a
+    slightly tight one."""
+    assert _failure_budget(total, percent) == expected
+
+
 def test_compare_reports_but_does_not_fail_by_default(app):
     """The default stays a report, so the nightly sync and manual runs are unchanged."""
     result = _run_compare(app, [], **_MISMATCH)
@@ -276,7 +302,7 @@ def test_compare_fails_on_discrepancy_when_asked(app):
     result = _run_compare(app, ["--fail-on-discrepancy"], **_MISMATCH)
 
     assert result.exit_code != 0
-    assert "Discrepancies found: 1 missing, 1 extra, 0 updated." in result.output
+    assert "Discrepancies found: 1 missing, 1 extra, 0 updated" in result.output
 
 
 def test_compare_succeeds_with_the_flag_when_in_sync(app):
@@ -284,6 +310,79 @@ def test_compare_succeeds_with_the_flag_when_in_sync(app):
 
     assert result.exit_code == 0
     assert "Missing in OpenSearch (should be indexed): 0" in result.output
+
+
+def test_compare_tolerates_missing_within_the_budget(app):
+    """The staging blocker of 2026-08-10: one unindexable dataset out of 547,987
+    failed the gate, so the migration could never complete -- even though
+    rebuild-index had already, correctly, tolerated that same record.
+
+    The budget makes both halves agree about what "correct" means.
+    """
+    db_rows = [(f"ok-{n}", datetime(2024, 1, 1)) for n in range(200)]
+    os_hits = [
+        {"_id": f"ok-{n}", "fields": {"last_harvested_date": ["2024-01-01T00:00:00"]}}
+        for n in range(199)
+    ]
+
+    result = _run_compare(
+        app,
+        ["--fail-on-discrepancy", "--max-failure-percent", "1"],
+        db_rows=db_rows,
+        os_hits=os_hits,
+    )
+
+    # 1 missing of 200 is 0.5%, inside the 1% budget (2 documents).
+    assert result.exit_code == 0, result.output
+    assert "TOLERATED" in result.output
+    # The id is printed in full so it becomes a backlog item, not a silent pass.
+    assert OPENSEARCH_MISSING_DOCUMENTS_BANNER in result.output
+    assert "ok-199" in result.output
+
+
+def test_compare_fails_when_missing_exceeds_the_budget(app):
+    """The budget must still catch a systemic shortfall."""
+    db_rows = [(f"ok-{n}", datetime(2024, 1, 1)) for n in range(200)]
+    os_hits = [
+        {"_id": f"ok-{n}", "fields": {"last_harvested_date": ["2024-01-01T00:00:00"]}}
+        for n in range(150)
+    ]
+
+    result = _run_compare(
+        app,
+        ["--fail-on-discrepancy", "--max-failure-percent", "1"],
+        db_rows=db_rows,
+        os_hits=os_hits,
+    )
+
+    assert result.exit_code != 0
+    assert "50 of 200 (25.000%) failed" in result.output
+    # Every missing id is still reported, since these are the triage list.
+    assert OPENSEARCH_MISSING_DOCUMENTS_BANNER in result.output
+    assert "ok-150" in result.output
+
+
+def test_compare_never_tolerates_extra_or_stale_documents(app):
+    """The budget is for records OpenSearch refuses to accept, which can only show
+    up as *missing*. An extra document means a delete did not happen and a stale one
+    means an update did not -- real defects, not known-bad source data. A generous
+    budget must not excuse either.
+    """
+    result = _run_compare(
+        app,
+        ["--fail-on-discrepancy", "--max-failure-percent", "100"],
+        db_rows=[("shared", datetime(2024, 2, 1))],
+        os_hits=[
+            {
+                "_id": "shared",
+                "fields": {"last_harvested_date": ["2024-01-01T00:00:00"]},
+            },
+            {"_id": "extra-only", "fields": {"last_harvested_date": []}},
+        ],
+    )
+
+    assert result.exit_code != 0
+    assert "1 extra" in result.output
 
 
 def test_compare_fails_on_stale_documents_too(app):
@@ -508,7 +607,7 @@ def test_rebuild_index_aborts_when_skipped_exceeds_budget(app):
     result, _ = _run_rebuild(
         app,
         client,
-        ["--max-skipped", "0"],
+        ["--max-failure-percent", "0"],
         db_count=5,
         backfill=(4, 1, [{"index": {"_id": "doomed", "error": "boom"}}]),
     )
@@ -517,6 +616,28 @@ def test_rebuild_index_aborts_when_skipped_exceeds_budget(app):
     assert OPENSEARCH_INDEX_BATCH_FAILURE_MESSAGE in result.output
     # Even on abort, the ids must be reported so they can be investigated.
     assert "doomed" in result.output
+    # The verdict states the arithmetic, so an operator can tell "one bad record"
+    # from "the mapping is wrong" without re-reading the whole log.
+    assert "1 of 5 (20.000%) failed" in result.output
+    assert "budget is 0.0%" in result.output
+
+
+def test_rebuild_index_budget_scales_with_the_corpus(app):
+    """1% of a large corpus tolerates real-world dirt; the same 1% of a small one
+    does not, because a percentage of a small number is a small number."""
+    client = _rebuild_client(target_count=99_000)
+
+    result, _ = _run_rebuild(
+        app,
+        client,
+        [],
+        db_count=100_000,
+        backfill=(99_000, 1_000, [{"index": {"_id": f"bad-{i}"}} for i in range(1000)]),
+    )
+
+    # 1000 failures out of 100_000 is exactly 1%, and the budget is 1000.
+    assert result.exit_code == 0, result.output
+    assert "budget is 1.0% (1000 document(s))" in result.output
 
 
 def test_rebuild_index_skips_rejected_document_and_completes(app):
@@ -539,10 +660,12 @@ def test_rebuild_index_skips_rejected_document_and_completes(app):
         }
     }
 
+    # 20% here only because the fixture corpus is 5 datasets; 1% of 5 floors to 0.
+    # The real corpus is ~548k, where the 1% default is ~5.4k documents.
     result, _ = _run_rebuild(
         app,
         client,
-        [],
+        ["--max-failure-percent", "20"],
         db_count=5,
         backfill=(4, 1, [rejection]),
     )
@@ -555,7 +678,7 @@ def test_rebuild_index_skips_rejected_document_and_completes(app):
     assert "ba35e626-c015-4c15-819f-892ce8e6baa9" in result.output
     assert "mapper_parsing_exception" in result.output
     assert "field name cannot be an empty string" in result.output
-    assert "1 skipped" in result.output
+    assert "1 of 5" in result.output
 
 
 def test_rebuild_index_reports_every_skipped_id_without_truncating(app):
@@ -573,7 +696,7 @@ def test_rebuild_index_reports_every_skipped_id_without_truncating(app):
     result, _ = _run_rebuild(
         app,
         client,
-        [],
+        ["--max-failure-percent", "10"],
         db_count=100,
         backfill=(94, 6, rejections),
     )
@@ -581,6 +704,35 @@ def test_rebuild_index_reports_every_skipped_id_without_truncating(app):
     assert result.exit_code == 0, result.output
     for n in range(6):
         assert f"dataset-{n:03d}" in result.output
+
+
+def test_rebuild_index_reports_every_skipped_id_even_when_it_fails(app):
+    """The ids are the actionable output whether or not the budget was blown --
+    on a failure they are precisely what an operator has to triage."""
+    client = _rebuild_client(target_count=94)
+    rejections = [
+        {
+            "index": {
+                "_id": f"dataset-{n:03d}",
+                "error": {"type": "mapper_parsing_exception", "reason": "failed"},
+            }
+        }
+        for n in range(6)
+    ]
+
+    result, _ = _run_rebuild(
+        app,
+        client,
+        ["--max-failure-percent", "1"],
+        db_count=100,
+        backfill=(94, 6, rejections),
+    )
+
+    assert result.exit_code != 0
+    assert OPENSEARCH_SKIPPED_DOCUMENTS_BANNER in result.output
+    for n in range(6):
+        assert f"dataset-{n:03d}" in result.output
+    assert "6 of 100 (6.000%) failed" in result.output
 
 
 def test_rebuild_index_validation_accounts_for_skipped_documents(app):
@@ -591,7 +743,7 @@ def test_rebuild_index_validation_accounts_for_skipped_documents(app):
     result, _ = _run_rebuild(
         app,
         client,
-        [],
+        ["--max-failure-percent", "20"],
         db_count=5,
         backfill=(4, 1, [{"index": {"_id": "skipped-one", "error": "boom"}}]),
     )

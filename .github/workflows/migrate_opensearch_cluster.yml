@@ -101,6 +101,14 @@ on:
         required: false
         default: "3"
         type: string
+      max_failure_percent:
+        description: >-
+          Percent of datasets that may fail to index and still pass. Some records
+          are unindexable (e.g. an empty JSON key); their ids are always logged.
+          Used by both the rebuild and the verification, which must agree. 0 = exact.
+        required: false
+        default: "1.0"
+        type: string
 
   # SCRATCH-ONLY (branch scratch/migrate-opensearch-staging-test; do not merge).
   #
@@ -156,6 +164,10 @@ on:
         required: false
         default: "3"
         type: string
+      max_failure_percent:
+        required: false
+        default: "1.0"
+        type: string
     # Deliberately no `secrets:` block. CF_SERVICE_USER/CF_SERVICE_AUTH exist only as
     # *environment* secrets (staging/prod/development), never at repo level, and every
     # job that runs a cf command already declares `environment: ${{ inputs.environment }}`
@@ -202,6 +214,7 @@ jobs:
           START_AT: ${{ inputs.start_at }}
           STOP_AFTER: ${{ inputs.stop_after }}
           KEEP_OLD: ${{ inputs.keep_old_cluster }}
+          MAX_FAILURE_PERCENT: ${{ inputs.max_failure_percent }}
         run: |
           # These reach a cf command line, so constrain them to CF-legal names
           # rather than trusting free-text workflow input.
@@ -215,6 +228,22 @@ jobs:
           done
           if [[ -n "$NEXT_PLAN" && ! "$NEXT_PLAN" =~ ^[a-zA-Z0-9._-]+$ ]]; then
             echo "::error::next_plan must match [a-zA-Z0-9._-]+ (got: '$NEXT_PLAN')."
+            exit 1
+          fi
+          # This one is interpolated into a `cf run-task --command "..."` string, so
+          # it must be a bare number: anything else could close the quote and append
+          # a command. Click also range-checks it, but that is after the injection.
+          if [[ ! "$MAX_FAILURE_PERCENT" =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
+            echo "::error::max_failure_percent must be a non-negative number" \
+                 "(got: '$MAX_FAILURE_PERCENT')."
+            exit 1
+          fi
+          # A budget near 100% would promote a cluster with almost no documents.
+          # Compared on the integer part only, to avoid depending on bc(1) being
+          # present on the runner for what is a coarse sanity bound.
+          if [[ "${MAX_FAILURE_PERCENT%%.*}" -gt 50 ]]; then
+            echo "::error::max_failure_percent of ${MAX_FAILURE_PERCENT}% would let a" \
+                 "mostly-empty index pass verification. Use 50 or less."
             exit 1
           fi
           if [[ "$NEXT_SERVICE" == "$CANONICAL_SERVICE" ]]; then
@@ -325,7 +354,8 @@ jobs:
         with:
           command: >
             cf run-task datagov-harvest --name "$REBUILD_TASK" -k 4G -m 2G
-            --command "flask search rebuild-index --cluster next"
+            --command "flask search rebuild-index --cluster next
+            --max-failure-percent ${{ inputs.max_failure_percent }}"
           cf_org: gsa-datagov
           cf_space: ${{ env.CF_SPACE }}
           cf_username: ${{ secrets.CF_SERVICE_USER }}
@@ -347,13 +377,20 @@ jobs:
       # gate: without it `compare` only reports and exits 0, so an unverified cluster
       # would sail through. monitor_cf_logs.sh turns the task's exit status into this
       # step's, so a discrepancy stops the run with the live cluster still serving.
+      #
+      # --max-failure-percent must match the rebuild's, or the gate rejects exactly
+      # the records the rebuild was designed to tolerate -- which is what blocked
+      # staging on 2026-08-10 over a single unindexable dataset. Missing ids are
+      # printed in full either way, so a tolerated shortfall is still visible in
+      # this step's log.
       - name: Verify the replacement cluster matches PostgreSQL
         if: needs.plan.outputs.do_rebuild == 'true'
         uses: cloud-gov/cg-cli-tools@main
         with:
           command: >
             cf run-task datagov-harvest --name "$VERIFY_NEXT_TASK" -k 2G -m 3G
-            --command "flask search compare --cluster next --fail-on-discrepancy"
+            --command "flask search compare --cluster next --fail-on-discrepancy
+            --max-failure-percent ${{ inputs.max_failure_percent }}"
           cf_org: gsa-datagov
           cf_space: ${{ env.CF_SPACE }}
           cf_username: ${{ secrets.CF_SERVICE_USER }}
@@ -524,7 +561,8 @@ jobs:
           # Now that the promotion is done, `live` IS the new cluster.
           command: >
             cf run-task datagov-harvest --name "$VERIFY_LIVE_TASK" -k 2G -m 3G
-            --command "flask search compare --cluster live --fail-on-discrepancy"
+            --command "flask search compare --cluster live --fail-on-discrepancy
+            --max-failure-percent ${{ inputs.max_failure_percent }}"
           cf_org: gsa-datagov
           cf_space: ${{ env.CF_SPACE }}
           cf_username: ${{ secrets.CF_SERVICE_USER }}
