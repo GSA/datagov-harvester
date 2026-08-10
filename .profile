@@ -49,10 +49,10 @@ export HARVEST_SMTP_RECIPIENT=datagovteam@gsa.gov
 # OpenSearch host and credentials.
 #
 # The cluster is shared with catalog, so the instance is not named after this
-# app. Which bound instance is live is resolved by name through
-# OPENSEARCH_SERVICE_NAME, so a migration to a replacement cluster is a
-# `cf set-env` plus a rolling restart rather than a code change. See
-# docs/ops/migrate-opensearch-cluster.md.
+# app. The live cluster is always the instance with the canonical name: a
+# migration moves the *name* onto the new cluster with `cf rename-service`, so
+# this never has to be repointed. Overridable only to debug against a specific
+# instance. See docs/ops/migrate-opensearch-cluster.md.
 export OPENSEARCH_SERVICE_NAME=${OPENSEARCH_SERVICE_NAME:-datagov-catalog-opensearch}
 export OPENSEARCH_HOST=$(vcap_get_service_by_name "$OPENSEARCH_SERVICE_NAME" .credentials.host)
 export OPENSEARCH_ACCESS_KEY=$(vcap_get_service_by_name "$OPENSEARCH_SERVICE_NAME" .credentials.access_key)
@@ -69,14 +69,26 @@ if [ -z "$OPENSEARCH_HOST" ]; then
 fi
 
 # The replacement cluster that `flask search rebuild-index --cluster next` fills.
-# Unset at rest, and guarded so this script (which runs under `set -o errexit`)
-# still succeeds when no second cluster is bound.
-export OPENSEARCH_NEXT_SERVICE_NAME=${OPENSEARCH_NEXT_SERVICE_NAME:-}
-if [ -n "$OPENSEARCH_NEXT_SERVICE_NAME" ]; then
-  export OPENSEARCH_NEXT_HOST=$(vcap_get_service_by_name "$OPENSEARCH_NEXT_SERVICE_NAME" .credentials.host)
-  export OPENSEARCH_NEXT_ACCESS_KEY=$(vcap_get_service_by_name "$OPENSEARCH_NEXT_SERVICE_NAME" .credentials.access_key)
-  export OPENSEARCH_NEXT_SECRET_KEY=$(vcap_get_service_by_name "$OPENSEARCH_NEXT_SERVICE_NAME" .credentials.secret_key)
-fi
+#
+# The name is fixed, exactly like the canonical name above and like every other
+# service this app resolves (`-db`, `-secrets`, `-smtp`). Nothing sets this with
+# `cf set-env`: a migration binds an instance called `<canonical>-next`, and this
+# resolves it if it is bound and leaves the NEXT_* variables empty if it is not.
+#
+# That "if bound" is the whole mechanism, and it needs no restart to take effect:
+# `cf run-task` starts a fresh container that reads the current bindings, so the
+# rebuild task sees a newly bound replacement immediately. (Verified in staging
+# 2026-08-10: a task saw the bound instance with no set-env and no restart.) A
+# long-running web instance still needs a restart to notice, which is why the
+# promote's rolling restarts remain mandatory -- but nothing on the rebuild path
+# depends on one.
+#
+# Guarded with `|| true` because this script runs under `set -o errexit` and jq
+# exits non-zero when no bound instance matches, which is the normal state at rest.
+export OPENSEARCH_NEXT_SERVICE_NAME="${OPENSEARCH_SERVICE_NAME}-next"
+export OPENSEARCH_NEXT_HOST=$(vcap_get_service_by_name "$OPENSEARCH_NEXT_SERVICE_NAME" .credentials.host || true)
+export OPENSEARCH_NEXT_ACCESS_KEY=$(vcap_get_service_by_name "$OPENSEARCH_NEXT_SERVICE_NAME" .credentials.access_key || true)
+export OPENSEARCH_NEXT_SECRET_KEY=$(vcap_get_service_by_name "$OPENSEARCH_NEXT_SERVICE_NAME" .credentials.secret_key || true)
 
 echo "Setting CA Bundle.."
 export REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt

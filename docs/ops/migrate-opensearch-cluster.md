@@ -29,9 +29,19 @@ not the plan), so a bigger cluster necessarily means a new instance.
   credentials from the *bound service instance of this name*, defaulting to
   `datagov-catalog-opensearch`. Cutover flips this variable. Rollback flips it
   back. Nothing else changes.
-- **`OPENSEARCH_NEXT_SERVICE_NAME`** — names a second bound instance. When set,
-  `.profile` also exports `OPENSEARCH_NEXT_HOST`, `OPENSEARCH_NEXT_ACCESS_KEY`,
-  and `OPENSEARCH_NEXT_SECRET_KEY`.
+- **The replacement cluster is `<canonical>-next`** — a fixed name, derived by
+  `.profile` from `OPENSEARCH_SERVICE_NAME`, exactly like `-db` and `-secrets`.
+  Nothing sets it: **binding an instance by that name is the entire handoff.**
+  When one is bound, `.profile` exports `OPENSEARCH_NEXT_HOST`,
+  `OPENSEARCH_NEXT_ACCESS_KEY`, and `OPENSEARCH_NEXT_SECRET_KEY`; when none is,
+  those stay empty and `--cluster next` fails cleanly.
+
+  No `cf set-env` and **no restart** are needed to reach it. The rebuild runs via
+  `cf run-task`, and a task starts a fresh container that reads current bindings —
+  verified in staging on 2026-08-10, where a task resolved a newly bound
+  replacement with no variable set and no restart performed. (A long-running *web*
+  instance still needs a restart to notice a change, which is why the promote's
+  rolling restarts remain mandatory.)
 - **`flask search rebuild-index --cluster next`** builds the index against those
   `NEXT` credentials. `--cluster live` (the default) is unchanged from before.
 - **The index name stays `datasets`.** Index names are scoped to a cluster, so
@@ -184,10 +194,13 @@ Actions → **Migrate OpenSearch Cluster** → *Run workflow*:
 | `force_kill_running_jobs` | cancel harvest jobs still running after 15 minutes |
 | `max_tasks` | `HARVEST_RUNNER_MAX_TASKS` to restore afterwards (`3` for prod) |
 
-**Resuming.** Every stage is idempotent and detects work already done, so a re-dispatch
-is always safe. `start_at` exists to skip the expensive part: a prod `es-large` provision
-can take a couple of hours, so a run that fails at the promote should be re-dispatched
-with `start_at: cutover` rather than from the beginning.
+**Resuming.** Use `start_at` to skip stages already done — that is what makes a
+re-dispatch safe, not blanket idempotence. Provisioning deliberately **refuses** when
+the replacement instance already exists, so a run that got past that stage must be
+resumed with `start_at: rebuild` (or `cutover`) rather than from the beginning. The
+refusal is the point: two rebuilds writing into one cluster interleave into an index
+that verifies as garbage. It also skips the expensive part — a prod `es-large`
+provision can take a couple of hours.
 
 **If it fails.** Before the promote, the replacement cluster is deleted automatically
 and the live cluster is untouched — just fix the cause and re-dispatch. On a slow space
@@ -229,17 +242,23 @@ and refuses to proceed if either app is unbound.
 If the space has never had egress configured:
 `cf bind-security-group trusted_local_networks_egress gsa-datagov --space <space>`.
 
-## 2. Expose the new credentials to the harvester
+## 2. Confirm the harvester can reach the new cluster
+
+There is nothing to set. The instance is named `datagov-catalog-opensearch-next`,
+which is what `.profile` derives and looks for, so the bind in step 1 already
+exposed it.
 
 ```bash
-cf set-env datagov-harvest OPENSEARCH_NEXT_SERVICE_NAME datagov-catalog-opensearch-next
-cf restart datagov-harvest --strategy rolling
-
 # Confirm the harvester resolved BOTH clusters.
 bin/report_opensearch_cluster.sh datagov-harvest
 ```
 
-`--strategy rolling` is not optional anywhere in this runbook; a plain
+No restart either: the rebuild runs as a `cf run-task`, and a task starts a fresh
+container that reads current bindings. (`report_opensearch_cluster.sh` reads a
+running web container, so `OPENSEARCH_NEXT_HOST` may show empty there until the
+app is next restarted — that is expected and does not affect the rebuild.)
+
+Elsewhere in this runbook `--strategy rolling` is not optional; a plain
 `cf restart` takes the app down. Catalog needs nothing yet.
 
 > Use `bin/report_opensearch_cluster.sh` rather than `cf env` to check the
@@ -487,17 +506,11 @@ both apps. The window is now closed.
 
 **5. Clean up and re-enable.**
 
-```bash
-cf unset-env datagov-harvest OPENSEARCH_NEXT_SERVICE_NAME
-```
+There is no replacement pointer to clear. The rename in step 3 moved the instance
+off the `-next` name, and `.profile` derives that name rather than reading a
+variable, so `--cluster next` already resolves to nothing.
 
-Do not skip this. Leaving it set means `OPENSEARCH_SERVICE_NAME` and
-`OPENSEARCH_NEXT_SERVICE_NAME` both name the now-live cluster, so
-`--cluster next` would resolve to the live host. The commands refuse to run in
-that state rather than silently operating on production, but the fix is to unset
-the variable.
-
-Optionally also `cf unset-env` `OPENSEARCH_SERVICE_NAME` on both apps — it now
+Optionally `cf unset-env` `OPENSEARCH_SERVICE_NAME` on both apps — it now
 matches the `.profile` default, so removing it returns to a bare steady state.
 Do this *only after* step 4 has completed successfully, and follow it with one
 more rolling restart of each app.

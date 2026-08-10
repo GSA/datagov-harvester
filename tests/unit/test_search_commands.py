@@ -899,10 +899,10 @@ def test_next_cluster_environment_restores_credentials_on_error(
 def test_next_cluster_refuses_when_it_resolves_to_the_live_host(monkeypatch):
     """The one state where `--cluster next` would silently hit production.
 
-    Reachable in normal operation: once a replacement cluster has been adopted,
-    OPENSEARCH_SERVICE_NAME and OPENSEARCH_NEXT_SERVICE_NAME both name it until
-    the latter is unset. Every `--cluster next` command would then target live
-    while reporting "next".
+    Should be unreachable now that both names are derived -- `X` and `X-next` are
+    necessarily different instances. Kept because the check costs one comparison
+    and being wrong means running a destructive command against live while the
+    logs claim otherwise.
     """
     monkeypatch.setenv("OPENSEARCH_HOST", "same.example")
     monkeypatch.setenv("OPENSEARCH_NEXT_HOST", "same.example")
@@ -912,7 +912,7 @@ def test_next_cluster_refuses_when_it_resolves_to_the_live_host(monkeypatch):
             pytest.fail("must not yield when both names resolve to one host")
 
     assert "same host as the live cluster" in str(excinfo.value)
-    assert "OPENSEARCH_NEXT_SERVICE_NAME" in str(excinfo.value)
+    assert "a rename went wrong" in str(excinfo.value)
 
 
 def test_next_cluster_restores_when_interrupted_mid_swap(monkeypatch):
@@ -1006,9 +1006,11 @@ def test_rebuild_index_next_cluster_requires_its_credentials(
 
     assert result.exit_code != 0
     # The error has to name the variable and how to get it, since the operator
-    # is reading this out of a cf task log.
+    # is reading this out of a cf task log. The fix is binding an instance, not
+    # setting a variable, so the message must say so.
     assert missing in result.output
-    assert "OPENSEARCH_NEXT_SERVICE_NAME" in result.output
+    assert "-next" in result.output
+    assert "provision_opensearch_cluster.sh" in result.output
     # Nothing was created, deleted, or indexed anywhere.
     backfill_mock.assert_not_called()
     client.client.indices.create.assert_not_called()

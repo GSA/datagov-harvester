@@ -97,23 +97,27 @@ def _next_cluster_environment():
     )
     if missing:
         raise click.ClickException(
-            f"--cluster {CLUSTER_NEXT} requires " + ", ".join(missing) + ". Bind the "
-            "replacement OpenSearch service and set OPENSEARCH_NEXT_SERVICE_NAME so "
-            ".profile exports its credentials."
+            f"--cluster {CLUSTER_NEXT} requires " + ", ".join(missing) + ". Bind a "
+            "service instance named '<canonical>-next' to this app so .profile "
+            "exports its credentials (bin/provision_opensearch_cluster.sh does "
+            "this)."
         )
 
     if next_host == live_host:
         # The whole point of --cluster next is to keep load and destructive
         # operations off the live cluster. If both names resolve to the same host
         # every such command would silently hit production while reporting
-        # "next" -- so refuse rather than pretend. This is reachable in normal
-        # operation: after adopting a replacement cluster, both variables name it
-        # until OPENSEARCH_NEXT_SERVICE_NAME is unset.
+        # "next" -- so refuse rather than pretend.
+        #
+        # Now that both names are derived (`X` and `X-next` are necessarily
+        # different instances), this should be unreachable. Kept because the cost of
+        # the check is one comparison and the cost of being wrong is a destructive
+        # command run against live while the logs say otherwise.
         raise click.ClickException(
             f"OPENSEARCH_NEXT_HOST is the same host as the live cluster "
             f"({live_host}), so --cluster {CLUSTER_NEXT} would operate on live. "
-            "Unset OPENSEARCH_NEXT_SERVICE_NAME (the replacement cluster is now "
-            "the live one), or point it at a different instance."
+            "Two differently-named instances resolving to one host means a rename "
+            "went wrong; check `cf services` before retrying."
         )
 
     def _apply(values: dict):
@@ -195,8 +199,8 @@ def cluster_option(command):
         show_default=True,
         help=(
             "Which OpenSearch cluster to operate on. 'next' targets the "
-            "replacement cluster bound as OPENSEARCH_NEXT_SERVICE_NAME, leaving "
-            "the live cluster completely untouched."
+            "replacement cluster -- the bound instance named '<canonical>-next' -- "
+            "leaving the live cluster completely untouched."
         ),
     )(command)
 
@@ -703,8 +707,7 @@ def rebuild_opensearch_index(
         )
     if failed:
         click.echo(
-            f"Validated {target_index}: {target_count} document(s) "
-            f"({failed} skipped)."
+            f"Validated {target_index}: {target_count} document(s) ({failed} skipped)."
         )
     else:
         click.echo(f"Validated {target_index}: {target_count} document(s).")

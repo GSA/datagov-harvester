@@ -414,7 +414,13 @@ jobs:
   teardown-replacement:
     name: Delete the half-built replacement cluster
     needs: [plan, build]
-    if: needs.build.result == 'failure' && inputs.on_build_failure == 'delete'
+    # `always() &&` is required, not stylistic. A job whose `needs` failed is skipped
+    # before its `if:` is evaluated at all, so without this the condition below is
+    # unreachable in exactly the case it exists to handle -- verified in staging
+    # 2026-08-10, where a failed build skipped both this job and explain-resume and
+    # leaked the replacement cluster. `needs.build.result == 'failure'` still keeps
+    # this narrower than `failure()`: it does not fire when build never ran.
+    if: always() && needs.build.result == 'failure' && inputs.on_build_failure == 'delete'
     runs-on: ubuntu-latest
     timeout-minutes: 60
     environment: ${{ inputs.environment }}
@@ -433,24 +439,18 @@ jobs:
           cf_username: ${{ secrets.CF_SERVICE_USER }}
           cf_password: ${{ secrets.CF_SERVICE_AUTH }}
 
-      - name: Clear the harvester's replacement-cluster pointer
-        uses: cloud-gov/cg-cli-tools@main
-        with:
-          # Left set, .profile would export credentials for a deleted instance and
-          # `--cluster next` would fail confusingly on the next attempt.
-          command: >
-            cf unset-env datagov-harvest OPENSEARCH_NEXT_SERVICE_NAME
-          cf_org: gsa-datagov
-          cf_space: ${{ inputs.environment }}
-          cf_username: ${{ secrets.CF_SERVICE_USER }}
-          cf_password: ${{ secrets.CF_SERVICE_AUTH }}
+      # No pointer to clear. .profile derives the replacement's name from the
+      # canonical one and resolves it only if an instance by that name is bound, so
+      # deleting the instance above is the whole cleanup.
 
   # Say how to resume when the replacement cluster was deliberately kept, so the hours
   # already spent provisioning are not silently wasted.
   explain-resume:
     name: Explain how to resume
     needs: [plan, build]
-    if: needs.build.result == 'failure' && inputs.on_build_failure == 'keep'
+    # See teardown-replacement: without `always() &&` a failed `build` skips this job
+    # before the condition is read, so the resume instructions never appear.
+    if: always() && needs.build.result == 'failure' && inputs.on_build_failure == 'keep'
     runs-on: ubuntu-latest
     steps:
       - name: Write the resume command
@@ -460,8 +460,10 @@ jobs:
           {
             echo "### Build failed; \`$NEXT_SERVICE\` was kept"
             echo
-            echo "The live cluster was never touched. Provisioning is idempotent, so"
-            echo "re-dispatch with the following to retry without rebuilding the cluster:"
+            echo "The live cluster was never touched. \`start_at: rebuild\` skips"
+            echo "provisioning entirely, so re-dispatch with the following to retry"
+            echo "against the cluster that already exists (starting from"
+            echo "\`provision\` would now refuse, since the instance is still there):"
             echo
             echo '```'
             echo "start_at: rebuild"
