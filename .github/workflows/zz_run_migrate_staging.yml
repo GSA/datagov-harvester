@@ -28,12 +28,17 @@ on:
     branches:
       - scratch/migrate-opensearch-staging-test
     # Only re-run when something the migration actually depends on changes, so
-    # unrelated commits on this branch do not start a cluster migration.
+    # unrelated commits on this branch do not start a cluster migration. Note this
+    # means an empty commit will NOT trigger a run -- bump RERUN below instead.
     paths:
       - ".github/workflows/migrate_opensearch_cluster.yml"
       - ".github/workflows/zz_run_migrate_staging.yml"
       - ".github/workflows/toggle_harvester.yml"
       - "bin/**"
+      - ".profile"
+      - "app/commands/search.py"
+
+# RERUN: 2 -- bump this to trigger a run without another meaningful change.
 
 permissions:
   contents: read
