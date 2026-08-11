@@ -273,3 +273,5 @@ Or, if doing for local development:
 You can add organizations using the harvester UI. Alternatively, you can run this command:
 
 `cf run-task datagov-harvest-admin --name "add new org" --command "flask org add 'Name of Org' --log https://some-url.png --id 1234"`
+
+<!-- queue-test-b: verifying back-to-back merges do not double-deploy (run B) -->
