@@ -276,3 +276,116 @@ def test_delete_outdated_records(
 
     # It should be expected the 1 error is still present
     assert db_record_errors == 1
+
+
+def test_add_harvest_record_with_catalog_record_type(
+    interface,
+    organization_data,
+    source_data_dcatus,
+    job_data_dcatus,
+    record_data_dcatus,
+):
+    """Test creating a HarvestRecord with record_type='catalog_record'."""
+    interface.add_organization(organization_data)
+    interface.add_harvest_source(source_data_dcatus)
+    interface.add_harvest_job(job_data_dcatus)
+
+    record_data = record_data_dcatus[0].copy()
+    record_data["record_type"] = "catalog_record"
+
+    record = interface.add_harvest_record(record_data)
+
+    assert record.record_type == "catalog_record"
+    assert record.harvest_source_id == source_data_dcatus["id"]
+    assert record.harvest_job_id == job_data_dcatus["id"]
+
+
+def test_harvest_record_default_record_type_is_dataset(
+    interface,
+    organization_data,
+    source_data_dcatus,
+    job_data_dcatus,
+    record_data_dcatus,
+):
+    """Test that HarvestRecord defaults to record_type='dataset' for backward compatibility."""
+    interface.add_organization(organization_data)
+    interface.add_harvest_source(source_data_dcatus)
+    interface.add_harvest_job(job_data_dcatus)
+
+    # Create record without specifying record_type
+    record_data = record_data_dcatus[0].copy()
+    record = interface.add_harvest_record(record_data)
+
+    assert record.record_type == "dataset"
+
+
+def test_query_harvest_records_by_record_type(
+    interface,
+    organization_data,
+    source_data_dcatus,
+    job_data_dcatus,
+    record_data_dcatus,
+):
+    """Test filtering HarvestRecords by record_type."""
+    interface.add_organization(organization_data)
+    interface.add_harvest_source(source_data_dcatus)
+    interface.add_harvest_job(job_data_dcatus)
+
+    # Create dataset records
+    for i in range(3):
+        record_data = record_data_dcatus[0].copy()
+        del record_data["id"]
+        record_data["identifier"] = f"dataset-{i}"
+        record_data["record_type"] = "dataset"
+        interface.add_harvest_record(record_data)
+
+    # Create catalog_record records
+    for i in range(2):
+        record_data = record_data_dcatus[0].copy()
+        del record_data["id"]
+        record_data["identifier"] = f"catalog-record-{i}"
+        record_data["record_type"] = "catalog_record"
+        interface.add_harvest_record(record_data)
+
+    # Query for only catalog_records
+    catalog_records = interface.pget_harvest_records(
+        facets="record_type eq catalog_record"
+    )
+    assert len(catalog_records) == 2
+    for record in catalog_records:
+        assert record.record_type == "catalog_record"
+
+    # Query for only datasets
+    dataset_records = interface.pget_harvest_records(facets="record_type eq dataset")
+    assert len(dataset_records) == 3
+    for record in dataset_records:
+        assert record.record_type == "dataset"
+
+
+def test_harvest_record_with_all_record_types(
+    interface,
+    organization_data,
+    source_data_dcatus,
+    job_data_dcatus,
+    record_data_dcatus,
+):
+    """Test creating HarvestRecords with all supported record types."""
+    interface.add_organization(organization_data)
+    interface.add_harvest_source(source_data_dcatus)
+    interface.add_harvest_job(job_data_dcatus)
+
+    record_types = [
+        "dataset",
+        "catalog_record",
+        "data_service",
+        "dataset_series",
+        "catalog",
+    ]
+
+    for record_type in record_types:
+        record_data = record_data_dcatus[0].copy()
+        del record_data["id"]
+        record_data["identifier"] = f"test-{record_type}"
+        record_data["record_type"] = record_type
+        record = interface.add_harvest_record(record_data)
+        assert record.record_type == record_type
