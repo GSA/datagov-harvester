@@ -66,3 +66,5 @@ $ curl -s -H "X-API-Key: ${API_TOKEN}" \
 Looping over a file with harvest source IDs, this method can be used to
 start harvests for a large number of sources, but subject to the running
 tasks limit necessitated by our limited memory quota.
+
+<!-- queue-test-a: verifying back-to-back merges do not double-deploy (run A) -->
