@@ -1,0 +1,41 @@
+{
+  "@context": "https://project-open-data.cio.gov/v1.1/schema/catalog.jsonld",
+  "@type": "Catalog",
+  "conformsTo": "https://resources.data.gov/resources/dcat-us/",
+  "dataset": [
+    {
+      "@type": "Dataset",
+      "identifier": "dataset-001",
+      "title": "Test Dataset",
+      "description": "A test dataset for catalog record harvesting",
+      "modified": "2024-01-15",
+      "contactPoint": {
+        "fn": "Test Contact",
+        "hasEmail": "mailto:test@example.gov"
+      },
+      "publisher": {
+        "name": "Test Agency"
+      },
+      "keyword": ["test", "sample"]
+    }
+  ],
+  "record": [
+    {
+      "@type": "CatalogRecord",
+      "@id": "https://example.gov/catalog-records/record-001",
+      "modified": "2024-06-15",
+      "primaryTopic": "https://example.gov/datasets/dataset-001",
+      "title": "Catalog Record for Test Dataset",
+      "issued": ["2024-01-15"],
+      "status": "published"
+    },
+    {
+      "@type": "CatalogRecord",
+      "@id": "https://example.gov/catalog-records/record-002",
+      "modified": "2024-06-20",
+      "primaryTopic": "https://example.gov/datasets/dataset-002",
+      "title": "Another Catalog Record",
+      "description": ["Metadata about another dataset registration"]
+    }
+  ]
+}

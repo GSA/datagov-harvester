@@ -504,7 +504,16 @@ class HarvestSource:
         try:
             if self.source_type == "document":
                 if self.schema_type.startswith("dcatus"):
-                    self.external_records = download_file(self.url, ".json")["dataset"]
+                    catalog_data = download_file(self.url, ".json")
+                    # Extract datasets
+                    self.external_records = catalog_data.get("dataset", [])
+                    # Extract catalog records if present (DCAT-US 3.0)
+                    if "record" in catalog_data:
+                        catalog_records = catalog_data["record"]
+                        # Mark each catalog record with a type flag
+                        for record in catalog_records:
+                            record["_record_type"] = "catalog_record"
+                        self.external_records.extend(catalog_records)
                 elif self.schema_type.startswith("iso19115"):
                     # mimic the output of traverse_waf with a single file
                     self.external_records = [{"identifier": self.url}]
