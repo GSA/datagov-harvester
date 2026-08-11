@@ -104,17 +104,17 @@ clean: ## Cleans docker images
 sleep-5:
 	sleep 5
 
-wait-for-migrations: ## Waits for database migrations to complete
-	@echo "Waiting for migrations to complete..."
-	@for i in 1 2 3 4 5 6 7 8 9 10 11 12; do \
-		if docker compose exec -T app psql $$DATABASE_URI -c "SELECT 1 FROM organization LIMIT 1;" >/dev/null 2>&1; then \
-			echo "Migrations complete!"; \
+wait-for-migrations: ## Waits for Flask app to be ready (migrations complete)
+	@echo "Waiting for Flask app to start (migrations run before Flask starts)..."
+	@for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do \
+		if curl -sf http://localhost:8080/ >/dev/null 2>&1; then \
+			echo "Flask app is ready! Migrations completed."; \
 			exit 0; \
 		fi; \
-		echo "Waiting for migrations (attempt $$i/12)..."; \
-		sleep 5; \
+		echo "Waiting for app startup (attempt $$i/20)..."; \
+		sleep 3; \
 	done; \
-	echo "ERROR: Migrations did not complete in time"; \
+	echo "ERROR: Flask app did not start in time. Check 'docker compose logs app' for errors."; \
 	exit 1
 
 lint-check:  ## Lints wtih ruff, isort, black
