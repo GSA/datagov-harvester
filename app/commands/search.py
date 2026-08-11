@@ -21,6 +21,29 @@ search = Blueprint("search", __name__)
 OPENSEARCH_CREATE_INDEX_TIMEOUT_SECONDS = 300
 # Grep target for the skipped-id block in CI logs and task output.
 OPENSEARCH_SKIPPED_DOCUMENTS_BANNER = "SKIPPED DATASET IDS (not indexed)"
+# Grep target for the missing-id block `compare` prints when it tolerates a
+# shortfall, so the ids are findable in a cf task log after the fact.
+OPENSEARCH_MISSING_DOCUMENTS_BANNER = "MISSING DATASET IDS (not in OpenSearch)"
+
+# How many records may fail to index before a rebuild or a verification is treated
+# as broken rather than merely imperfect.
+#
+# Some upstream records simply cannot be indexed -- e.g. a dcat blob carrying an
+# empty-string key, which OpenSearch rejects with mapper_parsing_exception, so no
+# amount of retrying or rebuilding will land it. Failing the whole migration for a
+# handful of those means the migration can never complete, while accepting an
+# unbounded number would let a systemic breakage (bad mapping, cluster trouble)
+# sail through.
+#
+# An absolute count rather than a percentage: an operator knows roughly how many bad
+# records they expect, and a count says exactly what will and will not pass. A
+# percentage of a large corpus silently authorizes thousands of failures -- 1% of
+# 548k is ~5.5k -- which is far more than any known-bad backlog and enough to hide a
+# real breakage.
+#
+# Every failed id is always printed in full, so "tolerated" never means "unnoticed"
+# -- the point is to unblock the migration and fix the records afterwards.
+OPENSEARCH_MAX_FAILED_RECORDS = 50
 
 # Which cluster a command talks to. ``live`` is the cluster currently serving
 # catalog and harvester traffic; ``next`` is a replacement cluster bound
@@ -97,23 +120,27 @@ def _next_cluster_environment():
     )
     if missing:
         raise click.ClickException(
-            f"--cluster {CLUSTER_NEXT} requires " + ", ".join(missing) + ". Bind the "
-            "replacement OpenSearch service and set OPENSEARCH_NEXT_SERVICE_NAME so "
-            ".profile exports its credentials."
+            f"--cluster {CLUSTER_NEXT} requires " + ", ".join(missing) + ". Bind a "
+            "service instance named '<canonical>-next' to this app so .profile "
+            "exports its credentials (bin/provision_opensearch_cluster.sh does "
+            "this)."
         )
 
     if next_host == live_host:
         # The whole point of --cluster next is to keep load and destructive
         # operations off the live cluster. If both names resolve to the same host
         # every such command would silently hit production while reporting
-        # "next" -- so refuse rather than pretend. This is reachable in normal
-        # operation: after adopting a replacement cluster, both variables name it
-        # until OPENSEARCH_NEXT_SERVICE_NAME is unset.
+        # "next" -- so refuse rather than pretend.
+        #
+        # Now that both names are derived (`X` and `X-next` are necessarily
+        # different instances), this should be unreachable. Kept because the cost of
+        # the check is one comparison and the cost of being wrong is a destructive
+        # command run against live while the logs say otherwise.
         raise click.ClickException(
             f"OPENSEARCH_NEXT_HOST is the same host as the live cluster "
             f"({live_host}), so --cluster {CLUSTER_NEXT} would operate on live. "
-            "Unset OPENSEARCH_NEXT_SERVICE_NAME (the replacement cluster is now "
-            "the live one), or point it at a different instance."
+            "Two differently-named instances resolving to one host means a rename "
+            "went wrong; check `cf services` before retrying."
         )
 
     def _apply(values: dict):
@@ -195,8 +222,8 @@ def cluster_option(command):
         show_default=True,
         help=(
             "Which OpenSearch cluster to operate on. 'next' targets the "
-            "replacement cluster bound as OPENSEARCH_NEXT_SERVICE_NAME, leaving "
-            "the live cluster completely untouched."
+            "replacement cluster -- the bound instance named '<canonical>-next' -- "
+            "leaving the live cluster completely untouched."
         ),
     )(command)
 
@@ -309,12 +336,27 @@ def reset_opensearch_mapping():
         "command only reports, so an automated gate must pass it to actually gate."
     ),
 )
+@click.option(
+    "--max-failed-records",
+    default=OPENSEARCH_MAX_FAILED_RECORDS,
+    show_default=True,
+    type=click.IntRange(min=0),
+    help=(
+        "With --fail-on-discrepancy, how many datasets may be missing and still "
+        "pass. Keep it equal to rebuild-index's --max-failed-records, so a "
+        "rejection the rebuild tolerates does not then fail verification. Missing "
+        "ids are always printed in full. Applies only to missing documents: extra "
+        "and stale ones always fail, since neither is explained by an unindexable "
+        "record. Use 0 to require an exact match."
+    ),
+)
 @cluster_option
 def compare_opensearch(
     sample_size: int,
     update: bool,
     force_update: bool,
     fail_on_discrepancy: bool,
+    max_failed_records: int,
     cluster: str,
 ):
     """Report and optionally repair DB/OpenSearch dataset discrepancies."""
@@ -385,11 +427,45 @@ def compare_opensearch(
     # that both repaired and reported success would hide the fact that the index was
     # wrong. Checked even with --update so `compare --update --fail-on-discrepancy`
     # still surfaces anything the repair could not fix.
-    if fail_on_discrepancy and (missing or extra or updated_details):
-        raise click.ClickException(
-            f"Discrepancies found: {len(missing)} missing, {len(extra)} extra, "
-            f"{len(updated_details)} updated."
+    #
+    # Missing documents get an allowance; extra and stale ones never do. The
+    # allowance exists for records OpenSearch refuses to accept at all (an empty
+    # field name, say), which can only ever manifest as *missing*. An extra document
+    # means a delete did not happen and a stale one means an update did not, and
+    # neither has anything to do with unindexable source data -- so tolerating those
+    # would be hiding a real defect rather than accepting a known one.
+    if fail_on_discrepancy:
+        # `len(missing) <= allowed` rather than `missing and ...`: with nothing
+        # missing this must be True (there is nothing to forgive), not an empty list.
+        within_allowance = len(missing) <= max_failed_records
+        failure_summary = _describe_failures(
+            len(missing), len(db_ids), max_failed_records
         )
+
+        # Print every missing id, not just a sample, on BOTH paths: when failing they
+        # are the triage list, and when tolerated they are the backlog to fix later.
+        # Tolerated must never mean unnoticed.
+        if missing:
+            _report_document_ids(
+                OPENSEARCH_MISSING_DOCUMENTS_BANNER,
+                missing,
+                "Each id is in PostgreSQL but not in OpenSearch. A rebuild log's "
+                f"'{OPENSEARCH_SKIPPED_DOCUMENTS_BANNER}' block gives the reason "
+                "OpenSearch rejected it.",
+            )
+
+        if extra or updated_details or not within_allowance:
+            raise click.ClickException(
+                f"Discrepancies found: {len(missing)} missing, {len(extra)} extra, "
+                f"{len(updated_details)} updated"
+                + (f" ({failure_summary})" if missing else "")
+                + "."
+            )
+        if missing:
+            click.echo(
+                f"TOLERATED: {failure_summary}. Every missing id is listed above; "
+                "they are a backlog to fix, not a reason to block this migration."
+            )
 
     if force_update:
         update = True
@@ -514,6 +590,35 @@ def _rejection_details(item: dict) -> tuple[str, str, str]:
     )
 
 
+def _describe_failures(failed: int, total: int, max_failed: int) -> str:
+    """One-line "N of M failed; allowed K" summary for logs and error messages.
+
+    The percentage is reported for context only -- it is never what decides the
+    verdict, so an operator reading a log can see both the count they configured and
+    the share it represents.
+    """
+    share = (failed / total * 100) if total > 0 else 0.0
+    return (
+        f"{failed} of {total} ({share:.3f}%) failed; "
+        f"allowed up to {max_failed} record(s)"
+    )
+
+
+def _report_document_ids(banner: str, doc_ids: list, follow_up: str):
+    """Print a labelled block of dataset ids, in full and never truncated.
+
+    Separate from ``_report_skipped_documents`` because ``compare`` has only ids to
+    report -- it reads which documents are absent, not why the write failed -- while
+    a rebuild also has each rejection's error type and reason.
+    """
+    click.echo("")
+    click.echo(f"{banner} ({len(doc_ids)} total)")
+    for doc_id in sorted(doc_ids):
+        click.echo(f"  {doc_id}")
+    click.echo(f"  {follow_up}")
+    click.echo("")
+
+
 def _report_skipped_documents(errors: list):
     """Print every skipped dataset id so an admin can investigate each record.
 
@@ -554,11 +659,15 @@ def _backfill_from_postgres(
     changes, and mirrors the ``compare --force-update`` repair path. Datasets are
     read in keyset-paginated batches to bound memory on large tables.
 
-    A single malformed upstream record should not discard a whole rebuild. Up to
-    ``max_skipped`` documents that OpenSearch *rejects individually* are logged
-    and skipped; exceeding that budget aborts, because a large rejection count
-    means something systemic (bad mapping, cluster trouble) rather than dirty
-    source data. Every skipped id is reported so an admin can chase the record.
+    A malformed upstream record should not discard a whole rebuild. Documents that
+    OpenSearch *rejects individually* are logged and skipped up to ``max_skipped``;
+    exceeding that budget aborts the backfill early, because a large rejection count
+    means something systemic (bad mapping, cluster trouble) rather than dirty source
+    data. Every skipped id is reported so an admin can chase the record.
+
+    Aborting early matters on a corpus this size: once the budget is blown the
+    remaining batches cannot change the verdict, and stopping at that point saves
+    the operator the rest of a multi-hundred-thousand document write.
 
     Returns ``(indexed, failed, errors)`` where ``failed`` counts skipped
     documents and ``errors`` holds their raw rejection items.
@@ -620,20 +729,21 @@ def _backfill_from_postgres(
     help="Number of datasets read from PostgreSQL per backfill batch.",
 )
 @click.option(
-    "--max-skipped",
-    default=10,
+    "--max-failed-records",
+    default=OPENSEARCH_MAX_FAILED_RECORDS,
     show_default=True,
     type=click.IntRange(min=0),
     help=(
-        "How many individually-rejected documents to skip (with their ids "
-        "reported) before aborting the rebuild. Use 0 to fail on the first "
+        "How many records may be rejected by OpenSearch before the rebuild is "
+        "treated as failed. Set it to the number of bad records you expect. "
+        "Rejected ids are always reported in full. Use 0 to fail on the first "
         "rejection."
     ),
 )
 @cluster_option
 def rebuild_opensearch_index(
     batch_size: int,
-    max_skipped: int,
+    max_failed_records: int,
     cluster: str,
 ):
     """Rebuild the ``datasets`` index from PostgreSQL on a replacement cluster.
@@ -674,16 +784,23 @@ def rebuild_opensearch_index(
 
     db_count = db_interface.db.query(Dataset).count()
     click.echo(f"Backfilling {db_count} PostgreSQL dataset(s) into {target_index}...")
-    indexed, failed, errors = _backfill_from_postgres(
-        client, target_index, batch_size, max_skipped=max_skipped
+    click.echo(
+        f"  Tolerating up to {max_failed_records} rejected record(s) before failing."
     )
+    indexed, failed, errors = _backfill_from_postgres(
+        client, target_index, batch_size, max_skipped=max_failed_records
+    )
+    # Report before deciding: the ids are the actionable output whether or not the
+    # limit was exceeded, and on failure they are what an operator needs to triage.
     if failed:
         _report_skipped_documents(errors)
-    if failed > max_skipped:
+    if failed > max_failed_records:
         raise click.ClickException(
-            f"Backfill {OPENSEARCH_INDEX_BATCH_FAILURE_MESSAGE}: "
-            f"indexed={indexed}, failed={failed}, which exceeds "
-            f"--max-skipped={max_skipped}."
+            f"Backfill {OPENSEARCH_INDEX_BATCH_FAILURE_MESSAGE}: indexed={indexed}, "
+            f"{_describe_failures(failed, db_count, max_failed_records)}. "
+            "The ids are listed above. A rejection count this high usually means a "
+            "systemic problem (mapping or cluster) rather than dirty records. Raise "
+            "--max-failed-records only once you have checked why these were rejected."
         )
 
     # Harvesting is paused and drained before this runs, so the DB is stable, so
@@ -704,7 +821,7 @@ def rebuild_opensearch_index(
     if failed:
         click.echo(
             f"Validated {target_index}: {target_count} document(s) "
-            f"({failed} skipped)."
+            f"({_describe_failures(failed, db_count, max_failed_records)})."
         )
     else:
         click.echo(f"Validated {target_index}: {target_count} document(s).")

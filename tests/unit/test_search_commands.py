@@ -10,6 +10,7 @@ from opensearchpy.exceptions import RequestError
 from app.commands.search import (
     OPENSEARCH_CREATE_INDEX_TIMEOUT_SECONDS,
     OPENSEARCH_INDEX_BATCH_FAILURE_MESSAGE,
+    OPENSEARCH_MISSING_DOCUMENTS_BANNER,
     OPENSEARCH_SKIPPED_DOCUMENTS_BANNER,
     _is_aws_opensearch_host,
     _next_cluster_environment,
@@ -276,7 +277,7 @@ def test_compare_fails_on_discrepancy_when_asked(app):
     result = _run_compare(app, ["--fail-on-discrepancy"], **_MISMATCH)
 
     assert result.exit_code != 0
-    assert "Discrepancies found: 1 missing, 1 extra, 0 updated." in result.output
+    assert "Discrepancies found: 1 missing, 1 extra, 0 updated" in result.output
 
 
 def test_compare_succeeds_with_the_flag_when_in_sync(app):
@@ -284,6 +285,104 @@ def test_compare_succeeds_with_the_flag_when_in_sync(app):
 
     assert result.exit_code == 0
     assert "Missing in OpenSearch (should be indexed): 0" in result.output
+
+
+def test_compare_tolerates_missing_within_the_budget(app):
+    """The staging blocker of 2026-08-10: one unindexable dataset out of 547,987
+    failed the gate, so the migration could never complete -- even though
+    rebuild-index had already, correctly, tolerated that same record.
+
+    The budget makes both halves agree about what "correct" means.
+    """
+    db_rows = [(f"ok-{n}", datetime(2024, 1, 1)) for n in range(200)]
+    os_hits = [
+        {"_id": f"ok-{n}", "fields": {"last_harvested_date": ["2024-01-01T00:00:00"]}}
+        for n in range(199)
+    ]
+
+    result = _run_compare(
+        app,
+        ["--fail-on-discrepancy", "--max-failed-records", "5"],
+        db_rows=db_rows,
+        os_hits=os_hits,
+    )
+
+    # 1 missing, 5 allowed.
+    assert result.exit_code == 0, result.output
+    assert "TOLERATED" in result.output
+    assert "allowed up to 5 record(s)" in result.output
+    # The id is printed in full so it becomes a backlog item, not a silent pass.
+    assert OPENSEARCH_MISSING_DOCUMENTS_BANNER in result.output
+    assert "ok-199" in result.output
+
+
+def test_compare_fails_when_missing_exceeds_the_allowance(app):
+    """The allowance must still catch a systemic shortfall."""
+    db_rows = [(f"ok-{n}", datetime(2024, 1, 1)) for n in range(200)]
+    os_hits = [
+        {"_id": f"ok-{n}", "fields": {"last_harvested_date": ["2024-01-01T00:00:00"]}}
+        for n in range(150)
+    ]
+
+    result = _run_compare(
+        app,
+        ["--fail-on-discrepancy", "--max-failed-records", "5"],
+        db_rows=db_rows,
+        os_hits=os_hits,
+    )
+
+    assert result.exit_code != 0
+    assert "50 of 200 (25.000%) failed" in result.output
+    assert "allowed up to 5 record(s)" in result.output
+    # Every missing id is still reported, since these are the triage list.
+    assert OPENSEARCH_MISSING_DOCUMENTS_BANNER in result.output
+    assert "ok-150" in result.output
+
+
+def test_compare_allowance_boundary_is_inclusive(app):
+    """Exactly the configured number passes; one more fails. The operator sets this
+    to the count they expect, so the number they type must itself be acceptable."""
+    db_rows = [(f"ok-{n}", datetime(2024, 1, 1)) for n in range(10)]
+
+    def run(present):
+        return _run_compare(
+            app,
+            ["--fail-on-discrepancy", "--max-failed-records", "2"],
+            db_rows=db_rows,
+            os_hits=[
+                {
+                    "_id": f"ok-{n}",
+                    "fields": {"last_harvested_date": ["2024-01-01T00:00:00"]},
+                }
+                for n in range(present)
+            ],
+        )
+
+    assert run(8).exit_code == 0, "2 missing with 2 allowed must pass"
+    assert run(7).exit_code != 0, "3 missing with 2 allowed must fail"
+
+
+def test_compare_never_tolerates_extra_or_stale_documents(app):
+    """The allowance is for records OpenSearch refuses to accept, which can only show
+    up as *missing*. An extra document means a delete did not happen and a stale one
+    means an update did not -- real defects, not known-bad source data. A generous
+    allowance must not excuse either.
+    """
+    result = _run_compare(
+        app,
+        ["--fail-on-discrepancy", "--max-failed-records", "1000"],
+        db_rows=[("shared", datetime(2024, 2, 1))],
+        os_hits=[
+            {
+                "_id": "shared",
+                "fields": {"last_harvested_date": ["2024-01-01T00:00:00"]},
+            },
+            {"_id": "extra-only", "fields": {"last_harvested_date": []}},
+        ],
+    )
+
+    assert result.exit_code != 0
+    assert "1 extra" in result.output
 
 
 def test_compare_fails_on_stale_documents_too(app):
@@ -502,13 +601,13 @@ def test_rebuild_index_aborts_on_count_mismatch(app):
     assert OPENSEARCH_INDEX_BATCH_FAILURE_MESSAGE in result.output
 
 
-def test_rebuild_index_aborts_when_skipped_exceeds_budget(app):
+def test_rebuild_index_aborts_when_failures_exceed_the_allowance(app):
     client = _rebuild_client()
 
     result, _ = _run_rebuild(
         app,
         client,
-        ["--max-skipped", "0"],
+        ["--max-failed-records", "0"],
         db_count=5,
         backfill=(4, 1, [{"index": {"_id": "doomed", "error": "boom"}}]),
     )
@@ -517,6 +616,50 @@ def test_rebuild_index_aborts_when_skipped_exceeds_budget(app):
     assert OPENSEARCH_INDEX_BATCH_FAILURE_MESSAGE in result.output
     # Even on abort, the ids must be reported so they can be investigated.
     assert "doomed" in result.output
+    # The verdict states the counts, so an operator can tell "one bad record" from
+    # "the mapping is wrong" without re-reading the whole log.
+    assert "1 of 5 (20.000%) failed" in result.output
+    assert "allowed up to 0 record(s)" in result.output
+
+
+def test_rebuild_index_default_allowance_is_fifty_records(app):
+    """The default is an absolute count, independent of corpus size: the same 50
+    records whether the table holds 500 rows or 500,000. A percentage would instead
+    scale the allowance up with the corpus, silently authorizing thousands of
+    failures on a large table.
+    """
+    client = _rebuild_client(target_count=99_950)
+    rejections = [{"index": {"_id": f"bad-{n}"}} for n in range(50)]
+
+    result, _ = _run_rebuild(
+        app,
+        client,
+        [],
+        db_count=100_000,
+        backfill=(99_950, 50, rejections),
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "allowed up to 50 record(s)" in result.output
+
+
+def test_rebuild_index_default_allowance_rejects_fifty_one(app):
+    """One past the default fails, on a corpus large enough that a percentage-based
+    allowance would have waved it through."""
+    client = _rebuild_client(target_count=99_949)
+    rejections = [{"index": {"_id": f"bad-{n}"}} for n in range(51)]
+
+    result, _ = _run_rebuild(
+        app,
+        client,
+        [],
+        db_count=100_000,
+        backfill=(99_949, 51, rejections),
+    )
+
+    assert result.exit_code != 0
+    assert "51 of 100000" in result.output
+    assert "allowed up to 50 record(s)" in result.output
 
 
 def test_rebuild_index_skips_rejected_document_and_completes(app):
@@ -539,6 +682,9 @@ def test_rebuild_index_skips_rejected_document_and_completes(app):
         }
     }
 
+    # No flag needed: one rejection is inside the default allowance of 50, whatever
+    # the corpus size -- which is the practical advantage of a count over a
+    # percentage on a small table.
     result, _ = _run_rebuild(
         app,
         client,
@@ -555,7 +701,7 @@ def test_rebuild_index_skips_rejected_document_and_completes(app):
     assert "ba35e626-c015-4c15-819f-892ce8e6baa9" in result.output
     assert "mapper_parsing_exception" in result.output
     assert "field name cannot be an empty string" in result.output
-    assert "1 skipped" in result.output
+    assert "1 of 5" in result.output
 
 
 def test_rebuild_index_reports_every_skipped_id_without_truncating(app):
@@ -581,6 +727,36 @@ def test_rebuild_index_reports_every_skipped_id_without_truncating(app):
     assert result.exit_code == 0, result.output
     for n in range(6):
         assert f"dataset-{n:03d}" in result.output
+
+
+def test_rebuild_index_reports_every_skipped_id_even_when_it_fails(app):
+    """The ids are the actionable output whether or not the budget was blown --
+    on a failure they are precisely what an operator has to triage."""
+    client = _rebuild_client(target_count=94)
+    rejections = [
+        {
+            "index": {
+                "_id": f"dataset-{n:03d}",
+                "error": {"type": "mapper_parsing_exception", "reason": "failed"},
+            }
+        }
+        for n in range(6)
+    ]
+
+    result, _ = _run_rebuild(
+        app,
+        client,
+        ["--max-failed-records", "5"],
+        db_count=100,
+        backfill=(94, 6, rejections),
+    )
+
+    assert result.exit_code != 0
+    assert OPENSEARCH_SKIPPED_DOCUMENTS_BANNER in result.output
+    for n in range(6):
+        assert f"dataset-{n:03d}" in result.output
+    assert "6 of 100 (6.000%) failed" in result.output
+    assert "allowed up to 5 record(s)" in result.output
 
 
 def test_rebuild_index_validation_accounts_for_skipped_documents(app):
@@ -899,10 +1075,10 @@ def test_next_cluster_environment_restores_credentials_on_error(
 def test_next_cluster_refuses_when_it_resolves_to_the_live_host(monkeypatch):
     """The one state where `--cluster next` would silently hit production.
 
-    Reachable in normal operation: once a replacement cluster has been adopted,
-    OPENSEARCH_SERVICE_NAME and OPENSEARCH_NEXT_SERVICE_NAME both name it until
-    the latter is unset. Every `--cluster next` command would then target live
-    while reporting "next".
+    Should be unreachable now that both names are derived -- `X` and `X-next` are
+    necessarily different instances. Kept because the check costs one comparison
+    and being wrong means running a destructive command against live while the
+    logs claim otherwise.
     """
     monkeypatch.setenv("OPENSEARCH_HOST", "same.example")
     monkeypatch.setenv("OPENSEARCH_NEXT_HOST", "same.example")
@@ -912,7 +1088,7 @@ def test_next_cluster_refuses_when_it_resolves_to_the_live_host(monkeypatch):
             pytest.fail("must not yield when both names resolve to one host")
 
     assert "same host as the live cluster" in str(excinfo.value)
-    assert "OPENSEARCH_NEXT_SERVICE_NAME" in str(excinfo.value)
+    assert "a rename went wrong" in str(excinfo.value)
 
 
 def test_next_cluster_restores_when_interrupted_mid_swap(monkeypatch):
@@ -1006,9 +1182,11 @@ def test_rebuild_index_next_cluster_requires_its_credentials(
 
     assert result.exit_code != 0
     # The error has to name the variable and how to get it, since the operator
-    # is reading this out of a cf task log.
+    # is reading this out of a cf task log. The fix is binding an instance, not
+    # setting a variable, so the message must say so.
     assert missing in result.output
-    assert "OPENSEARCH_NEXT_SERVICE_NAME" in result.output
+    assert "-next" in result.output
+    assert "provision_opensearch_cluster.sh" in result.output
     # Nothing was created, deleted, or indexed anywhere.
     backfill_mock.assert_not_called()
     client.client.indices.create.assert_not_called()

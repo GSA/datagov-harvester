@@ -1,4 +1,20 @@
 name: 2 - Deploy
+
+# Release `main` to staging, then prod, rebuilding the OpenSearch index in each space
+# when a merged PR asked for it.
+#
+#   detect the "force re-index recommended" label across this push
+#     -> refuse early if a replacement cluster is already lying around
+#     -> staging: create services, push, wait for the rollout, then reindex
+#     -> prod:    the same, and only after staging finished completely
+#
+# THE WHOLE RUN IS ONE QUEUED UNIT. A second merge waits for all of it -- both
+# deploys and both reindexes -- rather than pushing into a space mid-migration.
+#
+# The per-space pipeline itself lives in release-space.yml, shared with the
+# `develop` -> development path in commit.yml, so all three spaces run identical
+# logic. See docs/ops/migrate-opensearch-cluster.md.
+
 on:
   push:
     branches:
@@ -6,114 +22,216 @@ on:
   workflow_dispatch:
     inputs:
       version_no:
-        description: 'Release Version:'
-        required: true
+        # Optional: nothing in this workflow reads it, and making it required forced
+        # an operator to invent a value just to use the reindex override below.
+        description: "Release version (informational only)"
+        required: false
+      reindex:
+        description: "auto = detect the label; force = reindex regardless; skip = deploy only"
+        required: false
+        default: auto
+        type: choice
+        options:
+          - auto
+          - force
+          - skip
+      dry_run:
+        description: "Print the reindex inputs instead of running it (no cluster is touched)"
+        required: false
+        default: false
+        type: boolean
 
 # default minimal permissions for every job
 permissions:
-    contents: read
+  contents: read
 
-env:
-  PY_VERSION: "3.12.13"
-  POETRY_VERSION: "latest"
+# ONE queue for the entire release, at WORKFLOW level because this run spans two
+# spaces: the hold has to cover the staging call *and* the prod call. A job-level
+# group on each call would be released in between, letting a second merge's staging
+# deploy slip into the gap. This workflow contains no CI jobs, so a workflow-level
+# hold costs nothing. (commit.yml deliberately does the opposite -- see there.)
+#
+# `cancel-in-progress: false` because a run may be mid-promote, and cancelling
+# between the two `cf rename-service` calls would leave the canonical name
+# unresolvable and every new container start failing .profile's empty-host guard.
+#
+# Note the default `queue: single`: only one run can be pending, and a third merge
+# CANCELS the pending one. That is right for deploys (you want the newest code) but it
+# would drop a reindex obligation, which is why detect-reindex measures from the last
+# *successful* run rather than from this push's own range.
+#
+# CRITICAL: never make this `opensearch-maintenance-*`. release-space.yml's reindex job
+# calls migrate_opensearch_cluster.yml, which takes that group at its own workflow
+# level; a workflow-level hold here would make the grandchild queue behind its own
+# ancestor forever. The same trap is documented at
+# migrate_opensearch_cluster.yml:190-194. The cf-touching jobs inside release-space.yml
+# take the maintenance group at JOB level instead, which is released when each job
+# ends -- measured 2026-08-11 with a purpose-built probe. If that ever regresses the
+# symptom is a run stuck in "Queued" forever.
+concurrency:
+  group: release-main
+  cancel-in-progress: false
 
 jobs:
-  create-cloudgov-services-staging:
-    name: create services (staging)
-    environment: staging
-    runs-on: ubuntu-latest
-    steps:
-      - name: checkout
-        uses: actions/checkout@v7
-      - name: create services
-        uses: cloud-gov/cg-cli-tools@main
-        with:
-          command: bash create_cloudgov_services.sh
-          cf_org: gsa-datagov
-          cf_space: staging
-          cf_username: ${{secrets.CF_SERVICE_USER}}
-          cf_password: ${{secrets.CF_SERVICE_AUTH}}
-
-  create-cloudgov-services-prod:
-    name: create services (prod)
-    environment: prod
-    runs-on: ubuntu-latest
-    steps:
-      - name: checkout
-        uses: actions/checkout@v7
-      - name: create services
-        uses: cloud-gov/cg-cli-tools@main
-        with:
-          command: bash create_cloudgov_services.sh
-          cf_org: gsa-datagov
-          cf_space: prod
-          cf_username: ${{secrets.CF_SERVICE_USER}}
-          cf_password: ${{secrets.CF_SERVICE_AUTH}}
-
-  deploy-staging:
-    name: deploy (staging)
-    needs:
-      - create-cloudgov-services-staging
-    environment: staging
-    runs-on: ubuntu-latest
+  # --- decide whether this push owes a reindex -------------------------------
+  #
+  # In the caller, not in release-space.yml: a called workflow has no run history of
+  # its own to draw a watermark from, and detection must happen once per release
+  # rather than once per space.
+  detect-reindex:
+    name: Detect reindex label
+    # A called workflow can only NARROW the caller's GITHUB_TOKEN, never elevate it,
+    # and this workflow's top-level `permissions` is `contents: read`. Without granting
+    # these here the called job's own `permissions:` block asks for more than it can
+    # ever be given, and the whole run fails at startup with no log.
     permissions:
-      actions: write
       contents: read
-    steps:
-      - name: Check out the code
-        uses: actions/checkout@v7
-      - name: Deploy via composite action
-        uses: ./.github/actions/deploy
-        with:
-          cf_space: staging
-          python-version: ${{ env.PY_VERSION }}
-          poetry-version: ${{ env.POETRY_VERSION }}
-          cf_username: ${{ secrets.CF_SERVICE_USER }}
-          cf_password: ${{ secrets.CF_SERVICE_AUTH }}
+      pull-requests: read
+      actions: read
+    uses: ./.github/workflows/detect-reindex.yml
+    with:
+      # This file, and the branch it deploys from -- the watermark is this workflow's
+      # own last successful run.
+      workflow_file: deploy.yml
+      branch: main
+      reindex_mode: ${{ inputs.reindex || 'auto' }}
+      spaces: staging and then prod
+    secrets: inherit
 
-  deploy-prod:
-    name: deploy (prod)
-    needs:
-      - create-cloudgov-services-prod
-      - deploy-staging
-    environment: prod
+  # --- refuse in 30 seconds rather than 3 hours -----------------------------
+  #
+  # provision_opensearch_cluster.sh refuses an existing `<canonical>-next`, because two
+  # rebuilds writing into one cluster interleave into a corrupt index. Without this
+  # check that refusal surfaces only after staging has already migrated and promoted --
+  # hours in, with staging ahead of prod.
+  #
+  # Deliberately NOT inside release-space.yml: there it would only check prod after
+  # staging had already finished, which defeats the point.
+  preflight-clusters:
+    name: Preflight ${{ matrix.environ }}
+    needs: detect-reindex
+    if: needs.detect-reindex.outputs.reindex_needed == 'true'
     runs-on: ubuntu-latest
-    permissions:
-      actions: write
-      contents: read
-    steps:
-      - name: Check out the code
-        uses: actions/checkout@v7
-      - name: Deploy via composite action
-        uses: ./.github/actions/deploy
-        with:
-          cf_space: prod
-          python-version: ${{ env.PY_VERSION }}
-          poetry-version: ${{ env.POETRY_VERSION }}
-          cf_username: ${{ secrets.CF_SERVICE_USER }}
-          cf_password: ${{ secrets.CF_SERVICE_AUTH }}
-
-  network-policies:
-    name: Add network-policies
-    needs:
-      - deploy-staging
-      - deploy-prod
-    runs-on: ubuntu-latest
+    timeout-minutes: 10
     environment: ${{ matrix.environ }}
     strategy:
-      fail-fast: false
+      fail-fast: true
       matrix:
-        command: [
-          "cf add-network-policy datagov-harvest-proxy datagov-harvest --protocol tcp --port 61443",
-          "cf add-network-policy datagov-harvest mdtranslator --protocol tcp --port 8080"
-        ]
         environ: ["staging", "prod"]
+    concurrency:
+      group: opensearch-maintenance-${{ matrix.environ }}
+      cancel-in-progress: false
     steps:
-      - name: Add network policy
+      - name: Check out the code
+        uses: actions/checkout@v7
+
+      - name: Refuse if a replacement cluster already exists
         uses: cloud-gov/cg-cli-tools@main
         with:
-          command: ${{ matrix.command }}
+          command: >
+            bash -c 'if cf service datagov-catalog-opensearch-next >/dev/null 2>&1;
+            then echo "datagov-catalog-opensearch-next already exists in ${{ matrix.environ }}." >&2;
+            echo "A migration is in flight, parked, or failed partway. Finish or delete it" >&2;
+            echo "before merging another reindex:" >&2;
+            echo "  bin/delete_opensearch_cluster.sh datagov-catalog-opensearch-next datagov-harvest datagov-catalog" >&2;
+            exit 1; else echo "No leftover replacement cluster in ${{ matrix.environ }}."; fi'
           cf_org: gsa-datagov
           cf_space: ${{ matrix.environ }}
-          cf_username: ${{secrets.CF_SERVICE_USER}}
-          cf_password: ${{secrets.CF_SERVICE_AUTH}}
+          cf_username: ${{ secrets.CF_SERVICE_USER }}
+          cf_password: ${{ secrets.CF_SERVICE_AUTH }}
+
+  # --- staging ---------------------------------------------------------------
+  release-staging:
+    name: staging
+    needs: [detect-reindex, preflight-clusters]
+    # preflight-clusters is skipped when no reindex is needed, and a job whose needs
+    # were skipped is itself skipped before its `if:` runs -- hence the explicit result
+    # check rather than relying on defaults.
+    if: >-
+      ${{ !cancelled()
+      && needs.detect-reindex.result == 'success'
+      && contains(fromJson('["success","skipped"]'), needs.preflight-clusters.result) }}
+    # release-space.yml needs nothing beyond `contents: read` -- it authenticates to
+    # Cloud Foundry with CF credentials, not GITHUB_TOKEN.
+    permissions:
+      contents: read
+    uses: ./.github/workflows/release-space.yml
+    with:
+      space: staging
+      reindex: ${{ needs.detect-reindex.outputs.reindex_needed == 'true' }}
+      dry_run: ${{ inputs.dry_run || false }}
+      # Delete a failed replacement so the next labelled merge is not blocked by
+      # provisioning refusing a leftover instance.
+      on_build_failure: delete
+      # Unattended, so drain-then-kill rather than waiting 2h and failing.
+      force_kill_running_jobs: true
+    secrets: inherit
+
+  # --- prod ------------------------------------------------------------------
+  release-prod:
+    name: prod
+    needs: [detect-reindex, preflight-clusters, release-staging]
+    # Only after staging finished COMPLETELY -- deploy, rollout and any reindex.
+    # `!cancelled()` rather than `always()`: a cancelled pipeline must not go on to
+    # deploy prod.
+    if: >-
+      ${{ !cancelled()
+      && needs.detect-reindex.result == 'success'
+      && contains(fromJson('["success","skipped"]'), needs.preflight-clusters.result)
+      && needs.release-staging.result == 'success' }}
+    # See release-staging: `contents: read` is all the callee needs.
+    permissions:
+      contents: read
+    uses: ./.github/workflows/release-space.yml
+    with:
+      space: prod
+      reindex: ${{ needs.detect-reindex.outputs.reindex_needed == 'true' }}
+      dry_run: ${{ inputs.dry_run || false }}
+      # Keep a failed prod replacement: an es-large provision takes hours, and
+      # `explain-resume` prints the `start_at: rebuild` command to resume it.
+      on_build_failure: keep
+      # NOT force-killed in prod: prod harvest jobs are long, and cancelling them
+      # unattended is worse than failing loudly with the live cluster untouched.
+      force_kill_running_jobs: false
+    secrets: inherit
+
+  # --- an owed reindex must never be silent ---------------------------------
+  #
+  # Second layer behind the watermark: if this run decided a reindex was needed and did
+  # not finish one, say so somewhere durable. The watermark only advances on a
+  # successful run, so the obligation is still detectable -- but an issue makes it
+  # visible to a human rather than only to the next run.
+  reindex-owed:
+    name: Report an owed reindex
+    needs: [detect-reindex, release-staging, release-prod]
+    if: >-
+      ${{ always()
+      && needs.detect-reindex.outputs.reindex_needed == 'true'
+      && !(inputs.dry_run || false)
+      && (needs.release-staging.result != 'success'
+      || needs.release-prod.result != 'success') }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v7
+      - name: Open or update the tracking issue
+        uses: JasonEtco/create-an-issue@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.ADD_TO_PROJECT_PAT }}
+          PR_NUMBERS: ${{ needs.detect-reindex.outputs.pr_numbers }}
+          # The path is in the issue TITLE, and create-an-issue matches on title, so
+          # this is what keeps a develop failure from overwriting an open prod one.
+          RELEASE_PATH: main -> staging + prod
+          WORKFLOW_NAME: 2 - Deploy
+          SPACE_RESULTS: >-
+            staging=${{ needs.release-staging.result }},
+            prod=${{ needs.release-prod.result }}
+          RUN_ID: ${{ github.run_id }}
+          REPO: ${{ github.repository }}
+          LAST_COMMIT: ${{ github.sha }}
+        with:
+          filename: .github/reindex_owed.md
+          update_existing: true

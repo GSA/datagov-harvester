@@ -101,6 +101,80 @@ on:
         required: false
         default: "3"
         type: string
+      max_failed_records:
+        description: >-
+          How many records may fail to index and still pass. Set it to the number of
+          bad records you expect. Some are unindexable (e.g. an empty JSON key) and
+          no rebuild will ever land them; every failed id is logged in full. Used by
+          the rebuild AND both verifications, which must agree. 0 = require exact.
+        required: false
+        default: "50"
+        type: string
+
+  # Called by release-space.yml, the per-space release pipeline, which rebuilds the
+  # index after a space deploys when a merged PR carried `force re-index recommended`.
+  # That in turn is called by commit.yml (development) and deploy.yml (staging, prod).
+  #
+  # Identical `inputs.*` context to workflow_dispatch above, so every job below is
+  # reached unmodified and a label-triggered run behaves exactly like a hand-dispatched
+  # one. `choice` is not a legal workflow_call type, so those inputs are plain strings;
+  # the `plan` job validates them either way.
+  #
+  # The caller must use `secrets: inherit` and must NOT declare a job-level
+  # `concurrency:` matching this workflow's group -- see the note on the concurrency
+  # block below.
+  workflow_call:
+    inputs:
+      environment:
+        required: true
+        type: string
+      start_at:
+        required: false
+        default: provision
+        type: string
+      stop_after:
+        required: false
+        default: decommission
+        type: string
+      next_service_name:
+        required: false
+        default: datagov-catalog-opensearch-next
+        type: string
+      canonical_service_name:
+        required: false
+        default: datagov-catalog-opensearch
+        type: string
+      next_plan:
+        required: false
+        default: ""
+        type: string
+      force_kill_running_jobs:
+        required: false
+        default: false
+        type: boolean
+      keep_old_cluster:
+        required: false
+        default: false
+        type: boolean
+      on_build_failure:
+        required: false
+        default: delete
+        type: string
+      max_tasks:
+        required: false
+        default: "3"
+        type: string
+      max_failed_records:
+        required: false
+        default: "50"
+        type: string
+    # Deliberately no `secrets:` block. CF_SERVICE_USER/CF_SERVICE_AUTH exist only as
+    # *environment* secrets (staging/prod/development), never at repo level, and every
+    # job that runs a cf command already declares `environment: ${{ inputs.environment }}`
+    # and resolves them from there. Declaring them here would let the caller pass an
+    # empty value for a name that must resolve per-environment. Omitting the block
+    # means the caller uses `secrets: inherit` and secret resolution is byte-for-byte
+    # what it will be under workflow_dispatch after merge.
 
 permissions:
   contents: read
@@ -117,6 +191,14 @@ permissions:
 # were it callable, it holds this same group and would queue behind its own parent
 # forever. The rebuild steps are inlined below instead. Calling toggle_harvester.yml
 # IS safe -- it uses a different group.
+#
+# The same rule constrains every ancestor in the chain
+# (commit.yml | deploy.yml) -> release-space.yml -> here -> toggle_harvester.yml.
+# release-space.yml holds NO workflow-level group and takes
+# `opensearch-maintenance-<space>` only on individual JOBS, so the group is free by the
+# time this workflow needs it; the release queues above it are named `release-develop`
+# and `release-main` precisely so they cannot collide with this one. A workflow-level
+# hold on this group anywhere above would deadlock this child against its own ancestor.
 concurrency:
   group: opensearch-maintenance-${{ inputs.environment }}
   cancel-in-progress: false
@@ -140,6 +222,7 @@ jobs:
           START_AT: ${{ inputs.start_at }}
           STOP_AFTER: ${{ inputs.stop_after }}
           KEEP_OLD: ${{ inputs.keep_old_cluster }}
+          MAX_FAILED_RECORDS: ${{ inputs.max_failed_records }}
         run: |
           # These reach a cf command line, so constrain them to CF-legal names
           # rather than trusting free-text workflow input.
@@ -154,6 +237,23 @@ jobs:
           if [[ -n "$NEXT_PLAN" && ! "$NEXT_PLAN" =~ ^[a-zA-Z0-9._-]+$ ]]; then
             echo "::error::next_plan must match [a-zA-Z0-9._-]+ (got: '$NEXT_PLAN')."
             exit 1
+          fi
+          # This one is interpolated into a `cf run-task --command "..."` string, so
+          # it must be a bare integer: anything else could close the quote and append
+          # a command. Click also range-checks it, but that is after the injection.
+          if [[ ! "$MAX_FAILED_RECORDS" =~ ^[0-9]+$ ]]; then
+            echo "::error::max_failed_records must be a non-negative whole number" \
+                 "(got: '$MAX_FAILED_RECORDS')."
+            exit 1
+          fi
+          # Advisory only. A large allowance is legitimate on a big corpus with a
+          # known backlog, so this warns rather than refuses -- but a value this size
+          # is worth a second look, since it can mask a systemic indexing failure.
+          if [[ "$MAX_FAILED_RECORDS" -gt 5000 ]]; then
+            echo "::warning::max_failed_records=${MAX_FAILED_RECORDS} is high." \
+                 "A number this large can hide a systemic indexing failure rather" \
+                 "than a handful of known-bad records. Every failed id is logged;" \
+                 "check them before trusting the promoted cluster."
           fi
           if [[ "$NEXT_SERVICE" == "$CANONICAL_SERVICE" ]]; then
             echo "::error::next_service_name and canonical_service_name are both" \
@@ -263,7 +363,8 @@ jobs:
         with:
           command: >
             cf run-task datagov-harvest --name "$REBUILD_TASK" -k 4G -m 2G
-            --command "flask search rebuild-index --cluster next"
+            --command "flask search rebuild-index --cluster next
+            --max-failed-records ${{ inputs.max_failed_records }}"
           cf_org: gsa-datagov
           cf_space: ${{ env.CF_SPACE }}
           cf_username: ${{ secrets.CF_SERVICE_USER }}
@@ -285,13 +386,20 @@ jobs:
       # gate: without it `compare` only reports and exits 0, so an unverified cluster
       # would sail through. monitor_cf_logs.sh turns the task's exit status into this
       # step's, so a discrepancy stops the run with the live cluster still serving.
+      #
+      # --max-failed-records must match the rebuild's, or the gate rejects exactly
+      # the records the rebuild was designed to tolerate -- which is what blocked
+      # staging on 2026-08-10 over a single unindexable dataset. Both read the one
+      # workflow input for that reason. Missing ids are printed in full either way,
+      # so a tolerated shortfall is still visible in this step's log.
       - name: Verify the replacement cluster matches PostgreSQL
         if: needs.plan.outputs.do_rebuild == 'true'
         uses: cloud-gov/cg-cli-tools@main
         with:
           command: >
             cf run-task datagov-harvest --name "$VERIFY_NEXT_TASK" -k 2G -m 3G
-            --command "flask search compare --cluster next --fail-on-discrepancy"
+            --command "flask search compare --cluster next --fail-on-discrepancy
+            --max-failed-records ${{ inputs.max_failed_records }}"
           cf_org: gsa-datagov
           cf_space: ${{ env.CF_SPACE }}
           cf_username: ${{ secrets.CF_SERVICE_USER }}
@@ -352,7 +460,13 @@ jobs:
   teardown-replacement:
     name: Delete the half-built replacement cluster
     needs: [plan, build]
-    if: needs.build.result == 'failure' && inputs.on_build_failure == 'delete'
+    # `always() &&` is required, not stylistic. A job whose `needs` failed is skipped
+    # before its `if:` is evaluated at all, so without this the condition below is
+    # unreachable in exactly the case it exists to handle -- verified in staging
+    # 2026-08-10, where a failed build skipped both this job and explain-resume and
+    # leaked the replacement cluster. `needs.build.result == 'failure'` still keeps
+    # this narrower than `failure()`: it does not fire when build never ran.
+    if: always() && needs.build.result == 'failure' && inputs.on_build_failure == 'delete'
     runs-on: ubuntu-latest
     timeout-minutes: 60
     environment: ${{ inputs.environment }}
@@ -371,24 +485,18 @@ jobs:
           cf_username: ${{ secrets.CF_SERVICE_USER }}
           cf_password: ${{ secrets.CF_SERVICE_AUTH }}
 
-      - name: Clear the harvester's replacement-cluster pointer
-        uses: cloud-gov/cg-cli-tools@main
-        with:
-          # Left set, .profile would export credentials for a deleted instance and
-          # `--cluster next` would fail confusingly on the next attempt.
-          command: >
-            cf unset-env datagov-harvest OPENSEARCH_NEXT_SERVICE_NAME
-          cf_org: gsa-datagov
-          cf_space: ${{ inputs.environment }}
-          cf_username: ${{ secrets.CF_SERVICE_USER }}
-          cf_password: ${{ secrets.CF_SERVICE_AUTH }}
+      # No pointer to clear. .profile derives the replacement's name from the
+      # canonical one and resolves it only if an instance by that name is bound, so
+      # deleting the instance above is the whole cleanup.
 
   # Say how to resume when the replacement cluster was deliberately kept, so the hours
   # already spent provisioning are not silently wasted.
   explain-resume:
     name: Explain how to resume
     needs: [plan, build]
-    if: needs.build.result == 'failure' && inputs.on_build_failure == 'keep'
+    # See teardown-replacement: without `always() &&` a failed `build` skips this job
+    # before the condition is read, so the resume instructions never appear.
+    if: always() && needs.build.result == 'failure' && inputs.on_build_failure == 'keep'
     runs-on: ubuntu-latest
     steps:
       - name: Write the resume command
@@ -398,8 +506,10 @@ jobs:
           {
             echo "### Build failed; \`$NEXT_SERVICE\` was kept"
             echo
-            echo "The live cluster was never touched. Provisioning is idempotent, so"
-            echo "re-dispatch with the following to retry without rebuilding the cluster:"
+            echo "The live cluster was never touched. \`start_at: rebuild\` skips"
+            echo "provisioning entirely, so re-dispatch with the following to retry"
+            echo "against the cluster that already exists (starting from"
+            echo "\`provision\` would now refuse, since the instance is still there):"
             echo
             echo '```'
             echo "start_at: rebuild"
@@ -460,7 +570,8 @@ jobs:
           # Now that the promotion is done, `live` IS the new cluster.
           command: >
             cf run-task datagov-harvest --name "$VERIFY_LIVE_TASK" -k 2G -m 3G
-            --command "flask search compare --cluster live --fail-on-discrepancy"
+            --command "flask search compare --cluster live --fail-on-discrepancy
+            --max-failed-records ${{ inputs.max_failed_records }}"
           cf_org: gsa-datagov
           cf_space: ${{ env.CF_SPACE }}
           cf_username: ${{ secrets.CF_SERVICE_USER }}
@@ -474,6 +585,71 @@ jobs:
           cf_space: ${{ env.CF_SPACE }}
           cf_username: ${{ secrets.CF_SERVICE_USER }}
           cf_password: ${{ secrets.CF_SERVICE_AUTH }}
+
+      # The only check here that exercises the READER rather than the writer.
+      #
+      # Everything above verifies the harvester's view: it wrote the documents and it
+      # counted them. But catalog is a separate app in a separate repo, and two things
+      # can leave it broken after a promote that nothing else here would notice:
+      # its `.profile` sets no_proxy to `.apps.internal` only, so its OpenSearch
+      # traffic goes through the egress proxy and a brand-new cluster hostname may not
+      # be allowlisted; and if catalog runs code expecting the previous document shape
+      # the results are wrong rather than absent.
+      #
+      # An empty result set for a common term after a successful promote means one of
+      # those happened. Warns rather than fails: the migration itself succeeded, the
+      # renames are correct, and rolling back on a possibly-flaky HTTP probe would be
+      # worse than reporting it. Never fails the job -- `|| true` on the whole step.
+      - name: Check catalog can still search the promoted cluster
+        continue-on-error: true
+        env:
+          # Mirrors CATALOG_BASE_URL in vars.<space>.yml. Not read from the file
+          # because this step runs on the runner, not in a cf container.
+          ENVIRONMENT: ${{ inputs.environment }}
+        run: |
+          case "$ENVIRONMENT" in
+            prod)        CATALOG_URL=https://catalog.data.gov ;;
+            staging)     CATALOG_URL=https://catalog-stage.data.gov ;;
+            development) CATALOG_URL=https://catalog-dev.data.gov ;;
+            *)
+              echo "::notice::No catalog URL known for '${ENVIRONMENT}'; skipping the probe."
+              exit 0
+              ;;
+          esac
+          # `/search` (verified against catalog.data.gov) returns JSON shaped
+          # {"results":[...],"sort":...} -- 20 entries for a common term, and an empty
+          # array for no matches. Note it is NOT /api/search, which 404s.
+          #
+          # -L because /dataset redirects; basic auth guards the non-prod routes, so a
+          # 401 there is expected and is not evidence of a search problem.
+          code=$(curl -sL -o /tmp/catalog-probe -w '%{http_code}' \
+            "${CATALOG_URL}/search?q=water" || echo "000")
+          echo "catalog probe: HTTP ${code} from ${CATALOG_URL}/search?q=water"
+          case "$code" in
+            200)
+              hits=$(jq '.results | length' /tmp/catalog-probe 2>/dev/null || echo "unknown")
+              echo "  catalog returned ${hits} result(s)."
+              if [[ "$hits" == "0" ]]; then
+                echo "::warning::catalog returned ZERO results for a common term right after" \
+                     "the promote. Check (1) whether the new cluster hostname is allowlisted on" \
+                     "catalog's egress proxy, and (2) whether catalog is running code that" \
+                     "matches this cluster's document shape -- a shape mismatch produces wrong" \
+                     "results and is invisible to 'flask search compare'."
+              elif [[ "$hits" == "unknown" ]]; then
+                echo "::notice::could not parse catalog's response; search health not verified."
+              else
+                echo "  catalog can read the promoted cluster."
+              fi
+              ;;
+            401|403)
+              echo "::notice::catalog probe got ${code} (basic auth); search health not verified" \
+                   "from here. Confirm manually with credentials."
+              ;;
+            *)
+              echo "::warning::catalog probe got ${code}; could not verify that catalog can" \
+                   "read the promoted cluster. Check it before trusting this migration."
+              ;;
+          esac
 
   # Deleting the replaced cluster is its own job, not a final step of `promote`.
   #
@@ -581,6 +757,13 @@ jobs:
               skipped) summary="${summary} The replaced cluster was kept." ;;
               *)       summary="${summary} NOTE: deleting the replaced cluster did not complete (${DECOMMISSION_RESULT}); it is still provisioned and billing." ;;
             esac
+            # Said on every promote, because this is the one failure mode nothing in
+            # this repo can detect: the harvester now writes whatever document shape
+            # the deployed code produces, and if datagov-catalog is still running
+            # older code expecting the previous shape, search silently returns wrong
+            # results. `compare` compares id sets and last_harvested_date only -- it
+            # never inspects a document's fields -- so both verification gates pass.
+            summary="${summary} CONFIRM datagov-catalog is running code that matches this cluster's mapping: a mismatch is SILENT, not a failed check."
           elif [[ "$BUILD_RESULT" == "success" && "$PROMOTE_RESULT" == "skipped" ]]; then
             summary="OpenSearch migration in ${ENVIRONMENT} by ${ACTOR}: ${NEXT_SERVICE} is built and PARKED. No app was moved; re-dispatch with start_at=cutover to finish."
           elif [[ "$PROMOTE_RESULT" == "failure" ]]; then

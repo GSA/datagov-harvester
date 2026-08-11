@@ -184,6 +184,11 @@ Github workflows automatically deploy:
  - to the `development` space when the `develop` branch is updated
  - to `staging` and `prod` when the `main` branch is updated
 
+Both paths share one per-space pipeline (`.github/workflows/release-space.yml`), and each
+is serialized so a second merge waits rather than pushing into a space mid-release. If a
+merged PR carries the **`force re-index recommended`** label, the OpenSearch index is
+also rebuilt in each space after it deploys — see [docs/ops/migrate-opensearch-cluster.md](ops/migrate-opensearch-cluster.md#automatic-reindex-on-merge).
+
 Data.gov team members can deploy to `development` from the command line. The remainder of this document provides background on the Cloud.gov configuration.
 
 *Warning: this documentation has not been tested recently!*
@@ -209,7 +214,7 @@ Alternately, you can just push the app up and it will bind with the services so 
 
 The harvester also expects an OpenSearch service named `datagov-catalog-opensearch`. The provisioning script creates it with Cloud.gov's `aws-elasticsearch` broker and requests `OpenSearch_2.11`, using `es-medium` in development and `es-medium-ha` in staging and `es-large` in production.
 
-The cluster is shared with `datagov-catalog`, which binds the same instance and is the main read consumer — hence the catalog-flavored name. Rather than hardcoding it, `.profile` resolves the live instance *by name* from `OPENSEARCH_SERVICE_NAME` (defaulting to `datagov-catalog-opensearch`), and exports a second set of `OPENSEARCH_NEXT_*` credentials when `OPENSEARCH_NEXT_SERVICE_NAME` names another bound instance. That lets `flask search rebuild-index --cluster next` rebuild the index on a replacement cluster without loading the live one, and makes moving to that cluster a `cf set-env` plus a rolling restart. Note the broker cannot change an instance's plan, so a new instance is the only way to resize. See [docs/ops/migrate-opensearch-cluster.md](ops/migrate-opensearch-cluster.md).
+The cluster is shared with `datagov-catalog`, which binds the same instance and is the main read consumer — hence the catalog-flavored name. `.profile` resolves the live instance by the name in `OPENSEARCH_SERVICE_NAME` (defaulting to `datagov-catalog-opensearch`), and exports a second set of `OPENSEARCH_NEXT_*` credentials from `<canonical>-next` whenever an instance by that name is bound. That lets `flask search rebuild-index --cluster next` rebuild the index on a replacement cluster without loading the live one; binding is the only step, since the rebuild runs as a `cf run-task` and a task reads current bindings at start. Moving *to* that cluster is then a `cf rename-service` plus a rolling restart of each app. Note the broker cannot change an instance's plan, so a new instance is the only way to resize. See [docs/ops/migrate-opensearch-cluster.md](ops/migrate-opensearch-cluster.md).
 
 #### User provided
 

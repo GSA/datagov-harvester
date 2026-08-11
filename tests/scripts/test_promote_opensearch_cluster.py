@@ -162,9 +162,10 @@ def test_promote_moves_apps_and_renames_in_the_safe_order(tmp_path):
         "restart datagov-harvest --strategy rolling",
         # 4. then the reader
         "restart datagov-catalog --strategy rolling",
-        # 5. housekeeping, deliberately last and off the critical path
-        "unset-env datagov-harvest OPENSEARCH_NEXT_SERVICE_NAME",
     ]
+    # No fifth step: the replacement pointer retires itself. .profile derives the
+    # name as "<canonical>-next", and step 2 renamed that instance away, so there is
+    # no longer anything by that name to resolve.
 
 
 def test_promote_never_repoints_an_app_with_set_env(tmp_path):
@@ -209,13 +210,21 @@ def test_promote_restarts_both_apps_after_the_rename(tmp_path):
     assert "--no-wait" not in calls
 
 
-def test_promote_clears_the_replacement_pointer_last(tmp_path):
-    """OPENSEARCH_NEXT_SERVICE_NAME now names what just became live, and
-    `--cluster next` refuses to run when next and live are the same host."""
-    _, calls = _run_promote(tmp_path, NEXT, CANONICAL)
+def test_promote_leaves_no_replacement_pointer_to_clear(tmp_path):
+    """The rename retires the replacement pointer by itself.
 
-    mutations = _mutating_calls(calls)
-    assert mutations[-1] == "unset-env datagov-harvest OPENSEARCH_NEXT_SERVICE_NAME"
+    This used to `cf unset-env OPENSEARCH_NEXT_SERVICE_NAME`, because that variable
+    still named the instance step 2 had just renamed to canonical -- leaving `next`
+    and `live` on one host. With the name derived as "<canonical>-next", step 2
+    removes the only instance that could match, so `--cluster next` correctly finds
+    nothing bound and there is no state left to tidy.
+    """
+    result, calls = _run_promote(tmp_path, NEXT, CANONICAL)
+
+    assert result.returncode == 0, result.stderr
+    # The last mutation is the final restart -- no housekeeping tail.
+    assert _mutating_calls(calls)[-1] == "restart datagov-catalog --strategy rolling"
+    assert "unset-env" not in calls
 
 
 def test_promote_refuses_when_the_harvester_is_pinned_elsewhere(tmp_path):

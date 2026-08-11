@@ -26,3 +26,31 @@ cf_env_value () {
       END { if (found) print value }
     '
 }
+
+# Read one credential out of an app's binding to a service instance.
+#
+# Reads the binding itself via the API rather than the container's VCAP_SERVICES,
+# so it works without `cf ssh` and without restarting the app -- which matters
+# because the caller uses it to decide whether a restart would even be useful.
+#
+# Usage: cf_binding_credential <app_name> <service_instance> <credential_key>
+# Prints the value, or nothing when the binding or key is absent/empty.
+cf_binding_credential () {
+  local app_name service_name key binding_guid
+  app_name="$1"
+  service_name="$2"
+  key="$3"
+
+  binding_guid=$(
+    cf curl "/v3/service_credential_bindings?app_names=${app_name}&service_instance_names=${service_name}" |
+      jq -r '.resources[0].guid // empty'
+  )
+  if [[ -z "$binding_guid" ]]; then
+    return 0
+  fi
+
+  # `// empty` collapses both a missing key and a JSON null to no output; the
+  # caller only cares whether it got a usable value.
+  cf curl "/v3/service_credential_bindings/${binding_guid}/details" |
+    jq -r --arg key "$key" '.credentials[$key] // empty'
+}

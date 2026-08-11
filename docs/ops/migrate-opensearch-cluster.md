@@ -29,9 +29,19 @@ not the plan), so a bigger cluster necessarily means a new instance.
   credentials from the *bound service instance of this name*, defaulting to
   `datagov-catalog-opensearch`. Cutover flips this variable. Rollback flips it
   back. Nothing else changes.
-- **`OPENSEARCH_NEXT_SERVICE_NAME`** — names a second bound instance. When set,
-  `.profile` also exports `OPENSEARCH_NEXT_HOST`, `OPENSEARCH_NEXT_ACCESS_KEY`,
-  and `OPENSEARCH_NEXT_SECRET_KEY`.
+- **The replacement cluster is `<canonical>-next`** — a fixed name, derived by
+  `.profile` from `OPENSEARCH_SERVICE_NAME`, exactly like `-db` and `-secrets`.
+  Nothing sets it: **binding an instance by that name is the entire handoff.**
+  When one is bound, `.profile` exports `OPENSEARCH_NEXT_HOST`,
+  `OPENSEARCH_NEXT_ACCESS_KEY`, and `OPENSEARCH_NEXT_SECRET_KEY`; when none is,
+  those stay empty and `--cluster next` fails cleanly.
+
+  No `cf set-env` and **no restart** are needed to reach it. The rebuild runs via
+  `cf run-task`, and a task starts a fresh container that reads current bindings —
+  verified in staging on 2026-08-10, where a task resolved a newly bound
+  replacement with no variable set and no restart performed. (A long-running *web*
+  instance still needs a restart to notice a change, which is why the promote's
+  rolling restarts remain mandatory.)
 - **`flask search rebuild-index --cluster next`** builds the index against those
   `NEXT` credentials. `--cluster live` (the default) is unchanged from before.
 - **The index name stays `datasets`.** Index names are scoped to a cluster, so
@@ -168,7 +178,100 @@ Throughout, `<space>` is `development`, `staging`, or `prod`, and the new instan
 is `datagov-catalog-opensearch-next` (named after catalog, like the live one,
 because both apps bind it).
 
-## Running it
+## Automatic reindex on merge
+
+**Label a PR `force re-index recommended` and the index rebuilds itself** after each
+space deploys — development on a merge to `develop`, and staging then prod on a merge to
+`main`. Use it whenever the change touches the mapping or the document shape:
+`search/mappings.py`, `search/config.py` (`SETTINGS`), `search/documents.py`,
+`search/transforms.py`, `search/spatial.py`, or a `Dataset` column the transformer
+reads.
+
+Nothing else detects this. `MAPPINGS` carries no version or hash, and
+`OpenSearchClient._ensure_index()` only creates an index when one is *absent* — so
+deploying a mapping change against an existing index is a **silent no-op** and search
+quietly serves the old shape.
+
+### One pipeline, three spaces
+
+`release-space.yml` is the per-space release — create services → push → wait for the
+rollout → rebuild the index → network policies. It is called once by `commit.yml` for
+`development` and twice by `deploy.yml` for `staging` then `prod`, so all three spaces
+run identical logic. The only per-space differences are `on_build_failure` (`keep` in
+prod, where re-provisioning an `es-large` costs hours; `delete` elsewhere, so a failure
+self-heals) and `force_kill_running_jobs` (`false` in prod — long harvest jobs are not
+cancelled unattended).
+
+### Each release path is a queue
+
+| path | queue | scope |
+| --- | --- | --- |
+| `develop` → development | `release-develop` (job level) | that one release |
+| `main` → staging + prod | `release-main` (workflow level) | **both** spaces in one hold |
+
+`release-main` has to be workflow-level because that run spans two spaces: a job-level
+group would be released between staging and prod and let a second merge's staging deploy
+slip into the gap. `release-develop` is job-level on purpose — `commit.yml` also runs
+`lint`/`test` on *every* branch, and a workflow-level hold there would serialize
+unrelated PRs' CI.
+
+A second merge to the same branch waits for the whole release. That is deliberate: a
+`cf push` landing mid-migration is what broke a staging run on 2026-08-10, redeploying
+the app and removing the `--cluster` flag the in-flight rebuild depended on. The two
+paths are independent, so a development migration no longer blocks a staging/prod
+release — within a single space, overlap is prevented by the
+`opensearch-maintenance-<space>` job groups inside `release-space.yml`, which also cover
+hand-dispatched migrations and the restart cron.
+
+Consequence worth knowing: **a labelled merge blocks later merges to that branch for the
+length of its migrations** — hours, for a prod `es-large`. An urgent hotfix queues behind
+it. Dispatch the workflow manually with `reindex: skip` to jump that queue, and only
+cancel a running pipeline *before* a promote begins.
+
+### How the label is detected
+
+Not from the push's own commit range. A release queue allows one pending run, and a
+third merge *cancels* the pending one — so a labelled merge could be superseded and its
+reindex lost. Instead `detect-reindex.yml` measures from the `head_sha` of the last
+**successful** run of the *calling* workflow (`deploy.yml` on `main`, `commit.yml` on
+`develop`), and a cancelled or failed run never advances that watermark. The obligation
+stays detectable until a run actually completes.
+
+Detection lives in the caller, not in `release-space.yml`, for a concrete reason: a
+workflow invoked via `uses:` produces no workflow run of its own — the API attributes it
+to the caller — so a reusable file has no run history to measure from.
+
+`.github/scripts/detect-reindex-label.sh` **fails closed**: no watermark, rewritten
+history, or a range truncated past the compare API's 250-commit cap all stop the deploy
+rather than guess. Nothing is lost when it refuses — dispatch manually with
+`reindex: force` or `reindex: skip` to state the intent. If a reindex is owed but does
+not finish, the run opens a tracking issue from `.github/reindex_owed.md`.
+
+### If someone forgot the label
+
+Dispatch the workflow for that branch by hand — **1 - Commit** for `develop`,
+**2 - Deploy** for `main` — with `reindex: force`. Both take the same inputs:
+
+| input | effect |
+| --- | --- |
+| `reindex: auto` | read the PR labels (the default, same as a merge) |
+| `reindex: force` | rebuild regardless — for a forgotten label |
+| `reindex: skip` | deploy only, jumping the reindex queue |
+| `dry_run: true` | report what the reindex *would* do; no cluster is touched |
+
+### Before a labelled merge reaches prod
+
+**Confirm `GSA/datagov-catalog` is running code that matches the new mapping.** The
+harvester writes the new document shape; if catalog still expects the old one, search
+returns wrong results and `compare` cannot see it — it checks id sets and
+`last_harvested_date`, never document shape. Each promote says this in Slack, and probes
+catalog's `/search` afterwards, warning if a common term returns zero results.
+
+Every space promotes automatically. `development` is the cheapest rehearsal: `es-medium`
+is the fastest plan and catalog there runs with no egress proxy, so merging a labelled PR
+to `develop` first exercises the entire flow at low cost.
+
+## Running it manually
 
 Actions → **Migrate OpenSearch Cluster** → *Run workflow*:
 
@@ -183,11 +286,15 @@ Actions → **Migrate OpenSearch Cluster** → *Run workflow*:
 | `on_build_failure` | `delete` removes a failed replacement (default); `keep` retains it so you can resume with `start_at: rebuild` |
 | `force_kill_running_jobs` | cancel harvest jobs still running after 15 minutes |
 | `max_tasks` | `HARVEST_RUNNER_MAX_TASKS` to restore afterwards (`3` for prod) |
+| `max_failed_records` | how many records may fail to index and still pass, default `50` — set it to the number of bad records you expect. Used by the rebuild *and* both verifications. `0` requires an exact match. Failed ids are always logged in full — see [step 5](#5-verify-before-cutting-over) |
 
-**Resuming.** Every stage is idempotent and detects work already done, so a re-dispatch
-is always safe. `start_at` exists to skip the expensive part: a prod `es-large` provision
-can take a couple of hours, so a run that fails at the promote should be re-dispatched
-with `start_at: cutover` rather than from the beginning.
+**Resuming.** Use `start_at` to skip stages already done — that is what makes a
+re-dispatch safe, not blanket idempotence. Provisioning deliberately **refuses** when
+the replacement instance already exists, so a run that got past that stage must be
+resumed with `start_at: rebuild` (or `cutover`) rather than from the beginning. The
+refusal is the point: two rebuilds writing into one cluster interleave into an index
+that verifies as garbage. It also skips the expensive part — a prod `es-large`
+provision can take a couple of hours.
 
 **If it fails.** Before the promote, the replacement cluster is deleted automatically
 and the live cluster is untouched — just fix the cause and re-dispatch. On a slow space
@@ -229,17 +336,23 @@ and refuses to proceed if either app is unbound.
 If the space has never had egress configured:
 `cf bind-security-group trusted_local_networks_egress gsa-datagov --space <space>`.
 
-## 2. Expose the new credentials to the harvester
+## 2. Confirm the harvester can reach the new cluster
+
+There is nothing to set. The instance is named `datagov-catalog-opensearch-next`,
+which is what `.profile` derives and looks for, so the bind in step 1 already
+exposed it.
 
 ```bash
-cf set-env datagov-harvest OPENSEARCH_NEXT_SERVICE_NAME datagov-catalog-opensearch-next
-cf restart datagov-harvest --strategy rolling
-
 # Confirm the harvester resolved BOTH clusters.
 bin/report_opensearch_cluster.sh datagov-harvest
 ```
 
-`--strategy rolling` is not optional anywhere in this runbook; a plain
+No restart either: the rebuild runs as a `cf run-task`, and a task starts a fresh
+container that reads current bindings. (`report_opensearch_cluster.sh` reads a
+running web container, so `OPENSEARCH_NEXT_HOST` may show empty there until the
+app is next restarted — that is expected and does not affect the rebuild.)
+
+Elsewhere in this runbook `--strategy rolling` is not optional; a plain
 `cf restart` takes the app down. Catalog needs nothing yet.
 
 > Use `bin/report_opensearch_cluster.sh` rather than `cf env` to check the
@@ -316,9 +429,43 @@ cf run-task datagov-harvest -k 2G -m 3G --name os-verify \
 bin/monitor_cf_logs.sh datagov-harvest os-verify
 ```
 
-**Must report 0 missing, 0 extra, 0 updated.** Do not continue otherwise; use
-`compare --cluster next --update` to repair, then re-verify. (3G because
-`compare` holds every DB id and every OpenSearch id in memory at once.)
+**Must report 0 extra and 0 updated.** Those never get a tolerance: an extra
+document means a delete did not happen and a stale one means an update did not, and
+neither is explained by bad source data. Use `compare --cluster next --update` to
+repair, then re-verify. (3G because `compare` holds every DB id and every OpenSearch
+id in memory at once.)
+
+**Missing documents get an allowance** — `--max-failed-records`, default `50`. Set
+it to the number of bad records you expect. Some records simply cannot be indexed:
+one staging dataset carries an empty-string key in its `dcat` JSON, which OpenSearch
+rejects with `mapper_parsing_exception`, so no rebuild will ever land it. Without an
+allowance, one such record blocks the migration permanently — which is exactly what
+happened on 2026-08-10.
+
+It is an absolute count, not a percentage, deliberately. The number you type is the
+number of failures that will pass, at any corpus size. A percentage of a large corpus
+silently authorizes far more than any real backlog (1% of 548k is ~5.5k), which is
+enough to hide a systemic indexing failure.
+
+The same number is passed to **both** `rebuild-index` and `compare`, and they must
+agree — otherwise the gate rejects precisely the records the rebuild was designed to
+skip. The workflow does this from one input for that reason; if you run the commands
+by hand, pass the same value to each.
+
+Tolerated does not mean unnoticed. Every missing id is printed in full under
+`MISSING DATASET IDS (not in OpenSearch)`, with the count and the percentage it
+represents, so they become a backlog rather than a surprise. The rebuild log's
+`SKIPPED DATASET IDS (not indexed)` block gives the reason for each. Grep either
+banner in the task log:
+
+```bash
+# Why a given id was rejected
+cf logs datagov-harvest --recent | grep -A20 "SKIPPED DATASET IDS"
+```
+
+Pass `--max-failed-records 0` to require an exact match. Raise it only after
+checking *why* the extra records were rejected — a jump in the count is the signal
+that something systemic broke, and a large allowance suppresses that signal.
 
 ## 6. Cut over
 
@@ -487,17 +634,11 @@ both apps. The window is now closed.
 
 **5. Clean up and re-enable.**
 
-```bash
-cf unset-env datagov-harvest OPENSEARCH_NEXT_SERVICE_NAME
-```
+There is no replacement pointer to clear. The rename in step 3 moved the instance
+off the `-next` name, and `.profile` derives that name rather than reading a
+variable, so `--cluster next` already resolves to nothing.
 
-Do not skip this. Leaving it set means `OPENSEARCH_SERVICE_NAME` and
-`OPENSEARCH_NEXT_SERVICE_NAME` both name the now-live cluster, so
-`--cluster next` would resolve to the live host. The commands refuse to run in
-that state rather than silently operating on production, but the fix is to unset
-the variable.
-
-Optionally also `cf unset-env` `OPENSEARCH_SERVICE_NAME` on both apps — it now
+Optionally `cf unset-env` `OPENSEARCH_SERVICE_NAME` on both apps — it now
 matches the `.profile` default, so removing it returns to a bare steady state.
 Do this *only after* step 4 has completed successfully, and follow it with one
 more rolling restart of each app.

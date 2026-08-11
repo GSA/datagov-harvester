@@ -8,7 +8,13 @@ import pytest
 PROFILE = Path(__file__).resolve().parents[2] / ".profile"
 
 
-def _profile_environment(runner_environment):
+def _profile_environment(runner_environment, next_bound=True):
+    """Build the container environment .profile runs in.
+
+    ``next_bound=False`` drops the replacement cluster from VCAP_SERVICES, which is
+    the state at rest: no migration in flight, so no `<canonical>-next` instance
+    exists to bind.
+    """
     environment = {
         **os.environ,
         "VCAP_APPLICATION": json.dumps({"application_name": "datagov-harvest"}),
@@ -58,6 +64,14 @@ def _profile_environment(runner_environment):
             }
         ),
     }
+    if not next_bound:
+        services = json.loads(environment["VCAP_SERVICES"])
+        services["opensearch"] = [
+            instance
+            for instance in services["opensearch"]
+            if not instance["name"].endswith("-next")
+        ]
+        environment["VCAP_SERVICES"] = json.dumps(services)
     environment.pop("HARVEST_RUNNER_MAX_TASKS", None)
     for name in (
         "OPENSEARCH_SERVICE_NAME",
@@ -69,7 +83,7 @@ def _profile_environment(runner_environment):
     return environment
 
 
-def _source_profile(runner_environment, names=()):
+def _source_profile(runner_environment, names=(), next_bound=True):
     """Source .profile under ``runner_environment``, reading back ``names``."""
     return subprocess.run(
         [
@@ -82,15 +96,15 @@ def _source_profile(runner_environment, names=()):
             *names,
         ],
         capture_output=True,
-        env=_profile_environment(runner_environment),
+        env=_profile_environment(runner_environment, next_bound=next_bound),
         text=True,
         timeout=10,
     )
 
 
-def _profile_variables(runner_environment, names):
+def _profile_variables(runner_environment, names, next_bound=True):
     """Source .profile successfully and return the requested variables."""
-    result = _source_profile(runner_environment, names)
+    result = _source_profile(runner_environment, names, next_bound=next_bound)
     assert result.returncode == 0, result.stderr
     return dict(
         line.split("=", 1) for line in result.stdout.strip().splitlines() if "=" in line
@@ -136,6 +150,7 @@ def test_profile_defaults_to_the_shared_catalog_opensearch_instance():
             "OPENSEARCH_SECRET_KEY",
             "OPENSEARCH_NEXT_HOST",
         ],
+        next_bound=False,
     )
 
     assert variables["OPENSEARCH_SERVICE_NAME"] == "datagov-catalog-opensearch"
@@ -146,10 +161,16 @@ def test_profile_defaults_to_the_shared_catalog_opensearch_instance():
     assert variables["OPENSEARCH_NEXT_HOST"] == ""
 
 
-def test_profile_exports_next_cluster_credentials_when_one_is_bound():
+def test_profile_derives_the_next_cluster_name_from_the_canonical_one():
+    """No env var and no restart are needed to reach the replacement cluster.
+
+    The name is derived, so binding the instance is the entire handoff -- which is
+    what lets `cf run-task` pick it up immediately in a fresh container.
+    """
     variables = _profile_variables(
-        {"OPENSEARCH_NEXT_SERVICE_NAME": "datagov-catalog-opensearch-next"},
+        {},
         [
+            "OPENSEARCH_NEXT_SERVICE_NAME",
             "OPENSEARCH_HOST",
             "OPENSEARCH_NEXT_HOST",
             "OPENSEARCH_NEXT_ACCESS_KEY",
@@ -157,12 +178,29 @@ def test_profile_exports_next_cluster_credentials_when_one_is_bound():
         ],
     )
 
+    assert (
+        variables["OPENSEARCH_NEXT_SERVICE_NAME"] == "datagov-catalog-opensearch-next"
+    )
     # The live cluster is still the live cluster; binding a replacement is inert
-    # until OPENSEARCH_SERVICE_NAME is flipped at cutover.
+    # until the promote renames it.
     assert variables["OPENSEARCH_HOST"] == "opensearch.example"
     assert variables["OPENSEARCH_NEXT_HOST"] == "opensearch-next.example"
     assert variables["OPENSEARCH_NEXT_ACCESS_KEY"] == "next-access"
     assert variables["OPENSEARCH_NEXT_SECRET_KEY"] == "next-secret"
+
+
+def test_profile_next_name_follows_an_overridden_canonical_name():
+    """The derivation is off OPENSEARCH_SERVICE_NAME, not a hardcoded literal, so
+    debugging against another instance keeps live and next consistent."""
+    variables = _profile_variables(
+        {"OPENSEARCH_SERVICE_NAME": "datagov-catalog-opensearch-next"},
+        ["OPENSEARCH_NEXT_SERVICE_NAME"],
+    )
+
+    assert (
+        variables["OPENSEARCH_NEXT_SERVICE_NAME"]
+        == "datagov-catalog-opensearch-next-next"
+    )
 
 
 def test_profile_cutover_repoints_live_credentials_at_the_replacement():
@@ -177,26 +215,21 @@ def test_profile_cutover_repoints_live_credentials_at_the_replacement():
 
 
 @pytest.mark.parametrize(
-    ("runner_environment", "expected_no_proxy"),
+    ("next_bound", "expected_no_proxy"),
     [
-        (
-            {"proxy_url": "http://proxy.example:8080"},
-            ".apps.internal,opensearch.example",
-        ),
-        (
-            {
-                "proxy_url": "http://proxy.example:8080",
-                "OPENSEARCH_NEXT_SERVICE_NAME": "datagov-catalog-opensearch-next",
-            },
-            ".apps.internal,opensearch.example,opensearch-next.example",
-        ),
+        (False, ".apps.internal,opensearch.example"),
+        (True, ".apps.internal,opensearch.example,opensearch-next.example"),
     ],
 )
 def test_profile_excludes_every_bound_opensearch_host_from_the_proxy(
-    runner_environment, expected_no_proxy
+    next_bound, expected_no_proxy
 ):
     """Both clusters must bypass the egress proxy, with no stray comma."""
-    variables = _profile_variables(runner_environment, ["no_proxy"])
+    variables = _profile_variables(
+        {"proxy_url": "http://proxy.example:8080"},
+        ["no_proxy"],
+        next_bound=next_bound,
+    )
 
     assert variables["no_proxy"] == expected_no_proxy
 
@@ -214,16 +247,23 @@ def test_profile_fails_when_the_named_opensearch_instance_is_not_bound():
     assert "datagov-typo-opensearch" in result.stderr
 
 
-def test_profile_starts_when_an_unbound_next_cluster_is_named():
-    """A stale OPENSEARCH_NEXT_SERVICE_NAME must not stop the app booting.
+def test_profile_starts_when_no_next_cluster_is_bound():
+    """The at-rest state must boot cleanly.
 
-    The replacement cluster is optional, so an unbound name leaves the NEXT
-    variables empty and `--cluster next` fails cleanly in Python instead.
+    Now that the replacement's name is always derived, the lookup for it runs on
+    every single start -- including the overwhelmingly common case where no
+    migration is in flight and no such instance exists. .profile runs under
+    `set -o errexit` and jq exits non-zero when nothing matches, so without the
+    `|| true` guards this would fail every boot. That makes this the regression
+    test for the whole hardcoding change, not an edge case.
     """
-    variables = _profile_variables(
-        {"OPENSEARCH_NEXT_SERVICE_NAME": "datagov-not-bound-yet"},
-        ["OPENSEARCH_HOST", "OPENSEARCH_NEXT_HOST"],
+    result = _source_profile(
+        {}, ["OPENSEARCH_HOST", "OPENSEARCH_NEXT_HOST"], next_bound=False
     )
 
+    assert result.returncode == 0, result.stderr
+    variables = dict(
+        line.split("=", 1) for line in result.stdout.strip().splitlines() if "=" in line
+    )
     assert variables["OPENSEARCH_HOST"] == "opensearch.example"
     assert variables["OPENSEARCH_NEXT_HOST"] == ""

@@ -38,14 +38,15 @@ case "${CREATE_OPENSEARCH_NEXT:-}" in
 esac
 if [ "$create_next" = yes ]; then
     # Named after catalog, like the live instance, because both apps bind it --
-    # naming it after harvest would misrepresent who uses it. Overridable so a
-    # future migration can pick its own name.
+    # naming it after harvest would misrepresent who uses it.
     #
-    # The "-next" suffix is temporary: the decommission step renames this
-    # instance to the canonical name once the old one is deleted. That rename
-    # has a cost -- see the downtime warning in
-    # docs/ops/migrate-opensearch-cluster.md.
-    next_service="${OPENSEARCH_NEXT_SERVICE_NAME:-datagov-catalog-opensearch-next}"
+    # NOT overridable: .profile derives this name as "<canonical>-next" and does
+    # not read a variable, so a different name here would produce an instance the
+    # harvester cannot resolve as `--cluster next`.
+    #
+    # The "-next" suffix is temporary: the promote step renames this instance to
+    # the canonical name. See docs/ops/migrate-opensearch-cluster.md.
+    next_service="datagov-catalog-opensearch-next"
     # Matches the live plan and engine version by default. Override the plan when
     # the point of the migration is to resize, which the cloud.gov broker cannot
     # do in place.

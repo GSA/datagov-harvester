@@ -86,6 +86,20 @@ def test_from_environment_requires_host(monkeypatch):
         OpenSearchClient(test_host="not-empty", aws_host="also-not-empty")
 
 
+def test_from_environment_can_skip_ensuring_index(monkeypatch):
+    fake_client = FakeClient(exists=False)
+    monkeypatch.setenv("OPENSEARCH_HOST", "search.example.es.amazonaws.com")
+    monkeypatch.setattr(
+        OpenSearchClient,
+        "_create_aws_opensearch_client",
+        staticmethod(lambda host: fake_client),
+    )
+
+    OpenSearchClient.from_environment(ensure_index=False)
+
+    assert fake_client.indices.created is None
+
+
 def test_dcat_modified_field_mapping(opensearch_client):
     """Test that DCAT modified field is mapped as keyword type."""
     mappings = opensearch_client.MAPPINGS
