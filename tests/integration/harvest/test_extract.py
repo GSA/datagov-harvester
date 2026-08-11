@@ -96,10 +96,9 @@ class TestExtract:
 
         # dataset and service objects are extracted independently
         assert len(harvest_source.external_records) == 1
-        assert len(harvest_source.external_service_records) == 2
-        service_identifiers = {
-            record["identifier"] for record in harvest_source.external_service_records
-        }
+        service_records = harvest_source.external_records_by_type["data_service"]
+        assert len(service_records) == 2
+        service_identifiers = {record["identifier"] for record in service_records}
         assert service_identifiers == {
             "https://example.gov/services/one",
             "https://example.gov/services/two",
@@ -121,7 +120,7 @@ class TestExtract:
 
         # the dataset is unaffected by the service's missing identifier
         assert len(harvest_source.external_records) == 1
-        assert len(harvest_source.external_service_records) == 0
+        assert len(harvest_source.external_records_by_type["data_service"]) == 0
 
         errors = interface.get_harvest_record_errors_by_job(harvest_source.job_id)
         msg = (
