@@ -1,7 +1,7 @@
 """Add dcatus_catalog to harvest_job
 
 Revision ID: f8d4c5ec0e5b
-Revises: b3f7a91c24de
+Revises: 53misfp74tqr
 Create Date: 2026-08-05 00:00:00.000000
 
 """
@@ -12,7 +12,7 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision = "f8d4c5ec0e5b"
-down_revision = "b3f7a91c24de"
+down_revision = "53misfp74tqr"
 branch_labels = None
 depends_on = None
 
