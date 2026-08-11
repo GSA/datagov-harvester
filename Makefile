@@ -76,7 +76,7 @@ test-e2e-ci: re-up test-playwright test-functional ## All e2e/expensive tests. R
 
 test-ci: up test-unit test-integration test-scripts ## All simulated tests using only db and required test resources. Run on commit.
 
-re-up: clean up sleep-5 load-test-data ## resets system to clean fixture status
+re-up: clean up wait-for-migrations load-test-data ## resets system to clean fixture status
 
 re-up-debug: clean up-debug load-test-data ## resets system to clean fixture status for flask debugging
 
@@ -103,6 +103,19 @@ clean: ## Cleans docker images
 	
 sleep-5:
 	sleep 5
+
+wait-for-migrations: ## Waits for database migrations to complete
+	@echo "Waiting for migrations to complete..."
+	@for i in 1 2 3 4 5 6 7 8 9 10 11 12; do \
+		if docker compose exec -T app flask db current >/dev/null 2>&1; then \
+			echo "Migrations complete!"; \
+			exit 0; \
+		fi; \
+		echo "Waiting for migrations (attempt $$i/12)..."; \
+		sleep 5; \
+	done; \
+	echo "ERROR: Migrations did not complete in time"; \
+	exit 1
 
 lint-check:  ## Lints wtih ruff, isort, black
 	poetry run ruff check .
