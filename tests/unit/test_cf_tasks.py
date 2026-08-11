@@ -123,3 +123,55 @@ class TestCFTasking:
 
         updated_job = interface.get_harvest_job(job_id)
         assert updated_job.status != "error"
+
+    def test_harvest_duplicate_task_stop_failure_logs_warning_and_continues(
+        self,
+        CFClientMock,
+        interface,
+        organization_data,
+        source_data_dcatus_single_record,
+        caplog,
+        monkeypatch,
+    ):
+        monkeypatch.setenv("CF_API_URL", "https://api.example.com")
+        monkeypatch.setenv("CF_SERVICE_USER", "user")
+        monkeypatch.setenv("CF_SERVICE_AUTH", "pass")
+
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_dcatus_single_record)
+        harvest_job = interface.add_harvest_job(
+            {
+                "status": "in_progress",
+                "harvest_source_id": source_data_dcatus_single_record["id"],
+            }
+        )
+        job_id = harvest_job.id
+
+        CFClientMock.return_value.v3.apps._pagination.return_value = [
+            {
+                "guid": "task-a",
+                "state": "RUNNING",
+                "name": f"harvest-job-{job_id}-harvest",
+            },
+            {
+                "guid": "task-b",
+                "state": "RUNNING",
+                "name": f"harvest-job-{job_id}-harvest",
+            },
+        ]
+        CFClientMock.return_value.v3.tasks.cancel.side_effect = Exception(
+            "cancel failed"
+        )
+
+        caplog.set_level(logging.WARNING)
+
+        harvest_job_starter(job_id, "harvest")
+
+        assert f"Detected 2 running tasks for job {job_id}." in caplog.text
+        assert (
+            f"Failed to stop duplicate task task-b for job {job_id}: cancel failed"
+            in caplog.text
+        )
+
+        updated_job = interface.get_harvest_job(job_id)
+        assert updated_job.status != "error"
