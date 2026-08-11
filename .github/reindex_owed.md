@@ -1,10 +1,10 @@
 ---
-title: OpenSearch reindex still owed after a labelled merge
+title: OpenSearch reindex still owed ({{ env.RELEASE_PATH }})
 labels: ["bug", "o&m"]
 ---
 
 A merged PR carried `force re-index recommended`, so the `datasets` index needed
-rebuilding — but this run did not finish one in every environment.
+rebuilding — but this run did not finish one in every environment on this path.
 
 **Until the index is rebuilt, search results reflect the OLD mapping/document shape.**
 Nothing else detects this: `MAPPINGS` carries no version, and `_ensure_index()` only
@@ -13,9 +13,9 @@ against the existing index.
 
 | | |
 | --- | --- |
+| Release path | {{ env.RELEASE_PATH }} |
 | Labelled PR(s) | {{ env.PR_NUMBERS }} |
-| Staging reindex | `{{ env.STAGING_RESULT }}` |
-| Prod reindex | `{{ env.PROD_RESULT }}` |
+| Per-space results | {{ env.SPACE_RESULTS }} |
 | Commit deployed | {{ env.LAST_COMMIT }} |
 
 Last observed: {{ date | date('YYYY-MM-DD HH:mm:ss Z') }}
@@ -38,8 +38,12 @@ GitHub Action Run: https://github.com/{{ env.REPO }}/actions/runs/{{ env.RUN_ID 
    bin/delete_opensearch_cluster.sh datagov-catalog-opensearch-next datagov-harvest datagov-catalog
    ```
 
-The next successful run of **2 - Deploy** re-examines every commit since the last
-successful one, so this obligation is still detectable automatically — this issue
-exists so a human sees it too. Close it once the index has been rebuilt.
+The next successful run of **{{ env.WORKFLOW_NAME }}** re-examines every commit since
+the last successful one, so this obligation is still detectable automatically — this
+issue exists so a human sees it too. Close it once the index has been rebuilt.
+
+The title carries the release path deliberately: `update_existing: true` matches on
+title, so without it a `develop` failure and a `main` failure would share one issue and
+overwrite each other.
 
 See [docs/ops/migrate-opensearch-cluster.md](https://github.com/{{ env.REPO }}/blob/main/docs/ops/migrate-opensearch-cluster.md).

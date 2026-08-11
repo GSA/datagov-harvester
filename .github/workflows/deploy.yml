@@ -151,10 +151,10 @@ jobs:
       ${{ !cancelled()
       && needs.detect-reindex.result == 'success'
       && contains(fromJson('["success","skipped"]'), needs.preflight-clusters.result) }}
-    # See detect-reindex above: the callee's deploy job asks for `actions: write`.
+    # release-space.yml needs nothing beyond `contents: read` -- it authenticates to
+    # Cloud Foundry with CF credentials, not GITHUB_TOKEN.
     permissions:
       contents: read
-      actions: write
     uses: ./.github/workflows/release-space.yml
     with:
       space: staging
@@ -179,10 +179,9 @@ jobs:
       && needs.detect-reindex.result == 'success'
       && contains(fromJson('["success","skipped"]'), needs.preflight-clusters.result)
       && needs.release-staging.result == 'success' }}
-    # See detect-reindex above: the callee's deploy job asks for `actions: write`.
+    # See release-staging: `contents: read` is all the callee needs.
     permissions:
       contents: read
-      actions: write
     uses: ./.github/workflows/release-space.yml
     with:
       space: prod
@@ -223,8 +222,13 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.ADD_TO_PROJECT_PAT }}
           PR_NUMBERS: ${{ needs.detect-reindex.outputs.pr_numbers }}
-          STAGING_RESULT: ${{ needs.release-staging.result }}
-          PROD_RESULT: ${{ needs.release-prod.result }}
+          # The path is in the issue TITLE, and create-an-issue matches on title, so
+          # this is what keeps a develop failure from overwriting an open prod one.
+          RELEASE_PATH: main -> staging + prod
+          WORKFLOW_NAME: 2 - Deploy
+          SPACE_RESULTS: >-
+            staging=${{ needs.release-staging.result }},
+            prod=${{ needs.release-prod.result }}
           RUN_ID: ${{ github.run_id }}
           REPO: ${{ github.repository }}
           LAST_COMMIT: ${{ github.sha }}

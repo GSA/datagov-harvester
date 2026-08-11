@@ -55,8 +55,12 @@ emit() {
 # Only `status=success` counts. `conclusion` on a run cancelled while pending is
 # `cancelled`, so such a run is invisible here and its commits get re-examined by
 # whichever run succeeds next -- which is the whole point.
+# `-X GET` is required, not decorative: `gh api` switches to POST as soon as any `-f`
+# parameter is present, and POSTing to this endpoint returns 404. Without it the
+# watermark is always empty, the fail-closed branch below fires on every run, and NO
+# merge ever deploys. Verified both ways against the live repo on 2026-08-11.
 base_sha=$(
-  gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/${workflow_file}/runs" \
+  gh api -X GET "repos/${GITHUB_REPOSITORY}/actions/workflows/${workflow_file}/runs" \
     -f "branch=${branch}" -f status=success -f per_page=1 \
     --jq '.workflow_runs[0].head_sha // empty' 2>/dev/null || true
 )

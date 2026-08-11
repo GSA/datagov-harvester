@@ -64,16 +64,35 @@ def _run_detect(
         """#!/bin/bash
 endpoint=""
 jq_filter=""
+# Tracked separately from the resulting method: the bug being modelled is the ABSENCE
+# of an explicit -X, so "no flag" and "-X GET" must not look alike.
+explicit_method=""
+has_params=no
 prev=""
 for arg in "$@"; do
   case "$prev" in
     --jq) jq_filter="$arg" ;;
+    -X|--method) explicit_method="$arg" ;;
   esac
   case "$arg" in
+    -f|--raw-field|-F|--field) has_params=yes ;;
     repos/*) endpoint="$arg" ;;
   esac
   prev="$arg"
 done
+
+# Model the real `gh api` behaviour that broke this script in production: passing any
+# `-f` parameter switches the request to POST *unless* -X GET is given explicitly, and
+# POSTing a read endpoint 404s. Without this the fake answers regardless of method and
+# the bug is invisible to every test (which is exactly what happened).
+method="${explicit_method:-GET}"
+if [[ "$has_params" == yes && -z "$explicit_method" ]]; then
+  method="POST"
+fi
+if [[ "$method" != "GET" ]]; then
+  echo '{"message":"Not Found","documentation_url":"https://docs.github.com/rest"}' >&2
+  exit 1
+fi
 
 emit() {
   if [[ -n "$jq_filter" ]]; then

@@ -201,11 +201,12 @@ jobs:
     concurrency:
       group: release-develop
       cancel-in-progress: false
-    # See detect-reindex above: the callee's deploy job asks for `actions: write`, and
-    # a called workflow cannot elevate beyond what the caller grants.
+    # release-space.yml needs nothing beyond `contents: read` -- it authenticates to
+    # Cloud Foundry with CF credentials, not GITHUB_TOKEN. Stated explicitly rather
+    # than inherited, because a called workflow can only narrow what the caller grants
+    # and a silent mismatch fails the run at startup with no log.
     permissions:
       contents: read
-      actions: write
     uses: ./.github/workflows/release-space.yml
     with:
       space: development
@@ -217,8 +218,6 @@ jobs:
       on_build_failure: delete
       # Unattended, so drain-then-kill rather than waiting 2h and failing.
       force_kill_running_jobs: true
-      python_version: "3.12.13"
-      poetry_version: "latest"
     secrets: inherit
 
   # An owed reindex must never be silent -- same backstop as deploy.yml.
@@ -243,8 +242,11 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.ADD_TO_PROJECT_PAT }}
           PR_NUMBERS: ${{ needs.detect-reindex.outputs.pr_numbers }}
-          STAGING_RESULT: n/a (development path)
-          PROD_RESULT: ${{ needs.release-development.result }}
+          # Distinct from deploy.yml's, so the two paths get separate issues rather
+          # than overwriting one another via `update_existing`.
+          RELEASE_PATH: develop -> development
+          WORKFLOW_NAME: 1 - Commit
+          SPACE_RESULTS: development=${{ needs.release-development.result }}
           RUN_ID: ${{ github.run_id }}
           REPO: ${{ github.repository }}
           LAST_COMMIT: ${{ github.sha }}

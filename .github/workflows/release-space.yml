@@ -68,18 +68,15 @@ on:
         required: false
         default: "50"
         type: string
-      python_version:
-        # An input rather than `env`, because a called workflow does NOT inherit the
-        # caller's `env` context -- ${{ env.PY_VERSION }} would silently be empty.
-        description: "Python version for the build"
-        required: false
-        default: "3.12.13"
-        type: string
-      poetry_version:
-        description: "Poetry version for the build"
-        required: false
-        default: "latest"
-        type: string
+    # No python_version / poetry_version inputs. They would be a fourth and fifth
+    # place to declare the same values -- .github/actions/deploy/action.yml already
+    # defaults both, and commit.yml's `env.PY_VERSION` covers lint/test. Passing them
+    # through here meant bumping `env.PY_VERSION` moved CI but silently left the deploy
+    # on the old version. The composite action is the single source of truth for the
+    # deploy toolchain.
+    #
+    # (They could not have read `env.PY_VERSION` anyway: a called workflow does not
+    # inherit the caller's `env` context.)
     # No `outputs:` block. A workflow output has to come from a job's own declared
     # `outputs`, not from `jobs.<id>.result` (actionlint rejects the latter), and the
     # caller does not need one anyway: it reads `needs.<call-job>.result` directly,
@@ -129,8 +126,13 @@ jobs:
     needs: create-services
     runs-on: ubuntu-latest
     environment: ${{ inputs.space }}
+    # `contents: read` only. The pre-refactor jobs carried `actions: write`, but
+    # nothing in the deploy path uses GITHUB_TOKEN at all -- neither
+    # .github/actions/deploy nor compute-asset-version.sh reference it, and
+    # cg-cli-tools authenticates with CF credentials. Across a `uses:` boundary that
+    # stray write would have been an elevation the caller cannot grant, so dropping it
+    # removes the question rather than answering it.
     permissions:
-      actions: write
       contents: read
     concurrency:
       group: opensearch-maintenance-${{ inputs.space }}
@@ -142,8 +144,8 @@ jobs:
         uses: ./.github/actions/deploy
         with:
           cf_space: ${{ inputs.space }}
-          python-version: ${{ inputs.python_version }}
-          poetry-version: ${{ inputs.poetry_version }}
+          # python-version / poetry-version deliberately omitted: the action's own
+          # defaults are the single source of truth for the deploy toolchain.
           cf_username: ${{ secrets.CF_SERVICE_USER }}
           cf_password: ${{ secrets.CF_SERVICE_AUTH }}
 
