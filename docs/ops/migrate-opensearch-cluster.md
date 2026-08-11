@@ -194,13 +194,42 @@ quietly serves the old shape.
 
 ### One pipeline, three spaces
 
-`release-space.yml` is the per-space release — create services → push → wait for the
-rollout → rebuild the index → network policies. It is called once by `commit.yml` for
-`development` and twice by `deploy.yml` for `staging` then `prod`, so all three spaces
-run identical logic. The only per-space differences are `on_build_failure` (`keep` in
-prod, where re-provisioning an `es-large` costs hours; `delete` elsewhere, so a failure
+`release-space.yml` is the per-space release — pause harvesting → create services →
+push → wait for the rollout → rebuild the index → network policies → resume
+harvesting. It is called once by `commit.yml` for `development` and twice by
+`deploy.yml` for `staging` then `prod`, so all three spaces run identical logic. The
+only per-space differences are `on_build_failure` (`keep` in prod, where
+re-provisioning an `es-large` costs hours; `delete` elsewhere, so a failure
 self-heals) and `force_kill_running_jobs` (`false` in prod — long harvest jobs are not
 cancelled unattended).
+
+### A labelled release pauses harvesting for its whole duration
+
+The pause is the **first** job of the release, before the new code is pushed, and
+harvesting resumes only when the release finishes — as its own `always()` job, so it
+resumes even if the deploy failed or the run was cancelled. Only labelled releases
+pause; a plain deploy leaves harvesting running, since a rolling deploy is already
+safe for harvest jobs.
+
+That ordering exists because the writes are the hazard. The rebuild's own drain waits
+up to 2h for in-flight jobs, and every one of them indexes per dataset — so pausing
+inside the rebuild, three jobs after the push, would let new code write into the old
+index for that entire window. Additive mapping changes tolerate it; a retyped or
+renamed field does not.
+
+**This stops the writes, not the reads.** From the moment the deploy lands until the
+promote, the new code — and catalog — still query the *old* index. On a
+schema-breaking change that means wrong results for the full provision + rebuild
+duration: ~20 min on `es-medium`, hours on a prod `es-large`. Closing that needs
+[two-phase mode](#two-phase-mode-schema-breaking-changes), which the automated label
+path cannot yet reach — `release-space.yml` hardcodes `stop_after: decommission` and
+exposes no `stop_after` input. For a change that breaks reads, deploy with
+`reindex: skip` and drive the migration by hand in two phases.
+
+`migrate_opensearch_cluster.yml` keeps its own inner disable/enable for the
+hand-dispatched path, so a labelled release toggles twice. That is harmless:
+`bin/set_harvest_runner_capacity.sh` just does `cf set-env`, and both calls restore the
+same `max_tasks`.
 
 ### Each release path is a queue
 
