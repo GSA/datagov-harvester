@@ -167,6 +167,17 @@ jobs:
   deploy:
     name: deploy (${{ inputs.space }})
     needs: create-services
+    # An explicit `if:`, NOT the default. A job with no `if:` defaults to `success()`,
+    # and `success()` evaluates the whole TRANSITIVE ancestor set -- not just this job's
+    # direct `needs`. `disable-harvester` skips on every unlabelled release, so the
+    # default made this job (and everything under it) skip too, even though
+    # `create-services` succeeded. Measured in run 31527120342: `create services`
+    # succeeded, `deploy` skipped, and the run still reported green.
+    #
+    # Guarding `create-services` alone was not enough: that fixed which jobs the skip
+    # stopped at, not the fact that `success()` looks all the way up. Every job
+    # downstream of an optional job needs its own result-based condition.
+    if: ${{ !cancelled() && needs.create-services.result == 'success' }}
     runs-on: ubuntu-latest
     environment: ${{ inputs.space }}
     # `contents: read` only. The pre-refactor jobs carried `actions: write`, but
