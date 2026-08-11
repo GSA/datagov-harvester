@@ -461,7 +461,7 @@ class HarvestSource:
                     identifier = normalize_catalog_record_identifier(record)
                     if identifier is None:
                         raise NoIdentifierException(
-                            f"CatalogRecord missing required @id field"
+                            "CatalogRecord missing required @id field"
                         )
                     # CatalogRecords are already in DCAT format, no sorting needed
                     dataset = json.dumps(record)
@@ -1172,14 +1172,6 @@ class Record:
 
         # Use CatalogRecord schema for catalog_record type
         if self.record_type == "catalog_record":
-            catalog_record_schema_file = (
-                ROOT_DIR
-                / "schemas"
-                / "dcatus3.0"
-                / "definitions"
-                / "CatalogRecord.json"
-            )
-            catalog_record_schema = open_json(catalog_record_schema_file)
             catalog_record_validator = build_dcatus3_validator(
                 ROOT_DIR / "schemas" / "dcatus3.0" / "definitions",
                 root_ref="https://resources.data.gov/dcat-us/3.0.0/definitions/catalogrecord",

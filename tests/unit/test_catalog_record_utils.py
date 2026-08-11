@@ -1,7 +1,5 @@
 """Unit tests for CatalogRecord utility functions."""
 
-import pytest
-
 from harvester.utils.general_utils import (
     normalize_catalog_record_identifier,
     validate_catalog_record_has_id,

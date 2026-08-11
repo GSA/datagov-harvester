@@ -307,7 +307,7 @@ def test_harvest_record_default_record_type_is_dataset(
     job_data_dcatus,
     record_data_dcatus,
 ):
-    """Test that HarvestRecord defaults to record_type='dataset' for backward compatibility."""
+    """Test HarvestRecord defaults to record_type='dataset'."""
     interface.add_organization(organization_data)
     interface.add_harvest_source(source_data_dcatus)
     interface.add_harvest_job(job_data_dcatus)
