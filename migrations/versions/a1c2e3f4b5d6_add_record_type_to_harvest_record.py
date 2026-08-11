@@ -15,12 +15,7 @@ down_revision = "f8d4c5ec0e5b"
 branch_labels = None
 depends_on = None
 
-# all four DCAT-US 3.0 record types (GSA/data.gov#6000) defined up front to
-# avoid a second enum migration; only dataset/data_service are used as of
-# GSA/data.gov#6178.
-record_type_enum = sa.Enum(
-    "dataset", "data_service", "data_series", "catalog_record", name="record_type"
-)
+record_type_enum = sa.Enum("dataset", "data_service", name="record_type")
 
 
 def upgrade():
