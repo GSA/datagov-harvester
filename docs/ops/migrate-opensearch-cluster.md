@@ -192,6 +192,11 @@ Nothing else detects this. `MAPPINGS` carries no version or hash, and
 deploying a mapping change against an existing index is a **silent no-op** and search
 quietly serves the old shape.
 
+> **Rehearse in `development` first.** It is `es-medium` (the fastest plan) and catalog
+> there runs with no egress proxy, so a labelled merge to `develop` exercises the whole
+> provision → rebuild → verify → promote → decommission path at the lowest cost. Merge
+> unlabelled first to confirm the deploy path, then labelled to confirm the migration.
+
 ### One pipeline, three spaces
 
 `release-space.yml` is the per-space release — pause harvesting → create services →
