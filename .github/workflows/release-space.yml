@@ -2,8 +2,9 @@ name: Release to a space
 
 # The whole release for ONE Cloud Foundry space, in one reusable workflow.
 #
-#   create services -> push -> wait for the rollout -> rebuild the index (if asked)
-#     -> network policies
+#   (pause harvesting, if a rebuild will follow) -> create services -> push
+#     -> wait for the rollout -> rebuild the index (if asked) -> network policies
+#     -> resume harvesting
 #
 # Called once by commit.yml (development) and twice by deploy.yml (staging, then
 # prod), so all three spaces run byte-identical logic. Before this existed the same
@@ -98,8 +99,50 @@ permissions:
   contents: read
 
 jobs:
+  # Harvesting is paused BEFORE the deploy, not inside the rebuild.
+  #
+  # migrate_opensearch_cluster.yml opens with its own `disable-harvester`, which was
+  # first-in-workflow back when it was only ever dispatched *after* a deploy had
+  # already landed. Wrapping a deploy in front of it made that pause third in the
+  # pipeline instead, so new code ran against the old index while harvest jobs were
+  # still writing to it -- `harvester/harvest.py` indexes per dataset, and the drain
+  # in migrate waits up to 2h for in-flight jobs. Additive mapping changes survive
+  # that; a retyped or renamed field does not.
+  #
+  # migrate keeps its inner toggle (the standalone dispatch path still needs it) and
+  # the overlap is harmless: bin/set_harvest_runner_capacity.sh just does `cf set-env`,
+  # so disabling twice is a no-op.
+  disable-harvester:
+    name: Disable harvesting (${{ inputs.space }})
+    # Only when a rebuild will follow. A routine deploy must NOT pause harvesting --
+    # rolling deploys are already safe for harvest jobs, and pausing every deploy
+    # would be a behaviour change nobody asked for.
+    if: ${{ inputs.reindex && !inputs.dry_run }}
+    # Explicit `secrets:` block, unlike the `reindex` job's `inherit` below:
+    # toggle_harvester.yml declares CF_SERVICE_USER and CF_SERVICE_AUTH as *required*
+    # workflow_call secrets, and a `uses:` job that omits a required secret fails as
+    # `startup_failure` with no log and no annotation. actionlint does not model it.
+    uses: ./.github/workflows/toggle_harvester.yml
+    with:
+      state: disable
+      environment: ${{ inputs.space }}
+    secrets:
+      CF_SERVICE_USER: ${{ secrets.CF_SERVICE_USER }}
+      CF_SERVICE_AUTH: ${{ secrets.CF_SERVICE_AUTH }}
+      SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
   create-services:
     name: create services (${{ inputs.space }})
+    needs: disable-harvester
+    # `disable-harvester` is skipped on a plain deploy, and a job whose needs were
+    # skipped is itself skipped BEFORE its own `if:` is evaluated -- so the skipped
+    # case has to be accepted explicitly or no deploy would ever run again. This is
+    # the trap already hit twice here (migrate's teardown-replacement, and both
+    # deploy-prod and release-prod); getting it wrong on this job breaks EVERY
+    # deploy, not just labelled ones.
+    if: >-
+      ${{ !cancelled()
+      && contains(fromJson('["success","skipped"]'), needs.disable-harvester.result) }}
     runs-on: ubuntu-latest
     environment: ${{ inputs.space }}
     # create_cloudgov_services.sh does `cf service <canonical> || cf create-service`,
@@ -264,3 +307,31 @@ jobs:
           cf_space: ${{ inputs.space }}
           cf_username: ${{ secrets.CF_SERVICE_USER }}
           cf_password: ${{ secrets.CF_SERVICE_AUTH }}
+
+  # Because the disable now lives OUTSIDE migrate, re-enabling is this workflow's
+  # responsibility too: migrate's own enable-harvester only covers the window it
+  # disabled itself, and it never runs at all if the deploy failed before the reindex.
+  enable-harvester:
+    name: Re-enable harvesting (${{ inputs.space }})
+    needs: [disable-harvester, deploy, await-rollout, reindex]
+    # `always()`, not `!cancelled()`: harvesting must resume even when the deploy
+    # failed or the run was cancelled -- leaving HARVEST_RUNNER_MAX_TASKS at 0 stops
+    # all scheduled harvesting indefinitely, with nothing to notice it.
+    #
+    # `!= 'skipped'` rather than `== 'success'`, deliberately. The intent is only to
+    # leave max_tasks alone when the disable never ran (a plain deploy), so that an
+    # operator who paused harvesting by hand is not overridden -- and that case is
+    # `skipped`. A FAILED disable must still re-enable: set_harvest_runner_capacity.sh
+    # does `cf set-env` and *then* `cf restart --strategy rolling`, so a restart that
+    # times out reports failure having already written 0. `== 'success'` would strand
+    # harvesting off in exactly that case.
+    if: always() && needs.disable-harvester.result != 'skipped'
+    uses: ./.github/workflows/toggle_harvester.yml
+    with:
+      state: enable
+      max_tasks: ${{ inputs.max_tasks }}
+      environment: ${{ inputs.space }}
+    secrets:
+      CF_SERVICE_USER: ${{ secrets.CF_SERVICE_USER }}
+      CF_SERVICE_AUTH: ${{ secrets.CF_SERVICE_AUTH }}
+      SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
