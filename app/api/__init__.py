@@ -1,6 +1,6 @@
 from apiflask import APIBlueprint
 
-api = APIBlueprint("api", __name__, url_prefix="/api")
+api = APIBlueprint("api", __name__, url_prefix="/api", tag="Api")
 
 from . import (  # noqa: E402, F401
     harvest_jobs,
