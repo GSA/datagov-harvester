@@ -107,7 +107,7 @@ sleep-5:
 wait-for-migrations: ## Waits for database migrations to complete
 	@echo "Waiting for migrations to complete..."
 	@for i in 1 2 3 4 5 6 7 8 9 10 11 12; do \
-		if docker compose exec -T app flask db current >/dev/null 2>&1; then \
+		if docker compose exec -T db psql -U $$DATABASE_USER -d $$DATABASE_NAME -c "SELECT 1 FROM organization LIMIT 1;" >/dev/null 2>&1; then \
 			echo "Migrations complete!"; \
 			exit 0; \
 		fi; \
