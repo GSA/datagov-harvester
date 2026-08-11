@@ -248,17 +248,14 @@ Note: we prefer that you deploy to the development environment by pushing to the
 ### datagov-harvest-proxy
 This is an nginx app which owns the public route and proxies traffic to the internal Flask app route.
 
-### datagov-harvest-admin
+### datagov-harvest
 This is a Flask app which manages the configuration of harvest sources, organizations, and the creation of harvest jobs.
-
-### datagov-harvest-runner
-This is a python application, chiefy comprised of files in the `harvester` directory.
 
 #### User management
 
 The Data.gov team are the only intended users of the harvester admin app.
 
-`cf run-task datagov-harvest-admin --name "add new user" --command "flask user add xxx@gsa.gov --name xxx"`
+`cf run-task datagov-harvest --name "add new user" --command "flask user add xxx@gsa.gov --name xxx"`
 
 Or, if doing for local development:
 

@@ -20,14 +20,12 @@ from uuid import UUID
 import geojson_validator
 import requests
 import sansjson
-import sqlalchemy.sql.operators as sa_operators
 from bs4 import BeautifulSoup
 from bs4.element import Tag
 from jsonschema import Draft202012Validator, FormatChecker
 from jsonschema.exceptions import ValidationError
 from referencing import Registry
 from referencing.jsonschema import DRAFT202012
-from sqlalchemy import literal
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger()
@@ -446,6 +444,46 @@ def download_file(url: str, file_type: str) -> Union[str, dict]:
     raise Exception
 
 
+# DCAT-US 3.0 Catalog fields that are harvested as their own records rather
+# than stored inline on the catalog metadata.
+DCATUS3_CATALOG_HARVESTED_FIELDS = ("dataset", "service", "record", "datasetSeries")
+
+
+def strip_dcatus3_catalog_objects(catalog: dict) -> dict:
+    """
+    return a shallow copy of a DCAT-US3 Catalog dict with "dataset", "service",
+    "record", and "datasetSeries" removed, since those are harvested and stored
+    as their own records. nested catalogs (the "catalog" field) are cleaned the
+    same way, recursively, so their own metadata is preserved.
+    """
+    cleaned = {
+        key: value
+        for key, value in catalog.items()
+        if key not in DCATUS3_CATALOG_HARVESTED_FIELDS
+    }
+
+    if cleaned.get("catalog"):
+        cleaned["catalog"] = [
+            strip_dcatus3_catalog_objects(sub_catalog)
+            for sub_catalog in cleaned["catalog"]
+        ]
+
+    return cleaned
+
+
+def extract_dcatus3_catalog_datasets(catalog: dict) -> list:
+    """
+    recursively collect every dataset from a DCAT-US3 Catalog dict, including
+    datasets nested arbitrarily deep within its "catalog" (sub-catalog) field.
+    """
+    datasets = list(catalog.get("dataset") or [])
+
+    for sub_catalog in catalog.get("catalog") or []:
+        datasets.extend(extract_dcatus3_catalog_datasets(sub_catalog))
+
+    return datasets
+
+
 def make_record_mapping(record):
     """Helper to make a Harvest record dict"""
 
@@ -612,34 +650,6 @@ def traverse_waf(
         files[i]["modified_date"] = datetimes[i]
 
     return files
-
-
-def query_filter_builder(model, facets_string):
-    """Builds a list of filter expressions from a comma-separated string of facets
-
-    Each facet is of the form "column op value" where `column` is a
-    column name from the model, `op` is one of the operators in
-    `sqlalchemy.sql.operators` like "eq" or "like_op", and `value` is
-    a literal value for the operator.
-
-    The facet string is split on comma characters, so it isn't possible
-    to include commas in the literal values.
-
-    This can raise exceptions if the filters specify nonsensical things about
-    the model. Callers should handle these exceptions.
-    """
-    # empty facet string doesn't play well with our loop below
-    if not facets_string:
-        return []
-
-    facets = []
-    for this_facet in facets_string.split(","):
-        column_name, op, value = this_facet.split(maxsplit=2)
-        # these could raise attribute errors
-        column = getattr(model, column_name)
-        operator = getattr(sa_operators, op)
-        facets.append(operator(column, literal(value, type_=column.type)))
-    return facets
 
 
 def is_it_true(value):

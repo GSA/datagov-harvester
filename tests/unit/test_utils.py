@@ -11,6 +11,7 @@ from bs4 import BeautifulSoup
 from jsonschema import Draft202012Validator, FormatChecker
 from requests.exceptions import ConnectionError
 
+from database.interface import HarvesterDBInterface
 from database.models import HarvestSource
 from harvester.utils.general_utils import (
     DT_PLACEHOLDER,
@@ -21,6 +22,7 @@ from harvester.utils.general_utils import (
     describe_identifier_error,
     download_file,
     dynamic_map_list_items_to_dict,
+    extract_dcatus3_catalog_datasets,
     find_indexes_for_duplicates,
     get_waf_datetimes,
     is_valid_uuid4,
@@ -31,7 +33,7 @@ from harvester.utils.general_utils import (
     prepare_distributions,
     prepare_transform_msg,
     process_job_complete_percentage,
-    query_filter_builder,
+    strip_dcatus3_catalog_objects,
     translate_spatial,
     translate_spatial_to_geojson,
     validate_geojson,
@@ -386,23 +388,37 @@ class TestGeneralUtils:
         assert args.jobType == "test-type"
 
     def test_facet_builder_empty(self):
-        assert query_filter_builder(HarvestSource, "") == []
+        assert HarvesterDBInterface.query_filter_builder(HarvestSource, "") == []
 
     def test_facet_builder_single(self):
-        assert len(query_filter_builder(HarvestSource, "id eq 1")) == 1
+        assert (
+            len(HarvesterDBInterface.query_filter_builder(HarvestSource, "id eq 1"))
+            == 1
+        )
 
     def test_facet_builder_notequal(self):
-        assert len(query_filter_builder(HarvestSource, "url startswith_op http:")) == 1
+        assert (
+            len(
+                HarvesterDBInterface.query_filter_builder(
+                    HarvestSource, "url startswith_op http:"
+                )
+            )
+            == 1
+        )
 
     def test_facet_builder_multiple(self):
         assert (
-            len(query_filter_builder(HarvestSource, "id eq 1,organization_id eq 2"))
+            len(
+                HarvesterDBInterface.query_filter_builder(
+                    HarvestSource, "id eq 1,organization_id eq 2"
+                )
+            )
             == 2
         )
 
     def test_facet_builder_exception(self):
         with pytest.raises(AttributeError):
-            query_filter_builder(HarvestSource, "nonexistent eq 1")
+            HarvesterDBInterface.query_filter_builder(HarvestSource, "nonexistent eq 1")
 
     @pytest.mark.parametrize(
         "original,expected",
@@ -640,6 +656,86 @@ class TestGeneralUtils:
 
         # the mediatype isn't in RESOURCE_MAPPING so format shouldn't exist
         "format" not in prepared_dcatus_doc["distribution"][-1]
+
+
+class TestDcatus3Catalog:
+    def test_strip_dcatus3_catalog_objects_removes_harvested_fields(self):
+        catalog = {
+            "@type": "Catalog",
+            "title": "Test Catalog",
+            "dataset": [{"identifier": "ds-1"}],
+            "service": [{"identifier": "svc-1"}],
+            "record": [{"identifier": "rec-1"}],
+            "datasetSeries": [{"identifier": "series-1"}],
+        }
+
+        stripped = strip_dcatus3_catalog_objects(catalog)
+
+        assert stripped == {"@type": "Catalog", "title": "Test Catalog"}
+        # original is untouched
+        assert "dataset" in catalog
+
+    def test_strip_dcatus3_catalog_objects_recurses_into_nested_catalogs(self):
+        catalog = {
+            "title": "Parent Catalog",
+            "dataset": [{"identifier": "parent-ds"}],
+            "catalog": [
+                {
+                    "title": "Child Catalog",
+                    "dataset": [{"identifier": "child-ds"}],
+                    "catalog": [
+                        {
+                            "title": "Grandchild Catalog",
+                            "dataset": [{"identifier": "grandchild-ds"}],
+                        }
+                    ],
+                }
+            ],
+        }
+
+        stripped = strip_dcatus3_catalog_objects(catalog)
+
+        assert stripped == {
+            "title": "Parent Catalog",
+            "catalog": [
+                {
+                    "title": "Child Catalog",
+                    "catalog": [{"title": "Grandchild Catalog"}],
+                }
+            ],
+        }
+
+    def test_extract_dcatus3_catalog_datasets_flat(self):
+        catalog = {"dataset": [{"identifier": "ds-1"}, {"identifier": "ds-2"}]}
+
+        assert extract_dcatus3_catalog_datasets(catalog) == [
+            {"identifier": "ds-1"},
+            {"identifier": "ds-2"},
+        ]
+
+    def test_extract_dcatus3_catalog_datasets_recurses_arbitrarily_deep(self):
+        catalog = {
+            "dataset": [{"identifier": "parent-ds"}],
+            "catalog": [
+                {
+                    "dataset": [{"identifier": "child-ds"}],
+                    "catalog": [
+                        {"dataset": [{"identifier": "grandchild-ds"}]},
+                    ],
+                }
+            ],
+        }
+
+        assert extract_dcatus3_catalog_datasets(catalog) == [
+            {"identifier": "parent-ds"},
+            {"identifier": "child-ds"},
+            {"identifier": "grandchild-ds"},
+        ]
+
+    def test_extract_dcatus3_catalog_datasets_missing_fields(self):
+        assert extract_dcatus3_catalog_datasets({}) == []
+        assert extract_dcatus3_catalog_datasets({"catalog": None}) == []
+        assert extract_dcatus3_catalog_datasets({"dataset": None}) == []
 
 
 class TestRetrySession:

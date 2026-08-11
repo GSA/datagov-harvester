@@ -40,6 +40,61 @@ class TestExtract:
 
         assert len(harvest_source.external_records) == 4
 
+    def test_extract_dcatus3_0_nested_catalog(
+        self,
+        interface,
+        organization_data,
+        source_data_dcatus3_0_nested_catalog,
+        job_data_dcatus3_0_nested_catalog,
+    ):
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_dcatus3_0_nested_catalog)
+        harvest_job = interface.add_harvest_job(job_data_dcatus3_0_nested_catalog)
+
+        harvest_source = HarvestSource(harvest_job.id)
+        harvest_source.acquire_minimum_external_data()
+
+        # datasets from the top-level catalog plus every nested sub-catalog
+        assert len(harvest_source.external_records) == 3
+        identifiers = {
+            record["identifier"] for record in harvest_source.external_records
+        }
+        assert identifiers == {
+            "https://example.gov/datasets/nested-parent",
+            "https://example.gov/datasets/nested-child",
+            "https://example.gov/datasets/nested-grandchild",
+        }
+
+        # catalog-level metadata is persisted on the job, with dataset/
+        # service/record stripped at every nesting level, while the
+        # (cleaned) "catalog" field itself is preserved
+        updated_job = interface.get_harvest_job(harvest_job.id)
+        assert updated_job.dcatus_catalog == {
+            "@type": "Catalog",
+            "@id": "https://example.gov/nested-data.json",
+            "conformsTo": {"@type": "Standard", "title": "DCAT-US 3.0"},
+            "title": "Example DCAT-US 3.0 Nested Catalog",
+            "description": (
+                "A sample DCAT-US 3.0 catalog with nested sub-catalogs used for "
+                "harvest testing."
+            ),
+            "publisher": {"@type": "Organization", "name": "Test Agency"},
+            "catalog": [
+                {
+                    "@type": "Catalog",
+                    "title": "Child Catalog",
+                    "description": "A sub-catalog nested within the parent catalog.",
+                    "catalog": [
+                        {
+                            "@type": "Catalog",
+                            "title": "Grandchild Catalog",
+                            "description": ("A sub-catalog nested two levels deep."),
+                        }
+                    ],
+                }
+            ],
+        }
+
     def test_check_iso_dcatus_schema(
         self,
         interface,
@@ -73,12 +128,14 @@ class TestExtract:
         assert len(harvest_source.external_records) == 0
 
         errors = interface.get_harvest_record_errors_by_job(harvest_job.id)
+        harvest_job = interface.get_harvest_job(harvest_job.id)
 
         msg = (
             "Test Source (no identifier) Commitment of Traders is "
             "missing 'identifier' field"
         )
         assert errors[0][0].message == msg
+        assert harvest_job.records_errored == 1
 
     def test_extract_dcatus3_0_object_identifier_without_atid(
         self,

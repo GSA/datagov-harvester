@@ -1,6 +1,9 @@
 ---
 name: Check Egress Operation
 
+permissions:
+  contents: read
+
 on:
   schedule:
     - cron: '40 02,14 * * *'

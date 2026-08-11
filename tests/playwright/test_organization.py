@@ -35,14 +35,14 @@ class TestOrganizationUnauthed:
                 "ID",
                 "d925f84d-955b-4cb7-812f-dcfd6681a18f",
                 "Source count",
-                "1",
+                "2",
             ]
         )
 
     def test_harvest_source_table(self, upage):
         expect(
             upage.locator(".organization-harvest-source-list table.usa-table tbody tr")
-        ).to_have_count(1)
+        ).to_have_count(2)
         expect(
             upage.locator(".organization-harvest-source-list table.usa-table tr td")
         ).to_have_text(
@@ -53,6 +53,12 @@ class TestOrganizationUnauthed:
                 "document",
                 "daily",
                 "http://localhost:80/dcatus/dcatus.json",
+                "Test ISO19115 source",
+                "\n",  # last job status icon
+                "N/A",
+                "waf",
+                "daily",
+                "http://localhost:80/waf",
             ]
         )
         # Locate the anchor tag by its href attribute
@@ -81,7 +87,7 @@ class TestOrganizationAuthed:
         # ruff: noqa: E501
         expect(apage.locator(".usa-alert--warning")).to_contain_text(
             [
-                "Failed: 1 harvest sources in the organization, please delete those first."
+                "Failed: 2 harvest sources in the organization, please delete those first."
             ]
         )
 

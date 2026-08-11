@@ -149,3 +149,59 @@ class TestLocalDevLogin:
         response = dev_client.get("/login/oidc")
         assert response.status_code == 302
         assert "openid_connect/authorize" in response.location
+
+    def test_successful_login_redirects_to_next_url(self, dev_client):
+        with dev_client.session_transaction() as sess:
+            sess["next"] = "/organization/add"
+
+        response = dev_client.post(
+            "/login",
+            data={"username": "admin", "password": "admin"},
+        )
+
+        assert response.status_code == 302
+        assert response.location == "/organization/add"
+
+    def test_visiting_protected_route_sets_next_url(self, dev_client):
+        dev_client.get("/organization/add")
+
+        with dev_client.session_transaction() as sess:
+            assert sess["next"] == "http://localhost/organization/add"
+
+    def test_login_get_with_next_query_param_sets_session(self, dev_client):
+        dev_client.get("/login?next=/metrics/")
+
+        with dev_client.session_transaction() as sess:
+            assert sess["next"] == "/metrics/"
+
+    def test_login_with_next_query_param_redirects_there_after_login(self, dev_client):
+        dev_client.get("/login?next=/metrics/")
+
+        response = dev_client.post(
+            "/login",
+            data={"username": "admin", "password": "admin"},
+        )
+
+        assert response.status_code == 302
+        assert response.location == "/metrics/"
+
+    def test_login_get_with_unsafe_next_query_param_is_ignored(self, dev_client):
+        dev_client.get("/login?next=https://evil.example.com/phish")
+
+        with dev_client.session_transaction() as sess:
+            assert "next" not in sess
+
+    def test_login_get_with_protocol_relative_next_is_ignored(self, dev_client):
+        dev_client.get("/login?next=//evil.example.com/phish")
+
+        with dev_client.session_transaction() as sess:
+            assert "next" not in sess
+
+    def test_login_get_without_next_preserves_existing_session_next(self, dev_client):
+        with dev_client.session_transaction() as sess:
+            sess["next"] = "/organization/add"
+
+        dev_client.get("/login")
+
+        with dev_client.session_transaction() as sess:
+            assert sess["next"] == "/organization/add"

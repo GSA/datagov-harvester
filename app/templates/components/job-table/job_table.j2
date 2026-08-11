@@ -6,7 +6,7 @@
     'complete': 'bg-success-dark text-white',
 } %}
 {% macro job_table(jobs, caption, show_source=true, show_progress=False) -%}
-<div class="usa-table-container" tabindex="0">
+<div class="usa-table-container--scrollable" tabindex="0">
     <table class="usa-table usa-table--striped usa-table--borderless">
         <caption>{{ caption }}</caption>
         <thead>
@@ -24,6 +24,7 @@
                 <th scope="col" class="text-right" title="Records Updated">Updated</th>
                 <th scope="col" class="text-right" title="Records Deleted">Deleted</th>
                 <th scope="col" class="text-right" title="Records Errored">Errored</th>
+                <th scope="col" class="text-right" title="Records Warned">Warned</th>
                 <th scope="col" class="text-right" title="Records Unchanged">Unchanged</th>
             </tr>
         </thead>
@@ -72,6 +73,7 @@
                 <td class="text-tabular text-right">{{ job.records_updated }}</td>
                 <td class="text-tabular text-right">{{ job.records_deleted }}</td>
                 <td class="text-tabular text-right">{{ job.records_errored }}</td>
+                <td class="text-tabular text-right">{{ job.records_warned }}</td>
                 <td class="text-tabular text-right">{{ job.records_ignored }}</td>
             </tr>
             {% endfor %}

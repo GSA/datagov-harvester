@@ -37,7 +37,9 @@ ORGANIZATION_TYPE_SELECT_CHOICES = [
     ("", "Select an organization type"),
 ] + [(value, value) for value in ORGANIZATION_TYPE_VALUES]
 
-RECORD_STATUS_VALUES = ["error", "success"]
+RECORD_STATUS_VALUES = ["error", "success", "dataset_pending"]
+
+SEVERITY_VALUES = ["error", "warning"]
 
 SCHEMA_TYPE_VALUES = [
     "iso19115_1",
@@ -57,6 +59,7 @@ __all__ = [
     "ORGANIZATION_TYPE_VALUES",
     "ORGANIZATION_TYPE_SELECT_CHOICES",
     "RECORD_STATUS_VALUES",
+    "SEVERITY_VALUES",
     "SCHEMA_TYPE_VALUES",
     "SOURCE_TYPE_VALUES",
 ]

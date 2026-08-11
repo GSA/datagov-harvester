@@ -51,7 +51,7 @@ class TestDynamicRouteTable:
                     "location": "/organization_list/",
                 },
             },
-            r"((main|api)\.(add|edit|cancel|update|delete|trigger)_(organization|harvest_source|harvest_job|harvest_record))": {
+            r"((main|api|api_v1)\.(add|edit|cancel|update|delete|trigger)_(organization|harvest_source|harvest_job|harvest_record))": {
                 "(POST|HEAD|PUT|DELETE)": {
                     "status_code": 302,
                     "location": LOCATION_ENUMS["LOGIN"],
@@ -328,7 +328,43 @@ class TestLoginLogging:
 
         assert response.status_code == 302
         assert "Login callback received" in caplog.text
-        assert "Login succeeded for user=test.user@gsa.gov" in caplog.text
+        assert "event=user_login" in caplog.text
+        assert "method=login.gov" in caplog.text
+        assert "user=test.user@gsa.gov" in caplog.text
+
+    def test_callback_redirects_to_next_url(self, client, interface, caplog):
+        caplog.set_level("INFO", logger="harvest_admin")
+        ok, user = interface.add_user(
+            {"email": "test.user@gsa.gov", "name": "Test User"}
+        )
+        assert ok is True
+        assert user.email == "test.user@gsa.gov"
+
+        with client.session_transaction() as sess:
+            sess["state"] = "expected-state"
+            sess["next"] = "http://localhost/harvest_source/edit/some-source-id"
+
+        token_response = Mock()
+        token_response.status_code = 200
+        token_response.json.return_value = {"id_token": "encoded-token"}
+
+        with (
+            patch("app.main.auth.create_client_assertion", return_value="assertion"),
+            patch("app.main.auth.requests.post", return_value=token_response),
+            patch(
+                "app.main.auth.jwt.decode",
+                return_value={
+                    "email": "test.user@gsa.gov",
+                    "sub": "login-gov-subject",
+                },
+            ),
+        ):
+            response = client.get("/callback?code=abc123&state=expected-state")
+
+        assert response.status_code == 302
+        assert (
+            response.location == "http://localhost/harvest_source/edit/some-source-id"
+        )
 
     def test_callback_logs_token_exchange_failure(self, client, caplog):
         caplog.set_level("INFO", logger="harvest_admin")
@@ -375,9 +411,10 @@ class TestLoginLogging:
             response = client.get("/callback?code=abc123&state=expected-state")
 
         assert response.status_code == 302
-        assert (
-            "Login rejected for unregistered user=unregistered@gsa.gov" in caplog.text
-        )
+        assert "event=login_rejected" in caplog.text
+        assert "reason=unregistered_user" in caplog.text
+        assert "method=login.gov" in caplog.text
+        assert "user=unregistered@gsa.gov" in caplog.text
 
 
 class TestAuditLogging:

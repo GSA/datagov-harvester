@@ -1,5 +1,3 @@
-# NOTE: Keep this file in sync between datagov-harvester and datagov-catalog
-
 import uuid
 from typing import Optional
 
@@ -8,24 +6,30 @@ from geoalchemy2 import Geometry
 from sqlalchemy import (
     CheckConstraint,
     Column,
+    DateTime,
     Enum,
+    ForeignKey,
     Index,
+    Integer,
     String,
+    Text,
     UniqueConstraint,
     func,
     select,
     text,
 )
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.ext.mutable import MutableDict
-from sqlalchemy.orm import DeclarativeBase, backref, column_property
+from sqlalchemy.orm import DeclarativeBase, backref, column_property, relationship
 
 from shared.constants import (
     FREQUENCY_VALUES,
     JOB_STATUS_VALUES,
     NOTIFICATION_FREQUENCY_VALUES,
     ORGANIZATION_TYPE_VALUES,
+    RECORD_STATUS_VALUES,
     SCHEMA_TYPE_VALUES,
+    SEVERITY_VALUES,
     SOURCE_TYPE_VALUES,
 )
 
@@ -38,43 +42,44 @@ class Base(DeclarativeBase):
         return {c.name: getattr(self, c.name) for c in self.__table__.columns}
 
 
-# For ref: https://stackoverflow.com/questions/22698478/what-is-the-difference-between-the-declarative-base-and-db-model
-db = SQLAlchemy(model_class=Base)
-
-
-class Error(db.Model):
+class Error(Base):
     __abstract__ = True
-    date_created = db.Column(db.DateTime, default=func.statement_timestamp())
-    type = db.Column(db.String)
-    message = db.Column(db.String)
+    date_created = Column(DateTime, default=func.statement_timestamp())
+    type = Column(String)
+    message = Column(String)
 
 
-class Organization(db.Model):
+class Organization(Base):
     __tablename__ = "organization"
     __table_args__ = (UniqueConstraint("slug", name="uq_organization_slug"),)
 
-    name = db.Column(db.String, nullable=False, index=True)
-    logo = db.Column(db.String)
-    description = db.Column(db.Text)
-    slug = db.Column(db.String(100), nullable=False)
-    organization_type = db.Column(
+    name = Column(String, nullable=False, index=True)
+    logo = Column(String)
+    description = Column(Text)
+    slug = Column(String(100), nullable=False)
+
+    organization_type = Column(
         Enum(
             *ORGANIZATION_TYPE_VALUES,
             name="organization_type_enum",
             create_constraint=True,
         )
     )
-    aliases = db.Column(db.ARRAY(db.String))
-    sources = db.relationship(
+
+    aliases = Column(ARRAY(String))
+
+    sources = relationship(
         "HarvestSource",
         backref=backref("org", lazy="joined"),
         cascade="all, delete-orphan",
+        passive_deletes=True,
         lazy=True,
     )
 
 
-class HarvestSource(db.Model):
+class HarvestSource(Base):
     __tablename__ = "harvest_source"
+
     __table_args__ = (
         CheckConstraint(
             "(collection_parent_url IS NULL"
@@ -86,13 +91,17 @@ class HarvestSource(db.Model):
         Index("ix_harvest_source_organization_id", "organization_id"),
     )
 
-    organization_id = db.Column(
-        db.String(36), db.ForeignKey("organization.id"), nullable=False
+    organization_id = Column(
+        String(36),
+        ForeignKey("organization.id", ondelete="CASCADE"),
+        nullable=False,
     )
-    name = db.Column(db.String, nullable=False)
-    url = db.Column(db.String, nullable=False, unique=True)
-    notification_emails = db.Column(db.ARRAY(db.String))
-    frequency = db.Column(
+
+    name = Column(String, nullable=False)
+    url = Column(String, nullable=False, unique=True)
+    notification_emails = Column(ARRAY(String))
+
+    frequency = Column(
         Enum(
             *FREQUENCY_VALUES,
             name="frequency",
@@ -100,31 +109,40 @@ class HarvestSource(db.Model):
         nullable=False,
         index=True,
     )
-    schema_type = db.Column(
-        db.Enum(
+
+    schema_type = Column(
+        Enum(
             *SCHEMA_TYPE_VALUES,
             name="schema_type",
         ),
         nullable=False,
     )
 
-    source_type = db.Column(
-        db.Enum(*SOURCE_TYPE_VALUES, name="source_type"), nullable=False
+    source_type = Column(
+        Enum(
+            *SOURCE_TYPE_VALUES,
+            name="source_type",
+        ),
+        nullable=False,
     )
-    jobs = db.relationship(
+
+    jobs = relationship(
         "HarvestJob",
         backref=backref("source", lazy="joined"),
         cascade="all, delete-orphan",
+        passive_deletes=True,
         lazy=True,
     )
-    notification_frequency = db.Column(
-        db.Enum(
+
+    notification_frequency = Column(
+        Enum(
             *NOTIFICATION_FREQUENCY_VALUES,
             name="notification_frequency",
         ),
         nullable=False,
     )
-    collection_parent_url = db.Column(db.String)
+
+    collection_parent_url = Column(String)
 
 
 # to avoid moving models around adding this here since it references
@@ -137,14 +155,18 @@ Organization.source_count = column_property(
 )
 
 
-class HarvestJob(db.Model):
+class HarvestJob(Base):
     __tablename__ = "harvest_job"
 
-    harvest_source_id = db.Column(
-        db.String(36), db.ForeignKey("harvest_source.id"), nullable=False
+    __table_args__ = (Index("ix_harvest_job_harvest_source_id", "harvest_source_id"),)
+
+    harvest_source_id = Column(
+        String(36),
+        ForeignKey("harvest_source.id", ondelete="CASCADE"),
+        nullable=False,
     )
 
-    status = db.Column(
+    status = Column(
         Enum(
             *JOB_STATUS_VALUES,
             name="job_status",
@@ -152,59 +174,94 @@ class HarvestJob(db.Model):
         nullable=False,
         index=True,
     )
-    job_type = db.Column(db.String(20), default="harvest")
-    date_created = db.Column(
-        db.DateTime, index=True, default=func.statement_timestamp()
-    )
-    date_finished = db.Column(db.DateTime)
-    records_total = db.Column(db.Integer, default=0)
-    records_added = db.Column(db.Integer, default=0)
-    records_updated = db.Column(db.Integer, default=0)
-    records_deleted = db.Column(db.Integer, default=0)
-    records_errored = db.Column(db.Integer, default=0)
-    records_ignored = db.Column(db.Integer, default=0)
-    records_validated = db.Column(db.Integer, default=0)
-    errors = db.relationship(
+
+    job_type = Column(String(20), default="harvest")
+    date_created = Column(DateTime, index=True, default=func.statement_timestamp())
+    date_finished = Column(DateTime)
+
+    records_total = Column(Integer, default=0)
+    records_added = Column(Integer, default=0)
+    records_updated = Column(Integer, default=0)
+    records_deleted = Column(Integer, default=0)
+    records_errored = Column(Integer, default=0)
+    records_warned = Column(Integer, default=0)
+    records_ignored = Column(Integer, default=0)
+    records_validated = Column(Integer, default=0)
+
+    # Catalog-level DCAT-US 3.0 metadata for this job's source, with dataset,
+    # service, record, and catalog fields stripped (those are harvested
+    # separately as their own records). Null for non-Catalog sources.
+    dcatus_catalog = Column(JSONB)
+
+    errors = relationship(
         "HarvestJobError",
         backref=backref("job", lazy="joined"),
         cascade="all, delete-orphan",
+        passive_deletes=True,
         lazy=True,
     )
-    records = db.relationship(
-        "HarvestRecord", backref="job", cascade="all, delete-orphan", lazy=True
+
+    records = relationship(
+        "HarvestRecord",
+        backref="job",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        lazy=True,
     )
-    record_errors = db.relationship(
-        "HarvestRecordError", backref="job", cascade="all, delete-orphan", lazy=True
+
+    record_errors = relationship(
+        "HarvestRecordError",
+        backref="job",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        lazy=True,
     )
 
 
-class HarvestRecord(db.Model):
+class HarvestRecord(Base):
     __tablename__ = "harvest_record"
 
-    identifier = db.Column(db.String, nullable=False)
-    harvest_job_id = db.Column(
-        db.String(36), db.ForeignKey("harvest_job.id"), nullable=False
+    identifier = Column(String, nullable=False)
+
+    harvest_job_id = Column(
+        String(36),
+        ForeignKey("harvest_job.id", ondelete="CASCADE"),
+        nullable=False,
     )
-    harvest_source_id = db.Column(
-        db.String(36), db.ForeignKey("harvest_source.id"), nullable=False
+
+    harvest_source_id = Column(
+        String(36),
+        ForeignKey("harvest_source.id", ondelete="CASCADE"),
+        nullable=False,
     )
-    source_hash = db.Column(db.String)
-    source_raw = db.Column(db.String)
-    source_transform = db.Column(JSONB)
-    date_created = db.Column(
-        db.DateTime, index=True, default=func.statement_timestamp()
+
+    source_hash = Column(String)
+    source_raw = Column(String)
+    source_transform = Column(JSONB)
+
+    date_created = Column(DateTime, index=True, default=func.statement_timestamp())
+    date_finished = Column(DateTime, index=True)
+
+    ckan_id = Column(String, index=True)
+
+    action = Column(
+        Enum("create", "update", "delete", name="record_action"),
+        index=True,
     )
-    date_finished = db.Column(db.DateTime, index=True)
-    ckan_id = db.Column(db.String, index=True)
-    action = db.Column(
-        Enum("create", "update", "delete", name="record_action"), index=True
+
+    # Parent information is not in source_raw for XML records.
+    parent_identifier = Column(String)
+
+    status = Column(
+        Enum(*RECORD_STATUS_VALUES, name="record_status"),
+        index=True,
     )
-    # Parent information isn't in source_raw for XML records
-    parent_identifier = db.Column(db.String)
-    status = db.Column(
-        Enum("error", "success", "dataset_pending", name="record_status"), index=True
-    )
-    errors = db.relationship("HarvestRecordError", backref="record", lazy=True)
+
+    # No delete cascade here on purpose: record errors outlive their record so
+    # error history survives record cleanup (see test_harvest_record_error_remains).
+    # harvest_record_id is nullable and stays SET NULL; the errors are still
+    # cleaned up when the owning job or source goes away, via harvest_job_id.
+    errors = relationship("HarvestRecordError", backref="record", lazy=True)
 
     __table_args__ = (
         Index("ix_harvest_record_harvest_job_id", "harvest_job_id"),
@@ -226,84 +283,93 @@ class HarvestRecord(db.Model):
         return dataset.slug
 
 
-class Dataset(db.Model):
+class Dataset(Base):
     __tablename__ = "dataset"
 
-    # Base has a string `id` column that is uuid by default
+    # Base has a string `id` column that is UUID by default.
+    # slug is the string used in a URL for this dataset.
+    slug = Column(String, nullable=False, index=True, unique=True)
 
-    # slug is the string that we use in a URL for this dataset
-    slug = db.Column(db.String, nullable=False, index=True, unique=True)
+    # Full dataset details in DCAT schema.
+    # MutableDict tracks in-place mutations, for example:
+    # dcat["spatial"] = "..."
+    dcat = Column(MutableDict.as_mutable(JSONB), nullable=False)
 
-    # This is all of the details of the dataset in DCAT schema in a JSON column
-    # make it mutable so that in-place mutations (e.g.,
-    # dcat["spatial"] = "...", for tests) are tracked
-    dcat = db.Column(MutableDict.as_mutable(JSONB), nullable=False)
-    translated_spatial = db.Column(JSONB)
+    translated_spatial = Column(JSONB)
 
-    organization_id = db.Column(
-        db.String(36),
-        db.ForeignKey("organization.id", ondelete="CASCADE"),
+    organization_id = Column(
+        String(36),
+        ForeignKey("organization.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
 
-    harvest_source_id = db.Column(
-        db.String(36),
-        db.ForeignKey("harvest_source.id", ondelete="CASCADE"),
+    harvest_source_id = Column(
+        String(36),
+        ForeignKey("harvest_source.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
 
-    harvest_record_id = db.Column(
-        db.String(36),
-        db.ForeignKey("harvest_record.id", ondelete="CASCADE"),
+    harvest_record_id = Column(
+        String(36),
+        ForeignKey("harvest_record.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
         unique=True,
     )
 
-    popularity = db.Column(db.Integer, server_default="0")
-    last_harvested_date = db.Column(db.DateTime, index=True)
+    popularity = Column(Integer, server_default="0")
+    last_harvested_date = Column(DateTime, index=True)
 
-    organization = db.relationship(
+    # The `datasets` / `dataset` backrefs below are the one-to-many side, so
+    # passive_deletes belongs on the backref. Without it SQLAlchemy tries to NULL
+    # these non-nullable FKs when a parent is deleted, raising IntegrityError.
+    # "all" rather than True so a warm collection is handled by the database too,
+    # and without delete-orphan, which would delete a row merely reassigned to a
+    # different parent.
+    organization = relationship(
         "Organization",
-        backref=backref("datasets", lazy=True),
+        backref=backref("datasets", lazy=True, passive_deletes="all"),
         lazy="joined",
     )
 
-    harvest_source = db.relationship(
+    harvest_source = relationship(
         "HarvestSource",
-        backref=backref("datasets", lazy=True),
+        backref=backref("datasets", lazy=True, passive_deletes="all"),
         lazy="joined",
     )
 
-    harvest_record = db.relationship(
+    harvest_record = relationship(
         "HarvestRecord",
-        backref=backref("dataset", uselist=False, lazy=True),
+        backref=backref("dataset", uselist=False, lazy=True, passive_deletes="all"),
         lazy="joined",
         uselist=False,
     )
 
 
-class DatasetViewCount(db.Model):
+class DatasetViewCount(Base):
     __tablename__ = "dataset_view_count"
 
-    dataset_slug = db.Column(db.String(100), nullable=False, unique=True, index=True)
-    view_count = db.Column(db.Integer, nullable=False, default=0)
+    dataset_slug = Column(String(100), nullable=False, unique=True, index=True)
+    view_count = Column(Integer, nullable=False, default=0)
 
 
-class ResourceViewCount(db.Model):
+class ResourceViewCount(Base):
     __tablename__ = "resource_view_count"
-    # url from Google Analytics resource path is truncated to 100 characters
-    resource_url = db.Column(db.String(100), nullable=False, unique=True, index=True)
-    view_count = db.Column(db.Integer, nullable=False, default=0)
+
+    # URL from Google Analytics resource path is truncated to 100 characters.
+    resource_url = Column(String(100), nullable=False, unique=True, index=True)
+    view_count = Column(Integer, nullable=False, default=0)
 
 
 class HarvestJobError(Error):
     __tablename__ = "harvest_job_error"
 
-    harvest_job_id = db.Column(
-        db.String(36), db.ForeignKey("harvest_job.id"), nullable=False
+    harvest_job_id = Column(
+        String(36),
+        ForeignKey("harvest_job.id", ondelete="CASCADE"),
+        nullable=False,
     )
 
     __table_args__ = (Index("ix_harvest_job_error_harvest_job_id", "harvest_job_id"),)
@@ -312,11 +378,24 @@ class HarvestJobError(Error):
 class HarvestRecordError(Error):
     __tablename__ = "harvest_record_error"
 
-    harvest_record_id = db.Column(
-        db.String, db.ForeignKey("harvest_record.id"), nullable=True
+    # SET NULL, not CASCADE: a record error outlives the record it describes.
+    # Deleting a job or source still removes it via harvest_job_id's CASCADE.
+    harvest_record_id = Column(
+        String,
+        ForeignKey("harvest_record.id", ondelete="SET NULL"),
+        nullable=True,
     )
-    harvest_job_id = db.Column(
-        db.String(36), db.ForeignKey("harvest_job.id"), nullable=False
+
+    harvest_job_id = Column(
+        String(36),
+        ForeignKey("harvest_job.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+
+    severity = Column(
+        Enum(*SEVERITY_VALUES, name="error_severity"),
+        nullable=False,
+        server_default="error",
     )
 
     __table_args__ = (
@@ -325,17 +404,22 @@ class HarvestRecordError(Error):
     )
 
 
-class HarvestUser(db.Model):
+class HarvestUser(Base):
     __tablename__ = "harvest_user"
-    email = db.Column(db.String(120), unique=True, nullable=False)
-    name = db.Column(db.String(120), nullable=True)
-    ssoid = db.Column(db.String(200), unique=True, nullable=True)
+
+    email = Column(String(120), unique=True, nullable=False)
+    name = Column(String(120), nullable=True)
+    ssoid = Column(String(200), unique=True, nullable=True)
 
 
-class Locations(db.Model):
+class Locations(Base):
     __tablename__ = "locations"
-    name = db.Column(db.String)
-    type = db.Column(db.String)
-    display_name = db.Column(db.String)
-    the_geom = db.Column(Geometry(geometry_type="MULTIPOLYGON"))
-    type_order = db.Column(db.Integer)
+
+    name = Column(String)
+    type = Column(String)
+    display_name = Column(String)
+    the_geom = Column(Geometry(geometry_type="MULTIPOLYGON"))
+    type_order = Column(Integer)
+
+
+db = SQLAlchemy(model_class=Base)

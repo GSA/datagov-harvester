@@ -1,17 +1,16 @@
 import logging
 from datetime import datetime, timedelta, timezone
-from functools import wraps
 from typing import List, Optional
 
-from sqlalchemy import asc, desc, exists, func, inspect, text
+import sqlalchemy.sql.operators as sa_operators
+from sqlalchemy import Text, asc, cast, desc, exists, func, inspect, literal, text
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import NoResultFound
 from sqlalchemy.orm import aliased
 
-from harvester.opensearch import OpenSearchInterface
-from harvester.utils.general_utils import query_filter_builder
-
-from .models import (
+from database.configs import PaginationConfig
+from database.decorators import count, count_wrapper, paginate
+from database.models import (
     Dataset,
     DatasetViewCount,
     HarvestJob,
@@ -32,68 +31,42 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger()
 
 
-def paginate(fn):
-    @wraps(fn)
-    def _impl(self, *args, **kwargs):
-        query = fn(self, *args, **kwargs)
-        if isinstance(query, list):
-            return query
-        if kwargs.get("count") is True:
-            return query
-        elif kwargs.get("paginate") is False:
-            return query.all()
-        else:
-            per_page = kwargs.get("per_page") or PAGINATE_ENTRIES_PER_PAGE
-            page = kwargs.get("page") or PAGINATE_START_PAGE
-            query = query.limit(per_page)
-            query = query.offset(page * per_page)
-            return query.all()
-
-    return _impl
-
-
-# notes on the flag `maintain_column_froms`:
-# https://github.com/sqlalchemy/sqlalchemy/discussions/6807#discussioncomment-1043732
-# docs: https://docs.sqlalchemy.org/en/14/core/selectable.html#sqlalchemy.sql.expression.Select.with_only_columns.params.maintain_column_froms
-#
-def count(fn):
-    @wraps(fn)
-    def _impl(self, *args, **kwargs):
-        query = fn(self, *args, **kwargs)
-        if kwargs.get("count") is True:
-            count_q = query.statement.with_only_columns(
-                func.count(), maintain_column_froms=True
-            ).order_by(None)
-            return query.session.execute(count_q).scalar()
-        else:
-            return query
-
-    return _impl
-
-
-def count_wrapper(fn):
-    """A wrapper that enables non-paginated functions to use the count decorater"""
-
-    @wraps(fn)
-    def _impl(self, *args, **kwargs):
-        query = fn(self, *args, **kwargs)
-        if kwargs.get("count") is True:
-            return query
-        else:
-            return query.all()
-
-    return _impl
-
-
 class HarvesterDBInterface:
+    pagination = PaginationConfig(
+        entries_per_page=PAGINATE_ENTRIES_PER_PAGE,
+        start_page=PAGINATE_START_PAGE,
+    )
+
     def __init__(self, session=None):
-        if session is not None:
-            ## For the Harvest Runner we create our own session and pass it in
-            self.db = session
-        else:
-            # Flask-SQLAlchemy provides a request-scoped database session
-            # so use it here
-            self.db = db.session
+        self.db = session if session else db.session
+
+    @staticmethod
+    def query_filter_builder(model, facets_string):
+        """Builds a list of filter expressions from a comma-separated string of facets
+
+        Each facet is of the form "column op value" where `column` is a
+        column name from the model, `op` is one of the operators in
+        `sqlalchemy.sql.operators` like "eq" or "like_op", and `value` is
+        a literal value for the operator.
+
+        The facet string is split on comma characters, so it isn't possible
+        to include commas in the literal values.
+
+        This can raise exceptions if the filters specify nonsensical things about
+        the model. Callers should handle these exceptions.
+        """
+        # empty facet string doesn't play well with our loop below
+        if not facets_string:
+            return []
+
+        facets = []
+        for this_facet in facets_string.split(","):
+            column_name, op, value = this_facet.split(maxsplit=2)
+            # these could raise attribute errors
+            column = getattr(model, column_name)
+            operator = getattr(sa_operators, op)
+            facets.append(operator(column, literal(value, type_=column.type)))
+        return facets
 
     @staticmethod
     def _to_dict(obj):
@@ -428,7 +401,9 @@ class HarvesterDBInterface:
         job = self.get_harvest_job(job_id)
         return [error for error in job.errors or []]
 
-    def get_harvest_record_errors_by_job_for_view(self, job_id: str, **kwargs):
+    def get_harvest_record_errors_by_job_for_view(
+        self, job_id: str, severity=None, **kwargs
+    ):
         """
         groups validation messages based on harvest record id. aggregates the error
         messages into a comma-separated string. for all other fields, the 1st row in
@@ -437,20 +412,23 @@ class HarvesterDBInterface:
         This path is used by the harvest job detail page. Keep the expensive grouping
         work on harvest_record_error, page those grouped results, then join
         harvest_record only for the displayed rows.
+
+        severity defaults to None to include all issues (errors and warnings).
+        Pass severity="error" or severity="warning" to narrow the returned rows.
         """
         error_types = ["ValidationException", "ValidationError"]
-        base = (
-            self.db.query(
-                HarvestRecordError.harvest_record_id.label("harvest_record_id"),
-                HarvestRecordError.harvest_job_id.label("harvest_job_id"),
-                HarvestRecordError.date_created.label("date_created"),
-                HarvestRecordError.type.label("type"),
-                HarvestRecordError.message.label("message"),
-                HarvestRecordError.id.label("id"),
-            )
-            .filter(HarvestRecordError.harvest_job_id == job_id)
-            .subquery()
-        )
+        base = self.db.query(
+            HarvestRecordError.harvest_record_id.label("harvest_record_id"),
+            HarvestRecordError.harvest_job_id.label("harvest_job_id"),
+            HarvestRecordError.date_created.label("date_created"),
+            HarvestRecordError.type.label("type"),
+            HarvestRecordError.severity.label("severity"),
+            HarvestRecordError.message.label("message"),
+            HarvestRecordError.id.label("id"),
+        ).filter(HarvestRecordError.harvest_job_id == job_id)
+        if severity is not None:
+            base = base.filter(HarvestRecordError.severity == severity)
+        base = base.subquery()
 
         # aggregate the validation messages by harvest_record_id using 1st row for
         # all other fields. sql indexing starts at 1
@@ -465,6 +443,7 @@ class HarvesterDBInterface:
                 ),
                 func.array_agg(base.c.date_created)[instance_idx].label("date_created"),
                 func.array_agg(base.c.type)[instance_idx].label("type"),
+                func.array_agg(base.c.severity)[instance_idx].label("severity"),
                 func.array_to_string(func.array_agg(base.c.message), "::").label(
                     "message"
                 ),
@@ -480,6 +459,7 @@ class HarvesterDBInterface:
             base.c.harvest_job_id,
             base.c.date_created,
             base.c.type,
+            base.c.severity,
             base.c.message,
             base.c.id,
         ).filter(base.c.type.not_in(error_types))
@@ -498,10 +478,13 @@ class HarvesterDBInterface:
                 paged.c.harvest_job_id,
                 paged.c.date_created,
                 paged.c.type,
+                paged.c.severity,
                 paged.c.message,
                 paged.c.id,
                 HarvestRecord.identifier,
-                HarvestRecord.source_raw,
+                func.coalesce(
+                    cast(HarvestRecord.source_transform, Text), HarvestRecord.source_raw
+                ),
             )
             .outerjoin(HarvestRecord, HarvestRecord.id == paged.c.harvest_record_id)
             .all()
@@ -509,7 +492,7 @@ class HarvesterDBInterface:
 
     @count
     @paginate
-    def get_harvest_record_errors_by_job(self, job_id: str, **kwargs):
+    def get_harvest_record_errors_by_job(self, job_id: str, severity=None, **kwargs):
         """
         Retrieves harvest record errors for a given job.
 
@@ -525,6 +508,10 @@ class HarvesterDBInterface:
             - identifier (retrieved from HarvestRecord, can be None)
             - source_raw (retrieved from HarvestRecord, containing 'title', can be None)
 
+        severity filters the returned rows. It defaults to None to return all
+        issues (errors and warnings). Pass severity="error" or
+        severity="warning" to narrow the returned rows.
+
         Returns:
             Query: A SQLAlchemy Query object that, when executed, yields tuples of:
                 (HarvestRecordError, identifier, source_raw).
@@ -539,11 +526,25 @@ class HarvesterDBInterface:
             .filter(HarvestRecordError.harvest_job_id == job_id)
         )
 
+        if severity is not None:
+            query = query.filter(HarvestRecordError.severity == severity)
+
         for_view = kwargs.get("for_view", False)
         if for_view:
-            return self.get_harvest_record_errors_by_job_for_view(job_id, **kwargs)
+            return self.get_harvest_record_errors_by_job_for_view(
+                job_id, severity=severity, **kwargs
+            )
 
         return query
+
+    def get_harvest_record_issues(self, job_id: str, **kwargs):
+        """Retrieve all harvest record issues (errors and warnings) for a job.
+
+        This is a convenience wrapper over get_harvest_record_errors_by_job with
+        severity=None. It returns the same tuple shape and honors the same
+        count/pagination kwargs.
+        """
+        return self.get_harvest_record_errors_by_job(job_id, severity=None, **kwargs)
 
     def stream_harvest_record_errors_by_job(self, job_id: str, batch_size=1000):
         """
@@ -560,6 +561,7 @@ class HarvesterDBInterface:
                 END AS source_raw,
                 harvest_record_error.harvest_record_id,
                 harvest_record_error.type,
+                harvest_record_error.severity,
                 harvest_record_error.message,
                 harvest_record_error.date_created
             FROM harvest_record_error
@@ -581,20 +583,35 @@ class HarvesterDBInterface:
         else:
             return None
 
-    def get_harvest_record_errors_by_record(self, record_id: str):
+    def get_harvest_record_errors_by_record(self, record_id: str, severity="error"):
+        """Retrieve harvest record errors for a given record.
+
+        severity defaults to "error" to preserve existing behavior; pass
+        severity=None to return all issues (errors and warnings).
+        """
         errors = self.db.query(HarvestRecordError).filter_by(
             harvest_record_id=record_id
         )
+        if severity is not None:
+            errors = errors.filter_by(severity=severity)
         return [err for err in errors or []]
 
     def get_record_errors_summary_by_job(self, job_id: str):
-        """Get a summary of all the record errors for this job."""
+        """Get a summary of all record issues for this job, grouped by severity."""
         query = (
-            self.db.query(HarvestRecordError.type, func.count())
+            self.db.query(
+                HarvestRecordError.severity,
+                HarvestRecordError.type,
+                func.count(),
+            )
             .where(HarvestRecordError.harvest_job_id == job_id)
-            .group_by(HarvestRecordError.type)
+            .group_by(HarvestRecordError.severity, HarvestRecordError.type)
+            .order_by(HarvestRecordError.severity, HarvestRecordError.type)
         )
-        return {error_type: error_count for error_type, error_count in query}
+        return [
+            {"severity": severity, "type": error_type, "count": error_count}
+            for severity, error_type, error_count in query
+        ]
 
     ## HARVEST RECORD
     def add_harvest_record(self, record_data):
@@ -805,7 +822,15 @@ class HarvesterDBInterface:
             return None, False, str(e)
 
         try:
-            client = OpenSearchInterface.from_environment()
+            # imported lazily: database.interface is imported by harvester/__init__.py,
+            # and search.client/search.writer are plain top-level modules, so this
+            # avoids a needless module-level dependency for the one method that uses it.
+            from search.client import OpenSearchClient
+            from search.writer import OpenSearchWriter
+
+            os_client = OpenSearchClient.from_environment()
+            client = OpenSearchWriter(os_client)
+
             succeeded, failed, errors = client.index_datasets([dataset])
             if failed or errors:
                 error_msg = f"OpenSearch reindex reported {failed} failure(s): {errors}"
@@ -1081,7 +1106,7 @@ class HarvesterDBInterface:
         if model_class is None:
             return f"Incorrect model arg {model}", 400
 
-        facet_list = query_filter_builder(model_class, facets)
+        facet_list = HarvesterDBInterface.query_filter_builder(model_class, facets)
 
         # TODO: should we add date_created to these models??
         if model in ["organizations", "harvest_sources"]:
@@ -1113,7 +1138,17 @@ class HarvesterDBInterface:
             model="harvest_job_errors", facets=facets, order_by=order_by, **kwargs
         )
 
-    def pget_harvest_record_errors(self, facets="", order_by="asc", **kwargs):
+    def pget_harvest_record_errors(
+        self, facets="", order_by="asc", severity="error", **kwargs
+    ):
+        """Paged harvest record errors.
+
+        severity defaults to "error" to preserve existing behavior; pass
+        severity=None to return all issues (errors and warnings).
+        """
+        if severity is not None:
+            severity_facet = f"severity eq {severity}"
+            facets = f"{facets},{severity_facet}" if facets else severity_facet
         return self.pget_db_query(
             model="harvest_record_errors", facets=facets, order_by=order_by, **kwargs
         )
