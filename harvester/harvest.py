@@ -1295,6 +1295,15 @@ class Record:
         try:
             if self.status == "error":
                 return False
+
+            # CatalogRecords: skip Dataset and OpenSearch sync, just update HarvestRecord
+            if self.record_type == "catalog_record":
+                self.status = "success"
+                self.harvest_source.update_job_record_count_by_action(self.action)
+                self.update_self_in_db()
+                return True
+
+            # Dataset sync logic (existing behavior)
             metadata = None
             if self.action in ("create", "update"):
                 metadata = self._metadata_for_dataset()
@@ -1354,6 +1363,10 @@ class Record:
         }
         if self.ckan_id is not None:
             data["ckan_id"] = self.ckan_id
+
+        # Store transformed_data in source_transform for CatalogRecords
+        if self.record_type == "catalog_record" and self.transformed_data is not None:
+            data["source_transform"] = self.transformed_data
 
         if self.harvest_source.job_type == "force_harvest":
             data["harvest_job_id"] = self.harvest_source.job_id
