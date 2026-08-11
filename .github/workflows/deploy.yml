@@ -80,6 +80,14 @@ jobs:
   # rather than once per space.
   detect-reindex:
     name: Detect reindex label
+    # A called workflow can only NARROW the caller's GITHUB_TOKEN, never elevate it,
+    # and this workflow's top-level `permissions` is `contents: read`. Without granting
+    # these here the called job's own `permissions:` block asks for more than it can
+    # ever be given, and the whole run fails at startup with no log.
+    permissions:
+      contents: read
+      pull-requests: read
+      actions: read
     uses: ./.github/workflows/detect-reindex.yml
     with:
       # This file, and the branch it deploys from -- the watermark is this workflow's
@@ -143,6 +151,10 @@ jobs:
       ${{ !cancelled()
       && needs.detect-reindex.result == 'success'
       && contains(fromJson('["success","skipped"]'), needs.preflight-clusters.result) }}
+    # See detect-reindex above: the callee's deploy job asks for `actions: write`.
+    permissions:
+      contents: read
+      actions: write
     uses: ./.github/workflows/release-space.yml
     with:
       space: staging
@@ -167,6 +179,10 @@ jobs:
       && needs.detect-reindex.result == 'success'
       && contains(fromJson('["success","skipped"]'), needs.preflight-clusters.result)
       && needs.release-staging.result == 'success' }}
+    # See detect-reindex above: the callee's deploy job asks for `actions: write`.
+    permissions:
+      contents: read
+      actions: write
     uses: ./.github/workflows/release-space.yml
     with:
       space: prod
