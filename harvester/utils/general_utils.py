@@ -476,6 +476,50 @@ def normalize_dataset_identifier(identifier) -> str | None:
     return None
 
 
+def normalize_catalog_record_identifier(catalog_record) -> str | None:
+    """Return the @id string from a DCAT-US 3.0 CatalogRecord object.
+
+    CatalogRecords must have an @id field to be harvested. This extracts
+    and validates the @id value.
+
+    Args:
+        catalog_record: Dict containing CatalogRecord metadata
+
+    Returns:
+        String identifier from @id field, or None if invalid/missing
+    """
+    if catalog_record is None or not isinstance(catalog_record, dict):
+        return None
+
+    at_id = catalog_record.get("@id")
+    if isinstance(at_id, str) and at_id.strip():
+        return at_id.strip()
+
+    return None
+
+
+def validate_catalog_record_has_id(catalog_record) -> bool:
+    """Validate that a CatalogRecord has a valid @id field.
+
+    Per GitHub issue #6181: CatalogRecords must have @id present,
+    even though it's optional in the DCAT-US 3.0 spec.
+
+    Args:
+        catalog_record: Dict containing CatalogRecord metadata
+
+    Returns:
+        True if @id is present and valid, False otherwise
+    """
+    if catalog_record is None or not isinstance(catalog_record, dict):
+        return False
+
+    at_id = catalog_record.get("@id")
+    if isinstance(at_id, str) and at_id.strip():
+        return True
+
+    return False
+
+
 def describe_identifier_error(identifier) -> str:
     """Describe why an identifier cannot be used for harvesting."""
     if identifier is None:
