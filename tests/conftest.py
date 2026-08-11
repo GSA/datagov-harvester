@@ -301,6 +301,36 @@ def source_data_dcatus3_0_service_no_identifier(organization_data: dict) -> dict
 
 
 @pytest.fixture
+def source_data_dcatus3_0_with_records(organization_data: dict) -> dict:
+    return {
+        "id": "c5e7a9b1-4567-489a-bcde-f01234567891",
+        "name": "Test Source DCAT-US 3.0 (with catalog records)",
+        "notification_emails": ["email@example.com"],
+        "organization_id": organization_data["id"],
+        "frequency": "daily",
+        "url": f"{HARVEST_SOURCE_URL}/dcatus/dcatus3_0_with_records.json",
+        "schema_type": "dcatus3.0",
+        "source_type": "document",
+        "notification_frequency": "always",
+    }
+
+
+@pytest.fixture
+def source_data_dcatus3_0_record_no_id(organization_data: dict) -> dict:
+    return {
+        "id": "d6f8b0c2-5678-49ab-cdef-012345678912",
+        "name": "Test Source DCAT-US 3.0 (catalog record no @id)",
+        "notification_emails": ["email@example.com"],
+        "organization_id": organization_data["id"],
+        "frequency": "daily",
+        "url": f"{HARVEST_SOURCE_URL}/dcatus/dcatus3_0_record_no_id.json",
+        "schema_type": "dcatus3.0",
+        "source_type": "document",
+        "notification_frequency": "always",
+    }
+
+
+@pytest.fixture
 def source_data_dcatus_same_title(organization_data: dict) -> dict:
     return {
         "id": "50301cdb-5766-46ed-8f46-ca63844315a2",
@@ -628,6 +658,28 @@ def job_data_dcatus3_0_service_no_identifier(
         "id": "d5f7b9a1-4567-489a-bcde-f01234567890",
         "status": "new",
         "harvest_source_id": source_data_dcatus3_0_service_no_identifier["id"],
+    }
+
+
+@pytest.fixture
+def job_data_dcatus3_0_with_records(
+    source_data_dcatus3_0_with_records: dict,
+) -> dict:
+    return {
+        "id": "e7a9c1d3-6789-4abc-def0-123456789123",
+        "status": "new",
+        "harvest_source_id": source_data_dcatus3_0_with_records["id"],
+    }
+
+
+@pytest.fixture
+def job_data_dcatus3_0_record_no_id(
+    source_data_dcatus3_0_record_no_id: dict,
+) -> dict:
+    return {
+        "id": "f8b0d2e4-789a-4bcd-ef01-234567891234",
+        "status": "new",
+        "harvest_source_id": source_data_dcatus3_0_record_no_id["id"],
     }
 
 
