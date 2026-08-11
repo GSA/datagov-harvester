@@ -1,0 +1,75 @@
+name: SCRATCH - concurrency probe
+
+# SCRATCH-ONLY (branch scratch/migrate-opensearch-staging-test; do not merge).
+#
+# Proves the one assumption deploy.yml's design rests on and that GitHub's docs do
+# not state: is a JOB-level concurrency group released when that job finishes, so a
+# reusable workflow called LATER IN THE SAME RUN can acquire the same group?
+#
+# deploy.yml needs this. Its deploy/await jobs take opensearch-maintenance-<env> at
+# job level, and its reindex-* jobs then call migrate_opensearch_cluster.yml, which
+# takes that same group at workflow level. If a job-level hold outlives its job, the
+# child queues behind its own parent and the pipeline hangs.
+#
+# Reads: `holder` takes group X job-level and exits. `child` is a reusable workflow
+# whose workflow-level group is also X. If `child` runs, the design is sound. If the
+# run sits in "Queued" forever, it is not -- fall back to `deploy-main-pipeline`
+# alone and drop the per-job maintenance groups.
+#
+# Costs nothing: two ubuntu jobs, no cf, no cloud resources.
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - scratch/migrate-opensearch-staging-test
+    paths:
+      - ".github/workflows/zz_concurrency_probe.yml"
+      - ".github/workflows/zz_concurrency_probe_child.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  holder:
+    name: Hold the group at job level
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    concurrency:
+      group: zz-concurrency-probe
+      cancel-in-progress: false
+    steps:
+      - name: Hold briefly, then release
+        run: |
+          echo "Holding 'zz-concurrency-probe' at job level for 10s..."
+          sleep 10
+          echo "Job ending -- the group should be released now."
+
+  # Same group as `holder` above, but claimed by a called workflow's own
+  # workflow-level concurrency. This is the exact shape deploy.yml uses.
+  child:
+    name: Child wants the same group
+    needs: holder
+    uses: ./.github/workflows/zz_concurrency_probe_child.yml
+    with:
+      probe_group: zz-concurrency-probe
+
+  verdict:
+    name: Verdict
+    needs: child
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Report
+        env:
+          CHILD_RESULT: ${{ needs.child.result }}
+        run: |
+          if [[ "$CHILD_RESULT" == "success" ]]; then
+            echo "PASS: a job-level group is released when its job ends."
+            echo "deploy.yml's per-job opensearch-maintenance-<env> holds are safe."
+          else
+            echo "INVESTIGATE: child result was '${CHILD_RESULT}'." >&2
+            echo "If the run hung rather than failing, a job-level hold is NOT released" >&2
+            echo "in time and deploy.yml must drop its per-job maintenance groups." >&2
+            exit 1
+          fi

@@ -178,7 +178,68 @@ Throughout, `<space>` is `development`, `staging`, or `prod`, and the new instan
 is `datagov-catalog-opensearch-next` (named after catalog, like the live one,
 because both apps bind it).
 
-## Running it
+## Automatic reindex on merge
+
+**Label a PR `force re-index recommended` and the index rebuilds itself** — in staging,
+then prod, after each space deploys. Use it whenever the change touches the mapping or
+the document shape: `search/mappings.py`, `search/config.py` (`SETTINGS`),
+`search/documents.py`, `search/transforms.py`, `search/spatial.py`, or a `Dataset`
+column the transformer reads.
+
+Nothing else detects this. `MAPPINGS` carries no version or hash, and
+`OpenSearchClient._ensure_index()` only creates an index when one is *absent* — so
+deploying a mapping change against an existing index is a **silent no-op** and search
+quietly serves the old shape.
+
+### The whole release is one queue
+
+`deploy.yml` holds a single `deploy-main-pipeline` concurrency group covering staging
+deploy → staging reindex → prod deploy → prod reindex. A second merge waits for **all**
+of it. That is deliberate: a `cf push` landing mid-migration is what broke a staging
+run on 2026-08-10, redeploying the app and removing the `--cluster` flag the in-flight
+rebuild depended on.
+
+Consequence worth knowing: **a labelled merge blocks later merges for the length of
+both migrations** — hours, for a prod `es-large`. An urgent hotfix queues behind it.
+Dispatch **2 - Deploy** manually with `reindex: skip` if you need to jump that queue,
+and only cancel a running pipeline *before* a promote begins.
+
+The individual deploy jobs also take `opensearch-maintenance-<space>` at job level, so
+a hand-dispatched migration and a deploy can no longer overlap in the same space.
+
+### How the label is detected
+
+Not from the push's own commit range. `deploy.yml` allows one pending run, and a third
+merge *cancels* the pending one — so a labelled merge could be superseded and its
+reindex lost. Instead detection measures from the `head_sha` of the last **successful**
+run of `deploy.yml`, and a cancelled or failed run never advances that watermark. The
+obligation stays detectable until a run actually completes.
+
+`.github/scripts/detect-reindex-label.sh` **fails closed**: no watermark, rewritten
+history, or a range truncated past the compare API's 250-commit cap all stop the deploy
+rather than guess. Nothing is lost when it refuses — dispatch manually with
+`reindex: force` or `reindex: skip` to state the intent. If a reindex is owed but does
+not finish, the run opens a tracking issue from `.github/reindex_owed.md`.
+
+### What runs, per space
+
+| input | staging | prod |
+| --- | --- | --- |
+| `on_build_failure` | `delete` — self-heals, since provisioning refuses a leftover `-next` | `keep` — an `es-large` provision is hours; resume with `start_at: rebuild` |
+| `force_kill_running_jobs` | `true` — unattended | `false` — prod harvest jobs are long; fail loudly instead |
+| `max_failed_records` | `50` | `50` |
+
+Both promote automatically. Before a labelled merge reaches prod, **confirm
+`GSA/datagov-catalog` is running code that matches the new mapping.** The harvester
+writes the new document shape; if catalog still expects the old one, search returns
+wrong results and `compare` cannot see it — it checks id sets and `last_harvested_date`,
+never document shape. Each promote says this in Slack, and probes catalog's `/search`
+afterwards, warning if a common term returns zero results.
+
+Dry run first if you want to see the wiring without touching a cluster: dispatch
+**2 - Deploy** with `dry_run: true`.
+
+## Running it manually
 
 Actions → **Migrate OpenSearch Cluster** → *Run workflow*:
 

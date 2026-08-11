@@ -1,0 +1,31 @@
+name: SCRATCH - concurrency probe (child)
+
+# SCRATCH-ONLY. Delete with zz_concurrency_probe.yml once the result is recorded.
+#
+# Stands in for migrate_opensearch_cluster.yml: a reusable workflow that takes a
+# workflow-level concurrency group. The parent probe holds the SAME group on an
+# earlier job, so if a job-level hold is not released when that job ends, this
+# workflow queues behind its own parent forever and the run hangs.
+
+on:
+  workflow_call:
+    inputs:
+      probe_group:
+        required: true
+        type: string
+
+concurrency:
+  group: ${{ inputs.probe_group }}
+  cancel-in-progress: false
+
+jobs:
+  child:
+    name: Child holding ${{ inputs.probe_group }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Report success
+        run: |
+          echo "The child acquired '${{ inputs.probe_group }}'."
+          echo "A job-level group IS released when its job completes, so deploy.yml's"
+          echo "per-job opensearch-maintenance-<env> holds are safe."

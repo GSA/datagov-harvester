@@ -111,19 +111,17 @@ on:
         default: "50"
         type: string
 
-  # SCRATCH-ONLY (branch scratch/migrate-opensearch-staging-test; do not merge).
+  # Called by deploy.yml, which rebuilds the index in staging and then prod when a
+  # merged PR carried `force re-index recommended`.
   #
-  # workflow_dispatch is only *registered* for workflow files that exist on the
-  # default branch, so this file 404s on dispatch until it lands on main. A push
-  # trigger has no such gate, so .github/workflows/zz_run_migrate_staging.yml
-  # pushes on the scratch branch and calls this workflow here.
+  # Identical `inputs.*` context to workflow_dispatch above, so every job below is
+  # reached unmodified and a label-triggered run behaves exactly like a hand-dispatched
+  # one. `choice` is not a legal workflow_call type, so those inputs are plain strings;
+  # the `plan` job validates them either way.
   #
-  # workflow_call shares the same `inputs.*` context as workflow_dispatch, so every
-  # job below is reached unmodified -- the trigger is the only difference between
-  # what runs here and what will run from main after merge. `choice` is not a legal
-  # workflow_call type, so those inputs are strings; the plan job validates them
-  # anyway. Defaults are duplicated from above so the runner passes only what it
-  # deliberately overrides.
+  # The caller must use `secrets: inherit` and must NOT declare a job-level
+  # `concurrency:` matching this workflow's group -- see the note on the concurrency
+  # block below.
   workflow_call:
     inputs:
       environment:
@@ -192,6 +190,11 @@ permissions:
 # were it callable, it holds this same group and would queue behind its own parent
 # forever. The rebuild steps are inlined below instead. Calling toggle_harvester.yml
 # IS safe -- it uses a different group.
+#
+# The same rule constrains deploy.yml, which calls this workflow: it holds
+# `deploy-main-pipeline` at workflow level and takes `opensearch-maintenance-<env>`
+# only on individual JOBS, so the group is free by the time this workflow needs it.
+# A workflow-level hold there would deadlock this child against its own parent.
 concurrency:
   group: opensearch-maintenance-${{ inputs.environment }}
   cancel-in-progress: false
@@ -579,6 +582,71 @@ jobs:
           cf_username: ${{ secrets.CF_SERVICE_USER }}
           cf_password: ${{ secrets.CF_SERVICE_AUTH }}
 
+      # The only check here that exercises the READER rather than the writer.
+      #
+      # Everything above verifies the harvester's view: it wrote the documents and it
+      # counted them. But catalog is a separate app in a separate repo, and two things
+      # can leave it broken after a promote that nothing else here would notice:
+      # its `.profile` sets no_proxy to `.apps.internal` only, so its OpenSearch
+      # traffic goes through the egress proxy and a brand-new cluster hostname may not
+      # be allowlisted; and if catalog runs code expecting the previous document shape
+      # the results are wrong rather than absent.
+      #
+      # An empty result set for a common term after a successful promote means one of
+      # those happened. Warns rather than fails: the migration itself succeeded, the
+      # renames are correct, and rolling back on a possibly-flaky HTTP probe would be
+      # worse than reporting it. Never fails the job -- `|| true` on the whole step.
+      - name: Check catalog can still search the promoted cluster
+        continue-on-error: true
+        env:
+          # Mirrors CATALOG_BASE_URL in vars.<space>.yml. Not read from the file
+          # because this step runs on the runner, not in a cf container.
+          ENVIRONMENT: ${{ inputs.environment }}
+        run: |
+          case "$ENVIRONMENT" in
+            prod)        CATALOG_URL=https://catalog.data.gov ;;
+            staging)     CATALOG_URL=https://catalog-stage.data.gov ;;
+            development) CATALOG_URL=https://catalog-dev.data.gov ;;
+            *)
+              echo "::notice::No catalog URL known for '${ENVIRONMENT}'; skipping the probe."
+              exit 0
+              ;;
+          esac
+          # `/search` (verified against catalog.data.gov) returns JSON shaped
+          # {"results":[...],"sort":...} -- 20 entries for a common term, and an empty
+          # array for no matches. Note it is NOT /api/search, which 404s.
+          #
+          # -L because /dataset redirects; basic auth guards the non-prod routes, so a
+          # 401 there is expected and is not evidence of a search problem.
+          code=$(curl -sL -o /tmp/catalog-probe -w '%{http_code}' \
+            "${CATALOG_URL}/search?q=water" || echo "000")
+          echo "catalog probe: HTTP ${code} from ${CATALOG_URL}/search?q=water"
+          case "$code" in
+            200)
+              hits=$(jq '.results | length' /tmp/catalog-probe 2>/dev/null || echo "unknown")
+              echo "  catalog returned ${hits} result(s)."
+              if [[ "$hits" == "0" ]]; then
+                echo "::warning::catalog returned ZERO results for a common term right after" \
+                     "the promote. Check (1) whether the new cluster hostname is allowlisted on" \
+                     "catalog's egress proxy, and (2) whether catalog is running code that" \
+                     "matches this cluster's document shape -- a shape mismatch produces wrong" \
+                     "results and is invisible to 'flask search compare'."
+              elif [[ "$hits" == "unknown" ]]; then
+                echo "::notice::could not parse catalog's response; search health not verified."
+              else
+                echo "  catalog can read the promoted cluster."
+              fi
+              ;;
+            401|403)
+              echo "::notice::catalog probe got ${code} (basic auth); search health not verified" \
+                   "from here. Confirm manually with credentials."
+              ;;
+            *)
+              echo "::warning::catalog probe got ${code}; could not verify that catalog can" \
+                   "read the promoted cluster. Check it before trusting this migration."
+              ;;
+          esac
+
   # Deleting the replaced cluster is its own job, not a final step of `promote`.
   #
   # `cf delete-service --wait` blocks until AWS has torn down every node, which is slow
@@ -685,6 +753,13 @@ jobs:
               skipped) summary="${summary} The replaced cluster was kept." ;;
               *)       summary="${summary} NOTE: deleting the replaced cluster did not complete (${DECOMMISSION_RESULT}); it is still provisioned and billing." ;;
             esac
+            # Said on every promote, because this is the one failure mode nothing in
+            # this repo can detect: the harvester now writes whatever document shape
+            # the deployed code produces, and if datagov-catalog is still running
+            # older code expecting the previous shape, search silently returns wrong
+            # results. `compare` compares id sets and last_harvested_date only -- it
+            # never inspects a document's fields -- so both verification gates pass.
+            summary="${summary} CONFIRM datagov-catalog is running code that matches this cluster's mapping: a mismatch is SILENT, not a failed check."
           elif [[ "$BUILD_RESULT" == "success" && "$PROMOTE_RESULT" == "skipped" ]]; then
             summary="OpenSearch migration in ${ENVIRONMENT} by ${ACTOR}: ${NEXT_SERVICE} is built and PARKED. No app was moved; re-dispatch with start_at=cutover to finish."
           elif [[ "$PROMOTE_RESULT" == "failure" ]]; then
