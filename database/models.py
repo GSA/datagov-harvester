@@ -28,6 +28,7 @@ from shared.constants import (
     NOTIFICATION_FREQUENCY_VALUES,
     ORGANIZATION_TYPE_VALUES,
     RECORD_STATUS_VALUES,
+    RECORD_TYPE_VALUES,
     SCHEMA_TYPE_VALUES,
     SEVERITY_VALUES,
     SOURCE_TYPE_VALUES,
@@ -249,6 +250,13 @@ class HarvestRecord(Base):
 
     status = Column(
         Enum(*RECORD_STATUS_VALUES, name="record_status"),
+        index=True,
+    )
+
+    record_type = Column(
+        Enum(*RECORD_TYPE_VALUES, name="record_type"),
+        nullable=False,
+        server_default="dataset",
         index=True,
     )
 
