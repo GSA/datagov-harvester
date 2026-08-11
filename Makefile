@@ -104,10 +104,19 @@ clean: ## Cleans docker images
 sleep-5:
 	sleep 5
 
-lint-check:  ## Lints wtih ruff, isort, black
+lint-check:  ## Lints wtih ruff, isort, black, shellcheck
 	poetry run ruff check .
 	poetry run isort --check .
 	poetry run black --check .
+	# The bin/ scripts rename and delete production service instances, so a shell
+	# slip there is expensive. Skipped when shellcheck is not installed locally.
+	# -S warning ignores style/info notices, several of which are deliberate here
+	# (e.g. single-quoted cf ssh payloads that must expand remotely, not locally).
+	@if command -v shellcheck > /dev/null; then \
+		shellcheck -S warning bin/*.sh bin/lib/*.sh; \
+	else \
+		echo "shellcheck not installed; skipping shell lint"; \
+	fi
 
 lint-fix:  ## Fix lints with isort and black
 	poetry run isort .

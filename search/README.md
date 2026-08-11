@@ -4,6 +4,13 @@ Vendored verbatim from [GSA/datagov_data_access](https://github.com/GSA/datagov_
 (commit `36d1440`), as part of reintegrating harvester's DB and OpenSearch code
 (GSA/data.gov#6209). Only import paths were rewritten (`datagov_data_access.search.*` -> `search.*`).
 
+One behavioral change has been made since vendoring: `OpenSearchClient.from_environment()` and
+`__init__()` take `ensure_index=True`, so a caller can connect without the constructor creating the
+`datasets` index. `flask search rebuild-index` needs that — it creates the index itself with a longer
+`request_timeout` and idempotent retry handling, and a create-on-connect would race it. This matches
+`for_host()`-era upstream (GSA/datagov_data_access#11, 1.3.0); a future re-vendor from that tag or
+later already includes it.
+
 The `reader.py` and `queries/` (including `queries/filters/`) modules are catalog-facing search/filter/
 aggregation logic that harvester does not exercise directly — harvester only writes to OpenSearch
 (`client.py`, `writer.py`, `documents.py`, `transforms.py`, `spatial.py`) plus one reader method

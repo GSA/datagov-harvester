@@ -1,9 +1,12 @@
+import os
 import re
+from contextlib import contextmanager
 from datetime import datetime, timezone
 
 import click
 from flask import Blueprint
 from opensearchpy import helpers
+from opensearchpy.exceptions import RequestError
 
 from database.interface import HarvesterDBInterface
 from database.models import Dataset
@@ -13,8 +16,216 @@ from search.reader import OpenSearchReader
 from search.writer import OPENSEARCH_INDEX_BATCH_FAILURE_MESSAGE, OpenSearchWriter
 
 search = Blueprint("search", __name__)
+# indices.create waits for shards to become active, which can exceed the client's
+# default 60s socket timeout on a loaded cluster; see _create_rebuild_index.
+OPENSEARCH_CREATE_INDEX_TIMEOUT_SECONDS = 300
+# Grep target for the skipped-id block in CI logs and task output.
+OPENSEARCH_SKIPPED_DOCUMENTS_BANNER = "SKIPPED DATASET IDS (not indexed)"
+# Grep target for the missing-id block `compare` prints when it tolerates a
+# shortfall, so the ids are findable in a cf task log after the fact.
+OPENSEARCH_MISSING_DOCUMENTS_BANNER = "MISSING DATASET IDS (not in OpenSearch)"
+
+# How many records may fail to index before a rebuild or a verification is treated
+# as broken rather than merely imperfect.
+#
+# Some upstream records simply cannot be indexed -- e.g. a dcat blob carrying an
+# empty-string key, which OpenSearch rejects with mapper_parsing_exception, so no
+# amount of retrying or rebuilding will land it. Failing the whole migration for a
+# handful of those means the migration can never complete, while accepting an
+# unbounded number would let a systemic breakage (bad mapping, cluster trouble)
+# sail through.
+#
+# An absolute count rather than a percentage: an operator knows roughly how many bad
+# records they expect, and a count says exactly what will and will not pass. A
+# percentage of a large corpus silently authorizes thousands of failures -- 1% of
+# 548k is ~5.5k -- which is far more than any known-bad backlog and enough to hide a
+# real breakage.
+#
+# Every failed id is always printed in full, so "tolerated" never means "unnoticed"
+# -- the point is to unblock the migration and fix the records afterwards.
+OPENSEARCH_MAX_FAILED_RECORDS = 50
+
+# Which cluster a command talks to. ``live`` is the cluster currently serving
+# catalog and harvester traffic; ``next`` is a replacement cluster bound
+# alongside it during a migration. See docs/ops/migrate-opensearch-cluster.md.
+CLUSTER_LIVE = "live"
+CLUSTER_NEXT = "next"
+# ``OpenSearchClient`` reads the cluster host and credentials from these fixed
+# environment variable names, so pointing it at the replacement cluster means
+# rebinding them for the duration of the constructor call.
+OPENSEARCH_NEXT_ENVIRONMENT_VARIABLES = {
+    "OPENSEARCH_HOST": "OPENSEARCH_NEXT_HOST",
+    "OPENSEARCH_ACCESS_KEY": "OPENSEARCH_NEXT_ACCESS_KEY",
+    "OPENSEARCH_SECRET_KEY": "OPENSEARCH_NEXT_SECRET_KEY",
+}
 
 db_interface = HarvesterDBInterface()
+
+
+def _is_aws_opensearch_host(host: str | None) -> bool:
+    """Whether ``host`` selects the client's AWS SigV4 path.
+
+    Delegates to ``OpenSearchClient._extract_hostname`` so this check cannot
+    drift from the suffix test ``from_environment`` uses to choose between the
+    signed AWS transport and the local admin:admin one.
+    """
+    if not host:
+        return False
+    try:
+        hostname = OpenSearchClient._extract_hostname(host)
+    except ValueError:
+        # urlparse raises on malformed URLs such as "http://[::1". Treat an
+        # unparseable value as non-AWS; the client will fail on it anyway, and a
+        # raw traceback out of a cf task log helps nobody.
+        return False
+    if not hostname:
+        return False
+    # Normalize before the suffix test. Without this, a real AWS endpoint written
+    # with different case, a trailing FQDN dot, or an explicit port classifies as
+    # "local", which drops the credential requirement and sends the client down
+    # the admin:admin path against a signed endpoint.
+    hostname = hostname.strip().lower().rstrip(".")
+    hostname = hostname.rsplit(":", 1)[0] if hostname.count(":") == 1 else hostname
+    return hostname == "es.amazonaws.com" or hostname.endswith(".es.amazonaws.com")
+
+
+@contextmanager
+def _next_cluster_environment():
+    """Expose the replacement cluster under the env names the client reads.
+
+    ``OpenSearchClient._create_aws_opensearch_client`` reads ``OPENSEARCH_HOST``
+    and the access/secret key pair from fixed environment variable names, and
+    captures all three at construction time -- the host goes into the transport's
+    host list and the keys into the SigV4 signer. Temporarily rebinding those
+    names around the constructor therefore yields a client permanently pinned to
+    the replacement cluster, without having to pass credentials on a command line
+    (which would leak them into ``cf run-task`` strings and CI logs).
+
+    Now that ``search/`` is vendored rather than an external dependency, a
+    ``for_host(host, access_key=..., secret_key=...)`` constructor there could
+    replace this whole dance; see GSA/data.gov#6211.
+    """
+    next_host = (os.environ.get("OPENSEARCH_NEXT_HOST") or "").strip()
+    live_host = (os.environ.get("OPENSEARCH_HOST") or "").strip()
+    # The access/secret pair is only consulted on the AWS SigV4 path, which the
+    # client selects by hostname suffix. Requiring them for a local host would
+    # mean inventing dummy values just to exercise this path in development.
+    required = (
+        list(OPENSEARCH_NEXT_ENVIRONMENT_VARIABLES.values())
+        if _is_aws_opensearch_host(next_host)
+        else ["OPENSEARCH_NEXT_HOST"]
+    )
+    missing = sorted(
+        name for name in required if not (os.environ.get(name) or "").strip()
+    )
+    if missing:
+        raise click.ClickException(
+            f"--cluster {CLUSTER_NEXT} requires " + ", ".join(missing) + ". Bind a "
+            "service instance named '<canonical>-next' to this app so .profile "
+            "exports its credentials (bin/provision_opensearch_cluster.sh does "
+            "this)."
+        )
+
+    if next_host == live_host:
+        # The whole point of --cluster next is to keep load and destructive
+        # operations off the live cluster. If both names resolve to the same host
+        # every such command would silently hit production while reporting
+        # "next" -- so refuse rather than pretend.
+        #
+        # Now that both names are derived (`X` and `X-next` are necessarily
+        # different instances), this should be unreachable. Kept because the cost of
+        # the check is one comparison and the cost of being wrong is a destructive
+        # command run against live while the logs say otherwise.
+        raise click.ClickException(
+            f"OPENSEARCH_NEXT_HOST is the same host as the live cluster "
+            f"({live_host}), so --cluster {CLUSTER_NEXT} would operate on live. "
+            "Two differently-named instances resolving to one host means a rename "
+            "went wrong; check `cf services` before retrying."
+        )
+
+    def _apply(values: dict):
+        """Set each live name, or unset it when the paired value is absent.
+
+        Unsetting matters: an absent replacement key must not leave the live
+        cluster's credential visible to a client aimed at the other host.
+        """
+        for name, value in values.items():
+            if value is None:
+                os.environ.pop(name, None)
+            else:
+                os.environ[name] = value
+
+    previous = {
+        live_name: os.environ.get(live_name)
+        for live_name in OPENSEARCH_NEXT_ENVIRONMENT_VARIABLES
+    }
+    # Enter the try BEFORE mutating, so an interruption partway through the swap
+    # (a SIGTERM during a cf run-task, say) cannot leave a half-swapped, mismatched
+    # credential set behind.
+    try:
+        _apply(
+            {
+                live_name: os.environ.get(next_name)
+                for live_name, next_name in (
+                    OPENSEARCH_NEXT_ENVIRONMENT_VARIABLES.items()
+                )
+            }
+        )
+        yield
+    finally:
+        # Restore unconditionally: a later command in the same process (and the
+        # harvest write path) must still resolve the live cluster.
+        _apply(previous)
+
+
+def _client_for_cluster(
+    cluster: str, announce: bool = False, ensure_index: bool = True
+):
+    """Build an ``OpenSearchClient`` for the live or the replacement cluster.
+
+    With ``announce``, echo which cluster and host was resolved. Every command
+    that can mutate or verify a cluster should say which one it touched -- that
+    line is the operator's only cross-check that a ``next`` run really did stay
+    off the live cluster.
+
+    ``ensure_index=False`` is for ``rebuild-index``, which owns index creation
+    and applies its longer timeout and idempotent retry handling.
+    """
+    if cluster == CLUSTER_NEXT:
+        with _next_cluster_environment():
+            client = OpenSearchClient.from_environment(ensure_index=ensure_index)
+    else:
+        client = OpenSearchClient.from_environment(ensure_index=ensure_index)
+    if announce:
+        click.echo(f"Target cluster: {cluster} ({_cluster_host(cluster)})")
+    return client
+
+
+def _cluster_host(cluster: str) -> str | None:
+    """Return the host a ``--cluster`` choice resolves to, for logging.
+
+    Read from the cluster's own variable rather than ``OPENSEARCH_HOST``, because
+    ``_next_cluster_environment`` has already restored the live value by the time
+    a command reports where it is pointed.
+    """
+    if cluster == CLUSTER_NEXT:
+        return os.environ.get("OPENSEARCH_NEXT_HOST")
+    return os.environ.get("OPENSEARCH_HOST")
+
+
+def cluster_option(command):
+    """Attach the shared ``--cluster`` option to a command."""
+    return click.option(
+        "--cluster",
+        type=click.Choice([CLUSTER_LIVE, CLUSTER_NEXT]),
+        default=CLUSTER_LIVE,
+        show_default=True,
+        help=(
+            "Which OpenSearch cluster to operate on. 'next' targets the "
+            "replacement cluster -- the bound instance named '<canonical>-next' -- "
+            "leaving the live cluster completely untouched."
+        ),
+    )(command)
 
 
 def _normalize_last_harvested(value):
@@ -44,20 +255,21 @@ def _normalize_last_harvested(value):
 
 
 def _normalize_mapping_for_comparison(value):
-    """Normalize mapping defaults omitted by OpenSearch responses."""
+    """Normalize equivalent mapping representations returned by OpenSearch."""
     if isinstance(value, dict):
         normalized = {
             key: _normalize_mapping_for_comparison(item) for key, item in value.items()
         }
+        # The application mapping declares `dynamic` as a Python bool, but
+        # OpenSearch stores and returns it as the string "false"/"true". Compare
+        # both as the string form so an equivalent mapping is not read as a
+        # mismatch.
+        if isinstance(normalized.get("dynamic"), bool):
+            normalized["dynamic"] = str(normalized["dynamic"]).lower()
         if normalized.get("search_analyzer") is not None and normalized.get(
             "search_analyzer"
         ) == normalized.get("analyzer"):
             normalized.pop("search_analyzer")
-        # OpenSearch echoes `dynamic` back as a string ("false"), while the
-        # application mapping declares it as a bool. Compare them as strings so
-        # the round trip doesn't look like a mismatch.
-        if "dynamic" in normalized and isinstance(normalized["dynamic"], bool):
-            normalized["dynamic"] = str(normalized["dynamic"]).lower()
         return normalized
 
     if isinstance(value, list):
@@ -68,7 +280,13 @@ def _normalize_mapping_for_comparison(value):
 
 @search.cli.command("reset-mapping")
 def reset_opensearch_mapping():
-    """Delete the dataset index and recreate its empty mapping and settings."""
+    """Delete the dataset index and recreate its empty mapping and settings.
+
+    Deliberately has no ``--cluster`` option: it empties the index it runs
+    against, and the only reason to touch a replacement cluster is to *fill* it.
+    Use ``rebuild-index --cluster next`` for that, which creates the mapping as
+    part of the rebuild.
+    """
     client = OpenSearchClient.from_environment()
 
     click.echo("Deleting OpenSearch dataset index...")
@@ -110,9 +328,39 @@ def reset_opensearch_mapping():
     is_flag=True,
     help="Re-index all datasets from DB regardless of last_harvested_date.",
 )
-def compare_opensearch(sample_size: int, update: bool, force_update: bool):
+@click.option(
+    "--fail-on-discrepancy",
+    is_flag=True,
+    help=(
+        "Exit non-zero when anything is missing, extra, or stale. Without this the "
+        "command only reports, so an automated gate must pass it to actually gate."
+    ),
+)
+@click.option(
+    "--max-failed-records",
+    default=OPENSEARCH_MAX_FAILED_RECORDS,
+    show_default=True,
+    type=click.IntRange(min=0),
+    help=(
+        "With --fail-on-discrepancy, how many datasets may be missing and still "
+        "pass. Keep it equal to rebuild-index's --max-failed-records, so a "
+        "rejection the rebuild tolerates does not then fail verification. Missing "
+        "ids are always printed in full. Applies only to missing documents: extra "
+        "and stale ones always fail, since neither is explained by an unindexable "
+        "record. Use 0 to require an exact match."
+    ),
+)
+@cluster_option
+def compare_opensearch(
+    sample_size: int,
+    update: bool,
+    force_update: bool,
+    fail_on_discrepancy: bool,
+    max_failed_records: int,
+    cluster: str,
+):
     """Report and optionally repair DB/OpenSearch dataset discrepancies."""
-    os_client = OpenSearchClient.from_environment()
+    os_client = _client_for_cluster(cluster, announce=True)
     os_writer = OpenSearchWriter(os_client)
     os_reader = OpenSearchReader(os_client)
 
@@ -175,6 +423,50 @@ def compare_opensearch(sample_size: int, update: bool, force_update: bool):
     else:
         click.echo("Example updated IDs: none")
 
+    # Raise before any repair: a CI gate wants the verification verdict, and a run
+    # that both repaired and reported success would hide the fact that the index was
+    # wrong. Checked even with --update so `compare --update --fail-on-discrepancy`
+    # still surfaces anything the repair could not fix.
+    #
+    # Missing documents get an allowance; extra and stale ones never do. The
+    # allowance exists for records OpenSearch refuses to accept at all (an empty
+    # field name, say), which can only ever manifest as *missing*. An extra document
+    # means a delete did not happen and a stale one means an update did not, and
+    # neither has anything to do with unindexable source data -- so tolerating those
+    # would be hiding a real defect rather than accepting a known one.
+    if fail_on_discrepancy:
+        # `len(missing) <= allowed` rather than `missing and ...`: with nothing
+        # missing this must be True (there is nothing to forgive), not an empty list.
+        within_allowance = len(missing) <= max_failed_records
+        failure_summary = _describe_failures(
+            len(missing), len(db_ids), max_failed_records
+        )
+
+        # Print every missing id, not just a sample, on BOTH paths: when failing they
+        # are the triage list, and when tolerated they are the backlog to fix later.
+        # Tolerated must never mean unnoticed.
+        if missing:
+            _report_document_ids(
+                OPENSEARCH_MISSING_DOCUMENTS_BANNER,
+                missing,
+                "Each id is in PostgreSQL but not in OpenSearch. A rebuild log's "
+                f"'{OPENSEARCH_SKIPPED_DOCUMENTS_BANNER}' block gives the reason "
+                "OpenSearch rejected it.",
+            )
+
+        if extra or updated_details or not within_allowance:
+            raise click.ClickException(
+                f"Discrepancies found: {len(missing)} missing, {len(extra)} extra, "
+                f"{len(updated_details)} updated"
+                + (f" ({failure_summary})" if missing else "")
+                + "."
+            )
+        if missing:
+            click.echo(
+                f"TOLERATED: {failure_summary}. Every missing id is listed above; "
+                "they are a backlog to fix, not a reason to block this migration."
+            )
+
     if force_update:
         update = True
     if not update:
@@ -226,68 +518,138 @@ def compare_opensearch(sample_size: int, update: bool, force_update: bool):
         click.echo("Nothing to update; datasets and index are already in sync.")
 
 
-def _default_rebuild_index_name(alias_name: str) -> str:
-    """Build a versioned physical index name like datasets-20260723152900."""
-    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
-    return f"{alias_name}-{timestamp}"
+def _clear_datasets_index(client, index_name: str):
+    """Remove whatever currently answers to ``index_name``.
 
-
-def _alias_indices(client, alias_name: str) -> list[str]:
-    """Return the physical indices currently attached to an alias.
-
-    Returns an empty list when the name is not (yet) an alias, which is the
-    case on the very first cutover while ``datasets`` is still a concrete index.
+    A fresh replacement has no index because ``rebuild-index`` suppresses the
+    client's create-if-missing behavior. A retry can have a partial plain index,
+    while a cluster rebuilt by an older release can have an *alias* pointing at
+    a ``datasets-<suffix>`` index. ``indices.delete`` rejects an alias with
+    ``illegal_argument_exception``, so drop the alias and the indices behind it
+    and leave every starting state equally clean.
     """
-    if not client.client.indices.exists_alias(name=alias_name):
-        return []
-    return sorted(client.client.indices.get_alias(name=alias_name))
+    if client.client.indices.exists_alias(name=index_name):
+        aliased = sorted(client.client.indices.get_alias(name=index_name))
+        click.echo(
+            f"'{index_name}' is a leftover alias for {', '.join(aliased)}; "
+            "removing both so it becomes a plain index."
+        )
+        # One atomic request: dropping an aliased index removes its alias with it,
+        # so this never leaves the name pointing at something already deleted.
+        client.client.indices.delete(index=",".join(aliased))
+        return
+
+    if client.client.indices.exists(index=index_name):
+        click.echo(f"Deleting existing index {index_name}...")
+        client.client.indices.delete(index=index_name)
 
 
-def _switch_datasets_alias(client, target_index: str, allow_legacy_index_removal: bool):
-    """Atomically point the logical ``datasets`` name at ``target_index``.
+def _create_rebuild_index(client, target_index: str, body: dict):
+    """Create the index, tolerating a timed-out-but-successful attempt.
 
-    All alias changes are submitted in a single ``update_aliases`` request so
-    readers (catalog + harvester) never observe a moment without an index. The
-    first cutover finds a legacy *concrete* index named ``datasets``; OpenSearch
-    can remove that index and create the alias in the same atomic request.
+    ``indices.create`` waits for shards to become active before responding, which
+    can outlast the client's 60s socket timeout on a busy cluster. The client then
+    retries (``retry_on_timeout=True``), but the first attempt already created the
+    index server-side, so the retry fails with ``resource_already_exists_exception``
+    and the whole rebuild aborts -- leaving an orphaned empty index behind.
 
-    Returns ``(old_indices, removed_legacy_index)``.
+    Passing an explicit ``request_timeout`` gives the call room to finish, and
+    treating "already exists" as success makes the retry idempotent. The caller has
+    already deleted any pre-existing ``target_index``, so an existing index here
+    can only be this command's own timed-out attempt.
     """
-    alias_name = client.INDEX_NAME
-    if not client.client.indices.exists(index=target_index):
-        raise click.ClickException(
-            f"OpenSearch target index does not exist: {target_index}"
+    try:
+        client.client.indices.create(
+            index=target_index,
+            body=body,
+            request_timeout=OPENSEARCH_CREATE_INDEX_TIMEOUT_SECONDS,
+        )
+    except RequestError as error:
+        if error.error != "resource_already_exists_exception":
+            raise
+        click.echo(
+            f"  {target_index} already exists after a timed-out create; "
+            "treating the earlier attempt as successful."
         )
 
-    old_indices = _alias_indices(client, alias_name)
-    if old_indices == [target_index]:
-        return old_indices, False
 
-    actions = [
-        {"remove": {"index": index, "alias": alias_name}} for index in old_indices
-    ]
-
-    removed_legacy_index = False
-    if not old_indices and client.client.indices.exists(index=alias_name):
-        # ``datasets`` is still a concrete index rather than an alias.
-        if not allow_legacy_index_removal:
-            raise click.ClickException(
-                f"'{alias_name}' is still a concrete index. Re-run with "
-                "--allow-legacy-index-removal to perform the one-time atomic "
-                "conversion to an alias."
-            )
-        actions.append({"remove_index": {"index": alias_name}})
-        removed_legacy_index = True
-
-    actions.append({"add": {"index": target_index, "alias": alias_name}})
-
-    response = client.client.indices.update_aliases(body={"actions": actions})
-    if not response.get("acknowledged"):
-        raise click.ClickException("OpenSearch did not acknowledge the alias switch.")
-    return old_indices, removed_legacy_index
+def _rejection_details(item: dict) -> tuple[str, str, str]:
+    """Pull ``(doc_id, error_type, reason)`` out of a bulk-rejection item."""
+    action = next(iter(item.values()), {}) if isinstance(item, dict) else {}
+    error = action.get("error") or {}
+    if isinstance(error, str):
+        return str(action.get("_id", "?")), "error", error
+    reason = error.get("reason", "")
+    caused_by = error.get("caused_by") or {}
+    if caused_by.get("reason"):
+        reason = f"{reason}: {caused_by['reason']}"
+    return (
+        str(action.get("_id", "?")),
+        str(error.get("type", "unknown")),
+        str(reason),
+    )
 
 
-def _backfill_from_postgres(client, target_index: str, batch_size: int):
+def _describe_failures(failed: int, total: int, max_failed: int) -> str:
+    """One-line "N of M failed; allowed K" summary for logs and error messages.
+
+    The percentage is reported for context only -- it is never what decides the
+    verdict, so an operator reading a log can see both the count they configured and
+    the share it represents.
+    """
+    share = (failed / total * 100) if total > 0 else 0.0
+    return (
+        f"{failed} of {total} ({share:.3f}%) failed; "
+        f"allowed up to {max_failed} record(s)"
+    )
+
+
+def _report_document_ids(banner: str, doc_ids: list, follow_up: str):
+    """Print a labelled block of dataset ids, in full and never truncated.
+
+    Separate from ``_report_skipped_documents`` because ``compare`` has only ids to
+    report -- it reads which documents are absent, not why the write failed -- while
+    a rebuild also has each rejection's error type and reason.
+    """
+    click.echo("")
+    click.echo(f"{banner} ({len(doc_ids)} total)")
+    for doc_id in sorted(doc_ids):
+        click.echo(f"  {doc_id}")
+    click.echo(f"  {follow_up}")
+    click.echo("")
+
+
+def _report_skipped_documents(errors: list):
+    """Print every skipped dataset id so an admin can investigate each record.
+
+    Emitted as a block at the end of the run, grouped by error type, because the
+    per-batch lines scroll far out of view during a multi-hundred-thousand
+    document backfill. The ids are printed in full -- never truncated with an
+    ellipsis -- since chasing the source record is the whole point.
+    """
+    grouped: dict[tuple[str, str], list[str]] = {}
+    for item in errors:
+        doc_id, error_type, reason = _rejection_details(item)
+        grouped.setdefault((error_type, reason), []).append(doc_id)
+
+    click.echo("")
+    click.echo(f"{OPENSEARCH_SKIPPED_DOCUMENTS_BANNER} ({len(errors)} total)")
+    for (error_type, reason), doc_ids in sorted(grouped.items()):
+        click.echo(f"  {error_type}: {reason}")
+        click.echo(f"    {len(doc_ids)} dataset id(s):")
+        for doc_id in doc_ids:
+            click.echo(f"      {doc_id}")
+    click.echo(
+        "  Investigate each id with: "
+        "flask search compare --sample-size 50  (or query the dataset table "
+        "directly by id)"
+    )
+    click.echo("")
+
+
+def _backfill_from_postgres(
+    client, target_index: str, batch_size: int, max_skipped: int = 0
+):
     """Regenerate every dataset document from PostgreSQL into ``target_index``.
 
     PostgreSQL is the source of truth, so we rebuild documents with the same
@@ -297,7 +659,18 @@ def _backfill_from_postgres(client, target_index: str, batch_size: int):
     changes, and mirrors the ``compare --force-update`` repair path. Datasets are
     read in keyset-paginated batches to bound memory on large tables.
 
-    Returns ``(indexed, failed, errors)``.
+    A malformed upstream record should not discard a whole rebuild. Documents that
+    OpenSearch *rejects individually* are logged and skipped up to ``max_skipped``;
+    exceeding that budget aborts the backfill early, because a large rejection count
+    means something systemic (bad mapping, cluster trouble) rather than dirty source
+    data. Every skipped id is reported so an admin can chase the record.
+
+    Aborting early matters on a corpus this size: once the budget is blown the
+    remaining batches cannot change the verdict, and stopping at that point saves
+    the operator the rest of a multi-hundred-thousand document write.
+
+    Returns ``(indexed, failed, errors)`` where ``failed`` counts skipped
+    documents and ``errors`` holds their raw rejection items.
     """
     total_indexed = 0
     total_failed = 0
@@ -331,38 +704,23 @@ def _backfill_from_postgres(client, target_index: str, batch_size: int):
         ):
             if success:
                 total_indexed += 1
-            else:
-                total_failed += 1
-                errors.append(item)
+                continue
+
+            total_failed += 1
+            errors.append(item)
+            doc_id, error_type, reason = _rejection_details(item)
+            click.echo(f"  Skipping {doc_id}: {error_type}: {reason}")
 
         last_id = datasets[-1].id
         db_interface.db.expunge_all()
 
-        if total_failed:
+        if total_failed > max_skipped:
             break
 
     return total_indexed, total_failed, errors
 
 
 @search.cli.command("rebuild-index")
-@click.option(
-    "--target-index",
-    help="Physical index name. Defaults to datasets-<UTC timestamp>.",
-)
-@click.option(
-    "--switch-alias/--no-switch-alias",
-    default=True,
-    show_default=True,
-    help="Switch the datasets alias to the rebuilt index after validation.",
-)
-@click.option(
-    "--allow-legacy-index-removal",
-    is_flag=True,
-    help=(
-        "Allow the first cutover to atomically remove a legacy concrete index "
-        "named datasets so it can become an alias."
-    ),
-)
 @click.option(
     "--batch-size",
     default=1000,
@@ -371,61 +729,49 @@ def _backfill_from_postgres(client, target_index: str, batch_size: int):
     help="Number of datasets read from PostgreSQL per backfill batch.",
 )
 @click.option(
-    "--delete-old-index",
-    is_flag=True,
+    "--max-failed-records",
+    default=OPENSEARCH_MAX_FAILED_RECORDS,
+    show_default=True,
+    type=click.IntRange(min=0),
     help=(
-        "After a successful alias switch, delete the index(es) the alias "
-        "previously pointed at. Ignored with --no-switch-alias."
+        "How many records may be rejected by OpenSearch before the rebuild is "
+        "treated as failed. Set it to the number of bad records you expect. "
+        "Rejected ids are always reported in full. Use 0 to fail on the first "
+        "rejection."
     ),
 )
+@cluster_option
 def rebuild_opensearch_index(
-    target_index: str | None,
-    switch_alias: bool,
-    allow_legacy_index_removal: bool,
     batch_size: int,
-    delete_old_index: bool,
+    max_failed_records: int,
+    cluster: str,
 ):
-    """Zero-downtime rebuild: backfill datasets into a fresh index, then swap alias.
+    """Rebuild the ``datasets`` index from PostgreSQL on a replacement cluster.
 
-    Builds a new physical index with the current application mapping, regenerates
-    every document from PostgreSQL (the source of truth) into it, validates the
-    document count, and (by default) atomically switches the ``datasets`` alias to
-    the new index. Search stays available throughout because the old index keeps
-    serving reads until the atomic alias switch.
+    Recreates the ``datasets`` index with the current application mapping and
+    regenerates every document from PostgreSQL (the source of truth) into it, then
+    validates the document count.
 
     Backfilling from PostgreSQL (rather than an OpenSearch ``_reindex``) means the
     rebuild also picks up document-shape changes, not just mapping changes, and
     reuses the same repair path as ``compare --force-update``.
+
+    This is destructive to the index it runs against, so run it with
+    ``--cluster next`` against a freshly provisioned replacement cluster and cut
+    over afterwards -- the live cluster is then never touched and serves queries at
+    full speed throughout. ``--cluster live`` rebuilds in place and search returns
+    nothing until the backfill finishes. See
+    docs/ops/migrate-opensearch-cluster.md.
     """
-    client = OpenSearchClient.from_environment()
-    alias_name = client.INDEX_NAME
+    target_index = OpenSearchClient.INDEX_NAME
+    client = _client_for_cluster(cluster, announce=True, ensure_index=False)
+    _clear_datasets_index(client, target_index)
 
-    target_index = target_index or _default_rebuild_index_name(alias_name)
-    if target_index == alias_name or not target_index.startswith(f"{alias_name}-"):
-        raise click.ClickException(
-            f"Target index must be a physical index starting with '{alias_name}-'."
-        )
-    if client.client.indices.exists(index=target_index):
-        raise click.ClickException(f"OpenSearch index already exists: {target_index}")
-
-    # Fail fast, before creating anything, if the one-time legacy conversion is
-    # needed but has not been explicitly allowed.
-    current_alias_indices = _alias_indices(client, alias_name)
-    has_legacy_concrete_index = not current_alias_indices and (
-        client.client.indices.exists(index=alias_name)
-    )
-    if switch_alias and has_legacy_concrete_index and not allow_legacy_index_removal:
-        raise click.ClickException(
-            f"'{alias_name}' is still a concrete index. Re-run with "
-            "--allow-legacy-index-removal to perform the one-time atomic "
-            "conversion to an alias."
-        )
-
-    click.echo(f"Creating physical index {target_index} with current mapping...")
+    click.echo(f"Creating index {target_index} with current mapping...")
     body = {"mappings": client.MAPPINGS}
     if client.SETTINGS:
         body["settings"] = client.SETTINGS
-    client.client.indices.create(index=target_index, body=body)
+    _create_rebuild_index(client, target_index, body)
 
     mapping = client.client.indices.get_mapping(index=target_index)
     actual_mapping = mapping[target_index]["mappings"]
@@ -438,85 +784,70 @@ def rebuild_opensearch_index(
 
     db_count = db_interface.db.query(Dataset).count()
     click.echo(f"Backfilling {db_count} PostgreSQL dataset(s) into {target_index}...")
-    indexed, failed, errors = _backfill_from_postgres(client, target_index, batch_size)
+    click.echo(
+        f"  Tolerating up to {max_failed_records} rejected record(s) before failing."
+    )
+    indexed, failed, errors = _backfill_from_postgres(
+        client, target_index, batch_size, max_skipped=max_failed_records
+    )
+    # Report before deciding: the ids are the actionable output whether or not the
+    # limit was exceeded, and on failure they are what an operator needs to triage.
     if failed:
-        for error in errors:
-            click.echo(f"  OpenSearch error: {error}")
+        _report_skipped_documents(errors)
+    if failed > max_failed_records:
         raise click.ClickException(
-            f"Backfill {OPENSEARCH_INDEX_BATCH_FAILURE_MESSAGE}: "
-            f"indexed={indexed}, failed={failed}."
+            f"Backfill {OPENSEARCH_INDEX_BATCH_FAILURE_MESSAGE}: indexed={indexed}, "
+            f"{_describe_failures(failed, db_count, max_failed_records)}. "
+            "The ids are listed above. A rejection count this high usually means a "
+            "systemic problem (mapping or cluster) rather than dirty records. Raise "
+            "--max-failed-records only once you have checked why these were rejected."
         )
 
-    # Harvesting is paused and drained before this runs, so the DB is stable;
-    # the index must end up with exactly one document per dataset.
+    # Harvesting is paused and drained before this runs, so the DB is stable, so
+    # the index must hold one document per dataset -- minus any we deliberately
+    # skipped above. Keeping the skipped count in the expectation is what makes
+    # tolerant skipping safe: a document lost for any *other* reason still fails
+    # this check.
     client.client.indices.refresh(index=target_index)
     target_count = client.client.count(index=target_index)["count"]
-    if target_count != db_count:
+    expected_count = db_count - failed
+    if target_count != expected_count:
         raise click.ClickException(
             f"Validation failed ({OPENSEARCH_INDEX_BATCH_FAILURE_MESSAGE}): "
-            f"PostgreSQL has {db_count} dataset(s) but {target_index} has "
-            f"{target_count} document(s)."
+            f"PostgreSQL has {db_count} dataset(s) and {failed} were skipped, so "
+            f"{target_index} should have {expected_count} document(s) but has "
+            f"{target_count}."
         )
-    click.echo(f"Validated {target_index}: {target_count} document(s).")
-
-    if not switch_alias:
+    if failed:
         click.echo(
-            f"Rebuild complete: {target_index} is validated. The {alias_name} "
-            "alias was not changed."
+            f"Validated {target_index}: {target_count} document(s) "
+            f"({_describe_failures(failed, db_count, max_failed_records)})."
         )
-        return
+    else:
+        click.echo(f"Validated {target_index}: {target_count} document(s).")
 
-    click.echo(f"Atomically switching alias {alias_name} to {target_index}...")
-    old_indices, removed_legacy = _switch_datasets_alias(
-        client, target_index, allow_legacy_index_removal
-    )
-    if removed_legacy:
-        click.echo(f"Converted the legacy concrete index '{alias_name}' into an alias.")
-    click.echo(f"Rebuild complete: {alias_name} now points to {target_index}.")
-
-    if old_indices:
-        if delete_old_index:
-            for old_index in old_indices:
-                _delete_physical_index(client, old_index)
-        else:
-            click.echo(
-                "Previous index no longer serving traffic (safe to delete with "
-                f"'flask search delete-index'): {', '.join(old_indices)}"
-            )
+    click.echo(f"Rebuild complete: {target_index} is ready on the {cluster} cluster.")
 
 
 def _delete_physical_index(client, index_name: str):
-    """Delete a physical dataset index after guarding against unsafe removals.
+    """Delete a leftover ``datasets-*`` index.
 
-    Refuses to delete the logical alias name itself or any index still attached
-    to an alias, so this can only ever remove an old index left behind by a
-    rebuild.
+    The name must carry a suffix, which is what keeps the live ``datasets`` index
+    itself un-deletable: rebuilds write to ``datasets`` directly, so deleting that
+    name would take search down rather than reclaim disk.
     """
-    alias_name = client.INDEX_NAME
+    index_prefix = client.INDEX_NAME
 
-    physical_index_pattern = rf"{re.escape(alias_name)}-[a-z0-9._-]+"
-    if not re.fullmatch(physical_index_pattern, index_name):
+    suffixed_index_pattern = rf"{re.escape(index_prefix)}-[a-z0-9._-]+"
+    if not re.fullmatch(suffixed_index_pattern, index_name):
         raise click.ClickException(
-            f"Index name must be a physical index starting with '{alias_name}-'."
+            f"Index name must start with '{index_prefix}-'. The live "
+            f"'{index_prefix}' index cannot be deleted this way."
         )
     if not client.client.indices.exists(index=index_name):
         raise click.ClickException(f"OpenSearch index does not exist: {index_name}")
 
-    alias_response = client.client.indices.get_alias(index=index_name)
-    attached_aliases = sorted(
-        {
-            alias
-            for index_details in alias_response.values()
-            for alias in index_details.get("aliases", {})
-        }
-    )
-    if attached_aliases:
-        raise click.ClickException(
-            f"Cannot delete {index_name}; it is still attached to alias(es): "
-            + ", ".join(attached_aliases)
-        )
-
-    click.echo(f"Deleting unused physical index {index_name}...")
+    click.echo(f"Deleting unused index {index_name}...")
     response = client.client.indices.delete(index=index_name)
     if not response.get("acknowledged"):
         raise click.ClickException(
@@ -529,9 +860,10 @@ def _delete_physical_index(client, index_name: str):
 @click.option(
     "--index-name",
     required=True,
-    help="Exact name of an unused physical index, such as datasets-20260723152900.",
+    help="Exact name of a leftover index, such as datasets-20260723152900.",
 )
-def delete_opensearch_index(index_name: str):
-    """Delete an unused physical dataset index."""
-    client = OpenSearchClient.from_environment()
+@cluster_option
+def delete_opensearch_index(index_name: str, cluster: str):
+    """Delete a leftover ``datasets-*`` index."""
+    client = _client_for_cluster(cluster, announce=True)
     _delete_physical_index(client, index_name)

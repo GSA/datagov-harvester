@@ -81,8 +81,11 @@ class OpenSearchClient:
         return host_or_url
 
     @classmethod
-    def from_environment(cls):
-        """Factory method to return a best-guess instance from environment variables."""
+    def from_environment(cls, ensure_index=True):
+        """Build a client from the environment.
+
+        Set ``ensure_index=False`` when the caller will create the index itself.
+        """
         opensearch_host = os.getenv("OPENSEARCH_HOST")
         if not opensearch_host:
             raise ValueError("OPENSEARCH_HOST is not set")
@@ -91,8 +94,8 @@ class OpenSearchClient:
             parsed_host == "es.amazonaws.com"
             or parsed_host.endswith(".es.amazonaws.com")
         ):
-            return cls(aws_host=opensearch_host)
-        return cls(test_host=opensearch_host)
+            return cls(aws_host=opensearch_host, ensure_index=ensure_index)
+        return cls(test_host=opensearch_host, ensure_index=ensure_index)
 
     def _ensure_index(self):
         """Ensure that the named index exists."""
@@ -102,7 +105,7 @@ class OpenSearchClient:
                 body["settings"] = SETTINGS
             self.client.indices.create(index=INDEX_NAME, body=body)
 
-    def __init__(self, test_host=None, aws_host=None):
+    def __init__(self, test_host=None, aws_host=None, ensure_index=True):
         """Interface for our OpenSearch cluster."""
         if aws_host is not None:
             if test_host is not None:
@@ -114,4 +117,5 @@ class OpenSearchClient:
             else:
                 raise ValueError("Must specify either test_host or aws_host")
 
-        self._ensure_index()
+        if ensure_index:
+            self._ensure_index()

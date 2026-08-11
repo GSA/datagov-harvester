@@ -2,6 +2,16 @@
 
 This is miscellaneous notes on operating the Harvester system.
 
+## Runbooks
+
+- [Migrating to a new OpenSearch cluster](migrate-opensearch-cluster.md) — the
+  **Migrate OpenSearch Cluster** workflow provisions a fresh cloud.gov cluster,
+  rebuilds the dataset index into it, moves the harvester and catalog over, and
+  deletes the old one, in a single dispatch. Live search sees no degradation because
+  nothing touches the live cluster until the rebuild has been verified. Also the only
+  way to resize, since the broker cannot change an instance's plan. Two-phase mode
+  handles schema-breaking changes that need a code deploy mid-migration.
+
 ## Enabling or disabling harvesting
 
 Run the **Toggle Harvester** GitHub Actions workflow and select the target

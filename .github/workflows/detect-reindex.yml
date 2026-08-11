@@ -1,0 +1,123 @@
+name: Detect reindex label
+
+# Decide whether a push owes an OpenSearch index rebuild.
+#
+# Reusable so the `develop` and `main` paths share one implementation, and called
+# ONCE per release rather than once per space -- a per-space call would recompute the
+# watermark, and prod would then measure from a run that had not finished.
+#
+# Must be called from the TOP-LEVEL workflow, and `workflow_file` must name that
+# caller's own file. A workflow invoked via `uses:` produces no workflow run of its
+# own -- measured: run 31432510233 executed migrate_opensearch_cluster.yml as a called
+# workflow and the API attributes it to the caller's path, while
+# `/actions/workflows/migrate_opensearch_cluster.yml/runs` 404s. So a reusable file
+# has no run history to draw a watermark from.
+#
+# See .github/scripts/detect-reindex-label.sh for why the watermark comes from the
+# last SUCCESSFUL run rather than from the push's own commit range.
+
+on:
+  workflow_call:
+    inputs:
+      workflow_file:
+        description: "The CALLER's workflow file, whose successful runs are the watermark"
+        required: true
+        type: string
+      branch:
+        description: "The branch that caller deploys from (main or develop)"
+        required: true
+        type: string
+      reindex_mode:
+        description: "auto = read PR labels; force = reindex anyway; skip = deploy only"
+        required: false
+        default: auto
+        type: string
+      spaces:
+        description: "Spaces this release will reindex, for the summary text only"
+        required: false
+        default: ""
+        type: string
+    outputs:
+      reindex_needed:
+        description: "'true' when the index must be rebuilt"
+        value: ${{ jobs.detect.outputs.reindex_needed }}
+      pr_numbers:
+        description: "Comma-separated labelled PR numbers, or 'manual' when forced"
+        value: ${{ jobs.detect.outputs.pr_numbers }}
+      base_sha:
+        description: "The watermark commit the range was measured from"
+        value: ${{ jobs.detect.outputs.base_sha }}
+
+permissions:
+  contents: read
+
+jobs:
+  detect:
+    name: Detect reindex label (${{ inputs.branch }})
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read # compare
+      pull-requests: read # commits/<sha>/pulls
+      actions: read # the watermark, from the caller's runs
+    outputs:
+      reindex_needed: ${{ steps.detect.outputs.reindex_needed }}
+      pr_numbers: ${{ steps.detect.outputs.pr_numbers }}
+      base_sha: ${{ steps.detect.outputs.base_sha }}
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v7
+
+      - name: Detect the reindex label
+        id: detect
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          REINDEX_MODE: ${{ inputs.reindex_mode }}
+          WORKFLOW_FILE: ${{ inputs.workflow_file }}
+          BRANCH: ${{ inputs.branch }}
+        run: |
+          case "$REINDEX_MODE" in
+            force)
+              echo "::notice::reindex=force: rebuilding regardless of labels."
+              {
+                echo "reindex_needed=true"
+                echo "pr_numbers=manual"
+                echo "base_sha=${GITHUB_SHA}"
+              } >> "$GITHUB_OUTPUT"
+              ;;
+            skip)
+              echo "::notice::reindex=skip: deploying without a rebuild."
+              {
+                echo "reindex_needed=false"
+                echo "pr_numbers="
+                echo "base_sha=${GITHUB_SHA}"
+              } >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              .github/scripts/detect-reindex-label.sh \
+                "$GITHUB_SHA" "$WORKFLOW_FILE" "force re-index recommended" "$BRANCH"
+              ;;
+          esac
+
+      - name: Summarize
+        env:
+          NEEDED: ${{ steps.detect.outputs.reindex_needed }}
+          PRS: ${{ steps.detect.outputs.pr_numbers }}
+          SPACES: ${{ inputs.spaces }}
+        run: |
+          if [[ "$NEEDED" == "true" ]]; then
+            {
+              echo "### OpenSearch reindex required"
+              echo
+              echo "PR(s) \`${PRS}\` carry \`force re-index recommended\`, so the"
+              echo "\`datasets\` index will be rebuilt in ${SPACES:-each space} after it"
+              echo "deploys. Search keeps serving throughout; only the promote moves traffic."
+              echo
+              echo "**Confirm \`GSA/datagov-catalog\` already has the matching schema"
+              echo "deployed.** The harvester writes the new document shape; if catalog is"
+              echo "still reading the old one the mismatch is SILENT -- \`compare\` checks"
+              echo "id sets and timestamps, never document shape."
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "No reindex for this push." >> "$GITHUB_STEP_SUMMARY"
+          fi

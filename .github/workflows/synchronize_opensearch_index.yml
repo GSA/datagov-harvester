@@ -38,21 +38,64 @@ jobs:
       - id: set-env
         env:
           SELECTED_ENV: ${{ inputs.environment || 'development' }}
+          # Comma-separated environments to skip on the nightly run, set as the
+          # repository variable OPENSEARCH_SYNC_PAUSED_ENVIRONMENTS. This cron
+          # writes to OpenSearch unattended, so it has to be paused for the
+          # environment being migrated to a new cluster -- otherwise it would
+          # index into whichever cluster is live mid-cutover. Manual dispatch is
+          # deliberately still allowed. See docs/ops/migrate-opensearch-cluster.md.
+          PAUSED_ENVIRONMENTS: ${{ vars.OPENSEARCH_SYNC_PAUSED_ENVIRONMENTS }}
         run: |
-          if [[ "${{ github.event_name }}" == "schedule" ]]; then
-            echo 'environments=["staging","prod"]' >> "$GITHUB_OUTPUT"
-          else
+          if [[ "${{ github.event_name }}" != "schedule" ]]; then
             echo "environments=[\"$SELECTED_ENV\"]" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
+
+          # Drop any paused environment from the scheduled run. An empty list
+          # leaves the matrix with no jobs, so the sync simply does not run.
+          #
+          # Reject names that are not real environments rather than ignoring
+          # them: a typo like "production" or "Prod" would otherwise report as
+          # paused while the sync kept writing, defeating the safety mechanism
+          # exactly when it matters. Failing loudly is the point.
+          result=$(
+            jq -cn --arg paused "$PAUSED_ENVIRONMENTS" '
+              ["staging","prod"] as $known
+              | ($paused | split(",") | map(gsub("^\\s+|\\s+$";"")) | map(select(length > 0))) as $skip
+              | {unknown: ($skip - $known), run: ($known - $skip)}
+            '
+          )
+          unknown=$(jq -r '.unknown | join(", ")' <<< "$result")
+          if [[ -n "$unknown" ]]; then
+            echo "::error::OPENSEARCH_SYNC_PAUSED_ENVIRONMENTS contains unknown environment(s): $unknown." \
+                 "Valid values are staging and prod (comma-separated)."
+            exit 1
+          fi
+
+          environments=$(jq -c '.run' <<< "$result")
+          if [[ -n "$PAUSED_ENVIRONMENTS" ]]; then
+            echo "::warning::Nightly OpenSearch sync is PAUSED for: $PAUSED_ENVIRONMENTS"
+          fi
+          echo "Nightly sync will run for: $environments"
+          echo "environments=$environments" >> "$GITHUB_OUTPUT"
 
   opensearch-sync:
     needs: determine-environments
+    # Skip explicitly when every environment is paused, rather than relying on
+    # how Actions treats a matrix that expands to zero combinations.
+    if: needs.determine-environments.outputs.environments != '[]'
     runs-on: ubuntu-latest
     strategy:
       matrix:
         environment: ${{ fromJson(needs.determine-environments.outputs.environments) }}
     name: Sync OpenSearch index
     environment: ${{ matrix.environment }}
+    # Share the maintenance lock with the rebuild, delete, and cutover workflows:
+    # this job writes to whichever cluster is live, so it must not overlap a
+    # cutover that is moving what "live" means.
+    concurrency:
+      group: opensearch-maintenance-${{ matrix.environment }}
+      cancel-in-progress: false
     env:
       CF_SPACE: ${{ matrix.environment }}
       # Keep this aligned with OPENSEARCH_INDEX_BATCH_FAILURE_MESSAGE in app/commands/search.py.

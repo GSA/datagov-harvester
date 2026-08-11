@@ -19,6 +19,19 @@ jobs:
       matrix:
         environ: ["development", "staging", "prod"]
     environment: ${{ matrix.environ }}
+    # Share the per-environment OpenSearch maintenance lock. A cluster migration
+    # renames service instances and runs its own rolling restarts; a cron restart
+    # landing mid-rename either fails .profile's empty-host guard or supersedes the
+    # migration's own deployment, which makes the migration's blocking `cf restart`
+    # return non-zero right after the renames -- the worst place to stop.
+    #
+    # Queueing here means the cron waits instead, and only the space being migrated is
+    # affected. There is deliberately nothing to re-enable afterwards: unlike
+    # disabling the workflow, this cleanup cannot be forgotten or skipped by a
+    # cancelled run. Job-level because the group needs `matrix`.
+    concurrency:
+      group: opensearch-maintenance-${{ matrix.environ }}
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     steps:
       - name: checkout repo

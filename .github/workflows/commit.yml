@@ -1,5 +1,36 @@
 name: 1 - Commit
-on: [push]
+
+# CI for every branch, plus the `develop` -> development release.
+#
+#   lint + test                         every push, every branch, never queued
+#   detect label -> release development  only on `develop`
+#
+# The release half shares release-space.yml with deploy.yml's staging and prod calls,
+# so all three spaces run identical logic. See docs/ops/migrate-opensearch-cluster.md.
+#
+# There is deliberately NO workflow-level concurrency group here. This workflow runs on
+# every branch, so a workflow-level hold would serialize every feature branch's lint
+# and tests against each other. The release queue is a JOB-level group on
+# release-development instead, which covers the whole deploy + reindex (a `uses:` job
+# does not complete until its child does) while leaving CI unqueued.
+on:
+  push:
+  workflow_dispatch:
+    inputs:
+      reindex:
+        description: "auto = detect the label; force = reindex regardless; skip = deploy only"
+        required: false
+        default: auto
+        type: choice
+        options:
+          - auto
+          - force
+          - skip
+      dry_run:
+        description: "Print the reindex inputs instead of running it (no cluster is touched)"
+        required: false
+        default: false
+        type: boolean
 
 permissions:
     contents: read
@@ -85,66 +116,140 @@ jobs:
             Integration Tests, pytest-coverage-integration.txt, pytest-integration.xml
             Functional Tests, pytest-coverage-functional.txt, pytest-functional.xml
 
-  create-cloudgov-services-development:
+  # --- develop -> development release ---------------------------------------
+  #
+  # Everything below is gated on `develop`, so on any other branch this workflow is
+  # just lint + test.
+  #
+  # In the caller, not in release-space.yml: a called workflow has no run history of
+  # its own for the watermark to measure from.
+  detect-reindex:
     if: github.ref == 'refs/heads/develop'
-    name: create services (development)
-    environment: development
-    runs-on: ubuntu-latest
-    steps:
-      - name: checkout
-        uses: actions/checkout@v7
-      - name: create services
-        uses: cloud-gov/cg-cli-tools@main
-        with:
-          command: bash create_cloudgov_services.sh
-          cf_org: gsa-datagov
-          cf_space: development
-          cf_username: ${{secrets.CF_SERVICE_USER}}
-          cf_password: ${{secrets.CF_SERVICE_AUTH}}
-
-  deploy-development:
-    if: github.ref == 'refs/heads/develop'
-    name: deploy (development)
-    needs:
-      - create-cloudgov-services-development
-    environment: development
-    runs-on: ubuntu-latest
+    name: Detect reindex label
+    # A called workflow can only NARROW the caller's GITHUB_TOKEN, never elevate it,
+    # and this workflow's top-level `permissions` is `contents: read`. Without granting
+    # these here the called job's own `permissions:` block asks for more than it can
+    # ever be given, and the whole run fails at startup with no log.
     permissions:
-      actions: write
       contents: read
+      pull-requests: read
+      actions: read
+    uses: ./.github/workflows/detect-reindex.yml
+    with:
+      # This file, and the branch it deploys from. Reading main's history instead
+      # would span unrelated commits.
+      workflow_file: commit.yml
+      branch: develop
+      reindex_mode: ${{ inputs.reindex || 'auto' }}
+      spaces: development
+    secrets: inherit
+
+  # Fail in 30 seconds rather than after a deploy: provisioning refuses an existing
+  # `<canonical>-next`, because two rebuilds writing into one cluster interleave into a
+  # corrupt index.
+  preflight-clusters:
+    name: Preflight (development)
+    needs: detect-reindex
+    if: >-
+      ${{ !cancelled()
+      && github.ref == 'refs/heads/develop'
+      && needs.detect-reindex.outputs.reindex_needed == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: development
+    concurrency:
+      group: opensearch-maintenance-development
+      cancel-in-progress: false
     steps:
       - name: Check out the code
         uses: actions/checkout@v7
-      - name: Deploy via composite action
-        uses: ./.github/actions/deploy
+      - name: Refuse if a replacement cluster already exists
+        uses: cloud-gov/cg-cli-tools@main
         with:
+          command: >
+            bash -c 'if cf service datagov-catalog-opensearch-next >/dev/null 2>&1;
+            then echo "datagov-catalog-opensearch-next already exists in development." >&2;
+            echo "A migration is in flight, parked, or failed partway. Finish or delete it" >&2;
+            echo "before merging another reindex:" >&2;
+            echo "  bin/delete_opensearch_cluster.sh datagov-catalog-opensearch-next datagov-harvest datagov-catalog" >&2;
+            exit 1; else echo "No leftover replacement cluster in development."; fi'
+          cf_org: gsa-datagov
           cf_space: development
-          python-version: ${{ env.PY_VERSION }}
-          poetry-version: ${{ env.POETRY_VERSION }}
           cf_username: ${{ secrets.CF_SERVICE_USER }}
           cf_password: ${{ secrets.CF_SERVICE_AUTH }}
 
-  network-policies:
-    name: Add network-policies
-    needs:
-      - deploy-development
+  # THE RELEASE QUEUE for this path, held at job level rather than workflow level so
+  # lint and test stay unqueued on every other branch. A `uses:` job does not complete
+  # until its called workflow does, so this single group covers the whole deploy,
+  # rollout wait and reindex.
+  #
+  # Distinct from deploy.yml's `release-main`: a development migration should not block
+  # a staging/prod release, and they touch different spaces. Overlap within one space
+  # is prevented separately by the `opensearch-maintenance-<space>` job groups inside
+  # release-space.yml.
+  release-development:
+    name: development
+    needs: [detect-reindex, preflight-clusters]
+    # preflight-clusters is skipped when no reindex is needed, and a job whose needs
+    # were skipped is itself skipped before its `if:` runs -- hence the explicit result
+    # check rather than relying on defaults.
+    if: >-
+      ${{ !cancelled()
+      && github.ref == 'refs/heads/develop'
+      && needs.detect-reindex.result == 'success'
+      && contains(fromJson('["success","skipped"]'), needs.preflight-clusters.result) }}
+    concurrency:
+      group: release-develop
+      cancel-in-progress: false
+    # release-space.yml needs nothing beyond `contents: read` -- it authenticates to
+    # Cloud Foundry with CF credentials, not GITHUB_TOKEN. Stated explicitly rather
+    # than inherited, because a called workflow can only narrow what the caller grants
+    # and a silent mismatch fails the run at startup with no log.
+    permissions:
+      contents: read
+    uses: ./.github/workflows/release-space.yml
+    with:
+      space: development
+      reindex: ${{ needs.detect-reindex.outputs.reindex_needed == 'true' }}
+      dry_run: ${{ inputs.dry_run || false }}
+      # Delete a failed replacement so the next labelled merge is not blocked by
+      # provisioning refusing a leftover instance. development is es-medium, so
+      # re-provisioning is cheap.
+      on_build_failure: delete
+      # Unattended, so drain-then-kill rather than waiting 2h and failing.
+      force_kill_running_jobs: true
+    secrets: inherit
+
+  # An owed reindex must never be silent -- same backstop as deploy.yml.
+  reindex-owed:
+    name: Report an owed reindex
+    needs: [detect-reindex, release-development]
+    if: >-
+      ${{ always()
+      && github.ref == 'refs/heads/develop'
+      && needs.detect-reindex.outputs.reindex_needed == 'true'
+      && !(inputs.dry_run || false)
+      && needs.release-development.result != 'success' }}
     runs-on: ubuntu-latest
-    environment: development
-    strategy:
-      fail-fast: false
-      matrix:
-        command:
-          [
-            "cf add-network-policy datagov-harvest-proxy datagov-harvest --protocol tcp --port 61443",
-            "cf add-network-policy datagov-harvest mdtranslator --protocol tcp --port 8080",
-          ]
-        environ: ["development"]
+    permissions:
+      contents: read
+      issues: write
     steps:
-      - name: Add network policy
-        uses: cloud-gov/cg-cli-tools@main
+      - name: Check out the code
+        uses: actions/checkout@v7
+      - name: Open or update the tracking issue
+        uses: JasonEtco/create-an-issue@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.ADD_TO_PROJECT_PAT }}
+          PR_NUMBERS: ${{ needs.detect-reindex.outputs.pr_numbers }}
+          # Distinct from deploy.yml's, so the two paths get separate issues rather
+          # than overwriting one another via `update_existing`.
+          RELEASE_PATH: develop -> development
+          WORKFLOW_NAME: 1 - Commit
+          SPACE_RESULTS: development=${{ needs.release-development.result }}
+          RUN_ID: ${{ github.run_id }}
+          REPO: ${{ github.repository }}
+          LAST_COMMIT: ${{ github.sha }}
         with:
-          command: ${{ matrix.command }}
-          cf_org: gsa-datagov
-          cf_space: ${{ matrix.environ }}
-          cf_username: ${{secrets.CF_SERVICE_USER}}
-          cf_password: ${{secrets.CF_SERVICE_AUTH}}
+          filename: .github/reindex_owed.md
+          update_existing: true
