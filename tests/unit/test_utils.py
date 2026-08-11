@@ -23,6 +23,7 @@ from harvester.utils.general_utils import (
     download_file,
     dynamic_map_list_items_to_dict,
     extract_dcatus3_catalog_datasets,
+    extract_dcatus3_catalog_records,
     extract_dcatus3_catalog_services,
     find_indexes_for_duplicates,
     get_waf_datetimes,
@@ -780,6 +781,49 @@ class TestDcatus3Catalog:
 
         assert extract_dcatus3_catalog_datasets(catalog) == [{"identifier": "ds-1"}]
         assert extract_dcatus3_catalog_services(catalog) == [{"identifier": "svc-1"}]
+
+    def test_extract_dcatus3_catalog_records_flat(self):
+        catalog = {"record": [{"@id": "rec-1"}, {"@id": "rec-2"}]}
+
+        assert extract_dcatus3_catalog_records(catalog) == [
+            {"@id": "rec-1"},
+            {"@id": "rec-2"},
+        ]
+
+    def test_extract_dcatus3_catalog_records_recurses_arbitrarily_deep(self):
+        catalog = {
+            "record": [{"@id": "parent-rec"}],
+            "catalog": [
+                {
+                    "record": [{"@id": "child-rec"}],
+                    "catalog": [
+                        {"record": [{"@id": "grandchild-rec"}]},
+                    ],
+                }
+            ],
+        }
+
+        assert extract_dcatus3_catalog_records(catalog) == [
+            {"@id": "parent-rec"},
+            {"@id": "child-rec"},
+            {"@id": "grandchild-rec"},
+        ]
+
+    def test_extract_dcatus3_catalog_records_missing_fields(self):
+        assert extract_dcatus3_catalog_records({}) == []
+        assert extract_dcatus3_catalog_records({"catalog": None}) == []
+        assert extract_dcatus3_catalog_records({"record": None}) == []
+
+    def test_extract_dcatus3_catalog_records_independent_of_datasets(self):
+        """A catalog with both dataset and record arrays extracts each
+        independently of the other."""
+        catalog = {
+            "dataset": [{"identifier": "ds-1"}],
+            "record": [{"@id": "rec-1"}],
+        }
+
+        assert extract_dcatus3_catalog_datasets(catalog) == [{"identifier": "ds-1"}]
+        assert extract_dcatus3_catalog_records(catalog) == [{"@id": "rec-1"}]
 
 
 class TestRetrySession:

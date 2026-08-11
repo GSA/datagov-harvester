@@ -129,6 +129,52 @@ class TestExtract:
         )
         assert errors[0][0].message == msg
 
+    def test_extract_dcatus3_0_with_records(
+        self,
+        make_harvest_source,
+        source_data_dcatus3_0_with_records,
+        job_data_dcatus3_0_with_records,
+    ):
+        harvest_source = make_harvest_source(
+            source_data_dcatus3_0_with_records, job_data_dcatus3_0_with_records
+        )
+        harvest_source.acquire_minimum_external_data()
+
+        # dataset and catalog record objects are extracted independently
+        assert len(harvest_source.external_records) == 1
+        record_records = harvest_source.external_records_by_type["catalog_record"]
+        assert len(record_records) == 2
+        record_ids = {record["@id"] for record in record_records}
+        assert record_ids == {
+            "https://example.gov/catalog-records/one",
+            "https://example.gov/catalog-records/two",
+        }
+
+    def test_extract_dcatus3_0_record_missing_id(
+        self,
+        interface,
+        make_harvest_source,
+        source_data_dcatus3_0_record_no_id,
+        job_data_dcatus3_0_record_no_id,
+    ):
+        harvest_source = make_harvest_source(
+            source_data_dcatus3_0_record_no_id,
+            job_data_dcatus3_0_record_no_id,
+        )
+        harvest_source.acquire_data_sources()
+        harvest_source.filter_datasets_with_no_identifier()
+
+        # the dataset is unaffected by the catalog record's missing @id
+        assert len(harvest_source.external_records) == 1
+        assert len(harvest_source.external_records_by_type["catalog_record"]) == 0
+
+        errors = interface.get_harvest_record_errors_by_job(harvest_source.job_id)
+        msg = (
+            "Test Source DCAT-US 3.0 (catalog record no @id) "
+            "Catalog Record Without An Id is missing '@id' field"
+        )
+        assert errors[0][0].message == msg
+
     def test_check_iso_dcatus_schema(
         self,
         make_harvest_source,

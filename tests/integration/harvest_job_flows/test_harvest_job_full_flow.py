@@ -170,6 +170,63 @@ class TestHarvestJobFullFlow:
         }
 
     @patch("harvester.harvest.HarvestSource.send_notification_emails")
+    def test_harvest_dcatus3_0_dataset_and_catalog_record_independent(
+        self,
+        send_notification_emails_mock: MagicMock,
+        interface,
+        organization_data,
+        source_data_dcatus3_0_with_records,
+    ):
+        """AC: a source with both Dataset and CatalogRecord objects harvests
+        each independently of the other."""
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_dcatus3_0_with_records)
+        harvest_job = interface.add_harvest_job(
+            {
+                "status": "new",
+                "harvest_source_id": source_data_dcatus3_0_with_records["id"],
+            }
+        )
+
+        job_id = harvest_job.id
+        harvest_job_starter(job_id, "harvest")
+
+        harvest_job = interface.get_harvest_job(job_id)
+        assert harvest_job.status == "complete"
+        assert harvest_job.records_added == 3
+
+        # only the Dataset record gets a Dataset row; CatalogRecord records
+        # are persisted as HarvestRecords only.
+        datasets = interface.db.query(Dataset).all()
+        assert len(datasets) == 1
+        assert datasets[0].harvest_source_id == (
+            source_data_dcatus3_0_with_records["id"]
+        )
+
+        records = (
+            interface.db.query(HarvestRecord)
+            .filter(
+                HarvestRecord.harvest_source_id
+                == source_data_dcatus3_0_with_records["id"]
+            )
+            .all()
+        )
+        assert len(records) == 3
+
+        dataset_records = [r for r in records if r.record_type == "dataset"]
+        catalog_records = [r for r in records if r.record_type == "catalog_record"]
+        assert len(dataset_records) == 1
+        assert len(catalog_records) == 2
+        assert all(r.status == "success" for r in dataset_records)
+        assert all(r.status == "success" for r in catalog_records)
+
+        record_identifiers = {r.identifier for r in catalog_records}
+        assert record_identifiers == {
+            "https://example.gov/catalog-records/one",
+            "https://example.gov/catalog-records/two",
+        }
+
+    @patch("harvester.harvest.HarvestSource.send_notification_emails")
     def test_multiple_harvest_jobs(
         self,
         send_notification_emails_mock: MagicMock,
