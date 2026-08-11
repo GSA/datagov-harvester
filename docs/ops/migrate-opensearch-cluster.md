@@ -180,40 +180,66 @@ because both apps bind it).
 
 ## Automatic reindex on merge
 
-**Label a PR `force re-index recommended` and the index rebuilds itself** — in staging,
-then prod, after each space deploys. Use it whenever the change touches the mapping or
-the document shape: `search/mappings.py`, `search/config.py` (`SETTINGS`),
-`search/documents.py`, `search/transforms.py`, `search/spatial.py`, or a `Dataset`
-column the transformer reads.
+**Label a PR `force re-index recommended` and the index rebuilds itself** after each
+space deploys — development on a merge to `develop`, and staging then prod on a merge to
+`main`. Use it whenever the change touches the mapping or the document shape:
+`search/mappings.py`, `search/config.py` (`SETTINGS`), `search/documents.py`,
+`search/transforms.py`, `search/spatial.py`, or a `Dataset` column the transformer
+reads.
 
 Nothing else detects this. `MAPPINGS` carries no version or hash, and
 `OpenSearchClient._ensure_index()` only creates an index when one is *absent* — so
 deploying a mapping change against an existing index is a **silent no-op** and search
 quietly serves the old shape.
 
-### The whole release is one queue
+### One pipeline, three spaces
 
-`deploy.yml` holds a single `deploy-main-pipeline` concurrency group covering staging
-deploy → staging reindex → prod deploy → prod reindex. A second merge waits for **all**
-of it. That is deliberate: a `cf push` landing mid-migration is what broke a staging
-run on 2026-08-10, redeploying the app and removing the `--cluster` flag the in-flight
-rebuild depended on.
+`release-space.yml` is the per-space release — create services → push → wait for the
+rollout → rebuild the index → network policies. It is called once by `commit.yml` for
+`development` and twice by `deploy.yml` for `staging` then `prod`, so all three spaces
+run identical logic. The only per-space differences are `on_build_failure` (`keep` in
+prod, where re-provisioning an `es-large` costs hours; `delete` elsewhere, so a failure
+self-heals) and `force_kill_running_jobs` (`false` in prod — long harvest jobs are not
+cancelled unattended).
 
-Consequence worth knowing: **a labelled merge blocks later merges for the length of
-both migrations** — hours, for a prod `es-large`. An urgent hotfix queues behind it.
-Dispatch **2 - Deploy** manually with `reindex: skip` if you need to jump that queue,
-and only cancel a running pipeline *before* a promote begins.
+### Each release path is a queue
 
-The individual deploy jobs also take `opensearch-maintenance-<space>` at job level, so
-a hand-dispatched migration and a deploy can no longer overlap in the same space.
+| path | queue | scope |
+| --- | --- | --- |
+| `develop` → development | `release-develop` (job level) | that one release |
+| `main` → staging + prod | `release-main` (workflow level) | **both** spaces in one hold |
+
+`release-main` has to be workflow-level because that run spans two spaces: a job-level
+group would be released between staging and prod and let a second merge's staging deploy
+slip into the gap. `release-develop` is job-level on purpose — `commit.yml` also runs
+`lint`/`test` on *every* branch, and a workflow-level hold there would serialize
+unrelated PRs' CI.
+
+A second merge to the same branch waits for the whole release. That is deliberate: a
+`cf push` landing mid-migration is what broke a staging run on 2026-08-10, redeploying
+the app and removing the `--cluster` flag the in-flight rebuild depended on. The two
+paths are independent, so a development migration no longer blocks a staging/prod
+release — within a single space, overlap is prevented by the
+`opensearch-maintenance-<space>` job groups inside `release-space.yml`, which also cover
+hand-dispatched migrations and the restart cron.
+
+Consequence worth knowing: **a labelled merge blocks later merges to that branch for the
+length of its migrations** — hours, for a prod `es-large`. An urgent hotfix queues behind
+it. Dispatch the workflow manually with `reindex: skip` to jump that queue, and only
+cancel a running pipeline *before* a promote begins.
 
 ### How the label is detected
 
-Not from the push's own commit range. `deploy.yml` allows one pending run, and a third
-merge *cancels* the pending one — so a labelled merge could be superseded and its
-reindex lost. Instead detection measures from the `head_sha` of the last **successful**
-run of `deploy.yml`, and a cancelled or failed run never advances that watermark. The
-obligation stays detectable until a run actually completes.
+Not from the push's own commit range. A release queue allows one pending run, and a
+third merge *cancels* the pending one — so a labelled merge could be superseded and its
+reindex lost. Instead `detect-reindex.yml` measures from the `head_sha` of the last
+**successful** run of the *calling* workflow (`deploy.yml` on `main`, `commit.yml` on
+`develop`), and a cancelled or failed run never advances that watermark. The obligation
+stays detectable until a run actually completes.
+
+Detection lives in the caller, not in `release-space.yml`, for a concrete reason: a
+workflow invoked via `uses:` produces no workflow run of its own — the API attributes it
+to the caller — so a reusable file has no run history to measure from.
 
 `.github/scripts/detect-reindex-label.sh` **fails closed**: no watermark, rewritten
 history, or a range truncated past the compare API's 250-commit cap all stop the deploy
@@ -221,23 +247,29 @@ rather than guess. Nothing is lost when it refuses — dispatch manually with
 `reindex: force` or `reindex: skip` to state the intent. If a reindex is owed but does
 not finish, the run opens a tracking issue from `.github/reindex_owed.md`.
 
-### What runs, per space
+### If someone forgot the label
 
-| input | staging | prod |
-| --- | --- | --- |
-| `on_build_failure` | `delete` — self-heals, since provisioning refuses a leftover `-next` | `keep` — an `es-large` provision is hours; resume with `start_at: rebuild` |
-| `force_kill_running_jobs` | `true` — unattended | `false` — prod harvest jobs are long; fail loudly instead |
-| `max_failed_records` | `50` | `50` |
+Dispatch the workflow for that branch by hand — **1 - Commit** for `develop`,
+**2 - Deploy** for `main` — with `reindex: force`. Both take the same inputs:
 
-Both promote automatically. Before a labelled merge reaches prod, **confirm
-`GSA/datagov-catalog` is running code that matches the new mapping.** The harvester
-writes the new document shape; if catalog still expects the old one, search returns
-wrong results and `compare` cannot see it — it checks id sets and `last_harvested_date`,
-never document shape. Each promote says this in Slack, and probes catalog's `/search`
-afterwards, warning if a common term returns zero results.
+| input | effect |
+| --- | --- |
+| `reindex: auto` | read the PR labels (the default, same as a merge) |
+| `reindex: force` | rebuild regardless — for a forgotten label |
+| `reindex: skip` | deploy only, jumping the reindex queue |
+| `dry_run: true` | report what the reindex *would* do; no cluster is touched |
 
-Dry run first if you want to see the wiring without touching a cluster: dispatch
-**2 - Deploy** with `dry_run: true`.
+### Before a labelled merge reaches prod
+
+**Confirm `GSA/datagov-catalog` is running code that matches the new mapping.** The
+harvester writes the new document shape; if catalog still expects the old one, search
+returns wrong results and `compare` cannot see it — it checks id sets and
+`last_harvested_date`, never document shape. Each promote says this in Slack, and probes
+catalog's `/search` afterwards, warning if a common term returns zero results.
+
+Every space promotes automatically. `development` is the cheapest rehearsal: `es-medium`
+is the fastest plan and catalog there runs with no egress proxy, so merging a labelled PR
+to `develop` first exercises the entire flow at low cost.
 
 ## Running it manually
 

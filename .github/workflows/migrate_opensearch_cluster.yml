@@ -111,8 +111,9 @@ on:
         default: "50"
         type: string
 
-  # Called by deploy.yml, which rebuilds the index in staging and then prod when a
-  # merged PR carried `force re-index recommended`.
+  # Called by release-space.yml, the per-space release pipeline, which rebuilds the
+  # index after a space deploys when a merged PR carried `force re-index recommended`.
+  # That in turn is called by commit.yml (development) and deploy.yml (staging, prod).
   #
   # Identical `inputs.*` context to workflow_dispatch above, so every job below is
   # reached unmodified and a label-triggered run behaves exactly like a hand-dispatched
@@ -191,10 +192,13 @@ permissions:
 # forever. The rebuild steps are inlined below instead. Calling toggle_harvester.yml
 # IS safe -- it uses a different group.
 #
-# The same rule constrains deploy.yml, which calls this workflow: it holds
-# `deploy-main-pipeline` at workflow level and takes `opensearch-maintenance-<env>`
-# only on individual JOBS, so the group is free by the time this workflow needs it.
-# A workflow-level hold there would deadlock this child against its own parent.
+# The same rule constrains every ancestor in the chain
+# (commit.yml | deploy.yml) -> release-space.yml -> here -> toggle_harvester.yml.
+# release-space.yml holds NO workflow-level group and takes
+# `opensearch-maintenance-<space>` only on individual JOBS, so the group is free by the
+# time this workflow needs it; the release queues above it are named `release-develop`
+# and `release-main` precisely so they cannot collide with this one. A workflow-level
+# hold on this group anywhere above would deadlock this child against its own ancestor.
 concurrency:
   group: opensearch-maintenance-${{ inputs.environment }}
   cancel-in-progress: false

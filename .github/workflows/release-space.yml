@@ -1,0 +1,264 @@
+name: Release to a space
+
+# The whole release for ONE Cloud Foundry space, in one reusable workflow.
+#
+#   create services -> push -> wait for the rollout -> rebuild the index (if asked)
+#     -> network policies
+#
+# Called once by commit.yml (development) and twice by deploy.yml (staging, then
+# prod), so all three spaces run byte-identical logic. Before this existed the same
+# five jobs were written out three times, and the concurrency and skipped-needs rules
+# below had to be right in every copy.
+#
+# The caller owns two things this workflow deliberately does NOT:
+#   - the release QUEUE, because its scope differs per path: deploy.yml needs one
+#     hold spanning its staging and prod calls, while commit.yml holds a job-level
+#     group so lint/test stay unqueued.
+#   - LABEL DETECTION, because a called workflow produces no workflow run of its own
+#     (measured: a `uses:` run is attributed to the caller's file), so the watermark
+#     must be read from the caller. Detection also has to happen once per release, not
+#     once per space.
+#
+# See docs/ops/migrate-opensearch-cluster.md.
+
+on:
+  workflow_call:
+    inputs:
+      space:
+        description: "Cloud Foundry space: development, staging, or prod"
+        required: true
+        type: string
+      reindex:
+        description: "Rebuild the OpenSearch index after deploying"
+        required: false
+        default: false
+        type: boolean
+      dry_run:
+        description: "Report what the reindex would do instead of running it"
+        required: false
+        default: false
+        type: boolean
+      on_build_failure:
+        description: >-
+          delete = remove a failed replacement cluster (self-healing, since
+          provisioning refuses a leftover one); keep = retain it to resume, worth it
+          where provisioning takes hours.
+        required: false
+        default: delete
+        type: string
+      force_kill_running_jobs:
+        description: >-
+          Cancel harvest jobs still running after 15 minutes instead of waiting the
+          full drain timeout. Appropriate when unattended; not for prod.
+        required: false
+        default: true
+        type: boolean
+      next_plan:
+        description: "Plan override for the replacement cluster (blank = match live)"
+        required: false
+        default: ""
+        type: string
+      max_tasks:
+        description: "HARVEST_RUNNER_MAX_TASKS to restore when re-enabling harvesting"
+        required: false
+        default: "3"
+        type: string
+      max_failed_records:
+        description: "How many records may fail to index and still pass"
+        required: false
+        default: "50"
+        type: string
+      python_version:
+        # An input rather than `env`, because a called workflow does NOT inherit the
+        # caller's `env` context -- ${{ env.PY_VERSION }} would silently be empty.
+        description: "Python version for the build"
+        required: false
+        default: "3.12.13"
+        type: string
+      poetry_version:
+        description: "Poetry version for the build"
+        required: false
+        default: "latest"
+        type: string
+    # No `outputs:` block. A workflow output has to come from a job's own declared
+    # `outputs`, not from `jobs.<id>.result` (actionlint rejects the latter), and the
+    # caller does not need one anyway: it reads `needs.<call-job>.result` directly,
+    # which is what deploy.yml's reindex-owed backstop already does.
+
+# NO workflow-level `concurrency:` here, deliberately.
+#
+# The `reindex` job below calls migrate_opensearch_cluster.yml, which takes
+# `opensearch-maintenance-<env>` at ITS workflow level. A workflow-level hold on that
+# group here would make the child queue behind its own parent forever -- the trap
+# documented at migrate_opensearch_cluster.yml:190-194. The individual cf-touching
+# jobs take the group at JOB level instead, which is released when each job ends
+# (measured 2026-08-11).
+#
+# Nor can the release queue live here: `github.workflow` inside a called workflow
+# resolves to the CALLER's name, so a group keyed on it would cancel the caller.
+
+permissions:
+  contents: read
+
+jobs:
+  create-services:
+    name: create services (${{ inputs.space }})
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.space }}
+    # create_cloudgov_services.sh does `cf service <canonical> || cf create-service`,
+    # and during a promote the canonical name briefly does not exist -- so without
+    # this group a deploy landing in that window would provision a second empty
+    # cluster under the canonical name and collide with the rename.
+    concurrency:
+      group: opensearch-maintenance-${{ inputs.space }}
+      cancel-in-progress: false
+    steps:
+      - name: checkout
+        uses: actions/checkout@v7
+      - name: create services
+        uses: cloud-gov/cg-cli-tools@main
+        with:
+          command: bash create_cloudgov_services.sh
+          cf_org: gsa-datagov
+          cf_space: ${{ inputs.space }}
+          cf_username: ${{ secrets.CF_SERVICE_USER }}
+          cf_password: ${{ secrets.CF_SERVICE_AUTH }}
+
+  deploy:
+    name: deploy (${{ inputs.space }})
+    needs: create-services
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.space }}
+    permissions:
+      actions: write
+      contents: read
+    concurrency:
+      group: opensearch-maintenance-${{ inputs.space }}
+      cancel-in-progress: false
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v7
+      - name: Deploy via composite action
+        uses: ./.github/actions/deploy
+        with:
+          cf_space: ${{ inputs.space }}
+          python-version: ${{ inputs.python_version }}
+          poetry-version: ${{ inputs.poetry_version }}
+          cf_username: ${{ secrets.CF_SERVICE_USER }}
+          cf_password: ${{ secrets.CF_SERVICE_AUTH }}
+
+  # The deploy pushes with `--no-wait`, so the job above finishing does NOT mean the
+  # new droplet is running. The rebuild runs via `cf run-task`, which uses the app's
+  # CURRENT droplet -- if that is still the old one, it writes documents in the OLD
+  # shape into the NEW cluster and both verification gates pass anyway, because
+  # `flask search compare` checks id sets and last_harvested_date but never document
+  # shape. Gate on the rollout actually draining, never on timing.
+  #
+  # Only runs when a reindex will follow; a plain deploy has nothing downstream that
+  # needs the new droplet to be live.
+  await-rollout:
+    name: Await rollout (${{ inputs.space }})
+    needs: deploy
+    if: >-
+      ${{ !cancelled()
+      && needs.deploy.result == 'success'
+      && inputs.reindex
+      && !inputs.dry_run }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: ${{ inputs.space }}
+    concurrency:
+      group: opensearch-maintenance-${{ inputs.space }}
+      cancel-in-progress: false
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v7
+      - name: Wait for the rolling deployment to finish
+        uses: cloud-gov/cg-cli-tools@main
+        with:
+          command: bin/wait_for_deployment.sh datagov-harvest 1800
+          cf_org: gsa-datagov
+          cf_space: ${{ inputs.space }}
+          cf_username: ${{ secrets.CF_SERVICE_USER }}
+          cf_password: ${{ secrets.CF_SERVICE_AUTH }}
+
+  # NO job-level `concurrency:` on this job -- see the workflow-level note above.
+  # `secrets: inherit` again, not an explicit block: migrate_opensearch_cluster.yml
+  # declares no `secrets:` because the CF credentials are *environment* secrets that
+  # its own jobs resolve from `environment: ${{ inputs.environment }}`. Inheritance
+  # is transitive, so this passes through what the caller inherited.
+  reindex:
+    name: Reindex (${{ inputs.space }})
+    needs: await-rollout
+    if: >-
+      ${{ !cancelled()
+      && needs.await-rollout.result == 'success'
+      && inputs.reindex
+      && !inputs.dry_run }}
+    uses: ./.github/workflows/migrate_opensearch_cluster.yml
+    with:
+      environment: ${{ inputs.space }}
+      start_at: provision
+      stop_after: decommission
+      next_service_name: datagov-catalog-opensearch-next
+      canonical_service_name: datagov-catalog-opensearch
+      next_plan: ${{ inputs.next_plan }}
+      keep_old_cluster: false
+      on_build_failure: ${{ inputs.on_build_failure }}
+      force_kill_running_jobs: ${{ inputs.force_kill_running_jobs }}
+      max_tasks: ${{ inputs.max_tasks }}
+      max_failed_records: ${{ inputs.max_failed_records }}
+    secrets: inherit
+
+  dry-run-summary:
+    name: Dry run (${{ inputs.space }}, no cluster touched)
+    needs: deploy
+    if: >-
+      ${{ !cancelled()
+      && needs.deploy.result == 'success'
+      && inputs.reindex
+      && inputs.dry_run }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Report the inputs the reindex would have used
+        run: |
+          {
+            echo "### Dry run: a reindex WOULD have run in \`${{ inputs.space }}\`"
+            echo
+            echo '| input | value |'
+            echo '| --- | --- |'
+            echo '| start_at | provision |'
+            echo '| stop_after | decommission |'
+            echo '| on_build_failure | ${{ inputs.on_build_failure }} |'
+            echo '| force_kill_running_jobs | ${{ inputs.force_kill_running_jobs }} |'
+            echo '| next_plan | ${{ inputs.next_plan }} (blank = match live) |'
+            echo '| max_failed_records | ${{ inputs.max_failed_records }} |'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  network-policies:
+    name: Add network-policies (${{ inputs.space }})
+    needs: deploy
+    # `reindex` is skipped on the common no-label path, and a job whose needs were
+    # skipped is skipped before its own `if:` is evaluated -- so this depends on
+    # `deploy` only, and the policies are applied whether or not a rebuild followed.
+    if: ${{ !cancelled() && needs.deploy.result == 'success' }}
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.space }}
+    # No maintenance group: add-network-policy does not touch OpenSearch.
+    strategy:
+      fail-fast: false
+      matrix:
+        command:
+          [
+            "cf add-network-policy datagov-harvest-proxy datagov-harvest --protocol tcp --port 61443",
+            "cf add-network-policy datagov-harvest mdtranslator --protocol tcp --port 8080",
+          ]
+    steps:
+      - name: Add network policy
+        uses: cloud-gov/cg-cli-tools@main
+        with:
+          command: ${{ matrix.command }}
+          cf_org: gsa-datagov
+          cf_space: ${{ inputs.space }}
+          cf_username: ${{ secrets.CF_SERVICE_USER }}
+          cf_password: ${{ secrets.CF_SERVICE_AUTH }}

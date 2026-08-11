@@ -184,6 +184,11 @@ Github workflows automatically deploy:
  - to the `development` space when the `develop` branch is updated
  - to `staging` and `prod` when the `main` branch is updated
 
+Both paths share one per-space pipeline (`.github/workflows/release-space.yml`), and each
+is serialized so a second merge waits rather than pushing into a space mid-release. If a
+merged PR carries the **`force re-index recommended`** label, the OpenSearch index is
+also rebuilt in each space after it deploys — see [docs/ops/migrate-opensearch-cluster.md](ops/migrate-opensearch-cluster.md#automatic-reindex-on-merge).
+
 Data.gov team members can deploy to `development` from the command line. The remainder of this document provides background on the Cloud.gov configuration.
 
 *Warning: this documentation has not been tested recently!*

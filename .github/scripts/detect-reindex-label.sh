@@ -35,9 +35,13 @@
 set -euo pipefail
 
 : "${GITHUB_REPOSITORY:?GITHUB_REPOSITORY must be set}"
-head_sha=${1:?Usage: detect-reindex-label.sh <head_sha> [workflow_file] [label]}
+head_sha=${1:?Usage: detect-reindex-label.sh <head_sha> [workflow_file] [label] [branch]}
 workflow_file=${2:-deploy.yml}
 label=${3:-force re-index recommended}
+# The branch whose successful runs form the watermark. Must match the branch this
+# workflow actually deploys from, or the watermark comes from an unrelated history:
+# deploy.yml is main, commit.yml is develop.
+branch=${4:-main}
 
 emit() {
   echo "$1"
@@ -53,12 +57,12 @@ emit() {
 # whichever run succeeds next -- which is the whole point.
 base_sha=$(
   gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/${workflow_file}/runs" \
-    -f branch=main -f status=success -f per_page=1 \
+    -f "branch=${branch}" -f status=success -f per_page=1 \
     --jq '.workflow_runs[0].head_sha // empty' 2>/dev/null || true
 )
 
 if [[ -z "$base_sha" ]]; then
-  echo "No previous successful run of ${workflow_file} on main to measure from." >&2
+  echo "No previous successful run of ${workflow_file} on ${branch} to measure from." >&2
   echo "" >&2
   echo "Refusing to guess whether a reindex is owed. Dispatch this workflow" >&2
   echo "manually with reindex=force or reindex=skip to state it explicitly; that" >&2

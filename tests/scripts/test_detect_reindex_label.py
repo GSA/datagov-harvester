@@ -83,6 +83,11 @@ emit() {
   fi
 }
 
+# Record the full argv of every call so a test can assert which branch and workflow
+# file were actually queried -- getting those wrong silently measures from an
+# unrelated history.
+echo "$*" >> "$FAKE_DIR/gh-calls"
+
 case "$endpoint" in
   *"/actions/workflows/"*)
     wm=$(cat "$FAKE_DIR/watermark")
@@ -110,6 +115,7 @@ esac
 
     output_file = tmp_path / "github-output"
     output_file.touch()
+    (tmp_path / "gh-calls").touch()
     env = {
         **os.environ,
         "PATH": f"{fake_bin}:{os.environ['PATH']}",
@@ -126,6 +132,10 @@ esac
         timeout=60,
     )
     return result, output_file.read_text()
+
+
+def _gh_calls(tmp_path):
+    return (tmp_path / "gh-calls").read_text()
 
 
 def _labelled(number, *labels):
@@ -279,3 +289,47 @@ def test_reports_the_base_it_measured_from(tmp_path):
 
     assert result.returncode == 0, result.stderr
     assert f"base_sha={BASE}" in output
+
+
+def test_defaults_to_deploy_yml_on_main(tmp_path):
+    result, _ = _run_detect(tmp_path)
+
+    assert result.returncode == 0, result.stderr
+    calls = _gh_calls(tmp_path)
+    assert "actions/workflows/deploy.yml/runs" in calls
+    assert "branch=main" in calls
+
+
+def test_measures_from_the_requested_workflow_and_branch(tmp_path):
+    """commit.yml deploys development from `develop`, so its watermark must come from
+    that branch's runs. Reading main's history instead would span unrelated commits
+    and could silently miss -- or invent -- a reindex obligation."""
+    result, _ = _run_detect(
+        tmp_path,
+        HEAD,
+        "commit.yml",
+        LABEL,
+        "develop",
+    )
+
+    assert result.returncode == 0, result.stderr
+    calls = _gh_calls(tmp_path)
+    assert "actions/workflows/commit.yml/runs" in calls
+    assert "branch=develop" in calls
+    assert "branch=main" not in calls
+
+
+def test_a_custom_label_is_honoured(tmp_path):
+    """The label is a parameter so a caller can look for something else without
+    editing the script -- and so the tests can exercise a label that really exists."""
+    result, output = _run_detect(
+        tmp_path,
+        HEAD,
+        "deploy.yml",
+        "some-other-label",
+        pulls_by_sha={"aaa": _labelled(3, "some-other-label")},
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "reindex_needed=true" in output
+    assert "pr_numbers=3" in output
