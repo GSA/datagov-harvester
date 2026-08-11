@@ -127,8 +127,12 @@ done <<< "$(echo "$compare" | jq -r '.commits[].sha')"
 
 emit "base_sha=${base_sha}"
 
-if [[ ${#pr_numbers[@]-0} -gt 0 ]]; then
-  joined=$(IFS=,; echo "${pr_numbers[*]-}")
+# `${#arr[@]}` with no `-default`: applying one is a "bad substitution" on the runner's
+# bash (5.x) even though macOS bash 3.2 tolerates it, and it is unnecessary anyway --
+# the *count* of an empty array is 0 under `set -u`. Only a value expansion such as
+# `${arr[*]}` needs the guard.
+if [[ ${#pr_numbers[@]} -gt 0 ]]; then
+  joined=$(IFS=,; echo "${pr_numbers[*]}")
   emit "reindex_needed=true"
   emit "pr_numbers=${joined}"
   echo ""
