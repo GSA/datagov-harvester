@@ -456,6 +456,7 @@ def make_record_mapping(record):
         "action": record.action,
         "ckan_id": record.ckan_id,
         "parent_identifier": record.parent_identifier,
+        "record_type": record.record_type,
     }
 
 

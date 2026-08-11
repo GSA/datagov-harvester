@@ -450,6 +450,35 @@ class HarvestSource:
             try:
                 record = self.external_records.pop(0)
                 parent_identifier = None
+                record_type = record.get("_record_type", "dataset")
+
+                # Handle CatalogRecords differently
+                if record_type == "catalog_record":
+                    from harvester.utils.general_utils import (
+                        normalize_catalog_record_identifier,
+                    )
+
+                    identifier = normalize_catalog_record_identifier(record)
+                    if identifier is None:
+                        raise NoIdentifierException(
+                            f"CatalogRecord missing required @id field"
+                        )
+                    # CatalogRecords are already in DCAT format, no sorting needed
+                    dataset = json.dumps(record)
+                    dataset_hash = dataset_to_hash(dataset)
+
+                    yield Record(
+                        self,
+                        identifier,
+                        dataset,
+                        dataset_hash,
+                        _parent_identifier=parent_identifier,
+                        _record_type="catalog_record",
+                    )
+                    del record
+                    continue
+
+                # Handle datasets (existing logic)
                 if self.source_type == "waf":
                     record["content"] = download_file(record["identifier"], ".xml")
                     dataset = record["content"]
@@ -715,6 +744,7 @@ class Record:
     _mdt_msgs: str = ""
     _id: str = None
     _parent_identifier: str = None
+    _record_type: str = "dataset"
 
     transformed_data: dict = None
     ckanified_metadata: dict = field(default_factory=lambda: {})
@@ -788,6 +818,10 @@ class Record:
         return self._parent_identifier
 
     @property
+    def record_type(self) -> str:
+        return self._record_type
+
+    @property
     def source_raw(self) -> str:
         return self._source_raw
 
@@ -849,13 +883,19 @@ class Record:
             self.compare()
             if self.action is None:
                 return
-            if self.harvest_source.schema_type.startswith("iso19115"):
+
+            # CatalogRecords are already in DCAT format, skip transformation
+            if self.record_type == "catalog_record":
+                # Parse the source_raw JSON for validation
+                self.transformed_data = json.loads(self.source_raw)
+            elif self.harvest_source.schema_type.startswith("iso19115"):
                 self.transform()
                 self.add_parent()
                 self.replace_identifier()
                 self.fill_placeholders()
                 self.improve_distributions()
                 self._save_transformed_data()
+
             self.validate()
             self.sync()
         except (
@@ -1130,7 +1170,24 @@ class Record:
         # whether we saw any errors
         valid = True
 
-        errors = self.harvest_source.validator.iter_errors(record)
+        # Use CatalogRecord schema for catalog_record type
+        if self.record_type == "catalog_record":
+            catalog_record_schema_file = (
+                ROOT_DIR
+                / "schemas"
+                / "dcatus3.0"
+                / "definitions"
+                / "CatalogRecord.json"
+            )
+            catalog_record_schema = open_json(catalog_record_schema_file)
+            catalog_record_validator = build_dcatus3_validator(
+                ROOT_DIR / "schemas" / "dcatus3.0" / "definitions",
+                root_ref="https://resources.data.gov/dcat-us/3.0.0/definitions/catalogrecord",
+            )
+            errors = catalog_record_validator.iter_errors(record)
+        else:
+            errors = self.harvest_source.validator.iter_errors(record)
+
         errors = assemble_validation_errors(errors)
         for error in errors:
             valid = False
