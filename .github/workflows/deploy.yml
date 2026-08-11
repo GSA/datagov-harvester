@@ -62,6 +62,13 @@ permissions:
 # The same trap is documented at migrate_opensearch_cluster.yml:190-194. Individual
 # jobs below take the maintenance group at JOB level instead, which releases it
 # before the child needs it.
+#
+# That release behaviour is not stated in GitHub's docs, so it was measured rather
+# than assumed: a throwaway workflow held a group on one job, then called a reusable
+# workflow whose own workflow-level group was the same name. The child acquired it and
+# the run completed (2026-08-11). If that ever regresses the symptom is a run stuck in
+# "Queued" forever, and the fix is to drop the per-job groups and rely on
+# deploy-main-pipeline alone.
 concurrency:
   group: deploy-main-pipeline
   cancel-in-progress: false
