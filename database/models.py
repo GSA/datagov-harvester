@@ -189,6 +189,11 @@ class HarvestJob(Base):
     records_ignored = Column(Integer, default=0)
     records_validated = Column(Integer, default=0)
 
+    # Catalog-level DCAT-US 3.0 metadata for this job's source, with dataset,
+    # service, record, and catalog fields stripped (those are harvested
+    # separately as their own records). Null for non-Catalog sources.
+    dcatus_catalog = Column(JSONB)
+
     errors = relationship(
         "HarvestJobError",
         backref=backref("job", lazy="joined"),
