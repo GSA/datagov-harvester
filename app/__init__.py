@@ -31,7 +31,25 @@ htmx = None
 HSTS_MAX_AGE_SECONDS = 60 * 60 * 24 * 365
 HSTS_HEADER = f"max-age={HSTS_MAX_AGE_SECONDS}; includeSubDomains; preload"
 
-_VERSIONED_API_PATH = re.compile(r"^/api/(v\d+)/")
+_VERSIONED_API_PATH = re.compile(r"^/api/(v\d+)/([^/]+)")
+
+# first-path-segment prefix -> Swagger tag, so list endpoints implemented
+# generically (app/api/query.py) still group with their resource's CRUD
+# endpoints (app/api/harvest_jobs.py etc).
+_RESOURCE_TAG_PREFIXES = [
+    ("harvest_job", "Harvest Jobs"),
+    ("harvest_record", "Harvest Records"),
+    ("harvest_source", "Harvest Sources"),
+    ("harvest_error", "Harvest Records"),
+    ("organization", "Organizations"),
+]
+
+
+def _resource_tag(path_segment):
+    for prefix, tag in _RESOURCE_TAG_PREFIXES:
+        if path_segment.startswith(prefix):
+            return tag
+    return path_segment.replace("_", " ").title()
 
 
 class VersionedStaticAPIFlask(APIFlask):
@@ -90,12 +108,24 @@ def create_app():
         # don't include auth information in the OpenAPI spec
         spec.get("components", {}).pop("securitySchemes", None)
 
-        # every version shares one blueprint/tag, so retag by path -- this
-        # also gives any future /api/vN its own section for free.
+        # every route shares one blueprint/tag, so retag by path into
+        # per-resource sections (Harvest Jobs, Harvest Records, ...);
+        # suffix with the version only if >1 version is actually live.
+        path_tags = {
+            path: _VERSIONED_API_PATH.match(path) for path in spec.get("paths", {})
+        }
+        versions = {m.group(1) for m in path_tags.values() if m}
+
         tag_names = []
         for path, operations in spec.get("paths", {}).items():
-            match = _VERSIONED_API_PATH.match(path)
-            tag = f"Api {match.group(1)}" if match else "Api (latest)"
+            match = path_tags[path]
+            if match:
+                resource = _resource_tag(match.group(2))
+                tag = (
+                    f"{resource} ({match.group(1)})" if len(versions) > 1 else resource
+                )
+            else:
+                tag = "Api (latest)"
             if tag not in tag_names:
                 tag_names.append(tag)
             for operation in operations.values():

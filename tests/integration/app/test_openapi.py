@@ -23,19 +23,44 @@ class TestOpenAPI:
 
         assert spec["info"]["title"] == "Datagov Harvester"
 
-    def test_openapi_tags_split_by_version(self, client):
+    def test_openapi_tags_group_by_resource(self, client):
         response = client.get("/openapi.json")
         spec = response.json
 
         # the unversioned `/api` alias is a hidden redirect (see
         # app/routes.py), so every documented path belongs to a real,
         # pinned version -- no separate "latest" tag/paths to duplicate.
-        assert spec["tags"] == [{"name": "Api v1"}]
+        assert spec["tags"] == [
+            {"name": "Harvest Jobs"},
+            {"name": "Harvest Records"},
+            {"name": "Harvest Sources"},
+            {"name": "Organizations"},
+            {"name": "Validate"},
+        ]
         assert all(path.startswith("/api/v1/") for path in spec["paths"])
 
-        for operations in spec["paths"].values():
+        expected_tags = {
+            "/api/v1/harvest_error/{error_id}": "Harvest Records",
+            "/api/v1/harvest_job/{job_id}": "Harvest Jobs",
+            "/api/v1/harvest_job/{job_id}/errors/{error_type}": "Harvest Jobs",
+            "/api/v1/harvest_job_errors/": "Harvest Jobs",
+            "/api/v1/harvest_jobs/": "Harvest Jobs",
+            "/api/v1/harvest_record/{record_id}": "Harvest Records",
+            "/api/v1/harvest_record/{record_id}/errors": "Harvest Records",
+            "/api/v1/harvest_record/{record_id}/raw": "Harvest Records",
+            "/api/v1/harvest_record/{record_id}/transformed": "Harvest Records",
+            "/api/v1/harvest_record_errors/": "Harvest Records",
+            "/api/v1/harvest_records/": "Harvest Records",
+            "/api/v1/harvest_sources/": "Harvest Sources",
+            "/api/v1/organization/{org_identifier}": "Organizations",
+            "/api/v1/organization_list/": "Organizations",
+            "/api/v1/organizations/": "Organizations",
+            "/api/v1/validate": "Validate",
+        }
+        assert set(expected_tags) == set(spec["paths"])
+        for path, operations in spec["paths"].items():
             for operation in operations.values():
-                assert operation["tags"] == ["Api v1"]
+                assert operation["tags"] == [expected_tags[path]]
 
     def test_openapi_swagger(self, client):
         response = client.get("/openapi/docs")
