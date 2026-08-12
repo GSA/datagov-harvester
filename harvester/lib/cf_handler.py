@@ -94,32 +94,24 @@ class CFHandler:
         return list(result_iter)
 
     @staticmethod
-    def job_id_from_task(task):
-        """Extract the harvest job id from a task dict.
-
-        Returns None if the task name does not match the expected harvest task
-        naming pattern.
-        """
-        name = task.get("name", "")
-        match = re.match(r"harvest-job-(.*)-\w+", name)
-        return match[1] if match else None
-
-    @staticmethod
-    def task_id(task):
-        """Extract the Cloud Foundry task id/guid from a task dict."""
-        return task.get("guid")
-
-    @staticmethod
     def job_ids_from_tasks(task_list):
         """Convert a list of task dicts into a list of their job ids.
 
         An argument of None can occur when tasks can't be listed. Return
         an empty list in that case.
         """
+
+        def _id_from_task(task):
+            name = task["name"]
+            try:
+                return re.match(r"harvest-job-(.*)-\w+", name)[1]
+            except TypeError:  # no match
+                return None
+
         if task_list is None:
             return []
 
-        id_list = [CFHandler.job_id_from_task(task) for task in task_list]
+        id_list = [_id_from_task(task) for task in task_list]
         return [id_ for id_ in id_list if id_ is not None]
 
     def get_running_app_tasks(self, app_guuid=None):

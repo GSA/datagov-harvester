@@ -716,24 +716,19 @@ class TestHarvestJobFullFlow:
     ):
         interface.add_organization(organization_data)
         interface.add_harvest_source(source_data_dcatus_single_record)
-
         harvest_job_doc = {
             "status": "in_progress",
             "harvest_source_id": source_data_dcatus_single_record["id"],
         }
         harvest_job1 = interface.add_harvest_job(harvest_job_doc)
-        harvest_job2 = interface.add_harvest_job(harvest_job_doc)
 
-        # Save ids early because harvest_job_starter() can detach ORM instances.
-        harvest_job1_id = harvest_job1.id
-        harvest_job2_id = harvest_job2.id
+        harvest_job2 = interface.add_harvest_job(harvest_job_doc)
 
         caplog.set_level(logging.INFO)
 
-        harvest_job_starter(harvest_job1_id, "harvest")
-        harvest_job = interface.get_harvest_job(harvest_job1_id)
-
-        assert f"Job {harvest_job2_id} is already in progress for source" in caplog.text
+        harvest_job_starter(harvest_job1.id, "harvest")
+        harvest_job = interface.get_harvest_job(harvest_job1.id)
+        assert f"Job {harvest_job2.id} is already in progress for source" in caplog.text
         assert harvest_job.status == "error"
 
     @patch("requests.get")

@@ -104,12 +104,18 @@ class LoadManager:
                 # from a task only do 1 at most
                 slots = 1 if slots > 0 else 0
 
+            # claim jobs in DB transaction, mark them in_progress and commit
             # invoke cf_task with next jobs
             # then mark the job as running in the DB
-            jobs = interface.get_new_harvest_jobs_in_past(limit=slots)
+            jobs = interface.claim_new_harvest_jobs(limit=slots)
             for job in jobs:
-                self.start_job(job.id, job.job_type)
-                self.schedule_next_job(job.harvest_source_id)
+                try:
+                        self.start_job(job.id, job.job_type)
+                        self.schedule_next_job(job.harvest_source_id)
+                except Exception as e:
+                    logger.error(f"Failed to start job {job.id}: {repr(e)}")
+                    interface.reset_harvest_job_to_new(job.id)
+                    continue
         finally:
             # closes the scoped_session object
             interface.close()

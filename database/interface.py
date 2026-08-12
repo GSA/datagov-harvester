@@ -1255,3 +1255,39 @@ class HarvesterDBInterface:
 
 def order_by_helper(model, order_by):
     return model.date_created.asc() if order_by == "asc" else model.date_created.desc()
+
+
+def claim_new_harvest_jobs(self, limit=None):
+    """
+    Atomically claim harvest jobs that need to be run.
+
+    A job that needs to be run has status "new" and a date_created before now.
+    Claimed jobs are returned in ascending order of date_created and marked
+    in_progress within the same transaction.
+    """
+    with self.db.begin():
+        jobs = (
+            self.db.query(HarvestJob)
+            .filter(
+                HarvestJob.date_created < datetime.now(timezone.utc),
+                HarvestJob.status == "new",
+            )
+            .order_by(asc(HarvestJob.date_created))
+            .with_for_update(skip_locked=True)
+            .limit(limit)
+            .all()
+        )
+
+        for job in jobs:
+            job.status = "in_progress"
+
+        self.db.flush()
+        return jobs
+
+
+def reset_harvest_job_to_new(self, job_id):
+    job = self.db.get(HarvestJob, job_id)
+    if job is None:
+        return
+    job.status = "new"
+    self.db.commit()
