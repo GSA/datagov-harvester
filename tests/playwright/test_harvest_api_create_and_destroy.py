@@ -31,7 +31,8 @@ class TestHarvestAPICreateAndDestroy:
         assert res.status == 200
         assert (
             # ruff: noqa: E501
-            res.json()["message"] == f"Added new organization with ID: {org_id}"
+            res.json()["message"]
+            == f"Added new organization with ID: {org_id}"
         )
         res = apage.request.delete(
             f"/api/organization/{org_id}",
