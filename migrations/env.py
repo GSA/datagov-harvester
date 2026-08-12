@@ -125,6 +125,7 @@ def run_migrations_offline():
     with context.begin_transaction():
         context.run_migrations()
 
+
 def terminate_database_connections(connectable) -> None:
     autocommit_engine = connectable.execution_options(isolation_level="AUTOCOMMIT")
 
