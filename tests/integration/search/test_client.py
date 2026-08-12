@@ -32,6 +32,12 @@ def test_mappings_include_catalog_compatible_fields():
         "type": "text",
         "analyzer": client.TEXT_ANALYZER,
         "search_analyzer": client.TEXT_ANALYZER,
+        "fields": {
+            "normalized": {
+                "type": "keyword",
+                "normalizer": client.KEYWORD_NORMALIZER,
+            },
+        },
     }
     assert mappings["distribution_titles"]["type"] == "text"
     assert mappings["publisher"]["fields"]["raw"] == {"type": "keyword"}
