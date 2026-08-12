@@ -63,13 +63,16 @@ class TestHarvestCreateAndDestroy:
         )
 
     def test_can_create_and_destroy_new_harvest_source(self, apage_with_org):
+        suffix = uuid4().hex[:8]
+        source_name = f"Test Source New {suffix}"
+
         apage_with_org.get_by_role("link", name="Harvest Sources").click()
         apage_with_org.get_by_role("link", name="Add Harvest Source").click()
         apage_with_org.get_by_role("textbox", name="Name").click()
-        apage_with_org.get_by_role("textbox", name="Name").fill("Test Source New")
+        apage_with_org.get_by_role("textbox", name="Name").fill(source_name)
         apage_with_org.get_by_role("textbox", name="Name").press("Tab")
         apage_with_org.get_by_role("textbox", name="URL").fill(
-            "https://harvestsourceurl.gov/data.json"
+            f"https://harvestsourceurl.gov/{suffix}/data.json"
         )
         apage_with_org.get_by_role("textbox", name="URL").press("Tab")
         apage_with_org.get_by_role("textbox", name="Notification emails").fill(
@@ -82,19 +85,19 @@ class TestHarvestCreateAndDestroy:
             ["Added new harvest source with ID:"]
         )
 
-        apage_with_org.get_by_role("link", name="Test Source New").click()
+        apage_with_org.get_by_role("link", name=source_name).click()
         apage_with_org.get_by_role("button", name="Edit", exact=True).click()
         assert apage_with_org.locator("#name").get_attribute("readonly") is not None
 
         apage_with_org.get_by_role("link", name="Harvest Sources").click()
 
-        apage_with_org.get_by_role("link", name="Test Source New").click()
+        apage_with_org.get_by_role("link", name=source_name).click()
         apage_with_org.once("dialog", lambda dialog: dialog.accept())
         apage_with_org.get_by_role("button", name="Delete", exact=True).click()
         expect(apage_with_org.locator(".usa-alert--warning")).to_contain_text(
             ["This harvest source may take some time to delete."]
         )
         # Background task must finish before org fixture cleanup can succeed.
-        expect(
-            apage_with_org.get_by_role("link", name="Test Source New")
-        ).to_have_count(0, timeout=60_000)
+        expect(apage_with_org.get_by_role("link", name=source_name)).to_have_count(
+            0, timeout=60_000
+        )

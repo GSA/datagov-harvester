@@ -15,7 +15,8 @@ class TestEnqueueHarvestSourceDelete:
         source_id = "2f2652de-91df-4c63-8b53-bfced20b276b"
 
         with patch(
-            "harvester.lib.source_delete.create_task_handler", return_value=handler
+            "harvester.lib.source_delete._task_handler_for_delete",
+            return_value=handler,
         ):
             message, status = enqueue_harvest_source_delete(source_id, db)
 
@@ -37,7 +38,8 @@ class TestEnqueueHarvestSourceDelete:
         handler = MagicMock()
 
         with patch(
-            "harvester.lib.source_delete.create_task_handler", return_value=handler
+            "harvester.lib.source_delete._task_handler_for_delete",
+            return_value=handler,
         ):
             message, status = enqueue_harvest_source_delete("abc", db)
 
@@ -55,7 +57,8 @@ class TestEnqueueHarvestSourceDelete:
         handler = MagicMock()
 
         with patch(
-            "harvester.lib.source_delete.create_task_handler", return_value=handler
+            "harvester.lib.source_delete._task_handler_for_delete",
+            return_value=handler,
         ):
             message, status = enqueue_harvest_source_delete("missing", db)
 
@@ -69,12 +72,60 @@ class TestEnqueueHarvestSourceDelete:
         handler.start_task.side_effect = RuntimeError("cf boom")
 
         with patch(
-            "harvester.lib.source_delete.create_task_handler", return_value=handler
+            "harvester.lib.source_delete._task_handler_for_delete",
+            return_value=handler,
         ):
             message, status = enqueue_harvest_source_delete("abc", db)
 
         assert status == 500
         assert "Failed to schedule harvest source delete" in message
+
+    def test_uses_local_handler_off_cloud_foundry(self):
+        db = MagicMock()
+        db.can_delete_harvest_source.return_value = (True, None, 200)
+        local_handler = MagicMock()
+
+        with (
+            patch(
+                "harvester.lib.source_delete.is_running_on_cloud_foundry",
+                return_value=False,
+            ),
+            patch(
+                "harvester.lib.source_delete.LocalTaskHandler",
+                return_value=local_handler,
+            ) as local_cls,
+            patch("harvester.lib.source_delete.create_task_handler") as create_handler,
+        ):
+            message, status = enqueue_harvest_source_delete("abc", db)
+
+        assert status == 202
+        assert message == DELETE_IN_PROGRESS_MESSAGE
+        local_cls.assert_called_once_with()
+        create_handler.assert_not_called()
+        local_handler.start_task.assert_called_once()
+
+    def test_uses_create_task_handler_on_cloud_foundry(self):
+        db = MagicMock()
+        db.can_delete_harvest_source.return_value = (True, None, 200)
+        cf_handler = MagicMock()
+
+        with (
+            patch(
+                "harvester.lib.source_delete.is_running_on_cloud_foundry",
+                return_value=True,
+            ),
+            patch(
+                "harvester.lib.source_delete.create_task_handler",
+                return_value=cf_handler,
+            ) as create_handler,
+            patch("harvester.lib.source_delete.LocalTaskHandler") as local_cls,
+        ):
+            message, status = enqueue_harvest_source_delete("abc", db)
+
+        assert status == 202
+        create_handler.assert_called_once_with()
+        local_cls.assert_not_called()
+        cf_handler.start_task.assert_called_once()
 
 
 class TestDeleteSourceEntrypoint:

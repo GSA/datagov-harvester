@@ -2,11 +2,26 @@
 
 import logging
 
+from harvester.lib.local_task_handler import LocalTaskHandler
 from harvester.lib.task_handler import create_task_handler
+from harvester.utils.env_utils import is_running_on_cloud_foundry
 
 logger = logging.getLogger("harvest_admin")
 
 DELETE_IN_PROGRESS_MESSAGE = "This harvest source may take some time to delete."
+
+
+def _task_handler_for_delete():
+    """Return the handler that will delete against this process's database.
+
+    Off Cloud Foundry, CI/local often still have CF credentials (e.g. from
+    ``.env.sample`` + workflow secrets). ``create_task_handler()`` would then
+    schedule the delete on a remote CF app whose DATABASE_URI is not the Docker
+    DB the UI just prechecked — so the source never disappears locally.
+    """
+    if is_running_on_cloud_foundry():
+        return create_task_handler()
+    return LocalTaskHandler()
 
 
 def enqueue_harvest_source_delete(source_id, db_interface):
@@ -27,7 +42,7 @@ def enqueue_harvest_source_delete(source_id, db_interface):
     task_id = f"delete-harvest-source-{source_id}"
     command = f"python harvester/delete_source.py {source_id}"
     try:
-        create_task_handler().start_task(command=command, task_id=task_id)
+        _task_handler_for_delete().start_task(command=command, task_id=task_id)
     except Exception as e:
         err = f"Failed to schedule harvest source delete :: {repr(e)}"
         logger.error(err)
