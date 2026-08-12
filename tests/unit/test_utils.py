@@ -25,6 +25,7 @@ from harvester.utils.general_utils import (
     extract_dcatus3_catalog_datasets,
     extract_dcatus3_catalog_records,
     extract_dcatus3_catalog_services,
+    extract_dcatus3_nested_datasets,
     find_indexes_for_duplicates,
     get_waf_datetimes,
     is_valid_uuid4,
@@ -824,6 +825,71 @@ class TestDcatus3Catalog:
 
         assert extract_dcatus3_catalog_datasets(catalog) == [{"identifier": "ds-1"}]
         assert extract_dcatus3_catalog_records(catalog) == [{"@id": "rec-1"}]
+
+
+class TestExtractDcatus3NestedDatasets:
+    def test_extracts_single_field(self):
+        parents = [
+            {
+                "identifier": "svc-1",
+                "servesDataset": [
+                    {"identifier": "ds-1"},
+                    {"identifier": "ds-2"},
+                ],
+            }
+        ]
+
+        result = extract_dcatus3_nested_datasets(parents, "servesDataset")
+
+        assert result == [
+            {"identifier": "ds-1", "parent_identifier": "svc-1"},
+            {"identifier": "ds-2", "parent_identifier": "svc-1"},
+        ]
+
+    def test_extracts_multiple_fields_including_singular_ones(self):
+        """DatasetSeries has seriesMember (a list) plus first/last (single
+        objects, not lists) -- all three should be pulled out."""
+        parents = [
+            {
+                "identifier": "series-1",
+                "seriesMember": [{"identifier": "ds-2"}],
+                "first": {"identifier": "ds-1"},
+                "last": {"identifier": "ds-3"},
+            }
+        ]
+
+        result = extract_dcatus3_nested_datasets(
+            parents, "seriesMember", "first", "last"
+        )
+
+        assert {d["identifier"] for d in result} == {"ds-1", "ds-2", "ds-3"}
+        assert all(d["parent_identifier"] == "series-1" for d in result)
+
+    def test_missing_fields_produce_nothing(self):
+        parents = [{"identifier": "svc-1"}]
+
+        assert extract_dcatus3_nested_datasets(parents, "servesDataset") == []
+
+    def test_multiple_parents_each_tagged_with_their_own_identifier(self):
+        parents = [
+            {"identifier": "svc-1", "servesDataset": [{"identifier": "ds-1"}]},
+            {"identifier": "svc-2", "servesDataset": [{"identifier": "ds-2"}]},
+        ]
+
+        result = extract_dcatus3_nested_datasets(parents, "servesDataset")
+
+        assert result == [
+            {"identifier": "ds-1", "parent_identifier": "svc-1"},
+            {"identifier": "ds-2", "parent_identifier": "svc-2"},
+        ]
+
+    def test_does_not_mutate_original_dataset_dicts(self):
+        original_dataset = {"identifier": "ds-1"}
+        parents = [{"identifier": "svc-1", "servesDataset": [original_dataset]}]
+
+        extract_dcatus3_nested_datasets(parents, "servesDataset")
+
+        assert "parent_identifier" not in original_dataset
 
 
 class TestRetrySession:

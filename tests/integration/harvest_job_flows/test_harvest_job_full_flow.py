@@ -227,6 +227,53 @@ class TestHarvestJobFullFlow:
         }
 
     @patch("harvester.harvest.HarvestSource.send_notification_emails")
+    def test_harvest_dcatus3_0_service_serves_dataset_persists_with_parent(
+        self,
+        send_notification_emails_mock: MagicMock,
+        interface,
+        organization_data,
+        source_data_dcatus3_0_service_serves_dataset,
+    ):
+        """AC: a Dataset embedded in a DataService's servesDataset is
+        harvested as a real Dataset, tagged with the service's identifier
+        as its parent."""
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_dcatus3_0_service_serves_dataset)
+        harvest_job = interface.add_harvest_job(
+            {
+                "status": "new",
+                "harvest_source_id": (
+                    source_data_dcatus3_0_service_serves_dataset["id"]
+                ),
+            }
+        )
+
+        job_id = harvest_job.id
+        harvest_job_starter(job_id, "harvest")
+
+        harvest_job = interface.get_harvest_job(job_id)
+        assert harvest_job.status == "complete"
+        assert harvest_job.records_added == 2
+
+        datasets = interface.db.query(Dataset).all()
+        assert len(datasets) == 1
+        assert datasets[0].dcat["identifier"] == (
+            "https://example.gov/datasets/served-by-service-one"
+        )
+
+        records = (
+            interface.db.query(HarvestRecord)
+            .filter(
+                HarvestRecord.harvest_source_id
+                == source_data_dcatus3_0_service_serves_dataset["id"]
+            )
+            .all()
+        )
+        dataset_record = next(r for r in records if r.record_type == "dataset")
+        assert dataset_record.parent_identifier == ("https://example.gov/services/one")
+        assert dataset_record.status == "success"
+
+    @patch("harvester.harvest.HarvestSource.send_notification_emails")
     def test_multiple_harvest_jobs(
         self,
         send_notification_emails_mock: MagicMock,

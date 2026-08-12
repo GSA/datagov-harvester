@@ -50,6 +50,7 @@ from harvester.utils.general_utils import (
     extract_dcatus3_catalog_datasets,
     extract_dcatus3_catalog_records,
     extract_dcatus3_catalog_services,
+    extract_dcatus3_nested_datasets,
     find_indexes_for_duplicates,
     get_datetime,
     make_record_mapping,
@@ -569,6 +570,7 @@ class HarvestSource:
 
                 elif self.source_type == "document":
                     if self.schema_type.startswith("dcatus"):
+                        parent_identifier = record.pop("parent_identifier", None)
                         dataset = json.dumps(sort_dataset(record))
                     elif self.schema_type.startswith("iso19115"):
                         # single document ISO
@@ -649,13 +651,16 @@ class HarvestSource:
                     catalog = download_file(self.url, ".json")
 
                     if self.schema_type == "dcatus3.0":
-                        self.external_records = extract_dcatus3_catalog_datasets(
-                            catalog
-                        )
                         self.external_records_by_type = {
                             record_type: config["extractor"](catalog)
                             for record_type, config in NON_DATASET_RECORD_TYPES.items()
                         }
+                        self.external_records = extract_dcatus3_catalog_datasets(
+                            catalog
+                        ) + extract_dcatus3_nested_datasets(
+                            self.external_records_by_type.get("data_service", []),
+                            "servesDataset",
+                        )
                         self.db_interface.update_harvest_job(
                             self.job_id,
                             {"dcatus_catalog": strip_dcatus3_catalog_objects(catalog)},

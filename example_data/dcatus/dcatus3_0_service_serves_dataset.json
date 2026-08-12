@@ -1,0 +1,49 @@
+{
+  "@type": "Catalog",
+  "@id": "https://example.gov/data-service-serves-dataset.json",
+  "conformsTo": {
+    "@type": "Standard",
+    "title": "DCAT-US 3.0"
+  },
+  "title": "Example DCAT-US 3.0 Catalog With A Service Serving A Dataset",
+  "description": "A sample DCAT-US 3.0 catalog where a DataService's servesDataset embeds a full Dataset object, used for harvest testing.",
+  "service": [
+    {
+      "@type": "DataService",
+      "title": "Test Data Service One",
+      "description": "A test data service that serves an embedded dataset.",
+      "identifier": "https://example.gov/services/one",
+      "endpointURL": [
+        "https://api.example.gov/climate/v1"
+      ],
+      "publisher": {
+        "@type": "Organization",
+        "name": "Test Agency"
+      },
+      "contactPoint": [
+        {
+          "@type": "Kind",
+          "fn": "Test Service Contact One",
+          "hasEmail": "mailto:svc-one@example.gov"
+        }
+      ],
+      "servesDataset": [
+        {
+          "@type": "Dataset",
+          "title": "Dataset Served By Service One",
+          "description": "A dataset embedded inline in the DataService's servesDataset field.",
+          "identifier": "https://example.gov/datasets/served-by-service-one",
+          "publisher": {
+            "@type": "Organization",
+            "name": "Test Agency"
+          },
+          "contactPoint": {
+            "@type": "Kind",
+            "fn": "Test Contact One",
+            "hasEmail": "mailto:one@example.gov"
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -511,6 +511,36 @@ def extract_dcatus3_catalog_records(catalog: dict) -> list:
     return _extract_dcatus3_catalog_objects(catalog, "record")
 
 
+def extract_dcatus3_nested_datasets(parents: list, *fields: str) -> list:
+    """
+    pull full inline Dataset objects out of [fields] on each dict in
+    [parents], tagging each with "parent_identifier" set to the parent's own
+    identifier so the relationship isn't lost once the dataset is harvested
+    on its own.
+
+    DCAT-US3 lets several object types embed full Dataset objects rather
+    than reference them by id: DataService.servesDataset, and
+    DatasetSeries.seriesMember/first/last. This is the shared extraction
+    step for all of them -- callers pass the parent objects and which
+    field(s) on them hold nested datasets.
+    """
+    nested_datasets = []
+
+    for parent in parents:
+        parent_identifier = normalize_dataset_identifier(parent.get("identifier"))
+        for field in fields:
+            value = parent.get(field)
+            if value is None:
+                continue
+            candidates = value if isinstance(value, list) else [value]
+            for dataset in candidates:
+                dataset = dict(dataset)
+                dataset["parent_identifier"] = parent_identifier
+                nested_datasets.append(dataset)
+
+    return nested_datasets
+
+
 def make_record_mapping(record):
     """Helper to make a Harvest record dict"""
 
