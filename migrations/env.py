@@ -125,21 +125,6 @@ def run_migrations_offline():
     with context.begin_transaction():
         context.run_migrations()
 
-
-def migrations_are_pending(connectable) -> bool:
-    script_directory = ScriptDirectory.from_config(config)
-    migration_heads = set(script_directory.get_heads())
-
-    with connectable.connect() as connection:
-        migration_context = MigrationContext.configure(connection)
-        database_heads = set(migration_context.get_current_heads())
-
-    if database_heads == migration_heads:
-        return False
-
-    return True
-
-
 def terminate_database_connections(connectable) -> None:
     autocommit_engine = connectable.execution_options(isolation_level="AUTOCOMMIT")
 
@@ -176,9 +161,7 @@ def run_migrations_online():
 
     connectable = get_engine()
 
-    # Terminate connections only if migrations are necessary
-    if migrations_are_pending(connectable):
-        terminate_database_connections(connectable)
+    terminate_database_connections(connectable)
 
     with connectable.connect() as connection:
         context.configure(
