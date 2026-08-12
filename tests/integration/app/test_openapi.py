@@ -23,6 +23,20 @@ class TestOpenAPI:
 
         assert spec["info"]["title"] == "Datagov Harvester"
 
+    def test_openapi_tags_split_by_version(self, client):
+        response = client.get("/openapi.json")
+        spec = response.json
+
+        # the unversioned `/api` alias is a hidden redirect (see
+        # app/routes.py), so every documented path belongs to a real,
+        # pinned version -- no separate "latest" tag/paths to duplicate.
+        assert spec["tags"] == [{"name": "Api v1"}]
+        assert all(path.startswith("/api/v1/") for path in spec["paths"])
+
+        for operations in spec["paths"].values():
+            for operation in operations.values():
+                assert operation["tags"] == ["Api v1"]
+
     def test_openapi_swagger(self, client):
         response = client.get("/openapi/docs")
         assert "OpenAPI Documentation" in response.text

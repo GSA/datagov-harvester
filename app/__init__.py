@@ -1,6 +1,7 @@
 import logging
 import logging.config
 import os
+import re
 import time
 from urllib.parse import urlsplit
 
@@ -29,6 +30,8 @@ logging.config.dictConfig(LOGGING_CONFIG)
 htmx = None
 HSTS_MAX_AGE_SECONDS = 60 * 60 * 24 * 365
 HSTS_HEADER = f"max-age={HSTS_MAX_AGE_SECONDS}; includeSubDomains; preload"
+
+_VERSIONED_API_PATH = re.compile(r"^/api/(v\d+)/")
 
 
 class VersionedStaticAPIFlask(APIFlask):
@@ -80,10 +83,27 @@ def create_app():
     if external_server_url:
         app.config["SERVERS"] = [{"url": external_server_url}]
 
-    # don't include auth information in the OpenAPI spec
+    # apiflask only keeps the last-registered @app.spec_processor callback,
+    # so both fixups below must live in a single function.
     @app.spec_processor
-    def remove_auth(spec):
+    def customize_spec(spec):
+        # don't include auth information in the OpenAPI spec
         spec.get("components", {}).pop("securitySchemes", None)
+
+        # every version shares one blueprint/tag, so retag by path -- this
+        # also gives any future /api/vN its own section for free.
+        tag_names = []
+        for path, operations in spec.get("paths", {}).items():
+            match = _VERSIONED_API_PATH.match(path)
+            tag = f"Api {match.group(1)}" if match else "Api (latest)"
+            if tag not in tag_names:
+                tag_names.append(tag)
+            for operation in operations.values():
+                if "tags" in operation:
+                    operation["tags"] = [tag]
+
+        tag_names.sort(key=lambda name: (name != "Api (latest)", name))
+        spec["tags"] = [{"name": name} for name in tag_names]
         return spec
 
     app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv("DATABASE_URI")
