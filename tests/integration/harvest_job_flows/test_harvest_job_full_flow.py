@@ -274,6 +274,66 @@ class TestHarvestJobFullFlow:
         assert dataset_record.status == "success"
 
     @patch("harvester.harvest.HarvestSource.send_notification_emails")
+    def test_harvest_dcatus3_0_series_members_persist_with_parent(
+        self,
+        send_notification_emails_mock: MagicMock,
+        interface,
+        organization_data,
+        source_data_dcatus3_0_series_with_members,
+    ):
+        """AC: Datasets embedded in a DatasetSeries's seriesMember/first/last
+        are harvested as real Datasets, tagged with the series' identifier
+        as their parent, with first/last redundancy against seriesMember
+        deduped rather than double-harvested. The DatasetSeries itself
+        persists as a data_series HarvestRecord only, no Dataset row."""
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_dcatus3_0_series_with_members)
+        harvest_job = interface.add_harvest_job(
+            {
+                "status": "new",
+                "harvest_source_id": (source_data_dcatus3_0_series_with_members["id"]),
+            }
+        )
+
+        job_id = harvest_job.id
+        harvest_job_starter(job_id, "harvest")
+
+        harvest_job = interface.get_harvest_job(job_id)
+        assert harvest_job.status == "complete"
+        assert harvest_job.records_added == 3
+
+        datasets = interface.db.query(Dataset).all()
+        assert len(datasets) == 2
+        assert {d.dcat["identifier"] for d in datasets} == {
+            "https://example.gov/datasets/annual-report-2023",
+            "https://example.gov/datasets/annual-report-2024",
+        }
+
+        records = (
+            interface.db.query(HarvestRecord)
+            .filter(
+                HarvestRecord.harvest_source_id
+                == source_data_dcatus3_0_series_with_members["id"]
+            )
+            .all()
+        )
+        assert len(records) == 3
+
+        dataset_records = [r for r in records if r.record_type == "dataset"]
+        series_records = [r for r in records if r.record_type == "data_series"]
+        assert len(dataset_records) == 2
+        assert len(series_records) == 1
+        assert all(r.status == "success" for r in dataset_records)
+        assert all(r.status == "success" for r in series_records)
+        assert all(
+            r.parent_identifier == "https://example.gov/series/annual-report"
+            for r in dataset_records
+        )
+        assert series_records[0].identifier == (
+            "https://example.gov/series/annual-report"
+        )
+
+    @patch("harvester.harvest.HarvestSource.send_notification_emails")
     def test_multiple_harvest_jobs(
         self,
         send_notification_emails_mock: MagicMock,

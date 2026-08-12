@@ -828,6 +828,22 @@ class TestDcatus3Catalog:
 
 
 class TestExtractDcatus3NestedDatasets:
+    def test_uses_custom_parent_identifier_field(self):
+        """DatasetSeries (like CatalogRecord) has no "identifier" field,
+        only a top-level "@id"."""
+        parents = [
+            {
+                "@id": "series-1",
+                "seriesMember": [{"identifier": "ds-1"}],
+            }
+        ]
+
+        result = extract_dcatus3_nested_datasets(
+            parents, "seriesMember", parent_identifier_field="@id"
+        )
+
+        assert result == [{"identifier": "ds-1", "parent_identifier": "series-1"}]
+
     def test_extracts_single_field(self):
         parents = [
             {
@@ -890,6 +906,62 @@ class TestExtractDcatus3NestedDatasets:
         extract_dcatus3_nested_datasets(parents, "servesDataset")
 
         assert "parent_identifier" not in original_dataset
+
+    def test_dedupes_same_identifier_across_fields_on_one_parent(self):
+        """A DatasetSeries's "first"/"last" are typically also present in
+        "seriesMember" -- that's redundant source data, not a
+        duplicate-identifier error, so only one copy should survive per
+        parent."""
+        parents = [
+            {
+                "identifier": "series-1",
+                "seriesMember": [
+                    {"identifier": "ds-1", "title": "First title seen"},
+                    {"identifier": "ds-2"},
+                ],
+                "first": {
+                    "identifier": "ds-1",
+                    "title": "Redundant, should be dropped",
+                },
+            }
+        ]
+
+        result = extract_dcatus3_nested_datasets(
+            parents, "seriesMember", "first", "last"
+        )
+
+        assert [d["identifier"] for d in result] == ["ds-1", "ds-2"]
+        assert result[0]["title"] == "First title seen"
+
+    def test_does_not_dedupe_missing_identifiers_across_datasets(self):
+        """Datasets with no usable identifier must each be kept (and later
+        flagged individually as missing an identifier), not collapsed into
+        one just because they all normalize to None."""
+        parents = [
+            {
+                "identifier": "series-1",
+                "seriesMember": [{"title": "No id one"}, {"title": "No id two"}],
+            }
+        ]
+
+        result = extract_dcatus3_nested_datasets(parents, "seriesMember")
+
+        assert len(result) == 2
+
+    def test_same_identifier_across_different_parents_not_deduped(self):
+        """Overlapping identifiers across different parents are a real
+        cross-source ambiguity, not the same kind of intra-parent
+        redundancy, so both copies should be kept for the normal
+        duplicate-identifier filter to catch."""
+        parents = [
+            {"identifier": "svc-1", "servesDataset": [{"identifier": "ds-1"}]},
+            {"identifier": "svc-2", "servesDataset": [{"identifier": "ds-1"}]},
+        ]
+
+        result = extract_dcatus3_nested_datasets(parents, "servesDataset")
+
+        assert len(result) == 2
+        assert {d["parent_identifier"] for d in result} == {"svc-1", "svc-2"}
 
 
 class TestRetrySession:

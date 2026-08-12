@@ -201,6 +201,35 @@ class TestExtract:
             "https://example.gov/services/one"
         )
 
+    def test_extract_dcatus3_0_series_with_members(
+        self,
+        make_harvest_source,
+        source_data_dcatus3_0_series_with_members,
+        job_data_dcatus3_0_series_with_members,
+    ):
+        """A DatasetSeries's seriesMember/first/last embed full Dataset
+        objects; first/last duplicate entries already in seriesMember must
+        not be double-harvested, and each surviving dataset is tagged with
+        the series' identifier as its parent."""
+        harvest_source = make_harvest_source(
+            source_data_dcatus3_0_series_with_members,
+            job_data_dcatus3_0_series_with_members,
+        )
+        harvest_source.acquire_minimum_external_data()
+
+        assert len(harvest_source.external_records_by_type["data_series"]) == 1
+        assert len(harvest_source.external_records) == 2
+
+        identifiers = {r["identifier"] for r in harvest_source.external_records}
+        assert identifiers == {
+            "https://example.gov/datasets/annual-report-2023",
+            "https://example.gov/datasets/annual-report-2024",
+        }
+        assert all(
+            r["parent_identifier"] == "https://example.gov/series/annual-report"
+            for r in harvest_source.external_records
+        )
+
     def test_check_iso_dcatus_schema(
         self,
         make_harvest_source,
