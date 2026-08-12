@@ -92,5 +92,9 @@ class TestHarvestCreateAndDestroy:
         apage_with_org.once("dialog", lambda dialog: dialog.accept())
         apage_with_org.get_by_role("button", name="Delete", exact=True).click()
         expect(apage_with_org.locator(".usa-alert--warning")).to_contain_text(
-            ["Deleted harvest source with ID:"]
+            ["This harvest source may take some time to delete."]
         )
+        # Background task must finish before org fixture cleanup can succeed.
+        expect(
+            apage_with_org.get_by_role("link", name="Test Source New")
+        ).to_have_count(0, timeout=60_000)

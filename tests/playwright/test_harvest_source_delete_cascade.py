@@ -8,6 +8,10 @@ records while its harvest_record / harvest_record_error rows are all still in
 the table. That is the path that OOM-killed the web worker in production, and
 the path ON DELETE CASCADE plus passive_deletes is meant to fix.
 
+UI delete schedules a CF/local background task and returns immediately with a
+"may take some time" flash; this test waits for the cascade to finish in the
+app database before asserting child rows are gone.
+
 The fixture seeds a dataset as well as records. Datasets are what make this a
 regression test rather than a smoke test: `dataset.harvest_source_id` is NOT
 NULL, so without passive_deletes on the backref SQLAlchemy tries to NULL it
@@ -26,6 +30,7 @@ the source and never render a Delete button.
 """
 
 import os
+import time
 import uuid
 
 import pytest
@@ -34,10 +39,23 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.engine import make_url
 
 RECORD_COUNT = 25
+DELETE_WAIT_SECONDS = 60
 
 # Host port of the db belonging to the app under test. Kept in step with the
 # `DATABASE_PORT=5433` override in the Makefile's `up` target.
 APP_DATABASE_PORT = int(os.getenv("APP_DATABASE_PORT", "5433"))
+
+
+def _wait_for_source_gone(engine, source_id, timeout_seconds=DELETE_WAIT_SECONDS):
+    """Poll until the background delete task removes the source row."""
+    deadline = time.monotonic() + timeout_seconds
+    while time.monotonic() < deadline:
+        if _child_row_counts(engine, source_id)["sources"] == 0:
+            return
+        time.sleep(0.25)
+    raise AssertionError(
+        f"Harvest source {source_id} was not deleted within {timeout_seconds}s"
+    )
 
 
 @pytest.fixture()
@@ -217,8 +235,7 @@ def _child_row_counts(engine, source_id):
             ).scalar(),
             "records": conn.execute(
                 text(
-                    "SELECT count(*) FROM harvest_record "
-                    "WHERE harvest_source_id = :id"
+                    "SELECT count(*) FROM harvest_record WHERE harvest_source_id = :id"
                 ),
                 {"id": source_id},
             ).scalar(),
@@ -266,8 +283,10 @@ class TestHarvestSourceDeleteCascade:
         authed_page.get_by_role("button", name="Delete", exact=True).click()
 
         expect(authed_page.locator(".usa-alert--warning")).to_contain_text(
-            [f"Deleted harvest source with ID:{source_id} successfully"]
+            ["This harvest source may take some time to delete."]
         )
+
+        _wait_for_source_gone(engine, source_id)
 
         assert _child_row_counts(engine, source_id) == {
             "sources": 0,

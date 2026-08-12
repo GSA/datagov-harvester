@@ -13,6 +13,7 @@ from app.deps import (
 from app.forms import HarvestSourceForm, HarvestTriggerForm
 from app.paginate import Pagination
 from app.util import make_new_source_contract
+from harvester.lib.source_delete import enqueue_harvest_source_delete
 from harvester.utils.general_utils import (
     convert_to_int,
     dynamic_map_list_items_to_dict,
@@ -297,15 +298,12 @@ def update_harvest_source_actions(source_id: str):
         return trigger_manual_job_helper(source_id, "clear")
     elif form.delete.data:
         try:
-            message, status = deps.db.delete_harvest_source(source_id)
+            message, status = enqueue_harvest_source_delete(source_id, deps.db)
             _log_mutation("delete", "harvest_source", source_id, status=status)
             flash(message)
-            if status == 409:
-                return redirect(
-                    url_for("main.view_harvest_source", source_id=source_id)
-                )
-            else:
+            if status == 202:
                 return redirect(url_for("main.harvest_source_list"))
+            return redirect(url_for("main.view_harvest_source", source_id=source_id))
         except Exception as e:
             message = f"Failed to delete harvest source :: {repr(e)}"
             logger.error(message)

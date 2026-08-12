@@ -31,8 +31,7 @@ class TestHarvestAPICreateAndDestroy:
         assert res.status == 200
         assert (
             # ruff: noqa: E501
-            res.json()["message"]
-            == f"Added new organization with ID: {org_id}"
+            res.json()["message"] == f"Added new organization with ID: {org_id}"
         )
         res = apage.request.delete(
             f"/api/organization/{org_id}",
@@ -96,8 +95,7 @@ class TestHarvestAPICreateAndDestroy:
                 "Content-Type": "application/json",
             },
         )
-        assert res.status == 200
+        assert res.status == 202
         assert (
-            res.json()["message"]
-            == f"Deleted harvest source with ID:{source_id} successfully"
+            res.json()["message"] == "This harvest source may take some time to delete."
         )
