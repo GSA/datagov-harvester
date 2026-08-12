@@ -1,4 +1,5 @@
 import os
+import time
 from uuid import uuid4
 
 import pytest
@@ -97,7 +98,15 @@ class TestHarvestCreateAndDestroy:
         expect(apage_with_org.locator(".usa-alert--warning")).to_contain_text(
             ["This harvest source may take some time to delete."]
         )
-        # Background task must finish before org fixture cleanup can succeed.
-        expect(apage_with_org.get_by_role("link", name=source_name)).to_have_count(
-            0, timeout=60_000
-        )
+        # List HTML is rendered before the background task finishes; reload until
+        # the source is gone so org fixture cleanup can succeed.
+        deadline = time.monotonic() + 60
+        while time.monotonic() < deadline:
+            apage_with_org.goto("/harvest_source_list/")
+            if apage_with_org.get_by_role("link", name=source_name).count() == 0:
+                break
+            time.sleep(0.25)
+        else:
+            raise AssertionError(
+                f"Harvest source {source_name!r} was not removed within 60s"
+            )
