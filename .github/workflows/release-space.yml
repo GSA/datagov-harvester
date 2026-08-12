@@ -109,9 +109,12 @@ jobs:
   # in migrate waits up to 2h for in-flight jobs. Additive mapping changes survive
   # that; a retyped or renamed field does not.
   #
-  # migrate keeps its inner toggle (the standalone dispatch path still needs it) and
-  # the overlap is harmless: bin/set_harvest_runner_capacity.sh just does `cf set-env`,
-  # so disabling twice is a no-op.
+  # migrate keeps its inner toggle for the standalone dispatch path, but this workflow
+  # switches it OFF via `harvester_already_paused: true` -- the pause below already
+  # covers a strictly wider window. Running both was not free: each toggle does a
+  # BLOCKING `cf restart --strategy rolling`, so a labelled release restarted
+  # datagov-harvest four times and posted four Slack messages to reach a state it was
+  # already in.
   disable-harvester:
     name: Disable harvesting (${{ inputs.space }})
     # Only when a rebuild will follow. A routine deploy must NOT pause harvesting --
@@ -264,6 +267,11 @@ jobs:
       force_kill_running_jobs: ${{ inputs.force_kill_running_jobs }}
       max_tasks: ${{ inputs.max_tasks }}
       max_failed_records: ${{ inputs.max_failed_records }}
+      # Suppress migrate's own disable/enable pair. This job is only reached when
+      # `disable-harvester` above succeeded (via await-rollout -> deploy ->
+      # create-services), and `enable-harvester` below is `always()`, so the pause is
+      # guaranteed to be in place here and guaranteed to be lifted afterwards.
+      harvester_already_paused: true
     secrets: inherit
 
   dry-run-summary:

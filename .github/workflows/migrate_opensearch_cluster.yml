@@ -168,6 +168,25 @@ on:
         required: false
         default: "50"
         type: string
+      # The caller's promise: "I have already paused harvesting, and I will resume it."
+      # Set by release-space.yml, which pauses BEFORE its deploy and resumes in an
+      # `always()` job after the whole release -- a window strictly wider than this
+      # workflow's own. Without it both pairs run, and each toggle is a `cf set-env`
+      # plus a BLOCKING rolling restart of datagov-harvest, so a labelled release
+      # restarted the app four times and posted four Slack messages to reach one state
+      # it was already in.
+      #
+      # workflow_call ONLY, deliberately -- there is no matching workflow_dispatch
+      # input. Undeclared context properties resolve to null, so on the hand-dispatched
+      # path `!inputs.harvester_already_paused` is `!null` = true and both toggles run
+      # exactly as before. Exposing it to workflow_dispatch would put a switch in the
+      # UI whose wrong setting runs a migration with harvest jobs still writing to the
+      # index -- the hazard the pause exists for -- in return for nothing an operator
+      # needs.
+      harvester_already_paused:
+        required: false
+        default: false
+        type: boolean
     # Deliberately no `secrets:` block. CF_SERVICE_USER/CF_SERVICE_AUTH exist only as
     # *environment* secrets (staging/prod/development), never at repo level, and every
     # job that runs a cf command already declares `environment: ${{ inputs.environment }}`
@@ -300,6 +319,11 @@ jobs:
   disable-harvester:
     name: Disable harvesting (${{ inputs.environment }})
     needs: plan
+    # Skipped when the caller already paused harvesting over a wider window (see
+    # `harvester_already_paused` above). `!inputs.x` is deliberate rather than
+    # `inputs.x != true`: on the workflow_dispatch path the property does not exist,
+    # and `!null` is true, so a hand-dispatched migration still pauses.
+    if: ${{ !inputs.harvester_already_paused }}
     uses: ./.github/workflows/toggle_harvester.yml
     with:
       state: disable
@@ -315,6 +339,20 @@ jobs:
   build:
     name: Build ${{ inputs.next_service_name }} (${{ inputs.environment }})
     needs: [plan, disable-harvester]
+    # An explicit `if:` is MANDATORY now that `disable-harvester` can be skipped. A job
+    # with no `if:` defaults to `success()`, and `success()` evaluates the whole
+    # TRANSITIVE ancestor set -- so a skipped `disable-harvester` would skip this job,
+    # every job under it, and report the run green having migrated nothing. That is the
+    # exact failure measured in run 31527120342 (release-space.yml:170-179) and the trap
+    # hit twice before that; getting it wrong here silently disables the entire
+    # label-triggered reindex path.
+    #
+    # `plan.result == 'success'` preserves what `success()` gave us: plan validates the
+    # inputs, and a failed validation must still stop everything.
+    if: >-
+      ${{ !cancelled()
+      && needs.plan.result == 'success'
+      && contains(fromJson('["success","skipped"]'), needs.disable-harvester.result) }}
     runs-on: ubuntu-latest
     # A prod es-large provision alone can take ~2h; the backfill adds to that.
     timeout-minutes: 350
@@ -715,7 +753,16 @@ jobs:
     needs: [build, teardown-replacement, promote]
     # Always resume harvesting, whatever happened above -- including cancellation,
     # and including when teardown-replacement was skipped.
-    if: always()
+    #
+    # The one exception is the caller that paused it: resuming here would restart
+    # harvesting while the rest of ITS release is still running, which is precisely what
+    # release-space.yml pauses across. Safe to leave to the caller only because its
+    # enable job is `always()` too and its window strictly contains this one -- if that
+    # ever became conditional, this skip would strand HARVEST_RUNNER_MAX_TASKS at 0 with
+    # nothing to notice it. Note the asymmetry with `disable-harvester` above: that one
+    # skipping is merely redundant work avoided, this one skipping delegates an
+    # obligation.
+    if: always() && !inputs.harvester_already_paused
     uses: ./.github/workflows/toggle_harvester.yml
     with:
       state: enable

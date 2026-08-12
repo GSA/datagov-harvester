@@ -227,9 +227,17 @@ exposes no `stop_after` input. For a change that breaks reads, deploy with
 `reindex: skip` and drive the migration by hand in two phases.
 
 `migrate_opensearch_cluster.yml` keeps its own inner disable/enable for the
-hand-dispatched path, so a labelled release toggles twice. That is harmless:
-`bin/set_harvest_runner_capacity.sh` just does `cf set-env`, and both calls restore the
-same `max_tasks`.
+hand-dispatched path, but a labelled release **switches it off** by passing
+`harvester_already_paused: true` — the release's own pause already spans a strictly
+wider window. Otherwise both pairs would run, and each toggle is a `cf set-env`
+followed by a *blocking* `cf restart --strategy rolling`: four restarts of
+`datagov-harvest` and four Slack messages to reach a state it was already in.
+
+That input is `workflow_call`-only and has no `workflow_dispatch` equivalent, so a
+hand-dispatched migration always pauses harvesting itself. An undeclared input resolves
+to null and `!null` is true, which is what makes the same condition serve both paths.
+The one obligation it creates: `release-space.yml` must resume harvesting
+unconditionally, which its `always()` enable job does.
 
 ### Each release path is a queue
 
