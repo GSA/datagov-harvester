@@ -130,6 +130,32 @@ class TestExtract:
         )
         assert errors[0][0].message == msg
 
+    def test_extract_dcatus3_0_service_serves_dataset(
+        self,
+        make_harvest_source,
+        source_data_dcatus3_0_service_serves_dataset,
+        job_data_dcatus3_0_service_serves_dataset,
+    ):
+        """A DataService's servesDataset embeds a full Dataset object, which
+        must be harvested like any other dataset, tagged with the service's
+        identifier as its parent."""
+        harvest_source = make_harvest_source(
+            source_data_dcatus3_0_service_serves_dataset,
+            job_data_dcatus3_0_service_serves_dataset,
+        )
+        harvest_source.acquire_minimum_external_data()
+
+        assert len(harvest_source.external_service_records) == 1
+        assert len(harvest_source.external_records) == 1
+
+        served_dataset = harvest_source.external_records[0]
+        assert served_dataset["identifier"] == (
+            "https://example.gov/datasets/served-by-service-one"
+        )
+        assert served_dataset["parent_identifier"] == (
+            "https://example.gov/services/one"
+        )
+
     def test_check_iso_dcatus_schema(
         self,
         make_harvest_source,
