@@ -2,9 +2,8 @@ import os
 import secrets
 import time
 import uuid
-from urllib.parse import urlparse
-
 import jwt
+from werkzeug.urls import url_parse
 import requests
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.serialization import load_pem_private_key
@@ -63,11 +62,19 @@ def create_client_assertion():
 
 
 def _is_safe_redirect_target(next_url):
-    """Only allow relative, same-origin paths to avoid open redirects."""
-    if not next_url or next_url.startswith("//"):
+    """Only allow relative or same-origin URLs to avoid open redirects."""
+    if not next_url:
         return False
-    parsed = urlparse(next_url)
-    return not parsed.scheme and not parsed.netloc and next_url.startswith("/")
+
+    # Normalize browser-tolerated backslashes before parsing.
+    target = next_url.replace("\\", "/")
+    ref_url = url_parse(request.host_url)
+    test_url = url_parse(url_parse(request.host_url).join(target))
+
+    return (
+        test_url.scheme in {"http", "https"}
+        and ref_url.netloc == test_url.netloc
+    )
 
 
 def _redirect_to_login_gov():
