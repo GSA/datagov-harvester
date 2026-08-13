@@ -1098,15 +1098,14 @@ class Record:
         warning is not a failure and must not clobber an errored (or
         successful) record's status.
         """
-        self.harvest_source.db_interface.add_harvest_record_error(
-            {
-                "message": warning.message,
-                "type": warning.warning_type,
-                "date_created": get_datetime(),
-                "harvest_job_id": self.harvest_source.job_id,
-                "harvest_record_id": self.id,
-                "severity": "warning",
-            }
+        log_non_critical_error(
+            warning.message,
+            self.harvest_source.job_id,
+            self.id,
+            warning.warning_type,
+            is_error=False,
+            emit_log=False,
+            severity="warning",
         )
 
     def validate(self) -> None:
