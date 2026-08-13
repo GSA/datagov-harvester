@@ -4,7 +4,7 @@ applications:
     buildpacks:
       - https://github.com/cloudfoundry/nginx-buildpack
     services:
-      - ((app_name))-secrets
+      - ((harvest_service_name))-secrets
       - logstack-space-drain
     path: ./proxy
     memory: 100M
@@ -22,16 +22,18 @@ applications:
     routes:
       - route: ((route_internal))
     services:
-      - ((app_name))-db
-      - ((app_name))-secrets
-      - datagov-catalog-opensearch
-      - ((app_name))-smtp
+      - ((harvest_service_name))-db
+      - ((harvest_service_name))-secrets
+      - ((opensearch_service_name))
+      - ((harvest_service_name))-smtp
       - logstack-space-drain
     instances: ((admin_instances))
     memory: ((admin_memory_quota))
     disk_quota: ((admin_disk_quota))
     env:
       FLASK_APP: run.py
+      HARVEST_SERVICE_NAME: ((harvest_service_name))
+      OPENSEARCH_SERVICE_NAME: ((opensearch_service_name))
       EXTERNAL_ROUTE: ((route_external))
       CF_API_URL: ((CF_API_URL))
       CATALOG_BASE_URL: ((CATALOG_BASE_URL))

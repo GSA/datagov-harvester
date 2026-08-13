@@ -1,4 +1,6 @@
 app_name: datagov-harvest
+harvest_service_name: datagov-harvest
+opensearch_service_name: datagov-catalog-opensearch
 space_name: staging
 route_external: harvest-stage.data.gov
 route_internal: datagov-harvest-staging.apps.internal
