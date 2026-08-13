@@ -1,7 +1,7 @@
 """add record_type to harvest_record
 
 Revision ID: a1c2e3f4b5d6
-Revises: f8d4c5ec0e5b
+Revises: 428e3ffa02ea
 Create Date: 2026-08-10 00:00:00.000000
 
 """
@@ -11,7 +11,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = "a1c2e3f4b5d6"
-down_revision = "f8d4c5ec0e5b"
+down_revision = "428e3ffa02ea"
 branch_labels = None
 depends_on = None
 

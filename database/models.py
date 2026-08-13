@@ -4,6 +4,7 @@ from typing import Optional
 from flask_sqlalchemy import SQLAlchemy
 from geoalchemy2 import Geometry
 from sqlalchemy import (
+    Boolean,
     CheckConstraint,
     Column,
     DateTime,
@@ -65,6 +66,11 @@ class Organization(Base):
             name="organization_type_enum",
             create_constraint=True,
         )
+    )
+
+    code_repo_url = Column(String)
+    code_repo_exempt = Column(
+        Boolean, default=False, nullable=False, server_default=text("false")
     )
 
     aliases = Column(ARRAY(String))
