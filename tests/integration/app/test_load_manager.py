@@ -651,3 +651,52 @@ class TestLoadManager:
         assert len(claimed_jobs) == 1
         claimed_job = interface_no_jobs.get_harvest_job(claimed_jobs[0].id)
         assert claimed_job.status == "in_progress"
+
+    def test_claim_new_harvest_jobs_claims_oldest_jobs_first_without_duplicates(
+        self,
+        interface_no_jobs,
+        source_data_dcatus_orm,
+    ):
+        created_jobs = [
+            interface_no_jobs.add_harvest_job(
+                {
+                    "status": "new",
+                    "harvest_source_id": source_data_dcatus_orm.id,
+                    "date_created": datetime.now() + timedelta(days=-3),
+                }
+            ),
+            interface_no_jobs.add_harvest_job(
+                {
+                    "status": "new",
+                    "harvest_source_id": source_data_dcatus_orm.id,
+                    "date_created": datetime.now() + timedelta(days=-2),
+                }
+            ),
+            interface_no_jobs.add_harvest_job(
+                {
+                    "status": "new",
+                    "harvest_source_id": source_data_dcatus_orm.id,
+                    "date_created": datetime.now() + timedelta(days=-1),
+                }
+            ),
+        ]
+
+        first_claim = interface_no_jobs.claim_new_harvest_jobs(limit=1)
+        second_claim = interface_no_jobs.claim_new_harvest_jobs(limit=1)
+
+        assert len(first_claim) == 1
+        assert len(second_claim) == 1
+
+        first_job_id = first_claim[0].id
+        second_job_id = second_claim[0].id
+
+        assert first_job_id == created_jobs[0].id
+        assert second_job_id == created_jobs[1].id
+        assert first_job_id != second_job_id
+
+        assert interface_no_jobs.get_harvest_job(first_job_id).status == "in_progress"
+        assert interface_no_jobs.get_harvest_job(second_job_id).status == "in_progress"
+
+        remaining_new_jobs = interface_no_jobs.get_new_harvest_jobs_in_past()
+        assert len(remaining_new_jobs) == 1
+        assert remaining_new_jobs[0].id == created_jobs[2].id
