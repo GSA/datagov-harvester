@@ -1,0 +1,280 @@
+name: Release to a space
+
+on:
+  workflow_call:
+    inputs:
+      space:
+        description: "Cloud Foundry space"
+        required: true
+        type: string
+      migrate_opensearch:
+        description: "Run the replacement-cluster migration before deploying"
+        required: false
+        default: false
+        type: boolean
+      migration_prs:
+        description: "PR numbers that requested the migration"
+        required: false
+        default: ""
+        type: string
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  release:
+    name: Release (${{ inputs.space }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 480
+    environment: ${{ inputs.space }}
+    concurrency:
+      group: opensearch-maintenance-${{ inputs.space }}
+      cancel-in-progress: false
+    env:
+      CF_SPACE: ${{ inputs.space }}
+      HARVEST_APP: datagov-harvest
+      TEMP_HARVEST_APP: datagov-harvest-next
+      CATALOG_APP: datagov-catalog
+      OPENSEARCH_SERVICE: datagov-catalog-opensearch
+      NEXT_OPENSEARCH_SERVICE: datagov-catalog-opensearch-next
+      OLD_OPENSEARCH_SERVICE: datagov-catalog-opensearch-old
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v7
+
+      - name: Disable scheduled harvesting
+        id: disable
+        if: inputs.migrate_opensearch
+        uses: cloud-gov/cg-cli-tools@main
+        with:
+          command: bin/set_harvest_runner_capacity.sh disable "$HARVEST_APP"
+          cf_org: gsa-datagov
+          cf_space: ${{ env.CF_SPACE }}
+          cf_username: ${{ secrets.CF_SERVICE_USER }}
+          cf_password: ${{ secrets.CF_SERVICE_AUTH }}
+
+      - name: Create required services
+        id: create_services
+        uses: cloud-gov/cg-cli-tools@main
+        with:
+          command: bash create_cloudgov_services.sh
+          cf_org: gsa-datagov
+          cf_space: ${{ env.CF_SPACE }}
+          cf_username: ${{ secrets.CF_SERVICE_USER }}
+          cf_password: ${{ secrets.CF_SERVICE_AUTH }}
+
+      - name: Provision replacement OpenSearch cluster
+        id: provision
+        if: inputs.migrate_opensearch
+        uses: cloud-gov/cg-cli-tools@main
+        with:
+          command: >
+            bin/provision_opensearch_cluster.sh
+            "$NEXT_OPENSEARCH_SERVICE" "$OLD_OPENSEARCH_SERVICE"
+          cf_org: gsa-datagov
+          cf_space: ${{ env.CF_SPACE }}
+          cf_username: ${{ secrets.CF_SERVICE_USER }}
+          cf_password: ${{ secrets.CF_SERVICE_AUTH }}
+
+      - name: Push temporary task app
+        id: push_temp
+        if: inputs.migrate_opensearch
+        uses: ./.github/actions/deploy
+        with:
+          cf_space: ${{ env.CF_SPACE }}
+          command: cf push datagov-harvest-next --task
+          manifest_vars: >-
+            --var app_name=datagov-harvest-next
+            --var opensearch_service_name=datagov-catalog-opensearch-next
+          deploy_proxy: "false"
+          cf_username: ${{ secrets.CF_SERVICE_USER }}
+          cf_password: ${{ secrets.CF_SERVICE_AUTH }}
+
+      - name: Verify replacement service bindings
+        id: bind
+        if: inputs.migrate_opensearch
+        uses: cloud-gov/cg-cli-tools@main
+        with:
+          command: >
+            bin/ensure_service_binding.sh "$NEXT_OPENSEARCH_SERVICE"
+            "$TEMP_HARVEST_APP" "$CATALOG_APP"
+          cf_org: gsa-datagov
+          cf_space: ${{ env.CF_SPACE }}
+          cf_username: ${{ secrets.CF_SERVICE_USER }}
+          cf_password: ${{ secrets.CF_SERVICE_AUTH }}
+
+      - name: Name replacement-cluster task
+        if: inputs.migrate_opensearch
+        run: echo "REBUILD_TASK=search-rebuild-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_ENV"
+
+      - name: Run migrations and populate replacement cluster
+        id: rebuild
+        if: inputs.migrate_opensearch
+        uses: cloud-gov/cg-cli-tools@main
+        with:
+          command: >
+            cf run-task "$TEMP_HARVEST_APP" --name "$REBUILD_TASK" -k 4G -m 2G
+            --command "flask db upgrade && flask search compare --force-update"
+          cf_org: gsa-datagov
+          cf_space: ${{ env.CF_SPACE }}
+          cf_username: ${{ secrets.CF_SERVICE_USER }}
+          cf_password: ${{ secrets.CF_SERVICE_AUTH }}
+
+      - name: Monitor replacement-cluster task
+        id: monitor
+        if: inputs.migrate_opensearch
+        uses: cloud-gov/cg-cli-tools@main
+        with:
+          command: bin/monitor_cf_logs.sh "$TEMP_HARVEST_APP" "$REBUILD_TASK"
+          cf_org: gsa-datagov
+          cf_space: ${{ env.CF_SPACE }}
+          cf_username: ${{ secrets.CF_SERVICE_USER }}
+          cf_password: ${{ secrets.CF_SERVICE_AUTH }}
+
+      - name: Delete temporary task app
+        id: delete_temp
+        if: always() && inputs.migrate_opensearch
+        uses: cloud-gov/cg-cli-tools@main
+        with:
+          command: >
+            if cf app "$TEMP_HARVEST_APP" > /dev/null 2>&1;
+            then cf delete "$TEMP_HARVEST_APP" -f;
+            fi
+          cf_org: gsa-datagov
+          cf_space: ${{ env.CF_SPACE }}
+          cf_username: ${{ secrets.CF_SERVICE_USER }}
+          cf_password: ${{ secrets.CF_SERVICE_AUTH }}
+
+      - name: Promote replacement service
+        id: promote
+        if: inputs.migrate_opensearch
+        uses: cloud-gov/cg-cli-tools@main
+        with:
+          command: >
+            bin/promote_opensearch_cluster.sh
+            "$NEXT_OPENSEARCH_SERVICE" "$OPENSEARCH_SERVICE" "$CATALOG_APP"
+          cf_org: gsa-datagov
+          cf_space: ${{ env.CF_SPACE }}
+          cf_username: ${{ secrets.CF_SERVICE_USER }}
+          cf_password: ${{ secrets.CF_SERVICE_AUTH }}
+
+      - name: Deploy canonical harvester
+        id: deploy
+        uses: ./.github/actions/deploy
+        with:
+          cf_space: ${{ env.CF_SPACE }}
+          command: >-
+            ${{ inputs.migrate_opensearch
+              && 'cf push datagov-harvest --strategy rolling'
+              || 'cf push datagov-harvest --strategy rolling --no-wait' }}
+          cf_username: ${{ secrets.CF_SERVICE_USER }}
+          cf_password: ${{ secrets.CF_SERVICE_AUTH }}
+
+      - name: Restart catalog on the promoted service
+        id: restart_catalog
+        if: inputs.migrate_opensearch
+        uses: cloud-gov/cg-cli-tools@main
+        with:
+          command: bin/restart_catalog.sh "$CATALOG_APP"
+          cf_org: gsa-datagov
+          cf_space: ${{ env.CF_SPACE }}
+          cf_username: ${{ secrets.CF_SERVICE_USER }}
+          cf_password: ${{ secrets.CF_SERVICE_AUTH }}
+
+      - name: Remove or retain the retired cluster
+        id: cleanup
+        if: inputs.migrate_opensearch
+        uses: cloud-gov/cg-cli-tools@main
+        with:
+          command: >
+            bin/cleanup_opensearch_cluster.sh
+            "$OLD_OPENSEARCH_SERVICE" "$HARVEST_APP" "$CATALOG_APP"
+          cf_org: gsa-datagov
+          cf_space: ${{ env.CF_SPACE }}
+          cf_username: ${{ secrets.CF_SERVICE_USER }}
+          cf_password: ${{ secrets.CF_SERVICE_AUTH }}
+
+      - name: Load deferred-cleanup reason
+        if: inputs.migrate_opensearch && hashFiles('.opensearch_cleanup_required') != ''
+        run: |
+          {
+            echo "CLEANUP_REASON<<EOF"
+            cat .opensearch_cleanup_required
+            echo "EOF"
+          } >> "$GITHUB_ENV"
+
+      - name: Create retired-cluster cleanup issue
+        if: inputs.migrate_opensearch && hashFiles('.opensearch_cleanup_required') != ''
+        uses: JasonEtco/create-an-issue@v2
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          ENVIRONMENT: ${{ inputs.space }}
+          LAST_COMMIT: ${{ github.sha }}
+          RUN_ID: ${{ github.run_id }}
+          REPO: ${{ github.repository }}
+        with:
+          filename: .github/opensearch_cleanup_required.md
+          update_existing: true
+
+      - name: Add proxy network policy
+        id: proxy_policy
+        uses: cloud-gov/cg-cli-tools@main
+        with:
+          command: >
+            cf add-network-policy datagov-harvest-proxy datagov-harvest
+            --protocol tcp --port 61443
+          cf_org: gsa-datagov
+          cf_space: ${{ env.CF_SPACE }}
+          cf_username: ${{ secrets.CF_SERVICE_USER }}
+          cf_password: ${{ secrets.CF_SERVICE_AUTH }}
+
+      - name: Add mdtranslator network policy
+        id: mdtranslator_policy
+        uses: cloud-gov/cg-cli-tools@main
+        with:
+          command: >
+            cf add-network-policy datagov-harvest mdtranslator
+            --protocol tcp --port 8080
+          cf_org: gsa-datagov
+          cf_space: ${{ env.CF_SPACE }}
+          cf_username: ${{ secrets.CF_SERVICE_USER }}
+          cf_password: ${{ secrets.CF_SERVICE_AUTH }}
+
+      - name: Re-enable scheduled harvesting
+        id: enable
+        if: success() && inputs.migrate_opensearch
+        uses: cloud-gov/cg-cli-tools@main
+        with:
+          command: bin/set_harvest_runner_capacity.sh enable "$HARVEST_APP" 3
+          cf_org: gsa-datagov
+          cf_space: ${{ env.CF_SPACE }}
+          cf_username: ${{ secrets.CF_SERVICE_USER }}
+          cf_password: ${{ secrets.CF_SERVICE_AUTH }}
+
+      - name: Create migration failure issue
+        if: failure() && inputs.migrate_opensearch
+        uses: JasonEtco/create-an-issue@v2
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          ENVIRONMENT: ${{ inputs.space }}
+          LAST_COMMIT: ${{ github.sha }}
+          RUN_ID: ${{ github.run_id }}
+          REPO: ${{ github.repository }}
+          MIGRATION_PRS: ${{ inputs.migration_prs }}
+          DISABLE_RESULT: ${{ steps.disable.outcome }}
+          CREATE_SERVICES_RESULT: ${{ steps.create_services.outcome }}
+          PROVISION_RESULT: ${{ steps.provision.outcome }}
+          PUSH_TEMP_RESULT: ${{ steps.push_temp.outcome }}
+          BIND_RESULT: ${{ steps.bind.outcome }}
+          REBUILD_RESULT: ${{ steps.rebuild.outcome }}
+          MONITOR_RESULT: ${{ steps.monitor.outcome }}
+          DELETE_TEMP_RESULT: ${{ steps.delete_temp.outcome }}
+          PROMOTE_RESULT: ${{ steps.promote.outcome }}
+          DEPLOY_RESULT: ${{ steps.deploy.outcome }}
+          CATALOG_RESULT: ${{ steps.restart_catalog.outcome }}
+          CLEANUP_RESULT: ${{ steps.cleanup.outcome }}
+          ENABLE_RESULT: ${{ steps.enable.outcome }}
+        with:
+          filename: .github/opensearch_migration_failure.md
+          update_existing: true
