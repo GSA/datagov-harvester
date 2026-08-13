@@ -84,32 +84,3 @@ jobs:
             Unit tests, pytest-coverage-unit.txt, pytest-unit.xml
             Integration Tests, pytest-coverage-integration.txt, pytest-integration.xml
             Functional Tests, pytest-coverage-functional.txt, pytest-functional.xml
-
-  detect-opensearch-migration:
-    if: github.ref == 'refs/heads/develop'
-    name: Detect OpenSearch migration
-    permissions:
-      actions: read
-      contents: read
-      pull-requests: read
-    uses: ./.github/workflows/detect-opensearch-migration.yml
-    with:
-      workflow_file: commit.yml
-      branch: develop
-
-  release-development:
-    if: github.ref == 'refs/heads/develop'
-    name: Release development
-    needs: detect-opensearch-migration
-    permissions:
-      contents: read
-      issues: write
-    concurrency:
-      group: release-develop
-      cancel-in-progress: false
-    uses: ./.github/workflows/release-space.yml
-    with:
-      space: development
-      migrate_opensearch: ${{ needs.detect-opensearch-migration.outputs.migration_needed == 'true' }}
-      migration_prs: ${{ needs.detect-opensearch-migration.outputs.pr_numbers }}
-    secrets: inherit
