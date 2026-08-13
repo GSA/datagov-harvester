@@ -253,3 +253,33 @@ jobs:
         with:
           filename: .github/reindex_owed.md
           update_existing: true
+
+  # Disable the whole workflow after a development release failure. commit.yml also
+  # runs CI on feature branches, so this is deliberately gated on `develop`: lint or
+  # test failures elsewhere must not shut off CI for the repository.
+  disable-on-release-failure:
+    name: Disable automatic development deployments
+    needs: [detect-reindex, preflight-clusters, release-development]
+    if: >-
+      ${{ always()
+      && github.ref == 'refs/heads/develop'
+      && (needs.detect-reindex.result == 'failure'
+      || needs.preflight-clusters.result == 'failure'
+      || needs.release-development.result == 'failure') }}
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - name: Disable commit workflow
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow disable commit.yml --repo "$GITHUB_REPOSITORY"
+          {
+            echo "### Automatic development deployments disabled"
+            echo
+            echo "The development release failed, so \`commit.yml\` will not run on later pushes."
+            echo "After investigating the failed release, re-enable it with:"
+            echo
+            echo "\`gh workflow enable commit.yml --repo $GITHUB_REPOSITORY\`"
+          } >> "$GITHUB_STEP_SUMMARY"

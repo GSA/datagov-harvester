@@ -230,3 +230,35 @@ jobs:
         with:
           filename: .github/reindex_owed.md
           update_existing: true
+
+  # A release failure blocks every later automatic release until somebody has
+  # inspected the failed run and explicitly re-enabled this workflow. This covers
+  # both the ordinary code deploy and the optional OpenSearch rebuild because each
+  # release-space.yml call is one job from this workflow's point of view.
+  disable-on-release-failure:
+    name: Disable automatic deployments
+    needs:
+      [detect-reindex, preflight-clusters, release-staging, release-prod]
+    if: >-
+      ${{ always()
+      && (needs.detect-reindex.result == 'failure'
+      || needs.preflight-clusters.result == 'failure'
+      || needs.release-staging.result == 'failure'
+      || needs.release-prod.result == 'failure') }}
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - name: Disable deploy workflow
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow disable deploy.yml --repo "$GITHUB_REPOSITORY"
+          {
+            echo "### Automatic deployments disabled"
+            echo
+            echo "A release job failed, so \`deploy.yml\` will not run on later merges."
+            echo "After investigating the failed release, re-enable it with:"
+            echo
+            echo "\`gh workflow enable deploy.yml --repo $GITHUB_REPOSITORY\`"
+          } >> "$GITHUB_STEP_SUMMARY"
