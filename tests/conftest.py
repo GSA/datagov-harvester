@@ -271,6 +271,51 @@ def source_data_dcatus3_0_no_identifier(organization_data: dict) -> dict:
 
 
 @pytest.fixture
+def source_data_dcatus3_0_with_services(organization_data: dict) -> dict:
+    return {
+        "id": "a2c4e6f8-1234-4567-89ab-cdef01234567",
+        "name": "Test Source DCAT-US 3.0 (with services)",
+        "notification_emails": ["email@example.com"],
+        "organization_id": organization_data["id"],
+        "frequency": "daily",
+        "url": f"{HARVEST_SOURCE_URL}/dcatus/dcatus3_0_with_services.json",
+        "schema_type": "dcatus3.0",
+        "source_type": "document",
+        "notification_frequency": "always",
+    }
+
+
+@pytest.fixture
+def source_data_dcatus3_0_service_no_identifier(organization_data: dict) -> dict:
+    return {
+        "id": "b3d5f7a9-2345-4678-9abc-def012345678",
+        "name": "Test Source DCAT-US 3.0 (service no identifier)",
+        "notification_emails": ["email@example.com"],
+        "organization_id": organization_data["id"],
+        "frequency": "daily",
+        "url": f"{HARVEST_SOURCE_URL}/dcatus/dcatus3_0_service_no_identifier.json",
+        "schema_type": "dcatus3.0",
+        "source_type": "document",
+        "notification_frequency": "always",
+    }
+
+
+@pytest.fixture
+def source_data_dcatus3_0_service_serves_dataset(organization_data: dict) -> dict:
+    return {
+        "id": "e8a0c2d4-6789-4abc-def0-123456789012",
+        "name": "Test Source DCAT-US 3.0 (service serves dataset)",
+        "notification_emails": ["email@example.com"],
+        "organization_id": organization_data["id"],
+        "frequency": "daily",
+        "url": f"{HARVEST_SOURCE_URL}/dcatus/dcatus3_0_service_serves_dataset.json",
+        "schema_type": "dcatus3.0",
+        "source_type": "document",
+        "notification_frequency": "always",
+    }
+
+
+@pytest.fixture
 def source_data_dcatus_same_title(organization_data: dict) -> dict:
     return {
         "id": "50301cdb-5766-46ed-8f46-ca63844315a2",
@@ -576,6 +621,39 @@ def job_data_dcatus3_0_no_identifier(source_data_dcatus3_0_no_identifier: dict) 
         "id": "8a9b0c1d-2e3f-4a5b-9c8d-7e6f5a4b3c2d",
         "status": "new",
         "harvest_source_id": source_data_dcatus3_0_no_identifier["id"],
+    }
+
+
+@pytest.fixture
+def job_data_dcatus3_0_with_services(
+    source_data_dcatus3_0_with_services: dict,
+) -> dict:
+    return {
+        "id": "c4e6a8b0-3456-4789-abcd-ef0123456789",
+        "status": "new",
+        "harvest_source_id": source_data_dcatus3_0_with_services["id"],
+    }
+
+
+@pytest.fixture
+def job_data_dcatus3_0_service_no_identifier(
+    source_data_dcatus3_0_service_no_identifier: dict,
+) -> dict:
+    return {
+        "id": "d5f7b9a1-4567-489a-bcde-f01234567890",
+        "status": "new",
+        "harvest_source_id": source_data_dcatus3_0_service_no_identifier["id"],
+    }
+
+
+@pytest.fixture
+def job_data_dcatus3_0_service_serves_dataset(
+    source_data_dcatus3_0_service_serves_dataset: dict,
+) -> dict:
+    return {
+        "id": "f9b1d3e5-789a-4bcd-ef01-234567890123",
+        "status": "new",
+        "harvest_source_id": source_data_dcatus3_0_service_serves_dataset["id"],
     }
 
 
