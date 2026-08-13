@@ -175,6 +175,8 @@ def generate_dynamic_fixtures() -> Dict[str, Any]:
                 "description": "Fixture org description",
                 "slug": "fixture-org",
                 "organization_type": "Federal Government",
+                "code_repo_url": None,
+                "code_repo_exempt": False,
                 "id": _ORG_ID,
                 "aliases": ["testorg"],
             }
