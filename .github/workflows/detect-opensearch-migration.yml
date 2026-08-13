@@ -11,6 +11,11 @@ on:
         description: "Branch deployed by the calling workflow"
         required: true
         type: string
+      fallback_workflow_file:
+        description: "Previous release workflow used only when the primary has no history"
+        required: false
+        default: ""
+        type: string
     outputs:
       migration_needed:
         description: "Whether a merged PR since the watermark requires migration"
@@ -45,6 +50,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
+          FALLBACK_WORKFLOW_FILE: ${{ inputs.fallback_workflow_file }}
         run: >-
           .github/scripts/detect-opensearch-migration-label.sh
           "$GITHUB_SHA"

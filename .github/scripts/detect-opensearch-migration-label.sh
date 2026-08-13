@@ -8,6 +8,7 @@ head_sha=${1:?Usage: detect-opensearch-migration-label.sh <head_sha> <workflow_f
 workflow_file=${2:?Usage: detect-opensearch-migration-label.sh <head_sha> <workflow_file> <branch> [label]}
 branch=${3:?Usage: detect-opensearch-migration-label.sh <head_sha> <workflow_file> <branch> [label]}
 label=${4:-force re-index recommended}
+fallback_workflow_file=${FALLBACK_WORKFLOW_FILE:-}
 
 emit() {
   echo "$1"
@@ -16,15 +17,32 @@ emit() {
   fi
 }
 
-base_sha=$(
+workflow_watermark() {
+  local candidate_workflow exclude_head jq_filter
+  candidate_workflow="$1"
+  exclude_head=${2:-false}
+  jq_filter='.workflow_runs[0].head_sha // empty'
+
+  if [[ "$exclude_head" == "true" ]]; then
+    jq_filter=".workflow_runs[] | select(.head_sha != \"${head_sha}\") | .head_sha"
+  fi
+
   gh api -X GET \
-    "repos/${GITHUB_REPOSITORY}/actions/workflows/${workflow_file}/runs" \
-    -f "branch=${branch}" -f status=success -f per_page=1 \
-    --jq '.workflow_runs[0].head_sha // empty'
-)
+    "repos/${GITHUB_REPOSITORY}/actions/workflows/${candidate_workflow}/runs" \
+    -f "branch=${branch}" -f status=success -f per_page=10 \
+    --jq "$jq_filter" |
+    sed -n '1p'
+}
+
+base_sha=$(workflow_watermark "$workflow_file")
+
+if [[ -z "$base_sha" && -n "$fallback_workflow_file" ]]; then
+  echo "No successful ${workflow_file} run; using ${fallback_workflow_file} to bootstrap the watermark."
+  base_sha=$(workflow_watermark "$fallback_workflow_file" true)
+fi
 
 if [[ -z "$base_sha" ]]; then
-  echo "No successful ${workflow_file} run on ${branch} is available as a watermark." >&2
+  echo "No successful release run on ${branch} is available as a watermark." >&2
   exit 1
 fi
 

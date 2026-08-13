@@ -25,6 +25,8 @@ def _run(
     commits=("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",),
     labeled_shas=(),
     base_sha=BASE,
+    fallback_base_sha="",
+    fallback_workflow_file="",
     status="ahead",
     total_commits=None,
 ):
@@ -50,7 +52,12 @@ def _run(
         """#!/bin/bash
 echo "$*" >> "$GH_CALLS_FILE"
 if [[ "$*" == *"/actions/workflows/"* ]]; then
-  printf '%s\\n' "$GH_BASE_SHA"
+  if [[ -n "$GH_FALLBACK_WORKFLOW_FILE" ]] &&
+    [[ "$*" == *"/${GH_FALLBACK_WORKFLOW_FILE}/"* ]]; then
+    printf '%s\\n' "$GH_FALLBACK_BASE_SHA"
+  else
+    printf '%s\\n' "$GH_BASE_SHA"
+  fi
 elif [[ "$*" == *"/compare/"* ]]; then
   cat "$GH_COMPARE_FILE"
 elif [[ "$*" == *"/commits/"*"/pulls"* ]]; then
@@ -76,8 +83,11 @@ fi
             "GITHUB_OUTPUT": str(output_file),
             "GH_CALLS_FILE": str(calls_file),
             "GH_BASE_SHA": base_sha,
+            "GH_FALLBACK_BASE_SHA": fallback_base_sha,
+            "GH_FALLBACK_WORKFLOW_FILE": fallback_workflow_file,
             "GH_COMPARE_FILE": str(compare_file),
             "GH_LABELED_SHAS": " ".join(labeled_shas),
+            "FALLBACK_WORKFLOW_FILE": fallback_workflow_file,
         },
         text=True,
         timeout=10,
@@ -123,6 +133,26 @@ def test_fails_without_a_successful_release_watermark(tmp_path):
     assert result.returncode == 1
     assert "No successful" in result.stderr
     assert outputs == ""
+
+
+def test_bootstraps_from_a_previous_release_workflow(tmp_path):
+    result, outputs, calls = _run(
+        tmp_path,
+        base_sha="",
+        fallback_base_sha=BASE,
+        fallback_workflow_file="commit.yml",
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert f"base_sha={BASE}" in outputs
+    assert "/actions/workflows/deploy.yml/runs" in calls
+    assert "/actions/workflows/commit.yml/runs" in calls
+    fallback_call = next(
+        line
+        for line in calls.splitlines()
+        if "/actions/workflows/commit.yml/runs" in line
+    )
+    assert f'select(.head_sha != "{HEAD}")' in fallback_call
 
 
 def test_fails_when_the_compare_response_is_truncated(tmp_path):

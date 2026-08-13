@@ -22,6 +22,7 @@ jobs:
     uses: ./.github/workflows/detect-opensearch-migration.yml
     with:
       workflow_file: deploy-development.yml
+      fallback_workflow_file: commit.yml
       branch: develop
 
   release-development:
