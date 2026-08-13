@@ -3,11 +3,6 @@ on:
   push:
     branches:
       - main
-  workflow_dispatch:
-    inputs:
-      version_no:
-        description: 'Release Version:'
-        required: true
 
 # default minimal permissions for every job
 permissions:
