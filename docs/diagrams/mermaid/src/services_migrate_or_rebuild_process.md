@@ -5,19 +5,31 @@ title: OpenSearch Service Migration or Rebuild Process
 flowchart TD
 	trigger([PR merged]) --> labelCheck{OpenSearch migration label attached?}
 
-	scaleHarvest --> prepareOpenSearch[GitHub Action:<br/>build new OpenSearch service,<br/>build temp harvest app with new code,<br/>rebuild OpenSearch index,<br/>validate enough data,<br/>destroy temp harvest app]
-	prepareOpenSearch -->|on failure| halt[Stop Release:<br/>Create ticket issue, disable deploy<br>]
-	prepareOpenSearch --> swapServices[GitHub Action:<br/>swap service names<br/>new to current, current to old<br>]
-	swapServices -->|on failure| halt
+	labelCheck -->|no| deployCodeOnly[Create services,<br/>rolling deploy harvester,<br/>apply network policies]
+	deployCodeOnly -->|success| complete([Release complete])
+	deployCodeOnly -->|failure| normalFailure[Stop release]
 
-	swapServices --> deployCodeOnly[GitHub Action:<br/>deploy code]
-	swapServices --> restartCatalogMigration[GitHub Action:<br/>restart Catalog<br/>deployment already in flight<br/>counts as success]
-	restartCatalogMigration --> removeOld[GitHub Action:<br/>remove old OpenSearch service if no longer in use by harvester jobs; if it is in use then make a cleanup ticket for O&M]
+	labelCheck -->|yes| scaleHarvest[Set scheduled harvest capacity to 0<br/>and rolling restart harvester]
+	scaleHarvest --> prepareOpenSearch[Provision replacement OpenSearch,<br/>push task-only harvester with new code,<br/>bind replacement to task app and catalog,<br/>run DB migrations and force-sync index,<br/>always delete temporary app]
+	prepareOpenSearch --> swapServices[Rename current OpenSearch to -old,<br/>rename replacement to canonical]
+	swapServices --> deployMigration[Blocking rolling deploy<br/>of canonical harvester]
+	swapServices --> restartCatalogMigration[Restart catalog;<br/>an existing deployment counts as success]
+
+	deployMigration --> cleanupCheck{Old cluster still used by<br/>harvest tasks or catalog deployment?}
+	restartCatalogMigration --> cleanupCheck
+	cleanupCheck -->|no| removeOld[Unbind and delete old OpenSearch]
+	cleanupCheck -->|yes| cleanupIssue[Retain old OpenSearch<br/>and create O&M cleanup issue]
+	removeOld --> networkPolicies[Apply network policies]
+	cleanupIssue --> networkPolicies
+	networkPolicies --> enableHarvest[Restore scheduled harvest capacity]
+	enableHarvest --> complete
+
+	scaleHarvest -->|failure| halt[Stop release,<br/>create failure issue,<br/>leave harvesting disabled,<br/>retain clusters for recovery]
+	prepareOpenSearch -->|failure| halt
+	swapServices -->|failure| halt
+	deployMigration -->|failure| halt
 	restartCatalogMigration -->|failure| halt
-	removeOld -->|on failure| halt
-
-    labelCheck -->|yes| scaleHarvest[GitHub Action:<br/>set harvest jobs to 0<br/>and restart harvester<br/>to prevent new jobs from starting]
-	labelCheck -->|no| deployCodeOnly[GitHub Action:<br/>deploy code]
-	scaleHarvest -->|on failure| halt
-	deployCodeOnly -->|on failure| halt
+	removeOld -->|failure| halt
+	networkPolicies -->|failure| halt
+	enableHarvest -->|failure| halt
 ```
