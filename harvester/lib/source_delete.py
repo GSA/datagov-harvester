@@ -31,6 +31,10 @@ def enqueue_harvest_source_delete(source_id, db_interface):
     409 immediately. The CASCADE delete itself runs in a CF or local task so
     the web request can return before the gateway times out.
 
+    The task repeats the precheck to protect records created after this request
+    returns. If that second check fails, the task logs the failure and leaves
+    the source in the list; there is no durable task-status UI for deletes.
+
     Returns:
         tuple[str, int]: ``(message, status)`` — 202 when scheduled, otherwise
         the precheck failure status (404/409).

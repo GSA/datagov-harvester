@@ -301,9 +301,11 @@ def update_harvest_source_actions(source_id: str):
             message, status = enqueue_harvest_source_delete(source_id, deps.db)
             _log_mutation("delete", "harvest_source", source_id, status=status)
             flash(message)
-            if status == 202:
-                return redirect(url_for("main.harvest_source_list"))
-            return redirect(url_for("main.view_harvest_source", source_id=source_id))
+            if status == 409:
+                return redirect(
+                    url_for("main.view_harvest_source", source_id=source_id)
+                )
+            return redirect(url_for("main.harvest_source_list"))
         except Exception as e:
             message = f"Failed to delete harvest source :: {repr(e)}"
             logger.error(message)

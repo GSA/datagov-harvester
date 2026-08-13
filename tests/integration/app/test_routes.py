@@ -482,6 +482,37 @@ class TestAuditLogging:
         assert "user=<api_token>" in caplog.text
 
 
+class TestHarvestSourceDeleteRedirects:
+    @pytest.mark.parametrize(
+        ("status", "expected_location"),
+        [
+            (202, "/harvest_source_list/"),
+            (404, "/harvest_source_list/"),
+            (409, "/harvest_source/{source_id}"),
+            (500, "/harvest_source_list/"),
+        ],
+    )
+    def test_redirects_by_delete_status(
+        self, app, client, source_data_dcatus, status, expected_location
+    ):
+        app.config.update({"WTF_CSRF_ENABLED": False})
+        source_id = source_data_dcatus["id"]
+        with client.session_transaction() as sess:
+            sess["user"] = "tester@gsa.gov"
+
+        with patch(
+            "app.main.harvest_sources.enqueue_harvest_source_delete",
+            return_value=("delete result", status),
+        ):
+            response = client.post(
+                f"/harvest_source/{source_id}",
+                data={"delete": "Delete"},
+            )
+
+        assert response.status_code == 302
+        assert response.location == expected_location.format(source_id=source_id)
+
+
 class TestJSONResponses:
     def test_organization_list_prefers_slug_links(
         self, client, interface_with_multiple_jobs, organization_data
