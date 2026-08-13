@@ -471,17 +471,65 @@ def strip_dcatus3_catalog_objects(catalog: dict) -> dict:
     return cleaned
 
 
+def _extract_dcatus3_catalog_objects(catalog: dict, field: str) -> list:
+    """
+    recursively collect every entry of [field] ("dataset" or "service") from a
+    DCAT-US3 Catalog dict, including entries nested arbitrarily deep within
+    its "catalog" (sub-catalog) field.
+    """
+    objects = list(catalog.get(field) or [])
+
+    for sub_catalog in catalog.get("catalog") or []:
+        objects.extend(_extract_dcatus3_catalog_objects(sub_catalog, field))
+
+    return objects
+
+
 def extract_dcatus3_catalog_datasets(catalog: dict) -> list:
     """
     recursively collect every dataset from a DCAT-US3 Catalog dict, including
     datasets nested arbitrarily deep within its "catalog" (sub-catalog) field.
     """
-    datasets = list(catalog.get("dataset") or [])
+    return _extract_dcatus3_catalog_objects(catalog, "dataset")
 
-    for sub_catalog in catalog.get("catalog") or []:
-        datasets.extend(extract_dcatus3_catalog_datasets(sub_catalog))
 
-    return datasets
+def extract_dcatus3_catalog_services(catalog: dict) -> list:
+    """
+    recursively collect every DataService from a DCAT-US3 Catalog dict,
+    including services nested arbitrarily deep within its "catalog"
+    (sub-catalog) field.
+    """
+    return _extract_dcatus3_catalog_objects(catalog, "service")
+
+
+def extract_dcatus3_nested_datasets(parents: list, *fields: str) -> list:
+    """
+    pull full inline Dataset objects out of [fields] on each dict in
+    [parents], tagging each with "parent_identifier" set to the parent's own
+    identifier so the relationship isn't lost once the dataset is harvested
+    on its own.
+
+    DCAT-US3 lets several object types embed full Dataset objects rather
+    than reference them by id: DataService.servesDataset, and
+    DatasetSeries.seriesMember/first/last. This is the shared extraction
+    step for all of them -- callers pass the parent objects and which
+    field(s) on them hold nested datasets.
+    """
+    nested_datasets = []
+
+    for parent in parents:
+        parent_identifier = normalize_dataset_identifier(parent.get("identifier"))
+        for field in fields:
+            value = parent.get(field)
+            if value is None:
+                continue
+            candidates = value if isinstance(value, list) else [value]
+            for dataset in candidates:
+                dataset = dict(dataset)
+                dataset["parent_identifier"] = parent_identifier
+                nested_datasets.append(dataset)
+
+    return nested_datasets
 
 
 def make_record_mapping(record):
@@ -496,6 +544,7 @@ def make_record_mapping(record):
         "action": record.action,
         "ckan_id": record.ckan_id,
         "parent_identifier": record.parent_identifier,
+        "record_type": record.record_type,
     }
 
 
