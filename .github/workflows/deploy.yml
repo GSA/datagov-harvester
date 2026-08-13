@@ -21,11 +21,6 @@ on:
       - main
   workflow_dispatch:
     inputs:
-      version_no:
-        # Optional: nothing in this workflow reads it, and making it required forced
-        # an operator to invent a value just to use the reindex override below.
-        description: "Release version (informational only)"
-        required: false
       reindex:
         description: "auto = detect the label; force = reindex regardless; skip = deploy only"
         required: false
