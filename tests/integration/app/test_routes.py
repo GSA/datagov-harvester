@@ -839,3 +839,158 @@ class TestRenderBlock:
                 )
 
             assert "Jinja autoescape is disabled" in str(exc_info.value)
+
+
+class TestOrganizationCodeRepoFields:
+    """Test cases for code_repo_url and code_repo_exempt fields."""
+
+    def test_add_organization_with_code_repo_url(self, app, client, interface):
+        """Test creating organization with code repository URL."""
+        api_token = app.config["API_TOKEN"]
+        headers = {
+            "X-API-Key": api_token,
+            "Content-Type": "application/json",
+        }
+        data = {
+            "name": "Test Agency",
+            "slug": "test-agency",
+            "code_repo_url": "https://github.com/test-agency",
+        }
+        response = client.post("/api/organization/add", json=data, headers=headers)
+
+        assert response.status_code == 201
+        response_data = response.get_json()
+        assert response_data["code_repo_url"] == "https://github.com/test-agency"
+        assert response_data["code_repo_exempt"] is False
+
+        # Verify organization saved with code_repo_url
+        org = interface.get_organization(response_data["id"])
+        assert org.code_repo_url == "https://github.com/test-agency"
+
+    def test_add_organization_with_code_repo_exempt(self, app, client, interface):
+        """Test creating organization with exempt flag."""
+        api_token = app.config["API_TOKEN"]
+        headers = {
+            "X-API-Key": api_token,
+            "Content-Type": "application/json",
+        }
+        data = {
+            "name": "Exempt Agency",
+            "slug": "exempt-agency",
+            "code_repo_exempt": True,
+        }
+        response = client.post("/api/organization/add", json=data, headers=headers)
+
+        assert response.status_code == 201
+        response_data = response.get_json()
+        assert response_data["code_repo_exempt"] is True
+        assert response_data["code_repo_url"] is None
+
+        # Verify organization saved with code_repo_exempt
+        org = interface.get_organization(response_data["id"])
+        assert org.code_repo_exempt is True
+
+    def test_add_organization_invalid_url_protocol(self, app, client):
+        """Test URL validation rejects non-http protocols."""
+        api_token = app.config["API_TOKEN"]
+        headers = {
+            "X-API-Key": api_token,
+            "Content-Type": "application/json",
+        }
+        data = {
+            "name": "Test Agency",
+            "slug": "test-agency-invalid",
+            "code_repo_url": "ftp://github.com/test",
+        }
+        response = client.post("/api/organization/add", json=data, headers=headers)
+
+        assert response.status_code == 400
+        response_data = response.get_json()
+        assert (
+            "URL must start with http://" in response_data["error"]
+            or "https://" in response_data["error"]
+        )
+
+    def test_add_organization_empty_url(self, app, client, interface):
+        """Test empty URL is accepted (field is optional)."""
+        api_token = app.config["API_TOKEN"]
+        headers = {
+            "X-API-Key": api_token,
+            "Content-Type": "application/json",
+        }
+        data = {
+            "name": "Test Agency Empty URL",
+            "slug": "test-agency-empty",
+            "code_repo_url": "",
+        }
+        response = client.post("/api/organization/add", json=data, headers=headers)
+
+        assert response.status_code == 201
+        response_data = response.get_json()
+        assert response_data["code_repo_url"] is None
+
+    def test_add_organization_conflict_warning(self, app, client):
+        """Test warning appears when both URL and exempt flag set."""
+        api_token = app.config["API_TOKEN"]
+        headers = {
+            "X-API-Key": api_token,
+            "Content-Type": "application/json",
+        }
+        data = {
+            "name": "Conflicted Agency",
+            "slug": "conflicted-agency",
+            "code_repo_url": "https://github.com/test",
+            "code_repo_exempt": True,
+        }
+        response = client.post("/api/organization/add", json=data, headers=headers)
+
+        # Organization should still be created (warning not error)
+        assert response.status_code == 201
+        response_data = response.get_json()
+        assert "warning" in response_data
+        assert "should not have both" in response_data["warning"]
+
+    def test_edit_organization_add_code_repo_url(
+        self, app, client, interface, organization_data
+    ):
+        """Test editing organization to add repository URL."""
+        # Create org without URL
+        interface.add_organization(organization_data)
+
+        api_token = app.config["API_TOKEN"]
+        headers = {
+            "X-API-Key": api_token,
+            "Content-Type": "application/json",
+        }
+        data = {
+            "name": organization_data["name"],
+            "slug": organization_data["slug"],
+            "code_repo_url": "https://github.com/test-org",
+        }
+        response = client.post(
+            f"/api/organization/edit/{organization_data['id']}",
+            json=data,
+            headers=headers,
+        )
+
+        assert response.status_code == 200
+        # Verify URL saved
+        updated_org = interface.get_organization(organization_data["id"])
+        assert updated_org.code_repo_url == "https://github.com/test-org"
+
+    def test_organization_detail_displays_code_repo_fields(
+        self, client, interface, organization_data
+    ):
+        """Test organization detail page shows repository fields."""
+        # Create org with code repo URL
+        org_data = organization_data.copy()
+        org_data["code_repo_url"] = "https://github.com/GSA"
+        interface.add_organization(org_data)
+
+        response = client.get(f"/organization/{org_data['id']}")
+        assert response.status_code == 200
+        response_text = response.data.decode()
+        assert (
+            "Code repo URL" in response_text or "Code Repository URL" in response_text
+        )
+        assert "https://github.com/GSA" in response_text
