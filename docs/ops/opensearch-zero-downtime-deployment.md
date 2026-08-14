@@ -26,15 +26,23 @@ For each Cloud Foundry space, the release:
    flask db upgrade && flask search compare --force-update
    ```
 
-6. Deletes the temporary app whether the task succeeds or fails.
-7. Renames the live service to `datagov-catalog-opensearch-old`, then renames the
+6. Validates the replacement cluster before promotion:
+
+   ```sh
+   flask search compare --fail-on-discrepancy --max-failed-records 50
+   ```
+
+   Up to 50 missing documents are tolerated and reported in full. Any extra or
+   stale document, or more than 50 missing documents, fails the release.
+7. Deletes the temporary app whether the tasks succeed or fail.
+8. Renames the live service to `datagov-catalog-opensearch-old`, then renames the
    replacement service to `datagov-catalog-opensearch`.
-8. Performs a blocking rolling deployment of the canonical harvester and restarts
+9. Performs a blocking rolling deployment of the canonical harvester and restarts
    catalog. If catalog already has a deployment in progress, that deployment is
    allowed to complete instead.
-9. Deletes the old cluster only when no harvest tasks or catalog deployment may
+10. Deletes the old cluster only when no harvest tasks or catalog deployment may
    still be using it. Otherwise the release retains it and creates an O&M issue.
-10. Applies network policies and restores scheduled harvesting to three tasks.
+11. Applies network policies and restores scheduled harvesting to three tasks.
 
 Existing harvest tasks are not drained or canceled. They may finish against the
 old cluster; the nightly OpenSearch sync repairs any records they changed after the
@@ -49,6 +57,15 @@ requirement of the existing rolling deployment process.
 Any migration failure stops later steps and creates or updates an environment-
 specific issue. Scheduled harvesting remains disabled until an operator reviews
 the state and runs the **Toggle Harvester** workflow to enable it.
+
+Any failed main release disables `deploy.yml`, and any failed development release
+disables `deploy-development.yml`. After investigating and recovering the failed
+release, re-enable the appropriate workflow:
+
+```sh
+gh workflow enable deploy.yml --repo GSA/datagov-harvester
+gh workflow enable deploy-development.yml --repo GSA/datagov-harvester
+```
 
 The temporary app is always deleted. Replacement or retired clusters are retained
 so the operator can inspect or recover them. A later labeled release refuses to
