@@ -105,7 +105,9 @@ jobs:
 
       - name: Name replacement-cluster task
         if: inputs.migrate_opensearch
-        run: echo "REBUILD_TASK=search-rebuild-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_ENV"
+        run: |
+          echo "REBUILD_TASK=search-rebuild-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_ENV"
+          echo "VERIFY_TASK=search-verify-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_ENV"
 
       - name: Run migrations and populate replacement cluster
         id: rebuild
@@ -126,6 +128,31 @@ jobs:
         uses: cloud-gov/cg-cli-tools@main
         with:
           command: bin/monitor_cf_logs.sh "$TEMP_HARVEST_APP" "$REBUILD_TASK"
+          cf_org: gsa-datagov
+          cf_space: ${{ env.CF_SPACE }}
+          cf_username: ${{ secrets.CF_SERVICE_USER }}
+          cf_password: ${{ secrets.CF_SERVICE_AUTH }}
+
+      - name: Validate replacement cluster
+        id: validate
+        if: inputs.migrate_opensearch
+        uses: cloud-gov/cg-cli-tools@main
+        with:
+          command: >
+            cf run-task "$TEMP_HARVEST_APP" --name "$VERIFY_TASK" -k 2G -m 3G
+            --command "flask search compare --fail-on-discrepancy
+            --max-failed-records 50"
+          cf_org: gsa-datagov
+          cf_space: ${{ env.CF_SPACE }}
+          cf_username: ${{ secrets.CF_SERVICE_USER }}
+          cf_password: ${{ secrets.CF_SERVICE_AUTH }}
+
+      - name: Monitor replacement-cluster validation
+        id: validate_monitor
+        if: inputs.migrate_opensearch
+        uses: cloud-gov/cg-cli-tools@main
+        with:
+          command: bin/monitor_cf_logs.sh "$TEMP_HARVEST_APP" "$VERIFY_TASK"
           cf_org: gsa-datagov
           cf_space: ${{ env.CF_SPACE }}
           cf_username: ${{ secrets.CF_SERVICE_USER }}
@@ -268,6 +295,8 @@ jobs:
           BIND_RESULT: ${{ steps.bind.outcome }}
           REBUILD_RESULT: ${{ steps.rebuild.outcome }}
           MONITOR_RESULT: ${{ steps.monitor.outcome }}
+          VALIDATE_RESULT: ${{ steps.validate.outcome }}
+          VALIDATE_MONITOR_RESULT: ${{ steps.validate_monitor.outcome }}
           DELETE_TEMP_RESULT: ${{ steps.delete_temp.outcome }}
           PROMOTE_RESULT: ${{ steps.promote.outcome }}
           DEPLOY_RESULT: ${{ steps.deploy.outcome }}

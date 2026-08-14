@@ -15,6 +15,8 @@ Scheduled harvesting remains disabled and requires operator review.
 | Bind replacement | {{ env.BIND_RESULT }} |
 | Rebuild task | {{ env.REBUILD_RESULT }} |
 | Monitor rebuild | {{ env.MONITOR_RESULT }} |
+| Validate replacement | {{ env.VALIDATE_RESULT }} |
+| Monitor validation | {{ env.VALIDATE_MONITOR_RESULT }} |
 | Delete temporary app | {{ env.DELETE_TEMP_RESULT }} |
 | Promote services | {{ env.PROMOTE_RESULT }} |
 | Deploy canonical app | {{ env.DEPLOY_RESULT }} |

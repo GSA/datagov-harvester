@@ -37,3 +37,30 @@ jobs:
       migrate_opensearch: ${{ needs.detect-opensearch-migration.outputs.migration_needed == 'true' }}
       migration_prs: ${{ needs.detect-opensearch-migration.outputs.pr_numbers }}
     secrets: inherit
+
+  disable-on-release-failure:
+    name: Disable automatic development deployments
+    needs:
+      - detect-opensearch-migration
+      - release-development
+    if: >-
+      ${{ always()
+      && (needs.detect-opensearch-migration.result == 'failure'
+      || needs.release-development.result == 'failure') }}
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - name: Disable development deploy workflow
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow disable deploy-development.yml --repo "$GITHUB_REPOSITORY"
+          {
+            echo "### Automatic development deployments disabled"
+            echo
+            echo "The development release failed, so \`deploy-development.yml\` will not run on later pushes."
+            echo "After investigating the failed release, re-enable it with:"
+            echo
+            echo "\`gh workflow enable deploy-development.yml --repo $GITHUB_REPOSITORY\`"
+          } >> "$GITHUB_STEP_SUMMARY"
