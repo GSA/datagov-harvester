@@ -51,9 +51,10 @@ class TestHarvestAPICreateAndDestroy:
     def test_api_create_and_destroy_harvest_source(self, apage):
         source_id = str(uuid.uuid4())
         org_id = str(uuid.uuid4())
+        suffix = org_id[:8]
         fixture_org = {
-            "name": "Test Org New",
-            "slug": f"test-org-{org_id[:8]}",
+            "name": f"Test Org New {suffix}",
+            "slug": f"test-org-{suffix}",
             "id": org_id,
         }
         res = apage.request.post(
@@ -66,11 +67,11 @@ class TestHarvestAPICreateAndDestroy:
         )
         fixture_source = {
             "id": source_id,
-            "name": "Test Source New",
+            "name": f"Test Source New {suffix}",
             "notification_emails": ["email@example.com"],
             "organization_id": org_id,
             "frequency": "manual",
-            "url": "http://localhost:80/dcatus/dcatus_2.json",
+            "url": f"http://localhost:80/dcatus/dcatus_2_{suffix}.json",
             "schema_type": "dcatus1.1: federal",
             "source_type": "document",
             "notification_frequency": "always",
@@ -96,8 +97,7 @@ class TestHarvestAPICreateAndDestroy:
                 "Content-Type": "application/json",
             },
         )
-        assert res.status == 200
+        assert res.status == 202
         assert (
-            res.json()["message"]
-            == f"Deleted harvest source with ID:{source_id} successfully"
+            res.json()["message"] == "This harvest source may take some time to delete."
         )
