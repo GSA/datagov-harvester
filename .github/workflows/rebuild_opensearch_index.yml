@@ -10,12 +10,33 @@ name: Rebuild OpenSearch Index
 #
 # Search stays available throughout: the old index keeps serving reads until the
 # atomic alias switch, so catalog and harvester never see a missing index.
+#
+# This test branch also uses this already-registered workflow as a manual
+# bootstrap for the replacement-cluster release workflow. A new workflow cannot
+# be dispatched before its file exists on the default branch, but this file
+# already exists there and GitHub can run its YAML from this branch:
+#
+#   gh workflow run rebuild_opensearch_index.yml \
+#     --repo GSA/datagov-harvester \
+#     --ref test/opensearch-release-staging-20260814 \
+#     -f operation=staging-replacement-cluster-rehearsal \
+#     -f confirm_staging_migration=staging
+#
+# Pushing this branch does not start the rehearsal.
 
 on:
   workflow_dispatch:
     inputs:
+      operation:
+        description: "Operation to run"
+        required: true
+        default: rebuild-index
+        type: choice
+        options:
+          - rebuild-index
+          - staging-replacement-cluster-rehearsal
       environment:
-        description: "Cloud Foundry environment"
+        description: "Target for rebuild-index (ignored by staging rehearsal)"
         required: true
         default: development
         type: choice
@@ -43,17 +64,54 @@ on:
         required: false
         default: "3"
         type: string
+      confirm_staging_migration:
+        description: "Type staging to confirm the replacement-cluster rehearsal"
+        required: false
+        default: ""
+        type: string
 
 permissions:
   contents: read
+  issues: write
 
 concurrency:
-  group: opensearch-maintenance-${{ inputs.environment }}
+  # The called release job owns opensearch-maintenance-staging. Reusing that
+  # group here would deadlock the reusable workflow behind its caller.
+  group: >-
+    ${{ inputs.operation == 'staging-replacement-cluster-rehearsal'
+      && 'opensearch-staging-rehearsal-dispatch'
+      || format('opensearch-maintenance-{0}', inputs.environment) }}
   cancel-in-progress: false
 
 jobs:
+  validate-inputs:
+    name: Validate operation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Enforce staging rehearsal guardrails
+        env:
+          OPERATION: ${{ inputs.operation }}
+          CONFIRMATION: ${{ inputs.confirm_staging_migration }}
+          ALLOWED_REF: test/opensearch-release-staging-20260814
+        run: |
+          if [[ "$OPERATION" != "staging-replacement-cluster-rehearsal" ]]; then
+            exit 0
+          fi
+
+          if [[ "$CONFIRMATION" != "staging" ]]; then
+            echo "Set confirm_staging_migration to staging." >&2
+            exit 1
+          fi
+
+          if [[ "$GITHUB_REF_NAME" != "$ALLOWED_REF" ]]; then
+            echo "The staging rehearsal is restricted to $ALLOWED_REF." >&2
+            exit 1
+          fi
+
   disable-harvester:
     name: Disable harvester (${{ inputs.environment }})
+    needs: validate-inputs
+    if: inputs.operation == 'rebuild-index'
     uses: ./.github/workflows/toggle_harvester.yml
     with:
       state: disable
@@ -127,9 +185,14 @@ jobs:
 
   enable-harvester:
     name: Re-enable harvester (${{ inputs.environment }})
-    needs: rebuild
+    needs:
+      - validate-inputs
+      - rebuild
     # Always re-enable, even if the rebuild failed, so harvesting resumes.
-    if: always()
+    if: >-
+      ${{ always()
+      && inputs.operation == 'rebuild-index'
+      && needs.validate-inputs.result == 'success' }}
     uses: ./.github/workflows/toggle_harvester.yml
     with:
       state: enable
@@ -139,3 +202,17 @@ jobs:
       CF_SERVICE_USER: ${{ secrets.CF_SERVICE_USER }}
       CF_SERVICE_AUTH: ${{ secrets.CF_SERVICE_AUTH }}
       SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+  staging-replacement-cluster-rehearsal:
+    name: Replacement-cluster rehearsal (staging only)
+    needs: validate-inputs
+    if: inputs.operation == 'staging-replacement-cluster-rehearsal'
+    permissions:
+      contents: read
+      issues: write
+    uses: ./.github/workflows/release-space.yml
+    with:
+      space: staging
+      migrate_opensearch: true
+      migration_prs: manual pre-merge staging rehearsal from ${{ github.ref_name }}
+    secrets: inherit
