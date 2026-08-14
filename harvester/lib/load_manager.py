@@ -146,19 +146,20 @@ class LoadManager:
 
     def start_job(self, job_id, job_type="harvest"):
         """
-        Start a harvest job if no other job is currently in progress for the same source
+        Starts harvest job if no other job is currently in progress for the same source.
 
-        This method checks if a job with status 'in_progress' already exists for the
-        given harvest source. If not, it updates the job status to 'in_progress',
-        creates a task contract, and starts the task using the handler. If an error
-        occurs during this process, the job status is reset to 'new'.
+        This method checks whether another job with status 'in_progress' already exists
+        for the same harvest source. If not, it ensures the current job is marked
+        'in_progress' when needed, creates a task contract, and starts the task using
+        the configured handler. If an exception occurs during this process,
+        the method attempts to reset the job status to 'new'.
 
         Returns:
             str: A message indicating the result of the operation.
         """
 
         try:
-            """Check if a job is already running for this source."""
+            # Check if another job is already running for this source.
             harvest_job = interface.get_harvest_job(job_id)
             jobs_in_progress = interface.pget_harvest_jobs(
                 facets=f"harvest_source_id eq {harvest_job.harvest_source_id},status eq in_progress",  # noqa E501
@@ -179,7 +180,7 @@ class LoadManager:
                     job_id, {"status": "in_progress", "date_created": get_datetime()}
                 )
 
-            """task manager start interface, takes a job_id"""
+            # Start the task using the configured task handler.
             task_contract = {
                 "command": f"python harvester/harvest.py {job_id} {job_type}",
                 "task_id": f"harvest-job-{job_id}-{job_type}",
@@ -315,3 +316,10 @@ class LoadManager:
             message = f"LoadManager: trigger_manual_job failed :: {repr(e)}"
             logger.error(message)
             return message
+
+    def _reset_claimed_job_to_new(self, job_id):
+        try:
+            interface.reset_harvest_job_to_new(job_id)
+        except Exception:
+            # reset_harvest_job_to_new already logged the underlying error
+            pass

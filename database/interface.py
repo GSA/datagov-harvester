@@ -1253,19 +1253,25 @@ class HarvesterDBInterface:
             self.db.rollback()
 
     def claim_new_harvest_jobs(self, limit=None):
-        """Atomically claim harvest jobs that need to be run.
+        """Claim harvest jobs that need to be run.
 
         A job that needs to be run has status "new" and a date_created before now.
         Claimed jobs are returned in ascending order of date_created and marked
-        "in_progress" before the transaction is committed.
+        "in_progress" before being returned so they are not claimed again.
+
+        Jobs whose source already has an in-progress job are skipped until that
+        source becomes available.
 
         If `limit` is given, it limits the number of returned jobs to at most that
-        number. The default is to return all the jobs.
+        number. The default is to return all eligible jobs.
         """
         try:
+            in_progress_job = aliased(HarvestJob)
+
             # Query only HarvestJob.id here so FOR UPDATE SKIP LOCKED does not pull in
             # relationship joins that PostgreSQL cannot lock through outer joins.
-            # this avoid the error: FOR UPDATE cannot be applied to the nullable side of an outer join
+            # This avoids the error:
+            # "FOR UPDATE cannot be applied to the nullable side of an outer join".
             claimed_ids = [
                 row[0]
                 for row in (
@@ -1273,6 +1279,11 @@ class HarvesterDBInterface:
                     .filter(
                         HarvestJob.date_created < datetime.now(timezone.utc),
                         HarvestJob.status == "new",
+                        ~exists().where(
+                            in_progress_job.harvest_source_id
+                            == HarvestJob.harvest_source_id,
+                            in_progress_job.status == "in_progress",
+                        ),
                     )
                     .order_by(asc(HarvestJob.date_created))
                     .with_for_update(skip_locked=True)
