@@ -28,6 +28,11 @@ DATASERVICE_VALIDATOR = build_dcatus3_validator(
     DCATUS3_DEFINITIONS, root_ref=DATASERVICE_REF
 )
 
+CATALOGRECORD_REF = "https://resources.data.gov/dcat-us/3.0.0/definitions/catalogrecord"
+CATALOGRECORD_VALIDATOR = build_dcatus3_validator(
+    DCATUS3_DEFINITIONS, root_ref=CATALOGRECORD_REF
+)
+
 
 @pytest.fixture
 def valid_dcatus3_dataset() -> dict:
@@ -61,6 +66,16 @@ def valid_dcatus3_dataservice() -> dict:
                 "hasEmail": "mailto:test@example.gov",
             }
         ],
+    }
+
+
+@pytest.fixture
+def valid_dcatus3_catalogrecord() -> dict:
+    return {
+        "@type": "CatalogRecord",
+        "title": "Test Catalog Record",
+        "modified": "2024-06-15",
+        "primaryTopic": "https://example.gov/datasets/one",
     }
 
 
@@ -118,3 +133,30 @@ class TestBuildDcatus3ValidatorDataService:
         """
         del valid_dcatus3_dataservice["identifier"]
         assert DATASERVICE_VALIDATOR.is_valid(valid_dcatus3_dataservice)
+
+
+class TestBuildDcatus3ValidatorCatalogRecord:
+    def test_catalogrecord_root_ref_validates_single_catalogrecord(
+        self, valid_dcatus3_catalogrecord
+    ):
+        """With the catalogrecord root ref, a single CatalogRecord dict
+        validates standalone."""
+        assert CATALOGRECORD_VALIDATOR.is_valid(valid_dcatus3_catalogrecord)
+
+    def test_catalogrecord_root_ref_flags_missing_required_field(
+        self, valid_dcatus3_catalogrecord
+    ):
+        """A CatalogRecord missing the mandatory primaryTopic produces errors."""
+        del valid_dcatus3_catalogrecord["primaryTopic"]
+        errors = list(CATALOGRECORD_VALIDATOR.iter_errors(valid_dcatus3_catalogrecord))
+        assert errors
+        assert any("primaryTopic" in e.message for e in errors)
+
+    def test_catalogrecord_root_ref_does_not_require_id(
+        self, valid_dcatus3_catalogrecord
+    ):
+        """CatalogRecord has no "identifier" field at all, only an optional
+        "@id"; the harvester enforces @id separately (see
+        filter_datasets_with_no_identifier)."""
+        assert CATALOGRECORD_VALIDATOR.is_valid(valid_dcatus3_catalogrecord)
+        assert "@id" not in valid_dcatus3_catalogrecord

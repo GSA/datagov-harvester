@@ -47,7 +47,9 @@ from harvester.utils.general_utils import (
     dataset_to_hash,
     describe_identifier_error,
     download_file,
+    extract_dcatus3_catalog_dataset_series,
     extract_dcatus3_catalog_datasets,
+    extract_dcatus3_catalog_records,
     extract_dcatus3_catalog_services,
     extract_dcatus3_nested_datasets,
     find_indexes_for_duplicates,
@@ -72,6 +74,32 @@ ROOT_DIR = Path(__file__).parents[1]
 
 # harvest worker count
 harvest_worker_sync_count = int(os.getenv("HARVEST_WORKER_SYNC_COUNT", 1))
+
+# DCAT-US 3.0 record types other than "dataset" (which has its own more
+# complex extraction path shared with WAF/ISO sources). Each entry's
+# "extractor" pulls its objects out of a dcatus3.0 Catalog dict; its
+# "identifier_field" is the dict key that holds the record's identifier --
+# CatalogRecord and DatasetSeries have no "identifier" field, only a
+# top-level "@id". "schema_ref" is the dcatus3.0 definitions root_ref used
+# to build this type's validator -- built from this registry (not
+# hand-listed) so a new entry can't forget to wire up validation.
+NON_DATASET_RECORD_TYPES = {
+    "data_service": {
+        "extractor": extract_dcatus3_catalog_services,
+        "identifier_field": "identifier",
+        "schema_ref": "dataservice",
+    },
+    "catalog_record": {
+        "extractor": extract_dcatus3_catalog_records,
+        "identifier_field": "@id",
+        "schema_ref": "catalogrecord",
+    },
+    "data_series": {
+        "extractor": extract_dcatus3_catalog_dataset_series,
+        "identifier_field": "@id",
+        "schema_ref": "datasetseries",
+    },
+}
 
 
 @dataclass
@@ -101,8 +129,11 @@ class HarvestSource:
     _clear_complete: bool = True
 
     external_records: dict = field(default_factory=lambda: {}, repr=False)
-    # DCAT-US 3.0 DataService objects; always empty for other schema types.
-    external_service_records: list = field(default_factory=lambda: [], repr=False)
+    # DCAT-US 3.0 record types other than "dataset" (data_service,
+    # catalog_record, ...), keyed by record_type. Always empty for other
+    # schema types. See NON_DATASET_RECORD_TYPES for the catalog field and
+    # identifier field backing each record_type.
+    external_records_by_type: dict = field(default_factory=lambda: {}, repr=False)
     # keyed by (identifier, record_type), not identifier alone, so a Dataset
     # and a DataService sharing an identifier don't collide.
     internal_records: dict = field(default_factory=lambda: {}, repr=False)
@@ -144,22 +175,30 @@ class HarvestSource:
 
         self.dataset_schema = open_json(self.schema_file)
         if self.schema_type == "dcatus3.0":
-            # validate one dataset (or data service) record at a time against
-            # the dcatus3.0 schema, which plugs into the same per-record
+            # validate one record at a time against the dcatus3.0 schema
+            # matching its record_type, which plugs into the same per-record
             # validation flow as dcatus1.1.
-            self._validator = build_dcatus3_validator(
-                self.schemas_root / "dcatus3.0" / "definitions",
-                root_ref="https://resources.data.gov/dcat-us/3.0.0/definitions/dataset",
-            )
-            self._dataservice_validator = build_dcatus3_validator(
-                self.schemas_root / "dcatus3.0" / "definitions",
-                root_ref="https://resources.data.gov/dcat-us/3.0.0/definitions/dataservice",
-            )
+            definitions_dir = self.schemas_root / "dcatus3.0" / "definitions"
+            self._validators = {
+                "dataset": build_dcatus3_validator(
+                    definitions_dir,
+                    root_ref="https://resources.data.gov/dcat-us/3.0.0/definitions/dataset",
+                ),
+            }
+            for record_type, config in NON_DATASET_RECORD_TYPES.items():
+                self._validators[record_type] = build_dcatus3_validator(
+                    definitions_dir,
+                    root_ref=(
+                        "https://resources.data.gov/dcat-us/3.0.0/definitions/"
+                        f"{config['schema_ref']}"
+                    ),
+                )
         else:
-            self._validator = Draft202012Validator(
-                self.dataset_schema, format_checker=FormatChecker()
-            )
-            self._dataservice_validator = None
+            self._validators = {
+                "dataset": Draft202012Validator(
+                    self.dataset_schema, format_checker=FormatChecker()
+                )
+            }
         self._reporter = HarvestReporter()
 
     @property
@@ -174,13 +213,20 @@ class HarvestSource:
     def db_interface(self) -> HarvesterDBInterface:
         return self._db_interface
 
-    @property
-    def validator(self):
-        return self._validator
+    def validator_for(self, record_type: str):
+        """Return the schema validator for [record_type].
 
-    @property
-    def dataservice_validator(self):
-        return self._dataservice_validator
+        Non-dcatus3.0 sources only have a "dataset" validator, since they
+        have no concept of other DCAT-US 3.0 record types. Raises rather
+        than silently falling back to the dataset validator for an unknown
+        record_type -- that fallback previously masked a missing
+        data_series validator entry by validating DatasetSeries objects
+        against the Dataset schema instead.
+        """
+        try:
+            return self._validators[record_type]
+        except KeyError:
+            raise ValueError(f"no validator registered for record_type '{record_type}'")
 
     @property
     def records(self):
@@ -334,21 +380,20 @@ class HarvestSource:
         )
 
     def _filter_duplicate_identifiers_from(
-        self, records: list, record_type: str
+        self, records: list, record_type: str, identifier_field: str = "identifier"
     ) -> None:
         """
         removes records with a duplicate identifier from [records] in place,
         recording a duplicate-identifier record error for each one removed.
 
-        shared helper behind filter_duplicate_identifiers so Dataset and
-        DataService records are deduplicated independently, tagged with the
-        right record_type.
+        shared helper behind filter_duplicate_identifiers so each record_type
+        is deduplicated independently, tagged with the right record_type.
         """
-        indices = find_indexes_for_duplicates(records)
+        indices = find_indexes_for_duplicates(records, identifier_field)
         for idx in indices:
             try:
                 identifier = normalize_dataset_identifier(
-                    records[idx].get("identifier")
+                    records[idx].get(identifier_field)
                 )
                 self.write_duplicate_to_db(identifier, record_type)
             except DuplicateIdentifierException:
@@ -357,15 +402,18 @@ class HarvestSource:
 
     def filter_duplicate_identifiers(self) -> None:
         """
-        this function identifies duplicates in the harvest source via the record
-        "identifier", checking Dataset and DataService records independently.
-        it adds a record error about the duplicate to the db and removes the
+        this function identifies duplicates in the harvest source via the
+        record's identifier, checking every record_type independently. it
+        adds a record error about the duplicate to the db and removes the
         duplicate from processing.
         """
         self._filter_duplicate_identifiers_from(self.external_records, "dataset")
-        self._filter_duplicate_identifiers_from(
-            self.external_service_records, "data_service"
-        )
+        for record_type, config in NON_DATASET_RECORD_TYPES.items():
+            self._filter_duplicate_identifiers_from(
+                self.external_records_by_type.get(record_type, []),
+                record_type,
+                config["identifier_field"],
+            )
 
     def filter_waf_files_by_datetime(self) -> None:
         """
@@ -400,7 +448,7 @@ class HarvestSource:
         self.external_records = records
 
     def _filter_records_with_no_identifier(
-        self, records: list, record_type: str
+        self, records: list, record_type: str, identifier_field: str = "identifier"
     ) -> list:
         """
         identifies and removes records without a harvestable identifier from
@@ -414,7 +462,7 @@ class HarvestSource:
         for record in records:
             error_identifier = None
             try:
-                identifier = record.get("identifier")
+                identifier = record.get(identifier_field)
                 if normalize_dataset_identifier(identifier) is None:
                     # use something identifiable to the dataset otherwise label it accordingly
                     id_substitute = (
@@ -436,7 +484,8 @@ class HarvestSource:
                     harvest_record_id = new_record.id if new_record else None
 
                     raise NoIdentifierException(
-                        f"{self.name} {error_identifier} {describe_identifier_error(identifier)}",
+                        f"{self.name} {error_identifier} "
+                        f"{describe_identifier_error(identifier, identifier_field)}",
                         self.job_id,
                         harvest_record_id,
                     )
@@ -452,17 +501,23 @@ class HarvestSource:
     def filter_datasets_with_no_identifier(self) -> None:
         """
         identifies and removes datasets without a harvestable identifier from
-        self.external_records, and DataService objects without one from
-        self.external_service_records, logging each as a record-level error.
+        self.external_records, and non-dataset records (DataService,
+        CatalogRecord, ...) without one from self.external_records_by_type,
+        logging each as a record-level error.
 
         string identifiers are used as-is. object identifiers must provide @id.
         """
         self.external_records = self._filter_records_with_no_identifier(
             self.external_records, "dataset"
         )
-        self.external_service_records = self._filter_records_with_no_identifier(
-            self.external_service_records, "data_service"
-        )
+        for record_type, config in NON_DATASET_RECORD_TYPES.items():
+            self.external_records_by_type[record_type] = (
+                self._filter_records_with_no_identifier(
+                    self.external_records_by_type.get(record_type, []),
+                    record_type,
+                    config["identifier_field"],
+                )
+            )
 
     def determine_internal_deletions(self) -> None:
         """
@@ -470,16 +525,23 @@ class HarvestSource:
         the identifiers of the records. if the db has the record and the harvest source
         doesn't that means the record needs to be deleted.
 
-        keys are (identifier, record_type) tuples so a Dataset and a
-        DataService sharing an identifier are compared independently.
+        keys are (identifier, record_type) tuples so records of different
+        types sharing an identifier are compared independently.
         """
         external_ids = {
             (normalize_dataset_identifier(record.get("identifier")), "dataset")
             for record in self.external_records
-        } | {
-            (normalize_dataset_identifier(record.get("identifier")), "data_service")
-            for record in self.external_service_records
         }
+        for record_type, config in NON_DATASET_RECORD_TYPES.items():
+            external_ids |= {
+                (
+                    normalize_dataset_identifier(
+                        record.get(config["identifier_field"])
+                    ),
+                    record_type,
+                )
+                for record in self.external_records_by_type.get(record_type, [])
+            }
         internal_ids = set(self.internal_records.keys())
         self.deletions = internal_ids - external_ids
 
@@ -508,7 +570,8 @@ class HarvestSource:
 
         this function yields 1 record at a time to minimize memory usage of large waf sources.
         it yields 1 record regardless of the source type (e.g. datajson or waf), yielding
-        Dataset records before any DataService records.
+        Dataset records before any non-dataset (DataService, CatalogRecord,
+        ...) records.
         """
         while len(self.external_records) > 0:
             try:
@@ -556,32 +619,39 @@ class HarvestSource:
                     None,  # there is no record id to associate
                 )
 
-        while len(self.external_service_records) > 0:
-            try:
-                record = self.external_service_records.pop(0)
-                service = json.dumps(sort_dataset(record))
-                service_hash = dataset_to_hash(service)
-                identifier = normalize_dataset_identifier(record.get("identifier"))
+        for record_type, config in NON_DATASET_RECORD_TYPES.items():
+            records = self.external_records_by_type.get(record_type, [])
+            identifier_field = config["identifier_field"]
+            while len(records) > 0:
+                try:
+                    record = records.pop(0)
+                    serialized = json.dumps(sort_dataset(record))
+                    record_hash = dataset_to_hash(serialized)
+                    identifier = normalize_dataset_identifier(
+                        record.get(identifier_field)
+                    )
 
-                yield Record(
-                    self,
-                    identifier,
-                    service,
-                    service_hash,
-                    _record_type="data_service",
-                )
+                    yield Record(
+                        self,
+                        identifier,
+                        serialized,
+                        record_hash,
+                        _record_type=record_type,
+                    )
 
-                del record
-            except Exception as e:
-                self.update_job_record_count_by_action("errored")
+                    del record
+                except Exception as e:
+                    self.update_job_record_count_by_action("errored")
 
-                record_id = normalize_dataset_identifier(record.get("identifier"))
+                    record_id = normalize_dataset_identifier(
+                        record.get(identifier_field)
+                    )
 
-                ExternalRecordToClass(
-                    f"{self.name} {record_id} failed to prepare record for harvest :: {repr(e)}",
-                    self.job_id,
-                    None,  # there is no record id to associate
-                )
+                    ExternalRecordToClass(
+                        f"{self.name} {record_id} failed to prepare record for harvest :: {repr(e)}",
+                        self.job_id,
+                        None,  # there is no record id to associate
+                    )
 
     def acquire_minimum_external_data(self) -> list:
         """
@@ -599,13 +669,28 @@ class HarvestSource:
                     catalog = download_file(self.url, ".json")
 
                     if self.schema_type == "dcatus3.0":
-                        self.external_service_records = (
-                            extract_dcatus3_catalog_services(catalog)
-                        )
-                        self.external_records = extract_dcatus3_catalog_datasets(
-                            catalog
-                        ) + extract_dcatus3_nested_datasets(
-                            self.external_service_records, "servesDataset"
+                        self.external_records_by_type = {
+                            record_type: config["extractor"](catalog)
+                            for record_type, config in NON_DATASET_RECORD_TYPES.items()
+                        }
+                        self.external_records = (
+                            extract_dcatus3_catalog_datasets(catalog)
+                            + extract_dcatus3_nested_datasets(
+                                self.external_records_by_type.get("data_service", []),
+                                "servesDataset",
+                                parent_identifier_field=NON_DATASET_RECORD_TYPES[
+                                    "data_service"
+                                ]["identifier_field"],
+                            )
+                            + extract_dcatus3_nested_datasets(
+                                self.external_records_by_type.get("data_series", []),
+                                "seriesMember",
+                                "first",
+                                "last",
+                                parent_identifier_field=NON_DATASET_RECORD_TYPES[
+                                    "data_series"
+                                ]["identifier_field"],
+                            )
                         )
                         self.db_interface.update_harvest_job(
                             self.job_id,
@@ -648,7 +733,7 @@ class HarvestSource:
 
         if self.job_type == "clear":
             self.external_records = []
-            self.external_service_records = []
+            self.external_records_by_type = {}
         else:
             self.acquire_minimum_external_data()
 
@@ -695,7 +780,9 @@ class HarvestSource:
                 self.reporter.processed_count
                 + len(self.deletions)
                 + len(self.external_records)
-                + len(self.external_service_records)
+                + sum(
+                    len(records) for records in self.external_records_by_type.values()
+                )
             )
 
             # deletions would occur first based on the arg positions
@@ -1200,15 +1287,14 @@ class Record:
         warning is not a failure and must not clobber an errored (or
         successful) record's status.
         """
-        self.harvest_source.db_interface.add_harvest_record_error(
-            {
-                "message": warning.message,
-                "type": warning.warning_type,
-                "date_created": get_datetime(),
-                "harvest_job_id": self.harvest_source.job_id,
-                "harvest_record_id": self.id,
-                "severity": "warning",
-            }
+        log_non_critical_error(
+            warning.message,
+            self.harvest_source.job_id,
+            self.id,
+            warning.warning_type,
+            is_error=False,
+            emit_log=False,
+            severity="warning",
         )
 
     def validate(self) -> None:
@@ -1236,11 +1322,7 @@ class Record:
         # whether we saw any errors
         valid = True
 
-        if self.record_type == "data_service":
-            validator = self.harvest_source.dataservice_validator
-        else:
-            validator = self.harvest_source.validator
-
+        validator = self.harvest_source.validator_for(self.record_type)
         errors = validator.iter_errors(record)
         errors = assemble_validation_errors(errors)
         for error in errors:

@@ -5,7 +5,7 @@ function confirmSubmit(event) {
     const type = event.target.getAttribute("data-action");
     let messageEnum = {
         'clear': 'Are you sure you want to clear all datasets?',
-        'delete': 'Are you sure you want to delete this source?'
+        'delete': 'Are you sure you want to delete this source? Deletion may take some time.'
     };
     if (!confirm(messageEnum[type])) {
         event.preventDefault(); // Prevents the form from submitting if the user cancels
