@@ -289,6 +289,7 @@ class HarvestRecord(Base):
             postgresql_where=text("status = 'success'"),
             postgresql_include=["action"],
         ),
+        Index("ix_harvest_record_status", "status"),
     )
 
     @property
