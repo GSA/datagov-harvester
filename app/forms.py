@@ -182,6 +182,17 @@ class OrganizationForm(FlaskForm):
         filters=[comma_separated_filter],
         default="",
     )
+    code_repo_url = StringField(
+        "Code Repository URL",
+        description="URL to the organization's public code repository (e.g., https://github.com/agency-name)",
+        validators=[Optional(), URL()],
+        filters=[strip_filter],
+    )
+    code_repo_exempt = BooleanField(
+        "OMB-approved exemption (no public repository required)",
+        validators=[Optional()],
+        default=False,
+    )
 
     def __init__(self, *args, **kwargs):
         self.organization_id = kwargs.pop("organization_id", None)
@@ -196,6 +207,29 @@ class OrganizationForm(FlaskForm):
 
         if existing and existing.id != self.organization_id:
             raise ValidationError("Slug must be unique.")
+
+    def validate_code_repo_url(self, field):
+        """Validate that code_repo_url starts with http:// or https://."""
+        if field.data and field.data.strip():
+            url = field.data.strip()
+            if not (url.startswith("http://") or url.startswith("https://")):
+                raise ValidationError("URL must start with http:// or https://")
+
+    def validate(self, extra_validators=None):
+        """Add validation for conflict between code_repo_url and code_repo_exempt."""
+        valid = super().validate(extra_validators=extra_validators)
+
+        # Check for conflict between URL and exempt flag
+        if (
+            self.code_repo_url.data
+            and self.code_repo_url.data.strip()
+            and self.code_repo_exempt.data
+        ):
+            # This is a warning, not an error, so we don't set valid=False
+            # The warning will be handled in the route handler
+            pass
+
+        return valid
 
 
 class HarvestTriggerForm(FlaskForm):
