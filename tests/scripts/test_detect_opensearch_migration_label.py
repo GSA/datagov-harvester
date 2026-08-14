@@ -35,11 +35,14 @@ def _run(
     status="ahead",
     total_commits=None,
     compare_statuses=None,
+    pull_api_failures=0,
 ):
     fake_bin = tmp_path / "bin"
     fake_bin.mkdir()
     calls_file = tmp_path / "gh-calls"
     output_file = tmp_path / "outputs"
+    pull_attempts_file = tmp_path / "pull-attempts"
+    pull_attempts_file.write_text("0")
     compare_dir = tmp_path / "compare"
     compare_dir.mkdir()
 
@@ -79,6 +82,13 @@ elif [[ "$*" == *"/compare/"* ]]; then
     cat "$GH_COMPARE_DIR/default.json"
   fi
 elif [[ "$*" == *"/commits/"*"/pulls"* ]]; then
+  attempts=$(cat "$GH_PULL_ATTEMPTS_FILE")
+  attempts=$((attempts + 1))
+  echo "$attempts" > "$GH_PULL_ATTEMPTS_FILE"
+  if [[ "$attempts" -le "$GH_PULL_API_FAILURES" ]]; then
+    echo "Simulated pull request API failure" >&2
+    exit 1
+  fi
   for sha in $GH_LABELED_SHAS; do
     if [[ "$*" == *"/commits/${sha}/pulls"* ]]; then
       echo 42
@@ -105,6 +115,10 @@ fi
             "GH_FALLBACK_WORKFLOW_FILE": fallback_workflow_file,
             "GH_COMPARE_DIR": str(compare_dir),
             "GH_LABELED_SHAS": " ".join(labeled_shas),
+            "GH_PULL_API_FAILURES": str(pull_api_failures),
+            "GH_PULL_ATTEMPTS_FILE": str(pull_attempts_file),
+            "GH_API_MAX_ATTEMPTS": "3",
+            "GH_API_RETRY_SECONDS": "0",
             "FALLBACK_WORKFLOW_FILE": fallback_workflow_file,
         },
         text=True,
@@ -246,3 +260,32 @@ def test_deduplicates_a_pr_associated_with_multiple_commits(tmp_path):
 
     assert result.returncode == 0
     assert outputs.count("pr_numbers=42") == 1
+
+
+def test_retries_a_transient_pull_request_api_failure(tmp_path):
+    sha = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    result, outputs, calls = _run(
+        tmp_path,
+        commits=(sha,),
+        labeled_shas=(sha,),
+        pull_api_failures=1,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "migration_needed=true" in outputs
+    assert calls.count(f"/commits/{sha}/pulls") == 2
+    assert "retrying (1/3)" in result.stderr
+
+
+def test_fails_closed_after_repeated_pull_request_api_failures(tmp_path):
+    sha = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    result, outputs, calls = _run(
+        tmp_path,
+        commits=(sha,),
+        pull_api_failures=3,
+    )
+
+    assert result.returncode == 1
+    assert outputs == ""
+    assert calls.count(f"/commits/{sha}/pulls") == 3
+    assert f"commit {sha} after 3 attempts" in result.stderr
