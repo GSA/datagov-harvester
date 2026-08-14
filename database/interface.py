@@ -231,28 +231,45 @@ class HarvesterDBInterface:
             self.db.rollback()
             return None
 
-    def delete_harvest_source(self, source_id):
+    def can_delete_harvest_source(self, source_id):
+        """Return whether a harvest source may be deleted.
+
+        Returns:
+            tuple[bool, str | None, int]: ``(ok, message, status)``.
+            When ``ok`` is True, ``message`` is None and ``status`` is 200.
+            When ``ok`` is False, ``message`` explains why and ``status`` is
+            404 (missing) or 409 (live records remain; clear first).
+        """
         source = self.db.get(HarvestSource, source_id)
         if source is None:
-            return "Harvest source not found"
+            return False, "Harvest source not found", 404
 
         record_count = self.get_latest_harvest_records_by_source_orm(
             source_id, synced=True, count=True
         )
 
         if record_count == 0:
-            self.db.delete(source)
-            self.db.commit()
-            return (
-                f"Deleted harvest source with ID:{source_id} successfully",
-                200,
-            )
-        else:
-            # ruff: noqa: E501
-            return (
-                f"Failed: {record_count} records in the Harvest source, please clear it first.",
-                409,
-            )
+            return True, None, 200
+
+        # ruff: noqa: E501
+        return (
+            False,
+            f"Failed: {record_count} records in the Harvest source, please clear it first.",
+            409,
+        )
+
+    def delete_harvest_source(self, source_id):
+        ok, message, status = self.can_delete_harvest_source(source_id)
+        if not ok:
+            return message, status
+
+        source = self.db.get(HarvestSource, source_id)
+        self.db.delete(source)
+        self.db.commit()
+        return (
+            f"Deleted harvest source with ID:{source_id} successfully",
+            200,
+        )
 
     ## HARVEST JOB
     def add_harvest_job(self, job_data):
