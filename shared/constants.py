@@ -39,7 +39,7 @@ ORGANIZATION_TYPE_SELECT_CHOICES = [
 
 RECORD_STATUS_VALUES = ["error", "success", "dataset_pending"]
 
-RECORD_TYPE_VALUES = ["dataset", "data_service"]
+RECORD_TYPE_VALUES = ["dataset", "data_service", "catalog_record"]
 
 SEVERITY_VALUES = ["error", "warning"]
 
