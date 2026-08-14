@@ -1,73 +1,24 @@
-name: Rebuild OpenSearch Index
+name: SCRATCH - Rehearse OpenSearch replacement on staging
 
-# Zero-downtime rebuild of the OpenSearch dataset index.
+# Branch-only bootstrap for the replacement-cluster release workflow.
 #
-#   disable harvester (reuse Toggle Harvester)
-#     -> wait for in-flight harvest jobs to drain (optionally force-kill after 15m)
-#     -> rebuild-index: create a fresh index, backfill from PostgreSQL, validate,
-#        atomically switch the datasets alias, optionally delete the old index
-#     -> re-enable harvester (always, even if the rebuild failed)
-#
-# Search stays available throughout: the old index keeps serving reads until the
-# atomic alias switch, so catalog and harvester never see a missing index.
-#
-# This test branch also uses this already-registered workflow as a manual
-# bootstrap for the replacement-cluster release workflow. A new workflow cannot
-# be dispatched before its file exists on the default branch, but this file
-# already exists there and GitHub can run its YAML from this branch:
+# GitHub only registers workflow_dispatch for workflow files that exist on the
+# default branch. This path is already registered there, so GitHub can dispatch
+# this staging-only definition from the test branch:
 #
 #   gh workflow run rebuild_opensearch_index.yml \
 #     --repo GSA/datagov-harvester \
 #     --ref test/opensearch-release-staging-20260814 \
-#     -f operation=staging-replacement-cluster-rehearsal \
 #     -f confirm_staging_migration=staging
 #
-# Pushing this branch does not start the rehearsal.
+# Pushing this branch only runs normal commit CI. It does not start the rehearsal.
 
 on:
   workflow_dispatch:
     inputs:
-      operation:
-        description: "Operation to run"
-        required: true
-        default: rebuild-index
-        type: choice
-        options:
-          - rebuild-index
-          - staging-replacement-cluster-rehearsal
-      environment:
-        description: "Target for rebuild-index (ignored by staging rehearsal)"
-        required: true
-        default: development
-        type: choice
-        options:
-          - development
-          - staging
-          - prod
-      force_kill_running_jobs:
-        description: "Cancel harvest jobs still running after 15 minutes"
-        required: true
-        default: false
-        type: boolean
-      switch_alias:
-        description: "Switch the datasets alias to the rebuilt index"
-        required: true
-        default: true
-        type: boolean
-      delete_old_index:
-        description: "Delete the previous index after a successful alias switch"
-        required: true
-        default: false
-        type: boolean
-      max_tasks:
-        description: "HARVEST_RUNNER_MAX_TASKS to restore when re-enabling"
-        required: false
-        default: "3"
-        type: string
       confirm_staging_migration:
         description: "Type staging to confirm the replacement-cluster rehearsal"
-        required: false
-        default: ""
+        required: true
         type: string
 
 permissions:
@@ -77,27 +28,19 @@ permissions:
 concurrency:
   # The called release job owns opensearch-maintenance-staging. Reusing that
   # group here would deadlock the reusable workflow behind its caller.
-  group: >-
-    ${{ inputs.operation == 'staging-replacement-cluster-rehearsal'
-      && 'opensearch-staging-rehearsal-dispatch'
-      || format('opensearch-maintenance-{0}', inputs.environment) }}
+  group: opensearch-staging-rehearsal-dispatch
   cancel-in-progress: false
 
 jobs:
   validate-inputs:
-    name: Validate operation
+    name: Validate staging-only guardrails
     runs-on: ubuntu-latest
     steps:
-      - name: Enforce staging rehearsal guardrails
+      - name: Enforce branch and confirmation
         env:
-          OPERATION: ${{ inputs.operation }}
           CONFIRMATION: ${{ inputs.confirm_staging_migration }}
           ALLOWED_REF: test/opensearch-release-staging-20260814
         run: |
-          if [[ "$OPERATION" != "staging-replacement-cluster-rehearsal" ]]; then
-            exit 0
-          fi
-
           if [[ "$CONFIRMATION" != "staging" ]]; then
             echo "Set confirm_staging_migration to staging." >&2
             exit 1
@@ -108,105 +51,9 @@ jobs:
             exit 1
           fi
 
-  disable-harvester:
-    name: Disable harvester (${{ inputs.environment }})
-    needs: validate-inputs
-    if: inputs.operation == 'rebuild-index'
-    uses: ./.github/workflows/toggle_harvester.yml
-    with:
-      state: disable
-      environment: ${{ inputs.environment }}
-    secrets:
-      CF_SERVICE_USER: ${{ secrets.CF_SERVICE_USER }}
-      CF_SERVICE_AUTH: ${{ secrets.CF_SERVICE_AUTH }}
-      SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-
-  rebuild:
-    name: Rebuild OpenSearch index (${{ inputs.environment }})
-    needs: disable-harvester
-    runs-on: ubuntu-latest
-    timeout-minutes: 240
-    environment: ${{ inputs.environment }}
-    env:
-      CF_SPACE: ${{ inputs.environment }}
-    steps:
-      - name: Check out the code
-        uses: actions/checkout@v7
-
-      - name: Set operation names and options
-        env:
-          SWITCH_ALIAS: ${{ inputs.switch_alias }}
-          DELETE_OLD_INDEX: ${{ inputs.delete_old_index }}
-        run: |
-          echo "REBUILD_TASK=search-rebuild-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_ENV"
-          echo "TARGET_INDEX=datasets-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_ENV"
-          if [[ "$SWITCH_ALIAS" == "true" ]]; then
-            echo "ALIAS_OPTION=--switch-alias" >> "$GITHUB_ENV"
-          else
-            echo "ALIAS_OPTION=--no-switch-alias" >> "$GITHUB_ENV"
-          fi
-          if [[ "$DELETE_OLD_INDEX" == "true" ]]; then
-            echo "DELETE_OPTION=--delete-old-index" >> "$GITHUB_ENV"
-          else
-            echo "DELETE_OPTION=" >> "$GITHUB_ENV"
-          fi
-
-      - name: Wait for running harvest tasks
-        uses: cloud-gov/cg-cli-tools@main
-        with:
-          command: >
-            bin/wait_for_harvest_tasks.sh datagov-harvest 7200
-            ${{ inputs.force_kill_running_jobs && '--force-kill-running-jobs' || '' }}
-          cf_org: gsa-datagov
-          cf_space: ${{ env.CF_SPACE }}
-          cf_username: ${{ secrets.CF_SERVICE_USER }}
-          cf_password: ${{ secrets.CF_SERVICE_AUTH }}
-
-      - name: Start index rebuild
-        uses: cloud-gov/cg-cli-tools@main
-        with:
-          command: >
-            cf run-task datagov-harvest --name "$REBUILD_TASK" -k 4G -m 2G
-            --command "flask search rebuild-index --target-index $TARGET_INDEX
-            --allow-legacy-index-removal $ALIAS_OPTION $DELETE_OPTION"
-          cf_org: gsa-datagov
-          cf_space: ${{ env.CF_SPACE }}
-          cf_username: ${{ secrets.CF_SERVICE_USER }}
-          cf_password: ${{ secrets.CF_SERVICE_AUTH }}
-
-      - name: Monitor index rebuild
-        uses: cloud-gov/cg-cli-tools@main
-        with:
-          command: bin/monitor_cf_logs.sh datagov-harvest "$REBUILD_TASK"
-          cf_org: gsa-datagov
-          cf_space: ${{ env.CF_SPACE }}
-          cf_username: ${{ secrets.CF_SERVICE_USER }}
-          cf_password: ${{ secrets.CF_SERVICE_AUTH }}
-
-  enable-harvester:
-    name: Re-enable harvester (${{ inputs.environment }})
-    needs:
-      - validate-inputs
-      - rebuild
-    # Always re-enable, even if the rebuild failed, so harvesting resumes.
-    if: >-
-      ${{ always()
-      && inputs.operation == 'rebuild-index'
-      && needs.validate-inputs.result == 'success' }}
-    uses: ./.github/workflows/toggle_harvester.yml
-    with:
-      state: enable
-      max_tasks: ${{ inputs.max_tasks }}
-      environment: ${{ inputs.environment }}
-    secrets:
-      CF_SERVICE_USER: ${{ secrets.CF_SERVICE_USER }}
-      CF_SERVICE_AUTH: ${{ secrets.CF_SERVICE_AUTH }}
-      SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-
   staging-replacement-cluster-rehearsal:
     name: Replacement-cluster rehearsal (staging only)
     needs: validate-inputs
-    if: inputs.operation == 'staging-replacement-cluster-rehearsal'
     permissions:
       contents: read
       issues: write
