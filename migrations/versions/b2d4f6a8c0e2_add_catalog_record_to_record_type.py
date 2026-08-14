@@ -23,7 +23,20 @@ new_enum = sa.Enum(*new_options, name="record_type_new")
 
 
 def upgrade():
-    op.execute("ALTER TYPE record_type ADD VALUE IF NOT EXISTS 'catalog_record'")
+    new_enum.create(op.get_bind(), checkfirst=False)
+
+    op.execute("ALTER TABLE harvest_record ALTER COLUMN record_type DROP DEFAULT")
+    op.execute(
+        "ALTER TABLE harvest_record ALTER COLUMN record_type TYPE record_type_new "
+        "USING record_type::text::record_type_new"
+    )
+    op.execute(
+        "ALTER TABLE harvest_record ALTER COLUMN record_type "
+        "SET DEFAULT 'dataset'::record_type_new"
+    )
+
+    old_enum.drop(op.get_bind(), checkfirst=False)
+    op.execute("ALTER TYPE record_type_new RENAME TO record_type")
 
 
 def downgrade():

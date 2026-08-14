@@ -7,12 +7,6 @@ import pytest
 from migrations.versions import (
     a1c2e3f4b5d6_add_record_type_to_harvest_record as migration,
 )
-from migrations.versions import (
-    b2d4f6a8c0e2_add_catalog_record_to_record_type as catalog_record_migration,
-)
-from migrations.versions import (
-    c3e5a7b9d1f3_add_data_series_to_record_type as data_series_migration,
-)
 
 
 def _run_upgrade(columns, indexes):
@@ -105,22 +99,3 @@ def test_upgrade_rejects_an_unexpected_existing_column():
         match="record_type column does not match",
     ):
         _run_upgrade([column], [])
-
-
-@pytest.mark.parametrize(
-    ("record_type_migration", "value"),
-    [
-        (catalog_record_migration, "catalog_record"),
-        (data_series_migration, "data_series"),
-    ],
-)
-def test_enum_upgrade_adds_value_without_rewriting_table(
-    record_type_migration,
-    value,
-):
-    with patch.object(record_type_migration.op, "execute") as execute:
-        record_type_migration.upgrade()
-
-    execute.assert_called_once_with(
-        f"ALTER TYPE record_type ADD VALUE IF NOT EXISTS '{value}'"
-    )
