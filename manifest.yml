@@ -16,7 +16,8 @@ applications:
       INTERNAL_ROUTE: ((route_internal))
       BASIC_AUTH_ENABLED: ((basic_auth_enabled))
 
-  - name: ((app_name))
+  - &harvest_app
+    name: ((app_name))
     buildpacks:
       - python_buildpack
     routes:
@@ -48,3 +49,13 @@ applications:
       NEW_RELIC_CONFIG_FILE: /home/vcap/app/config/newrelic.ini
       ASSET_VERSION: ((asset_version))
     command: ./app-start.sh
+
+  - <<: *harvest_app
+    name: ((app_name))-next
+    routes: []
+    instances: 0
+    services:
+      - ((harvest_service_name))-db
+      - ((harvest_service_name))-secrets
+      - ((opensearch_service_name))
+      - logstack-space-drain
