@@ -12,6 +12,11 @@ on:
         required: false
         default: false
         type: boolean
+      resume_opensearch_migration:
+        description: "Reuse an already-provisioned replacement cluster"
+        required: false
+        default: false
+        type: boolean
       migration_prs:
         description: "PR numbers that requested the migration"
         required: false
@@ -45,7 +50,7 @@ jobs:
 
       - name: Disable scheduled harvesting
         id: disable
-        if: inputs.migrate_opensearch
+        if: inputs.migrate_opensearch && !inputs.resume_opensearch_migration
         uses: cloud-gov/cg-cli-tools@main
         with:
           command: bin/set_harvest_runner_capacity.sh disable "$HARVEST_APP"
@@ -66,7 +71,7 @@ jobs:
 
       - name: Provision replacement OpenSearch cluster
         id: provision
-        if: inputs.migrate_opensearch
+        if: inputs.migrate_opensearch && !inputs.resume_opensearch_migration
         uses: cloud-gov/cg-cli-tools@main
         with:
           command: >

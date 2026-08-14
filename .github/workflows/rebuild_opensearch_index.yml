@@ -9,7 +9,7 @@ name: SCRATCH - Rehearse OpenSearch replacement on staging
 #   gh workflow run rebuild_opensearch_index.yml \
 #     --repo GSA/datagov-harvester \
 #     --ref test/opensearch-release-staging-20260814 \
-#     -f confirm_staging_migration=staging
+#     -f confirm_staging_migration=resume-staging
 #
 # Pushing this branch only runs normal commit CI. It does not start the rehearsal.
 
@@ -17,7 +17,7 @@ on:
   workflow_dispatch:
     inputs:
       confirm_staging_migration:
-        description: "Type staging to confirm the replacement-cluster rehearsal"
+        description: "Type resume-staging to reuse the retained replacement cluster"
         required: true
         type: string
 
@@ -41,8 +41,8 @@ jobs:
           CONFIRMATION: ${{ inputs.confirm_staging_migration }}
           ALLOWED_REF: test/opensearch-release-staging-20260814
         run: |
-          if [[ "$CONFIRMATION" != "staging" ]]; then
-            echo "Set confirm_staging_migration to staging." >&2
+          if [[ "$CONFIRMATION" != "resume-staging" ]]; then
+            echo "Set confirm_staging_migration to resume-staging." >&2
             exit 1
           fi
 
@@ -61,5 +61,6 @@ jobs:
     with:
       space: staging
       migrate_opensearch: true
+      resume_opensearch_migration: true
       migration_prs: manual pre-merge staging rehearsal from ${{ github.ref_name }}
     secrets: inherit
