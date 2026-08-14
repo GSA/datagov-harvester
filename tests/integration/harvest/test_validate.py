@@ -203,6 +203,61 @@ class TestValidateDataset:
         assert len(errors) == 1
         assert "endpointURL" in errors[0].message
 
+    def test_validate_dcatus3_0_catalog_record(
+        self,
+        interface,
+        organization_data,
+        source_data_dcatus3_0_with_records,
+        job_data_dcatus3_0_with_records,
+    ):
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_dcatus3_0_with_records)
+        harvest_job = interface.add_harvest_job(job_data_dcatus3_0_with_records)
+
+        harvest_source = HarvestSource(harvest_job.id)
+        harvest_source.acquire_minimum_external_data()
+        external_records_to_process = harvest_source.external_records_to_process()
+
+        records = list(external_records_to_process)
+        dataset_records = [r for r in records if r.record_type == "dataset"]
+        catalog_records = [r for r in records if r.record_type == "catalog_record"]
+
+        assert len(dataset_records) == 1
+        assert len(catalog_records) == 2
+        assert all(record.validate() for record in catalog_records)
+
+    def test_invalid_dcatus3_0_catalog_record_missing_primary_topic(
+        self,
+        interface,
+        organization_data,
+        source_data_dcatus3_0_with_records,
+        job_data_dcatus3_0_with_records,
+    ):
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_dcatus3_0_with_records)
+        harvest_job = interface.add_harvest_job(job_data_dcatus3_0_with_records)
+
+        harvest_source = HarvestSource(harvest_job.id)
+        harvest_source.acquire_minimum_external_data()
+        external_records_to_process = harvest_source.external_records_to_process()
+
+        catalog_record = next(
+            r for r in external_records_to_process if r.record_type == "catalog_record"
+        )
+
+        # tamper with the raw payload to drop the mandatory primaryTopic
+        record = json.loads(catalog_record._source_raw)
+        del record["primaryTopic"]
+        catalog_record._source_raw = json.dumps(record)
+
+        assert not catalog_record.validate()
+
+        errors = [
+            e[0] for e in interface.get_harvest_record_errors_by_job(harvest_job.id)
+        ]
+        assert len(errors) == 1
+        assert "primaryTopic" in errors[0].message
+
     def test_invalid_license_uri_dcatus_non_federal(
         self,
         interface,
