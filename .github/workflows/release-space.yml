@@ -85,7 +85,6 @@ jobs:
           cf_space: ${{ env.CF_SPACE }}
           command: cf push datagov-harvest-next --task
           manifest_vars: >-
-            --var app_name=datagov-harvest-next
             --var opensearch_service_name=datagov-catalog-opensearch-next
           deploy_proxy: "false"
           cf_username: ${{ secrets.CF_SERVICE_USER }}
