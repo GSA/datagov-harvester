@@ -502,6 +502,15 @@ def extract_dcatus3_catalog_services(catalog: dict) -> list:
     return _extract_dcatus3_catalog_objects(catalog, "service")
 
 
+def extract_dcatus3_catalog_records(catalog: dict) -> list:
+    """
+    recursively collect every CatalogRecord from a DCAT-US3 Catalog dict,
+    including records nested arbitrarily deep within its "catalog"
+    (sub-catalog) field.
+    """
+    return _extract_dcatus3_catalog_objects(catalog, "record")
+
+
 def extract_dcatus3_nested_datasets(parents: list, *fields: str) -> list:
     """
     pull full inline Dataset objects out of [fields] on each dict in
@@ -565,18 +574,18 @@ def normalize_dataset_identifier(identifier) -> str | None:
     return None
 
 
-def describe_identifier_error(identifier) -> str:
+def describe_identifier_error(identifier, field: str = "identifier") -> str:
     """Describe why an identifier cannot be used for harvesting."""
     if identifier is None:
-        return "is missing 'identifier' field"
+        return f"is missing '{field}' field"
     if isinstance(identifier, str) and not identifier.strip():
-        return "is missing 'identifier' field"
+        return f"is missing '{field}' field"
     if isinstance(identifier, dict):
-        return "has an object 'identifier' with no usable '@id' field"
-    return "has an invalid 'identifier' field"
+        return f"has an object '{field}' with no usable '@id' field"
+    return f"has an invalid '{field}' field"
 
 
-def find_indexes_for_duplicates(records: list):
+def find_indexes_for_duplicates(records: list, identifier_field: str = "identifier"):
     """
     output is a list of integers representing element positions of
     duplicates records. this list is then used to record duplicate
@@ -584,6 +593,9 @@ def find_indexes_for_duplicates(records: list):
     sorting it in reverse (.sort edits in place) places the largest
     numbers first. this is necessary to avoid index shifting
     when you're deleting from a list.
+
+    identifier_field selects which key holds the record's identifier value.
+    CatalogRecord objects have no "identifier" field, only a top-level "@id".
 
     scenario without sorting output
         positions = [ 1, 3 ]
@@ -595,7 +607,7 @@ def find_indexes_for_duplicates(records: list):
     seen = set()
     output = []
     for i in range(len(records)):
-        identifier = normalize_dataset_identifier(records[i].get("identifier"))
+        identifier = normalize_dataset_identifier(records[i].get(identifier_field))
         if identifier in seen:
             output.append(i)
         seen.add(identifier)
