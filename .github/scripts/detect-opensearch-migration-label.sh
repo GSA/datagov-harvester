@@ -9,12 +9,36 @@ workflow_file=${2:?Usage: detect-opensearch-migration-label.sh <head_sha> <workf
 branch=${3:?Usage: detect-opensearch-migration-label.sh <head_sha> <workflow_file> <branch> [label]}
 label=${4:-force re-index recommended}
 fallback_workflow_file=${FALLBACK_WORKFLOW_FILE:-}
+gh_api_max_attempts=${GH_API_MAX_ATTEMPTS:-3}
+gh_api_retry_seconds=${GH_API_RETRY_SECONDS:-2}
 
 emit() {
   echo "$1"
   if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
     echo "$1" >>"$GITHUB_OUTPUT"
   fi
+}
+
+pull_requests_with_label() {
+  local sha=$1
+  local attempt matched
+
+  for ((attempt = 1; attempt <= gh_api_max_attempts; attempt++)); do
+    if matched=$(
+      gh api "repos/${GITHUB_REPOSITORY}/commits/${sha}/pulls" \
+        --jq ".[] | select(.labels[]?.name == \"${label}\") | .number"
+    ); then
+      printf '%s' "$matched"
+      return 0
+    fi
+
+    if [[ "$attempt" -eq "$gh_api_max_attempts" ]]; then
+      echo "Failed to inspect pull requests for commit ${sha} after ${attempt} attempts." >&2
+      return 1
+    fi
+    echo "Unable to inspect pull requests for commit ${sha}; retrying (${attempt}/${gh_api_max_attempts})." >&2
+    sleep "$gh_api_retry_seconds"
+  done
 }
 
 workflow_candidates() {
@@ -94,11 +118,9 @@ fi
 matches=""
 while read -r sha; do
   [[ -z "$sha" ]] && continue
-  matched=$(
-    gh api "repos/${GITHUB_REPOSITORY}/commits/${sha}/pulls" \
-      --jq ".[] | select(.labels[]?.name == \"${label}\") | .number" ||
-      true
-  )
+  if ! matched=$(pull_requests_with_label "$sha"); then
+    exit 1
+  fi
   if [[ -n "$matched" ]]; then
     matches+="${matched}"$'\n'
   fi
