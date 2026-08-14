@@ -101,6 +101,11 @@ NON_DATASET_RECORD_TYPES = {
     },
 }
 
+# Record types persisted only as a HarvestRecord (no Dataset row) because they
+# don't have a schema for standalone search/display yet. "data_series" is
+# absent on purpose -- see Dataset.type in database/models.py.
+RECORD_TYPES_WITHOUT_DATASET_ROW = {"data_service", "catalog_record"}
+
 
 @dataclass
 class HarvestSource:
@@ -1368,6 +1373,7 @@ class Record:
         payload = {
             "slug": self.dataset_slug,
             "dcat": metadata,
+            "type": self.record_type,
             "organization_id": self.harvest_source.organization_id,
             "harvest_source_id": self.harvest_source.id,
             "harvest_record_id": self.id,
@@ -1432,8 +1438,8 @@ class Record:
             if self.status == "error":
                 return False
 
-            if self.record_type != "dataset":
-                # no downstream table for non-dataset records yet; persist
+            if self.record_type in RECORD_TYPES_WITHOUT_DATASET_ROW:
+                # no downstream table for these record types yet; persist
                 # as a HarvestRecord only.
                 self.status = "success"
                 self.harvest_source.update_job_record_count_by_action(self.action)
@@ -1443,6 +1449,9 @@ class Record:
             metadata = None
             if self.action in ("create", "update"):
                 metadata = self._metadata_for_dataset()
+                if self.record_type != "dataset" and not metadata.get("identifier"):
+                    # e.g. DatasetSeries has no "identifier" field, only "@id".
+                    metadata["identifier"] = self.identifier
                 if not self.dataset_slug:
                     self.dataset_slug = munge_title_to_name(metadata["title"])
 
