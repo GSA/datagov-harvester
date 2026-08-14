@@ -7,7 +7,7 @@ import pytest
 from cloudfoundry_client.errors import InvalidStatusCode
 from freezegun import freeze_time
 
-from database.models import HarvestJobError
+from database.models import HarvestJob, HarvestJobError
 from harvester.lib.load_manager import LoadManager
 from harvester.utils.general_utils import create_future_date
 
@@ -31,7 +31,6 @@ def all_tasks_json_fixture():
 
 @freeze_time("Jan 14th, 2012")
 class TestLoadManager:
-
     @patch("harvester.lib.cf_handler.CloudFoundryClient")
     @patch("harvester.lib.load_manager.MAX_TASKS_COUNT", 3)
     def test_load_manager_invokes_tasks(
@@ -549,6 +548,7 @@ class TestLoadManager:
             interface_no_jobs.add_harvest_job(job)
 
         jobs = interface_no_jobs.get_new_harvest_jobs_in_past()
+        job_ids = [job.id for job in jobs]
         assert len(jobs) == 2
         for job in jobs:
             assert job.status == "new"
@@ -559,8 +559,11 @@ class TestLoadManager:
         load_manager = LoadManager()
         load_manager._start_new_jobs(check_from_task=True)
 
+        jobs = [interface_no_jobs.db.get(HarvestJob, job_id) for job_id in job_ids]
+
         # one task created
         start_task_mock = CFCMock.return_value.v3.tasks.create
+
         assert start_task_mock.call_count == 1
         # first job is in progress
         assert jobs[0].status == "in_progress"
