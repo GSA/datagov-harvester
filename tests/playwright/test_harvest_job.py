@@ -62,7 +62,7 @@ class TestHarvestJobUnauthed:
             )
         ).to_have_attribute(
             "href",
-            "/api/harvest_record/0779c855-df20-49c8-9108-66359d82b77c",
+            "/api/v1/harvest_record/0779c855-df20-49c8-9108-66359d82b77c",
         )
 
     def test_harvest_job_record_errors_summary(self, upage):

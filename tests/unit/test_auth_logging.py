@@ -504,7 +504,7 @@ class TestAuthLogging:
             with patch.object(auth_module, "logger") as mock_logger:
                 # Use an authenticated endpoint (POST requires auth)
                 api_client.post(
-                    "/api/organization/add",
+                    "/api/v1/organization/add",
                     json={"name": "Test Org"},
                     headers={"X-API-Key": "test-api-token-12345"},
                 )
@@ -523,7 +523,7 @@ class TestAuthLogging:
 
             with patch.object(auth_module, "logger") as mock_logger:
                 api_client.post(
-                    "/api/organization/add",
+                    "/api/v1/organization/add",
                     json={"name": "Test Org"},
                     headers={"X-API-Key": "test-api-token-12345"},
                 )
@@ -541,7 +541,7 @@ class TestAuthLogging:
 
             with patch.object(auth_module, "logger") as mock_logger:
                 api_client.post(
-                    "/api/organization/add",
+                    "/api/v1/organization/add",
                     json={"name": "Test Org"},
                     headers={"X-API-Key": "test-api-token-12345"},
                 )
@@ -559,7 +559,7 @@ class TestAuthLogging:
 
             with patch.object(auth_module, "logger") as mock_logger:
                 api_client.post(
-                    "/api/organization/add",
+                    "/api/v1/organization/add",
                     json={"name": "Test Org"},
                     headers={
                         "X-API-Key": "test-api-token-12345",
@@ -580,7 +580,7 @@ class TestAuthLogging:
 
             with patch.object(auth_module, "logger") as mock_logger:
                 api_client.post(
-                    "/api/organization/add",
+                    "/api/v1/organization/add",
                     json={"name": "Test Org"},
                     headers={"X-API-Key": "test-api-token-12345"},
                 )
@@ -591,4 +591,4 @@ class TestAuthLogging:
                 ]
                 assert len(login_calls) > 0
                 call_args = login_calls[0][0]
-                assert "/api/organization/add" in str(call_args)
+                assert "/api/v1/organization/add" in str(call_args)

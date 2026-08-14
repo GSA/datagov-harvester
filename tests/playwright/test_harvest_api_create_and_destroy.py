@@ -21,7 +21,7 @@ class TestHarvestAPICreateAndDestroy:
             "id": org_id,
         }
         res = apage.request.post(
-            "/api/organization/add",
+            "/api/v1/organization/add",
             headers={
                 "X-API-Key": api_token,
                 "Content-Type": "application/json",
@@ -35,7 +35,7 @@ class TestHarvestAPICreateAndDestroy:
             == f"Added new organization with ID: {org_id}"
         )
         res = apage.request.delete(
-            f"/api/organization/{org_id}",
+            f"/api/v1/organization/{org_id}",
             headers={
                 "X-API-Key": api_token,
                 "Content-Type": "application/json",
@@ -58,7 +58,7 @@ class TestHarvestAPICreateAndDestroy:
             "id": org_id,
         }
         res = apage.request.post(
-            "/api/organization/add",
+            "/api/v1/organization/add",
             headers={
                 "X-API-Key": api_token,
                 "Content-Type": "application/json",
@@ -77,7 +77,7 @@ class TestHarvestAPICreateAndDestroy:
             "notification_frequency": "always",
         }
         res = apage.request.post(
-            "/api/harvest_source/add",
+            "/api/v1/harvest_source/add",
             headers={
                 "X-API-Key": api_token,
                 "Content-Type": "application/json",
@@ -91,7 +91,7 @@ class TestHarvestAPICreateAndDestroy:
             == f"Added new harvest source with ID: {source_id}. No job scheduled for manual source."
         )
         res = apage.request.delete(
-            f"/api/harvest_source/{source_id}",
+            f"/api/v1/harvest_source/{source_id}",
             headers={
                 "X-API-Key": api_token,
                 "Content-Type": "application/json",
