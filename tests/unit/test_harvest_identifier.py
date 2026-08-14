@@ -13,6 +13,7 @@ def harvest_source_for_identifier_filter(monkeypatch):
     source.id = "test-source-id"
     source.name = "Test Source"
     source.external_records = []
+    source.external_service_records = []
     source._db_interface = MagicMock()
     source._db_interface.add_harvest_record.return_value = MagicMock(
         id="error-record-id",
