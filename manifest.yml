@@ -53,6 +53,7 @@ applications:
   - <<: *harvest_app
     name: ((app_name))-next
     routes: []
+    instances: 0
     services:
       - ((harvest_service_name))-db
       - ((harvest_service_name))-secrets
