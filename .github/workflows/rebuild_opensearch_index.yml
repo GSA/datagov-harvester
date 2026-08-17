@@ -17,7 +17,7 @@ on:
   workflow_dispatch:
     inputs:
       confirm_staging_migration:
-        description: "Type resume-staging to reuse the retained replacement cluster"
+        description: "Type resume-staging to run the full staging rehearsal"
         required: true
         type: string
 
@@ -61,6 +61,10 @@ jobs:
     with:
       space: staging
       migrate_opensearch: true
-      resume_opensearch_migration: true
+      # Full end-to-end rehearsal: provision a fresh replacement cluster rather
+      # than reusing a retained one. Resume mode is only valid when a previous
+      # run stopped before promotion, and promotion renames the -next instance
+      # away, so resuming after a promoted run can never find it.
+      resume_opensearch_migration: false
       migration_prs: manual pre-merge staging rehearsal from ${{ github.ref_name }}
     secrets: inherit
