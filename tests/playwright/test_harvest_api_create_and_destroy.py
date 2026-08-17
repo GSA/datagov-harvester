@@ -28,12 +28,9 @@ class TestHarvestAPICreateAndDestroy:
             },
             data=fixture_org,
         )
-        assert res.status == 200
-        assert (
-            # ruff: noqa: E501
-            res.json()["message"]
-            == f"Added new organization with ID: {org_id}"
-        )
+        assert res.status == 201
+        # API now returns full org data, not just a message
+        assert res.json()["id"] == org_id
         res = apage.request.delete(
             f"/api/v1/organization/{org_id}",
             headers={

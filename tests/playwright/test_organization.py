@@ -33,7 +33,7 @@ class TestOrganizationUnauthed:
                 "Code repo URL",
                 "None",
                 "Code repo exempt",
-                "False",
+                "No",
                 "Aliases",
                 "testorg",
                 "ID",
