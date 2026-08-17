@@ -1644,6 +1644,7 @@ def sample_dataset():
     return SimpleNamespace(
         id="dataset-1",
         slug="dataset-1",
+        type="dataset",
         dcat={
             "title": "Dataset Title",
             "description": "Dataset description",
