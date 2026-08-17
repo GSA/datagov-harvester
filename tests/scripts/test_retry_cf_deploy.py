@@ -28,7 +28,14 @@ def _write_executable(path, contents):
     path.chmod(0o755)
 
 
-def _run(tmp_path, *, fail_times=0, fail_message="boom", fail_exit_code=1, **env_overrides):
+def _run(
+    tmp_path,
+    *,
+    fail_times=0,
+    fail_message="boom",
+    fail_exit_code=1,
+    **env_overrides,
+):
     fake_cf_push = tmp_path / "fake_cf_push.sh"
     _write_executable(fake_cf_push, FAKE_CF_PUSH)
     counter_file = tmp_path / "counter"
