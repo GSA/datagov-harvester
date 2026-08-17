@@ -69,6 +69,8 @@ class TestLoadManager:
         jobs = interface_no_jobs.get_new_harvest_jobs_in_past()
         assert len(jobs) == 2
         job = jobs[0]
+        job_id = job.id
+        harvest_source_id = job.harvest_source_id
         assert job.status == "new"
 
         load_manager = LoadManager()
@@ -86,22 +88,22 @@ class TestLoadManager:
         # assert command
         assert (
             start_task_mock.call_args.kwargs["command"]
-            == f"python harvester/harvest.py {job.id} harvest"
+            == f"python harvester/harvest.py {job_id} harvest"
         )
 
         # assert task_id
         assert (
-            start_task_mock.call_args.kwargs["name"] == f"harvest-job-{job.id}-harvest"
+            start_task_mock.call_args.kwargs["name"] == f"harvest-job-{job_id}-harvest"
         )
 
         # assert schedule_next_job ops
         future_job = interface_no_jobs.get_new_harvest_jobs_by_source_in_future(
-            job.harvest_source_id
+            harvest_source_id
         )[0]
 
-        harvest_source = interface_no_jobs.get_harvest_source(job.harvest_source_id)
+        harvest_source = interface_no_jobs.get_harvest_source(harvest_source_id)
 
-        assert future_job.harvest_source_id == job.harvest_source_id
+        assert future_job.harvest_source_id == harvest_source_id
         assert future_job.date_created == create_future_date(harvest_source.frequency)
 
     @patch("harvester.lib.load_manager.logger")

@@ -122,7 +122,8 @@ class LoadManager:
                     ):
                         logger.info(
                             f"Claimed job {job.id} was not started because another job "
-                            f"for the same source is already in progress. Resetting to new."
+                            f"for the same source is already in progress. "
+                            f"Resetting to new."
                         )
                         self._reset_claimed_job_to_new(job.id)
                         continue
