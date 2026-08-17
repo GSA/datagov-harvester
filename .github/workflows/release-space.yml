@@ -50,7 +50,7 @@ jobs:
 
       - name: Disable scheduled harvesting
         id: disable
-        if: inputs.migrate_opensearch && !inputs.resume_opensearch_migration
+        if: inputs.migrate_opensearch
         uses: cloud-gov/cg-cli-tools@main
         with:
           command: bin/set_harvest_runner_capacity.sh disable "$HARVEST_APP"
