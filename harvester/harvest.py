@@ -43,6 +43,7 @@ from harvester.utils.general_utils import (
     USER_AGENT,
     add_uuid_to_package_name,
     assemble_validation_errors,
+    backfill_catalog_record_identifiers,
     build_dcatus3_validator,
     dataset_to_hash,
     describe_identifier_error,
@@ -679,6 +680,13 @@ class HarvestSource:
                             record_type: config["extractor"](catalog)
                             for record_type, config in NON_DATASET_RECORD_TYPES.items()
                         }
+                        self.external_records_by_type["catalog_record"] = (
+                            backfill_catalog_record_identifiers(
+                                self.external_records_by_type.get(
+                                    "catalog_record", []
+                                )
+                            )
+                        )
                         self.external_records = merge_dcatus3_datasets(
                             extract_dcatus3_catalog_datasets(catalog),
                             extract_dcatus3_nested_datasets(

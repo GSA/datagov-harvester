@@ -511,6 +511,25 @@ def extract_dcatus3_catalog_records(catalog: dict) -> list:
     return _extract_dcatus3_catalog_objects(catalog, "record")
 
 
+def backfill_catalog_record_identifiers(records: list) -> list:
+    """
+    CatalogRecord's @id is optional per the DCAT-US3.0 schema (only
+    "modified" and "primaryTopic" are required), but harvester needs an
+    identifier to track a record across harvests. Give each @id-less
+    record a stable synthesized @id derived from its two required fields,
+    instead of dropping it as unharvestable.
+    """
+    backfilled = []
+    for record in records:
+        record = dict(record)
+        if normalize_dataset_identifier(record.get("@id")) is None:
+            basis = f"{record.get('primaryTopic')}|{record.get('modified')}"
+            digest = hashlib.sha256(basis.encode()).hexdigest()
+            record["@id"] = f"urn:datagov:catalogrecord:{digest}"
+        backfilled.append(record)
+    return backfilled
+
+
 def extract_dcatus3_catalog_dataset_series(catalog: dict) -> list:
     """
     recursively collect every DatasetSeries from a DCAT-US3 Catalog dict,
@@ -524,24 +543,23 @@ def extract_dcatus3_nested_datasets(
     parents: list, *fields: str, parent_identifier_field: str = "identifier"
 ) -> list:
     """
-    pull full inline Dataset objects out of [fields] on each dict in
+    Pull full inline Dataset objects out of [fields] on each dict in
     [parents], tagging each with "parent_identifier" set to the parent's own
-    identifier so the relationship isn't lost once the dataset is harvested
+    identifier so the relationship survives once the dataset is harvested
     on its own.
 
     DCAT-US3 lets several object types embed full Dataset objects rather
     than reference them by id: DataService.servesDataset, and
     DatasetSeries.seriesMember/first/last. This is the shared extraction
-    step for all of them -- callers pass the parent objects and which
+    step for all of them. Callers pass the parent objects and which
     field(s) on them hold nested datasets. parent_identifier_field selects
-    which key on the parent holds its own identifier: DatasetSeries (like
-    CatalogRecord) has no "identifier" field, only a top-level "@id".
+    which key on the parent holds its own identifier. DatasetSeries, like
+    CatalogRecord, has no "identifier" field, only a top-level "@id".
 
-    the same dataset can legitimately appear in more than one of [fields] on
+    The same dataset can legitimately appear in more than one of [fields] on
     the same parent (e.g. a DatasetSeries's "first" is typically also present
-    in "seriesMember") -- that's redundancy in the source data, not a
-    harvest-time duplicate-identifier error, so each parent only contributes
-    one copy per distinct identifier.
+    in "seriesMember"). This is redundant source data, so each parent
+    contributes only one copy per distinct identifier.
     """
     nested_datasets = []
 

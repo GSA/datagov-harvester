@@ -157,6 +157,9 @@ class TestExtract:
         source_data_dcatus3_0_record_no_id,
         job_data_dcatus3_0_record_no_id,
     ):
+        """A CatalogRecord's @id is optional per the DCAT-US3.0 schema -- one
+        missing @id gets a synthesized identifier instead of being dropped
+        as an error."""
         harvest_source = make_harvest_source(
             source_data_dcatus3_0_record_no_id,
             job_data_dcatus3_0_record_no_id,
@@ -166,14 +169,13 @@ class TestExtract:
 
         # the dataset is unaffected by the catalog record's missing @id
         assert len(harvest_source.external_records) == 1
-        assert len(harvest_source.external_records_by_type["catalog_record"]) == 0
+        assert len(harvest_source.external_records_by_type["catalog_record"]) == 1
+
+        record = harvest_source.external_records_by_type["catalog_record"][0]
+        assert record["@id"].startswith("urn:datagov:catalogrecord:")
 
         errors = interface.get_harvest_record_errors_by_job(harvest_source.job_id)
-        msg = (
-            "Test Source DCAT-US 3.0 (catalog record no @id) "
-            "Catalog Record Without An Id is missing '@id' field"
-        )
-        assert errors[0][0].message == msg
+        assert errors == []
 
     def test_extract_dcatus3_0_service_serves_dataset(
         self,

@@ -18,6 +18,7 @@ from harvester.utils.general_utils import (
     USER_AGENT,
     RetrySession,
     assemble_validation_errors,
+    backfill_catalog_record_identifiers,
     create_retry_session,
     describe_identifier_error,
     download_file,
@@ -826,6 +827,47 @@ class TestDcatus3Catalog:
 
         assert extract_dcatus3_catalog_datasets(catalog) == [{"identifier": "ds-1"}]
         assert extract_dcatus3_catalog_records(catalog) == [{"@id": "rec-1"}]
+
+
+class TestBackfillCatalogRecordIdentifiers:
+    def test_missing_id_gets_synthesized(self):
+        records = [{"primaryTopic": "ds-1", "modified": "2024-06-15"}]
+
+        result = backfill_catalog_record_identifiers(records)
+
+        assert result[0]["@id"].startswith("urn:datagov:catalogrecord:")
+
+    def test_existing_id_left_alone(self):
+        records = [{"@id": "https://example.gov/rec-1", "primaryTopic": "ds-1"}]
+
+        result = backfill_catalog_record_identifiers(records)
+
+        assert result[0]["@id"] == "https://example.gov/rec-1"
+
+    def test_synthesized_id_is_stable_for_same_content(self):
+        records = [{"primaryTopic": "ds-1", "modified": "2024-06-15"}]
+
+        first = backfill_catalog_record_identifiers(records)[0]["@id"]
+        second = backfill_catalog_record_identifiers(records)[0]["@id"]
+
+        assert first == second
+
+    def test_synthesized_id_differs_for_different_content(self):
+        a = backfill_catalog_record_identifiers(
+            [{"primaryTopic": "ds-1", "modified": "2024-06-15"}]
+        )[0]["@id"]
+        b = backfill_catalog_record_identifiers(
+            [{"primaryTopic": "ds-2", "modified": "2024-06-15"}]
+        )[0]["@id"]
+
+        assert a != b
+
+    def test_does_not_mutate_input(self):
+        records = [{"primaryTopic": "ds-1", "modified": "2024-06-15"}]
+
+        backfill_catalog_record_identifiers(records)
+
+        assert "@id" not in records[0]
 
 
 class TestExtractDcatus3NestedDatasets:
