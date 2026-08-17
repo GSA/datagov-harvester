@@ -444,6 +444,133 @@ def download_file(url: str, file_type: str) -> Union[str, dict]:
     raise Exception
 
 
+# DCAT-US 3.0 Catalog fields that are harvested as their own records rather
+# than stored inline on the catalog metadata.
+DCATUS3_CATALOG_HARVESTED_FIELDS = ("dataset", "service", "record", "datasetSeries")
+
+
+def strip_dcatus3_catalog_objects(catalog: dict) -> dict:
+    """
+    return a shallow copy of a DCAT-US3 Catalog dict with "dataset", "service",
+    "record", and "datasetSeries" removed, since those are harvested and stored
+    as their own records. nested catalogs (the "catalog" field) are cleaned the
+    same way, recursively, so their own metadata is preserved.
+    """
+    cleaned = {
+        key: value
+        for key, value in catalog.items()
+        if key not in DCATUS3_CATALOG_HARVESTED_FIELDS
+    }
+
+    if cleaned.get("catalog"):
+        cleaned["catalog"] = [
+            strip_dcatus3_catalog_objects(sub_catalog)
+            for sub_catalog in cleaned["catalog"]
+        ]
+
+    return cleaned
+
+
+def _extract_dcatus3_catalog_objects(catalog: dict, field: str) -> list:
+    """
+    recursively collect every entry of [field] ("dataset" or "service") from a
+    DCAT-US3 Catalog dict, including entries nested arbitrarily deep within
+    its "catalog" (sub-catalog) field.
+    """
+    objects = list(catalog.get(field) or [])
+
+    for sub_catalog in catalog.get("catalog") or []:
+        objects.extend(_extract_dcatus3_catalog_objects(sub_catalog, field))
+
+    return objects
+
+
+def extract_dcatus3_catalog_datasets(catalog: dict) -> list:
+    """
+    recursively collect every dataset from a DCAT-US3 Catalog dict, including
+    datasets nested arbitrarily deep within its "catalog" (sub-catalog) field.
+    """
+    return _extract_dcatus3_catalog_objects(catalog, "dataset")
+
+
+def extract_dcatus3_catalog_services(catalog: dict) -> list:
+    """
+    recursively collect every DataService from a DCAT-US3 Catalog dict,
+    including services nested arbitrarily deep within its "catalog"
+    (sub-catalog) field.
+    """
+    return _extract_dcatus3_catalog_objects(catalog, "service")
+
+
+def extract_dcatus3_catalog_records(catalog: dict) -> list:
+    """
+    recursively collect every CatalogRecord from a DCAT-US3 Catalog dict,
+    including records nested arbitrarily deep within its "catalog"
+    (sub-catalog) field.
+    """
+    return _extract_dcatus3_catalog_objects(catalog, "record")
+
+
+def extract_dcatus3_catalog_dataset_series(catalog: dict) -> list:
+    """
+    recursively collect every DatasetSeries from a DCAT-US3 Catalog dict,
+    including series nested arbitrarily deep within its "catalog"
+    (sub-catalog) field.
+    """
+    return _extract_dcatus3_catalog_objects(catalog, "datasetSeries")
+
+
+def extract_dcatus3_nested_datasets(
+    parents: list, *fields: str, parent_identifier_field: str = "identifier"
+) -> list:
+    """
+    pull full inline Dataset objects out of [fields] on each dict in
+    [parents], tagging each with "parent_identifier" set to the parent's own
+    identifier so the relationship isn't lost once the dataset is harvested
+    on its own.
+
+    DCAT-US3 lets several object types embed full Dataset objects rather
+    than reference them by id: DataService.servesDataset, and
+    DatasetSeries.seriesMember/first/last. This is the shared extraction
+    step for all of them -- callers pass the parent objects and which
+    field(s) on them hold nested datasets. parent_identifier_field selects
+    which key on the parent holds its own identifier: DatasetSeries (like
+    CatalogRecord) has no "identifier" field, only a top-level "@id".
+
+    the same dataset can legitimately appear in more than one of [fields] on
+    the same parent (e.g. a DatasetSeries's "first" is typically also present
+    in "seriesMember") -- that's redundancy in the source data, not a
+    harvest-time duplicate-identifier error, so each parent only contributes
+    one copy per distinct identifier.
+    """
+    nested_datasets = []
+
+    for parent in parents:
+        parent_identifier = normalize_dataset_identifier(
+            parent.get(parent_identifier_field)
+        )
+        seen_identifiers = set()
+        for field in fields:
+            value = parent.get(field)
+            if value is None:
+                continue
+            candidates = value if isinstance(value, list) else [value]
+            for dataset in candidates:
+                dataset_identifier = normalize_dataset_identifier(
+                    dataset.get("identifier")
+                )
+                if dataset_identifier is not None:
+                    if dataset_identifier in seen_identifiers:
+                        continue
+                    seen_identifiers.add(dataset_identifier)
+
+                dataset = dict(dataset)
+                dataset["parent_identifier"] = parent_identifier
+                nested_datasets.append(dataset)
+
+    return nested_datasets
+
+
 def make_record_mapping(record):
     """Helper to make a Harvest record dict"""
 
@@ -456,6 +583,7 @@ def make_record_mapping(record):
         "action": record.action,
         "ckan_id": record.ckan_id,
         "parent_identifier": record.parent_identifier,
+        "record_type": record.record_type,
     }
 
 
@@ -476,18 +604,18 @@ def normalize_dataset_identifier(identifier) -> str | None:
     return None
 
 
-def describe_identifier_error(identifier) -> str:
+def describe_identifier_error(identifier, field: str = "identifier") -> str:
     """Describe why an identifier cannot be used for harvesting."""
     if identifier is None:
-        return "is missing 'identifier' field"
+        return f"is missing '{field}' field"
     if isinstance(identifier, str) and not identifier.strip():
-        return "is missing 'identifier' field"
+        return f"is missing '{field}' field"
     if isinstance(identifier, dict):
-        return "has an object 'identifier' with no usable '@id' field"
-    return "has an invalid 'identifier' field"
+        return f"has an object '{field}' with no usable '@id' field"
+    return f"has an invalid '{field}' field"
 
 
-def find_indexes_for_duplicates(records: list):
+def find_indexes_for_duplicates(records: list, identifier_field: str = "identifier"):
     """
     output is a list of integers representing element positions of
     duplicates records. this list is then used to record duplicate
@@ -495,6 +623,9 @@ def find_indexes_for_duplicates(records: list):
     sorting it in reverse (.sort edits in place) places the largest
     numbers first. this is necessary to avoid index shifting
     when you're deleting from a list.
+
+    identifier_field selects which key holds the record's identifier value.
+    CatalogRecord objects have no "identifier" field, only a top-level "@id".
 
     scenario without sorting output
         positions = [ 1, 3 ]
@@ -506,7 +637,7 @@ def find_indexes_for_duplicates(records: list):
     seen = set()
     output = []
     for i in range(len(records)):
-        identifier = normalize_dataset_identifier(records[i].get("identifier"))
+        identifier = normalize_dataset_identifier(records[i].get(identifier_field))
         if identifier in seen:
             output.append(i)
         seen.add(identifier)

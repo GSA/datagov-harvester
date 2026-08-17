@@ -22,6 +22,10 @@ from harvester.utils.general_utils import (
     describe_identifier_error,
     download_file,
     dynamic_map_list_items_to_dict,
+    extract_dcatus3_catalog_datasets,
+    extract_dcatus3_catalog_records,
+    extract_dcatus3_catalog_services,
+    extract_dcatus3_nested_datasets,
     find_indexes_for_duplicates,
     get_waf_datetimes,
     is_valid_uuid4,
@@ -32,6 +36,7 @@ from harvester.utils.general_utils import (
     prepare_distributions,
     prepare_transform_msg,
     process_job_complete_percentage,
+    strip_dcatus3_catalog_objects,
     translate_spatial,
     translate_spatial_to_geojson,
     validate_geojson,
@@ -654,6 +659,309 @@ class TestGeneralUtils:
 
         # the mediatype isn't in RESOURCE_MAPPING so format shouldn't exist
         "format" not in prepared_dcatus_doc["distribution"][-1]
+
+
+class TestDcatus3Catalog:
+    def test_strip_dcatus3_catalog_objects_removes_harvested_fields(self):
+        catalog = {
+            "@type": "Catalog",
+            "title": "Test Catalog",
+            "dataset": [{"identifier": "ds-1"}],
+            "service": [{"identifier": "svc-1"}],
+            "record": [{"identifier": "rec-1"}],
+            "datasetSeries": [{"identifier": "series-1"}],
+        }
+
+        stripped = strip_dcatus3_catalog_objects(catalog)
+
+        assert stripped == {"@type": "Catalog", "title": "Test Catalog"}
+        # original is untouched
+        assert "dataset" in catalog
+
+    def test_strip_dcatus3_catalog_objects_recurses_into_nested_catalogs(self):
+        catalog = {
+            "title": "Parent Catalog",
+            "dataset": [{"identifier": "parent-ds"}],
+            "catalog": [
+                {
+                    "title": "Child Catalog",
+                    "dataset": [{"identifier": "child-ds"}],
+                    "catalog": [
+                        {
+                            "title": "Grandchild Catalog",
+                            "dataset": [{"identifier": "grandchild-ds"}],
+                        }
+                    ],
+                }
+            ],
+        }
+
+        stripped = strip_dcatus3_catalog_objects(catalog)
+
+        assert stripped == {
+            "title": "Parent Catalog",
+            "catalog": [
+                {
+                    "title": "Child Catalog",
+                    "catalog": [{"title": "Grandchild Catalog"}],
+                }
+            ],
+        }
+
+    def test_extract_dcatus3_catalog_datasets_flat(self):
+        catalog = {"dataset": [{"identifier": "ds-1"}, {"identifier": "ds-2"}]}
+
+        assert extract_dcatus3_catalog_datasets(catalog) == [
+            {"identifier": "ds-1"},
+            {"identifier": "ds-2"},
+        ]
+
+    def test_extract_dcatus3_catalog_datasets_recurses_arbitrarily_deep(self):
+        catalog = {
+            "dataset": [{"identifier": "parent-ds"}],
+            "catalog": [
+                {
+                    "dataset": [{"identifier": "child-ds"}],
+                    "catalog": [
+                        {"dataset": [{"identifier": "grandchild-ds"}]},
+                    ],
+                }
+            ],
+        }
+
+        assert extract_dcatus3_catalog_datasets(catalog) == [
+            {"identifier": "parent-ds"},
+            {"identifier": "child-ds"},
+            {"identifier": "grandchild-ds"},
+        ]
+
+    def test_extract_dcatus3_catalog_datasets_missing_fields(self):
+        assert extract_dcatus3_catalog_datasets({}) == []
+        assert extract_dcatus3_catalog_datasets({"catalog": None}) == []
+        assert extract_dcatus3_catalog_datasets({"dataset": None}) == []
+
+    def test_extract_dcatus3_catalog_services_flat(self):
+        catalog = {"service": [{"identifier": "svc-1"}, {"identifier": "svc-2"}]}
+
+        assert extract_dcatus3_catalog_services(catalog) == [
+            {"identifier": "svc-1"},
+            {"identifier": "svc-2"},
+        ]
+
+    def test_extract_dcatus3_catalog_services_recurses_arbitrarily_deep(self):
+        catalog = {
+            "service": [{"identifier": "parent-svc"}],
+            "catalog": [
+                {
+                    "service": [{"identifier": "child-svc"}],
+                    "catalog": [
+                        {"service": [{"identifier": "grandchild-svc"}]},
+                    ],
+                }
+            ],
+        }
+
+        assert extract_dcatus3_catalog_services(catalog) == [
+            {"identifier": "parent-svc"},
+            {"identifier": "child-svc"},
+            {"identifier": "grandchild-svc"},
+        ]
+
+    def test_extract_dcatus3_catalog_services_missing_fields(self):
+        assert extract_dcatus3_catalog_services({}) == []
+        assert extract_dcatus3_catalog_services({"catalog": None}) == []
+        assert extract_dcatus3_catalog_services({"service": None}) == []
+
+    def test_extract_dcatus3_catalog_services_independent_of_datasets(self):
+        """A catalog with both dataset and service arrays extracts each
+        independently of the other."""
+        catalog = {
+            "dataset": [{"identifier": "ds-1"}],
+            "service": [{"identifier": "svc-1"}],
+        }
+
+        assert extract_dcatus3_catalog_datasets(catalog) == [{"identifier": "ds-1"}]
+        assert extract_dcatus3_catalog_services(catalog) == [{"identifier": "svc-1"}]
+
+    def test_extract_dcatus3_catalog_records_flat(self):
+        catalog = {"record": [{"@id": "rec-1"}, {"@id": "rec-2"}]}
+
+        assert extract_dcatus3_catalog_records(catalog) == [
+            {"@id": "rec-1"},
+            {"@id": "rec-2"},
+        ]
+
+    def test_extract_dcatus3_catalog_records_recurses_arbitrarily_deep(self):
+        catalog = {
+            "record": [{"@id": "parent-rec"}],
+            "catalog": [
+                {
+                    "record": [{"@id": "child-rec"}],
+                    "catalog": [
+                        {"record": [{"@id": "grandchild-rec"}]},
+                    ],
+                }
+            ],
+        }
+
+        assert extract_dcatus3_catalog_records(catalog) == [
+            {"@id": "parent-rec"},
+            {"@id": "child-rec"},
+            {"@id": "grandchild-rec"},
+        ]
+
+    def test_extract_dcatus3_catalog_records_missing_fields(self):
+        assert extract_dcatus3_catalog_records({}) == []
+        assert extract_dcatus3_catalog_records({"catalog": None}) == []
+        assert extract_dcatus3_catalog_records({"record": None}) == []
+
+    def test_extract_dcatus3_catalog_records_independent_of_datasets(self):
+        """A catalog with both dataset and record arrays extracts each
+        independently of the other."""
+        catalog = {
+            "dataset": [{"identifier": "ds-1"}],
+            "record": [{"@id": "rec-1"}],
+        }
+
+        assert extract_dcatus3_catalog_datasets(catalog) == [{"identifier": "ds-1"}]
+        assert extract_dcatus3_catalog_records(catalog) == [{"@id": "rec-1"}]
+
+
+class TestExtractDcatus3NestedDatasets:
+    def test_uses_custom_parent_identifier_field(self):
+        """DatasetSeries (like CatalogRecord) has no "identifier" field,
+        only a top-level "@id"."""
+        parents = [
+            {
+                "@id": "series-1",
+                "seriesMember": [{"identifier": "ds-1"}],
+            }
+        ]
+
+        result = extract_dcatus3_nested_datasets(
+            parents, "seriesMember", parent_identifier_field="@id"
+        )
+
+        assert result == [{"identifier": "ds-1", "parent_identifier": "series-1"}]
+
+    def test_extracts_single_field(self):
+        parents = [
+            {
+                "identifier": "svc-1",
+                "servesDataset": [
+                    {"identifier": "ds-1"},
+                    {"identifier": "ds-2"},
+                ],
+            }
+        ]
+
+        result = extract_dcatus3_nested_datasets(parents, "servesDataset")
+
+        assert result == [
+            {"identifier": "ds-1", "parent_identifier": "svc-1"},
+            {"identifier": "ds-2", "parent_identifier": "svc-1"},
+        ]
+
+    def test_extracts_multiple_fields_including_singular_ones(self):
+        """DatasetSeries has seriesMember (a list) plus first/last (single
+        objects, not lists) -- all three should be pulled out."""
+        parents = [
+            {
+                "identifier": "series-1",
+                "seriesMember": [{"identifier": "ds-2"}],
+                "first": {"identifier": "ds-1"},
+                "last": {"identifier": "ds-3"},
+            }
+        ]
+
+        result = extract_dcatus3_nested_datasets(
+            parents, "seriesMember", "first", "last"
+        )
+
+        assert {d["identifier"] for d in result} == {"ds-1", "ds-2", "ds-3"}
+        assert all(d["parent_identifier"] == "series-1" for d in result)
+
+    def test_missing_fields_produce_nothing(self):
+        parents = [{"identifier": "svc-1"}]
+
+        assert extract_dcatus3_nested_datasets(parents, "servesDataset") == []
+
+    def test_multiple_parents_each_tagged_with_their_own_identifier(self):
+        parents = [
+            {"identifier": "svc-1", "servesDataset": [{"identifier": "ds-1"}]},
+            {"identifier": "svc-2", "servesDataset": [{"identifier": "ds-2"}]},
+        ]
+
+        result = extract_dcatus3_nested_datasets(parents, "servesDataset")
+
+        assert result == [
+            {"identifier": "ds-1", "parent_identifier": "svc-1"},
+            {"identifier": "ds-2", "parent_identifier": "svc-2"},
+        ]
+
+    def test_does_not_mutate_original_dataset_dicts(self):
+        original_dataset = {"identifier": "ds-1"}
+        parents = [{"identifier": "svc-1", "servesDataset": [original_dataset]}]
+
+        extract_dcatus3_nested_datasets(parents, "servesDataset")
+
+        assert "parent_identifier" not in original_dataset
+
+    def test_dedupes_same_identifier_across_fields_on_one_parent(self):
+        """A DatasetSeries's "first"/"last" are typically also present in
+        "seriesMember" -- that's redundant source data, not a
+        duplicate-identifier error, so only one copy should survive per
+        parent."""
+        parents = [
+            {
+                "identifier": "series-1",
+                "seriesMember": [
+                    {"identifier": "ds-1", "title": "First title seen"},
+                    {"identifier": "ds-2"},
+                ],
+                "first": {
+                    "identifier": "ds-1",
+                    "title": "Redundant, should be dropped",
+                },
+            }
+        ]
+
+        result = extract_dcatus3_nested_datasets(
+            parents, "seriesMember", "first", "last"
+        )
+
+        assert [d["identifier"] for d in result] == ["ds-1", "ds-2"]
+        assert result[0]["title"] == "First title seen"
+
+    def test_does_not_dedupe_missing_identifiers_across_datasets(self):
+        """Datasets with no usable identifier must each be kept (and later
+        flagged individually as missing an identifier), not collapsed into
+        one just because they all normalize to None."""
+        parents = [
+            {
+                "identifier": "series-1",
+                "seriesMember": [{"title": "No id one"}, {"title": "No id two"}],
+            }
+        ]
+
+        result = extract_dcatus3_nested_datasets(parents, "seriesMember")
+
+        assert len(result) == 2
+
+    def test_same_identifier_across_different_parents_not_deduped(self):
+        """Overlapping identifiers across different parents are a real
+        cross-source ambiguity, not the same kind of intra-parent
+        redundancy, so both copies should be kept for the normal
+        duplicate-identifier filter to catch."""
+        parents = [
+            {"identifier": "svc-1", "servesDataset": [{"identifier": "ds-1"}]},
+            {"identifier": "svc-2", "servesDataset": [{"identifier": "ds-1"}]},
+        ]
+
+        result = extract_dcatus3_nested_datasets(parents, "servesDataset")
+
+        assert len(result) == 2
+        assert {d["parent_identifier"] for d in result} == {"svc-1", "svc-2"}
 
 
 class TestRetrySession:

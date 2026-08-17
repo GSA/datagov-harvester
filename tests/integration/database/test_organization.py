@@ -53,3 +53,59 @@ def test_delete_organization(interface, organization_data):
         "Deleted organization with ID:d925f84d-955b-4cb7-812f-dcfd6681a18f successfully",
         200,
     )
+
+
+def test_organization_code_repo_url_field_exists(interface, organization_data):
+    """Test that Organization model has code_repo_url field"""
+    org = interface.add_organization(organization_data)
+
+    # Should be able to access the field (will be None initially)
+    assert hasattr(org, "code_repo_url")
+    assert org.code_repo_url is None
+
+
+def test_organization_code_repo_exempt_field_exists(interface, organization_data):
+    """Test that Organization model has code_repo_exempt field"""
+    org = interface.add_organization(organization_data)
+
+    # Should be able to access the field (will default to False)
+    assert hasattr(org, "code_repo_exempt")
+    assert org.code_repo_exempt is False
+
+
+def test_add_organization_with_code_repo_url(interface, organization_data):
+    """Test adding an organization with a code repository URL"""
+    organization_data["code_repo_url"] = "https://github.com/GSA"
+    org = interface.add_organization(organization_data)
+
+    assert org.code_repo_url == "https://github.com/GSA"
+    assert org.code_repo_exempt is False
+
+
+def test_add_organization_with_code_repo_exempt(interface, organization_data):
+    """Test adding an organization marked as exempt"""
+    organization_data["code_repo_exempt"] = True
+    org = interface.add_organization(organization_data)
+
+    assert org.code_repo_url is None
+    assert org.code_repo_exempt is True
+
+
+def test_update_organization_code_repo_url(interface, organization_data):
+    """Test updating an organization's code repository URL"""
+    org = interface.add_organization(organization_data)
+
+    updates = {"code_repo_url": "https://github.com/GSA"}
+    updated_org = interface.update_organization(org.id, updates)
+
+    assert updated_org.code_repo_url == "https://github.com/GSA"
+
+
+def test_update_organization_code_repo_exempt(interface, organization_data):
+    """Test updating an organization's exemption status"""
+    org = interface.add_organization(organization_data)
+
+    updates = {"code_repo_exempt": True}
+    updated_org = interface.update_organization(org.id, updates)
+
+    assert updated_org.code_repo_exempt is True

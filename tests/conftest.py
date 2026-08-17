@@ -241,6 +241,21 @@ def source_data_dcatus3_0_invalid(organization_data: dict) -> dict:
 
 
 @pytest.fixture
+def source_data_dcatus3_0_nested_catalog(organization_data: dict) -> dict:
+    return {
+        "id": "0d3d6d0d-6b6a-4b5e-9d6a-8f9b1a7c9d1e",
+        "name": "Test Source DCAT-US 3.0 (nested catalog)",
+        "notification_emails": ["email@example.com"],
+        "organization_id": organization_data["id"],
+        "frequency": "daily",
+        "url": f"{HARVEST_SOURCE_URL}/dcatus/dcatus3_0_nested_catalog.json",
+        "schema_type": "dcatus3.0",
+        "source_type": "document",
+        "notification_frequency": "always",
+    }
+
+
+@pytest.fixture
 def source_data_dcatus3_0_no_identifier(organization_data: dict) -> dict:
     return {
         "id": "7f8a2c1e-4d5b-4a9f-8e6c-1b2d3e4f5a6b",
@@ -264,6 +279,93 @@ def source_data_dcatus3_0_warning(organization_data: dict) -> dict:
         "organization_id": organization_data["id"],
         "frequency": "daily",
         "url": f"{HARVEST_SOURCE_URL}/dcatus/dcatus3_0_warning.json",
+        "schema_type": "dcatus3.0",
+        "source_type": "document",
+        "notification_frequency": "always",
+    }
+def source_data_dcatus3_0_with_services(organization_data: dict) -> dict:
+    return {
+        "id": "a2c4e6f8-1234-4567-89ab-cdef01234567",
+        "name": "Test Source DCAT-US 3.0 (with services)",
+        "notification_emails": ["email@example.com"],
+        "organization_id": organization_data["id"],
+        "frequency": "daily",
+        "url": f"{HARVEST_SOURCE_URL}/dcatus/dcatus3_0_with_services.json",
+        "schema_type": "dcatus3.0",
+        "source_type": "document",
+        "notification_frequency": "always",
+    }
+
+
+@pytest.fixture
+def source_data_dcatus3_0_service_no_identifier(organization_data: dict) -> dict:
+    return {
+        "id": "b3d5f7a9-2345-4678-9abc-def012345678",
+        "name": "Test Source DCAT-US 3.0 (service no identifier)",
+        "notification_emails": ["email@example.com"],
+        "organization_id": organization_data["id"],
+        "frequency": "daily",
+        "url": f"{HARVEST_SOURCE_URL}/dcatus/dcatus3_0_service_no_identifier.json",
+        "schema_type": "dcatus3.0",
+        "source_type": "document",
+        "notification_frequency": "always",
+    }
+
+
+@pytest.fixture
+def source_data_dcatus3_0_with_records(organization_data: dict) -> dict:
+    return {
+        "id": "c5e7a9b1-4567-489a-bcde-f01234567891",
+        "name": "Test Source DCAT-US 3.0 (with catalog records)",
+        "notification_emails": ["email@example.com"],
+        "organization_id": organization_data["id"],
+        "frequency": "daily",
+        "url": f"{HARVEST_SOURCE_URL}/dcatus/dcatus3_0_with_records.json",
+        "schema_type": "dcatus3.0",
+        "source_type": "document",
+        "notification_frequency": "always",
+    }
+
+
+@pytest.fixture
+def source_data_dcatus3_0_record_no_id(organization_data: dict) -> dict:
+    return {
+        "id": "d6f8b0c2-5678-49ab-cdef-012345678912",
+        "name": "Test Source DCAT-US 3.0 (catalog record no @id)",
+        "notification_emails": ["email@example.com"],
+        "organization_id": organization_data["id"],
+        "frequency": "daily",
+        "url": f"{HARVEST_SOURCE_URL}/dcatus/dcatus3_0_record_no_id.json",
+        "schema_type": "dcatus3.0",
+        "source_type": "document",
+        "notification_frequency": "always",
+    }
+
+
+@pytest.fixture
+def source_data_dcatus3_0_service_serves_dataset(organization_data: dict) -> dict:
+    return {
+        "id": "e8a0c2d4-6789-4abc-def0-123456789012",
+        "name": "Test Source DCAT-US 3.0 (service serves dataset)",
+        "notification_emails": ["email@example.com"],
+        "organization_id": organization_data["id"],
+        "frequency": "daily",
+        "url": f"{HARVEST_SOURCE_URL}/dcatus/dcatus3_0_service_serves_dataset.json",
+        "schema_type": "dcatus3.0",
+        "source_type": "document",
+        "notification_frequency": "always",
+    }
+
+
+@pytest.fixture
+def source_data_dcatus3_0_series_with_members(organization_data: dict) -> dict:
+    return {
+        "id": "f0b1c3d5-7890-4bcd-ef01-234567890124",
+        "name": "Test Source DCAT-US 3.0 (series with members)",
+        "notification_emails": ["email@example.com"],
+        "organization_id": organization_data["id"],
+        "frequency": "daily",
+        "url": f"{HARVEST_SOURCE_URL}/dcatus/dcatus3_0_series_with_members.json",
         "schema_type": "dcatus3.0",
         "source_type": "document",
         "notification_frequency": "always",
@@ -551,6 +653,17 @@ def job_data_dcatus3_0(source_data_dcatus3_0: dict) -> dict:
 
 
 @pytest.fixture
+def job_data_dcatus3_0_nested_catalog(
+    source_data_dcatus3_0_nested_catalog: dict,
+) -> dict:
+    return {
+        "id": "1f2e3d4c-5b6a-7980-8f1e-2d3c4b5a6978",
+        "status": "new",
+        "harvest_source_id": source_data_dcatus3_0_nested_catalog["id"],
+    }
+
+
+@pytest.fixture
 def job_data_dcatus3_0_invalid(source_data_dcatus3_0_invalid: dict) -> dict:
     return {
         "id": "1b3c74e2-71d9-460b-bfcf-5e96c1ab345f",
@@ -574,6 +687,71 @@ def job_data_dcatus3_0_warning(source_data_dcatus3_0_warning: dict) -> dict:
         "id": "e5f6a7b8-c9d0-4e1f-8a2b-3c4d5e6f7a8b",
         "status": "new",
         "harvest_source_id": source_data_dcatus3_0_warning["id"],
+    }
+
+
+def job_data_dcatus3_0_with_services(
+    source_data_dcatus3_0_with_services: dict,
+) -> dict:
+    return {
+        "id": "c4e6a8b0-3456-4789-abcd-ef0123456789",
+        "status": "new",
+        "harvest_source_id": source_data_dcatus3_0_with_services["id"],
+    }
+
+
+@pytest.fixture
+def job_data_dcatus3_0_service_no_identifier(
+    source_data_dcatus3_0_service_no_identifier: dict,
+) -> dict:
+    return {
+        "id": "d5f7b9a1-4567-489a-bcde-f01234567890",
+        "status": "new",
+        "harvest_source_id": source_data_dcatus3_0_service_no_identifier["id"],
+    }
+
+
+@pytest.fixture
+def job_data_dcatus3_0_with_records(
+    source_data_dcatus3_0_with_records: dict,
+) -> dict:
+    return {
+        "id": "e7a9c1d3-6789-4abc-def0-123456789123",
+        "status": "new",
+        "harvest_source_id": source_data_dcatus3_0_with_records["id"],
+    }
+
+
+@pytest.fixture
+def job_data_dcatus3_0_record_no_id(
+    source_data_dcatus3_0_record_no_id: dict,
+) -> dict:
+    return {
+        "id": "f8b0d2e4-789a-4bcd-ef01-234567891234",
+        "status": "new",
+        "harvest_source_id": source_data_dcatus3_0_record_no_id["id"],
+    }
+
+
+@pytest.fixture
+def job_data_dcatus3_0_service_serves_dataset(
+    source_data_dcatus3_0_service_serves_dataset: dict,
+) -> dict:
+    return {
+        "id": "f9b1d3e5-789a-4bcd-ef01-234567890123",
+        "status": "new",
+        "harvest_source_id": source_data_dcatus3_0_service_serves_dataset["id"],
+    }
+
+
+@pytest.fixture
+def job_data_dcatus3_0_series_with_members(
+    source_data_dcatus3_0_series_with_members: dict,
+) -> dict:
+    return {
+        "id": "a1c2e4f6-8901-4cde-f012-345678901235",
+        "status": "new",
+        "harvest_source_id": source_data_dcatus3_0_series_with_members["id"],
     }
 
 

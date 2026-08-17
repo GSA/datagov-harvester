@@ -231,28 +231,45 @@ class HarvesterDBInterface:
             self.db.rollback()
             return None
 
-    def delete_harvest_source(self, source_id):
+    def can_delete_harvest_source(self, source_id):
+        """Return whether a harvest source may be deleted.
+
+        Returns:
+            tuple[bool, str | None, int]: ``(ok, message, status)``.
+            When ``ok`` is True, ``message`` is None and ``status`` is 200.
+            When ``ok`` is False, ``message`` explains why and ``status`` is
+            404 (missing) or 409 (live records remain; clear first).
+        """
         source = self.db.get(HarvestSource, source_id)
         if source is None:
-            return "Harvest source not found"
+            return False, "Harvest source not found", 404
 
         record_count = self.get_latest_harvest_records_by_source_orm(
             source_id, synced=True, count=True
         )
 
         if record_count == 0:
-            self.db.delete(source)
-            self.db.commit()
-            return (
-                f"Deleted harvest source with ID:{source_id} successfully",
-                200,
-            )
-        else:
-            # ruff: noqa: E501
-            return (
-                f"Failed: {record_count} records in the Harvest source, please clear it first.",
-                409,
-            )
+            return True, None, 200
+
+        # ruff: noqa: E501
+        return (
+            False,
+            f"Failed: {record_count} records in the Harvest source, please clear it first.",
+            409,
+        )
+
+    def delete_harvest_source(self, source_id):
+        ok, message, status = self.can_delete_harvest_source(source_id)
+        if not ok:
+            return message, status
+
+        source = self.db.get(HarvestSource, source_id)
+        self.db.delete(source)
+        self.db.commit()
+        return (
+            f"Deleted harvest source with ID:{source_id} successfully",
+            200,
+        )
 
     ## HARVEST JOB
     def add_harvest_job(self, job_data):
@@ -868,12 +885,18 @@ class HarvesterDBInterface:
         an older version of a harvest record is used as the dataset when a newer successful
         one exists
 
+        scoped to record_type == "dataset": other types never get a dataset
+        row, so they'd otherwise show up as permanently "missing".
+
         context: https://github.com/GSA/data.gov/issues/5883
         """
 
         subq = (
             self.db.query(HarvestRecord)
-            .filter(HarvestRecord.status == "success")
+            .filter(
+                HarvestRecord.status == "success",
+                HarvestRecord.record_type == "dataset",
+            )
             .order_by(
                 HarvestRecord.identifier,
                 HarvestRecord.harvest_source_id,
@@ -922,9 +945,14 @@ class HarvesterDBInterface:
             .order_by(
                 HarvestRecord.identifier,
                 HarvestRecord.harvest_source_id,
+                HarvestRecord.record_type,
                 desc(HarvestRecord.date_created),
             )
-            .distinct(HarvestRecord.identifier, HarvestRecord.harvest_source_id)
+            .distinct(
+                HarvestRecord.identifier,
+                HarvestRecord.harvest_source_id,
+                HarvestRecord.record_type,
+            )
             .subquery()
         )
 
@@ -945,6 +973,8 @@ class HarvesterDBInterface:
         :param string source_id - id for harvest source
         :param bool synced - only return records with ckan_id
 
+        dedups on (identifier, record_type) so a Dataset and a DataService
+        sharing an identifier don't collide.
         """
         # datetimes are returned as datetime objs not strs
         queries = [
@@ -954,10 +984,18 @@ class HarvesterDBInterface:
 
         if kwargs.get("count") is True:
             subq = (
-                self.db.query(HarvestRecord.identifier, HarvestRecord.action)
+                self.db.query(
+                    HarvestRecord.identifier,
+                    HarvestRecord.record_type,
+                    HarvestRecord.action,
+                )
                 .filter(*queries)
-                .order_by(HarvestRecord.identifier, desc(HarvestRecord.date_created))
-                .distinct(HarvestRecord.identifier)
+                .order_by(
+                    HarvestRecord.identifier,
+                    HarvestRecord.record_type,
+                    desc(HarvestRecord.date_created),
+                )
+                .distinct(HarvestRecord.identifier, HarvestRecord.record_type)
                 .subquery()
             )
             return self.db.query(subq.c.identifier).filter(subq.c.action != "delete")
@@ -965,14 +1003,19 @@ class HarvesterDBInterface:
         subq = (
             self.db.query(HarvestRecord)
             .filter(*queries)
-            .order_by(HarvestRecord.identifier, desc(HarvestRecord.date_created))
-            .distinct(HarvestRecord.identifier)
+            .order_by(
+                HarvestRecord.identifier,
+                HarvestRecord.record_type,
+                desc(HarvestRecord.date_created),
+            )
+            .distinct(HarvestRecord.identifier, HarvestRecord.record_type)
             .subquery()
         )
         sq_alias = aliased(HarvestRecord, subq)
 
         columns = [
             sq_alias.identifier,
+            sq_alias.record_type,
             sq_alias.source_hash,
             sq_alias.ckan_id,
             sq_alias.date_created,

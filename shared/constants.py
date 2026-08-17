@@ -39,6 +39,8 @@ ORGANIZATION_TYPE_SELECT_CHOICES = [
 
 RECORD_STATUS_VALUES = ["error", "success", "dataset_pending"]
 
+RECORD_TYPE_VALUES = ["dataset", "data_service", "catalog_record", "data_series"]
+
 SEVERITY_VALUES = ["error", "warning"]
 
 SCHEMA_TYPE_VALUES = [
@@ -59,6 +61,7 @@ __all__ = [
     "ORGANIZATION_TYPE_VALUES",
     "ORGANIZATION_TYPE_SELECT_CHOICES",
     "RECORD_STATUS_VALUES",
+    "RECORD_TYPE_VALUES",
     "SEVERITY_VALUES",
     "SCHEMA_TYPE_VALUES",
     "SOURCE_TYPE_VALUES",

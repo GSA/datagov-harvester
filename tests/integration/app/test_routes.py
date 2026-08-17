@@ -35,13 +35,14 @@ class TestDynamicRouteTable:
         record_error_data,
         dataset_data,
     ):
-        # dont test flask internal or auth routes
+        # dont test flask internal, auth, or the versionless redirect routes
         whitelisted_routes = [
             "static",
             "main.login",
             "main.login_oidc",
             "main.logout",
             "main.callback",
+            "api_latest_redirect",
         ]
         # provide a special assertions regex map for routes which do something special
         special_assertion_map = {
@@ -51,7 +52,7 @@ class TestDynamicRouteTable:
                     "location": "/organization_list/",
                 },
             },
-            r"((main|api)\.(add|edit|cancel|update|delete|trigger)_(organization|harvest_source|harvest_job|harvest_record))": {
+            r"((main|api|api_v1)\.(add|edit|cancel|update|delete|trigger)_(organization|harvest_source|harvest_job|harvest_record))": {
                 "(POST|HEAD|PUT|DELETE)": {
                     "status_code": 302,
                     "location": LOCATION_ENUMS["LOGIN"],
@@ -153,14 +154,14 @@ class TestDynamicRouteTable:
 
     def test_client_response_on_error(self, client):
         # ignore routes which aren't public GETS and don't accept args
-        whitelisted_route_regex = r"((main|api)?(?:\.)?(add|edit|cancel|update|delete|trigger|view)?(?:_)?(static|index|callback|json_builder_query|view_metrics|view_validators|validator|log(in|out)|organization(?:s)?|harvest_source|harvest_job|harvest_record)|openapi.+|)"
+        whitelisted_route_regex = r"((main|api)?(?:\.)?(add|edit|cancel|update|delete|trigger|view)?(?:_)?(static|index|callback|json_builder_query|view_metrics|view_validators|validator|log(in|out)|organization(?:s)?|harvest_source|harvest_job|harvest_record)|openapi.+|api_latest_redirect|)"
 
         # some endpoints respond with JSON
         json_responses_map = {
-            "api.get_harvest_record": '{"error":"Not Found"}\n',
-            "api.get_harvest_record_raw": '{"error":"Not Found"}\n',
-            "api.get_all_harvest_record_errors": '{"error":"Not Found"}\n',
-            "api.get_harvest_error": '{"error":"Not Found"}\n',
+            "api_v1.get_harvest_record": '{"error":"Not Found"}\n',
+            "api_v1.get_harvest_record_raw": '{"error":"Not Found"}\n',
+            "api_v1.get_all_harvest_record_errors": '{"error":"Not Found"}\n',
+            "api_v1.get_harvest_error": '{"error":"Not Found"}\n',
         }
         # some respond with a template
         # ruff: noqa: E501
@@ -180,7 +181,7 @@ class TestDynamicRouteTable:
             "main.view_harvest_job": {
                 "GET": "Looks like you navigated to a harvest job that doesn't exist"
             },
-            "api.download_harvest_errors_by_job": {
+            "api_v1.download_harvest_errors_by_job": {
                 "GET": "Invalid error type. Must be 'job' or 'record'"
             },
         }
@@ -262,7 +263,7 @@ class TestLoginAuthHeaders:
             "Content-Type": "application/json",
         }
         data = {"name": "Test Org", "logo": "test_logo.png", "slug": "Test_Org"}
-        response = client.post("/api/organization/add", json=data, headers=headers)
+        response = client.post("/api/v1/organization/add", json=data, headers=headers)
         assert response.status_code == 422
 
     def test_login_required_invalid_token(self, client):
@@ -431,7 +432,7 @@ class TestAuditLogging:
         }
         caplog.set_level(logging.INFO, logger="harvest_admin")
 
-        response = client.post("/api/organization/add", json=data, headers=headers)
+        response = client.post("/api/v1/organization/add", json=data, headers=headers)
 
         assert response.status_code == 200
         assert "Audit create organization" in caplog.text
@@ -472,7 +473,7 @@ class TestAuditLogging:
         caplog.set_level(logging.INFO, logger="harvest_admin")
 
         response = client.delete(
-            f"/api/organization/{organization_data['id']}",
+            f"/api/v1/organization/{organization_data['id']}",
             headers=headers,
         )
 
@@ -480,6 +481,37 @@ class TestAuditLogging:
         assert "Audit delete organization" in caplog.text
         assert f"organization_id={organization_data['id']}" in caplog.text
         assert "user=<api_token>" in caplog.text
+
+
+class TestHarvestSourceDeleteRedirects:
+    @pytest.mark.parametrize(
+        ("status", "expected_location"),
+        [
+            (202, "/harvest_source_list/"),
+            (404, "/harvest_source_list/"),
+            (409, "/harvest_source/{source_id}"),
+            (500, "/harvest_source_list/"),
+        ],
+    )
+    def test_redirects_by_delete_status(
+        self, app, client, source_data_dcatus, status, expected_location
+    ):
+        app.config.update({"WTF_CSRF_ENABLED": False})
+        source_id = source_data_dcatus["id"]
+        with client.session_transaction() as sess:
+            sess["user"] = "tester@gsa.gov"
+
+        with patch(
+            "app.main.harvest_sources.enqueue_harvest_source_delete",
+            return_value=("delete result", status),
+        ):
+            response = client.post(
+                f"/harvest_source/{source_id}",
+                data={"delete": "Delete"},
+            )
+
+        assert response.status_code == 302
+        assert response.location == expected_location.format(source_id=source_id)
 
 
 class TestJSONResponses:
@@ -509,7 +541,7 @@ class TestJSONResponses:
         organization_data,
     ):
         res = client.get(
-            f"/api/organization/{organization_data['slug']}",
+            f"/api/v1/organization/{organization_data['slug']}",
             headers={"Content-type": "application/json"},
         )
         assert res.status_code == 200
@@ -523,7 +555,7 @@ class TestJSONResponses:
         organization_data,
     ):
         res = client.get(
-            f"/api/organization/{organization_data['aliases'][0]}",
+            f"/api/v1/organization/{organization_data['aliases'][0]}",
             headers={"Content-type": "application/json"},
         )
         assert res.status_code == 200
@@ -549,7 +581,7 @@ class TestJSONResponses:
         organization_data,
     ):
         res = client.get(
-            f"/api/organization/{organization_data['id']}",
+            f"/api/v1/organization/{organization_data['id']}",
             headers={"Content-type": "application/json"},
         )
         assert res.status_code == 200
@@ -562,7 +594,7 @@ class TestJSONResponses:
         organization_data,
     ):
         res = client.get(
-            f"/api/organization/{organization_data['id'].replace('a', 'b')}",
+            f"/api/v1/organization/{organization_data['id'].replace('a', 'b')}",
             headers={"Content-type": "application/json"},
         )
         assert res.status_code == 404
@@ -580,47 +612,47 @@ class TestJSONResponses:
         "route,status_code,response",
         [
             (
-                "/api/harvest_records/?harvest_source_id=2f2652de-91df-4c63-8b53-bfced20b276b",
+                "/api/v1/harvest_records/?harvest_source_id=2f2652de-91df-4c63-8b53-bfced20b276b",
                 200,
                 10,
             ),
             (
-                "/api/harvest_records/?harvest_job_id=6bce761c-7a39-41c1-ac73-94234c139c76",
+                "/api/v1/harvest_records/?harvest_job_id=6bce761c-7a39-41c1-ac73-94234c139c76",
                 200,
                 10,
             ),
             (
-                "/api/harvest_records/?harvest_source_id=2f2652de-91df-4c63-8b53-bfced20b276b&facets=status eq success",
+                "/api/v1/harvest_records/?harvest_source_id=2f2652de-91df-4c63-8b53-bfced20b276b&facets=status eq success",
                 200,
                 2,
             ),
             (
-                "/api/harvest_records/?harvest_source_id=2f2652de-91df-4c63-8b53-bfced20b276b&facets=ckan_id eq 1234",
+                "/api/v1/harvest_records/?harvest_source_id=2f2652de-91df-4c63-8b53-bfced20b276b&facets=ckan_id eq 1234",
                 200,
                 1,
             ),
             (
-                "/api/harvest_records/?harvest_source_id=2f2652de-91df-4c63-8b53-bfced20b276b&facets=status eq success&count=True",
+                "/api/v1/harvest_records/?harvest_source_id=2f2652de-91df-4c63-8b53-bfced20b276b&facets=status eq success&count=True",
                 200,
                 2,
             ),
             (
-                "/api/harvest_records/?harvest_source_id=2f2652de-91df-4c63-8b53-bfced20b276b&facets=status eq not_status",
+                "/api/v1/harvest_records/?harvest_source_id=2f2652de-91df-4c63-8b53-bfced20b276b&facets=status eq not_status",
                 400,
                 "Error with query",
             ),
             (
-                "/api/organizations/",
+                "/api/v1/organizations/",
                 200,
                 1,
             ),
             (
-                "/api/harvest_sources/",
+                "/api/v1/harvest_sources/",
                 200,
                 1,
             ),
             (
-                "/api/harvest_sources/?facets=schema_type eq dcatus1.1: non-federal",
+                "/api/v1/harvest_sources/?facets=schema_type eq dcatus1.1: non-federal",
                 404,
                 "No harvest_sources found for this query",
             ),
@@ -645,12 +677,14 @@ class TestJSONResponses:
         """
         checks the content of the json response when navigating to "/organizations/"
         """
-        res = client.get("/api/organizations/")
+        res = client.get("/api/v1/organizations/")
         assert res.status_code == 200
 
         assert res.json == [
             {
                 "aliases": ["testorg"],
+                "code_repo_exempt": False,
+                "code_repo_url": None,
                 "description": "Fixture org description",
                 "id": "d925f84d-955b-4cb7-812f-dcfd6681a18f",
                 "logo": "https://raw.githubusercontent.com/GSA/datagov-harvester/refs/heads/main/app/static/assets/img/placeholder-organization.png",
@@ -705,7 +739,7 @@ class TestHarvestRecordRawAPI:
 
         test_iso_2_record.compare()
 
-        response = client.get(f"/api/harvest_record/{test_iso_2_record.id}/raw")
+        response = client.get(f"/api/v1/harvest_record/{test_iso_2_record.id}/raw")
 
         assert response.status_code == 200
         assert response.text == test_iso_2_record.source_raw
@@ -737,7 +771,7 @@ class TestHarvestRecordRawAPI:
         test_record = next(external_records_to_process)
         test_record.compare()
 
-        response = client.get(f"/api/harvest_record/{test_record.id}/raw")
+        response = client.get(f"/api/v1/harvest_record/{test_record.id}/raw")
 
         assert response.status_code == 200
         assert response.json == json.loads(test_record.source_raw)
@@ -771,7 +805,7 @@ class TestAPIBehavior:
         LMMock.stop_job.return_value = "a test value"
 
         headers = {"X-API-Key": app.config["API_TOKEN"]}
-        response = client.get(f"/api/harvest_job/cancel/{job.id}", headers=headers)
+        response = client.get(f"/api/v1/harvest_job/cancel/{job.id}", headers=headers)
         assert response.status_code == 302
         assert response.location == f"/harvest_job/{job.id}"
 
@@ -782,11 +816,21 @@ class TestAPIBehavior:
             "Content-Type": "application/json",
         }
         response = client.get(
-            f"/api/harvest_source/harvest/{source_data_dcatus['id']}/invalid-job-type",
+            f"/api/v1/harvest_source/harvest/{source_data_dcatus['id']}/invalid-job-type",
             headers=headers,
         )
         assert response.status_code == 404
         assert "error" in response.json
+
+    def test_unversioned_api_redirects_to_latest_version(self, client):
+        response = client.get("/api/organizations/?facets=foo")
+        assert response.status_code == 308
+        assert response.location == "/api/v1/organizations/?facets=foo"
+
+    def test_unversioned_api_redirect_preserves_method_and_body(self, client):
+        response = client.post("/api/organization/add", json={"name": "Test"})
+        assert response.status_code == 308
+        assert response.location == "/api/v1/organization/add"
 
 
 class TestRenderBlock:

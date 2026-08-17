@@ -11,6 +11,13 @@ below, while **every** route on the `api` blueprint is served under an `/api`
 prefix (applied once via `url_prefix="/api"`, not hand-typed per route). JSON
 callers authenticate with the `X-API-Key` header.
 
+The `api` blueprint is also registered a second time under `/api/v1`
+([app/routes.py](../app/routes.py)), so every route below is reachable at
+both the un-prefixed `/api/...` path and the versioned `/api/v1/...` path.
+The two serve identical behavior -- `/api/v1` is the URI-versioned home for
+the API going forward, and `/api` stays as an alias for existing consumers.
+See [GSA/data.gov#5128](https://github.com/GSA/data.gov/issues/5128).
+
 Authenticated mutation endpoints on the `api` blueprint use `@api.doc(hide=True)`
 and are omitted from the public Swagger docs at `/openapi/docs`.
 
