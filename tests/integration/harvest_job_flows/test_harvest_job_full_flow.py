@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 
 from jsonschema.exceptions import ValidationError
 
-from database.models import Dataset, HarvestRecord
+from database.models import Dataset, HarvestJob, HarvestRecord
 from harvester.harvest import HarvestSource, check_for_more_work, harvest_job_starter
 from harvester.utils.general_utils import download_file
 
@@ -827,6 +827,7 @@ class TestCheckMoreWork:
                 "date_created": datetime.now() + timedelta(days=-1),
             }
         )
+        job_id = job.id
 
         # no running tasks
         CFCMock.return_value.v3.apps._pagination.return_value = []
@@ -835,5 +836,8 @@ class TestCheckMoreWork:
         # one task created
         start_task_mock = CFCMock.return_value.v3.tasks.create
         assert start_task_mock.call_count == 1
+
+        job = interface.db.get(HarvestJob, job_id)
+
         # job in progress
         assert job.status == "in_progress"
