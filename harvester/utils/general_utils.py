@@ -573,23 +573,11 @@ def extract_dcatus3_nested_datasets(
 
 def merge_dcatus3_datasets(top_level: list, *nested_lists: list) -> list:
     """
-    Combine top-level catalog.dataset entries with datasets pulled from
-    nested locations (DataService.servesDataset, DatasetSeries.seriesMember/
-    first/last), treating a shared identifier as the same dataset rather
-    than a harvest-time duplicate -- but only when one side is a top-level
-    entry. A dataset can legitimately be listed both at the catalog's top
-    level and as e.g. a series member; the top-level entry (if present) is
-    canonical and wins, and a nested entry sharing its identifier only
-    contributes its "parent_identifier" tag (first nested list wins if more
-    than one claims the same identifier) instead of a second copy.
-
-    Overlaps between two *nested* entries (same list or different lists,
-    e.g. two different services both claiming to serve the same dataset)
-    are deliberately NOT merged here -- that's a genuine cross-source
-    ambiguity, not the top-level/member redundancy this function targets,
-    so those stay as separate records for the normal duplicate-identifier
-    filter to catch (see extract_dcatus3_nested_datasets' own
-    same-identifier-different-parents behavior, which this mirrors).
+    Merge top-level catalog.dataset entries with nested ones (DataService.
+    servesDataset, DatasetSeries.seriesMember/first/last). A nested dataset
+    matching a top-level identifier is the same dataset: keep the top-level
+    copy, just add its parent_identifier. Nested-vs-nested overlaps are left
+    alone for filter_duplicate_identifiers to catch as real duplicates.
     """
     merged = []
     top_level_by_identifier = {}

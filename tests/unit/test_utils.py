@@ -967,9 +967,7 @@ class TestExtractDcatus3NestedDatasets:
 
 class TestMergeDcatus3Datasets:
     def test_top_level_and_nested_overlap_merged_into_one(self):
-        """A dataset listed both at the top level and as e.g. a series
-        member is the same dataset -- the top-level copy wins and gains the
-        nested entry's parent_identifier, not a second record."""
+        """Top-level entry wins, gains the nested entry's parent_identifier."""
         top_level = [{"identifier": "ds-1", "title": "Canonical title"}]
         nested = [
             {
@@ -1002,12 +1000,7 @@ class TestMergeDcatus3Datasets:
         assert {d["identifier"] for d in result} == {"ds-1", "ds-2"}
 
     def test_nested_vs_nested_overlap_not_merged(self):
-        """Two different nested lists (or two entries within the same list)
-        both claiming the same identifier is a genuine cross-source
-        ambiguity, not the top-level/member redundancy this function
-        targets -- both copies must survive for the normal
-        duplicate-identifier filter to catch, same as extract_dcatus3_
-        nested_datasets' own same-identifier-different-parents behavior."""
+        """Nested-vs-nested overlap is left for the duplicate filter to catch."""
         nested_a = [{"identifier": "ds-1", "parent_identifier": "svc-1"}]
         nested_b = [{"identifier": "ds-1", "parent_identifier": "series-1"}]
 
@@ -1016,12 +1009,8 @@ class TestMergeDcatus3Datasets:
         assert len(result) == 2
         assert {d["parent_identifier"] for d in result} == {"svc-1", "series-1"}
 
-    def test_first_nested_list_wins_parent_identifier_when_multiple_claim_same_top_level(
-        self,
-    ):
-        """If more than one nested list claims the same top-level dataset,
-        the first one processed wins the parent_identifier tag rather than
-        being overwritten by a later one."""
+    def test_first_nested_list_wins_when_multiple_match_top_level(self):
+        """First nested list to claim a top-level dataset wins the tag."""
         top_level = [{"identifier": "ds-1"}]
         nested_a = [{"identifier": "ds-1", "parent_identifier": "svc-1"}]
         nested_b = [{"identifier": "ds-1", "parent_identifier": "series-1"}]
@@ -1032,8 +1021,7 @@ class TestMergeDcatus3Datasets:
         assert result[0]["parent_identifier"] == "svc-1"
 
     def test_missing_identifiers_not_treated_as_matching(self):
-        """Datasets with no usable identifier must never be treated as
-        matching each other just because they all normalize to None."""
+        """Both normalize to None, so they stay as separate records."""
         top_level = [{"title": "No id top-level"}]
         nested = [{"title": "No id nested", "parent_identifier": "series-1"}]
 
