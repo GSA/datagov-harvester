@@ -81,6 +81,7 @@ runs:
       uses: cloud-gov/cg-cli-tools@main
       with:
         command: >-
+          bin/retry_cf_deploy.sh
           ${{ inputs.command }}
           --vars-file vars.${{ inputs.cf_space }}.yml
           --var asset_version=${{ env.asset_version }}
