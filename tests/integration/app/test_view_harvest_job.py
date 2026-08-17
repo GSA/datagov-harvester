@@ -96,7 +96,7 @@ class TestViewHarvestJob:
                 interface.add_harvest_record_error(error_data)
 
         # Test the CSV download endpoint
-        resp = client.get(f"/api/harvest_job/{harvest_job.id}/errors/record")
+        resp = client.get(f"/api/v1/harvest_job/{harvest_job.id}/errors/record")
 
         # Verify response is successful
         assert resp.status_code == 200
@@ -160,7 +160,7 @@ class TestViewHarvestJob:
         )
 
         # Test the CSV download endpoint for job errors
-        resp = client.get(f"/api/harvest_job/{job.id}/errors/job")
+        resp = client.get(f"/api/v1/harvest_job/{job.id}/errors/job")
 
         # Verify response is successful
         assert resp.status_code == 200
@@ -194,7 +194,7 @@ class TestViewHarvestJob:
 
     def test_download_errors_invalid_type(self, client, job):
         """Test error handling for invalid error type."""
-        resp = client.get(f"/api/harvest_job/{job.id}/errors/invalid_type")
+        resp = client.get(f"/api/v1/harvest_job/{job.id}/errors/invalid_type")
 
         assert resp.status_code == 400
         assert "Invalid error type" in resp.data.decode("utf-8")
@@ -246,7 +246,7 @@ class TestViewHarvestJob:
 
     def test_job_accept_json(self, client, job_with_many_errors):
         resp = client.get(
-            f"/api/harvest_job/{job_with_many_errors.id}",
+            f"/api/v1/harvest_job/{job_with_many_errors.id}",
             headers={"Accept": "application/json"},
         )
         assert resp.is_json

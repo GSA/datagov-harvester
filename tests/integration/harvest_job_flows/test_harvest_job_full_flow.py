@@ -170,6 +170,63 @@ class TestHarvestJobFullFlow:
         }
 
     @patch("harvester.harvest.HarvestSource.send_notification_emails")
+    def test_harvest_dcatus3_0_dataset_and_catalog_record_independent(
+        self,
+        send_notification_emails_mock: MagicMock,
+        interface,
+        organization_data,
+        source_data_dcatus3_0_with_records,
+    ):
+        """AC: a source with both Dataset and CatalogRecord objects harvests
+        each independently of the other."""
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_dcatus3_0_with_records)
+        harvest_job = interface.add_harvest_job(
+            {
+                "status": "new",
+                "harvest_source_id": source_data_dcatus3_0_with_records["id"],
+            }
+        )
+
+        job_id = harvest_job.id
+        harvest_job_starter(job_id, "harvest")
+
+        harvest_job = interface.get_harvest_job(job_id)
+        assert harvest_job.status == "complete"
+        assert harvest_job.records_added == 3
+
+        # only the Dataset record gets a Dataset row; CatalogRecord records
+        # are persisted as HarvestRecords only.
+        datasets = interface.db.query(Dataset).all()
+        assert len(datasets) == 1
+        assert datasets[0].harvest_source_id == (
+            source_data_dcatus3_0_with_records["id"]
+        )
+
+        records = (
+            interface.db.query(HarvestRecord)
+            .filter(
+                HarvestRecord.harvest_source_id
+                == source_data_dcatus3_0_with_records["id"]
+            )
+            .all()
+        )
+        assert len(records) == 3
+
+        dataset_records = [r for r in records if r.record_type == "dataset"]
+        catalog_records = [r for r in records if r.record_type == "catalog_record"]
+        assert len(dataset_records) == 1
+        assert len(catalog_records) == 2
+        assert all(r.status == "success" for r in dataset_records)
+        assert all(r.status == "success" for r in catalog_records)
+
+        record_identifiers = {r.identifier for r in catalog_records}
+        assert record_identifiers == {
+            "https://example.gov/catalog-records/one",
+            "https://example.gov/catalog-records/two",
+        }
+
+    @patch("harvester.harvest.HarvestSource.send_notification_emails")
     def test_harvest_dcatus3_0_service_serves_dataset_persists_with_parent(
         self,
         send_notification_emails_mock: MagicMock,
@@ -215,6 +272,66 @@ class TestHarvestJobFullFlow:
         dataset_record = next(r for r in records if r.record_type == "dataset")
         assert dataset_record.parent_identifier == ("https://example.gov/services/one")
         assert dataset_record.status == "success"
+
+    @patch("harvester.harvest.HarvestSource.send_notification_emails")
+    def test_harvest_dcatus3_0_series_members_persist_with_parent(
+        self,
+        send_notification_emails_mock: MagicMock,
+        interface,
+        organization_data,
+        source_data_dcatus3_0_series_with_members,
+    ):
+        """AC: Datasets embedded in a DatasetSeries's seriesMember/first/last
+        are harvested as real Datasets, tagged with the series' identifier
+        as their parent, with first/last redundancy against seriesMember
+        deduped rather than double-harvested. The DatasetSeries itself
+        persists as a data_series HarvestRecord only, no Dataset row."""
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_dcatus3_0_series_with_members)
+        harvest_job = interface.add_harvest_job(
+            {
+                "status": "new",
+                "harvest_source_id": (source_data_dcatus3_0_series_with_members["id"]),
+            }
+        )
+
+        job_id = harvest_job.id
+        harvest_job_starter(job_id, "harvest")
+
+        harvest_job = interface.get_harvest_job(job_id)
+        assert harvest_job.status == "complete"
+        assert harvest_job.records_added == 3
+
+        datasets = interface.db.query(Dataset).all()
+        assert len(datasets) == 2
+        assert {d.dcat["identifier"] for d in datasets} == {
+            "https://example.gov/datasets/annual-report-2023",
+            "https://example.gov/datasets/annual-report-2024",
+        }
+
+        records = (
+            interface.db.query(HarvestRecord)
+            .filter(
+                HarvestRecord.harvest_source_id
+                == source_data_dcatus3_0_series_with_members["id"]
+            )
+            .all()
+        )
+        assert len(records) == 3
+
+        dataset_records = [r for r in records if r.record_type == "dataset"]
+        series_records = [r for r in records if r.record_type == "data_series"]
+        assert len(dataset_records) == 2
+        assert len(series_records) == 1
+        assert all(r.status == "success" for r in dataset_records)
+        assert all(r.status == "success" for r in series_records)
+        assert all(
+            r.parent_identifier == "https://example.gov/series/annual-report"
+            for r in dataset_records
+        )
+        assert series_records[0].identifier == (
+            "https://example.gov/series/annual-report"
+        )
 
     @patch("harvester.harvest.HarvestSource.send_notification_emails")
     def test_multiple_harvest_jobs(
