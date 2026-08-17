@@ -1,0 +1,80 @@
+{
+  "@type": "Catalog",
+  "@id": "https://example.gov/data-series-with-members.json",
+  "conformsTo": {
+    "@type": "Standard",
+    "title": "DCAT-US 3.0"
+  },
+  "title": "Example DCAT-US 3.0 Catalog With A Dataset Series",
+  "description": "A sample DCAT-US 3.0 catalog where a DatasetSeries's seriesMember/first/last embed full Dataset objects, used for harvest testing.",
+  "datasetSeries": [
+    {
+      "@type": "DatasetSeries",
+      "@id": "https://example.gov/series/annual-report",
+      "title": "Annual Report Series",
+      "description": "A series of annual reports, one dataset per year.",
+      "seriesMember": [
+        {
+          "@type": "Dataset",
+          "title": "Annual Report 2023",
+          "description": "The first dataset in the series.",
+          "identifier": "https://example.gov/datasets/annual-report-2023",
+          "publisher": {
+            "@type": "Organization",
+            "name": "Test Agency"
+          },
+          "contactPoint": {
+            "@type": "Kind",
+            "fn": "Test Contact",
+            "hasEmail": "mailto:series@example.gov"
+          }
+        },
+        {
+          "@type": "Dataset",
+          "title": "Annual Report 2024",
+          "description": "The second dataset in the series.",
+          "identifier": "https://example.gov/datasets/annual-report-2024",
+          "publisher": {
+            "@type": "Organization",
+            "name": "Test Agency"
+          },
+          "contactPoint": {
+            "@type": "Kind",
+            "fn": "Test Contact",
+            "hasEmail": "mailto:series@example.gov"
+          }
+        }
+      ],
+      "first": {
+        "@type": "Dataset",
+        "title": "Annual Report 2023",
+        "description": "The first dataset in the series.",
+        "identifier": "https://example.gov/datasets/annual-report-2023",
+        "publisher": {
+          "@type": "Organization",
+          "name": "Test Agency"
+        },
+        "contactPoint": {
+          "@type": "Kind",
+          "fn": "Test Contact",
+          "hasEmail": "mailto:series@example.gov"
+        }
+      },
+      "last": {
+        "@type": "Dataset",
+        "title": "Annual Report 2024",
+        "description": "The second dataset in the series.",
+        "identifier": "https://example.gov/datasets/annual-report-2024",
+        "publisher": {
+          "@type": "Organization",
+          "name": "Test Agency"
+        },
+        "contactPoint": {
+          "@type": "Kind",
+          "fn": "Test Contact",
+          "hasEmail": "mailto:series@example.gov"
+        }
+      }
+    }
+  ]
+}

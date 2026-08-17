@@ -25,11 +25,10 @@ def cli_list_harvest_source():
 @click.argument("id")
 def cli_remove_harvest_source(id):
     """Remove a harvest source with a given id."""
-    result = db.delete_harvest_source(id)
-    if result:
-        print(f"Triggered delete of harvest source with ID: {id}")
-    else:
-        print("Failed to delete harvest source")
+    message, status = db.delete_harvest_source(id)
+    print(message)
+    if status != 200:
+        raise SystemExit(1)
 
 
 @source.cli.command("evaluate_sources")
