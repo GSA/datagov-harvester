@@ -511,7 +511,18 @@ def extract_dcatus3_catalog_records(catalog: dict) -> list:
     return _extract_dcatus3_catalog_objects(catalog, "record")
 
 
-def extract_dcatus3_nested_datasets(parents: list, *fields: str) -> list:
+def extract_dcatus3_catalog_dataset_series(catalog: dict) -> list:
+    """
+    recursively collect every DatasetSeries from a DCAT-US3 Catalog dict,
+    including series nested arbitrarily deep within its "catalog"
+    (sub-catalog) field.
+    """
+    return _extract_dcatus3_catalog_objects(catalog, "datasetSeries")
+
+
+def extract_dcatus3_nested_datasets(
+    parents: list, *fields: str, parent_identifier_field: str = "identifier"
+) -> list:
     """
     pull full inline Dataset objects out of [fields] on each dict in
     [parents], tagging each with "parent_identifier" set to the parent's own
@@ -522,18 +533,37 @@ def extract_dcatus3_nested_datasets(parents: list, *fields: str) -> list:
     than reference them by id: DataService.servesDataset, and
     DatasetSeries.seriesMember/first/last. This is the shared extraction
     step for all of them -- callers pass the parent objects and which
-    field(s) on them hold nested datasets.
+    field(s) on them hold nested datasets. parent_identifier_field selects
+    which key on the parent holds its own identifier: DatasetSeries (like
+    CatalogRecord) has no "identifier" field, only a top-level "@id".
+
+    the same dataset can legitimately appear in more than one of [fields] on
+    the same parent (e.g. a DatasetSeries's "first" is typically also present
+    in "seriesMember") -- that's redundancy in the source data, not a
+    harvest-time duplicate-identifier error, so each parent only contributes
+    one copy per distinct identifier.
     """
     nested_datasets = []
 
     for parent in parents:
-        parent_identifier = normalize_dataset_identifier(parent.get("identifier"))
+        parent_identifier = normalize_dataset_identifier(
+            parent.get(parent_identifier_field)
+        )
+        seen_identifiers = set()
         for field in fields:
             value = parent.get(field)
             if value is None:
                 continue
             candidates = value if isinstance(value, list) else [value]
             for dataset in candidates:
+                dataset_identifier = normalize_dataset_identifier(
+                    dataset.get("identifier")
+                )
+                if dataset_identifier is not None:
+                    if dataset_identifier in seen_identifiers:
+                        continue
+                    seen_identifiers.add(dataset_identifier)
+
                 dataset = dict(dataset)
                 dataset["parent_identifier"] = parent_identifier
                 nested_datasets.append(dataset)

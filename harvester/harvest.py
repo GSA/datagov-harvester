@@ -47,6 +47,7 @@ from harvester.utils.general_utils import (
     dataset_to_hash,
     describe_identifier_error,
     download_file,
+    extract_dcatus3_catalog_dataset_series,
     extract_dcatus3_catalog_datasets,
     extract_dcatus3_catalog_records,
     extract_dcatus3_catalog_services,
@@ -78,15 +79,25 @@ harvest_worker_sync_count = int(os.getenv("HARVEST_WORKER_SYNC_COUNT", 1))
 # complex extraction path shared with WAF/ISO sources). Each entry's
 # "extractor" pulls its objects out of a dcatus3.0 Catalog dict; its
 # "identifier_field" is the dict key that holds the record's identifier --
-# CatalogRecord has no "identifier" field, only a top-level "@id".
+# CatalogRecord and DatasetSeries have no "identifier" field, only a
+# top-level "@id". "schema_ref" is the dcatus3.0 definitions root_ref used
+# to build this type's validator -- built from this registry (not
+# hand-listed) so a new entry can't forget to wire up validation.
 NON_DATASET_RECORD_TYPES = {
     "data_service": {
         "extractor": extract_dcatus3_catalog_services,
         "identifier_field": "identifier",
+        "schema_ref": "dataservice",
     },
     "catalog_record": {
         "extractor": extract_dcatus3_catalog_records,
         "identifier_field": "@id",
+        "schema_ref": "catalogrecord",
+    },
+    "data_series": {
+        "extractor": extract_dcatus3_catalog_dataset_series,
+        "identifier_field": "@id",
+        "schema_ref": "datasetseries",
     },
 }
 
@@ -173,15 +184,15 @@ class HarvestSource:
                     definitions_dir,
                     root_ref="https://resources.data.gov/dcat-us/3.0.0/definitions/dataset",
                 ),
-                "data_service": build_dcatus3_validator(
-                    definitions_dir,
-                    root_ref="https://resources.data.gov/dcat-us/3.0.0/definitions/dataservice",
-                ),
-                "catalog_record": build_dcatus3_validator(
-                    definitions_dir,
-                    root_ref="https://resources.data.gov/dcat-us/3.0.0/definitions/catalogrecord",
-                ),
             }
+            for record_type, config in NON_DATASET_RECORD_TYPES.items():
+                self._validators[record_type] = build_dcatus3_validator(
+                    definitions_dir,
+                    root_ref=(
+                        "https://resources.data.gov/dcat-us/3.0.0/definitions/"
+                        f"{config['schema_ref']}"
+                    ),
+                )
         else:
             self._validators = {
                 "dataset": Draft202012Validator(
@@ -206,9 +217,16 @@ class HarvestSource:
         """Return the schema validator for [record_type].
 
         Non-dcatus3.0 sources only have a "dataset" validator, since they
-        have no concept of other DCAT-US 3.0 record types.
+        have no concept of other DCAT-US 3.0 record types. Raises rather
+        than silently falling back to the dataset validator for an unknown
+        record_type -- that fallback previously masked a missing
+        data_series validator entry by validating DatasetSeries objects
+        against the Dataset schema instead.
         """
-        return self._validators.get(record_type, self._validators["dataset"])
+        try:
+            return self._validators[record_type]
+        except KeyError:
+            raise ValueError(f"no validator registered for record_type '{record_type}'")
 
     @property
     def records(self):
@@ -655,11 +673,24 @@ class HarvestSource:
                             record_type: config["extractor"](catalog)
                             for record_type, config in NON_DATASET_RECORD_TYPES.items()
                         }
-                        self.external_records = extract_dcatus3_catalog_datasets(
-                            catalog
-                        ) + extract_dcatus3_nested_datasets(
-                            self.external_records_by_type.get("data_service", []),
-                            "servesDataset",
+                        self.external_records = (
+                            extract_dcatus3_catalog_datasets(catalog)
+                            + extract_dcatus3_nested_datasets(
+                                self.external_records_by_type.get("data_service", []),
+                                "servesDataset",
+                                parent_identifier_field=NON_DATASET_RECORD_TYPES[
+                                    "data_service"
+                                ]["identifier_field"],
+                            )
+                            + extract_dcatus3_nested_datasets(
+                                self.external_records_by_type.get("data_series", []),
+                                "seriesMember",
+                                "first",
+                                "last",
+                                parent_identifier_field=NON_DATASET_RECORD_TYPES[
+                                    "data_series"
+                                ]["identifier_field"],
+                            )
                         )
                         self.db_interface.update_harvest_job(
                             self.job_id,
