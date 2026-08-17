@@ -43,6 +43,7 @@ from harvester.utils.general_utils import (
     USER_AGENT,
     add_uuid_to_package_name,
     assemble_validation_errors,
+    backfill_catalog_record_identifiers,
     build_dcatus3_validator,
     dataset_to_hash,
     describe_identifier_error,
@@ -55,6 +56,7 @@ from harvester.utils.general_utils import (
     find_indexes_for_duplicates,
     get_datetime,
     make_record_mapping,
+    merge_dcatus3_datasets,
     munge_title_to_name,
     normalize_dataset_identifier,
     open_json,
@@ -101,9 +103,8 @@ NON_DATASET_RECORD_TYPES = {
     },
 }
 
-# Record types persisted only as a HarvestRecord (no Dataset row) because they
-# don't have a schema for standalone search/display yet. "data_series" is
-# absent on purpose -- see Dataset.type in database/models.py.
+# Record types persisted only as a HarvestRecord, no Dataset row. Excludes
+# "data_series" on purpose: see Dataset.type in database/models.py.
 RECORD_TYPES_WITHOUT_DATASET_ROW = {"data_service", "catalog_record"}
 
 
@@ -678,16 +679,23 @@ class HarvestSource:
                             record_type: config["extractor"](catalog)
                             for record_type, config in NON_DATASET_RECORD_TYPES.items()
                         }
-                        self.external_records = (
-                            extract_dcatus3_catalog_datasets(catalog)
-                            + extract_dcatus3_nested_datasets(
+                        self.external_records_by_type["catalog_record"] = (
+                            backfill_catalog_record_identifiers(
+                                self.external_records_by_type.get(
+                                    "catalog_record", []
+                                )
+                            )
+                        )
+                        self.external_records = merge_dcatus3_datasets(
+                            extract_dcatus3_catalog_datasets(catalog),
+                            extract_dcatus3_nested_datasets(
                                 self.external_records_by_type.get("data_service", []),
                                 "servesDataset",
                                 parent_identifier_field=NON_DATASET_RECORD_TYPES[
                                     "data_service"
                                 ]["identifier_field"],
-                            )
-                            + extract_dcatus3_nested_datasets(
+                            ),
+                            extract_dcatus3_nested_datasets(
                                 self.external_records_by_type.get("data_series", []),
                                 "seriesMember",
                                 "first",
@@ -695,7 +703,7 @@ class HarvestSource:
                                 parent_identifier_field=NON_DATASET_RECORD_TYPES[
                                     "data_series"
                                 ]["identifier_field"],
-                            )
+                            ),
                         )
                         self.db_interface.update_harvest_job(
                             self.job_id,
