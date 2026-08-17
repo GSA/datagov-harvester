@@ -157,7 +157,7 @@ class TestExtract:
         source_data_dcatus3_0_record_no_id,
         job_data_dcatus3_0_record_no_id,
     ):
-        """A CatalogRecord's @id is optional per the DCAT-US3.0 schema -- one
+        """A CatalogRecord's @id is optional per the DCAT-US3.0 schema. A
         missing @id gets a synthesized identifier instead of being dropped
         as an error."""
         harvest_source = make_harvest_source(

@@ -513,11 +513,9 @@ def extract_dcatus3_catalog_records(catalog: dict) -> list:
 
 def backfill_catalog_record_identifiers(records: list) -> list:
     """
-    CatalogRecord's @id is optional per the DCAT-US3.0 schema (only
-    "modified" and "primaryTopic" are required), but harvester needs an
-    identifier to track a record across harvests. Give each @id-less
-    record a stable synthesized @id derived from its two required fields,
-    instead of dropping it as unharvestable.
+    CatalogRecord's @id is optional per the DCAT-US3.0 schema. Give each
+    @id-less record a stable @id synthesized from its two required fields
+    (modified, primaryTopic) so harvester can still track it.
     """
     backfilled = []
     for record in records:
@@ -544,22 +542,15 @@ def extract_dcatus3_nested_datasets(
 ) -> list:
     """
     Pull full inline Dataset objects out of [fields] on each dict in
-    [parents], tagging each with "parent_identifier" set to the parent's own
-    identifier so the relationship survives once the dataset is harvested
-    on its own.
+    [parents] (e.g. DataService.servesDataset, DatasetSeries.seriesMember/
+    first/last), tagging each with "parent_identifier". parent_identifier_
+    field selects which key on the parent holds its own identifier, since
+    DatasetSeries and CatalogRecord use "@id" instead of "identifier".
 
-    DCAT-US3 lets several object types embed full Dataset objects rather
-    than reference them by id: DataService.servesDataset, and
-    DatasetSeries.seriesMember/first/last. This is the shared extraction
-    step for all of them. Callers pass the parent objects and which
-    field(s) on them hold nested datasets. parent_identifier_field selects
-    which key on the parent holds its own identifier. DatasetSeries, like
-    CatalogRecord, has no "identifier" field, only a top-level "@id".
-
-    The same dataset can legitimately appear in more than one of [fields] on
-    the same parent (e.g. a DatasetSeries's "first" is typically also present
-    in "seriesMember"). This is redundant source data, so each parent
-    contributes only one copy per distinct identifier.
+    The same dataset can appear in more than one of [fields] on the same
+    parent (e.g. a series's "first" usually also appears in "seriesMember").
+    That's redundant source data, so each parent contributes one copy per
+    distinct identifier.
     """
     nested_datasets = []
 
@@ -593,9 +584,9 @@ def merge_dcatus3_datasets(top_level: list, *nested_lists: list) -> list:
     """
     Merge top-level catalog.dataset entries with nested ones (DataService.
     servesDataset, DatasetSeries.seriesMember/first/last). A nested dataset
-    matching a top-level identifier is the same dataset: keep the top-level
-    copy, just add its parent_identifier. Nested-vs-nested overlaps are left
-    alone for filter_duplicate_identifiers to catch as real duplicates.
+    matching a top-level identifier keeps the top-level copy and just adds
+    its parent_identifier. Nested-vs-nested overlaps stay separate, for
+    filter_duplicate_identifiers to catch.
     """
     merged = []
     top_level_by_identifier = {}
