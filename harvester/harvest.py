@@ -681,9 +681,7 @@ class HarvestSource:
                         }
                         self.external_records_by_type["catalog_record"] = (
                             backfill_catalog_record_identifiers(
-                                self.external_records_by_type.get(
-                                    "catalog_record", []
-                                )
+                                self.external_records_by_type.get("catalog_record", [])
                             )
                         )
                         self.external_records = merge_dcatus3_datasets(
