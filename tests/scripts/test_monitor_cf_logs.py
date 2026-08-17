@@ -118,6 +118,7 @@ esac
             "CF_TASK_POLL_SECONDS": "0",
             "CF_TASK_LOOKUP_TIMEOUT_SECONDS": "0",
             "CF_TASK_MAX_POLL_ERRORS": "3",
+            "CF_TASK_LOG_SETTLE_SECONDS": "0",
         },
         text=True,
         timeout=10,
@@ -140,10 +141,11 @@ def test_succeeds_after_log_eof_only_when_cf_reports_success(tmp_path):
 
 
 def test_fails_after_log_eof_when_cf_reports_failure(tmp_path):
-    result, _, _ = _run(tmp_path, states=("FAILED",))
+    result, _, calls = _run(tmp_path, states=("FAILED",))
 
     assert result.returncode == 1
     assert "state: FAILED" in result.stdout
+    assert f"logs {APP} --recent" in calls
 
 
 def test_cf_state_overrides_a_successful_exit_log_line(tmp_path):
