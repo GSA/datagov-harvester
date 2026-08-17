@@ -2,8 +2,21 @@ name: SCRATCH - Rehearse OpenSearch replacement on staging
 
 # Branch-only bootstrap for the replacement-cluster release workflow.
 #
-# GitHub only registers workflow_dispatch for workflow files that exist on the
-# default branch. This path is already registered there, so GitHub can dispatch
+# This file is a dispatch shim and nothing more. It exists because GitHub only
+# registers workflow_dispatch for workflow files present on the default branch,
+# and release-space.yml is workflow_call-only, so neither it nor
+# detect-opensearch-migration.yml can be dispatched from an unmerged branch.
+# `uses: ./...` resolves from this file's ref, so the job below runs the
+# branch's release-space.yml byte-for-byte as main will run it after merge --
+# keep this shim free of any input that release-space.yml does not already
+# accept on docs/opensearch-change-deployment.
+#
+# Not covered here: detect-opensearch-migration.yml (needs a successful release
+# run on this branch as its watermark, which a scratch branch never has) and
+# deploy.yml's staging->prod sequencing. Those are exercised on develop via
+# deploy-development.yml.
+#
+# This path is already registered on the default branch, so GitHub can dispatch
 # this staging-only definition from the test branch:
 #
 #   gh workflow run rebuild_opensearch_index.yml \
@@ -61,10 +74,5 @@ jobs:
     with:
       space: staging
       migrate_opensearch: true
-      # Full end-to-end rehearsal: provision a fresh replacement cluster rather
-      # than reusing a retained one. Resume mode is only valid when a previous
-      # run stopped before promotion, and promotion renames the -next instance
-      # away, so resuming after a promoted run can never find it.
-      resume_opensearch_migration: false
       migration_prs: manual pre-merge staging rehearsal from ${{ github.ref_name }}
     secrets: inherit
