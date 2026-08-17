@@ -34,6 +34,15 @@ def add_organization():
         if org:
             _log_mutation("create", "organization", org.id, organization_slug=org.slug)
             flash(f"Added new organization with ID: {org.id}")
+            # Show warning if both URL and exempt flag are set
+            if form.has_conflict():
+                flash(
+                    (
+                        "Warning: Organization has both a repository URL "
+                        "and an exemption flag set."
+                    ),
+                    "warning",
+                )
         else:
             flash("Failed to add organization.")
         return redirect(url_for("main.organization_list"))
@@ -152,6 +161,15 @@ def edit_organization(org_id):
         if org:
             _log_mutation("edit", "organization", org.id, organization_slug=org.slug)
             flash(f"Updated org with ID: {org.id}")
+            # Show warning if both URL and exempt flag are set
+            if form.has_conflict():
+                flash(
+                    (
+                        "Warning: Organization has both a repository URL "
+                        "and an exemption flag set."
+                    ),
+                    "warning",
+                )
         else:
             flash("Failed to update organization.")
         return redirect(

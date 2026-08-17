@@ -104,3 +104,92 @@ class TestOrganizationAuthed:
             .filter(has_text="Test Source")
             .first
         ).to_contain_text("email@example.com")
+
+
+class TestOrganizationCodeRepoFields:
+    """Test code repository URL and exemption fields in organization forms."""
+
+    def test_add_form_has_code_repo_fields(self, authed_page):
+        """Test that add organization form includes code repo fields."""
+        authed_page.goto("/organization/add")
+
+        # Check code_repo_url field exists
+        code_repo_url_field = authed_page.locator("input#code_repo_url")
+        expect(code_repo_url_field).to_be_visible()
+
+        # Check code_repo_exempt checkbox exists
+        code_repo_exempt_field = authed_page.locator("input#code_repo_exempt")
+        expect(code_repo_exempt_field).to_be_visible()
+        expect(code_repo_exempt_field).to_have_attribute("type", "checkbox")
+
+        # Check label exists
+        exempt_label = authed_page.locator('label[for="code_repo_exempt"]')
+        expect(exempt_label).to_contain_text("OMB-approved exemption")
+
+    def test_add_organization_with_invalid_url(self, authed_page):
+        """Test that invalid URL protocol shows error."""
+        authed_page.goto("/organization/add")
+
+        # Fill in required fields
+        authed_page.locator("input#name").fill("Test Org Invalid URL")
+        authed_page.locator("input#slug").fill("test-org-invalid-url")
+        authed_page.locator("input#logo").fill("https://example.com/logo.png")
+        authed_page.locator("input#code_repo_url").fill("ftp://github.com/test")
+
+        # Submit form
+        authed_page.get_by_role("button", name="Submit").click()
+
+        # Should stay on form with error message
+        expect(authed_page).to_have_url("/organization/add")
+        expect(authed_page.locator(".usa-alert--error")).to_contain_text(
+            "URL must start with http"
+        )
+
+        # Form fields should retain values
+        expect(authed_page.locator("input#name")).to_have_value("Test Org Invalid URL")
+        expect(authed_page.locator("input#slug")).to_have_value("test-org-invalid-url")
+
+    def test_add_organization_with_conflict_shows_warning(self, authed_page):
+        """Test that setting both URL and exempt flag shows warning but allows submission."""
+        authed_page.goto("/organization/add")
+
+        # Fill in required fields
+        authed_page.locator("input#name").fill("Test Org Conflict")
+        authed_page.locator("input#slug").fill("test-org-conflict")
+        authed_page.locator("input#logo").fill("https://example.com/logo.png")
+        authed_page.locator("input#code_repo_url").fill("https://github.com/test")
+
+        # Check the exempt checkbox - use evaluate to click it directly
+        authed_page.locator("input#code_repo_exempt").evaluate("el => el.click()")
+
+        # Submit form
+        authed_page.get_by_role("button", name="Submit").click()
+
+        # Should redirect to organization list (form submitted successfully)
+        expect(authed_page).to_have_url("/organization_list/")
+
+        # Should show a warning flash message
+        expect(
+            authed_page.locator(".usa-alert--warning").filter(
+                has_text="both a repository URL and an exemption"
+            )
+        ).to_be_visible()
+
+    def test_edit_form_has_code_repo_fields(self, apage):
+        """Test that edit form has code repo fields."""
+        # Navigate directly to edit page for fixture org
+        apage.goto("/organization/edit/d925f84d-955b-4cb7-812f-dcfd6681a18f")
+
+        # Check that code repo fields exist in the form
+        expect(apage.locator("input#code_repo_url")).to_be_visible()
+        expect(apage.locator("input#code_repo_exempt")).to_be_visible()
+
+    def test_detail_page_displays_code_repo_fields(self, upage):
+        """Test that organization detail page shows code repo fields."""
+        # Verify the config table includes Code repo URL and Code repo exempt fields
+        expect(upage.locator(".organization-config-properties table")).to_contain_text(
+            "Code repo URL"
+        )
+        expect(upage.locator(".organization-config-properties table")).to_contain_text(
+            "Code repo exempt"
+        )

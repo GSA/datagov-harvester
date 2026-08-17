@@ -89,6 +89,10 @@ class TestHarvestSourceUnauthed:
         # glossary starts closed
         assert glossary.get_attribute("aria-hidden") == "true"
 
+        # Wait for glossary terms to be added by JavaScript
+        upage.locator(f"span[data-term='{data_term_name}']").wait_for(
+            state="attached", timeout=5000
+        )
         upage.click(f"span[data-term='{data_term_name}']")
         assert glossary.get_attribute("aria-hidden") == "false"
         glossary_elem = upage.locator(

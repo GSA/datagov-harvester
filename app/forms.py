@@ -215,23 +215,13 @@ class OrganizationForm(FlaskForm):
             if not (url.startswith("http://") or url.startswith("https://")):
                 raise ValidationError("URL must start with http:// or https://")
 
-    def validate(self, extra_validators=None):
-        """Add validation for conflict between code_repo_url and code_repo_exempt."""
-        valid = super().validate(extra_validators=extra_validators)
-
-        # Check for conflict between URL and exempt flag
-        if (
+    def has_conflict(self):
+        """Check if both code_repo_url and code_repo_exempt are set."""
+        return bool(
             self.code_repo_url.data
             and self.code_repo_url.data.strip()
             and self.code_repo_exempt.data
-        ):
-            self.code_repo_exempt.errors.append(
-                "An organization cannot have both a repository URL and an exemption. "
-                "Please provide either a URL or mark as exempt."
-            )
-            valid = False
-
-        return valid
+        )
 
 
 class HarvestTriggerForm(FlaskForm):
