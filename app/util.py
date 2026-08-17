@@ -66,6 +66,13 @@ def make_new_record_error_contract(error: tuple) -> dict:
 
 
 def make_new_org_contract(form):
+    # Convert empty string to None for code_repo_url
+    code_repo_url = form.code_repo_url.data
+    if code_repo_url:
+        code_repo_url = code_repo_url.strip() or None
+    else:
+        code_repo_url = None
+
     return {
         "name": form.name.data,
         "slug": form.slug.data,
@@ -73,6 +80,8 @@ def make_new_org_contract(form):
         "description": form.description.data or None,
         "organization_type": form.organization_type.data or None,
         "aliases": [alias.strip() for alias in (form.aliases.data or "").split(",")],
+        "code_repo_url": code_repo_url,
+        "code_repo_exempt": form.code_repo_exempt.data or False,
     }
 
 

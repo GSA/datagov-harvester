@@ -29,6 +29,7 @@ def add_organization():
     form = OrganizationForm(db_interface=deps.db)
     if form.validate_on_submit():
         new_org = make_new_org_contract(form)
+
         org = deps.db.add_organization(new_org)
         if org:
             _log_mutation("create", "organization", org.id, organization_slug=org.slug)
@@ -37,8 +38,10 @@ def add_organization():
             flash("Failed to add organization.")
         return redirect(url_for("main.organization_list"))
     elif form.errors:
-        flash(form.errors)
-        return redirect(url_for("main.add_organization"))
+        # Flash individual error messages
+        for field, errors in form.errors.items():
+            for error in errors:
+                flash(error, "error")
     return render_template(
         "edit_data.html",
         form=form,
@@ -144,6 +147,7 @@ def edit_organization(org_id):
     form = OrganizationForm(organization_id=org_id, data=org, db_interface=deps.db)
     if form.validate_on_submit():
         new_org_data = make_new_org_contract(form)
+
         org = deps.db.update_organization(org_id, new_org_data)
         if org:
             _log_mutation("edit", "organization", org.id, organization_slug=org.slug)
@@ -157,8 +161,10 @@ def edit_organization(org_id):
             )
         )
     elif form.errors:
-        flash(form.errors)
-        return redirect(url_for("main.edit_organization", org_id=org_id))
+        # Flash individual error messages
+        for field, errors in form.errors.items():
+            for error in errors:
+                flash(error, "error")
 
     return render_template(
         "edit_data.html",

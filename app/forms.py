@@ -225,9 +225,11 @@ class OrganizationForm(FlaskForm):
             and self.code_repo_url.data.strip()
             and self.code_repo_exempt.data
         ):
-            # This is a warning, not an error, so we don't set valid=False
-            # The warning will be handled in the route handler
-            pass
+            self.code_repo_exempt.errors.append(
+                "An organization cannot have both a repository URL and an exemption. "
+                "Please provide either a URL or mark as exempt."
+            )
+            valid = False
 
         return valid
 

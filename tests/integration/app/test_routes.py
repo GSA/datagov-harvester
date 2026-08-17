@@ -904,12 +904,11 @@ class TestOrganizationCodeRepoFields:
         }
         response = client.post("/api/organization/add", json=data, headers=headers)
 
-        assert response.status_code == 400
+        assert response.status_code == 422
         response_data = response.get_json()
-        assert (
-            "URL must start with http://" in response_data["error"]
-            or "https://" in response_data["error"]
-        )
+        assert "detail" in response_data
+        assert "code_repo_url" in response_data["detail"]
+        assert "URL must start with http" in str(response_data["detail"])
 
     def test_add_organization_empty_url(self, app, client, interface):
         """Test empty URL is accepted (field is optional)."""
@@ -930,7 +929,7 @@ class TestOrganizationCodeRepoFields:
         assert response_data["code_repo_url"] is None
 
     def test_add_organization_conflict_warning(self, app, client):
-        """Test warning appears when both URL and exempt flag set."""
+        """Test error appears when both URL and exempt flag set."""
         api_token = app.config["API_TOKEN"]
         headers = {
             "X-API-Key": api_token,
@@ -944,11 +943,11 @@ class TestOrganizationCodeRepoFields:
         }
         response = client.post("/api/organization/add", json=data, headers=headers)
 
-        # Organization should still be created (warning not error)
-        assert response.status_code == 201
+        # Organization should NOT be created (conflict is an error)
+        assert response.status_code == 400
         response_data = response.get_json()
-        assert "warning" in response_data
-        assert "should not have both" in response_data["warning"]
+        assert "error" in response_data
+        assert "cannot have both" in response_data["error"]
 
     def test_edit_organization_add_code_repo_url(
         self, app, client, interface, organization_data
