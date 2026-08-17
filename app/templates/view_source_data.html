@@ -167,6 +167,7 @@
                     <thead>
                         <tr>
                             <th scope="col">ID</th>
+                            <th scope="col">Type</th>
                             <th scope="col">Slug</th>
                         </tr>
                     </thead>
@@ -174,6 +175,7 @@
                         {% for dataset in data.datasets %}
                         <tr>
                             <td class="word-break-all">{{ dataset.id }}</td>
+                            <td>{{ dataset.type }}</td>
                             <td>
                                 <a href="{{ url_for('main.view_dataset', dataset_slug=dataset.slug) }}">
                                     {{ dataset.slug }}
