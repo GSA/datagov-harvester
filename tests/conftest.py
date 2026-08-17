@@ -361,6 +361,24 @@ def source_data_dcatus3_0_series_with_members(organization_data: dict) -> dict:
 
 
 @pytest.fixture
+def source_data_dcatus3_0_series_member_also_top_level(organization_data: dict) -> dict:
+    return {
+        "id": "f0b1c3d5-7890-4bcd-ef01-234567890199",
+        "name": "Test Source DCAT-US 3.0 (series member also top-level)",
+        "notification_emails": ["email@example.com"],
+        "organization_id": organization_data["id"],
+        "frequency": "daily",
+        "url": (
+            f"{HARVEST_SOURCE_URL}/dcatus/"
+            "dcatus3_0_series_member_also_top_level.json"
+        ),
+        "schema_type": "dcatus3.0",
+        "source_type": "document",
+        "notification_frequency": "always",
+    }
+
+
+@pytest.fixture
 def source_data_dcatus_same_title(organization_data: dict) -> dict:
     return {
         "id": "50301cdb-5766-46ed-8f46-ca63844315a2",
@@ -732,6 +750,17 @@ def job_data_dcatus3_0_series_with_members(
         "id": "a1c2e4f6-8901-4cde-f012-345678901235",
         "status": "new",
         "harvest_source_id": source_data_dcatus3_0_series_with_members["id"],
+    }
+
+
+@pytest.fixture
+def job_data_dcatus3_0_series_member_also_top_level(
+    source_data_dcatus3_0_series_member_also_top_level: dict,
+) -> dict:
+    return {
+        "id": "a1c2e4f6-8901-4cde-f012-345678901299",
+        "status": "new",
+        "harvest_source_id": (source_data_dcatus3_0_series_member_also_top_level["id"]),
     }
 
 

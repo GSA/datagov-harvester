@@ -230,6 +230,45 @@ class TestExtract:
             for r in harvest_source.external_records
         )
 
+    def test_extract_dcatus3_0_series_member_also_top_level(
+        self,
+        make_harvest_source,
+        source_data_dcatus3_0_series_member_also_top_level,
+        job_data_dcatus3_0_series_member_also_top_level,
+    ):
+        """A dataset listed both at the catalog's top level and as a
+        DatasetSeries seriesMember is the same dataset, not a duplicate --
+        it must be harvested once, tagged with the series as its parent."""
+        harvest_source = make_harvest_source(
+            source_data_dcatus3_0_series_member_also_top_level,
+            job_data_dcatus3_0_series_member_also_top_level,
+        )
+        harvest_source.acquire_minimum_external_data()
+
+        assert len(harvest_source.external_records_by_type["data_series"]) == 1
+        assert len(harvest_source.external_records) == 2
+
+        by_identifier = {r["identifier"]: r for r in harvest_source.external_records}
+        assert by_identifier.keys() == {
+            "https://example.gov/datasets/annual-report-2023",
+            "https://example.gov/datasets/annual-report-2024",
+        }
+        assert all(
+            r["parent_identifier"] == "https://example.gov/series/annual-report"
+            for r in harvest_source.external_records
+        )
+        # The top-level entry is canonical: its description survives, not
+        # the (possibly different) copy embedded in the series member.
+        assert by_identifier["https://example.gov/datasets/annual-report-2023"][
+            "description"
+        ] == (
+            "The first dataset in the series, also listed at the "
+            "catalog's top level."
+        )
+
+        harvest_source.filter_duplicate_identifiers()
+        assert len(harvest_source.external_records) == 2
+
     def test_check_iso_dcatus_schema(
         self,
         make_harvest_source,

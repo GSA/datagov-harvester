@@ -571,6 +571,55 @@ def extract_dcatus3_nested_datasets(
     return nested_datasets
 
 
+def merge_dcatus3_datasets(top_level: list, *nested_lists: list) -> list:
+    """
+    Combine top-level catalog.dataset entries with datasets pulled from
+    nested locations (DataService.servesDataset, DatasetSeries.seriesMember/
+    first/last), treating a shared identifier as the same dataset rather
+    than a harvest-time duplicate -- but only when one side is a top-level
+    entry. A dataset can legitimately be listed both at the catalog's top
+    level and as e.g. a series member; the top-level entry (if present) is
+    canonical and wins, and a nested entry sharing its identifier only
+    contributes its "parent_identifier" tag (first nested list wins if more
+    than one claims the same identifier) instead of a second copy.
+
+    Overlaps between two *nested* entries (same list or different lists,
+    e.g. two different services both claiming to serve the same dataset)
+    are deliberately NOT merged here -- that's a genuine cross-source
+    ambiguity, not the top-level/member redundancy this function targets,
+    so those stay as separate records for the normal duplicate-identifier
+    filter to catch (see extract_dcatus3_nested_datasets' own
+    same-identifier-different-parents behavior, which this mirrors).
+    """
+    merged = []
+    top_level_by_identifier = {}
+
+    for dataset in top_level:
+        dataset = dict(dataset)
+        merged.append(dataset)
+        identifier = normalize_dataset_identifier(dataset.get("identifier"))
+        if identifier is not None:
+            top_level_by_identifier[identifier] = dataset
+
+    for nested in nested_lists:
+        for dataset in nested:
+            identifier = normalize_dataset_identifier(dataset.get("identifier"))
+            existing = (
+                top_level_by_identifier.get(identifier)
+                if identifier is not None
+                else None
+            )
+            if existing is not None:
+                existing.setdefault(
+                    "parent_identifier", dataset.get("parent_identifier")
+                )
+                continue
+
+            merged.append(dict(dataset))
+
+    return merged
+
+
 def make_record_mapping(record):
     """Helper to make a Harvest record dict"""
 

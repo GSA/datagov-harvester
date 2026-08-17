@@ -55,6 +55,7 @@ from harvester.utils.general_utils import (
     find_indexes_for_duplicates,
     get_datetime,
     make_record_mapping,
+    merge_dcatus3_datasets,
     munge_title_to_name,
     normalize_dataset_identifier,
     open_json,
@@ -678,16 +679,16 @@ class HarvestSource:
                             record_type: config["extractor"](catalog)
                             for record_type, config in NON_DATASET_RECORD_TYPES.items()
                         }
-                        self.external_records = (
-                            extract_dcatus3_catalog_datasets(catalog)
-                            + extract_dcatus3_nested_datasets(
+                        self.external_records = merge_dcatus3_datasets(
+                            extract_dcatus3_catalog_datasets(catalog),
+                            extract_dcatus3_nested_datasets(
                                 self.external_records_by_type.get("data_service", []),
                                 "servesDataset",
                                 parent_identifier_field=NON_DATASET_RECORD_TYPES[
                                     "data_service"
                                 ]["identifier_field"],
-                            )
-                            + extract_dcatus3_nested_datasets(
+                            ),
+                            extract_dcatus3_nested_datasets(
                                 self.external_records_by_type.get("data_series", []),
                                 "seriesMember",
                                 "first",
@@ -695,7 +696,7 @@ class HarvestSource:
                                 parent_identifier_field=NON_DATASET_RECORD_TYPES[
                                     "data_series"
                                 ]["identifier_field"],
-                            )
+                            ),
                         )
                         self.db_interface.update_harvest_job(
                             self.job_id,

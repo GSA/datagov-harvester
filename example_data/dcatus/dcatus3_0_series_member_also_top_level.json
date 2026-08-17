@@ -1,0 +1,67 @@
+{
+  "@type": "Catalog",
+  "@id": "https://example.gov/data-series-member-also-top-level.json",
+  "conformsTo": {
+    "@type": "Standard",
+    "title": "DCAT-US 3.0"
+  },
+  "title": "Example DCAT-US 3.0 Catalog Where A Series Member Is Also Top-Level",
+  "description": "A sample DCAT-US 3.0 catalog where a dataset is listed both at the top level and as a DatasetSeries seriesMember, used for harvest testing.",
+  "dataset": [
+    {
+      "@type": "Dataset",
+      "title": "Annual Report 2023",
+      "description": "The first dataset in the series, also listed at the catalog's top level.",
+      "identifier": "https://example.gov/datasets/annual-report-2023",
+      "publisher": {
+        "@type": "Organization",
+        "name": "Test Agency"
+      },
+      "contactPoint": {
+        "@type": "Kind",
+        "fn": "Test Contact",
+        "hasEmail": "mailto:series@example.gov"
+      }
+    }
+  ],
+  "datasetSeries": [
+    {
+      "@type": "DatasetSeries",
+      "@id": "https://example.gov/series/annual-report",
+      "title": "Annual Report Series",
+      "description": "A series of annual reports, one dataset per year.",
+      "seriesMember": [
+        {
+          "@type": "Dataset",
+          "title": "Annual Report 2023",
+          "description": "The first dataset in the series, also listed at the catalog's top level.",
+          "identifier": "https://example.gov/datasets/annual-report-2023",
+          "publisher": {
+            "@type": "Organization",
+            "name": "Test Agency"
+          },
+          "contactPoint": {
+            "@type": "Kind",
+            "fn": "Test Contact",
+            "hasEmail": "mailto:series@example.gov"
+          }
+        },
+        {
+          "@type": "Dataset",
+          "title": "Annual Report 2024",
+          "description": "The second dataset in the series, not listed at the top level.",
+          "identifier": "https://example.gov/datasets/annual-report-2024",
+          "publisher": {
+            "@type": "Organization",
+            "name": "Test Agency"
+          },
+          "contactPoint": {
+            "@type": "Kind",
+            "fn": "Test Contact",
+            "hasEmail": "mailto:series@example.gov"
+          }
+        }
+      ]
+    }
+  ]
+}
