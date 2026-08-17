@@ -22,6 +22,7 @@ warning_pattern=${3:-}
 poll_seconds=${CF_TASK_POLL_SECONDS:-5}
 lookup_timeout_seconds=${CF_TASK_LOOKUP_TIMEOUT_SECONDS:-60}
 max_poll_errors=${CF_TASK_MAX_POLL_ERRORS:-3}
+terminal_log_settle_seconds=${CF_TASK_LOG_SETTLE_SECONDS:-2}
 result_file="${GITHUB_WORKSPACE:-.}/.cf_monitor_result"
 log_pid=""
 
@@ -69,6 +70,19 @@ scan_recent_logs_for_warning() {
     return 1
   fi
   scan_task_logs false <<<"$recent_logs"
+}
+
+print_recent_task_logs() {
+  local recent_logs
+
+  if [[ "$terminal_log_settle_seconds" -gt 0 ]]; then
+    sleep "$terminal_log_settle_seconds"
+  fi
+  if ! recent_logs=$(cf logs "$app_to_monitor" --recent); then
+    echo "Unable to inspect recent logs for failed task ${task_to_monitor}." >&2
+    return 1
+  fi
+  scan_task_logs true <<<"$recent_logs"
 }
 
 poll_error() {
@@ -163,7 +177,7 @@ while true; do
       ;;
     FAILED)
       stop_log_stream
-      scan_recent_logs_for_warning || true
+      print_recent_task_logs || true
       exit 1
       ;;
     PENDING|RUNNING|CANCELING)
