@@ -898,7 +898,7 @@ class TestOrganizationCodeRepoFields:
             "slug": "test-agency",
             "code_repo_url": "https://github.com/test-agency",
         }
-        response = client.post("/api/organization/add", json=data, headers=headers)
+        response = client.post("/api/v1/organization/add", json=data, headers=headers)
 
         assert response.status_code == 201
         response_data = response.get_json()
@@ -921,7 +921,7 @@ class TestOrganizationCodeRepoFields:
             "slug": "exempt-agency",
             "code_repo_exempt": True,
         }
-        response = client.post("/api/organization/add", json=data, headers=headers)
+        response = client.post("/api/v1/organization/add", json=data, headers=headers)
 
         assert response.status_code == 201
         response_data = response.get_json()
@@ -944,7 +944,7 @@ class TestOrganizationCodeRepoFields:
             "slug": "test-agency-invalid",
             "code_repo_url": "ftp://github.com/test",
         }
-        response = client.post("/api/organization/add", json=data, headers=headers)
+        response = client.post("/api/v1/organization/add", json=data, headers=headers)
 
         assert response.status_code == 422
         response_data = response.get_json()
@@ -964,7 +964,7 @@ class TestOrganizationCodeRepoFields:
             "slug": "test-agency-empty",
             "code_repo_url": "",
         }
-        response = client.post("/api/organization/add", json=data, headers=headers)
+        response = client.post("/api/v1/organization/add", json=data, headers=headers)
 
         assert response.status_code == 201
         response_data = response.get_json()
@@ -983,7 +983,7 @@ class TestOrganizationCodeRepoFields:
             "code_repo_url": "https://github.com/test",
             "code_repo_exempt": True,
         }
-        response = client.post("/api/organization/add", json=data, headers=headers)
+        response = client.post("/api/v1/organization/add", json=data, headers=headers)
 
         # Organization should NOT be created (conflict is an error)
         assert response.status_code == 400
@@ -1009,7 +1009,7 @@ class TestOrganizationCodeRepoFields:
             "code_repo_url": "https://github.com/test-org",
         }
         response = client.post(
-            f"/api/organization/edit/{organization_data['id']}",
+            f"/api/v1/organization/edit/{organization_data['id']}",
             json=data,
             headers=headers,
         )
