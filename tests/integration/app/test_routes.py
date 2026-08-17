@@ -433,7 +433,7 @@ class TestAuditLogging:
 
         response = client.post("/api/organization/add", json=data, headers=headers)
 
-        assert response.status_code == 200
+        assert response.status_code == 201
         assert "Audit create organization" in caplog.text
         assert "user=<api_token>" in caplog.text
         assert "auth_type=api_token" in caplog.text
