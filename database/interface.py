@@ -341,7 +341,7 @@ class HarvesterDBInterface:
         """
         return (
             self.db.query(HarvestJob)
-            .options(lazyload("*"))
+            .options(lazyload(HarvestJob.source))
             .filter(
                 HarvestJob.date_created < datetime.now(timezone.utc),
                 HarvestJob.status == "new",
@@ -1253,22 +1253,6 @@ class HarvesterDBInterface:
         except Exception as e:
             logger.error("Error: %s", e)
             self.db.rollback()
-
-    def reset_harvest_job_to_new(self, job_id):
-        """Reset a claimed harvest job back to 'new' if task startup fails."""
-        try:
-            job = self.db.get(HarvestJob, job_id)
-            if job is None:
-                return
-
-            job.status = "new"
-            self.db.commit()
-            return job
-
-        except Exception as e:
-            self.db.rollback()
-            logger.error(f"Error resetting harvest job {job_id} to new: {repr(e)}")
-            raise
 
 
 def order_by_helper(model, order_by):
