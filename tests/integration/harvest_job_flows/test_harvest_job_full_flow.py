@@ -260,6 +260,7 @@ class TestHarvestJobFullFlow:
         assert datasets[0].dcat["identifier"] == (
             "https://example.gov/datasets/served-by-service-one"
         )
+        assert datasets[0].dcat["isPartOf"] == "https://example.gov/services/one"
 
         records = (
             interface.db.query(HarvestRecord)
@@ -311,10 +312,15 @@ class TestHarvestJobFullFlow:
             "https://example.gov/datasets/annual-report-2023",
             "https://example.gov/datasets/annual-report-2024",
         }
+        assert all(
+            d.dcat["isPartOf"] == "https://example.gov/series/annual-report"
+            for d in member_datasets
+        )
         assert len(series_datasets) == 1
         assert series_datasets[0].dcat["identifier"] == (
             "https://example.gov/series/annual-report"
         )
+        assert "isPartOf" not in series_datasets[0].dcat
 
         records = (
             interface.db.query(HarvestRecord)

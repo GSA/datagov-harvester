@@ -1458,6 +1458,12 @@ class Record:
                 if self.record_type != "dataset" and not metadata.get("identifier"):
                     # e.g. DatasetSeries has no "identifier" field, only "@id".
                     metadata["identifier"] = self.identifier
+                if self.parent_identifier and not metadata.get("isPartOf"):
+                    # add_parent() covers the ISO path; dcatus3.0 series
+                    # members and service-served datasets carry their
+                    # parent_identifier here instead, so it never reaches
+                    # dcat unless set explicitly.
+                    metadata["isPartOf"] = self.parent_identifier
                 if not self.dataset_slug:
                     self.dataset_slug = munge_title_to_name(metadata["title"])
 
