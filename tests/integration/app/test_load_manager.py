@@ -74,12 +74,7 @@ class TestLoadManager:
         assert job.status == "new"
 
         load_manager = LoadManager()
-
-        with patch(
-            "harvester.lib.load_manager.interface.claim_new_harvest_jobs",
-            return_value=[job],
-        ):
-            load_manager.start()
+        load_manager.start()
 
         # assert create_task ops
         start_task_mock = CFCMock.return_value.v3.tasks.create
@@ -223,7 +218,6 @@ class TestLoadManager:
         self,
         CFCMock,
         mock_good_cf_index,
-        force_cf_handler,
         interface_no_jobs,
         source_data_dcatus,
     ):
@@ -234,7 +228,7 @@ class TestLoadManager:
         new_job = interface_no_jobs.pget_harvest_jobs(
             facets=f"harvest_source_id eq {source_id},status eq in_progress"
         )
-        assert message == f"Started harvest task for job {new_job[0].id}"
+        assert message == f"Updated job {new_job[0].id} to in_progress"
         message = load_manager.trigger_manual_job(source_data_dcatus["id"])
         assert (
             message
@@ -258,7 +252,6 @@ class TestLoadManager:
         self,
         CFCMock,
         mock_good_cf_index,
-        force_cf_handler,
         interface_no_jobs,
         source_data_dcatus,
     ):
@@ -272,7 +265,7 @@ class TestLoadManager:
         current_job = interface_no_jobs.pget_harvest_jobs(
             facets=f"harvest_source_id eq {source_id},status eq in_progress"
         )[0]
-        assert message == f"Started harvest task for job {current_job.id}"
+        assert message == f"Updated job {current_job.id} to in_progress"
 
         failing_start_job_msg = load_manager.start_job(new_job.id, job_type="harvest")
         assert f"Job {current_job.id} already in progress" in failing_start_job_msg
@@ -631,172 +624,3 @@ class TestLoadManager:
         start_task_mock = CFCMock.return_value.v3.tasks.create
         assert start_task_mock.call_count == 0
         assert job.status == "new"
-
-    def test_claim_new_harvest_jobs_marks_jobs_in_progress(
-        self,
-        interface_no_jobs,
-        source_data_dcatus_orm,
-    ):
-        jobs = [
-            {
-                "status": "new",
-                "harvest_source_id": source_data_dcatus_orm.id,
-                "date_created": datetime.now() + timedelta(days=interval),
-            }
-            for interval in [-2, -1]
-        ]
-        for job in jobs:
-            interface_no_jobs.add_harvest_job(job)
-
-        claimed_jobs = interface_no_jobs.claim_new_harvest_jobs(limit=1)
-
-        assert len(claimed_jobs) == 1
-        claimed_job = interface_no_jobs.get_harvest_job(claimed_jobs[0].id)
-        assert claimed_job.status == "in_progress"
-
-    def test_claim_new_harvest_jobs_claims_oldest_jobs_first_without_duplicates(
-        self,
-        interface_no_jobs,
-        source_data_dcatus_single_record,
-    ):
-        source_1_id = "11111111-1111-1111-1111-111111111111"
-        source_2_id = "22222222-2222-2222-2222-222222222222"
-        source_3_id = "33333333-3333-3333-3333-333333333333"
-
-        interface_no_jobs.add_harvest_source(
-            {
-                **source_data_dcatus_single_record,
-                "id": source_1_id,
-                "name": "Source 1",
-                "url": "http://localhost:8081/dcatus/dcatus.json?source=1",
-            }
-        )
-        interface_no_jobs.add_harvest_source(
-            {
-                **source_data_dcatus_single_record,
-                "id": source_2_id,
-                "name": "Source 2",
-                "url": "http://localhost:8081/dcatus/dcatus.json?source=2",
-            }
-        )
-        interface_no_jobs.add_harvest_source(
-            {
-                **source_data_dcatus_single_record,
-                "id": source_3_id,
-                "name": "Source 3",
-                "url": "http://localhost:8081/dcatus/dcatus.json?source=3",
-            }
-        )
-
-        created_jobs = [
-            interface_no_jobs.add_harvest_job(
-                {
-                    "status": "new",
-                    "harvest_source_id": source_1_id,
-                    "date_created": datetime.now() + timedelta(days=-3),
-                }
-            ),
-            interface_no_jobs.add_harvest_job(
-                {
-                    "status": "new",
-                    "harvest_source_id": source_2_id,
-                    "date_created": datetime.now() + timedelta(days=-2),
-                }
-            ),
-            interface_no_jobs.add_harvest_job(
-                {
-                    "status": "new",
-                    "harvest_source_id": source_3_id,
-                    "date_created": datetime.now() + timedelta(days=-1),
-                }
-            ),
-        ]
-
-        first_claim = interface_no_jobs.claim_new_harvest_jobs(limit=1)
-        second_claim = interface_no_jobs.claim_new_harvest_jobs(limit=1)
-
-        assert len(first_claim) == 1
-        assert len(second_claim) == 1
-
-        first_job_id = first_claim[0].id
-        second_job_id = second_claim[0].id
-
-        assert first_job_id == created_jobs[0].id
-        assert second_job_id == created_jobs[1].id
-        assert first_job_id != second_job_id
-
-        assert interface_no_jobs.get_harvest_job(first_job_id).status == "in_progress"
-        assert interface_no_jobs.get_harvest_job(second_job_id).status == "in_progress"
-
-        remaining_new_jobs = interface_no_jobs.get_new_harvest_jobs_in_past()
-        assert len(remaining_new_jobs) == 1
-        assert remaining_new_jobs[0].id == created_jobs[2].id
-
-    def test_claim_new_harvest_jobs_skips_new_jobs_for_busy_sources(
-        self,
-        interface_no_jobs,
-        source_data_dcatus_orm,
-    ):
-        created_jobs = [
-            interface_no_jobs.add_harvest_job(
-                {
-                    "status": "new",
-                    "harvest_source_id": source_data_dcatus_orm.id,
-                    "date_created": datetime.now() + timedelta(days=-3),
-                }
-            ),
-            interface_no_jobs.add_harvest_job(
-                {
-                    "status": "new",
-                    "harvest_source_id": source_data_dcatus_orm.id,
-                    "date_created": datetime.now() + timedelta(days=-2),
-                }
-            ),
-        ]
-
-        first_claim = interface_no_jobs.claim_new_harvest_jobs(limit=1)
-        second_claim = interface_no_jobs.claim_new_harvest_jobs(limit=1)
-
-        assert len(first_claim) == 1
-        assert first_claim[0].id == created_jobs[0].id
-
-        assert second_claim == []
-
-        assert (
-            interface_no_jobs.get_harvest_job(created_jobs[0].id).status
-            == "in_progress"
-        )
-        assert interface_no_jobs.get_harvest_job(created_jobs[1].id).status == "new"
-
-    def test_claim_new_harvest_jobs_skips_jobs_for_sources_with_in_progress_jobs(
-        self,
-        interface_no_jobs,
-        source_data_dcatus_orm,
-    ):
-        in_progress_job = interface_no_jobs.add_harvest_job(
-            {
-                "status": "in_progress",
-                "harvest_source_id": source_data_dcatus_orm.id,
-                "date_created": datetime.now() + timedelta(days=-2),
-            }
-        )
-
-        new_job = interface_no_jobs.add_harvest_job(
-            {
-                "status": "new",
-                "harvest_source_id": source_data_dcatus_orm.id,
-                "date_created": datetime.now() + timedelta(days=-1),
-            }
-        )
-
-        claimed_jobs = interface_no_jobs.claim_new_harvest_jobs(limit=1)
-
-        assert claimed_jobs == []
-
-        refreshed_in_progress_job = interface_no_jobs.get_harvest_job(
-            in_progress_job.id
-        )
-        refreshed_new_job = interface_no_jobs.get_harvest_job(new_job.id)
-
-        assert refreshed_in_progress_job.status == "in_progress"
-        assert refreshed_new_job.status == "new"

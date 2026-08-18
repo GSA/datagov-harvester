@@ -104,34 +104,12 @@ class LoadManager:
                 # from a task only do 1 at most
                 slots = 1 if slots > 0 else 0
 
-            try:
-                # Claim eligible jobs first so concurrent schedulers
-                # do not select the same work.
-                # If task startup fails, reset the job to "new" so it can be retried.
-                jobs = interface.claim_new_harvest_jobs(limit=slots)
-            except Exception as e:
-                logger.error(f"Error claiming new harvest jobs: {repr(e)}")
-                return
-
+            # invoke cf_task with next jobs
+            # then mark the job as running in the DB
+            jobs = interface.get_new_harvest_jobs_in_past(limit=slots)
             for job in jobs:
-                try:
-                    result = self.start_job(job.id, job.job_type)
-
-                    if isinstance(result, str) and result.startswith(
-                        "Can't trigger harvest."
-                    ):
-                        logger.info(
-                            f"Claimed job {job.id} was not started because another job "
-                            f"for the same source is already in progress. "
-                            f"Resetting to new."
-                        )
-                        self._reset_claimed_job_to_new(job.id)
-                        continue
-                    self.schedule_next_job(job.harvest_source_id)
-                except Exception as e:
-                    logger.error(f"Error starting claimed job {job.id}: {repr(e)}")
-                    self._reset_claimed_job_to_new(job.id)
-                    continue
+                self.start_job(job.id, job.job_type)
+                self.schedule_next_job(job.harvest_source_id)
         finally:
             # closes the scoped_session object
             interface.close()
@@ -147,56 +125,48 @@ class LoadManager:
 
     def start_job(self, job_id, job_type="harvest"):
         """
-        Starts harvest job if no other job is currently in progress for the same source.
+        Start a harvest job if no other job is currently in progress for the same source
 
-        This method checks whether another job with status 'in_progress' already exists
-        for the same harvest source. If not, it ensures the current job is marked
-        'in_progress' when needed, creates a task contract, and starts the task using
-        the configured handler. If an exception occurs during this process,
-        the method attempts to reset the job status to 'new'.
+        This method checks if a job with status 'in_progress' already exists for the
+        given harvest source. If not, it updates the job status to 'in_progress',
+        creates a task contract, and starts the task using the handler. If an error
+        occurs during this process, the job status is reset to 'new'.
 
         Returns:
             str: A message indicating the result of the operation.
         """
 
         try:
-            # Check if another job is already running for this source.
+            """Check if a job is already running for this source."""
             harvest_job = interface.get_harvest_job(job_id)
             jobs_in_progress = interface.pget_harvest_jobs(
                 facets=f"harvest_source_id eq {harvest_job.harvest_source_id},status eq in_progress",  # noqa E501
-                per_page=10,
+                per_page=1,  # Only need 1 job to know we should not start a new one
                 page=0,
             )
-            other_jobs_in_progress = [
-                job for job in jobs_in_progress if job.id != job_id
-            ]
-            if other_jobs_in_progress:
-                return (
-                    f"Can't trigger harvest. Job {other_jobs_in_progress[0].id} "
-                    f"already in progress."
-                )
+            if len(jobs_in_progress):
+                return f"Can't trigger harvest. Job {jobs_in_progress[0].id} already in progress."  # noqa E501
 
-            if harvest_job.status != "in_progress":
-                interface.update_harvest_job(
-                    job_id, {"status": "in_progress", "date_created": get_datetime()}
-                )
-
-            # Start the task using the configured task handler.
+            """task manager start interface, takes a job_id"""
             task_contract = {
                 "command": f"python harvester/harvest.py {job_id} {job_type}",
                 "task_id": f"harvest-job-{job_id}-{job_type}",
             }
 
+            updated_job = interface.update_harvest_job(
+                job_id, {"status": "in_progress", "date_created": get_datetime()}
+            )
             self.handler.start_task(**task_contract)
-            message = f"Started harvest task for job {job_id}"
+            message = f"Updated job {updated_job.id} to in_progress"
             logger.info(message)
             return message
-
         except Exception as e:
             message = f"LoadManager: start_job failed :: {repr(e)}"
             logger.error(message)
             try:
-                interface.reset_harvest_job_to_new(job_id)
+                updated_job = interface.update_harvest_job(
+                    job_id, {"status": "new", "date_created": get_datetime()}
+                )
             except Exception as e:
                 logger.error(f"Failed to reset job {job_id} status: {repr(e)}")
                 pass
@@ -317,10 +287,3 @@ class LoadManager:
             message = f"LoadManager: trigger_manual_job failed :: {repr(e)}"
             logger.error(message)
             return message
-
-    def _reset_claimed_job_to_new(self, job_id):
-        try:
-            interface.reset_harvest_job_to_new(job_id)
-        except Exception:
-            # reset_harvest_job_to_new already logged the underlying error
-            pass

@@ -6,7 +6,7 @@ import sqlalchemy.sql.operators as sa_operators
 from sqlalchemy import Text, asc, cast, desc, exists, func, inspect, literal, text
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import NoResultFound
-from sqlalchemy.orm import aliased
+from sqlalchemy.orm import aliased, lazyload
 
 from database.configs import PaginationConfig
 from database.decorators import count, count_wrapper, paginate
@@ -341,11 +341,13 @@ class HarvesterDBInterface:
         """
         return (
             self.db.query(HarvestJob)
+            .options(lazyload("*"))
             .filter(
                 HarvestJob.date_created < datetime.now(timezone.utc),
                 HarvestJob.status == "new",
             )
             .order_by(asc(HarvestJob.date_created))
+            .with_for_update(skip_locked=True)
             .limit(limit)
             .all()
         )
@@ -1251,67 +1253,6 @@ class HarvesterDBInterface:
         except Exception as e:
             logger.error("Error: %s", e)
             self.db.rollback()
-
-    def claim_new_harvest_jobs(self, limit=None):
-        """Claim harvest jobs that need to be run.
-
-        A job that needs to be run has status "new" and a date_created before now.
-        Claimed jobs are returned in ascending order of date_created and marked
-        "in_progress" before being returned so they are not claimed again.
-
-        Jobs whose source already has an in-progress job are skipped until that
-        source becomes available.
-
-        If `limit` is given, it limits the number of returned jobs to at most that
-        number. The default is to return all eligible jobs.
-        """
-        try:
-            in_progress_job = aliased(HarvestJob)
-
-            # Query only HarvestJob.id here so FOR UPDATE SKIP LOCKED does not pull in
-            # relationship joins that PostgreSQL cannot lock through outer joins.
-            # This avoids the error:
-            # "FOR UPDATE cannot be applied to the nullable side of an outer join".
-            claimed_ids = [
-                row[0]
-                for row in (
-                    self.db.query(HarvestJob.id)
-                    .filter(
-                        HarvestJob.date_created < datetime.now(timezone.utc),
-                        HarvestJob.status == "new",
-                        ~exists().where(
-                            in_progress_job.harvest_source_id
-                            == HarvestJob.harvest_source_id,
-                            in_progress_job.status == "in_progress",
-                        ),
-                    )
-                    .order_by(asc(HarvestJob.date_created))
-                    .with_for_update(skip_locked=True)
-                    .limit(limit)
-                    .all()
-                )
-            ]
-
-            if not claimed_ids:
-                self.db.commit()
-                return []
-
-            jobs = (
-                self.db.query(HarvestJob).filter(HarvestJob.id.in_(claimed_ids)).all()
-            )
-            jobs_by_id = {job.id: job for job in jobs}
-            ordered_jobs = [jobs_by_id[job_id] for job_id in claimed_ids]
-
-            for job in ordered_jobs:
-                job.status = "in_progress"
-
-            self.db.commit()
-            return ordered_jobs
-
-        except Exception as e:
-            self.db.rollback()
-            logger.error(f"Error claiming new harvest jobs: {repr(e)}")
-            raise
 
     def reset_harvest_job_to_new(self, job_id):
         """Reset a claimed harvest job back to 'new' if task startup fails."""
