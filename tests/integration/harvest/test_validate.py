@@ -643,7 +643,14 @@ class TestValidateWarnings:
         job_data_dcatus3_0_invalid,
     ):
         """An invalid record that also warns is counted as errored and warned,
-        and reporting the warning must not clobber the record's error status."""
+        and reporting the warning must not clobber the record's error status.
+
+        The error and the warning must come from two independent defects, not
+        the same value reported twice (GSA/data.gov#6243): the schema error is
+        the fixture's own missing `contactPoint` (a required Dataset field),
+        while the warning comes from an unrelated, schema-valid `language`
+        code. Neither defect implies the other.
+        """
         test_record = self._first_dcatus3_record(
             interface,
             organization_data,
@@ -654,9 +661,11 @@ class TestValidateWarnings:
         # give the record a real db id so we can assert its persisted status
         test_record.compare()
 
-        # a bad @id is both a schema error (format: iri) and an invalid_iri warning
+        # source_data_dcatus3_0_invalid's first dataset is already schema-invalid
+        # (missing the mandatory `contactPoint`); an unknown ISO 639-1 language
+        # is a separate, unrelated content warning, not a schema error
         record = json.loads(test_record.source_raw)
-        record["@id"] = "not a valid iri"
+        record["language"] = ["zz"]
         test_record._source_raw = json.dumps(record)
 
         assert not test_record.validate()
@@ -673,7 +682,7 @@ class TestValidateWarnings:
         warnings = interface.get_harvest_record_errors_by_job(
             harvest_source.job_id, severity="warning"
         )
-        assert any(w[0].type == "invalid_iri" for w in warnings)
+        assert any(w[0].type == "invalid_language" for w in warnings)
 
     def test_non_dcatus3_record_is_not_warned(
         self,

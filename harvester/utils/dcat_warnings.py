@@ -13,6 +13,27 @@ message so the storage-wiring story can populate `harvest_record_error.type`
 without parsing message text (mirroring how harvest errors are typed by
 exception class name in `harvester/harvest.py`).
 
+Boundary with the schema (GSA/data.gov#6243): a warning rule must never fire on
+a value the DCAT-US 3.0 JSON Schema already rejects. The schema owns JSON type,
+format, length, and enum checks; this module owns content-and-semantics checks
+on values the schema accepts. When a rule below guards on `isinstance(...)` (or
+similarly narrows its input) purely to defer to the schema, the guard's comment
+names the schema constraint it is deferring to. Restating a schema constraint
+here would report the same defect twice: once as a validator error, once as a
+warning. If you add a rule, check the field's definition under
+`schemas/dcatus3.0/definitions/` first and only warn on values the schema's
+type/format/length/enum already lets through.
+
+Known, accepted limitation: dropping the universal `@id` IRI walk (see below)
+means an `@id` on an object nested under a property the schema does not
+define (e.g. an ad hoc `extension` object) now produces no signal at all --
+not a schema error, not a warning -- because the schema never validates that
+object in the first place. We do not restore the universal walk: doing so
+would reinstate the exact double-report this issue is about for every
+schema-defined object (each definition declares `@id` as `{"type": "string",
+"format": "iri"}`), and a position-aware version would need to track which
+paths the schema actually covers, which this module does not do.
+
 Rules that validate against controlled vocabularies (ISO 639-1 languages, IANA
 character sets and media types, NARA restriction authority lists) read bundled
 static JSON snapshots from `reference_data/` instead of calling those registries
@@ -75,8 +96,6 @@ _NARA_SPECIFIC_USE_RESTRICTION = _load_reference_values(
 )
 
 
-_IRI_FORMAT_CHECKER = FormatChecker()
-
 # xsd:duration / ISO 8601 duration. Requires something after P (and after T
 # when a time part is present); accepts an optional leading sign and weeks.
 _XSD_DURATION_RE = re.compile(
@@ -111,26 +130,67 @@ _US_COUNTRY_NAMES = {
     "united states of america",
 }
 
-
-def _is_valid_iri(value) -> bool:
-    """True when value is a string that conforms to the IRI format."""
-    return isinstance(value, str) and _IRI_FORMAT_CHECKER.conforms(value, "iri")
+# Used by `_parse_dcat_date` to defer to the validator's own definition of a
+# valid "date"/"date-time" (the validator itself is built with
+# `format_checker=FormatChecker()`, see `build_dcatus3_validator`). This is
+# not restating a schema constraint -- it is asking the schema's own checker
+# whether a value is in-bounds before treating it as a parsed date, so a
+# value the schema rejects (e.g. a date-time with no UTC offset) can't also
+# be double-reported as a `date_out_of_order` warning (GSA/data.gov#6243).
+_DATE_FORMAT_CHECKER = FormatChecker()
 
 
 def _parse_dcat_date(value):
-    """Parse a DCAT date/date-time/YYYY/YYYY-MM string to a date, else None."""
+    """Parse a DCAT date/date-time/YYYY/YYYY-MM string to a date, else None.
+
+    A `created`/`modified`/`issued`/etc. value is `anyOf[null, {format:
+    date-time}, {format: date}, {pattern: "^[0-9]{4}$"}, {pattern:
+    "^[0-9]{4}-[0-9]{2}$"}]` (see e.g. Dataset.json `created`). Only that
+    exact set parses here; anything else is already a schema error, not a
+    content-quality one. `format: date-time` is RFC 3339 and requires a UTC
+    offset, which `datetime.fromisoformat` alone does not enforce, so the
+    date-time branch below checks `FormatChecker` first rather than relying
+    on `fromisoformat` succeeding.
+
+    Every one of those alternatives is checked by the schema against the
+    value exactly as given -- the `^[0-9]{4}$`/`^[0-9]{4}-[0-9]{2}$` patterns
+    are anchored with no allowance for surrounding whitespace, and both
+    `FormatChecker` formats reject it too. So this parses `value` itself, not
+    a stripped copy: a padded string like `" 2025-06-01 "` is already a
+    schema `format`/`pattern` error (GSA/data.gov#6243), and stripping it
+    here would let it parse anyway and be double-reported as
+    `date_out_of_order`.
+    """
     if not isinstance(value, str):
         return None
-    v = value.strip()
     try:
-        if re.fullmatch(r"\d{4}", v):
-            return date(int(v), 1, 1)
-        if re.fullmatch(r"\d{4}-\d{2}", v):
-            year, month = v.split("-")
+        if re.fullmatch(r"\d{4}", value):
+            return date(int(value), 1, 1)
+        if re.fullmatch(r"\d{4}-\d{2}", value):
+            year, month = value.split("-")
             return date(int(year), int(month), 1)
-        return datetime.fromisoformat(v.replace("Z", "+00:00")).date()
+        if _DATE_FORMAT_CHECKER.conforms(value, "date"):
+            return date.fromisoformat(value)
+        if _DATE_FORMAT_CHECKER.conforms(value, "date-time"):
+            # RFC 3339 (what `format: date-time` requires) treats the "T"
+            # separator and the "Z" UTC designator as case-insensitive, and
+            # `FormatChecker` -- and therefore the schema -- accepts a
+            # lowercase "z" for the same reason it accepts a lowercase "t"
+            # (which `fromisoformat` already tolerates on its own). Only a
+            # trailing, case-insensitive "z" needs normalizing to the offset
+            # `fromisoformat` requires; anywhere else in a valid date-time
+            # string, "Z"/"z" can't appear. Leaving this schema-valid form
+            # unparseable would mean no `date_out_of_order` warning could
+            # ever fire for it (GSA/data.gov#6243).
+            normalized = re.sub(r"[Zz]$", "+00:00", value)
+            return datetime.fromisoformat(normalized).date()
     except ValueError:
+        # `conforms()` accepts some values (e.g. a pattern-only "0000" year)
+        # that the stricter parse below still rejects; treat those as
+        # unparseable rather than raising out of warning detection, matching
+        # this function's pre-6243 behavior.
         return None
+    return None
 
 
 def _date_later_than(value, other) -> bool:
@@ -142,37 +202,16 @@ def _date_later_than(value, other) -> bool:
     return parsed_value > parsed_other
 
 
-def _warn_iri(field: str, value) -> Optional[DcatWarning]:
-    """Warn if a single field value is not a valid IRI."""
-    if value is None or _is_valid_iri(value):
-        return None
-    return DcatWarning("invalid_iri", f'`{field}` value "{value}" is not a valid IRI.')
-
-
-def _warn_iris(field: str, values) -> list:
-    """Warn for each string entry in an array-valued field that is not an IRI.
-
-    Non-string entries (e.g. Standard objects on `conformsTo`) are skipped here;
-    their `@id` is covered by the universal object walk.
-    """
-    if not isinstance(values, list):
-        return []
-    warnings = []
-    for value in values:
-        if isinstance(value, str) and not _is_valid_iri(value):
-            warnings.append(
-                DcatWarning(
-                    "invalid_iri", f'`{field}` value "{value}" is not a valid IRI.'
-                )
-            )
-    return warnings
-
-
 def _warn_duplicate_keywords(keywords) -> list:
-    """Warn once per keyword that appears more than once."""
+    """Warn once per keyword that appears more than once.
+
+    Empty entries are skipped: `keyword` items carry `minLength: 1`, so ""
+    is already a schema violation, not a content-quality one. Whitespace-only
+    entries pass that constraint, so they are still counted here.
+    """
     if not isinstance(keywords, list):
         return []
-    counts = Counter(k for k in keywords if isinstance(k, str))
+    counts = Counter(k for k in keywords if isinstance(k, str) and k != "")
     return [
         DcatWarning(
             "duplicate_keyword",
@@ -187,7 +226,11 @@ def _warn_spatial_resolution(value) -> Optional[DcatWarning]:
     """Warn if spatialResolutionInMeters is non-numeric or not greater than zero."""
     if value is None:
         return None
-    if not _DECIMAL_RE.match(str(value)):
+    # spatialResolutionInMeters is `type: ["null", "string"]`; a non-string
+    # value is already a schema type error, not a content-quality one.
+    if not isinstance(value, str):
+        return None
+    if not _DECIMAL_RE.match(value):
         return DcatWarning(
             "invalid_spatial_resolution",
             f'`spatialResolutionInMeters` value "{value}" '
@@ -207,7 +250,13 @@ def _warn_temporal_resolution(value, invalid_msg: str) -> Optional[DcatWarning]:
     `invalid_msg` supplies the class-specific message tail (ISO 8601 for Dataset,
     xsd:duration for Distribution/DataService); the grammar checked is identical.
     """
-    if value is None or (isinstance(value, str) and _XSD_DURATION_RE.match(value)):
+    if value is None:
+        return None
+    # temporalResolution is `type: ["null", "string"]`; a non-string value is
+    # already a schema type error, not a content-quality one.
+    if not isinstance(value, str):
+        return None
+    if _XSD_DURATION_RE.match(value):
         return None
     return DcatWarning(
         "invalid_temporal_resolution",
@@ -217,7 +266,14 @@ def _warn_temporal_resolution(value, invalid_msg: str) -> Optional[DcatWarning]:
 
 def _warn_byte_size(value) -> Optional[DcatWarning]:
     """Warn if byteSize does not parse to a number."""
-    if value is None or is_number(value):
+    if value is None:
+        return None
+    # byteSize is `type: ["null", "string"]`; a non-string value (e.g. a list)
+    # is already a schema type error. is_number() would otherwise raise
+    # TypeError on non-string/non-numeric values such as a list.
+    if not isinstance(value, str):
+        return None
+    if is_number(value):
         return None
     return DcatWarning(
         "invalid_byte_size",
@@ -286,27 +342,49 @@ def _warn_tel_has_letters(value) -> Optional[DcatWarning]:
     return None
 
 
-def _warn_expected_data_type(value) -> list:
-    """Warn for each expectedDataType value that does not begin with `xsd:`."""
-    values = value if isinstance(value, list) else [value]
-    warnings = []
-    for entry in values:
-        if isinstance(entry, str) and not entry.startswith("xsd:"):
-            warnings.append(
-                DcatWarning(
-                    "invalid_expected_data_type",
-                    f'`expectedDataType` value "{entry}" does not appear to be a '
-                    'valid XSD type. Expected format begins with "xsd:" (e.g., '
-                    '"xsd:string", "xsd:decimal").',
-                )
-            )
-    return warnings
+def _warn_expected_data_type(value) -> Optional[DcatWarning]:
+    """Warn if expectedDataType does not begin with `xsd:`."""
+    # Metric.expectedDataType is `"type": "string"`, a scalar; a non-string
+    # value (e.g. a list) is already a schema type error.
+    if not isinstance(value, str):
+        return None
+    if not value.startswith("xsd:"):
+        return DcatWarning(
+            "invalid_expected_data_type",
+            f'`expectedDataType` value "{value}" does not appear to be a '
+            'valid XSD type. Expected format begins with "xsd:" (e.g., '
+            '"xsd:string", "xsd:decimal").',
+        )
+    return None
 
 
 def _warn_spatial_unresolved(field: str, value) -> Optional[DcatWarning]:
-    """Warn if a spatial value cannot be resolved to a geographic area."""
+    """Warn if a spatial value cannot be resolved to a geographic area.
+
+    `bbox` and `geometry` are each `anyOf[null, string, object]`
+    (Location.json), and the object variant requires "type" and
+    "coordinates" for both. A value that is neither a string nor a dict
+    carrying those required keys is already a schema type/required-property
+    error for either field, not a content-quality one, so it is skipped here
+    rather than re-warned on.
+
+    `bbox`'s object variant additionally pins "type" to the constant
+    "Polygon"; an object whose "type" isn't exactly "Polygon" is already a
+    schema `const` error there, so it is skipped too (GSA/data.gov#6243) --
+    `translate_spatial` never gets the chance to judge it. `geometry`'s
+    object variant has no such constant (any "type" value passes the
+    schema), so a `geometry` dict `translate_spatial` can't resolve is still
+    a legitimate, schema-clean content-quality warning and must still fire.
+    """
     if value is None:
         return None
+    if not isinstance(value, (str, dict)):
+        return None
+    if isinstance(value, dict):
+        if not {"type", "coordinates"} <= value.keys():
+            return None
+        if field == "bbox" and value.get("type") != "Polygon":
+            return None
     if translate_spatial(value):
         return None
     return DcatWarning(
@@ -332,7 +410,14 @@ def _warn_us_postal_code(postal_code, country_name) -> Optional[DcatWarning]:
 
 
 def _warn_empty_address(address: dict) -> Optional[DcatWarning]:
-    """Warn if an Address object has no populated fields."""
+    """Warn if an Address object has no populated fields.
+
+    Each Address field is `type: ["null", "string"]` (Address.json), so
+    `None` and "" are the only schema-valid "unpopulated" states. Any other
+    falsy value (e.g. `0`, `[]`) is already a schema type error, not an
+    empty-address content issue -- there is a populated, if wrongly-typed,
+    value, so it must not also count toward "no populated fields".
+    """
     fields = (
         "street-address",
         "locality",
@@ -340,7 +425,7 @@ def _warn_empty_address(address: dict) -> Optional[DcatWarning]:
         "postal-code",
         "country-name",
     )
-    if all(not (address.get(field) or "") for field in fields):
+    if all(address.get(field) in (None, "") for field in fields):
         return DcatWarning("empty_address", "Address object has no populated fields.")
     return None
 
@@ -366,11 +451,15 @@ def _as_list(value) -> list:
 def _warn_language(value) -> list:
     """Warn on language codes that are too short or not recognized ISO 639-1.
 
-    `language` may be a single string or an array of strings.
+    `language` is `anyOf[null, {string, maxLength 2}, {array of {string,
+    maxLength 2}}]`, so `language` may be a single string or an array of
+    strings; either way each entry is expected to already be at most 2
+    characters. An entry longer than 2 characters is already a schema
+    `maxLength` error, so it is skipped here rather than re-warned on.
     """
     warnings = []
     for entry in _as_list(value):
-        if not isinstance(entry, str):
+        if not isinstance(entry, str) or len(entry) > 2:
             continue
         if len(entry) < 2:
             warnings.append(
@@ -393,8 +482,13 @@ def _warn_language(value) -> list:
 
 def _warn_character_encoding(value) -> list:
     """Warn on character encodings not recognized as IANA character set names."""
+    # Distribution.characterEncoding is `anyOf[null, {array of string}]`; a
+    # bare string (not wrapped in a list) is already a schema type error, so
+    # only a list is evaluated here (unlike `_warn_language`, no `_as_list`).
+    if not isinstance(value, list):
+        return []
     warnings = []
-    for entry in _as_list(value):
+    for entry in value:
         if isinstance(entry, str) and entry.lower() not in _IANA_CHARACTER_SETS:
             warnings.append(
                 DcatWarning(
@@ -482,10 +576,6 @@ def _dataset_warnings(obj: dict) -> list:
         _warn_issued_after_modified(obj.get("issued"), obj.get("modified")),
     )
     _append(warnings, _warn_language(obj.get("language")))
-    _append(warnings, _warn_iris("relation", obj.get("relation")))
-    _append(warnings, _warn_iri("image", obj.get("image")))
-    _append(warnings, _warn_iris("isReferencedBy", obj.get("isReferencedBy")))
-    _append(warnings, _warn_iris("conformsTo", obj.get("conformsTo")))
     return warnings
 
 
@@ -500,7 +590,6 @@ def _distribution_warnings(obj: dict) -> list:
     _append(warnings, _warn_character_encoding(obj.get("characterEncoding")))
     _append(warnings, _warn_media_type(obj.get("mediaType")))
     _append(warnings, _warn_language(obj.get("language")))
-    _append(warnings, _warn_iris("conformsTo", obj.get("conformsTo")))
     return warnings
 
 
@@ -512,7 +601,6 @@ def _dataservice_warnings(obj: dict) -> list:
         _warn_temporal_resolution(obj.get("temporalResolution"), _XSD_DURATION_MSG),
     )
     _append(warnings, _warn_language(obj.get("language")))
-    _append(warnings, _warn_iris("conformsTo", obj.get("conformsTo")))
     return warnings
 
 
@@ -648,14 +736,23 @@ def _walk_objects(node):
 def detect_dcat_warnings(data: dict) -> list:
     """Detect DCAT-US 3 content-quality warnings in a dataset record.
 
-    Walks the record, runs the universal `@id` IRI check on every object, and
-    dispatches each typed object to its class rules. Returns a flat list of
-    `DcatWarning` tuples (empty when the record is clean).
+    Walks the record and dispatches each typed object to its class rules.
+    Returns a flat list of `DcatWarning` tuples (empty when the record is
+    clean). There is no universal `@id`/IRI check here: every DCAT-US 3
+    definition declares `@id` as `{"type": "string", "format": "iri"}`, so an
+    invalid IRI is already a schema `format` error (GSA/data.gov#6243).
     """
     warnings = []
     for obj in _walk_objects(data):
-        _append(warnings, _warn_iri("@id", obj.get("@id")))
-        rule = _TYPE_RULES.get(obj.get("@type"))
+        type_value = obj.get("@type")
+        # `@type` is `{"type": "string", ...}` in every DCAT-US 3 definition;
+        # a non-string `@type` (e.g. a list or dict from a malformed record)
+        # is already a schema type error, not a content-quality one. It is
+        # also unhashable, so `_TYPE_RULES.get` would raise `TypeError:
+        # unhashable type` on it if dispatched anyway.
+        if not isinstance(type_value, str):
+            continue
+        rule = _TYPE_RULES.get(type_value)
         if rule is not None:
             _append(warnings, rule(obj))
     return warnings

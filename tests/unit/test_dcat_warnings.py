@@ -10,7 +10,7 @@ every test.
 
 from pathlib import Path
 
-from harvester.utils.dcat_warnings import DcatWarning, detect_dcat_warnings
+from harvester.utils.dcat_warnings import detect_dcat_warnings
 from harvester.utils.general_utils import open_json
 
 COMPLETE_EXAMPLE = (
@@ -28,33 +28,6 @@ def types(warnings):
     return [w.warning_type for w in warnings]
 
 
-class TestIdIri:
-    def test_valid_iri_produces_no_warning(self):
-        data = {"@id": "https://example.gov/datasets/one", "@type": "Dataset"}
-        assert detect_dcat_warnings(data) == []
-
-    def test_invalid_iri_warns(self):
-        data = {"@id": "not a valid iri", "@type": "Dataset"}
-        warnings = detect_dcat_warnings(data)
-        assert warnings == [
-            DcatWarning(
-                "invalid_iri", '`@id` value "not a valid iri" is not a valid IRI.'
-            )
-        ]
-
-    def test_missing_id_is_ignored(self):
-        assert detect_dcat_warnings({"@type": "Dataset"}) == []
-
-    def test_nested_object_id_is_checked(self):
-        data = {
-            "@type": "Dataset",
-            "distribution": [{"@type": "Distribution", "@id": "bad iri"}],
-        }
-        warnings = detect_dcat_warnings(data)
-        assert types(warnings) == ["invalid_iri"]
-        assert '`@id` value "bad iri"' in warnings[0].message
-
-
 class TestDuplicateKeywords:
     def test_unique_keywords_pass(self):
         data = {"@type": "Dataset", "keyword": ["climate", "weather"]}
@@ -65,6 +38,12 @@ class TestDuplicateKeywords:
         warnings = detect_dcat_warnings(data)
         assert types(warnings) == ["duplicate_keyword"]
         assert "climate" in warnings[0].message
+
+    def test_duplicate_blank_keywords_produce_no_warning(self):
+        # `keyword` items carry `minLength: 1`; an empty string is already a
+        # schema violation, so it must not also be reported as a warning.
+        data = {"@type": "Dataset", "keyword": ["", ""]}
+        assert detect_dcat_warnings(data) == []
 
 
 class TestSpatialResolutionInMeters:
@@ -107,6 +86,13 @@ class TestSpatialResolutionInMeters:
             warnings = detect_dcat_warnings(data)
             assert types(warnings) == ["invalid_spatial_resolution"]
 
+    def test_non_string_value_produces_no_warning(self):
+        # spatialResolutionInMeters is `type: ["null", "string"]`; a non-string
+        # value is already a schema type error, so this rule must not also
+        # warn on it (that would be the same defect reported twice).
+        data = {"@type": "Dataset", "spatialResolutionInMeters": 5}
+        assert detect_dcat_warnings(data) == []
+
 
 class TestTemporalResolution:
     def test_valid_iso8601_duration_passes(self):
@@ -129,6 +115,12 @@ class TestTemporalResolution:
         data = {"@type": "Dataset", "temporalResolution": "P"}
         assert types(detect_dcat_warnings(data)) == ["invalid_temporal_resolution"]
 
+    def test_non_string_value_produces_no_warning(self):
+        # temporalResolution is `type: ["null", "string"]`; a non-string
+        # value is already a schema type error.
+        data = {"@type": "Dataset", "temporalResolution": 5}
+        assert detect_dcat_warnings(data) == []
+
 
 class TestByteSize:
     def test_numeric_byte_size_passes(self):
@@ -140,6 +132,19 @@ class TestByteSize:
         warnings = detect_dcat_warnings(data)
         assert types(warnings) == ["invalid_byte_size"]
         assert "does not appear to be a valid number" in warnings[0].message
+
+    def test_non_string_value_produces_no_warning(self):
+        # byteSize is `type: ["null", "string"]`; a non-string value is
+        # already a schema type error.
+        data = {"@type": "Distribution", "byteSize": 524288000}
+        assert detect_dcat_warnings(data) == []
+
+    def test_list_value_produces_no_warning_and_does_not_crash(self):
+        # Regression: is_number(["big"]) used to raise TypeError, which
+        # propagated out of detect_dcat_warnings. A list is already a schema
+        # type error, so it must be skipped, not crash.
+        data = {"@type": "Distribution", "byteSize": []}
+        assert detect_dcat_warnings(data) == []
 
 
 class TestLegacyAccessRights:
@@ -190,6 +195,71 @@ class TestDateOrdering:
         data = {"@type": "Dataset", "created": "2025", "issued": "2024"}
         assert types(detect_dcat_warnings(data)) == ["date_out_of_order"]
 
+    def test_yyyy_mm_dd_dates_compare(self):
+        data = {"@type": "Dataset", "created": "2025-06-01", "issued": "2024-01-01"}
+        assert types(detect_dcat_warnings(data)) == ["date_out_of_order"]
+
+    def test_date_time_with_offset_compares(self):
+        # `created` is `format: date-time`, which the schema requires to be
+        # RFC 3339 (a UTC offset present). "Z" is a valid RFC 3339 offset.
+        data = {
+            "@type": "Dataset",
+            "created": "2025-01-01T00:00:00Z",
+            "issued": "2024-01-01T00:00:00Z",
+        }
+        assert types(detect_dcat_warnings(data)) == ["date_out_of_order"]
+
+    def test_lowercase_rfc3339_date_time_warns_and_does_not_crash(self):
+        # A lowercase "t"/"z" date-time is still RFC 3339 (FormatChecker
+        # accepts it, so the schema accepts it too), and `created` here is
+        # genuinely later than `issued` -- so this must both parse without
+        # raising and produce the ordering warning (GSA/data.gov#6243). Before
+        # the fix, parsing a lowercase "z" raised inside `_parse_dcat_date`,
+        # the `except ValueError` swallowed it, and the mismatch silently
+        # produced no warning at all for a record that does have the defect.
+        data = {
+            "@type": "Dataset",
+            "created": "2025-01-01t00:00:00z",
+            "issued": "2024-01-01t00:00:00z",
+        }
+        assert types(detect_dcat_warnings(data)) == ["date_out_of_order"]
+
+    def test_date_time_without_offset_produces_no_warning(self):
+        # `datetime.fromisoformat` alone would accept a date-time with no UTC
+        # offset, but the schema's `format: date-time` requires one (RFC
+        # 3339), so this value is already a schema `format` error. It must
+        # not also be parsed here and reported as `date_out_of_order`.
+        data = {
+            "@type": "Dataset",
+            "created": "2025-01-01T00:00:00",
+            "issued": "2024-01-01T00:00:00",
+        }
+        assert detect_dcat_warnings(data) == []
+
+    def test_whitespace_padded_date_produces_no_warning(self):
+        # The schema's `^[0-9]{4}$`/`^[0-9]{4}-[0-9]{2}$` patterns and its
+        # `date`/`date-time` formats all check the value exactly as given, so
+        # a padded string is already a schema error (GSA/data.gov#6243). It
+        # must not be stripped and parsed here anyway, which would double-
+        # report it as `date_out_of_order`.
+        data = {
+            "@type": "Dataset",
+            "created": " 2025-06-01 ",
+            "issued": "2024-01-01",
+        }
+        assert detect_dcat_warnings(data) == []
+
+    def test_unpadded_equivalent_of_padded_date_still_warns(self):
+        # Positive counterpart to the previous test: the same date value
+        # without the padding is schema-valid and must still warn, so the
+        # fix isn't over-tightened into never parsing `created` at all.
+        data = {
+            "@type": "Dataset",
+            "created": "2025-06-01",
+            "issued": "2024-01-01",
+        }
+        assert types(detect_dcat_warnings(data)) == ["date_out_of_order"]
+
 
 class TestPeriodOfTime:
     def test_start_before_end_passes(self):
@@ -209,39 +279,6 @@ class TestPeriodOfTime:
         warnings = detect_dcat_warnings(data)
         assert types(warnings) == ["date_out_of_order"]
         assert "cannot be after its end" in warnings[0].message
-
-
-class TestIriArrays:
-    def test_valid_iri_arrays_pass(self):
-        data = {
-            "@type": "Dataset",
-            "relation": ["https://example.gov/a"],
-            "isReferencedBy": ["https://example.gov/b"],
-        }
-        assert detect_dcat_warnings(data) == []
-
-    def test_invalid_relation_iri_warns(self):
-        data = {"@type": "Dataset", "relation": ["not an iri"]}
-        warnings = detect_dcat_warnings(data)
-        assert types(warnings) == ["invalid_iri"]
-        assert "`relation` value" in warnings[0].message
-
-    def test_conformsTo_object_entries_are_skipped(self):
-        # Standard objects on conformsTo are covered by the universal @id walk,
-        # not by the string-IRI check.
-        data = {
-            "@type": "Dataset",
-            "conformsTo": [
-                {"@type": "Standard", "@id": "https://example.gov/std", "title": "x"}
-            ],
-        }
-        assert detect_dcat_warnings(data) == []
-
-    def test_image_invalid_iri_warns(self):
-        data = {"@type": "Dataset", "image": "not an iri"}
-        warnings = detect_dcat_warnings(data)
-        assert types(warnings) == ["invalid_iri"]
-        assert "`image` value" in warnings[0].message
 
 
 class TestTel:
@@ -266,6 +303,12 @@ class TestExpectedDataType:
         warnings = detect_dcat_warnings(data)
         assert types(warnings) == ["invalid_expected_data_type"]
         assert "xsd:" in warnings[0].message
+
+    def test_non_string_value_produces_no_warning(self):
+        # Metric.expectedDataType is `"type": "string"`; a non-string value
+        # (e.g. a list) is already a schema type error.
+        data = {"@type": "Metric", "expectedDataType": ["xsd:decimal"]}
+        assert detect_dcat_warnings(data) == []
 
 
 class TestAddress:
@@ -300,6 +343,25 @@ class TestAddress:
         warnings = detect_dcat_warnings(data)
         assert types(warnings) == ["empty_address"]
 
+    def test_wrong_typed_postal_code_zero_produces_no_empty_address_warning(self):
+        # Every Address field is `type: ["null", "string"]`; `0` is a schema
+        # type error there, not an "unpopulated" value, so this address must
+        # not also be reported as empty (it has a populated, if
+        # wrongly-typed, field).
+        data = {"@type": "Address", "postal-code": 0}
+        assert detect_dcat_warnings(data) == []
+
+    def test_wrong_typed_postal_code_empty_list_produces_no_empty_address_warning(self):
+        data = {"@type": "Address", "postal-code": []}
+        assert detect_dcat_warnings(data) == []
+
+    def test_all_fields_missing_still_warns(self):
+        # No fields set at all (as opposed to explicit None/"") is still the
+        # schema-valid "unpopulated" case and must still warn.
+        data = {"@type": "Address"}
+        warnings = detect_dcat_warnings(data)
+        assert types(warnings) == ["empty_address"]
+
 
 class TestCuiBannerMarking:
     def test_valid_marking_passes(self):
@@ -324,6 +386,65 @@ class TestLocationSpatial:
         warnings = detect_dcat_warnings(data)
         assert types(warnings) == ["unresolvable_spatial_value"]
         assert "could not be resolved" in warnings[0].message
+
+    def test_resolvable_polygon_object_passes(self):
+        data = {
+            "@type": "Location",
+            "geometry": {
+                "type": "Polygon",
+                "coordinates": [
+                    [[-77.04, 38.79], [-76.9, 38.89], [-76.91, 38.93], [-77.04, 38.79]]
+                ],
+            },
+        }
+        assert detect_dcat_warnings(data) == []
+
+    def test_non_string_non_object_geometry_produces_no_warning(self):
+        # `geometry` is `anyOf[null, string, object]`; a bare number is
+        # already a schema type error.
+        data = {"@type": "Location", "geometry": 5}
+        assert detect_dcat_warnings(data) == []
+
+    def test_geometry_dict_missing_required_keys_produces_no_warning(self):
+        # The object variant of `geometry` requires "type" and "coordinates";
+        # a dict without them is already a schema required-property error.
+        data = {"@type": "Location", "geometry": {"foo": 1}}
+        assert detect_dcat_warnings(data) == []
+
+    def test_non_string_non_object_bbox_produces_no_warning(self):
+        data = {"@type": "Location", "bbox": 5}
+        assert detect_dcat_warnings(data) == []
+
+    def test_bbox_dict_missing_required_keys_produces_no_warning(self):
+        data = {"@type": "Location", "bbox": {"foo": 1}}
+        assert detect_dcat_warnings(data) == []
+
+    def test_bbox_dict_wrong_type_produces_no_warning(self):
+        # bbox's object variant pins "type" to the constant "Polygon"
+        # (Location.json); a dict whose "type" isn't exactly "Polygon" is
+        # already a schema `const` error there, so this must defer to it
+        # entirely rather than ask `translate_spatial` to resolve it
+        # (GSA/data.gov#6243).
+        data = {
+            "@type": "Location",
+            "bbox": {
+                "type": "NotAPolygon",
+                "coordinates": [[[-77.1, 38.7], [-76.9, 38.7], [-77.1, 38.7]]],
+            },
+        }
+        assert detect_dcat_warnings(data) == []
+
+    def test_geometry_dict_arbitrary_type_still_warns_when_unresolvable(self):
+        # geometry's object variant has no such constant -- any "type" value
+        # is schema-valid there -- so a dict `translate_spatial` can't
+        # resolve is still a legitimate, schema-clean content-quality
+        # warning, unlike the bbox case above.
+        data = {
+            "@type": "Location",
+            "geometry": {"type": "NotAPolygon", "coordinates": [1, 2]},
+        }
+        warnings = detect_dcat_warnings(data)
+        assert types(warnings) == ["unresolvable_spatial_value"]
 
 
 class TestLanguage:
@@ -353,6 +474,12 @@ class TestLanguage:
         assert types(warnings) == ["invalid_language"]
         assert '"zz"' in warnings[0].message
 
+    def test_entry_longer_than_two_chars_produces_no_warning(self):
+        # `language` entries carry `maxLength: 2`; a 3+ character entry is
+        # already a schema `maxLength` error, whether scalar or in an array.
+        assert detect_dcat_warnings({"@type": "Dataset", "language": "eng"}) == []
+        assert detect_dcat_warnings({"@type": "Dataset", "language": ["eng"]}) == []
+
 
 class TestCharacterEncoding:
     def test_recognized_charset_passes(self):
@@ -364,6 +491,13 @@ class TestCharacterEncoding:
         warnings = detect_dcat_warnings(data)
         assert types(warnings) == ["invalid_character_encoding"]
         assert "IANA character set" in warnings[0].message
+
+    def test_bare_string_value_produces_no_warning(self):
+        # Distribution.characterEncoding is `anyOf[null, {array of string}]`;
+        # a bare string (not wrapped in a list) is already a schema type
+        # error.
+        data = {"@type": "Distribution", "characterEncoding": "bogus"}
+        assert detect_dcat_warnings(data) == []
 
 
 class TestMediaType:
@@ -476,3 +610,36 @@ class TestTraversalAndCleanRecord:
             "invalid_byte_size",
             "invalid_tel",
         }
+
+
+class TestNonStringTypeDispatch:
+    # `@type` is `{"type": "string", ...}` in every DCAT-US 3 definition; a
+    # non-string `@type` is already a schema type error. It is also
+    # unhashable when it is a list or dict, so dispatching on it via
+    # `_TYPE_RULES.get(...)` without this guard raises `TypeError: unhashable
+    # type` and aborts warning detection for the whole record.
+
+    def test_list_type_is_skipped_without_raising(self):
+        data = {
+            "@type": "Dataset",
+            "distribution": [{"@type": [], "byteSize": "big"}],
+        }
+        assert detect_dcat_warnings(data) == []
+
+    def test_dict_type_is_skipped_without_raising(self):
+        data = {
+            "@type": "Dataset",
+            "distribution": [{"@type": {}, "byteSize": "big"}],
+        }
+        assert detect_dcat_warnings(data) == []
+
+    def test_other_objects_still_processed_when_one_has_a_bad_type(self):
+        # A malformed @type on one nested object must not swallow warnings
+        # from sibling objects.
+        data = {
+            "@type": "Dataset",
+            "keyword": ["a", "a"],
+            "distribution": [{"@type": [], "byteSize": "big"}],
+        }
+        warnings = detect_dcat_warnings(data)
+        assert types(warnings) == ["duplicate_keyword"]
