@@ -3,6 +3,7 @@ import json
 import logging
 import time
 from datetime import datetime
+from pathlib import Path
 from unittest.mock import Mock, call, patch
 
 import pytest
@@ -18,6 +19,7 @@ from harvester.utils.general_utils import (
     USER_AGENT,
     RetrySession,
     assemble_validation_errors,
+    build_dcatus3_validator,
     create_retry_session,
     describe_identifier_error,
     download_file,
@@ -41,6 +43,30 @@ from harvester.utils.general_utils import (
     translate_spatial_to_geojson,
     validate_geojson,
 )
+
+# built once against the real dcatus 3.0 schema so tests can reproduce
+# GSA/data.gov#6243-style validator errors on the bundled complete example
+DCATUS3_ROOT_DIR = Path(__file__).parents[2]
+DCATUS3_DEFINITIONS = DCATUS3_ROOT_DIR / "schemas" / "dcatus3.0" / "definitions"
+DCATUS3_COMPLETE_EXAMPLE_PATH = (
+    DCATUS3_ROOT_DIR
+    / "schemas"
+    / "dcatus3.0"
+    / "examples"
+    / "Dataset"
+    / "good"
+    / "complete_example.json"
+)
+DCATUS3_DATASET_VALIDATOR = build_dcatus3_validator(
+    DCATUS3_DEFINITIONS,
+    root_ref="https://resources.data.gov/dcat-us/3.0.0/definitions/dataset",
+)
+
+
+@pytest.fixture
+def dcatus3_complete_example():
+    with open(DCATUS3_COMPLETE_EXAMPLE_PATH) as f:
+        return json.load(f)
 
 
 class TestCKANUtils:
@@ -324,6 +350,318 @@ class TestGeneralUtils:
         )
         keyword_error = next(e for e in errors if "$.keyword" in e.message)
         assert "max 1000 items" in keyword_error.message
+
+    def test_assemble_validation_messages_type_error_list_value_is_reported(
+        self, dcatus3_complete_example
+    ):
+        """Regression test for GSA/data.gov#6243: a `type` error whose
+        offending value is a non-empty list must not be silently dropped.
+        `spatialResolutionInMeters` is `"type": ["null", "string"]`, so a
+        list value is unambiguously invalid, but before the fix
+        `found_simple_message` treated it as "dig deeper via context" even
+        though `type` errors never carry a `context` -- so nothing was
+        ever recorded for that path.
+        """
+        dcatus3_complete_example["spatialResolutionInMeters"] = ["bad"]
+
+        errors = assemble_validation_errors(
+            DCATUS3_DATASET_VALIDATOR.iter_errors(dcatus3_complete_example)
+        )
+
+        assert len(errors) == 1
+        assert errors[0].message == (
+            "$.spatialResolutionInMeters, array value does not match any "
+            "of the acceptable formats: 'string'"
+        )
+
+    def test_assemble_validation_messages_type_error_dict_value_is_reported(
+        self, dcatus3_complete_example
+    ):
+        """Same defect as above but for a dict-valued offender. Also pins
+        down the message rendering: the invalid value is named by its JSON
+        type ("object value") rather than by regexing an arbitrary quoted
+        fragment out of the raw jsonschema message, which for a dict would
+        otherwise latch onto one of its *keys* (nonsense in a user-facing
+        message).
+        """
+        dcatus3_complete_example["temporalResolution"] = {"a": 1}
+
+        errors = assemble_validation_errors(
+            DCATUS3_DATASET_VALIDATOR.iter_errors(dcatus3_complete_example)
+        )
+
+        assert len(errors) == 1
+        assert errors[0].message == (
+            "$.temporalResolution, object value does not match any of the "
+            "acceptable formats: 'string'"
+        )
+
+    def test_assemble_validation_messages_type_error_single_type_leaf_is_reported(
+        self, dcatus3_complete_example
+    ):
+        """Regression test for GSA/data.gov#6243: a `type` error whose schema
+        constraint is a single type (not a list) must also not be silently
+        dropped when it is a leaf constraint rather than one branch of a
+        decomposed `anyOf`/`oneOf`. A nested Distribution's `@type` is
+        plainly `{"type": "string"}`, so the resulting error comes straight
+        off `iter_errors` with no `parent` -- unlike the `anyOf`-branch `type`
+        error covered by
+        `test_assemble_validation_messages_anyof_context_still_finds_specific_cause`,
+        nothing else will report this one.
+        """
+        dcatus3_complete_example["distribution"][0]["@type"] = {"a": 1}
+
+        errors = assemble_validation_errors(
+            DCATUS3_DATASET_VALIDATOR.iter_errors(dcatus3_complete_example)
+        )
+
+        assert len(errors) == 1
+        assert errors[0].message == (
+            "$.distribution[0]['@type'], object value does not match any of "
+            "the acceptable formats: 'string'"
+        )
+
+        dcatus3_complete_example["distribution"][0]["@type"] = ["a"]
+
+        errors = assemble_validation_errors(
+            DCATUS3_DATASET_VALIDATOR.iter_errors(dcatus3_complete_example)
+        )
+
+        assert len(errors) == 1
+        assert errors[0].message == (
+            "$.distribution[0]['@type'], array value does not match any of "
+            "the acceptable formats: 'string'"
+        )
+
+    def test_assemble_validation_messages_anyof_context_still_finds_specific_cause(
+        self, dcatus3_complete_example
+    ):
+        """Regression test: `contactPoint` is validated via `anyOf` (null,
+        or an array of vcard objects). Removing a required property from
+        one of those objects makes the whole `anyOf` fail, and its
+        `.context` contains both the specific cause (a `required` error at
+        `$.contactPoint[0]`) and a less useful `type` error for the `null`
+        branch at `$.contactPoint` (a non-empty list failing a single-type
+        check). The fix for the container `type`-error drop must not
+        surface that second, generic-ish message -- only the specific one
+        should come through, exactly as before the fix.
+        """
+        del dcatus3_complete_example["contactPoint"][0]["hasEmail"]
+
+        errors = assemble_validation_errors(
+            DCATUS3_DATASET_VALIDATOR.iter_errors(dcatus3_complete_example)
+        )
+
+        assert len(errors) == 1
+        assert (
+            errors[0].message == "$.contactPoint[0], 'hasEmail' is a required property"
+        )
+
+    def test_assemble_validation_messages_nested_container_type_error_under_anyof(
+        self, dcatus3_complete_example
+    ):
+        """Regression test for GSA/data.gov#6243 (third review round): a
+        genuine leaf `type` error reached through one branch of a decomposed
+        `anyOf` must not be dropped just because it has a `parent`.
+        `contactPoint` is `anyOf[{$ref: kind}, {array of kind}]`; setting a
+        nested item's `@type` to a list makes both branches fail, and
+        `.context` holds three errors: the top-level `anyOf`, a `type` error
+        for the `null`/single-kind branch at `$.contactPoint` (same
+        `json_path` as its parent -- noise, since a sibling holds the real
+        cause), and the real cause, a `type` error for
+        `$.contactPoint[0]['@type']` (a deeper `json_path` than its parent).
+        Only the latter should be reported.
+        """
+        dcatus3_complete_example["contactPoint"][0]["@type"] = ["Kind"]
+
+        errors = assemble_validation_errors(
+            DCATUS3_DATASET_VALIDATOR.iter_errors(dcatus3_complete_example)
+        )
+
+        assert len(errors) == 1
+        assert errors[0].message == (
+            "$.contactPoint[0]['@type'], array value does not match any of "
+            "the acceptable formats: 'string'"
+        )
+
+    def test_assemble_validation_messages_plain_leaf_type_error_is_unaffected(
+        self, dcatus3_complete_example
+    ):
+        """Contrast case for GSA/data.gov#6243's forced fallback: `title` is
+        plainly `{"type": "string"}` at the schema root, not wrapped in an
+        `anyOf`, so its error carries no `context` and no `parent` at all --
+        it was already reported before the fallback existed, and the
+        fallback must not change it (it never even reaches the "nothing was
+        recorded" check, since there is no `context` to recurse into).
+        """
+        dcatus3_complete_example["title"] = {"a": 1}
+
+        errors = assemble_validation_errors(
+            DCATUS3_DATASET_VALIDATOR.iter_errors(dcatus3_complete_example)
+        )
+
+        assert len(errors) == 1
+        assert errors[0].message == (
+            "$.title, object value does not match any of the acceptable "
+            "formats: 'string'"
+        )
+
+    def test_assemble_validation_messages_anyof_of_all_scalar_types_is_rescued(
+        self, dcatus3_complete_example
+    ):
+        """Regression test for GSA/data.gov#6243 (the remaining bug found by
+        review): when a container value fails an `anyOf` whose alternatives
+        are *all* scalar/null types, every child `type` error in `.context`
+        lands at the same `json_path` as the `anyOf` itself, so
+        `found_simple_message` suppresses every single one of them as
+        same-path branch noise (correctly, in isolation -- it's designed to
+        defer to a sibling with a more specific cause). But here there is no
+        such sibling: `accessRights` is `anyOf[null, string]`, both scalar,
+        so nothing anywhere in the subtree was ever going to be more
+        specific. Before the forced fallback, this meant the whole `anyOf`
+        produced zero recorded messages for a record that is, in fact,
+        schema-invalid -- a silent drop, not merely an imprecise one.
+        """
+        dcatus3_complete_example["accessRights"] = ["x"]
+
+        errors = assemble_validation_errors(
+            DCATUS3_DATASET_VALIDATOR.iter_errors(dcatus3_complete_example)
+        )
+
+        assert len(errors) == 1
+        assert errors[0].message == (
+            "$.accessRights, array value does not match any of the "
+            "acceptable formats: 'null', 'string'"
+        )
+
+    def test_assemble_validation_messages_anyof_of_all_scalar_types_is_rescued_dict(
+        self, dcatus3_complete_example
+    ):
+        """Same silent-drop defect as above, for a dict-valued offender and a
+        3-way `anyOf` (`language` is `anyOf[null, string, array]`): all three
+        child `type` errors are same-path branch noise with no sibling to
+        defer to, so all three get recorded by the forced fallback once it
+        confirms none of them would otherwise be reported.
+        """
+        dcatus3_complete_example["language"] = {"a": 1}
+
+        errors = assemble_validation_errors(
+            DCATUS3_DATASET_VALIDATOR.iter_errors(dcatus3_complete_example)
+        )
+
+        assert len(errors) == 1
+        assert errors[0].message == (
+            "$.language, object value does not match any of the acceptable "
+            "formats: 'null', 'string', 'array'"
+        )
+
+    def test_assemble_validation_messages_anyof_of_all_scalar_types_is_rescued_date(
+        self, dcatus3_complete_example
+    ):
+        """Same silent-drop defect, for `created`, whose `anyOf` decomposes
+        one level deeper (a nested `anyOf` groups the date-time/date/pattern
+        string alternatives). The forced fallback fires at that nested level
+        -- where it finds and records a `type` error -- so the outer level's
+        own `null`-branch sibling never needs forcing (something was already
+        recorded in the subtree by the time the outer level checks), which
+        is why only `'string'` appears here rather than `'null', 'string'`:
+        the design's "at least one message, not silence" goal is met without
+        also walking every remaining sibling once a cause is found.
+        """
+        dcatus3_complete_example["created"] = ["2025"]
+
+        errors = assemble_validation_errors(
+            DCATUS3_DATASET_VALIDATOR.iter_errors(dcatus3_complete_example)
+        )
+
+        assert len(errors) == 1
+        assert errors[0].message == (
+            "$.created, array value does not match any of the acceptable "
+            "formats: 'string'"
+        )
+
+    def test_assemble_validation_messages_anyof_of_all_scalar_types_is_rescued_nested(
+        self, dcatus3_complete_example
+    ):
+        """Same silent-drop defect, one level deeper still: `spatial[0].bbox`
+        is `anyOf[null, string, object]`, reached through `spatial`'s own
+        `anyOf[null, array of Location]`. The forced fallback must fire at
+        the `bbox` level (where the true defect is) rather than the outer
+        `spatial` level, and must still name the nested `json_path`.
+        """
+        dcatus3_complete_example["spatial"][0]["bbox"] = ["x"]
+
+        errors = assemble_validation_errors(
+            DCATUS3_DATASET_VALIDATOR.iter_errors(dcatus3_complete_example)
+        )
+
+        assert len(errors) == 1
+        assert errors[0].message == (
+            "$.spatial[0].bbox, array value does not match any of the "
+            "acceptable formats: 'null', 'string', 'object'"
+        )
+
+    def test_assemble_validation_messages_maxitems_numeric_array_does_not_crash(
+        self, dcatus3_complete_example
+    ):
+        """Regression test for GSA/data.gov#6243 (final review round, fix 1):
+        a `maxItems` violation whose instance is a numeric array (not an
+        array of strings) used to crash `finalize_validation_messages` --
+        `re.search(r"'(.*?)'|\\[\\]", ...)` finds neither a quoted run nor a
+        literal `[]` in "[-77, 38, 1] is too long [maxItems=2]", so
+        `.group(0)` raised `AttributeError` on the `None` match, aborting
+        validation mid-harvest. `centroid.coordinates` is `{"type": "array",
+        "items": {"type": "number"}, "minItems": 2, "maxItems": 2}`
+        (Location.json), so a 3-element numeric array hits exactly this.
+
+        A container instance is named by kind rather than spliced into the
+        message, so an oversized array can't bloat the stored error.
+        """
+        dcatus3_complete_example["spatial"][0]["centroid"] = {
+            "type": "Point",
+            "coordinates": [-77, 38, 1],
+        }
+
+        errors = assemble_validation_errors(
+            DCATUS3_DATASET_VALIDATOR.iter_errors(dcatus3_complete_example)
+        )
+
+        assert len(errors) == 1
+        assert errors[0].message == (
+            "$.spatial[0].centroid.coordinates, array value does not match "
+            "any of the acceptable formats: max 2 items"
+        )
+
+    def test_assemble_validation_messages_minitems_names_specific_cause(
+        self, dcatus3_complete_example
+    ):
+        """Regression test for GSA/data.gov#6243 (final review round, fix 2):
+        before this fix, `found_simple_message` only whitelisted `maxItems`
+        (plus `required` and, from an earlier round, same-path `type`) as a
+        container validator worth reporting directly -- every other
+        container constraint, including `minItems`, fell through to
+        `return False` and was suppressed, leaving `assemble_validation_
+        errors` to recurse into `.context` and land on the vague branch-type
+        message for `centroid`'s `anyOf` instead of the real cause on
+        `coordinates`. A 1-element `coordinates` array is too short
+        (`minItems: 2`) and must be reported at its own, more specific
+        `json_path` rather than as "$.spatial[0].centroid, object value does
+        not match any of the acceptable formats: 'null', 'string'".
+        """
+        dcatus3_complete_example["spatial"][0]["centroid"] = {
+            "type": "Point",
+            "coordinates": [-77],
+        }
+
+        errors = assemble_validation_errors(
+            DCATUS3_DATASET_VALIDATOR.iter_errors(dcatus3_complete_example)
+        )
+
+        assert len(errors) == 1
+        assert errors[0].message == (
+            "$.spatial[0].centroid.coordinates, array value does not match "
+            "any of the acceptable formats: min 2 items"
+        )
 
     def test_find_indexes_for_duplicates(self):
         data = [
