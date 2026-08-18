@@ -104,8 +104,9 @@ NON_DATASET_RECORD_TYPES = {
 }
 
 # Record types persisted only as a HarvestRecord, no Dataset row. Excludes
-# "data_series" on purpose: see Dataset.type in database/models.py.
-RECORD_TYPES_WITHOUT_DATASET_ROW = {"data_service", "catalog_record"}
+# "data_series" and "data_service" on purpose: see Dataset.type in
+# database/models.py.
+RECORD_TYPES_WITHOUT_DATASET_ROW = {"catalog_record"}
 
 
 @dataclass
