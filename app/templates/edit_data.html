@@ -21,19 +21,32 @@
                 data-collection-parent-url-group
                 {% if not show_collection_parent_url %}hidden{% endif %}
             {% endif %}>
-            <label for="{{ field.id }}" class="usa-label">
-                {{ field.label.text }}
-                {% if field.flags.required %}
-                    <abbr class="usa-hint usa-hint--required" title="required">*</abbr>
-                {% endif %}
-            </label>
-            {% if field.description %}
-                <span class="usa-hint" id="{{ field.id }}-hint">{{ field.description }}</span>
-            {% endif %}
-            {% if data_type == "Harvest Source" and action == "Edit" and field.id == 'name' %}
-                {{field(class_=field_class, readonly_=true, aria_label=field.label.text)}}
+            {% if field.type == 'BooleanField' %}
+                {# Special handling for checkboxes #}
+                <div class="usa-checkbox">
+                    {{ field(class_='usa-checkbox__input') }}
+                    <label class="usa-checkbox__label" for="{{ field.id }}">
+                        {{ field.label.text }}
+                    </label>
+                    {% if field.description %}
+                        <span class="usa-hint" id="{{ field.id }}-hint">{{ field.description }}</span>
+                    {% endif %}
+                </div>
             {% else %}
-                {{field(class_=field_class, aria_label=field.label.text)}}
+                <label for="{{ field.id }}" class="usa-label">
+                    {{ field.label.text }}
+                    {% if field.flags.required %}
+                        <abbr class="usa-hint usa-hint--required" title="required">*</abbr>
+                    {% endif %}
+                </label>
+                {% if field.description %}
+                    <span class="usa-hint" id="{{ field.id }}-hint">{{ field.description }}</span>
+                {% endif %}
+                {% if data_type == "Harvest Source" and action == "Edit" and field.id == 'name' %}
+                    {{field(class_=field_class, readonly_=true, aria_label=field.label.text)}}
+                {% else %}
+                    {{field(class_=field_class, aria_label=field.label.text)}}
+                {% endif %}
             {% endif %}
         </div>
         {% endfor %}

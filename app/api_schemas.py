@@ -98,6 +98,15 @@ class OrgCreate(Schema):
     )
     organization_type = Enum(ORGANIZATION_TYPE_ENUM)
     aliases = List(String())
+    code_repo_url = String()
+    code_repo_exempt = Boolean()
+
+    @marshmallow.validates("code_repo_url")
+    def validate_code_repo_url(self, value, **kwargs):
+        """Validate that code_repo_url starts with http:// or https://."""
+        if value and value.strip():
+            if not (value.startswith("http://") or value.startswith("https://")):
+                raise ValidationError("URL must start with http:// or https://")
 
 
 class OrgInfo(OrgCreate):
