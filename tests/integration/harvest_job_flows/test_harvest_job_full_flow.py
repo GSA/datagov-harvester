@@ -260,6 +260,7 @@ class TestHarvestJobFullFlow:
         assert datasets[0].dcat["identifier"] == (
             "https://example.gov/datasets/served-by-service-one"
         )
+        assert datasets[0].dcat["isPartOf"] == "https://example.gov/services/one"
 
         records = (
             interface.db.query(HarvestRecord)
@@ -284,8 +285,9 @@ class TestHarvestJobFullFlow:
         """AC: Datasets embedded in a DatasetSeries's seriesMember/first/last
         are harvested as real Datasets, tagged with the series' identifier
         as their parent, with first/last redundancy against seriesMember
-        deduped rather than double-harvested. The DatasetSeries itself
-        persists as a data_series HarvestRecord only, no Dataset row."""
+        deduped rather than double-harvested. The DatasetSeries itself also
+        persists as a Dataset row (type="data_series") so it's searchable
+        and displayable like a dataset."""
         interface.add_organization(organization_data)
         interface.add_harvest_source(source_data_dcatus3_0_series_with_members)
         harvest_job = interface.add_harvest_job(
@@ -303,11 +305,22 @@ class TestHarvestJobFullFlow:
         assert harvest_job.records_added == 3
 
         datasets = interface.db.query(Dataset).all()
-        assert len(datasets) == 2
-        assert {d.dcat["identifier"] for d in datasets} == {
+        assert len(datasets) == 3
+        member_datasets = [d for d in datasets if d.type == "dataset"]
+        series_datasets = [d for d in datasets if d.type == "data_series"]
+        assert {d.dcat["identifier"] for d in member_datasets} == {
             "https://example.gov/datasets/annual-report-2023",
             "https://example.gov/datasets/annual-report-2024",
         }
+        assert all(
+            d.dcat["isPartOf"] == "https://example.gov/series/annual-report"
+            for d in member_datasets
+        )
+        assert len(series_datasets) == 1
+        assert series_datasets[0].dcat["identifier"] == (
+            "https://example.gov/series/annual-report"
+        )
+        assert "isPartOf" not in series_datasets[0].dcat
 
         records = (
             interface.db.query(HarvestRecord)
