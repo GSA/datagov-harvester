@@ -1,4 +1,6 @@
 app_name: datagov-harvest
+harvest_service_name: datagov-harvest
+opensearch_service_name: datagov-catalog-opensearch
 space_name: development
 route_external: harvest-dev.data.gov
 route_internal: datagov-harvest-dev.apps.internal
