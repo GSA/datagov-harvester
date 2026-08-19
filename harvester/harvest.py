@@ -68,6 +68,7 @@ from harvester.utils.general_utils import (
     translate_spatial_to_geojson,
     traverse_waf,
 )
+from scripts.new_relic_db_monitor import emit_idle_transaction_event
 
 # logging data
 logger = logging.getLogger("harvest_runner")
@@ -104,8 +105,9 @@ NON_DATASET_RECORD_TYPES = {
 }
 
 # Record types persisted only as a HarvestRecord, no Dataset row. Excludes
-# "data_series" on purpose: see Dataset.type in database/models.py.
-RECORD_TYPES_WITHOUT_DATASET_ROW = {"data_service", "catalog_record"}
+# "data_series" and "data_service" on purpose: see Dataset.type in
+# database/models.py.
+RECORD_TYPES_WITHOUT_DATASET_ROW = {"catalog_record"}
 
 
 @dataclass
@@ -681,9 +683,7 @@ class HarvestSource:
                         }
                         self.external_records_by_type["catalog_record"] = (
                             backfill_catalog_record_identifiers(
-                                self.external_records_by_type.get(
-                                    "catalog_record", []
-                                )
+                                self.external_records_by_type.get("catalog_record", [])
                             )
                         )
                         self.external_records = merge_dcatus3_datasets(
@@ -1460,6 +1460,12 @@ class Record:
                 if self.record_type != "dataset" and not metadata.get("identifier"):
                     # e.g. DatasetSeries has no "identifier" field, only "@id".
                     metadata["identifier"] = self.identifier
+                if self.parent_identifier and not metadata.get("isPartOf"):
+                    # add_parent() covers the ISO path; dcatus3.0 series
+                    # members and service-served datasets carry their
+                    # parent_identifier here instead, so it never reaches
+                    # dcat unless set explicitly.
+                    metadata["isPartOf"] = self.parent_identifier
                 if not self.dataset_slug:
                     self.dataset_slug = munge_title_to_name(metadata["title"])
 
@@ -1613,6 +1619,13 @@ def check_for_more_work():
         # The application should pick up jobs every 15 minutes,
         # this is only for speed.
         return
+
+    # emit new relic custom event for db idle-in-transaction monitoring
+    new_relic_monitor_db_activity = (
+        os.getenv("NEW_RELIC_MONITOR_DB_ACTIVITY", "false").lower() == "true"
+    )
+    if new_relic_monitor_db_activity:
+        emit_idle_transaction_event()
 
 
 if __name__ == "__main__":

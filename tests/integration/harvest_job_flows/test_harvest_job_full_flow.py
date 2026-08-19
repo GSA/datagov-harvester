@@ -121,7 +121,9 @@ class TestHarvestJobFullFlow:
         source_data_dcatus3_0_with_services,
     ):
         """AC: a source with both Dataset and DataService objects harvests
-        each independently of the other."""
+        each independently of the other. Each DataService also persists as
+        a Dataset row (type="data_service") so it's searchable and
+        displayable like a dataset."""
         interface.add_organization(organization_data)
         interface.add_harvest_source(source_data_dcatus3_0_with_services)
         harvest_job = interface.add_harvest_job(
@@ -138,13 +140,19 @@ class TestHarvestJobFullFlow:
         assert harvest_job.status == "complete"
         assert harvest_job.records_added == 3
 
-        # only the Dataset record gets a Dataset row; DataService records
-        # are persisted as HarvestRecords only.
         datasets = interface.db.query(Dataset).all()
-        assert len(datasets) == 1
-        assert datasets[0].harvest_source_id == (
-            source_data_dcatus3_0_with_services["id"]
+        assert len(datasets) == 3
+        assert all(
+            d.harvest_source_id == source_data_dcatus3_0_with_services["id"]
+            for d in datasets
         )
+        dataset_datasets = [d for d in datasets if d.type == "dataset"]
+        service_datasets = [d for d in datasets if d.type == "data_service"]
+        assert len(dataset_datasets) == 1
+        assert {d.dcat["identifier"] for d in service_datasets} == {
+            "https://example.gov/services/one",
+            "https://example.gov/services/two",
+        }
 
         records = (
             interface.db.query(HarvestRecord)
@@ -236,7 +244,9 @@ class TestHarvestJobFullFlow:
     ):
         """AC: a Dataset embedded in a DataService's servesDataset is
         harvested as a real Dataset, tagged with the service's identifier
-        as its parent."""
+        as its parent. The DataService itself also persists as a Dataset
+        row (type="data_service") so it's searchable and displayable like
+        a dataset."""
         interface.add_organization(organization_data)
         interface.add_harvest_source(source_data_dcatus3_0_service_serves_dataset)
         harvest_job = interface.add_harvest_job(
@@ -256,10 +266,19 @@ class TestHarvestJobFullFlow:
         assert harvest_job.records_added == 2
 
         datasets = interface.db.query(Dataset).all()
-        assert len(datasets) == 1
-        assert datasets[0].dcat["identifier"] == (
+        assert len(datasets) == 2
+        served_datasets = [d for d in datasets if d.type == "dataset"]
+        service_datasets = [d for d in datasets if d.type == "data_service"]
+        assert len(served_datasets) == 1
+        assert served_datasets[0].dcat["identifier"] == (
             "https://example.gov/datasets/served-by-service-one"
         )
+        assert served_datasets[0].dcat["isPartOf"] == "https://example.gov/services/one"
+        assert len(service_datasets) == 1
+        assert service_datasets[0].dcat["identifier"] == (
+            "https://example.gov/services/one"
+        )
+        assert "isPartOf" not in service_datasets[0].dcat
 
         records = (
             interface.db.query(HarvestRecord)
@@ -311,10 +330,15 @@ class TestHarvestJobFullFlow:
             "https://example.gov/datasets/annual-report-2023",
             "https://example.gov/datasets/annual-report-2024",
         }
+        assert all(
+            d.dcat["isPartOf"] == "https://example.gov/series/annual-report"
+            for d in member_datasets
+        )
         assert len(series_datasets) == 1
         assert series_datasets[0].dcat["identifier"] == (
             "https://example.gov/series/annual-report"
         )
+        assert "isPartOf" not in series_datasets[0].dcat
 
         records = (
             interface.db.query(HarvestRecord)

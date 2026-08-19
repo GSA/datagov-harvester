@@ -48,7 +48,9 @@ jobs:
         if: inputs.migrate_opensearch
         uses: cloud-gov/cg-cli-tools@main
         with:
-          command: bin/set_harvest_runner_capacity.sh disable "$HARVEST_APP"
+          command: >
+            bin/retry_cf_deploy.sh
+            bin/set_harvest_runner_capacity.sh disable "$HARVEST_APP"
           cf_org: gsa-datagov
           cf_space: ${{ env.CF_SPACE }}
           cf_username: ${{ secrets.CF_SERVICE_USER }}
@@ -272,7 +274,9 @@ jobs:
         if: success() && inputs.migrate_opensearch
         uses: cloud-gov/cg-cli-tools@main
         with:
-          command: bin/set_harvest_runner_capacity.sh enable "$HARVEST_APP" 3
+          command: >
+            bin/retry_cf_deploy.sh
+            bin/set_harvest_runner_capacity.sh enable "$HARVEST_APP" 3
           cf_org: gsa-datagov
           cf_space: ${{ env.CF_SPACE }}
           cf_username: ${{ secrets.CF_SERVICE_USER }}
