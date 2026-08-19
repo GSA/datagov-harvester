@@ -50,6 +50,22 @@ class TestExtract:
                 ],
                 id="microsoft-iis",
             ),
+            pytest.param(
+                "bts-waf.html",
+                "https://transtats.bts.gov/NTADmetadata/",
+                [
+                    (
+                        "/NTADmetadata/"
+                        "USDOT_BTS_NTAD_119th_Congressional_Districts.xml",
+                        datetime(2026, 7, 31, 16, 53),
+                    ),
+                    (
+                        "/NTADmetadata/USDOT_BTS_NTAD_1991_FAP.xml",
+                        datetime(2026, 7, 15, 16, 23),
+                    ),
+                ],
+                id="iis-long-date",
+            ),
         ],
     )
     def test_traverse_waf_server_indexes(

@@ -700,6 +700,13 @@ def get_waf_datetimes(soup: BeautifulSoup, expected_length: int) -> list:
             r"\d{1,2}/\d{1,2}/\d{4}\s+\d{1,2}:\d{2}\s(?:AM|PM)",
             "%m/%d/%Y %I:%M %p",
         ),
+        (
+            (
+                r"[A-Za-z]+,\s+[A-Za-z]+\s+\d{1,2},\s+\d{4}\s+"
+                r"\d{1,2}:\d{2}\s+(?:AM|PM)"
+            ),
+            "%A, %B %d, %Y %I:%M %p",
+        ),
     ]
     anchors = [
         anchor
