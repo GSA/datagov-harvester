@@ -1,12 +1,76 @@
+from datetime import datetime
+from pathlib import Path
+from unittest.mock import Mock
+
+import pytest
+
 from harvester.harvest import DT_PLACEHOLDER
 from harvester.utils.general_utils import traverse_waf
 
+WAF_HTML_EXAMPLES = Path(__file__).parents[2] / "waf-html-examples"
+
 
 class TestExtract:
-    def test_traverse_waf_ms_iis(self, mock_requests_get_ms_iis_waf):
-        """Test to ensure that we're able to traverse the ms-iis-waf"""
-        files = traverse_waf(url="https://example.com")
-        assert len(files) == 2
+    @pytest.mark.parametrize(
+        "fixture_name, expected_files",
+        [
+            pytest.param(
+                "apache-waf.html",
+                [
+                    {
+                        "identifier": "https://example.com/waf/roads.xml",
+                        "modified_date": datetime(2026, 6, 17, 14, 20),
+                    },
+                    {
+                        "identifier": "https://example.com/waf/water.xml",
+                        "modified_date": datetime(2026, 6, 18, 9, 5),
+                    },
+                ],
+                id="apache",
+            ),
+            pytest.param(
+                "nginx-waf.html",
+                [
+                    {
+                        "identifier": "https://example.com/waf/elevation.xml",
+                        "modified_date": datetime(2026, 6, 18, 9, 5),
+                    },
+                    {
+                        "identifier": "https://example.com/waf/imagery.xml",
+                        "modified_date": datetime(2026, 6, 19, 10, 30),
+                    },
+                ],
+                id="nginx",
+            ),
+            pytest.param(
+                "ms-iis-waf.html",
+                [
+                    {
+                        "identifier": ("https://example.com/waf/USGSHydroCached.xml"),
+                        "modified_date": datetime(2021, 6, 17, 11, 20),
+                    },
+                    {
+                        "identifier": ("https://example.com/waf/USGSImageryOnly.xml"),
+                        "modified_date": datetime(2025, 2, 11, 9, 19),
+                    },
+                ],
+                id="microsoft-iis",
+            ),
+        ],
+    )
+    def test_traverse_waf_server_indexes(
+        self, monkeypatch, fixture_name, expected_files
+    ):
+        response = Mock(
+            ok=True,
+            content=(WAF_HTML_EXAMPLES / fixture_name).read_bytes(),
+        )
+        requests_get = Mock(return_value=response)
+        monkeypatch.setattr("harvester.utils.general_utils.requests.get", requests_get)
+
+        files = traverse_waf(url="https://example.com/waf/")
+
+        assert files == expected_files
 
     def test_extract_dcatus(
         self,
