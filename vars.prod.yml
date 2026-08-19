@@ -28,3 +28,4 @@ REDIRECT_URI: https://harvest.data.gov/callback
 
 # New Relic
 new_relic_monitor_mode: true
+new_relic_monitor_db_activity: true
