@@ -1,6 +1,7 @@
 from datetime import datetime
 from pathlib import Path
 from unittest.mock import Mock
+from urllib.parse import urljoin
 
 import pytest
 
@@ -12,26 +13,14 @@ WAF_HTML_EXAMPLES = Path(__file__).parents[2] / "waf-html-examples"
 
 class TestExtract:
     @pytest.mark.parametrize(
-        "fixture_name, source_url, expected_files",
+        "fixture_name, source_url, expected_entries",
         [
             pytest.param(
                 "apache-noaa-waf.html",
                 "https://data.noaa.gov/waf/NOAA/nmfs/garfo/iso/xml/",
                 [
-                    {
-                        "identifier": (
-                            "https://data.noaa.gov/waf/NOAA/nmfs/garfo/"
-                            "iso/xml/1463.xml"
-                        ),
-                        "modified_date": datetime(2026, 7, 12, 2, 23),
-                    },
-                    {
-                        "identifier": (
-                            "https://data.noaa.gov/waf/NOAA/nmfs/garfo/"
-                            "iso/xml/1503.xml"
-                        ),
-                        "modified_date": datetime(2026, 7, 12, 2, 23),
-                    },
+                    ("1463.xml", datetime(2026, 7, 12, 2, 23)),
+                    ("1503.xml", datetime(2026, 7, 12, 2, 23)),
                 ],
                 id="apache",
             ),
@@ -39,47 +28,32 @@ class TestExtract:
                 "nginx-dggs-waf.html",
                 "https://dggs.alaska.gov/webpubs/metadata/",
                 [
-                    {
-                        "identifier": (
-                            "https://dggs.alaska.gov/webpubs/metadata/AOF125.xml"
-                        ),
-                        "modified_date": datetime(2025, 10, 2, 11, 47),
-                    },
-                    {
-                        "identifier": (
-                            "https://dggs.alaska.gov/webpubs/metadata/AOF134.xml"
-                        ),
-                        "modified_date": datetime(2026, 7, 30, 16, 1),
-                    },
+                    ("AOF125.xml", datetime(2025, 10, 2, 11, 47)),
+                    ("AOF134.xml", datetime(2026, 7, 30, 16, 1)),
                 ],
-                id="nginx",
+                id="nginx-mixed-file-types",
             ),
             pytest.param(
-                "ms-iis-epa-waf.html",
+                "ms-iis-waf.html",
                 "https://edg.epa.gov/WAFer_harvest/ISO/",
                 [
-                    {
-                        "identifier": (
-                            "https://edg.epa.gov/WAFer_harvest/ISO/"
-                            "enviroatlas-metadata-waf_"
-                            "ACS_Demographics_by_Tract_2008_2012_EA.xml"
-                        ),
-                        "modified_date": datetime(2021, 6, 17, 12, 20),
-                    },
-                    {
-                        "identifier": (
-                            "https://edg.epa.gov/WAFer_harvest/ISO/"
-                            "enviroatlas-metadata-waf_Ag_On_Slopes.xml"
-                        ),
-                        "modified_date": datetime(2025, 7, 23, 17, 33),
-                    },
+                    (
+                        "/WAFer_harvest/ISO/enviroatlas-metadata-waf_"
+                        "ACS_Demographics_by_Tract_2008_2012_EA.xml",
+                        datetime(2021, 6, 17, 12, 20),
+                    ),
+                    (
+                        "/WAFer_harvest/ISO/"
+                        "enviroatlas-metadata-waf_Ag_On_Slopes.xml",
+                        datetime(2025, 7, 23, 17, 33),
+                    ),
                 ],
                 id="microsoft-iis",
             ),
         ],
     )
     def test_traverse_waf_server_indexes(
-        self, monkeypatch, fixture_name, source_url, expected_files
+        self, monkeypatch, fixture_name, source_url, expected_entries
     ):
         response = Mock(
             ok=True,
@@ -90,7 +64,10 @@ class TestExtract:
 
         files = traverse_waf(url=source_url)
 
-        assert files == expected_files
+        assert [(file["identifier"], file["modified_date"]) for file in files] == [
+            (urljoin(source_url, href), modified_date)
+            for href, modified_date in expected_entries
+        ]
 
     def test_extract_dcatus(
         self,
