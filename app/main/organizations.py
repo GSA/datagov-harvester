@@ -70,9 +70,8 @@ def view_organization(org_identifier: str):
     sources = deps.db.get_harvest_source_by_org(org_id)
     future_harvest_jobs = {}
     for source in sources:
-        job = deps.db.get_new_harvest_jobs_by_source_in_future(source.id)
-        if len(job):
-            future_harvest_jobs[source.id] = job[0].date_created
+        if source.date_next_run:
+            future_harvest_jobs[source.id] = source.date_next_run
     harvest_jobs = {}
     for source in sources:
         job = deps.db.get_first_harvest_job_by_filter(
