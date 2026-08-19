@@ -17,6 +17,7 @@ from app.local_dev_auth import is_running_on_cloud_foundry
 from app.startup_validation import validate_required_env_vars
 from config.logger_config import LOGGING_CONFIG
 from database.models import db
+from scripts.new_relic_db_monitor import emit_idle_transaction_event
 from scripts.sync_datasets import register_cli
 
 logger = logging.getLogger("harvest_admin")
@@ -326,6 +327,13 @@ def create_app():
             # we need to get to app start up, so ignore all errors
             # from the load manager but log them
             logger.warning("Load manager startup failed with exception: %s", repr(e))
+
+    # emit new relic custom event for db idle-in-transaction monitoring
+    new_relic_monitor_db_activity = (
+        os.getenv("NEW_RELIC_MONITOR_DB_ACTIVITY", "false").lower() == "true"
+    )
+    if new_relic_monitor_db_activity:
+        emit_idle_transaction_event()
 
     # Content-Security-Policy headers
     # single quotes need to appear in some of the strings

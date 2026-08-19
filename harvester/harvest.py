@@ -68,6 +68,7 @@ from harvester.utils.general_utils import (
     translate_spatial_to_geojson,
     traverse_waf,
 )
+from scripts.new_relic_db_monitor import emit_idle_transaction_event
 
 # logging data
 logger = logging.getLogger("harvest_runner")
@@ -1618,6 +1619,13 @@ def check_for_more_work():
         # The application should pick up jobs every 15 minutes,
         # this is only for speed.
         return
+
+    # emit new relic custom event for db idle-in-transaction monitoring
+    new_relic_monitor_db_activity = (
+        os.getenv("NEW_RELIC_MONITOR_DB_ACTIVITY", "false").lower() == "true"
+    )
+    if new_relic_monitor_db_activity:
+        emit_idle_transaction_event()
 
 
 if __name__ == "__main__":
