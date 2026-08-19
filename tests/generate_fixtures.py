@@ -337,6 +337,9 @@ def generate_dynamic_fixtures() -> Dict[str, Any]:
             )
             job["date_finished"] = finished_date.strftime("%Y-%m-%d %H:%M:%S.%f")
 
+        if template["status"] != "new":
+            job["date_started"] = created_date.strftime("%Y-%m-%d %H:%M:%S.%f")
+
         # Add record counts for jobs that have them
         for field in [
             "records_total",
