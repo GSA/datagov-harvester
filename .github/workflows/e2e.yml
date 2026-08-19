@@ -51,8 +51,10 @@ jobs:
       run: |
         poetry env use ${{ env.PY_VERSION }}
         poetry install
+    # Skip --with-deps: ubuntu-latest already has the Chromium libs, and apt
+    # font downloads from Azure mirrors can stall this step for tens of minutes.
     - name: Install Playwright Browsers
-      run: poetry run playwright install --with-deps --only-shell chromium
+      run: poetry run playwright install --only-shell chromium
     - name: Run E2E tests
       run: make test-e2e-ci
     - uses: actions/upload-artifact@v7
