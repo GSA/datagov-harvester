@@ -692,42 +692,67 @@ def find_indexes_for_duplicates(records: list, identifier_field: str = "identifi
     return output
 
 
-def get_waf_datetimes(soup: BeautifulSoup, expected_length: int) -> list:
-    """
-    gets the datetime strings as datetime obejct of the waf datasets
-    """
-    output = []
-
-    dt_data = [
-        [r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}", "%Y-%m-%d %H:%M"],
-        [r"\d{2}-[A-Za-z]{3}-\d{4}\s\d{2}:\d{2}", "%d-%b-%Y %H:%M"],
-        [r"\d{1,2}/\d{1,2}/\d{4}\s+\d{1,2}:\d{2}\s(?:AM|PM)", "%m/%d/%Y %I:%M %p"],
+def _parse_waf_datetime(value: str) -> Optional[datetime]:
+    date_formats = [
+        (r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}", "%Y-%m-%d %H:%M"),
+        (r"\d{2}-[A-Za-z]{3}-\d{4}\s\d{2}:\d{2}", "%d-%b-%Y %H:%M"),
+        (
+            r"\d{1,2}/\d{1,2}/\d{4}\s+\d{1,2}:\d{2}\s(?:AM|PM)",
+            "%m/%d/%Y %I:%M %p",
+        ),
     ]
-    rows = soup.find_all("td") or soup.find_all("pre")
+    for date_pattern, date_format in date_formats:
+        match = re.search(date_pattern, value)
+        if match is not None:
+            return datetime.strptime(match.group(0), date_format)
+    return None
 
-    if rows and rows[0].name == "pre":
-        rows = rows[0].text.split(".xml")
 
-    for row in rows:
-        if isinstance(row, Tag):
-            row = row.text
-        for dt_pattern, dt_format in dt_data:
-            res = re.search(dt_pattern, row)
-            if res is not None:
-                output.append(datetime.strptime(res.group(0), dt_format))
+def _get_waf_anchor_datetime(anchor: Tag) -> Optional[datetime]:
+    table_row = anchor.find_parent("tr")
+    if table_row is not None:
+        parsed_datetime = _parse_waf_datetime(table_row.get_text(" ", strip=True))
+        if parsed_datetime is not None:
+            return parsed_datetime
 
-    if len(output) != expected_length:
+    # nginx places the timestamp after the anchor; IIS places it before.
+    for sibling in (anchor.next_sibling, anchor.previous_sibling):
+        if sibling is None:
+            continue
+        sibling_text = (
+            sibling.get_text(" ", strip=True)
+            if isinstance(sibling, Tag)
+            else str(sibling)
+        )
+        parsed_datetime = _parse_waf_datetime(sibling_text)
+        if parsed_datetime is not None:
+            return parsed_datetime
+
+    return None
+
+
+def get_waf_datetimes(soup: BeautifulSoup, expected_length: int) -> list:
+    """Return each WAF XML link's modification time in link order."""
+    anchors = [
+        anchor
+        for anchor in soup.find_all("a", href=True)
+        if anchor["href"].endswith(".xml")
+    ]
+    parsed_datetimes = [_get_waf_anchor_datetime(anchor) for anchor in anchors]
+    parsed_count = sum(value is not None for value in parsed_datetimes)
+
+    if len(anchors) != expected_length or parsed_count != expected_length:
         logger.warning(
-            f"mismatching datetime ({len(output)}) and file ({expected_length} counts"
+            "Mismatching WAF datetimes (%s parsed) and files (%s expected)",
+            parsed_count,
+            expected_length,
         )
 
-    # pad with placeholder when more files than datetimes
+    output = [
+        value if value is not None else DT_PLACEHOLDER for value in parsed_datetimes
+    ]
     output += [DT_PLACEHOLDER] * (expected_length - len(output))
-
-    # when more datetimes than files
-    output = output[:expected_length]
-
-    return output
+    return output[:expected_length]
 
 
 def traverse_waf(

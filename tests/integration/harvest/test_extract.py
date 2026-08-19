@@ -12,46 +12,66 @@ WAF_HTML_EXAMPLES = Path(__file__).parents[2] / "waf-html-examples"
 
 class TestExtract:
     @pytest.mark.parametrize(
-        "fixture_name, expected_files",
+        "fixture_name, source_url, expected_files",
         [
             pytest.param(
-                "apache-waf.html",
+                "apache-noaa-waf.html",
+                "https://data.noaa.gov/waf/NOAA/nmfs/garfo/iso/xml/",
                 [
                     {
-                        "identifier": "https://example.com/waf/roads.xml",
-                        "modified_date": datetime(2026, 6, 17, 14, 20),
+                        "identifier": (
+                            "https://data.noaa.gov/waf/NOAA/nmfs/garfo/"
+                            "iso/xml/1463.xml"
+                        ),
+                        "modified_date": datetime(2026, 7, 12, 2, 23),
                     },
                     {
-                        "identifier": "https://example.com/waf/water.xml",
-                        "modified_date": datetime(2026, 6, 18, 9, 5),
+                        "identifier": (
+                            "https://data.noaa.gov/waf/NOAA/nmfs/garfo/"
+                            "iso/xml/1503.xml"
+                        ),
+                        "modified_date": datetime(2026, 7, 12, 2, 23),
                     },
                 ],
                 id="apache",
             ),
             pytest.param(
-                "nginx-waf.html",
+                "nginx-dggs-waf.html",
+                "https://dggs.alaska.gov/webpubs/metadata/",
                 [
                     {
-                        "identifier": "https://example.com/waf/elevation.xml",
-                        "modified_date": datetime(2026, 6, 18, 9, 5),
+                        "identifier": (
+                            "https://dggs.alaska.gov/webpubs/metadata/AOF125.xml"
+                        ),
+                        "modified_date": datetime(2025, 10, 2, 11, 47),
                     },
                     {
-                        "identifier": "https://example.com/waf/imagery.xml",
-                        "modified_date": datetime(2026, 6, 19, 10, 30),
+                        "identifier": (
+                            "https://dggs.alaska.gov/webpubs/metadata/AOF134.xml"
+                        ),
+                        "modified_date": datetime(2026, 7, 30, 16, 1),
                     },
                 ],
                 id="nginx",
             ),
             pytest.param(
-                "ms-iis-waf.html",
+                "ms-iis-epa-waf.html",
+                "https://edg.epa.gov/WAFer_harvest/ISO/",
                 [
                     {
-                        "identifier": ("https://example.com/waf/USGSHydroCached.xml"),
-                        "modified_date": datetime(2021, 6, 17, 11, 20),
+                        "identifier": (
+                            "https://edg.epa.gov/WAFer_harvest/ISO/"
+                            "enviroatlas-metadata-waf_"
+                            "ACS_Demographics_by_Tract_2008_2012_EA.xml"
+                        ),
+                        "modified_date": datetime(2021, 6, 17, 12, 20),
                     },
                     {
-                        "identifier": ("https://example.com/waf/USGSImageryOnly.xml"),
-                        "modified_date": datetime(2025, 2, 11, 9, 19),
+                        "identifier": (
+                            "https://edg.epa.gov/WAFer_harvest/ISO/"
+                            "enviroatlas-metadata-waf_Ag_On_Slopes.xml"
+                        ),
+                        "modified_date": datetime(2025, 7, 23, 17, 33),
                     },
                 ],
                 id="microsoft-iis",
@@ -59,7 +79,7 @@ class TestExtract:
         ],
     )
     def test_traverse_waf_server_indexes(
-        self, monkeypatch, fixture_name, expected_files
+        self, monkeypatch, fixture_name, source_url, expected_files
     ):
         response = Mock(
             ok=True,
@@ -68,7 +88,7 @@ class TestExtract:
         requests_get = Mock(return_value=response)
         monkeypatch.setattr("harvester.utils.general_utils.requests.get", requests_get)
 
-        files = traverse_waf(url="https://example.com/waf/")
+        files = traverse_waf(url=source_url)
 
         assert files == expected_files
 
