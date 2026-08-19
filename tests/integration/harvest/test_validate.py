@@ -642,14 +642,10 @@ class TestValidateWarnings:
         source_data_dcatus3_0_invalid,
         job_data_dcatus3_0_invalid,
     ):
-        """An invalid record that also warns is counted as errored and warned,
-        and reporting the warning must not clobber the record's error status.
+        """An invalid record that also warns is counted as errored and warned.
 
-        The error and the warning must come from two independent defects, not
-        the same value reported twice (GSA/data.gov#6243): the schema error is
-        the fixture's own missing `contactPoint` (a required Dataset field),
-        while the warning comes from an unrelated, schema-valid `language`
-        code. Neither defect implies the other.
+        The error and warning must come from independent defects (missing
+        `contactPoint` vs an unknown `language` code), not the same value twice.
         """
         test_record = self._first_dcatus3_record(
             interface,
@@ -661,9 +657,6 @@ class TestValidateWarnings:
         # give the record a real db id so we can assert its persisted status
         test_record.compare()
 
-        # source_data_dcatus3_0_invalid's first dataset is already schema-invalid
-        # (missing the mandatory `contactPoint`); an unknown ISO 639-1 language
-        # is a separate, unrelated content warning, not a schema error
         record = json.loads(test_record.source_raw)
         record["language"] = ["zz"]
         test_record._source_raw = json.dumps(record)

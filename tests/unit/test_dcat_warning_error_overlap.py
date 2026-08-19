@@ -1,23 +1,9 @@
 """Lock in the schema/warning boundary from GSA/data.gov#6243.
 
-GSA/data.gov#6243 reported a single dataset-quality defect twice: once as a
-schema `ValidationError` (severity=error) and again as a DCAT content
-`warning` (severity=warning), inflating both `records_errored` and
-`records_warned`. The fix removed the warning rules that restated schema
-constraints (the `invalid_iri` family, plus guards that now defer to the
-schema's type/format/length/enum checks).
-
-The invariant this module locks in place: **any value that trips a DCAT
-warning must be schema-valid, and any value that trips a schema error must
-produce no warning.** Warnings are for content the schema accepts; the
-validator owns type/format/length/enum.
-
-This is checked against the *real* `Draft202012Validator` built from
-`schemas/dcatus3.0/definitions/`, not by inspecting `dcat_warnings.py` source,
-because the whole point is to catch a *future* warning rule that
-(re)duplicates a schema constraint without anyone noticing the overlap by
-reading the code. Only a rule and a validator disagreeing at runtime proves
-the boundary holds.
+A value that trips a DCAT warning must be schema-valid, and a value that
+trips a schema error must produce no warning. Checked against the real
+Draft202012Validator from `schemas/dcatus3.0/definitions/`, so a future
+rule that duplicates a schema constraint fails at runtime.
 """
 
 import copy
@@ -86,12 +72,6 @@ def _schema_errors(mutated: dict) -> list:
 
 
 # --- Case table 1: every warning fires only on schema-clean data -----------
-#
-# One mutation per warning type still emitted by dcat_warnings.py (see
-# _TYPE_RULES and the rule functions). Each mutation is applied to a fresh
-# deep copy of the schema-valid base record and must itself remain
-# schema-valid; if it doesn't, assertion (a) below is the one that would
-# catch a rule that restates a schema constraint.
 
 
 def _duplicate_keyword(r):
@@ -148,9 +128,7 @@ def _invalid_specific_restriction(r):
 
 
 def _invalid_tel(r):
-    # A different letters-containing value than the baseline's, so the
-    # resulting warning message differs from the baseline one and shows up
-    # as new rather than being diffed away.
+    # Distinct from the baseline vanity number so this shows up as a new warning.
     r["contactPoint"][0]["tel"] = "1-800-CALLME"
 
 
@@ -175,35 +153,22 @@ def _invalid_cui_banner_marking(r):
 
 
 def _unresolvable_spatial_value(r):
-    # A different unresolvable value than the baseline's WKT polygon, so the
-    # resulting warning message is new rather than being diffed away.
+    # Distinct from the baseline WKT polygon so this shows up as a new warning.
     r["spatial"][0]["geometry"] = "somewhere over there"
 
 
 def _date_out_of_order_date_time_with_utc_offset(r):
-    # Positive counterpart to fix (c): a `date-time` value *with* a UTC
-    # offset ("Z") is schema-valid, so `_parse_dcat_date` must still parse it
-    # and still warn -- the guard must not have been over-tightened into
-    # rejecting every date-time string.
+    # "Z" is schema-valid RFC 3339; the date parser must still warn on it.
     r["created"] = "2025-01-01T00:00:00Z"  # later than modified and issued
 
 
 def _date_out_of_order_lowercase_rfc3339(r):
-    # Third review round, fix 3: a lowercase RFC 3339 date-time ("t"/"z") is
-    # still schema-valid (FormatChecker's `date-time` format is
-    # case-insensitive on both), but `_parse_dcat_date` only normalized an
-    # uppercase "Z" before handing the value to `datetime.fromisoformat`, so
-    # a lowercase one raised inside the `try`, was swallowed by the `except`,
-    # and produced neither a schema error nor a warning -- the defect was
-    # reported nowhere.
+    # Lowercase RFC 3339 "t"/"z" is schema-valid and must still warn.
     r["created"] = "2025-01-01t00:00:00z"  # later than modified and issued
 
 
 def _empty_address_explicit_empty_strings(r):
-    # Positive counterpart to fix (d): every field explicitly set to "" (not
-    # just omitted) is still schema-valid and must still warn -- the guard
-    # must not have been over-tightened into only recognizing an absent/None
-    # field as unpopulated.
+    # Explicit "" is still schema-valid and must still warn as empty.
     r["contactPoint"][0]["address"].append(
         {
             "@type": "Address",
@@ -292,19 +257,13 @@ class TestWarningsOnlyFireOnSchemaCleanData:
         mutated = _record()
         mutate(mutated)
 
-        # (a) the mutation must be schema-clean: this is the assertion that
-        # would fail if a warning rule restated a schema constraint.
+        # Would fail if a warning rule restated a schema constraint.
         assert _schema_errors(mutated) == []
 
-        # (b) the mutation must still produce the warning it was meant to.
         assert expected_type in _new_warning_types(mutated)
 
 
 # --- Case table 2: schema violations produce no warning ---------------------
-#
-# Mutations that are pure schema violations of fields dcat_warnings.py also
-# touches. Each must (a) actually be reported as a schema error and (b)
-# produce no new warning, confirming the defect is reported exactly once.
 
 
 def _bad_dataset_id(r):
@@ -352,9 +311,7 @@ def _blank_keywords(r):
 
 
 def _distribution_type_dict(r):
-    # pins fix (a): before it, `detect_dcat_warnings` raised
-    # `TypeError: unhashable type` on a non-string, non-hashable `@type`
-    # instead of returning cleanly.
+    # Non-string @type used to raise TypeError: unhashable type.
     r["distribution"][0]["@type"] = {"foo": "bar"}
 
 
@@ -387,32 +344,19 @@ def _address_replaced_with_non_string_postal_code_empty_list(r):
 
 
 def _spatial_resolution_in_meters_non_empty_list(r):
-    # rescued from silent loss by fix (e): before it, `assemble_validation_errors`
-    # reported zero errors for this list value even though the record is invalid.
     r["spatialResolutionInMeters"] = ["bad"]
 
 
 def _temporal_resolution_non_empty_dict(r):
-    # same silent-loss defect as above, for a dict-valued offender.
     r["temporalResolution"] = {"a": 1}
 
 
 def _nested_container_type_error_under_anyof(r):
-    # Third review round, fix 1: a genuine leaf `type` error reached through
-    # one branch of a decomposed `anyOf` (here, `contactPoint`'s array
-    # branch) used to be dropped entirely -- `found_simple_message` only
-    # recognized a container `type` error as simple when it had no parent,
-    # which excluded this one -- so `assemble_validation_errors` returned no
-    # error at all for a schema-invalid record.
     r["contactPoint"][0]["@type"] = ["Kind"]
 
 
 def _bbox_wrong_type(r):
-    # Third review round, fix 2: bbox's object variant pins "type" to the
-    # constant "Polygon" (Location.json); a dict with any other "type" is
-    # already a schema `const` error, but `_warn_spatial_unresolved` used to
-    # only check for the presence of "type"/"coordinates", so it also fired
-    # `unresolvable_spatial_value` on this.
+    # bbox objects must be type "Polygon"; anything else is a schema const error.
     r["spatial"][0]["bbox"] = {
         "type": "NoSuch",
         "coordinates": [[[-77.1, 38.7], [-76.9, 38.7], [-76.9, 38.9], [-77.1, 38.7]]],
@@ -420,59 +364,31 @@ def _bbox_wrong_type(r):
 
 
 def _padded_date(r):
-    # Third review round, fix 3: `_parse_dcat_date` used to strip whitespace
-    # before format-checking, so a padded value the schema rejects still
-    # parsed here and could produce `date_out_of_order`.
+    # Whitespace-padded dates are schema-invalid; must not be stripped and warned on.
     r["created"] = " 2025-06-01 "  # later than modified and issued, if parsed
 
 
 def _created_all_scalar_anyof_branches(r):
-    # Remaining bug from review: `created` is `anyOf[null, {format:
-    # date-time}, {format: date}, {pattern: "^[0-9]{4}$"}, {pattern:
-    # "^[0-9]{4}-[0-9]{2}$"}]` -- every alternative is scalar/null, so a list
-    # value decomposes into same-path `type` errors with no sibling cause to
-    # defer to. Before the forced fallback in `assemble_validation_errors`,
-    # this was reported as zero errors for a schema-invalid record.
     r["created"] = ["2025"]
 
 
 def _language_all_scalar_anyof_branches(r):
-    # Same defect as above: `language` is `anyOf[null, string, array of
-    # string]`, all scalar/null, so a dict value used to vanish entirely.
     r["language"] = {"a": 1}
 
 
 def _spatial_bbox_all_scalar_anyof_branches(r):
-    # Same defect, one level deeper: `bbox` is `anyOf[null, string, object]`,
-    # reached through `spatial`'s own `anyOf[null, array of Location]`. A
-    # list value here used to vanish entirely too.
     r["spatial"][0]["bbox"] = ["x"]
 
 
 def _access_rights_all_scalar_anyof_branches(r):
-    # Same defect, smallest case: `accessRights` is `anyOf[null, string]`.
     r["accessRights"] = ["x"]
 
 
 def _centroid_coordinates_maxitems_numeric(r):
-    # Third review round, fix 1: `centroid.coordinates` is `{"type":
-    # "array", "items": {"type": "number"}, "minItems": 2, "maxItems": 2}`
-    # (Location.json). A 3-element numeric array used to crash
-    # `finalize_validation_messages` -- the raw message "[-77, 38, 1] is too
-    # long [maxItems=2]" has no quoted run and no literal `[]`, so the regex
-    # that extracts the invalid value found nothing and `.group(0)` raised
-    # `AttributeError`, aborting validation mid-harvest.
     r["spatial"][0]["centroid"] = {"type": "Point", "coordinates": [-77, 38, 1]}
 
 
 def _centroid_coordinates_minitems_numeric(r):
-    # Third review round, fix 2: a 1-element `coordinates` array is too
-    # short (`minItems: 2`). Before the fix, `found_simple_message` only
-    # whitelisted `maxItems` by name for container instances, so this
-    # `minItems` violation was suppressed and `assemble_validation_errors`
-    # fell back to the vague "$.spatial[0].centroid, object value does not
-    # match any of the acceptable formats: 'null', 'string'" branch-type
-    # message instead of naming the real cause on `coordinates`.
     r["spatial"][0]["centroid"] = {"type": "Point", "coordinates": [-77]}
 
 

@@ -13,26 +13,19 @@ message so the storage-wiring story can populate `harvest_record_error.type`
 without parsing message text (mirroring how harvest errors are typed by
 exception class name in `harvester/harvest.py`).
 
-Boundary with the schema (GSA/data.gov#6243): a warning rule must never fire on
-a value the DCAT-US 3.0 JSON Schema already rejects. The schema owns JSON type,
-format, length, and enum checks; this module owns content-and-semantics checks
-on values the schema accepts. When a rule below guards on `isinstance(...)` (or
-similarly narrows its input) purely to defer to the schema, the guard's comment
-names the schema constraint it is deferring to. Restating a schema constraint
-here would report the same defect twice: once as a validator error, once as a
-warning. If you add a rule, check the field's definition under
-`schemas/dcatus3.0/definitions/` first and only warn on values the schema's
-type/format/length/enum already lets through.
+Boundary with the schema: a warning rule must never fire on a value the
+DCAT-US 3.0 JSON Schema already rejects. The schema owns type, format, length,
+and enum checks; this module owns content-and-semantics checks on values the
+schema accepts. Guards that narrow input (e.g. `isinstance`) exist to defer to
+the schema, not to restate it. Add a rule only after checking the field under
+`schemas/dcatus3.0/definitions/`.
 
-Known, accepted limitation: dropping the universal `@id` IRI walk (see below)
-means an `@id` on an object nested under a property the schema does not
-define (e.g. an ad hoc `extension` object) now produces no signal at all --
-not a schema error, not a warning -- because the schema never validates that
-object in the first place. We do not restore the universal walk: doing so
-would reinstate the exact double-report this issue is about for every
-schema-defined object (each definition declares `@id` as `{"type": "string",
-"format": "iri"}`), and a position-aware version would need to track which
-paths the schema actually covers, which this module does not do.
+Known limitation: there is no universal `@id` IRI walk. An `@id` on an object
+the schema does not define (e.g. an ad hoc `extension`) produces no signal,
+because the schema never validates that object. Restoring a universal walk
+would double-report every schema-defined `@id` (`{"type": "string", "format":
+"iri"}`); a position-aware walk would need to track which paths the schema
+covers, which this module does not do.
 
 Rules that validate against controlled vocabularies (ISO 639-1 languages, IANA
 character sets and media types, NARA restriction authority lists) read bundled
@@ -130,36 +123,16 @@ _US_COUNTRY_NAMES = {
     "united states of america",
 }
 
-# Used by `_parse_dcat_date` to defer to the validator's own definition of a
-# valid "date"/"date-time" (the validator itself is built with
-# `format_checker=FormatChecker()`, see `build_dcatus3_validator`). This is
-# not restating a schema constraint -- it is asking the schema's own checker
-# whether a value is in-bounds before treating it as a parsed date, so a
-# value the schema rejects (e.g. a date-time with no UTC offset) can't also
-# be double-reported as a `date_out_of_order` warning (GSA/data.gov#6243).
+# Same FormatChecker the DCAT-US 3 validator uses (see `build_dcatus3_validator`).
 _DATE_FORMAT_CHECKER = FormatChecker()
 
 
 def _parse_dcat_date(value):
     """Parse a DCAT date/date-time/YYYY/YYYY-MM string to a date, else None.
 
-    A `created`/`modified`/`issued`/etc. value is `anyOf[null, {format:
-    date-time}, {format: date}, {pattern: "^[0-9]{4}$"}, {pattern:
-    "^[0-9]{4}-[0-9]{2}$"}]` (see e.g. Dataset.json `created`). Only that
-    exact set parses here; anything else is already a schema error, not a
-    content-quality one. `format: date-time` is RFC 3339 and requires a UTC
-    offset, which `datetime.fromisoformat` alone does not enforce, so the
-    date-time branch below checks `FormatChecker` first rather than relying
-    on `fromisoformat` succeeding.
-
-    Every one of those alternatives is checked by the schema against the
-    value exactly as given -- the `^[0-9]{4}$`/`^[0-9]{4}-[0-9]{2}$` patterns
-    are anchored with no allowance for surrounding whitespace, and both
-    `FormatChecker` formats reject it too. So this parses `value` itself, not
-    a stripped copy: a padded string like `" 2025-06-01 "` is already a
-    schema `format`/`pattern` error (GSA/data.gov#6243), and stripping it
-    here would let it parse anyway and be double-reported as
-    `date_out_of_order`.
+    Only schema-valid forms parse. Date-times go through FormatChecker first
+    because fromisoformat is looser than RFC 3339 (UTC offset required).
+    Whitespace is not stripped: a padded string is already a schema error.
     """
     if not isinstance(value, str):
         return None
@@ -172,23 +145,12 @@ def _parse_dcat_date(value):
         if _DATE_FORMAT_CHECKER.conforms(value, "date"):
             return date.fromisoformat(value)
         if _DATE_FORMAT_CHECKER.conforms(value, "date-time"):
-            # RFC 3339 (what `format: date-time` requires) treats the "T"
-            # separator and the "Z" UTC designator as case-insensitive, and
-            # `FormatChecker` -- and therefore the schema -- accepts a
-            # lowercase "z" for the same reason it accepts a lowercase "t"
-            # (which `fromisoformat` already tolerates on its own). Only a
-            # trailing, case-insensitive "z" needs normalizing to the offset
-            # `fromisoformat` requires; anywhere else in a valid date-time
-            # string, "Z"/"z" can't appear. Leaving this schema-valid form
-            # unparseable would mean no `date_out_of_order` warning could
-            # ever fire for it (GSA/data.gov#6243).
+            # FormatChecker accepts trailing Z/z (RFC 3339);
+            # fromisoformat needs +00:00.
             normalized = re.sub(r"[Zz]$", "+00:00", value)
             return datetime.fromisoformat(normalized).date()
     except ValueError:
-        # `conforms()` accepts some values (e.g. a pattern-only "0000" year)
-        # that the stricter parse below still rejects; treat those as
-        # unparseable rather than raising out of warning detection, matching
-        # this function's pre-6243 behavior.
+        # FormatChecker accepts some values (e.g. year "0000") that still fail to parse.
         return None
     return None
 
@@ -205,9 +167,7 @@ def _date_later_than(value, other) -> bool:
 def _warn_duplicate_keywords(keywords) -> list:
     """Warn once per keyword that appears more than once.
 
-    Empty entries are skipped: `keyword` items carry `minLength: 1`, so ""
-    is already a schema violation, not a content-quality one. Whitespace-only
-    entries pass that constraint, so they are still counted here.
+    Empty strings are skipped (`minLength: 1`); whitespace-only entries still count.
     """
     if not isinstance(keywords, list):
         return []
@@ -226,8 +186,6 @@ def _warn_spatial_resolution(value) -> Optional[DcatWarning]:
     """Warn if spatialResolutionInMeters is non-numeric or not greater than zero."""
     if value is None:
         return None
-    # spatialResolutionInMeters is `type: ["null", "string"]`; a non-string
-    # value is already a schema type error, not a content-quality one.
     if not isinstance(value, str):
         return None
     if not _DECIMAL_RE.match(value):
@@ -252,8 +210,6 @@ def _warn_temporal_resolution(value, invalid_msg: str) -> Optional[DcatWarning]:
     """
     if value is None:
         return None
-    # temporalResolution is `type: ["null", "string"]`; a non-string value is
-    # already a schema type error, not a content-quality one.
     if not isinstance(value, str):
         return None
     if _XSD_DURATION_RE.match(value):
@@ -268,9 +224,7 @@ def _warn_byte_size(value) -> Optional[DcatWarning]:
     """Warn if byteSize does not parse to a number."""
     if value is None:
         return None
-    # byteSize is `type: ["null", "string"]`; a non-string value (e.g. a list)
-    # is already a schema type error. is_number() would otherwise raise
-    # TypeError on non-string/non-numeric values such as a list.
+    # is_number() raises TypeError on a list.
     if not isinstance(value, str):
         return None
     if is_number(value):
@@ -344,8 +298,6 @@ def _warn_tel_has_letters(value) -> Optional[DcatWarning]:
 
 def _warn_expected_data_type(value) -> Optional[DcatWarning]:
     """Warn if expectedDataType does not begin with `xsd:`."""
-    # Metric.expectedDataType is `"type": "string"`, a scalar; a non-string
-    # value (e.g. a list) is already a schema type error.
     if not isinstance(value, str):
         return None
     if not value.startswith("xsd:"):
@@ -361,20 +313,10 @@ def _warn_expected_data_type(value) -> Optional[DcatWarning]:
 def _warn_spatial_unresolved(field: str, value) -> Optional[DcatWarning]:
     """Warn if a spatial value cannot be resolved to a geographic area.
 
-    `bbox` and `geometry` are each `anyOf[null, string, object]`
-    (Location.json), and the object variant requires "type" and
-    "coordinates" for both. A value that is neither a string nor a dict
-    carrying those required keys is already a schema type/required-property
-    error for either field, not a content-quality one, so it is skipped here
-    rather than re-warned on.
-
-    `bbox`'s object variant additionally pins "type" to the constant
-    "Polygon"; an object whose "type" isn't exactly "Polygon" is already a
-    schema `const` error there, so it is skipped too (GSA/data.gov#6243) --
-    `translate_spatial` never gets the chance to judge it. `geometry`'s
-    object variant has no such constant (any "type" value passes the
-    schema), so a `geometry` dict `translate_spatial` can't resolve is still
-    a legitimate, schema-clean content-quality warning and must still fire.
+    Skip values that are neither a string nor a dict with "type" and
+    "coordinates" -- those are already schema errors. `bbox` objects must
+    also have `"type": "Polygon"` (schema `const`); `geometry` has no such
+    const, so an unresolvable geometry dict is still a content warning.
     """
     if value is None:
         return None
@@ -412,11 +354,8 @@ def _warn_us_postal_code(postal_code, country_name) -> Optional[DcatWarning]:
 def _warn_empty_address(address: dict) -> Optional[DcatWarning]:
     """Warn if an Address object has no populated fields.
 
-    Each Address field is `type: ["null", "string"]` (Address.json), so
-    `None` and "" are the only schema-valid "unpopulated" states. Any other
-    falsy value (e.g. `0`, `[]`) is already a schema type error, not an
-    empty-address content issue -- there is a populated, if wrongly-typed,
-    value, so it must not also count toward "no populated fields".
+    Only `None` and "" count as unpopulated; other falsy values are already
+    schema type errors.
     """
     fields = (
         "street-address",
@@ -451,11 +390,8 @@ def _as_list(value) -> list:
 def _warn_language(value) -> list:
     """Warn on language codes that are too short or not recognized ISO 639-1.
 
-    `language` is `anyOf[null, {string, maxLength 2}, {array of {string,
-    maxLength 2}}]`, so `language` may be a single string or an array of
-    strings; either way each entry is expected to already be at most 2
-    characters. An entry longer than 2 characters is already a schema
-    `maxLength` error, so it is skipped here rather than re-warned on.
+    `language` may be a string or an array of strings. Entries longer than 2
+    characters are already a schema `maxLength` error.
     """
     warnings = []
     for entry in _as_list(value):
@@ -482,9 +418,8 @@ def _warn_language(value) -> list:
 
 def _warn_character_encoding(value) -> list:
     """Warn on character encodings not recognized as IANA character set names."""
-    # Distribution.characterEncoding is `anyOf[null, {array of string}]`; a
-    # bare string (not wrapped in a list) is already a schema type error, so
-    # only a list is evaluated here (unlike `_warn_language`, no `_as_list`).
+    # Array-of-string only; a bare string is a schema type error
+    # (unlike `_warn_language`).
     if not isinstance(value, list):
         return []
     warnings = []
@@ -738,18 +673,12 @@ def detect_dcat_warnings(data: dict) -> list:
 
     Walks the record and dispatches each typed object to its class rules.
     Returns a flat list of `DcatWarning` tuples (empty when the record is
-    clean). There is no universal `@id`/IRI check here: every DCAT-US 3
-    definition declares `@id` as `{"type": "string", "format": "iri"}`, so an
-    invalid IRI is already a schema `format` error (GSA/data.gov#6243).
+    clean). Invalid `@id` IRIs are schema `format` errors, not warnings.
     """
     warnings = []
     for obj in _walk_objects(data):
         type_value = obj.get("@type")
-        # `@type` is `{"type": "string", ...}` in every DCAT-US 3 definition;
-        # a non-string `@type` (e.g. a list or dict from a malformed record)
-        # is already a schema type error, not a content-quality one. It is
-        # also unhashable, so `_TYPE_RULES.get` would raise `TypeError:
-        # unhashable type` on it if dispatched anyway.
+        # Non-string @type is a schema error, and unhashable for `_TYPE_RULES.get`.
         if not isinstance(type_value, str):
             continue
         rule = _TYPE_RULES.get(type_value)

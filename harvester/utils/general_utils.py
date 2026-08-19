@@ -1388,20 +1388,14 @@ def get_format_from_str(validation_msg: str) -> str:
             return f"max {match.group(1)} items"
         return "max string length requirement"
 
-    # mirrors the "is too long" (maxLength/maxItems) case above, for the
-    # `minItems` container constraint (GSA/data.gov#6243). `assemble_
-    # validation_errors` appends the `[minItems=N]` hint the same way it
-    # does for `maxItems`.
     if "is too short" in validation_msg:
         match = re.search(r"\[minItems=(\d+)\]", validation_msg)
         if match:
             return f"min {match.group(1)} items"
         return "min items requirement"
 
-    # `uniqueItems` reads "has non-unique elements", whose last word alone
-    # ("elements") loses the rule being broken (GSA/data.gov#6243). match
-    # jsonschema's full wording, not just "non-unique" -- an invalid *value*
-    # containing that text would otherwise hijack its own error message.
+    # Match jsonschema's full "has non-unique elements" wording, not just
+    # "non-unique" -- an invalid value containing that text would hijack the match.
     if "has non-unique elements" in validation_msg:
         return "unique items"
 
@@ -1416,13 +1410,9 @@ def found_simple_message(
 ) -> bool:
     """
     determine whether the input validation error represents the most
-    succinct cause for error based on its json_path or dtype
+    succinct cause for error based on its json_path or dtype.
 
-    `forced` is a last-resort override used by `assemble_validation_errors`
-    (GSA/data.gov#6243) for the one case below that would otherwise leave a
-    schema-invalid record with no recorded message at all: a same-path
-    container `type` error that this function normally suppresses as
-    branch noise. See that function's own comments for when `forced` is set.
+    `forced` is a last-resort override set by `assemble_validation_errors`.
     """
     # these are all the unique dtypes found in the
     # non-federal schema (no different than federal)
@@ -1440,29 +1430,10 @@ def found_simple_message(
         if len(validation_error.instance) == 0:
             return True
 
-        # a container that fails a `type` check outright is its own simplest
-        # cause, and `type` errors carry no `context` to dig into, so
-        # dropping one loses the defect entirely (GSA/data.gov#6243). it's
-        # simple when the constraint is a list of types (e.g.
-        # `["null", "string"]` -- can't be a container at all), or when the
-        # error came straight off `iter_errors` (no parent, so an
-        # unconditional leaf like `@type: {"type": "string"}`).
-        #
-        # a single-type constraint reached through `error.context` is the
-        # ambiguous case: `anyOf`/`oneOf` decomposes into one branch per
-        # alternative, and "isn't that alternative's type" is noise when a
-        # sibling holds the real cause. `context` is flat -- every entry
-        # shares the `anyOf` as its `parent` -- so compare json_paths: noise
-        # sits at the path the `anyOf` is deciding on, while a real cause
-        # reached through a branch sits deeper (e.g. an item of an
-        # array-of-objects branch).
-        #
-        # `forced` covers the case where deferring to a sibling would lose
-        # the defect: when every alternative is a scalar/null type, all
-        # branches are same-path noise and no deeper cause exists to defer
-        # to. `assemble_validation_errors` sets it only after confirming the
-        # unforced pass recorded nothing, trading a vague message that names
-        # the right json_path for silence, which reads as "record is fine".
+        # `type` errors have no `context`. Keep them when the allowed types are
+        # a list, when this is a top-level error, or when the path is deeper
+        # than the parent (a real cause inside a branch). Same-path single-type
+        # errors are anyOf/oneOf branch noise unless `forced`.
         if validation_error.validator == "type":
             return bool(
                 isinstance(validation_error.validator_value, list)
@@ -1471,24 +1442,12 @@ def found_simple_message(
                 or forced
             )
 
-        # anyOf/oneOf/allOf/not are combinators: the failure here is just
-        # "no alternative matched" (or "matched the forbidden schema"), not
-        # a cause on its own. Each carries the per-alternative errors in
-        # `.context`, which `assemble_validation_errors` recurses into
-        # separately to look for the real cause -- reporting the combinator
-        # error directly would be exactly the vague branch-type message this
-        # rule exists to avoid (GSA/data.gov#6243).
+        # Combinators are not a cause; their `.context` holds the per-branch errors.
         if validation_error.validator in ("anyOf", "oneOf", "allOf", "not"):
             return False
 
-        # every other container-instance validator -- maxItems, minItems,
-        # uniqueItems, enum, const, minProperties, required, ... -- carries
-        # no `context` worth recursing into, so it's already the specific
-        # cause. Previously only `maxItems` and a `required`-message check
-        # were whitelisted here by name; every other one (e.g. `minItems`)
-        # fell through to `return False` and, having no `context` to recurse
-        # into and no sibling to defer to, was silently dropped instead of
-        # reported (GSA/data.gov#6243).
+        # Other container validators (maxItems, minItems, uniqueItems, ...) are
+        # already the specific cause.
         return True
     return True
 
@@ -1534,15 +1493,9 @@ def finalize_validation_messages(messages: defaultdict) -> list:
         # but >1 format/rule is used against it so grabbing
         # the last one which is a regex and does include the invalid data
         # excluding constants [0] == [n]
-        # jsonschema renders a container instance as its repr, so the
-        # quoted-run regex below would grab an arbitrary inner element (a list
-        # item, or worse, a dict key), find nothing at all for a container of
-        # numbers, or splice a whole array into the message. name the kind of
-        # value instead: bounded, and it can't mislead (GSA/data.gov#6243).
-        # any format for this path may carry the repr -- a `const` message
-        # quotes the *expected* value rather than the instance, so reading only
-        # the last one would name the value the schema wanted as the offender.
-        # "[]" already reads fine as itself, so it isn't treated as a container.
+        # jsonschema renders containers as repr; quoting an inner element (or a
+        # const's expected value) would mislead, so name the kind of value.
+        # "[]" already reads as itself.
         container = next(
             (f for f in formats if f[:1] in ("[", "{") and f[:2] != "[]"), None
         )
@@ -1551,9 +1504,7 @@ def finalize_validation_messages(messages: defaultdict) -> list:
         elif container is not None:
             invalid_value = "array value" if container[0] == "[" else "object value"
         else:
-            # a match object here has no groups when it matched the literal
-            # `[]` alternative, so read group(0); a scalar instance always
-            # has a quoted run to find.
+            # group(0): the `[]` alternative has no capture groups.
             match = re.search(r"'(.*?)'|\[\]", formats[-1])
             invalid_value = match.group(0) if match else None
 
@@ -1584,12 +1535,7 @@ def finalize_validation_messages(messages: defaultdict) -> list:
 
 
 def _count_messages(messages: defaultdict) -> int:
-    """Total number of accumulated messages across every json_path so far.
-
-    Used by `assemble_validation_errors` to tell whether a recursive pass
-    over an error's `context` recorded anything anywhere in that subtree,
-    without caring which path it landed on.
-    """
+    """Total messages accumulated across every json_path so far."""
     return sum(len(v) for v in messages.values())
 
 
@@ -1605,10 +1551,10 @@ def assemble_validation_errors(
     will often return the entire object followed by 'is not valid under any
     of the given schemas' which isn't helpful.
 
-    `_forced` is a private, keyword-only fallback flag -- callers outside
-    this module (namely `Record.validate()` in harvester/harvest.py) must
-    keep using the two-argument form. See the "nothing was recorded" block
-    below for what it does and why it exists (GSA/data.gov#6243).
+    `_forced` is a private fallback. Callers (Record.validate) must keep the
+    two-argument form. After an unforced context walk records nothing, we
+    re-walk forced so a same-path type error is reported vaguely instead of
+    silently. A walk that already recorded a specific cause is left alone.
     """
 
     if messages is None:
@@ -1629,12 +1575,8 @@ def assemble_validation_errors(
                     f"{error.message} [maxItems={error.validator_value}]"
                 )
             elif error.validator == "minItems" and "is too short" in error.message:
-                # jsonschema special-cases `minItems: 1` to the already
-                # self-explanatory "should be non-empty" (no count worth
-                # hinting); only the generic "is too short" wording (any
-                # other `minItems`) needs the hint appended, mirroring how
-                # the `maxItems`/`maxLength` hints above only matter for
-                # their own "is too long" wording.
+                # minItems: 1 already says "should be non-empty";
+                # only "is too short" needs the count.
                 formatted_message = (
                     f"{error.message} [minItems={error.validator_value}]"
                 )
@@ -1649,19 +1591,12 @@ def assemble_validation_errors(
             ):
                 messages[error.json_path].append(formatted_message)
 
-        # walk `context` unforced first: a specific cause deeper down always
-        # beats a vague one, and only the ordinary logic can find it.
+        # Prefer a specific cause in context before falling back.
         recorded_before = _count_messages(messages)
         assemble_validation_errors(error.context, messages)
 
-        # if that walk recorded nothing anywhere, every branch was same-path
-        # noise with no sibling to defer to (see `found_simple_message`), and
-        # the defect would vanish -- so re-walk forced, which reports it
-        # vaguely instead of silently (GSA/data.gov#6243). a walk that did
-        # record something skips this, which is what keeps a specific message
-        # (e.g. at $.contactPoint[0]['@type']) from also gaining a spurious
-        # one at its `anyOf`'s path. `_forced` only flips `type` errors, and
-        # those carry no `context`, so this cannot recurse further.
+        # Nothing recorded: re-walk forced so the defect is not dropped.
+        # `_forced` only flips `type` errors, which have no context to recurse.
         if error.context and _count_messages(messages) == recorded_before:
             assemble_validation_errors(error.context, messages, _forced=True)
 
