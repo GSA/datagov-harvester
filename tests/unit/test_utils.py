@@ -18,6 +18,7 @@ from harvester.utils.general_utils import (
     USER_AGENT,
     RetrySession,
     assemble_validation_errors,
+    backfill_catalog_record_identifiers,
     create_retry_session,
     describe_identifier_error,
     download_file,
@@ -29,6 +30,7 @@ from harvester.utils.general_utils import (
     find_indexes_for_duplicates,
     get_waf_datetimes,
     is_valid_uuid4,
+    merge_dcatus3_datasets,
     munge_spatial,
     munge_title_to_name,
     normalize_dataset_identifier,
@@ -827,6 +829,47 @@ class TestDcatus3Catalog:
         assert extract_dcatus3_catalog_records(catalog) == [{"@id": "rec-1"}]
 
 
+class TestBackfillCatalogRecordIdentifiers:
+    def test_missing_id_gets_synthesized(self):
+        records = [{"primaryTopic": "ds-1", "modified": "2024-06-15"}]
+
+        result = backfill_catalog_record_identifiers(records)
+
+        assert result[0]["@id"].startswith("urn:datagov:catalogrecord:")
+
+    def test_existing_id_left_alone(self):
+        records = [{"@id": "https://example.gov/rec-1", "primaryTopic": "ds-1"}]
+
+        result = backfill_catalog_record_identifiers(records)
+
+        assert result[0]["@id"] == "https://example.gov/rec-1"
+
+    def test_synthesized_id_is_stable_for_same_content(self):
+        records = [{"primaryTopic": "ds-1", "modified": "2024-06-15"}]
+
+        first = backfill_catalog_record_identifiers(records)[0]["@id"]
+        second = backfill_catalog_record_identifiers(records)[0]["@id"]
+
+        assert first == second
+
+    def test_synthesized_id_differs_for_different_content(self):
+        a = backfill_catalog_record_identifiers(
+            [{"primaryTopic": "ds-1", "modified": "2024-06-15"}]
+        )[0]["@id"]
+        b = backfill_catalog_record_identifiers(
+            [{"primaryTopic": "ds-2", "modified": "2024-06-15"}]
+        )[0]["@id"]
+
+        assert a != b
+
+    def test_does_not_mutate_input(self):
+        records = [{"primaryTopic": "ds-1", "modified": "2024-06-15"}]
+
+        backfill_catalog_record_identifiers(records)
+
+        assert "@id" not in records[0]
+
+
 class TestExtractDcatus3NestedDatasets:
     def test_uses_custom_parent_identifier_field(self):
         """DatasetSeries (like CatalogRecord) has no "identifier" field,
@@ -962,6 +1005,79 @@ class TestExtractDcatus3NestedDatasets:
 
         assert len(result) == 2
         assert {d["parent_identifier"] for d in result} == {"svc-1", "svc-2"}
+
+
+class TestMergeDcatus3Datasets:
+    def test_top_level_and_nested_overlap_merged_into_one(self):
+        """Top-level entry wins, gains the nested entry's parent_identifier."""
+        top_level = [{"identifier": "ds-1", "title": "Canonical title"}]
+        nested = [
+            {
+                "identifier": "ds-1",
+                "title": "Redundant series-member copy",
+                "parent_identifier": "series-1",
+            }
+        ]
+
+        result = merge_dcatus3_datasets(top_level, nested)
+
+        assert len(result) == 1
+        assert result[0]["title"] == "Canonical title"
+        assert result[0]["parent_identifier"] == "series-1"
+
+    def test_nested_only_dataset_kept_as_its_own_record(self):
+        """A nested dataset with no top-level counterpart is unaffected."""
+        nested = [{"identifier": "ds-2", "parent_identifier": "series-1"}]
+
+        result = merge_dcatus3_datasets([], nested)
+
+        assert result == nested
+
+    def test_disjoint_top_level_and_nested_both_kept(self):
+        top_level = [{"identifier": "ds-1"}]
+        nested = [{"identifier": "ds-2", "parent_identifier": "series-1"}]
+
+        result = merge_dcatus3_datasets(top_level, nested)
+
+        assert {d["identifier"] for d in result} == {"ds-1", "ds-2"}
+
+    def test_nested_vs_nested_overlap_not_merged(self):
+        """Nested-vs-nested overlap is left for the duplicate filter to catch."""
+        nested_a = [{"identifier": "ds-1", "parent_identifier": "svc-1"}]
+        nested_b = [{"identifier": "ds-1", "parent_identifier": "series-1"}]
+
+        result = merge_dcatus3_datasets([], nested_a, nested_b)
+
+        assert len(result) == 2
+        assert {d["parent_identifier"] for d in result} == {"svc-1", "series-1"}
+
+    def test_first_nested_list_wins_when_multiple_match_top_level(self):
+        """First nested list to claim a top-level dataset wins the tag."""
+        top_level = [{"identifier": "ds-1"}]
+        nested_a = [{"identifier": "ds-1", "parent_identifier": "svc-1"}]
+        nested_b = [{"identifier": "ds-1", "parent_identifier": "series-1"}]
+
+        result = merge_dcatus3_datasets(top_level, nested_a, nested_b)
+
+        assert len(result) == 1
+        assert result[0]["parent_identifier"] == "svc-1"
+
+    def test_missing_identifiers_not_treated_as_matching(self):
+        """Both normalize to None, so they stay as separate records."""
+        top_level = [{"title": "No id top-level"}]
+        nested = [{"title": "No id nested", "parent_identifier": "series-1"}]
+
+        result = merge_dcatus3_datasets(top_level, nested)
+
+        assert len(result) == 2
+
+    def test_does_not_mutate_inputs(self):
+        top_level = [{"identifier": "ds-1", "title": "Canonical title"}]
+        nested = [{"identifier": "ds-1", "parent_identifier": "series-1"}]
+
+        merge_dcatus3_datasets(top_level, nested)
+
+        assert "parent_identifier" not in top_level[0]
 
 
 class TestRetrySession:

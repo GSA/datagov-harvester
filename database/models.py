@@ -338,6 +338,16 @@ class Dataset(Base):
     popularity = Column(Integer, server_default="0")
     last_harvested_date = Column(DateTime, index=True)
 
+    # Mirrors HarvestRecord.record_type. A DatasetSeries gets "data_series"
+    # and a DataService gets "data_service" here so each is
+    # searchable/displayable like a dataset.
+    type = Column(
+        Enum(*RECORD_TYPE_VALUES, name="record_type"),
+        nullable=False,
+        server_default="dataset",
+        index=True,
+    )
+
     # The `datasets` / `dataset` backrefs below are the one-to-many side, so
     # passive_deletes belongs on the backref. Without it SQLAlchemy tries to NULL
     # these non-nullable FKs when a parent is deleted, raising IntegrityError.
