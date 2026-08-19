@@ -21,7 +21,6 @@ import geojson_validator
 import requests
 import sansjson
 from bs4 import BeautifulSoup
-from bs4.element import Tag
 from jsonschema import Draft202012Validator, FormatChecker
 from jsonschema.exceptions import ValidationError
 from referencing import Registry
@@ -692,7 +691,8 @@ def find_indexes_for_duplicates(records: list, identifier_field: str = "identifi
     return output
 
 
-def _parse_waf_datetime(value: str) -> Optional[datetime]:
+def get_waf_datetimes(soup: BeautifulSoup, expected_length: int) -> list:
+    """Return each WAF XML link's modification time in link order."""
     date_formats = [
         (r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}", "%Y-%m-%d %H:%M"),
         (r"\d{2}-[A-Za-z]{3}-\d{4}\s\d{2}:\d{2}", "%d-%b-%Y %H:%M"),
@@ -701,45 +701,31 @@ def _parse_waf_datetime(value: str) -> Optional[datetime]:
             "%m/%d/%Y %I:%M %p",
         ),
     ]
-    for date_pattern, date_format in date_formats:
-        match = re.search(date_pattern, value)
-        if match is not None:
-            return datetime.strptime(match.group(0), date_format)
-    return None
-
-
-def _get_waf_anchor_datetime(anchor: Tag) -> Optional[datetime]:
-    table_row = anchor.find_parent("tr")
-    if table_row is not None:
-        parsed_datetime = _parse_waf_datetime(table_row.get_text(" ", strip=True))
-        if parsed_datetime is not None:
-            return parsed_datetime
-
-    # nginx places the timestamp after the anchor; IIS places it before.
-    for sibling in (anchor.next_sibling, anchor.previous_sibling):
-        if sibling is None:
-            continue
-        sibling_text = (
-            sibling.get_text(" ", strip=True)
-            if isinstance(sibling, Tag)
-            else str(sibling)
-        )
-        parsed_datetime = _parse_waf_datetime(sibling_text)
-        if parsed_datetime is not None:
-            return parsed_datetime
-
-    return None
-
-
-def get_waf_datetimes(soup: BeautifulSoup, expected_length: int) -> list:
-    """Return each WAF XML link's modification time in link order."""
     anchors = [
         anchor
         for anchor in soup.find_all("a", href=True)
         if anchor["href"].endswith(".xml")
     ]
-    parsed_datetimes = [_get_waf_anchor_datetime(anchor) for anchor in anchors]
-    parsed_count = sum(value is not None for value in parsed_datetimes)
+    output = []
+    parsed_count = 0
+
+    for anchor in anchors:
+        table_row = anchor.find_parent("tr")
+        date_text = (
+            table_row.get_text(" ", strip=True)
+            if table_row is not None
+            else f"{anchor.next_sibling or ''} {anchor.previous_sibling or ''}"
+        )
+        modified_date = None
+
+        for date_pattern, date_format in date_formats:
+            match = re.search(date_pattern, date_text)
+            if match is not None:
+                modified_date = datetime.strptime(match.group(0), date_format)
+                parsed_count += 1
+                break
+
+        output.append(modified_date or DT_PLACEHOLDER)
 
     if len(anchors) != expected_length or parsed_count != expected_length:
         logger.warning(
@@ -748,9 +734,6 @@ def get_waf_datetimes(soup: BeautifulSoup, expected_length: int) -> list:
             expected_length,
         )
 
-    output = [
-        value if value is not None else DT_PLACEHOLDER for value in parsed_datetimes
-    ]
     output += [DT_PLACEHOLDER] * (expected_length - len(output))
     return output[:expected_length]
 
