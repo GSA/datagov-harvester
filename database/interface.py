@@ -293,11 +293,12 @@ class HarvesterDBInterface:
         were created more than one day ago.
         """
         one_day_ago = datetime.now(timezone.utc) - timedelta(days=1)
+        started_at = func.coalesce(HarvestJob.date_started, HarvestJob.date_created)
         return (
             self.db.query(HarvestJob)
             .filter(
                 HarvestJob.status == "in_progress",
-                HarvestJob.date_created <= one_day_ago,
+                started_at <= one_day_ago,
             )
             .order_by(HarvestJob.date_created.desc())
             .all()
@@ -333,8 +334,8 @@ class HarvesterDBInterface:
         """Get harvest jobs in the database that need to be run.
 
         A job that needs to be run has status "new" and a date_created that is
-        before now. The jobs are returned in ascending order of date_created so that the
-        oldest jobs are given first.
+        not in the future. The jobs are returned in ascending order of date_created so
+        that the oldest jobs are given first.
 
         If `limit` is given, it limits the number of returned jobs to at most that
         number. The default is to return all the jobs.
@@ -342,7 +343,7 @@ class HarvesterDBInterface:
         return (
             self.db.query(HarvestJob)
             .filter(
-                HarvestJob.date_created < datetime.now(timezone.utc),
+                HarvestJob.date_created <= datetime.now(timezone.utc),
                 HarvestJob.status == "new",
             )
             .order_by(asc(HarvestJob.date_created))
@@ -350,17 +351,61 @@ class HarvesterDBInterface:
             .all()
         )
 
-    def get_new_harvest_jobs_by_source_in_future(self, source_id):
-        harvest_jobs = (
+    def get_queued_harvest_jobs_for_source(self, source_id):
+        """Return status=new jobs for a source, if any."""
+        return (
             self.db.query(HarvestJob)
             .filter(
-                HarvestJob.date_created > datetime.now(timezone.utc),
                 HarvestJob.harvest_source_id == source_id,
                 HarvestJob.status == "new",
             )
             .all()
         )
-        return [job for job in harvest_jobs or []]
+
+    def get_active_harvest_job_for_source(self, source_id):
+        """Return a new or in_progress job for the source, if one exists."""
+        return (
+            self.db.query(HarvestJob)
+            .filter(
+                HarvestJob.harvest_source_id == source_id,
+                HarvestJob.status.in_(["new", "in_progress"]),
+            )
+            .order_by(HarvestJob.date_created.asc())
+            .first()
+        )
+
+    def get_unstamped_harvest_sources(self):
+        """Non-manual sources that do not yet have a date_next_run."""
+        return (
+            self.db.query(HarvestSource)
+            .filter(
+                HarvestSource.frequency != "manual",
+                HarvestSource.date_next_run.is_(None),
+            )
+            .all()
+        )
+
+    def get_due_harvest_sources(self):
+        """Non-manual sources whose next run is due and that have no active job.
+
+        A source is due when date_next_run is in the past. Empty date_next_run
+        is not treated as due (manual sources, or not yet stamped).
+        """
+        active_job = exists().where(
+            HarvestJob.harvest_source_id == HarvestSource.id,
+            HarvestJob.status.in_(["new", "in_progress"]),
+        )
+        return (
+            self.db.query(HarvestSource)
+            .filter(
+                HarvestSource.frequency != "manual",
+                HarvestSource.date_next_run.isnot(None),
+                HarvestSource.date_next_run <= datetime.now(),
+                ~active_job,
+            )
+            .order_by(asc(HarvestSource.date_next_run))
+            .all()
+        )
 
     def update_harvest_job(self, job_id, updates):
         try:
