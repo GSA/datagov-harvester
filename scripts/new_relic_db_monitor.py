@@ -1,12 +1,9 @@
 import logging
 import os
 
-import newrelic.agent
 from sqlalchemy import create_engine, text
 
 logger = logging.getLogger(__name__)
-
-newrelic.agent.initialize()
 
 PG_ACTIVITY_SUMMARY = text("""
     WITH idle_transactions AS (
@@ -51,6 +48,9 @@ PG_ACTIVITY_SUMMARY = text("""
 
 def emit_idle_transaction_event():
     try:
+        import newrelic.agent
+
+        newrelic.agent.initialize()
         application = newrelic.agent.register_application(timeout=10)
 
         if not application.active:

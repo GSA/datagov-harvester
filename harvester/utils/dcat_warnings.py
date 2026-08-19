@@ -13,6 +13,20 @@ message so the storage-wiring story can populate `harvest_record_error.type`
 without parsing message text (mirroring how harvest errors are typed by
 exception class name in `harvester/harvest.py`).
 
+Boundary with the schema: a warning rule must never fire on a value the
+DCAT-US 3.0 JSON Schema already rejects. The schema owns type, format, length,
+and enum checks; this module owns content-and-semantics checks on values the
+schema accepts. Guards that narrow input (e.g. `isinstance`) exist to defer to
+the schema, not to restate it. Add a rule only after checking the field under
+`schemas/dcatus3.0/definitions/`.
+
+Known limitation: there is no universal `@id` IRI walk. An `@id` on an object
+the schema does not define (e.g. an ad hoc `extension`) produces no signal,
+because the schema never validates that object. Restoring a universal walk
+would double-report every schema-defined `@id` (`{"type": "string", "format":
+"iri"}`); a position-aware walk would need to track which paths the schema
+covers, which this module does not do.
+
 Rules that validate against controlled vocabularies (ISO 639-1 languages, IANA
 character sets and media types, NARA restriction authority lists) read bundled
 static JSON snapshots from `reference_data/` instead of calling those registries
@@ -75,8 +89,6 @@ _NARA_SPECIFIC_USE_RESTRICTION = _load_reference_values(
 )
 
 
-_IRI_FORMAT_CHECKER = FormatChecker()
-
 # xsd:duration / ISO 8601 duration. Requires something after P (and after T
 # when a time part is present); accepts an optional leading sign and weeks.
 _XSD_DURATION_RE = re.compile(
@@ -111,26 +123,36 @@ _US_COUNTRY_NAMES = {
     "united states of america",
 }
 
-
-def _is_valid_iri(value) -> bool:
-    """True when value is a string that conforms to the IRI format."""
-    return isinstance(value, str) and _IRI_FORMAT_CHECKER.conforms(value, "iri")
+# Same FormatChecker the DCAT-US 3 validator uses (see `build_dcatus3_validator`).
+_DATE_FORMAT_CHECKER = FormatChecker()
 
 
 def _parse_dcat_date(value):
-    """Parse a DCAT date/date-time/YYYY/YYYY-MM string to a date, else None."""
+    """Parse a DCAT date/date-time/YYYY/YYYY-MM string to a date, else None.
+
+    Only schema-valid forms parse. Date-times go through FormatChecker first
+    because fromisoformat is looser than RFC 3339 (UTC offset required).
+    Whitespace is not stripped: a padded string is already a schema error.
+    """
     if not isinstance(value, str):
         return None
-    v = value.strip()
     try:
-        if re.fullmatch(r"\d{4}", v):
-            return date(int(v), 1, 1)
-        if re.fullmatch(r"\d{4}-\d{2}", v):
-            year, month = v.split("-")
+        if re.fullmatch(r"\d{4}", value):
+            return date(int(value), 1, 1)
+        if re.fullmatch(r"\d{4}-\d{2}", value):
+            year, month = value.split("-")
             return date(int(year), int(month), 1)
-        return datetime.fromisoformat(v.replace("Z", "+00:00")).date()
+        if _DATE_FORMAT_CHECKER.conforms(value, "date"):
+            return date.fromisoformat(value)
+        if _DATE_FORMAT_CHECKER.conforms(value, "date-time"):
+            # FormatChecker accepts trailing Z/z (RFC 3339);
+            # fromisoformat needs +00:00.
+            normalized = re.sub(r"[Zz]$", "+00:00", value)
+            return datetime.fromisoformat(normalized).date()
     except ValueError:
+        # FormatChecker accepts some values (e.g. year "0000") that still fail to parse.
         return None
+    return None
 
 
 def _date_later_than(value, other) -> bool:
@@ -142,37 +164,14 @@ def _date_later_than(value, other) -> bool:
     return parsed_value > parsed_other
 
 
-def _warn_iri(field: str, value) -> Optional[DcatWarning]:
-    """Warn if a single field value is not a valid IRI."""
-    if value is None or _is_valid_iri(value):
-        return None
-    return DcatWarning("invalid_iri", f'`{field}` value "{value}" is not a valid IRI.')
-
-
-def _warn_iris(field: str, values) -> list:
-    """Warn for each string entry in an array-valued field that is not an IRI.
-
-    Non-string entries (e.g. Standard objects on `conformsTo`) are skipped here;
-    their `@id` is covered by the universal object walk.
-    """
-    if not isinstance(values, list):
-        return []
-    warnings = []
-    for value in values:
-        if isinstance(value, str) and not _is_valid_iri(value):
-            warnings.append(
-                DcatWarning(
-                    "invalid_iri", f'`{field}` value "{value}" is not a valid IRI.'
-                )
-            )
-    return warnings
-
-
 def _warn_duplicate_keywords(keywords) -> list:
-    """Warn once per keyword that appears more than once."""
+    """Warn once per keyword that appears more than once.
+
+    Empty strings are skipped (`minLength: 1`); whitespace-only entries still count.
+    """
     if not isinstance(keywords, list):
         return []
-    counts = Counter(k for k in keywords if isinstance(k, str))
+    counts = Counter(k for k in keywords if isinstance(k, str) and k != "")
     return [
         DcatWarning(
             "duplicate_keyword",
@@ -187,7 +186,9 @@ def _warn_spatial_resolution(value) -> Optional[DcatWarning]:
     """Warn if spatialResolutionInMeters is non-numeric or not greater than zero."""
     if value is None:
         return None
-    if not _DECIMAL_RE.match(str(value)):
+    if not isinstance(value, str):
+        return None
+    if not _DECIMAL_RE.match(value):
         return DcatWarning(
             "invalid_spatial_resolution",
             f'`spatialResolutionInMeters` value "{value}" '
@@ -207,7 +208,11 @@ def _warn_temporal_resolution(value, invalid_msg: str) -> Optional[DcatWarning]:
     `invalid_msg` supplies the class-specific message tail (ISO 8601 for Dataset,
     xsd:duration for Distribution/DataService); the grammar checked is identical.
     """
-    if value is None or (isinstance(value, str) and _XSD_DURATION_RE.match(value)):
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        return None
+    if _XSD_DURATION_RE.match(value):
         return None
     return DcatWarning(
         "invalid_temporal_resolution",
@@ -217,7 +222,12 @@ def _warn_temporal_resolution(value, invalid_msg: str) -> Optional[DcatWarning]:
 
 def _warn_byte_size(value) -> Optional[DcatWarning]:
     """Warn if byteSize does not parse to a number."""
-    if value is None or is_number(value):
+    if value is None:
+        return None
+    # is_number() raises TypeError on a list.
+    if not isinstance(value, str):
+        return None
+    if is_number(value):
         return None
     return DcatWarning(
         "invalid_byte_size",
@@ -286,27 +296,37 @@ def _warn_tel_has_letters(value) -> Optional[DcatWarning]:
     return None
 
 
-def _warn_expected_data_type(value) -> list:
-    """Warn for each expectedDataType value that does not begin with `xsd:`."""
-    values = value if isinstance(value, list) else [value]
-    warnings = []
-    for entry in values:
-        if isinstance(entry, str) and not entry.startswith("xsd:"):
-            warnings.append(
-                DcatWarning(
-                    "invalid_expected_data_type",
-                    f'`expectedDataType` value "{entry}" does not appear to be a '
-                    'valid XSD type. Expected format begins with "xsd:" (e.g., '
-                    '"xsd:string", "xsd:decimal").',
-                )
-            )
-    return warnings
+def _warn_expected_data_type(value) -> Optional[DcatWarning]:
+    """Warn if expectedDataType does not begin with `xsd:`."""
+    if not isinstance(value, str):
+        return None
+    if not value.startswith("xsd:"):
+        return DcatWarning(
+            "invalid_expected_data_type",
+            f'`expectedDataType` value "{value}" does not appear to be a '
+            'valid XSD type. Expected format begins with "xsd:" (e.g., '
+            '"xsd:string", "xsd:decimal").',
+        )
+    return None
 
 
 def _warn_spatial_unresolved(field: str, value) -> Optional[DcatWarning]:
-    """Warn if a spatial value cannot be resolved to a geographic area."""
+    """Warn if a spatial value cannot be resolved to a geographic area.
+
+    Skip values that are neither a string nor a dict with "type" and
+    "coordinates" -- those are already schema errors. `bbox` objects must
+    also have `"type": "Polygon"` (schema `const`); `geometry` has no such
+    const, so an unresolvable geometry dict is still a content warning.
+    """
     if value is None:
         return None
+    if not isinstance(value, (str, dict)):
+        return None
+    if isinstance(value, dict):
+        if not {"type", "coordinates"} <= value.keys():
+            return None
+        if field == "bbox" and value.get("type") != "Polygon":
+            return None
     if translate_spatial(value):
         return None
     return DcatWarning(
@@ -332,7 +352,11 @@ def _warn_us_postal_code(postal_code, country_name) -> Optional[DcatWarning]:
 
 
 def _warn_empty_address(address: dict) -> Optional[DcatWarning]:
-    """Warn if an Address object has no populated fields."""
+    """Warn if an Address object has no populated fields.
+
+    Only `None` and "" count as unpopulated; other falsy values are already
+    schema type errors.
+    """
     fields = (
         "street-address",
         "locality",
@@ -340,7 +364,7 @@ def _warn_empty_address(address: dict) -> Optional[DcatWarning]:
         "postal-code",
         "country-name",
     )
-    if all(not (address.get(field) or "") for field in fields):
+    if all(address.get(field) in (None, "") for field in fields):
         return DcatWarning("empty_address", "Address object has no populated fields.")
     return None
 
@@ -366,11 +390,12 @@ def _as_list(value) -> list:
 def _warn_language(value) -> list:
     """Warn on language codes that are too short or not recognized ISO 639-1.
 
-    `language` may be a single string or an array of strings.
+    `language` may be a string or an array of strings. Entries longer than 2
+    characters are already a schema `maxLength` error.
     """
     warnings = []
     for entry in _as_list(value):
-        if not isinstance(entry, str):
+        if not isinstance(entry, str) or len(entry) > 2:
             continue
         if len(entry) < 2:
             warnings.append(
@@ -393,8 +418,12 @@ def _warn_language(value) -> list:
 
 def _warn_character_encoding(value) -> list:
     """Warn on character encodings not recognized as IANA character set names."""
+    # Array-of-string only; a bare string is a schema type error
+    # (unlike `_warn_language`).
+    if not isinstance(value, list):
+        return []
     warnings = []
-    for entry in _as_list(value):
+    for entry in value:
         if isinstance(entry, str) and entry.lower() not in _IANA_CHARACTER_SETS:
             warnings.append(
                 DcatWarning(
@@ -482,10 +511,6 @@ def _dataset_warnings(obj: dict) -> list:
         _warn_issued_after_modified(obj.get("issued"), obj.get("modified")),
     )
     _append(warnings, _warn_language(obj.get("language")))
-    _append(warnings, _warn_iris("relation", obj.get("relation")))
-    _append(warnings, _warn_iri("image", obj.get("image")))
-    _append(warnings, _warn_iris("isReferencedBy", obj.get("isReferencedBy")))
-    _append(warnings, _warn_iris("conformsTo", obj.get("conformsTo")))
     return warnings
 
 
@@ -500,7 +525,6 @@ def _distribution_warnings(obj: dict) -> list:
     _append(warnings, _warn_character_encoding(obj.get("characterEncoding")))
     _append(warnings, _warn_media_type(obj.get("mediaType")))
     _append(warnings, _warn_language(obj.get("language")))
-    _append(warnings, _warn_iris("conformsTo", obj.get("conformsTo")))
     return warnings
 
 
@@ -512,7 +536,6 @@ def _dataservice_warnings(obj: dict) -> list:
         _warn_temporal_resolution(obj.get("temporalResolution"), _XSD_DURATION_MSG),
     )
     _append(warnings, _warn_language(obj.get("language")))
-    _append(warnings, _warn_iris("conformsTo", obj.get("conformsTo")))
     return warnings
 
 
@@ -648,14 +671,17 @@ def _walk_objects(node):
 def detect_dcat_warnings(data: dict) -> list:
     """Detect DCAT-US 3 content-quality warnings in a dataset record.
 
-    Walks the record, runs the universal `@id` IRI check on every object, and
-    dispatches each typed object to its class rules. Returns a flat list of
-    `DcatWarning` tuples (empty when the record is clean).
+    Walks the record and dispatches each typed object to its class rules.
+    Returns a flat list of `DcatWarning` tuples (empty when the record is
+    clean). Invalid `@id` IRIs are schema `format` errors, not warnings.
     """
     warnings = []
     for obj in _walk_objects(data):
-        _append(warnings, _warn_iri("@id", obj.get("@id")))
-        rule = _TYPE_RULES.get(obj.get("@type"))
+        type_value = obj.get("@type")
+        # Non-string @type is a schema error, and unhashable for `_TYPE_RULES.get`.
+        if not isinstance(type_value, str):
+            continue
+        rule = _TYPE_RULES.get(type_value)
         if rule is not None:
             _append(warnings, rule(obj))
     return warnings

@@ -1413,16 +1413,31 @@ def get_format_from_str(validation_msg: str) -> str:
             return f"max {match.group(1)} items"
         return "max string length requirement"
 
+    if "is too short" in validation_msg:
+        match = re.search(r"\[minItems=(\d+)\]", validation_msg)
+        if match:
+            return f"min {match.group(1)} items"
+        return "min items requirement"
+
+    # Match jsonschema's full "has non-unique elements" wording, not just
+    # "non-unique" -- an invalid value containing that text would hijack the match.
+    if "has non-unique elements" in validation_msg:
+        return "unique items"
+
     # for constants where a single value is acceptable
     if "was expected" in validation_msg:
         return f"constant value {validation_msg}"
     return validation_msg.split(" ")[-1]
 
 
-def found_simple_message(validation_error: ValidationError) -> bool:
+def found_simple_message(
+    validation_error: ValidationError, forced: bool = False
+) -> bool:
     """
     determine whether the input validation error represents the most
-    succinct cause for error based on its json_path or dtype
+    succinct cause for error based on its json_path or dtype.
+
+    `forced` is a last-resort override set by `assemble_validation_errors`.
     """
     # these are all the unique dtypes found in the
     # non-federal schema (no different than federal)
@@ -1432,22 +1447,33 @@ def found_simple_message(validation_error: ValidationError) -> bool:
     if validation_error.json_path == "$":
         return True
 
-    # we need to dig a little deeper when it's a list
+    # we need to dig a little deeper when it's a list or dict
     if isinstance(validation_error.instance, (dict, list)):
         # if it's empty you'll get something like
         # ['$.keyword', '[] should be non-empty']
         # which is simple and what we want
         if len(validation_error.instance) == 0:
             return True
-        # If it's looking for maxItems, you may have
-        # any number of items in the array:
-        if validation_error.validator == "maxItems":
-            return True
 
-        if validation_error.message.endswith("is a required property"):
-            return True
+        # `type` errors have no `context`. Keep them when the allowed types are
+        # a list, when this is a top-level error, or when the path is deeper
+        # than the parent (a real cause inside a branch). Same-path single-type
+        # errors are anyOf/oneOf branch noise unless `forced`.
+        if validation_error.validator == "type":
+            return bool(
+                isinstance(validation_error.validator_value, list)
+                or validation_error.parent is None
+                or validation_error.json_path != validation_error.parent.json_path
+                or forced
+            )
 
-        return False
+        # Combinators are not a cause; their `.context` holds the per-branch errors.
+        if validation_error.validator in ("anyOf", "oneOf", "allOf", "not"):
+            return False
+
+        # Other container validators (maxItems, minItems, uniqueItems, ...) are
+        # already the specific cause.
+        return True
     return True
 
 
@@ -1492,12 +1518,22 @@ def finalize_validation_messages(messages: defaultdict) -> list:
         # but >1 format/rule is used against it so grabbing
         # the last one which is a regex and does include the invalid data
         # excluding constants [0] == [n]
+        # jsonschema renders containers as repr; quoting an inner element (or a
+        # const's expected value) would mislead, so name the kind of value.
+        # "[]" already reads as itself.
+        container = next(
+            (f for f in formats if f[:1] in ("[", "{") and f[:2] != "[]"), None
+        )
         if formats[-1].startswith("None"):
             invalid_value = "None"
+        elif container is not None:
+            invalid_value = "array value" if container[0] == "[" else "object value"
         else:
-            invalid_value = re.search(r"'(.*?)'|\[\]", formats[-1]).group(0)
+            # group(0): the `[]` alternative has no capture groups.
+            match = re.search(r"'(.*?)'|\[\]", formats[-1])
+            invalid_value = match.group(0) if match else None
 
-        # if the 0th doesn't work none of them will
+        # if neither branch above found anything, none of them will
         if invalid_value is None:
             logger.warning(f"can't find invalid data from error message: {formats[0]}")
             continue
@@ -1523,7 +1559,14 @@ def finalize_validation_messages(messages: defaultdict) -> list:
     return output
 
 
-def assemble_validation_errors(validation_errors: list, messages=None) -> list:  #
+def _count_messages(messages: defaultdict) -> int:
+    """Total messages accumulated across every json_path so far."""
+    return sum(len(v) for v in messages.values())
+
+
+def assemble_validation_errors(
+    validation_errors: list, messages=None, *, _forced: bool = False
+) -> list:
     """
     given a list of errors, follow each one recursively through its context
     and get the simplest cause for error. store the error in a defaultdict
@@ -1532,6 +1575,11 @@ def assemble_validation_errors(validation_errors: list, messages=None) -> list: 
     errors with lists or dicts (other than empty)
     will often return the entire object followed by 'is not valid under any
     of the given schemas' which isn't helpful.
+
+    `_forced` is a private fallback. Callers (Record.validate) must keep the
+    two-argument form. After an unforced context walk records nothing, we
+    re-walk forced so a same-path type error is reported vaguely instead of
+    silently. A walk that already recorded a specific cause is left alone.
     """
 
     if messages is None:
@@ -1539,7 +1587,7 @@ def assemble_validation_errors(validation_errors: list, messages=None) -> list: 
         messages = defaultdict(list)
 
     for error in validation_errors:
-        if found_simple_message(error):
+        if found_simple_message(error, forced=_forced):
             # these aren't specific enough which make them unhelpful
             generic_msg = "is not valid under any of the given schemas"
             is_generic_msg = error.message.endswith(generic_msg)
@@ -1551,6 +1599,12 @@ def assemble_validation_errors(validation_errors: list, messages=None) -> list: 
                 formatted_message = (
                     f"{error.message} [maxItems={error.validator_value}]"
                 )
+            elif error.validator == "minItems" and "is too short" in error.message:
+                # minItems: 1 already says "should be non-empty";
+                # only "is too short" needs the count.
+                formatted_message = (
+                    f"{error.message} [minItems={error.validator_value}]"
+                )
             else:
                 formatted_message = error.message
             # if not the generic message, and if the message is not already
@@ -1561,7 +1615,15 @@ def assemble_validation_errors(validation_errors: list, messages=None) -> list: 
                 and formatted_message not in messages[error.json_path]
             ):
                 messages[error.json_path].append(formatted_message)
+
+        # Prefer a specific cause in context before falling back.
+        recorded_before = _count_messages(messages)
         assemble_validation_errors(error.context, messages)
+
+        # Nothing recorded: re-walk forced so the defect is not dropped.
+        # `_forced` only flips `type` errors, which have no context to recurse.
+        if error.context and _count_messages(messages) == recorded_before:
+            assemble_validation_errors(error.context, messages, _forced=True)
 
     return finalize_validation_messages(messages)
 

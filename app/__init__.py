@@ -17,7 +17,6 @@ from app.local_dev_auth import is_running_on_cloud_foundry
 from app.startup_validation import validate_required_env_vars
 from config.logger_config import LOGGING_CONFIG
 from database.models import db
-from scripts.new_relic_db_monitor import emit_idle_transaction_event
 from scripts.sync_datasets import register_cli
 
 logger = logging.getLogger("harvest_admin")
@@ -333,6 +332,8 @@ def create_app():
         os.getenv("NEW_RELIC_MONITOR_DB_ACTIVITY", "false").lower() == "true"
     )
     if new_relic_monitor_db_activity:
+        from scripts.new_relic_db_monitor import emit_idle_transaction_event
+
         emit_idle_transaction_event()
 
     # Content-Security-Policy headers

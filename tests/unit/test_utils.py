@@ -3,6 +3,7 @@ import json
 import logging
 import time
 from datetime import datetime
+from pathlib import Path
 from unittest.mock import Mock, call, patch
 
 import pytest
@@ -19,6 +20,7 @@ from harvester.utils.general_utils import (
     RetrySession,
     assemble_validation_errors,
     backfill_catalog_record_identifiers,
+    build_dcatus3_validator,
     create_retry_session,
     describe_identifier_error,
     download_file,
@@ -43,6 +45,30 @@ from harvester.utils.general_utils import (
     translate_spatial_to_geojson,
     validate_geojson,
 )
+
+# Real DCAT-US 3.0 validator, used to reproduce assembler errors on the
+# complete example.
+DCATUS3_ROOT_DIR = Path(__file__).parents[2]
+DCATUS3_DEFINITIONS = DCATUS3_ROOT_DIR / "schemas" / "dcatus3.0" / "definitions"
+DCATUS3_COMPLETE_EXAMPLE_PATH = (
+    DCATUS3_ROOT_DIR
+    / "schemas"
+    / "dcatus3.0"
+    / "examples"
+    / "Dataset"
+    / "good"
+    / "complete_example.json"
+)
+DCATUS3_DATASET_VALIDATOR = build_dcatus3_validator(
+    DCATUS3_DEFINITIONS,
+    root_ref="https://resources.data.gov/dcat-us/3.0.0/definitions/dataset",
+)
+
+
+@pytest.fixture
+def dcatus3_complete_example():
+    with open(DCATUS3_COMPLETE_EXAMPLE_PATH) as f:
+        return json.load(f)
 
 
 class TestCKANUtils:
@@ -326,6 +352,224 @@ class TestGeneralUtils:
         )
         keyword_error = next(e for e in errors if "$.keyword" in e.message)
         assert "max 1000 items" in keyword_error.message
+
+    def test_assemble_validation_messages_type_error_list_value_is_reported(
+        self, dcatus3_complete_example
+    ):
+        """A non-empty list that fails `type: ["null", "string"]` must be
+        reported, not dropped."""
+        dcatus3_complete_example["spatialResolutionInMeters"] = ["bad"]
+
+        errors = assemble_validation_errors(
+            DCATUS3_DATASET_VALIDATOR.iter_errors(dcatus3_complete_example)
+        )
+
+        assert len(errors) == 1
+        assert errors[0].message == (
+            "$.spatialResolutionInMeters, array value does not match any "
+            "of the acceptable formats: 'string'"
+        )
+
+    def test_assemble_validation_messages_type_error_dict_value_is_reported(
+        self, dcatus3_complete_example
+    ):
+        """Same as the list case; name the offender as "object value", not a
+        dict key."""
+        dcatus3_complete_example["temporalResolution"] = {"a": 1}
+
+        errors = assemble_validation_errors(
+            DCATUS3_DATASET_VALIDATOR.iter_errors(dcatus3_complete_example)
+        )
+
+        assert len(errors) == 1
+        assert errors[0].message == (
+            "$.temporalResolution, object value does not match any of the "
+            "acceptable formats: 'string'"
+        )
+
+    def test_assemble_validation_messages_type_error_single_type_leaf_is_reported(
+        self, dcatus3_complete_example
+    ):
+        """A leaf `type: string` error with no parent (nested `@type`) must
+        still be reported."""
+        dcatus3_complete_example["distribution"][0]["@type"] = {"a": 1}
+
+        errors = assemble_validation_errors(
+            DCATUS3_DATASET_VALIDATOR.iter_errors(dcatus3_complete_example)
+        )
+
+        assert len(errors) == 1
+        assert errors[0].message == (
+            "$.distribution[0]['@type'], object value does not match any of "
+            "the acceptable formats: 'string'"
+        )
+
+        dcatus3_complete_example["distribution"][0]["@type"] = ["a"]
+
+        errors = assemble_validation_errors(
+            DCATUS3_DATASET_VALIDATOR.iter_errors(dcatus3_complete_example)
+        )
+
+        assert len(errors) == 1
+        assert errors[0].message == (
+            "$.distribution[0]['@type'], array value does not match any of "
+            "the acceptable formats: 'string'"
+        )
+
+    def test_assemble_validation_messages_anyof_context_still_finds_specific_cause(
+        self, dcatus3_complete_example
+    ):
+        """An anyOf failure should surface the specific cause, not the
+        null-branch type error."""
+        del dcatus3_complete_example["contactPoint"][0]["hasEmail"]
+
+        errors = assemble_validation_errors(
+            DCATUS3_DATASET_VALIDATOR.iter_errors(dcatus3_complete_example)
+        )
+
+        assert len(errors) == 1
+        assert (
+            errors[0].message == "$.contactPoint[0], 'hasEmail' is a required property"
+        )
+
+    def test_assemble_validation_messages_nested_container_type_error_under_anyof(
+        self, dcatus3_complete_example
+    ):
+        """A leaf type error reached through anyOf (deeper json_path than its
+        parent) must be reported."""
+        dcatus3_complete_example["contactPoint"][0]["@type"] = ["Kind"]
+
+        errors = assemble_validation_errors(
+            DCATUS3_DATASET_VALIDATOR.iter_errors(dcatus3_complete_example)
+        )
+
+        assert len(errors) == 1
+        assert errors[0].message == (
+            "$.contactPoint[0]['@type'], array value does not match any of "
+            "the acceptable formats: 'string'"
+        )
+
+    def test_assemble_validation_messages_plain_leaf_type_error_is_unaffected(
+        self, dcatus3_complete_example
+    ):
+        """A plain `type: string` leaf with no context is unchanged by the
+        forced fallback."""
+        dcatus3_complete_example["title"] = {"a": 1}
+
+        errors = assemble_validation_errors(
+            DCATUS3_DATASET_VALIDATOR.iter_errors(dcatus3_complete_example)
+        )
+
+        assert len(errors) == 1
+        assert errors[0].message == (
+            "$.title, object value does not match any of the acceptable "
+            "formats: 'string'"
+        )
+
+    def test_assemble_validation_messages_anyof_of_all_scalar_types_is_rescued(
+        self, dcatus3_complete_example
+    ):
+        """When every anyOf alternative is scalar, report a vague type error
+        rather than silence."""
+        dcatus3_complete_example["accessRights"] = ["x"]
+
+        errors = assemble_validation_errors(
+            DCATUS3_DATASET_VALIDATOR.iter_errors(dcatus3_complete_example)
+        )
+
+        assert len(errors) == 1
+        assert errors[0].message == (
+            "$.accessRights, array value does not match any of the "
+            "acceptable formats: 'null', 'string'"
+        )
+
+    def test_assemble_validation_messages_anyof_of_all_scalar_types_is_rescued_dict(
+        self, dcatus3_complete_example
+    ):
+        """Same all-scalar anyOf rescue, for a dict against `language`."""
+        dcatus3_complete_example["language"] = {"a": 1}
+
+        errors = assemble_validation_errors(
+            DCATUS3_DATASET_VALIDATOR.iter_errors(dcatus3_complete_example)
+        )
+
+        assert len(errors) == 1
+        assert errors[0].message == (
+            "$.language, object value does not match any of the acceptable "
+            "formats: 'null', 'string', 'array'"
+        )
+
+    def test_assemble_validation_messages_anyof_of_all_scalar_types_is_rescued_date(
+        self, dcatus3_complete_example
+    ):
+        """Same all-scalar anyOf rescue, for `created` (nested anyOf of date forms)."""
+        dcatus3_complete_example["created"] = ["2025"]
+
+        errors = assemble_validation_errors(
+            DCATUS3_DATASET_VALIDATOR.iter_errors(dcatus3_complete_example)
+        )
+
+        assert len(errors) == 1
+        assert errors[0].message == (
+            "$.created, array value does not match any of the acceptable "
+            "formats: 'string'"
+        )
+
+    def test_assemble_validation_messages_anyof_of_all_scalar_types_is_rescued_nested(
+        self, dcatus3_complete_example
+    ):
+        """Same all-scalar anyOf rescue, nested under `spatial[0].bbox`."""
+        dcatus3_complete_example["spatial"][0]["bbox"] = ["x"]
+
+        errors = assemble_validation_errors(
+            DCATUS3_DATASET_VALIDATOR.iter_errors(dcatus3_complete_example)
+        )
+
+        assert len(errors) == 1
+        assert errors[0].message == (
+            "$.spatial[0].bbox, array value does not match any of the "
+            "acceptable formats: 'null', 'string', 'object'"
+        )
+
+    def test_assemble_validation_messages_maxitems_numeric_array_does_not_crash(
+        self, dcatus3_complete_example
+    ):
+        """A numeric maxItems array must not crash message assembly; name it
+        as "array value"."""
+        dcatus3_complete_example["spatial"][0]["centroid"] = {
+            "type": "Point",
+            "coordinates": [-77, 38, 1],
+        }
+
+        errors = assemble_validation_errors(
+            DCATUS3_DATASET_VALIDATOR.iter_errors(dcatus3_complete_example)
+        )
+
+        assert len(errors) == 1
+        assert errors[0].message == (
+            "$.spatial[0].centroid.coordinates, array value does not match "
+            "any of the acceptable formats: max 2 items"
+        )
+
+    def test_assemble_validation_messages_minitems_names_specific_cause(
+        self, dcatus3_complete_example
+    ):
+        """A minItems violation must be reported at its own path, not as a
+        parent anyOf type error."""
+        dcatus3_complete_example["spatial"][0]["centroid"] = {
+            "type": "Point",
+            "coordinates": [-77],
+        }
+
+        errors = assemble_validation_errors(
+            DCATUS3_DATASET_VALIDATOR.iter_errors(dcatus3_complete_example)
+        )
+
+        assert len(errors) == 1
+        assert errors[0].message == (
+            "$.spatial[0].centroid.coordinates, array value does not match "
+            "any of the acceptable formats: min 2 items"
+        )
 
     def test_find_indexes_for_duplicates(self):
         data = [
