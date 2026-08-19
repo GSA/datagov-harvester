@@ -104,8 +104,9 @@ NON_DATASET_RECORD_TYPES = {
 }
 
 # Record types persisted only as a HarvestRecord, no Dataset row. Excludes
-# "data_series" on purpose: see Dataset.type in database/models.py.
-RECORD_TYPES_WITHOUT_DATASET_ROW = {"data_service", "catalog_record"}
+# "data_series" and "data_service" on purpose: see Dataset.type in
+# database/models.py.
+RECORD_TYPES_WITHOUT_DATASET_ROW = {"catalog_record"}
 
 
 @dataclass
@@ -1617,6 +1618,15 @@ def check_for_more_work():
         # The application should pick up jobs every 15 minutes,
         # this is only for speed.
         return
+
+    # emit new relic custom event for db idle-in-transaction monitoring
+    new_relic_monitor_db_activity = (
+        os.getenv("NEW_RELIC_MONITOR_DB_ACTIVITY", "false").lower() == "true"
+    )
+    if new_relic_monitor_db_activity:
+        from scripts.new_relic_db_monitor import emit_idle_transaction_event
+
+        emit_idle_transaction_event()
 
 
 if __name__ == "__main__":
