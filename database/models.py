@@ -339,7 +339,8 @@ class Dataset(Base):
     last_harvested_date = Column(DateTime, index=True)
 
     # Mirrors HarvestRecord.record_type. A DatasetSeries gets "data_series"
-    # here so it's searchable/displayable like a dataset.
+    # and a DataService gets "data_service" here so each is
+    # searchable/displayable like a dataset.
     type = Column(
         Enum(*RECORD_TYPE_VALUES, name="record_type"),
         nullable=False,
