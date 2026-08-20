@@ -52,7 +52,9 @@ class TestBaseAuthed:
         assert "Logout" not in utility
 
         apage.locator(".js-account-menu-toggle").click()
-        expect(apage.get_by_role("menuitem", name="Logout")).to_be_visible()
+        # Wait for the account menu to be visible (it removes hidden attribute)
+        apage.locator("#account-menu").wait_for(state="visible")
+        expect(apage.locator("#account-menu a[href*='logout']")).to_be_visible()
 
     def test_mobile_drawer_shows_flat_account_logout(self, apage):
         apage.set_viewport_size({"width": 375, "height": 667})
