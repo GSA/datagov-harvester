@@ -49,22 +49,17 @@ def add_organization_api(**kwargs):
         else:
             org_data["code_repo_url"] = None
 
-    # Check for conflict between URL and exempt flag (error, not warning)
-    if org_data.get("code_repo_url") and org_data.get("code_repo_exempt"):
-        return make_response(
-            jsonify(
-                {
-                    "error": "An organization cannot have both a repository URL and "
-                    "an exemption. Please provide either a URL or mark as exempt."
-                }
-            ),
-            400,
-        )
-
     org = deps.db.add_organization(org_data)
     if org:
         _log_mutation("create", "organization", org.id, organization_slug=org.slug)
         response_data = org.to_dict()
+
+        # Add warning if both URL and exempt flag are set
+        if org_data.get("code_repo_url") and org_data.get("code_repo_exempt"):
+            response_data["warning"] = (
+                "Organization has both a repository URL and an exemption flag set."
+            )
+
         return make_response(jsonify(response_data), 201)
     else:
         return make_response(jsonify({"error": "Failed to add organization."}), 400)
@@ -92,33 +87,17 @@ def edit_organization_api(org_id):
         else:
             org_data["code_repo_url"] = None
 
-    # Get current org to check conflict
-    current_org = deps.db.get_organization(org_id)
-    final_code_repo_url = org_data.get(
-        "code_repo_url",
-        current_org.code_repo_url if current_org else None,
-    )
-    final_code_repo_exempt = org_data.get(
-        "code_repo_exempt",
-        current_org.code_repo_exempt if current_org else False,
-    )
-
-    # Check for conflict between URL and exempt flag (error, not warning)
-    if final_code_repo_url and final_code_repo_exempt:
-        return make_response(
-            jsonify(
-                {
-                    "error": "An organization cannot have both a repository URL and "
-                    "an exemption. Please provide either a URL or mark as exempt."
-                }
-            ),
-            400,
-        )
-
     org = deps.db.update_organization(org_id, org_data)
     if org:
         _log_mutation("edit", "organization", org.id, organization_slug=org.slug)
         response_data = {"message": f"Updated org with ID: {org.id}"}
+
+        # Add warning if both URL and exempt flag are set
+        if org.code_repo_url and org.code_repo_exempt:
+            response_data["warning"] = (
+                "Organization has both a repository URL and an exemption flag set."
+            )
+
         return response_data, 200
     else:
         return {"error": "Failed to update organization."}, 400
