@@ -25,6 +25,7 @@ from shared.constants import (
     ORGANIZATION_TYPE_VALUES,
     RECORD_STATUS_VALUES,
     SCHEMA_TYPE_VALUES,
+    SEVERITY_VALUES,
     SOURCE_TYPE_VALUES,
 )
 
@@ -48,6 +49,7 @@ NOTIFICATION_FREQUENCY_ENUM = _to_enum(
 ORGANIZATION_TYPE_ENUM = _to_enum("OrganizationType", ORGANIZATION_TYPE_VALUES)
 RECORD_STATUS_ENUM = _to_enum("RecordStatus", RECORD_STATUS_VALUES)
 SCHEMA_TYPE_ENUM = _to_enum("SchemaType", SCHEMA_TYPE_VALUES)
+SEVERITY_ENUM = _to_enum("Severity", SEVERITY_VALUES)
 SOURCE_TYPE_ENUM = _to_enum("SourceType", SOURCE_TYPE_VALUES)
 
 
@@ -58,6 +60,7 @@ ErrorInfo = Schema.from_dict(
         "date_created": DateTime(),
         "type": String(),
         "message": String(),
+        "severity": Enum(SEVERITY_ENUM),
         "harvest_record_id": UUID(required=True),
         "harvest_job_id": UUID(required=True),
     },
@@ -79,6 +82,7 @@ class JobInfo(Schema):
     records_errored = Integer()
     records_ignored = Integer()
     records_validated = Integer()
+    records_warned = Integer()
 
 
 class OrgCreate(Schema):
@@ -114,6 +118,17 @@ class OrgInfo(OrgCreate):
     source_count = Integer()
 
 
+class RecordIssueQuery(Schema):
+    """Query input for the per-record issue route.
+
+    Query schemas are inlined as OpenAPI `parameters` rather than added to
+    `components.schemas`, so this documents the filter without adding a
+    schema definition.
+    """
+
+    severity = Enum(SEVERITY_ENUM)
+
+
 class QueryInfo(Schema):
     """Query input for various object types."""
 
@@ -122,8 +137,11 @@ class QueryInfo(Schema):
     facets = String()
     page = Integer()
     per_page = Integer()
+    paginate = Boolean()
     count = Boolean()
     order_by = String()
+    # only meaningful for harvest_record_errors; omit it to get every issue
+    severity = Enum(SEVERITY_ENUM)
 
 
 class RecordInfo(Schema):

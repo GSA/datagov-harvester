@@ -9,6 +9,7 @@ from app.auth import LoginRequiredAuth
 from database.interface import HarvesterDBInterface
 from harvester.lib.load_manager import LoadManager
 from harvester.utils.general_utils import is_valid_uuid4
+from shared.constants import SEVERITY_VALUES
 
 logger = logging.getLogger("harvest_admin")
 
@@ -34,6 +35,37 @@ def JSON_NOT_FOUND():
     response = jsonify({"error": STATUS_STRINGS_ENUM[404]})
     response.status_code = 404
     return response
+
+
+class InvalidSeverityError(ValueError):
+    """Raised when a request asks for a severity outside SEVERITY_VALUES."""
+
+
+def JSON_INVALID_SEVERITY():
+    """Return a generic 400 for invalid severity values."""
+    response = jsonify(
+        {"error": f"Invalid severity. Must be one of: {', '.join(SEVERITY_VALUES)}."}
+    )
+    response.status_code = 400
+    return response
+
+
+def get_requested_severity(default=None):
+    """Read and validate the `severity` query param.
+
+    Returns `default` when the param is absent — None, meaning "don't filter",
+    since the API reads return every issue and let callers tell them apart by
+    the `severity` field. Raises InvalidSeverityError for anything outside
+    SEVERITY_VALUES, rather than passing unvalidated input into the
+    string-built facet DSL (see query_filter_builder, which splits facets on
+    spaces and commas).
+    """
+    severity = request.args.get("severity")
+    if severity is None:
+        return default
+    if severity not in SEVERITY_VALUES:
+        raise InvalidSeverityError(severity)
+    return severity
 
 
 class UnsafeTemplateEnvError(RuntimeError):

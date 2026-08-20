@@ -41,6 +41,7 @@ card "Entity Relationship Diagram" as entities {
     records_deleted: smallint
     records_errored: smallint
     records_ignored: smallint
+    records_warned: smallint
   }
 
   entity "harvest_error" as error {
