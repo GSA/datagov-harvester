@@ -44,8 +44,8 @@ class TestOpenAPI:
         paths = client.get("/openapi.json").json["paths"]
 
         for path in [
-            "/api/harvest_record_errors/",
-            "/api/harvest_record/{record_id}/errors",
+            "/api/v1/harvest_record_errors/",
+            "/api/v1/harvest_record/{record_id}/errors",
         ]:
             params = paths[path]["get"]["parameters"]
             severity = [p for p in params if p["name"] == "severity"]
