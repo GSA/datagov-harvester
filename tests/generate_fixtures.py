@@ -121,6 +121,7 @@ def iso_fixture_data_ui(fixtures: dict) -> dict:
             "schema_type": "iso19115_1",
             "source_type": "waf",
             "notification_frequency": "always",
+            "date_next_run": datetime.now() + timedelta(days=1),
         }
     )
     fixtures["job"].append(
@@ -192,6 +193,7 @@ def generate_dynamic_fixtures() -> Dict[str, Any]:
                 "schema_type": "dcatus1.1: federal",
                 "source_type": "document",
                 "notification_frequency": "always",
+                "date_next_run": datetime.now() + timedelta(days=1),
             }
         ],
         "job": [],

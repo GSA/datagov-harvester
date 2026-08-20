@@ -38,7 +38,7 @@ def edit_harvest_source_api(source_id: str):
     updated_source = deps.db.update_harvest_source(source_id, request.json)
     job_message = ""
     if updated_source and updated_source.frequency != old_frequency:
-        job_message = deps.load_manager.schedule_first_job(updated_source.id)
+        job_message = deps.load_manager.reschedule_next_run(updated_source.id)
 
     if updated_source:
         _log_mutation(

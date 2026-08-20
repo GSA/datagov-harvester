@@ -81,16 +81,8 @@ class LoadManager:
             logger.info(f"Deleted harvest job: {job.id} for source {source_id}.")
         return queued_jobs
 
-    def _stamp_missing_next_runs(self):
-        """Give non-manual sources without date_next_run a future next run."""
-        for source in interface.get_unstamped_harvest_sources():
-            next_run = create_future_date(source.frequency)
-            interface.update_harvest_source(source.id, {"date_next_run": next_run})
-            logger.info(f"Set next harvest run for source {source.id} at {next_run}.")
-
     def _enqueue_due_sources(self):
         """Create a job for each due source and bump date_next_run."""
-        self._stamp_missing_next_runs()
         for source in interface.get_due_harvest_sources():
             job_data = interface.add_harvest_job(
                 {
@@ -257,7 +249,7 @@ class LoadManager:
         logger.info(message)
         return message
 
-    def schedule_first_job(self, source_id):
+    def reschedule_next_run(self, source_id):
         """Set date_next_run on harvest source registration or frequency change.
 
         Drops any waiting new job for the source. Does not create a job row.

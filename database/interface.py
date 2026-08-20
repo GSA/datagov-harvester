@@ -374,17 +374,6 @@ class HarvesterDBInterface:
             .first()
         )
 
-    def get_unstamped_harvest_sources(self):
-        """Non-manual sources that do not yet have a date_next_run."""
-        return (
-            self.db.query(HarvestSource)
-            .filter(
-                HarvestSource.frequency != "manual",
-                HarvestSource.date_next_run.is_(None),
-            )
-            .all()
-        )
-
     def get_due_harvest_sources(self):
         """Non-manual sources whose next run is due and that have no active job.
 

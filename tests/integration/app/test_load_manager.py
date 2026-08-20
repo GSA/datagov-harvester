@@ -233,7 +233,7 @@ class TestLoadManager:
         assert len(queued) == 3
 
         load_manager = LoadManager()
-        load_manager.schedule_first_job(source_data_dcatus["id"])
+        load_manager.reschedule_next_run(source_data_dcatus["id"])
         assert (
             len(
                 interface_with_multiple_jobs.get_queued_harvest_jobs_for_source(
@@ -257,7 +257,7 @@ class TestLoadManager:
         source_data_dcatus,
     ):
         load_manager = LoadManager()
-        load_manager.schedule_first_job(source_data_dcatus["id"])
+        load_manager.reschedule_next_run(source_data_dcatus["id"])
         source = interface_no_jobs.get_harvest_source(source_data_dcatus["id"])
         next_run = source.date_next_run
         assert next_run == datetime.now() + timedelta(days=1)
@@ -285,7 +285,7 @@ class TestLoadManager:
         source_data_dcatus,
     ):
         load_manager = LoadManager()
-        load_manager.schedule_first_job(source_data_dcatus["id"])
+        load_manager.reschedule_next_run(source_data_dcatus["id"])
         message = load_manager.trigger_manual_job(source_data_dcatus["id"])
         source_id = source_data_dcatus["id"]
         new_job = interface_no_jobs.pget_harvest_jobs(
@@ -366,7 +366,7 @@ class TestLoadManager:
         mock_good_cf_index,
     ):
         load_manager = LoadManager()
-        load_manager.schedule_first_job(source_data_dcatus["id"])
+        load_manager.reschedule_next_run(source_data_dcatus["id"])
         source = interface_no_jobs.get_harvest_source(source_data_dcatus["id"])
         first_next_run = source.date_next_run
         load_manager.schedule_next_job(source_data_dcatus["id"])

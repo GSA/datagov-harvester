@@ -347,7 +347,7 @@ def edit_harvest_source(source_id: str):
                 source = deps.db.update_harvest_source(source_id, new_source_data)
                 job_message = ""
                 if source and source.frequency != old_frequency:
-                    job_message = deps.load_manager.schedule_first_job(source.id)
+                    job_message = deps.load_manager.reschedule_next_run(source.id)
                 if source:
                     _log_mutation(
                         "edit",
