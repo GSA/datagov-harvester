@@ -89,6 +89,10 @@ class TestHarvestSourceUnauthed:
         # glossary starts closed
         assert glossary.get_attribute("aria-hidden") == "true"
 
+        # Wait for glossary terms to be added by JavaScript
+        upage.locator(f"span[data-term='{data_term_name}']").wait_for(
+            state="attached", timeout=5000
+        )
         upage.click(f"span[data-term='{data_term_name}']")
         assert glossary.get_attribute("aria-hidden") == "false"
         glossary_elem = upage.locator(
@@ -105,14 +109,16 @@ class TestHarvestSourceUnauthed:
 
     def test_dataset_table(self, upage):
         """
-        Checks to see if the dataset table is populated with the dataset.id and
-        dataset.slug.
+        Checks to see if the dataset table is populated with the dataset.id,
+        dataset.type, and dataset.slug.
         """
         expect(upage.locator("#paginated__datasets table tr td")).to_have_text(
             [
                 "a1b2c3d4-e5f6-7890-abcd-ef1234567891",
+                "dataset",
                 "fixture-dataset-1",
                 "b2c3d4e5-f6a7-8901-bcde-f12345678902",
+                "dataset",
                 "fixture-dataset-2",
             ],
             use_inner_text=True,

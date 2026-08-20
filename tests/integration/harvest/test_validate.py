@@ -642,8 +642,11 @@ class TestValidateWarnings:
         source_data_dcatus3_0_invalid,
         job_data_dcatus3_0_invalid,
     ):
-        """An invalid record that also warns is counted as errored and warned,
-        and reporting the warning must not clobber the record's error status."""
+        """An invalid record that also warns is counted as errored and warned.
+
+        The error and warning must come from independent defects (missing
+        `contactPoint` vs an unknown `language` code), not the same value twice.
+        """
         test_record = self._first_dcatus3_record(
             interface,
             organization_data,
@@ -654,9 +657,8 @@ class TestValidateWarnings:
         # give the record a real db id so we can assert its persisted status
         test_record.compare()
 
-        # a bad @id is both a schema error (format: iri) and an invalid_iri warning
         record = json.loads(test_record.source_raw)
-        record["@id"] = "not a valid iri"
+        record["language"] = ["zz"]
         test_record._source_raw = json.dumps(record)
 
         assert not test_record.validate()
@@ -673,7 +675,7 @@ class TestValidateWarnings:
         warnings = interface.get_harvest_record_errors_by_job(
             harvest_source.job_id, severity="warning"
         )
-        assert any(w[0].type == "invalid_iri" for w in warnings)
+        assert any(w[0].type == "invalid_language" for w in warnings)
 
     def test_warnings_are_segregated_per_record_end_to_end(
         self,

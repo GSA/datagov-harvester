@@ -43,6 +43,7 @@ from harvester.utils.general_utils import (
     USER_AGENT,
     add_uuid_to_package_name,
     assemble_validation_errors,
+    backfill_catalog_record_identifiers,
     build_dcatus3_validator,
     dataset_to_hash,
     describe_identifier_error,
@@ -55,6 +56,7 @@ from harvester.utils.general_utils import (
     find_indexes_for_duplicates,
     get_datetime,
     make_record_mapping,
+    merge_dcatus3_datasets,
     munge_title_to_name,
     normalize_dataset_identifier,
     open_json,
@@ -100,6 +102,11 @@ NON_DATASET_RECORD_TYPES = {
         "schema_ref": "datasetseries",
     },
 }
+
+# Record types persisted only as a HarvestRecord, no Dataset row. Excludes
+# "data_series" and "data_service" on purpose: see Dataset.type in
+# database/models.py.
+RECORD_TYPES_WITHOUT_DATASET_ROW = {"catalog_record"}
 
 
 @dataclass
@@ -673,16 +680,21 @@ class HarvestSource:
                             record_type: config["extractor"](catalog)
                             for record_type, config in NON_DATASET_RECORD_TYPES.items()
                         }
-                        self.external_records = (
-                            extract_dcatus3_catalog_datasets(catalog)
-                            + extract_dcatus3_nested_datasets(
+                        self.external_records_by_type["catalog_record"] = (
+                            backfill_catalog_record_identifiers(
+                                self.external_records_by_type.get("catalog_record", [])
+                            )
+                        )
+                        self.external_records = merge_dcatus3_datasets(
+                            extract_dcatus3_catalog_datasets(catalog),
+                            extract_dcatus3_nested_datasets(
                                 self.external_records_by_type.get("data_service", []),
                                 "servesDataset",
                                 parent_identifier_field=NON_DATASET_RECORD_TYPES[
                                     "data_service"
                                 ]["identifier_field"],
-                            )
-                            + extract_dcatus3_nested_datasets(
+                            ),
+                            extract_dcatus3_nested_datasets(
                                 self.external_records_by_type.get("data_series", []),
                                 "seriesMember",
                                 "first",
@@ -690,7 +702,7 @@ class HarvestSource:
                                 parent_identifier_field=NON_DATASET_RECORD_TYPES[
                                     "data_series"
                                 ]["identifier_field"],
-                            )
+                            ),
                         )
                         self.db_interface.update_harvest_job(
                             self.job_id,
@@ -1368,6 +1380,7 @@ class Record:
         payload = {
             "slug": self.dataset_slug,
             "dcat": metadata,
+            "type": self.record_type,
             "organization_id": self.harvest_source.organization_id,
             "harvest_source_id": self.harvest_source.id,
             "harvest_record_id": self.id,
@@ -1432,8 +1445,8 @@ class Record:
             if self.status == "error":
                 return False
 
-            if self.record_type != "dataset":
-                # no downstream table for non-dataset records yet; persist
+            if self.record_type in RECORD_TYPES_WITHOUT_DATASET_ROW:
+                # no downstream table for these record types yet; persist
                 # as a HarvestRecord only.
                 self.status = "success"
                 self.harvest_source.update_job_record_count_by_action(self.action)
@@ -1443,6 +1456,15 @@ class Record:
             metadata = None
             if self.action in ("create", "update"):
                 metadata = self._metadata_for_dataset()
+                if self.record_type != "dataset" and not metadata.get("identifier"):
+                    # e.g. DatasetSeries has no "identifier" field, only "@id".
+                    metadata["identifier"] = self.identifier
+                if self.parent_identifier and not metadata.get("isPartOf"):
+                    # add_parent() covers the ISO path; dcatus3.0 series
+                    # members and service-served datasets carry their
+                    # parent_identifier here instead, so it never reaches
+                    # dcat unless set explicitly.
+                    metadata["isPartOf"] = self.parent_identifier
                 if not self.dataset_slug:
                     self.dataset_slug = munge_title_to_name(metadata["title"])
 
@@ -1596,6 +1618,15 @@ def check_for_more_work():
         # The application should pick up jobs every 15 minutes,
         # this is only for speed.
         return
+
+    # emit new relic custom event for db idle-in-transaction monitoring
+    new_relic_monitor_db_activity = (
+        os.getenv("NEW_RELIC_MONITOR_DB_ACTIVITY", "false").lower() == "true"
+    )
+    if new_relic_monitor_db_activity:
+        from scripts.new_relic_db_monitor import emit_idle_transaction_event
+
+        emit_idle_transaction_event()
 
 
 if __name__ == "__main__":

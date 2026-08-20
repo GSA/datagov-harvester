@@ -376,6 +376,24 @@ def source_data_dcatus3_0_series_with_members(organization_data: dict) -> dict:
 
 
 @pytest.fixture
+def source_data_dcatus3_0_series_member_also_top_level(organization_data: dict) -> dict:
+    return {
+        "id": "f0b1c3d5-7890-4bcd-ef01-234567890199",
+        "name": "Test Source DCAT-US 3.0 (series member also top-level)",
+        "notification_emails": ["email@example.com"],
+        "organization_id": organization_data["id"],
+        "frequency": "daily",
+        "url": (
+            f"{HARVEST_SOURCE_URL}/dcatus/"
+            "dcatus3_0_series_member_also_top_level.json"
+        ),
+        "schema_type": "dcatus3.0",
+        "source_type": "document",
+        "notification_frequency": "always",
+    }
+
+
+@pytest.fixture
 def source_data_dcatus_same_title(organization_data: dict) -> dict:
     return {
         "id": "50301cdb-5766-46ed-8f46-ca63844315a2",
@@ -756,6 +774,17 @@ def job_data_dcatus3_0_series_with_members(
         "id": "a1c2e4f6-8901-4cde-f012-345678901235",
         "status": "new",
         "harvest_source_id": source_data_dcatus3_0_series_with_members["id"],
+    }
+
+
+@pytest.fixture
+def job_data_dcatus3_0_series_member_also_top_level(
+    source_data_dcatus3_0_series_member_also_top_level: dict,
+) -> dict:
+    return {
+        "id": "a1c2e4f6-8901-4cde-f012-345678901299",
+        "status": "new",
+        "harvest_source_id": (source_data_dcatus3_0_series_member_also_top_level["id"]),
     }
 
 
@@ -1390,30 +1419,6 @@ def invalid_envelope_geojson():
 
 
 @pytest.fixture
-def mock_requests_get_ms_iis_waf(monkeypatch):
-    """Fixture to mock requests.get with ms-iis-waf HTML content"""
-    import requests
-
-    def mock_get(url, *args, **kwargs):
-        """Mock function to return a predefined HTML response"""
-        mock_response = Mock()
-        mock_response.status_code = 200
-
-        # Read mock HTML content from file
-        file_path = Path(__file__).parent / "waf-html-examples/ms-iis-waf.html"
-        with open(file_path, "r", encoding="utf-8") as file:
-            mock_response.text = file.read()
-
-        # Set UTF-8 content
-        mock_response.content = mock_response.text.encode("utf-8")
-
-        return mock_response
-
-    # Apply the patch using monkeypatch
-    monkeypatch.setattr(requests, "get", mock_get)
-
-
-@pytest.fixture
 def dcatus_keywords():
     return [
         "EARTH         SCIENCE > BIOSPHERE > ECOSYSTEMS > MARINE ECOSYSTEMS > COASTAL",
@@ -1668,6 +1673,7 @@ def sample_dataset():
     return SimpleNamespace(
         id="dataset-1",
         slug="dataset-1",
+        type="dataset",
         dcat={
             "title": "Dataset Title",
             "description": "Dataset description",
