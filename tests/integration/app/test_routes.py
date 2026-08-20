@@ -971,7 +971,7 @@ class TestOrganizationCodeRepoFields:
         assert response_data["code_repo_url"] is None
 
     def test_add_organization_conflict_warning(self, app, client):
-        """Test error appears when both URL and exempt flag set."""
+        """Test warning appears when both URL and exempt flag set."""
         api_token = app.config["API_TOKEN"]
         headers = {
             "X-API-Key": api_token,
@@ -985,11 +985,13 @@ class TestOrganizationCodeRepoFields:
         }
         response = client.post("/api/v1/organization/add", json=data, headers=headers)
 
-        # Organization should NOT be created (conflict is an error)
-        assert response.status_code == 400
+        # Organization should be created with a warning (not an error)
+        assert response.status_code == 201
         response_data = response.get_json()
-        assert "error" in response_data
-        assert "cannot have both" in response_data["error"]
+        assert "warning" in response_data
+        assert "both a repository URL and an exemption" in response_data["warning"]
+        assert response_data["code_repo_url"] == "https://github.com/test"
+        assert response_data["code_repo_exempt"] is True
 
     def test_edit_organization_add_code_repo_url(
         self, app, client, interface, organization_data
@@ -1018,6 +1020,42 @@ class TestOrganizationCodeRepoFields:
         # Verify URL saved
         updated_org = interface.get_organization(organization_data["id"])
         assert updated_org.code_repo_url == "https://github.com/test-org"
+
+    def test_edit_organization_with_both_fields_allows_partial_update(
+        self, app, client, interface, organization_data
+    ):
+        """Test that partial updates work when org has both URL and exempt flag set."""
+        # Create org with both fields set
+        org_data = organization_data.copy()
+        org_data["code_repo_url"] = "https://github.com/test-org"
+        org_data["code_repo_exempt"] = True
+        interface.add_organization(org_data)
+
+        api_token = app.config["API_TOKEN"]
+        headers = {
+            "X-API-Key": api_token,
+            "Content-Type": "application/json",
+        }
+
+        # Update only the name (reproducing the bug scenario)
+        data = {"name": "Renamed Organization"}
+        response = client.post(
+            f"/api/v1/organization/edit/{org_data['id']}",
+            json=data,
+            headers=headers,
+        )
+
+        # Should succeed with warning
+        assert response.status_code == 200
+        response_data = response.get_json()
+        assert "warning" in response_data
+        assert "both a repository URL and an exemption" in response_data["warning"]
+
+        # Verify name was updated and fields preserved
+        updated_org = interface.get_organization(org_data["id"])
+        assert updated_org.name == "Renamed Organization"
+        assert updated_org.code_repo_url == "https://github.com/test-org"
+        assert updated_org.code_repo_exempt is True
 
     def test_organization_detail_displays_code_repo_fields(
         self, client, interface, organization_data

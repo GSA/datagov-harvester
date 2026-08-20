@@ -68,7 +68,6 @@ from harvester.utils.general_utils import (
     translate_spatial_to_geojson,
     traverse_waf,
 )
-from scripts.new_relic_db_monitor import emit_idle_transaction_event
 
 # logging data
 logger = logging.getLogger("harvest_runner")
@@ -1625,6 +1624,8 @@ def check_for_more_work():
         os.getenv("NEW_RELIC_MONITOR_DB_ACTIVITY", "false").lower() == "true"
     )
     if new_relic_monitor_db_activity:
+        from scripts.new_relic_db_monitor import emit_idle_transaction_event
+
         emit_idle_transaction_event()
 
 
