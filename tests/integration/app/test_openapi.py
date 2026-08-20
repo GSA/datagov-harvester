@@ -51,7 +51,7 @@ class TestOpenAPI:
             severity = [p for p in params if p["name"] == "severity"]
             assert severity, f"severity not documented on {path}"
             assert severity[0]["schema"]["enum"] == ["error", "warning"]
-    
+
     def test_openapi_tags_group_by_resource(self, client):
         response = client.get("/openapi.json")
         spec = response.json

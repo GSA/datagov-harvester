@@ -283,6 +283,9 @@ def source_data_dcatus3_0_warning(organization_data: dict) -> dict:
         "source_type": "document",
         "notification_frequency": "always",
     }
+
+
+@pytest.fixture
 def source_data_dcatus3_0_with_services(organization_data: dict) -> dict:
     return {
         "id": "a2c4e6f8-1234-4567-89ab-cdef01234567",
@@ -690,6 +693,7 @@ def job_data_dcatus3_0_warning(source_data_dcatus3_0_warning: dict) -> dict:
     }
 
 
+@pytest.fixture
 def job_data_dcatus3_0_with_services(
     source_data_dcatus3_0_with_services: dict,
 ) -> dict:
