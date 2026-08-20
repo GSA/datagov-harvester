@@ -1,12 +1,89 @@
+from datetime import datetime
+from pathlib import Path
+from unittest.mock import Mock
+from urllib.parse import urljoin
+
+import pytest
+
 from harvester.harvest import DT_PLACEHOLDER
 from harvester.utils.general_utils import traverse_waf
 
+WAF_HTML_EXAMPLES = Path(__file__).parents[2] / "waf-html-examples"
+
 
 class TestExtract:
-    def test_traverse_waf_ms_iis(self, mock_requests_get_ms_iis_waf):
-        """Test to ensure that we're able to traverse the ms-iis-waf"""
-        files = traverse_waf(url="https://example.com")
-        assert len(files) == 2
+    @pytest.mark.parametrize(
+        "fixture_name, source_url, expected_entries",
+        [
+            pytest.param(
+                "apache-noaa-waf.html",
+                "https://data.noaa.gov/waf/NOAA/nmfs/garfo/iso/xml/",
+                [
+                    ("1463.xml", datetime(2026, 7, 12, 2, 23)),
+                    ("1503.xml", datetime(2026, 7, 12, 2, 23)),
+                ],
+                id="apache",
+            ),
+            pytest.param(
+                "nginx-dggs-waf.html",
+                "https://dggs.alaska.gov/webpubs/metadata/",
+                [
+                    ("AOF125.xml", datetime(2025, 10, 2, 11, 47)),
+                    ("AOF134.xml", datetime(2026, 7, 30, 16, 1)),
+                ],
+                id="nginx-mixed-file-types",
+            ),
+            pytest.param(
+                "ms-iis-waf.html",
+                "https://edg.epa.gov/WAFer_harvest/ISO/",
+                [
+                    (
+                        "/WAFer_harvest/ISO/enviroatlas-metadata-waf_"
+                        "ACS_Demographics_by_Tract_2008_2012_EA.xml",
+                        datetime(2021, 6, 17, 12, 20),
+                    ),
+                    (
+                        "/WAFer_harvest/ISO/"
+                        "enviroatlas-metadata-waf_Ag_On_Slopes.xml",
+                        datetime(2025, 7, 23, 17, 33),
+                    ),
+                ],
+                id="microsoft-iis",
+            ),
+            pytest.param(
+                "bts-waf.html",
+                "https://transtats.bts.gov/NTADmetadata/",
+                [
+                    (
+                        "/NTADmetadata/"
+                        "USDOT_BTS_NTAD_119th_Congressional_Districts.xml",
+                        datetime(2026, 7, 31, 16, 53),
+                    ),
+                    (
+                        "/NTADmetadata/USDOT_BTS_NTAD_1991_FAP.xml",
+                        datetime(2026, 7, 15, 16, 23),
+                    ),
+                ],
+                id="iis-long-date",
+            ),
+        ],
+    )
+    def test_traverse_waf_server_indexes(
+        self, monkeypatch, fixture_name, source_url, expected_entries
+    ):
+        response = Mock(
+            ok=True,
+            content=(WAF_HTML_EXAMPLES / fixture_name).read_bytes(),
+        )
+        requests_get = Mock(return_value=response)
+        monkeypatch.setattr("harvester.utils.general_utils.requests.get", requests_get)
+
+        files = traverse_waf(url=source_url)
+
+        assert [(file["identifier"], file["modified_date"]) for file in files] == [
+            (urljoin(source_url, href), modified_date)
+            for href, modified_date in expected_entries
+        ]
 
     def test_extract_dcatus(
         self,
