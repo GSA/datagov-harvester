@@ -8,10 +8,10 @@ import pytest
 PROFILE = Path(__file__).resolve().parents[2] / ".profile"
 
 
-def _profile_environment(runner_environment):
+def _profile_environment(runner_environment, application_name="datagov-harvest"):
     environment = {
         **os.environ,
-        "VCAP_APPLICATION": json.dumps({"application_name": "datagov-harvest"}),
+        "VCAP_APPLICATION": json.dumps({"application_name": application_name}),
         "VCAP_SERVICES": json.dumps(
             {
                 "user-provided": [
@@ -40,8 +40,20 @@ def _profile_environment(runner_environment):
                 "opensearch": [
                     {
                         "name": "datagov-catalog-opensearch",
-                        "credentials": {"host": "opensearch.example"},
-                    }
+                        "credentials": {
+                            "host": "opensearch.example",
+                            "access_key": "live-access",
+                            "secret_key": "live-secret",
+                        },
+                    },
+                    {
+                        "name": "datagov-catalog-opensearch-next",
+                        "credentials": {
+                            "host": "opensearch-next.example",
+                            "access_key": "next-access",
+                            "secret_key": "next-secret",
+                        },
+                    },
                 ],
             }
         ),
@@ -78,3 +90,35 @@ def test_profile_loads_max_tasks_from_environment_with_default(
 
     assert result.returncode == 0, result.stderr
     assert result.stdout.endswith(max_tasks)
+
+
+def test_profile_allows_task_app_to_use_canonical_services_and_next_opensearch():
+    result = subprocess.run(
+        [
+            "bash",
+            "-c",
+            (
+                'source "$1"; '
+                'printf "%s|%s|%s|%s" "$DATABASE_URI" "$OPENSEARCH_HOST" '
+                '"$OPENSEARCH_ACCESS_KEY" "$OPENSEARCH_SECRET_KEY"'
+            ),
+            "bash",
+            str(PROFILE),
+        ],
+        capture_output=True,
+        env=_profile_environment(
+            {
+                "HARVEST_SERVICE_NAME": "datagov-harvest",
+                "OPENSEARCH_SERVICE_NAME": "datagov-catalog-opensearch-next",
+            },
+            application_name="datagov-harvest-next",
+        ),
+        text=True,
+        timeout=10,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.endswith(
+        "postgresql+psycopg://example|opensearch-next.example|"
+        "next-access|next-secret"
+    )

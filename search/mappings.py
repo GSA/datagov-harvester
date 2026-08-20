@@ -8,6 +8,7 @@ MAPPINGS = {
             "search_analyzer": TEXT_ANALYZER,
         },
         "slug": {"type": "keyword"},
+        "type": {"type": "keyword"},
         "last_harvested_date": {"type": "date"},
         "dcat": {
             "type": "nested",

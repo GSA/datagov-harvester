@@ -665,3 +665,12 @@ def test_dataset_to_document_flattens_dcat3_theme_and_identifier(sample_dataset)
     assert document["dcat"]["identifier"] == sample_dataset.dcat["identifier"]
     # inSeries is not aliased onto isPartOf.
     assert document["dcat"]["isPartOf"] == "collection-1"
+
+
+def test_dataset_to_document_carries_type(sample_dataset):
+    sample_dataset.type = "data_series"
+
+    dataset_doc = DatasetDocument(sample_dataset)
+    document = dataset_doc.dataset_to_document()
+
+    assert document["type"] == "data_series"
