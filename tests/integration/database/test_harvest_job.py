@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from freezegun import freeze_time
 from sqlalchemy import text
@@ -164,29 +164,30 @@ def get_new_harvest_jobs_in_past(interface_with_multiple_jobs):
 
 
 @freeze_time("Jan 14th, 2012")
-def test_get_new_harvest_jobs_by_source_in_future(interface_with_multiple_jobs):
-    all_jobs_list = interface_with_multiple_jobs.pget_harvest_jobs(paginate=False)
-    source_id = all_jobs_list[0].harvest_source_id
-    filtered_job_list = (
-        interface_with_multiple_jobs.get_new_harvest_jobs_by_source_in_future(source_id)
+def test_get_due_harvest_sources(interface_no_jobs, source_data_dcatus):
+    source_id = source_data_dcatus["id"]
+    assert interface_no_jobs.get_due_harvest_sources() == []
+
+    interface_no_jobs.update_harvest_source(
+        source_id, {"date_next_run": datetime.now() + timedelta(days=1)}
     )
-    assert len(all_jobs_list) == 12
-    assert len(filtered_job_list) == 3
-    assert (
-        len(
-            [
-                x
-                for x in all_jobs_list
-                if x.status == "new"
-                and x.date_created.replace(
-                    tzinfo=timezone.utc
-                )  # TODO should we be pushing to UTC in db?
-                > datetime.now(timezone.utc)
-                and x.harvest_source_id == source_id
-            ]
-        )
-        == 3
+    assert interface_no_jobs.get_due_harvest_sources() == []
+
+    interface_no_jobs.update_harvest_source(
+        source_id, {"date_next_run": datetime.now() + timedelta(days=-1)}
     )
+    due = interface_no_jobs.get_due_harvest_sources()
+    assert len(due) == 1
+    assert due[0].id == source_id
+
+    interface_no_jobs.add_harvest_job(
+        {
+            "harvest_source_id": source_id,
+            "status": "new",
+            "date_created": datetime.now(),
+        }
+    )
+    assert interface_no_jobs.get_due_harvest_sources() == []
 
 
 def test_filter_jobs_by_faceted_filter(

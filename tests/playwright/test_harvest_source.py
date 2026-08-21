@@ -34,6 +34,8 @@ class TestHarvestSourceUnauthed:
                 "document",
                 "Notification frequency",
                 "always",
+                "Date next run",
+                "N/A",
                 "ID",
                 "2f2652de-91df-4c63-8b53-bfced20b276b",
             ]
