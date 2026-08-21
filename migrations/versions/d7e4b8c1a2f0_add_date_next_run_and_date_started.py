@@ -33,18 +33,15 @@ def upgrade():
     )
 
     # Old in-progress/complete/error rows used date_created as the start time.
-    op.execute(
-        """
+    op.execute("""
         UPDATE harvest_job
         SET date_started = date_created
         WHERE status IN ('in_progress', 'complete', 'error')
-        """
-    )
+        """)
 
     # Future status=new rows were calendar placeholders. Move that time onto
     # the source, then delete the placeholder jobs.
-    op.execute(
-        """
+    op.execute("""
         UPDATE harvest_source hs
         SET date_next_run = sub.date_created
         FROM (
@@ -57,19 +54,15 @@ def upgrade():
         ) sub
         WHERE hs.id = sub.harvest_source_id
           AND hs.frequency <> 'manual'
-        """
-    )
-    op.execute(
-        """
+        """)
+    op.execute("""
         DELETE FROM harvest_job
         WHERE status = 'new' AND date_created > NOW()
-        """
-    )
+        """)
 
     # Remaining non-manual sources get a next run in the future so the first
     # scheduler pass after deploy does not enqueue every source.
-    op.execute(
-        """
+    op.execute("""
         UPDATE harvest_source
         SET date_next_run = NOW() + (
             CASE frequency
@@ -81,8 +74,7 @@ def upgrade():
         )
         WHERE frequency <> 'manual'
           AND date_next_run IS NULL
-        """
-    )
+        """)
 
 
 def downgrade():

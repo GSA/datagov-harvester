@@ -425,7 +425,10 @@ class TestLoadManager:
                 "guid": task_guid_val,
                 "sequence_id": 197,
                 "name": f"harvest-job-{jobs[0].id}-harvest",
-                "command": "python harvester/harvest.py 47442c62-716d-4678-947c-61990106685f harvest",
+                "command": (
+                    "python harvester/harvest.py "
+                    "47442c62-716d-4678-947c-61990106685f harvest"
+                ),
                 "state": "RUNNING",
                 "memory_in_mb": 1536,
                 "disk_in_mb": 4096,
@@ -475,7 +478,10 @@ class TestLoadManager:
                 "guid": "3a24b55a02b0-eb7b-4eeb-9f45-645cedd3d93b",
                 "sequence_id": 197,
                 "name": f"harvest-job-{jobs[0].id}-harvest",
-                "command": "python harvester/harvest.py 47442c62-716d-4678-947c-61990106685f harvest",
+                "command": (
+                    "python harvester/harvest.py "
+                    "47442c62-716d-4678-947c-61990106685f harvest"
+                ),
                 "state": "CANCELING",
                 "memory_in_mb": 1536,
                 "disk_in_mb": 4096,
