@@ -1,7 +1,7 @@
 """add harvest_source.date_next_run and harvest_job.date_started
 
 Revision ID: d7e4b8c1a2f0
-Revises: c3e5a7b9d1f3
+Revises: d4f6a8c0e2b3
 Create Date: 2026-08-19 00:00:00.000000
 
 """
@@ -11,7 +11,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = "d7e4b8c1a2f0"
-down_revision = "c3e5a7b9d1f3"
+down_revision = "d4f6a8c0e2b3"
 branch_labels = None
 depends_on = None
 
