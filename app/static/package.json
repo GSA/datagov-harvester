@@ -52,9 +52,7 @@
     "@rollup/rollup-linux-x64-gnu": "^4.13.2"
   },
   "overrides": {
-    "@uswds/compile": {
-      "postcss": "8.5.26"
-    },
+    "postcss": "8.5.26",
     "picomatch@2.3.1": "2.3.2",
     "shell-quote": "1.10.0"
   }
