@@ -23,6 +23,35 @@ class TestOpenAPI:
 
         assert spec["info"]["title"] == "Datagov Harvester"
 
+    def test_openapi_documents_warning_fields(self, client):
+        """Warnings are written by the harvester, so the spec must describe them.
+
+        Both fields are already present in responses because _to_dict reflects
+        every mapper column; these assertions keep them from silently falling
+        back out of the published contract.
+        """
+        schemas = client.get("/openapi.json").json["components"]["schemas"]
+
+        assert "records_warned" in schemas["JobInfo"]["properties"]
+        assert "severity" in schemas["ErrorInfo"]["properties"]
+
+    def test_openapi_documents_severity_query_param(self, client):
+        """Both record-issue routes must advertise the severity filter.
+
+        The per-record route documents it via a query schema rather than
+        @api.doc, so this guards a mechanism the collection route doesn't use.
+        """
+        paths = client.get("/openapi.json").json["paths"]
+
+        for path in [
+            "/api/v1/harvest_record_errors/",
+            "/api/v1/harvest_record/{record_id}/errors",
+        ]:
+            params = paths[path]["get"]["parameters"]
+            severity = [p for p in params if p["name"] == "severity"]
+            assert severity, f"severity not documented on {path}"
+            assert severity[0]["schema"]["enum"] == ["error", "warning"]
+
     def test_openapi_tags_group_by_resource(self, client):
         response = client.get("/openapi.json")
         spec = response.json

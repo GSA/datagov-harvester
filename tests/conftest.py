@@ -271,6 +271,21 @@ def source_data_dcatus3_0_no_identifier(organization_data: dict) -> dict:
 
 
 @pytest.fixture
+def source_data_dcatus3_0_warning(organization_data: dict) -> dict:
+    return {
+        "id": "c4d5e6f7-a8b9-4c0d-8e1f-2a3b4c5d6e7f",
+        "name": "Test Source DCAT-US 3.0 (warnings)",
+        "notification_emails": ["email@example.com"],
+        "organization_id": organization_data["id"],
+        "frequency": "daily",
+        "url": f"{HARVEST_SOURCE_URL}/dcatus/dcatus3_0_warning.json",
+        "schema_type": "dcatus3.0",
+        "source_type": "document",
+        "notification_frequency": "always",
+    }
+
+
+@pytest.fixture
 def source_data_dcatus3_0_with_services(organization_data: dict) -> dict:
     return {
         "id": "a2c4e6f8-1234-4567-89ab-cdef01234567",
@@ -684,6 +699,15 @@ def job_data_dcatus3_0_no_identifier(source_data_dcatus3_0_no_identifier: dict) 
         "id": "8a9b0c1d-2e3f-4a5b-9c8d-7e6f5a4b3c2d",
         "status": "new",
         "harvest_source_id": source_data_dcatus3_0_no_identifier["id"],
+    }
+
+
+@pytest.fixture
+def job_data_dcatus3_0_warning(source_data_dcatus3_0_warning: dict) -> dict:
+    return {
+        "id": "e5f6a7b8-c9d0-4e1f-8a2b-3c4d5e6f7a8b",
+        "status": "new",
+        "harvest_source_id": source_data_dcatus3_0_warning["id"],
     }
 
 
