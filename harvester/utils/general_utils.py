@@ -21,7 +21,6 @@ import geojson_validator
 import requests
 import sansjson
 from bs4 import BeautifulSoup
-from bs4.element import Tag
 from jsonschema import Draft202012Validator, FormatChecker
 from jsonschema.exceptions import ValidationError
 from referencing import Registry
@@ -693,41 +692,57 @@ def find_indexes_for_duplicates(records: list, identifier_field: str = "identifi
 
 
 def get_waf_datetimes(soup: BeautifulSoup, expected_length: int) -> list:
-    """
-    gets the datetime strings as datetime obejct of the waf datasets
-    """
-    output = []
-
-    dt_data = [
-        [r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}", "%Y-%m-%d %H:%M"],
-        [r"\d{2}-[A-Za-z]{3}-\d{4}\s\d{2}:\d{2}", "%d-%b-%Y %H:%M"],
-        [r"\d{1,2}/\d{1,2}/\d{4}\s+\d{1,2}:\d{2}\s(?:AM|PM)", "%m/%d/%Y %I:%M %p"],
+    """Return each WAF XML link's modification time in link order."""
+    date_formats = [
+        (r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}", "%Y-%m-%d %H:%M"),
+        (r"\d{2}-[A-Za-z]{3}-\d{4}\s\d{2}:\d{2}", "%d-%b-%Y %H:%M"),
+        (
+            r"\d{1,2}/\d{1,2}/\d{4}\s+\d{1,2}:\d{2}\s(?:AM|PM)",
+            "%m/%d/%Y %I:%M %p",
+        ),
+        (
+            (
+                r"[A-Za-z]+,\s+[A-Za-z]+\s+\d{1,2},\s+\d{4}\s+"
+                r"\d{1,2}:\d{2}\s+(?:AM|PM)"
+            ),
+            "%A, %B %d, %Y %I:%M %p",
+        ),
     ]
-    rows = soup.find_all("td") or soup.find_all("pre")
+    anchors = [
+        anchor
+        for anchor in soup.find_all("a", href=True)
+        if anchor["href"].endswith(".xml")
+    ]
+    output = []
+    parsed_count = 0
 
-    if rows and rows[0].name == "pre":
-        rows = rows[0].text.split(".xml")
+    for anchor in anchors:
+        table_row = anchor.find_parent("tr")
+        date_text = (
+            table_row.get_text(" ", strip=True)
+            if table_row is not None
+            else f"{anchor.next_sibling or ''} {anchor.previous_sibling or ''}"
+        )
+        modified_date = None
 
-    for row in rows:
-        if isinstance(row, Tag):
-            row = row.text
-        for dt_pattern, dt_format in dt_data:
-            res = re.search(dt_pattern, row)
-            if res is not None:
-                output.append(datetime.strptime(res.group(0), dt_format))
+        for date_pattern, date_format in date_formats:
+            match = re.search(date_pattern, date_text)
+            if match is not None:
+                modified_date = datetime.strptime(match.group(0), date_format)
+                parsed_count += 1
+                break
 
-    if len(output) != expected_length:
+        output.append(modified_date or DT_PLACEHOLDER)
+
+    if len(anchors) != expected_length or parsed_count != expected_length:
         logger.warning(
-            f"mismatching datetime ({len(output)}) and file ({expected_length} counts"
+            "Mismatching WAF datetimes (%s parsed) and files (%s expected)",
+            parsed_count,
+            expected_length,
         )
 
-    # pad with placeholder when more files than datetimes
     output += [DT_PLACEHOLDER] * (expected_length - len(output))
-
-    # when more datetimes than files
-    output = output[:expected_length]
-
-    return output
+    return output[:expected_length]
 
 
 def traverse_waf(
