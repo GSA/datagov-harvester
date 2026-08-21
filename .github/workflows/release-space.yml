@@ -192,10 +192,7 @@ jobs:
         uses: ./.github/actions/deploy
         with:
           cf_space: ${{ env.CF_SPACE }}
-          command: >-
-            ${{ inputs.migrate_opensearch
-              && 'cf push datagov-harvest --strategy rolling'
-              || 'cf push datagov-harvest --strategy rolling --no-wait' }}
+          command: cf push datagov-harvest --strategy rolling
           cf_username: ${{ secrets.CF_SERVICE_USER }}
           cf_password: ${{ secrets.CF_SERVICE_AUTH }}
 
