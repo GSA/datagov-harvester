@@ -6,8 +6,11 @@ set -e
 # Otherwise default to "datagov-harvest".
 app_name=${1:-datagov-harvest}
 
+# shellcheck source=bin/lib/opensearch_plan.sh
+. "$(dirname "$0")/bin/lib/opensearch_plan.sh"
+
 # Get the current space and trim leading whitespace
-space=$(cf target | grep space | cut -d : -f 2 | xargs)
+space=$(opensearch_current_space)
 
 # create email service
 cf service "${app_name}-smtp"  > /dev/null 2>&1 || cf create-service --wait aws-ses domain "${app_name}-smtp" -c '{"admin_email": "datagovhelp@gsa.gov"}'
@@ -16,14 +19,9 @@ cf service "${app_name}-smtp"  > /dev/null 2>&1 || cf create-service --wait aws-
 cf service "${app_name}-secrets"  > /dev/null 2>&1 || cf cups "${app_name}-secrets"
 
 # create the OpenSearch service if necessary
-if [ "$space" = "prod" ]; then
-    cf service "datagov-catalog-opensearch" > /dev/null 2>&1 || cf create-service --wait aws-elasticsearch es-large "datagov-catalog-opensearch" -c '{"ElasticsearchVersion":"OpenSearch_2.11"}'
-fi
-if [ "$space" = "staging" ]; then
-    cf service "datagov-catalog-opensearch" > /dev/null 2>&1 || cf create-service --wait aws-elasticsearch es-medium-ha "datagov-catalog-opensearch" -c '{"ElasticsearchVersion":"OpenSearch_2.11"}'
-fi
-if [ "$space" = "development" ]; then
-    cf service "datagov-catalog-opensearch" > /dev/null 2>&1 || cf create-service --wait aws-elasticsearch es-medium "datagov-catalog-opensearch" -c '{"ElasticsearchVersion":"OpenSearch_2.11"}'
+opensearch_plan=$(opensearch_plan_for_space "$space")
+if [ -n "$opensearch_plan" ]; then
+    cf service "datagov-catalog-opensearch" > /dev/null 2>&1 || cf create-service --wait aws-elasticsearch "$opensearch_plan" "datagov-catalog-opensearch" -c "{\"ElasticsearchVersion\":\"${OPENSEARCH_ENGINE_VERSION}\"}"
 fi
 
 # Production and staging should use bigger DB instances

@@ -2,6 +2,11 @@
 
 This is miscellaneous notes on operating the Harvester system.
 
+## OpenSearch deployments
+
+See [Zero-downtime OpenSearch deployment](opensearch-zero-downtime-deployment.md)
+for the label-driven replacement-cluster release flow and failure recovery.
+
 ## Enabling or disabling harvesting
 
 Run the **Toggle Harvester** GitHub Actions workflow and select the target

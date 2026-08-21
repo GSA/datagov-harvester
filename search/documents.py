@@ -113,6 +113,7 @@ class DatasetDocument:
             "_id": dataset.id,
             "title": index_fields["title"],
             "slug": dataset.slug,
+            "type": dataset.type,
             "last_harvested_date": last_harvested,
             "description": index_fields["description"],
             "publisher": index_fields["publisher"],

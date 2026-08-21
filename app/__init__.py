@@ -327,6 +327,15 @@ def create_app():
             # from the load manager but log them
             logger.warning("Load manager startup failed with exception: %s", repr(e))
 
+    # emit new relic custom event for db idle-in-transaction monitoring
+    new_relic_monitor_db_activity = (
+        os.getenv("NEW_RELIC_MONITOR_DB_ACTIVITY", "false").lower() == "true"
+    )
+    if new_relic_monitor_db_activity:
+        from scripts.new_relic_db_monitor import emit_idle_transaction_event
+
+        emit_idle_transaction_event()
+
     # Content-Security-Policy headers
     # single quotes need to appear in some of the strings
     csp = {

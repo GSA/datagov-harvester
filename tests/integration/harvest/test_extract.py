@@ -1,12 +1,89 @@
+from datetime import datetime
+from pathlib import Path
+from unittest.mock import Mock
+from urllib.parse import urljoin
+
+import pytest
+
 from harvester.harvest import DT_PLACEHOLDER
 from harvester.utils.general_utils import traverse_waf
 
+WAF_HTML_EXAMPLES = Path(__file__).parents[2] / "waf-html-examples"
+
 
 class TestExtract:
-    def test_traverse_waf_ms_iis(self, mock_requests_get_ms_iis_waf):
-        """Test to ensure that we're able to traverse the ms-iis-waf"""
-        files = traverse_waf(url="https://example.com")
-        assert len(files) == 2
+    @pytest.mark.parametrize(
+        "fixture_name, source_url, expected_entries",
+        [
+            pytest.param(
+                "apache-noaa-waf.html",
+                "https://data.noaa.gov/waf/NOAA/nmfs/garfo/iso/xml/",
+                [
+                    ("1463.xml", datetime(2026, 7, 12, 2, 23)),
+                    ("1503.xml", datetime(2026, 7, 12, 2, 23)),
+                ],
+                id="apache",
+            ),
+            pytest.param(
+                "nginx-dggs-waf.html",
+                "https://dggs.alaska.gov/webpubs/metadata/",
+                [
+                    ("AOF125.xml", datetime(2025, 10, 2, 11, 47)),
+                    ("AOF134.xml", datetime(2026, 7, 30, 16, 1)),
+                ],
+                id="nginx-mixed-file-types",
+            ),
+            pytest.param(
+                "ms-iis-waf.html",
+                "https://edg.epa.gov/WAFer_harvest/ISO/",
+                [
+                    (
+                        "/WAFer_harvest/ISO/enviroatlas-metadata-waf_"
+                        "ACS_Demographics_by_Tract_2008_2012_EA.xml",
+                        datetime(2021, 6, 17, 12, 20),
+                    ),
+                    (
+                        "/WAFer_harvest/ISO/"
+                        "enviroatlas-metadata-waf_Ag_On_Slopes.xml",
+                        datetime(2025, 7, 23, 17, 33),
+                    ),
+                ],
+                id="microsoft-iis",
+            ),
+            pytest.param(
+                "bts-waf.html",
+                "https://transtats.bts.gov/NTADmetadata/",
+                [
+                    (
+                        "/NTADmetadata/"
+                        "USDOT_BTS_NTAD_119th_Congressional_Districts.xml",
+                        datetime(2026, 7, 31, 16, 53),
+                    ),
+                    (
+                        "/NTADmetadata/USDOT_BTS_NTAD_1991_FAP.xml",
+                        datetime(2026, 7, 15, 16, 23),
+                    ),
+                ],
+                id="iis-long-date",
+            ),
+        ],
+    )
+    def test_traverse_waf_server_indexes(
+        self, monkeypatch, fixture_name, source_url, expected_entries
+    ):
+        response = Mock(
+            ok=True,
+            content=(WAF_HTML_EXAMPLES / fixture_name).read_bytes(),
+        )
+        requests_get = Mock(return_value=response)
+        monkeypatch.setattr("harvester.utils.general_utils.requests.get", requests_get)
+
+        files = traverse_waf(url=source_url)
+
+        assert [(file["identifier"], file["modified_date"]) for file in files] == [
+            (urljoin(source_url, href), modified_date)
+            for href, modified_date in expected_entries
+        ]
 
     def test_extract_dcatus(
         self,
@@ -157,6 +234,9 @@ class TestExtract:
         source_data_dcatus3_0_record_no_id,
         job_data_dcatus3_0_record_no_id,
     ):
+        """A CatalogRecord's @id is optional per the DCAT-US3.0 schema. A
+        missing @id gets a synthesized identifier instead of being dropped
+        as an error."""
         harvest_source = make_harvest_source(
             source_data_dcatus3_0_record_no_id,
             job_data_dcatus3_0_record_no_id,
@@ -166,14 +246,13 @@ class TestExtract:
 
         # the dataset is unaffected by the catalog record's missing @id
         assert len(harvest_source.external_records) == 1
-        assert len(harvest_source.external_records_by_type["catalog_record"]) == 0
+        assert len(harvest_source.external_records_by_type["catalog_record"]) == 1
+
+        record = harvest_source.external_records_by_type["catalog_record"][0]
+        assert record["@id"].startswith("urn:datagov:catalogrecord:")
 
         errors = interface.get_harvest_record_errors_by_job(harvest_source.job_id)
-        msg = (
-            "Test Source DCAT-US 3.0 (catalog record no @id) "
-            "Catalog Record Without An Id is missing '@id' field"
-        )
-        assert errors[0][0].message == msg
+        assert errors == []
 
     def test_extract_dcatus3_0_service_serves_dataset(
         self,
@@ -229,6 +308,43 @@ class TestExtract:
             r["parent_identifier"] == "https://example.gov/series/annual-report"
             for r in harvest_source.external_records
         )
+
+    def test_extract_dcatus3_0_series_member_also_top_level(
+        self,
+        make_harvest_source,
+        source_data_dcatus3_0_series_member_also_top_level,
+        job_data_dcatus3_0_series_member_also_top_level,
+    ):
+        """A dataset listed both at the top level and as a series member
+        should harvest once, tagged with the series as its parent."""
+        harvest_source = make_harvest_source(
+            source_data_dcatus3_0_series_member_also_top_level,
+            job_data_dcatus3_0_series_member_also_top_level,
+        )
+        harvest_source.acquire_minimum_external_data()
+
+        assert len(harvest_source.external_records_by_type["data_series"]) == 1
+        assert len(harvest_source.external_records) == 2
+
+        by_identifier = {r["identifier"]: r for r in harvest_source.external_records}
+        assert by_identifier.keys() == {
+            "https://example.gov/datasets/annual-report-2023",
+            "https://example.gov/datasets/annual-report-2024",
+        }
+        assert all(
+            r["parent_identifier"] == "https://example.gov/series/annual-report"
+            for r in harvest_source.external_records
+        )
+        # top-level description wins over the series member's copy
+        assert by_identifier["https://example.gov/datasets/annual-report-2023"][
+            "description"
+        ] == (
+            "The first dataset in the series, also listed at the "
+            "catalog's top level."
+        )
+
+        harvest_source.filter_duplicate_identifiers()
+        assert len(harvest_source.external_records) == 2
 
     def test_check_iso_dcatus_schema(
         self,

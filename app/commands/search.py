@@ -14,6 +14,9 @@ from search.writer import OPENSEARCH_INDEX_BATCH_FAILURE_MESSAGE, OpenSearchWrit
 
 search = Blueprint("search", __name__)
 
+OPENSEARCH_MAX_FAILED_RECORDS = 50
+OPENSEARCH_MISSING_DOCUMENTS_BANNER = "MISSING DATASET IDS (not in OpenSearch)"
+
 db_interface = HarvesterDBInterface()
 
 
@@ -66,6 +69,22 @@ def _normalize_mapping_for_comparison(value):
     return value
 
 
+def _describe_failures(failed: int, total: int, max_failed: int) -> str:
+    share = (failed / total * 100) if total > 0 else 0.0
+    return (
+        f"{failed} of {total} ({share:.3f}%) failed; "
+        f"allowed up to {max_failed} record(s)"
+    )
+
+
+def _report_document_ids(banner: str, doc_ids: list[str]):
+    click.echo("")
+    click.echo(f"{banner} ({len(doc_ids)} total)")
+    for doc_id in sorted(doc_ids):
+        click.echo(f"  {doc_id}")
+    click.echo("")
+
+
 @search.cli.command("reset-mapping")
 def reset_opensearch_mapping():
     """Delete the dataset index and recreate its empty mapping and settings."""
@@ -110,7 +129,31 @@ def reset_opensearch_mapping():
     is_flag=True,
     help="Re-index all datasets from DB regardless of last_harvested_date.",
 )
-def compare_opensearch(sample_size: int, update: bool, force_update: bool):
+@click.option(
+    "--fail-on-discrepancy",
+    is_flag=True,
+    help=(
+        "Exit non-zero when the index has too many missing documents, any extra "
+        "documents, or any stale documents."
+    ),
+)
+@click.option(
+    "--max-failed-records",
+    default=OPENSEARCH_MAX_FAILED_RECORDS,
+    show_default=True,
+    type=click.IntRange(min=0),
+    help=(
+        "With --fail-on-discrepancy, how many missing datasets may be tolerated. "
+        "Extra and stale documents always fail."
+    ),
+)
+def compare_opensearch(
+    sample_size: int,
+    update: bool,
+    force_update: bool,
+    fail_on_discrepancy: bool,
+    max_failed_records: int,
+):
     """Report and optionally repair DB/OpenSearch dataset discrepancies."""
     os_client = OpenSearchClient.from_environment()
     os_writer = OpenSearchWriter(os_client)
@@ -174,6 +217,27 @@ def compare_opensearch(sample_size: int, update: bool, force_update: bool):
         click.echo("Example updated IDs: " + "; ".join(sample_entries))
     else:
         click.echo("Example updated IDs: none")
+
+    if fail_on_discrepancy:
+        within_allowance = len(missing) <= max_failed_records
+        failure_summary = _describe_failures(
+            len(missing), len(db_ids), max_failed_records
+        )
+
+        if missing:
+            _report_document_ids(OPENSEARCH_MISSING_DOCUMENTS_BANNER, missing)
+
+        if extra or updated_details or not within_allowance:
+            raise click.ClickException(
+                f"Discrepancies found: {len(missing)} missing, {len(extra)} extra, "
+                f"{len(updated_details)} updated"
+                + (f" ({failure_summary})" if missing else "")
+                + "."
+            )
+        if missing:
+            click.echo(
+                f"TOLERATED: {failure_summary}. Every missing id is listed above."
+            )
 
     if force_update:
         update = True

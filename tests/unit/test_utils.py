@@ -3,6 +3,7 @@ import json
 import logging
 import time
 from datetime import datetime
+from pathlib import Path
 from unittest.mock import Mock, call, patch
 
 import pytest
@@ -18,6 +19,8 @@ from harvester.utils.general_utils import (
     USER_AGENT,
     RetrySession,
     assemble_validation_errors,
+    backfill_catalog_record_identifiers,
+    build_dcatus3_validator,
     create_retry_session,
     describe_identifier_error,
     download_file,
@@ -29,6 +32,7 @@ from harvester.utils.general_utils import (
     find_indexes_for_duplicates,
     get_waf_datetimes,
     is_valid_uuid4,
+    merge_dcatus3_datasets,
     munge_spatial,
     munge_title_to_name,
     normalize_dataset_identifier,
@@ -41,6 +45,30 @@ from harvester.utils.general_utils import (
     translate_spatial_to_geojson,
     validate_geojson,
 )
+
+# Real DCAT-US 3.0 validator, used to reproduce assembler errors on the
+# complete example.
+DCATUS3_ROOT_DIR = Path(__file__).parents[2]
+DCATUS3_DEFINITIONS = DCATUS3_ROOT_DIR / "schemas" / "dcatus3.0" / "definitions"
+DCATUS3_COMPLETE_EXAMPLE_PATH = (
+    DCATUS3_ROOT_DIR
+    / "schemas"
+    / "dcatus3.0"
+    / "examples"
+    / "Dataset"
+    / "good"
+    / "complete_example.json"
+)
+DCATUS3_DATASET_VALIDATOR = build_dcatus3_validator(
+    DCATUS3_DEFINITIONS,
+    root_ref="https://resources.data.gov/dcat-us/3.0.0/definitions/dataset",
+)
+
+
+@pytest.fixture
+def dcatus3_complete_example():
+    with open(DCATUS3_COMPLETE_EXAMPLE_PATH) as f:
+        return json.load(f)
 
 
 class TestCKANUtils:
@@ -324,6 +352,224 @@ class TestGeneralUtils:
         )
         keyword_error = next(e for e in errors if "$.keyword" in e.message)
         assert "max 1000 items" in keyword_error.message
+
+    def test_assemble_validation_messages_type_error_list_value_is_reported(
+        self, dcatus3_complete_example
+    ):
+        """A non-empty list that fails `type: ["null", "string"]` must be
+        reported, not dropped."""
+        dcatus3_complete_example["spatialResolutionInMeters"] = ["bad"]
+
+        errors = assemble_validation_errors(
+            DCATUS3_DATASET_VALIDATOR.iter_errors(dcatus3_complete_example)
+        )
+
+        assert len(errors) == 1
+        assert errors[0].message == (
+            "$.spatialResolutionInMeters, array value does not match any "
+            "of the acceptable formats: 'string'"
+        )
+
+    def test_assemble_validation_messages_type_error_dict_value_is_reported(
+        self, dcatus3_complete_example
+    ):
+        """Same as the list case; name the offender as "object value", not a
+        dict key."""
+        dcatus3_complete_example["temporalResolution"] = {"a": 1}
+
+        errors = assemble_validation_errors(
+            DCATUS3_DATASET_VALIDATOR.iter_errors(dcatus3_complete_example)
+        )
+
+        assert len(errors) == 1
+        assert errors[0].message == (
+            "$.temporalResolution, object value does not match any of the "
+            "acceptable formats: 'string'"
+        )
+
+    def test_assemble_validation_messages_type_error_single_type_leaf_is_reported(
+        self, dcatus3_complete_example
+    ):
+        """A leaf `type: string` error with no parent (nested `@type`) must
+        still be reported."""
+        dcatus3_complete_example["distribution"][0]["@type"] = {"a": 1}
+
+        errors = assemble_validation_errors(
+            DCATUS3_DATASET_VALIDATOR.iter_errors(dcatus3_complete_example)
+        )
+
+        assert len(errors) == 1
+        assert errors[0].message == (
+            "$.distribution[0]['@type'], object value does not match any of "
+            "the acceptable formats: 'string'"
+        )
+
+        dcatus3_complete_example["distribution"][0]["@type"] = ["a"]
+
+        errors = assemble_validation_errors(
+            DCATUS3_DATASET_VALIDATOR.iter_errors(dcatus3_complete_example)
+        )
+
+        assert len(errors) == 1
+        assert errors[0].message == (
+            "$.distribution[0]['@type'], array value does not match any of "
+            "the acceptable formats: 'string'"
+        )
+
+    def test_assemble_validation_messages_anyof_context_still_finds_specific_cause(
+        self, dcatus3_complete_example
+    ):
+        """An anyOf failure should surface the specific cause, not the
+        null-branch type error."""
+        del dcatus3_complete_example["contactPoint"][0]["hasEmail"]
+
+        errors = assemble_validation_errors(
+            DCATUS3_DATASET_VALIDATOR.iter_errors(dcatus3_complete_example)
+        )
+
+        assert len(errors) == 1
+        assert (
+            errors[0].message == "$.contactPoint[0], 'hasEmail' is a required property"
+        )
+
+    def test_assemble_validation_messages_nested_container_type_error_under_anyof(
+        self, dcatus3_complete_example
+    ):
+        """A leaf type error reached through anyOf (deeper json_path than its
+        parent) must be reported."""
+        dcatus3_complete_example["contactPoint"][0]["@type"] = ["Kind"]
+
+        errors = assemble_validation_errors(
+            DCATUS3_DATASET_VALIDATOR.iter_errors(dcatus3_complete_example)
+        )
+
+        assert len(errors) == 1
+        assert errors[0].message == (
+            "$.contactPoint[0]['@type'], array value does not match any of "
+            "the acceptable formats: 'string'"
+        )
+
+    def test_assemble_validation_messages_plain_leaf_type_error_is_unaffected(
+        self, dcatus3_complete_example
+    ):
+        """A plain `type: string` leaf with no context is unchanged by the
+        forced fallback."""
+        dcatus3_complete_example["title"] = {"a": 1}
+
+        errors = assemble_validation_errors(
+            DCATUS3_DATASET_VALIDATOR.iter_errors(dcatus3_complete_example)
+        )
+
+        assert len(errors) == 1
+        assert errors[0].message == (
+            "$.title, object value does not match any of the acceptable "
+            "formats: 'string'"
+        )
+
+    def test_assemble_validation_messages_anyof_of_all_scalar_types_is_rescued(
+        self, dcatus3_complete_example
+    ):
+        """When every anyOf alternative is scalar, report a vague type error
+        rather than silence."""
+        dcatus3_complete_example["accessRights"] = ["x"]
+
+        errors = assemble_validation_errors(
+            DCATUS3_DATASET_VALIDATOR.iter_errors(dcatus3_complete_example)
+        )
+
+        assert len(errors) == 1
+        assert errors[0].message == (
+            "$.accessRights, array value does not match any of the "
+            "acceptable formats: 'null', 'string'"
+        )
+
+    def test_assemble_validation_messages_anyof_of_all_scalar_types_is_rescued_dict(
+        self, dcatus3_complete_example
+    ):
+        """Same all-scalar anyOf rescue, for a dict against `language`."""
+        dcatus3_complete_example["language"] = {"a": 1}
+
+        errors = assemble_validation_errors(
+            DCATUS3_DATASET_VALIDATOR.iter_errors(dcatus3_complete_example)
+        )
+
+        assert len(errors) == 1
+        assert errors[0].message == (
+            "$.language, object value does not match any of the acceptable "
+            "formats: 'null', 'string', 'array'"
+        )
+
+    def test_assemble_validation_messages_anyof_of_all_scalar_types_is_rescued_date(
+        self, dcatus3_complete_example
+    ):
+        """Same all-scalar anyOf rescue, for `created` (nested anyOf of date forms)."""
+        dcatus3_complete_example["created"] = ["2025"]
+
+        errors = assemble_validation_errors(
+            DCATUS3_DATASET_VALIDATOR.iter_errors(dcatus3_complete_example)
+        )
+
+        assert len(errors) == 1
+        assert errors[0].message == (
+            "$.created, array value does not match any of the acceptable "
+            "formats: 'string'"
+        )
+
+    def test_assemble_validation_messages_anyof_of_all_scalar_types_is_rescued_nested(
+        self, dcatus3_complete_example
+    ):
+        """Same all-scalar anyOf rescue, nested under `spatial[0].bbox`."""
+        dcatus3_complete_example["spatial"][0]["bbox"] = ["x"]
+
+        errors = assemble_validation_errors(
+            DCATUS3_DATASET_VALIDATOR.iter_errors(dcatus3_complete_example)
+        )
+
+        assert len(errors) == 1
+        assert errors[0].message == (
+            "$.spatial[0].bbox, array value does not match any of the "
+            "acceptable formats: 'null', 'string', 'object'"
+        )
+
+    def test_assemble_validation_messages_maxitems_numeric_array_does_not_crash(
+        self, dcatus3_complete_example
+    ):
+        """A numeric maxItems array must not crash message assembly; name it
+        as "array value"."""
+        dcatus3_complete_example["spatial"][0]["centroid"] = {
+            "type": "Point",
+            "coordinates": [-77, 38, 1],
+        }
+
+        errors = assemble_validation_errors(
+            DCATUS3_DATASET_VALIDATOR.iter_errors(dcatus3_complete_example)
+        )
+
+        assert len(errors) == 1
+        assert errors[0].message == (
+            "$.spatial[0].centroid.coordinates, array value does not match "
+            "any of the acceptable formats: max 2 items"
+        )
+
+    def test_assemble_validation_messages_minitems_names_specific_cause(
+        self, dcatus3_complete_example
+    ):
+        """A minItems violation must be reported at its own path, not as a
+        parent anyOf type error."""
+        dcatus3_complete_example["spatial"][0]["centroid"] = {
+            "type": "Point",
+            "coordinates": [-77],
+        }
+
+        errors = assemble_validation_errors(
+            DCATUS3_DATASET_VALIDATOR.iter_errors(dcatus3_complete_example)
+        )
+
+        assert len(errors) == 1
+        assert errors[0].message == (
+            "$.spatial[0].centroid.coordinates, array value does not match "
+            "any of the acceptable formats: min 2 items"
+        )
 
     def test_find_indexes_for_duplicates(self):
         data = [
@@ -827,6 +1073,47 @@ class TestDcatus3Catalog:
         assert extract_dcatus3_catalog_records(catalog) == [{"@id": "rec-1"}]
 
 
+class TestBackfillCatalogRecordIdentifiers:
+    def test_missing_id_gets_synthesized(self):
+        records = [{"primaryTopic": "ds-1", "modified": "2024-06-15"}]
+
+        result = backfill_catalog_record_identifiers(records)
+
+        assert result[0]["@id"].startswith("urn:datagov:catalogrecord:")
+
+    def test_existing_id_left_alone(self):
+        records = [{"@id": "https://example.gov/rec-1", "primaryTopic": "ds-1"}]
+
+        result = backfill_catalog_record_identifiers(records)
+
+        assert result[0]["@id"] == "https://example.gov/rec-1"
+
+    def test_synthesized_id_is_stable_for_same_content(self):
+        records = [{"primaryTopic": "ds-1", "modified": "2024-06-15"}]
+
+        first = backfill_catalog_record_identifiers(records)[0]["@id"]
+        second = backfill_catalog_record_identifiers(records)[0]["@id"]
+
+        assert first == second
+
+    def test_synthesized_id_differs_for_different_content(self):
+        a = backfill_catalog_record_identifiers(
+            [{"primaryTopic": "ds-1", "modified": "2024-06-15"}]
+        )[0]["@id"]
+        b = backfill_catalog_record_identifiers(
+            [{"primaryTopic": "ds-2", "modified": "2024-06-15"}]
+        )[0]["@id"]
+
+        assert a != b
+
+    def test_does_not_mutate_input(self):
+        records = [{"primaryTopic": "ds-1", "modified": "2024-06-15"}]
+
+        backfill_catalog_record_identifiers(records)
+
+        assert "@id" not in records[0]
+
+
 class TestExtractDcatus3NestedDatasets:
     def test_uses_custom_parent_identifier_field(self):
         """DatasetSeries (like CatalogRecord) has no "identifier" field,
@@ -962,6 +1249,79 @@ class TestExtractDcatus3NestedDatasets:
 
         assert len(result) == 2
         assert {d["parent_identifier"] for d in result} == {"svc-1", "svc-2"}
+
+
+class TestMergeDcatus3Datasets:
+    def test_top_level_and_nested_overlap_merged_into_one(self):
+        """Top-level entry wins, gains the nested entry's parent_identifier."""
+        top_level = [{"identifier": "ds-1", "title": "Canonical title"}]
+        nested = [
+            {
+                "identifier": "ds-1",
+                "title": "Redundant series-member copy",
+                "parent_identifier": "series-1",
+            }
+        ]
+
+        result = merge_dcatus3_datasets(top_level, nested)
+
+        assert len(result) == 1
+        assert result[0]["title"] == "Canonical title"
+        assert result[0]["parent_identifier"] == "series-1"
+
+    def test_nested_only_dataset_kept_as_its_own_record(self):
+        """A nested dataset with no top-level counterpart is unaffected."""
+        nested = [{"identifier": "ds-2", "parent_identifier": "series-1"}]
+
+        result = merge_dcatus3_datasets([], nested)
+
+        assert result == nested
+
+    def test_disjoint_top_level_and_nested_both_kept(self):
+        top_level = [{"identifier": "ds-1"}]
+        nested = [{"identifier": "ds-2", "parent_identifier": "series-1"}]
+
+        result = merge_dcatus3_datasets(top_level, nested)
+
+        assert {d["identifier"] for d in result} == {"ds-1", "ds-2"}
+
+    def test_nested_vs_nested_overlap_not_merged(self):
+        """Nested-vs-nested overlap is left for the duplicate filter to catch."""
+        nested_a = [{"identifier": "ds-1", "parent_identifier": "svc-1"}]
+        nested_b = [{"identifier": "ds-1", "parent_identifier": "series-1"}]
+
+        result = merge_dcatus3_datasets([], nested_a, nested_b)
+
+        assert len(result) == 2
+        assert {d["parent_identifier"] for d in result} == {"svc-1", "series-1"}
+
+    def test_first_nested_list_wins_when_multiple_match_top_level(self):
+        """First nested list to claim a top-level dataset wins the tag."""
+        top_level = [{"identifier": "ds-1"}]
+        nested_a = [{"identifier": "ds-1", "parent_identifier": "svc-1"}]
+        nested_b = [{"identifier": "ds-1", "parent_identifier": "series-1"}]
+
+        result = merge_dcatus3_datasets(top_level, nested_a, nested_b)
+
+        assert len(result) == 1
+        assert result[0]["parent_identifier"] == "svc-1"
+
+    def test_missing_identifiers_not_treated_as_matching(self):
+        """Both normalize to None, so they stay as separate records."""
+        top_level = [{"title": "No id top-level"}]
+        nested = [{"title": "No id nested", "parent_identifier": "series-1"}]
+
+        result = merge_dcatus3_datasets(top_level, nested)
+
+        assert len(result) == 2
+
+    def test_does_not_mutate_inputs(self):
+        top_level = [{"identifier": "ds-1", "title": "Canonical title"}]
+        nested = [{"identifier": "ds-1", "parent_identifier": "series-1"}]
+
+        merge_dcatus3_datasets(top_level, nested)
+
+        assert "parent_identifier" not in top_level[0]
 
 
 class TestRetrySession:

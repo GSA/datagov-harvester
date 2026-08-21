@@ -10,7 +10,12 @@ from app.api_schemas import (
     RecordInfo,
     SourceInfo,
 )
-from app.deps import logger
+from app.deps import (
+    JSON_INVALID_SEVERITY,
+    InvalidSeverityError,
+    get_requested_severity,
+    logger,
+)
 from harvester.utils.general_utils import convert_to_int, is_it_true
 
 from . import api
@@ -64,6 +69,21 @@ def json_builder_query(**kwargs):
 
     # Object type is the last path segment: "/api/harvest_jobs/" -> "harvest_jobs".
     model = escape(request.path.strip("/").split("/")[-1])
+
+    # severity only exists on harvest_record_error, so it is ignored elsewhere.
+    # No default: an absent param returns every issue, matching the job-level
+    # reads (#799). Callers tell errors from warnings by the `severity` field
+    # now published on each row, and narrow with ?severity= when they want one.
+    if model == "harvest_record_errors":
+        try:
+            severity = get_requested_severity(default=None)
+        except InvalidSeverityError:
+            return JSON_INVALID_SEVERITY()
+        if severity is not None:
+            if facets:
+                facets += f",severity eq {severity}"
+            else:
+                facets = f"severity eq {severity}"
     try:
         res = deps.db.pget_db_query(
             model=model,
