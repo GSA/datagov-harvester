@@ -2,7 +2,11 @@ import logging
 from datetime import datetime
 from unittest.mock import Mock, patch
 
-from app.commands.search import OPENSEARCH_INDEX_BATCH_FAILURE_MESSAGE, db_interface
+from app.commands.search import (
+    OPENSEARCH_INDEX_BATCH_FAILURE_MESSAGE,
+    OPENSEARCH_MISSING_DOCUMENTS_BANNER,
+    db_interface,
+)
 
 
 def test_reset_mapping_recreates_empty_index(app):
@@ -208,6 +212,106 @@ def test_compare_is_read_only_without_update(app):
     client.index_datasets.assert_not_called()
     client.client.delete.assert_not_called()
     client._refresh.assert_not_called()
+
+
+def _run_compare(app, args, db_rows=(), os_hits=()):
+    client = Mock()
+    client.INDEX_NAME = "datasets"
+    client.client = Mock()
+
+    rows_query = Mock()
+    rows_query.all.return_value = list(db_rows)
+    dataset_query = Mock()
+    dataset_query.filter.return_value.all.return_value = []
+
+    def query_side_effect(*columns):
+        return rows_query if len(columns) == 2 else dataset_query
+
+    with (
+        patch(
+            "app.commands.search.OpenSearchClient.from_environment",
+            return_value=client,
+        ),
+        patch(
+            "app.commands.search.db_interface.db.query", side_effect=query_side_effect
+        ),
+        patch(
+            "app.commands.search.OpenSearchReader.scan_index",
+            return_value=iter(list(os_hits)),
+        ),
+        patch("app.commands.search.OpenSearchWriter", return_value=Mock()),
+    ):
+        return app.test_cli_runner().invoke(args=["search", "compare", *args])
+
+
+def _dataset_rows(count):
+    return [(f"dataset-{index}", datetime(2024, 1, 1)) for index in range(count)]
+
+
+def _opensearch_hits(count):
+    return [
+        {
+            "_id": f"dataset-{index}",
+            "fields": {"last_harvested_date": ["2024-01-01T00:00:00"]},
+        }
+        for index in range(count)
+    ]
+
+
+def test_compare_validation_allows_fifty_missing_records(app):
+    result = _run_compare(
+        app,
+        ["--fail-on-discrepancy", "--max-failed-records", "50"],
+        db_rows=_dataset_rows(100),
+        os_hits=_opensearch_hits(50),
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "50 of 100 (50.000%) failed; allowed up to 50 record(s)" in result.output
+    assert OPENSEARCH_MISSING_DOCUMENTS_BANNER in result.output
+    assert "dataset-99" in result.output
+
+
+def test_compare_validation_rejects_fifty_one_missing_records(app):
+    result = _run_compare(
+        app,
+        ["--fail-on-discrepancy", "--max-failed-records", "50"],
+        db_rows=_dataset_rows(100),
+        os_hits=_opensearch_hits(49),
+    )
+
+    assert result.exit_code != 0
+    assert "51 of 100 (51.000%) failed; allowed up to 50 record(s)" in result.output
+    assert OPENSEARCH_MISSING_DOCUMENTS_BANNER in result.output
+    assert "dataset-99" in result.output
+
+
+def test_compare_validation_never_tolerates_extra_documents(app):
+    result = _run_compare(
+        app,
+        ["--fail-on-discrepancy", "--max-failed-records", "50"],
+        os_hits=[{"_id": "extra", "fields": {"last_harvested_date": []}}],
+    )
+
+    assert result.exit_code != 0
+    assert "Discrepancies found: 0 missing, 1 extra, 0 updated." in result.output
+
+
+def test_compare_validation_never_tolerates_stale_documents(app):
+    result = _run_compare(
+        app,
+        ["--fail-on-discrepancy", "--max-failed-records", "50"],
+        db_rows=[("dataset-0", datetime(2024, 2, 1))],
+        os_hits=[
+            {
+                "_id": "dataset-0",
+                "fields": {"last_harvested_date": ["2024-01-01T00:00:00"]},
+            }
+        ],
+    )
+
+    assert result.exit_code != 0
+    assert "Discrepancies found: 0 missing, 0 extra, 1 updated." in result.output
 
 
 def _rebuild_client(alias_indices=None, legacy_concrete=False, target_count=5):

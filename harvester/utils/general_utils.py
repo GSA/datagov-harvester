@@ -21,7 +21,6 @@ import geojson_validator
 import requests
 import sansjson
 from bs4 import BeautifulSoup
-from bs4.element import Tag
 from jsonschema import Draft202012Validator, FormatChecker
 from jsonschema.exceptions import ValidationError
 from referencing import Registry
@@ -511,6 +510,23 @@ def extract_dcatus3_catalog_records(catalog: dict) -> list:
     return _extract_dcatus3_catalog_objects(catalog, "record")
 
 
+def backfill_catalog_record_identifiers(records: list) -> list:
+    """
+    CatalogRecord's @id is optional per the DCAT-US3.0 schema. Give each
+    @id-less record a stable @id synthesized from its two required fields
+    (modified, primaryTopic) so harvester can still track it.
+    """
+    backfilled = []
+    for record in records:
+        record = dict(record)
+        if normalize_dataset_identifier(record.get("@id")) is None:
+            basis = f"{record.get('primaryTopic')}|{record.get('modified')}"
+            digest = hashlib.sha256(basis.encode()).hexdigest()
+            record["@id"] = f"urn:datagov:catalogrecord:{digest}"
+        backfilled.append(record)
+    return backfilled
+
+
 def extract_dcatus3_catalog_dataset_series(catalog: dict) -> list:
     """
     recursively collect every DatasetSeries from a DCAT-US3 Catalog dict,
@@ -524,24 +540,16 @@ def extract_dcatus3_nested_datasets(
     parents: list, *fields: str, parent_identifier_field: str = "identifier"
 ) -> list:
     """
-    pull full inline Dataset objects out of [fields] on each dict in
-    [parents], tagging each with "parent_identifier" set to the parent's own
-    identifier so the relationship isn't lost once the dataset is harvested
-    on its own.
+    Pull full inline Dataset objects out of [fields] on each dict in
+    [parents] (e.g. DataService.servesDataset, DatasetSeries.seriesMember/
+    first/last), tagging each with "parent_identifier". parent_identifier_
+    field selects which key on the parent holds its own identifier, since
+    DatasetSeries and CatalogRecord use "@id" instead of "identifier".
 
-    DCAT-US3 lets several object types embed full Dataset objects rather
-    than reference them by id: DataService.servesDataset, and
-    DatasetSeries.seriesMember/first/last. This is the shared extraction
-    step for all of them -- callers pass the parent objects and which
-    field(s) on them hold nested datasets. parent_identifier_field selects
-    which key on the parent holds its own identifier: DatasetSeries (like
-    CatalogRecord) has no "identifier" field, only a top-level "@id".
-
-    the same dataset can legitimately appear in more than one of [fields] on
-    the same parent (e.g. a DatasetSeries's "first" is typically also present
-    in "seriesMember") -- that's redundancy in the source data, not a
-    harvest-time duplicate-identifier error, so each parent only contributes
-    one copy per distinct identifier.
+    The same dataset can appear in more than one of [fields] on the same
+    parent (e.g. a series's "first" usually also appears in "seriesMember").
+    That's redundant source data, so each parent contributes one copy per
+    distinct identifier.
     """
     nested_datasets = []
 
@@ -569,6 +577,43 @@ def extract_dcatus3_nested_datasets(
                 nested_datasets.append(dataset)
 
     return nested_datasets
+
+
+def merge_dcatus3_datasets(top_level: list, *nested_lists: list) -> list:
+    """
+    Merge top-level catalog.dataset entries with nested ones (DataService.
+    servesDataset, DatasetSeries.seriesMember/first/last). A nested dataset
+    matching a top-level identifier keeps the top-level copy and just adds
+    its parent_identifier. Nested-vs-nested overlaps stay separate, for
+    filter_duplicate_identifiers to catch.
+    """
+    merged = []
+    top_level_by_identifier = {}
+
+    for dataset in top_level:
+        dataset = dict(dataset)
+        merged.append(dataset)
+        identifier = normalize_dataset_identifier(dataset.get("identifier"))
+        if identifier is not None:
+            top_level_by_identifier[identifier] = dataset
+
+    for nested in nested_lists:
+        for dataset in nested:
+            identifier = normalize_dataset_identifier(dataset.get("identifier"))
+            existing = (
+                top_level_by_identifier.get(identifier)
+                if identifier is not None
+                else None
+            )
+            if existing is not None:
+                existing.setdefault(
+                    "parent_identifier", dataset.get("parent_identifier")
+                )
+                continue
+
+            merged.append(dict(dataset))
+
+    return merged
 
 
 def make_record_mapping(record):
@@ -647,41 +692,57 @@ def find_indexes_for_duplicates(records: list, identifier_field: str = "identifi
 
 
 def get_waf_datetimes(soup: BeautifulSoup, expected_length: int) -> list:
-    """
-    gets the datetime strings as datetime obejct of the waf datasets
-    """
-    output = []
-
-    dt_data = [
-        [r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}", "%Y-%m-%d %H:%M"],
-        [r"\d{2}-[A-Za-z]{3}-\d{4}\s\d{2}:\d{2}", "%d-%b-%Y %H:%M"],
-        [r"\d{1,2}/\d{1,2}/\d{4}\s+\d{1,2}:\d{2}\s(?:AM|PM)", "%m/%d/%Y %I:%M %p"],
+    """Return each WAF XML link's modification time in link order."""
+    date_formats = [
+        (r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}", "%Y-%m-%d %H:%M"),
+        (r"\d{2}-[A-Za-z]{3}-\d{4}\s\d{2}:\d{2}", "%d-%b-%Y %H:%M"),
+        (
+            r"\d{1,2}/\d{1,2}/\d{4}\s+\d{1,2}:\d{2}\s(?:AM|PM)",
+            "%m/%d/%Y %I:%M %p",
+        ),
+        (
+            (
+                r"[A-Za-z]+,\s+[A-Za-z]+\s+\d{1,2},\s+\d{4}\s+"
+                r"\d{1,2}:\d{2}\s+(?:AM|PM)"
+            ),
+            "%A, %B %d, %Y %I:%M %p",
+        ),
     ]
-    rows = soup.find_all("td") or soup.find_all("pre")
+    anchors = [
+        anchor
+        for anchor in soup.find_all("a", href=True)
+        if anchor["href"].endswith(".xml")
+    ]
+    output = []
+    parsed_count = 0
 
-    if rows and rows[0].name == "pre":
-        rows = rows[0].text.split(".xml")
+    for anchor in anchors:
+        table_row = anchor.find_parent("tr")
+        date_text = (
+            table_row.get_text(" ", strip=True)
+            if table_row is not None
+            else f"{anchor.next_sibling or ''} {anchor.previous_sibling or ''}"
+        )
+        modified_date = None
 
-    for row in rows:
-        if isinstance(row, Tag):
-            row = row.text
-        for dt_pattern, dt_format in dt_data:
-            res = re.search(dt_pattern, row)
-            if res is not None:
-                output.append(datetime.strptime(res.group(0), dt_format))
+        for date_pattern, date_format in date_formats:
+            match = re.search(date_pattern, date_text)
+            if match is not None:
+                modified_date = datetime.strptime(match.group(0), date_format)
+                parsed_count += 1
+                break
 
-    if len(output) != expected_length:
+        output.append(modified_date or DT_PLACEHOLDER)
+
+    if len(anchors) != expected_length or parsed_count != expected_length:
         logger.warning(
-            f"mismatching datetime ({len(output)}) and file ({expected_length} counts"
+            "Mismatching WAF datetimes (%s parsed) and files (%s expected)",
+            parsed_count,
+            expected_length,
         )
 
-    # pad with placeholder when more files than datetimes
     output += [DT_PLACEHOLDER] * (expected_length - len(output))
-
-    # when more datetimes than files
-    output = output[:expected_length]
-
-    return output
+    return output[:expected_length]
 
 
 def traverse_waf(
@@ -1342,16 +1403,31 @@ def get_format_from_str(validation_msg: str) -> str:
             return f"max {match.group(1)} items"
         return "max string length requirement"
 
+    if "is too short" in validation_msg:
+        match = re.search(r"\[minItems=(\d+)\]", validation_msg)
+        if match:
+            return f"min {match.group(1)} items"
+        return "min items requirement"
+
+    # Match jsonschema's full "has non-unique elements" wording, not just
+    # "non-unique" -- an invalid value containing that text would hijack the match.
+    if "has non-unique elements" in validation_msg:
+        return "unique items"
+
     # for constants where a single value is acceptable
     if "was expected" in validation_msg:
         return f"constant value {validation_msg}"
     return validation_msg.split(" ")[-1]
 
 
-def found_simple_message(validation_error: ValidationError) -> bool:
+def found_simple_message(
+    validation_error: ValidationError, forced: bool = False
+) -> bool:
     """
     determine whether the input validation error represents the most
-    succinct cause for error based on its json_path or dtype
+    succinct cause for error based on its json_path or dtype.
+
+    `forced` is a last-resort override set by `assemble_validation_errors`.
     """
     # these are all the unique dtypes found in the
     # non-federal schema (no different than federal)
@@ -1361,22 +1437,33 @@ def found_simple_message(validation_error: ValidationError) -> bool:
     if validation_error.json_path == "$":
         return True
 
-    # we need to dig a little deeper when it's a list
+    # we need to dig a little deeper when it's a list or dict
     if isinstance(validation_error.instance, (dict, list)):
         # if it's empty you'll get something like
         # ['$.keyword', '[] should be non-empty']
         # which is simple and what we want
         if len(validation_error.instance) == 0:
             return True
-        # If it's looking for maxItems, you may have
-        # any number of items in the array:
-        if validation_error.validator == "maxItems":
-            return True
 
-        if validation_error.message.endswith("is a required property"):
-            return True
+        # `type` errors have no `context`. Keep them when the allowed types are
+        # a list, when this is a top-level error, or when the path is deeper
+        # than the parent (a real cause inside a branch). Same-path single-type
+        # errors are anyOf/oneOf branch noise unless `forced`.
+        if validation_error.validator == "type":
+            return bool(
+                isinstance(validation_error.validator_value, list)
+                or validation_error.parent is None
+                or validation_error.json_path != validation_error.parent.json_path
+                or forced
+            )
 
-        return False
+        # Combinators are not a cause; their `.context` holds the per-branch errors.
+        if validation_error.validator in ("anyOf", "oneOf", "allOf", "not"):
+            return False
+
+        # Other container validators (maxItems, minItems, uniqueItems, ...) are
+        # already the specific cause.
+        return True
     return True
 
 
@@ -1421,12 +1508,22 @@ def finalize_validation_messages(messages: defaultdict) -> list:
         # but >1 format/rule is used against it so grabbing
         # the last one which is a regex and does include the invalid data
         # excluding constants [0] == [n]
+        # jsonschema renders containers as repr; quoting an inner element (or a
+        # const's expected value) would mislead, so name the kind of value.
+        # "[]" already reads as itself.
+        container = next(
+            (f for f in formats if f[:1] in ("[", "{") and f[:2] != "[]"), None
+        )
         if formats[-1].startswith("None"):
             invalid_value = "None"
+        elif container is not None:
+            invalid_value = "array value" if container[0] == "[" else "object value"
         else:
-            invalid_value = re.search(r"'(.*?)'|\[\]", formats[-1]).group(0)
+            # group(0): the `[]` alternative has no capture groups.
+            match = re.search(r"'(.*?)'|\[\]", formats[-1])
+            invalid_value = match.group(0) if match else None
 
-        # if the 0th doesn't work none of them will
+        # if neither branch above found anything, none of them will
         if invalid_value is None:
             logger.warning(f"can't find invalid data from error message: {formats[0]}")
             continue
@@ -1452,7 +1549,14 @@ def finalize_validation_messages(messages: defaultdict) -> list:
     return output
 
 
-def assemble_validation_errors(validation_errors: list, messages=None) -> list:  #
+def _count_messages(messages: defaultdict) -> int:
+    """Total messages accumulated across every json_path so far."""
+    return sum(len(v) for v in messages.values())
+
+
+def assemble_validation_errors(
+    validation_errors: list, messages=None, *, _forced: bool = False
+) -> list:
     """
     given a list of errors, follow each one recursively through its context
     and get the simplest cause for error. store the error in a defaultdict
@@ -1461,6 +1565,11 @@ def assemble_validation_errors(validation_errors: list, messages=None) -> list: 
     errors with lists or dicts (other than empty)
     will often return the entire object followed by 'is not valid under any
     of the given schemas' which isn't helpful.
+
+    `_forced` is a private fallback. Callers (Record.validate) must keep the
+    two-argument form. After an unforced context walk records nothing, we
+    re-walk forced so a same-path type error is reported vaguely instead of
+    silently. A walk that already recorded a specific cause is left alone.
     """
 
     if messages is None:
@@ -1468,7 +1577,7 @@ def assemble_validation_errors(validation_errors: list, messages=None) -> list: 
         messages = defaultdict(list)
 
     for error in validation_errors:
-        if found_simple_message(error):
+        if found_simple_message(error, forced=_forced):
             # these aren't specific enough which make them unhelpful
             generic_msg = "is not valid under any of the given schemas"
             is_generic_msg = error.message.endswith(generic_msg)
@@ -1480,6 +1589,12 @@ def assemble_validation_errors(validation_errors: list, messages=None) -> list: 
                 formatted_message = (
                     f"{error.message} [maxItems={error.validator_value}]"
                 )
+            elif error.validator == "minItems" and "is too short" in error.message:
+                # minItems: 1 already says "should be non-empty";
+                # only "is too short" needs the count.
+                formatted_message = (
+                    f"{error.message} [minItems={error.validator_value}]"
+                )
             else:
                 formatted_message = error.message
             # if not the generic message, and if the message is not already
@@ -1490,7 +1605,15 @@ def assemble_validation_errors(validation_errors: list, messages=None) -> list: 
                 and formatted_message not in messages[error.json_path]
             ):
                 messages[error.json_path].append(formatted_message)
+
+        # Prefer a specific cause in context before falling back.
+        recorded_before = _count_messages(messages)
         assemble_validation_errors(error.context, messages)
+
+        # Nothing recorded: re-walk forced so the defect is not dropped.
+        # `_forced` only flips `type` errors, which have no context to recurse.
+        if error.context and _count_messages(messages) == recorded_before:
+            assemble_validation_errors(error.context, messages, _forced=True)
 
     return finalize_validation_messages(messages)
 

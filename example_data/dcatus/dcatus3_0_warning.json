@@ -1,0 +1,66 @@
+{
+  "@type": "Catalog",
+  "@id": "https://example.gov/data.json",
+  "conformsTo": {
+    "@type": "Standard",
+    "title": "DCAT-US 3.0"
+  },
+  "title": "Example DCAT-US 3.0 Catalog (content-quality warnings)",
+  "description": "A sample DCAT-US 3.0 catalog whose datasets are schema-valid but trip content-quality warning rules.",
+  "dataset": [
+    {
+      "@type": "Dataset",
+      "title": "Warned Dataset One",
+      "description": "Schema-valid, but issued is later than modified.",
+      "identifier": "https://example.gov/datasets/warning-one",
+      "issued": "2030-01-01",
+      "modified": "2020-01-01",
+      "publisher": {
+        "@type": "Organization",
+        "name": "Test Agency"
+      },
+      "contactPoint": {
+        "@type": "Kind",
+        "fn": "Test Contact One",
+        "hasEmail": "mailto:one@example.gov"
+      }
+    },
+    {
+      "@type": "Dataset",
+      "title": "Warned Dataset Two",
+      "description": "Schema-valid, but the distribution declares an unrecognized media type.",
+      "identifier": "https://example.gov/datasets/warning-two",
+      "publisher": {
+        "@type": "Organization",
+        "name": "Test Agency"
+      },
+      "contactPoint": {
+        "@type": "Kind",
+        "fn": "Test Contact Two",
+        "hasEmail": "mailto:two@example.gov"
+      },
+      "distribution": [
+        {
+          "@type": "Distribution",
+          "downloadURL": "https://example.gov/datasets/warning-two.csv",
+          "mediaType": "notareal/type"
+        }
+      ]
+    },
+    {
+      "@type": "Dataset",
+      "title": "Clean Dataset Three",
+      "description": "Schema-valid and warning-free, so errors-only reads still have a control record.",
+      "identifier": "https://example.gov/datasets/warning-three",
+      "publisher": {
+        "@type": "Organization",
+        "name": "Test Agency"
+      },
+      "contactPoint": {
+        "@type": "Kind",
+        "fn": "Test Contact Three",
+        "hasEmail": "mailto:three@example.gov"
+      }
+    }
+  ]
+}

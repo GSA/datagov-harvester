@@ -2,6 +2,7 @@ import json
 import logging
 import re
 import uuid
+from collections import Counter
 from unittest.mock import Mock, patch
 
 import pytest
@@ -434,7 +435,7 @@ class TestAuditLogging:
 
         response = client.post("/api/v1/organization/add", json=data, headers=headers)
 
-        assert response.status_code == 200
+        assert response.status_code == 201
         assert "Audit create organization" in caplog.text
         assert "user=<api_token>" in caplog.text
         assert "auth_type=api_token" in caplog.text
@@ -881,3 +882,402 @@ class TestRenderBlock:
                 )
 
             assert "Jinja autoescape is disabled" in str(exc_info.value)
+
+
+class TestRecordIssueSeverityAPI:
+    """Severity filtering on the record-issue endpoints.
+
+    The seeded fixtures contain only errors (severity falls to the column's
+    "error" server default), so each test adds its own warning row rather than
+    changing the shared fixture, whose row count other suites assert on.
+
+    Counts and ids here are derived from the fixture data rather than written
+    out, so adding or removing seeded rows doesn't strand this class.
+    """
+
+    # Nothing here reads the type column and nothing validates it against
+    # harvester.utils.dcat_warnings, so a synthetic type says what this row is.
+    # Naming a real warning would imply a coupling that doesn't exist, and would
+    # rot when that rule is renamed or dropped -- as invalid_iri just was.
+    WARNING_TYPE = "TestException"
+    WARNING_MESSAGE = "a synthetic warning row"
+
+    @pytest.fixture
+    def warning_record_id(self, record_error_data) -> str:
+        """A seeded record carrying more than one error.
+
+        Picking a record that already has several errors means the severity
+        filters have something to narrow on both sides: the added warning has
+        to be separated from real siblings, not from an empty set.
+        """
+        error_counts = Counter(e["harvest_record_id"] for e in record_error_data)
+        return next(record_id for record_id, count in error_counts.items() if count > 1)
+
+    @pytest.fixture
+    def seeded_error_count(self, warning_record_id, record_error_data) -> int:
+        """How many seeded errors belong to `warning_record_id`."""
+        return len(
+            [
+                e
+                for e in record_error_data
+                if e["harvest_record_id"] == warning_record_id
+            ]
+        )
+
+    @pytest.fixture
+    def interface_with_warning(
+        self, interface_with_fixture_json, job_data_dcatus, warning_record_id
+    ):
+        interface_with_fixture_json.add_harvest_record_error(
+            {
+                "harvest_record_id": warning_record_id,
+                "harvest_job_id": job_data_dcatus["id"],
+                "message": self.WARNING_MESSAGE,
+                "type": self.WARNING_TYPE,
+                "severity": "warning",
+            }
+        )
+        return interface_with_fixture_json
+
+    def test_collection_defaults_to_all_issues(
+        self, client, interface_with_warning, record_error_data
+    ):
+        """No severity param returns both severities, per #799.
+
+        Job-level reads default to every issue and surface `severity` on each
+        row rather than filtering; this endpoint matches that. The severity of
+        each row is in the response, so nothing is ambiguous.
+        """
+        res = client.get("/api/v1/harvest_record_errors/?paginate=False")
+
+        assert res.status_code == 200
+        assert {e["severity"] for e in res.json} == {"error", "warning"}
+        # every seeded error plus the warning this fixture added
+        assert len(res.json) == len(record_error_data) + 1
+
+    def test_severity_facet_is_not_double_filtered(
+        self, client, interface_with_warning
+    ):
+        """The facet DSL reaches severity without competing with a default.
+
+        Nothing is injected when severity is absent, so a severity facet is the
+        only condition on the column and can't be ANDed into an empty result.
+        """
+        res = client.get(
+            "/api/v1/harvest_record_errors/?facets=severity eq warning&paginate=False"
+        )
+
+        assert res.status_code == 200
+        assert {e["severity"] for e in res.json} == {"warning"}
+
+    def test_collection_severity_warning(self, client, interface_with_warning):
+        """?severity=warning returns only the warning row."""
+        res = client.get("/api/v1/harvest_record_errors/?severity=warning")
+
+        assert res.status_code == 200
+        assert [e["severity"] for e in res.json] == ["warning"]
+        assert res.json[0]["message"] == self.WARNING_MESSAGE
+
+    def test_collection_severity_error_excludes_warnings(
+        self, client, interface_with_warning, record_error_data
+    ):
+        """?severity=error excludes warnings.
+
+        count=True returns an int rather than rows, so the count is the only
+        observable here -- and it is the assertion: it has to come back one
+        short of the total for the warning to have been excluded.
+        """
+        res = client.get(
+            "/api/v1/harvest_record_errors/?severity=error&paginate=False&count=True"
+        )
+
+        assert res.status_code == 200
+        # every seeded issue is an error; this class's warning is filtered out
+        assert res.json["count"] == len(record_error_data)
+
+    def test_collection_severity_is_case_sensitive(
+        self, client, interface_with_warning
+    ):
+        """The DB enum is lowercase, so "Warning" is a client error, not a match."""
+        res = client.get("/api/v1/harvest_record_errors/?severity=Warning")
+
+        assert res.status_code == 400
+        assert "Invalid severity" in res.json["error"]
+
+    def test_collection_invalid_severity(self, client, interface_with_warning):
+        res = client.get("/api/v1/harvest_record_errors/?severity=bogus")
+
+        assert res.status_code == 400
+        assert "Invalid severity" in res.json["error"]
+        assert "error, warning" in res.json["error"]
+        # the rejected value is deliberately not echoed back (CodeQL: information
+        # exposure through an exception)
+        assert "bogus" not in res.json["error"]
+
+    def test_collection_severity_composes_with_facets(
+        self, client, interface_with_warning, warning_record_id, seeded_error_count
+    ):
+        """severity narrows a non-severity facet rather than replacing it.
+
+        Asserting every row still belongs to the faceted record is the point:
+        were severity replacing the facet instead of narrowing it, the
+        severities alone would still look right while other records' issues
+        leaked into the response.
+        """
+        route = (
+            "/api/v1/harvest_record_errors/"
+            f"?facets=harvest_record_id eq {warning_record_id}"
+        )
+
+        errors = client.get(f"{route}&severity=error")
+        assert errors.status_code == 200
+        assert {e["severity"] for e in errors.json} == {"error"}
+        assert {e["harvest_record_id"] for e in errors.json} == {warning_record_id}
+        assert len(errors.json) == seeded_error_count
+
+        warnings = client.get(f"{route}&severity=warning")
+        assert warnings.status_code == 200
+        assert [e["severity"] for e in warnings.json] == ["warning"]
+        assert {e["harvest_record_id"] for e in warnings.json} == {warning_record_id}
+
+    def test_severity_ignored_on_other_models(
+        self, client, interface_with_warning, job_error_data
+    ):
+        """harvest_job_error has no severity column; the param must not leak there.
+
+        These rows have no severity to assert against, so the check is that the
+        seeded job error comes back untouched. An empty result would surface as
+        the query's 404 rather than as a short list.
+        """
+        res = client.get("/api/v1/harvest_job_errors/?severity=warning")
+
+        assert res.status_code == 200
+        assert [e["message"] for e in res.json] == [job_error_data["message"]]
+
+    def test_record_route_reaches_warnings(
+        self, client, interface_with_warning, warning_record_id
+    ):
+        res = client.get(
+            f"/api/v1/harvest_record/{warning_record_id}/errors?severity=warning"
+        )
+
+        assert res.status_code == 200
+        assert [e["severity"] for e in res.json] == ["warning"]
+
+    def test_record_route_defaults_to_all_issues(
+        self, client, interface_with_warning, warning_record_id, seeded_error_count
+    ):
+        """No param returns both severities here too.
+
+        Worth asserting separately: the interface function this route calls
+        still defaults to "error", so the route has to pass None explicitly.
+        """
+        res = client.get(f"/api/v1/harvest_record/{warning_record_id}/errors")
+
+        assert res.status_code == 200
+        assert {e["severity"] for e in res.json} == {"error", "warning"}
+        # the record's seeded errors plus this class's warning
+        assert len(res.json) == seeded_error_count + 1
+
+    def test_record_route_invalid_severity(
+        self, client, interface_with_warning, warning_record_id
+    ):
+        """A bad severity is a 400, not the route's catch-all 404."""
+        res = client.get(
+            f"/api/v1/harvest_record/{warning_record_id}/errors?severity=bogus"
+        )
+
+        assert res.status_code == 400
+        assert "Invalid severity" in res.json["error"]
+
+
+class TestOrganizationCodeRepoFields:
+    """Test cases for code_repo_url and code_repo_exempt fields."""
+
+    def test_add_organization_with_code_repo_url(self, app, client, interface):
+        """Test creating organization with code repository URL."""
+        api_token = app.config["API_TOKEN"]
+        headers = {
+            "X-API-Key": api_token,
+            "Content-Type": "application/json",
+        }
+        data = {
+            "name": "Test Agency",
+            "slug": "test-agency",
+            "code_repo_url": "https://github.com/test-agency",
+        }
+        response = client.post("/api/v1/organization/add", json=data, headers=headers)
+
+        assert response.status_code == 201
+        response_data = response.get_json()
+        assert response_data["code_repo_url"] == "https://github.com/test-agency"
+        assert response_data["code_repo_exempt"] is False
+
+        # Verify organization saved with code_repo_url
+        org = interface.get_organization(response_data["id"])
+        assert org.code_repo_url == "https://github.com/test-agency"
+
+    def test_add_organization_with_code_repo_exempt(self, app, client, interface):
+        """Test creating organization with exempt flag."""
+        api_token = app.config["API_TOKEN"]
+        headers = {
+            "X-API-Key": api_token,
+            "Content-Type": "application/json",
+        }
+        data = {
+            "name": "Exempt Agency",
+            "slug": "exempt-agency",
+            "code_repo_exempt": True,
+        }
+        response = client.post("/api/v1/organization/add", json=data, headers=headers)
+
+        assert response.status_code == 201
+        response_data = response.get_json()
+        assert response_data["code_repo_exempt"] is True
+        assert response_data["code_repo_url"] is None
+
+        # Verify organization saved with code_repo_exempt
+        org = interface.get_organization(response_data["id"])
+        assert org.code_repo_exempt is True
+
+    def test_add_organization_invalid_url_protocol(self, app, client):
+        """Test URL validation rejects non-http protocols."""
+        api_token = app.config["API_TOKEN"]
+        headers = {
+            "X-API-Key": api_token,
+            "Content-Type": "application/json",
+        }
+        data = {
+            "name": "Test Agency",
+            "slug": "test-agency-invalid",
+            "code_repo_url": "ftp://github.com/test",
+        }
+        response = client.post("/api/v1/organization/add", json=data, headers=headers)
+
+        assert response.status_code == 422
+        response_data = response.get_json()
+        assert "detail" in response_data
+        assert "code_repo_url" in response_data["detail"]
+        assert "URL must start with http" in str(response_data["detail"])
+
+    def test_add_organization_empty_url(self, app, client, interface):
+        """Test empty URL is accepted (field is optional)."""
+        api_token = app.config["API_TOKEN"]
+        headers = {
+            "X-API-Key": api_token,
+            "Content-Type": "application/json",
+        }
+        data = {
+            "name": "Test Agency Empty URL",
+            "slug": "test-agency-empty",
+            "code_repo_url": "",
+        }
+        response = client.post("/api/v1/organization/add", json=data, headers=headers)
+
+        assert response.status_code == 201
+        response_data = response.get_json()
+        assert response_data["code_repo_url"] is None
+
+    def test_add_organization_conflict_warning(self, app, client):
+        """Test warning appears when both URL and exempt flag set."""
+        api_token = app.config["API_TOKEN"]
+        headers = {
+            "X-API-Key": api_token,
+            "Content-Type": "application/json",
+        }
+        data = {
+            "name": "Conflicted Agency",
+            "slug": "conflicted-agency",
+            "code_repo_url": "https://github.com/test",
+            "code_repo_exempt": True,
+        }
+        response = client.post("/api/v1/organization/add", json=data, headers=headers)
+
+        # Organization should be created with a warning (not an error)
+        assert response.status_code == 201
+        response_data = response.get_json()
+        assert "warning" in response_data
+        assert "both a repository URL and an exemption" in response_data["warning"]
+        assert response_data["code_repo_url"] == "https://github.com/test"
+        assert response_data["code_repo_exempt"] is True
+
+    def test_edit_organization_add_code_repo_url(
+        self, app, client, interface, organization_data
+    ):
+        """Test editing organization to add repository URL."""
+        # Create org without URL
+        interface.add_organization(organization_data)
+
+        api_token = app.config["API_TOKEN"]
+        headers = {
+            "X-API-Key": api_token,
+            "Content-Type": "application/json",
+        }
+        data = {
+            "name": organization_data["name"],
+            "slug": organization_data["slug"],
+            "code_repo_url": "https://github.com/test-org",
+        }
+        response = client.post(
+            f"/api/v1/organization/edit/{organization_data['id']}",
+            json=data,
+            headers=headers,
+        )
+
+        assert response.status_code == 200
+        # Verify URL saved
+        updated_org = interface.get_organization(organization_data["id"])
+        assert updated_org.code_repo_url == "https://github.com/test-org"
+
+    def test_edit_organization_with_both_fields_allows_partial_update(
+        self, app, client, interface, organization_data
+    ):
+        """Test that partial updates work when org has both URL and exempt flag set."""
+        # Create org with both fields set
+        org_data = organization_data.copy()
+        org_data["code_repo_url"] = "https://github.com/test-org"
+        org_data["code_repo_exempt"] = True
+        interface.add_organization(org_data)
+
+        api_token = app.config["API_TOKEN"]
+        headers = {
+            "X-API-Key": api_token,
+            "Content-Type": "application/json",
+        }
+
+        # Update only the name (reproducing the bug scenario)
+        data = {"name": "Renamed Organization"}
+        response = client.post(
+            f"/api/v1/organization/edit/{org_data['id']}",
+            json=data,
+            headers=headers,
+        )
+
+        # Should succeed with warning
+        assert response.status_code == 200
+        response_data = response.get_json()
+        assert "warning" in response_data
+        assert "both a repository URL and an exemption" in response_data["warning"]
+
+        # Verify name was updated and fields preserved
+        updated_org = interface.get_organization(org_data["id"])
+        assert updated_org.name == "Renamed Organization"
+        assert updated_org.code_repo_url == "https://github.com/test-org"
+        assert updated_org.code_repo_exempt is True
+
+    def test_organization_detail_displays_code_repo_fields(
+        self, client, interface, organization_data
+    ):
+        """Test organization detail page shows repository fields."""
+        # Create org with code repo URL
+        org_data = organization_data.copy()
+        org_data["code_repo_url"] = "https://github.com/GSA"
+        interface.add_organization(org_data)
+
+        response = client.get(f"/organization/{org_data['id']}")
+        assert response.status_code == 200
+        response_text = response.data.decode()
+        assert (
+            "Code repo URL" in response_text or "Code Repository URL" in response_text
+        )
+        assert "https://github.com/GSA" in response_text
