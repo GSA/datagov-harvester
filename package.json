@@ -14,6 +14,9 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
-    "@mermaid-js/mermaid-cli": "^11.4.2"
+    "@mermaid-js/mermaid-cli": "^11.16.0"
+  },
+  "overrides": {
+    "puppeteer": "25.8.0"
   }
 }
