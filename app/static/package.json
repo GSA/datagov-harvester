@@ -38,15 +38,15 @@
     "@uswds/compile": "^1.3.2",
     "babelify": "^10.0.0",
     "browserify": "^17.0.1",
-    "concurrently": "^10.0.3",
+    "concurrently": "^10.0.5",
     "gulp": "^5.0.1",
-    "rollup": "^4.62.2",
+    "rollup": "^4.62.4",
     "rollup-plugin-copy": "^3.5.0",
-    "sass": "^1.101.0",
+    "sass": "^1.102.0",
     "typescript": "^7.0.2",
     "vinyl-buffer": "^1.0.1",
     "vinyl-source-stream": "^2.0.0",
-    "vite": "^8.1.5"
+    "vite": "^8.2.1"
   },
   "optionalDependencies": {
     "@rollup/rollup-linux-x64-gnu": "^4.13.2"
