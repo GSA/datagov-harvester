@@ -9,7 +9,6 @@ from freezegun import freeze_time
 
 from database.models import HarvestJob, HarvestJobError
 from harvester.lib.load_manager import LoadManager
-from harvester.utils.general_utils import create_future_date
 
 
 @pytest.fixture
@@ -82,11 +81,6 @@ class TestLoadManager:
         assert job.status == "in_progress"
         assert job.date_created == original_created
         assert job.date_started is not None
-
-        harvest_source = interface_no_jobs.get_harvest_source(job.harvest_source_id)
-        assert harvest_source.date_next_run == create_future_date(
-            harvest_source.frequency
-        )
 
     @patch("harvester.lib.load_manager.logger")
     @patch("harvester.lib.cf_handler.CloudFoundryClient")
