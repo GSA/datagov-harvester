@@ -624,3 +624,47 @@ class TestLoadManager:
         start_task_mock = CFCMock.return_value.v3.tasks.create
         assert start_task_mock.call_count == 0
         assert job.status == "new"
+
+    def test_start_job_prevents_double_start(self, interface_no_jobs, source_data_dcatus, app):
+        """Verify that calling start_job twice doesn't call start_task twice."""
+        job = interface_no_jobs.add_harvest_job({
+            "status": "new",
+            "harvest_source_id": source_data_dcatus["id"],
+        })
+
+        lm = LoadManager()
+        start_calls = []
+
+        def fake_start_task(**kwargs):
+            start_calls.append(kwargs.get("task_id"))
+
+        lm.handler.start_task = fake_start_task
+
+        with app.app_context():
+            lm.start_job(job.id, job_type="harvest")
+            lm.start_job(job.id, job_type="harvest")
+
+        assert len(start_calls) == 1
+
+    def test_revert_on_start_task_failure(
+        self, interface_no_jobs, source_data_dcatus
+    ):
+        """If starting the external task fails, the job status should be reverted."""
+        job = interface_no_jobs.add_harvest_job(
+            {
+                "status": "new",
+                "harvest_source_id": source_data_dcatus["id"],
+            }
+        )
+
+        lm = LoadManager()
+
+        def failing_start_task(**kwargs):
+            raise RuntimeError("start failed")
+
+        lm.handler.start_task = failing_start_task
+
+        lm.start_job(job.id, job_type="harvest")
+
+        db_job = interface_no_jobs.get_harvest_job(job.id)
+        assert db_job.status == "new"

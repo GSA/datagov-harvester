@@ -137,14 +137,25 @@ class LoadManager:
         """
 
         try:
-            """Check if a job is already running for this source."""
             harvest_job = interface.get_harvest_job(job_id)
+
+            # Try to atomically transition this job from 'new' -> 'in_progress'.
+            # Only update status, not date_created
+            updated = interface.update_harvest_job_if_status(
+                job_id, "new", {"status": "in_progress"}
+            )
+            if not updated:
+                return f"Can't trigger harvest. Job {job_id} already started or not in 'new' state."
+
             jobs_in_progress = interface.pget_harvest_jobs(
                 facets=f"harvest_source_id eq {harvest_job.harvest_source_id},status eq in_progress",  # noqa E501
                 per_page=1,  # Only need 1 job to know we should not start a new one
                 page=0,
             )
-            if len(jobs_in_progress):
+            if len(jobs_in_progress) and jobs_in_progress[0].id != job_id:
+                interface.update_harvest_job(
+                    job_id, {"status": "new", "date_created": harvest_job.date_created}
+                )
                 return f"Can't trigger harvest. Job {jobs_in_progress[0].id} already in progress."  # noqa E501
 
             """task manager start interface, takes a job_id"""
@@ -153,11 +164,14 @@ class LoadManager:
                 "task_id": f"harvest-job-{job_id}-{job_type}",
             }
 
-            updated_job = interface.update_harvest_job(
-                job_id, {"status": "in_progress", "date_created": get_datetime()}
-            )
-            self.handler.start_task(**task_contract)
-            message = f"Updated job {updated_job.id} to in_progress"
+            try:
+                self.handler.start_task(**task_contract)
+                message = f"Updated job {updated.id} to in_progress"
+            except Exception:
+                interface.update_harvest_job(
+                    job_id, {"status": "new", "date_created": harvest_job.date_created}
+                )
+                raise
             logger.info(message)
             return message
         except Exception as e:
