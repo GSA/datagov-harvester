@@ -625,12 +625,16 @@ class TestLoadManager:
         assert start_task_mock.call_count == 0
         assert job.status == "new"
 
-    def test_start_job_prevents_double_start(self, interface_no_jobs, source_data_dcatus, app):
+    def test_start_job_prevents_double_start(
+        self, interface_no_jobs, source_data_dcatus, app
+    ):
         """Verify that calling start_job twice doesn't call start_task twice."""
-        job = interface_no_jobs.add_harvest_job({
-            "status": "new",
-            "harvest_source_id": source_data_dcatus["id"],
-        })
+        job = interface_no_jobs.add_harvest_job(
+            {
+                "status": "new",
+                "harvest_source_id": source_data_dcatus["id"],
+            }
+        )
 
         lm = LoadManager()
         start_calls = []
@@ -646,9 +650,7 @@ class TestLoadManager:
 
         assert len(start_calls) == 1
 
-    def test_revert_on_start_task_failure(
-        self, interface_no_jobs, source_data_dcatus
-    ):
+    def test_revert_on_start_task_failure(self, interface_no_jobs, source_data_dcatus):
         """If starting the external task fails, the job status should be reverted."""
         job = interface_no_jobs.add_harvest_job(
             {

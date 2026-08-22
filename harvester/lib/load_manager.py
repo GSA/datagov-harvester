@@ -145,7 +145,10 @@ class LoadManager:
                 job_id, "new", {"status": "in_progress"}
             )
             if not updated:
-                return f"Can't trigger harvest. Job {job_id} already started or not in 'new' state."
+                return (
+                    f"Can't trigger harvest. Job {job_id} already started "
+                    f"or not in 'new' state."
+                )
 
             jobs_in_progress = interface.pget_harvest_jobs(
                 facets=f"harvest_source_id eq {harvest_job.harvest_source_id},status eq in_progress",  # noqa E501
@@ -178,7 +181,7 @@ class LoadManager:
             message = f"LoadManager: start_job failed :: {repr(e)}"
             logger.error(message)
             try:
-                updated_job = interface.update_harvest_job(
+                interface.update_harvest_job(
                     job_id, {"status": "new", "date_created": get_datetime()}
                 )
             except Exception as e:
