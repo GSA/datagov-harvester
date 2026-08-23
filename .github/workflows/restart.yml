@@ -10,6 +10,7 @@ permissions:
     contents: read
     id-token: write
     actions: write
+    issues: write
 
 jobs:
   restart:
@@ -42,7 +43,7 @@ jobs:
         uses: JasonEtco/create-an-issue@v2
         continue-on-error: true
         env:
-          GITHUB_TOKEN: ${{ secrets.ADD_TO_PROJECT_PAT }}
+          GITHUB_TOKEN: ${{ github.token }}
           GITHUB_JOB: ${{ github.job }}
           GITHUB_ATTEMPTS: ${{ github.run_attempt }}
           LAST_COMMIT: ${{ github.sha }}
@@ -50,5 +51,5 @@ jobs:
           RUN_ID: ${{ github.run_id }}
           REPO: ${{ github.repository }}
         with:
-          filename: harvester/.github/restart_failure.md
+          filename: .github/restart_failure.md
           update_existing: true
