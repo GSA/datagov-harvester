@@ -23,6 +23,7 @@ jobs:
     with:
       workflow_file: deploy.yml
       branch: main
+      fallback_workflow_file: release-space.yml
 
   release-staging:
     name: Release staging
