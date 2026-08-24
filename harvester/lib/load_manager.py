@@ -150,12 +150,14 @@ class LoadManager:
                     f"or not in 'new' state."
                 )
 
+            # Excludes this job via facets, so any result here means
+            # another job is already in progress; we only need 1 to confirm that.
             jobs_in_progress = interface.pget_harvest_jobs(
-                facets=f"harvest_source_id eq {harvest_job.harvest_source_id},status eq in_progress",  # noqa E501
-                per_page=1,  # Only need 1 job to know we should not start a new one
+                facets=f"harvest_source_id eq {harvest_job.harvest_source_id},status eq in_progress,id ne {job_id}",  # noqa E501
+                per_page=1,
                 page=0,
             )
-            if len(jobs_in_progress) and jobs_in_progress[0].id != job_id:
+            if len(jobs_in_progress):
                 interface.update_harvest_job(
                     job_id, {"status": "new", "date_created": harvest_job.date_created}
                 )
