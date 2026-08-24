@@ -72,3 +72,43 @@ class TestRecordSyncStatus:
 
         assert result is True
         assert mock_record._status == "success"
+
+
+class TestDatasetPayloadIsPartOf:
+    """isPartOf: null is valid per the DCAT-US 1.1 schema, but it shouldn't
+    be persisted as-is: downstream consumers (search facets, the catalog
+    UI) can't tell it apart from a real collection reference."""
+
+    def _make_record(self):
+        record = Record.__new__(Record)
+        record._harvest_source = MagicMock()
+        record._dataset_slug = "test-slug"
+        record._date_finished = "2024-01-01T00:00:00"
+        record._id = "record-123"
+        return record
+
+    def test_drops_null_ispartof(self):
+        payload = self._make_record()._dataset_payload(
+            {"title": "Test", "isPartOf": None}
+        )
+
+        assert "isPartOf" not in payload["dcat"]
+
+    def test_drops_empty_string_ispartof(self):
+        payload = self._make_record()._dataset_payload(
+            {"title": "Test", "isPartOf": ""}
+        )
+
+        assert "isPartOf" not in payload["dcat"]
+
+    def test_keeps_real_ispartof(self):
+        payload = self._make_record()._dataset_payload(
+            {"title": "Test", "isPartOf": "https://example.gov/collection"}
+        )
+
+        assert payload["dcat"]["isPartOf"] == "https://example.gov/collection"
+
+    def test_keeps_metadata_unchanged_when_no_ispartof(self):
+        payload = self._make_record()._dataset_payload({"title": "Test"})
+
+        assert "isPartOf" not in payload["dcat"]

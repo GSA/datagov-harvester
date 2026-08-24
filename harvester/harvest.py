@@ -1367,7 +1367,7 @@ class Record:
 
         payload = {
             "slug": self.dataset_slug,
-            "dcat": metadata,
+            "dcat": self._without_empty_ispartof(metadata),
             "organization_id": self.harvest_source.organization_id,
             "harvest_source_id": self.harvest_source.id,
             "harvest_record_id": self.id,
@@ -1391,6 +1391,19 @@ class Record:
             pass
 
         return payload
+
+    @staticmethod
+    def _without_empty_ispartof(metadata: dict) -> dict:
+        """Drop a falsy ``isPartOf`` before it's persisted as dataset dcat.
+
+        Some publishers include an explicit ``"isPartOf": null`` for
+        datasets that aren't part of any collection; DCAT-US 1.1 permits
+        this, but downstream consumers (search facets, the catalog UI)
+        can't distinguish it from a real collection reference.
+        """
+        if metadata.get("isPartOf"):
+            return metadata
+        return {k: v for k, v in metadata.items() if k != "isPartOf"}
 
     def _index_dataset_in_opensearch(self, dataset) -> None:
         client = self.harvest_source.opensearch
