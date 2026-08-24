@@ -1647,7 +1647,15 @@ def build_dcatus3_validator(
     """
     registry = Registry()
 
-    for schema_file in definitions_dir.glob("*.json"):
+    schema_files = sorted(definitions_dir.glob("*.json"))
+    if not schema_files:
+        raise FileNotFoundError(
+            f"no JSON Schema definitions found in {definitions_dir}. "
+            "DCAT-US 3.0 definitions come from the GSA/dcat-us git submodule; "
+            "run `git submodule update --init _external/dcat-us`."
+        )
+
+    for schema_file in schema_files:
         schema = open_json(schema_file)
         registry = registry.with_resource(
             uri=schema["$id"],

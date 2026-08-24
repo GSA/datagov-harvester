@@ -18,7 +18,7 @@ DCAT-US 3.0 JSON Schema already rejects. The schema owns type, format, length,
 and enum checks; this module owns content-and-semantics checks on values the
 schema accepts. Guards that narrow input (e.g. `isinstance`) exist to defer to
 the schema, not to restate it. Add a rule only after checking the field under
-`schemas/dcatus3.0/definitions/`.
+`_external/dcat-us/jsonschema/definitions/` (the GSA/dcat-us submodule).
 
 Known limitation: there is no universal `@id` IRI walk. An `@id` on an object
 the schema does not define (e.g. an ad hoc `extension`) produces no signal,
