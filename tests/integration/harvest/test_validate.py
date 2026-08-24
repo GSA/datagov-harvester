@@ -642,8 +642,11 @@ class TestValidateWarnings:
         source_data_dcatus3_0_invalid,
         job_data_dcatus3_0_invalid,
     ):
-        """An invalid record that also warns is counted as errored and warned,
-        and reporting the warning must not clobber the record's error status."""
+        """An invalid record that also warns is counted as errored and warned.
+
+        The error and warning must come from independent defects (missing
+        `contactPoint` vs an unknown `language` code), not the same value twice.
+        """
         test_record = self._first_dcatus3_record(
             interface,
             organization_data,
@@ -654,9 +657,8 @@ class TestValidateWarnings:
         # give the record a real db id so we can assert its persisted status
         test_record.compare()
 
-        # a bad @id is both a schema error (format: iri) and an invalid_iri warning
         record = json.loads(test_record.source_raw)
-        record["@id"] = "not a valid iri"
+        record["language"] = ["zz"]
         test_record._source_raw = json.dumps(record)
 
         assert not test_record.validate()
@@ -673,7 +675,82 @@ class TestValidateWarnings:
         warnings = interface.get_harvest_record_errors_by_job(
             harvest_source.job_id, severity="warning"
         )
-        assert any(w[0].type == "invalid_iri" for w in warnings)
+        assert any(w[0].type == "invalid_language" for w in warnings)
+
+    def test_warnings_are_segregated_per_record_end_to_end(
+        self,
+        interface,
+        organization_data,
+        source_data_dcatus3_0_warning,
+        job_data_dcatus3_0_warning,
+    ):
+        """Warnings from a real harvest land on the right records at the right
+        severity, with no in-memory patching of source_raw.
+
+        The other tests in this class mutate a single record's source_raw to
+        trip a rule. This one harvests a fixture authored to warn
+        (example_data/dcatus/dcatus3_0_warning.json), so it also covers what
+        those cannot: that warnings are attributed per record rather than
+        pooled on the job, and that a warning-free record in the same job
+        stays clean. get_harvest_record_errors_by_record is the call that
+        backs GET /api/harvest_record/<id>/errors.
+        """
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_dcatus3_0_warning)
+        harvest_job = interface.add_harvest_job(job_data_dcatus3_0_warning)
+
+        harvest_source = HarvestSource(harvest_job.id)
+        harvest_source.acquire_minimum_external_data()
+
+        # compare() gives each record a db id, so warnings can be traced back
+        # to the record that caused them
+        records = {}
+        for record in harvest_source.external_records_to_process():
+            record.compare()
+            assert record.validate(), f"{record.identifier} should be schema-valid"
+            records[record.identifier] = record
+
+        assert len(records) == 3
+
+        # every dataset in the fixture is schema-valid: warnings only
+        assert harvest_source.reporter.errored == 0
+        assert harvest_source.reporter.validated == 3
+        assert harvest_source.reporter.warned == 2
+
+        stored_job = interface.get_harvest_job(harvest_job.id)
+        assert stored_job.records_warned == 2
+
+        # job-level reads default to all issues (#799), so the warnings show up
+        # there; narrowing to errors is what comes back empty
+        job_issues = interface.get_harvest_record_errors_by_job(harvest_job.id)
+        assert {issue[0].severity for issue in job_issues} == {"warning"}
+        assert (
+            interface.get_harvest_record_errors_by_job(harvest_job.id, severity="error")
+            == []
+        )
+
+        warned = {
+            "https://example.gov/datasets/warning-one": "date_out_of_order",
+            "https://example.gov/datasets/warning-two": "invalid_media_type",
+        }
+        for identifier, expected_type in warned.items():
+            record_id = records[identifier].id
+            warnings = interface.get_harvest_record_errors_by_record(
+                record_id, severity="warning"
+            )
+            assert [w.type for w in warnings] == [expected_type]
+            assert warnings[0].severity == "warning"
+
+            # the same record has no errors, so the default read is empty
+            assert interface.get_harvest_record_errors_by_record(record_id) == []
+
+        # the clean record in the same job carries no issues at either severity
+        clean_id = records["https://example.gov/datasets/warning-three"].id
+        assert interface.get_harvest_record_errors_by_record(clean_id) == []
+        assert (
+            interface.get_harvest_record_errors_by_record(clean_id, severity="warning")
+            == []
+        )
 
     def test_non_dcatus3_record_is_not_warned(
         self,

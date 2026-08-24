@@ -42,6 +42,16 @@
                 <td>{{ key | humanize }}</td>
                 {% if key == 'logo' %}
                 <td class="word-break-all"><a href="{{value}}" target="_blank">{{value}}</a>{{ 'launch' | usa_icon | safe }}</td>
+                {% elif key == 'code_repo_url' and value %}
+                <td class="word-break-all"><a href="{{value}}" target="_blank" rel="noopener noreferrer">{{value}}</a>{{ 'launch' | usa_icon | safe }}</td>
+                {% elif key == 'code_repo_exempt' %}
+                <td class="word-break-all">
+                    {% if value %}
+                        <span class="usa-tag usa-tag--big">OMB-approved exemption</span>
+                    {% else %}
+                        No
+                    {% endif %}
+                </td>
                 {% elif value is iterable and value is not string %}
                 <td class="word-break-all">{{ value | join(', ') if value else 'N/A' }}</td>
                 {% else %}
@@ -49,6 +59,19 @@
                 {% endif %}
             </tr>
             {% endfor %}
+            {% if data.organization.code_repo_url and data.organization.code_repo_exempt %}
+            <tr>
+                <td colspan="2">
+                    <div class="usa-alert usa-alert--warning usa-alert--slim" role="alert">
+                        <div class="usa-alert__body">
+                            <p class="usa-alert__text">
+                                Warning: This organization has both a repository URL and an exemption flag set.
+                            </p>
+                        </div>
+                    </div>
+                </td>
+            </tr>
+            {% endif %}
         </table>
     </div>
     {% if session['user'] %}

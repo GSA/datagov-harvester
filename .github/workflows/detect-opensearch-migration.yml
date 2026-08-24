@@ -1,0 +1,72 @@
+name: Detect OpenSearch migration
+
+on:
+  workflow_call:
+    inputs:
+      workflow_file:
+        description: "Top-level workflow file whose last success is the watermark"
+        required: true
+        type: string
+      branch:
+        description: "Branch deployed by the calling workflow"
+        required: true
+        type: string
+      fallback_workflow_file:
+        description: "Previous release workflow used only when the primary has no history"
+        required: false
+        default: ""
+        type: string
+    outputs:
+      migration_needed:
+        description: "Whether a merged PR since the watermark requires migration"
+        value: ${{ jobs.detect.outputs.migration_needed }}
+      pr_numbers:
+        description: "Comma-separated PR numbers carrying the migration label"
+        value: ${{ jobs.detect.outputs.pr_numbers }}
+      base_sha:
+        description: "Last successfully released commit"
+        value: ${{ jobs.detect.outputs.base_sha }}
+
+permissions:
+  contents: read
+
+jobs:
+  detect:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      pull-requests: read
+    outputs:
+      migration_needed: ${{ steps.detect.outputs.migration_needed }}
+      pr_numbers: ${{ steps.detect.outputs.pr_numbers }}
+      base_sha: ${{ steps.detect.outputs.base_sha }}
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v7
+
+      - name: Detect migration label
+        id: detect
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          FALLBACK_WORKFLOW_FILE: ${{ inputs.fallback_workflow_file }}
+        run: >-
+          .github/scripts/detect-opensearch-migration-label.sh
+          "$GITHUB_SHA"
+          "${{ inputs.workflow_file }}"
+          "${{ inputs.branch }}"
+
+      - name: Summarize result
+        env:
+          MIGRATION_NEEDED: ${{ steps.detect.outputs.migration_needed }}
+          PR_NUMBERS: ${{ steps.detect.outputs.pr_numbers }}
+          BASE_SHA: ${{ steps.detect.outputs.base_sha }}
+        run: |
+          {
+            echo "### OpenSearch migration detection"
+            echo
+            echo "- Last successful release: \`${BASE_SHA}\`"
+            echo "- Migration required: \`${MIGRATION_NEEDED}\`"
+            echo "- Labeled PRs: \`${PR_NUMBERS:-none}\`"
+          } >> "$GITHUB_STEP_SUMMARY"

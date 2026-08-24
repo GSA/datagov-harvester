@@ -7,7 +7,7 @@ import pytest
 from cloudfoundry_client.errors import InvalidStatusCode
 from freezegun import freeze_time
 
-from database.models import HarvestJobError
+from database.models import HarvestJob, HarvestJobError
 from harvester.lib.load_manager import LoadManager
 from harvester.utils.general_utils import create_future_date
 
@@ -31,7 +31,6 @@ def all_tasks_json_fixture():
 
 @freeze_time("Jan 14th, 2012")
 class TestLoadManager:
-
     @patch("harvester.lib.cf_handler.CloudFoundryClient")
     @patch("harvester.lib.load_manager.MAX_TASKS_COUNT", 3)
     def test_load_manager_invokes_tasks(
@@ -82,7 +81,6 @@ class TestLoadManager:
         assert job.status == "in_progress"
 
         # assert schedule_next_job ops
-        # ruff: noqa: E501
         future_job = interface_no_jobs.get_new_harvest_jobs_by_source_in_future(
             job.harvest_source_id
         )[0]
@@ -363,7 +361,10 @@ class TestLoadManager:
                 "guid": task_guid_val,
                 "sequence_id": 197,
                 "name": f"harvest-job-{jobs[0].id}-harvest",
-                "command": "python harvester/harvest.py 47442c62-716d-4678-947c-61990106685f harvest",
+                "command": (
+                    "python harvester/harvest.py "
+                    "47442c62-716d-4678-947c-61990106685f harvest"
+                ),
                 "state": "RUNNING",
                 "memory_in_mb": 1536,
                 "disk_in_mb": 4096,
@@ -413,7 +414,10 @@ class TestLoadManager:
                 "guid": "3a24b55a02b0-eb7b-4eeb-9f45-645cedd3d93b",
                 "sequence_id": 197,
                 "name": f"harvest-job-{jobs[0].id}-harvest",
-                "command": "python harvester/harvest.py 47442c62-716d-4678-947c-61990106685f harvest",
+                "command": (
+                    "python harvester/harvest.py "
+                    "47442c62-716d-4678-947c-61990106685f harvest"
+                ),
                 "state": "CANCELING",
                 "memory_in_mb": 1536,
                 "disk_in_mb": 4096,
@@ -549,6 +553,7 @@ class TestLoadManager:
             interface_no_jobs.add_harvest_job(job)
 
         jobs = interface_no_jobs.get_new_harvest_jobs_in_past()
+        job_ids = [job.id for job in jobs]
         assert len(jobs) == 2
         for job in jobs:
             assert job.status == "new"
@@ -559,8 +564,11 @@ class TestLoadManager:
         load_manager = LoadManager()
         load_manager._start_new_jobs(check_from_task=True)
 
+        jobs = [interface_no_jobs.db.get(HarvestJob, job_id) for job_id in job_ids]
+
         # one task created
         start_task_mock = CFCMock.return_value.v3.tasks.create
+
         assert start_task_mock.call_count == 1
         # first job is in progress
         assert jobs[0].status == "in_progress"
