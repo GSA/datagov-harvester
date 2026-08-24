@@ -19,6 +19,7 @@ Scheduled harvesting remains disabled and requires operator review.
 | Monitor validation | {{ env.VALIDATE_MONITOR_RESULT }} |
 | Delete temporary app | {{ env.DELETE_TEMP_RESULT }} |
 | Promote services | {{ env.PROMOTE_RESULT }} |
+| Record fingerprint | {{ env.RECORD_RESULT }} |
 | Deploy canonical app | {{ env.DEPLOY_RESULT }} |
 | Restart catalog | {{ env.CATALOG_RESULT }} |
 | Clean up old cluster | {{ env.CLEANUP_RESULT }} |
@@ -27,4 +28,7 @@ Scheduled harvesting remains disabled and requires operator review.
 - Workflow: {{ workflow }}
 - Commit: {{ env.LAST_COMMIT }}
 - Run: https://github.com/{{ env.REPO }}/actions/runs/{{ env.RUN_ID }}
-- Triggering migration PR(s): {{ env.MIGRATION_PRS }}
+- Declared schema fingerprint: {{ env.FINGERPRINT }}
+
+If `Record fingerprint` did not succeed, the space still has the previous
+fingerprint recorded and the next release will attempt this rebuild again.

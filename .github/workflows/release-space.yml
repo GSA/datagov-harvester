@@ -8,23 +8,73 @@ on:
         required: true
         type: string
       migrate_opensearch:
-        description: "Run the replacement-cluster migration before deploying"
+        description: "Rebuild the index even when the schema fingerprint matches"
         required: false
         default: false
         type: boolean
-      migration_prs:
-        description: "PR numbers that requested the migration"
-        required: false
-        default: ""
-        type: string
 
 permissions:
   contents: read
   issues: write
 
 jobs:
+  detect-drift:
+    name: Detect schema drift (${{ inputs.space }})
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.space }}
+    env:
+      HARVEST_APP: datagov-harvest
+    outputs:
+      migrate: ${{ steps.decide.outputs.migrate }}
+      fingerprint: ${{ steps.fingerprint.outputs.value }}
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v7
+
+      - name: Compute the declared schema fingerprint
+        id: fingerprint
+        run: echo "value=$(python3 -m search.fingerprint)" >> "$GITHUB_OUTPUT"
+
+      - name: Compare the declared schema against the live index
+        uses: cloud-gov/cg-cli-tools@main
+        with:
+          command: >
+            bin/detect_opensearch_mapping_drift.sh
+            "${{ steps.fingerprint.outputs.value }}" "$HARVEST_APP"
+          cf_org: gsa-datagov
+          cf_space: ${{ inputs.space }}
+          cf_username: ${{ secrets.CF_SERVICE_USER }}
+          cf_password: ${{ secrets.CF_SERVICE_AUTH }}
+
+      - name: Decide whether to rebuild
+        id: decide
+        env:
+          FORCED: ${{ inputs.migrate_opensearch }}
+          FINGERPRINT: ${{ steps.fingerprint.outputs.value }}
+        run: |
+          if [[ "$FORCED" == "true" ]]; then
+            migrate=true
+            reason="Requested by the caller."
+          elif [[ -f .opensearch_mapping_drift ]]; then
+            migrate=true
+            reason=$(cat .opensearch_mapping_drift)
+          else
+            migrate=false
+            reason="The live index already matches this revision."
+          fi
+          echo "migrate=${migrate}" >> "$GITHUB_OUTPUT"
+          {
+            echo "### OpenSearch schema drift"
+            echo
+            echo "- Declared schema: \`${FINGERPRINT}\`"
+            echo "- Rebuild required: \`${migrate}\`"
+            echo
+            echo "${reason}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
   release:
     name: Release (${{ inputs.space }})
+    needs: detect-drift
     runs-on: ubuntu-latest
     timeout-minutes: 480
     environment: ${{ inputs.space }}
@@ -39,13 +89,15 @@ jobs:
       OPENSEARCH_SERVICE: datagov-catalog-opensearch
       NEXT_OPENSEARCH_SERVICE: datagov-catalog-opensearch-next
       OLD_OPENSEARCH_SERVICE: datagov-catalog-opensearch-old
+      MIGRATE: ${{ needs.detect-drift.outputs.migrate }}
+      FINGERPRINT: ${{ needs.detect-drift.outputs.fingerprint }}
     steps:
       - name: Check out the code
         uses: actions/checkout@v7
 
       - name: Disable scheduled harvesting
         id: disable
-        if: inputs.migrate_opensearch
+        if: env.MIGRATE == 'true'
         uses: cloud-gov/cg-cli-tools@main
         with:
           command: >
@@ -68,7 +120,7 @@ jobs:
 
       - name: Provision replacement OpenSearch cluster
         id: provision
-        if: inputs.migrate_opensearch
+        if: env.MIGRATE == 'true'
         uses: cloud-gov/cg-cli-tools@main
         with:
           command: >
@@ -81,7 +133,7 @@ jobs:
 
       - name: Push temporary task app
         id: push_temp
-        if: inputs.migrate_opensearch
+        if: env.MIGRATE == 'true'
         uses: ./.github/actions/deploy
         with:
           cf_space: ${{ env.CF_SPACE }}
@@ -94,7 +146,7 @@ jobs:
 
       - name: Verify replacement service bindings
         id: bind
-        if: inputs.migrate_opensearch
+        if: env.MIGRATE == 'true'
         uses: cloud-gov/cg-cli-tools@main
         with:
           command: >
@@ -106,14 +158,14 @@ jobs:
           cf_password: ${{ secrets.CF_SERVICE_AUTH }}
 
       - name: Name replacement-cluster task
-        if: inputs.migrate_opensearch
+        if: env.MIGRATE == 'true'
         run: |
           echo "REBUILD_TASK=search-rebuild-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_ENV"
           echo "VERIFY_TASK=search-verify-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_ENV"
 
       - name: Run migrations and populate replacement cluster
         id: rebuild
-        if: inputs.migrate_opensearch
+        if: env.MIGRATE == 'true'
         uses: cloud-gov/cg-cli-tools@main
         with:
           command: >
@@ -126,7 +178,7 @@ jobs:
 
       - name: Monitor replacement-cluster task
         id: monitor
-        if: inputs.migrate_opensearch
+        if: env.MIGRATE == 'true'
         uses: cloud-gov/cg-cli-tools@main
         with:
           command: bin/monitor_cf_logs.sh "$TEMP_HARVEST_APP" "$REBUILD_TASK"
@@ -137,7 +189,7 @@ jobs:
 
       - name: Validate replacement cluster
         id: validate
-        if: inputs.migrate_opensearch
+        if: env.MIGRATE == 'true'
         uses: cloud-gov/cg-cli-tools@main
         with:
           command: >
@@ -151,7 +203,7 @@ jobs:
 
       - name: Monitor replacement-cluster validation
         id: validate_monitor
-        if: inputs.migrate_opensearch
+        if: env.MIGRATE == 'true'
         uses: cloud-gov/cg-cli-tools@main
         with:
           command: bin/monitor_cf_logs.sh "$TEMP_HARVEST_APP" "$VERIFY_TASK"
@@ -162,7 +214,7 @@ jobs:
 
       - name: Delete temporary task app
         id: delete_temp
-        if: always() && inputs.migrate_opensearch
+        if: always() && env.MIGRATE == 'true'
         uses: cloud-gov/cg-cli-tools@main
         with:
           command: >
@@ -176,12 +228,28 @@ jobs:
 
       - name: Promote replacement service
         id: promote
-        if: inputs.migrate_opensearch
+        if: env.MIGRATE == 'true'
         uses: cloud-gov/cg-cli-tools@main
         with:
           command: >
             bin/promote_opensearch_cluster.sh
             "$NEXT_OPENSEARCH_SERVICE" "$OPENSEARCH_SERVICE" "$CATALOG_APP"
+          cf_org: gsa-datagov
+          cf_space: ${{ env.CF_SPACE }}
+          cf_username: ${{ secrets.CF_SERVICE_USER }}
+          cf_password: ${{ secrets.CF_SERVICE_AUTH }}
+
+      # The promoted index now matches this revision's schema. Recording it here,
+      # before the canonical push, keeps the value truthful even if a later step
+      # fails: the rebuild happened, so the next release must not repeat it.
+      - name: Record the promoted schema fingerprint
+        id: record
+        if: env.MIGRATE == 'true'
+        uses: cloud-gov/cg-cli-tools@main
+        with:
+          command: >
+            bin/record_opensearch_mapping_fingerprint.sh
+            "$FINGERPRINT" "$HARVEST_APP"
           cf_org: gsa-datagov
           cf_space: ${{ env.CF_SPACE }}
           cf_username: ${{ secrets.CF_SERVICE_USER }}
@@ -193,7 +261,7 @@ jobs:
         with:
           cf_space: ${{ env.CF_SPACE }}
           command: >-
-            ${{ inputs.migrate_opensearch
+            ${{ needs.detect-drift.outputs.migrate == 'true'
               && 'cf push datagov-harvest --strategy rolling'
               || 'cf push datagov-harvest --strategy rolling --no-wait' }}
           cf_username: ${{ secrets.CF_SERVICE_USER }}
@@ -201,7 +269,7 @@ jobs:
 
       - name: Restart catalog on the promoted service
         id: restart_catalog
-        if: inputs.migrate_opensearch
+        if: env.MIGRATE == 'true'
         uses: cloud-gov/cg-cli-tools@main
         with:
           command: bin/restart_catalog.sh "$CATALOG_APP"
@@ -212,7 +280,7 @@ jobs:
 
       - name: Remove or retain the retired cluster
         id: cleanup
-        if: inputs.migrate_opensearch
+        if: env.MIGRATE == 'true'
         uses: cloud-gov/cg-cli-tools@main
         with:
           command: >
@@ -224,7 +292,7 @@ jobs:
           cf_password: ${{ secrets.CF_SERVICE_AUTH }}
 
       - name: Load deferred-cleanup reason
-        if: inputs.migrate_opensearch && hashFiles('.opensearch_cleanup_required') != ''
+        if: env.MIGRATE == 'true' && hashFiles('.opensearch_cleanup_required') != ''
         run: |
           {
             echo "CLEANUP_REASON<<EOF"
@@ -233,7 +301,7 @@ jobs:
           } >> "$GITHUB_ENV"
 
       - name: Create retired-cluster cleanup issue
-        if: inputs.migrate_opensearch && hashFiles('.opensearch_cleanup_required') != ''
+        if: env.MIGRATE == 'true' && hashFiles('.opensearch_cleanup_required') != ''
         uses: JasonEtco/create-an-issue@v2
         env:
           GITHUB_TOKEN: ${{ github.token }}
@@ -271,7 +339,7 @@ jobs:
 
       - name: Re-enable scheduled harvesting
         id: enable
-        if: success() && inputs.migrate_opensearch
+        if: success() && env.MIGRATE == 'true'
         uses: cloud-gov/cg-cli-tools@main
         with:
           command: >
@@ -283,7 +351,7 @@ jobs:
           cf_password: ${{ secrets.CF_SERVICE_AUTH }}
 
       - name: Create migration failure issue
-        if: failure() && inputs.migrate_opensearch
+        if: failure() && env.MIGRATE == 'true'
         uses: JasonEtco/create-an-issue@v2
         env:
           GITHUB_TOKEN: ${{ github.token }}
@@ -291,7 +359,7 @@ jobs:
           LAST_COMMIT: ${{ github.sha }}
           RUN_ID: ${{ github.run_id }}
           REPO: ${{ github.repository }}
-          MIGRATION_PRS: ${{ inputs.migration_prs }}
+          FINGERPRINT: ${{ env.FINGERPRINT }}
           DISABLE_RESULT: ${{ steps.disable.outcome }}
           CREATE_SERVICES_RESULT: ${{ steps.create_services.outcome }}
           PROVISION_RESULT: ${{ steps.provision.outcome }}
@@ -303,6 +371,7 @@ jobs:
           VALIDATE_MONITOR_RESULT: ${{ steps.validate_monitor.outcome }}
           DELETE_TEMP_RESULT: ${{ steps.delete_temp.outcome }}
           PROMOTE_RESULT: ${{ steps.promote.outcome }}
+          RECORD_RESULT: ${{ steps.record.outcome }}
           DEPLOY_RESULT: ${{ steps.deploy.outcome }}
           CATALOG_RESULT: ${{ steps.restart_catalog.outcome }}
           CLEANUP_RESULT: ${{ steps.cleanup.outcome }}

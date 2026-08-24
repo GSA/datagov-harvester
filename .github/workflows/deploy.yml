@@ -13,34 +13,19 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  detect-opensearch-migration:
-    name: Detect OpenSearch migration
-    permissions:
-      actions: read
-      contents: read
-      pull-requests: read
-    uses: ./.github/workflows/detect-opensearch-migration.yml
-    with:
-      workflow_file: deploy.yml
-      branch: main
-
   release-staging:
     name: Release staging
-    needs: detect-opensearch-migration
     permissions:
       contents: read
       issues: write
     uses: ./.github/workflows/release-space.yml
     with:
       space: staging
-      migrate_opensearch: ${{ needs.detect-opensearch-migration.outputs.migration_needed == 'true' }}
-      migration_prs: ${{ needs.detect-opensearch-migration.outputs.pr_numbers }}
     secrets: inherit
 
   release-prod:
     name: Release production
     needs:
-      - detect-opensearch-migration
       - release-staging
     permissions:
       contents: read
@@ -48,20 +33,16 @@ jobs:
     uses: ./.github/workflows/release-space.yml
     with:
       space: prod
-      migrate_opensearch: ${{ needs.detect-opensearch-migration.outputs.migration_needed == 'true' }}
-      migration_prs: ${{ needs.detect-opensearch-migration.outputs.pr_numbers }}
     secrets: inherit
 
   disable-on-release-failure:
     name: Disable automatic deployments
     needs:
-      - detect-opensearch-migration
       - release-staging
       - release-prod
     if: >-
       ${{ always()
-      && (needs.detect-opensearch-migration.result == 'failure'
-      || needs.release-staging.result == 'failure'
+      && (needs.release-staging.result == 'failure'
       || needs.release-prod.result == 'failure') }}
     runs-on: ubuntu-latest
     permissions:

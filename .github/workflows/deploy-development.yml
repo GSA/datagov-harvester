@@ -13,40 +13,23 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  detect-opensearch-migration:
-    name: Detect OpenSearch migration
-    permissions:
-      actions: read
-      contents: read
-      pull-requests: read
-    uses: ./.github/workflows/detect-opensearch-migration.yml
-    with:
-      workflow_file: deploy-development.yml
-      fallback_workflow_file: commit.yml
-      branch: develop
-
   release-development:
     name: Release development
-    needs: detect-opensearch-migration
     permissions:
       contents: read
       issues: write
     uses: ./.github/workflows/release-space.yml
     with:
       space: development
-      migrate_opensearch: ${{ needs.detect-opensearch-migration.outputs.migration_needed == 'true' }}
-      migration_prs: ${{ needs.detect-opensearch-migration.outputs.pr_numbers }}
     secrets: inherit
 
   disable-on-release-failure:
     name: Disable automatic development deployments
     needs:
-      - detect-opensearch-migration
       - release-development
     if: >-
       ${{ always()
-      && (needs.detect-opensearch-migration.result == 'failure'
-      || needs.release-development.result == 'failure') }}
+      && needs.release-development.result == 'failure' }}
     runs-on: ubuntu-latest
     permissions:
       actions: write
