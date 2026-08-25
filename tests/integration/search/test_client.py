@@ -28,6 +28,7 @@ def test_mappings_include_catalog_compatible_fields():
     normalizer = client.SETTINGS["analysis"]["normalizer"][client.KEYWORD_NORMALIZER]
 
     assert mappings["dcat"]["properties"]["isPartOf"] == {"type": "keyword"}
+    assert mappings["parent_identifier"] == {"type": "keyword"}
     assert mappings["theme"] == {
         "type": "text",
         "analyzer": client.TEXT_ANALYZER,

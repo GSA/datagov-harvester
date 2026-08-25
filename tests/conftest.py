@@ -1695,7 +1695,9 @@ def sample_dataset():
         organization=DummyOrg(),
         popularity=7,
         harvest_record_id="hr-1",
-        harvest_record=SimpleNamespace(source_transform={"title": "Transformed"}),
+        harvest_record=SimpleNamespace(
+            source_transform={"title": "Transformed"}, parent_identifier="parent-1"
+        ),
     )
 
 
