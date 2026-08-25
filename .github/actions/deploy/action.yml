@@ -45,6 +45,12 @@ runs:
   steps:
     - name: checkout
       uses: actions/checkout@v4
+      with:
+        # cf push uploads this working tree, so the DCAT-US 3.0 schemas in
+        # _external/dcat-us have to be present here or the deployed app has none.
+        # This step re-checks-out over the caller's workspace, so it is the one
+        # that decides what ships.
+        submodules: true
 
     - name: Install node.js
       uses: actions/setup-node@v4
