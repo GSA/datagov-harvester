@@ -921,16 +921,20 @@ class TestSortDataset:
             "identifier": "a",
         }
 
-        assert sort_dataset(a) == sort_dataset(b)
+        # dict equality ignores key order, but json.dumps (what harvest.py
+        # actually hashes) does not -- compare the serialized form so this
+        # test would fail if dict keys weren't also being sorted.
+        assert json.dumps(sort_dataset(a)) == json.dumps(sort_dataset(b))
 
     def test_sort_handles_nested_dict_values_that_cannot_be_ordered(self):
         """
         regression test for https://github.com/GSA/data.gov/issues/5450
 
         harvested records can carry vendor-specific fields (e.g. ArcGIS's
-        "metadata" field) whose list elements are dicts with dict-valued
-        keys. python can't order dicts with `<`/`>`, which crashed the
-        third-party sansjson library this function used to delegate to.
+        "metadata" field) whose list elements are dicts sharing a first key
+        with dict-valued, unequal values. python can't order dicts with
+        `<`/`>`, which crashed the third-party sansjson library this
+        function used to delegate to.
         """
         record = {
             "identifier": "https://www.arcgis.com/home/item.html?id=bd1b6ee9",
@@ -939,26 +943,59 @@ class TestSortDataset:
                 "spatRepInfo": {"VectSpatRep": {"geometObjs": {"geoObjCnt": 5}}},
             },
             "fields": [
-                {"name": "OBJECTID", "domain": {"codedValues": [{"code": "US"}]}},
-                {"name": "STATE", "domain": None},
+                {"name": "A", "domain": {"codedValues": [{"code": "US"}]}},
+                {"name": "B", "domain": {"codedValues": [{"code": "CA"}]}},
             ],
         }
 
-        sorted_record = sort_dataset(record)
+        sorted_record = sort_dataset(record)  # should not raise
 
         assert (
             sorted_record["metadata"]["mdContact"]["rpCntInfo"]["cntAddress"]["city"]
             == "Washington"
         )
-        assert {f["name"] for f in sorted_record["fields"]} == {"OBJECTID", "STATE"}
+        assert {f["name"] for f in sorted_record["fields"]} == {"A", "B"}
 
     def test_sort_orders_dict_keys_alphabetically(self):
         assert list(sort_dataset({"b": 1, "a": 2}).keys()) == ["a", "b"]
 
-    def test_sort_recurses_into_nested_structures(self):
+    def test_sort_recurses_into_dict_elements_of_a_list(self):
         record = {"distribution": [{"z": 1, "a": 2}]}
 
         assert list(sort_dataset(record)["distribution"][0].keys()) == ["a", "z"]
+
+    def test_sort_orders_numeric_lists_by_value_not_json_string(self):
+        # "10" sorts before "2" as a json/string value, but should not here
+        assert sort_dataset([2, 10, 1]) == [1, 2, 10]
+
+    def test_sort_orders_string_lists_naturally(self):
+        # a naive `key=lambda i: json.dumps(i)` sorts "food safety" before
+        # "food", because a quote (0x22) sorts after a space (0x20) --
+        # breaking hash stability for the common "keyword"/"keyword extra"
+        # pattern in harvested keyword lists.
+        assert sort_dataset(["food safety", "food", "foodborne"]) == [
+            "food",
+            "food safety",
+            "foodborne",
+        ]
+
+    def test_sort_does_not_reorder_elements_of_a_nested_list(self):
+        """
+        a list nested directly inside another list (e.g. a GeoJSON
+        coordinate pair, or ring of coordinate pairs) is positional, not an
+        unordered collection -- sorting into it would silently corrupt
+        geometry (e.g. swapping a [lon, lat] pair, or breaking a closed
+        ring). sort_dataset must leave nested list contents untouched.
+        """
+        ring = [
+            [-77.119759, 38.791645],
+            [-76.909393, 38.791645],
+            [-76.909393, 38.99538],
+            [-77.119759, 38.99538],
+            [-77.119759, 38.791645],
+        ]
+
+        assert sort_dataset({"coordinates": [ring]})["coordinates"] == [ring]
 
 
 class TestDcatus3Catalog:

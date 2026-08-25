@@ -404,22 +404,46 @@ def convert_set_to_list(obj):
     raise TypeError
 
 
-def sort_dataset(d):
-    """recursively sort dict keys and list elements into a deterministic,
-    canonical order so semantically identical records hash the same
-    regardless of source key/list ordering.
+def _sort_dataset_list_item_key(item):
+    """type-ranked sort key for an element of a list being canonicalized by
+    sort_dataset, so elements are never compared to each other directly with
+    python's `<`/`>` -- which raises for dicts, and for a list containing
+    a mix of types (e.g. str and int).
 
-    list elements are ordered by their canonical json string rather than
-    compared directly, since harvested records can carry vendor-specific
-    fields (e.g. ArcGIS metadata) whose values are dicts, and dicts don't
-    support ordering comparisons (`<`/`>`) in python.
+    ranks put same-typed values through their natural ordering (so e.g.
+    string lists sort the same way python's default `sorted()` would,
+    rather than by their quoted json representation, which would sort
+    "food" after "food safety" because '"' > ' ').
+    """
+    if item is None:
+        return (0,)
+    if isinstance(item, bool):
+        return (1, item)
+    if isinstance(item, (int, float)):
+        return (2, item)
+    if isinstance(item, str):
+        return (3, item)
+    if isinstance(item, list):
+        return (4, json.dumps(item, sort_keys=True))
+    return (5, json.dumps(item, sort_keys=True))  # dict
+
+
+def sort_dataset(d):
+    """recursively sort dict keys and list-of-dict elements into a
+    deterministic, canonical order so semantically identical records hash
+    the same regardless of source key/list ordering.
+
+    only dict elements of a list are recursively sorted -- a nested list
+    (e.g. a GeoJSON coordinate pair or ring) is left exactly as-is, since
+    its element order is positional/meaningful rather than an unordered
+    collection to canonicalize.
     """
     if isinstance(d, dict):
         return {k: sort_dataset(d[k]) for k in sorted(d.keys())}
     if isinstance(d, list):
         return sorted(
-            (sort_dataset(item) for item in d),
-            key=lambda item: json.dumps(item, sort_keys=True),
+            (sort_dataset(item) if isinstance(item, dict) else item for item in d),
+            key=_sort_dataset_list_item_key,
         )
     return d
 
