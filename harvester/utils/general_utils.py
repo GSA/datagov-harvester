@@ -19,7 +19,6 @@ from uuid import UUID
 
 import geojson_validator
 import requests
-import sansjson
 from bs4 import BeautifulSoup
 from jsonschema import Draft202012Validator, FormatChecker
 from jsonschema.exceptions import ValidationError
@@ -406,7 +405,23 @@ def convert_set_to_list(obj):
 
 
 def sort_dataset(d):
-    return sansjson.sort_pyobject(d)
+    """recursively sort dict keys and list elements into a deterministic,
+    canonical order so semantically identical records hash the same
+    regardless of source key/list ordering.
+
+    list elements are ordered by their canonical json string rather than
+    compared directly, since harvested records can carry vendor-specific
+    fields (e.g. ArcGIS metadata) whose values are dicts, and dicts don't
+    support ordering comparisons (`<`/`>`) in python.
+    """
+    if isinstance(d, dict):
+        return {k: sort_dataset(d[k]) for k in sorted(d.keys())}
+    if isinstance(d, list):
+        return sorted(
+            (sort_dataset(item) for item in d),
+            key=lambda item: json.dumps(item, sort_keys=True),
+        )
+    return d
 
 
 def dataset_to_hash(d):

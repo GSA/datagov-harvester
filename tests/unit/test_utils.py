@@ -40,6 +40,7 @@ from harvester.utils.general_utils import (
     prepare_distributions,
     prepare_transform_msg,
     process_job_complete_percentage,
+    sort_dataset,
     strip_dcatus3_catalog_objects,
     translate_spatial,
     translate_spatial_to_geojson,
@@ -905,6 +906,59 @@ class TestGeneralUtils:
 
         # the mediatype isn't in RESOURCE_MAPPING so format shouldn't exist
         "format" not in prepared_dcatus_doc["distribution"][-1]
+
+
+class TestSortDataset:
+    def test_sort_is_deterministic_regardless_of_key_and_list_order(self):
+        a = {
+            "identifier": "a",
+            "keyword": ["b", "a"],
+            "distribution": [{"title": "two"}, {"title": "one"}],
+        }
+        b = {
+            "distribution": [{"title": "one"}, {"title": "two"}],
+            "keyword": ["a", "b"],
+            "identifier": "a",
+        }
+
+        assert sort_dataset(a) == sort_dataset(b)
+
+    def test_sort_handles_nested_dict_values_that_cannot_be_ordered(self):
+        """
+        regression test for https://github.com/GSA/data.gov/issues/5450
+
+        harvested records can carry vendor-specific fields (e.g. ArcGIS's
+        "metadata" field) whose list elements are dicts with dict-valued
+        keys. python can't order dicts with `<`/`>`, which crashed the
+        third-party sansjson library this function used to delegate to.
+        """
+        record = {
+            "identifier": "https://www.arcgis.com/home/item.html?id=bd1b6ee9",
+            "metadata": {
+                "mdContact": {"rpCntInfo": {"cntAddress": {"city": "Washington"}}},
+                "spatRepInfo": {"VectSpatRep": {"geometObjs": {"geoObjCnt": 5}}},
+            },
+            "fields": [
+                {"name": "OBJECTID", "domain": {"codedValues": [{"code": "US"}]}},
+                {"name": "STATE", "domain": None},
+            ],
+        }
+
+        sorted_record = sort_dataset(record)
+
+        assert (
+            sorted_record["metadata"]["mdContact"]["rpCntInfo"]["cntAddress"]["city"]
+            == "Washington"
+        )
+        assert {f["name"] for f in sorted_record["fields"]} == {"OBJECTID", "STATE"}
+
+    def test_sort_orders_dict_keys_alphabetically(self):
+        assert list(sort_dataset({"b": 1, "a": 2}).keys()) == ["a", "b"]
+
+    def test_sort_recurses_into_nested_structures(self):
+        record = {"distribution": [{"z": 1, "a": 2}]}
+
+        assert list(sort_dataset(record)["distribution"][0].keys()) == ["a", "z"]
 
 
 class TestDcatus3Catalog:
