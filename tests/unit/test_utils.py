@@ -1,4 +1,5 @@
 import http
+import itertools
 import json
 import logging
 import time
@@ -996,6 +997,28 @@ class TestSortDataset:
         ]
 
         assert sort_dataset({"coordinates": [ring]})["coordinates"] == [ring]
+
+    @pytest.mark.parametrize(
+        "elements",
+        [
+            # `isinstance(True, int)` is True in python, so a bool must be
+            # ranked before the numeric check -- otherwise True and 1 compare
+            # equal, the sort is left to input order, and the same content
+            # hashes two different ways.
+            [True, 1],
+            [False, 0],
+            # a list mixing every json type must not attempt an unsupported
+            # comparison between types, and must land in one stable order
+            [None, 3, "a", True, 1.5, {"x": 1}, [1, 2]],
+        ],
+    )
+    def test_sort_of_mixed_type_list_is_stable_across_input_orders(self, elements):
+        outputs = {
+            json.dumps(sort_dataset(list(permutation)))
+            for permutation in itertools.permutations(elements)
+        }
+
+        assert len(outputs) == 1, f"ordering depends on input order: {outputs}"
 
 
 class TestDcatus3Catalog:
