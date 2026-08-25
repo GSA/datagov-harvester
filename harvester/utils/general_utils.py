@@ -428,21 +428,36 @@ def _sort_dataset_list_item_key(item):
     return (5, json.dumps(item, sort_keys=True))  # dict
 
 
-def sort_dataset(d):
-    """recursively sort dict keys and list-of-dict elements into a
-    deterministic, canonical order so semantically identical records hash
-    the same regardless of source key/list ordering.
+def _canonicalize_dict_keys(d):
+    """sort dict keys recursively without reordering any list, for the parts
+    of a record whose list order carries meaning.
+    """
+    if isinstance(d, dict):
+        return {k: _canonicalize_dict_keys(d[k]) for k in sorted(d.keys())}
+    if isinstance(d, list):
+        return [_canonicalize_dict_keys(item) for item in d]
+    return d
 
-    only dict elements of a list are recursively sorted -- a nested list
-    (e.g. a GeoJSON coordinate pair or ring) is left exactly as-is, since
-    its element order is positional/meaningful rather than an unordered
-    collection to canonicalize.
+
+def sort_dataset(d):
+    """recursively canonicalize a record's ordering so semantically identical
+    records hash the same regardless of the order the source emits dict keys
+    and list elements in.
+
+    dict keys are always sorted. list elements are reordered only when the
+    list looks like an unordered collection: an array whose elements are all
+    arrays is treated as positional data (e.g. a GeoJSON ring or LineString,
+    where reordering would move vertices and break the geometry), so its
+    element order is preserved while dict keys nested inside it are still
+    sorted.
     """
     if isinstance(d, dict):
         return {k: sort_dataset(d[k]) for k in sorted(d.keys())}
     if isinstance(d, list):
+        if d and all(isinstance(item, list) for item in d):
+            return [_canonicalize_dict_keys(item) for item in d]
         return sorted(
-            (sort_dataset(item) if isinstance(item, dict) else item for item in d),
+            (sort_dataset(item) for item in d),
             key=_sort_dataset_list_item_key,
         )
     return d

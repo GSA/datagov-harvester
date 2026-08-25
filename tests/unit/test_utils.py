@@ -980,14 +980,18 @@ class TestSortDataset:
             "foodborne",
         ]
 
-    def test_sort_does_not_reorder_elements_of_a_nested_list(self):
+    def test_sort_does_not_reorder_a_linestring(self):
         """
-        a list nested directly inside another list (e.g. a GeoJSON
-        coordinate pair, or ring of coordinate pairs) is positional, not an
-        unordered collection -- sorting into it would silently corrupt
-        geometry (e.g. swapping a [lon, lat] pair, or breaking a closed
-        ring). sort_dataset must leave nested list contents untouched.
+        an array of arrays is positional geometry, not an unordered
+        collection -- reordering it moves vertices. this is the depth-2
+        shape `spatial.coordinates` takes for a GeoJSON LineString, which
+        federal_dataset.json permits as "array of array of number".
         """
+        line = [[10.0, 1.0], [2.0, 3.0], [-5.0, 4.0]]
+
+        assert sort_dataset({"coordinates": line})["coordinates"] == line
+
+    def test_sort_keeps_a_polygon_ring_closed(self):
         ring = [
             [-77.119759, 38.791645],
             [-76.909393, 38.791645],
@@ -996,7 +1000,23 @@ class TestSortDataset:
             [-77.119759, 38.791645],
         ]
 
-        assert sort_dataset({"coordinates": [ring]})["coordinates"] == [ring]
+        sorted_ring = sort_dataset({"coordinates": [ring]})["coordinates"][0]
+
+        assert sorted_ring == ring
+        assert sorted_ring[0] == sorted_ring[-1], "ring must stay closed"
+
+    def test_sort_canonicalizes_dict_keys_inside_a_nested_list(self):
+        """
+        preserving a positional list's element order must not stop dict keys
+        nested inside it from being canonicalized -- otherwise that subtree
+        hashes differently depending on source key order, defeating the
+        point of the function.
+        """
+        a = sort_dataset({"x": [[{"z": 1, "a": 2}]]})
+        b = sort_dataset({"x": [[{"a": 2, "z": 1}]]})
+
+        assert json.dumps(a) == json.dumps(b)
+        assert list(a["x"][0][0].keys()) == ["a", "z"]
 
     @pytest.mark.parametrize(
         "elements",
@@ -1019,6 +1039,35 @@ class TestSortDataset:
         }
 
         assert len(outputs) == 1, f"ordering depends on input order: {outputs}"
+
+    def test_canonical_form_is_pinned(self):
+        """
+        the absolute canonical form, not just its stability. every stored
+        source_hash depends on it, so a change to the sort key or type ranks
+        silently invalidates every hash in the database -- this pins the
+        output so that change has to be deliberate.
+        """
+        record = {
+            "identifier": "golden",
+            "keyword": ["b", "a and more", "a"],
+            "distribution": [{"title": "two", "x": 1}, {"title": "one"}],
+            "spatial": {
+                "type": "LineString",
+                "coordinates": [[10.0, 1.0], [2.0, 3.0]],
+            },
+            # one of every json type, so the relative order of the type
+            # ranks is pinned too, not just the values within a rank
+            "mixed": [None, 3, "a", True, 1.5, {"k": 1}, [1, 2]],
+        }
+
+        assert json.dumps(sort_dataset(record)) == (
+            '{"distribution": [{"title": "one"}, {"title": "two", "x": 1}], '
+            '"identifier": "golden", '
+            '"keyword": ["a", "a and more", "b"], '
+            '"mixed": [null, true, 1.5, 3, "a", [1, 2], {"k": 1}], '
+            '"spatial": {"coordinates": [[10.0, 1.0], [2.0, 3.0]], '
+            '"type": "LineString"}}'
+        )
 
 
 class TestDcatus3Catalog:
