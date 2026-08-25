@@ -135,17 +135,44 @@ class LoadManager:
         Returns:
             str: A message indicating the result of the operation.
         """
+        original_date_created = None
 
         try:
-            """Check if a job is already running for this source."""
             harvest_job = interface.get_harvest_job(job_id)
+            original_date_created = harvest_job.date_created
+
+            # Try to atomically transition this job from 'new' -> 'in_progress'.
+            updated = interface.update_harvest_job_if_status(
+                job_id, "new", {"status": "in_progress", "date_created": get_datetime()}
+            )
+            if not updated:
+                return (
+                    f"Can't trigger harvest. Job {job_id} already started "
+                    f"or not in 'new' state."
+                )
+
+            logger.info("Updated job %s to in_progress", updated.id)
+
+            # Excludes this job via facets, so any result here means
+            # another job is already in progress; we only need 1 to confirm that.
             jobs_in_progress = interface.pget_harvest_jobs(
-                facets=f"harvest_source_id eq {harvest_job.harvest_source_id},status eq in_progress",  # noqa E501
-                per_page=1,  # Only need 1 job to know we should not start a new one
+                facets=f"harvest_source_id eq {harvest_job.harvest_source_id},status eq in_progress,id ne {job_id}",  # noqa E501
+                per_page=1,
                 page=0,
             )
             if len(jobs_in_progress):
-                return f"Can't trigger harvest. Job {jobs_in_progress[0].id} already in progress."  # noqa E501
+                interface.update_harvest_job(
+                    job_id, {"status": "new", "date_created": original_date_created}
+                )
+                logger.info(
+                    "Job %s already in progress. Reverted job %s back to 'new'.",
+                    jobs_in_progress[0].id,
+                    job_id,
+                )
+                return (
+                    f"Can't trigger harvest. Job {jobs_in_progress[0].id} "
+                    f"already in progress."
+                )
 
             """task manager start interface, takes a job_id"""
             task_contract = {
@@ -153,24 +180,33 @@ class LoadManager:
                 "task_id": f"harvest-job-{job_id}-{job_type}",
             }
 
-            updated_job = interface.update_harvest_job(
-                job_id, {"status": "in_progress", "date_created": get_datetime()}
-            )
+            # No revert here; the outer handler owns cleanup for any failure below.
             self.handler.start_task(**task_contract)
-            message = f"Updated job {updated_job.id} to in_progress"
-            logger.info(message)
-            return message
-        except Exception as e:
-            message = f"LoadManager: start_job failed :: {repr(e)}"
-            logger.error(message)
+
+            return f"Updated job {updated.id} to in_progress"
+
+        except Exception:
+            logger.exception("LoadManager: start_job failed for job %s", job_id)
+
+            reverted = False
             try:
-                updated_job = interface.update_harvest_job(
-                    job_id, {"status": "new", "date_created": get_datetime()}
+                interface.update_harvest_job(
+                    job_id, {"status": "new", "date_created": original_date_created}
                 )
-            except Exception as e:
-                logger.error(f"Failed to reset job {job_id} status: {repr(e)}")
-                pass
-            return message
+                reverted = True
+                logger.info("Reverted job %s back to 'new' after failure.", job_id)
+            except Exception:
+                logger.exception("Failed to reset job %s status", job_id)
+
+            if reverted:
+                return (
+                    f"Can't trigger harvest. Job {job_id} failed to start "
+                    f"and was reset to 'new'. Please try again."
+                )
+            return (
+                f"Can't trigger harvest. Job {job_id} failed to start and may be "
+                f"stuck in progress. Please contact an administrator."
+            )
 
     def stop_job(self, job_id, job_type="harvest"):
         """task manager stop interface, takes a job_id"""
