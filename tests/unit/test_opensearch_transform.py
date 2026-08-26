@@ -12,6 +12,7 @@ from harvester.utils.schema_paths import DCATUS3_COMPLETE_EXAMPLE
 from search.transforms import (
     INDEX_FIELDS,
     DcatIndexTransformer,
+    coerce_access_level,
     coerce_identifier,
     coerce_keywords,
     coerce_publisher_name,
@@ -58,6 +59,12 @@ def test_coerce_identifier_ignores_extra_dcat3_object_fields():
     }
 
     assert coerce_identifier(value) == "https://example.gov/identifiers/dataset-1"
+
+
+def test_coerce_access_level_normalizes_case():
+    assert coerce_access_level("Public") == "public"
+    assert coerce_access_level("RESTRICTED PUBLIC") == "restricted public"
+    assert coerce_access_level("Non-Public") == "non-public"
 
 
 @pytest.mark.parametrize("value", [None, "", "   "])
@@ -218,6 +225,7 @@ def test_index_fields_registry_covers_expected_destinations():
         "title",
         "description",
         "publisher",
+        "accessLevel",
         "keyword",
         "theme",
         "identifier",
@@ -236,6 +244,7 @@ def test_transform_dcat1_dataset():
         "keyword": ["commitment of traders", "cot"],
         "theme": ["geospatial"],
         "identifier": "cftc-dc1",
+        "accessLevel": "public",
         "isPartOf": "collection-1",
         "distribution": [
             {"accessURL": "https://www.cftc.gov/index.htm"},
@@ -252,6 +261,7 @@ def test_transform_dcat1_dataset():
         "keyword": ["commitment of traders", "cot"],
         "theme": ["geospatial"],
         "identifier": "cftc-dc1",
+        "accessLevel": "public",
         "distribution_titles": ["Report CSV"],
     }
 
@@ -281,6 +291,7 @@ def test_transform_dcat3_dataset():
             "notation": "NCDC-CLIMATE-OBS-2024",
             "version": "1.0",
         },
+        "accessLevel": "restricted public",
         "inSeries": [
             {
                 "@id": "https://example.gov/series/annual-climate-observations",
@@ -303,6 +314,7 @@ def test_transform_dcat3_dataset():
         "keyword": ["climate", "weather"],
         "theme": ["Climate Science"],
         "identifier": "https://example.gov/identifiers/ncdc-climate-obs-2024",
+        "accessLevel": "restricted public",
         "distribution_titles": [
             "Climate Observations CSV",
             "Climate Observations JSON",
@@ -338,6 +350,7 @@ def test_transform_handles_empty_dcat():
         "keyword": [],
         "theme": [],
         "identifier": "",
+        "accessLevel": "",
         "distribution_titles": [],
     }
 
