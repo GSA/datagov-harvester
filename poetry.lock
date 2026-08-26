@@ -3825,18 +3825,6 @@ files = [
 ]
 
 [[package]]
-name = "sansjson"
-version = "0.3.0"
-description = "Your friendly neighborhood JSON sorter helper"
-optional = false
-python-versions = ">=3.7"
-groups = ["main"]
-files = [
-    {file = "sansjson-0.3.0-py3-none-any.whl", hash = "sha256:d7acfc6fdbe1a5cb9ccff21ae114ba8c8d3f081e6884a282d014a5ed5af28958"},
-    {file = "sansjson-0.3.0.tar.gz", hash = "sha256:d0dbaf53a2b412e474c58e9097819020aec2c572fb973539f10590e322d2dfd7"},
-]
-
-[[package]]
 name = "setuptools"
 version = "83.0.0"
 description = "Most extensible Python build backend with support for C/C++ extension modules"
@@ -4597,4 +4585,4 @@ testing = ["coverage[toml]", "zope.event", "zope.testing"]
 [metadata]
 lock-version = "2.1"
 python-versions = "3.12.13"
-content-hash = "a9d81edffdb744def082d843c5e555eed250289acea444d7dc4fab871830c7bf"
+content-hash = "16c0a9c043f29eb44c22272fe7a10138df272dc0b82d5c00af7179ebe41260af"
