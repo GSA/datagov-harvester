@@ -1,5 +1,3 @@
-from pathlib import Path
-
 import pytest
 
 from harvester.utils.general_utils import (
@@ -7,30 +5,24 @@ from harvester.utils.general_utils import (
     normalize_dataset_identifier,
     open_json,
 )
-
-ROOT_DIR = Path(__file__).parents[2]
-DCATUS3_DEFINITIONS = ROOT_DIR / "schemas" / "dcatus3.0" / "definitions"
-DCATUS3_COMPLETE_EXAMPLE = (
-    ROOT_DIR
-    / "schemas"
-    / "dcatus3.0"
-    / "examples"
-    / "Dataset"
-    / "good"
-    / "complete_example.json"
+from harvester.utils.schema_paths import (
+    DCATUS3_COMPLETE_EXAMPLE,
+    DCATUS3_DEFINITIONS_DIR,
 )
 
 DATASET_REF = "https://resources.data.gov/dcat-us/3.0.0/definitions/dataset"
-DATASET_VALIDATOR = build_dcatus3_validator(DCATUS3_DEFINITIONS, root_ref=DATASET_REF)
+DATASET_VALIDATOR = build_dcatus3_validator(
+    DCATUS3_DEFINITIONS_DIR, root_ref=DATASET_REF
+)
 
 DATASERVICE_REF = "https://resources.data.gov/dcat-us/3.0.0/definitions/dataservice"
 DATASERVICE_VALIDATOR = build_dcatus3_validator(
-    DCATUS3_DEFINITIONS, root_ref=DATASERVICE_REF
+    DCATUS3_DEFINITIONS_DIR, root_ref=DATASERVICE_REF
 )
 
 CATALOGRECORD_REF = "https://resources.data.gov/dcat-us/3.0.0/definitions/catalogrecord"
 CATALOGRECORD_VALIDATOR = build_dcatus3_validator(
-    DCATUS3_DEFINITIONS, root_ref=CATALOGRECORD_REF
+    DCATUS3_DEFINITIONS_DIR, root_ref=CATALOGRECORD_REF
 )
 
 
@@ -103,7 +95,7 @@ class TestBuildDcatus3Validator:
 
     def test_default_root_ref_validates_catalog(self, valid_dcatus3_dataset):
         """The default root ref still validates a whole catalog (web validator tool)."""
-        validator = build_dcatus3_validator(DCATUS3_DEFINITIONS)
+        validator = build_dcatus3_validator(DCATUS3_DEFINITIONS_DIR)
         catalog = {"@type": "Catalog", "dataset": [valid_dcatus3_dataset]}
         assert validator.is_valid(catalog)
 

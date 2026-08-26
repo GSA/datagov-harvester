@@ -5,10 +5,10 @@ These tests pin down how DCAT-US values are flattened into the existing
 """
 
 import json
-from pathlib import Path
 
 import pytest
 
+from harvester.utils.schema_paths import DCATUS3_COMPLETE_EXAMPLE
 from search.transforms import (
     INDEX_FIELDS,
     DcatIndexTransformer,
@@ -19,18 +19,6 @@ from search.transforms import (
     coerce_theme_labels,
     distribution_titles,
 )
-
-REPO_ROOT = Path(__file__).resolve().parents[2]
-DCAT3_COMPLETE_EXAMPLE = (
-    REPO_ROOT
-    / "schemas"
-    / "dcatus3.0"
-    / "examples"
-    / "Dataset"
-    / "good"
-    / "complete_example.json"
-)
-
 
 # ---------------------------------------------------------------------------
 # identifier: string search field
@@ -326,7 +314,7 @@ def test_transform_dcat3_dataset():
 
 
 def test_transform_real_dcat3_complete_example():
-    dcat = json.loads(DCAT3_COMPLETE_EXAMPLE.read_text())
+    dcat = json.loads(DCATUS3_COMPLETE_EXAMPLE.read_text())
 
     result = DcatIndexTransformer().transform(dcat)
 

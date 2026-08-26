@@ -2,12 +2,11 @@
 
 A value that trips a DCAT warning must be schema-valid, and a value that
 trips a schema error must produce no warning. Checked against the real
-Draft202012Validator from `schemas/dcatus3.0/definitions/`, so a future
-rule that duplicates a schema constraint fails at runtime.
+Draft202012Validator from `_external/dcat-us/jsonschema/definitions/`, so a
+future rule that duplicates a schema constraint fails at runtime.
 """
 
 import copy
-from pathlib import Path
 
 import pytest
 
@@ -17,23 +16,16 @@ from harvester.utils.general_utils import (
     build_dcatus3_validator,
     open_json,
 )
-
-ROOT_DIR = Path(__file__).parents[2]
-DCATUS3_DEFINITIONS = ROOT_DIR / "schemas" / "dcatus3.0" / "definitions"
-COMPLETE_EXAMPLE = (
-    ROOT_DIR
-    / "schemas"
-    / "dcatus3.0"
-    / "examples"
-    / "Dataset"
-    / "good"
-    / "complete_example.json"
+from harvester.utils.schema_paths import (
+    DCATUS3_COMPLETE_EXAMPLE,
+    DCATUS3_DEFINITIONS_DIR,
 )
+
 DATASET_REF = "https://resources.data.gov/dcat-us/3.0.0/definitions/dataset"
 
 # Building the validator compiles every DCAT-US 3 definition; build it once
 # per module rather than once per test.
-VALIDATOR = build_dcatus3_validator(DCATUS3_DEFINITIONS, root_ref=DATASET_REF)
+VALIDATOR = build_dcatus3_validator(DCATUS3_DEFINITIONS_DIR, root_ref=DATASET_REF)
 
 # The upstream complete example is schema-valid but not warning-free: its
 # vanity tel number ("+1-555-CLIMATE") and its WKT `geometry` each already
@@ -51,7 +43,7 @@ VALIDATOR = build_dcatus3_validator(DCATUS3_DEFINITIONS, root_ref=DATASET_REF)
 # runs) would instead reach the real module-level `harvester.db_interface`
 # and leak an uncommitted transaction. So `_new_warning_types` recomputes the
 # baseline fresh on every call, inside the test.
-BASE_RECORD = open_json(COMPLETE_EXAMPLE)
+BASE_RECORD = open_json(DCATUS3_COMPLETE_EXAMPLE)
 
 
 def _record() -> dict:
