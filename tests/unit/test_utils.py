@@ -4,7 +4,6 @@ import json
 import logging
 import time
 from datetime import datetime
-from pathlib import Path
 from unittest.mock import Mock, call, patch
 
 import pytest
@@ -47,29 +46,22 @@ from harvester.utils.general_utils import (
     translate_spatial_to_geojson,
     validate_geojson,
 )
+from harvester.utils.schema_paths import (
+    DCATUS3_COMPLETE_EXAMPLE,
+    DCATUS3_DEFINITIONS_DIR,
+)
 
 # Real DCAT-US 3.0 validator, used to reproduce assembler errors on the
 # complete example.
-DCATUS3_ROOT_DIR = Path(__file__).parents[2]
-DCATUS3_DEFINITIONS = DCATUS3_ROOT_DIR / "schemas" / "dcatus3.0" / "definitions"
-DCATUS3_COMPLETE_EXAMPLE_PATH = (
-    DCATUS3_ROOT_DIR
-    / "schemas"
-    / "dcatus3.0"
-    / "examples"
-    / "Dataset"
-    / "good"
-    / "complete_example.json"
-)
 DCATUS3_DATASET_VALIDATOR = build_dcatus3_validator(
-    DCATUS3_DEFINITIONS,
+    DCATUS3_DEFINITIONS_DIR,
     root_ref="https://resources.data.gov/dcat-us/3.0.0/definitions/dataset",
 )
 
 
 @pytest.fixture
 def dcatus3_complete_example():
-    with open(DCATUS3_COMPLETE_EXAMPLE_PATH) as f:
+    with open(DCATUS3_COMPLETE_EXAMPLE) as f:
         return json.load(f)
 
 

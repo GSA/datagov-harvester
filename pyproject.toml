@@ -91,6 +91,7 @@ exclude = [
     "node_modules",
     "venv",
     "migrations",
+    "_external",
 ]
 
 # Same as Black.
@@ -116,7 +117,25 @@ dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
 max-complexity = 10
 
 [tool.pytest.ini_options]
-addopts = "--import-mode=importlib" 
+addopts = "--import-mode=importlib"
+# _external holds the GSA/dcat-us submodule, which ships 10 .py files including
+# a test_json_schema.py. Nothing in it is collectable today (it's a CLI script,
+# no test_* functions), but Dependabot bumps this submodule monthly and we don't
+# want a future dcat-us commit silently adding tests to our suite.
+# norecursedirs REPLACES pytest's defaults rather than extending them, so the
+# stock entries are restated here.
+norecursedirs = [
+    "_external",
+    "*.egg",
+    ".*",
+    "_darcs",
+    "build",
+    "CVS",
+    "dist",
+    "node_modules",
+    "venv",
+    "{arch}",
+]
 
 
 [build-system]
@@ -125,4 +144,7 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.isort]
 profile = "black"
-skip = [".poetry", "app/static/node_modules", ".venv"]
+skip = [".poetry", "app/static/node_modules", ".venv", "_external"]
+
+[tool.black]
+extend-exclude = '^/_external/'
