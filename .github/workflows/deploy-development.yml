@@ -11,19 +11,15 @@ permissions:
 concurrency:
   group: release-develop
   cancel-in-progress: false
+  queue: max
 
 jobs:
   detect-opensearch-migration:
     name: Detect OpenSearch migration
     permissions:
-      actions: read
       contents: read
       pull-requests: read
     uses: ./.github/workflows/detect-opensearch-migration.yml
-    with:
-      workflow_file: deploy-development.yml
-      fallback_workflow_file: commit.yml
-      branch: develop
 
   release-development:
     name: Release development
