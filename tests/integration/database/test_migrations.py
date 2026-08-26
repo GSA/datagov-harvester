@@ -30,7 +30,13 @@ def _ordered_revisions(app):
         return revisions
 
 
-def test_migrations_upgrade_and_downgrade_cleanly(app):
+def test_migrations_upgrade_and_downgrade_cleanly(app, monkeypatch):
+    # migrations/env.py calls logging.config.fileConfig() on every upgrade/downgrade,
+    # which (with its default disable_existing_loggers=True) permanently disables any
+    # logger not listed in alembic.ini's [loggers] section, e.g. "harvest_admin" -
+    # breaking later tests that assert on caplog for those loggers.
+    monkeypatch.setattr("logging.config.fileConfig", lambda *args, **kwargs: None)
+
     revisions = _ordered_revisions(app)
     assert len(revisions) > 0
 
