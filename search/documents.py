@@ -6,7 +6,7 @@ from typing import Any
 from database.models import Dataset
 from search.config import DEFAULT_CATALOG_BASE_URL, INDEX_NAME
 from search.spatial import calc_geometry_centroid
-from search.transforms import DcatIndexTransformer
+from search.transforms import DcatIndexTransformer, coerce_access_level
 
 
 class DatasetDocument:
@@ -98,6 +98,11 @@ class DatasetDocument:
             for distribution in (dataset.dcat.get("distribution") or [])
         )
         nested_dcat = self._normalize_dcat_dates(dataset.dcat)
+
+        index_fields["access_level"] = coerce_access_level(
+            dataset.dcat.get("accessLevel") or dataset.dcat.get("accessRights") or None
+        )
+
         spatial_centroid = calc_geometry_centroid(dataset.translated_spatial)
         last_harvested = (
             dataset.last_harvested_date.isoformat()
@@ -122,6 +127,7 @@ class DatasetDocument:
             "last_harvested_date": last_harvested,
             "description": index_fields["description"],
             "publisher": index_fields["publisher"],
+            "access_level": index_fields["access_level"],
             "dcat": nested_dcat,
             "keyword": index_fields["keyword"],
             "theme": index_fields["theme"],

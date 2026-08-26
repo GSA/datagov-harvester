@@ -252,3 +252,21 @@ def test_from_values_accepts_generic_filter_map():
     geography = criteria.get_geography()
     assert geography.get("geometry") == {"type": "Point", "coordinates": [-75, 40]}
     assert geography.get("within", True) is False
+
+
+def test_from_request_args_parses_access_level():
+    args = {"access_level": "restricted public"}
+    criteria = SearchCriteria.from_request_args(args, route_context=API_CONTEXT)
+    assert criteria.get_filter("access_level") == "restricted public"
+
+
+def test_access_level_filter_parses_and_builds_clause():
+    criteria = SearchCriteria.from_request_args(
+        {"access_level": "non-public"},
+        route_context=API_CONTEXT,
+    )
+
+    assert criteria.get_filter("access_level") == "non-public"
+
+    clauses = build_filter_clauses(criteria)
+    assert clauses == [{"term": {"access_level": "non-public"}}]

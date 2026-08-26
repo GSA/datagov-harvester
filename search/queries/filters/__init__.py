@@ -1,3 +1,4 @@
+from search.queries.filters.access_level import ACCESS_LEVEL_FILTER
 from search.queries.filters.base import (
     API_CONTEXT,
     MAIN_CONTEXT,
@@ -34,4 +35,5 @@ FILTERS = (
     SPATIAL_DATA_FILTER,
     COLLECTION_FILTER,
     HAS_DOWNLOAD_FILTER,
+    ACCESS_LEVEL_FILTER,
 )

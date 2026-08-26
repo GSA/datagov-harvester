@@ -97,6 +97,7 @@ def test_dataset_to_document(sample_dataset, monkeypatch):
     assert document["_id"] == sample_dataset.id
     assert document["title"] == "Dataset Title"
     assert document["publisher"] == "Publisher"
+    assert document["access_level"] == "public"
     assert document["dcat"]["isPartOf"] == "collection-1"
     assert document["parent_identifier"] == "parent-1"
     assert document["distribution_titles"] == ["CSV download", "API endpoint"]
