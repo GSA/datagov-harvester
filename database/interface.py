@@ -6,7 +6,7 @@ import sqlalchemy.sql.operators as sa_operators
 from sqlalchemy import Text, asc, cast, desc, exists, func, inspect, literal, text
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import NoResultFound
-from sqlalchemy.orm import aliased
+from sqlalchemy.orm import aliased, lazyload
 
 from database.configs import PaginationConfig
 from database.decorators import count, count_wrapper, paginate
@@ -342,11 +342,13 @@ class HarvesterDBInterface:
         """
         return (
             self.db.query(HarvestJob)
+            .options(lazyload(HarvestJob.source))
             .filter(
                 HarvestJob.date_created <= datetime.now(timezone.utc),
                 HarvestJob.status == "new",
             )
             .order_by(asc(HarvestJob.date_created))
+            .with_for_update(skip_locked=True)
             .limit(limit)
             .all()
         )
@@ -412,6 +414,32 @@ class HarvesterDBInterface:
             return job
 
         except NoResultFound:
+            self.db.rollback()
+            return None
+
+    def update_harvest_job_if_status(self, job_id, expected_status, updates):
+        """Atomically update a harvest job only if its current status matches
+        `expected_status`.
+
+        Returns the updated job object if the update succeeded (row affected),
+        otherwise returns None.
+        """
+        try:
+            result = (
+                self.db.query(HarvestJob)
+                .filter(HarvestJob.id == job_id, HarvestJob.status == expected_status)
+                .update(updates)
+            )
+
+            if result == 0:
+                self.db.rollback()
+                return None
+
+            self.db.commit()
+            return self.get_harvest_job(job_id)
+
+        except Exception as e:
+            logger.error("Error: %s", e)
             self.db.rollback()
             return None
 

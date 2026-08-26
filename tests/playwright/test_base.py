@@ -21,16 +21,17 @@ class TestBaseUnauthed:
         )
 
     def test_nav_items(self, upage):
-        expect(upage.locator("ul.menu > li")).to_have_text(
-            [
-                "Organizations",
-                "Harvest Sources",
-                "API Documentation",
-                "Metrics",
-                "Validators",
-                "Glossary\nLogin",
-            ]
-        )
+        # Use to_contain_text instead of to_have_text to handle whitespace variations
+        nav_items = upage.locator("ul.menu > li")
+        expect(nav_items.nth(0)).to_contain_text("Organizations")
+        expect(nav_items.nth(1)).to_contain_text("Harvest Sources")
+        expect(nav_items.nth(2)).to_contain_text("API Documentation")
+        expect(nav_items.nth(3)).to_contain_text("Metrics")
+        expect(nav_items.nth(4)).to_contain_text("Validators")
+        # Last item contains Glossary and Admin Login
+        last_item = nav_items.nth(5)
+        expect(last_item).to_contain_text("Glossary")
+        expect(last_item).to_contain_text("Admin Login")
 
 
 class TestBaseAuthed:

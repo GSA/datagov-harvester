@@ -41,3 +41,17 @@ updates:
       github-actions:
         patterns:
           - "*"
+  # Bumps the _external/dcat-us gitlink to the tip of the branch named in
+  # .gitmodules (GSA/dcat-us main). These are the DCAT-US 3.0 JSON Schemas the
+  # harvester validates records against, so a stale pin means we accept and
+  # reject records against something other than the published spec.
+  #
+  # Monthly, not weekly: one continuously-rebased PR is the right cadence for a
+  # schema spec. Expect the first PR's CI to fail — the pin is well behind
+  # GSA/dcat-us main, and definition changes legitimately change which records
+  # validate. That is what the pin is for. See "Upgrading to a newer dcat-us" in
+  # docs/developer.md; fix or reject the bump, never skip the tests.
+  - package-ecosystem: "gitsubmodule"
+    directory: "/"
+    schedule:
+      interval: "monthly"
