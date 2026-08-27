@@ -12,6 +12,7 @@ from flask_htmx import HTMX
 from flask_migrate import Migrate
 from flask_talisman import Talisman
 
+from app.constants import MAX_UPLOAD_BYTES
 from app.filters import else_na, humanize, usa_icon, utc_isoformat
 from app.local_dev_auth import is_running_on_cloud_foundry
 from app.startup_validation import validate_required_env_vars
@@ -143,7 +144,11 @@ def create_app():
     if os.getenv("FLASK_ENV") != "production":
         # Pick up template edits during local dev without restarting the process.
         app.config["TEMPLATES_AUTO_RELOAD"] = True
-    app.config["MAX_CONTENT_LENGTH"] = 10 * 1024 * 1024
+    app.config["MAX_CONTENT_LENGTH"] = MAX_UPLOAD_BYTES
+    # Flask 3.1 defaults MAX_FORM_MEMORY_SIZE to 500KB, which rejected pasted
+    # catalogs far below MAX_CONTENT_LENGTH. Keep the two aligned so file uploads
+    # and pasted JSON share one limit. (GSA/data.gov#6067)
+    app.config["MAX_FORM_MEMORY_SIZE"] = MAX_UPLOAD_BYTES
     app.config["SESSION_COOKIE_NAME"] = os.getenv(
         "SESSION_COOKIE_NAME", "harvest_session"
     )
