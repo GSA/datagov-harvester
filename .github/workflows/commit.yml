@@ -2,7 +2,7 @@ name: 1 - Commit
 on: [push]
 
 permissions:
-    contents: read
+    contents: write
 
 env:
   PY_VERSION: "3.12.13"
@@ -82,7 +82,7 @@ jobs:
         uses: MishaKav/pytest-coverage-comment@main
         continue-on-error: true
         with:
+          pytest-coverage-path: ""
           multiple-files: |
             Unit tests, pytest-coverage-unit.txt, pytest-unit.xml
             Integration Tests, pytest-coverage-integration.txt, pytest-integration.xml
-            Functional Tests, pytest-coverage-functional.txt, pytest-functional.xml
