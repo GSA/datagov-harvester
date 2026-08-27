@@ -1603,13 +1603,12 @@ def finalize_validation_messages(messages: defaultdict) -> list:
     return output
 
 
-def _count_messages(messages: defaultdict) -> int:
-    """Total messages accumulated across every json_path so far."""
-    return sum(len(v) for v in messages.values())
-
-
 def assemble_validation_errors(
-    validation_errors: list, messages=None, *, _forced: bool = False
+    validation_errors: list,
+    messages=None,
+    *,
+    _forced: bool = False,
+    _recorded: list | None = None,
 ) -> list:
     """
     given a list of errors, follow each one recursively through its context
@@ -1624,11 +1623,24 @@ def assemble_validation_errors(
     two-argument form. After an unforced context walk records nothing, we
     re-walk forced so a same-path type error is reported vaguely instead of
     silently. A walk that already recorded a specific cause is left alone.
+
+    `_recorded` is a private single-element running total of messages appended
+    so far, used to detect whether a context walk found anything. Counting the
+    accumulated dict instead made this quadratic in the number of errors.
+    (GSA/data.gov#6067)
     """
+
+    # Only the outermost call formats the result; recursive calls just fill
+    # `messages` and their return value is discarded. Formatting on the way out
+    # of every recursion was the other half of the quadratic.
+    is_root = messages is None
 
     if messages is None:
         # {'$.distribution[2].title' = ["'' should be non-empty", etc...]}
         messages = defaultdict(list)
+
+    if _recorded is None:
+        _recorded = [0]
 
     for error in validation_errors:
         if found_simple_message(error, forced=_forced):
@@ -1659,17 +1671,20 @@ def assemble_validation_errors(
                 and formatted_message not in messages[error.json_path]
             ):
                 messages[error.json_path].append(formatted_message)
+                _recorded[0] += 1
 
         # Prefer a specific cause in context before falling back.
-        recorded_before = _count_messages(messages)
-        assemble_validation_errors(error.context, messages)
+        recorded_before = _recorded[0]
+        assemble_validation_errors(error.context, messages, _recorded=_recorded)
 
         # Nothing recorded: re-walk forced so the defect is not dropped.
         # `_forced` only flips `type` errors, which have no context to recurse.
-        if error.context and _count_messages(messages) == recorded_before:
-            assemble_validation_errors(error.context, messages, _forced=True)
+        if error.context and _recorded[0] == recorded_before:
+            assemble_validation_errors(
+                error.context, messages, _forced=True, _recorded=_recorded
+            )
 
-    return finalize_validation_messages(messages)
+    return finalize_validation_messages(messages) if is_root else messages
 
 
 def is_valid_uuid4(uuid_string) -> bool:

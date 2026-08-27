@@ -14,6 +14,7 @@ from requests.exceptions import ConnectionError
 
 from database.interface import HarvesterDBInterface
 from database.models import HarvestSource
+from harvester.utils import general_utils
 from harvester.utils.general_utils import (
     DT_PLACEHOLDER,
     USER_AGENT,
@@ -564,6 +565,70 @@ class TestGeneralUtils:
             "$.spatial[0].centroid.coordinates, array value does not match "
             "any of the acceptable formats: min 2 items"
         )
+
+    def test_assemble_validation_messages_formats_the_result_once(
+        self, dcatus3_complete_example
+    ):
+        """
+        Recursive calls only fill the message dict; formatting it on the way out
+        of every recursion did the same work over and over and made the whole
+        assembler quadratic. (GSA/data.gov#6067)
+        """
+        dcatus3_complete_example["spatialResolutionInMeters"] = ["bad"]
+        del dcatus3_complete_example["title"]
+
+        with patch(
+            "harvester.utils.general_utils.finalize_validation_messages",
+            wraps=general_utils.finalize_validation_messages,
+        ) as finalize:
+            errors = assemble_validation_errors(
+                DCATUS3_DATASET_VALIDATOR.iter_errors(dcatus3_complete_example)
+            )
+
+        # the input recurses through anyOf context, so this is >1 without the fix
+        assert finalize.call_count == 1
+        assert len(errors) == 2
+
+    def test_assemble_validation_messages_scales_linearly_with_dataset_count(self):
+        """
+        A DCAT-US 3.0 catalog is validated in a single call, so the message dict
+        grows with the dataset count. When per-error work was proportional to
+        that dict, a catalog well under the upload limit outlived the gateway
+        timeout and the user got a 502. (GSA/data.gov#6067)
+
+        Measured on this input: 28s before the fix, 0.25s after. The ceiling is
+        loose enough for a slow CI runner and still an order of magnitude below
+        the old cost.
+        """
+        count = 4000
+        catalog = {
+            "@type": "Catalog",
+            "title": "Assembler scaling",
+            "description": "Every dataset is missing its identifier.",
+            "dataset": [
+                {
+                    "@type": "Dataset",
+                    "title": "Example Dataset",
+                    "description": "A dataset with no identifier.",
+                    "contactPoint": {
+                        "fn": "Support",
+                        "hasEmail": "mailto:support@example.gov",
+                    },
+                    "publisher": {"name": "Example Org"},
+                }
+                for _ in range(count)
+            ],
+        }
+        validator = build_dcatus3_validator(DCATUS3_DEFINITIONS_DIR)
+        validation_errors = list(validator.iter_errors(catalog))
+
+        start = time.perf_counter()
+        errors = assemble_validation_errors(iter(validation_errors))
+        elapsed = time.perf_counter() - start
+
+        # one "'identifier' is a required property" per dataset, all still found
+        assert len(errors) == count
+        assert elapsed < 10, f"assembling {count} errors took {elapsed:.1f}s"
 
     def test_find_indexes_for_duplicates(self):
         data = [
