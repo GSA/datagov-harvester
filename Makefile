@@ -76,7 +76,7 @@ test-e2e-ci: re-up test-playwright test-functional ## All e2e/expensive tests. R
 
 test-ci: up test-unit test-integration test-scripts ## All simulated tests using only db and required test resources. Run on commit.
 
-re-up: clean up sleep-5 load-test-data ## resets system to clean fixture status
+re-up: clean up wait-for-app load-test-data ## resets system to clean fixture status
 
 re-up-debug: clean up-debug load-test-data ## resets system to clean fixture status for flask debugging
 
@@ -103,6 +103,21 @@ clean: ## Cleans docker images
 	
 sleep-5:
 	sleep 5
+
+wait-for-app: ## Wait until flask has finished db upgrade and is serving
+	@echo "Waiting for the app to finish migrations and start..."
+	@i=0; \
+	while [ $$i -lt 60 ]; do \
+		code=$$(curl -sS -o /dev/null -w '%{http_code}' http://localhost:8080/ 2>/dev/null || true); \
+		case $$code in \
+			2*|3*) echo "App is up (HTTP $$code)."; exit 0 ;; \
+		esac; \
+		i=$$((i + 1)); \
+		sleep 1; \
+	done; \
+	echo "App did not become ready in 60s"; \
+	docker compose logs --tail=80 app; \
+	exit 1
 
 lint-check:  ## Lints wtih ruff, isort, black
 	poetry run ruff check .

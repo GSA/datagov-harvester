@@ -1,0 +1,44 @@
+{
+  "@type": "Catalog",
+  "@id": "https://example.gov/data-with-records.json",
+  "conformsTo": {
+    "@type": "Standard",
+    "title": "DCAT-US 3.0"
+  },
+  "title": "Example DCAT-US 3.0 Catalog With Catalog Records",
+  "description": "A sample DCAT-US 3.0 catalog with both dataset and catalog record objects used for harvest testing.",
+  "dataset": [
+    {
+      "@type": "Dataset",
+      "title": "Test Dataset One",
+      "description": "First test dataset in the DCAT-US 3.0 catalog.",
+      "identifier": "https://example.gov/datasets/one",
+      "publisher": {
+        "@type": "Organization",
+        "name": "Test Agency"
+      },
+      "contactPoint": {
+        "@type": "Kind",
+        "fn": "Test Contact One",
+        "hasEmail": "mailto:one@example.gov"
+      }
+    }
+  ],
+  "record": [
+    {
+      "@type": "CatalogRecord",
+      "@id": "https://example.gov/catalog-records/one",
+      "title": "Catalog Record One",
+      "modified": "2024-06-15",
+      "primaryTopic": "https://example.gov/datasets/one",
+      "status": "published"
+    },
+    {
+      "@type": "CatalogRecord",
+      "@id": "https://example.gov/catalog-records/two",
+      "title": "Catalog Record Two",
+      "modified": "2024-06-20",
+      "primaryTopic": "https://example.gov/datasets/two"
+    }
+  ]
+}

@@ -176,6 +176,7 @@ def test_get_latest_harvest_records(
     expected_records = [
         {
             "identifier": "a",
+            "record_type": "dataset",
             "source_hash": None,
             "date_created": datetime(2024, 3, 1, 0, 0, 0, 1000),
             "date_finished": None,
@@ -184,6 +185,7 @@ def test_get_latest_harvest_records(
         },
         {
             "identifier": "b",
+            "record_type": "dataset",
             "source_hash": None,
             "date_created": datetime(2024, 3, 1, 0, 0, 0, 1000),
             "date_finished": None,
@@ -192,6 +194,7 @@ def test_get_latest_harvest_records(
         },
         {
             "identifier": "c",
+            "record_type": "dataset",
             "source_hash": None,
             "date_created": datetime(2024, 5, 1, 0, 0, 0, 1000),
             "date_finished": None,
@@ -200,6 +203,7 @@ def test_get_latest_harvest_records(
         },
         {
             "identifier": "e",
+            "record_type": "dataset",
             "source_hash": None,
             "date_created": datetime(2024, 4, 3, 0, 0, 0, 1000),
             "date_finished": None,

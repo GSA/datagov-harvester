@@ -3,7 +3,6 @@ import json
 import logging
 import os
 import socket
-from pathlib import Path
 from urllib.parse import urlparse
 
 import requests
@@ -15,10 +14,10 @@ from harvester.utils.general_utils import (
     build_dcatus3_validator,
     open_json,
 )
+from harvester.utils.schema_paths import DCATUS1_1_DIR, DCATUS3_DEFINITIONS_DIR
 
 logger = logging.getLogger("harvest_admin_utils")
 
-BASE_DIR = Path(__file__).parents[1]
 IS_PROD = os.getenv("FLASK_ENV") == "production"
 
 
@@ -66,6 +65,13 @@ def make_new_record_error_contract(error: tuple) -> dict:
 
 
 def make_new_org_contract(form):
+    # Convert empty string to None for code_repo_url
+    code_repo_url = form.code_repo_url.data
+    if code_repo_url:
+        code_repo_url = code_repo_url.strip() or None
+    else:
+        code_repo_url = None
+
     return {
         "name": form.name.data,
         "slug": form.slug.data,
@@ -73,6 +79,8 @@ def make_new_org_contract(form):
         "description": form.description.data or None,
         "organization_type": form.organization_type.data or None,
         "aliases": [alias.strip() for alias in (form.aliases.data or "").split(",")],
+        "code_repo_url": code_repo_url,
+        "code_repo_exempt": form.code_repo_exempt.data or False,
     }
 
 
@@ -171,13 +179,10 @@ def validate_records(dcatus_catalog: dict, schema_name: str) -> list:
 
     output = []
 
-    dcatus1_1_dir = BASE_DIR / "schemas" / "dcatus1.1"
-    dcatus3_0_dir = BASE_DIR / "schemas" / "dcatus3.0" / "definitions"
-
     schemas = {
-        "dcatus1.1: federal dataset": dcatus1_1_dir / "federal_dataset.json",
-        "dcatus1.1: non-federal dataset": dcatus1_1_dir / "non-federal_dataset.json",
-        "dcatus3.0 catalog": dcatus3_0_dir,
+        "dcatus1.1: federal dataset": DCATUS1_1_DIR / "federal_dataset.json",
+        "dcatus1.1: non-federal dataset": DCATUS1_1_DIR / "non-federal_dataset.json",
+        "dcatus3.0 catalog": DCATUS3_DEFINITIONS_DIR,
     }
 
     schema = schemas[schema_name]

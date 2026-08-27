@@ -4,17 +4,19 @@ set -o errexit
 set -o pipefail
 
 function vcap_get_service () {
-  local path name
+  local path name service_name
   name="$1"
   path="$2"
-  service_name=${APP_NAME}-${name}
+  service_name=${HARVEST_SERVICE_NAME}-${name}
   if [ "$name" = "opensearch" ]; then
-    service_name=datagov-catalog-opensearch
+    service_name=$OPENSEARCH_SERVICE_NAME
   fi
   echo $VCAP_SERVICES | jq --raw-output --arg service_name "$service_name" ".[][] | select(.name == \$service_name) | ($path | if . == null then empty else . end)"
 }
 
 export APP_NAME=$(echo $VCAP_APPLICATION | jq -r '.application_name')
+export HARVEST_SERVICE_NAME=${HARVEST_SERVICE_NAME:-$APP_NAME}
+export OPENSEARCH_SERVICE_NAME=${OPENSEARCH_SERVICE_NAME:-datagov-catalog-opensearch}
 
 # GA (google analytics)
 export GA_CREDENTIALS==$(vcap_get_service secrets .credentials.GA_CREDENTIALS)

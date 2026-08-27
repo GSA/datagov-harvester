@@ -1,0 +1,48 @@
+{
+  "@type": "Catalog",
+  "@id": "https://example.gov/data-service-no-identifier.json",
+  "conformsTo": {
+    "@type": "Standard",
+    "title": "DCAT-US 3.0"
+  },
+  "title": "Example DCAT-US 3.0 Catalog With A DataService Missing An Identifier",
+  "description": "A sample DCAT-US 3.0 catalog with a DataService missing an identifier, used for harvest testing.",
+  "dataset": [
+    {
+      "@type": "Dataset",
+      "title": "Test Dataset One",
+      "description": "First test dataset in the DCAT-US 3.0 catalog.",
+      "identifier": "https://example.gov/datasets/one",
+      "publisher": {
+        "@type": "Organization",
+        "name": "Test Agency"
+      },
+      "contactPoint": {
+        "@type": "Kind",
+        "fn": "Test Contact One",
+        "hasEmail": "mailto:one@example.gov"
+      }
+    }
+  ],
+  "service": [
+    {
+      "@type": "DataService",
+      "title": "Data Service Without Identifier",
+      "description": "A data service with no identifier field.",
+      "endpointURL": [
+        "https://api.example.gov/no-id/v1"
+      ],
+      "publisher": {
+        "@type": "Organization",
+        "name": "Test Agency"
+      },
+      "contactPoint": [
+        {
+          "@type": "Kind",
+          "fn": "Test Service Contact",
+          "hasEmail": "mailto:svc@example.gov"
+        }
+      ]
+    }
+  ]
+}

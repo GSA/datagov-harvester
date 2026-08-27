@@ -98,6 +98,7 @@ def test_dataset_to_document(sample_dataset, monkeypatch):
     assert document["title"] == "Dataset Title"
     assert document["publisher"] == "Publisher"
     assert document["dcat"]["isPartOf"] == "collection-1"
+    assert document["parent_identifier"] == "parent-1"
     assert document["distribution_titles"] == ["CSV download", "API endpoint"]
     assert document["has_spatial"] is True
     assert document["has_download"] is False
@@ -122,6 +123,17 @@ def test_dataset_to_document_handles_missing_date_and_organization(sample_datase
 
     assert document["last_harvested_date"] is None
     assert document["organization"] == {}
+
+
+def test_dataset_to_document_parent_identifier_missing_harvest_record(
+    sample_dataset,
+):
+    sample_dataset.harvest_record = None
+
+    dataset_doc = DatasetDocument(sample_dataset)
+    document = dataset_doc.dataset_to_document()
+
+    assert document["parent_identifier"] is None
 
 
 def test_dataset_to_document_uses_configured_catalog_base_url(
@@ -665,3 +677,12 @@ def test_dataset_to_document_flattens_dcat3_theme_and_identifier(sample_dataset)
     assert document["dcat"]["identifier"] == sample_dataset.dcat["identifier"]
     # inSeries is not aliased onto isPartOf.
     assert document["dcat"]["isPartOf"] == "collection-1"
+
+
+def test_dataset_to_document_carries_type(sample_dataset):
+    sample_dataset.type = "data_series"
+
+    dataset_doc = DatasetDocument(sample_dataset)
+    document = dataset_doc.dataset_to_document()
+
+    assert document["type"] == "data_series"

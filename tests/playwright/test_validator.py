@@ -82,7 +82,7 @@ class TestValidator:
     def test_api_validate_by_url(self, upage, validator_api_url):
 
         res = upage.request.post(
-            "/api/validate",
+            "/api/v1/validate",
             headers={
                 "Content-Type": "application/json",
             },
@@ -99,7 +99,7 @@ class TestValidator:
         validator_api_url["url"] = "nonsense"
 
         res = upage.request.post(
-            "/api/validate",
+            "/api/v1/validate",
             headers={
                 "Content-Type": "application/json",
             },
@@ -115,7 +115,7 @@ class TestValidator:
     def test_api_validate_by_json(self, upage, validator_api_json):
 
         res = upage.request.post(
-            "/api/validate",
+            "/api/v1/validate",
             headers={
                 "Content-Type": "application/json",
             },
