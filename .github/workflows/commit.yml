@@ -2,7 +2,7 @@ name: 1 - Commit
 on: [push]
 
 permissions:
-    contents: read
+    contents: write
 
 env:
   PY_VERSION: "3.12.13"
