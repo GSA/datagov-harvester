@@ -19,7 +19,7 @@ jobs:
           fetch-depth: 1
           submodules: true
       - name: Set up Python ${{ env.PY_VERSION }}
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
           python-version: ${{ env.PY_VERSION }}
 
@@ -54,7 +54,7 @@ jobs:
       - name: Create local .env from sample
         run: cp .env.sample .env
       - name: Set up Python ${{ env.PY_VERSION }}
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
           python-version: ${{ env.PY_VERSION }}
 
