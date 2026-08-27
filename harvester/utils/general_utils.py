@@ -19,7 +19,6 @@ from uuid import UUID
 
 import geojson_validator
 import requests
-import sansjson
 from bs4 import BeautifulSoup
 from jsonschema import Draft202012Validator, FormatChecker
 from jsonschema.exceptions import ValidationError
@@ -405,8 +404,63 @@ def convert_set_to_list(obj):
     raise TypeError
 
 
+def _sort_dataset_list_item_key(item):
+    """type-ranked sort key for an element of a list being canonicalized by
+    sort_dataset, so elements are never compared to each other directly with
+    python's `<`/`>` -- which raises for dicts, and for a list containing
+    a mix of types (e.g. str and int).
+
+    ranks put same-typed values through their natural ordering (so e.g.
+    string lists sort the same way python's default `sorted()` would,
+    rather than by their quoted json representation, which would sort
+    "food" after "food safety" because '"' > ' ').
+    """
+    if item is None:
+        return (0,)
+    if isinstance(item, bool):
+        return (1, item)
+    if isinstance(item, (int, float)):
+        return (2, item)
+    if isinstance(item, str):
+        return (3, item)
+    if isinstance(item, list):
+        return (4, json.dumps(item, sort_keys=True))
+    return (5, json.dumps(item, sort_keys=True))  # dict
+
+
+def _canonicalize_dict_keys(d):
+    """sort dict keys recursively without reordering any list, for the parts
+    of a record whose list order carries meaning.
+    """
+    if isinstance(d, dict):
+        return {k: _canonicalize_dict_keys(d[k]) for k in sorted(d.keys())}
+    if isinstance(d, list):
+        return [_canonicalize_dict_keys(item) for item in d]
+    return d
+
+
 def sort_dataset(d):
-    return sansjson.sort_pyobject(d)
+    """recursively canonicalize a record's ordering so semantically identical
+    records hash the same regardless of the order the source emits dict keys
+    and list elements in.
+
+    dict keys are always sorted. list elements are reordered only when the
+    list looks like an unordered collection: an array whose elements are all
+    arrays is treated as positional data (e.g. a GeoJSON ring or LineString,
+    where reordering would move vertices and break the geometry), so its
+    element order is preserved while dict keys nested inside it are still
+    sorted.
+    """
+    if isinstance(d, dict):
+        return {k: sort_dataset(d[k]) for k in sorted(d.keys())}
+    if isinstance(d, list):
+        if d and all(isinstance(item, list) for item in d):
+            return [_canonicalize_dict_keys(item) for item in d]
+        return sorted(
+            (sort_dataset(item) for item in d),
+            key=_sort_dataset_list_item_key,
+        )
+    return d
 
 
 def dataset_to_hash(d):

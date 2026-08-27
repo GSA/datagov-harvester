@@ -1,4 +1,5 @@
 import http
+import itertools
 import json
 import logging
 import time
@@ -39,6 +40,7 @@ from harvester.utils.general_utils import (
     prepare_distributions,
     prepare_transform_msg,
     process_job_complete_percentage,
+    sort_dataset,
     strip_dcatus3_catalog_objects,
     translate_spatial,
     translate_spatial_to_geojson,
@@ -897,6 +899,167 @@ class TestGeneralUtils:
 
         # the mediatype isn't in RESOURCE_MAPPING so format shouldn't exist
         "format" not in prepared_dcatus_doc["distribution"][-1]
+
+
+class TestSortDataset:
+    def test_sort_is_deterministic_regardless_of_key_and_list_order(self):
+        a = {
+            "identifier": "a",
+            "keyword": ["b", "a"],
+            "distribution": [{"title": "two"}, {"title": "one"}],
+        }
+        b = {
+            "distribution": [{"title": "one"}, {"title": "two"}],
+            "keyword": ["a", "b"],
+            "identifier": "a",
+        }
+
+        # dict equality ignores key order, but json.dumps (what harvest.py
+        # actually hashes) does not -- compare the serialized form so this
+        # test would fail if dict keys weren't also being sorted.
+        assert json.dumps(sort_dataset(a)) == json.dumps(sort_dataset(b))
+
+    def test_sort_handles_nested_dict_values_that_cannot_be_ordered(self):
+        """
+        regression test for https://github.com/GSA/data.gov/issues/5450
+
+        harvested records can carry vendor-specific fields (e.g. ArcGIS's
+        "metadata" field) whose list elements are dicts sharing a first key
+        with dict-valued, unequal values. python can't order dicts with
+        `<`/`>`, which crashed the third-party sansjson library this
+        function used to delegate to.
+        """
+        record = {
+            "identifier": "https://www.arcgis.com/home/item.html?id=bd1b6ee9",
+            "metadata": {
+                "mdContact": {"rpCntInfo": {"cntAddress": {"city": "Washington"}}},
+                "spatRepInfo": {"VectSpatRep": {"geometObjs": {"geoObjCnt": 5}}},
+            },
+            "fields": [
+                {"name": "A", "domain": {"codedValues": [{"code": "US"}]}},
+                {"name": "B", "domain": {"codedValues": [{"code": "CA"}]}},
+            ],
+        }
+
+        sorted_record = sort_dataset(record)  # should not raise
+
+        assert (
+            sorted_record["metadata"]["mdContact"]["rpCntInfo"]["cntAddress"]["city"]
+            == "Washington"
+        )
+        assert {f["name"] for f in sorted_record["fields"]} == {"A", "B"}
+
+    def test_sort_orders_dict_keys_alphabetically(self):
+        assert list(sort_dataset({"b": 1, "a": 2}).keys()) == ["a", "b"]
+
+    def test_sort_recurses_into_dict_elements_of_a_list(self):
+        record = {"distribution": [{"z": 1, "a": 2}]}
+
+        assert list(sort_dataset(record)["distribution"][0].keys()) == ["a", "z"]
+
+    def test_sort_orders_numeric_lists_by_value_not_json_string(self):
+        # "10" sorts before "2" as a json/string value, but should not here
+        assert sort_dataset([2, 10, 1]) == [1, 2, 10]
+
+    def test_sort_orders_string_lists_naturally(self):
+        # a naive `key=lambda i: json.dumps(i)` sorts "food safety" before
+        # "food", because a quote (0x22) sorts after a space (0x20) --
+        # breaking hash stability for the common "keyword"/"keyword extra"
+        # pattern in harvested keyword lists.
+        assert sort_dataset(["food safety", "food", "foodborne"]) == [
+            "food",
+            "food safety",
+            "foodborne",
+        ]
+
+    def test_sort_does_not_reorder_a_linestring(self):
+        """
+        an array of arrays is positional geometry, not an unordered
+        collection -- reordering it moves vertices. this is the depth-2
+        shape `spatial.coordinates` takes for a GeoJSON LineString, which
+        federal_dataset.json permits as "array of array of number".
+        """
+        line = [[10.0, 1.0], [2.0, 3.0], [-5.0, 4.0]]
+
+        assert sort_dataset({"coordinates": line})["coordinates"] == line
+
+    def test_sort_keeps_a_polygon_ring_closed(self):
+        ring = [
+            [-77.119759, 38.791645],
+            [-76.909393, 38.791645],
+            [-76.909393, 38.99538],
+            [-77.119759, 38.99538],
+            [-77.119759, 38.791645],
+        ]
+
+        sorted_ring = sort_dataset({"coordinates": [ring]})["coordinates"][0]
+
+        assert sorted_ring == ring
+        assert sorted_ring[0] == sorted_ring[-1], "ring must stay closed"
+
+    def test_sort_canonicalizes_dict_keys_inside_a_nested_list(self):
+        """
+        preserving a positional list's element order must not stop dict keys
+        nested inside it from being canonicalized -- otherwise that subtree
+        hashes differently depending on source key order, defeating the
+        point of the function.
+        """
+        a = sort_dataset({"x": [[{"z": 1, "a": 2}]]})
+        b = sort_dataset({"x": [[{"a": 2, "z": 1}]]})
+
+        assert json.dumps(a) == json.dumps(b)
+        assert list(a["x"][0][0].keys()) == ["a", "z"]
+
+    @pytest.mark.parametrize(
+        "elements",
+        [
+            # `isinstance(True, int)` is True in python, so a bool must be
+            # ranked before the numeric check -- otherwise True and 1 compare
+            # equal, the sort is left to input order, and the same content
+            # hashes two different ways.
+            [True, 1],
+            [False, 0],
+            # a list mixing every json type must not attempt an unsupported
+            # comparison between types, and must land in one stable order
+            [None, 3, "a", True, 1.5, {"x": 1}, [1, 2]],
+        ],
+    )
+    def test_sort_of_mixed_type_list_is_stable_across_input_orders(self, elements):
+        outputs = {
+            json.dumps(sort_dataset(list(permutation)))
+            for permutation in itertools.permutations(elements)
+        }
+
+        assert len(outputs) == 1, f"ordering depends on input order: {outputs}"
+
+    def test_canonical_form_is_pinned(self):
+        """
+        the absolute canonical form, not just its stability. every stored
+        source_hash depends on it, so a change to the sort key or type ranks
+        silently invalidates every hash in the database -- this pins the
+        output so that change has to be deliberate.
+        """
+        record = {
+            "identifier": "golden",
+            "keyword": ["b", "a and more", "a"],
+            "distribution": [{"title": "two", "x": 1}, {"title": "one"}],
+            "spatial": {
+                "type": "LineString",
+                "coordinates": [[10.0, 1.0], [2.0, 3.0]],
+            },
+            # one of every json type, so the relative order of the type
+            # ranks is pinned too, not just the values within a rank
+            "mixed": [None, 3, "a", True, 1.5, {"k": 1}, [1, 2]],
+        }
+
+        assert json.dumps(sort_dataset(record)) == (
+            '{"distribution": [{"title": "one"}, {"title": "two", "x": 1}], '
+            '"identifier": "golden", '
+            '"keyword": ["a", "a and more", "b"], '
+            '"mixed": [null, true, 1.5, 3, "a", [1, 2], {"k": 1}], '
+            '"spatial": {"coordinates": [[10.0, 1.0], [2.0, 3.0]], '
+            '"type": "LineString"}}'
+        )
 
 
 class TestDcatus3Catalog:
