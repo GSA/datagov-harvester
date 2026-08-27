@@ -588,7 +588,13 @@ class HarvestSource:
 
                 elif self.source_type == "document":
                     if self.schema_type.startswith("dcatus"):
-                        parent_identifier = record.pop("parent_identifier", None)
+                        # "parent_identifier" is only present for dcatus3.0
+                        # records nested under a DatasetSeries/DataService.
+                        # DCAT-US 1.1 records instead declare their parent
+                        # directly via "isPartOf".
+                        parent_identifier = record.pop(
+                            "parent_identifier", None
+                        ) or normalize_dataset_identifier(record.get("isPartOf"))
                         dataset = json.dumps(sort_dataset(record))
                     elif self.schema_type.startswith("iso19115"):
                         # single document ISO
