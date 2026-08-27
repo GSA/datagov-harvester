@@ -584,7 +584,10 @@ class HarvestSource:
                 elif self.source_type == "waf-collection":
                     record["content"] = download_file(record["identifier"], ".xml")
                     dataset = record["content"]
-                    parent_identifier = self.collection_parent_url
+                    # The collection root itself has no parent; only tag its
+                    # children with the collection's parent identifier.
+                    if record["identifier"] != self.collection_parent_url:
+                        parent_identifier = self.collection_parent_url
 
                 elif self.source_type == "document":
                     if self.schema_type.startswith("dcatus"):

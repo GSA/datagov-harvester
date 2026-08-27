@@ -600,18 +600,18 @@ class TestHarvestJobFullFlow:
         assert len(harvest_job.record_errors) == 4
         assert harvest_job.records_errored == 4
 
+        collection_parent_url = source_data_waf_collection["collection_parent_url"]
         for record in harvest_job.records:
             if record.status == "success":
-                assert (
-                    record.parent_identifier
-                    == source_data_waf_collection["collection_parent_url"]
-                )
+                if record.identifier == collection_parent_url:
+                    # the collection root itself has no parent
+                    assert record.parent_identifier is None
+                    continue
+
+                assert record.parent_identifier == collection_parent_url
 
                 # make sure the parent url is in the transformed dcat data in the dataset
-                assert (
-                    record.dataset.dcat["isPartOf"]
-                    == source_data_waf_collection["collection_parent_url"]
-                )
+                assert record.dataset.dcat["isPartOf"] == collection_parent_url
         # call on error
         assert send_notification_emails_mock.called
 
