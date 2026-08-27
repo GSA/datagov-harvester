@@ -8,6 +8,15 @@ The label detector scans from the last successful release rather than inspecting
 only the current push. This preserves the migration request when GitHub replaces a
 pending release with a newer merge.
 
+The watermark must still be an ancestor of the commit being released. A force-push
+orphans the runs it rewrote, so the detector walks the recent successful releases
+newest-first and takes the first one that is still on the branch's lineage,
+skipping any whose comparison against HEAD reports `diverged`. When a branch has
+no release history on its current lineage at all, the detector reports no
+migration instead of failing, because there is no commit range to inspect. A
+labeled pull request that was merged onto a discarded lineage is therefore never
+detected, and needs `flask search rebuild-index` run by hand.
+
 ## Release sequence
 
 For each Cloud Foundry space, the release:

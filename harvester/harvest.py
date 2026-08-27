@@ -6,7 +6,6 @@ import re
 import sys
 from dataclasses import dataclass, field
 from itertools import chain
-from pathlib import Path
 from typing import List
 
 import requests
@@ -68,11 +67,14 @@ from harvester.utils.general_utils import (
     translate_spatial_to_geojson,
     traverse_waf,
 )
+from harvester.utils.schema_paths import (
+    DCATUS1_1_DIR,
+    DCATUS3_DATASET_SCHEMA,
+    DCATUS3_DEFINITIONS_DIR,
+)
 
 # logging data
 logger = logging.getLogger("harvest_runner")
-
-ROOT_DIR = Path(__file__).parents[1]
 
 # harvest worker count
 harvest_worker_sync_count = int(os.getenv("HARVEST_WORKER_SYNC_COUNT", 1))
@@ -153,25 +155,17 @@ class HarvestSource:
         self._db_interface: HarvesterDBInterface = db_interface
         self.get_source_info_from_job_id(self.job_id)
 
-        self.schemas_root = ROOT_DIR / "schemas"
-
         if self.schema_type == "dcatus1.1: federal":
-            self.schema_file = self.schemas_root / "dcatus1.1" / "federal_dataset.json"
+            self.schema_file = DCATUS1_1_DIR / "federal_dataset.json"
         elif self.schema_type in ["dcatus1.1: non-federal"]:
-            self.schema_file = (
-                self.schemas_root / "dcatus1.1" / "non-federal_dataset.json"
-            )
+            self.schema_file = DCATUS1_1_DIR / "non-federal_dataset.json"
         elif self.schema_type == "dcatus3.0":
             # dcatus3.0 has a single dataset schema (no federal/non-federal split).
             # A 3.0 dataset identifier may be a string or an object; object
             # identifiers must provide @id.
-            self.schema_file = (
-                self.schemas_root / "dcatus3.0" / "definitions" / "Dataset.json"
-            )
+            self.schema_file = DCATUS3_DATASET_SCHEMA
         elif self.schema_type.startswith("iso19115"):
-            self.schema_file = (
-                self.schemas_root / "dcatus1.1" / "iso-non-federal_dataset.json"
-            )
+            self.schema_file = DCATUS1_1_DIR / "iso-non-federal_dataset.json"
         else:
             # this can't happen because we apply an enum in our model but just in case.
             logger.error(
@@ -185,16 +179,15 @@ class HarvestSource:
             # validate one record at a time against the dcatus3.0 schema
             # matching its record_type, which plugs into the same per-record
             # validation flow as dcatus1.1.
-            definitions_dir = self.schemas_root / "dcatus3.0" / "definitions"
             self._validators = {
                 "dataset": build_dcatus3_validator(
-                    definitions_dir,
+                    DCATUS3_DEFINITIONS_DIR,
                     root_ref="https://resources.data.gov/dcat-us/3.0.0/definitions/dataset",
                 ),
             }
             for record_type, config in NON_DATASET_RECORD_TYPES.items():
                 self._validators[record_type] = build_dcatus3_validator(
-                    definitions_dir,
+                    DCATUS3_DEFINITIONS_DIR,
                     root_ref=(
                         "https://resources.data.gov/dcat-us/3.0.0/definitions/"
                         f"{config['schema_ref']}"
