@@ -24,6 +24,8 @@ from jsonschema import Draft202012Validator, FormatChecker
 from jsonschema.exceptions import ValidationError
 from referencing import Registry
 from referencing.jsonschema import DRAFT202012
+from shapely import wkt as shapely_wkt
+from shapely.geometry import mapping as shapely_mapping
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger()
@@ -449,10 +451,20 @@ def sort_dataset(d):
     arrays is treated as positional data (e.g. a GeoJSON ring or LineString,
     where reordering would move vertices and break the geometry), so its
     element order is preserved while dict keys nested inside it are still
-    sorted.
+    sorted. A "coordinates" key is always positional too -- a GeoJSON Point's
+    coordinates is a plain 2-element number list (e.g. [lon, lat]), one level
+    shallower than a ring/LineString, and would otherwise be sorted ascending
+    like any other number list, silently swapping lon/lat.
     """
     if isinstance(d, dict):
-        return {k: sort_dataset(d[k]) for k in sorted(d.keys())}
+        return {
+            k: (
+                _canonicalize_dict_keys(d[k])
+                if k == "coordinates"
+                else sort_dataset(d[k])
+            )
+            for k in sorted(d.keys())
+        }
     if isinstance(d, list):
         if d and all(isinstance(item, list) for item in d):
             return [_canonicalize_dict_keys(item) for item in d]
@@ -1007,6 +1019,38 @@ def validate_geojson(geojson_str: str) -> bool:
     return False
 
 
+# WKT geometry types, per OGC SFA. `Z`/`M`/`ZM` dimension tags and `EMPTY` are
+# matched so shapely gets the chance to reject/collapse them rather than us.
+_WKT_PREFIX_RE = re.compile(
+    r"^\s*(POINT|LINESTRING|POLYGON|MULTIPOINT|MULTILINESTRING|MULTIPOLYGON"
+    r"|GEOMETRYCOLLECTION)\s*(Z|M|ZM)?\s*(\(|EMPTY)",
+    re.IGNORECASE,
+)
+
+
+def wkt_to_geojson(spatial_value: str) -> str:
+    """Convert a WKT geometry literal to a GeoJSON geometry string.
+
+    DCAT-US 3 Location `bbox`/`geometry`/`centroid` may be expressed as WKT
+    (e.g. "POLYGON((-125 24, -66 24, -66 50, -125 50, -125 24))"). Returns ""
+    for anything that isn't parseable WKT. GML, also permitted by the DCAT-US
+    3 Location schema, is deliberately not supported here.
+    """
+
+    if not isinstance(spatial_value, str) or not _WKT_PREFIX_RE.match(spatial_value):
+        return ""
+
+    try:
+        geometry = shapely_wkt.loads(spatial_value)
+        if geometry.is_empty:
+            return ""
+        return json.dumps(shapely_mapping(geometry))
+    # ruff: noqa: E722
+    except:
+        logger.warning(f"Unable to parse WKT spatial value: {spatial_value}")
+        return ""
+
+
 def _munge_to_length(string: str, min_length: int, max_length: int) -> str:
     """Pad or truncate a string to ensure it fits within the provided bounds."""
 
@@ -1208,13 +1252,113 @@ def _get_geo_lookup_interface():
         return None
 
 
-def translate_spatial(input_value) -> str:
-    """Normalize spatial strings/dicts into GeoJSON strings when possible."""
+def unwrap_geojson_container(value: dict):
+    """Unwrap a GeoJSON Feature/FeatureCollection to its bare geometry.
 
-    if isinstance(input_value, dict):
-        spatial_value = json.dumps(input_value)
-    elif isinstance(input_value, str):
-        spatial_value = input_value
+    `Dataset.translated_spatial` must hold a bare geometry (it feeds the
+    OpenSearch `geo_shape` mapping directly), but `geojson_validator` treats a
+    Feature/FeatureCollection as valid and would otherwise let it through
+    untouched. For a FeatureCollection, only the first feature with a geometry
+    is used.
+    """
+
+    if not isinstance(value, dict):
+        return None
+    if value.get("type") == "Feature":
+        geometry = value.get("geometry")
+        return geometry if isinstance(geometry, dict) else None
+    if value.get("type") == "FeatureCollection":
+        for feature in value.get("features") or []:
+            if isinstance(feature, dict) and isinstance(feature.get("geometry"), dict):
+                return feature["geometry"]
+    return None
+
+
+# DCAT-US 3 Location fields that can carry a geometry, most to least precise.
+_LOCATION_GEOMETRY_FIELDS = ("geometry", "bbox", "centroid")
+# Location fields resolvable only via named-place lookup.
+_LOCATION_LABEL_FIELDS = ("prefLabel",)
+
+
+def is_location_object(value) -> bool:
+    """True when `value` looks like a DCAT-US 3 Location rather than a bare
+    GeoJSON geometry.
+
+    Shape-driven rather than `@type`-driven: `@type` is optional on a
+    Location, and v1.1/ISO sources never carry it. A dict with both `type`
+    and `coordinates` is a bare GeoJSON geometry and is never treated as a
+    Location, even if it also happens to carry an `@type`.
+    """
+
+    if not isinstance(value, dict):
+        return False
+    if {"type", "coordinates"} <= value.keys():
+        return False
+    if value.get("@type") == "Location":
+        return True
+    return any(
+        value.get(field) is not None
+        for field in (*_LOCATION_GEOMETRY_FIELDS, *_LOCATION_LABEL_FIELDS)
+    )
+
+
+def location_spatial_candidates(location: dict) -> list:
+    """Ordered spatial candidates from a Location object.
+
+    Precedence: geometry > bbox > centroid > prefLabel. `geometry` is the
+    most precise representation of the actual coverage; `bbox` is the
+    schema's Recommended field and most often populated; `centroid` is a
+    Point with no extent; `prefLabel` is a place name resolved through the
+    existing named-place DB lookup as a last resort.
+    """
+
+    candidates = []
+    for field in (*_LOCATION_GEOMETRY_FIELDS, *_LOCATION_LABEL_FIELDS):
+        value = location.get(field)
+        if isinstance(value, dict) and value:
+            candidates.append(value)
+        elif isinstance(value, str) and value.strip():
+            candidates.append(value.strip())
+    return candidates
+
+
+def _expand_spatial_candidates(input_value) -> list:
+    """Flatten a spatial input into an ordered list of scalar candidates.
+
+    Handles DCAT-US 3's `spatial: null | Location | Location[]`, GeoJSON
+    Feature/FeatureCollection wrappers, and plain v1.1/ISO strings/geometries.
+    """
+
+    if isinstance(input_value, str):
+        return [input_value]
+
+    if isinstance(input_value, list):
+        candidates = []
+        for item in input_value:
+            candidates.extend(_expand_spatial_candidates(item))
+        return candidates
+
+    if not isinstance(input_value, dict):
+        return []
+
+    unwrapped = unwrap_geojson_container(input_value)
+    if unwrapped is not None:
+        return [unwrapped]
+
+    if is_location_object(input_value):
+        return location_spatial_candidates(input_value)
+
+    return [input_value]
+
+
+def _translate_spatial_candidate(candidate) -> str:
+    """Translate one scalar spatial value (string or GeoJSON geometry dict)
+    into a GeoJSON geometry string, or "" if it can't be resolved."""
+
+    if isinstance(candidate, dict):
+        spatial_value = json.dumps(candidate)
+    elif isinstance(candidate, str):
+        spatial_value = candidate
     else:
         return ""
 
@@ -1222,18 +1366,38 @@ def translate_spatial(input_value) -> str:
     if validated_geojson:
         return validated_geojson
 
-    dbi = _get_geo_lookup_interface()
-    if dbi is not None:
-        try:
-            resolved_geojson = dbi.get_geo_from_string(spatial_value)
-            if resolved_geojson:
-                return resolved_geojson
-        except Exception:  # pragma: no cover - defensive lookup
-            pass
+    wkt_geojson = wkt_to_geojson(spatial_value)
+    if wkt_geojson:
+        # Re-validate so MultiPolygon collapse / antimeridian repair still apply.
+        return validate_geojson(wkt_geojson) or wkt_geojson
 
-    if isinstance(spatial_value, str):
+    if isinstance(candidate, str):
+        dbi = _get_geo_lookup_interface()
+        if dbi is not None:
+            try:
+                resolved_geojson = dbi.get_geo_from_string(spatial_value)
+                if resolved_geojson:
+                    return resolved_geojson
+            except Exception:  # pragma: no cover - defensive lookup
+                pass
         return munge_spatial(spatial_value)
 
+    return ""
+
+
+def translate_spatial(input_value) -> str:
+    """Normalize a spatial value into a bare GeoJSON geometry string.
+
+    Accepts DCAT-US 1.1/ISO strings, bare GeoJSON geometries (dict or
+    string), GeoJSON Feature/FeatureCollection wrappers, WKT literals, and
+    DCAT-US 3 Location objects (single or list). Always returns a GeoJSON
+    geometry string, or "" if nothing could be resolved.
+    """
+
+    for candidate in _expand_spatial_candidates(input_value):
+        translated = _translate_spatial_candidate(candidate)
+        if translated:
+            return translated
     return ""
 
 

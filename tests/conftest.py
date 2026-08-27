@@ -226,6 +226,21 @@ def source_data_dcatus3_0(organization_data: dict) -> dict:
 
 
 @pytest.fixture
+def source_data_dcatus3_0_spatial(organization_data: dict) -> dict:
+    return {
+        "id": "6a2f8c1e-4b3d-4a1a-9f7e-2d8b5c9e6a4f",
+        "name": "Test Source DCAT-US 3.0 (spatial)",
+        "notification_emails": ["email@example.com"],
+        "organization_id": organization_data["id"],
+        "frequency": "daily",
+        "url": f"{HARVEST_SOURCE_URL}/dcatus/dcatus3_0_spatial.json",
+        "schema_type": "dcatus3.0",
+        "source_type": "document",
+        "notification_frequency": "always",
+    }
+
+
+@pytest.fixture
 def source_data_dcatus3_0_invalid(organization_data: dict) -> dict:
     return {
         "id": "59d4cf5b-d98b-4ff4-b10d-3bf20082478b",

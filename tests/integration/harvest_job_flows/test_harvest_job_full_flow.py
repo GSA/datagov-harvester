@@ -834,6 +834,80 @@ class TestHarvestJobFullFlow:
         # the record was added as intended (not errored)
         assert send_notification_emails_mock.call_args.args[0]["records_added"] == 1
 
+    @patch("harvester.harvest.HarvestSource.send_notification_emails")
+    def test_dcatus3_location_spatial(
+        self,
+        send_notification_emails_mock: MagicMock,
+        interface,
+        organization_data,
+        source_data_dcatus3_0_spatial,
+    ):
+        """AC: a DCAT-US 3.0 Location object `spatial` resolves to a bare
+        GeoJSON geometry for `translated_spatial`, using the same
+        geometry > bbox > centroid > prefLabel precedence and array
+        first-resolvable-wins behavior as `translate_spatial`."""
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_dcatus3_0_spatial)
+        harvest_job = interface.add_harvest_job(
+            {
+                "status": "new",
+                "harvest_source_id": source_data_dcatus3_0_spatial["id"],
+            }
+        )
+
+        job_id = harvest_job.id
+        harvest_job_starter(job_id, "harvest")
+
+        harvest_job = interface.get_harvest_job(job_id)
+        assert harvest_job.status != "error"
+        assert harvest_job.records_added == 4
+
+        datasets = interface.db.query(Dataset).all()
+        datasets_by_title = {dataset.dcat["title"]: dataset for dataset in datasets}
+
+        array_wkt_geometry = datasets_by_title[
+            "Spatial Dataset One (array, WKT geometry)"
+        ]
+        assert array_wkt_geometry.translated_spatial["type"] == "Polygon"
+        assert array_wkt_geometry.translated_spatial["coordinates"] == [
+            [
+                [-125.0, 24.0],
+                [-66.0, 24.0],
+                [-66.0, 50.0],
+                [-125.0, 50.0],
+                [-125.0, 24.0],
+            ]
+        ]
+        # translated_spatial must be a bare geometry, never a Feature wrapper.
+        assert "type" in array_wkt_geometry.translated_spatial
+        assert array_wkt_geometry.translated_spatial["type"] != "Feature"
+
+        bbox_geojson = datasets_by_title[
+            "Spatial Dataset Two (single object, bbox GeoJSON)"
+        ]
+        assert bbox_geojson.translated_spatial["type"] == "Polygon"
+
+        geometry_over_bbox = datasets_by_title[
+            "Spatial Dataset Three (geometry takes precedence over bbox)"
+        ]
+        assert geometry_over_bbox.translated_spatial == {
+            "type": "Point",
+            "coordinates": [-1.0, -2.0],
+        }
+
+        unresolvable = datasets_by_title[
+            "Spatial Dataset Four (unresolvable prefLabel)"
+        ]
+        assert unresolvable.translated_spatial is None
+
+        # the unresolvable Location produced a warning, not a schema/record error
+        assert harvest_job.records_errored == 0
+        warning_errors = [
+            error for error in harvest_job.record_errors if error.severity == "warning"
+        ]
+        assert len(warning_errors) == 1
+        assert "Nowheresville" in warning_errors[0].message
+
 
 class TestCheckMoreWork:
     @patch("harvester.lib.cf_handler.CloudFoundryClient")

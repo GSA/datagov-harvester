@@ -1,0 +1,106 @@
+{
+  "@type": "Catalog",
+  "@id": "https://example.gov/spatial.json",
+  "conformsTo": {
+    "@type": "Standard",
+    "title": "DCAT-US 3.0"
+  },
+  "title": "Example DCAT-US 3.0 Catalog (spatial)",
+  "description": "A sample DCAT-US 3.0 catalog exercising Location-object spatial handling.",
+  "dataset": [
+    {
+      "@type": "Dataset",
+      "title": "Spatial Dataset One (array, WKT geometry)",
+      "description": "Location object spatial as an array, geometry as WKT.",
+      "identifier": "https://example.gov/datasets/spatial-one",
+      "publisher": {
+        "@type": "Organization",
+        "name": "Test Agency"
+      },
+      "contactPoint": {
+        "@type": "Kind",
+        "fn": "Test Contact One",
+        "hasEmail": "mailto:spatial-one@example.gov"
+      },
+      "spatial": [
+        {
+          "@type": "Location",
+          "@id": "https://example.gov/locations/usa",
+          "geometry": "POLYGON((-125 24, -66 24, -66 50, -125 50, -125 24))"
+        }
+      ]
+    },
+    {
+      "@type": "Dataset",
+      "title": "Spatial Dataset Two (single object, bbox GeoJSON)",
+      "description": "Location object spatial as a single object, bbox as GeoJSON.",
+      "identifier": "https://example.gov/datasets/spatial-two",
+      "publisher": {
+        "@type": "Organization",
+        "name": "Test Agency"
+      },
+      "contactPoint": {
+        "@type": "Kind",
+        "fn": "Test Contact Two",
+        "hasEmail": "mailto:spatial-two@example.gov"
+      },
+      "spatial": {
+        "@type": "Location",
+        "bbox": {
+          "type": "Polygon",
+          "coordinates": [
+            [
+              [-77.119759, 38.791645],
+              [-76.909393, 38.791645],
+              [-76.909393, 38.99538],
+              [-77.119759, 38.99538],
+              [-77.119759, 38.791645]
+            ]
+          ]
+        }
+      }
+    },
+    {
+      "@type": "Dataset",
+      "title": "Spatial Dataset Three (geometry takes precedence over bbox)",
+      "description": "Location object with both geometry and bbox; geometry should win.",
+      "identifier": "https://example.gov/datasets/spatial-three",
+      "publisher": {
+        "@type": "Organization",
+        "name": "Test Agency"
+      },
+      "contactPoint": {
+        "@type": "Kind",
+        "fn": "Test Contact Three",
+        "hasEmail": "mailto:spatial-three@example.gov"
+      },
+      "spatial": {
+        "@type": "Location",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [-1.0, -2.0]
+        },
+        "bbox": "POLYGON((-125 24, -66 24, -66 50, -125 50, -125 24))"
+      }
+    },
+    {
+      "@type": "Dataset",
+      "title": "Spatial Dataset Four (unresolvable prefLabel)",
+      "description": "Location object with only a prefLabel that can't be resolved.",
+      "identifier": "https://example.gov/datasets/spatial-four",
+      "publisher": {
+        "@type": "Organization",
+        "name": "Test Agency"
+      },
+      "contactPoint": {
+        "@type": "Kind",
+        "fn": "Test Contact Four",
+        "hasEmail": "mailto:spatial-four@example.gov"
+      },
+      "spatial": {
+        "@type": "Location",
+        "prefLabel": "Nowheresville"
+      }
+    }
+  ]
+}

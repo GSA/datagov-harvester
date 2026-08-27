@@ -31,7 +31,9 @@ from harvester.utils.general_utils import (
     extract_dcatus3_nested_datasets,
     find_indexes_for_duplicates,
     get_waf_datetimes,
+    is_location_object,
     is_valid_uuid4,
+    location_spatial_candidates,
     merge_dcatus3_datasets,
     munge_spatial,
     munge_title_to_name,
@@ -44,7 +46,9 @@ from harvester.utils.general_utils import (
     strip_dcatus3_catalog_objects,
     translate_spatial,
     translate_spatial_to_geojson,
+    unwrap_geojson_container,
     validate_geojson,
+    wkt_to_geojson,
 )
 from harvester.utils.schema_paths import (
     DCATUS3_COMPLETE_EXAMPLE,
@@ -229,6 +233,326 @@ class TestCKANUtils:
             "type": "Point",
             "coordinates": [-88.9718, 36.52033],
         }
+
+
+USA_WKT = "POLYGON((-125 24, -66 24, -66 50, -125 50, -125 24))"
+USA_GEOJSON = (
+    '{"type": "Polygon", "coordinates": [[[-125.0, 24.0], [-66.0, 24.0], '
+    "[-66.0, 50.0], [-125.0, 50.0], [-125.0, 24.0]]]}"
+)
+
+
+class TestWktToGeojson:
+    def test_polygon(self):
+        assert wkt_to_geojson(USA_WKT) == USA_GEOJSON
+
+    def test_point_with_space(self):
+        assert (
+            wkt_to_geojson("POINT (0.0 0.0)")
+            == '{"type": "Point", "coordinates": [0.0, 0.0]}'
+        )
+
+    def test_lowercase(self):
+        assert wkt_to_geojson(USA_WKT.lower()) == USA_GEOJSON
+
+    def test_multipolygon(self):
+        result = wkt_to_geojson("MULTIPOLYGON(((0 0,1 0,1 1,0 0)),((2 2,3 2,3 3,2 2)))")
+        assert json.loads(result)["type"] == "MultiPolygon"
+
+    def test_empty_geometry(self):
+        assert wkt_to_geojson("POLYGON EMPTY") == ""
+
+    def test_malformed_wkt(self):
+        assert wkt_to_geojson("POLYGON((not numbers))") == ""
+
+    def test_non_wkt_string(self):
+        assert wkt_to_geojson("1.0,2.0,3.5,5.5") == ""
+
+    def test_geojson_string(self):
+        assert wkt_to_geojson('{"type":"Point","coordinates":[1,2]}') == ""
+
+    def test_non_string_input(self):
+        assert wkt_to_geojson({"type": "Point"}) == ""
+        assert wkt_to_geojson(None) == ""
+        assert wkt_to_geojson(5) == ""
+
+
+class TestIsLocationObject:
+    def test_type_location_with_bbox(self):
+        assert is_location_object({"@type": "Location", "bbox": USA_WKT}) is True
+
+    def test_geometry_without_type(self):
+        geometry = {"type": "Polygon", "coordinates": [[[0, 0], [1, 1], [0, 1]]]}
+        assert is_location_object({"bbox": geometry}) is True
+
+    def test_preflabel_only(self):
+        assert is_location_object({"prefLabel": "Washington, D.C."}) is True
+
+    def test_bare_geojson_geometry(self):
+        assert (
+            is_location_object({"type": "Polygon", "coordinates": [[[0, 0]]]}) is False
+        )
+
+    def test_bare_geometry_wins_over_type_location(self):
+        # A dict carrying both "type"/"coordinates" and "@type": "Location"
+        # is read as a geometry, not a Location with no candidates.
+        assert (
+            is_location_object(
+                {"@type": "Location", "type": "Polygon", "coordinates": [[[0, 0]]]}
+            )
+            is False
+        )
+
+    def test_empty_dict(self):
+        assert is_location_object({}) is False
+
+    def test_type_location_alone(self):
+        assert is_location_object({"@type": "Location"}) is True
+
+    def test_all_null_fields(self):
+        assert (
+            is_location_object(
+                {
+                    "@type": "Location",
+                    "bbox": None,
+                    "geometry": None,
+                    "centroid": None,
+                    "prefLabel": None,
+                }
+            )
+            is True
+        )
+
+    def test_unrelated_dict(self):
+        assert is_location_object({"foo": 1}) is False
+
+    def test_non_dict_values(self):
+        assert is_location_object("a string") is False
+        assert is_location_object(None) is False
+        assert is_location_object(["x"]) is False
+
+
+class TestLocationSpatialCandidates:
+    def test_all_fields_populated_in_precedence_order(self):
+        geometry = {"type": "Point", "coordinates": [-1.0, -2.0]}
+        bbox = {"type": "Polygon", "coordinates": [[[0, 0], [1, 1], [0, 1]]]}
+        centroid = {"type": "Point", "coordinates": [-77.0369, 38.9072]}
+        location = {
+            "@type": "Location",
+            "geometry": geometry,
+            "bbox": bbox,
+            "centroid": centroid,
+            "prefLabel": "United States",
+        }
+        assert location_spatial_candidates(location) == [
+            geometry,
+            bbox,
+            centroid,
+            "United States",
+        ]
+
+    def test_geometry_first_regardless_of_key_order(self):
+        geometry = {"type": "Point", "coordinates": [1.0, 2.0]}
+        bbox = {"type": "Polygon", "coordinates": [[[0, 0], [1, 1], [0, 1]]]}
+        location = {"bbox": bbox, "geometry": geometry}
+        assert location_spatial_candidates(location) == [geometry, bbox]
+
+    def test_all_null_fields_yield_no_candidates(self):
+        location = {
+            "@type": "Location",
+            "bbox": None,
+            "geometry": None,
+            "centroid": None,
+            "prefLabel": None,
+        }
+        assert location_spatial_candidates(location) == []
+
+    def test_type_only_yields_no_candidates(self):
+        assert location_spatial_candidates({"@type": "Location"}) == []
+
+    def test_wrong_types_dropped(self):
+        location = {"geometry": 5, "bbox": [], "centroid": True}
+        assert location_spatial_candidates(location) == []
+
+    def test_preflabel_stripped(self):
+        assert location_spatial_candidates({"prefLabel": "  Alaska  "}) == ["Alaska"]
+
+    def test_blank_preflabel_dropped(self):
+        assert location_spatial_candidates({"prefLabel": "   "}) == []
+
+
+class TestUnwrapGeojsonContainer:
+    def test_feature(self):
+        point = {"type": "Point", "coordinates": [1, 2]}
+        feature = {"type": "Feature", "properties": {}, "geometry": point}
+        assert unwrap_geojson_container(feature) == point
+
+    def test_feature_with_null_geometry(self):
+        feature = {"type": "Feature", "properties": {}, "geometry": None}
+        assert unwrap_geojson_container(feature) is None
+
+    def test_feature_collection_uses_first_feature(self):
+        point1 = {"type": "Point", "coordinates": [1, 2]}
+        point2 = {"type": "Point", "coordinates": [3, 4]}
+        collection = {
+            "type": "FeatureCollection",
+            "features": [
+                {"type": "Feature", "geometry": point1},
+                {"type": "Feature", "geometry": point2},
+            ],
+        }
+        assert unwrap_geojson_container(collection) == point1
+
+    def test_feature_collection_empty(self):
+        collection = {"type": "FeatureCollection", "features": []}
+        assert unwrap_geojson_container(collection) is None
+
+    def test_bare_geometry_not_unwrapped(self):
+        assert (
+            unwrap_geojson_container({"type": "Point", "coordinates": [1, 2]}) is None
+        )
+
+    def test_location_not_unwrapped(self):
+        assert unwrap_geojson_container({"@type": "Location", "bbox": USA_WKT}) is None
+
+
+class TestTranslateSpatialLocationObject:
+    def test_bbox_geojson_object(self):
+        bbox = {
+            "type": "Polygon",
+            "coordinates": [
+                [
+                    [-77.119759, 38.791645],
+                    [-76.909393, 38.791645],
+                    [-76.909393, 38.99538],
+                    [-77.119759, 38.99538],
+                    [-77.119759, 38.791645],
+                ]
+            ],
+        }
+        assert translate_spatial({"@type": "Location", "bbox": bbox}) == (
+            '{"type": "Polygon", "coordinates": [[[-77.119759, 38.791645], '
+            "[-76.909393, 38.791645], [-76.909393, 38.99538], "
+            "[-77.119759, 38.99538], [-77.119759, 38.791645]]]}"
+        )
+
+    def test_bbox_wkt(self):
+        assert translate_spatial({"@type": "Location", "bbox": USA_WKT}) == USA_GEOJSON
+
+    def test_geometry_preferred_over_bbox(self):
+        geometry = {"type": "Point", "coordinates": [-1.0, -2.0]}
+        location = {"geometry": geometry, "bbox": USA_WKT}
+        assert translate_spatial(location) == json.dumps(geometry)
+
+    def test_falls_back_to_bbox_when_geometry_unresolvable(self):
+        location = {"geometry": "not a real place at all xyz", "bbox": USA_WKT}
+        assert translate_spatial(location) == USA_GEOJSON
+
+    def test_centroid_only(self):
+        centroid = {"type": "Point", "coordinates": [-77.0369, 38.9072]}
+        assert translate_spatial({"@type": "Location", "centroid": centroid}) == (
+            json.dumps(centroid)
+        )
+
+    def test_stringified_geojson_bbox(self):
+        bbox_str = json.dumps(
+            {
+                "type": "Polygon",
+                "coordinates": [
+                    [[-125, 24], [-66, 24], [-66, 50], [-125, 50], [-125, 24]]
+                ],
+            }
+        )
+        result = translate_spatial({"bbox": bbox_str})
+        assert json.loads(result)["type"] == "Polygon"
+
+    def test_preflabel_lookup(self, named_location_us):
+        # "United States" is seeded into the Locations table for every test
+        # (see conftest.py's `dbapp` fixture); a plain-string lookup proves
+        # the label was passed through, not the surrounding Location dict.
+        location = {"@type": "Location", "prefLabel": "United States"}
+        assert translate_spatial(location) == named_location_us
+
+    def test_location_list_single_item(self):
+        location = {"@type": "Location", "bbox": USA_WKT}
+        assert translate_spatial([location]) == USA_GEOJSON
+
+    def test_location_list_first_resolvable_wins(self):
+        unresolvable = {"geometry": "not a real place at all xyz"}
+        resolvable = {"bbox": USA_WKT}
+        assert translate_spatial([unresolvable, resolvable]) == USA_GEOJSON
+
+    def test_empty_location(self):
+        assert translate_spatial({}) == ""
+
+    def test_all_null_location_fields(self):
+        location = {
+            "@type": "Location",
+            "bbox": None,
+            "geometry": None,
+            "centroid": None,
+            "prefLabel": None,
+        }
+        assert translate_spatial(location) == ""
+
+    def test_gml_unsupported(self):
+        gml = "<gml:Envelope><gml:lowerCorner>-125 24</gml:lowerCorner></gml:Envelope>"
+        assert translate_spatial({"@type": "Location", "bbox": gml}) == ""
+
+    def test_input_unchanged(self):
+        location = {"@type": "Location", "bbox": USA_WKT}
+        original = json.loads(json.dumps(location))
+        translate_spatial(location)
+        assert location == original
+
+    def test_feature_unwrapped(self):
+        point = {"type": "Point", "coordinates": [1, 2]}
+        feature = {"type": "Feature", "properties": {}, "geometry": point}
+        assert translate_spatial(feature) == json.dumps(point)
+
+    def test_feature_collection_unwrapped(self):
+        point = {"type": "Point", "coordinates": [1, 2]}
+        collection = {
+            "type": "FeatureCollection",
+            "features": [{"type": "Feature", "geometry": point}],
+        }
+        assert translate_spatial(collection) == json.dumps(point)
+
+    def test_wkt_over_meridian(self):
+        meridian_wkt = "POLYGON((-190 40, -190 50, -170 50, -170 40, -190 40))"
+        assert translate_spatial(meridian_wkt) == json.dumps(
+            {
+                "type": "MultiPolygon",
+                "coordinates": [
+                    [
+                        [
+                            [170.0, 40.0],
+                            [180.0, 40.0],
+                            [180.0, 50.0],
+                            [170.0, 50.0],
+                            [170.0, 40.0],
+                        ],
+                        [
+                            [-180.0, 40.0],
+                            [-180.0, 50.0],
+                            [-170.0, 50.0],
+                            [-170.0, 40.0],
+                            [-180.0, 40.0],
+                        ],
+                    ]
+                ],
+            }
+        )
+
+    def test_to_geojson_location(self):
+        geojson = translate_spatial_to_geojson({"@type": "Location", "bbox": USA_WKT})
+        assert geojson == json.loads(USA_GEOJSON)
+
+    def test_to_geojson_empty_location(self):
+        assert translate_spatial_to_geojson({}) is None
+
+    def test_to_geojson_empty_list(self):
+        assert translate_spatial_to_geojson([]) is None
 
 
 # Point example
@@ -982,6 +1306,17 @@ class TestSortDataset:
         line = [[10.0, 1.0], [2.0, 3.0], [-5.0, 4.0]]
 
         assert sort_dataset({"coordinates": line})["coordinates"] == line
+
+    def test_sort_does_not_swap_a_point_coordinate_pair(self):
+        """
+        a GeoJSON Point's coordinates is [lon, lat] -- a plain 2-element
+        number list, one level shallower than a LineString/ring. Without key
+        awareness, that list looks like an unordered collection and gets
+        sorted ascending, silently swapping lon/lat.
+        """
+        point = {"type": "Point", "coordinates": [-1.0, -2.0]}
+
+        assert sort_dataset(point)["coordinates"] == [-1.0, -2.0]
 
     def test_sort_keeps_a_polygon_ring_closed(self):
         ring = [
