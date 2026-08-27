@@ -21,6 +21,17 @@ class TestValidatorUploadLimits:
     to enforce the same one. See GSA/data.gov#6067.
     """
 
+    def test_page_hands_the_limit_to_the_client_side_guard(self, client):
+        """
+        Jinja renders an undefined variable as an empty string, which would break
+        the guard's JS without failing anything. Pin both uses of the limit.
+        """
+        res = client.get("/validate/")
+
+        assert res.status_code == 200
+        assert f"const MAX_UPLOAD_BYTES = {MAX_UPLOAD_BYTES};" in res.text
+        assert f"Maximum size: {MAX_UPLOAD_MB} MB." in res.text
+
     def test_pasted_json_over_flask_form_default_is_accepted(self, app, client):
         padding = "x" * (2 * 1024 * 1024)
         catalog = json.dumps({"dataset": [], "padding": padding})

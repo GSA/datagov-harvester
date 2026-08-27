@@ -235,10 +235,20 @@ class TestValidator:
         )
         expect(upage.locator(".error-list")).not_to_be_visible()
 
+    def test_ui_shows_the_upload_size_limit(self, upage):
+        """
+        The limit the form enforces is the limit the form advertises.
+        """
+        upage.locator("select[name=fetch_method]").select_option("upload")
+        expect(upage.locator("#json_file-hint")).to_have_text("Maximum size: 10 MB.")
+
+        upage.locator("select[name=fetch_method]").select_option("paste")
+        expect(upage.locator("#json_text-hint")).to_have_text("Maximum size: 10 MB.")
+
     def test_ui_upload_rejects_file_exceeding_size_limit(self, upage):
         """
-        Uploading a file larger than MAX_CONTENT_LENGTH (10MB) should result
-        in a 413 response from Flask before the form is processed.
+        A file over the cap is refused client-side, so the user gets an inline
+        error and the browser never uploads it.
         """
         upage.locator("select[name=fetch_method]").select_option("upload")
         upage.locator("input[type=file][name=json_file]").set_input_files(
@@ -249,10 +259,45 @@ class TestValidator:
             }
         )
 
-        with upage.expect_response("**/validate/") as response_info:
-            upage.locator("input[type=submit]").click()
+        # survives only if the page never navigated
+        upage.evaluate("window.__sameDocument = true")
+        upage.locator("input[type=submit]").click()
 
-        assert response_info.value.status == 413
+        expect(upage.locator("#upload_field .usa-error-message")).to_have_text(
+            "File is too large. Maximum size is 10 MB."
+        )
+        assert upage.evaluate("window.__sameDocument") is True
+
+    def test_ui_paste_rejects_json_exceeding_size_limit(self, upage):
+        """
+        Same guard on the paste path, which reports bytes rather than file size.
+        """
+        upage.locator("select[name=fetch_method]").select_option("paste")
+        upage.evaluate(
+            "document.getElementById('json_text').value = 'x'.repeat(11 * 1024 * 1024)"
+        )
+
+        upage.evaluate("window.__sameDocument = true")
+        upage.locator("input[type=submit]").click()
+
+        expect(upage.locator("#json_field .usa-error-message")).to_have_text(
+            "Pasted JSON is too large. Maximum size is 10 MB."
+        )
+        assert upage.evaluate("window.__sameDocument") is True
+
+    def test_oversized_post_bypassing_the_browser_gets_the_413_page(self, upage):
+        """
+        The client-side guard is not the only defense: a request that skips it
+        still gets a readable page rather than a raw gateway error.
+        """
+        res = upage.request.post(
+            "/validate/",
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+            data=b"json_text=" + b"x" * (11 * 1024 * 1024),
+        )
+
+        assert res.status == 413
+        assert "must be 10MB or less" in res.text()
 
     def test_ui_dcatus3_info(self, upage):
         """
