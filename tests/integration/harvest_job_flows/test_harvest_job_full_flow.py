@@ -394,8 +394,7 @@ class TestHarvestJobFullFlow:
         records = (
             interface.db.query(HarvestRecord)
             .filter(
-                HarvestRecord.harvest_source_id
-                == source_data_dcatus1_1_ispartof["id"]
+                HarvestRecord.harvest_source_id == source_data_dcatus1_1_ispartof["id"]
             )
             .all()
         )
