@@ -4,9 +4,10 @@ Pull requests carrying the `force re-index recommended` label use a replacement
 OpenSearch cluster when they are merged. This runs in development for merges to
 `develop`, then in staging and production for merges to `main`.
 
-The label detector scans from the last successful release rather than inspecting
-only the current push. This preserves the migration request when GitHub replaces a
-pending release with a newer merge.
+The label detector checks only the commit that triggered the current release run.
+`deploy.yml` and `deploy-development.yml` use `queue: max`, so GitHub queues every
+push behind the one in progress instead of replacing a pending run with a newer
+merge — each merge still gets its own dedicated run and its own label check.
 
 The watermark must still be an ancestor of the commit being released. A force-push
 orphans the runs it rewrote, so the detector walks the recent successful releases
