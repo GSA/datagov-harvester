@@ -7,12 +7,13 @@ from urllib.parse import urlsplit
 
 from apiflask import APIFlask
 from dotenv import load_dotenv
-from flask import g, request, session
+from flask import g, jsonify, render_template, request, session
 from flask_htmx import HTMX
 from flask_migrate import Migrate
 from flask_talisman import Talisman
+from werkzeug.exceptions import RequestEntityTooLarge
 
-from app.constants import MAX_UPLOAD_BYTES
+from app.constants import MAX_UPLOAD_BYTES, MAX_UPLOAD_MB
 from app.filters import else_na, humanize, usa_icon, utc_isoformat
 from app.local_dev_auth import is_running_on_cloud_foundry
 from app.startup_validation import validate_required_env_vars
@@ -297,6 +298,24 @@ def create_app():
             return set_private_no_store(response)
 
         return set_public_cache(response, 60)
+
+    @app.errorhandler(RequestEntityTooLarge)
+    def handle_request_entity_too_large(error):
+        """
+        APIFlask's json_errors turns every HTTPException into a JSON body, so an
+        oversized upload reached browser users as a bare JSON blob. This handler
+        is registered on the concrete exception so Flask prefers it over that
+        catch-all. (GSA/data.gov#6067)
+        """
+        logger.warning(
+            "Rejected request over the %sMB limit path=%s", MAX_UPLOAD_MB, request.path
+        )
+        message = f"Submission too large - must be {MAX_UPLOAD_MB}MB or less."
+
+        if request.path.startswith("/api/"):
+            return jsonify({"error": message}), 413
+
+        return render_template("413.html", message=message), 413
 
     global htmx
     htmx = HTMX(app)
