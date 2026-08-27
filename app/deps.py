@@ -175,7 +175,7 @@ def create_harvest_source(source_data):
     if not source:
         return None, error or "Failed to add harvest source.", 400
 
-    job_message = load_manager.schedule_first_job(source.id)
+    job_message = load_manager.reschedule_next_run(source.id)
     if not job_message:
         return source, "Failed to schedule the first harvest job.", 500
 

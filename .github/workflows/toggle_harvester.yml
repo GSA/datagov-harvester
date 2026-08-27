@@ -95,7 +95,7 @@ jobs:
 
       - name: Send notification to Slack
         if: ${{ inputs.notification && inputs.state != 'check' }}
-        uses: slackapi/slack-github-action@v3
+        uses: slackapi/slack-github-action@v4
         with:
           webhook-type: incoming-webhook
           payload: |
