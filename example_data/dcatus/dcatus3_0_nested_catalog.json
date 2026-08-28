@@ -1,0 +1,79 @@
+{
+  "@type": "Catalog",
+  "@id": "https://example.gov/nested-data.json",
+  "conformsTo": {
+    "@type": "Standard",
+    "title": "DCAT-US 3.0"
+  },
+  "title": "Example DCAT-US 3.0 Nested Catalog",
+  "description": "A sample DCAT-US 3.0 catalog with nested sub-catalogs used for harvest testing.",
+  "publisher": {
+    "@type": "Organization",
+    "name": "Test Agency"
+  },
+  "dataset": [
+    {
+      "@type": "Dataset",
+      "title": "Parent Catalog Dataset",
+      "description": "A dataset at the top level of the catalog.",
+      "identifier": "https://example.gov/datasets/nested-parent",
+      "publisher": {
+        "@type": "Organization",
+        "name": "Test Agency"
+      },
+      "contactPoint": {
+        "@type": "Kind",
+        "fn": "Test Contact",
+        "hasEmail": "mailto:parent@example.gov"
+      }
+    }
+  ],
+  "catalog": [
+    {
+      "@type": "Catalog",
+      "title": "Child Catalog",
+      "description": "A sub-catalog nested within the parent catalog.",
+      "dataset": [
+        {
+          "@type": "Dataset",
+          "title": "Child Catalog Dataset",
+          "description": "A dataset nested one level deep.",
+          "identifier": "https://example.gov/datasets/nested-child",
+          "publisher": {
+            "@type": "Organization",
+            "name": "Test Agency"
+          },
+          "contactPoint": {
+            "@type": "Kind",
+            "fn": "Test Contact",
+            "hasEmail": "mailto:child@example.gov"
+          }
+        }
+      ],
+      "catalog": [
+        {
+          "@type": "Catalog",
+          "title": "Grandchild Catalog",
+          "description": "A sub-catalog nested two levels deep.",
+          "dataset": [
+            {
+              "@type": "Dataset",
+              "title": "Grandchild Catalog Dataset",
+              "description": "A dataset nested two levels deep.",
+              "identifier": "https://example.gov/datasets/nested-grandchild",
+              "publisher": {
+                "@type": "Organization",
+                "name": "Test Agency"
+              },
+              "contactPoint": {
+                "@type": "Kind",
+                "fn": "Test Contact",
+                "hasEmail": "mailto:grandchild@example.gov"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

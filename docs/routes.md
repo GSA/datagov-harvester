@@ -11,6 +11,13 @@ below, while **every** route on the `api` blueprint is served under an `/api`
 prefix (applied once via `url_prefix="/api"`, not hand-typed per route). JSON
 callers authenticate with the `X-API-Key` header.
 
+The `api` blueprint is also registered a second time under `/api/v1`
+([app/routes.py](../app/routes.py)), so every route below is reachable at
+both the un-prefixed `/api/...` path and the versioned `/api/v1/...` path.
+The two serve identical behavior -- `/api/v1` is the URI-versioned home for
+the API going forward, and `/api` stays as an alias for existing consumers.
+See [GSA/data.gov#5128](https://github.com/GSA/data.gov/issues/5128).
+
 Authenticated mutation endpoints on the `api` blueprint use `@api.doc(hide=True)`
 and are omitted from the public Swagger docs at `/openapi/docs`.
 
@@ -83,12 +90,18 @@ and are omitted from the public Swagger docs at `/openapi/docs`.
 - `/api/harvest_records/`: List all harvest records, GET only, no login required
 - `/api/harvest_record/add`: Add a new harvest record via JSON. POST only.
   Login required.
-- `/api/harvest_record/<id>/errors`: List errors for a harvest record, GET only,
-  no login required
+- `/api/harvest_record/<id>/errors`: List issues for a harvest record, GET only,
+  no login required. Takes an optional `severity` query parameter, either
+  `error` or `warning`; any other value is a 400. With no parameter every issue
+  is returned, errors and DCAT-US v3 warnings alike, and each row carries its
+  own `severity`.
 - `/api/harvest_job_errors/`: List harvest job errors as JSON, GET only, no
   login required
-- `/api/harvest_record_errors/`: List harvest record errors as JSON, GET only,
-  no login required
+- `/api/harvest_record_errors/`: List harvest record issues as JSON, GET only,
+  no login required. Takes the same optional `severity` query parameter, and
+  likewise returns every issue when it is omitted. Because severity is also an
+  ordinary column, `?facets=severity eq warning` works too; nothing is injected
+  when the parameter is absent, so a severity facet is never double-filtered.
 - `/api/harvest_error/<id>`: Details for a harvest error, GET only, no login required
 
 
@@ -113,3 +126,9 @@ and are omitted from the public Swagger docs at `/openapi/docs`.
   Should we add HTML web versions of these?
 - `/harvest_error` and `/harvest_error/<id>` appear to be JSON only. Should we
   add HTML web versions of these?
+- Job errors and record errors are separate tables but share one `ErrorInfo`
+  schema in the OpenAPI spec, so `ErrorInfo` advertises `severity` even though
+  only `harvest_record_error` has that column. Job-error responses simply omit
+  the field. Splitting the schema in two would describe this honestly, but it
+  would add a schema definition, which the Swagger count assertion in
+  `tests/playwright/test_openapi.py` pins.

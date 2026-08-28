@@ -4,6 +4,7 @@ from typing import Optional
 from flask_sqlalchemy import SQLAlchemy
 from geoalchemy2 import Geometry
 from sqlalchemy import (
+    Boolean,
     CheckConstraint,
     Column,
     DateTime,
@@ -28,6 +29,7 @@ from shared.constants import (
     NOTIFICATION_FREQUENCY_VALUES,
     ORGANIZATION_TYPE_VALUES,
     RECORD_STATUS_VALUES,
+    RECORD_TYPE_VALUES,
     SCHEMA_TYPE_VALUES,
     SEVERITY_VALUES,
     SOURCE_TYPE_VALUES,
@@ -64,6 +66,11 @@ class Organization(Base):
             name="organization_type_enum",
             create_constraint=True,
         )
+    )
+
+    code_repo_url = Column(String)
+    code_repo_exempt = Column(
+        Boolean, default=False, nullable=False, server_default=text("false")
     )
 
     aliases = Column(ARRAY(String))
@@ -188,6 +195,11 @@ class HarvestJob(Base):
     records_ignored = Column(Integer, default=0)
     records_validated = Column(Integer, default=0)
 
+    # Catalog-level DCAT-US 3.0 metadata for this job's source, with dataset,
+    # service, record, and catalog fields stripped (those are harvested
+    # separately as their own records). Null for non-Catalog sources.
+    dcatus_catalog = Column(JSONB)
+
     errors = relationship(
         "HarvestJobError",
         backref=backref("job", lazy="joined"),
@@ -252,6 +264,14 @@ class HarvestRecord(Base):
         index=True,
     )
 
+    # Defaults to "dataset": every record was a dataset before DCAT-US 3.0.
+    record_type = Column(
+        Enum(*RECORD_TYPE_VALUES, name="record_type"),
+        nullable=False,
+        server_default="dataset",
+        index=True,
+    )
+
     # No delete cascade here on purpose: record errors outlive their record so
     # error history survives record cleanup (see test_harvest_record_error_remains).
     # harvest_record_id is nullable and stays SET NULL; the errors are still
@@ -261,8 +281,9 @@ class HarvestRecord(Base):
     __table_args__ = (
         Index("ix_harvest_record_harvest_job_id", "harvest_job_id"),
         Index(
-            "ix_harvest_record_source_identifier_created_success",
+            "ix_harvest_record_source_type_identifier_created_success",
             harvest_source_id,
+            record_type,
             identifier,
             date_created.desc(),
             postgresql_where=text("status = 'success'"),
@@ -316,6 +337,16 @@ class Dataset(Base):
 
     popularity = Column(Integer, server_default="0")
     last_harvested_date = Column(DateTime, index=True)
+
+    # Mirrors HarvestRecord.record_type. A DatasetSeries gets "data_series"
+    # and a DataService gets "data_service" here so each is
+    # searchable/displayable like a dataset.
+    type = Column(
+        Enum(*RECORD_TYPE_VALUES, name="record_type"),
+        nullable=False,
+        server_default="dataset",
+        index=True,
+    )
 
     # The `datasets` / `dataset` backrefs below are the one-to-many side, so
     # passive_deletes belongs on the backref. Without it SQLAlchemy tries to NULL

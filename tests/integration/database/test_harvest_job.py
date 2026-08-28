@@ -1,9 +1,11 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from freezegun import freeze_time
-from sqlalchemy import text
+from sqlalchemy import asc, text
+from sqlalchemy.dialects import postgresql
+from sqlalchemy.orm import lazyload
 
-from database.models import HarvestJobError
+from database.models import HarvestJob, HarvestJobError
 
 
 def test_add_harvest_job_error(
@@ -109,6 +111,27 @@ def test_update_harvest_job_records_warned(interface_no_jobs, job_data_dcatus):
     assert updated.records_warned == 42
 
 
+def test_add_harvest_job_dcatus_catalog(
+    interface, organization_data, source_data_dcatus, job_data_dcatus
+):
+    interface.add_organization(organization_data)
+    interface.add_harvest_source(source_data_dcatus)
+    catalog = {"@type": "Catalog", "title": "Test Catalog"}
+    job_data_dcatus["dcatus_catalog"] = catalog
+
+    job = interface.add_harvest_job(job_data_dcatus)
+    assert job.dcatus_catalog == catalog
+
+
+def test_update_harvest_job_dcatus_catalog(interface_no_jobs, job_data_dcatus):
+    interface_no_jobs.add_harvest_job(job_data_dcatus)
+    catalog = {"@type": "Catalog", "title": "Updated Catalog"}
+    updated = interface_no_jobs.update_harvest_job(
+        job_data_dcatus["id"], {"dcatus_catalog": catalog}
+    )
+    assert updated.dcatus_catalog == catalog
+
+
 def test_get_all_harvest_jobs_by_facet(
     source_data_dcatus, interface_with_multiple_jobs
 ):
@@ -119,6 +142,43 @@ def test_get_all_harvest_jobs_by_facet(
     assert len(filtered_list) == 3
     assert filtered_list[0].status == "new"
     assert filtered_list[0].harvest_source_id == source_data_dcatus["id"]
+
+
+def test_get_new_harvest_jobs_in_past_uses_skip_locked(
+    interface_no_jobs, source_data_dcatus
+):
+    source_id = source_data_dcatus["id"]
+    now = datetime.now(timezone.utc)
+
+    interface_no_jobs.add_harvest_job(
+        {
+            "status": "new",
+            "harvest_source_id": source_id,
+            "date_created": now - timedelta(minutes=10),
+        }
+    )
+
+    query = (
+        interface_no_jobs.db.query(HarvestJob)
+        .options(lazyload("*"))
+        .filter(
+            HarvestJob.date_created < now,
+            HarvestJob.status == "new",
+        )
+        .order_by(asc(HarvestJob.date_created))
+        .with_for_update(skip_locked=True)
+        .limit(10)
+    )
+
+    sql = str(
+        query.statement.compile(
+            dialect=postgresql.dialect(),
+            compile_kwargs={"literal_binds": True},
+        )
+    ).upper()
+
+    assert "FOR UPDATE" in sql
+    assert "SKIP LOCKED" in sql
 
 
 def get_new_harvest_jobs_in_past(interface_with_multiple_jobs):

@@ -3,117 +3,77 @@ on:
   push:
     branches:
       - main
-  workflow_dispatch:
-    inputs:
-      version_no:
-        description: 'Release Version:'
-        required: true
 
 # default minimal permissions for every job
 permissions:
     contents: read
 
-env:
-  PY_VERSION: "3.12.13"
-  POETRY_VERSION: "latest"
+concurrency:
+  group: release-main
+  cancel-in-progress: false
+  queue: max
 
 jobs:
-  create-cloudgov-services-staging:
-    name: create services (staging)
-    environment: staging
-    runs-on: ubuntu-latest
-    steps:
-      - name: checkout
-        uses: actions/checkout@v7
-      - name: create services
-        uses: cloud-gov/cg-cli-tools@main
-        with:
-          command: bash create_cloudgov_services.sh
-          cf_org: gsa-datagov
-          cf_space: staging
-          cf_username: ${{secrets.CF_SERVICE_USER}}
-          cf_password: ${{secrets.CF_SERVICE_AUTH}}
+  detect-opensearch-migration:
+    name: Detect OpenSearch migration
+    permissions:
+      contents: read
+      pull-requests: read
+    uses: ./.github/workflows/detect-opensearch-migration.yml
 
-  create-cloudgov-services-prod:
-    name: create services (prod)
-    environment: prod
-    runs-on: ubuntu-latest
-    steps:
-      - name: checkout
-        uses: actions/checkout@v7
-      - name: create services
-        uses: cloud-gov/cg-cli-tools@main
-        with:
-          command: bash create_cloudgov_services.sh
-          cf_org: gsa-datagov
-          cf_space: prod
-          cf_username: ${{secrets.CF_SERVICE_USER}}
-          cf_password: ${{secrets.CF_SERVICE_AUTH}}
+  release-staging:
+    name: Release staging
+    needs: detect-opensearch-migration
+    permissions:
+      contents: read
+      issues: write
+    uses: ./.github/workflows/release-space.yml
+    with:
+      space: staging
+      migrate_opensearch: ${{ needs.detect-opensearch-migration.outputs.migration_needed == 'true' }}
+      migration_prs: ${{ needs.detect-opensearch-migration.outputs.pr_numbers }}
+    secrets: inherit
 
-  deploy-staging:
-    name: deploy (staging)
+  release-prod:
+    name: Release production
     needs:
-      - create-cloudgov-services-staging
-    environment: staging
+      - detect-opensearch-migration
+      - release-staging
+    permissions:
+      contents: read
+      issues: write
+    uses: ./.github/workflows/release-space.yml
+    with:
+      space: prod
+      migrate_opensearch: ${{ needs.detect-opensearch-migration.outputs.migration_needed == 'true' }}
+      migration_prs: ${{ needs.detect-opensearch-migration.outputs.pr_numbers }}
+    secrets: inherit
+
+  disable-on-release-failure:
+    name: Disable automatic deployments
+    needs:
+      - detect-opensearch-migration
+      - release-staging
+      - release-prod
+    if: >-
+      ${{ always()
+      && (needs.detect-opensearch-migration.result == 'failure'
+      || needs.release-staging.result == 'failure'
+      || needs.release-prod.result == 'failure') }}
     runs-on: ubuntu-latest
     permissions:
       actions: write
-      contents: read
     steps:
-      - name: Check out the code
-        uses: actions/checkout@v7
-      - name: Deploy via composite action
-        uses: ./.github/actions/deploy
-        with:
-          cf_space: staging
-          python-version: ${{ env.PY_VERSION }}
-          poetry-version: ${{ env.POETRY_VERSION }}
-          cf_username: ${{ secrets.CF_SERVICE_USER }}
-          cf_password: ${{ secrets.CF_SERVICE_AUTH }}
-
-  deploy-prod:
-    name: deploy (prod)
-    needs:
-      - create-cloudgov-services-prod
-      - deploy-staging
-    environment: prod
-    runs-on: ubuntu-latest
-    permissions:
-      actions: write
-      contents: read
-    steps:
-      - name: Check out the code
-        uses: actions/checkout@v7
-      - name: Deploy via composite action
-        uses: ./.github/actions/deploy
-        with:
-          cf_space: prod
-          python-version: ${{ env.PY_VERSION }}
-          poetry-version: ${{ env.POETRY_VERSION }}
-          cf_username: ${{ secrets.CF_SERVICE_USER }}
-          cf_password: ${{ secrets.CF_SERVICE_AUTH }}
-
-  network-policies:
-    name: Add network-policies
-    needs:
-      - deploy-staging
-      - deploy-prod
-    runs-on: ubuntu-latest
-    environment: ${{ matrix.environ }}
-    strategy:
-      fail-fast: false
-      matrix:
-        command: [
-          "cf add-network-policy datagov-harvest-proxy datagov-harvest --protocol tcp --port 61443",
-          "cf add-network-policy datagov-harvest mdtranslator --protocol tcp --port 8080"
-        ]
-        environ: ["staging", "prod"]
-    steps:
-      - name: Add network policy
-        uses: cloud-gov/cg-cli-tools@main
-        with:
-          command: ${{ matrix.command }}
-          cf_org: gsa-datagov
-          cf_space: ${{ matrix.environ }}
-          cf_username: ${{secrets.CF_SERVICE_USER}}
-          cf_password: ${{secrets.CF_SERVICE_AUTH}}
+      - name: Disable deploy workflow
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow disable deploy.yml --repo "$GITHUB_REPOSITORY"
+          {
+            echo "### Automatic deployments disabled"
+            echo
+            echo "A release job failed, so \`deploy.yml\` will not run on later merges."
+            echo "After investigating the failed release, re-enable it with:"
+            echo
+            echo "\`gh workflow enable deploy.yml --repo $GITHUB_REPOSITORY\`"
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -7,7 +7,7 @@ import pytest
 from cloudfoundry_client.errors import InvalidStatusCode
 from freezegun import freeze_time
 
-from database.models import HarvestJobError
+from database.models import HarvestJob, HarvestJobError
 from harvester.lib.load_manager import LoadManager
 from harvester.utils.general_utils import create_future_date
 
@@ -29,9 +29,15 @@ def all_tasks_json_fixture():
         return json.load(file)
 
 
+@pytest.fixture
+def force_cf_handler(monkeypatch):
+    monkeypatch.setenv("CF_API_URL", "https://api.example.com")
+    monkeypatch.setenv("CF_SERVICE_USER", "user")
+    monkeypatch.setenv("CF_SERVICE_AUTH", "pass")
+
+
 @freeze_time("Jan 14th, 2012")
 class TestLoadManager:
-
     @patch("harvester.lib.cf_handler.CloudFoundryClient")
     @patch("harvester.lib.load_manager.MAX_TASKS_COUNT", 3)
     def test_load_manager_invokes_tasks(
@@ -40,6 +46,7 @@ class TestLoadManager:
         interface_no_jobs,
         source_data_dcatus_orm,
         mock_good_cf_index,
+        force_cf_handler,
     ):
         intervals = [-1, -2]
         jobs = [
@@ -62,6 +69,8 @@ class TestLoadManager:
         jobs = interface_no_jobs.get_new_harvest_jobs_in_past()
         assert len(jobs) == 2
         job = jobs[0]
+        job_id = job.id
+        harvest_source_id = job.harvest_source_id
         assert job.status == "new"
 
         load_manager = LoadManager()
@@ -70,37 +79,33 @@ class TestLoadManager:
         # assert create_task ops
         start_task_mock = CFCMock.return_value.v3.tasks.create
         assert start_task_mock.call_count == 1
-        ## assert command
+
+        # assert command
         assert (
             start_task_mock.call_args.kwargs["command"]
-            == f"python harvester/harvest.py {job.id} harvest"  # using default job type
+            == f"python harvester/harvest.py {job_id} harvest"
         )
-        ## assert task_id
+
+        # assert task_id
         assert (
-            start_task_mock.call_args.kwargs["name"] == f"harvest-job-{job.id}-harvest"
+            start_task_mock.call_args.kwargs["name"] == f"harvest-job-{job_id}-harvest"
         )
-        assert job.status == "in_progress"
 
         # assert schedule_next_job ops
-        # ruff: noqa: E501
         future_job = interface_no_jobs.get_new_harvest_jobs_by_source_in_future(
-            job.harvest_source_id
+            harvest_source_id
         )[0]
 
-        harvest_source = interface_no_jobs.get_harvest_source(job.harvest_source_id)
+        harvest_source = interface_no_jobs.get_harvest_source(harvest_source_id)
 
-        assert future_job.harvest_source_id == job.harvest_source_id
+        assert future_job.harvest_source_id == harvest_source_id
         assert future_job.date_created == create_future_date(harvest_source.frequency)
 
     @patch("harvester.lib.load_manager.logger")
     @patch("harvester.lib.cf_handler.CloudFoundryClient")
     @patch("harvester.lib.load_manager.MAX_TASKS_COUNT", 3)
     def test_load_manager_hits_task_limit(
-        self,
-        CFCMock,
-        logger_mock,
-        interface,
-        mock_good_cf_index,
+        self, CFCMock, logger_mock, interface, mock_good_cf_index, force_cf_handler
     ):
         CFCMock.return_value.v3.apps._pagination.return_value = [
             {"state": "RUNNING", "name": "harvest-job-"},
@@ -141,6 +146,7 @@ class TestLoadManager:
         interface_with_multiple_jobs,
         source_data_dcatus,
         mock_good_cf_index,
+        force_cf_handler,
     ):
         CFCMock.return_value.v3.apps._pagination.return_value = [
             {"state": "RUNNING"},
@@ -167,6 +173,7 @@ class TestLoadManager:
         self,
         CFCMock,
         mock_good_cf_index,
+        force_cf_handler,
         interface_no_jobs,
         source_data_dcatus,
     ):
@@ -282,6 +289,7 @@ class TestLoadManager:
         interface_with_multiple_jobs,
         source_data_dcatus,
         mock_good_cf_index,
+        force_cf_handler,
     ):
         CFCMock.return_value.v3.apps._pagination.return_value = [
             {"state": "RUNNING"},
@@ -311,6 +319,7 @@ class TestLoadManager:
         self,
         CFCMock,
         mock_good_cf_index,
+        force_cf_handler,
         interface_no_jobs,
         source_data_dcatus,
         monkeypatch,
@@ -344,6 +353,7 @@ class TestLoadManager:
         all_tasks_json_fixture,
         interface_no_jobs,
         source_data_dcatus,
+        force_cf_handler,
     ):
         CFCMock.return_value.v3.apps._pagination.return_value = all_tasks_json_fixture
 
@@ -363,7 +373,10 @@ class TestLoadManager:
                 "guid": task_guid_val,
                 "sequence_id": 197,
                 "name": f"harvest-job-{jobs[0].id}-harvest",
-                "command": "python harvester/harvest.py 47442c62-716d-4678-947c-61990106685f harvest",
+                "command": (
+                    "python harvester/harvest.py "
+                    "47442c62-716d-4678-947c-61990106685f harvest"
+                ),
                 "state": "RUNNING",
                 "memory_in_mb": 1536,
                 "disk_in_mb": 4096,
@@ -396,6 +409,7 @@ class TestLoadManager:
         all_tasks_json_fixture,
         interface_no_jobs,
         source_data_dcatus,
+        force_cf_handler,
     ):
         CFCMock.return_value.v3.apps._pagination.return_value = all_tasks_json_fixture
 
@@ -413,7 +427,10 @@ class TestLoadManager:
                 "guid": "3a24b55a02b0-eb7b-4eeb-9f45-645cedd3d93b",
                 "sequence_id": 197,
                 "name": f"harvest-job-{jobs[0].id}-harvest",
-                "command": "python harvester/harvest.py 47442c62-716d-4678-947c-61990106685f harvest",
+                "command": (
+                    "python harvester/harvest.py "
+                    "47442c62-716d-4678-947c-61990106685f harvest"
+                ),
                 "state": "CANCELING",
                 "memory_in_mb": 1536,
                 "disk_in_mb": 4096,
@@ -442,7 +459,7 @@ class TestLoadManager:
     @patch("harvester.lib.load_manager.send_email_to_recipients")
     @patch("harvester.lib.cf_handler.CloudFoundryClient")
     def test_clean_old_jobs_failed(
-        self, CFCMock, email_mock, interface_with_multiple_jobs
+        self, CFCMock, email_mock, interface_with_multiple_jobs, force_cf_handler
     ):
         """Cleans up failed in_progress jobs in the database."""
         assert len(interface_with_multiple_jobs.get_in_progress_jobs()) == 3
@@ -465,7 +482,9 @@ class TestLoadManager:
         assert all("{" not in args[1] for args, _ in email_mock.call_args_list)
 
     @patch("harvester.lib.cf_handler.CloudFoundryClient")
-    def test_clean_old_jobs_still_running(self, CFCMock, interface_with_multiple_jobs):
+    def test_clean_old_jobs_still_running(
+        self, CFCMock, interface_with_multiple_jobs, force_cf_handler
+    ):
         """Doesn't clean up running in_progress jobs."""
         in_progress_jobs = interface_with_multiple_jobs.get_in_progress_jobs()
         assert len(in_progress_jobs) == 3
@@ -485,7 +504,7 @@ class TestLoadManager:
         assert interface_with_multiple_jobs.db.query(HarvestJobError).count() == 0
 
     @patch("harvester.lib.cf_handler.CloudFoundryClient")
-    def test_clean_old_jobs_api_error(self, CFCMock, caplog):
+    def test_clean_old_jobs_api_error(self, CFCMock, caplog, force_cf_handler):
         """Doesn't fail if API is down."""
         # CF tasks list call fails
         CFCMock.return_value.v3.apps.get.side_effect = InvalidStatusCode(500, "")
@@ -495,7 +514,7 @@ class TestLoadManager:
         assert "task information is not accurate" in caplog.text
 
     @patch("harvester.lib.cf_handler.CloudFoundryClient")
-    def test_start_new_jobs_api_error(self, CFCMock, caplog):
+    def test_start_new_jobs_api_error(self, CFCMock, caplog, force_cf_handler):
         """Doesn't fail if API is down."""
         # CF tasks list call fails
         CFCMock.return_value.v3.apps.get.side_effect = InvalidStatusCode(500, "")
@@ -510,6 +529,7 @@ class TestLoadManager:
         CFCMock,
         all_tasks_json_fixture,
         mock_good_cf_index,
+        force_cf_handler,
         interface_no_jobs,
         source_data_dcatus,
     ):
@@ -534,6 +554,7 @@ class TestLoadManager:
         CFCMock,
         interface_no_jobs,
         source_data_dcatus_orm,
+        force_cf_handler,
     ):
         """Called from inside a task schedules at most 1 new task."""
         intervals = [-1, -2]
@@ -549,6 +570,7 @@ class TestLoadManager:
             interface_no_jobs.add_harvest_job(job)
 
         jobs = interface_no_jobs.get_new_harvest_jobs_in_past()
+        job_ids = [job.id for job in jobs]
         assert len(jobs) == 2
         for job in jobs:
             assert job.status == "new"
@@ -559,8 +581,11 @@ class TestLoadManager:
         load_manager = LoadManager()
         load_manager._start_new_jobs(check_from_task=True)
 
+        jobs = [interface_no_jobs.db.get(HarvestJob, job_id) for job_id in job_ids]
+
         # one task created
         start_task_mock = CFCMock.return_value.v3.tasks.create
+
         assert start_task_mock.call_count == 1
         # first job is in progress
         assert jobs[0].status == "in_progress"
@@ -574,6 +599,7 @@ class TestLoadManager:
         CFCMock,
         interface_no_jobs,
         source_data_dcatus_orm,
+        force_cf_handler,
     ):
         """Called from inside a task doesn't schedule over limit."""
         job = interface_no_jobs.add_harvest_job(
@@ -598,3 +624,49 @@ class TestLoadManager:
         start_task_mock = CFCMock.return_value.v3.tasks.create
         assert start_task_mock.call_count == 0
         assert job.status == "new"
+
+    def test_start_job_prevents_double_start(
+        self, interface_no_jobs, source_data_dcatus, app
+    ):
+        """Verify that calling start_job twice doesn't call start_task twice."""
+        job = interface_no_jobs.add_harvest_job(
+            {
+                "status": "new",
+                "harvest_source_id": source_data_dcatus["id"],
+            }
+        )
+
+        lm = LoadManager()
+        start_calls = []
+
+        def fake_start_task(**kwargs):
+            start_calls.append(kwargs.get("task_id"))
+
+        lm.handler.start_task = fake_start_task
+
+        with app.app_context():
+            lm.start_job(job.id, job_type="harvest")
+            lm.start_job(job.id, job_type="harvest")
+
+        assert len(start_calls) == 1
+
+    def test_revert_on_start_task_failure(self, interface_no_jobs, source_data_dcatus):
+        """If starting the external task fails, the job status should be reverted."""
+        job = interface_no_jobs.add_harvest_job(
+            {
+                "status": "new",
+                "harvest_source_id": source_data_dcatus["id"],
+            }
+        )
+
+        lm = LoadManager()
+
+        def failing_start_task(**kwargs):
+            raise RuntimeError("start failed")
+
+        lm.handler.start_task = failing_start_task
+
+        lm.start_job(job.id, job_type="harvest")
+
+        db_job = interface_no_jobs.get_harvest_job(job.id)
+        assert db_job.status == "new"

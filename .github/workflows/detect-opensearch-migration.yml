@@ -1,0 +1,47 @@
+name: Detect OpenSearch migration
+
+on:
+  workflow_call:
+    outputs:
+      migration_needed:
+        description: "Whether the triggering commit's PR carries the migration label"
+        value: ${{ jobs.detect.outputs.migration_needed }}
+      pr_numbers:
+        description: "Comma-separated PR numbers carrying the migration label"
+        value: ${{ jobs.detect.outputs.pr_numbers }}
+
+permissions:
+  contents: read
+
+jobs:
+  detect:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      migration_needed: ${{ steps.detect.outputs.migration_needed }}
+      pr_numbers: ${{ steps.detect.outputs.pr_numbers }}
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v7
+
+      - name: Detect migration label
+        id: detect
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: .github/scripts/detect-opensearch-migration-label.sh "$GITHUB_SHA"
+
+      - name: Summarize result
+        env:
+          MIGRATION_NEEDED: ${{ steps.detect.outputs.migration_needed }}
+          PR_NUMBERS: ${{ steps.detect.outputs.pr_numbers }}
+        run: |
+          {
+            echo "### OpenSearch migration detection"
+            echo
+            echo "- Commit: \`${GITHUB_SHA}\`"
+            echo "- Migration required: \`${MIGRATION_NEEDED}\`"
+            echo "- Labeled PRs: \`${PR_NUMBERS:-none}\`"
+          } >> "$GITHUB_STEP_SUMMARY"

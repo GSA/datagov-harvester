@@ -1,4 +1,6 @@
 app_name: datagov-harvest
+harvest_service_name: datagov-harvest
+opensearch_service_name: datagov-catalog-opensearch
 space_name: prod
 route_external: harvest.data.gov
 route_internal: datagov-harvest-prod.apps.internal
@@ -26,3 +28,4 @@ REDIRECT_URI: https://harvest.data.gov/callback
 
 # New Relic
 new_relic_monitor_mode: true
+new_relic_monitor_db_activity: true

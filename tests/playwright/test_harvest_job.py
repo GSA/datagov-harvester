@@ -62,7 +62,7 @@ class TestHarvestJobUnauthed:
             )
         ).to_have_attribute(
             "href",
-            "/api/harvest_record/0779c855-df20-49c8-9108-66359d82b77c",
+            "/api/v1/harvest_record/0779c855-df20-49c8-9108-66359d82b77c",
         )
 
     def test_harvest_job_record_errors_summary(self, upage):
@@ -139,6 +139,10 @@ class TestHarvestJobUnauthed:
         # glossary starts closed
         assert glossary.get_attribute("aria-hidden") == "true"
 
+        # Wait for glossary terms to be added by JavaScript
+        upage.locator(f"span[data-term='{data_term_name}']").wait_for(
+            state="attached", timeout=5000
+        )
         upage.click(f"span[data-term='{data_term_name}']")
         assert glossary.get_attribute("aria-hidden") == "false"
         glossary_elem = upage.locator(

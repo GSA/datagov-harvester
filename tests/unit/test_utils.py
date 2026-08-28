@@ -1,4 +1,5 @@
 import http
+import itertools
 import json
 import logging
 import time
@@ -18,13 +19,20 @@ from harvester.utils.general_utils import (
     USER_AGENT,
     RetrySession,
     assemble_validation_errors,
+    backfill_catalog_record_identifiers,
+    build_dcatus3_validator,
     create_retry_session,
     describe_identifier_error,
     download_file,
     dynamic_map_list_items_to_dict,
+    extract_dcatus3_catalog_datasets,
+    extract_dcatus3_catalog_records,
+    extract_dcatus3_catalog_services,
+    extract_dcatus3_nested_datasets,
     find_indexes_for_duplicates,
     get_waf_datetimes,
     is_valid_uuid4,
+    merge_dcatus3_datasets,
     munge_spatial,
     munge_title_to_name,
     normalize_dataset_identifier,
@@ -32,10 +40,29 @@ from harvester.utils.general_utils import (
     prepare_distributions,
     prepare_transform_msg,
     process_job_complete_percentage,
+    sort_dataset,
+    strip_dcatus3_catalog_objects,
     translate_spatial,
     translate_spatial_to_geojson,
     validate_geojson,
 )
+from harvester.utils.schema_paths import (
+    DCATUS3_COMPLETE_EXAMPLE,
+    DCATUS3_DEFINITIONS_DIR,
+)
+
+# Real DCAT-US 3.0 validator, used to reproduce assembler errors on the
+# complete example.
+DCATUS3_DATASET_VALIDATOR = build_dcatus3_validator(
+    DCATUS3_DEFINITIONS_DIR,
+    root_ref="https://resources.data.gov/dcat-us/3.0.0/definitions/dataset",
+)
+
+
+@pytest.fixture
+def dcatus3_complete_example():
+    with open(DCATUS3_COMPLETE_EXAMPLE) as f:
+        return json.load(f)
 
 
 class TestCKANUtils:
@@ -319,6 +346,224 @@ class TestGeneralUtils:
         )
         keyword_error = next(e for e in errors if "$.keyword" in e.message)
         assert "max 1000 items" in keyword_error.message
+
+    def test_assemble_validation_messages_type_error_list_value_is_reported(
+        self, dcatus3_complete_example
+    ):
+        """A non-empty list that fails `type: ["null", "string"]` must be
+        reported, not dropped."""
+        dcatus3_complete_example["spatialResolutionInMeters"] = ["bad"]
+
+        errors = assemble_validation_errors(
+            DCATUS3_DATASET_VALIDATOR.iter_errors(dcatus3_complete_example)
+        )
+
+        assert len(errors) == 1
+        assert errors[0].message == (
+            "$.spatialResolutionInMeters, array value does not match any "
+            "of the acceptable formats: 'string'"
+        )
+
+    def test_assemble_validation_messages_type_error_dict_value_is_reported(
+        self, dcatus3_complete_example
+    ):
+        """Same as the list case; name the offender as "object value", not a
+        dict key."""
+        dcatus3_complete_example["temporalResolution"] = {"a": 1}
+
+        errors = assemble_validation_errors(
+            DCATUS3_DATASET_VALIDATOR.iter_errors(dcatus3_complete_example)
+        )
+
+        assert len(errors) == 1
+        assert errors[0].message == (
+            "$.temporalResolution, object value does not match any of the "
+            "acceptable formats: 'string'"
+        )
+
+    def test_assemble_validation_messages_type_error_single_type_leaf_is_reported(
+        self, dcatus3_complete_example
+    ):
+        """A leaf `type: string` error with no parent (nested `@type`) must
+        still be reported."""
+        dcatus3_complete_example["distribution"][0]["@type"] = {"a": 1}
+
+        errors = assemble_validation_errors(
+            DCATUS3_DATASET_VALIDATOR.iter_errors(dcatus3_complete_example)
+        )
+
+        assert len(errors) == 1
+        assert errors[0].message == (
+            "$.distribution[0]['@type'], object value does not match any of "
+            "the acceptable formats: 'string'"
+        )
+
+        dcatus3_complete_example["distribution"][0]["@type"] = ["a"]
+
+        errors = assemble_validation_errors(
+            DCATUS3_DATASET_VALIDATOR.iter_errors(dcatus3_complete_example)
+        )
+
+        assert len(errors) == 1
+        assert errors[0].message == (
+            "$.distribution[0]['@type'], array value does not match any of "
+            "the acceptable formats: 'string'"
+        )
+
+    def test_assemble_validation_messages_anyof_context_still_finds_specific_cause(
+        self, dcatus3_complete_example
+    ):
+        """An anyOf failure should surface the specific cause, not the
+        null-branch type error."""
+        del dcatus3_complete_example["contactPoint"][0]["hasEmail"]
+
+        errors = assemble_validation_errors(
+            DCATUS3_DATASET_VALIDATOR.iter_errors(dcatus3_complete_example)
+        )
+
+        assert len(errors) == 1
+        assert (
+            errors[0].message == "$.contactPoint[0], 'hasEmail' is a required property"
+        )
+
+    def test_assemble_validation_messages_nested_container_type_error_under_anyof(
+        self, dcatus3_complete_example
+    ):
+        """A leaf type error reached through anyOf (deeper json_path than its
+        parent) must be reported."""
+        dcatus3_complete_example["contactPoint"][0]["@type"] = ["Kind"]
+
+        errors = assemble_validation_errors(
+            DCATUS3_DATASET_VALIDATOR.iter_errors(dcatus3_complete_example)
+        )
+
+        assert len(errors) == 1
+        assert errors[0].message == (
+            "$.contactPoint[0]['@type'], array value does not match any of "
+            "the acceptable formats: 'string'"
+        )
+
+    def test_assemble_validation_messages_plain_leaf_type_error_is_unaffected(
+        self, dcatus3_complete_example
+    ):
+        """A plain `type: string` leaf with no context is unchanged by the
+        forced fallback."""
+        dcatus3_complete_example["title"] = {"a": 1}
+
+        errors = assemble_validation_errors(
+            DCATUS3_DATASET_VALIDATOR.iter_errors(dcatus3_complete_example)
+        )
+
+        assert len(errors) == 1
+        assert errors[0].message == (
+            "$.title, object value does not match any of the acceptable "
+            "formats: 'string'"
+        )
+
+    def test_assemble_validation_messages_anyof_of_all_scalar_types_is_rescued(
+        self, dcatus3_complete_example
+    ):
+        """When every anyOf alternative is scalar, report a vague type error
+        rather than silence."""
+        dcatus3_complete_example["accessRights"] = ["x"]
+
+        errors = assemble_validation_errors(
+            DCATUS3_DATASET_VALIDATOR.iter_errors(dcatus3_complete_example)
+        )
+
+        assert len(errors) == 1
+        assert errors[0].message == (
+            "$.accessRights, array value does not match any of the "
+            "acceptable formats: 'null', 'string'"
+        )
+
+    def test_assemble_validation_messages_anyof_of_all_scalar_types_is_rescued_dict(
+        self, dcatus3_complete_example
+    ):
+        """Same all-scalar anyOf rescue, for a dict against `language`."""
+        dcatus3_complete_example["language"] = {"a": 1}
+
+        errors = assemble_validation_errors(
+            DCATUS3_DATASET_VALIDATOR.iter_errors(dcatus3_complete_example)
+        )
+
+        assert len(errors) == 1
+        assert errors[0].message == (
+            "$.language, object value does not match any of the acceptable "
+            "formats: 'null', 'string', 'array'"
+        )
+
+    def test_assemble_validation_messages_anyof_of_all_scalar_types_is_rescued_date(
+        self, dcatus3_complete_example
+    ):
+        """Same all-scalar anyOf rescue, for `created` (nested anyOf of date forms)."""
+        dcatus3_complete_example["created"] = ["2025"]
+
+        errors = assemble_validation_errors(
+            DCATUS3_DATASET_VALIDATOR.iter_errors(dcatus3_complete_example)
+        )
+
+        assert len(errors) == 1
+        assert errors[0].message == (
+            "$.created, array value does not match any of the acceptable "
+            "formats: 'string'"
+        )
+
+    def test_assemble_validation_messages_anyof_of_all_scalar_types_is_rescued_nested(
+        self, dcatus3_complete_example
+    ):
+        """Same all-scalar anyOf rescue, nested under `spatial[0].bbox`."""
+        dcatus3_complete_example["spatial"][0]["bbox"] = ["x"]
+
+        errors = assemble_validation_errors(
+            DCATUS3_DATASET_VALIDATOR.iter_errors(dcatus3_complete_example)
+        )
+
+        assert len(errors) == 1
+        assert errors[0].message == (
+            "$.spatial[0].bbox, array value does not match any of the "
+            "acceptable formats: 'null', 'string', 'object'"
+        )
+
+    def test_assemble_validation_messages_maxitems_numeric_array_does_not_crash(
+        self, dcatus3_complete_example
+    ):
+        """A numeric maxItems array must not crash message assembly; name it
+        as "array value"."""
+        dcatus3_complete_example["spatial"][0]["centroid"] = {
+            "type": "Point",
+            "coordinates": [-77, 38, 1],
+        }
+
+        errors = assemble_validation_errors(
+            DCATUS3_DATASET_VALIDATOR.iter_errors(dcatus3_complete_example)
+        )
+
+        assert len(errors) == 1
+        assert errors[0].message == (
+            "$.spatial[0].centroid.coordinates, array value does not match "
+            "any of the acceptable formats: max 2 items"
+        )
+
+    def test_assemble_validation_messages_minitems_names_specific_cause(
+        self, dcatus3_complete_example
+    ):
+        """A minItems violation must be reported at its own path, not as a
+        parent anyOf type error."""
+        dcatus3_complete_example["spatial"][0]["centroid"] = {
+            "type": "Point",
+            "coordinates": [-77],
+        }
+
+        errors = assemble_validation_errors(
+            DCATUS3_DATASET_VALIDATOR.iter_errors(dcatus3_complete_example)
+        )
+
+        assert len(errors) == 1
+        assert errors[0].message == (
+            "$.spatial[0].centroid.coordinates, array value does not match "
+            "any of the acceptable formats: min 2 items"
+        )
 
     def test_find_indexes_for_duplicates(self):
         data = [
@@ -654,6 +899,584 @@ class TestGeneralUtils:
 
         # the mediatype isn't in RESOURCE_MAPPING so format shouldn't exist
         "format" not in prepared_dcatus_doc["distribution"][-1]
+
+
+class TestSortDataset:
+    def test_sort_is_deterministic_regardless_of_key_and_list_order(self):
+        a = {
+            "identifier": "a",
+            "keyword": ["b", "a"],
+            "distribution": [{"title": "two"}, {"title": "one"}],
+        }
+        b = {
+            "distribution": [{"title": "one"}, {"title": "two"}],
+            "keyword": ["a", "b"],
+            "identifier": "a",
+        }
+
+        # dict equality ignores key order, but json.dumps (what harvest.py
+        # actually hashes) does not -- compare the serialized form so this
+        # test would fail if dict keys weren't also being sorted.
+        assert json.dumps(sort_dataset(a)) == json.dumps(sort_dataset(b))
+
+    def test_sort_handles_nested_dict_values_that_cannot_be_ordered(self):
+        """
+        regression test for https://github.com/GSA/data.gov/issues/5450
+
+        harvested records can carry vendor-specific fields (e.g. ArcGIS's
+        "metadata" field) whose list elements are dicts sharing a first key
+        with dict-valued, unequal values. python can't order dicts with
+        `<`/`>`, which crashed the third-party sansjson library this
+        function used to delegate to.
+        """
+        record = {
+            "identifier": "https://www.arcgis.com/home/item.html?id=bd1b6ee9",
+            "metadata": {
+                "mdContact": {"rpCntInfo": {"cntAddress": {"city": "Washington"}}},
+                "spatRepInfo": {"VectSpatRep": {"geometObjs": {"geoObjCnt": 5}}},
+            },
+            "fields": [
+                {"name": "A", "domain": {"codedValues": [{"code": "US"}]}},
+                {"name": "B", "domain": {"codedValues": [{"code": "CA"}]}},
+            ],
+        }
+
+        sorted_record = sort_dataset(record)  # should not raise
+
+        assert (
+            sorted_record["metadata"]["mdContact"]["rpCntInfo"]["cntAddress"]["city"]
+            == "Washington"
+        )
+        assert {f["name"] for f in sorted_record["fields"]} == {"A", "B"}
+
+    def test_sort_orders_dict_keys_alphabetically(self):
+        assert list(sort_dataset({"b": 1, "a": 2}).keys()) == ["a", "b"]
+
+    def test_sort_recurses_into_dict_elements_of_a_list(self):
+        record = {"distribution": [{"z": 1, "a": 2}]}
+
+        assert list(sort_dataset(record)["distribution"][0].keys()) == ["a", "z"]
+
+    def test_sort_orders_numeric_lists_by_value_not_json_string(self):
+        # "10" sorts before "2" as a json/string value, but should not here
+        assert sort_dataset([2, 10, 1]) == [1, 2, 10]
+
+    def test_sort_orders_string_lists_naturally(self):
+        # a naive `key=lambda i: json.dumps(i)` sorts "food safety" before
+        # "food", because a quote (0x22) sorts after a space (0x20) --
+        # breaking hash stability for the common "keyword"/"keyword extra"
+        # pattern in harvested keyword lists.
+        assert sort_dataset(["food safety", "food", "foodborne"]) == [
+            "food",
+            "food safety",
+            "foodborne",
+        ]
+
+    def test_sort_does_not_reorder_a_linestring(self):
+        """
+        an array of arrays is positional geometry, not an unordered
+        collection -- reordering it moves vertices. this is the depth-2
+        shape `spatial.coordinates` takes for a GeoJSON LineString, which
+        federal_dataset.json permits as "array of array of number".
+        """
+        line = [[10.0, 1.0], [2.0, 3.0], [-5.0, 4.0]]
+
+        assert sort_dataset({"coordinates": line})["coordinates"] == line
+
+    def test_sort_keeps_a_polygon_ring_closed(self):
+        ring = [
+            [-77.119759, 38.791645],
+            [-76.909393, 38.791645],
+            [-76.909393, 38.99538],
+            [-77.119759, 38.99538],
+            [-77.119759, 38.791645],
+        ]
+
+        sorted_ring = sort_dataset({"coordinates": [ring]})["coordinates"][0]
+
+        assert sorted_ring == ring
+        assert sorted_ring[0] == sorted_ring[-1], "ring must stay closed"
+
+    def test_sort_canonicalizes_dict_keys_inside_a_nested_list(self):
+        """
+        preserving a positional list's element order must not stop dict keys
+        nested inside it from being canonicalized -- otherwise that subtree
+        hashes differently depending on source key order, defeating the
+        point of the function.
+        """
+        a = sort_dataset({"x": [[{"z": 1, "a": 2}]]})
+        b = sort_dataset({"x": [[{"a": 2, "z": 1}]]})
+
+        assert json.dumps(a) == json.dumps(b)
+        assert list(a["x"][0][0].keys()) == ["a", "z"]
+
+    @pytest.mark.parametrize(
+        "elements",
+        [
+            # `isinstance(True, int)` is True in python, so a bool must be
+            # ranked before the numeric check -- otherwise True and 1 compare
+            # equal, the sort is left to input order, and the same content
+            # hashes two different ways.
+            [True, 1],
+            [False, 0],
+            # a list mixing every json type must not attempt an unsupported
+            # comparison between types, and must land in one stable order
+            [None, 3, "a", True, 1.5, {"x": 1}, [1, 2]],
+        ],
+    )
+    def test_sort_of_mixed_type_list_is_stable_across_input_orders(self, elements):
+        outputs = {
+            json.dumps(sort_dataset(list(permutation)))
+            for permutation in itertools.permutations(elements)
+        }
+
+        assert len(outputs) == 1, f"ordering depends on input order: {outputs}"
+
+    def test_canonical_form_is_pinned(self):
+        """
+        the absolute canonical form, not just its stability. every stored
+        source_hash depends on it, so a change to the sort key or type ranks
+        silently invalidates every hash in the database -- this pins the
+        output so that change has to be deliberate.
+        """
+        record = {
+            "identifier": "golden",
+            "keyword": ["b", "a and more", "a"],
+            "distribution": [{"title": "two", "x": 1}, {"title": "one"}],
+            "spatial": {
+                "type": "LineString",
+                "coordinates": [[10.0, 1.0], [2.0, 3.0]],
+            },
+            # one of every json type, so the relative order of the type
+            # ranks is pinned too, not just the values within a rank
+            "mixed": [None, 3, "a", True, 1.5, {"k": 1}, [1, 2]],
+        }
+
+        assert json.dumps(sort_dataset(record)) == (
+            '{"distribution": [{"title": "one"}, {"title": "two", "x": 1}], '
+            '"identifier": "golden", '
+            '"keyword": ["a", "a and more", "b"], '
+            '"mixed": [null, true, 1.5, 3, "a", [1, 2], {"k": 1}], '
+            '"spatial": {"coordinates": [[10.0, 1.0], [2.0, 3.0]], '
+            '"type": "LineString"}}'
+        )
+
+
+class TestDcatus3Catalog:
+    def test_strip_dcatus3_catalog_objects_removes_harvested_fields(self):
+        catalog = {
+            "@type": "Catalog",
+            "title": "Test Catalog",
+            "dataset": [{"identifier": "ds-1"}],
+            "service": [{"identifier": "svc-1"}],
+            "record": [{"identifier": "rec-1"}],
+            "datasetSeries": [{"identifier": "series-1"}],
+        }
+
+        stripped = strip_dcatus3_catalog_objects(catalog)
+
+        assert stripped == {"@type": "Catalog", "title": "Test Catalog"}
+        # original is untouched
+        assert "dataset" in catalog
+
+    def test_strip_dcatus3_catalog_objects_recurses_into_nested_catalogs(self):
+        catalog = {
+            "title": "Parent Catalog",
+            "dataset": [{"identifier": "parent-ds"}],
+            "catalog": [
+                {
+                    "title": "Child Catalog",
+                    "dataset": [{"identifier": "child-ds"}],
+                    "catalog": [
+                        {
+                            "title": "Grandchild Catalog",
+                            "dataset": [{"identifier": "grandchild-ds"}],
+                        }
+                    ],
+                }
+            ],
+        }
+
+        stripped = strip_dcatus3_catalog_objects(catalog)
+
+        assert stripped == {
+            "title": "Parent Catalog",
+            "catalog": [
+                {
+                    "title": "Child Catalog",
+                    "catalog": [{"title": "Grandchild Catalog"}],
+                }
+            ],
+        }
+
+    def test_extract_dcatus3_catalog_datasets_flat(self):
+        catalog = {"dataset": [{"identifier": "ds-1"}, {"identifier": "ds-2"}]}
+
+        assert extract_dcatus3_catalog_datasets(catalog) == [
+            {"identifier": "ds-1"},
+            {"identifier": "ds-2"},
+        ]
+
+    def test_extract_dcatus3_catalog_datasets_recurses_arbitrarily_deep(self):
+        catalog = {
+            "dataset": [{"identifier": "parent-ds"}],
+            "catalog": [
+                {
+                    "dataset": [{"identifier": "child-ds"}],
+                    "catalog": [
+                        {"dataset": [{"identifier": "grandchild-ds"}]},
+                    ],
+                }
+            ],
+        }
+
+        assert extract_dcatus3_catalog_datasets(catalog) == [
+            {"identifier": "parent-ds"},
+            {"identifier": "child-ds"},
+            {"identifier": "grandchild-ds"},
+        ]
+
+    def test_extract_dcatus3_catalog_datasets_missing_fields(self):
+        assert extract_dcatus3_catalog_datasets({}) == []
+        assert extract_dcatus3_catalog_datasets({"catalog": None}) == []
+        assert extract_dcatus3_catalog_datasets({"dataset": None}) == []
+
+    def test_extract_dcatus3_catalog_services_flat(self):
+        catalog = {"service": [{"identifier": "svc-1"}, {"identifier": "svc-2"}]}
+
+        assert extract_dcatus3_catalog_services(catalog) == [
+            {"identifier": "svc-1"},
+            {"identifier": "svc-2"},
+        ]
+
+    def test_extract_dcatus3_catalog_services_recurses_arbitrarily_deep(self):
+        catalog = {
+            "service": [{"identifier": "parent-svc"}],
+            "catalog": [
+                {
+                    "service": [{"identifier": "child-svc"}],
+                    "catalog": [
+                        {"service": [{"identifier": "grandchild-svc"}]},
+                    ],
+                }
+            ],
+        }
+
+        assert extract_dcatus3_catalog_services(catalog) == [
+            {"identifier": "parent-svc"},
+            {"identifier": "child-svc"},
+            {"identifier": "grandchild-svc"},
+        ]
+
+    def test_extract_dcatus3_catalog_services_missing_fields(self):
+        assert extract_dcatus3_catalog_services({}) == []
+        assert extract_dcatus3_catalog_services({"catalog": None}) == []
+        assert extract_dcatus3_catalog_services({"service": None}) == []
+
+    def test_extract_dcatus3_catalog_services_independent_of_datasets(self):
+        """A catalog with both dataset and service arrays extracts each
+        independently of the other."""
+        catalog = {
+            "dataset": [{"identifier": "ds-1"}],
+            "service": [{"identifier": "svc-1"}],
+        }
+
+        assert extract_dcatus3_catalog_datasets(catalog) == [{"identifier": "ds-1"}]
+        assert extract_dcatus3_catalog_services(catalog) == [{"identifier": "svc-1"}]
+
+    def test_extract_dcatus3_catalog_records_flat(self):
+        catalog = {"record": [{"@id": "rec-1"}, {"@id": "rec-2"}]}
+
+        assert extract_dcatus3_catalog_records(catalog) == [
+            {"@id": "rec-1"},
+            {"@id": "rec-2"},
+        ]
+
+    def test_extract_dcatus3_catalog_records_recurses_arbitrarily_deep(self):
+        catalog = {
+            "record": [{"@id": "parent-rec"}],
+            "catalog": [
+                {
+                    "record": [{"@id": "child-rec"}],
+                    "catalog": [
+                        {"record": [{"@id": "grandchild-rec"}]},
+                    ],
+                }
+            ],
+        }
+
+        assert extract_dcatus3_catalog_records(catalog) == [
+            {"@id": "parent-rec"},
+            {"@id": "child-rec"},
+            {"@id": "grandchild-rec"},
+        ]
+
+    def test_extract_dcatus3_catalog_records_missing_fields(self):
+        assert extract_dcatus3_catalog_records({}) == []
+        assert extract_dcatus3_catalog_records({"catalog": None}) == []
+        assert extract_dcatus3_catalog_records({"record": None}) == []
+
+    def test_extract_dcatus3_catalog_records_independent_of_datasets(self):
+        """A catalog with both dataset and record arrays extracts each
+        independently of the other."""
+        catalog = {
+            "dataset": [{"identifier": "ds-1"}],
+            "record": [{"@id": "rec-1"}],
+        }
+
+        assert extract_dcatus3_catalog_datasets(catalog) == [{"identifier": "ds-1"}]
+        assert extract_dcatus3_catalog_records(catalog) == [{"@id": "rec-1"}]
+
+
+class TestBackfillCatalogRecordIdentifiers:
+    def test_missing_id_gets_synthesized(self):
+        records = [{"primaryTopic": "ds-1", "modified": "2024-06-15"}]
+
+        result = backfill_catalog_record_identifiers(records)
+
+        assert result[0]["@id"].startswith("urn:datagov:catalogrecord:")
+
+    def test_existing_id_left_alone(self):
+        records = [{"@id": "https://example.gov/rec-1", "primaryTopic": "ds-1"}]
+
+        result = backfill_catalog_record_identifiers(records)
+
+        assert result[0]["@id"] == "https://example.gov/rec-1"
+
+    def test_synthesized_id_is_stable_for_same_content(self):
+        records = [{"primaryTopic": "ds-1", "modified": "2024-06-15"}]
+
+        first = backfill_catalog_record_identifiers(records)[0]["@id"]
+        second = backfill_catalog_record_identifiers(records)[0]["@id"]
+
+        assert first == second
+
+    def test_synthesized_id_differs_for_different_content(self):
+        a = backfill_catalog_record_identifiers(
+            [{"primaryTopic": "ds-1", "modified": "2024-06-15"}]
+        )[0]["@id"]
+        b = backfill_catalog_record_identifiers(
+            [{"primaryTopic": "ds-2", "modified": "2024-06-15"}]
+        )[0]["@id"]
+
+        assert a != b
+
+    def test_does_not_mutate_input(self):
+        records = [{"primaryTopic": "ds-1", "modified": "2024-06-15"}]
+
+        backfill_catalog_record_identifiers(records)
+
+        assert "@id" not in records[0]
+
+
+class TestExtractDcatus3NestedDatasets:
+    def test_uses_custom_parent_identifier_field(self):
+        """DatasetSeries (like CatalogRecord) has no "identifier" field,
+        only a top-level "@id"."""
+        parents = [
+            {
+                "@id": "series-1",
+                "seriesMember": [{"identifier": "ds-1"}],
+            }
+        ]
+
+        result = extract_dcatus3_nested_datasets(
+            parents, "seriesMember", parent_identifier_field="@id"
+        )
+
+        assert result == [{"identifier": "ds-1", "parent_identifier": "series-1"}]
+
+    def test_extracts_single_field(self):
+        parents = [
+            {
+                "identifier": "svc-1",
+                "servesDataset": [
+                    {"identifier": "ds-1"},
+                    {"identifier": "ds-2"},
+                ],
+            }
+        ]
+
+        result = extract_dcatus3_nested_datasets(parents, "servesDataset")
+
+        assert result == [
+            {"identifier": "ds-1", "parent_identifier": "svc-1"},
+            {"identifier": "ds-2", "parent_identifier": "svc-1"},
+        ]
+
+    def test_extracts_multiple_fields_including_singular_ones(self):
+        """DatasetSeries has seriesMember (a list) plus first/last (single
+        objects, not lists) -- all three should be pulled out."""
+        parents = [
+            {
+                "identifier": "series-1",
+                "seriesMember": [{"identifier": "ds-2"}],
+                "first": {"identifier": "ds-1"},
+                "last": {"identifier": "ds-3"},
+            }
+        ]
+
+        result = extract_dcatus3_nested_datasets(
+            parents, "seriesMember", "first", "last"
+        )
+
+        assert {d["identifier"] for d in result} == {"ds-1", "ds-2", "ds-3"}
+        assert all(d["parent_identifier"] == "series-1" for d in result)
+
+    def test_missing_fields_produce_nothing(self):
+        parents = [{"identifier": "svc-1"}]
+
+        assert extract_dcatus3_nested_datasets(parents, "servesDataset") == []
+
+    def test_multiple_parents_each_tagged_with_their_own_identifier(self):
+        parents = [
+            {"identifier": "svc-1", "servesDataset": [{"identifier": "ds-1"}]},
+            {"identifier": "svc-2", "servesDataset": [{"identifier": "ds-2"}]},
+        ]
+
+        result = extract_dcatus3_nested_datasets(parents, "servesDataset")
+
+        assert result == [
+            {"identifier": "ds-1", "parent_identifier": "svc-1"},
+            {"identifier": "ds-2", "parent_identifier": "svc-2"},
+        ]
+
+    def test_does_not_mutate_original_dataset_dicts(self):
+        original_dataset = {"identifier": "ds-1"}
+        parents = [{"identifier": "svc-1", "servesDataset": [original_dataset]}]
+
+        extract_dcatus3_nested_datasets(parents, "servesDataset")
+
+        assert "parent_identifier" not in original_dataset
+
+    def test_dedupes_same_identifier_across_fields_on_one_parent(self):
+        """A DatasetSeries's "first"/"last" are typically also present in
+        "seriesMember" -- that's redundant source data, not a
+        duplicate-identifier error, so only one copy should survive per
+        parent."""
+        parents = [
+            {
+                "identifier": "series-1",
+                "seriesMember": [
+                    {"identifier": "ds-1", "title": "First title seen"},
+                    {"identifier": "ds-2"},
+                ],
+                "first": {
+                    "identifier": "ds-1",
+                    "title": "Redundant, should be dropped",
+                },
+            }
+        ]
+
+        result = extract_dcatus3_nested_datasets(
+            parents, "seriesMember", "first", "last"
+        )
+
+        assert [d["identifier"] for d in result] == ["ds-1", "ds-2"]
+        assert result[0]["title"] == "First title seen"
+
+    def test_does_not_dedupe_missing_identifiers_across_datasets(self):
+        """Datasets with no usable identifier must each be kept (and later
+        flagged individually as missing an identifier), not collapsed into
+        one just because they all normalize to None."""
+        parents = [
+            {
+                "identifier": "series-1",
+                "seriesMember": [{"title": "No id one"}, {"title": "No id two"}],
+            }
+        ]
+
+        result = extract_dcatus3_nested_datasets(parents, "seriesMember")
+
+        assert len(result) == 2
+
+    def test_same_identifier_across_different_parents_not_deduped(self):
+        """Overlapping identifiers across different parents are a real
+        cross-source ambiguity, not the same kind of intra-parent
+        redundancy, so both copies should be kept for the normal
+        duplicate-identifier filter to catch."""
+        parents = [
+            {"identifier": "svc-1", "servesDataset": [{"identifier": "ds-1"}]},
+            {"identifier": "svc-2", "servesDataset": [{"identifier": "ds-1"}]},
+        ]
+
+        result = extract_dcatus3_nested_datasets(parents, "servesDataset")
+
+        assert len(result) == 2
+        assert {d["parent_identifier"] for d in result} == {"svc-1", "svc-2"}
+
+
+class TestMergeDcatus3Datasets:
+    def test_top_level_and_nested_overlap_merged_into_one(self):
+        """Top-level entry wins, gains the nested entry's parent_identifier."""
+        top_level = [{"identifier": "ds-1", "title": "Canonical title"}]
+        nested = [
+            {
+                "identifier": "ds-1",
+                "title": "Redundant series-member copy",
+                "parent_identifier": "series-1",
+            }
+        ]
+
+        result = merge_dcatus3_datasets(top_level, nested)
+
+        assert len(result) == 1
+        assert result[0]["title"] == "Canonical title"
+        assert result[0]["parent_identifier"] == "series-1"
+
+    def test_nested_only_dataset_kept_as_its_own_record(self):
+        """A nested dataset with no top-level counterpart is unaffected."""
+        nested = [{"identifier": "ds-2", "parent_identifier": "series-1"}]
+
+        result = merge_dcatus3_datasets([], nested)
+
+        assert result == nested
+
+    def test_disjoint_top_level_and_nested_both_kept(self):
+        top_level = [{"identifier": "ds-1"}]
+        nested = [{"identifier": "ds-2", "parent_identifier": "series-1"}]
+
+        result = merge_dcatus3_datasets(top_level, nested)
+
+        assert {d["identifier"] for d in result} == {"ds-1", "ds-2"}
+
+    def test_nested_vs_nested_overlap_not_merged(self):
+        """Nested-vs-nested overlap is left for the duplicate filter to catch."""
+        nested_a = [{"identifier": "ds-1", "parent_identifier": "svc-1"}]
+        nested_b = [{"identifier": "ds-1", "parent_identifier": "series-1"}]
+
+        result = merge_dcatus3_datasets([], nested_a, nested_b)
+
+        assert len(result) == 2
+        assert {d["parent_identifier"] for d in result} == {"svc-1", "series-1"}
+
+    def test_first_nested_list_wins_when_multiple_match_top_level(self):
+        """First nested list to claim a top-level dataset wins the tag."""
+        top_level = [{"identifier": "ds-1"}]
+        nested_a = [{"identifier": "ds-1", "parent_identifier": "svc-1"}]
+        nested_b = [{"identifier": "ds-1", "parent_identifier": "series-1"}]
+
+        result = merge_dcatus3_datasets(top_level, nested_a, nested_b)
+
+        assert len(result) == 1
+        assert result[0]["parent_identifier"] == "svc-1"
+
+    def test_missing_identifiers_not_treated_as_matching(self):
+        """Both normalize to None, so they stay as separate records."""
+        top_level = [{"title": "No id top-level"}]
+        nested = [{"title": "No id nested", "parent_identifier": "series-1"}]
+
+        result = merge_dcatus3_datasets(top_level, nested)
+
+        assert len(result) == 2
+
+    def test_does_not_mutate_inputs(self):
+        top_level = [{"identifier": "ds-1", "title": "Canonical title"}]
+        nested = [{"identifier": "ds-1", "parent_identifier": "series-1"}]
+
+        merge_dcatus3_datasets(top_level, nested)
+
+        assert "parent_identifier" not in top_level[0]
 
 
 class TestRetrySession:

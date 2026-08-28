@@ -13,6 +13,14 @@ inputs:
     description: "cf command to execute"
     required: false
     default: "cf push datagov-harvest --strategy rolling --no-wait"
+  manifest_vars:
+    description: "Additional cf manifest --var arguments"
+    required: false
+    default: ""
+  deploy_proxy:
+    description: "Whether to deploy the datagov-harvest proxy"
+    required: false
+    default: "true"
   node-version-file:
     description: "Path to node version file"
     required: false
@@ -37,6 +45,12 @@ runs:
   steps:
     - name: checkout
       uses: actions/checkout@v4
+      with:
+        # cf push uploads this working tree, so the DCAT-US 3.0 schemas in
+        # _external/dcat-us have to be present here or the deployed app has none.
+        # This step re-checks-out over the caller's workspace, so it is the one
+        # that decides what ships.
+        submodules: true
 
     - name: Install node.js
       uses: actions/setup-node@v4
@@ -73,13 +87,18 @@ runs:
       uses: cloud-gov/cg-cli-tools@main
       with:
         command: >-
-          ${{ inputs.command }} --vars-file vars.${{ inputs.cf_space }}.yml --var asset_version=${{ env.asset_version }}
+          bin/retry_cf_deploy.sh
+          ${{ inputs.command }}
+          --vars-file vars.${{ inputs.cf_space }}.yml
+          --var asset_version=${{ env.asset_version }}
+          ${{ inputs.manifest_vars }}
         cf_org: ${{ inputs.cf_org }}
         cf_space: ${{ inputs.cf_space }}
         cf_username: ${{ inputs.cf_username }}
         cf_password: ${{ inputs.cf_password }}
 
     - name: Deploy datagov-harvest proxy
+      if: inputs.deploy_proxy == 'true'
       uses: cloud-gov/cg-cli-tools@main
       with:
         command: >-
