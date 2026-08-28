@@ -1624,15 +1624,13 @@ def assemble_validation_errors(
     re-walk forced so a same-path type error is reported vaguely instead of
     silently. A walk that already recorded a specific cause is left alone.
 
-    `_recorded` is a private single-element running total of messages appended
-    so far, used to detect whether a context walk found anything. Counting the
-    accumulated dict instead made this quadratic in the number of errors.
-    (GSA/data.gov#6067)
+    `_recorded` is a private running total of appended messages, used to detect
+    whether a context walk found anything. Re-counting the dict instead made this
+    quadratic in the number of errors.
     """
 
-    # Only the outermost call formats the result; recursive calls just fill
-    # `messages` and their return value is discarded. Formatting on the way out
-    # of every recursion was the other half of the quadratic.
+    # Only the outermost call formats; recursive calls just fill `messages`.
+    # Formatting on every recursive return was the other half of the quadratic.
     is_root = messages is None
 
     if messages is None:

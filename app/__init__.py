@@ -146,9 +146,8 @@ def create_app():
         # Pick up template edits during local dev without restarting the process.
         app.config["TEMPLATES_AUTO_RELOAD"] = True
     app.config["MAX_CONTENT_LENGTH"] = MAX_UPLOAD_BYTES
-    # Flask 3.1 defaults MAX_FORM_MEMORY_SIZE to 500KB, which rejected pasted
-    # catalogs far below MAX_CONTENT_LENGTH. Keep the two aligned so file uploads
-    # and pasted JSON share one limit. (GSA/data.gov#6067)
+    # Flask 3.1 caps non-file form fields at 500KB by default, which rejected
+    # pasted catalogs far below MAX_CONTENT_LENGTH.
     app.config["MAX_FORM_MEMORY_SIZE"] = MAX_UPLOAD_BYTES
     app.config["SESSION_COOKIE_NAME"] = os.getenv(
         "SESSION_COOKIE_NAME", "harvest_session"
@@ -302,10 +301,9 @@ def create_app():
     @app.errorhandler(RequestEntityTooLarge)
     def handle_request_entity_too_large(error):
         """
-        APIFlask's json_errors turns every HTTPException into a JSON body, so an
-        oversized upload reached browser users as a bare JSON blob. This handler
-        is registered on the concrete exception so Flask prefers it over that
-        catch-all. (GSA/data.gov#6067)
+        APIFlask's json_errors would answer browsers with a bare JSON blob;
+        registering on the concrete exception beats that catch-all.
+        (GSA/data.gov#6067)
         """
         logger.warning(
             "Rejected request over the %sMB limit path=%s", MAX_UPLOAD_MB, request.path

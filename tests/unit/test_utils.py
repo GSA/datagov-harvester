@@ -271,8 +271,8 @@ class TestGeneralUtils:
         """Test that the default waf datetime is now / the time of program execution"""
 
         page_html = """<html><body><pre>
-          <a href="file1.xml">file1.xml</a>   12K  
-          <a href="file2.xml">file2.xml</a>   12K  
+          <a href="file1.xml">file1.xml</a>   12K
+          <a href="file2.xml">file2.xml</a>   12K
           </pre></body></html>"""
 
         soup = BeautifulSoup(page_html)
@@ -570,8 +570,7 @@ class TestGeneralUtils:
         self, dcatus3_complete_example
     ):
         """
-        Recursive calls only fill the message dict; formatting it on the way out
-        of every recursion did the same work over and over and made the whole
+        Formatting on every recursive return repeated the same work and made the
         assembler quadratic. (GSA/data.gov#6067)
         """
         dcatus3_complete_example["spatialResolutionInMeters"] = ["bad"]
@@ -591,14 +590,10 @@ class TestGeneralUtils:
 
     def test_assemble_validation_messages_scales_linearly_with_dataset_count(self):
         """
-        A DCAT-US 3.0 catalog is validated in a single call, so the message dict
-        grows with the dataset count. When per-error work was proportional to
-        that dict, a catalog well under the upload limit outlived the gateway
-        timeout and the user got a 502. (GSA/data.gov#6067)
-
-        Measured on this input: 28s before the fix, 0.25s after. The ceiling is
-        loose enough for a slow CI runner and still an order of magnitude below
-        the old cost.
+        A 3.0 catalog is assembled in one call, so per-error work proportional to
+        the message dict outlived nginx's read timeout on a catalog well under the
+        upload limit. 28s before the fix, 0.25s after; the ceiling is loose for a
+        slow CI runner.
         """
         count = 4000
         catalog = {

@@ -186,7 +186,7 @@
         document.getElementById(id).addEventListener("change", clearErrors);
     });
 
-    /* ── size guard: refuse oversized input before anything is uploaded ── */
+    /* ── size guard: reject oversized input before upload ── */
     function oversizeMessage(method) {
         if (method === "upload") {
             const file = document.getElementById("json_file").files[0];
@@ -199,7 +199,7 @@
                 return "Pasted JSON is too large. Maximum size is " + MAX_UPLOAD_LABEL + ".";
             }
         }
-        // the url method is fetched server-side, which enforces its own limit
+        // url is fetched server-side, which enforces its own limit
         return null;
     }
 

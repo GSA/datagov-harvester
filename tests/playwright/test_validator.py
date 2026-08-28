@@ -236,9 +236,7 @@ class TestValidator:
         expect(upage.locator(".error-list")).not_to_be_visible()
 
     def test_ui_shows_the_upload_size_limit(self, upage):
-        """
-        The limit the form enforces is the limit the form advertises.
-        """
+        """The form advertises the limit it enforces."""
         upage.locator("select[name=fetch_method]").select_option("upload")
         expect(upage.locator("#json_file-hint")).to_have_text("Maximum size: 10 MB.")
 
@@ -246,10 +244,7 @@ class TestValidator:
         expect(upage.locator("#json_text-hint")).to_have_text("Maximum size: 10 MB.")
 
     def test_ui_upload_rejects_file_exceeding_size_limit(self, upage):
-        """
-        A file over the cap is refused client-side, so the user gets an inline
-        error and the browser never uploads it.
-        """
+        """Refused client-side: inline error, nothing uploaded."""
         upage.locator("select[name=fetch_method]").select_option("upload")
         upage.locator("input[type=file][name=json_file]").set_input_files(
             {
@@ -269,9 +264,7 @@ class TestValidator:
         assert upage.evaluate("window.__sameDocument") is True
 
     def test_ui_paste_rejects_json_exceeding_size_limit(self, upage):
-        """
-        Same guard on the paste path, which reports bytes rather than file size.
-        """
+        """Same guard on the paste path, measured in bytes."""
         upage.locator("select[name=fetch_method]").select_option("paste")
         upage.evaluate(
             "document.getElementById('json_text').value = 'x'.repeat(11 * 1024 * 1024)"
@@ -286,10 +279,7 @@ class TestValidator:
         assert upage.evaluate("window.__sameDocument") is True
 
     def test_oversized_post_bypassing_the_browser_gets_the_413_page(self, upage):
-        """
-        The client-side guard is not the only defense: a request that skips it
-        still gets a readable page rather than a raw gateway error.
-        """
+        """A request that skips the client-side guard still gets a readable page."""
         res = upage.request.post(
             "/validate/",
             headers={"Content-Type": "application/x-www-form-urlencoded"},

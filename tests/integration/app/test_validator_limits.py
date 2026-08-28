@@ -2,8 +2,8 @@ import json
 
 from app.constants import MAX_UPLOAD_BYTES, MAX_UPLOAD_MB
 
-# Flask 3.1's MAX_FORM_MEMORY_SIZE default, which used to cap pasted JSON well
-# below the limit the validator page advertises.
+# Flask 3.1's MAX_FORM_MEMORY_SIZE default, which used to cap pasted JSON far
+# below the advertised limit.
 FLASK_DEFAULT_FORM_MEMORY_SIZE = 500_000
 
 
@@ -17,14 +17,14 @@ def _paste_form(json_text):
 
 class TestValidatorUploadLimits:
     """
-    The validator advertises a single size limit, so every submission method has
-    to enforce the same one. See GSA/data.gov#6067.
+    Every submission method must enforce the one limit the page advertises.
+    See GSA/data.gov#6067.
     """
 
     def test_page_hands_the_limit_to_the_client_side_guard(self, client):
         """
-        Jinja renders an undefined variable as an empty string, which would break
-        the guard's JS without failing anything. Pin both uses of the limit.
+        Jinja renders an undefined variable as "", silently breaking the guard's
+        JS. Pin both uses of the limit.
         """
         res = client.get("/validate/")
 
@@ -45,7 +45,7 @@ class TestValidatorUploadLimits:
         )
 
         assert res.status_code == 200
-        # proves the form was actually processed, not just re-rendered blank
+        # the form was processed, not re-rendered blank
         assert b"No validation errors found" in res.data
 
     def test_pasted_json_over_the_upload_limit_is_rejected(self, app, client):
@@ -63,8 +63,8 @@ class TestValidatorUploadLimits:
 
 class TestRequestEntityTooLargeHandler:
     """
-    An oversized submission has to explain itself. Without a handler APIFlask's
-    json_errors answers browser users with a bare JSON blob. See GSA/data.gov#6067.
+    Without this handler APIFlask's json_errors answers browsers with a bare JSON
+    blob. See GSA/data.gov#6067.
     """
 
     def test_html_route_renders_the_error_page(self, app, client):
@@ -78,7 +78,7 @@ class TestRequestEntityTooLargeHandler:
         assert res.status_code == 413
         assert res.content_type.startswith("text/html")
         assert f"must be {MAX_UPLOAD_MB}MB or less" in res.text
-        # rendered through base.html, not a bare Werkzeug/APIFlask response
+        # rendered through base.html, not a bare APIFlask response
         assert "Return to the JSON Schema Validator" in res.text
 
     def test_api_route_returns_json(self, app, client):
