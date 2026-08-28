@@ -592,8 +592,8 @@ class TestGeneralUtils:
         """
         A 3.0 catalog is assembled in one call, so per-error work proportional to
         the message dict outlived nginx's read timeout on a catalog well under the
-        upload limit. 28s before the fix, 0.25s after; the ceiling is loose for a
-        slow CI runner.
+        upload limit. 28s before the fix, 0.25s after; 2s leaves a slow CI runner
+        room without letting a 10x regression through.
         """
         count = 4000
         catalog = {
@@ -623,7 +623,7 @@ class TestGeneralUtils:
 
         # one "'identifier' is a required property" per dataset, all still found
         assert len(errors) == count
-        assert elapsed < 10, f"assembling {count} errors took {elapsed:.1f}s"
+        assert elapsed < 2, f"assembling {count} errors took {elapsed:.1f}s"
 
     def test_find_indexes_for_duplicates(self):
         data = [
