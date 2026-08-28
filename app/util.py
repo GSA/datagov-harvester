@@ -172,9 +172,36 @@ def fetch_json_from_url(url: str) -> dict:
         raise ValueError(f"Invalid JSON: {str(e)}")
 
 
+class CatalogTooDeeplyNested(ValueError):
+    """
+    Catalog's `catalog` and `hasPart` are `items: {"$ref": "#"}`, which jsonschema
+    resolves by recursion, so a chain of nested catalogs exhausts the stack at ~17KB
+    (depth 200 fails, 150 does not). Raised so callers can say so instead of 500ing.
+    """
+
+
+NESTING_TOO_DEEP_MESSAGE = (
+    "Catalog is nested too deeply to validate. "
+    "Flatten the nested catalog or hasPart chains and try again."
+)
+
+
+def _validation_messages(validator, document: dict) -> list:
+    try:
+        errors = assemble_validation_errors(validator.iter_errors(document))
+    except RecursionError:
+        # `from None`: the stack trace is jsonschema's ref resolution, not a cause
+        # the submitter can act on.
+        raise CatalogTooDeeplyNested(NESTING_TOO_DEEP_MESSAGE) from None
+
+    return [e.message for e in errors]
+
+
 def validate_records(dcatus_catalog: dict, schema_name: str) -> list:
     """
     validates records from the input dcatus catalog based on the provided schema_name
+
+    raises CatalogTooDeeplyNested if the document is too deeply nested to walk.
     """
 
     output = []
@@ -193,14 +220,12 @@ def validate_records(dcatus_catalog: dict, schema_name: str) -> list:
         )
 
         for idx, record in enumerate(dcatus_catalog["dataset"]):
-            errors = validator.iter_errors(record)
-            errors = [e.message for e in assemble_validation_errors(errors)]
+            errors = _validation_messages(validator, record)
             identifier = idx if "identifier" not in record else record["identifier"]
             output += list(zip([identifier] * len(errors), errors))
     else:
         validator = build_dcatus3_validator(schema)
-        errors = validator.iter_errors(dcatus_catalog)
-        errors = [e.message for e in assemble_validation_errors(errors)]
+        errors = _validation_messages(validator, dcatus_catalog)
         # not going to pull the record identifier from the error message for now.
         # the json path will clearly indicate which dataset is
         # wrong (e.g. $.dataset[0] )

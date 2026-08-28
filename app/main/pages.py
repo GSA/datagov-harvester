@@ -12,7 +12,7 @@ from app.deps import (
 )
 from app.forms import DatasetSlugForm, ValidatorForm
 from app.paginate import Pagination
-from app.util import fetch_json_from_url, validate_records
+from app.util import CatalogTooDeeplyNested, fetch_json_from_url, validate_records
 from harvester.utils.general_utils import (
     convert_to_int,
     get_datetime,
@@ -261,6 +261,10 @@ def openapi_docs():
     return render_template("/swagger.html")
 
 
+# the field carrying the document, so a rejection renders next to the input
+_VALIDATOR_INPUT_FIELDS = {"url": "url", "paste": "json_text", "upload": "json_file"}
+
+
 @main.route("/validate/", methods=["GET", "POST"])
 def view_validators():
     """View for validating v1.1 or v3.0 dcatus catalogs using form."""
@@ -290,15 +294,24 @@ def view_validators():
                 form.json_file.errors.append(str(e))
 
         if not form.errors:
-            submitted = True
-            errors = validate_records(data, form.schema.data)
-            logger.info(
-                "Rendered validator results fetch_method=%s schema=%s "
-                "validation_errors=%s",
-                form.fetch_method.data,
-                form.schema.data,
-                len(errors),
-            )
+            try:
+                errors = validate_records(data, form.schema.data)
+                submitted = True
+                logger.info(
+                    "Rendered validator results fetch_method=%s schema=%s "
+                    "validation_errors=%s",
+                    form.fetch_method.data,
+                    form.schema.data,
+                    len(errors),
+                )
+            except CatalogTooDeeplyNested as e:
+                field = getattr(form, _VALIDATOR_INPUT_FIELDS[form.fetch_method.data])
+                field.errors.append(str(e))
+                logger.warning(
+                    "Validator could not walk the document fetch_method=%s schema=%s",
+                    form.fetch_method.data,
+                    form.schema.data,
+                )
         else:
             logger.warning(
                 "Validator submission failed fetch_method=%s url_errors=%s "
