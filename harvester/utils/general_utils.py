@@ -1130,7 +1130,7 @@ def add_uuid_to_package_name(name: str) -> str:
 
 _WKT_GEOMETRY_RE = re.compile(
     r"^\s*(POINT|LINESTRING|POLYGON|MULTIPOINT|MULTILINESTRING|MULTIPOLYGON|"
-    r"GEOMETRYCOLLECTION)\s*[\s(zZmM]",
+    r"GEOMETRYCOLLECTION)\s*(?:[ZM]{1,2}\s*)?\(",
     re.IGNORECASE,
 )
 
@@ -1143,9 +1143,11 @@ def translate_wkt_to_geojson(spatial_value: str) -> str:
 
     try:
         geom = shapely.wkt.loads(spatial_value.strip())
+        # GeoJSON is 2D; drop any Z/M dimension rather than let the
+        # 3d_coordinates check in validate_geojson silently discard it.
+        geom = shapely.force_2d(geom)
         return json.dumps(shapely_geom_mapping(geom))
-    # ruff: noqa: E722
-    except:
+    except:  # noqa: E722
         logger.warning(
             f"This spatial value looked like WKT but failed to parse: {spatial_value}"
         )
