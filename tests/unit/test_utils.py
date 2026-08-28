@@ -44,6 +44,7 @@ from harvester.utils.general_utils import (
     strip_dcatus3_catalog_objects,
     translate_spatial,
     translate_spatial_to_geojson,
+    translate_wkt_to_geojson,
     validate_geojson,
 )
 from harvester.utils.schema_paths import (
@@ -229,6 +230,50 @@ class TestCKANUtils:
             "type": "Point",
             "coordinates": [-88.9718, 36.52033],
         }
+
+    def test_translate_wkt_to_geojson_polygon(self):
+        assert translate_wkt_to_geojson(
+            "POLYGON((-125 24, -66 24, -66 50, -125 50, -125 24))"
+        ) == (
+            '{"type": "Polygon", "coordinates": '
+            "[[[-125.0, 24.0], [-66.0, 24.0], [-66.0, 50.0], "
+            "[-125.0, 50.0], [-125.0, 24.0]]]}"
+        )
+
+    def test_translate_wkt_to_geojson_point(self):
+        assert (
+            translate_wkt_to_geojson("POINT (0.0 0.0)")
+            == '{"type": "Point", "coordinates": [0.0, 0.0]}'
+        )
+
+    def test_translate_wkt_to_geojson_non_wkt_string(self):
+        assert translate_wkt_to_geojson("somewhere over there") == ""
+
+    def test_translate_wkt_to_geojson_malformed_wkt(self):
+        # Looks like WKT (has the "POLYGON" prefix) but isn't parseable.
+        assert translate_wkt_to_geojson("POLYGON((not valid))") == ""
+
+    def test_translate_spatial_wkt_polygon(self):
+        geojson = translate_spatial_to_geojson(
+            "POLYGON((-125 24, -66 24, -66 50, -125 50, -125 24))"
+        )
+        assert geojson == {
+            "type": "Polygon",
+            "coordinates": [
+                [
+                    [-125.0, 24.0],
+                    [-66.0, 24.0],
+                    [-66.0, 50.0],
+                    [-125.0, 50.0],
+                    [-125.0, 24.0],
+                ]
+            ],
+        }
+
+    def test_translate_spatial_wkt_point(self):
+        assert translate_spatial("POINT (0.0 0.0)") == (
+            '{"type": "Point", "coordinates": [0.0, 0.0]}'
+        )
 
 
 # Point example
