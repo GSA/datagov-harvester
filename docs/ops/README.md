@@ -52,7 +52,7 @@ specified amount of time in the future (see the `-v` option to the Mac OS X
 $ export API_TOKEN=...
 $ export id=.....  # harvest source id
 $ curl -s -H "X-API-Key: ${API_TOKEN}" \
-  https://datagov-harvest-admin-dev.app.cloud.gov/api/harvest_source/edit/$id \
+  https://harvest-dev.data.gov/api/harvest_source/edit/$id \
   --json "{\"date_next_run\": \"$(date -Iseconds -j -v +45M)\"}"
 ```
 
