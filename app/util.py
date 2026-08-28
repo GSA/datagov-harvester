@@ -8,6 +8,7 @@ from urllib.parse import urlparse
 import requests
 from jsonschema import Draft202012Validator, FormatChecker
 
+from app.constants import MAX_UPLOAD_BYTES, MAX_UPLOAD_MB
 from harvester.utils.general_utils import (
     USER_AGENT,
     assemble_validation_errors,
@@ -115,9 +116,14 @@ def is_public_ip(hostname: str) -> bool:
         return False
 
 
-def fetch_json_from_url(url: str) -> dict:
+# The URL path is fetched server-side, so MAX_CONTENT_LENGTH never sees it. Same
+# limit, enforced here by hand.
+PAYLOAD_TOO_LARGE_MESSAGE = (
+    f"JSON payload too large - must be {MAX_UPLOAD_MB}MB or less."
+)
 
-    max_content_length = 10 * 1024 * 1024  # 10MB limit
+
+def fetch_json_from_url(url: str) -> dict:
 
     parsed = urlparse(url)
 
@@ -141,8 +147,8 @@ def fetch_json_from_url(url: str) -> dict:
         raise ValueError(f"Error processing request: {str(e)}")
 
     content_length = response.headers.get("Content-Length")
-    if content_length and int(content_length) > max_content_length:
-        raise ValueError("JSON payload too large - must be 10MB or less.")
+    if content_length and int(content_length) > MAX_UPLOAD_BYTES:
+        raise ValueError(PAYLOAD_TOO_LARGE_MESSAGE)
 
     content_type = response.headers.get("Content-Type", "")
     if "application/json" not in content_type:
@@ -155,16 +161,16 @@ def fetch_json_from_url(url: str) -> dict:
         for chunk in response.iter_content(chunk_size=8192):
             if chunk:
                 total_size += len(chunk)
-                if total_size > max_content_length:
-                    raise ValueError("JSON payload too large - must be 10MB or less.")
+                if total_size > MAX_UPLOAD_BYTES:
+                    raise ValueError(PAYLOAD_TOO_LARGE_MESSAGE)
                 chunks.append(chunk)
     finally:
         response.close()
 
     content = b"".join(chunks)
 
-    if len(content) > max_content_length:
-        raise ValueError("JSON payload too large - must be 10MB or less.")
+    if len(content) > MAX_UPLOAD_BYTES:
+        raise ValueError(PAYLOAD_TOO_LARGE_MESSAGE)
 
     try:
         return json.loads(content)

@@ -590,10 +590,10 @@ class TestGeneralUtils:
 
     def test_assemble_validation_messages_scales_linearly_with_dataset_count(self):
         """
-        A 3.0 catalog is assembled in one call, so per-error work proportional to
-        the message dict outlived nginx's read timeout on a catalog well under the
-        upload limit. 28s before the fix, 0.25s after; 2s leaves a slow CI runner
-        room without letting a 10x regression through.
+        A 3.0 catalog is assembled in one call, so the message dict grew with the
+        dataset count and the per-error work grew with it, on a catalog well under
+        the upload limit. 28s before the fix, 0.25s after; 2s leaves a slow CI
+        runner room without letting a 10x regression through.
         """
         count = 4000
         catalog = {
