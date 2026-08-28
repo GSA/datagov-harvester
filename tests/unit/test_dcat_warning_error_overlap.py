@@ -146,7 +146,6 @@ def _invalid_cui_banner_marking(r):
 
 
 def _unresolvable_spatial_value(r):
-    # Distinct from the baseline WKT polygon so this shows up as a new warning.
     r["spatial"][0]["geometry"] = "somewhere over there"
 
 
