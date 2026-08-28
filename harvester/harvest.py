@@ -584,11 +584,17 @@ class HarvestSource:
                 elif self.source_type == "waf-collection":
                     record["content"] = download_file(record["identifier"], ".xml")
                     dataset = record["content"]
-                    parent_identifier = self.collection_parent_url
+                    # the collection root has no parent of its own
+                    if record["identifier"] != self.collection_parent_url:
+                        parent_identifier = self.collection_parent_url
 
                 elif self.source_type == "document":
                     if self.schema_type.startswith("dcatus"):
-                        parent_identifier = record.pop("parent_identifier", None)
+                        # dcatus3.0 series/service members carry
+                        # "parent_identifier"; dcatus1.1 uses "isPartOf"
+                        parent_identifier = record.pop(
+                            "parent_identifier", None
+                        ) or normalize_dataset_identifier(record.get("isPartOf"))
                         dataset = json.dumps(sort_dataset(record))
                     elif self.schema_type.startswith("iso19115"):
                         # single document ISO
@@ -1221,7 +1227,7 @@ class Record:
         if not self.is_valid_describedByType(
             self.transformed_data.get("describedByType", "")
         ):
-            self.transformed_data["describedByType"] = "application/octet-steam"
+            self.transformed_data["describedByType"] = "application/octet-stream"
 
         # If distribution items have a downloadURL or accessURL,
         # check if it just needs an "https://" at the beginning
