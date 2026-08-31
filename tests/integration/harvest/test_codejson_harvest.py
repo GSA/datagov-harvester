@@ -105,7 +105,7 @@ class TestCodejsonHarvest:
             json=lambda: mock_codejson_response,
         )
         monkeypatch.setattr(
-            "harvester.utils.general_utils.requests.Session.get",
+            "harvester.utils.general_utils.requests.get",
             lambda *args, **kwargs: mock_response,
         )
 
@@ -157,7 +157,7 @@ class TestCodejsonHarvest:
             json=lambda: mock_codejson_response,
         )
         monkeypatch.setattr(
-            "harvester.utils.general_utils.requests.Session.get",
+            "harvester.utils.general_utils.requests.get",
             lambda *args, **kwargs: mock_response,
         )
 
@@ -191,7 +191,7 @@ class TestCodejsonHarvest:
             json=lambda: mock_codejson_response,
         )
         monkeypatch.setattr(
-            "harvester.utils.general_utils.requests.Session.get",
+            "harvester.utils.general_utils.requests.get",
             lambda *args, **kwargs: mock_response,
         )
 
@@ -220,7 +220,7 @@ class TestCodejsonHarvest:
             json=lambda: mock_codejson_response,
         )
         monkeypatch.setattr(
-            "harvester.utils.general_utils.requests.Session.get",
+            "harvester.utils.general_utils.requests.get",
             lambda *args, **kwargs: mock_response,
         )
 
@@ -268,7 +268,7 @@ class TestCodejsonHarvest:
             json=lambda: mock_codejson_response,
         )
         monkeypatch.setattr(
-            "harvester.utils.general_utils.requests.Session.get",
+            "harvester.utils.general_utils.requests.get",
             lambda *args, **kwargs: mock_response,
         )
 
@@ -318,7 +318,7 @@ class TestCodejsonHarvest:
             json=lambda: empty_codejson,
         )
         monkeypatch.setattr(
-            "harvester.utils.general_utils.requests.Session.get",
+            "harvester.utils.general_utils.requests.get",
             lambda *args, **kwargs: mock_response,
         )
 

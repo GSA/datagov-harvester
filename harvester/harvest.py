@@ -36,6 +36,7 @@ from harvester.exceptions import (
 from harvester.lib.harvest_reporter import HarvestReporter
 from harvester.lib.load_manager import LoadManager
 from harvester.lib.task_handler import create_task_handler
+from harvester.utils.codejson_validator import validate_codejson_structure
 from harvester.utils.dcat_warnings import DcatWarning, detect_dcat_warnings
 from harvester.utils.general_utils import (
     DT_PLACEHOLDER,
@@ -721,6 +722,18 @@ class HarvestSource:
                 elif self.schema_type.startswith("iso19115"):
                     # mimic the output of traverse_waf with a single file
                     self.external_records = [{"identifier": self.url}]
+                elif self.schema_type == "code.json":
+                    # Download and parse code.json file
+                    code_catalog = download_file(self.url, ".json")
+
+                    # Validate code.json structure before processing
+                    validate_codejson_structure(code_catalog)
+
+                    # Extract releases array (each release becomes a dataset)
+                    self.external_records = code_catalog.get("releases", [])
+
+                    # Store agency name for use during transformation
+                    self._codejson_agency = code_catalog.get("agency", "")
                 else:
                     raise ValueError(f"Schema type {self.schema_type} is not supported")
 
