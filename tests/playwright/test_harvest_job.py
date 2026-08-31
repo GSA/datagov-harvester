@@ -47,6 +47,7 @@ class TestHarvestJobUnauthed:
 
         # Test that date fields exist but don't check exact values
         expect(table).to_contain_text("Date created")
+        expect(table).to_contain_text("Date started")
         expect(table).to_contain_text("Date finished")
 
     def test_harvest_job_record_errors_display(self, upage):
