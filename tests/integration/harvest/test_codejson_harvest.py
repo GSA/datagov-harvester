@@ -5,7 +5,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from harvester.harvest import HarvestSource
+from harvester.harvest import HarvestSource, harvest_job_starter
 
 
 @pytest.fixture
@@ -111,7 +111,7 @@ class TestCodejsonHarvest:
 
         # Create harvest source and run harvest
         harvest_source = make_harvest_source(source_data_codejson, job_data_codejson)
-        harvest_source.synchronize_records()
+        harvest_job_starter(job_data_codejson["id"], "harvest")
 
         # Verify job completed successfully
         job = harvest_source.db_interface.get_harvest_job(job_data_codejson["id"])
@@ -162,7 +162,7 @@ class TestCodejsonHarvest:
         )
 
         harvest_source = make_harvest_source(source_data_codejson, job_data_codejson)
-        harvest_source.synchronize_records()
+        harvest_job_starter(job_data_codejson["id"], "harvest")
 
         # Job should complete but have errors
         job = harvest_source.db_interface.get_harvest_job(job_data_codejson["id"])
@@ -196,7 +196,7 @@ class TestCodejsonHarvest:
         )
 
         harvest_source = make_harvest_source(source_data_codejson, job_data_codejson)
-        harvest_source.synchronize_records()
+        harvest_job_starter(job_data_codejson["id"], "harvest")
 
         # Job should complete with error for duplicate
         job = harvest_source.db_interface.get_harvest_job(job_data_codejson["id"])
@@ -226,7 +226,7 @@ class TestCodejsonHarvest:
 
         # First harvest
         harvest_source = make_harvest_source(source_data_codejson, job_data_codejson)
-        harvest_source.synchronize_records()
+        harvest_job_starter(job_data_codejson["id"], "harvest")
 
         job_1 = interface.get_harvest_job(job_data_codejson["id"])
         assert job_1.records_added == 2
@@ -243,8 +243,7 @@ class TestCodejsonHarvest:
         }
         interface.add_harvest_job(job_data_2)
 
-        harvest_source_2 = HarvestSource(job_data_2["id"])
-        harvest_source_2.synchronize_records()
+        harvest_job_starter(job_data_2["id"], "harvest")
 
         # Verify update was detected
         job_2 = interface.get_harvest_job(job_data_2["id"])
@@ -275,7 +274,7 @@ class TestCodejsonHarvest:
 
         # First harvest with 2 releases
         harvest_source = make_harvest_source(source_data_codejson, job_data_codejson)
-        harvest_source.synchronize_records()
+        harvest_job_starter(job_data_codejson["id"], "harvest")
 
         job_1 = interface.get_harvest_job(job_data_codejson["id"])
         assert job_1.records_added == 2
@@ -290,8 +289,7 @@ class TestCodejsonHarvest:
         }
         interface.add_harvest_job(job_data_2)
 
-        harvest_source_2 = HarvestSource(job_data_2["id"])
-        harvest_source_2.synchronize_records()
+        harvest_job_starter(job_data_2["id"], "harvest")
 
         # Verify deletion was detected
         job_2 = interface.get_harvest_job(job_data_2["id"])
@@ -325,7 +323,7 @@ class TestCodejsonHarvest:
         )
 
         harvest_source = make_harvest_source(source_data_codejson, job_data_codejson)
-        harvest_source.synchronize_records()
+        harvest_job_starter(job_data_codejson["id"], "harvest")
 
         # Job should complete with no records
         job = harvest_source.db_interface.get_harvest_job(job_data_codejson["id"])

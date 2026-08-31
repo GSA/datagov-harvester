@@ -166,6 +166,10 @@ class HarvestSource:
             self.schema_file = DCATUS3_DATASET_SCHEMA
         elif self.schema_type.startswith("iso19115"):
             self.schema_file = DCATUS1_1_DIR / "iso-non-federal_dataset.json"
+        elif self.schema_type == "code.json":
+            # code.json sources are transformed to DCAT-US 3.0 format
+            # No separate schema file needed - we'll use DCAT 3.0 validator
+            self.schema_file = None
         else:
             # this can't happen because we apply an enum in our model but just in case.
             logger.error(
@@ -174,11 +178,16 @@ class HarvestSource:
             self.finish_job_with_status("error")
             raise Exception
 
-        self.dataset_schema = open_json(self.schema_file)
-        if self.schema_type == "dcatus3.0":
+        # Load dataset schema if a schema file is defined
+        if self.schema_file:
+            self.dataset_schema = open_json(self.schema_file)
+        else:
+            self.dataset_schema = {}
+        if self.schema_type == "dcatus3.0" or self.schema_type == "code.json":
             # validate one record at a time against the dcatus3.0 schema
             # matching its record_type, which plugs into the same per-record
             # validation flow as dcatus1.1.
+            # code.json sources are transformed to DCAT-US 3.0, so use same validator
             self._validators = {
                 "dataset": build_dcatus3_validator(
                     DCATUS3_DEFINITIONS_DIR,
