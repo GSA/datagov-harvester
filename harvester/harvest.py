@@ -168,8 +168,6 @@ class HarvestSource:
         elif self.schema_type.startswith("iso19115"):
             self.schema_file = DCATUS1_1_DIR / "iso-non-federal_dataset.json"
         elif self.schema_type == "code.json":
-            # code.json sources are transformed to DCAT-US 3.0 format
-            # No separate schema file needed - we'll use DCAT 3.0 validator
             self.schema_file = None
         else:
             # this can't happen because we apply an enum in our model but just in case.
@@ -185,10 +183,6 @@ class HarvestSource:
         else:
             self.dataset_schema = {}
         if self.schema_type == "dcatus3.0" or self.schema_type == "code.json":
-            # validate one record at a time against the dcatus3.0 schema
-            # matching its record_type, which plugs into the same per-record
-            # validation flow as dcatus1.1.
-            # code.json sources are transformed to DCAT-US 3.0, so use same validator
             self._validators = {
                 "dataset": build_dcatus3_validator(
                     DCATUS3_DEFINITIONS_DIR,
@@ -611,13 +605,10 @@ class HarvestSource:
                         record["content"] = download_file(record["identifier"], ".xml")
                         dataset = record["content"]
                     elif self.schema_type == "code.json":
-                        # code.json releases: serialize as JSON for hashing
-                        # repositoryURL is the unique identifier
                         dataset = json.dumps(sort_dataset(record))
 
                 dataset_hash = dataset_to_hash(dataset)
 
-                # For code.json, use repositoryURL as the identifier
                 if self.schema_type == "code.json":
                     identifier = normalize_dataset_identifier(
                         record.get("repositoryURL")
@@ -734,21 +725,15 @@ class HarvestSource:
                     # mimic the output of traverse_waf with a single file
                     self.external_records = [{"identifier": self.url}]
                 elif self.schema_type == "code.json":
-                    # Download and parse code.json file
                     code_catalog = download_file(self.url, ".json")
-
-                    # Validate code.json structure before processing
                     validate_codejson_structure(code_catalog)
 
-                    # Extract releases array (each release becomes a dataset)
-                    # Add 'identifier' field from repositoryURL for filter compatibility
                     releases = code_catalog.get("releases", [])
                     for release in releases:
                         if "identifier" not in release and "repositoryURL" in release:
                             release["identifier"] = release["repositoryURL"]
                     self.external_records = releases
 
-                    # Store agency name for use during transformation
                     self._codejson_agency = code_catalog.get("agency", "")
                 else:
                     raise ValueError(f"Schema type {self.schema_type} is not supported")
@@ -1211,20 +1196,12 @@ class Record:
             )
 
     def transform_codejson(self) -> None:
-        """
-        Transform code.json release to DCAT-US 3.0 format.
-
-        Uses the codejson_release_to_dcat mapper to convert code.json releases
-        to DCAT datasets. The agency name is retrieved from the harvest source.
-        """
         from harvester.utils.codejson_mapper import codejson_release_to_dcat
         from harvester.utils.codejson_validator import validate_codejson_release
 
         try:
-            # Parse source_raw back to dict
             release = json.loads(self.source_raw)
 
-            # Validate this individual release has required fields
             is_valid, error_message = validate_codejson_release(release)
             if not is_valid:
                 logger.error(f"code.json release validation failed: {error_message}")
@@ -1236,11 +1213,9 @@ class Record:
                     self.id,
                 )
 
-            # Get agency and organization_id from harvest source
             agency = self.harvest_source._codejson_agency
             organization_id = str(self.harvest_source.organization_id)
 
-            # Transform to DCAT
             self.transformed_data = codejson_release_to_dcat(
                 release, agency, organization_id
             )
@@ -1250,7 +1225,6 @@ class Record:
             )
 
         except TransformationException:
-            # Re-raise TransformationException as-is
             raise
         except Exception as err:
             logger.error("code.json transformation error: %s", err)
