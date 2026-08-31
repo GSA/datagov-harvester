@@ -44,6 +44,7 @@ from harvester.utils.general_utils import (
     strip_dcatus3_catalog_objects,
     translate_spatial,
     translate_spatial_to_geojson,
+    translate_wkt_to_geojson,
     validate_geojson,
 )
 from harvester.utils.schema_paths import (
@@ -229,6 +230,81 @@ class TestCKANUtils:
             "type": "Point",
             "coordinates": [-88.9718, 36.52033],
         }
+
+    def test_translate_wkt_to_geojson_polygon(self):
+        assert translate_wkt_to_geojson(
+            "POLYGON((-125 24, -66 24, -66 50, -125 50, -125 24))"
+        ) == (
+            '{"type": "Polygon", "coordinates": '
+            "[[[-125.0, 24.0], [-66.0, 24.0], [-66.0, 50.0], "
+            "[-125.0, 50.0], [-125.0, 24.0]]]}"
+        )
+
+    def test_translate_wkt_to_geojson_point(self):
+        assert (
+            translate_wkt_to_geojson("POINT (0.0 0.0)")
+            == '{"type": "Point", "coordinates": [0.0, 0.0]}'
+        )
+
+    def test_translate_wkt_to_geojson_case_insensitive(self):
+        assert translate_wkt_to_geojson(
+            "polygon((-125 24, -66 24, -66 50, -125 50, -125 24))"
+        ) == (
+            '{"type": "Polygon", "coordinates": '
+            "[[[-125.0, 24.0], [-66.0, 24.0], [-66.0, 50.0], "
+            "[-125.0, 50.0], [-125.0, 24.0]]]}"
+        )
+
+    def test_translate_wkt_to_geojson_z_dimension_is_dropped(self):
+        # GeoJSON is 2D; a Z/M dimension must be dropped rather than left
+        # in place for geojson_validator to reject as "3d_coordinates".
+        assert translate_wkt_to_geojson(
+            "POLYGON Z ((-125 24 0, -66 24 0, -66 50 0, -125 50 0, -125 24 0))"
+        ) == (
+            '{"type": "Polygon", "coordinates": '
+            "[[[-125.0, 24.0], [-66.0, 24.0], [-66.0, 50.0], "
+            "[-125.0, 50.0], [-125.0, 24.0]]]}"
+        )
+
+    def test_translate_wkt_to_geojson_non_wkt_string(self):
+        assert translate_wkt_to_geojson("somewhere over there") == ""
+
+    def test_translate_wkt_to_geojson_place_name_not_mistaken_for_wkt(self):
+        # A real place name that starts with a WKT keyword word must not be
+        # treated as WKT -- the geometry-type token alone isn't enough, it
+        # must be followed by "(" (optionally after a Z/M/ZM marker).
+        assert translate_wkt_to_geojson("Point Pleasant, New Jersey") == ""
+
+    def test_translate_wkt_to_geojson_empty_geometry(self):
+        # WKT "EMPTY" geometries carry no coordinates; they must not be
+        # mistaken for a valid, resolvable geometry.
+        assert translate_wkt_to_geojson("POINT EMPTY") == ""
+
+    def test_translate_wkt_to_geojson_malformed_wkt(self):
+        # Looks like WKT (has the "POLYGON" prefix) but isn't parseable.
+        assert translate_wkt_to_geojson("POLYGON((not valid))") == ""
+
+    def test_translate_spatial_to_geojson_wkt_polygon(self):
+        geojson = translate_spatial_to_geojson(
+            "POLYGON((-125 24, -66 24, -66 50, -125 50, -125 24))"
+        )
+        assert geojson == {
+            "type": "Polygon",
+            "coordinates": [
+                [
+                    [-125.0, 24.0],
+                    [-66.0, 24.0],
+                    [-66.0, 50.0],
+                    [-125.0, 50.0],
+                    [-125.0, 24.0],
+                ]
+            ],
+        }
+
+    def test_translate_spatial_wkt_point(self):
+        assert translate_spatial("POINT (0.0 0.0)") == (
+            '{"type": "Point", "coordinates": [0.0, 0.0]}'
+        )
 
 
 # Point example

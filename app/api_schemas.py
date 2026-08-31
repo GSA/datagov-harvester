@@ -74,6 +74,7 @@ class JobInfo(Schema):
     status = Enum(JOB_STATUS_ENUM, required=True)
     job_type = String()
     date_created = DateTime()
+    date_started = DateTime()
     date_finished = DateTime()
     records_total = Integer()
     records_added = Integer()
@@ -171,6 +172,7 @@ class SourceInfo(Schema):
     source_type = Enum(SOURCE_TYPE_ENUM, required=True)
     notification_frequency = Enum(NOTIFICATION_FREQUENCY_ENUM, required=True)
     collection_parent_url = String()
+    date_next_run = DateTime()
 
 
 class ValidatorInfo(Schema):

@@ -17,11 +17,12 @@ $ cf env datagov-harvest | grep HARVEST_API_TOKEN
 $ export API_TOKEN=...
 $ cat harvest_source_ids.txt | while read id; do \
     curl -s -H "X-API-Key: ${API_TOKEN}" \
-    https://harvest-dev.data.gov/api/harvest_job/add \
-    --json "{\"harvest_source_id\": \"$id\", \"status\": \"new\", \"date_created\": \"$(TZ=UTC date -Iseconds -j -v +45M)\"}" ;
+    https://harvest-dev.data.gov/api/harvest_source/edit/$id \
+    --json "{\"date_next_run\": \"$(TZ=UTC date -Iseconds -j -v +45M)\"}" ;
   done
 ```
 
-This downloads the IDs for all of the harvest sources and then creates a new
-job for each source by ID at 45 minutes in the future. When that time in the
-near future passes, the harvest jobs will begin being worked through.
+This downloads the IDs for all of the harvest sources and then sets each
+source's next run 45 minutes in the future. When that time passes, the
+scheduler creates a job for the source and works through the queue under
+the running-task cap.

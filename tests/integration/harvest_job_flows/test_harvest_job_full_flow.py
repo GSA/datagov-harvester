@@ -885,6 +885,56 @@ class TestHarvestJobFullFlow:
         # the record was added as intended (not errored)
         assert send_notification_emails_mock.call_args.args[0]["records_added"] == 1
 
+    @patch("harvester.harvest.HarvestSource.send_notification_emails")
+    def test_can_translate_wkt_spatial(
+        self,
+        send_notification_emails_mock: MagicMock,
+        interface,
+        organization_data,
+        source_data_dcatus_wkt_spatial,
+    ):
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_dcatus_wkt_spatial)
+        harvest_job = interface.add_harvest_job(
+            {
+                "status": "new",
+                "harvest_source_id": source_data_dcatus_wkt_spatial["id"],
+            }
+        )
+
+        job_id = harvest_job.id
+        harvest_job_starter(job_id, "harvest")
+
+        harvest_job = interface.get_harvest_job(job_id)
+
+        latest_records = interface.get_latest_harvest_records_by_source(
+            source_data_dcatus_wkt_spatial["id"]
+        )
+        assert len(latest_records) == 1
+
+        # a WKT spatial value should translate cleanly, with no warning raised
+        assert harvest_job.record_errors == []
+
+        datasets = interface.db.query(Dataset).all()
+        assert len(datasets) == 1
+        assert datasets[0].translated_spatial == {
+            "type": "Polygon",
+            "coordinates": [
+                [
+                    [-125.0, 24.0],
+                    [-66.0, 24.0],
+                    [-66.0, 50.0],
+                    [-125.0, 50.0],
+                    [-125.0, 24.0],
+                ]
+            ],
+        }
+
+        # notification email was sent (configured to "always")
+        assert send_notification_emails_mock.called
+        # the record was added as intended (not errored)
+        assert send_notification_emails_mock.call_args.args[0]["records_added"] == 1
+
 
 class TestCheckMoreWork:
     @patch("harvester.lib.cf_handler.CloudFoundryClient")
