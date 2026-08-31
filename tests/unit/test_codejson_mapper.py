@@ -243,6 +243,33 @@ class TestCodejsonReleaseToDcat:
 
         assert dcat["distribution"][0]["format"] == "svn"
 
+    def test_bureau_code_added_for_known_agency(self):
+        """Test that bureau code is added for known federal agencies"""
+        release = {
+            "name": "test",
+            "repositoryURL": "https://github.com/dhs/test",
+            "description": "Test",
+            "permissions": {"usageType": "openSource"},
+        }
+
+        dcat = codejson_release_to_dcat(release, "DHS", "org-123")
+
+        assert "bureauCode" in dcat
+        assert dcat["bureauCode"] == ["070"]
+
+    def test_bureau_code_omitted_for_unknown_agency(self):
+        """Test that bureau code is omitted when agency not in mapping"""
+        release = {
+            "name": "test",
+            "repositoryURL": "https://github.com/unknown/test",
+            "description": "Test",
+            "permissions": {"usageType": "openSource"},
+        }
+
+        dcat = codejson_release_to_dcat(release, "UNKNOWNAGENCY", "org-123")
+
+        assert "bureauCode" not in dcat
+
 
 class TestFormatEmail:
     """Test email formatting helper"""
@@ -261,14 +288,24 @@ class TestFormatEmail:
 
 
 class TestGetBureauCodeForAgency:
-    """Test bureau code mapping (placeholder for now)"""
+    """Test bureau code mapping"""
 
     def test_returns_none_for_unknown_agency(self):
-        # Bureau code mapping will be follow-up ticket
-        # For now, function should return None
         assert get_bureau_code_for_agency("UNKNOWNAGENCY") is None
 
-    def test_returns_none_for_known_agency(self):
-        # When bureau codes are implemented, these tests will drive the mapping
-        # For MVP, all agencies return None
-        assert get_bureau_code_for_agency("DHS") is None
+    def test_returns_bureau_code_for_dhs(self):
+        assert get_bureau_code_for_agency("DHS") == "070"
+
+    def test_returns_bureau_code_for_nasa(self):
+        assert get_bureau_code_for_agency("NASA") == "026"
+
+    def test_returns_bureau_code_for_gsa(self):
+        assert get_bureau_code_for_agency("GSA") == "023"
+
+    def test_returns_bureau_code_for_epa(self):
+        assert get_bureau_code_for_agency("EPA") == "020"
+
+    def test_case_insensitive_lookup(self):
+        # Should work with lowercase
+        assert get_bureau_code_for_agency("dhs") == "070"
+        assert get_bureau_code_for_agency("Nasa") == "026"
