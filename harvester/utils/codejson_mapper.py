@@ -96,7 +96,15 @@ def codejson_release_to_dcat(release: dict, agency: str, organization_id: str) -
         "accessLevel": "public",
         "keyword": release.get("tags", []),
         "theme": release.get("languages", []),
-        "landingPage": release.get("homepageURL", release["repositoryURL"]),
+    }
+
+    # landingPage must be a Document object or null in DCAT 3.0
+    landing_url = release.get("homepageURL", release["repositoryURL"])
+    dcat_dataset["landingPage"] = {
+        "@id": landing_url,
+        "@type": "Document",
+        "title": f"{release['name']} Homepage",
+        "accessURL": landing_url,
     }
 
     # Publisher
@@ -107,10 +115,13 @@ def codejson_release_to_dcat(release: dict, agency: str, organization_id: str) -
     }
     if release.get("organization"):
         # If sub-organization exists, add parent agency
-        dcat_dataset["publisher"]["subOrganizationOf"] = {
-            "@type": "org:Organization",
-            "name": agency,
-        }
+        # subOrganizationOf must be an array in DCAT 3.0
+        dcat_dataset["publisher"]["subOrganizationOf"] = [
+            {
+                "@type": "org:Organization",
+                "name": agency,
+            }
+        ]
 
     # Contact point
     contact = release.get("contact", {})

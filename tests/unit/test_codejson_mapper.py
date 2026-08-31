@@ -51,8 +51,13 @@ class TestCodejsonReleaseToDcat:
         # License
         assert dcat["license"] == "https://opensource.org/licenses/MIT"
 
-        # Landing page
-        assert dcat["landingPage"] == "https://github.com/agency/test-project"
+        # Landing page (DCAT 3.0 format - Document object)
+        assert dcat["landingPage"]["@id"] == "https://github.com/agency/test-project"
+        assert dcat["landingPage"]["@type"] == "Document"
+        assert dcat["landingPage"]["title"] == "test-project Homepage"
+        assert (
+            dcat["landingPage"]["accessURL"] == "https://github.com/agency/test-project"
+        )
 
         # Distribution
         assert len(dcat["distribution"]) == 1
@@ -134,7 +139,9 @@ class TestCodejsonReleaseToDcat:
 
         dcat = codejson_release_to_dcat(release, "TESTAG", "org-123")
 
-        assert dcat["landingPage"] == "https://agency.gov/projects/test"
+        # DCAT 3.0 format - Document object
+        assert dcat["landingPage"]["@id"] == "https://agency.gov/projects/test"
+        assert dcat["landingPage"]["accessURL"] == "https://agency.gov/projects/test"
 
     def test_download_url_added_to_distribution(self):
         """Test that downloadURL is included in distribution when present"""
@@ -181,7 +188,9 @@ class TestCodejsonReleaseToDcat:
         dcat = codejson_release_to_dcat(release, "DHS", "org-123")
 
         assert dcat["publisher"]["name"] == "Sub-Agency Division"
-        assert dcat["publisher"]["subOrganizationOf"]["name"] == "DHS"
+        # DCAT 3.0 format - subOrganizationOf is an array
+        assert len(dcat["publisher"]["subOrganizationOf"]) == 1
+        assert dcat["publisher"]["subOrganizationOf"][0]["name"] == "DHS"
 
     def test_codejson_specific_fields_preserved(self):
         """Test that code.json-specific fields are preserved in metadata"""
