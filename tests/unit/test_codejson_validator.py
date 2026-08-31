@@ -1,7 +1,10 @@
 import pytest
 
 from harvester.exceptions import ValidationException
-from harvester.utils.codejson_validator import validate_codejson_structure
+from harvester.utils.codejson_validator import (
+    validate_codejson_release,
+    validate_codejson_structure,
+)
 
 
 class TestValidateCodejsonStructure:
@@ -111,129 +114,99 @@ class TestValidateCodejsonStructure:
         result = validate_codejson_structure(valid_catalog)
         assert result is True
 
-    def test_release_missing_name_raises_exception(self):
-        """Test that release missing name field raises exception"""
-        invalid_catalog = {
-            "version": "2.0.0",
-            "agency": "TESTAG",
-            "measurementType": {"method": "other"},
-            "releases": [
-                {
-                    "repositoryURL": "https://github.com/testag/test",
-                    "description": "Test",
-                    "permissions": {"usageType": "openSource"},
-                }
-            ],
+
+class TestValidateCodejsonRelease:
+    """Test validation of individual code.json releases"""
+
+    def test_valid_release_passes(self):
+        """Test that valid release passes validation"""
+        valid_release = {
+            "name": "test-project",
+            "repositoryURL": "https://github.com/testag/test",
+            "description": "Test project",
+            "permissions": {"usageType": "openSource"},
         }
 
-        with pytest.raises(ValidationException, match="Release 0.*missing: name"):
-            validate_codejson_structure(invalid_catalog)
+        is_valid, error = validate_codejson_release(valid_release)
+        assert is_valid is True
+        assert error is None
 
-    def test_release_missing_repositoryURL_raises_exception(self):
-        """Test that release missing repositoryURL raises exception"""
-        invalid_catalog = {
-            "version": "2.0.0",
-            "agency": "TESTAG",
-            "measurementType": {"method": "other"},
-            "releases": [
-                {
-                    "name": "test-project",
-                    "description": "Test",
-                    "permissions": {"usageType": "openSource"},
-                }
-            ],
+    def test_release_missing_name_returns_error(self):
+        """Test that release missing name field returns error"""
+        invalid_release = {
+            "repositoryURL": "https://github.com/testag/test",
+            "description": "Test",
+            "permissions": {"usageType": "openSource"},
         }
 
-        with pytest.raises(
-            ValidationException, match="Release 0.*missing: repositoryURL"
-        ):
-            validate_codejson_structure(invalid_catalog)
+        is_valid, error = validate_codejson_release(invalid_release, release_idx=0)
+        assert is_valid is False
+        assert "Release 0" in error
+        assert "missing required field: name" in error
 
-    def test_release_missing_description_raises_exception(self):
-        """Test that release missing description raises exception"""
-        invalid_catalog = {
-            "version": "2.0.0",
-            "agency": "TESTAG",
-            "measurementType": {"method": "other"},
-            "releases": [
-                {
-                    "name": "test-project",
-                    "repositoryURL": "https://github.com/testag/test",
-                    "permissions": {"usageType": "openSource"},
-                }
-            ],
+    def test_release_missing_repositoryURL_returns_error(self):
+        """Test that release missing repositoryURL returns error"""
+        invalid_release = {
+            "name": "test-project",
+            "description": "Test",
+            "permissions": {"usageType": "openSource"},
         }
 
-        with pytest.raises(
-            ValidationException, match="Release 0.*missing: description"
-        ):
-            validate_codejson_structure(invalid_catalog)
+        is_valid, error = validate_codejson_release(invalid_release, release_idx=0)
+        assert is_valid is False
+        assert "Release 0" in error
+        assert "missing required field: repositoryURL" in error
 
-    def test_release_missing_permissions_raises_exception(self):
-        """Test that release missing permissions raises exception"""
-        invalid_catalog = {
-            "version": "2.0.0",
-            "agency": "TESTAG",
-            "measurementType": {"method": "other"},
-            "releases": [
-                {
-                    "name": "test-project",
-                    "repositoryURL": "https://github.com/testag/test",
-                    "description": "Test",
-                }
-            ],
+    def test_release_missing_description_returns_error(self):
+        """Test that release missing description returns error"""
+        invalid_release = {
+            "name": "test-project",
+            "repositoryURL": "https://github.com/testag/test",
+            "permissions": {"usageType": "openSource"},
         }
 
-        with pytest.raises(
-            ValidationException, match="Release 0.*missing: permissions"
-        ):
-            validate_codejson_structure(invalid_catalog)
+        is_valid, error = validate_codejson_release(invalid_release, release_idx=0)
+        assert is_valid is False
+        assert "Release 0" in error
+        assert "missing required field: description" in error
 
-    def test_multiple_releases_validates_all(self):
-        """Test that all releases are validated"""
-        invalid_catalog = {
-            "version": "2.0.0",
-            "agency": "TESTAG",
-            "measurementType": {"method": "other"},
-            "releases": [
-                {
-                    "name": "valid-project",
-                    "repositoryURL": "https://github.com/testag/valid",
-                    "description": "Valid",
-                    "permissions": {"usageType": "openSource"},
-                },
-                {
-                    "name": "invalid-project",
-                    "repositoryURL": "https://github.com/testag/invalid",
-                    # missing description
-                    "permissions": {"usageType": "openSource"},
-                },
-            ],
+    def test_release_missing_permissions_returns_error(self):
+        """Test that release missing permissions returns error"""
+        invalid_release = {
+            "name": "test-project",
+            "repositoryURL": "https://github.com/testag/test",
+            "description": "Test",
         }
 
-        with pytest.raises(
-            ValidationException, match="Release 1.*missing: description"
-        ):
-            validate_codejson_structure(invalid_catalog)
+        is_valid, error = validate_codejson_release(invalid_release, release_idx=0)
+        assert is_valid is False
+        assert "Release 0" in error
+        assert "missing required field: permissions" in error
 
     def test_release_with_name_in_error_message(self):
         """Test that error message includes release name when available"""
-        invalid_catalog = {
-            "version": "2.0.0",
-            "agency": "TESTAG",
-            "measurementType": {"method": "other"},
-            "releases": [
-                {
-                    "name": "my-project",
-                    "repositoryURL": "https://github.com/testag/test",
-                    # missing description
-                    "permissions": {"usageType": "openSource"},
-                }
-            ],
+        invalid_release = {
+            "name": "my-project",
+            "repositoryURL": "https://github.com/testag/test",
+            # missing description
+            "permissions": {"usageType": "openSource"},
         }
 
-        with pytest.raises(
-            ValidationException,
-            match="Release 0 \\(my-project\\).*missing: description",
-        ):
-            validate_codejson_structure(invalid_catalog)
+        is_valid, error = validate_codejson_release(invalid_release, release_idx=0)
+        assert is_valid is False
+        assert "Release 0 (my-project)" in error
+        assert "missing required field: description" in error
+
+    def test_release_without_index_in_error_message(self):
+        """Test that error message works without release index"""
+        invalid_release = {
+            "name": "my-project",
+            "repositoryURL": "https://github.com/testag/test",
+            # missing description
+            "permissions": {"usageType": "openSource"},
+        }
+
+        is_valid, error = validate_codejson_release(invalid_release)
+        assert is_valid is False
+        assert "Release (my-project)" in error
+        assert "missing required field: description" in error

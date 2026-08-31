@@ -1218,10 +1218,23 @@ class Record:
         to DCAT datasets. The agency name is retrieved from the harvest source.
         """
         from harvester.utils.codejson_mapper import codejson_release_to_dcat
+        from harvester.utils.codejson_validator import validate_codejson_release
 
         try:
             # Parse source_raw back to dict
             release = json.loads(self.source_raw)
+
+            # Validate this individual release has required fields
+            is_valid, error_message = validate_codejson_release(release)
+            if not is_valid:
+                logger.error(f"code.json release validation failed: {error_message}")
+                self.status = "error"
+                self.harvest_source.update_job_record_count_by_action("errored")
+                raise TransformationException(
+                    f"code.json release validation failed: {error_message}",
+                    self.harvest_source.job_id,
+                    self.id,
+                )
 
             # Get agency and organization_id from harvest source
             agency = self.harvest_source._codejson_agency
@@ -1236,6 +1249,9 @@ class Record:
                 f"successfully transformed code.json release: {self.identifier} db id: {self.id}"
             )
 
+        except TransformationException:
+            # Re-raise TransformationException as-is
+            raise
         except Exception as err:
             logger.error("code.json transformation error: %s", err)
             self.status = "error"

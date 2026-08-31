@@ -9,7 +9,7 @@ from harvester.exceptions import ValidationException
 
 
 def validate_codejson_structure(code_catalog: dict) -> bool:
-    """Validate code.json structure has required fields.
+    """Validate code.json catalog-level structure has required fields.
 
     Validates that a code.json catalog has the minimum required structure:
     - version: must be "2.0.0"
@@ -17,11 +17,8 @@ def validate_codejson_structure(code_catalog: dict) -> bool:
     - measurementType: measurement configuration
     - releases: array of release objects
 
-    Each release must have:
-    - name: project name
-    - repositoryURL: repository URL
-    - description: project description
-    - permissions: permissions object
+    Individual release validation happens during transformation/DCAT validation
+    to allow harvests to continue even if some releases are invalid.
 
     Args:
         code_catalog: Parsed code.json catalog as dictionary
@@ -30,7 +27,7 @@ def validate_codejson_structure(code_catalog: dict) -> bool:
         True if validation passes
 
     Raises:
-        ValidationException: If any required field is missing or invalid
+        ValidationException: If any required catalog-level field is missing or invalid
     """
     # Check required top-level fields
     required_fields = ["version", "agency", "measurementType", "releases"]
@@ -50,18 +47,44 @@ def validate_codejson_structure(code_catalog: dict) -> bool:
     if not isinstance(releases, list):
         raise ValidationException("releases must be an array")
 
-    # Validate each release
-    required_release_fields = ["name", "repositoryURL", "description", "permissions"]
-    for idx, release in enumerate(releases):
-        # Get release name for better error messages
-        release_name = release.get("name", "")
-        release_label = (
-            f"Release {idx} ({release_name})" if release_name else f"Release {idx}"
-        )
-
-        # Check required fields
-        for field in required_release_fields:
-            if field not in release:
-                raise ValidationException(f"{release_label} is missing: {field}")
-
     return True
+
+
+def validate_codejson_release(
+    release: dict, release_idx: int = None
+) -> tuple[bool, str]:
+    """Validate a single code.json release has required fields.
+
+    Each release must have:
+    - name: project name
+    - repositoryURL: repository URL
+    - description: project description
+    - permissions: permissions object
+
+    Args:
+        release: Single release object from code.json
+        release_idx: Optional index of release in array for error messages
+
+    Returns:
+        Tuple of (is_valid, error_message)
+        - (True, None) if valid
+        - (False, error_message) if invalid
+    """
+    # Get release name for better error messages
+    release_name = release.get("name", "")
+    if release_idx is not None:
+        release_label = (
+            f"Release {release_idx} ({release_name})"
+            if release_name
+            else f"Release {release_idx}"
+        )
+    else:
+        release_label = f"Release ({release_name})" if release_name else "Release"
+
+    # Check required fields
+    required_release_fields = ["name", "repositoryURL", "description", "permissions"]
+    for field in required_release_fields:
+        if field not in release:
+            return False, f"{release_label} is missing required field: {field}"
+
+    return True, None

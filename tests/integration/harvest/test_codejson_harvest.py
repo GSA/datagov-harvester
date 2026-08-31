@@ -120,7 +120,9 @@ class TestCodejsonHarvest:
         assert job.records_errored == 0
 
         # Verify datasets were created
-        datasets = harvest_source.db_interface.get_datasets()
+        datasets = harvest_source.db_interface.get_datasets_by_source(
+            source_data_codejson["id"]
+        )
         assert len(datasets) == 2
 
         # Verify DCAT structure
