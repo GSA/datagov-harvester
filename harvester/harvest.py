@@ -610,9 +610,20 @@ class HarvestSource:
                         # single document ISO
                         record["content"] = download_file(record["identifier"], ".xml")
                         dataset = record["content"]
+                    elif self.schema_type == "code.json":
+                        # code.json releases: serialize as JSON for hashing
+                        # repositoryURL is the unique identifier
+                        dataset = json.dumps(sort_dataset(record))
 
                 dataset_hash = dataset_to_hash(dataset)
-                identifier = normalize_dataset_identifier(record.get("identifier"))
+
+                # For code.json, use repositoryURL as the identifier
+                if self.schema_type == "code.json":
+                    identifier = normalize_dataset_identifier(
+                        record.get("repositoryURL")
+                    )
+                else:
+                    identifier = normalize_dataset_identifier(record.get("identifier"))
 
                 yield Record(
                     self,
@@ -730,7 +741,12 @@ class HarvestSource:
                     validate_codejson_structure(code_catalog)
 
                     # Extract releases array (each release becomes a dataset)
-                    self.external_records = code_catalog.get("releases", [])
+                    # Add 'identifier' field from repositoryURL for filter compatibility
+                    releases = code_catalog.get("releases", [])
+                    for release in releases:
+                        if "identifier" not in release and "repositoryURL" in release:
+                            release["identifier"] = release["repositoryURL"]
+                    self.external_records = releases
 
                     # Store agency name for use during transformation
                     self._codejson_agency = code_catalog.get("agency", "")
@@ -1082,6 +1098,9 @@ class Record:
                 self.fill_placeholders()
                 self.improve_distributions()
                 self._save_transformed_data()
+            elif self.harvest_source.schema_type == "code.json":
+                self.transform_codejson()
+                self._save_transformed_data()
             self.validate()
             self.sync()
         except (
@@ -1187,6 +1206,42 @@ class Record:
             self.harvest_source.update_job_record_count_by_action("errored")
             raise TransformationException(
                 f"record failed to transform with error: {err}",
+                self.harvest_source.job_id,
+                self.id,
+            )
+
+    def transform_codejson(self) -> None:
+        """
+        Transform code.json release to DCAT-US 3.0 format.
+
+        Uses the codejson_release_to_dcat mapper to convert code.json releases
+        to DCAT datasets. The agency name is retrieved from the harvest source.
+        """
+        from harvester.utils.codejson_mapper import codejson_release_to_dcat
+
+        try:
+            # Parse source_raw back to dict
+            release = json.loads(self.source_raw)
+
+            # Get agency and organization_id from harvest source
+            agency = self.harvest_source._codejson_agency
+            organization_id = str(self.harvest_source.organization_id)
+
+            # Transform to DCAT
+            self.transformed_data = codejson_release_to_dcat(
+                release, agency, organization_id
+            )
+
+            logger.info(
+                f"successfully transformed code.json release: {self.identifier} db id: {self.id}"
+            )
+
+        except Exception as err:
+            logger.error("code.json transformation error: %s", err)
+            self.status = "error"
+            self.harvest_source.update_job_record_count_by_action("errored")
+            raise TransformationException(
+                f"code.json record failed to transform with error: {err}",
                 self.harvest_source.job_id,
                 self.id,
             )
