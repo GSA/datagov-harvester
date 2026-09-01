@@ -1246,10 +1246,14 @@ def _unwrap_location(input_value):
     if isinstance(input_value, list):
         input_value = next((item for item in input_value if item), None)
 
-    if isinstance(input_value, dict) and not {
-        "type",
-        "coordinates",
-    } <= input_value.keys():
+    if (
+        isinstance(input_value, dict)
+        and not {
+            "type",
+            "coordinates",
+        }
+        <= input_value.keys()
+    ):
         for field in ("geometry", "bbox", "centroid"):
             value = input_value.get(field)
             if value:
