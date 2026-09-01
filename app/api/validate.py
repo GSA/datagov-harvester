@@ -50,9 +50,14 @@ def validator(json_data):
             len(errors),
         )
     except CatalogTooDeeplyNested as e:
-        # the submitter can act on this one, so say what it was
+        # Keep exception details in server logs, return a safe client message.
         logger.warning(f"API Validator could not walk the document :: {repr(e)}")
-        return make_response(jsonify({"error": str(e)}), 422)
+        return make_response(
+            jsonify(
+                {"error": "Catalog cannot be walked because it is nested too deeply."}
+            ),
+            422,
+        )
     except Exception as e:
         logger.error(f"API Validator error :: {repr(e)}")
         return make_response(
