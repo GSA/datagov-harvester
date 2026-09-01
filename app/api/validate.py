@@ -8,7 +8,12 @@ from app.api_schemas import (
     ValidatorInfo,
 )
 from app.deps import logger
-from app.util import CatalogTooDeeplyNested, fetch_json_from_url, validate_records
+from app.util import (
+    NESTING_TOO_DEEP_MESSAGE,
+    CatalogTooDeeplyNested,
+    fetch_json_from_url,
+    validate_records,
+)
 
 from . import api
 
@@ -50,14 +55,11 @@ def validator(json_data):
             len(errors),
         )
     except CatalogTooDeeplyNested as e:
-        # Keep exception details in server logs, return a safe client message.
+        # the submitter can act on this one, so say what it was. Respond with the
+        # constant rather than `str(e)` so nothing from the exception reaches the
+        # client (CodeQL py/stack-trace-exposure).
         logger.warning(f"API Validator could not walk the document :: {repr(e)}")
-        return make_response(
-            jsonify(
-                {"error": "Catalog cannot be walked because it is nested too deeply."}
-            ),
-            422,
-        )
+        return make_response(jsonify({"error": NESTING_TOO_DEEP_MESSAGE}), 422)
     except Exception as e:
         logger.error(f"API Validator error :: {repr(e)}")
         return make_response(
