@@ -592,8 +592,9 @@ class TestGeneralUtils:
         """
         A 3.0 catalog is assembled in one call, so the message dict grew with the
         dataset count and the per-error work grew with it, on a catalog well under
-        the upload limit. 28s before the fix, 0.25s after; 2s leaves a slow CI
-        runner room without letting a 10x regression through.
+        the upload limit. 27s before the fix, 0.02s after on a dev laptop. 2s is
+        deliberately loose: it catches the quadratic coming back, not a small
+        regression.
         """
         count = 4000
         catalog = {
