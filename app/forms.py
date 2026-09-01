@@ -112,8 +112,9 @@ class HarvestSourceForm(FlaskForm):
         description=(
             "Format of the metadata. "
             "DCAT-US is for catalog data, ISO19115 is for geospatial metadata, "
-            "and code.json is used by federal agencies to catalog their open-source code repositories. "
-            "Each repository in a code.json file will be harvested as a separate dataset."
+            "and code.json is used by federal agencies to catalog their "
+            "open-source code repositories. Each repository in a code.json file "
+            "will be harvested as a separate dataset."
         ),
     )
     source_type = SelectField(

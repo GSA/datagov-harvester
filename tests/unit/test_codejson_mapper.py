@@ -1,5 +1,3 @@
-import pytest
-
 from harvester.utils.codejson_mapper import (
     codejson_release_to_dcat,
     format_email,

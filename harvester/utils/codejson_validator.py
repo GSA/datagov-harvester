@@ -10,7 +10,8 @@ def validate_codejson_structure(code_catalog: dict) -> bool:
     version = code_catalog.get("version")
     if version != "2.0.0":
         raise ValidationException(
-            f"Unsupported code.json version: {version}. Only version 2.0.0 is supported."
+            f"Unsupported code.json version: {version}. "
+            "Only version 2.0.0 is supported."
         )
 
     releases = code_catalog.get("releases")

@@ -1,11 +1,11 @@
 """Integration tests for code.json harvest workflow."""
 
 import json
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
 import pytest
 
-from harvester.harvest import HarvestSource, harvest_job_starter
+from harvester.harvest import harvest_job_starter
 
 
 @pytest.fixture
@@ -227,7 +227,7 @@ class TestCodejsonHarvest:
         )
 
         # First harvest
-        harvest_source = make_harvest_source(source_data_codejson, job_data_codejson)
+        make_harvest_source(source_data_codejson, job_data_codejson)
         harvest_job_starter(job_data_codejson["id"], "harvest")
 
         job_1 = interface.get_harvest_job(job_data_codejson["id"])
@@ -275,7 +275,7 @@ class TestCodejsonHarvest:
         )
 
         # First harvest with 2 releases
-        harvest_source = make_harvest_source(source_data_codejson, job_data_codejson)
+        make_harvest_source(source_data_codejson, job_data_codejson)
         harvest_job_starter(job_data_codejson["id"], "harvest")
 
         job_1 = interface.get_harvest_job(job_data_codejson["id"])
