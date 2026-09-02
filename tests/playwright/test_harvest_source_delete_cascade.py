@@ -41,9 +41,9 @@ from sqlalchemy.engine import make_url
 RECORD_COUNT = 25
 DELETE_WAIT_SECONDS = 60
 
-# Host port of the db belonging to the app under test. The harvest-app db uses
-# the DATABASE_PORT from .env (5432 in .env.sample), NOT the 5433 override.
-APP_DATABASE_PORT = int(os.getenv("APP_DATABASE_PORT", "5432"))
+# Host port of the db belonging to the app under test. Kept in step with the
+# `DATABASE_PORT=5433` override in the Makefile's `up` target.
+APP_DATABASE_PORT = int(os.getenv("APP_DATABASE_PORT", "5433"))
 
 
 def _wait_for_source_gone(engine, source_id, timeout_seconds=DELETE_WAIT_SECONDS):
