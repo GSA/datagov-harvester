@@ -137,3 +137,9 @@ class CKANDownException(SynchronizeException):
 
 class NoIdentifierException(HarvestNonCriticalException):
     pass
+
+
+class ValidationException(Exception):
+    """Exception raised for validation errors (code.json structure, schema, etc)."""
+
+    pass
