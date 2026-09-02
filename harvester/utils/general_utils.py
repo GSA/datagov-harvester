@@ -1543,7 +1543,7 @@ def found_simple_message(
     determine whether the input validation error represents the most
     succinct cause for error based on its json_path or dtype.
 
-    `forced` is a last-resort override set by `assemble_validation_errors`.
+    `forced` is a last-resort override set by `_collect_validation_messages`.
     """
     # these are all the unique dtypes found in the
     # non-federal schema (no different than federal)
@@ -1665,14 +1665,7 @@ def finalize_validation_messages(messages: defaultdict) -> list:
     return output
 
 
-def _count_messages(messages: defaultdict) -> int:
-    """Total messages accumulated across every json_path so far."""
-    return sum(len(v) for v in messages.values())
-
-
-def assemble_validation_errors(
-    validation_errors: list, messages=None, *, _forced: bool = False
-) -> list:
+def assemble_validation_errors(validation_errors: list, messages=None) -> list:
     """
     given a list of errors, follow each one recursively through its context
     and get the simplest cause for error. store the error in a defaultdict
@@ -1682,18 +1675,36 @@ def assemble_validation_errors(
     will often return the entire object followed by 'is not valid under any
     of the given schemas' which isn't helpful.
 
-    `_forced` is a private fallback. Callers (Record.validate) must keep the
-    two-argument form. After an unforced context walk records nothing, we
-    re-walk forced so a same-path type error is reported vaguely instead of
-    silently. A walk that already recorded a specific cause is left alone.
+    pass `messages` to accumulate across calls; the formatted list is returned
+    either way.
     """
 
     if messages is None:
         # {'$.distribution[2].title' = ["'' should be non-empty", etc...]}
         messages = defaultdict(list)
 
+    _collect_validation_messages(validation_errors, messages, forced=False)
+    return finalize_validation_messages(messages)
+
+
+def _collect_validation_messages(
+    validation_errors: list, messages: defaultdict, *, forced: bool
+) -> int:
+    """
+    fill `messages` and return how many were appended, nested walks included.
+    Formatting is the caller's job; doing it on every recursive return, like
+    re-counting the dict, made this quadratic in the number of errors.
+
+    `forced` is a last-resort fallback. After an unforced context walk records
+    nothing, we re-walk forced so a same-path type error is reported vaguely
+    instead of silently. A walk that already recorded a specific cause is left
+    alone.
+    """
+
+    recorded = 0
+
     for error in validation_errors:
-        if found_simple_message(error, forced=_forced):
+        if found_simple_message(error, forced=forced):
             # these aren't specific enough which make them unhelpful
             generic_msg = "is not valid under any of the given schemas"
             is_generic_msg = error.message.endswith(generic_msg)
@@ -1721,17 +1732,22 @@ def assemble_validation_errors(
                 and formatted_message not in messages[error.json_path]
             ):
                 messages[error.json_path].append(formatted_message)
+                recorded += 1
 
         # Prefer a specific cause in context before falling back.
-        recorded_before = _count_messages(messages)
-        assemble_validation_errors(error.context, messages)
+        from_context = _collect_validation_messages(
+            error.context, messages, forced=False
+        )
+        recorded += from_context
 
         # Nothing recorded: re-walk forced so the defect is not dropped.
-        # `_forced` only flips `type` errors, which have no context to recurse.
-        if error.context and _count_messages(messages) == recorded_before:
-            assemble_validation_errors(error.context, messages, _forced=True)
+        # `forced` only flips `type` errors, which have no context to recurse.
+        if error.context and from_context == 0:
+            recorded += _collect_validation_messages(
+                error.context, messages, forced=True
+            )
 
-    return finalize_validation_messages(messages)
+    return recorded
 
 
 def is_valid_uuid4(uuid_string) -> bool:
