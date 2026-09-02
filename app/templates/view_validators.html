@@ -27,7 +27,7 @@
   </div>
 </div>
 
-<form class="usa-form usa-form--large" method="POST" enctype="multipart/form-data">
+<form class="usa-form usa-form--large" method="POST" enctype="multipart/form-data" id="validator-form">
     {{ form.hidden_tag() }}
     
     <!-- schema and fetch_method can't be empty so they won't have errors to display -->
@@ -71,7 +71,8 @@
         <label for="{{ form.json_text.id }}" class="usa-label">
             {{ form.json_text.label }}
         </label>
-        {{ form.json_text(class="usa-textarea", rows="10", placeholder='{"key": "value"}') }}
+        <span class="usa-hint" id="json_text-hint">Maximum size: {{ max_upload_mb }} MB.</span>
+        {{ form.json_text(class="usa-textarea", rows="10", placeholder='{"key": "value"}', aria_describedby="json_text-hint") }}
         {% for error in form.json_text.errors %}
             <span class="usa-error-message" role="alert">{{ error }}</span>
         {% endfor %}
@@ -81,7 +82,8 @@
         <label for="{{ form.json_file.id }}" class="usa-label">
             {{ form.json_file.label }}
         </label>
-        {{ form.json_file(class="usa-file-input") }}
+        <span class="usa-hint" id="json_file-hint">Maximum size: {{ max_upload_mb }} MB.</span>
+        {{ form.json_file(class="usa-file-input", aria_describedby="json_file-hint") }}
         {% for error in form.json_file.errors %}
         <span class="usa-error-message" role="alert">{{ error }}</span>
         {% endfor %}
@@ -154,6 +156,9 @@
         upload: { show: "upload_field", clear: ["url", "json_text"] },
     };
 
+    const MAX_UPLOAD_BYTES = {{ max_upload_bytes }};
+    const MAX_UPLOAD_LABEL = "{{ max_upload_mb }} MB";
+
     function toggleInputFields() {
         const method = document.getElementById("fetch_method").value;
         const config = FIELD_CONFIG[method];
@@ -177,8 +182,40 @@
 
     document.getElementById("fetch_method").addEventListener("change", toggleInputFields);
 
-    ["fetch_method", "url", "schema", "json_text"].forEach(id => {
+    ["fetch_method", "url", "schema", "json_text", "json_file"].forEach(id => {
         document.getElementById(id).addEventListener("change", clearErrors);
+    });
+
+    /* ── size guard: reject oversized input before upload ── */
+    function oversizeMessage(method) {
+        if (method === "upload") {
+            const file = document.getElementById("json_file").files[0];
+            if (file && file.size > MAX_UPLOAD_BYTES) {
+                return "File is too large. Maximum size is " + MAX_UPLOAD_LABEL + ".";
+            }
+        } else if (method === "paste") {
+            const text = document.getElementById("json_text").value;
+            if (new Blob([text]).size > MAX_UPLOAD_BYTES) {
+                return "Pasted JSON is too large. Maximum size is " + MAX_UPLOAD_LABEL + ".";
+            }
+        }
+        // url is fetched server-side, which enforces its own limit
+        return null;
+    }
+
+    document.getElementById("validator-form").addEventListener("submit", function (event) {
+        const method = document.getElementById("fetch_method").value;
+        const message = oversizeMessage(method);
+        if (!message) return;
+
+        event.preventDefault();
+        clearErrors();
+
+        const error = document.createElement("span");
+        error.className = "usa-error-message";
+        error.setAttribute("role", "alert");
+        error.textContent = message;
+        document.getElementById(FIELD_CONFIG[method].show).appendChild(error);
     });
 
     /* ── CSV download of all errors ── */

@@ -8,6 +8,7 @@ from urllib.parse import urlparse
 import requests
 from jsonschema import Draft202012Validator, FormatChecker
 
+from app.constants import MAX_UPLOAD_BYTES, MAX_UPLOAD_MB
 from harvester.utils.general_utils import (
     USER_AGENT,
     assemble_validation_errors,
@@ -115,9 +116,14 @@ def is_public_ip(hostname: str) -> bool:
         return False
 
 
-def fetch_json_from_url(url: str) -> dict:
+# The URL path is fetched server-side, so MAX_CONTENT_LENGTH never sees it. Same
+# limit, enforced here by hand.
+PAYLOAD_TOO_LARGE_MESSAGE = (
+    f"JSON payload too large - must be {MAX_UPLOAD_MB}MB or less."
+)
 
-    max_content_length = 10 * 1024 * 1024  # 10MB limit
+
+def fetch_json_from_url(url: str) -> dict:
 
     parsed = urlparse(url)
 
@@ -141,8 +147,8 @@ def fetch_json_from_url(url: str) -> dict:
         raise ValueError(f"Error processing request: {str(e)}")
 
     content_length = response.headers.get("Content-Length")
-    if content_length and int(content_length) > max_content_length:
-        raise ValueError("JSON payload too large - must be 10MB or less.")
+    if content_length and int(content_length) > MAX_UPLOAD_BYTES:
+        raise ValueError(PAYLOAD_TOO_LARGE_MESSAGE)
 
     content_type = response.headers.get("Content-Type", "")
     if "application/json" not in content_type:
@@ -155,16 +161,16 @@ def fetch_json_from_url(url: str) -> dict:
         for chunk in response.iter_content(chunk_size=8192):
             if chunk:
                 total_size += len(chunk)
-                if total_size > max_content_length:
-                    raise ValueError("JSON payload too large - must be 10MB or less.")
+                if total_size > MAX_UPLOAD_BYTES:
+                    raise ValueError(PAYLOAD_TOO_LARGE_MESSAGE)
                 chunks.append(chunk)
     finally:
         response.close()
 
     content = b"".join(chunks)
 
-    if len(content) > max_content_length:
-        raise ValueError("JSON payload too large - must be 10MB or less.")
+    if len(content) > MAX_UPLOAD_BYTES:
+        raise ValueError(PAYLOAD_TOO_LARGE_MESSAGE)
 
     try:
         return json.loads(content)
@@ -172,9 +178,36 @@ def fetch_json_from_url(url: str) -> dict:
         raise ValueError(f"Invalid JSON: {str(e)}")
 
 
+class CatalogTooDeeplyNested(ValueError):
+    """
+    Catalog's `catalog` and `hasPart` are `items: {"$ref": "#"}`, which jsonschema
+    resolves by recursion, so a chain of nested catalogs exhausts the stack at ~17KB
+    (depth 200 fails, 150 does not). Raised so callers can say so instead of 500ing.
+    """
+
+
+NESTING_TOO_DEEP_MESSAGE = (
+    "Catalog is nested too deeply to validate. "
+    "Flatten the nested catalog or hasPart chains and try again."
+)
+
+
+def _validation_messages(validator, document: dict) -> list:
+    try:
+        errors = assemble_validation_errors(validator.iter_errors(document))
+    except RecursionError:
+        # `from None`: the stack trace is jsonschema's ref resolution, not a cause
+        # the submitter can act on.
+        raise CatalogTooDeeplyNested(NESTING_TOO_DEEP_MESSAGE) from None
+
+    return [e.message for e in errors]
+
+
 def validate_records(dcatus_catalog: dict, schema_name: str) -> list:
     """
     validates records from the input dcatus catalog based on the provided schema_name
+
+    raises CatalogTooDeeplyNested if the document is too deeply nested to walk.
     """
 
     output = []
@@ -193,14 +226,12 @@ def validate_records(dcatus_catalog: dict, schema_name: str) -> list:
         )
 
         for idx, record in enumerate(dcatus_catalog["dataset"]):
-            errors = validator.iter_errors(record)
-            errors = [e.message for e in assemble_validation_errors(errors)]
+            errors = _validation_messages(validator, record)
             identifier = idx if "identifier" not in record else record["identifier"]
             output += list(zip([identifier] * len(errors), errors))
     else:
         validator = build_dcatus3_validator(schema)
-        errors = validator.iter_errors(dcatus_catalog)
-        errors = [e.message for e in assemble_validation_errors(errors)]
+        errors = _validation_messages(validator, dcatus_catalog)
         # not going to pull the record identifier from the error message for now.
         # the json path will clearly indicate which dataset is
         # wrong (e.g. $.dataset[0] )
