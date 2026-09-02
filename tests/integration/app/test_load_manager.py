@@ -9,7 +9,6 @@ from freezegun import freeze_time
 
 from database.models import HarvestJob, HarvestJobError
 from harvester.lib.load_manager import LoadManager
-from harvester.utils.general_utils import create_future_date
 
 
 @pytest.fixture
@@ -70,7 +69,7 @@ class TestLoadManager:
         assert len(jobs) == 2
         job = jobs[0]
         job_id = job.id
-        harvest_source_id = job.harvest_source_id
+        original_created = job.date_created
         assert job.status == "new"
 
         load_manager = LoadManager()
@@ -91,15 +90,11 @@ class TestLoadManager:
             start_task_mock.call_args.kwargs["name"] == f"harvest-job-{job_id}-harvest"
         )
 
-        # assert schedule_next_job ops
-        future_job = interface_no_jobs.get_new_harvest_jobs_by_source_in_future(
-            harvest_source_id
-        )[0]
-
-        harvest_source = interface_no_jobs.get_harvest_source(harvest_source_id)
-
-        assert future_job.harvest_source_id == harvest_source_id
-        assert future_job.date_created == create_future_date(harvest_source.frequency)
+        # date_created is never overwritten; date_started records the actual start
+        started_job = interface_no_jobs.get_harvest_job(job_id)
+        assert started_job.status == "in_progress"
+        assert started_job.date_created == original_created
+        assert started_job.date_started is not None
 
     @patch("harvester.lib.load_manager.logger")
     @patch("harvester.lib.cf_handler.CloudFoundryClient")
@@ -140,6 +135,95 @@ class TestLoadManager:
         )
 
     @patch("harvester.lib.cf_handler.CloudFoundryClient")
+    def test_load_manager_enqueues_due_source(
+        self,
+        CFCMock,
+        interface_no_jobs,
+        source_data_dcatus,
+        mock_good_cf_index,
+    ):
+        CFCMock.return_value.v3.apps._pagination.return_value = []
+        interface_no_jobs.update_harvest_source(
+            source_data_dcatus["id"],
+            {"date_next_run": datetime.now() + timedelta(days=-1)},
+        )
+
+        load_manager = LoadManager()
+        load_manager.start()
+
+        jobs = interface_no_jobs.pget_harvest_jobs(
+            facets=f"harvest_source_id eq {source_data_dcatus['id']}",
+            paginate=False,
+        )
+        assert len(jobs) == 1
+        assert jobs[0].status == "in_progress"
+        assert jobs[0].date_created == datetime.now()
+        assert jobs[0].date_started is not None
+
+        source = interface_no_jobs.get_harvest_source(source_data_dcatus["id"])
+        assert source.date_next_run == datetime.now() + timedelta(days=1)
+
+    @patch("harvester.lib.cf_handler.CloudFoundryClient")
+    def test_load_manager_does_not_enqueue_future_source(
+        self,
+        CFCMock,
+        interface_no_jobs,
+        source_data_dcatus,
+        mock_good_cf_index,
+    ):
+        CFCMock.return_value.v3.apps._pagination.return_value = []
+        interface_no_jobs.update_harvest_source(
+            source_data_dcatus["id"],
+            {"date_next_run": datetime.now() + timedelta(days=1)},
+        )
+
+        load_manager = LoadManager()
+        load_manager.start()
+
+        jobs = interface_no_jobs.pget_harvest_jobs(
+            facets=f"harvest_source_id eq {source_data_dcatus['id']}",
+            paginate=False,
+        )
+        assert len(jobs) == 0
+        source = interface_no_jobs.get_harvest_source(source_data_dcatus["id"])
+        assert source.date_next_run == datetime.now() + timedelta(days=1)
+
+    @patch("harvester.lib.cf_handler.CloudFoundryClient")
+    def test_load_manager_skips_enqueue_if_active_job_exists(
+        self,
+        CFCMock,
+        interface_no_jobs,
+        source_data_dcatus,
+        mock_good_cf_index,
+    ):
+        CFCMock.return_value.v3.apps._pagination.return_value = [
+            {"state": "RUNNING", "name": "harvest-job-existing-harvest"},
+        ]
+        interface_no_jobs.update_harvest_source(
+            source_data_dcatus["id"],
+            {"date_next_run": datetime.now() + timedelta(days=-1)},
+        )
+        existing = interface_no_jobs.add_harvest_job(
+            {
+                "harvest_source_id": source_data_dcatus["id"],
+                "status": "in_progress",
+                "date_created": datetime.now() + timedelta(days=-1),
+            }
+        )
+
+        load_manager = LoadManager()
+        load_manager._enqueue_due_sources()
+
+        jobs = interface_no_jobs.pget_harvest_jobs(
+            facets=f"harvest_source_id eq {source_data_dcatus['id']}",
+            paginate=False,
+        )
+        assert len(jobs) == 1
+        assert jobs[0].id == existing.id
+        source = interface_no_jobs.get_harvest_source(source_data_dcatus["id"])
+        assert source.date_next_run == datetime.now() + timedelta(days=-1)
+
+    @patch("harvester.lib.cf_handler.CloudFoundryClient")
     def test_load_manager_schedules_first_job(
         self,
         CFCMock,
@@ -148,25 +232,26 @@ class TestLoadManager:
         mock_good_cf_index,
         force_cf_handler,
     ):
-        CFCMock.return_value.v3.apps._pagination.return_value = [
-            {"state": "RUNNING"},
-            {"state": "RUNNING"},
-        ]
-        jobs = interface_with_multiple_jobs.get_new_harvest_jobs_by_source_in_future(
+        queued = interface_with_multiple_jobs.get_queued_harvest_jobs_for_source(
             source_data_dcatus["id"]
         )
-        assert len(jobs) == 3
+        assert len(queued) == 3
 
         load_manager = LoadManager()
-        load_manager.schedule_first_job(source_data_dcatus["id"])
-        new_jobs = (
-            interface_with_multiple_jobs.get_new_harvest_jobs_by_source_in_future(
-                source_data_dcatus["id"]
+        load_manager.reschedule_next_run(source_data_dcatus["id"])
+        assert (
+            len(
+                interface_with_multiple_jobs.get_queued_harvest_jobs_for_source(
+                    source_data_dcatus["id"]
+                )
             )
+            == 0
         )
-        assert len(new_jobs) == 1
+        source = interface_with_multiple_jobs.get_harvest_source(
+            source_data_dcatus["id"]
+        )
         assert source_data_dcatus["frequency"] == "daily"
-        assert new_jobs[0].date_created == datetime.now() + timedelta(days=1)
+        assert source.date_next_run == datetime.now() + timedelta(days=1)
 
     @patch("harvester.lib.cf_handler.CloudFoundryClient")
     def test_manual_job_doesnt_affect_scheduled_jobs(
@@ -177,41 +262,25 @@ class TestLoadManager:
         interface_no_jobs,
         source_data_dcatus,
     ):
-        jobs = interface_no_jobs.get_new_harvest_jobs_by_source_in_future(
-            source_data_dcatus["id"]
-        )
-        assert len(jobs) == 0
         load_manager = LoadManager()
-        load_manager.schedule_first_job(source_data_dcatus["id"])
-        jobs = interface_no_jobs.get_new_harvest_jobs_by_source_in_future(
-            source_data_dcatus["id"]
-        )
+        load_manager.reschedule_next_run(source_data_dcatus["id"])
+        source = interface_no_jobs.get_harvest_source(source_data_dcatus["id"])
+        next_run = source.date_next_run
+        assert next_run == datetime.now() + timedelta(days=1)
 
-        assert len(jobs) == 1
-        assert source_data_dcatus["frequency"] == "daily"
-        assert jobs[0].date_created == datetime.now() + timedelta(days=1)
-
-        load_manager = LoadManager()
         load_manager.trigger_manual_job(source_data_dcatus["id"])
 
-        jobs = interface_no_jobs.get_new_harvest_jobs_by_source_in_future(
-            source_data_dcatus["id"]
-        )
-        assert len(jobs) == 1
-        assert source_data_dcatus["frequency"] == "daily"
-        assert jobs[0].date_created == datetime.now() + timedelta(days=1)
+        source = interface_no_jobs.get_harvest_source(source_data_dcatus["id"])
+        assert source.date_next_run == next_run
 
-        source_id = source_data_dcatus["id"]
         jobs = interface_no_jobs.pget_harvest_jobs(
-            facets=f"harvest_source_id eq {source_id}",
+            facets=f"harvest_source_id eq {source_data_dcatus['id']}",
             order_by="desc",
         )
-        assert len(jobs) == 2
-        assert jobs[0].date_created == datetime.now() + timedelta(days=1)
-        assert jobs[0].status == "new"
-
-        assert jobs[1].date_created == datetime.now()
-        assert jobs[1].status == "in_progress"
+        assert len(jobs) == 1
+        assert jobs[0].date_created == datetime.now()
+        assert jobs[0].status == "in_progress"
+        assert jobs[0].date_started is not None
 
     @patch("harvester.lib.cf_handler.CloudFoundryClient")
     def test_dont_create_new_job_if_job_already_in_progress(
@@ -222,7 +291,7 @@ class TestLoadManager:
         source_data_dcatus,
     ):
         load_manager = LoadManager()
-        load_manager.schedule_first_job(source_data_dcatus["id"])
+        load_manager.reschedule_next_run(source_data_dcatus["id"])
         message = load_manager.trigger_manual_job(source_data_dcatus["id"])
         source_id = source_data_dcatus["id"]
         new_job = interface_no_jobs.pget_harvest_jobs(
@@ -240,12 +309,29 @@ class TestLoadManager:
             order_by="desc",
         )
 
-        assert len(jobs) == 2
-        assert jobs[0].date_created == datetime.now() + timedelta(days=1)
-        assert jobs[0].status == "new"
+        assert len(jobs) == 1
+        assert jobs[0].status == "in_progress"
+        source = interface_no_jobs.get_harvest_source(source_id)
+        assert source.date_next_run == datetime.now() + timedelta(days=1)
 
-        assert jobs[1].date_created == datetime.now()
-        assert jobs[1].status == "in_progress"
+    @patch("harvester.lib.cf_handler.CloudFoundryClient")
+    def test_dont_trigger_manual_job_if_job_already_queued(
+        self,
+        CFCMock,
+        mock_good_cf_index,
+        interface_no_jobs,
+        source_data_dcatus,
+    ):
+        queued = interface_no_jobs.add_harvest_job(
+            {
+                "harvest_source_id": source_data_dcatus["id"],
+                "status": "new",
+                "date_created": datetime.now(),
+            }
+        )
+        load_manager = LoadManager()
+        message = load_manager.trigger_manual_job(source_data_dcatus["id"])
+        assert message == f"Can't trigger harvest. Job {queued.id} already queued."
 
     @patch("harvester.lib.cf_handler.CloudFoundryClient")
     def test_dont_start_new_job_if_job_already_in_progress(
@@ -256,63 +342,44 @@ class TestLoadManager:
         source_data_dcatus,
     ):
         load_manager = LoadManager()
-        load_manager.schedule_first_job(source_data_dcatus["id"])
         message = load_manager.trigger_manual_job(source_data_dcatus["id"])
         source_id = source_data_dcatus["id"]
-        new_job = interface_no_jobs.pget_harvest_jobs(
-            facets=f"harvest_source_id eq {source_id},status eq new"
-        )[0]
         current_job = interface_no_jobs.pget_harvest_jobs(
             facets=f"harvest_source_id eq {source_id},status eq in_progress"
         )[0]
         assert message == f"Updated job {current_job.id} to in_progress"
 
-        failing_start_job_msg = load_manager.start_job(new_job.id, job_type="harvest")
-        assert f"Job {current_job.id} already in progress" in failing_start_job_msg
-
-        jobs = interface_no_jobs.pget_harvest_jobs(
-            facets=f"harvest_source_id eq {source_id}",
-            order_by="desc",
+        queued_job = interface_no_jobs.add_harvest_job(
+            {
+                "harvest_source_id": source_id,
+                "status": "new",
+                "date_created": datetime.now(),
+            }
         )
-
-        assert len(jobs) == 2
-        for job in jobs:
-            if job.status == "new":
-                assert job.date_created == datetime.now() + timedelta(days=1)
-            elif job.status == "in_progress":
-                assert job.date_created == datetime.now()
+        failing_start_job_msg = load_manager.start_job(
+            queued_job.id, job_type="harvest"
+        )
+        assert f"Job {current_job.id} already in progress" in failing_start_job_msg
+        assert queued_job.status == "new"
+        assert queued_job.date_started is None
 
     @patch("harvester.lib.cf_handler.CloudFoundryClient")
     def test_dont_create_new_job_if_another_job_already_scheduled(
         self,
         CFCMock,
-        interface_with_multiple_jobs,
+        interface_no_jobs,
         source_data_dcatus,
         mock_good_cf_index,
         force_cf_handler,
     ):
-        CFCMock.return_value.v3.apps._pagination.return_value = [
-            {"state": "RUNNING"},
-            {"state": "RUNNING"},
-        ]
-        jobs = interface_with_multiple_jobs.get_new_harvest_jobs_by_source_in_future(
-            source_data_dcatus["id"]
-        )
-        assert len(jobs) == 3
-
         load_manager = LoadManager()
-        load_manager.schedule_first_job(source_data_dcatus["id"])
+        load_manager.reschedule_next_run(source_data_dcatus["id"])
+        source = interface_no_jobs.get_harvest_source(source_data_dcatus["id"])
+        first_next_run = source.date_next_run
         load_manager.schedule_next_job(source_data_dcatus["id"])
-        # assert that no new job is created
-        # when there is already a job scheduled in the future
-        new_jobs = (
-            interface_with_multiple_jobs.get_new_harvest_jobs_by_source_in_future(
-                source_data_dcatus["id"]
-            )
-        )
-        assert len(new_jobs) == 1
-        assert source_data_dcatus["frequency"] == "daily"
-        assert new_jobs[0].date_created == datetime.now() + timedelta(days=1)
+        source = interface_no_jobs.get_harvest_source(source_data_dcatus["id"])
+        assert source.date_next_run == first_next_run
+        assert source.date_next_run == datetime.now() + timedelta(days=1)
 
     @patch("harvester.lib.cf_handler.CloudFoundryClient")
     def test_assert_env_var_changes_task_size(

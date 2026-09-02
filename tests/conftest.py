@@ -394,6 +394,21 @@ def source_data_dcatus3_0_series_member_also_top_level(organization_data: dict) 
 
 
 @pytest.fixture
+def source_data_dcatus1_1_ispartof(organization_data: dict) -> dict:
+    return {
+        "id": "f0b1c3d5-7890-4bcd-ef01-234567890198",
+        "name": "Test Source DCAT-US 1.1 (isPartOf)",
+        "notification_emails": ["email@example.com"],
+        "organization_id": organization_data["id"],
+        "frequency": "daily",
+        "url": f"{HARVEST_SOURCE_URL}/dcatus/dcatus1_1_ispartof.json",
+        "schema_type": "dcatus1.1: federal",
+        "source_type": "document",
+        "notification_frequency": "always",
+    }
+
+
+@pytest.fixture
 def source_data_dcatus_same_title(organization_data: dict) -> dict:
     return {
         "id": "50301cdb-5766-46ed-8f46-ca63844315a2",
@@ -432,6 +447,21 @@ def source_data_dcatus_cant_translate_spatial(organization_data: dict) -> dict:
         "organization_id": organization_data["id"],
         "frequency": "daily",
         "url": f"{HARVEST_SOURCE_URL}/dcatus/dcatus_spatial_no_translate.json",
+        "schema_type": "dcatus1.1: federal",
+        "source_type": "document",
+        "notification_frequency": "always",
+    }
+
+
+@pytest.fixture
+def source_data_dcatus_wkt_spatial(organization_data: dict) -> dict:
+    return {
+        "id": "1e875791-ec30-4e54-9d15-9f8ef9e93dd7",
+        "name": "Test Source (wkt spatial)",
+        "notification_emails": ["email@example.com"],
+        "organization_id": organization_data["id"],
+        "frequency": "daily",
+        "url": f"{HARVEST_SOURCE_URL}/dcatus/dcatus_spatial_wkt.json",
         "schema_type": "dcatus1.1: federal",
         "source_type": "document",
         "notification_frequency": "always",
