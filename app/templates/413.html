@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<h1>Submission too large</h1>
+
+<div class="usa-alert usa-alert--error" role="alert">
+    <div class="usa-alert__body">
+        <h2 class="usa-alert__heading">Nothing was processed</h2>
+        <p class="usa-alert__text">
+            {{ message }} It was rejected before it could be read, so nothing was
+            validated. Reduce the size of the document and try again.
+        </p>
+    </div>
+</div>
+
+<p>
+    <a class="usa-link" href="{{ url_for('main.view_validators') }}">Return to the JSON Schema Validator</a>
+</p>
+
+{% endblock %}
