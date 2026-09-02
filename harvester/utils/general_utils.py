@@ -1236,8 +1236,37 @@ def _get_geo_lookup_interface():
         return None
 
 
+def _unwrap_location(input_value):
+    """Extract the geometry-bearing value from a DCAT-US 3.0 Location object.
+
+    v3.0 `spatial` is a Location object or a list of them; v1.1 is a plain
+    string. A bare {type, coordinates} GeoJSON dict is passed through.
+    """
+
+    if isinstance(input_value, list):
+        input_value = next((item for item in input_value if item), None)
+
+    if (
+        isinstance(input_value, dict)
+        and not {
+            "type",
+            "coordinates",
+        }
+        <= input_value.keys()
+    ):
+        for field in ("geometry", "bbox", "centroid"):
+            value = input_value.get(field)
+            if value:
+                return value
+        return None
+
+    return input_value
+
+
 def translate_spatial(input_value) -> str:
     """Normalize spatial strings/dicts into GeoJSON strings when possible."""
+
+    input_value = _unwrap_location(input_value)
 
     if isinstance(input_value, dict):
         spatial_value = json.dumps(input_value)

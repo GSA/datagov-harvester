@@ -307,6 +307,89 @@ class TestCKANUtils:
             '{"type": "Point", "coordinates": [0.0, 0.0]}'
         )
 
+    def test_translate_spatial_location_object_wkt_geometry(self):
+        location = {
+            "@id": "https://example.gov/locations/usa",
+            "@type": "Location",
+            "geometry": "POLYGON((-125 24, -66 24, -66 50, -125 50, -125 24))",
+        }
+        assert translate_spatial(location) == (
+            '{"type": "Polygon", "coordinates": '
+            "[[[-125.0, 24.0], [-66.0, 24.0], [-66.0, 50.0], "
+            "[-125.0, 50.0], [-125.0, 24.0]]]}"
+        )
+
+    def test_translate_spatial_location_object_geojson_geometry(self):
+        location = {
+            "@type": "Location",
+            "geometry": {"type": "Point", "coordinates": [-77.0369, 38.9072]},
+        }
+        assert translate_spatial(location) == (
+            '{"type": "Point", "coordinates": [-77.0369, 38.9072]}'
+        )
+
+    def test_translate_spatial_location_array_uses_first(self):
+        locations = [
+            {"@type": "Location", "geometry": "POINT (0.0 0.0)"},
+            {"@type": "Location", "geometry": "POINT (1.0 1.0)"},
+        ]
+        assert translate_spatial(locations) == (
+            '{"type": "Point", "coordinates": [0.0, 0.0]}'
+        )
+
+    def test_translate_spatial_location_falls_back_to_bbox(self):
+        location = {
+            "@type": "Location",
+            "bbox": {
+                "type": "Polygon",
+                "coordinates": [
+                    [
+                        [-77.119759, 38.791645],
+                        [-76.909393, 38.791645],
+                        [-76.909393, 38.99538],
+                        [-77.119759, 38.99538],
+                        [-77.119759, 38.791645],
+                    ]
+                ],
+            },
+        }
+        geojson = translate_spatial_to_geojson(location)
+        assert geojson["type"] == "Polygon"
+
+    def test_translate_spatial_location_falls_back_to_centroid(self):
+        location = {
+            "@type": "Location",
+            "centroid": {"type": "Point", "coordinates": [-77.0369, 38.9072]},
+        }
+        assert translate_spatial(location) == (
+            '{"type": "Point", "coordinates": [-77.0369, 38.9072]}'
+        )
+
+    def test_translate_spatial_location_with_no_geometry_fields(self):
+        location = {"@type": "Location", "prefLabel": "Washington, D.C."}
+        assert translate_spatial(location) == ""
+        assert translate_spatial_to_geojson(location) is None
+
+    def test_translate_spatial_location_input_unchanged(self):
+        location = {
+            "@type": "Location",
+            "geometry": "POLYGON((-125 24, -66 24, -66 50, -125 50, -125 24))",
+        }
+        original = json.loads(json.dumps(location))
+        translate_spatial(location)
+        assert location == original
+
+    def test_translate_spatial_bare_geojson_dict_unaffected_by_unwrap(self):
+        assert translate_spatial({"type": "Point", "coordinates": [-55.1, 37.2]}) == (
+            '{"type": "Point", "coordinates": [-55.1, 37.2]}'
+        )
+
+    def test_translate_spatial_dcatus3_complete_example_spatial(
+        self, dcatus3_complete_example
+    ):
+        geojson = translate_spatial_to_geojson(dcatus3_complete_example["spatial"])
+        assert geojson["type"] == "Polygon"
+
 
 # Point example
 # "{\"type\": \"Point\", \"coordinates\": [-87.08258, 24.9579]}"
