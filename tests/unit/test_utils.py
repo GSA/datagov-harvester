@@ -14,6 +14,7 @@ from requests.exceptions import ConnectionError
 
 from database.interface import HarvesterDBInterface
 from database.models import HarvestSource
+from harvester.utils import general_utils
 from harvester.utils.general_utils import (
     DT_PLACEHOLDER,
     USER_AGENT,
@@ -44,6 +45,7 @@ from harvester.utils.general_utils import (
     strip_dcatus3_catalog_objects,
     translate_spatial,
     translate_spatial_to_geojson,
+    translate_wkt_to_geojson,
     validate_geojson,
 )
 from harvester.utils.schema_paths import (
@@ -230,6 +232,81 @@ class TestCKANUtils:
             "coordinates": [-88.9718, 36.52033],
         }
 
+    def test_translate_wkt_to_geojson_polygon(self):
+        assert translate_wkt_to_geojson(
+            "POLYGON((-125 24, -66 24, -66 50, -125 50, -125 24))"
+        ) == (
+            '{"type": "Polygon", "coordinates": '
+            "[[[-125.0, 24.0], [-66.0, 24.0], [-66.0, 50.0], "
+            "[-125.0, 50.0], [-125.0, 24.0]]]}"
+        )
+
+    def test_translate_wkt_to_geojson_point(self):
+        assert (
+            translate_wkt_to_geojson("POINT (0.0 0.0)")
+            == '{"type": "Point", "coordinates": [0.0, 0.0]}'
+        )
+
+    def test_translate_wkt_to_geojson_case_insensitive(self):
+        assert translate_wkt_to_geojson(
+            "polygon((-125 24, -66 24, -66 50, -125 50, -125 24))"
+        ) == (
+            '{"type": "Polygon", "coordinates": '
+            "[[[-125.0, 24.0], [-66.0, 24.0], [-66.0, 50.0], "
+            "[-125.0, 50.0], [-125.0, 24.0]]]}"
+        )
+
+    def test_translate_wkt_to_geojson_z_dimension_is_dropped(self):
+        # GeoJSON is 2D; a Z/M dimension must be dropped rather than left
+        # in place for geojson_validator to reject as "3d_coordinates".
+        assert translate_wkt_to_geojson(
+            "POLYGON Z ((-125 24 0, -66 24 0, -66 50 0, -125 50 0, -125 24 0))"
+        ) == (
+            '{"type": "Polygon", "coordinates": '
+            "[[[-125.0, 24.0], [-66.0, 24.0], [-66.0, 50.0], "
+            "[-125.0, 50.0], [-125.0, 24.0]]]}"
+        )
+
+    def test_translate_wkt_to_geojson_non_wkt_string(self):
+        assert translate_wkt_to_geojson("somewhere over there") == ""
+
+    def test_translate_wkt_to_geojson_place_name_not_mistaken_for_wkt(self):
+        # A real place name that starts with a WKT keyword word must not be
+        # treated as WKT -- the geometry-type token alone isn't enough, it
+        # must be followed by "(" (optionally after a Z/M/ZM marker).
+        assert translate_wkt_to_geojson("Point Pleasant, New Jersey") == ""
+
+    def test_translate_wkt_to_geojson_empty_geometry(self):
+        # WKT "EMPTY" geometries carry no coordinates; they must not be
+        # mistaken for a valid, resolvable geometry.
+        assert translate_wkt_to_geojson("POINT EMPTY") == ""
+
+    def test_translate_wkt_to_geojson_malformed_wkt(self):
+        # Looks like WKT (has the "POLYGON" prefix) but isn't parseable.
+        assert translate_wkt_to_geojson("POLYGON((not valid))") == ""
+
+    def test_translate_spatial_to_geojson_wkt_polygon(self):
+        geojson = translate_spatial_to_geojson(
+            "POLYGON((-125 24, -66 24, -66 50, -125 50, -125 24))"
+        )
+        assert geojson == {
+            "type": "Polygon",
+            "coordinates": [
+                [
+                    [-125.0, 24.0],
+                    [-66.0, 24.0],
+                    [-66.0, 50.0],
+                    [-125.0, 50.0],
+                    [-125.0, 24.0],
+                ]
+            ],
+        }
+
+    def test_translate_spatial_wkt_point(self):
+        assert translate_spatial("POINT (0.0 0.0)") == (
+            '{"type": "Point", "coordinates": [0.0, 0.0]}'
+        )
+
 
 # Point example
 # "{\"type\": \"Point\", \"coordinates\": [-87.08258, 24.9579]}"
@@ -270,8 +347,8 @@ class TestGeneralUtils:
         """Test that the default waf datetime is now / the time of program execution"""
 
         page_html = """<html><body><pre>
-          <a href="file1.xml">file1.xml</a>   12K  
-          <a href="file2.xml">file2.xml</a>   12K  
+          <a href="file1.xml">file1.xml</a>   12K
+          <a href="file2.xml">file2.xml</a>   12K
           </pre></body></html>"""
 
         soup = BeautifulSoup(page_html)
@@ -564,6 +641,66 @@ class TestGeneralUtils:
             "$.spatial[0].centroid.coordinates, array value does not match "
             "any of the acceptable formats: min 2 items"
         )
+
+    def test_assemble_validation_messages_formats_the_result_once(
+        self, dcatus3_complete_example
+    ):
+        """
+        Formatting on every recursive return repeated the same work and made the
+        assembler quadratic. (GSA/data.gov#6067)
+        """
+        dcatus3_complete_example["spatialResolutionInMeters"] = ["bad"]
+        del dcatus3_complete_example["title"]
+
+        with patch(
+            "harvester.utils.general_utils.finalize_validation_messages",
+            wraps=general_utils.finalize_validation_messages,
+        ) as finalize:
+            errors = assemble_validation_errors(
+                DCATUS3_DATASET_VALIDATOR.iter_errors(dcatus3_complete_example)
+            )
+
+        # the input recurses through anyOf context, so this is >1 without the fix
+        assert finalize.call_count == 1
+        assert len(errors) == 2
+
+    def test_assemble_validation_messages_scales_linearly_with_dataset_count(self):
+        """
+        A 3.0 catalog is assembled in one call, so the message dict grew with the
+        dataset count and the per-error work grew with it, on a catalog well under
+        the upload limit. 27s before the fix, 0.02s after on a dev laptop. 2s is
+        deliberately loose: it catches the quadratic coming back, not a small
+        regression.
+        """
+        count = 4000
+        catalog = {
+            "@type": "Catalog",
+            "title": "Assembler scaling",
+            "description": "Every dataset is missing its identifier.",
+            "dataset": [
+                {
+                    "@type": "Dataset",
+                    "title": "Example Dataset",
+                    "description": "A dataset with no identifier.",
+                    "contactPoint": {
+                        "fn": "Support",
+                        "hasEmail": "mailto:support@example.gov",
+                    },
+                    "publisher": {"name": "Example Org"},
+                }
+                for _ in range(count)
+            ],
+        }
+        validator = build_dcatus3_validator(DCATUS3_DEFINITIONS_DIR)
+        validation_errors = list(validator.iter_errors(catalog))
+
+        start = time.perf_counter()
+        errors = assemble_validation_errors(iter(validation_errors))
+        elapsed = time.perf_counter() - start
+
+        # one "'identifier' is a required property" per dataset, all still found
+        assert len(errors) == count
+        assert elapsed < 2, f"assembling {count} errors took {elapsed:.1f}s"
 
     def test_find_indexes_for_duplicates(self):
         data = [
