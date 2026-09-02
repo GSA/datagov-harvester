@@ -5,7 +5,7 @@ permissions:
     contents: write
 
 env:
-  PY_VERSION: "3.12.13"
+  PY_VERSION: "3.12.14"
   POETRY_VERSION: "latest"
 
 jobs:
