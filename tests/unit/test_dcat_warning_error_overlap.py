@@ -28,21 +28,22 @@ DATASET_REF = "https://resources.data.gov/dcat-us/3.0.0/definitions/dataset"
 VALIDATOR = build_dcatus3_validator(DCATUS3_DEFINITIONS_DIR, root_ref=DATASET_REF)
 
 # The upstream complete example is schema-valid but not warning-free: its
-# vanity tel number ("+1-555-CLIMATE") and its WKT `geometry` each already
-# trip a warning (invalid_tel, unresolvable_spatial_value). Those are a
-# separate, pre-existing false-positive question and out of scope here, so
-# every test below diffs against this baseline instead of assuming a record
-# starts with zero warnings.
+# vanity tel number ("+1-555-CLIMATE") already trips a warning (invalid_tel).
+# That's a separate, pre-existing false-positive question and out of scope
+# here, so every test below diffs against this baseline instead of assuming
+# a record starts with zero warnings. (Its WKT `geometry` used to trip a
+# second baseline warning, unresolvable_spatial_value, until WKT support
+# landed in GSA/data.gov#6264.)
 #
 # Baseline warnings are deliberately *not* precomputed into a module-level
-# constant here (unlike VALIDATOR above). Detecting the unresolvable-spatial
-# baseline warning exercises `translate_spatial`'s DB-backed lookup fallback,
-# which tests/conftest.py's autouse `default_function_fixture` only points at
-# a safe, per-test, rolled-back session once a test is actually running.
-# Computing it at import time (module collection, before any test/fixture
-# runs) would instead reach the real module-level `harvester.db_interface`
-# and leak an uncommitted transaction. So `_new_warning_types` recomputes the
-# baseline fresh on every call, inside the test.
+# constant here (unlike VALIDATOR above). Detecting warnings can exercise
+# `translate_spatial`'s DB-backed lookup fallback, which tests/conftest.py's
+# autouse `default_function_fixture` only points at a safe, per-test,
+# rolled-back session once a test is actually running. Computing it at
+# import time (module collection, before any test/fixture runs) would
+# instead reach the real module-level `harvester.db_interface` and leak an
+# uncommitted transaction. So `_new_warning_types` recomputes the baseline
+# fresh on every call, inside the test.
 BASE_RECORD = open_json(DCATUS3_COMPLETE_EXAMPLE)
 
 
@@ -145,7 +146,6 @@ def _invalid_cui_banner_marking(r):
 
 
 def _unresolvable_spatial_value(r):
-    # Distinct from the baseline WKT polygon so this shows up as a new warning.
     r["spatial"][0]["geometry"] = "somewhere over there"
 
 

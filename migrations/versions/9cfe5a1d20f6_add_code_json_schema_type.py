@@ -1,7 +1,7 @@
 """add code.json schema type
 
 Revision ID: 9cfe5a1d20f6
-Revises: d4f6a8c0e2b3
+Revises: d7e4b8c1a2f0
 Create Date: 2026-08-31 09:26:48.380659
 
 """
@@ -11,7 +11,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = "9cfe5a1d20f6"
-down_revision = "d4f6a8c0e2b3"
+down_revision = "d7e4b8c1a2f0"
 branch_labels = None
 depends_on = None
 

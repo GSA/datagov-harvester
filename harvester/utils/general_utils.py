@@ -19,11 +19,13 @@ from uuid import UUID
 
 import geojson_validator
 import requests
+import shapely.wkt
 from bs4 import BeautifulSoup
 from jsonschema import Draft202012Validator, FormatChecker
 from jsonschema.exceptions import ValidationError
 from referencing import Registry
 from referencing.jsonschema import DRAFT202012
+from shapely.geometry import mapping as shapely_geom_mapping
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger()
@@ -1126,6 +1128,32 @@ def add_uuid_to_package_name(name: str) -> str:
     return f"{name}-{str(uuid.uuid4())[:5]}"
 
 
+_WKT_GEOMETRY_RE = re.compile(
+    r"^\s*(POINT|LINESTRING|POLYGON|MULTIPOINT|MULTILINESTRING|MULTIPOLYGON|"
+    r"GEOMETRYCOLLECTION)\s*(?:[ZM]{1,2}\s*)?\(",
+    re.IGNORECASE,
+)
+
+
+def translate_wkt_to_geojson(spatial_value: str) -> str:
+    """Convert a WKT geometry string into a GeoJSON string, if possible."""
+
+    if not _WKT_GEOMETRY_RE.match(spatial_value):
+        return ""
+
+    try:
+        geom = shapely.wkt.loads(spatial_value.strip())
+        # GeoJSON is 2D; drop any Z/M dimension rather than let the
+        # 3d_coordinates check in validate_geojson silently discard it.
+        geom = shapely.force_2d(geom)
+        return json.dumps(shapely_geom_mapping(geom))
+    except:  # noqa: E722
+        logger.warning(
+            f"This spatial value looked like WKT but failed to parse: {spatial_value}"
+        )
+        return ""
+
+
 def munge_spatial(spatial_value: str) -> str:
     """Translate loose spatial inputs into GeoJSON strings when possible."""
 
@@ -1217,6 +1245,11 @@ def translate_spatial(input_value) -> str:
         spatial_value = input_value
     else:
         return ""
+
+    if isinstance(spatial_value, str):
+        wkt_geojson = translate_wkt_to_geojson(spatial_value)
+        if wkt_geojson:
+            spatial_value = wkt_geojson
 
     validated_geojson = validate_geojson(spatial_value)
     if validated_geojson:
