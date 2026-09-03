@@ -3,36 +3,38 @@ import json
 from flask import render_template, request
 
 from app import deps, htmx
-from app.deps import logger, render_block, valid_id_required
+from app.deps import CKAN_URL, logger, render_block, valid_id_required
 from app.paginate import Pagination
 from app.util import make_new_record_error_contract
 from harvester.utils.general_utils import (
     convert_to_int,
+    group_record_error_fields,
     process_job_complete_percentage,
 )
 
 from . import main
 
 
+def _load_json_title(json_string, error_type):
+    try:
+        if json_string is None:
+            logger.warning("harvest record doesn't have a source to load")
+            return
+        if error_type == "TransformationException":
+            logger.warning(
+                "transformation error produced no source_transform. "
+                "can't json load an xml doc"
+            )
+            return
+        return json.loads(json_string).get("title", None)
+    except Exception as e:
+        logger.error(f"Error loading json source_raw: {repr(e)}")
+        return
+
+
 @main.route("/harvest_job/<job_id>", methods=["GET"])
 @valid_id_required
 def view_harvest_job(job_id=None):
-    def _load_json_title(json_string, error_type):
-        try:
-            if json_string is None:
-                logger.warning("harvest record doesn't have a source to load")
-                return
-            if error_type == "TransformationException":
-                logger.warning(
-                    "transformation error produced no source_transform. "
-                    "can't json load an xml doc"
-                )
-                return
-            return json.loads(json_string).get("title", None)
-        except Exception as e:
-            logger.error(f"Error loading json source_raw: {repr(e)}")
-            return
-
     record_error_count = deps.db.get_harvest_record_errors_by_job(
         job_id,
         count=True,
@@ -104,3 +106,36 @@ def view_harvest_job(job_id=None):
         return render_template(
             "view_job_data.html", data=data, pagination=pagination.to_dict()
         )
+
+
+@main.route("/harvest_job/<job_id>/report", methods=["GET"])
+@valid_id_required
+def view_harvest_job_report(job_id=None):
+    job = deps.db.get_harvest_job(job_id)
+    if not job:
+        return render_template("view_harvest_job_report.html", data={"job": None})
+
+    error_field_summary = group_record_error_fields(
+        deps.db.get_record_error_messages_summary_by_job(job_id)
+    )
+    sample_datasets = deps.db.get_datasets_by_source(
+        job.harvest_source_id, page=0, per_page=10
+    )
+
+    data = {
+        "job": job,
+        "ckan_url": CKAN_URL,
+        "error_field_summary": error_field_summary,
+        "sample_datasets": sample_datasets,
+    }
+    logger.info(
+        "Rendered harvest job report job_id=%s status=%s source_id=%s "
+        "field_issue_types=%s sample_datasets=%s",
+        job_id,
+        job.status,
+        job.harvest_source_id,
+        len(error_field_summary),
+        len(sample_datasets),
+    )
+
+    return render_template("view_harvest_job_report.html", data=data)

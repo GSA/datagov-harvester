@@ -108,6 +108,38 @@ class TestHarvestJobExceptionHandling:
                 exc_info.value
             )
 
+    def test_send_notification_emails_links_to_report(
+        self,
+        interface,
+        organization_data,
+        source_data_dcatus_bad_url,
+        job_data_dcatus_bad_url,
+    ):
+        """The notification email links to the standalone job report page."""
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_dcatus_bad_url)
+        harvest_job = interface.add_harvest_job(job_data_dcatus_bad_url)
+
+        harvest_source = HarvestSource(harvest_job.id)
+
+        job_results = {
+            "records_added": 1,
+            "records_updated": 2,
+            "records_deleted": 0,
+            "records_ignored": 0,
+            "records_errored": 0,
+            "records_warned": 0,
+            "records_validated": 3,
+        }
+
+        harvest_source.notification_emails = ["user@example.com"]
+
+        with patch("harvester.harvest.send_email_to_recipients") as send_email_mock:
+            harvest_source.send_notification_emails(job_results)
+
+        body = send_email_mock.call_args.args[2]
+        assert f"/harvest_job/{harvest_job.id}/report" in body
+
 
 def make_http_error(status_code):
     response = Response()

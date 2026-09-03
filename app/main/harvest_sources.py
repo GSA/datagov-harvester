@@ -64,6 +64,20 @@ def add_harvest_source():
     )
 
 
+@main.route("/harvest_source/<source_id>/report", methods=["GET"])
+@valid_id_required
+def view_harvest_source_report(source_id: str):
+    job = deps.db.get_first_harvest_job_by_filter(
+        {"harvest_source_id": source_id, "status": "complete"}
+    )
+    if not job:
+        job = deps.db.get_first_harvest_job_by_filter({"harvest_source_id": source_id})
+    if not job:
+        return render_template("view_harvest_job_report.html", data={"job": None})
+
+    return redirect(url_for("main.view_harvest_job_report", job_id=job.id))
+
+
 @main.route("/harvest_source/<source_id>", methods=["GET"])
 @valid_id_required
 def view_harvest_source(source_id: str):

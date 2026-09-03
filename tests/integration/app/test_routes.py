@@ -59,6 +59,12 @@ class TestDynamicRouteTable:
                     "location": LOCATION_ENUMS["LOGIN"],
                 }
             },
+            r"(main\.view_harvest_source_report)": {
+                "(GET|HEAD)": {
+                    "status_code": 302,
+                    "location": f"/harvest_job/{job_data_dcatus['id']}/report",
+                },
+            },
         }
         # provide a simple map for MOST other routes
         default_assertion_map = {

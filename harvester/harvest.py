@@ -860,6 +860,7 @@ class HarvestSource:
     def send_notification_emails(self, job_results: dict) -> None:
         """Send harvest report emails to havest source POCs"""
         try:
+            report_url = f"{SMTP_CONFIG['base_url']}/harvest_job/{self.job_id}/report"
             job_url = f"{SMTP_CONFIG['base_url']}/harvest_job/{self.job_id}"
 
             subject = "Harvest Job Completed"
@@ -870,7 +871,8 @@ class HarvestSource:
                 "A harvest job has been successfully completed.\n"
                 f"- Organization: {org_name}\n"
                 f"- Harvest source: {self.name}\n"
-                f"- Job details: {job_url}\n\n"
+                f"- Full report: {report_url}\n"
+                f"- Technical details: {job_url}\n\n"
                 f"Summary of the job ({self.job_id}):\n"
                 f"- Records Added: {job_results['records_added']}\n"
                 f"- Records Updated: {job_results['records_updated']}\n"
@@ -879,6 +881,9 @@ class HarvestSource:
                 f"- Records Errored: {job_results['records_errored']}\n"
                 f"- Records Warned: {job_results['records_warned']}\n"
                 f"- Records Validated: {job_results['records_validated']}\n\n"
+                "The full report is on the test site, which is behind a shared "
+                "login. Contact your data.gov point of contact if you need "
+                "credentials.\n\n"
                 "====\n"
                 "You received this email because you subscribed to harvester updates.\n"
                 "Please do not reply to this email, as it is not monitored."

@@ -1,4 +1,5 @@
 import argparse
+import ast
 import hashlib
 import http
 import json
@@ -9,6 +10,7 @@ import re
 import smtplib
 import time
 import uuid
+import warnings
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from email.mime.multipart import MIMEMultipart
@@ -1534,6 +1536,96 @@ def get_format_from_str(validation_msg: str) -> str:
     if "was expected" in validation_msg:
         return f"constant value {validation_msg}"
     return validation_msg.split(" ")[-1]
+
+
+_VALIDATION_ERROR_WRAPPER_RE = re.compile(
+    r"^<(?:ValidationError|ValidationException):\s*(.*)>$", re.DOTALL
+)
+_ACCEPTABLE_FORMATS_PREFIX = "does not match any of the acceptable formats: "
+
+
+def parse_validation_message(message: str) -> tuple[Optional[str], str]:
+    """
+    split a stored record error message into (field, rule).
+
+    validation messages are stored as `repr()` of a jsonschema
+    `ValidationError`, e.g.
+        <ValidationError: "$.license, 'center' does not match any of the
+        acceptable formats: 'uri', 'null'">
+    other message types (TransformationException, DCAT warnings, etc.) don't
+    have this shape and are returned as (None, message).
+    """
+    wrapper_match = _VALIDATION_ERROR_WRAPPER_RE.match(message)
+    if not wrapper_match:
+        return None, message
+
+    try:
+        with warnings.catch_warnings():
+            # the stored messages contain raw regex backslashes (e.g. from the
+            # REDACTED format pattern) that aren't valid string escapes; the
+            # literal still parses correctly, so silence the noisy warning.
+            warnings.simplefilter("ignore", SyntaxWarning)
+            inner = ast.literal_eval(wrapper_match.group(1))
+    except (ValueError, SyntaxError):
+        inner = wrapper_match.group(1).strip("'\"")
+
+    json_path, _, rule_text = inner.partition(", ")
+    if not rule_text:
+        return None, message
+
+    field = json_path[2:] if json_path.startswith("$.") else json_path
+    if field in ("", "$"):
+        field = "(root)"
+    field = re.sub(r"\[\d+\]", "[]", field)
+
+    if rule_text.endswith("is a required property"):
+        rule = "required property"
+    elif _ACCEPTABLE_FORMATS_PREFIX in rule_text:
+        rule = rule_text.split(_ACCEPTABLE_FORMATS_PREFIX, 1)[1]
+    else:
+        rule = rule_text
+
+    return field, rule
+
+
+def group_record_error_fields(rows: list[tuple]) -> list[dict]:
+    """
+    group (severity, type, message, count) rows into per-field/rule summaries
+    for the harvest job report. rows are pre-aggregated by exact message, so
+    identical (field, rule) pairs from different messages are merged here.
+    """
+    severity_order = {"error": 0, "warning": 1}
+    grouped: dict[tuple, dict] = {}
+
+    for severity, error_type, message, count in rows:
+        if error_type in ("ValidationError", "ValidationException"):
+            field, rule = parse_validation_message(message)
+        else:
+            field, rule = None, error_type
+
+        key = (severity, field, rule)
+        entry = grouped.setdefault(
+            key,
+            {
+                "severity": severity,
+                "field": field,
+                "rule": rule,
+                "type": error_type,
+                "count": 0,
+                "examples": [],
+            },
+        )
+        entry["count"] += count
+        if len(entry["examples"]) < 3:
+            entry["examples"].append(message)
+
+    return sorted(
+        grouped.values(),
+        key=lambda entry: (
+            severity_order.get(entry["severity"], 2),
+            -entry["count"],
+        ),
+    )
 
 
 def found_simple_message(

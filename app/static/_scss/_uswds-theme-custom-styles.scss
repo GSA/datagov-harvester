@@ -140,3 +140,12 @@ a:hover {
 button#btn-download {
   margin-bottom: units(2);
 }
+
+@media print {
+  .usa-header,
+  .usa-footer,
+  .usa-banner,
+  .no-print {
+    display: none !important;
+  }
+}
