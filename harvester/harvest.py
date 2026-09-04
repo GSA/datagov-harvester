@@ -1352,10 +1352,16 @@ class Record:
 
         if valid:
             self.harvest_source.update_job_record_count_by_action("validated")
+            logger.info("Validated record %s successfully", self.identifier)
             return True
         else:
             # update the reporter only once even with multiple errors
             self.harvest_source.update_job_record_count_by_action("errored")
+            logger.error(
+                "Validation failed for record %s: %d error(s)",
+                self.identifier,
+                len(errors),
+            )
             return False
 
     def _metadata_for_dataset(self):
@@ -1437,6 +1443,10 @@ class Record:
             return
         try:
             client.delete_dataset_by_id(dataset.id)
+            logger.info(
+                "Removed dataset (slug: %s) from OpenSearch index",
+                dataset.slug,
+            )
         except Exception as e:
             logger.exception(
                 "OpenSearch delete error for dataset %s (slug %s): %s",
@@ -1516,6 +1526,10 @@ class Record:
                 )
                 if deleted:
                     self.status = "success"
+                    logger.info(
+                        "Deleted dataset (slug: %s) - no longer present in source",
+                        self.dataset_slug,
+                    )
                     self._delete_dataset_from_opensearch(dataset)
 
             self.update_self_in_db()
