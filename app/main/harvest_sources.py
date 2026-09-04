@@ -353,6 +353,9 @@ def edit_harvest_source(source_id: str):
             source_data["notification_emails"] = ", ".join(
                 source_data.get("notification_emails") or []
             )
+            source_data["send_report_email"] = str(
+                source_data.get("send_report_email", False)
+            )
             form = HarvestSourceForm(data=source_data)
             form.organization_id.choices = organization_choices
             if form.validate_on_submit():

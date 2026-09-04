@@ -115,7 +115,8 @@ class TestHarvestJobExceptionHandling:
         source_data_dcatus_bad_url,
         job_data_dcatus_bad_url,
     ):
-        """The notification email links to the standalone job report page."""
+        """The notification email links to the standalone job report page
+        only when the source has opted in via send_report_email."""
         interface.add_organization(organization_data)
         interface.add_harvest_source(source_data_dcatus_bad_url)
         harvest_job = interface.add_harvest_job(job_data_dcatus_bad_url)
@@ -133,6 +134,14 @@ class TestHarvestJobExceptionHandling:
         }
 
         harvest_source.notification_emails = ["user@example.com"]
+
+        with patch("harvester.harvest.send_email_to_recipients") as send_email_mock:
+            harvest_source.send_notification_emails(job_results)
+
+        body = send_email_mock.call_args.args[2]
+        assert f"/harvest_job/{harvest_job.id}/report" not in body
+
+        harvest_source.send_report_email = True
 
         with patch("harvester.harvest.send_email_to_recipients") as send_email_mock:
             harvest_source.send_notification_emails(job_results)

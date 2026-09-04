@@ -1561,9 +1561,8 @@ def parse_validation_message(message: str) -> tuple[Optional[str], str]:
 
     try:
         with warnings.catch_warnings():
-            # the stored messages contain raw regex backslashes (e.g. from the
-            # REDACTED format pattern) that aren't valid string escapes; the
-            # literal still parses correctly, so silence the noisy warning.
+            # repr() embeds raw regex backslashes (e.g. the REDACTED format)
+            # that aren't valid escapes; literal_eval still parses them fine.
             warnings.simplefilter("ignore", SyntaxWarning)
             inner = ast.literal_eval(wrapper_match.group(1))
     except (ValueError, SyntaxError):

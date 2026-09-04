@@ -62,6 +62,9 @@
                     <a href="{{value}}" target="_blank">{{value}}</a> {{ 'launch' | usa_icon | safe }}
                 </td>
                 {% endif %}
+                {% elif key == 'send_report_email' %}
+                <td>Send harvest report</td>
+                <td>{{value}}</td>
                 {% else %}
                 <td>{{ key | humanize }}</td>
                 <td class="word-break-all">{{value}}</td>
