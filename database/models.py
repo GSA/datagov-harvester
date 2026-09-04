@@ -149,6 +149,10 @@ class HarvestSource(Base):
         nullable=False,
     )
 
+    # default off: existing sources' notification emails (used for ops
+    # alerting) shouldn't change until explicitly opted in.
+    send_report_email = Column(Boolean, nullable=False, server_default="false")
+
     collection_parent_url = Column(String)
     date_next_run = Column(DateTime, index=True)
 
