@@ -34,6 +34,8 @@ class TestHarvestSourceUnauthed:
                 "document",
                 "Notification frequency",
                 "always",
+                "Send harvest report",
+                "False",
                 "Date next run",
                 "N/A",
                 "ID",
@@ -112,16 +114,18 @@ class TestHarvestSourceUnauthed:
     def test_dataset_table(self, upage):
         """
         Checks to see if the dataset table is populated with the dataset.id,
-        dataset.type, and dataset.slug.
+        dataset.type, dataset.slug, and a catalog.data.gov link.
         """
         expect(upage.locator("#paginated__datasets table tr td")).to_have_text(
             [
                 "a1b2c3d4-e5f6-7890-abcd-ef1234567891",
                 "dataset",
                 "fixture-dataset-1",
+                "catalog",
                 "b2c3d4e5-f6a7-8901-bcde-f12345678902",
                 "dataset",
                 "fixture-dataset-2",
+                "catalog",
             ],
             use_inner_text=True,
         )

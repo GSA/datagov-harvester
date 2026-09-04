@@ -127,6 +127,12 @@ class HarvestSourceForm(FlaskForm):
         ],
         validators=[DataRequired()],
     )
+    send_report_email = SelectField(
+        "Add report link to harvest notification",
+        choices=["False", "True"],
+        validators=[DataRequired()],
+        default="False",
+    )
 
     def validate(self, extra_validators=None):
         valid = super().validate(extra_validators=extra_validators)

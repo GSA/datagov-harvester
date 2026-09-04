@@ -38,6 +38,7 @@ def make_new_source_contract(form):
         "source_type": form.source_type.data,
         "collection_parent_url": collection_parent_url,
         "notification_frequency": form.notification_frequency.data,
+        "send_report_email": form.send_report_email.data == "True",
     }
 
 
