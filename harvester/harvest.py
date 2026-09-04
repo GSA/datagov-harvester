@@ -1206,18 +1206,34 @@ class Record:
         """
         # missing contactPoint or it's empty
         if not self.transformed_data.get("contactPoint"):
+            logger.warning(
+                "Record %s missing contactPoint, using default value",
+                self.identifier,
+            )
             self.transformed_data["contactPoint"] = {
                 "fn": "Not provided - Contact data.gov",
                 "hasEmail": "mailto:datagovsupport@gsa.gov",
             }
 
         if not self.transformed_data.get("description"):
+            logger.warning(
+                "Record %s missing description, using default value",
+                self.identifier,
+            )
             self.transformed_data["description"] = "No description was provided."
 
         if not self.transformed_data.get("keyword"):
+            logger.warning(
+                "Record %s missing keyword, using default value",
+                self.identifier,
+            )
             self.transformed_data["keyword"] = ["__"]
 
         if not self.transformed_data.get("publisher"):
+            logger.warning(
+                "Record %s missing publisher, using organization name",
+                self.identifier,
+            )
             # publisher defaults to the harvest source's organization
             # information
             self.transformed_data["publisher"] = {
@@ -1238,7 +1254,11 @@ class Record:
                 # it exists and isn't valid
                 candidate = "https://" + url
                 if self._is_valid_url(candidate):
-                    # TODO: log a warning that we are making this change
+                    logger.warning(
+                        "Record %s distribution %s missing protocol, adding https://",
+                        self.identifier,
+                        key,
+                    )
                     item[key] = candidate
 
         for dist_item in self.transformed_data.get("distribution", []):
@@ -1412,7 +1432,14 @@ class Record:
 
     def _index_dataset_in_opensearch(self, dataset) -> None:
         client = self.harvest_source.opensearch
-        if client is None or dataset is None:
+        if client is None:
+            if dataset is not None:
+                logger.warning(
+                    "OpenSearch client not configured; skipping indexing for dataset (slug: %s)",
+                    dataset.slug if hasattr(dataset, "slug") else "unknown",
+                )
+            return
+        if dataset is None:
             return
         try:
             succeeded, failed, errors = client.index_datasets([dataset])
@@ -1439,7 +1466,14 @@ class Record:
 
     def _delete_dataset_from_opensearch(self, dataset) -> None:
         client = self.harvest_source.opensearch
-        if client is None or dataset is None:
+        if client is None:
+            if dataset is not None:
+                logger.warning(
+                    "OpenSearch client not configured; skipping removal for dataset (slug: %s)",
+                    dataset.slug if hasattr(dataset, "slug") else "unknown",
+                )
+            return
+        if dataset is None:
             return
         try:
             client.delete_dataset_by_id(dataset.id)
@@ -1573,7 +1607,7 @@ class Record:
                 if not self._is_slug_unique_violation(error):
                     raise
 
-                logger.info(
+                logger.warning(
                     "Dataset slug '%s' already exists; generating a new slug",
                     self.dataset_slug,
                 )
