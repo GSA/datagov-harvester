@@ -1,6 +1,9 @@
+from unittest.mock import Mock
+
 import pytest
 
 from harvester.utils.general_utils import (
+    build_report_email_section,
     group_record_error_fields,
     parse_validation_message,
 )
@@ -106,3 +109,34 @@ class TestGroupRecordErrorFields:
         summary = group_record_error_fields(rows)
         assert summary[0]["severity"] == "error"
         assert summary[1]["severity"] == "warning"
+
+
+class TestBuildReportEmailSection:
+    def test_no_errors_or_datasets(self):
+        section = build_report_email_section([], [], "")
+        assert "No record errors or warnings found." in section
+        assert "No datasets have been harvested from this source yet." in section
+
+    def test_lists_errors_and_datasets_with_catalog_link(self):
+        error_field_summary = [
+            {"severity": "error", "field": "license", "rule": "'uri'", "count": 3},
+            {"severity": "warning", "field": None, "rule": "SomeWarning", "count": 1},
+        ]
+        dataset = Mock(slug="fixture-dataset-1")
+
+        section = build_report_email_section(
+            error_field_summary, [dataset], "https://catalog.data.gov"
+        )
+
+        assert "- error: license - 'uri' (3)" in section
+        assert "- warning: (root) - SomeWarning (1)" in section
+        assert (
+            "- fixture-dataset-1: https://catalog.data.gov/dataset/fixture-dataset-1"
+            in section
+        )
+
+    def test_lists_dataset_slug_without_catalog_link_when_not_configured(self):
+        dataset = Mock(slug="fixture-dataset-1")
+        section = build_report_email_section([], [dataset], "")
+        assert "- fixture-dataset-1" in section
+        assert "http" not in section

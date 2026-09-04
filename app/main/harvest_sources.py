@@ -2,6 +2,7 @@ from flask import flash, redirect, render_template, request, url_for
 
 from app import deps, htmx
 from app.deps import (
+    CATALOG_BASE_URL,
     CKAN_URL,
     _log_mutation,
     create_harvest_source,
@@ -125,6 +126,7 @@ def view_harvest_source(source_id: str):
             )
             data = {
                 "source": {"id": source_id},
+                "catalog_base_url": CATALOG_BASE_URL,
                 "datasets": datasets,
                 "datasets_htmx_vars": datasets_htmx_vars,
             }
@@ -258,6 +260,7 @@ def view_harvest_source(source_id: str):
         )
         data = {
             "ckan_url": CKAN_URL,
+            "catalog_base_url": CATALOG_BASE_URL,
             "source": source,
             "summary_data": summary_data,
             "jobs": jobs,

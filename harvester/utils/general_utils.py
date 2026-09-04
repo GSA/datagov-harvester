@@ -53,6 +53,8 @@ SMTP_CONFIG = {
     "recipient": os.getenv("HARVEST_SMTP_RECIPIENT"),
 }
 
+CATALOG_BASE_URL = os.getenv("CATALOG_BASE_URL") or ""
+
 RESOURCE_MAPPING = {
     # ArcGIS File Types
     "esri rest": ("Esri REST", "Esri REST API Endpoint"),
@@ -1625,6 +1627,39 @@ def group_record_error_fields(rows: list[tuple]) -> list[dict]:
             -entry["count"],
         ),
     )
+
+
+def build_report_email_section(
+    error_field_summary: list[dict], sample_datasets: list, catalog_base_url: str
+) -> str:
+    """
+    Plain-text rendering of the /report page's issues-by-field and sample
+    dataset sections, for inlining into the harvest job notification email.
+    """
+    lines = ["Issues by field:"]
+    if not error_field_summary:
+        lines.append("- No record errors or warnings found.")
+    else:
+        for row in error_field_summary:
+            field = row["field"] or "(root)"
+            lines.append(
+                f"- {row['severity']}: {field} - {row['rule']} ({row['count']})"
+            )
+
+    lines.append("")
+    lines.append("Sample datasets:")
+    if not sample_datasets:
+        lines.append("- No datasets have been harvested from this source yet.")
+    else:
+        for dataset in sample_datasets:
+            if catalog_base_url:
+                lines.append(
+                    f"- {dataset.slug}: {catalog_base_url}/dataset/{dataset.slug}"
+                )
+            else:
+                lines.append(f"- {dataset.slug}")
+
+    return "\n".join(lines)
 
 
 def found_simple_message(

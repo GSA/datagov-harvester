@@ -148,6 +148,8 @@ class TestHarvestJobExceptionHandling:
 
         body = send_email_mock.call_args.args[2]
         assert f"/harvest_job/{harvest_job.id}/report" in body
+        assert "Issues by field:" in body
+        assert "Sample datasets:" in body
 
 
 def make_http_error(status_code):
