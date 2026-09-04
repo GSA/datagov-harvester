@@ -1475,6 +1475,13 @@ class Record:
                 dataset_payload = self._dataset_payload(metadata)
                 if self.action == "create":
                     dataset = self._insert_dataset_with_unique_slug(dataset_payload)
+                    if dataset:
+                        logger.info(
+                            "Created dataset '%s' (slug: %s) from record %s",
+                            metadata.get("title", "Unknown"),
+                            dataset.slug,
+                            self.identifier,
+                        )
                 else:
                     # harvester should never update the slug
                     update_payload = {
@@ -1484,6 +1491,13 @@ class Record:
                     dataset = self.harvest_source.db_interface.upsert_dataset(
                         update_payload
                     )
+                    if dataset:
+                        logger.info(
+                            "Updated dataset '%s' (slug: %s) from record %s",
+                            metadata.get("title", "Unknown"),
+                            dataset.slug,
+                            self.identifier,
+                        )
                 if dataset:
                     self.status = "success"
                 self._index_dataset_in_opensearch(dataset)
