@@ -1417,6 +1417,12 @@ class Record:
                     dataset.slug,
                     errors,
                 )
+            elif succeeded:
+                logger.info(
+                    "Indexed dataset '%s' (slug: %s) in OpenSearch",
+                    dataset.dcat.get("title", dataset.id),
+                    dataset.slug,
+                )
         except Exception as e:
             logger.exception(
                 "OpenSearch indexing error for dataset %s (slug %s): %s",
