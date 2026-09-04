@@ -70,17 +70,22 @@
             {% endfor %}
         </table>
     </div>
-    {% if session['user'] and data.job.status == "in_progress" %}
     <div class="config-actions">
         <ul class="usa-button-group">
+            <li class="usa-button-group__item">
+                <a href="{{ url_for('main.view_harvest_job_report', job_id=data.job.id) }}">
+                    <button class="usa-button">View report</button>
+                </a>
+            </li>
+            {% if session['user'] and data.job.status == "in_progress" %}
             <li class="usa-button-group__item">
                 <a href="{{ url_for('api_v1.cancel_harvest_job', job_id=data.job.id)}}">
                     <button class="usa-button usa-button--secondary">Cancel</button>
                 </a>
             </li>
+            {% endif %}
         </ul>
     </div>
-    {% endif %}
     <div class="section margin-y-3">
         <h2>Job error details</h2>
         {% if not data.job.errors %}

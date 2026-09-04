@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from unittest.mock import patch
 
 import pytest
 
@@ -67,6 +68,24 @@ class TestViewHarvestJobReport:
         resp = client.get(f"/harvest_job/{job.id}/report")
         assert resp.status_code == 200
         assert f"/dataset/{dataset_for_job.slug}" in resp.text
+
+    def test_report_links_to_catalog_when_configured(
+        self, client, job, dataset_for_job
+    ):
+        with patch(
+            "app.main.harvest_jobs.CATALOG_BASE_URL", "https://catalog.data.gov"
+        ):
+            resp = client.get(f"/harvest_job/{job.id}/report")
+        assert resp.status_code == 200
+        assert f"https://catalog.data.gov/dataset/{dataset_for_job.slug}" in resp.text
+
+    def test_report_omits_catalog_link_when_not_configured(
+        self, client, job, dataset_for_job
+    ):
+        with patch("app.main.harvest_jobs.CATALOG_BASE_URL", ""):
+            resp = client.get(f"/harvest_job/{job.id}/report")
+        assert resp.status_code == 200
+        assert "Preview catalog" not in resp.text
 
     def test_report_no_errors_shows_success_message(self, client, job):
         resp = client.get(f"/harvest_job/{job.id}/report")

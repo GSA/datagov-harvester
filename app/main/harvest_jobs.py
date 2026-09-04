@@ -3,7 +3,7 @@ import json
 from flask import render_template, request
 
 from app import deps, htmx
-from app.deps import CKAN_URL, logger, render_block, valid_id_required
+from app.deps import CATALOG_BASE_URL, logger, render_block, valid_id_required
 from app.paginate import Pagination
 from app.util import make_new_record_error_contract
 from harvester.utils.general_utils import (
@@ -124,7 +124,7 @@ def view_harvest_job_report(job_id=None):
 
     data = {
         "job": job,
-        "ckan_url": CKAN_URL,
+        "catalog_base_url": CATALOG_BASE_URL,
         "error_field_summary": error_field_summary,
         "sample_datasets": sample_datasets,
     }

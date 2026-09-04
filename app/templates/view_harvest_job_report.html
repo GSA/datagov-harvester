@@ -29,7 +29,6 @@
         <span class="utc-date" data-utc-date="{{ data.job.date_created | utc_isoformat }}">
             {{ data.job.date_created | else_na }}
         </span>
-        (<a href="{{ url_for('main.view_harvest_job', job_id=data.job.id) }}">technical details</a>)
     </p>
 
     <div class="usa-alert usa-alert--info no-print">
@@ -37,22 +36,37 @@
             <p class="usa-alert__text">
                 This report is generated from the test environment, before your data goes
                 live to the public. Review the counts and issues below, then check how a
-                sample of your datasets will look.
+                sample of your datasets will look. For raw error details, see the
+                <a href="{{ url_for('main.view_harvest_job', job_id=data.job.id) }}">full job page</a>.
             </p>
         </div>
     </div>
 
     <div class="section">
         <h2>Summary</h2>
-        <table class="usa-table usa-table--borderless width-full">
+        <table class="usa-table usa-table--striped">
+            <caption class="usa-sr-only">Record counts for this harvest job</caption>
+            <thead>
+                <tr>
+                    <th scope="col">Added</th>
+                    <th scope="col">Updated</th>
+                    <th scope="col">Deleted</th>
+                    <th scope="col">Unchanged</th>
+                    <th scope="col">Errored</th>
+                    <th scope="col">Warned</th>
+                    <th scope="col">Validated</th>
+                </tr>
+            </thead>
             <tbody>
-                <tr><td>Records added</td><td>{{ data.job.records_added }}</td></tr>
-                <tr><td>Records updated</td><td>{{ data.job.records_updated }}</td></tr>
-                <tr><td>Records deleted</td><td>{{ data.job.records_deleted }}</td></tr>
-                <tr><td>Records unchanged</td><td>{{ data.job.records_ignored }}</td></tr>
-                <tr><td>Records errored</td><td>{{ data.job.records_errored }}</td></tr>
-                <tr><td>Records warned</td><td>{{ data.job.records_warned }}</td></tr>
-                <tr><td>Records validated</td><td>{{ data.job.records_validated }}</td></tr>
+                <tr>
+                    <td>{{ data.job.records_added }}</td>
+                    <td>{{ data.job.records_updated }}</td>
+                    <td>{{ data.job.records_deleted }}</td>
+                    <td>{{ data.job.records_ignored }}</td>
+                    <td>{{ data.job.records_errored }}</td>
+                    <td>{{ data.job.records_warned }}</td>
+                    <td>{{ data.job.records_validated }}</td>
+                </tr>
             </tbody>
         </table>
     </div>
@@ -94,42 +108,6 @@
     </div>
 
     <div class="section">
-        <h2>Job-level errors</h2>
-        {% if not data.job.errors %}
-        <div class="usa-alert usa-alert--success">
-            <div class="usa-alert__body">
-                <p class="usa-alert__text">No job errors found.</p>
-            </div>
-        </div>
-        {% else %}
-        <a class="no-print" href="{{ url_for('api_v1.download_harvest_errors_by_job', job_id=data.job.id, error_type='job') }}">
-            <button class="usa-button">Download job errors as .csv</button>
-        </a>
-        <table class="usa-table usa-table--striped">
-            <caption class="usa-sr-only">Harvest job errors for {{ data.job.id }}</caption>
-            <thead>
-                <tr>
-                    <th scope="col">Date Created</th>
-                    <th scope="col">Type</th>
-                    <th scope="col">Message</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for error in data.job.errors %}
-                <tr>
-                    <td class="utc-date" data-utc-date="{{ error.date_created | utc_isoformat }}">
-                        {{ error.date_created | else_na }}
-                    </td>
-                    <td>{{ error.type }}</td>
-                    <td>{{ error.message }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-        {% endif %}
-    </div>
-
-    <div class="section">
         <h2>Sample datasets</h2>
         {% if not data.sample_datasets %}
         <div class="usa-alert usa-alert--info">
@@ -143,9 +121,9 @@
             <thead>
                 <tr>
                     <th scope="col">Slug</th>
-                    <th scope="col">Preview on test</th>
-                    {% if data.ckan_url %}
-                    <th scope="col">Preview on public catalog</th>
+                    <th scope="col">Preview dataset</th>
+                    {% if data.catalog_base_url %}
+                    <th scope="col">Preview catalog</th>
                     {% endif %}
                 </tr>
             </thead>
@@ -155,13 +133,13 @@
                     <td class="word-break-all">{{ dataset.slug }}</td>
                     <td>
                         <a href="{{ url_for('main.view_dataset', dataset_slug=dataset.slug) }}">
-                            view dataset
+                            dataset
                         </a>
                     </td>
-                    {% if data.ckan_url %}
+                    {% if data.catalog_base_url %}
                     <td>
-                        <a href="{{ data.ckan_url }}/dataset/{{ dataset.slug }}">
-                            view on public catalog
+                        <a href="{{ data.catalog_base_url }}/dataset/{{ dataset.slug }}">
+                            catalog
                         </a>
                     </td>
                     {% endif %}
