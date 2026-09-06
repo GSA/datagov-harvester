@@ -33,10 +33,14 @@ def add_harvest_source_api():
 @login_required
 @valid_id_required
 def edit_harvest_source_api(source_id: str):
+    existing_source = deps.db.get_harvest_source(source_id)
+    old_frequency = existing_source.frequency if existing_source else None
     updated_source = deps.db.update_harvest_source(source_id, request.json)
-    job_message = deps.load_manager.schedule_first_job(updated_source.id)
+    job_message = ""
+    if updated_source and updated_source.frequency != old_frequency:
+        job_message = deps.load_manager.reschedule_next_run(updated_source.id)
 
-    if updated_source and job_message:
+    if updated_source:
         _log_mutation(
             "edit",
             "harvest_source",

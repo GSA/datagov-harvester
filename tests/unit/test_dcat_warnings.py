@@ -8,20 +8,9 @@ than the full templated string, so message wording can change without churning
 every test.
 """
 
-from pathlib import Path
-
 from harvester.utils.dcat_warnings import detect_dcat_warnings
 from harvester.utils.general_utils import open_json
-
-COMPLETE_EXAMPLE = (
-    Path(__file__).parents[2]
-    / "schemas"
-    / "dcatus3.0"
-    / "examples"
-    / "Dataset"
-    / "good"
-    / "complete_example.json"
-)
+from harvester.utils.schema_paths import DCATUS3_COMPLETE_EXAMPLE
 
 
 def types(warnings):
@@ -368,6 +357,20 @@ class TestLocationSpatial:
         }
         assert detect_dcat_warnings(data) == []
 
+    def test_resolvable_wkt_geometry_passes(self):
+        data = {
+            "@type": "Location",
+            "geometry": "POLYGON((-125 24, -66 24, -66 50, -125 50, -125 24))",
+        }
+        assert detect_dcat_warnings(data) == []
+
+    def test_resolvable_wkt_bbox_passes(self):
+        data = {
+            "@type": "Location",
+            "bbox": "POLYGON((-125 24, -66 24, -66 50, -125 50, -125 24))",
+        }
+        assert detect_dcat_warnings(data) == []
+
     def test_non_string_non_object_geometry_produces_no_warning(self):
         data = {"@type": "Location", "geometry": 5}
         assert detect_dcat_warnings(data) == []
@@ -540,7 +543,7 @@ class TestTraversalAndCleanRecord:
         # (text/csv, application/json, application/pdf), etc. Guard against the
         # reference-data rules producing false positives on it. The vanity tel
         # and WKT geometry warnings are expected and unrelated.
-        dataset = open_json(COMPLETE_EXAMPLE)
+        dataset = open_json(DCATUS3_COMPLETE_EXAMPLE)
         reference_data_types = {
             "invalid_language",
             "invalid_character_encoding",

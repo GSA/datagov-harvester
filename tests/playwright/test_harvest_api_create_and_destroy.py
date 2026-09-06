@@ -85,7 +85,7 @@ class TestHarvestAPICreateAndDestroy:
         assert (
             # ruff: noqa: E501
             res.json()["message"]
-            == f"Added new harvest source with ID: {source_id}. No job scheduled for manual source."
+            == f"Added new harvest source with ID: {source_id}. No next run scheduled for manual source."
         )
         res = apage.request.delete(
             f"/api/v1/harvest_source/{source_id}",

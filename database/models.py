@@ -150,6 +150,7 @@ class HarvestSource(Base):
     )
 
     collection_parent_url = Column(String)
+    date_next_run = Column(DateTime, index=True)
 
 
 # to avoid moving models around adding this here since it references
@@ -184,6 +185,7 @@ class HarvestJob(Base):
 
     job_type = Column(String(20), default="harvest")
     date_created = Column(DateTime, index=True, default=func.statement_timestamp())
+    date_started = Column(DateTime)
     date_finished = Column(DateTime)
 
     records_total = Column(Integer, default=0)

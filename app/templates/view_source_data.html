@@ -45,6 +45,11 @@
                 <td>Notification emails</td>
                 <td class="word-break-all">{{ value | join(', ') if value else 'N/A' }}</td>
                 {% endif %}
+                {% elif key == 'date_next_run' %}
+                <td>{{ key | humanize }}</td>
+                <td class="utc-date" data-utc-date="{{ value | utc_isoformat }}">
+                    {{ value | else_na }}
+                </td>
                 {% elif key == 'url' %}
                 <td>{{ key | humanize }}</td>
                 <td class="word-break-all">

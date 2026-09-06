@@ -63,8 +63,8 @@
                     </td>
                 {% endif %}
                 <td class="text-tabular">{{ job.job_type }}</td>
-                <td class="font-mono-sm text-no-wrap utc-date" data-utc-date="{{ job.date_created | utc_isoformat }}">
-                    {{ job.date_created | else_na}}
+                <td class="font-mono-sm text-no-wrap utc-date" data-utc-date="{{ job.date_started | utc_isoformat }}">
+                    {{ job.date_started | else_na}}
                 </td>
                 <td class="font-mono-sm text-no-wrap utc-date" data-utc-date="{{ job.date_finished | utc_isoformat }}">
                     {{ job.date_finished | else_na }}

@@ -31,8 +31,9 @@ class LoadManager:
         don't know what. Minimally, set the state to `error` and record a job
         error that we saw this.
 
-        The next job is scheduled on job start so we shouldn't need to schedule
-        anything else and we are choosing not to retry these.
+        The next run is already stored on the harvest source as date_next_run
+        (bumped when the job was enqueued), so we are choosing not to retry
+        these.
         """
         interface.update_harvest_job(
             job.id,
@@ -72,6 +73,34 @@ class LoadManager:
         for job in failed_jobs:
             self._handle_failed_job(job)
 
+    def _drop_queued_jobs(self, source_id):
+        """Delete waiting status=new jobs for a source (e.g. frequency change)."""
+        queued_jobs = interface.get_queued_harvest_jobs_for_source(source_id)
+        for job in queued_jobs:
+            interface.delete_harvest_job(job.id)
+            logger.info(f"Deleted harvest job: {job.id} for source {source_id}.")
+        return queued_jobs
+
+    def _enqueue_due_sources(self):
+        """Create a job for each due source and bump date_next_run."""
+        for source in interface.get_due_harvest_sources():
+            job_data = interface.add_harvest_job(
+                {
+                    "harvest_source_id": source.id,
+                    "status": "new",
+                    "date_created": datetime.now(),
+                }
+            )
+            if not job_data:
+                logger.error(f"Failed to queue harvest job for source {source.id}.")
+                continue
+            next_run = create_future_date(source.frequency)
+            interface.update_harvest_source(source.id, {"date_next_run": next_run})
+            logger.info(
+                f"Queued harvest job {job_data.id} for source {source.id}; "
+                f"next run at {next_run}."
+            )
+
     def _start_new_jobs(self, check_from_task=False):
         """Start new jobs to be done, up to the max tasks count.
 
@@ -88,6 +117,8 @@ class LoadManager:
                     "Not starting new jobs because tasks could not be listed"
                 )
                 return
+
+            self._enqueue_due_sources()
 
             if check_from_task:
                 running_tasks -= 1
@@ -109,7 +140,6 @@ class LoadManager:
             jobs = interface.get_new_harvest_jobs_in_past(limit=slots)
             for job in jobs:
                 self.start_job(job.id, job.job_type)
-                self.schedule_next_job(job.harvest_source_id)
         finally:
             # closes the scoped_session object
             interface.close()
@@ -135,17 +165,41 @@ class LoadManager:
         Returns:
             str: A message indicating the result of the operation.
         """
-
         try:
-            """Check if a job is already running for this source."""
             harvest_job = interface.get_harvest_job(job_id)
+
+            # Try to atomically transition this job from 'new' -> 'in_progress'.
+            updated = interface.update_harvest_job_if_status(
+                job_id, "new", {"status": "in_progress", "date_started": get_datetime()}
+            )
+            if not updated:
+                return (
+                    f"Can't trigger harvest. Job {job_id} already started "
+                    f"or not in 'new' state."
+                )
+
+            logger.info("Updated job %s to in_progress", updated.id)
+
+            # Excludes this job via facets, so any result here means
+            # another job is already in progress; we only need 1 to confirm that.
             jobs_in_progress = interface.pget_harvest_jobs(
-                facets=f"harvest_source_id eq {harvest_job.harvest_source_id},status eq in_progress",  # noqa E501
-                per_page=1,  # Only need 1 job to know we should not start a new one
+                facets=f"harvest_source_id eq {harvest_job.harvest_source_id},status eq in_progress,id ne {job_id}",  # noqa E501
+                per_page=1,
                 page=0,
             )
             if len(jobs_in_progress):
-                return f"Can't trigger harvest. Job {jobs_in_progress[0].id} already in progress."  # noqa E501
+                interface.update_harvest_job(
+                    job_id, {"status": "new", "date_started": None}
+                )
+                logger.info(
+                    "Job %s already in progress. Reverted job %s back to 'new'.",
+                    jobs_in_progress[0].id,
+                    job_id,
+                )
+                return (
+                    f"Can't trigger harvest. Job {jobs_in_progress[0].id} "
+                    f"already in progress."
+                )
 
             """task manager start interface, takes a job_id"""
             task_contract = {
@@ -153,24 +207,33 @@ class LoadManager:
                 "task_id": f"harvest-job-{job_id}-{job_type}",
             }
 
-            updated_job = interface.update_harvest_job(
-                job_id, {"status": "in_progress", "date_created": get_datetime()}
-            )
+            # No revert here; the outer handler owns cleanup for any failure below.
             self.handler.start_task(**task_contract)
-            message = f"Updated job {updated_job.id} to in_progress"
-            logger.info(message)
-            return message
-        except Exception as e:
-            message = f"LoadManager: start_job failed :: {repr(e)}"
-            logger.error(message)
+
+            return f"Updated job {updated.id} to in_progress"
+
+        except Exception:
+            logger.exception("LoadManager: start_job failed for job %s", job_id)
+
+            reverted = False
             try:
-                updated_job = interface.update_harvest_job(
-                    job_id, {"status": "new", "date_created": get_datetime()}
+                interface.update_harvest_job(
+                    job_id, {"status": "new", "date_started": None}
                 )
-            except Exception as e:
-                logger.error(f"Failed to reset job {job_id} status: {repr(e)}")
-                pass
-            return message
+                reverted = True
+                logger.info("Reverted job %s back to 'new' after failure.", job_id)
+            except Exception:
+                logger.exception("Failed to reset job %s status", job_id)
+
+            if reverted:
+                return (
+                    f"Can't trigger harvest. Job {job_id} failed to start "
+                    f"and was reset to 'new'. Please try again."
+                )
+            return (
+                f"Can't trigger harvest. Job {job_id} failed to start and may be "
+                f"stuck in progress. Please contact an administrator."
+            )
 
     def stop_job(self, job_id, job_type="harvest"):
         """task manager stop interface, takes a job_id"""
@@ -219,44 +282,42 @@ class LoadManager:
         logger.info(message)
         return message
 
-    def schedule_first_job(self, source_id):
-        """schedule first job on harvest source registration or frequency change,
-        takes a source_id
-        """
-        future_jobs = interface.get_new_harvest_jobs_by_source_in_future(source_id)
-        # delete any future scheduled jobs
-        for job in future_jobs:
-            interface.delete_harvest_job(job.id)
-            logger.info(f"Deleted harvest job: {job.id} for source {source_id}.")
-        # then schedule next job
-        return self.schedule_next_job(source_id)
+    def reschedule_next_run(self, source_id):
+        """Set date_next_run on harvest source registration or frequency change.
 
-    def schedule_next_job(self, source_id):
-        """immediately schedule next job to emulate cron, takes a source_id"""
+        Drops any waiting new job for the source. Does not create a job row.
+        """
+        self._drop_queued_jobs(source_id)
         source = interface.get_harvest_source(source_id)
         if source.frequency == "manual":
-            logger.info("No job scheduled for manual source.")
-            return "No job scheduled for manual source."
+            interface.update_harvest_source(source_id, {"date_next_run": None})
+            logger.info("No next run scheduled for manual source.")
+            return "No next run scheduled for manual source."
 
-        # check if there is a job already scheduled in the future
-        future_jobs = interface.get_new_harvest_jobs_by_source_in_future(source_id)
-        if len(future_jobs) > 0:
-            message = f"Job already scheduled for source {source_id} at \
-            {future_jobs[0].date_created}."
+        next_run = create_future_date(source.frequency)
+        interface.update_harvest_source(source_id, {"date_next_run": next_run})
+        message = f"Set next harvest run for {source_id} at {next_run}."
+        logger.info(message)
+        return message
+
+    def schedule_next_job(self, source_id):
+        """Stamp date_next_run if the source does not already have a future run."""
+        source = interface.get_harvest_source(source_id)
+        if source.frequency == "manual":
+            logger.info("No next run scheduled for manual source.")
+            return "No next run scheduled for manual source."
+
+        if source.date_next_run and source.date_next_run > datetime.now():
+            message = (
+                f"Next harvest already scheduled for source {source_id} at "
+                f"{source.date_next_run}."
+            )
             logger.info(message)
             return message
 
-        # schedule new future job
-        job_data = interface.add_harvest_job(
-            {
-                "harvest_source_id": source.id,
-                "status": "new",
-                "date_created": create_future_date(source.frequency),
-            }
-        )
-        message = f"Scheduled new harvest job: for {job_data.harvest_source_id} \
-        at {job_data.date_created}."
-
+        next_run = create_future_date(source.frequency)
+        interface.update_harvest_source(source_id, {"date_next_run": next_run})
+        message = f"Set next harvest run for {source_id} at {next_run}."
         logger.info(message)
         return message
 
@@ -264,12 +325,11 @@ class LoadManager:
         """manual trigger harvest job, takes a source_id"""
         try:
             source = interface.get_harvest_source(source_id)
-            jobs_in_progress = interface.pget_harvest_jobs(
-                facets=f"harvest_source_id eq {source.id},status eq in_progress",
-                paginate=False,
-            )
-            if len(jobs_in_progress):
-                return f"Can't trigger harvest. Job {jobs_in_progress[0].id} already in progress."  # noqa E501
+            active_job = interface.get_active_harvest_job_for_source(source.id)
+            if active_job:
+                if active_job.status == "in_progress":
+                    return f"Can't trigger harvest. Job {active_job.id} already in progress."  # noqa E501
+                return f"Can't trigger harvest. Job {active_job.id} already queued."
             job_data = interface.add_harvest_job(
                 {
                     "harvest_source_id": source.id,

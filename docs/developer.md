@@ -4,6 +4,10 @@ We use docker containers to run the application locally.
 
 ## Running the app
 
+Make sure the DCAT-US 3.0 schema submodule is checked out first — see
+[DCAT-US 3.0 schemas](#dcat-us-30-schemas). If you cloned with
+`git clone --recurse-submodules`, you already have it.
+
 Build the static assets (requires `npm`):
 
 ```
@@ -93,6 +97,96 @@ We use [Ruff](https://github.com/astral-sh/ruff) to format and lint our Python f
  - This repo contains pre-commit actions. Learn how to configure your IDE to run those [here](https://pre-commit.com/).
  - Create a branch from `main`. We prefer short descriptive branch names.
  - To test changes in the `development` space in Cloud.gov, merge changes into the `develop` branch. Coordinate with other developers by announcing your plans in #datagov-devsecops.
+
+## DCAT-US 3.0 schemas
+
+The DCAT-US 3.0 JSON Schemas are **not in this repo**. They come from
+[GSA/dcat-us](https://github.com/GSA/dcat-us), tracked as a git submodule at
+`_external/dcat-us`. Paths are defined once, in
+[`harvester/utils/schema_paths.py`](../harvester/utils/schema_paths.py) — import
+from there rather than rebuilding paths from `__file__`.
+
+Don't edit anything under `_external/dcat-us`. It belongs to `GSA/dcat-us`; open
+a PR against that repo instead. A commit here records only which `dcat-us`
+commit to check out, never file contents.
+
+DCAT-US **1.1** is different — it has no `GSA/dcat-us` equivalent and stays
+vendored in this repo under `schemas/dcatus1.1/`.
+
+### Getting the schemas
+
+Cloning fresh:
+
+```
+% git clone --recurse-submodules https://github.com/GSA/datagov-harvester.git
+```
+
+If you already cloned without that flag:
+
+```
+% git submodule update --init _external/dcat-us
+```
+
+To stop having to remember the flag on every clone and pull:
+
+```
+% git config --global submodule.recurse true
+```
+
+### If the submodule is missing
+
+An uninitialized submodule leaves `_external/dcat-us` as an **empty directory**,
+not a missing one, so the failure is easy to misread. Two things to know:
+
+- **`make build` will not fix it.** `docker-compose.yml` bind-mounts `.:/app`, so
+  the container sees your host working tree, empty directory included. Rebuilding
+  the image accomplishes nothing.
+- **The symptom** is a `FileNotFoundError` from `build_dcatus3_validator` naming
+  the directory and the fix. Anything touching DCAT-US 3.0 validation raises it,
+  including at test-collection time.
+
+Confirm with `git submodule status`. A leading `-` means uninitialized:
+
+```
+-24f6f1e...  _external/dcat-us        # not initialized — run the update above
+ 24f6f1e...  _external/dcat-us (...)  # good (note the leading space)
++abc1234...  _external/dcat-us (...)  # checked out at a different commit than pinned
+```
+
+Don't use sparse-checkout inside the submodule. Sparse patterns live in
+`.git/modules/_external/dcat-us/info/sparse-checkout`, which **cannot be
+committed**, so CI and fresh clones get the full tree regardless. All it does is
+make your machine disagree with CI about which schema files exist — in the one
+code path whose entire job is schema validation.
+
+### Upgrading to a newer dcat-us
+
+The submodule is pinned to a specific `dcat-us` commit on purpose, so upgrades
+are deliberate. Dependabot opens a monthly PR that bumps it; you can also do it
+by hand.
+
+Note that `--remote` follows the branch named in `.gitmodules`, which is
+**`dcat-us`'s `main`** — not this repo's `main`.
+
+```
+% git -C _external/dcat-us rev-parse HEAD          # record the old SHA first
+% git submodule update --remote _external/dcat-us
+```
+
+Review what actually moved, then test:
+
+```
+% git diff --submodule=log                          # commit range
+% git -C _external/dcat-us diff "$old" HEAD -- jsonschema/definitions
+% poetry run pytest tests/unit
+```
+
+Commit **only** the gitlink (`_external/dcat-us`) — there are no file changes to
+stage.
+
+A schema change can legitimately alter which harvest records validate, so
+**failing tests here are the point of pinning, not an obstacle.** Fix the code or
+reject the bump. Never skip the tests to land the SHA.
 
 ## Local development
 

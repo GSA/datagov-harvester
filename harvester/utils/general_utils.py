@@ -19,12 +19,13 @@ from uuid import UUID
 
 import geojson_validator
 import requests
-import sansjson
+import shapely.wkt
 from bs4 import BeautifulSoup
 from jsonschema import Draft202012Validator, FormatChecker
 from jsonschema.exceptions import ValidationError
 from referencing import Registry
 from referencing.jsonschema import DRAFT202012
+from shapely.geometry import mapping as shapely_geom_mapping
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger()
@@ -405,8 +406,63 @@ def convert_set_to_list(obj):
     raise TypeError
 
 
+def _sort_dataset_list_item_key(item):
+    """type-ranked sort key for an element of a list being canonicalized by
+    sort_dataset, so elements are never compared to each other directly with
+    python's `<`/`>` -- which raises for dicts, and for a list containing
+    a mix of types (e.g. str and int).
+
+    ranks put same-typed values through their natural ordering (so e.g.
+    string lists sort the same way python's default `sorted()` would,
+    rather than by their quoted json representation, which would sort
+    "food" after "food safety" because '"' > ' ').
+    """
+    if item is None:
+        return (0,)
+    if isinstance(item, bool):
+        return (1, item)
+    if isinstance(item, (int, float)):
+        return (2, item)
+    if isinstance(item, str):
+        return (3, item)
+    if isinstance(item, list):
+        return (4, json.dumps(item, sort_keys=True))
+    return (5, json.dumps(item, sort_keys=True))  # dict
+
+
+def _canonicalize_dict_keys(d):
+    """sort dict keys recursively without reordering any list, for the parts
+    of a record whose list order carries meaning.
+    """
+    if isinstance(d, dict):
+        return {k: _canonicalize_dict_keys(d[k]) for k in sorted(d.keys())}
+    if isinstance(d, list):
+        return [_canonicalize_dict_keys(item) for item in d]
+    return d
+
+
 def sort_dataset(d):
-    return sansjson.sort_pyobject(d)
+    """recursively canonicalize a record's ordering so semantically identical
+    records hash the same regardless of the order the source emits dict keys
+    and list elements in.
+
+    dict keys are always sorted. list elements are reordered only when the
+    list looks like an unordered collection: an array whose elements are all
+    arrays is treated as positional data (e.g. a GeoJSON ring or LineString,
+    where reordering would move vertices and break the geometry), so its
+    element order is preserved while dict keys nested inside it are still
+    sorted.
+    """
+    if isinstance(d, dict):
+        return {k: sort_dataset(d[k]) for k in sorted(d.keys())}
+    if isinstance(d, list):
+        if d and all(isinstance(item, list) for item in d):
+            return [_canonicalize_dict_keys(item) for item in d]
+        return sorted(
+            (sort_dataset(item) for item in d),
+            key=_sort_dataset_list_item_key,
+        )
+    return d
 
 
 def dataset_to_hash(d):
@@ -1072,6 +1128,32 @@ def add_uuid_to_package_name(name: str) -> str:
     return f"{name}-{str(uuid.uuid4())[:5]}"
 
 
+_WKT_GEOMETRY_RE = re.compile(
+    r"^\s*(POINT|LINESTRING|POLYGON|MULTIPOINT|MULTILINESTRING|MULTIPOLYGON|"
+    r"GEOMETRYCOLLECTION)\s*(?:[ZM]{1,2}\s*)?\(",
+    re.IGNORECASE,
+)
+
+
+def translate_wkt_to_geojson(spatial_value: str) -> str:
+    """Convert a WKT geometry string into a GeoJSON string, if possible."""
+
+    if not _WKT_GEOMETRY_RE.match(spatial_value):
+        return ""
+
+    try:
+        geom = shapely.wkt.loads(spatial_value.strip())
+        # GeoJSON is 2D; drop any Z/M dimension rather than let the
+        # 3d_coordinates check in validate_geojson silently discard it.
+        geom = shapely.force_2d(geom)
+        return json.dumps(shapely_geom_mapping(geom))
+    except:  # noqa: E722
+        logger.warning(
+            f"This spatial value looked like WKT but failed to parse: {spatial_value}"
+        )
+        return ""
+
+
 def munge_spatial(spatial_value: str) -> str:
     """Translate loose spatial inputs into GeoJSON strings when possible."""
 
@@ -1154,8 +1236,37 @@ def _get_geo_lookup_interface():
         return None
 
 
+def _unwrap_location(input_value):
+    """Extract the geometry-bearing value from a DCAT-US 3.0 Location object.
+
+    v3.0 `spatial` is a Location object or a list of them; v1.1 is a plain
+    string. A bare {type, coordinates} GeoJSON dict is passed through.
+    """
+
+    if isinstance(input_value, list):
+        input_value = next((item for item in input_value if item), None)
+
+    if (
+        isinstance(input_value, dict)
+        and not {
+            "type",
+            "coordinates",
+        }
+        <= input_value.keys()
+    ):
+        for field in ("geometry", "bbox", "centroid"):
+            value = input_value.get(field)
+            if value:
+                return value
+        return None
+
+    return input_value
+
+
 def translate_spatial(input_value) -> str:
     """Normalize spatial strings/dicts into GeoJSON strings when possible."""
+
+    input_value = _unwrap_location(input_value)
 
     if isinstance(input_value, dict):
         spatial_value = json.dumps(input_value)
@@ -1163,6 +1274,11 @@ def translate_spatial(input_value) -> str:
         spatial_value = input_value
     else:
         return ""
+
+    if isinstance(spatial_value, str):
+        wkt_geojson = translate_wkt_to_geojson(spatial_value)
+        if wkt_geojson:
+            spatial_value = wkt_geojson
 
     validated_geojson = validate_geojson(spatial_value)
     if validated_geojson:
@@ -1427,7 +1543,7 @@ def found_simple_message(
     determine whether the input validation error represents the most
     succinct cause for error based on its json_path or dtype.
 
-    `forced` is a last-resort override set by `assemble_validation_errors`.
+    `forced` is a last-resort override set by `_collect_validation_messages`.
     """
     # these are all the unique dtypes found in the
     # non-federal schema (no different than federal)
@@ -1549,14 +1665,7 @@ def finalize_validation_messages(messages: defaultdict) -> list:
     return output
 
 
-def _count_messages(messages: defaultdict) -> int:
-    """Total messages accumulated across every json_path so far."""
-    return sum(len(v) for v in messages.values())
-
-
-def assemble_validation_errors(
-    validation_errors: list, messages=None, *, _forced: bool = False
-) -> list:
+def assemble_validation_errors(validation_errors: list, messages=None) -> list:
     """
     given a list of errors, follow each one recursively through its context
     and get the simplest cause for error. store the error in a defaultdict
@@ -1566,18 +1675,36 @@ def assemble_validation_errors(
     will often return the entire object followed by 'is not valid under any
     of the given schemas' which isn't helpful.
 
-    `_forced` is a private fallback. Callers (Record.validate) must keep the
-    two-argument form. After an unforced context walk records nothing, we
-    re-walk forced so a same-path type error is reported vaguely instead of
-    silently. A walk that already recorded a specific cause is left alone.
+    pass `messages` to accumulate across calls; the formatted list is returned
+    either way.
     """
 
     if messages is None:
         # {'$.distribution[2].title' = ["'' should be non-empty", etc...]}
         messages = defaultdict(list)
 
+    _collect_validation_messages(validation_errors, messages, forced=False)
+    return finalize_validation_messages(messages)
+
+
+def _collect_validation_messages(
+    validation_errors: list, messages: defaultdict, *, forced: bool
+) -> int:
+    """
+    fill `messages` and return how many were appended, nested walks included.
+    Formatting is the caller's job; doing it on every recursive return, like
+    re-counting the dict, made this quadratic in the number of errors.
+
+    `forced` is a last-resort fallback. After an unforced context walk records
+    nothing, we re-walk forced so a same-path type error is reported vaguely
+    instead of silently. A walk that already recorded a specific cause is left
+    alone.
+    """
+
+    recorded = 0
+
     for error in validation_errors:
-        if found_simple_message(error, forced=_forced):
+        if found_simple_message(error, forced=forced):
             # these aren't specific enough which make them unhelpful
             generic_msg = "is not valid under any of the given schemas"
             is_generic_msg = error.message.endswith(generic_msg)
@@ -1605,17 +1732,22 @@ def assemble_validation_errors(
                 and formatted_message not in messages[error.json_path]
             ):
                 messages[error.json_path].append(formatted_message)
+                recorded += 1
 
         # Prefer a specific cause in context before falling back.
-        recorded_before = _count_messages(messages)
-        assemble_validation_errors(error.context, messages)
+        from_context = _collect_validation_messages(
+            error.context, messages, forced=False
+        )
+        recorded += from_context
 
         # Nothing recorded: re-walk forced so the defect is not dropped.
-        # `_forced` only flips `type` errors, which have no context to recurse.
-        if error.context and _count_messages(messages) == recorded_before:
-            assemble_validation_errors(error.context, messages, _forced=True)
+        # `forced` only flips `type` errors, which have no context to recurse.
+        if error.context and from_context == 0:
+            recorded += _collect_validation_messages(
+                error.context, messages, forced=True
+            )
 
-    return finalize_validation_messages(messages)
+    return recorded
 
 
 def is_valid_uuid4(uuid_string) -> bool:
@@ -1647,7 +1779,15 @@ def build_dcatus3_validator(
     """
     registry = Registry()
 
-    for schema_file in definitions_dir.glob("*.json"):
+    schema_files = sorted(definitions_dir.glob("*.json"))
+    if not schema_files:
+        raise FileNotFoundError(
+            f"no JSON Schema definitions found in {definitions_dir}. "
+            "DCAT-US 3.0 definitions come from the GSA/dcat-us git submodule; "
+            "run `git submodule update --init _external/dcat-us`."
+        )
+
+    for schema_file in schema_files:
         schema = open_json(schema_file)
         registry = registry.with_resource(
             uri=schema["$id"],

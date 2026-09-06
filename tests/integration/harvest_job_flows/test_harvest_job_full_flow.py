@@ -365,6 +365,57 @@ class TestHarvestJobFullFlow:
         )
 
     @patch("harvester.harvest.HarvestSource.send_notification_emails")
+    def test_harvest_dcatus1_1_ispartof_persists_parent(
+        self,
+        send_notification_emails_mock: MagicMock,
+        interface,
+        organization_data,
+        source_data_dcatus1_1_ispartof,
+    ):
+        """AC: a DCAT-US 1.1 dataset's "isPartOf" field is read as its
+        parent_identifier, the same way DCAT-US 3.0 series/service
+        membership is."""
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_dcatus1_1_ispartof)
+        harvest_job = interface.add_harvest_job(
+            {
+                "status": "new",
+                "harvest_source_id": source_data_dcatus1_1_ispartof["id"],
+            }
+        )
+
+        job_id = harvest_job.id
+        harvest_job_starter(job_id, "harvest")
+
+        harvest_job = interface.get_harvest_job(job_id)
+        assert harvest_job.status == "complete"
+        assert harvest_job.records_added == 2
+
+        records = (
+            interface.db.query(HarvestRecord)
+            .filter(
+                HarvestRecord.harvest_source_id == source_data_dcatus1_1_ispartof["id"]
+            )
+            .all()
+        )
+        assert len(records) == 2
+
+        child_record = next(
+            r
+            for r in records
+            if r.identifier == "https://example.gov/datasets/annual-report-2024"
+        )
+        parent_record = next(
+            r
+            for r in records
+            if r.identifier == "https://example.gov/collections/annual-report"
+        )
+        assert child_record.parent_identifier == (
+            "https://example.gov/collections/annual-report"
+        )
+        assert parent_record.parent_identifier is None
+
+    @patch("harvester.harvest.HarvestSource.send_notification_emails")
     def test_multiple_harvest_jobs(
         self,
         send_notification_emails_mock: MagicMock,
@@ -600,18 +651,18 @@ class TestHarvestJobFullFlow:
         assert len(harvest_job.record_errors) == 4
         assert harvest_job.records_errored == 4
 
+        collection_parent_url = source_data_waf_collection["collection_parent_url"]
         for record in harvest_job.records:
             if record.status == "success":
-                assert (
-                    record.parent_identifier
-                    == source_data_waf_collection["collection_parent_url"]
-                )
+                if record.identifier == collection_parent_url:
+                    # the collection root itself has no parent
+                    assert record.parent_identifier is None
+                    continue
+
+                assert record.parent_identifier == collection_parent_url
 
                 # make sure the parent url is in the transformed dcat data in the dataset
-                assert (
-                    record.dataset.dcat["isPartOf"]
-                    == source_data_waf_collection["collection_parent_url"]
-                )
+                assert record.dataset.dcat["isPartOf"] == collection_parent_url
         # call on error
         assert send_notification_emails_mock.called
 
@@ -828,6 +879,56 @@ class TestHarvestJobFullFlow:
         # is_error=False keeps the record out of "error" status, and this
         # non-fatal spatial issue is stored as a warning.
         assert harvest_job.record_errors[0].severity == "warning"
+
+        # notification email was sent (configured to "always")
+        assert send_notification_emails_mock.called
+        # the record was added as intended (not errored)
+        assert send_notification_emails_mock.call_args.args[0]["records_added"] == 1
+
+    @patch("harvester.harvest.HarvestSource.send_notification_emails")
+    def test_can_translate_wkt_spatial(
+        self,
+        send_notification_emails_mock: MagicMock,
+        interface,
+        organization_data,
+        source_data_dcatus_wkt_spatial,
+    ):
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_dcatus_wkt_spatial)
+        harvest_job = interface.add_harvest_job(
+            {
+                "status": "new",
+                "harvest_source_id": source_data_dcatus_wkt_spatial["id"],
+            }
+        )
+
+        job_id = harvest_job.id
+        harvest_job_starter(job_id, "harvest")
+
+        harvest_job = interface.get_harvest_job(job_id)
+
+        latest_records = interface.get_latest_harvest_records_by_source(
+            source_data_dcatus_wkt_spatial["id"]
+        )
+        assert len(latest_records) == 1
+
+        # a WKT spatial value should translate cleanly, with no warning raised
+        assert harvest_job.record_errors == []
+
+        datasets = interface.db.query(Dataset).all()
+        assert len(datasets) == 1
+        assert datasets[0].translated_spatial == {
+            "type": "Polygon",
+            "coordinates": [
+                [
+                    [-125.0, 24.0],
+                    [-66.0, 24.0],
+                    [-66.0, 50.0],
+                    [-125.0, 50.0],
+                    [-125.0, 24.0],
+                ]
+            ],
+        }
 
         # notification email was sent (configured to "always")
         assert send_notification_emails_mock.called

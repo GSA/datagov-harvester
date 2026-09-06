@@ -266,3 +266,14 @@ def downgrade():
 
     op.drop_table("harvest_user")
     # ### end Alembic commands ###
+
+    # drop_table doesn't drop the postgres ENUM types the columns depended on,
+    # so a re-upgrade after this downgrade fails with "type already exists"
+    bind = op.get_bind()
+    sa.Enum(name="record_status").drop(bind, checkfirst=True)
+    sa.Enum(name="record_action").drop(bind, checkfirst=True)
+    sa.Enum(name="job_status").drop(bind, checkfirst=True)
+    sa.Enum(name="notification_frequency").drop(bind, checkfirst=True)
+    sa.Enum(name="source_type").drop(bind, checkfirst=True)
+    sa.Enum(name="schema_type").drop(bind, checkfirst=True)
+    sa.Enum(name="frequency").drop(bind, checkfirst=True)

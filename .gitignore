@@ -21,6 +21,7 @@ tmp/
 # env
 .env.secret
 requirements.txt
+requirements-dev.txt
 
 # vscode debugger
 .vscode/*

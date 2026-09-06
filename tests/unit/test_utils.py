@@ -1,9 +1,9 @@
 import http
+import itertools
 import json
 import logging
 import time
 from datetime import datetime
-from pathlib import Path
 from unittest.mock import Mock, call, patch
 
 import pytest
@@ -14,6 +14,7 @@ from requests.exceptions import ConnectionError
 
 from database.interface import HarvesterDBInterface
 from database.models import HarvestSource
+from harvester.utils import general_utils
 from harvester.utils.general_utils import (
     DT_PLACEHOLDER,
     USER_AGENT,
@@ -40,34 +41,29 @@ from harvester.utils.general_utils import (
     prepare_distributions,
     prepare_transform_msg,
     process_job_complete_percentage,
+    sort_dataset,
     strip_dcatus3_catalog_objects,
     translate_spatial,
     translate_spatial_to_geojson,
+    translate_wkt_to_geojson,
     validate_geojson,
+)
+from harvester.utils.schema_paths import (
+    DCATUS3_COMPLETE_EXAMPLE,
+    DCATUS3_DEFINITIONS_DIR,
 )
 
 # Real DCAT-US 3.0 validator, used to reproduce assembler errors on the
 # complete example.
-DCATUS3_ROOT_DIR = Path(__file__).parents[2]
-DCATUS3_DEFINITIONS = DCATUS3_ROOT_DIR / "schemas" / "dcatus3.0" / "definitions"
-DCATUS3_COMPLETE_EXAMPLE_PATH = (
-    DCATUS3_ROOT_DIR
-    / "schemas"
-    / "dcatus3.0"
-    / "examples"
-    / "Dataset"
-    / "good"
-    / "complete_example.json"
-)
 DCATUS3_DATASET_VALIDATOR = build_dcatus3_validator(
-    DCATUS3_DEFINITIONS,
+    DCATUS3_DEFINITIONS_DIR,
     root_ref="https://resources.data.gov/dcat-us/3.0.0/definitions/dataset",
 )
 
 
 @pytest.fixture
 def dcatus3_complete_example():
-    with open(DCATUS3_COMPLETE_EXAMPLE_PATH) as f:
+    with open(DCATUS3_COMPLETE_EXAMPLE) as f:
         return json.load(f)
 
 
@@ -236,6 +232,164 @@ class TestCKANUtils:
             "coordinates": [-88.9718, 36.52033],
         }
 
+    def test_translate_wkt_to_geojson_polygon(self):
+        assert translate_wkt_to_geojson(
+            "POLYGON((-125 24, -66 24, -66 50, -125 50, -125 24))"
+        ) == (
+            '{"type": "Polygon", "coordinates": '
+            "[[[-125.0, 24.0], [-66.0, 24.0], [-66.0, 50.0], "
+            "[-125.0, 50.0], [-125.0, 24.0]]]}"
+        )
+
+    def test_translate_wkt_to_geojson_point(self):
+        assert (
+            translate_wkt_to_geojson("POINT (0.0 0.0)")
+            == '{"type": "Point", "coordinates": [0.0, 0.0]}'
+        )
+
+    def test_translate_wkt_to_geojson_case_insensitive(self):
+        assert translate_wkt_to_geojson(
+            "polygon((-125 24, -66 24, -66 50, -125 50, -125 24))"
+        ) == (
+            '{"type": "Polygon", "coordinates": '
+            "[[[-125.0, 24.0], [-66.0, 24.0], [-66.0, 50.0], "
+            "[-125.0, 50.0], [-125.0, 24.0]]]}"
+        )
+
+    def test_translate_wkt_to_geojson_z_dimension_is_dropped(self):
+        # GeoJSON is 2D; a Z/M dimension must be dropped rather than left
+        # in place for geojson_validator to reject as "3d_coordinates".
+        assert translate_wkt_to_geojson(
+            "POLYGON Z ((-125 24 0, -66 24 0, -66 50 0, -125 50 0, -125 24 0))"
+        ) == (
+            '{"type": "Polygon", "coordinates": '
+            "[[[-125.0, 24.0], [-66.0, 24.0], [-66.0, 50.0], "
+            "[-125.0, 50.0], [-125.0, 24.0]]]}"
+        )
+
+    def test_translate_wkt_to_geojson_non_wkt_string(self):
+        assert translate_wkt_to_geojson("somewhere over there") == ""
+
+    def test_translate_wkt_to_geojson_place_name_not_mistaken_for_wkt(self):
+        # A real place name that starts with a WKT keyword word must not be
+        # treated as WKT -- the geometry-type token alone isn't enough, it
+        # must be followed by "(" (optionally after a Z/M/ZM marker).
+        assert translate_wkt_to_geojson("Point Pleasant, New Jersey") == ""
+
+    def test_translate_wkt_to_geojson_empty_geometry(self):
+        # WKT "EMPTY" geometries carry no coordinates; they must not be
+        # mistaken for a valid, resolvable geometry.
+        assert translate_wkt_to_geojson("POINT EMPTY") == ""
+
+    def test_translate_wkt_to_geojson_malformed_wkt(self):
+        # Looks like WKT (has the "POLYGON" prefix) but isn't parseable.
+        assert translate_wkt_to_geojson("POLYGON((not valid))") == ""
+
+    def test_translate_spatial_to_geojson_wkt_polygon(self):
+        geojson = translate_spatial_to_geojson(
+            "POLYGON((-125 24, -66 24, -66 50, -125 50, -125 24))"
+        )
+        assert geojson == {
+            "type": "Polygon",
+            "coordinates": [
+                [
+                    [-125.0, 24.0],
+                    [-66.0, 24.0],
+                    [-66.0, 50.0],
+                    [-125.0, 50.0],
+                    [-125.0, 24.0],
+                ]
+            ],
+        }
+
+    def test_translate_spatial_wkt_point(self):
+        assert translate_spatial("POINT (0.0 0.0)") == (
+            '{"type": "Point", "coordinates": [0.0, 0.0]}'
+        )
+
+    def test_translate_spatial_location_object_wkt_geometry(self):
+        location = {
+            "@id": "https://example.gov/locations/usa",
+            "@type": "Location",
+            "geometry": "POLYGON((-125 24, -66 24, -66 50, -125 50, -125 24))",
+        }
+        assert translate_spatial(location) == (
+            '{"type": "Polygon", "coordinates": '
+            "[[[-125.0, 24.0], [-66.0, 24.0], [-66.0, 50.0], "
+            "[-125.0, 50.0], [-125.0, 24.0]]]}"
+        )
+
+    def test_translate_spatial_location_object_geojson_geometry(self):
+        location = {
+            "@type": "Location",
+            "geometry": {"type": "Point", "coordinates": [-77.0369, 38.9072]},
+        }
+        assert translate_spatial(location) == (
+            '{"type": "Point", "coordinates": [-77.0369, 38.9072]}'
+        )
+
+    def test_translate_spatial_location_array_uses_first(self):
+        locations = [
+            {"@type": "Location", "geometry": "POINT (0.0 0.0)"},
+            {"@type": "Location", "geometry": "POINT (1.0 1.0)"},
+        ]
+        assert translate_spatial(locations) == (
+            '{"type": "Point", "coordinates": [0.0, 0.0]}'
+        )
+
+    def test_translate_spatial_location_falls_back_to_bbox(self):
+        location = {
+            "@type": "Location",
+            "bbox": {
+                "type": "Polygon",
+                "coordinates": [
+                    [
+                        [-77.119759, 38.791645],
+                        [-76.909393, 38.791645],
+                        [-76.909393, 38.99538],
+                        [-77.119759, 38.99538],
+                        [-77.119759, 38.791645],
+                    ]
+                ],
+            },
+        }
+        geojson = translate_spatial_to_geojson(location)
+        assert geojson["type"] == "Polygon"
+
+    def test_translate_spatial_location_falls_back_to_centroid(self):
+        location = {
+            "@type": "Location",
+            "centroid": {"type": "Point", "coordinates": [-77.0369, 38.9072]},
+        }
+        assert translate_spatial(location) == (
+            '{"type": "Point", "coordinates": [-77.0369, 38.9072]}'
+        )
+
+    def test_translate_spatial_location_with_no_geometry_fields(self):
+        location = {"@type": "Location", "prefLabel": "Washington, D.C."}
+        assert translate_spatial(location) == ""
+        assert translate_spatial_to_geojson(location) is None
+
+    def test_translate_spatial_location_input_unchanged(self):
+        location = {
+            "@type": "Location",
+            "geometry": "POLYGON((-125 24, -66 24, -66 50, -125 50, -125 24))",
+        }
+        original = json.loads(json.dumps(location))
+        translate_spatial(location)
+        assert location == original
+
+    def test_translate_spatial_bare_geojson_dict_unaffected_by_unwrap(self):
+        assert translate_spatial({"type": "Point", "coordinates": [-55.1, 37.2]}) == (
+            '{"type": "Point", "coordinates": [-55.1, 37.2]}'
+        )
+
+    def test_translate_spatial_dcatus3_complete_example_spatial(
+        self, dcatus3_complete_example
+    ):
+        geojson = translate_spatial_to_geojson(dcatus3_complete_example["spatial"])
+        assert geojson["type"] == "Polygon"
+
 
 # Point example
 # "{\"type\": \"Point\", \"coordinates\": [-87.08258, 24.9579]}"
@@ -276,8 +430,8 @@ class TestGeneralUtils:
         """Test that the default waf datetime is now / the time of program execution"""
 
         page_html = """<html><body><pre>
-          <a href="file1.xml">file1.xml</a>   12K  
-          <a href="file2.xml">file2.xml</a>   12K  
+          <a href="file1.xml">file1.xml</a>   12K
+          <a href="file2.xml">file2.xml</a>   12K
           </pre></body></html>"""
 
         soup = BeautifulSoup(page_html)
@@ -570,6 +724,66 @@ class TestGeneralUtils:
             "$.spatial[0].centroid.coordinates, array value does not match "
             "any of the acceptable formats: min 2 items"
         )
+
+    def test_assemble_validation_messages_formats_the_result_once(
+        self, dcatus3_complete_example
+    ):
+        """
+        Formatting on every recursive return repeated the same work and made the
+        assembler quadratic. (GSA/data.gov#6067)
+        """
+        dcatus3_complete_example["spatialResolutionInMeters"] = ["bad"]
+        del dcatus3_complete_example["title"]
+
+        with patch(
+            "harvester.utils.general_utils.finalize_validation_messages",
+            wraps=general_utils.finalize_validation_messages,
+        ) as finalize:
+            errors = assemble_validation_errors(
+                DCATUS3_DATASET_VALIDATOR.iter_errors(dcatus3_complete_example)
+            )
+
+        # the input recurses through anyOf context, so this is >1 without the fix
+        assert finalize.call_count == 1
+        assert len(errors) == 2
+
+    def test_assemble_validation_messages_scales_linearly_with_dataset_count(self):
+        """
+        A 3.0 catalog is assembled in one call, so the message dict grew with the
+        dataset count and the per-error work grew with it, on a catalog well under
+        the upload limit. 27s before the fix, 0.02s after on a dev laptop. 2s is
+        deliberately loose: it catches the quadratic coming back, not a small
+        regression.
+        """
+        count = 4000
+        catalog = {
+            "@type": "Catalog",
+            "title": "Assembler scaling",
+            "description": "Every dataset is missing its identifier.",
+            "dataset": [
+                {
+                    "@type": "Dataset",
+                    "title": "Example Dataset",
+                    "description": "A dataset with no identifier.",
+                    "contactPoint": {
+                        "fn": "Support",
+                        "hasEmail": "mailto:support@example.gov",
+                    },
+                    "publisher": {"name": "Example Org"},
+                }
+                for _ in range(count)
+            ],
+        }
+        validator = build_dcatus3_validator(DCATUS3_DEFINITIONS_DIR)
+        validation_errors = list(validator.iter_errors(catalog))
+
+        start = time.perf_counter()
+        errors = assemble_validation_errors(iter(validation_errors))
+        elapsed = time.perf_counter() - start
+
+        # one "'identifier' is a required property" per dataset, all still found
+        assert len(errors) == count
+        assert elapsed < 2, f"assembling {count} errors took {elapsed:.1f}s"
 
     def test_find_indexes_for_duplicates(self):
         data = [
@@ -905,6 +1119,167 @@ class TestGeneralUtils:
 
         # the mediatype isn't in RESOURCE_MAPPING so format shouldn't exist
         "format" not in prepared_dcatus_doc["distribution"][-1]
+
+
+class TestSortDataset:
+    def test_sort_is_deterministic_regardless_of_key_and_list_order(self):
+        a = {
+            "identifier": "a",
+            "keyword": ["b", "a"],
+            "distribution": [{"title": "two"}, {"title": "one"}],
+        }
+        b = {
+            "distribution": [{"title": "one"}, {"title": "two"}],
+            "keyword": ["a", "b"],
+            "identifier": "a",
+        }
+
+        # dict equality ignores key order, but json.dumps (what harvest.py
+        # actually hashes) does not -- compare the serialized form so this
+        # test would fail if dict keys weren't also being sorted.
+        assert json.dumps(sort_dataset(a)) == json.dumps(sort_dataset(b))
+
+    def test_sort_handles_nested_dict_values_that_cannot_be_ordered(self):
+        """
+        regression test for https://github.com/GSA/data.gov/issues/5450
+
+        harvested records can carry vendor-specific fields (e.g. ArcGIS's
+        "metadata" field) whose list elements are dicts sharing a first key
+        with dict-valued, unequal values. python can't order dicts with
+        `<`/`>`, which crashed the third-party sansjson library this
+        function used to delegate to.
+        """
+        record = {
+            "identifier": "https://www.arcgis.com/home/item.html?id=bd1b6ee9",
+            "metadata": {
+                "mdContact": {"rpCntInfo": {"cntAddress": {"city": "Washington"}}},
+                "spatRepInfo": {"VectSpatRep": {"geometObjs": {"geoObjCnt": 5}}},
+            },
+            "fields": [
+                {"name": "A", "domain": {"codedValues": [{"code": "US"}]}},
+                {"name": "B", "domain": {"codedValues": [{"code": "CA"}]}},
+            ],
+        }
+
+        sorted_record = sort_dataset(record)  # should not raise
+
+        assert (
+            sorted_record["metadata"]["mdContact"]["rpCntInfo"]["cntAddress"]["city"]
+            == "Washington"
+        )
+        assert {f["name"] for f in sorted_record["fields"]} == {"A", "B"}
+
+    def test_sort_orders_dict_keys_alphabetically(self):
+        assert list(sort_dataset({"b": 1, "a": 2}).keys()) == ["a", "b"]
+
+    def test_sort_recurses_into_dict_elements_of_a_list(self):
+        record = {"distribution": [{"z": 1, "a": 2}]}
+
+        assert list(sort_dataset(record)["distribution"][0].keys()) == ["a", "z"]
+
+    def test_sort_orders_numeric_lists_by_value_not_json_string(self):
+        # "10" sorts before "2" as a json/string value, but should not here
+        assert sort_dataset([2, 10, 1]) == [1, 2, 10]
+
+    def test_sort_orders_string_lists_naturally(self):
+        # a naive `key=lambda i: json.dumps(i)` sorts "food safety" before
+        # "food", because a quote (0x22) sorts after a space (0x20) --
+        # breaking hash stability for the common "keyword"/"keyword extra"
+        # pattern in harvested keyword lists.
+        assert sort_dataset(["food safety", "food", "foodborne"]) == [
+            "food",
+            "food safety",
+            "foodborne",
+        ]
+
+    def test_sort_does_not_reorder_a_linestring(self):
+        """
+        an array of arrays is positional geometry, not an unordered
+        collection -- reordering it moves vertices. this is the depth-2
+        shape `spatial.coordinates` takes for a GeoJSON LineString, which
+        federal_dataset.json permits as "array of array of number".
+        """
+        line = [[10.0, 1.0], [2.0, 3.0], [-5.0, 4.0]]
+
+        assert sort_dataset({"coordinates": line})["coordinates"] == line
+
+    def test_sort_keeps_a_polygon_ring_closed(self):
+        ring = [
+            [-77.119759, 38.791645],
+            [-76.909393, 38.791645],
+            [-76.909393, 38.99538],
+            [-77.119759, 38.99538],
+            [-77.119759, 38.791645],
+        ]
+
+        sorted_ring = sort_dataset({"coordinates": [ring]})["coordinates"][0]
+
+        assert sorted_ring == ring
+        assert sorted_ring[0] == sorted_ring[-1], "ring must stay closed"
+
+    def test_sort_canonicalizes_dict_keys_inside_a_nested_list(self):
+        """
+        preserving a positional list's element order must not stop dict keys
+        nested inside it from being canonicalized -- otherwise that subtree
+        hashes differently depending on source key order, defeating the
+        point of the function.
+        """
+        a = sort_dataset({"x": [[{"z": 1, "a": 2}]]})
+        b = sort_dataset({"x": [[{"a": 2, "z": 1}]]})
+
+        assert json.dumps(a) == json.dumps(b)
+        assert list(a["x"][0][0].keys()) == ["a", "z"]
+
+    @pytest.mark.parametrize(
+        "elements",
+        [
+            # `isinstance(True, int)` is True in python, so a bool must be
+            # ranked before the numeric check -- otherwise True and 1 compare
+            # equal, the sort is left to input order, and the same content
+            # hashes two different ways.
+            [True, 1],
+            [False, 0],
+            # a list mixing every json type must not attempt an unsupported
+            # comparison between types, and must land in one stable order
+            [None, 3, "a", True, 1.5, {"x": 1}, [1, 2]],
+        ],
+    )
+    def test_sort_of_mixed_type_list_is_stable_across_input_orders(self, elements):
+        outputs = {
+            json.dumps(sort_dataset(list(permutation)))
+            for permutation in itertools.permutations(elements)
+        }
+
+        assert len(outputs) == 1, f"ordering depends on input order: {outputs}"
+
+    def test_canonical_form_is_pinned(self):
+        """
+        the absolute canonical form, not just its stability. every stored
+        source_hash depends on it, so a change to the sort key or type ranks
+        silently invalidates every hash in the database -- this pins the
+        output so that change has to be deliberate.
+        """
+        record = {
+            "identifier": "golden",
+            "keyword": ["b", "a and more", "a"],
+            "distribution": [{"title": "two", "x": 1}, {"title": "one"}],
+            "spatial": {
+                "type": "LineString",
+                "coordinates": [[10.0, 1.0], [2.0, 3.0]],
+            },
+            # one of every json type, so the relative order of the type
+            # ranks is pinned too, not just the values within a rank
+            "mixed": [None, 3, "a", True, 1.5, {"k": 1}, [1, 2]],
+        }
+
+        assert json.dumps(sort_dataset(record)) == (
+            '{"distribution": [{"title": "one"}, {"title": "two", "x": 1}], '
+            '"identifier": "golden", '
+            '"keyword": ["a", "a and more", "b"], '
+            '"mixed": [null, true, 1.5, 3, "a", [1, 2], {"k": 1}], '
+            '"spatial": {"coordinates": [[10.0, 1.0], [2.0, 3.0]], '
+            '"type": "LineString"}}'
+        )
 
 
 class TestDcatus3Catalog:

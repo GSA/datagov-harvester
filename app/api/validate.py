@@ -8,7 +8,12 @@ from app.api_schemas import (
     ValidatorInfo,
 )
 from app.deps import logger
-from app.util import fetch_json_from_url, validate_records
+from app.util import (
+    NESTING_TOO_DEEP_MESSAGE,
+    CatalogTooDeeplyNested,
+    fetch_json_from_url,
+    validate_records,
+)
 
 from . import api
 
@@ -20,6 +25,10 @@ from . import api
     summary="Validate a DCAT catalog against a v1.1 or v3.0 schema",
     description="Downloads or parses a DCATUS catalog and validates each dataset.",
     responses={
+        422: {
+            "description": "Catalog cannot be walked, e.g. nested too deeply",
+            "content": {"application/json": {"schema": ValidationErrorResponseSchema}},
+        },
         500: {
             "description": "Failed to download or process the catalog",
             "content": {"application/json": {"schema": ValidationErrorResponseSchema}},
@@ -45,6 +54,12 @@ def validator(json_data):
             json_data["schema"],
             len(errors),
         )
+    except CatalogTooDeeplyNested as e:
+        # the submitter can act on this one, so say what it was. Respond with the
+        # constant rather than `str(e)` so nothing from the exception reaches the
+        # client (CodeQL py/stack-trace-exposure).
+        logger.warning(f"API Validator could not walk the document :: {repr(e)}")
+        return make_response(jsonify({"error": NESTING_TOO_DEEP_MESSAGE}), 422)
     except Exception as e:
         logger.error(f"API Validator error :: {repr(e)}")
         return make_response(

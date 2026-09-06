@@ -1,4 +1,4 @@
-FROM python:3.12.13-alpine3.22
+FROM python:3.12.14-alpine3.23
 
 # Pull the latest patched packages from the base distro.
 RUN apk upgrade --no-cache

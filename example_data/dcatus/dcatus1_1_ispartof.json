@@ -1,0 +1,54 @@
+{
+  "@context": "https://project-open-data.cio.gov/v1.1/schema/catalog.jsonld",
+  "@id": "https://example.gov/data.json",
+  "@type": "dcat:Catalog",
+  "conformsTo": "https://project-open-data.cio.gov/v1.1/schema",
+  "describedBy": "https://project-open-data.cio.gov/v1.1/schema/catalog.json",
+  "dataset": [
+    {
+      "accessLevel": "public",
+      "bureauCode": ["000:00"],
+      "contactPoint": {
+        "fn": "Test Contact",
+        "hasEmail": "mailto:collection@example.gov"
+      },
+      "description": "The collection of annual report datasets.",
+      "distribution": [
+        {
+          "accessURL": "https://example.gov/collections/annual-report"
+        }
+      ],
+      "identifier": "https://example.gov/collections/annual-report",
+      "keyword": ["annual report"],
+      "modified": "R/P1Y",
+      "programCode": ["000:000"],
+      "publisher": {
+        "name": "Test Agency"
+      },
+      "title": "Annual Report Collection"
+    },
+    {
+      "accessLevel": "public",
+      "bureauCode": ["000:00"],
+      "contactPoint": {
+        "fn": "Test Contact",
+        "hasEmail": "mailto:collection@example.gov"
+      },
+      "description": "The 2024 annual report dataset, part of the annual report collection.",
+      "distribution": [
+        {
+          "accessURL": "https://example.gov/datasets/annual-report-2024"
+        }
+      ],
+      "identifier": "https://example.gov/datasets/annual-report-2024",
+      "isPartOf": "https://example.gov/collections/annual-report",
+      "keyword": ["annual report"],
+      "modified": "2024-01-01",
+      "programCode": ["000:000"],
+      "publisher": {
+        "name": "Test Agency"
+      },
+      "title": "Annual Report 2024"
+    }
+  ]
+}

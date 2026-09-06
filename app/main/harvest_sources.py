@@ -175,10 +175,8 @@ def view_harvest_source(source_id: str):
             summary_data["last_job_errors"] = last_job_error_count
             summary_data["last_job_finished"] = last_job.date_finished
 
-        future_jobs = deps.db.get_new_harvest_jobs_by_source_in_future(source_id)
-
-        if future_jobs:
-            summary_data["next_job_scheduled"] = future_jobs[0].date_created
+        source = deps.db.get_harvest_source(source_id)
+        summary_data["next_job_scheduled"] = source.date_next_run if source else None
 
         chart_data_values = dynamic_map_list_items_to_dict(
             deps.db._to_dict(jobs[::-1]),
@@ -233,7 +231,6 @@ def view_harvest_source(source_id: str):
                 },
             ],
         }
-        source = deps.db.get_harvest_source(source_id)
         datasets_page = request.args.get("datasets_page", 1, type=convert_to_int)
         datasets_count = deps.db.get_datasets_by_source(source_id=source_id, count=True)
         datasets_pagination = Pagination(
@@ -345,10 +342,13 @@ def edit_harvest_source(source_id: str):
             form = HarvestSourceForm(data=source_data)
             form.organization_id.choices = organization_choices
             if form.validate_on_submit():
+                old_frequency = source.frequency
                 new_source_data = make_new_source_contract(form)
                 source = deps.db.update_harvest_source(source_id, new_source_data)
-                job_message = deps.load_manager.schedule_first_job(source.id)
-                if source and job_message:
+                job_message = ""
+                if source and source.frequency != old_frequency:
+                    job_message = deps.load_manager.reschedule_next_run(source.id)
+                if source:
                     _log_mutation(
                         "edit",
                         "harvest_source",
