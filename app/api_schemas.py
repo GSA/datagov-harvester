@@ -113,6 +113,22 @@ class OrgCreate(Schema):
             if not (value.startswith("http://") or value.startswith("https://")):
                 raise ValidationError("URL must start with http:// or https://")
 
+    @marshmallow.post_load
+    def unwrap_organization_type(self, data, **kwargs):
+        """Return the organization type as the plain string.
+
+        The Enum field deserializes to the enum member, but
+        Organization.organization_type is declared with the values
+        themselves, so the member reaches the insert as
+        "OrganizationType.Non-Profit" and Postgres rejects it. _to_enum
+        builds these with the name and the value the same, so the value is
+        exactly what came in.
+        """
+        organization_type = data.get("organization_type")
+        if isinstance(organization_type, PyEnum):
+            data["organization_type"] = organization_type.value
+        return data
+
 
 class OrgInfo(OrgCreate):
     id = UUID(required=True)
