@@ -4,7 +4,7 @@ cap on the hosted /validate page (app/constants.py MAX_UPLOAD_MB).
 
 Usage (run inside the app container):
     docker compose exec app python3 scripts/validate_catalog/validate_catalog.py \
-        <url> [schema]
+        <url> [--schema SCHEMA] [--output FILE]
 
 schema is one of:
     "dcatus3.0 catalog" (default)
@@ -12,6 +12,7 @@ schema is one of:
     "dcatus1.1: non-federal dataset"
 """
 
+import argparse
 import sys
 
 import requests
@@ -21,24 +22,42 @@ from app.util import validate_records
 DEFAULT_SCHEMA = "dcatus3.0 catalog"
 
 
+def parse_args():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("url", help="URL of the DCAT-US catalog to validate")
+    parser.add_argument(
+        "--schema",
+        default=DEFAULT_SCHEMA,
+        help=f"Schema to validate against (default: {DEFAULT_SCHEMA!r})",
+    )
+    parser.add_argument(
+        "-o",
+        "--output",
+        help="Write the full error list to this file instead of stdout",
+    )
+    return parser.parse_args()
+
+
 def main():
-    if len(sys.argv) < 2:
-        print(f"Usage: {sys.argv[0]} <url> [schema]")
-        sys.exit(1)
+    args = parse_args()
 
-    url = sys.argv[1]
-    schema = sys.argv[2] if len(sys.argv) > 2 else DEFAULT_SCHEMA
-
-    resp = requests.get(url, timeout=60)
+    resp = requests.get(args.url, timeout=60)
     resp.raise_for_status()
     data = resp.json()
 
     print(f"dataset count: {len(data.get('dataset', []))}")
 
-    errors = validate_records(data, schema)
+    errors = validate_records(data, args.schema)
     print(f"total validation errors: {len(errors)}")
-    for identifier, err in errors:
-        print(identifier, "::", err)
+
+    lines = [f"{identifier} :: {err}" for identifier, err in errors]
+    if args.output:
+        with open(args.output, "w") as f:
+            f.write("\n".join(lines) + "\n")
+        print(f"wrote {len(errors)} errors to {args.output}")
+    else:
+        for line in lines:
+            print(line)
 
     sys.exit(0 if not errors else 1)
 
