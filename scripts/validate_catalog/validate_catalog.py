@@ -13,6 +13,7 @@ schema is one of:
 """
 
 import argparse
+import os
 import sys
 
 import requests
@@ -20,6 +21,7 @@ import requests
 from app.util import validate_records
 
 DEFAULT_SCHEMA = "dcatus3.0 catalog"
+DEFAULT_OUTPUT_PATH = os.path.join(os.path.dirname(__file__), "output", "errors.txt")
 
 
 def parse_args():
@@ -33,7 +35,14 @@ def parse_args():
     parser.add_argument(
         "-o",
         "--output",
-        help="Write the full error list to this file instead of stdout",
+        nargs="?",
+        const=DEFAULT_OUTPUT_PATH,
+        default=None,
+        help=(
+            "Write the full error list to this file instead of stdout. "
+            f"Defaults to {DEFAULT_OUTPUT_PATH!r} if given with no path. "
+            "Overwrites the file if it already exists."
+        ),
     )
     return parser.parse_args()
 
@@ -52,6 +61,7 @@ def main():
 
     lines = [f"{identifier} :: {err}" for identifier, err in errors]
     if args.output:
+        os.makedirs(os.path.dirname(args.output) or ".", exist_ok=True)
         with open(args.output, "w") as f:
             f.write("\n".join(lines) + "\n")
         print(f"wrote {len(errors)} errors to {args.output}")

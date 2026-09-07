@@ -14,14 +14,16 @@ docker compose exec app python3 scripts/validate_catalog/validate_catalog.py <ur
 `"dcatus1.1: federal dataset"`, `"dcatus1.1: non-federal dataset"`.
 
 `--output`/`-o` writes the full error list to a file instead of the
-terminal; the dataset/error counts still print either way. Use a path
-under the repo (the container's `/app`) rather than `/tmp`, since only the
-repo directory is mounted from the host.
+terminal; the dataset/error counts still print either way. Overwrites the
+file on each run. Given with no path, it defaults to
+`scripts/validate_catalog/output/errors.txt` (gitignored, so it never shows
+up as a change). Use a path under the repo rather than `/tmp`, since only
+the repo directory is mounted from the host into the container.
 
 Example:
 
 ```
 docker compose exec app python3 scripts/validate_catalog/validate_catalog.py \
   https://gis-kingcounty.opendata.arcgis.com/api/feed/dcat-us/3.0.json \
-  --output king-county-errors.txt
+  --output
 ```
