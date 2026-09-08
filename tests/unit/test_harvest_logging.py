@@ -1,10 +1,7 @@
 import logging
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import Mock, patch
 
-import pytest
-from sqlalchemy.exc import IntegrityError
-
-from harvester.harvest import HarvestSource, Record
+from harvester.harvest import Record
 
 
 class TestValidationLogging:
@@ -218,7 +215,8 @@ class TestWarningLogging:
             slug = "test-dataset"
 
             logger.warning(
-                "OpenSearch client not configured; skipping indexing for dataset (slug: %s)",
+                "OpenSearch client not configured; skipping indexing for "
+                "dataset (slug: %s)",
                 slug,
             )
 
