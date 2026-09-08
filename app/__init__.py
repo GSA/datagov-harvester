@@ -14,7 +14,7 @@ from flask_talisman import Talisman
 from werkzeug.exceptions import RequestEntityTooLarge
 
 from app.constants import MAX_UPLOAD_BYTES, MAX_UPLOAD_MB
-from app.filters import else_na, humanize, usa_icon, utc_isoformat
+from app.filters import elapsed_time, else_na, humanize, usa_icon, utc_isoformat
 from app.local_dev_auth import is_running_on_cloud_foundry
 from app.startup_validation import validate_required_env_vars
 from config.logger_config import LOGGING_CONFIG
@@ -428,6 +428,6 @@ def create_app():
 def add_template_filters(app):
     from app.static_assets import static_url
 
-    for fn in [usa_icon, else_na, utc_isoformat, humanize]:
+    for fn in [usa_icon, else_na, utc_isoformat, humanize, elapsed_time]:
         app.add_template_filter(fn)
     app.add_template_global(static_url, "static_url")
