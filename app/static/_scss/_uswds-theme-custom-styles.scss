@@ -71,6 +71,85 @@ i.e.
   width: 100%;
 }
 
+.usa-table th.job-count-header,
+.usa-table td.job-count-cell {
+  padding-left: 0.5rem;
+  padding-right: 0.5rem;
+  white-space: nowrap;
+  width: 1%;
+}
+
+.usa-table th.job-count-header {
+  font-size: 0.91rem;
+  text-align: right;
+}
+
+.usa-table td.job-count-cell {
+  font-family: "Roboto Mono Web", monospace;
+  font-size: 1.06rem;
+  font-synthesis: weight;
+  font-weight: 900;
+}
+
+.usa-table th.job-count-header span {
+  display: inline;
+}
+
+.usa-table th.job-count-header,
+.usa-table td.job-count-cell {
+  border-left: 1px solid #c9c9c9;
+}
+
+.usa-table th.job-count-header {
+  border-top: 1px solid #c9c9c9;
+}
+
+.usa-table th.job-count-added,
+.usa-table td.job-count-cell.job-count-added {
+  border-left-width: 2px;
+}
+
+.usa-table th.job-count-unchanged,
+.usa-table td.job-count-cell.job-count-unchanged {
+  border-right: 1px solid #c9c9c9;
+}
+
+.usa-table th.job-count-added,
+.usa-table.usa-table--striped tbody tr td.job-count-cell.job-count-added {
+  background-color: #ecf3ec;
+  color: #2e7044;
+}
+
+.usa-table th.job-count-updated,
+.usa-table.usa-table--striped tbody tr td.job-count-cell.job-count-updated {
+  background-color: #e7f6f8;
+  color: #005ea8;
+}
+
+.usa-table th.job-count-deleted,
+.usa-table.usa-table--striped tbody tr td.job-count-cell.job-count-deleted {
+  background-color: #f5e6d6;
+  color: #8b4b13;
+}
+
+.usa-table th.job-count-errored,
+.usa-table.usa-table--striped tbody tr td.job-count-cell.job-count-errored {
+  background-color: #f8dfe2;
+  color: #b50909;
+}
+
+.usa-table th.job-count-warned,
+.usa-table.usa-table--striped tbody tr td.job-count-cell.job-count-warned {
+  background-color: #faf3d1;
+  color: #7d5f00;
+}
+
+.usa-table th.job-count-unchanged,
+.usa-table.usa-table--striped tbody tr td.job-count-cell.job-count-unchanged {
+  background-color: #f0f0f0;
+  color: #565c65;
+}
+
 // USWDS has no built-in dismissible alert; use grid so the close button
 // stays out of .usa-alert__body > * icon spacing rules.
 .usa-alert.usa-alert--dismissible {

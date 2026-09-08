@@ -51,3 +51,28 @@ def utc_isoformat(val):
         return utc_val.isoformat()
     except AttributeError:
         return val
+
+
+def elapsed_time(start, end):
+    """Format elapsed time between two datetime values for job tables."""
+    if not start or not end:
+        return "N/A"
+
+    try:
+        seconds = int((end - start).total_seconds())
+    except TypeError:
+        return "N/A"
+
+    if seconds < 60:
+        return "<1m"
+
+    minutes = seconds // 60
+    if minutes < 60:
+        return f"{minutes}m"
+
+    hours = minutes // 60
+    remaining_minutes = minutes % 60
+    if remaining_minutes == 0:
+        return f"{hours}h"
+
+    return f"{hours}h {remaining_minutes}m"
