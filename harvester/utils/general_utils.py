@@ -1240,15 +1240,9 @@ def _get_geo_lookup_interface():
         return None
 
 
-def _unwrap_location(input_value):
-    """Extract the geometry-bearing value from a DCAT-US 3.0 Location object.
-
-    v3.0 `spatial` is a Location object or a list of them; v1.1 is a plain
-    string. A bare {type, coordinates} GeoJSON dict is passed through.
-    """
-
-    if isinstance(input_value, list):
-        input_value = next((item for item in input_value if item), None)
+def _unwrap_single_location(input_value):
+    """Resolve a single (non-array) spatial value to its geometry-bearing
+    value, or None if it has nothing usable."""
 
     if (
         isinstance(input_value, dict)
@@ -1265,6 +1259,27 @@ def _unwrap_location(input_value):
         return None
 
     return input_value
+
+
+def _unwrap_location(input_value):
+    """Extract the geometry-bearing value from a DCAT-US 3.0 Location object.
+
+    v3.0 `spatial` is a Location object or a list of them; v1.1 is a plain
+    string. A bare {type, coordinates} GeoJSON dict is passed through. For
+    a list, the first element with a usable geometry wins, not merely the
+    first truthy one - a leading Location with only a prefLabel (no
+    geometry/bbox/centroid) must not shadow a usable Location later in
+    the list.
+    """
+
+    if isinstance(input_value, list):
+        for item in input_value:
+            unwrapped = _unwrap_single_location(item)
+            if unwrapped:
+                return unwrapped
+        return None
+
+    return _unwrap_single_location(input_value)
 
 
 def translate_spatial(input_value) -> str:

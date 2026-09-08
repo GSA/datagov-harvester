@@ -337,6 +337,23 @@ class TestCKANUtils:
             '{"type": "Point", "coordinates": [0.0, 0.0]}'
         )
 
+    def test_translate_spatial_location_array_skips_unusable_leading_element(self):
+        locations = [
+            {"@type": "Location", "prefLabel": "Nebraska"},
+            {"@type": "Location", "geometry": "POINT (1.0 1.0)"},
+        ]
+        assert translate_spatial(locations) == (
+            '{"type": "Point", "coordinates": [1.0, 1.0]}'
+        )
+
+    def test_translate_spatial_location_array_all_unusable_is_empty(self):
+        locations = [
+            {"@type": "Location", "prefLabel": "Nebraska"},
+            {"@type": "Location", "altLabel": "NE"},
+        ]
+        assert translate_spatial(locations) == ""
+        assert translate_spatial_to_geojson(locations) is None
+
     def test_translate_spatial_location_falls_back_to_bbox(self):
         location = {
             "@type": "Location",
