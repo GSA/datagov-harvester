@@ -146,7 +146,9 @@
             </div>
         </div>
         {% else %}
-        <canvas id="datagov-line-chart" height="200"></canvas>
+        <div class="harvest-job-chart">
+            <canvas id="datagov-line-chart"></canvas>
+        </div>
         {% block htmx_paginated %}
         <div id="paginated__harvest-jobs">
             <!-- job_table is undefined on pagination so importing here -->

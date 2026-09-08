@@ -6,6 +6,9 @@ function convertUTCDatesToLocal(container) {
   const twoLineDateCells = searchRoot.querySelectorAll(
     ".utc-date-two-line[data-utc-date]",
   );
+  const titleDateCells = searchRoot.querySelectorAll(
+    ".utc-date-title[data-utc-date]",
+  );
   const localFormat = new Intl.DateTimeFormat("en-CA", {
     year: "numeric",
     month: "numeric",
@@ -79,6 +82,34 @@ function convertUTCDatesToLocal(container) {
     );
 
     cell.setAttribute("data-converted", "true");
+  });
+
+  titleDateCells.forEach(function (cell) {
+    if (cell.hasAttribute("data-title-converted")) return;
+
+    const utcDateString = cell.getAttribute("data-utc-date");
+    if (!utcDateString) return;
+
+    const dateObject = new Date(Date.parse(utcDateString));
+    if (isNaN(dateObject)) return;
+
+    const dateParts = Object.fromEntries(
+      localDateFormat
+        .formatToParts(dateObject)
+        .map((part) => [part.type, part.value]),
+    );
+    const timeParts = Object.fromEntries(
+      localTimeFormat
+        .formatToParts(dateObject)
+        .map((part) => [part.type, part.value]),
+    );
+    const date = `${dateParts.year}-${dateParts.month}-${dateParts.day}`;
+    const time = `${timeParts.hour}:${timeParts.minute}`;
+
+    const localTitle = `${date} ${time} (${timeParts.timeZoneName})`;
+
+    cell.setAttribute("title", localTitle);
+    cell.setAttribute("data-title-converted", "true");
   });
 }
 
