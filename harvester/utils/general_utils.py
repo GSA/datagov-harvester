@@ -1267,6 +1267,49 @@ def _unwrap_location(input_value):
     return input_value
 
 
+def normalize_dcatus3_location_bbox(record: dict) -> dict:
+    """Rewrite a DCAT-US 3.0 Location.bbox bare [minx, miny, maxx, maxy]
+    coordinate array - the GeoJSON "bbox" member convention (RFC 7946 S5) -
+    into the GeoJSON Polygon object the schema's Location.bbox definition
+    actually requires.
+
+    Real ArcGIS Hub DCAT-US 3.0 exports (e.g. King County, see
+    GSA/data.gov#6298) send this shape for nearly every record even though
+    only null/string/Polygon-object are schema-valid, so records fail
+    schema validation and are dropped entirely before spatial translation
+    ever runs. Mutates and returns `record`.
+    """
+    spatial = record.get("spatial")
+    if spatial is None:
+        return record
+
+    locations = spatial if isinstance(spatial, list) else [spatial]
+    for location in locations:
+        if not isinstance(location, dict):
+            continue
+        bbox = location.get("bbox")
+        if (
+            isinstance(bbox, list)
+            and len(bbox) == 4
+            and all(isinstance(n, (int, float)) for n in bbox)
+        ):
+            minx, miny, maxx, maxy = bbox
+            location["bbox"] = {
+                "type": "Polygon",
+                "coordinates": [
+                    [
+                        [minx, miny],
+                        [minx, maxy],
+                        [maxx, maxy],
+                        [maxx, miny],
+                        [minx, miny],
+                    ]
+                ],
+            }
+
+    return record
+
+
 def translate_spatial(input_value) -> str:
     """Normalize spatial strings/dicts into GeoJSON strings when possible."""
 

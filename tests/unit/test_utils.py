@@ -37,6 +37,7 @@ from harvester.utils.general_utils import (
     munge_spatial,
     munge_title_to_name,
     normalize_dataset_identifier,
+    normalize_dcatus3_location_bbox,
     parse_args,
     prepare_distributions,
     prepare_transform_msg,
@@ -369,6 +370,79 @@ class TestCKANUtils:
         location = {"@type": "Location", "prefLabel": "Washington, D.C."}
         assert translate_spatial(location) == ""
         assert translate_spatial_to_geojson(location) is None
+
+    def test_normalize_dcatus3_location_bbox_array_to_polygon(self):
+        """King County's real ArcGIS Hub DCAT-US 3.0 export (GSA/data.gov#6298)
+        sends Location.bbox as a bare [minx, miny, maxx, maxy] array - the
+        GeoJSON "bbox" member convention - which is not schema-valid.
+        """
+        record = {
+            "spatial": [
+                {"@type": "Location", "bbox": [-123.9434, 47.0089, -120.2857, 48.407]}
+            ]
+        }
+        normalized = normalize_dcatus3_location_bbox(record)
+        assert normalized["spatial"][0]["bbox"] == {
+            "type": "Polygon",
+            "coordinates": [
+                [
+                    [-123.9434, 47.0089],
+                    [-123.9434, 48.407],
+                    [-120.2857, 48.407],
+                    [-120.2857, 47.0089],
+                    [-123.9434, 47.0089],
+                ]
+            ],
+        }
+        assert translate_spatial_to_geojson(normalized["spatial"]) == {
+            "type": "Polygon",
+            "coordinates": [
+                [
+                    [-123.9434, 47.0089],
+                    [-120.2857, 47.0089],
+                    [-120.2857, 48.407],
+                    [-123.9434, 48.407],
+                    [-123.9434, 47.0089],
+                ]
+            ],
+        }
+
+    def test_normalize_dcatus3_location_bbox_single_location_not_array(self):
+        record = {
+            "spatial": {"@type": "Location", "bbox": [-100.0, 30.0, -90.0, 40.0]}
+        }
+        normalized = normalize_dcatus3_location_bbox(record)
+        assert normalized["spatial"]["bbox"]["type"] == "Polygon"
+
+    def test_normalize_dcatus3_location_bbox_leaves_other_shapes_unchanged(self):
+        wkt_record = {"spatial": {"@type": "Location", "bbox": "POINT (0.0 0.0)"}}
+        assert normalize_dcatus3_location_bbox(wkt_record) == wkt_record
+
+        no_spatial_record = {"title": "no spatial field"}
+        assert (
+            normalize_dcatus3_location_bbox(no_spatial_record) == no_spatial_record
+        )
+
+    def test_normalize_dcatus3_location_bbox_passes_schema_validation(self):
+        dataset = {
+            "@type": "Dataset",
+            "title": "Water Sampling sites",
+            "description": "Real-world King County shape from GSA/data.gov#6298.",
+            "identifier": "https://example.gov/datasets/water-sampling",
+            "publisher": {"@type": "Organization", "name": "Test Agency"},
+            "contactPoint": {
+                "@type": "Kind",
+                "fn": "Test Contact",
+                "hasEmail": "mailto:test@example.gov",
+            },
+            "spatial": [
+                {"@type": "Location", "bbox": [-123.9434, 47.0089, -120.2857, 48.407]}
+            ],
+        }
+        assert list(DCATUS3_DATASET_VALIDATOR.iter_errors(dataset)) != []
+
+        normalized = normalize_dcatus3_location_bbox(dataset)
+        assert list(DCATUS3_DATASET_VALIDATOR.iter_errors(normalized)) == []
 
     def test_translate_spatial_location_input_unchanged(self):
         location = {

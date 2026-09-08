@@ -1,0 +1,33 @@
+{
+  "@type": "Catalog",
+  "@id": "https://example.gov/data.json",
+  "conformsTo": {
+    "@type": "Standard",
+    "title": "DCAT-US 3.0"
+  },
+  "title": "Example DCAT-US 3.0 Catalog (Location.bbox as a bare coordinate array)",
+  "description": "Reproduces the real King County / ArcGIS Hub DCAT-US 3.0 export shape from GSA/data.gov#6298, where Location.bbox is a bare [minx, miny, maxx, maxy] array instead of a WKT string or GeoJSON Polygon object.",
+  "dataset": [
+    {
+      "@type": "Dataset",
+      "title": "Water Sampling Sites",
+      "description": "Location.bbox as a bare [minx, miny, maxx, maxy] coordinate array, wrapped in a single-element spatial array, matching King County's real ArcGIS Hub export.",
+      "identifier": "https://example.gov/datasets/location-bbox-array",
+      "publisher": {
+        "@type": "Organization",
+        "name": "Test Agency"
+      },
+      "contactPoint": {
+        "@type": "Kind",
+        "fn": "Test Contact",
+        "hasEmail": "mailto:test@example.gov"
+      },
+      "spatial": [
+        {
+          "@type": "Location",
+          "bbox": [-123.9434, 47.0089, -120.2857, 48.407]
+        }
+      ]
+    }
+  ]
+}

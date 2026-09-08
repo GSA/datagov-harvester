@@ -60,6 +60,7 @@ from harvester.utils.general_utils import (
     merge_dcatus3_datasets,
     munge_title_to_name,
     normalize_dataset_identifier,
+    normalize_dcatus3_location_bbox,
     open_json,
     prepare_distributions,
     prepare_transform_msg,
@@ -598,6 +599,8 @@ class HarvestSource:
                         parent_identifier = record.pop(
                             "parent_identifier", None
                         ) or normalize_dataset_identifier(record.get("isPartOf"))
+                        if self.schema_type.startswith("dcatus3"):
+                            record = normalize_dcatus3_location_bbox(record)
                         dataset = json.dumps(sort_dataset(record))
                     elif self.schema_type.startswith("iso19115"):
                         # single document ISO

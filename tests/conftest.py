@@ -286,6 +286,21 @@ def source_data_dcatus3_0_warning(organization_data: dict) -> dict:
 
 
 @pytest.fixture
+def source_data_dcatus3_0_location_bbox_array(organization_data: dict) -> dict:
+    return {
+        "id": "3d4e5f6a-7b8c-4d9e-af0b-1c2d3e4f5a6b",
+        "name": "Test Source DCAT-US 3.0 (Location.bbox array)",
+        "notification_emails": ["email@example.com"],
+        "organization_id": organization_data["id"],
+        "frequency": "daily",
+        "url": f"{HARVEST_SOURCE_URL}/dcatus/dcatus3_0_location_bbox_array.json",
+        "schema_type": "dcatus3.0",
+        "source_type": "document",
+        "notification_frequency": "always",
+    }
+
+
+@pytest.fixture
 def source_data_dcatus3_0_with_services(organization_data: dict) -> dict:
     return {
         "id": "a2c4e6f8-1234-4567-89ab-cdef01234567",
@@ -738,6 +753,17 @@ def job_data_dcatus3_0_warning(source_data_dcatus3_0_warning: dict) -> dict:
         "id": "e5f6a7b8-c9d0-4e1f-8a2b-3c4d5e6f7a8b",
         "status": "new",
         "harvest_source_id": source_data_dcatus3_0_warning["id"],
+    }
+
+
+@pytest.fixture
+def job_data_dcatus3_0_location_bbox_array(
+    source_data_dcatus3_0_location_bbox_array: dict,
+) -> dict:
+    return {
+        "id": "4e5f6a7b-8c9d-4e0f-b01c-2d3e4f5a6b7c",
+        "status": "new",
+        "harvest_source_id": source_data_dcatus3_0_location_bbox_array["id"],
     }
 
 

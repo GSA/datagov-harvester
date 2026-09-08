@@ -113,6 +113,49 @@ class TestHarvestJobFullFlow:
         )
 
     @patch("harvester.harvest.HarvestSource.send_notification_emails")
+    def test_harvest_dcatus3_0_location_bbox_array_translated(
+        self,
+        send_notification_emails_mock: MagicMock,
+        interface,
+        organization_data,
+        source_data_dcatus3_0_location_bbox_array,
+        job_data_dcatus3_0_location_bbox_array,
+    ):
+        """AC: a real ArcGIS Hub DCAT-US 3.0 export shape - Location.bbox as
+        a bare [minx, miny, maxx, maxy] array (GSA/data.gov#6298, reproduced
+        from King County's live feed) - harvests successfully instead of
+        being rejected wholesale for a schema-invalid bbox.
+        """
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_dcatus3_0_location_bbox_array)
+        harvest_job = interface.add_harvest_job(
+            job_data_dcatus3_0_location_bbox_array
+        )
+
+        job_id = harvest_job.id
+        harvest_job_starter(job_id, "harvest")
+
+        harvest_job = interface.get_harvest_job(job_id)
+        assert harvest_job.status == "complete"
+        assert harvest_job.records_added == 1
+        assert harvest_job.record_errors == []
+
+        datasets = interface.db.query(Dataset).all()
+        assert len(datasets) == 1
+        assert datasets[0].translated_spatial == {
+            "type": "Polygon",
+            "coordinates": [
+                [
+                    [-123.9434, 47.0089],
+                    [-120.2857, 47.0089],
+                    [-120.2857, 48.407],
+                    [-123.9434, 48.407],
+                    [-123.9434, 47.0089],
+                ]
+            ],
+        }
+
+    @patch("harvester.harvest.HarvestSource.send_notification_emails")
     def test_harvest_dcatus3_0_dataset_and_data_service_independent(
         self,
         send_notification_emails_mock: MagicMock,
