@@ -14,6 +14,7 @@ from requests.exceptions import ConnectionError
 
 from database.interface import HarvesterDBInterface
 from database.models import HarvestSource
+from harvester.utils import general_utils
 from harvester.utils.general_utils import (
     DT_PLACEHOLDER,
     USER_AGENT,
@@ -306,6 +307,89 @@ class TestCKANUtils:
             '{"type": "Point", "coordinates": [0.0, 0.0]}'
         )
 
+    def test_translate_spatial_location_object_wkt_geometry(self):
+        location = {
+            "@id": "https://example.gov/locations/usa",
+            "@type": "Location",
+            "geometry": "POLYGON((-125 24, -66 24, -66 50, -125 50, -125 24))",
+        }
+        assert translate_spatial(location) == (
+            '{"type": "Polygon", "coordinates": '
+            "[[[-125.0, 24.0], [-66.0, 24.0], [-66.0, 50.0], "
+            "[-125.0, 50.0], [-125.0, 24.0]]]}"
+        )
+
+    def test_translate_spatial_location_object_geojson_geometry(self):
+        location = {
+            "@type": "Location",
+            "geometry": {"type": "Point", "coordinates": [-77.0369, 38.9072]},
+        }
+        assert translate_spatial(location) == (
+            '{"type": "Point", "coordinates": [-77.0369, 38.9072]}'
+        )
+
+    def test_translate_spatial_location_array_uses_first(self):
+        locations = [
+            {"@type": "Location", "geometry": "POINT (0.0 0.0)"},
+            {"@type": "Location", "geometry": "POINT (1.0 1.0)"},
+        ]
+        assert translate_spatial(locations) == (
+            '{"type": "Point", "coordinates": [0.0, 0.0]}'
+        )
+
+    def test_translate_spatial_location_falls_back_to_bbox(self):
+        location = {
+            "@type": "Location",
+            "bbox": {
+                "type": "Polygon",
+                "coordinates": [
+                    [
+                        [-77.119759, 38.791645],
+                        [-76.909393, 38.791645],
+                        [-76.909393, 38.99538],
+                        [-77.119759, 38.99538],
+                        [-77.119759, 38.791645],
+                    ]
+                ],
+            },
+        }
+        geojson = translate_spatial_to_geojson(location)
+        assert geojson["type"] == "Polygon"
+
+    def test_translate_spatial_location_falls_back_to_centroid(self):
+        location = {
+            "@type": "Location",
+            "centroid": {"type": "Point", "coordinates": [-77.0369, 38.9072]},
+        }
+        assert translate_spatial(location) == (
+            '{"type": "Point", "coordinates": [-77.0369, 38.9072]}'
+        )
+
+    def test_translate_spatial_location_with_no_geometry_fields(self):
+        location = {"@type": "Location", "prefLabel": "Washington, D.C."}
+        assert translate_spatial(location) == ""
+        assert translate_spatial_to_geojson(location) is None
+
+    def test_translate_spatial_location_input_unchanged(self):
+        location = {
+            "@type": "Location",
+            "geometry": "POLYGON((-125 24, -66 24, -66 50, -125 50, -125 24))",
+        }
+        original = json.loads(json.dumps(location))
+        translate_spatial(location)
+        assert location == original
+
+    def test_translate_spatial_bare_geojson_dict_unaffected_by_unwrap(self):
+        assert translate_spatial({"type": "Point", "coordinates": [-55.1, 37.2]}) == (
+            '{"type": "Point", "coordinates": [-55.1, 37.2]}'
+        )
+
+    def test_translate_spatial_dcatus3_complete_example_spatial(
+        self, dcatus3_complete_example
+    ):
+        geojson = translate_spatial_to_geojson(dcatus3_complete_example["spatial"])
+        assert geojson["type"] == "Polygon"
+
 
 # Point example
 # "{\"type\": \"Point\", \"coordinates\": [-87.08258, 24.9579]}"
@@ -346,8 +430,8 @@ class TestGeneralUtils:
         """Test that the default waf datetime is now / the time of program execution"""
 
         page_html = """<html><body><pre>
-          <a href="file1.xml">file1.xml</a>   12K  
-          <a href="file2.xml">file2.xml</a>   12K  
+          <a href="file1.xml">file1.xml</a>   12K
+          <a href="file2.xml">file2.xml</a>   12K
           </pre></body></html>"""
 
         soup = BeautifulSoup(page_html)
@@ -640,6 +724,66 @@ class TestGeneralUtils:
             "$.spatial[0].centroid.coordinates, array value does not match "
             "any of the acceptable formats: min 2 items"
         )
+
+    def test_assemble_validation_messages_formats_the_result_once(
+        self, dcatus3_complete_example
+    ):
+        """
+        Formatting on every recursive return repeated the same work and made the
+        assembler quadratic. (GSA/data.gov#6067)
+        """
+        dcatus3_complete_example["spatialResolutionInMeters"] = ["bad"]
+        del dcatus3_complete_example["title"]
+
+        with patch(
+            "harvester.utils.general_utils.finalize_validation_messages",
+            wraps=general_utils.finalize_validation_messages,
+        ) as finalize:
+            errors = assemble_validation_errors(
+                DCATUS3_DATASET_VALIDATOR.iter_errors(dcatus3_complete_example)
+            )
+
+        # the input recurses through anyOf context, so this is >1 without the fix
+        assert finalize.call_count == 1
+        assert len(errors) == 2
+
+    def test_assemble_validation_messages_scales_linearly_with_dataset_count(self):
+        """
+        A 3.0 catalog is assembled in one call, so the message dict grew with the
+        dataset count and the per-error work grew with it, on a catalog well under
+        the upload limit. 27s before the fix, 0.02s after on a dev laptop. 2s is
+        deliberately loose: it catches the quadratic coming back, not a small
+        regression.
+        """
+        count = 4000
+        catalog = {
+            "@type": "Catalog",
+            "title": "Assembler scaling",
+            "description": "Every dataset is missing its identifier.",
+            "dataset": [
+                {
+                    "@type": "Dataset",
+                    "title": "Example Dataset",
+                    "description": "A dataset with no identifier.",
+                    "contactPoint": {
+                        "fn": "Support",
+                        "hasEmail": "mailto:support@example.gov",
+                    },
+                    "publisher": {"name": "Example Org"},
+                }
+                for _ in range(count)
+            ],
+        }
+        validator = build_dcatus3_validator(DCATUS3_DEFINITIONS_DIR)
+        validation_errors = list(validator.iter_errors(catalog))
+
+        start = time.perf_counter()
+        errors = assemble_validation_errors(iter(validation_errors))
+        elapsed = time.perf_counter() - start
+
+        # one "'identifier' is a required property" per dataset, all still found
+        assert len(errors) == count
+        assert elapsed < 2, f"assembling {count} errors took {elapsed:.1f}s"
 
     def test_find_indexes_for_duplicates(self):
         data = [

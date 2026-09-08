@@ -1,4 +1,5 @@
 import argparse
+import ast
 import hashlib
 import http
 import json
@@ -9,6 +10,7 @@ import re
 import smtplib
 import time
 import uuid
+import warnings
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from email.mime.multipart import MIMEMultipart
@@ -50,6 +52,8 @@ SMTP_CONFIG = {
     "base_url": os.getenv("REDIRECT_URI").rsplit("/", 1)[0],
     "recipient": os.getenv("HARVEST_SMTP_RECIPIENT"),
 }
+
+CATALOG_BASE_URL = os.getenv("CATALOG_BASE_URL") or ""
 
 RESOURCE_MAPPING = {
     # ArcGIS File Types
@@ -1236,8 +1240,37 @@ def _get_geo_lookup_interface():
         return None
 
 
+def _unwrap_location(input_value):
+    """Extract the geometry-bearing value from a DCAT-US 3.0 Location object.
+
+    v3.0 `spatial` is a Location object or a list of them; v1.1 is a plain
+    string. A bare {type, coordinates} GeoJSON dict is passed through.
+    """
+
+    if isinstance(input_value, list):
+        input_value = next((item for item in input_value if item), None)
+
+    if (
+        isinstance(input_value, dict)
+        and not {
+            "type",
+            "coordinates",
+        }
+        <= input_value.keys()
+    ):
+        for field in ("geometry", "bbox", "centroid"):
+            value = input_value.get(field)
+            if value:
+                return value
+        return None
+
+    return input_value
+
+
 def translate_spatial(input_value) -> str:
     """Normalize spatial strings/dicts into GeoJSON strings when possible."""
+
+    input_value = _unwrap_location(input_value)
 
     if isinstance(input_value, dict):
         spatial_value = json.dumps(input_value)
@@ -1507,6 +1540,128 @@ def get_format_from_str(validation_msg: str) -> str:
     return validation_msg.split(" ")[-1]
 
 
+_VALIDATION_ERROR_WRAPPER_RE = re.compile(
+    r"^<(?:ValidationError|ValidationException):\s*(.*)>$", re.DOTALL
+)
+_ACCEPTABLE_FORMATS_PREFIX = "does not match any of the acceptable formats: "
+
+
+def parse_validation_message(message: str) -> tuple[Optional[str], str]:
+    """
+    split a stored record error message into (field, rule).
+
+    validation messages are stored as `repr()` of a jsonschema
+    `ValidationError`, e.g.
+        <ValidationError: "$.license, 'center' does not match any of the
+        acceptable formats: 'uri', 'null'">
+    other message types (TransformationException, DCAT warnings, etc.) don't
+    have this shape and are returned as (None, message).
+    """
+    wrapper_match = _VALIDATION_ERROR_WRAPPER_RE.match(message)
+    if not wrapper_match:
+        return None, message
+
+    try:
+        with warnings.catch_warnings():
+            # repr() embeds raw regex backslashes (e.g. the REDACTED format)
+            # that aren't valid escapes; literal_eval still parses them fine.
+            warnings.simplefilter("ignore", SyntaxWarning)
+            inner = ast.literal_eval(wrapper_match.group(1))
+    except (ValueError, SyntaxError):
+        inner = wrapper_match.group(1).strip("'\"")
+
+    json_path, _, rule_text = inner.partition(", ")
+    if not rule_text:
+        return None, message
+
+    field = json_path[2:] if json_path.startswith("$.") else json_path
+    if field in ("", "$"):
+        field = "(root)"
+    field = re.sub(r"\[\d+\]", "[]", field)
+
+    if rule_text.endswith("is a required property"):
+        rule = "required property"
+    elif _ACCEPTABLE_FORMATS_PREFIX in rule_text:
+        rule = rule_text.split(_ACCEPTABLE_FORMATS_PREFIX, 1)[1]
+    else:
+        rule = rule_text
+
+    return field, rule
+
+
+def group_record_error_fields(rows: list[tuple]) -> list[dict]:
+    """
+    group (severity, type, message, count) rows into per-field/rule summaries
+    for the harvest job report. rows are pre-aggregated by exact message, so
+    identical (field, rule) pairs from different messages are merged here.
+    """
+    severity_order = {"error": 0, "warning": 1}
+    grouped: dict[tuple, dict] = {}
+
+    for severity, error_type, message, count in rows:
+        if error_type in ("ValidationError", "ValidationException"):
+            field, rule = parse_validation_message(message)
+        else:
+            field, rule = None, error_type
+
+        key = (severity, field, rule)
+        entry = grouped.setdefault(
+            key,
+            {
+                "severity": severity,
+                "field": field,
+                "rule": rule,
+                "type": error_type,
+                "count": 0,
+                "examples": [],
+            },
+        )
+        entry["count"] += count
+        if len(entry["examples"]) < 3:
+            entry["examples"].append(message)
+
+    return sorted(
+        grouped.values(),
+        key=lambda entry: (
+            severity_order.get(entry["severity"], 2),
+            -entry["count"],
+        ),
+    )
+
+
+def build_report_email_section(
+    error_field_summary: list[dict], sample_datasets: list, catalog_base_url: str
+) -> str:
+    """
+    Plain-text rendering of the /report page's issues-by-field and sample
+    dataset sections, for inlining into the harvest job notification email.
+    """
+    lines = ["Issues by field:"]
+    if not error_field_summary:
+        lines.append("- No record errors or warnings found.")
+    else:
+        for row in error_field_summary:
+            field = row["field"] or "(root)"
+            lines.append(
+                f"- {row['severity']}: {field} - {row['rule']} ({row['count']})"
+            )
+
+    lines.append("")
+    lines.append("Sample datasets:")
+    if not sample_datasets:
+        lines.append("- No datasets have been harvested from this source yet.")
+    else:
+        for dataset in sample_datasets:
+            if catalog_base_url:
+                lines.append(
+                    f"- {dataset.slug}: {catalog_base_url}/dataset/{dataset.slug}"
+                )
+            else:
+                lines.append(f"- {dataset.slug}")
+
+    return "\n".join(lines)
+
+
 def found_simple_message(
     validation_error: ValidationError, forced: bool = False
 ) -> bool:
@@ -1514,7 +1669,7 @@ def found_simple_message(
     determine whether the input validation error represents the most
     succinct cause for error based on its json_path or dtype.
 
-    `forced` is a last-resort override set by `assemble_validation_errors`.
+    `forced` is a last-resort override set by `_collect_validation_messages`.
     """
     # these are all the unique dtypes found in the
     # non-federal schema (no different than federal)
@@ -1636,14 +1791,7 @@ def finalize_validation_messages(messages: defaultdict) -> list:
     return output
 
 
-def _count_messages(messages: defaultdict) -> int:
-    """Total messages accumulated across every json_path so far."""
-    return sum(len(v) for v in messages.values())
-
-
-def assemble_validation_errors(
-    validation_errors: list, messages=None, *, _forced: bool = False
-) -> list:
+def assemble_validation_errors(validation_errors: list, messages=None) -> list:
     """
     given a list of errors, follow each one recursively through its context
     and get the simplest cause for error. store the error in a defaultdict
@@ -1653,18 +1801,36 @@ def assemble_validation_errors(
     will often return the entire object followed by 'is not valid under any
     of the given schemas' which isn't helpful.
 
-    `_forced` is a private fallback. Callers (Record.validate) must keep the
-    two-argument form. After an unforced context walk records nothing, we
-    re-walk forced so a same-path type error is reported vaguely instead of
-    silently. A walk that already recorded a specific cause is left alone.
+    pass `messages` to accumulate across calls; the formatted list is returned
+    either way.
     """
 
     if messages is None:
         # {'$.distribution[2].title' = ["'' should be non-empty", etc...]}
         messages = defaultdict(list)
 
+    _collect_validation_messages(validation_errors, messages, forced=False)
+    return finalize_validation_messages(messages)
+
+
+def _collect_validation_messages(
+    validation_errors: list, messages: defaultdict, *, forced: bool
+) -> int:
+    """
+    fill `messages` and return how many were appended, nested walks included.
+    Formatting is the caller's job; doing it on every recursive return, like
+    re-counting the dict, made this quadratic in the number of errors.
+
+    `forced` is a last-resort fallback. After an unforced context walk records
+    nothing, we re-walk forced so a same-path type error is reported vaguely
+    instead of silently. A walk that already recorded a specific cause is left
+    alone.
+    """
+
+    recorded = 0
+
     for error in validation_errors:
-        if found_simple_message(error, forced=_forced):
+        if found_simple_message(error, forced=forced):
             # these aren't specific enough which make them unhelpful
             generic_msg = "is not valid under any of the given schemas"
             is_generic_msg = error.message.endswith(generic_msg)
@@ -1692,17 +1858,22 @@ def assemble_validation_errors(
                 and formatted_message not in messages[error.json_path]
             ):
                 messages[error.json_path].append(formatted_message)
+                recorded += 1
 
         # Prefer a specific cause in context before falling back.
-        recorded_before = _count_messages(messages)
-        assemble_validation_errors(error.context, messages)
+        from_context = _collect_validation_messages(
+            error.context, messages, forced=False
+        )
+        recorded += from_context
 
         # Nothing recorded: re-walk forced so the defect is not dropped.
-        # `_forced` only flips `type` errors, which have no context to recurse.
-        if error.context and _count_messages(messages) == recorded_before:
-            assemble_validation_errors(error.context, messages, _forced=True)
+        # `forced` only flips `type` errors, which have no context to recurse.
+        if error.context and from_context == 0:
+            recorded += _collect_validation_messages(
+                error.context, messages, forced=True
+            )
 
-    return finalize_validation_messages(messages)
+    return recorded
 
 
 def is_valid_uuid4(uuid_string) -> bool:

@@ -21,6 +21,7 @@ tmp/
 # env
 .env.secret
 requirements.txt
+requirements-dev.txt
 
 # vscode debugger
 .vscode/*
@@ -45,6 +46,9 @@ tests/badges/**
 
 # qa data
 qa_output/
+
+# validate_catalog.py output
+scripts/validate_catalog/output/
 
 .env
 .env.*
