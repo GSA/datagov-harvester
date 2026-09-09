@@ -49,6 +49,10 @@ const buildHarvestJobChart = (el, chartData) => {
                 y: {
                     stacked: true,
                     beginAtZero: true,
+                    title: {
+                        display: true,
+                        text: 'Record Count',
+                    },
                     grid: {
                         color: 'rgba(0, 0, 0, 0.08)',
                     },
