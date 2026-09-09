@@ -1,0 +1,85 @@
+{
+  "@type": "dcat:Catalog",
+  "@id": "https://example.gov/data.json",
+  "conformsTo": {
+    "@type": "dct:Standard",
+    "title": "DCAT-US 3.0"
+  },
+  "title": "Example DCAT-US 3.0 Catalog (CURIE-prefixed @type warnings)",
+  "description": "Same shape as dcatus3_0_warning.json, but every @type is a CURIE (e.g. dcat:Dataset) rather than a bare class name, matching real-world feeds such as https://portal.opentopography.org/csw/catalog30.json (GSA/data.gov#6295).",
+  "dataset": [
+    {
+      "@type": "dcat:Dataset",
+      "title": "Curie Warned Dataset One",
+      "description": "Schema-valid, but issued is later than modified.",
+      "identifier": "https://example.gov/datasets/curie-warning-one",
+      "issued": "2030-01-01",
+      "modified": "2020-01-01",
+      "publisher": {
+        "@type": "org:Organization",
+        "name": "Test Agency"
+      },
+      "contactPoint": {
+        "@type": "vcard:Contact",
+        "fn": "Test Contact One",
+        "hasEmail": "mailto:one@example.gov"
+      }
+    },
+    {
+      "@type": "dcat:Dataset",
+      "title": "Curie Warned Dataset Two",
+      "description": "Schema-valid, but the distribution declares an unrecognized media type.",
+      "identifier": "https://example.gov/datasets/curie-warning-two",
+      "publisher": {
+        "@type": "org:Organization",
+        "name": "Test Agency"
+      },
+      "contactPoint": {
+        "@type": "vcard:Contact",
+        "fn": "Test Contact Two",
+        "hasEmail": "mailto:two@example.gov"
+      },
+      "distribution": [
+        {
+          "@type": "dcat:Distribution",
+          "downloadURL": "https://example.gov/datasets/curie-warning-two.csv",
+          "mediaType": "notareal/type"
+        }
+      ]
+    },
+    {
+      "@type": "dcat:Dataset",
+      "title": "Curie Warned Dataset Three",
+      "description": "Schema-valid, but the spatial Location's bbox cannot be resolved to a geographic area.",
+      "identifier": "https://example.gov/datasets/curie-warning-three",
+      "publisher": {
+        "@type": "org:Organization",
+        "name": "Test Agency"
+      },
+      "contactPoint": {
+        "@type": "vcard:Contact",
+        "fn": "Test Contact Three",
+        "hasEmail": "mailto:three@example.gov"
+      },
+      "spatial": {
+        "@type": "dct:Location",
+        "bbox": "somewhere over there"
+      }
+    },
+    {
+      "@type": "dcat:Dataset",
+      "title": "Clean Curie Dataset Four",
+      "description": "Schema-valid and warning-free, so errors-only reads still have a control record.",
+      "identifier": "https://example.gov/datasets/curie-warning-four",
+      "publisher": {
+        "@type": "org:Organization",
+        "name": "Test Agency"
+      },
+      "contactPoint": {
+        "@type": "vcard:Contact",
+        "fn": "Test Contact Four",
+        "hasEmail": "mailto:four@example.gov"
+      }
+    }
+  ]
+}

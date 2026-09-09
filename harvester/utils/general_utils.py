@@ -27,6 +27,7 @@ from jsonschema import Draft202012Validator, FormatChecker
 from jsonschema.exceptions import ValidationError
 from referencing import Registry
 from referencing.jsonschema import DRAFT202012
+from shapely.geometry import LineString, Point
 from shapely.geometry import mapping as shapely_geom_mapping
 
 logging.basicConfig(level=logging.INFO)
@@ -1139,6 +1140,28 @@ _WKT_GEOMETRY_RE = re.compile(
 )
 
 
+def _reduce_degenerate_polygon(geom):
+    """Collapse a zero-area Polygon exterior ring into a Point or LineString.
+
+    Coordinate rounding by some sources (e.g. bboxes rounded to 2 decimal
+    places for a small survey area) can collapse a Polygon's corners onto
+    each other or onto a line. shapely still parses these, but
+    geojson_validator's less_three_unique_nodes/exterior_not_ccw checks
+    reject them outright. munge_spatial already reduces this same situation
+    for v1.1 comma-separated bboxes, so mirror that here instead of losing
+    the geometry.
+    """
+    if geom.geom_type != "Polygon":
+        return geom
+
+    unique_coords = list(dict.fromkeys(geom.exterior.coords))
+    if len(unique_coords) == 1:
+        return Point(unique_coords[0])
+    if len(unique_coords) == 2:
+        return LineString(unique_coords)
+    return geom
+
+
 def translate_wkt_to_geojson(spatial_value: str) -> str:
     """Convert a WKT geometry string into a GeoJSON string, if possible."""
 
@@ -1150,6 +1173,7 @@ def translate_wkt_to_geojson(spatial_value: str) -> str:
         # GeoJSON is 2D; drop any Z/M dimension rather than let the
         # 3d_coordinates check in validate_geojson silently discard it.
         geom = shapely.force_2d(geom)
+        geom = _reduce_degenerate_polygon(geom)
         return json.dumps(shapely_geom_mapping(geom))
     except:  # noqa: E722
         logger.warning(
