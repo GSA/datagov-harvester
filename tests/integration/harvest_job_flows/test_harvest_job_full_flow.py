@@ -128,9 +128,7 @@ class TestHarvestJobFullFlow:
         """
         interface.add_organization(organization_data)
         interface.add_harvest_source(source_data_dcatus3_0_location_bbox_array)
-        harvest_job = interface.add_harvest_job(
-            job_data_dcatus3_0_location_bbox_array
-        )
+        harvest_job = interface.add_harvest_job(job_data_dcatus3_0_location_bbox_array)
 
         job_id = harvest_job.id
         harvest_job_starter(job_id, "harvest")

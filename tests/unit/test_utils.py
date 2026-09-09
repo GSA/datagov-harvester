@@ -449,9 +449,7 @@ class TestCKANUtils:
         }
 
     def test_normalize_dcatus3_location_bbox_single_location_not_array(self):
-        record = {
-            "spatial": {"@type": "Location", "bbox": [-100.0, 30.0, -90.0, 40.0]}
-        }
+        record = {"spatial": {"@type": "Location", "bbox": [-100.0, 30.0, -90.0, 40.0]}}
         normalized = normalize_dcatus3_location_bbox(record)
         assert normalized["spatial"]["bbox"]["type"] == "Polygon"
 
@@ -460,9 +458,7 @@ class TestCKANUtils:
         assert normalize_dcatus3_location_bbox(wkt_record) == wkt_record
 
         no_spatial_record = {"title": "no spatial field"}
-        assert (
-            normalize_dcatus3_location_bbox(no_spatial_record) == no_spatial_record
-        )
+        assert normalize_dcatus3_location_bbox(no_spatial_record) == no_spatial_record
 
     def test_normalize_dcatus3_location_bbox_passes_schema_validation(self):
         dataset = {
