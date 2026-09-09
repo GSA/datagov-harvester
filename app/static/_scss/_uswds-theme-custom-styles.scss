@@ -93,6 +93,7 @@ i.e.
 
 .usa-table.job-table th.job-count-header,
 .usa-table.job-table td.job-count-cell {
+  color: #f0f0f0;
   padding-left: 0.35rem;
   padding-right: 0.35rem;
   white-space: nowrap;
@@ -104,11 +105,20 @@ i.e.
   text-align: right;
 }
 
+.usa-table.job-table th.job-count-group-header {
+  border-left: 2px solid #c9c9c9;
+  border-right: 1px solid #c9c9c9;
+  border-top: 1px solid #c9c9c9;
+  padding-bottom: 0.2rem;
+  padding-top: 0.2rem;
+  text-align: center;
+}
+
 .usa-table.job-table td.job-count-cell {
   font-family: "Roboto Mono Web", monospace;
   font-size: 1.06rem;
   font-synthesis: weight;
-  font-weight: 900;
+  font-weight: 700;
 }
 
 .usa-table.job-table th.job-count-header span {
@@ -136,38 +146,32 @@ i.e.
 
 .usa-table.job-table th.job-count-added,
 .usa-table.job-table.usa-table--striped tbody tr td.job-count-cell.job-count-added {
-  background-color: #ecf3ec;
-  color: #2e7044;
+  background-color: #4f9f62;
 }
 
 .usa-table.job-table th.job-count-updated,
 .usa-table.job-table.usa-table--striped tbody tr td.job-count-cell.job-count-updated {
-  background-color: #e7f6f8;
-  color: #005ea8;
+  background-color: #2f8ec5;
 }
 
 .usa-table.job-table th.job-count-deleted,
 .usa-table.job-table.usa-table--striped tbody tr td.job-count-cell.job-count-deleted {
-  background-color: #f5e6d6;
-  color: #8b4b13;
+  background-color: #b87535;
 }
 
 .usa-table.job-table th.job-count-errored,
 .usa-table.job-table.usa-table--striped tbody tr td.job-count-cell.job-count-errored {
-  background-color: #f8dfe2;
-  color: #b50909;
+  background-color: #d54343;
 }
 
 .usa-table.job-table th.job-count-warned,
 .usa-table.job-table.usa-table--striped tbody tr td.job-count-cell.job-count-warned {
-  background-color: #faf3d1;
-  color: #7d5f00;
+  background-color: #b38b00;
 }
 
 .usa-table.job-table th.job-count-unchanged,
 .usa-table.job-table.usa-table--striped tbody tr td.job-count-cell.job-count-unchanged {
-  background-color: #f0f0f0;
-  color: #565c65;
+  background-color: #7f858c;
 }
 
 .harvest-job-chart {

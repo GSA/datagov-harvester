@@ -11,15 +11,18 @@
         <caption>{{ caption }}</caption>
         <thead>
             <tr>
-                <th scope="col" class="job-table-id" title="Job ID">Job ID</th>
-                {% if show_source %}<th scope="col" class="job-table-source" title="Harvest Source">Source</th>{% endif %}
-                <th scope="col" class="job-table-status" title="Job Status">Status</th>
+                <th rowspan="2" scope="col" class="job-table-id" title="Job ID">Job ID</th>
+                {% if show_source %}<th rowspan="2" scope="col" class="job-table-source" title="Harvest Source">Source</th>{% endif %}
+                <th rowspan="2" scope="col" class="job-table-status" title="Job Status">Status</th>
                 {% if show_progress %}
-                    <th scope="col" class="job-table-progress" title="Job Progress">Progress</th>
+                    <th rowspan="2" scope="col" class="job-table-progress" title="Job Progress">Progress</th>
                 {% endif %}
-                <th scope="col" class="job-table-type" title="Job Type">Type</th>
-                <th scope="col" class="job-table-started" title="Start Date">Started</th>
-                <th scope="col" class="job-table-duration" title="Elapsed Time">Duration</th>
+                <th rowspan="2" scope="col" class="job-table-type" title="Job Type">Type</th>
+                <th rowspan="2" scope="col" class="job-table-started" title="Start Date">Started</th>
+                <th rowspan="2" scope="col" class="job-table-duration" title="Elapsed Time">Duration</th>
+                <th colspan="6" scope="colgroup" class="job-count-group-header">Record Counts</th>
+            </tr>
+            <tr>
                 <th scope="col" class="job-count-header job-count-added" title="Records Added"><span>Added</span></th>
                 <th scope="col" class="job-count-header job-count-updated" title="Records Updated"><span>Updated</span></th>
                 <th scope="col" class="job-count-header job-count-deleted" title="Records Deleted"><span>Deleted</span></th>
