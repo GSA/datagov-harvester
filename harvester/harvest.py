@@ -1607,9 +1607,9 @@ def harvest_job_starter(job_id, job_type="harvest"):
     if job_type == "validate":
         harvest_source.acquire_minimum_external_data()
         for record in harvest_source.external_records_to_process():
-            if harvest_source.schema_type.startswith("iso19115"):
-                record.transform()
             try:
+                if harvest_source.schema_type.startswith("iso19115"):
+                    record.transform()
                 record.validate()
             except:  # noqa: E722
                 pass
