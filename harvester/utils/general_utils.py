@@ -580,7 +580,13 @@ def backfill_catalog_record_identifiers(records: list) -> list:
     for record in records:
         record = dict(record)
         if normalize_dataset_identifier(record.get("@id")) is None:
-            basis = f"{record.get('primaryTopic')}|{record.get('modified')}"
+            # Hash the full record content, not just primaryTopic|modified:
+            # two distinct records can share those fields (or both lack
+            # them), which used to give them identical @ids and got all but
+            # the first wrongly dropped as duplicates downstream.
+            # Byte-identical records still hash equal, so true duplicates
+            # keep collapsing to one @id as before.
+            basis = json.dumps(record, sort_keys=True, default=str)
             digest = hashlib.sha256(basis.encode()).hexdigest()
             record["@id"] = f"urn:datagov:catalogrecord:{digest}"
         backfilled.append(record)

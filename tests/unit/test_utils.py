@@ -1488,6 +1488,16 @@ class TestBackfillCatalogRecordIdentifiers:
 
         assert "@id" not in records[0]
 
+    def test_same_topic_and_modified_still_differs(self):
+        a = backfill_catalog_record_identifiers(
+            [{"primaryTopic": "ds-1", "modified": "2024-06-15", "title": "Record A"}]
+        )[0]["@id"]
+        b = backfill_catalog_record_identifiers(
+            [{"primaryTopic": "ds-1", "modified": "2024-06-15", "title": "Record B"}]
+        )[0]["@id"]
+
+        assert a != b
+
 
 class TestExtractDcatus3NestedDatasets:
     def test_uses_custom_parent_identifier_field(self):
