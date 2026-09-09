@@ -8,9 +8,13 @@ than the full templated string, so message wording can change without churning
 every test.
 """
 
+from pathlib import Path
+
 from harvester.utils.dcat_warnings import detect_dcat_warnings
 from harvester.utils.general_utils import open_json
 from harvester.utils.schema_paths import DCATUS3_COMPLETE_EXAMPLE
+
+_EXAMPLE_DATA_DIR = Path(__file__).resolve().parents[2] / "example_data" / "dcatus"
 
 
 def types(warnings):
@@ -597,3 +601,105 @@ class TestNonStringTypeDispatch:
         }
         warnings = detect_dcat_warnings(data)
         assert types(warnings) == ["duplicate_keyword"]
+
+
+class TestCuriePrefixedTypeDispatch:
+    # GSA/data.gov#6295: real feeds (e.g. https://portal.opentopography.org
+    # /csw/catalog30.json) send CURIE-prefixed @type values like "dcat:Dataset"
+    # rather than bare class names. `_TYPE_RULES` used to key on bare names
+    # only, so every rule silently failed to dispatch for such a source.
+
+    def test_prefixed_location_dispatches_same_as_bare(self):
+        prefixed = {"@type": "dct:Location", "bbox": "somewhere over there"}
+        bare = {"@type": "Location", "bbox": "somewhere over there"}
+        assert detect_dcat_warnings(prefixed) == detect_dcat_warnings(bare)
+        assert types(detect_dcat_warnings(prefixed)) == ["unresolvable_spatial_value"]
+
+    def test_prefixed_dataset_dispatches_same_as_bare(self):
+        prefixed = {"@type": "dcat:Dataset", "keyword": ["a", "a"]}
+        bare = {"@type": "Dataset", "keyword": ["a", "a"]}
+        assert detect_dcat_warnings(prefixed) == detect_dcat_warnings(bare)
+        assert types(detect_dcat_warnings(prefixed)) == ["duplicate_keyword"]
+
+    def test_prefixed_distribution_dispatches_same_as_bare(self):
+        prefixed = {"@type": "dcat:Distribution", "byteSize": "big"}
+        bare = {"@type": "Distribution", "byteSize": "big"}
+        assert detect_dcat_warnings(prefixed) == detect_dcat_warnings(bare)
+        assert types(detect_dcat_warnings(prefixed)) == ["invalid_byte_size"]
+
+    def test_prefixed_period_of_time_dispatches_same_as_bare(self):
+        prefixed = {
+            "@type": "dct:PeriodOfTime",
+            "startDate": "2024-12-31",
+            "endDate": "2024-01-01",
+        }
+        bare = {**prefixed, "@type": "PeriodOfTime"}
+        assert detect_dcat_warnings(prefixed) == detect_dcat_warnings(bare)
+        assert types(detect_dcat_warnings(prefixed)) == ["date_out_of_order"]
+
+    def test_prefixed_kind_dispatches_same_as_bare(self):
+        prefixed = {"@type": "vcard:Kind", "tel": "+1-555-CLIMATE"}
+        bare = {"@type": "Kind", "tel": "+1-555-CLIMATE"}
+        assert detect_dcat_warnings(prefixed) == detect_dcat_warnings(bare)
+        assert types(detect_dcat_warnings(prefixed)) == ["invalid_tel"]
+
+    def test_unrecognized_types_are_unaffected_whether_prefixed_or_bare(self):
+        # vcard:Contact and org:Organization (the real feed's contactPoint /
+        # publisher types) have no registered rule under either their bare or
+        # prefixed form; stripping the prefix must not invent a match.
+        unrecognized_types = (
+            "vcard:Contact",
+            "Contact",
+            "org:Organization",
+            "Organization",
+        )
+        for type_value in unrecognized_types:
+            data = {"@type": type_value, "tel": "+1-555-CLIMATE"}
+            assert detect_dcat_warnings(data) == []
+
+    def test_unrecognized_prefixed_type_produces_no_warning_and_does_not_raise(self):
+        data = {"@type": "foo:Bogus", "byteSize": "big"}
+        assert detect_dcat_warnings(data) == []
+
+    def test_bare_type_behavior_is_unchanged(self):
+        # A bare @type with no colon must still dispatch exactly as before.
+        data = {"@type": "Dataset", "keyword": ["a", "a"]}
+        warnings = detect_dcat_warnings(data)
+        assert types(warnings) == ["duplicate_keyword"]
+
+    def test_multi_segment_curie_matches_on_final_segment(self):
+        # A full-IRI-style prefix (multiple colons) still resolves via the
+        # last segment.
+        data = {"@type": "http://xmlns.com/foaf/0.1/:Dataset", "keyword": ["a", "a"]}
+        assert types(detect_dcat_warnings(data)) == ["duplicate_keyword"]
+
+    def test_nested_prefixed_objects_all_dispatch(self):
+        # A Dataset nesting several prefixed typed objects (Distribution,
+        # Kind, Location) must dispatch warnings from every level, not just
+        # the top one.
+        data = {
+            "@type": "dcat:Dataset",
+            "issued": "2030-01-01",
+            "modified": "2020-01-01",
+            "distribution": [{"@type": "dcat:Distribution", "byteSize": "big"}],
+            "contactPoint": {"@type": "vcard:Kind", "tel": "+1-555-CLIMATE"},
+            "spatial": {"@type": "dct:Location", "bbox": "somewhere over there"},
+        }
+        warnings = detect_dcat_warnings(data)
+        assert set(types(warnings)) == {
+            "date_out_of_order",
+            "invalid_byte_size",
+            "invalid_tel",
+            "unresolvable_spatial_value",
+        }
+
+    def test_curie_fixture_regresses_the_same_warnings_as_its_bare_counterpart(self):
+        # example_data/dcatus/dcatus3_0_warning_curie.json is the CURIE-typed
+        # counterpart of dcatus3_0_warning.json: same shape, prefixed @type.
+        data = open_json(_EXAMPLE_DATA_DIR / "dcatus3_0_warning_curie.json")
+        warnings = detect_dcat_warnings(data)
+        assert sorted(types(warnings)) == [
+            "date_out_of_order",
+            "invalid_media_type",
+            "unresolvable_spatial_value",
+        ]
