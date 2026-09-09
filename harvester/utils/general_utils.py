@@ -906,6 +906,14 @@ def is_number(s):
 
 # Find if a line between 2 x coordinates would cross the meridian
 def crosses_meridian(val1, val2):
+    """
+    checks if the 2 values cross the anti-meridian
+
+    this function is only called under the condition that geojson-validator
+    identified the geometry as "crosses_antimeridian" so something like
+    abs(-160-40) > 180 shouldn't happen.
+    """
+
     # A jump greater than 180 degrees means the edge crosses
     # the antimeridian while both coordinates are already normalized.
     if abs(val1 - val2) > 180:
@@ -929,6 +937,19 @@ def fix_longitude(val):
     if val < -180:
         return fix_longitude(val + 360)
     return val
+
+
+def ensure_counter_clockwise(points: list[list]):
+    """
+    the input points represent the external ring of a polygon.
+    geojson requires external rings to be counterclockwise.
+    """
+    area = sum(x1 * y2 - x2 * y1 for (x1, y1), (x2, y2) in zip(points, points[1:]))
+
+    if area < 0:
+        points.reverse()
+
+    return points
 
 
 # https://www.rfc-editor.org/rfc/rfc7946#section-3.1.9
@@ -994,11 +1015,9 @@ def spatial_wrap_around_meridian(geom):
             )
     # Unclear why this is needed, but to work with the right hand rule.
     # https://medium.com/@jinagamvasubabu/solution-polygons-and-multipolygons-should-follow-the-right-hand-rule-27b96fa61c6
-    new_geom["coordinates"][0][1].reverse()
-
     new_geom["coordinates"] = [
-        [new_geom["coordinates"][0][0]],
-        [new_geom["coordinates"][0][1]],
+        [ensure_counter_clockwise(new_geom["coordinates"][0][0])],
+        [ensure_counter_clockwise(new_geom["coordinates"][0][1])],
     ]
 
     return new_geom

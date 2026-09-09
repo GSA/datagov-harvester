@@ -1410,7 +1410,7 @@ class Record:
         }
 
         spatial_value = metadata.get("spatial")
-        if self.harvest_source.schema_type.startswith("iso19115"):
+        if self.harvest_source.schema_type.startswith("iso19115") and spatial_value:
             spatial_value = munge_spatial(spatial_value)
 
         translated_spatial = translate_spatial_to_geojson(spatial_value)
