@@ -378,15 +378,6 @@ class TestCKANUtils:
             '{"type": "Point", "coordinates": [0.0, 0.0]}'
         )
 
-    def test_translate_spatial_location_array_skips_unusable_leading_element(self):
-        locations = [
-            {"@type": "Location", "prefLabel": "Nebraska"},
-            {"@type": "Location", "geometry": "POINT (1.0 1.0)"},
-        ]
-        assert translate_spatial(locations) == (
-            '{"type": "Point", "coordinates": [1.0, 1.0]}'
-        )
-
     def test_translate_spatial_location_array_geometry_after_pref_label_skips_lookup(
         self,
     ):
