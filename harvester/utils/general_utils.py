@@ -1,4 +1,5 @@
 import argparse
+import ast
 import hashlib
 import http
 import json
@@ -9,6 +10,7 @@ import re
 import smtplib
 import time
 import uuid
+import warnings
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from email.mime.multipart import MIMEMultipart
@@ -25,6 +27,7 @@ from jsonschema import Draft202012Validator, FormatChecker
 from jsonschema.exceptions import ValidationError
 from referencing import Registry
 from referencing.jsonschema import DRAFT202012
+from shapely.geometry import LineString, Point
 from shapely.geometry import mapping as shapely_geom_mapping
 
 logging.basicConfig(level=logging.INFO)
@@ -50,6 +53,8 @@ SMTP_CONFIG = {
     "base_url": os.getenv("REDIRECT_URI").rsplit("/", 1)[0],
     "recipient": os.getenv("HARVEST_SMTP_RECIPIENT"),
 }
+
+CATALOG_BASE_URL = os.getenv("CATALOG_BASE_URL") or ""
 
 RESOURCE_MAPPING = {
     # ArcGIS File Types
@@ -1135,6 +1140,28 @@ _WKT_GEOMETRY_RE = re.compile(
 )
 
 
+def _reduce_degenerate_polygon(geom):
+    """Collapse a zero-area Polygon exterior ring into a Point or LineString.
+
+    Coordinate rounding by some sources (e.g. bboxes rounded to 2 decimal
+    places for a small survey area) can collapse a Polygon's corners onto
+    each other or onto a line. shapely still parses these, but
+    geojson_validator's less_three_unique_nodes/exterior_not_ccw checks
+    reject them outright. munge_spatial already reduces this same situation
+    for v1.1 comma-separated bboxes, so mirror that here instead of losing
+    the geometry.
+    """
+    if geom.geom_type != "Polygon":
+        return geom
+
+    unique_coords = list(dict.fromkeys(geom.exterior.coords))
+    if len(unique_coords) == 1:
+        return Point(unique_coords[0])
+    if len(unique_coords) == 2:
+        return LineString(unique_coords)
+    return geom
+
+
 def translate_wkt_to_geojson(spatial_value: str) -> str:
     """Convert a WKT geometry string into a GeoJSON string, if possible."""
 
@@ -1146,6 +1173,7 @@ def translate_wkt_to_geojson(spatial_value: str) -> str:
         # GeoJSON is 2D; drop any Z/M dimension rather than let the
         # 3d_coordinates check in validate_geojson silently discard it.
         geom = shapely.force_2d(geom)
+        geom = _reduce_degenerate_polygon(geom)
         return json.dumps(shapely_geom_mapping(geom))
     except:  # noqa: E722
         logger.warning(
@@ -1534,6 +1562,128 @@ def get_format_from_str(validation_msg: str) -> str:
     if "was expected" in validation_msg:
         return f"constant value {validation_msg}"
     return validation_msg.split(" ")[-1]
+
+
+_VALIDATION_ERROR_WRAPPER_RE = re.compile(
+    r"^<(?:ValidationError|ValidationException):\s*(.*)>$", re.DOTALL
+)
+_ACCEPTABLE_FORMATS_PREFIX = "does not match any of the acceptable formats: "
+
+
+def parse_validation_message(message: str) -> tuple[Optional[str], str]:
+    """
+    split a stored record error message into (field, rule).
+
+    validation messages are stored as `repr()` of a jsonschema
+    `ValidationError`, e.g.
+        <ValidationError: "$.license, 'center' does not match any of the
+        acceptable formats: 'uri', 'null'">
+    other message types (TransformationException, DCAT warnings, etc.) don't
+    have this shape and are returned as (None, message).
+    """
+    wrapper_match = _VALIDATION_ERROR_WRAPPER_RE.match(message)
+    if not wrapper_match:
+        return None, message
+
+    try:
+        with warnings.catch_warnings():
+            # repr() embeds raw regex backslashes (e.g. the REDACTED format)
+            # that aren't valid escapes; literal_eval still parses them fine.
+            warnings.simplefilter("ignore", SyntaxWarning)
+            inner = ast.literal_eval(wrapper_match.group(1))
+    except (ValueError, SyntaxError):
+        inner = wrapper_match.group(1).strip("'\"")
+
+    json_path, _, rule_text = inner.partition(", ")
+    if not rule_text:
+        return None, message
+
+    field = json_path[2:] if json_path.startswith("$.") else json_path
+    if field in ("", "$"):
+        field = "(root)"
+    field = re.sub(r"\[\d+\]", "[]", field)
+
+    if rule_text.endswith("is a required property"):
+        rule = "required property"
+    elif _ACCEPTABLE_FORMATS_PREFIX in rule_text:
+        rule = rule_text.split(_ACCEPTABLE_FORMATS_PREFIX, 1)[1]
+    else:
+        rule = rule_text
+
+    return field, rule
+
+
+def group_record_error_fields(rows: list[tuple]) -> list[dict]:
+    """
+    group (severity, type, message, count) rows into per-field/rule summaries
+    for the harvest job report. rows are pre-aggregated by exact message, so
+    identical (field, rule) pairs from different messages are merged here.
+    """
+    severity_order = {"error": 0, "warning": 1}
+    grouped: dict[tuple, dict] = {}
+
+    for severity, error_type, message, count in rows:
+        if error_type in ("ValidationError", "ValidationException"):
+            field, rule = parse_validation_message(message)
+        else:
+            field, rule = None, error_type
+
+        key = (severity, field, rule)
+        entry = grouped.setdefault(
+            key,
+            {
+                "severity": severity,
+                "field": field,
+                "rule": rule,
+                "type": error_type,
+                "count": 0,
+                "examples": [],
+            },
+        )
+        entry["count"] += count
+        if len(entry["examples"]) < 3:
+            entry["examples"].append(message)
+
+    return sorted(
+        grouped.values(),
+        key=lambda entry: (
+            severity_order.get(entry["severity"], 2),
+            -entry["count"],
+        ),
+    )
+
+
+def build_report_email_section(
+    error_field_summary: list[dict], sample_datasets: list, catalog_base_url: str
+) -> str:
+    """
+    Plain-text rendering of the /report page's issues-by-field and sample
+    dataset sections, for inlining into the harvest job notification email.
+    """
+    lines = ["Issues by field:"]
+    if not error_field_summary:
+        lines.append("- No record errors or warnings found.")
+    else:
+        for row in error_field_summary:
+            field = row["field"] or "(root)"
+            lines.append(
+                f"- {row['severity']}: {field} - {row['rule']} ({row['count']})"
+            )
+
+    lines.append("")
+    lines.append("Sample datasets:")
+    if not sample_datasets:
+        lines.append("- No datasets have been harvested from this source yet.")
+    else:
+        for dataset in sample_datasets:
+            if catalog_base_url:
+                lines.append(
+                    f"- {dataset.slug}: {catalog_base_url}/dataset/{dataset.slug}"
+                )
+            else:
+                lines.append(f"- {dataset.slug}")
+
+    return "\n".join(lines)
 
 
 def found_simple_message(

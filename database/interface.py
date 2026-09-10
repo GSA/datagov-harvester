@@ -692,6 +692,33 @@ class HarvesterDBInterface:
             for severity, error_type, error_count in query
         ]
 
+    def get_record_error_messages_summary_by_job(self, job_id: str, limit: int = 50000):
+        """
+        Get a summary of all record issues for this job, grouped by severity,
+        type, and exact message, for field-level grouping in the harvest
+        source report.
+        """
+        query = (
+            self.db.query(
+                HarvestRecordError.severity,
+                HarvestRecordError.type,
+                HarvestRecordError.message,
+                func.count(),
+            )
+            .where(HarvestRecordError.harvest_job_id == job_id)
+            .group_by(
+                HarvestRecordError.severity,
+                HarvestRecordError.type,
+                HarvestRecordError.message,
+            )
+            .order_by(HarvestRecordError.severity, HarvestRecordError.type)
+            .limit(limit)
+        )
+        return [
+            (severity, error_type, message, count)
+            for severity, error_type, message, count in query
+        ]
+
     ## HARVEST RECORD
     def add_harvest_record(self, record_data):
         try:

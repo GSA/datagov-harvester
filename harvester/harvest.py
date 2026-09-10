@@ -19,7 +19,7 @@ sys.path.insert(1, "/".join(os.path.realpath(__file__).split("/")[0:-2]))
 from database.models import HarvestSource as HarvestSourceORM
 
 # ruff: noqa: E402
-from harvester import SMTP_CONFIG, HarvesterDBInterface, db_interface
+from harvester import CATALOG_BASE_URL, SMTP_CONFIG, HarvesterDBInterface, db_interface
 from harvester.exceptions import (
     ClearJobException,
     CompareException,
@@ -44,6 +44,7 @@ from harvester.utils.general_utils import (
     assemble_validation_errors,
     backfill_catalog_record_identifiers,
     build_dcatus3_validator,
+    build_report_email_section,
     dataset_to_hash,
     describe_identifier_error,
     download_file,
@@ -54,6 +55,7 @@ from harvester.utils.general_utils import (
     extract_dcatus3_nested_datasets,
     find_indexes_for_duplicates,
     get_datetime,
+    group_record_error_fields,
     make_record_mapping,
     merge_dcatus3_datasets,
     munge_title_to_name,
@@ -129,6 +131,7 @@ class HarvestSource:
             "id",  # db guuid
             "notification_emails",
             "notification_frequency",
+            "send_report_email",
         ],
         repr=False,
     )
@@ -866,11 +869,30 @@ class HarvestSource:
             source = self.get_source_orm()
             org_name = source.org.name
 
+            report_section = ""
+            if getattr(self, "send_report_email", False):
+                error_field_summary = group_record_error_fields(
+                    self.db_interface.get_record_error_messages_summary_by_job(
+                        self.job_id
+                    )
+                )
+                sample_datasets = self.db_interface.get_datasets_by_source(
+                    self.id, page=0, per_page=10
+                )
+                report_section = (
+                    "\n"
+                    + build_report_email_section(
+                        error_field_summary, sample_datasets, CATALOG_BASE_URL
+                    )
+                    + "\n\n"
+                )
+
             body = (
                 "A harvest job has been successfully completed.\n"
                 f"- Organization: {org_name}\n"
                 f"- Harvest source: {self.name}\n"
-                f"- Job details: {job_url}\n\n"
+                f"{report_section}"
+                f"- Technical details: {job_url}\n\n"
                 f"Summary of the job ({self.job_id}):\n"
                 f"- Records Added: {job_results['records_added']}\n"
                 f"- Records Updated: {job_results['records_updated']}\n"

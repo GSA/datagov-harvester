@@ -22,6 +22,7 @@ auth = LoginRequiredAuth()
 login_required = auth.login_required()
 
 CKAN_URL = os.getenv("CKAN_URL") or ""
+CATALOG_BASE_URL = os.getenv("CATALOG_BASE_URL") or ""
 
 STATUS_STRINGS_ENUM = {404: "Not Found"}
 
