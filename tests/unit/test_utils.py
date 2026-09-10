@@ -289,6 +289,47 @@ class TestCKANUtils:
         # Looks like WKT (has the "POLYGON" prefix) but isn't parseable.
         assert translate_wkt_to_geojson("POLYGON((not valid))") == ""
 
+    def test_translate_wkt_to_geojson_degenerate_polygon_becomes_point(self):
+        # Coordinate rounding can collapse a small survey area's bbox onto
+        # a single point. shapely parses this ring fine, but
+        # geojson_validator rejects it (less_three_unique_nodes) unless we
+        # reduce it the same way munge_spatial does for v1.1 bboxes.
+        assert (
+            translate_wkt_to_geojson(
+                "POLYGON((-115.63 32.49, -115.63 32.49, -115.63 32.49, "
+                "-115.63 32.49, -115.63 32.49))"
+            )
+            == '{"type": "Point", "coordinates": [-115.63, 32.49]}'
+        )
+
+    def test_translate_wkt_to_geojson_degenerate_polygon_becomes_linestring(self):
+        # Two unique corners (a sliver) reduces to a LineString rather than
+        # being rejected as a degenerate Polygon.
+        assert translate_wkt_to_geojson(
+            "POLYGON((-87.88 43.34, -87.88 43.35, -87.88 43.35, "
+            "-87.88 43.34, -87.88 43.34))"
+        ) == (
+            '{"type": "LineString", "coordinates": '
+            "[[-87.88, 43.34], [-87.88, 43.35]]}"
+        )
+
+    def test_translate_wkt_to_geojson_valid_triangle_unaffected(self):
+        # Three unique corners is a valid, non-degenerate Polygon and must
+        # not be reduced.
+        assert translate_wkt_to_geojson("POLYGON((0 0, 1 0, 0 1, 0 0))") == (
+            '{"type": "Polygon", "coordinates": '
+            "[[[0.0, 0.0], [1.0, 0.0], [0.0, 1.0], [0.0, 0.0]]]}"
+        )
+
+    def test_translate_spatial_to_geojson_degenerate_wkt_polygon(self):
+        # End-to-end through translate_spatial_to_geojson: a degenerate WKT
+        # bbox must resolve to a geometry instead of being dropped (None).
+        geojson = translate_spatial_to_geojson(
+            "POLYGON((-115.63 32.49, -115.63 32.49, -115.63 32.49, "
+            "-115.63 32.49, -115.63 32.49))"
+        )
+        assert geojson == {"type": "Point", "coordinates": [-115.63, 32.49]}
+
     def test_translate_spatial_to_geojson_wkt_polygon(self):
         geojson = translate_spatial_to_geojson(
             "POLYGON((-125 24, -66 24, -66 50, -125 50, -125 24))"
