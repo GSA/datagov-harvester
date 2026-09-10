@@ -58,6 +58,7 @@ from harvester.utils.general_utils import (
     group_record_error_fields,
     make_record_mapping,
     merge_dcatus3_datasets,
+    munge_spatial,
     munge_title_to_name,
     normalize_dataset_identifier,
     open_json,
@@ -1434,7 +1435,11 @@ class Record:
             "last_harvested_date": self.date_finished,
         }
 
-        translated_spatial = translate_spatial_to_geojson(metadata.get("spatial"))
+        spatial_value = metadata.get("spatial")
+        if self.harvest_source.schema_type.startswith("iso19115") and spatial_value:
+            spatial_value = munge_spatial(spatial_value)
+
+        translated_spatial = translate_spatial_to_geojson(spatial_value)
         try:
             if translated_spatial is not None:
                 payload["translated_spatial"] = translated_spatial
