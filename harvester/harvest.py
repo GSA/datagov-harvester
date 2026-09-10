@@ -58,6 +58,7 @@ from harvester.utils.general_utils import (
     group_record_error_fields,
     make_record_mapping,
     merge_dcatus3_datasets,
+    munge_spatial,
     munge_title_to_name,
     normalize_dataset_identifier,
     normalize_dcatus3_location_bbox,
@@ -1231,18 +1232,34 @@ class Record:
         """
         # missing contactPoint or it's empty
         if not self.transformed_data.get("contactPoint"):
+            logger.warning(
+                "Record %s missing contactPoint, using default value",
+                self.identifier,
+            )
             self.transformed_data["contactPoint"] = {
                 "fn": "Not provided - Contact data.gov",
                 "hasEmail": "mailto:datagovsupport@gsa.gov",
             }
 
         if not self.transformed_data.get("description"):
+            logger.warning(
+                "Record %s missing description, using default value",
+                self.identifier,
+            )
             self.transformed_data["description"] = "No description was provided."
 
         if not self.transformed_data.get("keyword"):
+            logger.warning(
+                "Record %s missing keyword, using default value",
+                self.identifier,
+            )
             self.transformed_data["keyword"] = ["__"]
 
         if not self.transformed_data.get("publisher"):
+            logger.warning(
+                "Record %s missing publisher, using organization name",
+                self.identifier,
+            )
             # publisher defaults to the harvest source's organization
             # information
             self.transformed_data["publisher"] = {
@@ -1263,7 +1280,11 @@ class Record:
                 # it exists and isn't valid
                 candidate = "https://" + url
                 if self._is_valid_url(candidate):
-                    # TODO: log a warning that we are making this change
+                    logger.warning(
+                        "Record %s distribution %s missing protocol, adding https://",
+                        self.identifier,
+                        key,
+                    )
                     item[key] = candidate
 
         for dist_item in self.transformed_data.get("distribution", []):
@@ -1377,10 +1398,16 @@ class Record:
 
         if valid:
             self.harvest_source.update_job_record_count_by_action("validated")
+            logger.info("Validated record %s successfully", self.identifier)
             return True
         else:
             # update the reporter only once even with multiple errors
             self.harvest_source.update_job_record_count_by_action("errored")
+            logger.error(
+                "Validation failed for record %s: %d error(s)",
+                self.identifier,
+                len(errors),
+            )
             return False
 
     def _metadata_for_dataset(self):
@@ -1411,7 +1438,11 @@ class Record:
             "last_harvested_date": self.date_finished,
         }
 
-        translated_spatial = translate_spatial_to_geojson(metadata.get("spatial"))
+        spatial_value = metadata.get("spatial")
+        if self.harvest_source.schema_type.startswith("iso19115") and spatial_value:
+            spatial_value = munge_spatial(spatial_value)
+
+        translated_spatial = translate_spatial_to_geojson(spatial_value)
         try:
             if translated_spatial is not None:
                 payload["translated_spatial"] = translated_spatial
@@ -1431,7 +1462,14 @@ class Record:
 
     def _index_dataset_in_opensearch(self, dataset) -> None:
         client = self.harvest_source.opensearch
-        if client is None or dataset is None:
+        if client is None:
+            if dataset is not None:
+                logger.warning(
+                    "OpenSearch client not configured; skipping indexing for dataset (slug: %s)",
+                    dataset.slug if hasattr(dataset, "slug") else "unknown",
+                )
+            return
+        if dataset is None:
             return
         try:
             succeeded, failed, errors = client.index_datasets([dataset])
@@ -1441,6 +1479,12 @@ class Record:
                     dataset.id,
                     dataset.slug,
                     errors,
+                )
+            elif succeeded:
+                logger.info(
+                    "Indexed dataset '%s' (slug: %s) in OpenSearch",
+                    dataset.dcat.get("title", dataset.id),
+                    dataset.slug,
                 )
         except Exception as e:
             logger.exception(
@@ -1452,10 +1496,21 @@ class Record:
 
     def _delete_dataset_from_opensearch(self, dataset) -> None:
         client = self.harvest_source.opensearch
-        if client is None or dataset is None:
+        if client is None:
+            if dataset is not None:
+                logger.warning(
+                    "OpenSearch client not configured; skipping removal for dataset (slug: %s)",
+                    dataset.slug if hasattr(dataset, "slug") else "unknown",
+                )
+            return
+        if dataset is None:
             return
         try:
             client.delete_dataset_by_id(dataset.id)
+            logger.info(
+                "Removed dataset (slug: %s) from OpenSearch index",
+                dataset.slug,
+            )
         except Exception as e:
             logger.exception(
                 "OpenSearch delete error for dataset %s (slug %s): %s",
@@ -1500,6 +1555,13 @@ class Record:
                 dataset_payload = self._dataset_payload(metadata)
                 if self.action == "create":
                     dataset = self._insert_dataset_with_unique_slug(dataset_payload)
+                    if dataset:
+                        logger.info(
+                            "Created dataset '%s' (slug: %s) from record %s",
+                            metadata.get("title", "Unknown"),
+                            dataset.slug,
+                            self.identifier,
+                        )
                 else:
                     # harvester should never update the slug
                     update_payload = {
@@ -1509,6 +1571,13 @@ class Record:
                     dataset = self.harvest_source.db_interface.upsert_dataset(
                         update_payload
                     )
+                    if dataset:
+                        logger.info(
+                            "Updated dataset '%s' (slug: %s) from record %s",
+                            metadata.get("title", "Unknown"),
+                            dataset.slug,
+                            self.identifier,
+                        )
                 if dataset:
                     self.status = "success"
                 self._index_dataset_in_opensearch(dataset)
@@ -1521,6 +1590,10 @@ class Record:
                 )
                 if deleted:
                     self.status = "success"
+                    logger.info(
+                        "Deleted dataset (slug: %s) - no longer present in source",
+                        self.dataset_slug,
+                    )
                     self._delete_dataset_from_opensearch(dataset)
 
             self.update_self_in_db()
@@ -1564,7 +1637,7 @@ class Record:
                 if not self._is_slug_unique_violation(error):
                     raise
 
-                logger.info(
+                logger.warning(
                     "Dataset slug '%s' already exists; generating a new slug",
                     self.dataset_slug,
                 )

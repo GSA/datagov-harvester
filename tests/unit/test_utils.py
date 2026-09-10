@@ -150,15 +150,17 @@ class TestCKANUtils:
                                 [180.0, 50.0],
                                 [170.0, 50.0],
                                 [170.0, 40.0],
-                            ],
+                            ]
+                        ],
+                        [
                             [
                                 [-180.0, 40.0],
-                                [-180.0, 50.0],
-                                [-170.0, 50.0],
                                 [-170.0, 40.0],
+                                [-170.0, 50.0],
+                                [-180.0, 50.0],
                                 [-180.0, 40.0],
-                            ],
-                        ]
+                            ]
+                        ],
                     ],
                 }
             )
@@ -182,15 +184,17 @@ class TestCKANUtils:
                                 [-180.0, 50.0],
                                 [-180.0, 40.0],
                                 [-170.0, 40.0],
-                            ],
+                            ]
+                        ],
+                        [
                             [
                                 [180.0, 50.0],
-                                [180.0, 40.0],
-                                [170.0, 40.0],
                                 [170.0, 50.0],
+                                [170.0, 40.0],
+                                [180.0, 40.0],
                                 [180.0, 50.0],
-                            ],
-                        ]
+                            ]
+                        ],
                     ],
                 }
             )
@@ -379,6 +383,58 @@ class TestCKANUtils:
             '{"type": "Point", "coordinates": [0.0, 0.0]}'
         )
 
+    def test_translate_spatial_location_array_geometry_after_pref_label_skips_lookup(
+        self,
+    ):
+        locations = [
+            {"@type": "Location", "prefLabel": "Nebraska"},
+            {"@type": "Location", "geometry": "POINT (1.0 1.0)"},
+        ]
+        fake_dbi = Mock(get_geo_from_string=Mock())
+        with patch(
+            "harvester.utils.general_utils._get_geo_lookup_interface",
+            lambda: fake_dbi,
+        ):
+            assert translate_spatial(locations) == (
+                '{"type": "Point", "coordinates": [1.0, 1.0]}'
+            )
+        fake_dbi.get_geo_from_string.assert_not_called()
+
+    def test_translate_spatial_location_array_falls_back_to_pref_label_db_hit(self):
+        locations = [
+            {"@type": "Location", "prefLabel": "Nebraska"},
+            {"@type": "Location", "altLabel": "NE"},
+        ]
+        fake_dbi = Mock(
+            get_geo_from_string=Mock(
+                return_value='{"type": "Point", "coordinates": [-99.9018, 41.4925]}'
+            )
+        )
+        with patch(
+            "harvester.utils.general_utils._get_geo_lookup_interface",
+            lambda: fake_dbi,
+        ):
+            assert translate_spatial(locations) == (
+                '{"type": "Point", "coordinates": [-99.9018, 41.4925]}'
+            )
+        fake_dbi.get_geo_from_string.assert_called_once_with("Nebraska")
+
+    def test_translate_spatial_location_array_falls_back_to_pref_label_db_miss(self):
+        locations = [
+            {"@type": "Location", "prefLabel": "Nebraska"},
+            {"@type": "Location", "altLabel": "NE"},
+        ]
+        fake_dbi = Mock(get_geo_from_string=Mock(return_value=None))
+        with patch(
+            "harvester.utils.general_utils._get_geo_lookup_interface",
+            lambda: fake_dbi,
+        ):
+            assert translate_spatial(locations) == ""
+            fake_dbi.get_geo_from_string.assert_called_once_with("Nebraska")
+            fake_dbi.get_geo_from_string.reset_mock()
+            assert translate_spatial_to_geojson(locations) is None
+            fake_dbi.get_geo_from_string.assert_called_once_with("Nebraska")
+
     def test_translate_spatial_location_falls_back_to_bbox(self):
         location = {
             "@type": "Location",
@@ -407,10 +463,34 @@ class TestCKANUtils:
             '{"type": "Point", "coordinates": [-77.0369, 38.9072]}'
         )
 
-    def test_translate_spatial_location_with_no_geometry_fields(self):
+    def test_translate_spatial_location_pref_label_only_db_hit(self):
         location = {"@type": "Location", "prefLabel": "Washington, D.C."}
-        assert translate_spatial(location) == ""
-        assert translate_spatial_to_geojson(location) is None
+        fake_dbi = Mock(
+            get_geo_from_string=Mock(
+                return_value='{"type": "Point", "coordinates": [-77.0369, 38.9072]}'
+            )
+        )
+        with patch(
+            "harvester.utils.general_utils._get_geo_lookup_interface",
+            lambda: fake_dbi,
+        ):
+            assert translate_spatial(location) == (
+                '{"type": "Point", "coordinates": [-77.0369, 38.9072]}'
+            )
+        fake_dbi.get_geo_from_string.assert_called_once_with("Washington, D.C.")
+
+    def test_translate_spatial_location_pref_label_only_db_miss(self):
+        location = {"@type": "Location", "prefLabel": "Washington, D.C."}
+        fake_dbi = Mock(get_geo_from_string=Mock(return_value=None))
+        with patch(
+            "harvester.utils.general_utils._get_geo_lookup_interface",
+            lambda: fake_dbi,
+        ):
+            assert translate_spatial(location) == ""
+            fake_dbi.get_geo_from_string.assert_called_once_with("Washington, D.C.")
+            fake_dbi.get_geo_from_string.reset_mock()
+            assert translate_spatial_to_geojson(location) is None
+            fake_dbi.get_geo_from_string.assert_called_once_with("Washington, D.C.")
 
     def test_normalize_dcatus3_location_bbox_array_to_polygon(self):
         """King County's real ArcGIS Hub DCAT-US 3.0 export (GSA/data.gov#6298)
