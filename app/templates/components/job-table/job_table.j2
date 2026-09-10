@@ -57,11 +57,11 @@
                         <div class="progress-meter">
                             {# [:-1] slices off "%" #}
                             <style nonce="{{ csp_nonce() }}">
-                              .this-progress {
+                              .progress-{{ job.id }} {
                                 --progress: {{ job.percent_complete[:-1] }};
                               }
                             </style>
-                            <div class="progress-percent this-progress"></div>
+                            <div class="progress-percent progress-{{ job.id }}"></div>
                         </div>
                     </td>
                 {% endif %}
