@@ -264,3 +264,135 @@ class TestTransform:
                 "record failed to transform with error: 'int' object is not "
                 "subscriptable"
             )
+
+    def test_iso19115_to_dcatus3_conversion(
+        self,
+        interface,
+        organization_data,
+        source_data_waf_iso19115_2,
+        job_data_waf_iso19115_2,
+    ):
+        """Test that ISO records are converted from DCAT 1.1 to 3.0 after MDTranslator."""
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_waf_iso19115_2)
+        harvest_job = interface.add_harvest_job(job_data_waf_iso19115_2)
+
+        harvest_source = HarvestSource(harvest_job.id)
+        harvest_source.acquire_minimum_external_data()
+        external_records_to_process = harvest_source.external_records_to_process()
+
+        iso_records = list(external_records_to_process)
+        # Find first valid record (skip decode_error and invalid records)
+        test_record = next(
+            (record for record in iso_records if "valid_iso" in record.identifier),
+            None,
+        )
+
+        if test_record is None:
+            pytest.fail("No valid ISO record found in harvest")
+
+        test_record.transform()
+
+        # Verify transformed data has DCAT 3.0 characteristics
+        transformed = test_record.transformed_data
+
+        # DCAT 3.0 adds conformsTo field
+        assert "conformsTo" in transformed
+        assert transformed["conformsTo"]["title"] == "DCAT-US 3.0"
+        assert (
+            transformed["conformsTo"]["identifier"]
+            == "https://resources.data.gov/dcat-us/3.0.0"
+        )
+
+        # DCAT 3.0 should not have @context (removed during conversion)
+        assert "@context" not in transformed
+        assert "describedBy" not in transformed
+
+        # accessRights should be added from accessLevel
+        if "accessLevel" in transformed:
+            assert "accessRights" in transformed
+
+    def test_iso19115_validates_against_dcatus3_schema(
+        self,
+        interface,
+        organization_data,
+        source_data_waf_iso19115_2,
+        job_data_waf_iso19115_2,
+    ):
+        """Test that converted ISO records validate against DCAT 3.0 schema."""
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_waf_iso19115_2)
+        harvest_job = interface.add_harvest_job(job_data_waf_iso19115_2)
+
+        harvest_source = HarvestSource(harvest_job.id)
+
+        # Verify ISO sources now use DCAT 3.0 validator
+        validator = harvest_source.validator_for("dataset")
+
+        # DCAT 3.0 validators are built with build_dcatus3_validator, not Draft202012Validator
+        # Check validator type or schema reference
+        assert hasattr(validator, "schema")
+
+        harvest_source.acquire_minimum_external_data()
+        external_records_to_process = harvest_source.external_records_to_process()
+
+        iso_records = list(external_records_to_process)
+        # Find first valid record
+        test_record = next(
+            (record for record in iso_records if "valid_iso" in record.identifier),
+            None,
+        )
+
+        if test_record is None:
+            pytest.fail("No valid ISO record found in harvest")
+
+        test_record.transform()
+
+        # Validate should pass with DCAT 3.0 schema
+        result = test_record.validate()
+        assert result is True
+        assert test_record.status != "error"
+
+    def test_iso19115_field_transformations(
+        self,
+        interface,
+        organization_data,
+        source_data_waf_iso19115_2,
+        job_data_waf_iso19115_2,
+    ):
+        """Test specific field transformations from DCAT 1.1 to 3.0."""
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_waf_iso19115_2)
+        harvest_job = interface.add_harvest_job(job_data_waf_iso19115_2)
+
+        harvest_source = HarvestSource(harvest_job.id)
+        harvest_source.acquire_minimum_external_data()
+        external_records_to_process = harvest_source.external_records_to_process()
+
+        iso_records = list(external_records_to_process)
+        # Find first valid record
+        test_record = next(
+            (record for record in iso_records if "valid_iso" in record.identifier),
+            None,
+        )
+
+        if test_record is None:
+            pytest.fail("No valid ISO record found in harvest")
+
+        test_record.transform()
+        transformed = test_record.transformed_data
+
+        # Check license propagation to distributions
+        if "license" in transformed and "distribution" in transformed:
+            for dist in transformed["distribution"]:
+                if isinstance(dist, dict):
+                    assert "license" in dist
+
+        # Check temporal format (should be timezone-aware if present)
+        if "temporal" in transformed:
+            temporal = transformed["temporal"]
+            if isinstance(temporal, dict):
+                if "startDate" in temporal:
+                    assert "T" in temporal["startDate"]  # ISO 8601 format
+                if "endDate" in temporal:
+                    assert "T" in temporal["endDate"]

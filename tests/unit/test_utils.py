@@ -2014,3 +2014,42 @@ class TestCreateRetrySession:
         # Verify User-Agent header is still set
         assert "User-Agent" in session.headers
         assert session.headers["User-Agent"] == USER_AGENT
+
+
+def test_convert_dcat_catalog_import():
+    """Test that convert_dcat_catalog can be imported and called."""
+    import sys
+    from pathlib import Path
+
+    # Add _external to path if not already present
+    external_path = (
+        Path(__file__).parent.parent.parent / "_external" / "dcat-us" / "jsonschema"
+    )
+    if str(external_path) not in sys.path:
+        sys.path.insert(0, str(external_path))
+
+    from convert_dcat_1_1_to_3_0 import convert_dcat_catalog
+
+    # Test with minimal v1.1 catalog
+    v1_1_catalog = {
+        "@context": "https://project-open-data.cio.gov/v1.1/schema/catalog.jsonld",
+        "conformsTo": "https://project-open-data.cio.gov/v1.1/schema",
+        "dataset": [
+            {
+                "identifier": "test-001",
+                "title": "Test Dataset",
+                "description": "Test description",
+                "accessLevel": "public",
+                "modified": "2025-01-01",
+            }
+        ],
+    }
+
+    result = convert_dcat_catalog(v1_1_catalog)
+
+    # Verify DCAT 3.0 characteristics
+    assert "conformsTo" in result
+    assert result["conformsTo"]["title"] == "DCAT-US 3.0"
+    assert "@context" not in result
+    assert len(result["dataset"]) == 1
+    assert result["dataset"][0]["identifier"] == "test-001"
