@@ -71,7 +71,7 @@ class TestHarvestSourceUnauthed:
         # Test static content that doesn't change
         expect(first_row.nth(0)).to_contain_text("4e5f6a")  # Job ID (truncated)
         expect(first_row.nth(1)).to_contain_text("in_progress")  # Status
-        # Skip columns 2-4 (type, date_created, date_finished) as they're dynamic
+        # Skip columns 2-4 (type, date_created, duration) as they're dynamic
         expect(first_row.nth(5)).to_contain_text("0")  # records_added
         expect(first_row.nth(6)).to_contain_text("0")  # records_updated
         expect(first_row.nth(7)).to_contain_text("0")  # records_deleted
