@@ -169,7 +169,8 @@ class HarvestSource:
             # identifiers must provide @id.
             self.schema_file = DCATUS3_DATASET_SCHEMA
         elif self.schema_type.startswith("iso19115"):
-            self.schema_file = DCATUS1_1_DIR / "iso-non-federal_dataset.json"
+            # ISO sources now output DCAT 3.0 after conversion
+            self.schema_file = DCATUS3_DATASET_SCHEMA
         else:
             # this can't happen because we apply an enum in our model but just in case.
             logger.error(
@@ -179,7 +180,8 @@ class HarvestSource:
             raise Exception
 
         self.dataset_schema = open_json(self.schema_file)
-        if self.schema_type == "dcatus3.0":
+        # ISO sources now produce DCAT 3.0 output after conversion
+        if self.schema_type == "dcatus3.0" or self.schema_type.startswith("iso19115"):
             # validate one record at a time against the dcatus3.0 schema
             # matching its record_type, which plugs into the same per-record
             # validation flow as dcatus1.1.
