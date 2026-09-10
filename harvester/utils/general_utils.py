@@ -1330,15 +1330,9 @@ def _get_geo_lookup_interface():
         return None
 
 
-def _unwrap_location(input_value):
-    """Extract the geometry-bearing value from a DCAT-US 3.0 Location object.
-
-    v3.0 `spatial` is a Location object or a list of them; v1.1 is a plain
-    string. A bare {type, coordinates} GeoJSON dict is passed through.
-    """
-
-    if isinstance(input_value, list):
-        input_value = next((item for item in input_value if item), None)
+def _unwrap_single_location(input_value):
+    """Resolve a single (non-array) spatial value to its geometry-bearing
+    value, or None if it has nothing usable."""
 
     if (
         isinstance(input_value, dict)
@@ -1355,6 +1349,54 @@ def _unwrap_location(input_value):
         return None
 
     return input_value
+
+
+def _extract_pref_label(input_value):
+    """Return a Location's prefLabel as a plain string, or None if absent,
+    blank, or not a dict.
+
+    Consulted by _unwrap_location only when nothing in the whole input has
+    usable geometry - real geometry always outranks a named-place fallback.
+    (Full hierarchy is geojson > delimited coords > named location; the
+    delimited-coords tier isn't implemented yet - translate_spatial's
+    existing validate_geojson -> get_geo_from_string -> munge_spatial order
+    is unchanged by this.)
+    """
+
+    if not isinstance(input_value, dict):
+        return None
+    pref_label = input_value.get("prefLabel")
+    if isinstance(pref_label, str) and pref_label.strip():
+        return pref_label
+    return None
+
+
+def _unwrap_location(input_value):
+    """Extract the geometry-bearing value from a DCAT-US 3.0 Location object.
+
+    v3.0 `spatial` is a Location object or a list of them; v1.1 is a plain
+    string. A bare {type, coordinates} GeoJSON dict is passed through.
+
+    Real geometry anywhere in the input always wins over a named-place
+    (prefLabel) fallback found anywhere else: the first element with usable
+    geometry short-circuits the scan immediately. Only when NO element has
+    any geometry do we fall back to the first prefLabel seen during that
+    same scan, returned as a plain string so it flows into translate_spatial's
+    existing string branch (and from there, its existing locations-table
+    lookup) instead of being discarded.
+    """
+
+    items = input_value if isinstance(input_value, list) else [input_value]
+
+    pref_label_fallback = None
+    for item in items:
+        unwrapped = _unwrap_single_location(item)
+        if unwrapped:
+            return unwrapped
+        if pref_label_fallback is None:
+            pref_label_fallback = _extract_pref_label(item)
+
+    return pref_label_fallback
 
 
 def translate_spatial(input_value) -> str:
