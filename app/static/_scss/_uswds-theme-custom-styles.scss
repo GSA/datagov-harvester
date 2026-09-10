@@ -71,6 +71,128 @@ i.e.
   width: 100%;
 }
 
+.usa-table.job-table th,
+.usa-table.job-table td {
+  padding-left: 0.625rem;
+  padding-right: 0.625rem;
+}
+
+.usa-table.job-table .job-table-id,
+.usa-table.job-table .job-table-status,
+.usa-table.job-table .job-table-progress,
+.usa-table.job-table .job-table-type,
+.usa-table.job-table .job-table-started,
+.usa-table.job-table .job-table-duration {
+  white-space: nowrap;
+  width: 1%;
+}
+
+.usa-table.job-table .job-table-source {
+  max-width: 16rem;
+}
+
+.usa-table.job-table th.job-count-header,
+.usa-table.job-table td.job-count-cell {
+  color: #f0f0f0;
+  padding-left: 0.35rem;
+  padding-right: 0.35rem;
+  white-space: nowrap;
+  width: 1%;
+}
+
+.usa-table.job-table th.job-count-header {
+  font-size: 0.91rem;
+  text-align: right;
+}
+
+.usa-table.job-table th.job-count-group-header {
+  border-left: 2px solid #c9c9c9;
+  border-right: 1px solid #c9c9c9;
+  border-top: 1px solid #c9c9c9;
+  padding-bottom: 0.2rem;
+  padding-top: 0.2rem;
+  text-align: center;
+}
+
+.usa-table.job-table td.job-count-cell {
+  font-family: "Roboto Mono Web", monospace;
+  font-size: 1.06rem;
+  font-synthesis: weight;
+  font-weight: 700;
+}
+
+.usa-table.job-table th.job-count-header span {
+  display: inline;
+}
+
+.usa-table.job-table th.job-count-header,
+.usa-table.job-table td.job-count-cell {
+  border-left: 1px solid #c9c9c9;
+}
+
+.usa-table.job-table th.job-count-header {
+  border-top: 1px solid #c9c9c9;
+}
+
+.usa-table.job-table th.job-count-added,
+.usa-table.job-table td.job-count-cell.job-count-added {
+  border-left-width: 2px;
+}
+
+.usa-table.job-table th.job-count-unchanged,
+.usa-table.job-table td.job-count-cell.job-count-unchanged {
+  border-right: 1px solid #c9c9c9;
+}
+
+.usa-table.job-table th.job-count-added,
+.usa-table.job-table.usa-table--striped tbody tr td.job-count-cell.job-count-added {
+  background-color: #4f9f62;
+}
+
+.usa-table.job-table th.job-count-updated,
+.usa-table.job-table.usa-table--striped tbody tr td.job-count-cell.job-count-updated {
+  background-color: #2f8ec5;
+}
+
+.usa-table.job-table th.job-count-deleted,
+.usa-table.job-table.usa-table--striped tbody tr td.job-count-cell.job-count-deleted {
+  background-color: #b87535;
+}
+
+.usa-table.job-table th.job-count-errored,
+.usa-table.job-table.usa-table--striped tbody tr td.job-count-cell.job-count-errored {
+  background-color: #d54343;
+}
+
+.usa-table.job-table th.job-count-warned,
+.usa-table.job-table.usa-table--striped tbody tr td.job-count-cell.job-count-warned {
+  background-color: #b38b00;
+}
+
+.usa-table.job-table th.job-count-unchanged,
+.usa-table.job-table.usa-table--striped tbody tr td.job-count-cell.job-count-unchanged {
+  background-color: #7f858c;
+}
+
+.harvest-job-chart {
+  height: 16rem;
+  margin-bottom: 1rem;
+  max-width: 72rem;
+}
+
+.utc-date-title {
+  cursor: default;
+  text-decoration-color: transparent;
+  text-decoration-line: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 0.2em;
+}
+
+.utc-date-title:hover,
+.utc-date-title:focus {
+  text-decoration-color: currentColor;
+}
+
 // USWDS has no built-in dismissible alert; use grid so the close button
 // stays out of .usa-alert__body > * icon spacing rules.
 .usa-alert.usa-alert--dismissible {
