@@ -2,6 +2,7 @@ from flask import flash, redirect, render_template, request, url_for
 
 from app import deps, htmx
 from app.deps import (
+    CATALOG_BASE_URL,
     CKAN_URL,
     _log_mutation,
     create_harvest_source,
@@ -111,6 +112,7 @@ def view_harvest_source(source_id: str):
             )
             data = {
                 "source": {"id": source_id},
+                "catalog_base_url": CATALOG_BASE_URL,
                 "datasets": datasets,
                 "datasets_htmx_vars": datasets_htmx_vars,
             }
@@ -244,6 +246,7 @@ def view_harvest_source(source_id: str):
         )
         data = {
             "ckan_url": CKAN_URL,
+            "catalog_base_url": CATALOG_BASE_URL,
             "source": source,
             "summary_data": summary_data,
             "jobs": jobs,
@@ -338,6 +341,9 @@ def edit_harvest_source(source_id: str):
             source_data = deps.db._to_dict(source)
             source_data["notification_emails"] = ", ".join(
                 source_data.get("notification_emails") or []
+            )
+            source_data["send_report_email"] = str(
+                source_data.get("send_report_email", False)
             )
             form = HarvestSourceForm(data=source_data)
             form.organization_id.choices = organization_choices
