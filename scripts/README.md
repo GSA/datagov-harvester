@@ -30,15 +30,18 @@ the running-task cap.
 ## Force-Reharvesting Sources
 
 `flask harvest_source force_reharvest_sources` (in `app/commands/source.py`)
-force-reharvests every harvest source whose `schema_type` starts with a given
-prefix (e.g. `dcatus`, `iso19115`). It's a Flask CLI command, not a standalone
-script, so it runs inside the app itself and uses whatever database it's
-already configured with, no separate DB connection setup needed.
+force-reharvests harvest sources, optionally filtered by `schema_type` prefix
+(e.g. `dcatus`, `iso19115`) and/or by organization (id or slug). Both filters
+are repeatable and optional; omitting both force-reharvests every source. It's
+a Flask CLI command, not a standalone script, so it runs inside the app
+itself and uses whatever database it's already configured with, no separate
+DB connection setup needed.
 
 Locally:
 
 ```bash
 docker compose exec app flask harvest_source force_reharvest_sources --schema-type-prefix dcatus
+docker compose exec app flask harvest_source force_reharvest_sources --organization census-bureau
 ```
 
 Against a deployed environment (e.g. prod), run it as a one-off task instead

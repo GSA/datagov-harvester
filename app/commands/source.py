@@ -48,13 +48,21 @@ def cli_evaluate_sources():
     "--schema-type-prefix",
     "schema_type_prefixes",
     multiple=True,
-    required=True,
     help=(
         "Force-reharvest sources whose schema_type starts with this prefix. "
         "Repeatable, matched with startswith() against the source's "
         f"schema_type (one of: {', '.join(SCHEMA_TYPE_VALUES)}). "
         "E.g. 'dcatus' matches all DCAT-US schema types, 'iso19115' matches "
-        "both ISO schema types."
+        "both ISO schema types. Omit to match sources of any schema type."
+    ),
+)
+@click.option(
+    "--organization",
+    "organizations",
+    multiple=True,
+    help=(
+        "Restrict to sources belonging to this organization, given by id or "
+        "slug. Repeatable. Omit to match sources of any organization."
     ),
 )
 @click.option(
@@ -63,11 +71,13 @@ def cli_evaluate_sources():
     type=bool,
     help="List matching harvest sources without queuing any jobs.",
 )
-def cli_force_reharvest_sources(schema_type_prefixes, dry_run):
+def cli_force_reharvest_sources(schema_type_prefixes, organizations, dry_run):
     """
     Force-reharvest every harvest source whose schema_type starts with one of
-    the given --schema-type-prefix values. Dry run mode is enabled by default
-    to prevent accidental mass triggering.
+    the given --schema-type-prefix values and/or belongs to one of the given
+    --organization values. Omitting both filters force-reharvests every
+    harvest source. Dry run mode is enabled by default to prevent accidental
+    mass triggering.
 
     Queues a "new" force_harvest job per source rather than starting each
     job's task immediately; the app's own scheduler picks up "new" jobs and
@@ -78,13 +88,33 @@ def cli_force_reharvest_sources(schema_type_prefixes, dry_run):
     `cf run-task datagov-harvest --command "flask harvest_source
     force_reharvest_sources --schema-type-prefix dcatus --no-dry-run"`
     """
+    org_ids = None
+    if organizations:
+        org_ids = set()
+        for identifier in organizations:
+            org = db.get_organization(identifier) or db.get_organization_by_slug(
+                identifier
+            )
+            if not org:
+                print(f"No organization found matching '{identifier}'.")
+                raise SystemExit(1)
+            org_ids.add(org.id)
+
     sources = [
         s
         for s in db.get_all_harvest_sources()
-        if s.schema_type.startswith(schema_type_prefixes)
+        if (not schema_type_prefixes or s.schema_type.startswith(schema_type_prefixes))
+        and (org_ids is None or s.organization_id in org_ids)
     ]
-    prefixes_label = ", ".join(schema_type_prefixes)
-    print(f"Found {len(sources)} harvest source(s) matching '{prefixes_label}'.")
+
+    filters_label = []
+    if schema_type_prefixes:
+        prefixes_label = ", ".join(schema_type_prefixes)
+        filters_label.append(f"schema_type prefix in ({prefixes_label})")
+    if organizations:
+        filters_label.append(f"organization in ({', '.join(organizations)})")
+    label = " and ".join(filters_label) if filters_label else "any source"
+    print(f"Found {len(sources)} harvest source(s) matching {label}.")
 
     if dry_run:
         for s in sources:
