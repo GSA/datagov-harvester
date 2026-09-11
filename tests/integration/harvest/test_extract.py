@@ -356,7 +356,7 @@ class TestExtract:
             source_data_waf_iso19115_2, job_data_waf_iso19115_2
         )
 
-        assert str(harvest_source.schema_file).endswith("iso-non-federal_dataset.json")
+        assert str(harvest_source.schema_file).endswith("Dataset.json")
 
     def test_extract_source_with_dataset_missing_identifier(
         self,

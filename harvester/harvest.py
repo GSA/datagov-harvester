@@ -36,6 +36,7 @@ from harvester.exceptions import (
 from harvester.lib.harvest_reporter import HarvestReporter
 from harvester.lib.load_manager import LoadManager
 from harvester.lib.task_handler import create_task_handler
+from harvester.utils.dcat_converter import convert_dcat_catalog
 from harvester.utils.dcat_warnings import DcatWarning, detect_dcat_warnings
 from harvester.utils.general_utils import (
     DT_PLACEHOLDER,
@@ -169,7 +170,8 @@ class HarvestSource:
             # identifiers must provide @id.
             self.schema_file = DCATUS3_DATASET_SCHEMA
         elif self.schema_type.startswith("iso19115"):
-            self.schema_file = DCATUS1_1_DIR / "iso-non-federal_dataset.json"
+            # ISO sources now output DCAT 3.0 after conversion
+            self.schema_file = DCATUS3_DATASET_SCHEMA
         else:
             # this can't happen because we apply an enum in our model but just in case.
             logger.error(
@@ -179,7 +181,8 @@ class HarvestSource:
             raise Exception
 
         self.dataset_schema = open_json(self.schema_file)
-        if self.schema_type == "dcatus3.0":
+        # ISO sources now produce DCAT 3.0 output after conversion
+        if self.schema_type == "dcatus3.0" or self.schema_type.startswith("iso19115"):
             # validate one record at a time against the dcatus3.0 schema
             # matching its record_type, which plugs into the same per-record
             # validation flow as dcatus1.1.
@@ -1053,6 +1056,11 @@ class Record:
     def is_valid_describedByType(self, described_by_type: str) -> bool:
         """Return whether a string is a valid describedByType."""
 
+        if "describedByType" not in self.harvest_source.dataset_schema.get(
+            "properties", {}
+        ):
+            return True
+
         return Draft202012Validator(
             self.harvest_source.dataset_schema["properties"]["describedByType"],
             format_checker=FormatChecker(),
@@ -1149,7 +1157,32 @@ class Record:
                 logger.info(
                     f"successfully transformed record: {self.identifier} db id: {self.id}"
                 )
-                self.transformed_data = json.loads(data["writerOutput"])
+                dcat_v1_1_data = json.loads(data["writerOutput"])
+
+                # Apply v1.1 to v3.0 conversion for ISO sources
+                if self.harvest_source.schema_type.startswith("iso19115"):
+                    try:
+                        # Wrap single dataset in catalog structure for converter
+                        temp_catalog = {"dataset": [dcat_v1_1_data]}
+                        converted_catalog = convert_dcat_catalog(temp_catalog)
+                        # Extract converted dataset
+                        self.transformed_data = converted_catalog["dataset"][0]
+                        logger.info(
+                            f"successfully converted record to DCAT 3.0: {self.identifier}"
+                        )
+                    except Exception as e:
+                        logger.error(
+                            f"Failed to convert DCAT 1.1 to 3.0 for {self.identifier}: {e}"
+                        )
+                        self.status = "error"
+                        self.harvest_source.update_job_record_count_by_action("errored")
+                        raise TransformationException(
+                            f"record failed DCAT 1.1 to 3.0 conversion: {e}",
+                            self.harvest_source.job_id,
+                            self.id,
+                        )
+                else:
+                    self.transformed_data = dcat_v1_1_data
 
         except HTTPError as err:
             logger.error("Error: %s - Status Code: %s", err, resp.status_code)
@@ -1263,10 +1296,14 @@ class Record:
                 "name": self.harvest_source.get_source_orm().org.name
             }
 
-        if not self.is_valid_describedByType(
-            self.transformed_data.get("describedByType", "")
-        ):
-            self.transformed_data["describedByType"] = "application/octet-stream"
+        # describedByType is only in DCAT 1.1, not 3.0
+        if self.harvest_source.schema_type not in [
+            "dcatus3.0"
+        ] and not self.harvest_source.schema_type.startswith("iso19115"):
+            if not self.is_valid_describedByType(
+                self.transformed_data.get("describedByType", "")
+            ):
+                self.transformed_data["describedByType"] = "application/octet-stream"
 
         # If distribution items have a downloadURL or accessURL,
         # check if it just needs an "https://" at the beginning
@@ -1287,8 +1324,14 @@ class Record:
         for dist_item in self.transformed_data.get("distribution", []):
             _guess_better_url_in_item(dist_item, "downloadURL")
             _guess_better_url_in_item(dist_item, "accessURL")
-            if not self.is_valid_describedByType(dist_item.get("describedByType", "")):
-                dist_item["describedByType"] = "application/octet-stream"
+            # describedByType is only in DCAT 1.1, not 3.0
+            if self.harvest_source.schema_type not in [
+                "dcatus3.0"
+            ] and not self.harvest_source.schema_type.startswith("iso19115"):
+                if not self.is_valid_describedByType(
+                    dist_item.get("describedByType", "")
+                ):
+                    dist_item["describedByType"] = "application/octet-stream"
 
         # add geospatial placeholder for ISO records
         self.add_geospatial()
