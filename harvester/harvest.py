@@ -1056,6 +1056,11 @@ class Record:
     def is_valid_describedByType(self, described_by_type: str) -> bool:
         """Return whether a string is a valid describedByType."""
 
+        if "describedByType" not in self.harvest_source.dataset_schema.get(
+            "properties", {}
+        ):
+            return True
+
         return Draft202012Validator(
             self.harvest_source.dataset_schema["properties"]["describedByType"],
             format_checker=FormatChecker(),
@@ -1291,10 +1296,14 @@ class Record:
                 "name": self.harvest_source.get_source_orm().org.name
             }
 
-        if not self.is_valid_describedByType(
-            self.transformed_data.get("describedByType", "")
-        ):
-            self.transformed_data["describedByType"] = "application/octet-stream"
+        # describedByType is only in DCAT 1.1, not 3.0
+        if self.harvest_source.schema_type not in [
+            "dcatus3.0"
+        ] and not self.harvest_source.schema_type.startswith("iso19115"):
+            if not self.is_valid_describedByType(
+                self.transformed_data.get("describedByType", "")
+            ):
+                self.transformed_data["describedByType"] = "application/octet-stream"
 
         # If distribution items have a downloadURL or accessURL,
         # check if it just needs an "https://" at the beginning
@@ -1315,8 +1324,14 @@ class Record:
         for dist_item in self.transformed_data.get("distribution", []):
             _guess_better_url_in_item(dist_item, "downloadURL")
             _guess_better_url_in_item(dist_item, "accessURL")
-            if not self.is_valid_describedByType(dist_item.get("describedByType", "")):
-                dist_item["describedByType"] = "application/octet-stream"
+            # describedByType is only in DCAT 1.1, not 3.0
+            if self.harvest_source.schema_type not in [
+                "dcatus3.0"
+            ] and not self.harvest_source.schema_type.startswith("iso19115"):
+                if not self.is_valid_describedByType(
+                    dist_item.get("describedByType", "")
+                ):
+                    dist_item["describedByType"] = "application/octet-stream"
 
         # add geospatial placeholder for ISO records
         self.add_geospatial()
