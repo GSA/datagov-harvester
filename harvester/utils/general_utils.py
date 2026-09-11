@@ -1332,7 +1332,11 @@ def _get_geo_lookup_interface():
 
 def _unwrap_single_location(input_value):
     """Resolve a single (non-array) spatial value to its geometry-bearing
-    value, or None if it has nothing usable."""
+    value, or None if it has nothing usable.
+
+    When a Location defines more than one of these at once, bbox outranks
+    centroid outranks geometry (decided in #6297).
+    """
 
     if (
         isinstance(input_value, dict)
@@ -1342,7 +1346,7 @@ def _unwrap_single_location(input_value):
         }
         <= input_value.keys()
     ):
-        for field in ("geometry", "bbox", "centroid"):
+        for field in ("bbox", "centroid", "geometry"):
             value = input_value.get(field)
             if value:
                 return value
@@ -1351,9 +1355,9 @@ def _unwrap_single_location(input_value):
     return input_value
 
 
-def _extract_pref_label(input_value):
-    """Return a Location's prefLabel as a plain string, or None if absent,
-    blank, or not a dict.
+def _extract_label(input_value, field_name):
+    """Return a Location's `field_name` (prefLabel or altLabel) as a plain
+    string, or None if absent, blank, or not a dict.
 
     Consulted by _unwrap_location only when nothing in the whole input has
     usable geometry - real geometry always outranks a named-place fallback.
@@ -1365,9 +1369,9 @@ def _extract_pref_label(input_value):
 
     if not isinstance(input_value, dict):
         return None
-    pref_label = input_value.get("prefLabel")
-    if isinstance(pref_label, str) and pref_label.strip():
-        return pref_label
+    label = input_value.get(field_name)
+    if isinstance(label, str) and label.strip():
+        return label
     return None
 
 
@@ -1377,26 +1381,33 @@ def _unwrap_location(input_value):
     v3.0 `spatial` is a Location object or a list of them; v1.1 is a plain
     string. A bare {type, coordinates} GeoJSON dict is passed through.
 
+    Priority (decided in #6297) is bbox > centroid > geometry > prefLabel >
+    altLabel, first valid value wins:
+
     Real geometry anywhere in the input always wins over a named-place
-    (prefLabel) fallback found anywhere else: the first element with usable
-    geometry short-circuits the scan immediately. Only when NO element has
-    any geometry do we fall back to the first prefLabel seen during that
-    same scan, returned as a plain string so it flows into translate_spatial's
-    existing string branch (and from there, its existing locations-table
-    lookup) instead of being discarded.
+    (prefLabel/altLabel) fallback found anywhere else: the first element
+    with usable geometry short-circuits the scan immediately. Only when NO
+    element has any geometry do we fall back to the first prefLabel seen
+    across the whole input, or - only if no element has a prefLabel either -
+    the first altLabel seen. The winning label is returned as a plain string
+    so it flows into translate_spatial's existing string branch (and from
+    there, its existing locations-table lookup) instead of being discarded.
     """
 
     items = input_value if isinstance(input_value, list) else [input_value]
 
-    pref_label_fallback = None
     for item in items:
         unwrapped = _unwrap_single_location(item)
         if unwrapped:
             return unwrapped
-        if pref_label_fallback is None:
-            pref_label_fallback = _extract_pref_label(item)
 
-    return pref_label_fallback
+    for field_name in ("prefLabel", "altLabel"):
+        for item in items:
+            label = _extract_label(item, field_name)
+            if label:
+                return label
+
+    return None
 
 
 def translate_spatial(input_value) -> str:

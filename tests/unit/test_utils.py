@@ -434,6 +434,68 @@ class TestCKANUtils:
             assert translate_spatial_to_geojson(locations) is None
             fake_dbi.get_geo_from_string.assert_called_once_with("Nebraska")
 
+    def test_translate_spatial_location_bbox_centroid_geometry_all_present_prefers_bbox(
+        self,
+    ):
+        location = {
+            "@type": "Location",
+            "geometry": "POINT (1.0 1.0)",
+            "centroid": {"type": "Point", "coordinates": [2.0, 2.0]},
+            "bbox": {"type": "Point", "coordinates": [3.0, 3.0]},
+        }
+        assert translate_spatial(location) == (
+            '{"type": "Point", "coordinates": [3.0, 3.0]}'
+        )
+
+    def test_translate_spatial_location_centroid_and_geometry_prefers_centroid(self):
+        location = {
+            "@type": "Location",
+            "geometry": "POINT (1.0 1.0)",
+            "centroid": {"type": "Point", "coordinates": [2.0, 2.0]},
+        }
+        assert translate_spatial(location) == (
+            '{"type": "Point", "coordinates": [2.0, 2.0]}'
+        )
+
+    def test_translate_spatial_location_array_pref_label_wins_over_earlier_alt_label(
+        self,
+    ):
+        locations = [
+            {"@type": "Location", "altLabel": "NE"},
+            {"@type": "Location", "prefLabel": "Nebraska"},
+        ]
+        fake_dbi = Mock(
+            get_geo_from_string=Mock(
+                return_value='{"type": "Point", "coordinates": [-99.9018, 41.4925]}'
+            )
+        )
+        with patch(
+            "harvester.utils.general_utils._get_geo_lookup_interface",
+            lambda: fake_dbi,
+        ):
+            assert translate_spatial(locations) == (
+                '{"type": "Point", "coordinates": [-99.9018, 41.4925]}'
+            )
+        fake_dbi.get_geo_from_string.assert_called_once_with("Nebraska")
+
+    def test_translate_spatial_location_array_falls_back_to_alt_label_db_hit(self):
+        locations = [
+            {"@type": "Location", "altLabel": "NE"},
+        ]
+        fake_dbi = Mock(
+            get_geo_from_string=Mock(
+                return_value='{"type": "Point", "coordinates": [-99.9018, 41.4925]}'
+            )
+        )
+        with patch(
+            "harvester.utils.general_utils._get_geo_lookup_interface",
+            lambda: fake_dbi,
+        ):
+            assert translate_spatial(locations) == (
+                '{"type": "Point", "coordinates": [-99.9018, 41.4925]}'
+            )
+        fake_dbi.get_geo_from_string.assert_called_once_with("NE")
+
     def test_translate_spatial_location_falls_back_to_bbox(self):
         location = {
             "@type": "Location",
@@ -490,6 +552,35 @@ class TestCKANUtils:
             fake_dbi.get_geo_from_string.reset_mock()
             assert translate_spatial_to_geojson(location) is None
             fake_dbi.get_geo_from_string.assert_called_once_with("Washington, D.C.")
+
+    def test_translate_spatial_location_alt_label_only_db_hit(self):
+        location = {"@type": "Location", "altLabel": "D.C."}
+        fake_dbi = Mock(
+            get_geo_from_string=Mock(
+                return_value='{"type": "Point", "coordinates": [-77.0369, 38.9072]}'
+            )
+        )
+        with patch(
+            "harvester.utils.general_utils._get_geo_lookup_interface",
+            lambda: fake_dbi,
+        ):
+            assert translate_spatial(location) == (
+                '{"type": "Point", "coordinates": [-77.0369, 38.9072]}'
+            )
+        fake_dbi.get_geo_from_string.assert_called_once_with("D.C.")
+
+    def test_translate_spatial_location_alt_label_only_db_miss(self):
+        location = {"@type": "Location", "altLabel": "D.C."}
+        fake_dbi = Mock(get_geo_from_string=Mock(return_value=None))
+        with patch(
+            "harvester.utils.general_utils._get_geo_lookup_interface",
+            lambda: fake_dbi,
+        ):
+            assert translate_spatial(location) == ""
+            fake_dbi.get_geo_from_string.assert_called_once_with("D.C.")
+            fake_dbi.get_geo_from_string.reset_mock()
+            assert translate_spatial_to_geojson(location) is None
+            fake_dbi.get_geo_from_string.assert_called_once_with("D.C.")
 
     def test_translate_spatial_location_input_unchanged(self):
         location = {
