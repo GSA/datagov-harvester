@@ -16,7 +16,10 @@ logger = logging.getLogger("harvest_runner")
 ACCESS_RIGHTS_BY_LEVEL = {
     "public": "public",
     "restricted public": "Access restricted. Contact the publisher to request access.",
-    "non-public": "Not available for public release. Contact the publisher for more information.",
+    "non-public": (
+        "Not available for public release. "
+        "Contact the publisher for more information."
+    ),
 }
 
 

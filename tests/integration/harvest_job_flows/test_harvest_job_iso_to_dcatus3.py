@@ -1,7 +1,5 @@
 """Test full harvest flow for ISO sources producing DCAT 3.0 output."""
 
-import pytest
-
 from harvester.harvest import HarvestSource
 
 

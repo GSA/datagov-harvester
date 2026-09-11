@@ -273,7 +273,7 @@ class TestTransform:
         job_data_waf_iso19115_2,
         iso19115_2_transform,
     ):
-        """Test that ISO records are converted from DCAT 1.1 to 3.0 after MDTranslator."""
+        """Test ISO records converted from DCAT 1.1 to 3.0 after MDTranslator."""
         interface.add_organization(organization_data)
         interface.add_harvest_source(source_data_waf_iso19115_2)
         harvest_job = interface.add_harvest_job(job_data_waf_iso19115_2)
