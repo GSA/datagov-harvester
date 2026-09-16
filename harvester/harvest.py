@@ -10,6 +10,7 @@ from typing import List
 
 import requests
 from jsonschema import Draft202012Validator, FormatChecker
+from jsonschema.exceptions import ValidationError
 from requests.exceptions import HTTPError, Timeout
 from sqlalchemy.exc import IntegrityError
 
@@ -1325,12 +1326,18 @@ class Record:
 
         e_msg = re.sub(r"\\+", r"\\", repr(e))
 
+        error_type = (
+            "ValidationException"
+            if isinstance(e, ValidationError)
+            else e.__class__.__name__
+        )
+
         self.status = "error"
         log_non_critical_error(
             e_msg,
             self.harvest_source.job_id,
             self.id,
-            e.__class__.__name__,
+            error_type,
             emit_log=False,
         )
 
