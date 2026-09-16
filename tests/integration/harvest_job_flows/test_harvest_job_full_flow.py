@@ -876,10 +876,12 @@ class TestHarvestJobFullFlow:
         assert f"Job {harvest_job2.id} is already in progress for source" in caplog.text
         assert harvest_job.status == "error"
 
+    @patch("harvester.harvest.HarvestSource.send_notification_emails")
     @patch("requests.get")
     def test_critical_job_error_status_not_overwritten(
         self,
         mock_get,
+        send_notification_emails_mock: MagicMock,
         interface,
         organization_data,
         source_data_dcatus_single_record,
@@ -901,6 +903,11 @@ class TestHarvestJobFullFlow:
 
         harvest_job = interface.get_harvest_job(harvest_job.id)
         assert harvest_job.status == "error"
+
+        # a job-level error triggers notifications even though no individual
+        # records were errored, so "on_error" sources aren't left silent
+        send_notification_emails_mock.assert_called_once()
+        assert send_notification_emails_mock.call_args.kwargs["job_status"] == "error"
 
         harvest_source.db_interface.close()
 
