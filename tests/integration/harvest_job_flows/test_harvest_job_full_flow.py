@@ -113,6 +113,69 @@ class TestHarvestJobFullFlow:
         )
 
     @patch("harvester.harvest.HarvestSource.send_notification_emails")
+    def test_harvest_dcatus3_0_spatial_and_temporal_persisted(
+        self,
+        send_notification_emails_mock: MagicMock,
+        interface,
+        organization_data,
+        source_data_dcatus3_0_with_spatial_temporal,
+    ):
+        """AC: a DCAT-US 3.0 dataset with a well-formed spatial Location and a
+        populated temporal PeriodOfTime array is harvested with both fields
+        translated/persisted correctly (GSA/data.gov#6038)."""
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_dcatus3_0_with_spatial_temporal)
+        harvest_job = interface.add_harvest_job(
+            {
+                "status": "new",
+                "harvest_source_id": (
+                    source_data_dcatus3_0_with_spatial_temporal["id"]
+                ),
+            }
+        )
+
+        job_id = harvest_job.id
+        harvest_job_starter(job_id, "harvest")
+
+        harvest_job = interface.get_harvest_job(job_id)
+        assert harvest_job.status == "complete"
+        assert harvest_job.records_added == 1
+        assert harvest_job.record_errors == []
+
+        datasets = interface.db.query(Dataset).all()
+        assert len(datasets) == 1
+        dataset = datasets[0]
+        assert dataset.harvest_source_id == (
+            source_data_dcatus3_0_with_spatial_temporal["id"]
+        )
+
+        assert dataset.translated_spatial == {
+            "type": "Polygon",
+            "coordinates": [
+                [
+                    [-125.0, 24.0],
+                    [-66.0, 24.0],
+                    [-66.0, 50.0],
+                    [-125.0, 50.0],
+                    [-125.0, 24.0],
+                ]
+            ],
+        }
+
+        assert dataset.dcat["temporal"] == [
+            {
+                "@type": "PeriodOfTime",
+                "startDate": "2020-01-01",
+                "endDate": "2020-12-31",
+            }
+        ]
+
+        # notification email was sent (configured to "always")
+        assert send_notification_emails_mock.called
+        # the record was added as intended (not errored)
+        assert send_notification_emails_mock.call_args.args[0]["records_added"] == 1
+
+    @patch("harvester.harvest.HarvestSource.send_notification_emails")
     def test_harvest_dcatus3_0_dataset_and_data_service_independent(
         self,
         send_notification_emails_mock: MagicMock,
