@@ -11,6 +11,7 @@ from search.queries import (
     build_aggregation_specs,
     build_filter_clauses,
     build_filter_sections,
+    build_multi_match_query,
     parse_filter_aggregations,
     visible_filter_query_params,
 )
@@ -270,3 +271,10 @@ def test_access_level_filter_parses_and_builds_clause():
 
     clauses = build_filter_clauses(criteria)
     assert clauses == [{"term": {"access_level": "non-public"}}]
+
+
+def test_free_text_search_uses_indexed_access_level_field():
+    query = build_multi_match_query("restricted public")
+
+    assert "access_level" in query["multi_match"]["fields"]
+    assert "accessLevel" not in query["multi_match"]["fields"]

@@ -225,7 +225,7 @@ def test_index_fields_registry_covers_expected_destinations():
         "title",
         "description",
         "publisher",
-        "accessLevel",
+        "access_level",
         "keyword",
         "theme",
         "identifier",
@@ -261,7 +261,7 @@ def test_transform_dcat1_dataset():
         "keyword": ["commitment of traders", "cot"],
         "theme": ["geospatial"],
         "identifier": "cftc-dc1",
-        "accessLevel": "public",
+        "access_level": "public",
         "distribution_titles": ["Report CSV"],
     }
 
@@ -314,7 +314,7 @@ def test_transform_dcat3_dataset():
         "keyword": ["climate", "weather"],
         "theme": ["Climate Science"],
         "identifier": "https://example.gov/identifiers/ncdc-climate-obs-2024",
-        "accessLevel": "restricted public",
+        "access_level": "restricted public",
         "distribution_titles": [
             "Climate Observations CSV",
             "Climate Observations JSON",
@@ -350,7 +350,7 @@ def test_transform_handles_empty_dcat():
         "keyword": [],
         "theme": [],
         "identifier": "",
-        "accessLevel": "",
+        "access_level": "",
         "distribution_titles": [],
     }
 

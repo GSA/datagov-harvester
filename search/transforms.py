@@ -137,7 +137,7 @@ INDEX_FIELDS: dict[str, tuple[str, Callable[[Any], Any]]] = {
     "theme": ("theme", coerce_theme_labels),
     "identifier": ("identifier", coerce_identifier),
     "distribution_titles": ("distribution", distribution_titles),
-    "accessLevel": ("accessLevel", coerce_access_level),
+    "access_level": ("accessLevel", coerce_access_level),
 }
 
 

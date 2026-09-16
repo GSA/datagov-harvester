@@ -176,7 +176,7 @@ def build_multi_match_query(query_text: str) -> dict[str, Any]:
                 "keyword^2",
                 "theme",
                 "identifier",
-                "accessLevel",
+                "access_level",
                 "distribution_titles^2",
             ],
             "operator": "AND",
