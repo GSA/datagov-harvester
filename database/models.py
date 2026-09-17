@@ -105,7 +105,6 @@ class HarvestSource(Base):
     )
 
     name = Column(String, nullable=False)
-    description = Column(Text, nullable=True, index=True)
     url = Column(String, nullable=False, unique=True)
     notification_emails = Column(ARRAY(String))
 

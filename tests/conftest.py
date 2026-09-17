@@ -394,21 +394,6 @@ def source_data_dcatus3_0_series_member_also_top_level(organization_data: dict) 
 
 
 @pytest.fixture
-def source_data_dcatus3_0_with_spatial_temporal(organization_data: dict) -> dict:
-    return {
-        "id": "9e88e994-49c4-4462-86ce-9c453d947818",
-        "name": "Test Source DCAT-US 3.0 (spatial and temporal)",
-        "notification_emails": ["email@example.com"],
-        "organization_id": organization_data["id"],
-        "frequency": "daily",
-        "url": f"{HARVEST_SOURCE_URL}/dcatus/dcatus3_0_with_spatial_temporal.json",
-        "schema_type": "dcatus3.0",
-        "source_type": "document",
-        "notification_frequency": "always",
-    }
-
-
-@pytest.fixture
 def source_data_dcatus1_1_ispartof(organization_data: dict) -> dict:
     return {
         "id": "f0b1c3d5-7890-4bcd-ef01-234567890198",
@@ -830,17 +815,6 @@ def job_data_dcatus3_0_series_member_also_top_level(
         "id": "a1c2e4f6-8901-4cde-f012-345678901299",
         "status": "new",
         "harvest_source_id": (source_data_dcatus3_0_series_member_also_top_level["id"]),
-    }
-
-
-@pytest.fixture
-def job_data_dcatus3_0_with_spatial_temporal(
-    source_data_dcatus3_0_with_spatial_temporal: dict,
-) -> dict:
-    return {
-        "id": "0fc09b6e-2e0e-4adb-a5ec-f728da229b0d",
-        "status": "new",
-        "harvest_source_id": source_data_dcatus3_0_with_spatial_temporal["id"],
     }
 
 

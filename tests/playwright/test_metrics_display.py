@@ -1,5 +1,3 @@
-import re
-
 import pytest
 from playwright.sync_api import expect
 
@@ -41,5 +39,5 @@ class TestMetricsUnauthed:
 
         expect(upage.locator(".progress-meter")).to_have_count(1)
         expect(upage.locator(".progress-percent")).to_have_attribute(
-            "class", re.compile(r"^progress-percent progress-[0-9a-f-]+$")
+            "class", "progress-percent this-progress"
         )

@@ -107,32 +107,6 @@ class TestExtract:
 
         assert len(harvest_source.external_records) == 4
 
-    def test_extract_dcatus3_0_with_spatial_temporal(
-        self,
-        make_harvest_source,
-        source_data_dcatus3_0_with_spatial_temporal,
-        job_data_dcatus3_0_with_spatial_temporal,
-    ):
-        harvest_source = make_harvest_source(
-            source_data_dcatus3_0_with_spatial_temporal,
-            job_data_dcatus3_0_with_spatial_temporal,
-        )
-        harvest_source.acquire_minimum_external_data()
-
-        assert len(harvest_source.external_records) == 1
-        record = harvest_source.external_records[0]
-        assert record["spatial"] == {
-            "@type": "Location",
-            "bbox": "POLYGON((-125 24, -66 24, -66 50, -125 50, -125 24))",
-        }
-        assert record["temporal"] == [
-            {
-                "@type": "PeriodOfTime",
-                "startDate": "2020-01-01",
-                "endDate": "2020-12-31",
-            }
-        ]
-
     def test_extract_dcatus3_0_nested_catalog(
         self,
         interface,

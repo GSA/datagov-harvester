@@ -10,7 +10,6 @@ from typing import List
 
 import requests
 from jsonschema import Draft202012Validator, FormatChecker
-from jsonschema.exceptions import ValidationError
 from requests.exceptions import HTTPError, Timeout
 from sqlalchemy.exc import IntegrityError
 
@@ -60,7 +59,6 @@ from harvester.utils.general_utils import (
     group_record_error_fields,
     make_record_mapping,
     merge_dcatus3_datasets,
-    munge_spatial,
     munge_title_to_name,
     normalize_dataset_identifier,
     open_json,
@@ -865,100 +863,71 @@ class HarvestSource:
             self.db_interface.update_harvest_job(self.job_id, job_status)
 
         if hasattr(self, "notification_emails") and self.notification_emails:
-            job_errored = job.status == "error"
             if (
                 self.notification_frequency == "always"
                 or (
                     self.notification_frequency == "on_error"
-                    and (job_errored or job_results["records_errored"])
+                    and job_results["records_errored"]
                 )
                 or (
                     self.notification_frequency == "on_error_or_update"
                     and (
-                        job_errored
-                        or job_results["records_errored"]
-                        or job_results["records_updated"]
+                        job_results["records_errored"] or job_results["records_updated"]
                     )
                 )
             ):
                 try:
-                    self.send_notification_emails(job_results, job_status=job.status)
+                    self.send_notification_emails(job_results)
                 except SendNotificationException as e:
                     logging.error(
                         f"Error sending notification emails for job {self.job_id}: {e}"
                     )
 
-    def send_notification_emails(
-        self, job_results: dict, job_status: str = "complete"
-    ) -> None:
+    def send_notification_emails(self, job_results: dict) -> None:
         """Send harvest report emails to havest source POCs"""
         try:
             job_url = f"{SMTP_CONFIG['base_url']}/harvest_job/{self.job_id}"
 
+            subject = "Harvest Job Completed"
             source = self.get_source_orm()
             org_name = source.org.name
 
-            if job_status == "error":
-                subject = "Harvest Job Failed"
-                job_errors = self.db_interface.get_harvest_job_errors_by_job(
-                    self.job_id
+            report_section = ""
+            if getattr(self, "send_report_email", False):
+                error_field_summary = group_record_error_fields(
+                    self.db_interface.get_record_error_messages_summary_by_job(
+                        self.job_id
+                    )
                 )
-                error_message = (
-                    job_errors[-1].message
-                    if job_errors
-                    else "An unknown error occurred."
+                sample_datasets = self.db_interface.get_datasets_by_source(
+                    self.id, page=0, per_page=10
                 )
-                body = (
-                    "A harvest job failed and did not complete.\n"
-                    f"- Organization: {org_name}\n"
-                    f"- Harvest source: {self.name}\n"
-                    f"- Error: {error_message}\n"
-                    f"- Technical details: {job_url}\n\n"
-                    "====\n"
-                    "You received this email because you subscribed to harvester "
-                    "updates.\n"
-                    "Please do not reply to this email, as it is not monitored."
+                report_section = (
+                    "\n"
+                    + build_report_email_section(
+                        error_field_summary, sample_datasets, CATALOG_BASE_URL
+                    )
+                    + "\n\n"
                 )
-            else:
-                subject = "Harvest Job Completed"
 
-                report_section = ""
-                if getattr(self, "send_report_email", False):
-                    error_field_summary = group_record_error_fields(
-                        self.db_interface.get_record_error_messages_summary_by_job(
-                            self.job_id
-                        )
-                    )
-                    sample_datasets = self.db_interface.get_datasets_by_source(
-                        self.id, page=0, per_page=10
-                    )
-                    report_section = (
-                        "\n"
-                        + build_report_email_section(
-                            error_field_summary, sample_datasets, CATALOG_BASE_URL
-                        )
-                        + "\n\n"
-                    )
-
-                body = (
-                    "A harvest job has been successfully completed.\n"
-                    f"- Organization: {org_name}\n"
-                    f"- Harvest source: {self.name}\n"
-                    f"{report_section}"
-                    f"- Technical details: {job_url}\n\n"
-                    f"Summary of the job ({self.job_id}):\n"
-                    f"- Records Added: {job_results['records_added']}\n"
-                    f"- Records Updated: {job_results['records_updated']}\n"
-                    f"- Records Deleted: {job_results['records_deleted']}\n"
-                    f"- Records Unchanged: {job_results['records_ignored']}\n"
-                    f"- Records Errored: {job_results['records_errored']}\n"
-                    f"- Records Warned: {job_results['records_warned']}\n"
-                    f"- Records Validated: {job_results['records_validated']}\n\n"
-                    "====\n"
-                    "You received this email because you subscribed to harvester "
-                    "updates.\n"
-                    "Please do not reply to this email, as it is not monitored."
-                )
+            body = (
+                "A harvest job has been successfully completed.\n"
+                f"- Organization: {org_name}\n"
+                f"- Harvest source: {self.name}\n"
+                f"{report_section}"
+                f"- Technical details: {job_url}\n\n"
+                f"Summary of the job ({self.job_id}):\n"
+                f"- Records Added: {job_results['records_added']}\n"
+                f"- Records Updated: {job_results['records_updated']}\n"
+                f"- Records Deleted: {job_results['records_deleted']}\n"
+                f"- Records Unchanged: {job_results['records_ignored']}\n"
+                f"- Records Errored: {job_results['records_errored']}\n"
+                f"- Records Warned: {job_results['records_warned']}\n"
+                f"- Records Validated: {job_results['records_validated']}\n\n"
+                "====\n"
+                "You received this email because you subscribed to harvester updates.\n"
+                "Please do not reply to this email, as it is not monitored."
+            )
             support_recipient = SMTP_CONFIG.get("recipient")
             user_recipients = self.notification_emails
             all_recipients = [support_recipient] + user_recipients
@@ -1422,18 +1391,12 @@ class Record:
 
         e_msg = re.sub(r"\\+", r"\\", repr(e))
 
-        error_type = (
-            "ValidationException"
-            if isinstance(e, ValidationError)
-            else e.__class__.__name__
-        )
-
         self.status = "error"
         log_non_critical_error(
             e_msg,
             self.harvest_source.job_id,
             self.id,
-            error_type,
+            e.__class__.__name__,
             emit_log=False,
         )
 
@@ -1538,11 +1501,7 @@ class Record:
             "last_harvested_date": self.date_finished,
         }
 
-        spatial_value = metadata.get("spatial")
-        if self.harvest_source.schema_type.startswith("iso19115") and spatial_value:
-            spatial_value = munge_spatial(spatial_value)
-
-        translated_spatial = translate_spatial_to_geojson(spatial_value)
+        translated_spatial = translate_spatial_to_geojson(metadata.get("spatial"))
         try:
             if translated_spatial is not None:
                 payload["translated_spatial"] = translated_spatial

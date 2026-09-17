@@ -18,7 +18,6 @@ There is further documentation in the [developer](/docs/developer.md) quickstart
 
  - [Developer setup](docs/developer.md)
  - [DCAT-US 3.0 schemas](docs/developer.md#dcat-us-30-schemas): the schemas come from the [GSA/dcat-us](https://github.com/GSA/dcat-us) submodule at `_external/dcat-us`, so clone with `--recurse-submodules`.
- - [Operations notes](docs/ops/README.md), including [reindexing the OpenSearch dataset index](docs/ops/opensearch-reindex.md) and [zero-downtime OpenSearch deployment](docs/ops/opensearch-zero-downtime-deployment.md)
  - [Harvester wiki](https://github.com/GSA/data.gov/wiki/harvest.data.gov)
  - [Harvester APIs](https://github.com/GSA/data.gov/wiki/Harvester-APIs): the three APIs (Harvest API, api.gsa.gov, api.data.gov) and the Harvest API's versioning policy
  - The latest sequence diagrams are available in the [/docs/diagrams/mermaid/dest](docs/diagrams/mermaid/dest) folder. (Click "Raw" for a full-page view of any diagram.)

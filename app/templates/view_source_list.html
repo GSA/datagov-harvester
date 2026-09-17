@@ -46,19 +46,19 @@
                 <th scope="col">Organization</th>
                 <th scope="col">Source type</th>
                 <th scope="col">Frequency</th>
-                <th scope="col">Description</th>
+                <th scope="col">URL</th>
             </tr>
         </thead>
         <tbody>
             {% for source in data.harvest_sources %}
-            <tr data-meta="{{ source.name }} {{ source.description or '' }}">
+            <tr data-meta="{{ source.name }}">
                 <th scope="row" data-label="Name">
                     <a href="{{ url_for('main.view_harvest_source', source_id=source.id) }}">{{ source.name }}</a>
                 </th>
                 <td data-label="Organization">{{ source.org.name if source.org else "N/A" }}</td>
                 <td data-label="Source type">{{ source.source_type | else_na }}</td>
                 <td data-label="Frequency">{{ source.frequency | else_na }}</td>
-                <td data-label="Description">{{ source.description | else_na }}</td>
+                <td class="word-break-all" data-label="URL">{{ source.url | else_na }}</td>
             </tr>
             {% endfor %}
         </tbody>
