@@ -66,12 +66,6 @@ def make_new_record_error_contract(error: tuple) -> dict:
     return record_error
 
 
-DEFAULT_ORG_LOGO_URL = (
-    "https://raw.githubusercontent.com/GSA/datagov-harvester/refs/heads/main/"
-    "app/static/assets/img/placeholder-organization.png"
-)
-
-
 def make_new_org_contract(form):
     # Convert empty string to None for code_repo_url
     code_repo_url = form.code_repo_url.data
@@ -83,7 +77,7 @@ def make_new_org_contract(form):
     return {
         "name": form.name.data,
         "slug": form.slug.data,
-        "logo": form.logo.data or DEFAULT_ORG_LOGO_URL,
+        "logo": form.logo.data or None,
         "description": form.description.data or None,
         "organization_type": form.organization_type.data or None,
         "aliases": [alias.strip() for alias in (form.aliases.data or "").split(",")],

@@ -5,7 +5,7 @@ from werkzeug.datastructures import MultiDict
 from database.interface import HarvesterDBInterface
 
 from ..forms import OrganizationForm
-from ..util import DEFAULT_ORG_LOGO_URL, make_new_org_contract
+from ..util import make_new_org_contract
 
 org = Blueprint("org", __name__)
 
@@ -15,11 +15,7 @@ db = HarvesterDBInterface()
 @org.cli.command("add")
 @click.argument("name")
 @click.option("--slug", default="", help="Slug for the organization")
-@click.option(
-    "--logo",
-    default=DEFAULT_ORG_LOGO_URL,
-    help="Org Logo",
-)
+@click.option("--logo", default="", help="Org Logo")
 @click.option(
     "--aliases",
     default="",
