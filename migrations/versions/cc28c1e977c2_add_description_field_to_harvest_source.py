@@ -1,7 +1,7 @@
 """Add description field to harvest_source
 
 Revision ID: cc28c1e977c2
-Revises: 5b9b5ccf2e34
+Revises: a612f5049ccc
 Create Date: 2026-09-17 14:03:35.575396
 
 """
@@ -11,7 +11,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = "cc28c1e977c2"
-down_revision = "5b9b5ccf2e34"
+down_revision = "a612f5049ccc"
 branch_labels = None
 depends_on = None
 
