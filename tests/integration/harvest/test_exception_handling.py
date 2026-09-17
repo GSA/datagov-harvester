@@ -152,6 +152,49 @@ class TestHarvestJobExceptionHandling:
         assert "Issues by field:" in body
         assert "Sample datasets:" in body
 
+    def test_send_notification_emails_reports_job_error(
+        self,
+        interface,
+        organization_data,
+        source_data_dcatus_bad_url,
+        job_data_dcatus_bad_url,
+    ):
+        """When a job status is "error", the notification email says the job
+        failed and includes the recorded error, instead of the hardcoded
+        success language."""
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_dcatus_bad_url)
+        harvest_job = interface.add_harvest_job(job_data_dcatus_bad_url)
+
+        harvest_source = HarvestSource(harvest_job.id)
+
+        with pytest.raises(ExtractExternalException):
+            harvest_source.acquire_minimum_external_data()
+
+        job_results = {
+            "records_added": 0,
+            "records_updated": 0,
+            "records_deleted": 0,
+            "records_ignored": 0,
+            "records_errored": 0,
+            "records_warned": 0,
+            "records_validated": 0,
+        }
+
+        harvest_source.notification_emails = ["user@example.com"]
+
+        with patch("harvester.harvest.send_email_to_recipients") as send_email_mock:
+            harvest_source.send_notification_emails(job_results, job_status="error")
+
+        subject = send_email_mock.call_args.args[1]
+        body = send_email_mock.call_args.args[2]
+        assert subject == "Harvest Job Failed"
+        assert "failed" in body
+        assert "successfully completed" not in body
+
+        harvest_error = interface.get_harvest_job_errors_by_job(harvest_job.id)[0]
+        assert harvest_error.message in body
+
 
 def make_http_error(status_code):
     response = Response()
@@ -185,7 +228,7 @@ class TestHarvestRecordExceptionHandling:
         interface_errors = interface.get_harvest_record_errors_by_record(test_record.id)
         assert interface_record.id == interface_errors[0].harvest_record_id
         assert interface_record.status == "error"
-        assert interface_errors[0].type == "ValidationError"
+        assert interface_errors[0].type == "ValidationException"
         assert interface_errors[0].severity == "error"
 
     def test_log_non_critical_error_severity(

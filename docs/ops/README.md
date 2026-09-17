@@ -2,10 +2,13 @@
 
 This is miscellaneous notes on operating the Harvester system.
 
-## OpenSearch deployments
+## Reindexing OpenSearch
 
-See [Zero-downtime OpenSearch deployment](opensearch-zero-downtime-deployment.md)
-for the label-driven replacement-cluster release flow and failure recovery.
+See [Reindexing the OpenSearch dataset index](opensearch-reindex.md): open a
+PR, attach the `force re-index recommended` label, and merge it. That doc
+also links to [Zero-downtime OpenSearch deployment](opensearch-zero-downtime-deployment.md)
+for the full release sequence and failure recovery, and covers the manual
+`flask search` commands and workflows used for ops troubleshooting.
 
 ## Enabling or disabling harvesting
 
