@@ -228,7 +228,7 @@ class TestHarvestRecordExceptionHandling:
         interface_errors = interface.get_harvest_record_errors_by_record(test_record.id)
         assert interface_record.id == interface_errors[0].harvest_record_id
         assert interface_record.status == "error"
-        assert interface_errors[0].type == "ValidationError"
+        assert interface_errors[0].type == "ValidationException"
         assert interface_errors[0].severity == "error"
 
     def test_log_non_critical_error_severity(
