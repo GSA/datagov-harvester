@@ -176,7 +176,13 @@ class OrganizationForm(FlaskForm):
         filters=[strip_filter],
     )
     logo = StringField(
-        "Logo", validators=[DataRequired(), URL()], filters=[strip_filter]
+        "Logo",
+        description=(
+            "URL to the organization's logo. "
+            "Defaults to a placeholder if left blank."
+        ),
+        validators=[Optional(), URL()],
+        filters=[strip_filter],
     )
     description = TextAreaField(
         "Description",
