@@ -1,3 +1,4 @@
+import json
 from datetime import date, datetime
 from types import SimpleNamespace
 
@@ -18,6 +19,28 @@ def test_normalize_dcat_dates():
     assert normalized["modified"] == "2024-01-02"
     assert normalized["issued"].startswith("2024-01-03T04:05:06")
     assert normalized["temporal"] == "123"
+
+
+def test_normalize_dcat_temporal_period_of_time_list():
+    """DCAT-US v3.0 temporal is a list of PeriodOfTime objects; it must be
+    serialized as valid JSON, not Python's repr-style str()."""
+    dcat = {
+        "temporal": [
+            {
+                "@type": "PeriodOfTime",
+                "startDate": "2019-01-01",
+                "endDate": "2020-12-31",
+            }
+        ],
+    }
+
+    normalized = DatasetDocument._normalize_dcat_dates(dcat)
+
+    assert normalized["temporal"] == (
+        '[{"@type": "PeriodOfTime", "endDate": "2020-12-31", '
+        '"startDate": "2019-01-01"}]'
+    )
+    assert json.loads(normalized["temporal"]) == dcat["temporal"]
 
 
 def test_normalize_dcat_spatial_object():
@@ -677,6 +700,29 @@ def test_dataset_to_document_flattens_dcat3_theme_and_identifier(sample_dataset)
     assert document["dcat"]["identifier"] == sample_dataset.dcat["identifier"]
     # inSeries is not aliased onto isPartOf.
     assert document["dcat"]["isPartOf"] == "collection-1"
+
+
+def test_dataset_to_document_serializes_v3_temporal_as_valid_json(mock_organization):
+    """A v3.0 PeriodOfTime `temporal` array must survive dataset_to_document
+    as valid, parseable JSON rather than a Python repr string."""
+    dcat = {
+        "title": "Temporal Dataset",
+        "description": "Dataset with v3.0 temporal",
+        "publisher": {"name": "Test Agency"},
+        "temporal": [
+            {
+                "@type": "PeriodOfTime",
+                "startDate": "2019-01-01",
+                "endDate": "2020-12-31",
+            }
+        ],
+    }
+    dataset = make_dataset_by_dcat(dcat, mock_organization)
+
+    dataset_doc = DatasetDocument(dataset)
+    document = dataset_doc.dataset_to_document()
+
+    assert json.loads(document["dcat"]["temporal"]) == dcat["temporal"]
 
 
 def test_dataset_to_document_carries_type(sample_dataset):

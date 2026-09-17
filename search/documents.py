@@ -54,7 +54,7 @@ class DatasetDocument:
     def _normalize_dcat_dates(cls, dcat: dict) -> dict:
         """Normalize DCAT values for OpenSearch metadata indexing."""
         normalized_dcat = dcat.copy()
-        date_fields = ["modified", "issued", "temporal"]
+        date_fields = ["modified", "issued"]
         for field in date_fields:
             if field in normalized_dcat:
                 value = normalized_dcat[field]
@@ -62,12 +62,19 @@ class DatasetDocument:
                     normalized_dcat[field] = value.isoformat()
                 elif value is not None and not isinstance(value, str):
                     normalized_dcat[field] = str(value)
-        spatial = normalized_dcat.get("spatial")
-        if spatial is not None and not isinstance(spatial, str):
-            normalized_dcat["spatial"] = cls._serialize_dcat_value(spatial)
 
+        # `temporal` is a scalar interval string under DCAT-US v1.1 but a
+        # list of PeriodOfTime objects under v3.0; serialize non-string
+        # values the same way as `spatial` (json.dumps) instead of str(),
+        # which produces an unparseable Python repr for lists/dicts.
+        for field in ("spatial", "temporal"):
+            value = normalized_dcat.get(field)
+            if value is not None and not isinstance(value, str):
+                normalized_dcat[field] = cls._serialize_dcat_value(value)
+
+        skip_fields = set(date_fields) | {"publisher", "spatial", "temporal"}
         for field, value in normalized_dcat.items():
-            if field in date_fields or field in {"publisher", "spatial"}:
+            if field in skip_fields:
                 continue
             normalized_dcat[field] = cls._normalize_dcat_metadata_value(value)
         return normalized_dcat
