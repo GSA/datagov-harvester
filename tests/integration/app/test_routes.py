@@ -1289,7 +1289,7 @@ def test_harvest_source_list_displays_description(
     """Test that harvest source list shows description column."""
     interface.add_organization(organization_data)
     source_data_dcatus["description"] = "Test harvest source description"
-    source = interface.add_harvest_source(source_data_dcatus)
+    interface.add_harvest_source(source_data_dcatus)
 
     response = client.get("/harvest_source_list/")
     assert response.status_code == 200
@@ -1332,7 +1332,7 @@ def test_harvest_source_list_search_includes_description(
     """Test that filter.js searches description field via data-meta."""
     interface.add_organization(organization_data)
     source_data_dcatus["description"] = "Environmental monitoring data"
-    source = interface.add_harvest_source(source_data_dcatus)
+    interface.add_harvest_source(source_data_dcatus)
 
     response = client.get("/harvest_source_list/")
     assert response.status_code == 200
