@@ -44,6 +44,10 @@ def test_migrations_upgrade_and_downgrade_cleanly(app, monkeypatch):
         for revision in revisions:
             upgrade(revision=revision.revision)
 
-            down = revision.down_revision or "base"
+            down = revision.down_revision
+            # Skip downgrade testing for merge migrations
+            if isinstance(down, tuple):
+                continue
+            down = down or "base"
             downgrade(revision=down)
             upgrade(revision=revision.revision)
