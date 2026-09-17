@@ -63,6 +63,7 @@ class LoadManager:
 
     def _clean_old_jobs(self):
         """Check for in_progress jobs in the database that aren't running."""
+        logger.info("cleaning old jobs")
         in_progress_jobs = interface.get_in_progress_jobs()
         running_tasks = self.handler.get_running_app_tasks()
         running_harvest_ids = set(self.handler.job_ids_from_tasks(running_tasks))
@@ -72,6 +73,7 @@ class LoadManager:
         ]
         for job in failed_jobs:
             self._handle_failed_job(job)
+        logger.info("finished cleaning old jobs")
 
     def _drop_queued_jobs(self, source_id):
         """Delete waiting status=new jobs for a source (e.g. frequency change)."""
@@ -109,6 +111,7 @@ class LoadManager:
         only schedule at most one new job.
         """
         try:
+            logger.info("starting new jobs")
             running_tasks = self.handler.num_running_app_tasks()
             if running_tasks is None:
                 # None here indicates that tasks couldn't be listed with the API
@@ -140,6 +143,7 @@ class LoadManager:
             jobs = interface.get_new_harvest_jobs_in_past(limit=slots)
             for job in jobs:
                 self.start_job(job.id, job.job_type)
+            logger.info("finished starting jobs")
         finally:
             # closes the scoped_session object
             interface.close()
