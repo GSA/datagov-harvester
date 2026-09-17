@@ -5,7 +5,7 @@ from werkzeug.datastructures import MultiDict
 from database.interface import HarvesterDBInterface
 
 from ..forms import OrganizationForm
-from ..util import make_new_org_contract
+from ..util import DEFAULT_ORG_LOGO_URL, make_new_org_contract
 
 org = Blueprint("org", __name__)
 
@@ -17,7 +17,7 @@ db = HarvesterDBInterface()
 @click.option("--slug", default="", help="Slug for the organization")
 @click.option(
     "--logo",
-    default="https://raw.githubusercontent.com/GSA/datagov-harvester/refs/heads/main/app/static/assets/img/placeholder-organization.png",
+    default=DEFAULT_ORG_LOGO_URL,
     help="Org Logo",
 )
 @click.option(

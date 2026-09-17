@@ -27,6 +27,29 @@ class TestForms:
         assert org.description == "A sample description"
         assert org.slug == "test-slug"
 
+    def test_add_organization_without_logo_defaults_to_placeholder(
+        self, app, client, interface
+    ):
+        app.config.update({"WTF_CSRF_ENABLED": False})
+        with client.session_transaction() as sess:
+            sess["user"] = "tester@gsa.gov"
+
+        data = {
+            "name": "No Logo Org",
+            "logo": "",
+            "description": "An org with no logo provided",
+            "slug": "no-logo-org",
+        }
+        res = client.post("/organization/add", data=data)
+
+        assert res.status_code == 302
+        orgs = interface.get_all_organizations()
+        org = orgs[0]
+        assert org.logo == (
+            "https://raw.githubusercontent.com/GSA/datagov-harvester/refs/heads/"
+            "main/app/static/assets/img/placeholder-organization.png"
+        )
+
     def test_add_organization_aliases(self, app, client, interface):
         app.config.update({"WTF_CSRF_ENABLED": False})
         with client.session_transaction() as sess:
