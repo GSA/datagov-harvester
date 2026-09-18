@@ -350,23 +350,42 @@ def edit_harvest_source(source_id: str):
             if form.validate_on_submit():
                 old_frequency = source.frequency
                 new_source_data = make_new_source_contract(form)
-                source = deps.db.update_harvest_source(source_id, new_source_data)
-                job_message = ""
-                if source and source.frequency != old_frequency:
-                    job_message = deps.load_manager.reschedule_next_run(source.id)
-                if source:
-                    _log_mutation(
-                        "edit",
-                        "harvest_source",
-                        source.id,
-                        organization_id=source.organization_id,
-                        source_name=source.name,
+
+                existing = deps.db.get_harvest_source_by_url(new_source_data.get("url"))
+                if existing and str(existing.id) != source_id:
+                    flash(
+                        f"A harvest source with this URL already exists "
+                        f"(source ID: {existing.id}). "
+                        "Use a different URL or edit the existing source."
                     )
-                    flash(f"Updated source with ID: {source.id}. {job_message}")
-                else:
-                    flash("Failed to update harvest source.")
+                    return redirect(
+                        url_for("main.edit_harvest_source", source_id=source_id)
+                    )
+
+                updated_source, error = deps.db.try_update_harvest_source(
+                    source_id, new_source_data
+                )
+                if not updated_source:
+                    flash(error or "Failed to update harvest source.")
+                    return redirect(
+                        url_for("main.edit_harvest_source", source_id=source_id)
+                    )
+
+                job_message = ""
+                if updated_source.frequency != old_frequency:
+                    job_message = deps.load_manager.reschedule_next_run(
+                        updated_source.id
+                    )
+                _log_mutation(
+                    "edit",
+                    "harvest_source",
+                    updated_source.id,
+                    organization_id=updated_source.organization_id,
+                    source_name=updated_source.name,
+                )
+                flash(f"Updated source with ID: {updated_source.id}. {job_message}")
                 return redirect(
-                    url_for("main.view_harvest_source", source_id=source.id)
+                    url_for("main.view_harvest_source", source_id=updated_source.id)
                 )
             elif form.errors:
                 flash(form.errors)

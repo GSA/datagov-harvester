@@ -231,6 +231,31 @@ class HarvesterDBInterface:
             self.db.rollback()
             return None
 
+    def try_update_harvest_source(self, source_id, updates):
+        """Like update_harvest_source, but returns (source, error_message)
+        instead of letting a constraint violation (e.g. duplicate URL)
+        propagate as an unhandled 500."""
+        try:
+            source = self.db.get(HarvestSource, source_id)
+            for key, value in updates.items():
+                if hasattr(source, key):
+                    setattr(source, key, value)
+                else:
+                    logger.warning(
+                        "Warning: non-existing field '%s' in HarvestSource", key
+                    )
+            self.db.commit()
+            return source, None
+
+        except NoResultFound:
+            self.db.rollback()
+            return None, "Harvest source not found."
+
+        except Exception as e:
+            logger.error("Error: %s", e)
+            self.db.rollback()
+            return None, self.harvest_source_save_error_message(e)
+
     def can_delete_harvest_source(self, source_id):
         """Return whether a harvest source may be deleted.
 
