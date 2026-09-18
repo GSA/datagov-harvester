@@ -15,11 +15,7 @@ db = HarvesterDBInterface()
 @org.cli.command("add")
 @click.argument("name")
 @click.option("--slug", default="", help="Slug for the organization")
-@click.option(
-    "--logo",
-    default="https://raw.githubusercontent.com/GSA/datagov-harvester/refs/heads/main/app/static/assets/img/placeholder-organization.png",
-    help="Org Logo",
-)
+@click.option("--logo", default="", help="Org Logo")
 @click.option(
     "--aliases",
     default="",
