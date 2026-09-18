@@ -1240,10 +1240,6 @@ class HarvesterDBInterface:
 
         facet_list = HarvesterDBInterface.query_filter_builder(model_class, facets)
 
-        # TODO: should we add date_created to these models??
-        if model in ["organizations", "harvest_sources"]:
-            return self.db.query(model_class).filter(*facet_list)
-
         order_by_val = order_by_helper(model_class, order_by)
 
         return self.db.query(model_class).filter(*facet_list).order_by(order_by_val)
