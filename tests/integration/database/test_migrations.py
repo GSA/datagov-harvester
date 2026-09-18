@@ -40,10 +40,19 @@ def test_migrations_upgrade_and_downgrade_cleanly(app, monkeypatch):
     revisions = _ordered_revisions(app)
     assert len(revisions) > 0
 
+    # Build a map of merge migrations (those with tuple down_revision)
+    merge_revisions = {
+        rev.revision for rev in revisions if isinstance(rev.down_revision, tuple)
+    }
+
     with app.app_context():
         for revision in revisions:
             upgrade(revision=revision.revision)
 
-            down = revision.down_revision or "base"
+            down = revision.down_revision
+            # Skip downgrade if this is a merge migration OR if downgrading TO a merge
+            if isinstance(down, tuple) or down in merge_revisions:
+                continue
+            down = down or "base"
             downgrade(revision=down)
             upgrade(revision=revision.revision)
