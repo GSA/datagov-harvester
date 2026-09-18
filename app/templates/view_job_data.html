@@ -43,7 +43,7 @@
                 </td>
             </tr>
             {% endif %}
-            {% for key, value in data.job.to_dict().items() %}
+            {% for key, value in data.job.to_dict().items() if key != 'records_total' %}
             <tr>
                 {% if key == 'harvest_source_id' %}
                 <td>Harvest source</td>
