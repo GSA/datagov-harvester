@@ -77,7 +77,7 @@ def make_new_org_contract(form):
     return {
         "name": form.name.data,
         "slug": form.slug.data,
-        "logo": form.logo.data,
+        "logo": form.logo.data or None,
         "description": form.description.data or None,
         "organization_type": form.organization_type.data or None,
         "aliases": [alias.strip() for alias in (form.aliases.data or "").split(",")],

@@ -688,7 +688,7 @@ class TestJSONResponses:
                 "code_repo_url": None,
                 "description": "Fixture org description",
                 "id": "d925f84d-955b-4cb7-812f-dcfd6681a18f",
-                "logo": "https://raw.githubusercontent.com/GSA/datagov-harvester/refs/heads/main/app/static/assets/img/placeholder-organization.png",
+                "logo": "https://example.com/fixture-org-logo.png",
                 "name": "Test Org",
                 "organization_type": "Federal Government",
                 "slug": "fixture-org",
