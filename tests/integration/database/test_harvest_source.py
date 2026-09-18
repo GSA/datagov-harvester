@@ -57,12 +57,7 @@ def test_get_all_harvest_sources(interface, organization_data, source_data_dcatu
 def test_pget_harvest_sources_order_by_name(
     interface, organization_data, source_data_dcatus
 ):
-    """Regression test for GSA/data.gov#5907.
-
-    harvest_sources have no date_created; they used to skip ordering entirely,
-    so `order_by=-name` returned the same order as ascending. They now sort by
-    the requested column and honor the `-` descending prefix.
-    """
+    """harvest_sources sort by the requested column and honor the `-` descending prefix."""
     interface.add_organization(organization_data)
     for i in range(3):
         source = source_data_dcatus.copy()
