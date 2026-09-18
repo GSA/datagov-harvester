@@ -97,10 +97,22 @@ def test_endpoint_order_by(
     assert db_records[0].identifier == "test-identifier-0"
     assert id_lookup_table[db_records[0].identifier] == db_records[0].id
 
-    # get results in descending order
+    # legacy literal: "desc" sorts the default column (date_created) descending
     db_records = interface.pget_harvest_records(order_by="desc")
     assert db_records[0].identifier == "test-identifier-99"
     assert id_lookup_table[db_records[0].identifier] == db_records[0].id
+
+    # sort by an explicit field, ascending
+    db_records = interface.pget_harvest_records(order_by="identifier")
+    assert db_records[0].identifier == "test-identifier-0"
+
+    # sort by an explicit field, descending via the "-" prefix
+    db_records = interface.pget_harvest_records(order_by="-identifier")
+    assert db_records[0].identifier == "test-identifier-99"
+
+    # an unrecognized field falls back to the default order without raising
+    db_records = interface.pget_harvest_records(order_by="bogus")
+    assert db_records[0].identifier == "test-identifier-0"
 
 
 def test_endpoint_count_for_non_paginated_methods(
