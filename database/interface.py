@@ -215,21 +215,8 @@ class HarvesterDBInterface:
         return [source for source in harvest_sources]
 
     def update_harvest_source(self, source_id, updates):
-        try:
-            source = self.db.get(HarvestSource, source_id)
-            for key, value in updates.items():
-                if hasattr(source, key):
-                    setattr(source, key, value)
-                else:
-                    logger.warning(
-                        "Warning: non-existing field '%s' in HarvestSource", key
-                    )
-            self.db.commit()
-            return source
-
-        except NoResultFound:
-            self.db.rollback()
-            return None
+        source, _ = self.try_update_harvest_source(source_id, updates)
+        return source
 
     def try_update_harvest_source(self, source_id, updates):
         """Like update_harvest_source, but returns (source, error_message)
