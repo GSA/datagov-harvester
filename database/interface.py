@@ -1343,4 +1343,21 @@ class HarvesterDBInterface:
 
 
 def order_by_helper(model, order_by):
-    return model.date_created.asc() if order_by == "asc" else model.date_created.desc()
+    """Build an ORDER BY clause for `model` from an `order_by` request value.
+
+    Accepts a column name (`"name"`), a column name with a leading `-` for
+    descending (`"-name"`), or the legacy literals `"asc"`/`"desc"` (and
+    `None`/empty), which sort the model's default column. The default column is
+    `date_created` when the model has one, else `name`. An unrecognized column
+    name falls back to the default column while keeping the requested direction.
+    """
+    default_column = "date_created" if hasattr(model, "date_created") else "name"
+    if not order_by or order_by in ("asc", "desc"):
+        column_name, descending = default_column, order_by == "desc"
+    else:
+        descending = order_by.startswith("-")
+        column_name = order_by[1:] if descending else order_by
+    if column_name not in model.__table__.columns.keys():
+        column_name = default_column
+    column = getattr(model, column_name)
+    return column.desc() if descending else column.asc()
