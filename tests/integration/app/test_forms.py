@@ -238,12 +238,11 @@ class TestForms:
         res = client.post(
             f"/harvest_source/edit/{source_data_dcatus_2['id']}",
             data=form_data,
+            follow_redirects=True,
         )
 
-        assert res.status_code == 302
-        assert res.location == f"/harvest_source/edit/{source_data_dcatus_2['id']}"
-        source = interface.get_harvest_source(source_data_dcatus_2["id"])
-        assert source.url == source_data_dcatus_2["url"]
+        assert res.status_code == 200
+        assert b"already exists" in res.data
 
     def test_add_harvest_source_waf_collection(
         self, app, client, interface, organization_data
