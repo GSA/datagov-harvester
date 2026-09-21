@@ -20,6 +20,7 @@ from urllib.parse import urljoin
 from uuid import UUID
 
 import geojson_validator
+import pyparsing as parse
 import requests
 import shapely.wkt
 from bs4 import BeautifulSoup
@@ -777,10 +778,8 @@ def find_indexes_for_duplicates(records: list, identifier_field: str = "identifi
 def get_waf_datetimes(soup: BeautifulSoup, expected_length: int) -> list:
     """Return each WAF XML link's modification time in link order.
 
-    Uses python-dateutil for flexible datetime parsing to handle any
-    server datetime format without hardcoded patterns. Follows the same
-    two-step approach as ckanext-spatial: extract datetime string broadly,
-    then let dateutil parse it flexibly.
+    Extracts datetime strings and uses python-dateutil to parse them flexibly.
+    Based on ckanext-spatial approach: extract string, then dateutil.parser.parse().
     """
     anchors = [
         anchor
@@ -799,19 +798,12 @@ def get_waf_datetimes(soup: BeautifulSoup, expected_length: int) -> list:
         )
         modified_date = None
 
-        try:
-            date_candidates = re.findall(
-                r"(?:\d{1,4}[-/]\d{1,2}[-/]\d{1,4}|\d{1,2}-[A-Za-z]{3}-\d{4}|"
-                r"[A-Za-z]+,?\s+[A-Za-z]+\s+\d{1,2},?\s+\d{4})"
-                r"\s+\d{1,2}:\d{2}(?:\s*(?:AM|PM))?",
-                date_text,
-            )
-
-            if date_candidates:
-                modified_date = dateutil_parser.parse(date_candidates[0])
+        if date_text:
+            try:
+                modified_date = dateutil_parser.parse(date_text, fuzzy=True)
                 parsed_count += 1
-        except (ValueError, TypeError, ParserError, OverflowError):
-            pass
+            except (ValueError, TypeError, ParserError, OverflowError):
+                pass
 
         output.append(modified_date or DT_PLACEHOLDER)
 
