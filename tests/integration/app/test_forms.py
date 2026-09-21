@@ -208,6 +208,42 @@ class TestForms:
         assert source.source_type == "document"
         assert source.collection_parent_url is None
 
+    def test_edit_harvest_source_duplicate_url_shows_friendly_error(
+        self,
+        app,
+        client,
+        interface,
+        organization_data,
+        source_data_dcatus,
+        source_data_dcatus_2,
+    ):
+        app.config.update({"WTF_CSRF_ENABLED": False})
+        with client.session_transaction() as sess:
+            sess["user"] = "tester@gsa.gov"
+
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_dcatus)
+        interface.add_harvest_source(source_data_dcatus_2)
+
+        form_data = {
+            "organization_id": organization_data["id"],
+            "name": source_data_dcatus_2["name"],
+            "url": source_data_dcatus["url"],
+            "notification_emails": "user@example.com",
+            "frequency": "daily",
+            "schema_type": "dcatus1.1: federal",
+            "source_type": "document",
+            "notification_frequency": "always",
+        }
+        res = client.post(
+            f"/harvest_source/edit/{source_data_dcatus_2['id']}",
+            data=form_data,
+            follow_redirects=True,
+        )
+
+        assert res.status_code == 200
+        assert b"already exists" in res.data
+
     def test_add_harvest_source_waf_collection(
         self, app, client, interface, organization_data
     ):
