@@ -657,6 +657,50 @@ class TestGeneralUtils:
         assert datetimes[0] == DT_PLACEHOLDER
         assert datetimes[1] == DT_PLACEHOLDER
 
+    def test_get_waf_datetimes_flexible_parsing(self):
+        """Test flexible datetime parsing with dateutil handles format variations."""
+        # Apache format with extra spaces
+        page_apache_variation = """<html><body><pre>
+<a href="file1.xml">file1.xml</a>    2025-01-22  14:30    10K
+<a href="file2.xml">file2.xml</a>    2026-07-12   02:23   15K
+</pre></body></html>"""
+
+        soup = BeautifulSoup(page_apache_variation, "html.parser")
+        datetimes = get_waf_datetimes(soup, 2)
+
+        assert datetimes == [
+            datetime(2025, 1, 22, 14, 30),
+            datetime(2026, 7, 12, 2, 23),
+        ]
+
+        # Nginx format - month abbreviation
+        page_nginx = """<html><body><pre>
+<a href="file1.xml">file1.xml</a>    02-Oct-2025 11:47    10K
+<a href="file2.xml">file2.xml</a>    15-Dec-2026  09:30   15K
+</pre></body></html>"""
+
+        soup = BeautifulSoup(page_nginx, "html.parser")
+        datetimes = get_waf_datetimes(soup, 2)
+
+        assert datetimes == [
+            datetime(2025, 10, 2, 11, 47),
+            datetime(2026, 12, 15, 9, 30),
+        ]
+
+        # BTS long format - full day and month names
+        page_bts = """<html><body><pre>
+<a href="file1.xml">file1.xml</a>    Friday, July 31, 2026  4:53 PM    10K
+<a href="file2.xml">file2.xml</a>    Monday, January 5, 2025 10:30 AM  15K
+</pre></body></html>"""
+
+        soup = BeautifulSoup(page_bts, "html.parser")
+        datetimes = get_waf_datetimes(soup, 2)
+
+        assert datetimes == [
+            datetime(2026, 7, 31, 16, 53),
+            datetime(2025, 1, 5, 10, 30),
+        ]
+
     def test_assemble_validation_messages(
         self, dol_distribution_json, dcatus_non_federal_schema
     ):
