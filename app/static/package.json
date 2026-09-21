@@ -40,13 +40,13 @@
     "browserify": "^17.0.1",
     "concurrently": "^10.0.5",
     "gulp": "^5.0.1",
-    "rollup": "^4.63.1",
+    "rollup": "^4.63.3",
     "rollup-plugin-copy": "^3.5.0",
-    "sass": "^1.104.0",
+    "sass": "^1.104.1",
     "typescript": "^7.0.2",
     "vinyl-buffer": "^1.0.1",
     "vinyl-source-stream": "^2.0.0",
-    "vite": "^8.2.2"
+    "vite": "^8.3.0"
   },
   "optionalDependencies": {
     "@rollup/rollup-linux-x64-gnu": "^4.13.2"
