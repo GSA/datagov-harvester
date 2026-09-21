@@ -1277,60 +1277,6 @@ class TestOrganizationCodeRepoFields:
         response = client.get(f"/organization/{org_data['id']}")
         assert response.status_code == 200
 
-    def test_harvest_source_list_displays_description(
-        self, client, interface, organization_data, source_data_dcatus
-    ):
-        """Test that harvest source list shows description column."""
-        interface.add_organization(organization_data)
-        source_data_dcatus["description"] = "Test harvest source description"
-        interface.add_harvest_source(source_data_dcatus)
-
-        response = client.get("/harvest_source_list/")
-        assert response.status_code == 200
-        response_text = response.data.decode()
-        assert "Description" in response_text
-        assert "Test harvest source description" in response_text
-
-    def test_harvest_source_list_hides_url_column(
-        self, client, interface, organization_data, source_data_dcatus
-    ):
-        """Test that URL column is replaced by description in list view."""
-        interface.add_organization(organization_data)
-        interface.add_harvest_source(source_data_dcatus)
-
-        response = client.get("/harvest_source_list/")
-        assert response.status_code == 200
-        response_text = response.data.decode()
-        assert '<th scope="col">URL</th>' not in response_text
-        assert '<th scope="col">Description</th>' in response_text
-
-    def test_harvest_source_detail_displays_description(
-        self, client, interface, organization_data, source_data_dcatus
-    ):
-        """Test that harvest source detail page shows description."""
-        interface.add_organization(organization_data)
-        source_data_dcatus["description"] = "Detailed source description"
-        source = interface.add_harvest_source(source_data_dcatus)
-
-        response = client.get(f"/harvest_source/{source.id}")
-        assert response.status_code == 200
-        response_text = response.data.decode()
-        assert "Detailed source description" in response_text
-
-    def test_harvest_source_list_search_includes_description(
-        self, client, interface, organization_data, source_data_dcatus
-    ):
-        """Test that filter.js searches description field via data-meta."""
-        interface.add_organization(organization_data)
-        source_data_dcatus["description"] = "Environmental monitoring data"
-        interface.add_harvest_source(source_data_dcatus)
-
-        response = client.get("/harvest_source_list/")
-        assert response.status_code == 200
-        response_text = response.data.decode()
-        assert "Environmental monitoring data" in response_text
-        assert "data-meta=" in response_text
-
 
 def test_harvest_source_list_displays_description(
     client, interface, organization_data, source_data_dcatus
