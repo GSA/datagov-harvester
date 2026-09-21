@@ -1276,7 +1276,6 @@ class TestOrganizationCodeRepoFields:
 
         response = client.get(f"/organization/{org_data['id']}")
         assert response.status_code == 200
-        response_text = response.data.decode()
 
     def test_harvest_source_list_displays_description(
         self, client, interface, organization_data, source_data_dcatus
