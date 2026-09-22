@@ -12,6 +12,8 @@ from app.commands.search import (
 def test_reset_mapping_recreates_empty_index(app):
     client = Mock()
     client.INDEX_NAME = "datasets"
+    client.client.indices.exists_alias.return_value = False
+    client.client.indices.exists.return_value = True
     client.MAPPINGS = {
         "properties": {
             "title": {
@@ -46,6 +48,8 @@ def test_reset_mapping_accepts_stringified_dynamic_flag(app):
     """OpenSearch echoes `dynamic` back as the string "false", not a bool."""
     client = Mock()
     client.INDEX_NAME = "datasets"
+    client.client.indices.exists_alias.return_value = False
+    client.client.indices.exists.return_value = True
     client.MAPPINGS = {
         "properties": {
             "dcat": {
@@ -82,6 +86,8 @@ def test_reset_mapping_accepts_stringified_dynamic_flag(app):
 def test_reset_mapping_rejects_real_mapping_mismatch(app):
     client = Mock()
     client.INDEX_NAME = "datasets"
+    client.client.indices.exists_alias.return_value = False
+    client.client.indices.exists.return_value = True
     client.MAPPINGS = {"properties": {"title": {"type": "text"}}}
     client.client.indices.get_mapping.return_value = {
         "datasets": {"mappings": {"properties": {"title": {"type": "keyword"}}}}
@@ -95,6 +101,82 @@ def test_reset_mapping_rejects_real_mapping_mismatch(app):
 
     assert result.exit_code != 0
     assert "Created index mapping does not match application mapping." in result.output
+
+
+def _reset_mapping_client(mappings=None):
+    """Build a mocked client whose live mapping matches the application mapping.
+
+    Keeps the alias-shape tests focused on which index gets deleted rather than
+    on the mapping comparison, which the tests above already cover.
+    """
+    mappings = mappings or {"properties": {"title": {"type": "text"}}}
+    client = Mock()
+    client.INDEX_NAME = "datasets"
+    client.MAPPINGS = mappings
+    client.client.indices.get_mapping.return_value = {
+        "datasets": {"mappings": mappings}
+    }
+    return client
+
+
+def test_reset_mapping_deletes_indices_behind_a_leftover_alias(app):
+    """A cluster rebuilt by the retired rebuild-index workflow has `datasets` as
+    an alias, and ``indices.delete`` rejects an alias by name."""
+    client = _reset_mapping_client()
+    client.client.indices.exists_alias.return_value = True
+    client.client.indices.get_alias.return_value = {
+        "datasets-20260827150000": {"aliases": {"datasets": {}}}
+    }
+
+    with patch(
+        "app.commands.search.OpenSearchClient.from_environment",
+        return_value=client,
+    ):
+        result = app.test_cli_runner().invoke(args=["search", "reset-mapping"])
+
+    assert result.exit_code == 0
+    # The backing index, not the alias name, is what can actually be deleted.
+    client.client.indices.delete.assert_called_once_with(
+        index="datasets-20260827150000"
+    )
+    assert "is a leftover alias for datasets-20260827150000" in result.output
+    assert "Mapping reset successfully. The index is empty." in result.output
+
+
+def test_reset_mapping_deletes_every_index_behind_a_multi_index_alias(app):
+    client = _reset_mapping_client()
+    client.client.indices.exists_alias.return_value = True
+    client.client.indices.get_alias.return_value = {
+        "datasets-second": {"aliases": {"datasets": {}}},
+        "datasets-first": {"aliases": {"datasets": {}}},
+    }
+
+    with patch(
+        "app.commands.search.OpenSearchClient.from_environment",
+        return_value=client,
+    ):
+        result = app.test_cli_runner().invoke(args=["search", "reset-mapping"])
+
+    assert result.exit_code == 0
+    client.client.indices.delete.assert_called_once_with(
+        index="datasets-first,datasets-second"
+    )
+
+
+def test_reset_mapping_skips_delete_when_nothing_exists(app):
+    client = _reset_mapping_client()
+    client.client.indices.exists_alias.return_value = False
+    client.client.indices.exists.return_value = False
+
+    with patch(
+        "app.commands.search.OpenSearchClient.from_environment",
+        return_value=client,
+    ):
+        result = app.test_cli_runner().invoke(args=["search", "reset-mapping"])
+
+    assert result.exit_code == 0
+    client.client.indices.delete.assert_not_called()
+    client._ensure_index.assert_called_once_with()
 
 
 def test_compare_update_indexes_missing_and_deletes_extra(app, caplog):

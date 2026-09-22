@@ -85,13 +85,38 @@ def _report_document_ids(banner: str, doc_ids: list[str]):
     click.echo("")
 
 
+def _clear_datasets_index(client, index_name: str):
+    """Remove whatever currently answers to ``index_name``.
+
+    Constructing a client calls ``_ensure_index()``, so the name always resolves
+    to something by the time this runs. It is usually a plain index, but on a
+    cluster that was rebuilt by the retired ``rebuild-index`` workflow it is an
+    *alias* pointing at a ``datasets-<suffix>`` index -- and ``indices.delete``
+    rejects an alias with ``illegal_argument_exception``. Drop the indices behind
+    the alias so a cluster in either state ends up equally clean.
+    """
+    if client.client.indices.exists_alias(name=index_name):
+        aliased = sorted(client.client.indices.get_alias(name=index_name))
+        click.echo(
+            f"'{index_name}' is a leftover alias for {', '.join(aliased)}; "
+            "removing both so it becomes a plain index."
+        )
+        # One request: deleting an aliased index removes its alias with it, so
+        # this never leaves the name pointing at something already deleted.
+        client.client.indices.delete(index=",".join(aliased))
+        return
+
+    if client.client.indices.exists(index=index_name):
+        client.client.indices.delete(index=index_name)
+
+
 @search.cli.command("reset-mapping")
 def reset_opensearch_mapping():
     """Delete the dataset index and recreate its empty mapping and settings."""
     client = OpenSearchClient.from_environment()
 
     click.echo("Deleting OpenSearch dataset index...")
-    client.client.indices.delete(index=client.INDEX_NAME)
+    _clear_datasets_index(client, client.INDEX_NAME)
     click.echo("Index deleted.")
 
     click.echo("Creating empty index with current mapping and settings...")
