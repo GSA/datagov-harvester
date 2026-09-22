@@ -40,6 +40,21 @@ class HarvesterDBInterface:
     def __init__(self, session=None):
         self.db = session if session else db.session
 
+    def get_model_fields_by_filter(self, model, fields_filter=None):
+        """
+        Return Column objects from model, filtered by fields_filter list.
+        """
+        if fields_filter is None:
+            field_names = [field.name for field in model.__table__.columns]
+        else:
+            field_names = [
+                field.name
+                for field in model.__table__.columns
+                if field.name in fields_filter
+            ]
+
+        return [getattr(model, field) for field in field_names]
+
     @staticmethod
     def query_filter_builder(model, facets_string):
         """Builds a list of filter expressions from a comma-separated string of facets
