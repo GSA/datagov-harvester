@@ -8,6 +8,7 @@ from requests.exceptions import HTTPError
 from requests.models import Response
 
 from harvester.exceptions import (
+    EmptyFieldNameException,
     ExtractExternalException,
     ExtractInternalException,
     SendNotificationException,
@@ -270,3 +271,134 @@ class TestHarvestRecordExceptionHandling:
 
         record = interface.get_harvest_record(record.id)
         assert record.status == "error"
+
+
+class TestEmptyFieldNameExceptionHandling:
+    def test_harvest_rejects_dataset_with_empty_field_name(
+        self,
+        interface,
+        organization_data,
+        make_harvest_source,
+    ):
+        from database.models import Dataset
+
+        source_data = {
+            "name": "Test Source - Empty Field Name",
+            "organization_id": None,
+            "notification_emails": [],
+            "frequency": "manual",
+            "url": "http://test-harvest-source/empty_field.json",
+            "schema_type": "dcatus1.1: federal",
+            "source_type": "document",
+        }
+
+        job_data = {
+            "status": "new",
+            "harvest_source_id": None,
+        }
+
+        bad_dataset = {
+            "@type": "dcat:Dataset",
+            "identifier": "bad-dataset-empty-key",
+            "title": "Dataset with Empty Field Name",
+            "description": "This dataset has an empty string as a field name",
+            "contactPoint": {
+                "": "bad_value",
+                "fn": "Contact Name",
+                "hasEmail": "mailto:contact@example.gov",
+            },
+            "publisher": {"@type": "org:Organization", "name": "Test Agency"},
+            "keyword": ["test"],
+        }
+
+        with patch("harvester.harvest.download_file") as mock_download:
+            mock_download.return_value = {
+                "@context": "https://project-open-data.cio.gov/v1.1/schema/catalog.jsonld",
+                "dataset": [bad_dataset],
+            }
+
+            harvest_source = make_harvest_source(source_data, job_data)
+            harvest_source.acquire_data_sources()
+
+            external_records = harvest_source.external_records_to_process()
+            test_record = list(external_records)[0]
+            test_record.compare()
+            test_record.validate()
+            test_record.sync()
+
+        interface_record = interface.get_harvest_record(test_record.id)
+        assert interface_record.status == "error"
+
+        errors = interface.get_harvest_record_errors_by_record(test_record.id)
+        assert len(errors) > 0
+        error_messages = " ".join([err.message for err in errors])
+        assert "empty" in error_messages.lower()
+        assert "field name" in error_messages.lower()
+
+        datasets = (
+            interface.db.query(Dataset)
+            .filter(Dataset.harvest_record_id == test_record.id)
+            .all()
+        )
+        assert len(datasets) == 0
+
+    def test_harvest_accepts_valid_dataset(
+        self,
+        interface,
+        organization_data,
+        make_harvest_source,
+    ):
+        from database.models import Dataset
+
+        source_data = {
+            "name": "Test Source - Valid",
+            "organization_id": None,
+            "notification_emails": [],
+            "frequency": "manual",
+            "url": "http://test-harvest-source/valid.json",
+            "schema_type": "dcatus1.1: federal",
+            "source_type": "document",
+        }
+
+        job_data = {
+            "status": "new",
+            "harvest_source_id": None,
+        }
+
+        valid_dataset = {
+            "@type": "dcat:Dataset",
+            "identifier": "good-dataset",
+            "title": "Valid Dataset",
+            "description": "This dataset has no empty field names",
+            "contactPoint": {
+                "fn": "Contact Name",
+                "hasEmail": "mailto:contact@example.gov",
+            },
+            "publisher": {"@type": "org:Organization", "name": "Test Agency"},
+            "keyword": ["test"],
+        }
+
+        with patch("harvester.harvest.download_file") as mock_download:
+            mock_download.return_value = {
+                "@context": "https://project-open-data.cio.gov/v1.1/schema/catalog.jsonld",
+                "dataset": [valid_dataset],
+            }
+
+            harvest_source = make_harvest_source(source_data, job_data)
+            harvest_source.acquire_data_sources()
+
+            external_records = harvest_source.external_records_to_process()
+            test_record = list(external_records)[0]
+            test_record.compare()
+            test_record.validate()
+            test_record.sync()
+
+        interface_record = interface.get_harvest_record(test_record.id)
+        assert interface_record.status == "success"
+
+        datasets = (
+            interface.db.query(Dataset)
+            .filter(Dataset.harvest_record_id == test_record.id)
+            .all()
+        )
+        assert len(datasets) == 1
