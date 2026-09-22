@@ -28,8 +28,10 @@ class DatasetDocument:
         if isinstance(obj, dict):
             for key, value in obj.items():
                 if key == "":
+                    location = path or "root"
                     raise EmptyFieldNameException(
-                        f"Field name cannot be an empty string (found at path: {path or 'root'})"
+                        f"Field name cannot be an empty string "
+                        f"(found at path: {location})"
                     )
                 new_path = f"{path}.{key}" if path else key
                 DatasetDocument._validate_no_empty_keys(value, new_path)

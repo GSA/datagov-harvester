@@ -8,7 +8,6 @@ from requests.exceptions import HTTPError
 from requests.models import Response
 
 from harvester.exceptions import (
-    EmptyFieldNameException,
     ExtractExternalException,
     ExtractInternalException,
     SendNotificationException,
@@ -278,23 +277,25 @@ class TestEmptyFieldNameExceptionHandling:
         self,
         interface,
         organization_data,
-        make_harvest_source,
     ):
         from database.models import Dataset
 
         source_data = {
+            "id": "empty-field-test-source-id",
             "name": "Test Source - Empty Field Name",
-            "organization_id": None,
+            "organization_id": organization_data["id"],
             "notification_emails": [],
             "frequency": "manual",
             "url": "http://test-harvest-source/empty_field.json",
             "schema_type": "dcatus1.1: federal",
             "source_type": "document",
+            "notification_frequency": "always",
         }
 
         job_data = {
+            "id": "empty-field-test-job-id",
             "status": "new",
-            "harvest_source_id": None,
+            "harvest_source_id": source_data["id"],
         }
 
         bad_dataset = {
@@ -302,6 +303,10 @@ class TestEmptyFieldNameExceptionHandling:
             "identifier": "bad-dataset-empty-key",
             "title": "Dataset with Empty Field Name",
             "description": "This dataset has an empty string as a field name",
+            "modified": "2024-01-01",
+            "accessLevel": "public",
+            "bureauCode": ["123:45"],
+            "programCode": ["123:456"],
             "contactPoint": {
                 "": "bad_value",
                 "fn": "Contact Name",
@@ -311,13 +316,17 @@ class TestEmptyFieldNameExceptionHandling:
             "keyword": ["test"],
         }
 
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data)
+        harvest_job = interface.add_harvest_job(job_data)
+
         with patch("harvester.harvest.download_file") as mock_download:
             mock_download.return_value = {
                 "@context": "https://project-open-data.cio.gov/v1.1/schema/catalog.jsonld",
                 "dataset": [bad_dataset],
             }
 
-            harvest_source = make_harvest_source(source_data, job_data)
+            harvest_source = HarvestSource(harvest_job.id)
             harvest_source.acquire_data_sources()
 
             external_records = harvest_source.external_records_to_process()
@@ -346,23 +355,25 @@ class TestEmptyFieldNameExceptionHandling:
         self,
         interface,
         organization_data,
-        make_harvest_source,
     ):
         from database.models import Dataset
 
         source_data = {
+            "id": "valid-test-source-id",
             "name": "Test Source - Valid",
-            "organization_id": None,
+            "organization_id": organization_data["id"],
             "notification_emails": [],
             "frequency": "manual",
             "url": "http://test-harvest-source/valid.json",
             "schema_type": "dcatus1.1: federal",
             "source_type": "document",
+            "notification_frequency": "always",
         }
 
         job_data = {
+            "id": "valid-test-job-id",
             "status": "new",
-            "harvest_source_id": None,
+            "harvest_source_id": source_data["id"],
         }
 
         valid_dataset = {
@@ -370,6 +381,10 @@ class TestEmptyFieldNameExceptionHandling:
             "identifier": "good-dataset",
             "title": "Valid Dataset",
             "description": "This dataset has no empty field names",
+            "modified": "2024-01-01",
+            "accessLevel": "public",
+            "bureauCode": ["123:45"],
+            "programCode": ["123:456"],
             "contactPoint": {
                 "fn": "Contact Name",
                 "hasEmail": "mailto:contact@example.gov",
@@ -378,13 +393,17 @@ class TestEmptyFieldNameExceptionHandling:
             "keyword": ["test"],
         }
 
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data)
+        harvest_job = interface.add_harvest_job(job_data)
+
         with patch("harvester.harvest.download_file") as mock_download:
             mock_download.return_value = {
                 "@context": "https://project-open-data.cio.gov/v1.1/schema/catalog.jsonld",
                 "dataset": [valid_dataset],
             }
 
-            harvest_source = make_harvest_source(source_data, job_data)
+            harvest_source = HarvestSource(harvest_job.id)
             harvest_source.acquire_data_sources()
 
             external_records = harvest_source.external_records_to_process()
