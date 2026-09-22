@@ -20,7 +20,6 @@ from urllib.parse import urljoin
 from uuid import UUID
 
 import geojson_validator
-import pyparsing as parse
 import requests
 import shapely.wkt
 from bs4 import BeautifulSoup
@@ -800,8 +799,18 @@ def get_waf_datetimes(soup: BeautifulSoup, expected_length: int) -> list:
 
         if date_text:
             try:
-                modified_date = dateutil_parser.parse(date_text, fuzzy=True)
-                parsed_count += 1
+                date_candidates = re.findall(
+                    r"(?:\d{1,4}[-/]\d{1,2}[-/]\d{1,4}|\d{1,2}-[A-Za-z]{3}-\d{4}|"
+                    r"[A-Za-z]+,?\s+[A-Za-z]+\s+\d{1,2},?\s+\d{4})"
+                    r"\s+\d{1,2}:\d{2}(?:\s*(?:AM|PM))?",
+                    date_text,
+                )
+
+                if date_candidates:
+                    modified_date = dateutil_parser.parse(
+                        date_candidates[0], default=datetime(1900, 1, 1)
+                    )
+                    parsed_count += 1
             except (ValueError, TypeError, ParserError, OverflowError):
                 pass
 
