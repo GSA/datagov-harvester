@@ -1,5 +1,3 @@
-import json
-
 from database.interface import PAGINATE_ENTRIES_PER_PAGE
 
 
@@ -140,10 +138,9 @@ def test_pget_db_query_with_fields_filter_loads_only_specified_fields(
         record["source_raw"] = "large data content"
         interface.add_harvest_record(record)
 
-    query = interface.pget_db_query(
+    results = interface.pget_db_query(
         model="harvest_records", fields_filter=["id", "harvest_source_id", "identifier"]
     )
-    results = query.all()
 
     assert len(results) == 2
     assert results[0].id is not None
@@ -171,8 +168,7 @@ def test_pget_db_query_without_fields_filter_loads_all_fields(
     record["status"] = "success"
     interface.add_harvest_record(record)
 
-    query = interface.pget_db_query(model="harvest_records")
-    results = query.all()
+    results = interface.pget_db_query(model="harvest_records")
 
     assert len(results) == 1
     assert results[0].id is not None
@@ -201,12 +197,11 @@ def test_pget_db_query_fields_filter_with_facets(
         record["status"] = status
         interface.add_harvest_record(record)
 
-    query = interface.pget_db_query(
+    results = interface.pget_db_query(
         model="harvest_records",
         facets="status eq success",
         fields_filter=["id", "identifier", "status"],
     )
-    results = query.all()
 
     assert len(results) == 1
     assert results[0].identifier == "success-record"
