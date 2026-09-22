@@ -23,6 +23,8 @@ import geojson_validator
 import requests
 import shapely.wkt
 from bs4 import BeautifulSoup
+from dateutil import parser as dateutil_parser
+from dateutil.parser import ParserError
 from jsonschema import Draft202012Validator, FormatChecker
 from jsonschema.exceptions import ValidationError
 from referencing import Registry
@@ -773,22 +775,11 @@ def find_indexes_for_duplicates(records: list, identifier_field: str = "identifi
 
 
 def get_waf_datetimes(soup: BeautifulSoup, expected_length: int) -> list:
-    """Return each WAF XML link's modification time in link order."""
-    date_formats = [
-        (r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}", "%Y-%m-%d %H:%M"),
-        (r"\d{2}-[A-Za-z]{3}-\d{4}\s\d{2}:\d{2}", "%d-%b-%Y %H:%M"),
-        (
-            r"\d{1,2}/\d{1,2}/\d{4}\s+\d{1,2}:\d{2}\s(?:AM|PM)",
-            "%m/%d/%Y %I:%M %p",
-        ),
-        (
-            (
-                r"[A-Za-z]+,\s+[A-Za-z]+\s+\d{1,2},\s+\d{4}\s+"
-                r"\d{1,2}:\d{2}\s+(?:AM|PM)"
-            ),
-            "%A, %B %d, %Y %I:%M %p",
-        ),
-    ]
+    """Return each WAF XML link's modification time in link order.
+
+    Extracts datetime strings and uses python-dateutil to parse them flexibly.
+    Based on ckanext-spatial approach: extract string, then dateutil.parser.parse().
+    """
     anchors = [
         anchor
         for anchor in soup.find_all("a", href=True)
@@ -806,12 +797,22 @@ def get_waf_datetimes(soup: BeautifulSoup, expected_length: int) -> list:
         )
         modified_date = None
 
-        for date_pattern, date_format in date_formats:
-            match = re.search(date_pattern, date_text)
-            if match is not None:
-                modified_date = datetime.strptime(match.group(0), date_format)
-                parsed_count += 1
-                break
+        if date_text:
+            try:
+                date_candidates = re.findall(
+                    r"(?:\d{1,4}[-/]\d{1,2}[-/]\d{1,4}|\d{1,2}-[A-Za-z]{3}-\d{4}|"
+                    r"[A-Za-z]+,?\s+[A-Za-z]+\s+\d{1,2},?\s+\d{4})"
+                    r"\s+\d{1,2}:\d{2}(?:\s*(?:AM|PM))?",
+                    date_text,
+                )
+
+                if date_candidates:
+                    modified_date = dateutil_parser.parse(
+                        date_candidates[0], default=datetime(1900, 1, 1)
+                    )
+                    parsed_count += 1
+            except (ValueError, TypeError, ParserError, OverflowError):
+                pass
 
         output.append(modified_date or DT_PLACEHOLDER)
 
