@@ -1,8 +1,8 @@
 """Add description field to harvest_source
 
-Revision ID: cc28c1e977c2
-Revises: a612f5049ccc
-Create Date: 2026-09-17 14:03:35.575396
+Revision ID: cd1b89204949
+Revises: 5b9b5ccf2e34
+Create Date: 2026-09-23 08:40:51.659016
 
 """
 
@@ -10,8 +10,8 @@ import sqlalchemy as sa
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision = "cc28c1e977c2"
-down_revision = "a612f5049ccc"
+revision = "cd1b89204949"
+down_revision = "5b9b5ccf2e34"
 branch_labels = None
 depends_on = None
 

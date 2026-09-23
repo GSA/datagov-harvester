@@ -1276,6 +1276,11 @@ class TestOrganizationCodeRepoFields:
 
         response = client.get(f"/organization/{org_data['id']}")
         assert response.status_code == 200
+        response_text = response.data.decode()
+        assert (
+            "Code repo URL" in response_text or "Code Repository URL" in response_text
+        )
+        assert "https://github.com/GSA" in response_text
 
 
 def test_harvest_source_list_displays_description(
