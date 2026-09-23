@@ -145,11 +145,7 @@ class LoadManager:
             interface.close()
 
     def start(self):
-        """Runs on Flask Admin start, roughly every 15min"""
-        if os.getenv("CF_INSTANCE_INDEX") != "0":
-            logger.debug("CF_INSTANCE_INDEX is not set or not equal to zero")
-            return
-
+        """Queue and start due harvest jobs from a dedicated runner task."""
         self._clean_old_jobs()
         self._start_new_jobs()
 
