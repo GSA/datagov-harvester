@@ -31,10 +31,10 @@ on:
         required: true
         type: boolean
         default: true
-  # Callable by other workflows (e.g. rebuild_opensearch_index.yml) so the
-  # disable/enable logic lives in exactly one place. workflow_call inputs cannot
-  # use the "choice" type, so state/environment are strings here; the job body
-  # reads inputs.* and behaves identically for both triggers.
+  # Callable by other workflows so the disable/enable logic lives in exactly one
+  # place. workflow_call inputs cannot use the "choice" type, so state/environment
+  # are strings here; the job body reads inputs.* and behaves identically for both
+  # triggers.
   workflow_call:
     inputs:
       state:
