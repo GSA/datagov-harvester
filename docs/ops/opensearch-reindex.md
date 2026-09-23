@@ -34,22 +34,12 @@ Actions workflows.
 - **`flask search reset-mapping`** — deletes the whole index and recreates it
   empty with the current mapping/settings. Destructive; only use when you
   intend to fully repopulate the index afterward.
-- **`flask search rebuild-index`** — zero-downtime rebuild: creates a new
-  physical index, backfills every dataset from PostgreSQL into it, validates
-  the document count against the DB, then atomically switches the `datasets`
-  alias to it. The old index keeps serving reads until the switch. This is
-  the manual equivalent of what the label-driven release does, without a PR
-  or a replacement Cloud Foundry service.
-- **`flask search delete-index --index-name <name>`** — deletes an unused
-  physical index left behind by a rebuild. Refuses to delete an index still
-  attached to the `datasets` alias.
 
 Locally:
 
 ```bash
 docker compose exec app flask search compare
 docker compose exec app flask search compare --update
-docker compose exec app flask search rebuild-index --no-switch-alias
 ```
 
 ### GitHub Actions workflows
@@ -60,16 +50,8 @@ docker compose exec app flask search rebuild-index --no-switch-alias
   environment with a choice of `search reset-mapping` / `search compare` /
   `search compare --update` / `search compare --force-update`. Opens a GitHub
   issue if the task fails or its logs show an index-batch failure.
-- **Rebuild OpenSearch Index**
-  (`.github/workflows/rebuild_opensearch_index.yml`) — manual only. Disables
-  the harvester, waits for in-flight harvest tasks to drain, runs
-  `flask search rebuild-index`, then re-enables the harvester unconditionally,
-  even if the rebuild failed.
-- **Delete OpenSearch Physical Index**
-  (`.github/workflows/delete_opensearch_index.yml`) — manual only. Deletes one
-  named unused physical index, e.g. one left behind by a rebuild run with
-  `delete_old_index: false`.
 
-All three run against `datagov-harvest` via `cf run-task` and share the
-`opensearch-maintenance-<environment>` concurrency group, so they queue
-rather than run concurrently against the same environment.
+It runs against `datagov-harvest` via `cf run-task` and shares the
+`opensearch-maintenance-<environment>` concurrency group with the release and
+restart workflows, so they queue rather than run concurrently against the same
+environment.

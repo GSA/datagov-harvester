@@ -1,0 +1,37 @@
+---
+name: 4 - Run Scheduled Harvests
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '1/10 * * * *'
+
+permissions:
+    contents: read
+    id-token: write
+    actions: write
+
+jobs:
+  scheduled-harvest:
+    name: run scheduled harvest
+    strategy:
+      fail-fast: false
+      matrix:
+        environ: ["development", "staging", "prod"]
+    environment: ${{ matrix.environ }}
+    concurrency:
+      group: scheduled-harvest-${{ matrix.environ }}
+      cancel-in-progress: false
+    runs-on: ubuntu-latest
+    steps:
+      - name: run harvest scheduler task
+        uses: cloud-gov/cg-cli-tools@main
+        with:
+          command: >-
+            cf run-task datagov-harvest
+            --name "scheduled-harvest-${{ github.run_id }}-${{ github.run_attempt }}"
+            --command "flask harvest start"
+          cf_org: gsa-datagov
+          cf_space: ${{ matrix.environ }}
+          cf_username: ${{secrets.CF_SERVICE_USER}}
+          cf_password: ${{secrets.CF_SERVICE_AUTH}}
