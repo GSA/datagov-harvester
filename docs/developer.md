@@ -347,13 +347,17 @@ This is a Flask app which manages the configuration of harvest sources, organiza
 
 #### User management
 
-The Data.gov team are the only intended users of the harvester admin app.
+The Data.gov team are the only intended users of the harvester admin app. Since users are rarely added or deleted, no user management UI has been built and adding/deleting users must be done via the command line.
 
+To add a user:
 `cf run-task datagov-harvest --name "add new user" --command "flask user add xxx@gsa.gov --name xxx"`
 
 Or, if doing for local development:
 
 `docker compose exec app flask user add your.i.name@gsa.gov --name yourName`
+
+To delete a user:
+`cf run-task datagov-harvest --command "flask user remove xxx@gsa.gov"`
 
 #### Add organizations
 
