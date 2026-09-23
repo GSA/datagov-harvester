@@ -4,6 +4,7 @@ from datetime import date, datetime
 from typing import Any
 
 from database.models import Dataset
+from harvester.exceptions import EmptyFieldNameException
 from search.config import DEFAULT_CATALOG_BASE_URL, INDEX_NAME
 from search.spatial import calc_geometry_centroid
 from search.transforms import DcatIndexTransformer
@@ -22,10 +23,27 @@ class DatasetDocument:
             return json.dumps(value, sort_keys=True)
         return str(value)
 
+    @staticmethod
+    def _validate_no_empty_keys(obj, path=""):
+        if isinstance(obj, dict):
+            for key, value in obj.items():
+                if key == "":
+                    location = path or "root"
+                    raise EmptyFieldNameException(
+                        f"Field name cannot be an empty string "
+                        f"(found at path: {location})"
+                    )
+                new_path = f"{path}.{key}" if path else key
+                DatasetDocument._validate_no_empty_keys(value, new_path)
+        elif isinstance(obj, list):
+            for index, item in enumerate(obj):
+                new_path = f"{path}[{index}]"
+                DatasetDocument._validate_no_empty_keys(item, new_path)
+
     @classmethod
     def _normalize_dcat_metadata_value(cls, value: Any) -> Any:
-        # stringify nested objects/lists because
-        # OpenSearch expect those fields to be text.
+        cls._validate_no_empty_keys(value)
+
         if isinstance(value, dict):
             return {
                 field: (
