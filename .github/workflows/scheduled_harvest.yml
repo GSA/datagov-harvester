@@ -7,9 +7,7 @@ on:
     - cron: '1/10 * * * *'
 
 permissions:
-    contents: read
-    id-token: write
-    actions: write
+  contents: read
 
 jobs:
   scheduled-harvest:
@@ -24,6 +22,9 @@ jobs:
       cancel-in-progress: false
     runs-on: ubuntu-latest
     steps:
+      - name: checkout repo
+        uses: actions/checkout@v7
+
       - name: run harvest scheduler task
         uses: cloud-gov/cg-cli-tools@main
         with:
@@ -35,3 +36,18 @@ jobs:
           cf_space: ${{ matrix.environ }}
           cf_username: ${{secrets.CF_SERVICE_USER}}
           cf_password: ${{secrets.CF_SERVICE_AUTH}}
+
+      - name: Create Issue if it fails 😢
+        if: ${{ failure() && github.ref == 'refs/heads/main' }}
+        uses: JasonEtco/create-an-issue@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.ADD_TO_PROJECT_PAT }}
+          GITHUB_JOB: ${{ github.job }}
+          GITHUB_ATTEMPTS: ${{ github.run_attempt }}
+          LAST_COMMIT: ${{ github.sha }}
+          LAST_RUN_BY: ${{ github.actor }}
+          RUN_ID: ${{ github.run_id }}
+          REPO: ${{ github.repository }}
+        with:
+          filename: .github/scheduled_harvest_failure.md
+          update_existing: true
