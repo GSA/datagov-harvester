@@ -55,6 +55,9 @@
                 <td class="word-break-all">
                     <a href="{{value}}" target="_blank">{{value}}</a> {{ 'launch' | usa_icon | safe }}
                 </td>
+                {% elif key == 'description' %}
+                <td>{{ key | humanize }}</td>
+                <td>{{ value | else_na }}</td>
                 {% elif key == 'collection_parent_url' %}
                 {% if value %}
                 <td>{{ key | humanize }}</td>
