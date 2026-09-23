@@ -49,7 +49,6 @@ SCHEMA_TYPE_VALUES = [
     "dcatus1.1: federal",
     "dcatus1.1: non-federal",
     "dcatus3.0",
-    "code.json",
 ]
 
 SOURCE_TYPE_VALUES = ["document", "waf", "waf-collection"]
