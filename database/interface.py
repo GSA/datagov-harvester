@@ -6,7 +6,7 @@ import sqlalchemy.sql.operators as sa_operators
 from sqlalchemy import Text, asc, cast, desc, exists, func, inspect, literal, text
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import NoResultFound
-from sqlalchemy.orm import aliased, lazyload
+from sqlalchemy.orm import aliased, lazyload, load_only
 
 from database.configs import PaginationConfig
 from database.decorators import count, count_wrapper, paginate
@@ -39,6 +39,21 @@ class HarvesterDBInterface:
 
     def __init__(self, session=None):
         self.db = session if session else db.session
+
+    def get_model_fields_by_filter(self, model, fields_filter=None):
+        """
+        Return Column objects from model, filtered by fields_filter list.
+        """
+        if fields_filter is None:
+            field_names = [field.name for field in model.__table__.columns]
+        else:
+            field_names = [
+                field.name
+                for field in model.__table__.columns
+                if field.name in fields_filter
+            ]
+
+        return [getattr(model, field) for field in field_names]
 
     @staticmethod
     def query_filter_builder(model, facets_string):
@@ -1254,7 +1269,16 @@ class HarvesterDBInterface:
 
         order_by_val = order_by_helper(model_class, order_by)
 
-        return self.db.query(model_class).filter(*facet_list).order_by(order_by_val)
+        model_data = self.get_model_fields_by_filter(
+            model_class, kwargs.get("fields_filter")
+        )
+
+        return (
+            self.db.query(model_class)
+            .options(load_only(*model_data))
+            .filter(*facet_list)
+            .order_by(order_by_val)
+        )
 
     #### FILTERED BUILDER QUERIES ####
     def pget_organizations(self, facets="", **kwargs):
