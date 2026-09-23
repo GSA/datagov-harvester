@@ -1,4 +1,5 @@
 from .database import database
+from .harvest import harvest
 from .job import job
 from .org import org
 from .search import search
@@ -9,6 +10,7 @@ from .user import user
 
 def register_commands(app):
     app.register_blueprint(database)
+    app.register_blueprint(harvest)
     app.register_blueprint(testdata)
     app.register_blueprint(user)
     app.register_blueprint(org)
