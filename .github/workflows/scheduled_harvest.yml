@@ -1,40 +1,42 @@
 ---
-name: 3 - Restart Apps
+name: 4 - Run Scheduled Harvests
 
 on:
   workflow_dispatch:
   schedule:
-    - cron: '11/10 * * * *'
+    - cron: '1/10 * * * *'
 
 permissions:
-    contents: read
+  contents: read
 
 jobs:
-  restart:
-    name: restart harvest app
+  scheduled-harvest:
+    name: run scheduled harvest
     strategy:
       fail-fast: false
       matrix:
         environ: ["development", "staging", "prod"]
     environment: ${{ matrix.environ }}
     concurrency:
-      group: opensearch-maintenance-${{ matrix.environ }}
+      group: scheduled-harvest-${{ matrix.environ }}
       cancel-in-progress: false
     runs-on: ubuntu-latest
     steps:
       - name: checkout repo
         uses: actions/checkout@v7
-        with:
-          repository: gsa/datagov-harvester
-          path: "./harvester"
-      - name: restart datagov-harvest
+
+      - name: run harvest scheduler task
         uses: cloud-gov/cg-cli-tools@main
         with:
-          command: harvester/bin/check-and-renew datagov-harvest restart
+          command: >-
+            cf run-task datagov-harvest
+            --name "scheduled-harvest-${{ github.run_id }}-${{ github.run_attempt }}"
+            --command "flask harvest start"
           cf_org: gsa-datagov
           cf_space: ${{ matrix.environ }}
           cf_username: ${{secrets.CF_SERVICE_USER}}
           cf_password: ${{secrets.CF_SERVICE_AUTH}}
+
       - name: Create Issue if it fails 😢
         if: ${{ failure() && github.ref == 'refs/heads/main' }}
         uses: JasonEtco/create-an-issue@v2
@@ -47,5 +49,5 @@ jobs:
           RUN_ID: ${{ github.run_id }}
           REPO: ${{ github.repository }}
         with:
-          filename: harvester/.github/restart_failure.md
+          filename: .github/scheduled_harvest_failure.md
           update_existing: true
