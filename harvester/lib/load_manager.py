@@ -23,6 +23,22 @@ class LoadManager:
     def __init__(self):
         self.handler = create_task_handler()
 
+    def _email_recipients_of_failed_jobs(self, failed_jobs: list[tuple]):
+        """
+        Emails recipients of recently failed jobs
+        """
+        for job_id, source_name in failed_jobs:
+            job_url = f"{SMTP_CONFIG['base_url']}/harvest_job/{job_id}"
+            send_email_to_recipients(
+                [SMTP_CONFIG.get("recipient")],
+                f"Failed job cleaned up for {source_name}",
+                (
+                    f"The harvest job ({job_id}) for harvest source {source_name}\n"
+                    "was found to have failed.\n\n"
+                    f"You can view the details here: {job_url}\n"
+                ),
+            )
+
     def _handle_failed_job(self, job):
         """Handle a HarvestJob that failed.
 
@@ -50,28 +66,28 @@ class LoadManager:
                 "harvest_job_id": job.id,
             }
         )
-        job_url = f"{SMTP_CONFIG['base_url']}/harvest_job/{job.id}"
-        send_email_to_recipients(
-            [SMTP_CONFIG.get("recipient")],
-            f"Failed job cleaned up for {job.source.name}",
-            (
-                f"The harvest job ({job.id}) for harvest source {job.source.name}\n"
-                "was found to have failed.\n\n"
-                f"You can view the details here: {job_url}\n"
-            ),
-        )
+
+        return job.id, job.source.name
 
     def _clean_old_jobs(self):
         """Check for in_progress jobs in the database that aren't running."""
-        in_progress_jobs = interface.get_in_progress_jobs()
         running_tasks = self.handler.get_running_app_tasks()
         running_harvest_ids = set(self.handler.job_ids_from_tasks(running_tasks))
 
+        in_progress_jobs = interface.get_in_progress_jobs()
         failed_jobs = [
             job for job in in_progress_jobs if job.id not in running_harvest_ids
         ]
+
+        job_email_data = []
         for job in failed_jobs:
-            self._handle_failed_job(job)
+            failed_job = self._handle_failed_job(job)
+            job_email_data.append(failed_job)
+
+        # db work is complete for this function
+        interface.close()
+
+        self._email_recipients_of_failed_jobs(job_email_data)
 
     def _drop_queued_jobs(self, source_id):
         """Delete waiting status=new jobs for a source (e.g. frequency change)."""
@@ -137,9 +153,12 @@ class LoadManager:
 
             # invoke cf_task with next jobs
             # then mark the job as running in the DB
-            jobs = interface.get_new_harvest_jobs_in_past(limit=slots)
+            jobs = [
+                job.to_dict()
+                for job in interface.get_new_harvest_jobs_in_past(limit=slots)
+            ]
             for job in jobs:
-                self.start_job(job.id, job.job_type)
+                self.start_job(job["id"], job["job_type"])
         finally:
             # closes the scoped_session object
             interface.close()
@@ -151,62 +170,22 @@ class LoadManager:
 
     def start_job(self, job_id, job_type="harvest"):
         """
-        Start a harvest job if no other job is currently in progress for the same source
+        prepares the jobs in the database then starts the job as a cloud foundry
+        task
 
-        This method checks if a job with status 'in_progress' already exists for the
-        given harvest source. If not, it updates the job status to 'in_progress',
-        creates a task contract, and starts the task using the handler. If an error
-        occurs during this process, the job status is reset to 'new'.
-
-        Returns:
-            str: A message indicating the result of the operation.
+        the reason behind this is to isolate db interactions from irrelevant network
+        calls (i.e. call to cf api to start task) to avoid "idle-in-transactions"
         """
         try:
-            harvest_job = interface.get_harvest_job(job_id)
+            msg = self._prepare_job_in_db(job_id)
+            if msg:
+                return msg
 
-            # Try to atomically transition this job from 'new' -> 'in_progress'.
-            updated = interface.update_harvest_job_if_status(
-                job_id, "new", {"status": "in_progress", "date_started": get_datetime()}
-            )
-            if not updated:
-                return (
-                    f"Can't trigger harvest. Job {job_id} already started "
-                    f"or not in 'new' state."
-                )
+            interface.close()  # db work is done. close the session.
 
-            logger.info("Updated job %s to in_progress", updated.id)
+            self._start_job_as_task(job_id, job_type)
 
-            # Excludes this job via facets, so any result here means
-            # another job is already in progress; we only need 1 to confirm that.
-            jobs_in_progress = interface.pget_harvest_jobs(
-                facets=f"harvest_source_id eq {harvest_job.harvest_source_id},status eq in_progress,id ne {job_id}",  # noqa E501
-                per_page=1,
-                page=0,
-            )
-            if len(jobs_in_progress):
-                interface.update_harvest_job(
-                    job_id, {"status": "new", "date_started": None}
-                )
-                logger.info(
-                    "Job %s already in progress. Reverted job %s back to 'new'.",
-                    jobs_in_progress[0].id,
-                    job_id,
-                )
-                return (
-                    f"Can't trigger harvest. Job {jobs_in_progress[0].id} "
-                    f"already in progress."
-                )
-
-            """task manager start interface, takes a job_id"""
-            task_contract = {
-                "command": f"python harvester/harvest.py {job_id} {job_type}",
-                "task_id": f"harvest-job-{job_id}-{job_type}",
-            }
-
-            # No revert here; the outer handler owns cleanup for any failure below.
-            self.handler.start_task(**task_contract)
-
-            return f"Updated job {updated.id} to in_progress"
+            return f"Updated job {job_id} to in_progress"
 
         except Exception:
             logger.exception("LoadManager: start_job failed for job %s", job_id)
@@ -230,6 +209,56 @@ class LoadManager:
                 f"Can't trigger harvest. Job {job_id} failed to start and may be "
                 f"stuck in progress. Please contact an administrator."
             )
+
+    def _prepare_job_in_db(self, job_id: str):
+        """
+        updates the job in the database in preparation of starting the work as a cloud
+        foundry task
+        """
+        harvest_job = interface.get_harvest_job(job_id)
+
+        # Try to atomically transition this job from 'new' -> 'in_progress'.
+        updated = interface.update_harvest_job_if_status(
+            job_id, "new", {"status": "in_progress", "date_started": get_datetime()}
+        )
+        if not updated:
+            return (
+                f"Can't trigger harvest. Job {job_id} already started "
+                f"or not in 'new' state."
+            )
+
+        logger.info("Updated job %s to in_progress", updated.id)
+
+        # Excludes this job via facets, so any result here means
+        # another job is already in progress; we only need 1 to confirm that.
+        jobs_in_progress = interface.pget_harvest_jobs(
+            facets=f"harvest_source_id eq {harvest_job.harvest_source_id},status eq in_progress,id ne {job_id}",  # noqa E501
+            per_page=1,
+            page=0,
+        )
+        if len(jobs_in_progress):
+            interface.update_harvest_job(
+                job_id, {"status": "new", "date_started": None}
+            )
+            logger.info(
+                "Job %s already in progress. Reverted job %s back to 'new'.",
+                jobs_in_progress[0].id,
+                job_id,
+            )
+            return (
+                f"Can't trigger harvest. Job {jobs_in_progress[0].id} "
+                f"already in progress."
+            )
+
+    def _start_job_as_task(self, job_id: str, job_type: str):
+        """task manager start interface, takes a job_id"""
+        task_contract = {
+            "command": f"python harvester/harvest.py {job_id} {job_type}",
+            "task_id": f"harvest-job-{job_id}-{job_type}",
+        }
+
+        # No revert here; the outer handler owns cleanup for any failure below.
+        self.handler.start_task(**task_contract)
 
     def stop_job(self, job_id, job_type="harvest"):
         """task manager stop interface, takes a job_id"""
