@@ -104,7 +104,7 @@ def json_builder_query(**kwargs):
             return jsonify(deps.db._to_dict(res))
     except InvalidPaginationException as e:
         logger.info(f"Invalid pagination in json_builder_query :: {repr(e)}")
-        return JSON_INVALID_PAGINATION()
+        return JSON_INVALID_PAGINATION(str(e))
     except Exception as e:
         logger.info(f"Failed json_builder_query :: {repr(e)} ")
         return "Error with query", 400
