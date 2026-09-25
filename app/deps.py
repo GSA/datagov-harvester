@@ -51,6 +51,17 @@ def JSON_INVALID_SEVERITY():
     return response
 
 
+class InvalidPaginationException(Exception):
+    """Raised when pagination parameters are invalid."""
+
+
+def JSON_INVALID_PAGINATION(message="Invalid pagination parameter"):
+    """Return a 422 JSON response for invalid pagination."""
+    response = jsonify({"error": message})
+    response.status_code = 422
+    return response
+
+
 def get_requested_severity(default=None):
     """Read and validate the `severity` query param.
 

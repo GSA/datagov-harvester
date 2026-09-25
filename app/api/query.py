@@ -11,7 +11,9 @@ from app.api_schemas import (
     SourceInfo,
 )
 from app.deps import (
+    JSON_INVALID_PAGINATION,
     JSON_INVALID_SEVERITY,
+    InvalidPaginationException,
     InvalidSeverityError,
     get_requested_severity,
     logger,
@@ -94,12 +96,17 @@ def json_builder_query(**kwargs):
             order_by=request.args.get("order_by"),
             facets=facets,
         )
-        if not res:
-            return f"No {model} found for this query", 404
-        elif isinstance(res, int):
+        if isinstance(res, int):
             return {"count": res, "type": model}
-        else:
+        elif isinstance(res, list):
+            if not res and request.args.get("per_page", type=convert_to_int) != 0:
+                return f"No {model} found for this query", 404
             return jsonify(deps.db._to_dict(res))
+        else:
+            return f"No {model} found for this query", 404
+    except InvalidPaginationException as e:
+        logger.info(f"Invalid pagination in json_builder_query :: {repr(e)}")
+        return JSON_INVALID_PAGINATION(str(e))
     except Exception as e:
         logger.info(f"Failed json_builder_query :: {repr(e)} ")
         return "Error with query", 400
