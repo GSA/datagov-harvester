@@ -11,7 +11,9 @@ from app.api_schemas import (
     SourceInfo,
 )
 from app.deps import (
+    JSON_INVALID_PAGINATION,
     JSON_INVALID_SEVERITY,
+    InvalidPaginationException,
     InvalidSeverityError,
     get_requested_severity,
     logger,
@@ -100,6 +102,8 @@ def json_builder_query(**kwargs):
             return {"count": res, "type": model}
         else:
             return jsonify(deps.db._to_dict(res))
+    except InvalidPaginationException as e:
+        return JSON_INVALID_PAGINATION(str(e))
     except Exception as e:
         logger.info(f"Failed json_builder_query :: {repr(e)} ")
         return "Error with query", 400
