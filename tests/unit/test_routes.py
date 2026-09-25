@@ -76,3 +76,22 @@ def test_logged_in_user_sees_username_not_login(client):
         "a", {"class": "harvester-nav__utility-link"}, string="Admin Login"
     )
     assert login_link is None  # Login button should not appear when logged in
+
+
+def test_unknown_versioned_api_route_returns_404(app):
+    response = app.test_client().get("/api/v1/bad_route")
+
+    assert response.status_code == 404
+    assert "Location" not in response.headers
+
+
+def test_unknown_unversioned_api_route_redirects_once_then_returns_404(app):
+    response = app.test_client().get(
+        "/api/bad_route",
+        follow_redirects=True,
+    )
+
+    assert response.status_code == 404
+    assert len(response.history) == 1
+    assert response.history[0].status_code == 308
+    assert response.history[0].headers["Location"].endswith("/api/v1/bad_route")
