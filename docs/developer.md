@@ -340,10 +340,20 @@ Note: we prefer that you deploy to the development environment by pushing to the
 ## Applications
 
 ### datagov-harvest-proxy
-This is an nginx app which owns the public route and proxies traffic to the internal Flask app route.
+This is an nginx app which owns the public route and proxies traffic to the internal Flask app route. It also splits off validator traffic: `/validate`, `/validate/`, `/api/validate`, and `/api/v1/validate` are proxied to `datagov-harvest-validator` instead of `datagov-harvest` (see `proxy/nginx-common.conf` and `proxy/nginx-maps.conf`). Everything else goes to `datagov-harvest` as before.
 
 ### datagov-harvest
 This is a Flask app which manages the configuration of harvest sources, organizations, and the creation of harvest jobs.
+
+### datagov-harvest-validator
+Runs the identical codebase as `datagov-harvest`, deployed as a separate Cloud Foundry app so public validator traffic (schema validation, including the server-side URL-fetch option) can't consume the admin app's capacity or be scaled/restarted independently of it (GSA/data.gov#6293). Its manifest entry:
+
+- Binds only `datagov-harvest-db` and `datagov-harvest-secrets` (needed just to boot: `harvester/__init__.py` creates a DB engine at import time, and `create_app()` validates the secrets-provided env vars). It does not bind OpenSearch or SMTP — nothing on the validator's request path uses either.
+- Still sets `CLIENT_ID`/`ISSUER`/`REDIRECT_URI` even though the validator never serves `/login` or `/callback`: `app/main/auth.py` and `harvester/utils/general_utils.py`'s `SMTP_CONFIG` both dereference `ISSUER`/`REDIRECT_URI` unconditionally at import time, and those modules load during `create_app()` regardless of which routes a given app actually serves.
+- Sets `SKIP_DB_MIGRATIONS=true` so its own instance 0 doesn't also run `flask db upgrade` against the shared database (`app-start.sh` checks this before migrating).
+- Has its own `validator_instances`/`validator_memory_quota`/`validator_disk_quota` vars per space, separate from `admin_*`.
+
+The `/validate*` routes still exist on `datagov-harvest` itself (unchanged) - the split is only in how the proxy routes traffic, so reverting the two `proxy/nginx-*.conf` location/map additions is a full rollback to routing everything through the admin app.
 
 #### User management
 

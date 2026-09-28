@@ -14,6 +14,7 @@ applications:
     env:
       EXTERNAL_ROUTE: ((route_external))
       INTERNAL_ROUTE: ((route_internal))
+      VALIDATOR_INTERNAL_ROUTE: ((route_internal_validator))
       BASIC_AUTH_ENABLED: ((basic_auth_enabled))
 
   - &harvest_app
@@ -60,3 +61,42 @@ applications:
       - ((harvest_service_name))-secrets
       - ((opensearch_service_name))
       - logstack-space-drain
+
+  # Serves the public /validate, /validate/, /api/validate, and /api/v1/validate
+  # routes (proxied here by datagov-harvest-proxy) in isolation from the admin
+  # app, so validator load and its server-side URL fetching can't affect
+  # harvester administration (GSA/data.gov#6293). Runs the same codebase as
+  # ((app_name)) - the routes stay live there too as a rollback path - but
+  # skips migrations (SKIP_DB_MIGRATIONS) and does not bind OpenSearch or SMTP,
+  # since the validator doesn't use either.
+  - name: ((app_name))-validator
+    buildpacks:
+      - python_buildpack
+    routes:
+      - route: ((route_internal_validator))
+    services:
+      - ((harvest_service_name))-db
+      - ((harvest_service_name))-secrets
+      - logstack-space-drain
+    instances: ((validator_instances))
+    memory: ((validator_memory_quota))
+    disk_quota: ((validator_disk_quota))
+    env:
+      FLASK_APP: run.py
+      HARVEST_SERVICE_NAME: ((harvest_service_name))
+      EXTERNAL_ROUTE: ((route_external))
+      CF_API_URL: ((CF_API_URL))
+      # Not used by the validator's routes, but required at import time:
+      # app/main/auth.py builds AUTH_URL/TOKEN_URL from ISSUER unconditionally,
+      # and harvester/utils/general_utils.py's SMTP_CONFIG does the same with
+      # REDIRECT_URI - both modules load during create_app() regardless of app.
+      CLIENT_ID: ((CLIENT_ID))
+      ISSUER: ((ISSUER))
+      REDIRECT_URI: ((REDIRECT_URI))
+      SKIP_DB_MIGRATIONS: true
+      NEW_RELIC_APP_NAME: ((app_name))-validator-((space_name))
+      NEW_RELIC_HOST: gov-collector.newrelic.com
+      NEW_RELIC_MONITOR_MODE: ((new_relic_monitor_mode))
+      NEW_RELIC_CONFIG_FILE: /home/vcap/app/config/newrelic.ini
+      ASSET_VERSION: ((asset_version))
+    command: ./app-start.sh
