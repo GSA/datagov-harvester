@@ -134,19 +134,19 @@ class TestDetectCatalogWarnings:
         warnings = detect_catalog_warnings(catalog, "dcatus3.0 catalog")
 
         assert len(warnings) == 1
-        identifier, warning = warnings[0]
+        identifier, warning_type, message = warnings[0]
         assert identifier == "dup-id"
-        assert warning.warning_type == "duplicate_identifier"
-        assert "dup-id" in warning.message
+        assert warning_type == "duplicate_identifier"
+        assert "dup-id" in message
 
     def test_missing_identifier_falls_back_to_dataset_position(self):
         catalog = {"dataset": [{"@type": "Dataset", "keyword": ["climate", "climate"]}]}
         warnings = detect_catalog_warnings(catalog, "dcatus3.0 catalog")
 
         assert len(warnings) == 1
-        identifier, warning = warnings[0]
+        identifier, warning_type, _ = warnings[0]
         assert identifier == 0
-        assert warning.warning_type == "duplicate_keyword"
+        assert warning_type == "duplicate_keyword"
 
     def test_per_record_content_quality_warning_is_surfaced(self):
         """Delegates to detect_dcat_warnings; this just checks the wiring, not
@@ -163,9 +163,9 @@ class TestDetectCatalogWarnings:
         warnings = detect_catalog_warnings(catalog, "dcatus3.0 catalog")
 
         assert len(warnings) == 1
-        identifier, warning = warnings[0]
+        identifier, warning_type, _ = warnings[0]
         assert identifier == "record-1"
-        assert warning.warning_type == "invalid_language"
+        assert warning_type == "invalid_language"
 
     def test_non_dict_catalog_returns_no_warnings_without_raising(self):
         assert detect_catalog_warnings([], "dcatus3.0 catalog") == []
@@ -190,9 +190,9 @@ class TestDetectCatalogWarnings:
         warnings = detect_catalog_warnings(catalog, "dcatus3.0 catalog")
 
         assert len(warnings) == 1
-        identifier, warning = warnings[0]
+        identifier, warning_type, _ = warnings[0]
         assert identifier == "ok"
-        assert warning.warning_type == "invalid_language"
+        assert warning_type == "invalid_language"
 
     def test_missing_dataset_field_returns_no_warnings(self):
         assert detect_catalog_warnings({}, "dcatus3.0 catalog") == []
@@ -224,7 +224,7 @@ class TestValidateCatalog:
 
     def test_warnings_are_plain_tuples_not_dcatwarning_instances(self):
         """Callers (Jinja/JSON serialization) shouldn't need to know about
-        DcatWarning; validate_catalog reshapes it away."""
+        DcatWarning, only plain (identifier, warning_type, message) tuples."""
         catalog = {
             "dataset": [{"@type": "Dataset", "identifier": "a", "language": ["us"]}]
         }

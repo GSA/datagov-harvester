@@ -9,7 +9,7 @@ import requests
 from jsonschema import Draft202012Validator, FormatChecker
 
 from app.constants import MAX_UPLOAD_BYTES, MAX_UPLOAD_MB
-from harvester.utils.dcat_warnings import DcatWarning, detect_dcat_warnings
+from harvester.utils.dcat_warnings import detect_dcat_warnings
 from harvester.utils.general_utils import (
     USER_AGENT,
     assemble_validation_errors,
@@ -259,9 +259,9 @@ def detect_catalog_warnings(dcatus_catalog: dict, schema_name: str) -> list:
     warning detection today and return an empty list unconditionally, matching
     the harvest pipeline's own `schema_type == "dcatus3.0"` gate.
 
-    Returns a list of (identifier, DcatWarning) tuples, identifier falling back
-    to the dataset's position when it has none, same convention as
-    `validate_records` uses for 1.1 schema errors.
+    Returns a list of (identifier, warning_type, message) tuples, identifier
+    falling back to the dataset's position when it has none, same convention
+    as `validate_records` uses for 1.1 schema errors.
     """
     if schema_name != "dcatus3.0 catalog" or not isinstance(dcatus_catalog, dict):
         return []
@@ -279,10 +279,8 @@ def detect_catalog_warnings(dcatus_catalog: dict, schema_name: str) -> list:
         output.append(
             (
                 idx if identifier is None else identifier,
-                DcatWarning(
-                    "duplicate_identifier",
-                    f"Duplicate identifier '{identifier}' found in this catalog.",
-                ),
+                "duplicate_identifier",
+                f"Duplicate identifier '{identifier}' found in this catalog.",
             )
         )
 
@@ -290,7 +288,7 @@ def detect_catalog_warnings(dcatus_catalog: dict, schema_name: str) -> list:
         identifier = record.get("identifier")
         identifier = idx if identifier is None else identifier
         for warning in detect_dcat_warnings(record):
-            output.append((identifier, warning))
+            output.append((identifier, warning.warning_type, warning.message))
 
     return output
 
@@ -308,14 +306,9 @@ def validate_catalog(dcatus_catalog: dict, schema_name: str) -> tuple[list, list
 
     Returns (errors, warnings):
         errors: list of (identifier, message) tuples, from validate_records.
-        warnings: list of (identifier, warning_type, message) tuples, reshaped
-            from detect_catalog_warnings' (identifier, DcatWarning) tuples into
-            plain strings so callers (template/JSON serialization) don't need
-            to know about DcatWarning.
+        warnings: list of (identifier, warning_type, message) tuples, from
+            detect_catalog_warnings.
     """
-    errors = validate_records(dcatus_catalog, schema_name)
-    warnings = [
-        (identifier, warning.warning_type, warning.message)
-        for identifier, warning in detect_catalog_warnings(dcatus_catalog, schema_name)
-    ]
-    return errors, warnings
+    return validate_records(dcatus_catalog, schema_name), detect_catalog_warnings(
+        dcatus_catalog, schema_name
+    )

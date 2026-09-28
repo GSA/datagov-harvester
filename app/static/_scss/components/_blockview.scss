@@ -1,12 +1,10 @@
-.error-list,
-.warning-list {
+.error-list {
     display: flex;
     flex-direction: column;
     gap: units(2);
 }
 
-.error-block,
-.warning-block {
+.error-block {
     border: units("2px") solid color('gray-cool-10');
     padding: units(2);
     border-radius: radius("md");
@@ -33,8 +31,4 @@
             text-decoration: underline;
         }
     }
-}
-
-.warning-block {
-    border-left: units("05") solid color('gold-20v');
 }

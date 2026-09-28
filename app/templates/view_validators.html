@@ -150,12 +150,12 @@
         </div>
         {% endif %}
 
+        {% if form.schema.data == "dcatus3.0 catalog" %}
         <h2>Content-quality warnings</h2>
         <p class="usa-hint">
             These don't fail validation, but they're checks a real harvest also
             runs and the schema alone can't catch (e.g. duplicate identifiers,
-            NARA restriction vocabulary, spatial resolution). Only shown for the
-            DCAT-US 3.0 catalog schema.
+            NARA restriction vocabulary, spatial resolution).
         </p>
         {% set warning_total = data.record_warnings | length %}
         {% if not data.record_warnings %}
@@ -170,9 +170,9 @@
         {% if warning_total > 10 %}
         <p><strong>Showing First 10 of {{ warning_total }}</strong></p>
         {% endif %}
-        <div class="warning-list">
+        <div class="error-list">
             {% for record_warning in data.record_warnings[:10] %}
-            <div class="warning-block">
+            <div class="error-block">
                 <p style="word-break: break-all"><strong>Identifier:</strong> {{ record_warning[0] ~ " (dataset position)" if record_warning[0] is number else record_warning[0] }}</p>
                 <p><strong>Type:</strong> {{ record_warning[1] }}</p>
                 <p>
@@ -184,6 +184,7 @@
             </div>
             {% endfor %}
         </div>
+        {% endif %}
         {% endif %}
     {% endif %}
 </div>

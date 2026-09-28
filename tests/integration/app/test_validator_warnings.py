@@ -79,10 +79,10 @@ class TestValidatorPageWarnings:
         assert res.status_code == 200
         assert b"No content-quality warnings found" in res.data
 
-    def test_html_page_skips_warning_detection_for_1_1_schema(self, app, client):
-        """1.1 schemas have no warning detection today; the empty state should
-        still render rather than error, since the alert copy above it already
-        explains warnings are DCAT-US 3.0-only."""
+    def test_html_page_hides_warnings_section_for_1_1_schema(self, app, client):
+        """1.1 schemas have no warning detection today; the section shouldn't
+        render at all rather than show a possibly-confusing empty state for a
+        schema where nothing was ever checked."""
         app.config.update({"WTF_CSRF_ENABLED": False})
         catalog = json.dumps(
             {"dataset": [{"title": "t", "description": "d", "identifier": "i"}]}
@@ -94,7 +94,7 @@ class TestValidatorPageWarnings:
         )
 
         assert res.status_code == 200
-        assert b"No content-quality warnings found" in res.data
+        assert b"Content-quality warnings" not in res.data
 
 
 class TestValidatorApiWarnings:
