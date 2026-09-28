@@ -2,7 +2,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from app.util import detect_catalog_warnings, fetch_json_from_url
+from app.util import detect_catalog_warnings, fetch_json_from_url, validate_catalog
 
 
 class TestFetchJsonFromUrl:
@@ -196,3 +196,46 @@ class TestDetectCatalogWarnings:
 
     def test_missing_dataset_field_returns_no_warnings(self):
         assert detect_catalog_warnings({}, "dcatus3.0 catalog") == []
+
+
+class TestValidateCatalog:
+    """Tests for validate_catalog (GSA/data.gov#6380).
+
+    This is the single entry point both /validate/ and /api/v1/validate call;
+    these tests exist so that guarantee stays covered independently of either
+    route.
+    """
+
+    def test_returns_errors_and_warnings_together(self):
+        catalog = {
+            "dataset": [
+                {"@type": "Dataset", "identifier": "dup-id"},
+                {"@type": "Dataset", "identifier": "dup-id"},
+            ]
+        }
+        errors, warnings = validate_catalog(catalog, "dcatus3.0 catalog")
+
+        assert len(errors) > 0  # missing required fields like title/description
+        assert len(warnings) == 1
+        identifier, warning_type, message = warnings[0]
+        assert identifier == "dup-id"
+        assert warning_type == "duplicate_identifier"
+        assert "dup-id" in message
+
+    def test_warnings_are_plain_tuples_not_dcatwarning_instances(self):
+        """Callers (Jinja/JSON serialization) shouldn't need to know about
+        DcatWarning; validate_catalog reshapes it away."""
+        catalog = {
+            "dataset": [{"@type": "Dataset", "identifier": "a", "language": ["us"]}]
+        }
+        _, warnings = validate_catalog(catalog, "dcatus3.0 catalog")
+
+        assert warnings == [("a", "invalid_language", warnings[0][2])]
+        assert isinstance(warnings[0], tuple)
+        assert not hasattr(warnings[0], "warning_type")  # not a DcatWarning
+
+    def test_1_1_schema_has_no_warnings(self):
+        catalog = {"dataset": [{"title": "t", "description": "d", "identifier": "i"}]}
+        errors, warnings = validate_catalog(catalog, "dcatus1.1: federal dataset")
+
+        assert warnings == []

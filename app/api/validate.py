@@ -11,9 +11,8 @@ from app.deps import logger
 from app.util import (
     NESTING_TOO_DEEP_MESSAGE,
     CatalogTooDeeplyNested,
-    detect_catalog_warnings,
     fetch_json_from_url,
-    validate_records,
+    validate_catalog,
 )
 
 from . import api
@@ -49,13 +48,7 @@ def validator(json_data):
         else:
             data = []
 
-        errors = validate_records(data, json_data["schema"])
-        warnings = [
-            (identifier, warning.warning_type, warning.message)
-            for identifier, warning in detect_catalog_warnings(
-                data, json_data["schema"]
-            )
-        ]
+        errors, warnings = validate_catalog(data, json_data["schema"])
         logger.info(
             "API validator completed fetch_method=%s schema=%s "
             "validation_errors=%s validation_warnings=%s",

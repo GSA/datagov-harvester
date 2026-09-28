@@ -12,12 +12,7 @@ from app.deps import (
 )
 from app.forms import DatasetSlugForm, ValidatorForm
 from app.paginate import Pagination
-from app.util import (
-    CatalogTooDeeplyNested,
-    detect_catalog_warnings,
-    fetch_json_from_url,
-    validate_records,
-)
+from app.util import CatalogTooDeeplyNested, fetch_json_from_url, validate_catalog
 from harvester.utils.general_utils import (
     convert_to_int,
     get_datetime,
@@ -301,13 +296,7 @@ def view_validators():
 
         if not form.errors:
             try:
-                errors = validate_records(data, form.schema.data)
-                warnings = [
-                    (identifier, warning.warning_type, warning.message)
-                    for identifier, warning in detect_catalog_warnings(
-                        data, form.schema.data
-                    )
-                ]
+                errors, warnings = validate_catalog(data, form.schema.data)
                 submitted = True
                 logger.info(
                     "Rendered validator results fetch_method=%s schema=%s "

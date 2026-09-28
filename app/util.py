@@ -293,3 +293,29 @@ def detect_catalog_warnings(dcatus_catalog: dict, schema_name: str) -> list:
             output.append((identifier, warning))
 
     return output
+
+
+def validate_catalog(dcatus_catalog: dict, schema_name: str) -> tuple[list, list]:
+    """
+    Single entry point for "validate this submitted catalog": schema errors
+    plus content-quality warnings, together.
+
+    `/validate/` (app/main/pages.py) and `/api/v1/validate` (app/api/validate.py)
+    both call this exclusively rather than validate_records/
+    detect_catalog_warnings directly, so the two surfaces can't drift apart on
+    what "validating a catalog" means; a future change here reaches both at
+    once instead of needing the same edit made twice.
+
+    Returns (errors, warnings):
+        errors: list of (identifier, message) tuples, from validate_records.
+        warnings: list of (identifier, warning_type, message) tuples, reshaped
+            from detect_catalog_warnings' (identifier, DcatWarning) tuples into
+            plain strings so callers (template/JSON serialization) don't need
+            to know about DcatWarning.
+    """
+    errors = validate_records(dcatus_catalog, schema_name)
+    warnings = [
+        (identifier, warning.warning_type, warning.message)
+        for identifier, warning in detect_catalog_warnings(dcatus_catalog, schema_name)
+    ]
+    return errors, warnings
