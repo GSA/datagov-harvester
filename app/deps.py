@@ -56,7 +56,7 @@ class InvalidPaginationException(Exception):
 
 
 def JSON_INVALID_PAGINATION(message="Invalid pagination parameter"):
-    """Return a 422 JSON response for invalid pagination."""
+    """Return a 422 JSON for invalid pagination."""
     response = jsonify({"error": message})
     response.status_code = 422
     return response
