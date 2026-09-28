@@ -11,6 +11,7 @@ from app.deps import logger
 from app.util import (
     NESTING_TOO_DEEP_MESSAGE,
     CatalogTooDeeplyNested,
+    detect_catalog_warnings,
     fetch_json_from_url,
     validate_records,
 )
@@ -38,6 +39,7 @@ from . import api
 def validator(json_data):
     """API route for validating v1.1 or v3.0 dcatus catalogs."""
     errors = []
+    warnings = []
 
     try:
         if json_data["fetch_method"] == "url":
@@ -48,11 +50,19 @@ def validator(json_data):
             data = []
 
         errors = validate_records(data, json_data["schema"])
+        warnings = [
+            (identifier, warning.warning_type, warning.message)
+            for identifier, warning in detect_catalog_warnings(
+                data, json_data["schema"]
+            )
+        ]
         logger.info(
-            "API validator completed fetch_method=%s schema=%s validation_errors=%s",
+            "API validator completed fetch_method=%s schema=%s "
+            "validation_errors=%s validation_warnings=%s",
             json_data["fetch_method"],
             json_data["schema"],
             len(errors),
+            len(warnings),
         )
     except CatalogTooDeeplyNested as e:
         # the submitter can act on this one, so say what it was. Respond with the
@@ -70,6 +80,6 @@ def validator(json_data):
         )
 
     return make_response(
-        jsonify({"validation_errors": errors}),
+        jsonify({"validation_errors": errors, "validation_warnings": warnings}),
         200,
     )
