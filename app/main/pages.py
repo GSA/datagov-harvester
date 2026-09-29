@@ -12,7 +12,13 @@ from app.deps import (
 )
 from app.forms import DatasetSlugForm, ValidatorForm
 from app.paginate import Pagination
-from app.util import CatalogTooDeeplyNested, fetch_json_from_url, validate_records
+from app.util import (
+    UNEXPECTED_FETCH_ERROR_MESSAGE,
+    CatalogTooDeeplyNested,
+    InvalidCatalogSource,
+    fetch_json_from_url,
+    validate_records,
+)
 from harvester.utils.general_utils import (
     convert_to_int,
     get_datetime,
@@ -274,16 +280,27 @@ def view_validators():
     form = ValidatorForm()
     if form.validate_on_submit():
         data = []
+        # Rejections render next to the offending field (see view_validators.html),
+        # so the submitter is told *why* - a timeout, an internal address, an
+        # oversized body. Only messages built to be disclosed are shown;
+        # anything unanticipated is logged and reported generically rather than
+        # putting exception text on a public page.
         if form.fetch_method.data == "url":
             try:
                 data = fetch_json_from_url(form.url.data)
-            except Exception as e:
+            except InvalidCatalogSource as e:
                 form.url.errors.append(str(e))
+            except Exception as e:
+                logger.error("Validator url fetch failed unexpectedly :: %s", repr(e))
+                form.url.errors.append(UNEXPECTED_FETCH_ERROR_MESSAGE)
         elif form.fetch_method.data == "paste":
             try:
                 data = json.loads(form.json_text.data)
+            except json.JSONDecodeError as e:
+                form.json_text.errors.append(f"Invalid JSON: {e}")
             except Exception as e:
-                form.json_text.errors.append(str(e))
+                logger.error("Validator paste parse failed :: %s", repr(e))
+                form.json_text.errors.append("Could not read the pasted JSON.")
         elif form.fetch_method.data == "upload":
             try:
                 raw = form.json_file.data.read()
@@ -291,7 +308,8 @@ def view_validators():
             except json.JSONDecodeError as e:
                 form.json_file.errors.append(f"Invalid JSON in uploaded file: {e}")
             except Exception as e:
-                form.json_file.errors.append(str(e))
+                logger.error("Validator upload read failed :: %s", repr(e))
+                form.json_file.errors.append("Could not read the uploaded file.")
 
         if not form.errors:
             try:
