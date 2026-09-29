@@ -1,8 +1,9 @@
 from unittest.mock import Mock, patch
 
 import pytest
+import requests
 
-from app.util import fetch_json_from_url
+from app.util import FETCH_TIMEOUT_SECONDS, fetch_json_from_url
 
 
 class TestFetchJsonFromUrl:
@@ -94,3 +95,92 @@ class TestFetchJsonFromUrl:
             f"10-11"
         )
         mock_response.close.assert_called_once()
+
+    @patch("app.util.requests.get")
+    def test_fetch_json_from_url_times_out(self, mock_get, caplog):
+        """A hung/unresponsive target raises a clear, logged ValueError instead
+        of hanging the worker indefinitely."""
+        mock_get.side_effect = requests.exceptions.Timeout("timed out")
+
+        with pytest.raises(ValueError, match="took longer than"):
+            fetch_json_from_url("https://example.com/slow.json")
+
+        assert any(
+            "timed out" in record.message and "example.com/slow.json" in record.message
+            for record in caplog.records
+        )
+
+    @patch("app.util.requests.get")
+    def test_fetch_json_from_url_passes_timeout_to_requests(self, mock_get):
+        """requests.get is bounded by FETCH_TIMEOUT_SECONDS, not unbounded."""
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.headers = {"Content-Type": "application/json"}
+        mock_response.raise_for_status = Mock()
+        mock_response.close = Mock()
+        mock_response.iter_content = Mock(return_value=[b'{"test": "data"}'])
+        mock_get.return_value = mock_response
+
+        fetch_json_from_url("https://example.com/small-file.json")
+
+        assert mock_get.call_args.kwargs["timeout"] == FETCH_TIMEOUT_SECONDS
+        assert mock_get.call_args.kwargs["allow_redirects"] is False
+
+    @patch("app.util.requests.get")
+    def test_fetch_json_from_url_follows_redirect_to_public_url(self, mock_get):
+        """A single redirect to another public URL is followed and validated."""
+        redirect_response = Mock()
+        redirect_response.status_code = 302
+        redirect_response.headers = {"Location": "https://example.com/final.json"}
+        redirect_response.close = Mock()
+
+        final_response = Mock()
+        final_response.status_code = 200
+        final_response.headers = {"Content-Type": "application/json"}
+        final_response.raise_for_status = Mock()
+        final_response.close = Mock()
+        final_response.iter_content = Mock(return_value=[b'{"test": "data"}'])
+
+        mock_get.side_effect = [redirect_response, final_response]
+
+        result = fetch_json_from_url("https://example.com/redirect-me")
+
+        assert result == {"test": "data"}
+        assert mock_get.call_count == 2
+        assert mock_get.call_args_list[1].args[0] == "https://example.com/final.json"
+
+    @patch("app.util.requests.get")
+    def test_fetch_json_from_url_rejects_redirect_to_private_address_in_prod(
+        self, mock_get, monkeypatch
+    ):
+        """A redirect target is re-validated like any other URL - a public URL
+        that redirects to a private/internal address is refused in prod, and
+        the redirect is never followed."""
+        monkeypatch.setattr("app.util.IS_PROD", True)
+
+        redirect_response = Mock()
+        redirect_response.status_code = 302
+        redirect_response.headers = {"Location": "http://127.0.0.1/secret"}
+        redirect_response.close = Mock()
+        mock_get.return_value = redirect_response
+
+        with pytest.raises(
+            ValueError, match="Access to private/internal addresses is not allowed."
+        ):
+            fetch_json_from_url("https://example.com/redirect-me")
+
+        # never followed the redirect to the private address
+        mock_get.assert_called_once()
+
+    @patch("app.util.requests.get")
+    def test_fetch_json_from_url_caps_redirect_chain(self, mock_get):
+        """A redirect loop/chain longer than MAX_FETCH_REDIRECTS is rejected
+        rather than followed indefinitely."""
+        redirect_response = Mock()
+        redirect_response.status_code = 302
+        redirect_response.headers = {"Location": "https://example.com/next"}
+        redirect_response.close = Mock()
+        mock_get.return_value = redirect_response
+
+        with pytest.raises(ValueError, match="Too many redirects."):
+            fetch_json_from_url("https://example.com/redirect-me")
