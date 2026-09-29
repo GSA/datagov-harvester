@@ -67,23 +67,40 @@ applications:
   # app, so validator load and its server-side URL fetching can't affect
   # harvester administration (GSA/data.gov#6293). Runs the same codebase as
   # ((app_name)) - the routes stay live there too as a rollback path - but
-  # skips migrations (SKIP_DB_MIGRATIONS) and does not bind OpenSearch or SMTP,
-  # since the validator doesn't use either.
+  # skips migrations (SKIP_DB_MIGRATIONS) and binds its own scoped -db/-secrets
+  # (see below) rather than the admin app's, and never binds OpenSearch or
+  # SMTP, since the validator doesn't use any of those.
   - name: ((app_name))-validator
     buildpacks:
       - python_buildpack
     routes:
       - route: ((route_internal_validator))
     services:
-      - ((harvest_service_name))-db
-      - ((harvest_service_name))-secrets
+      # Deliberately not ((harvest_service_name))-db/-secrets: those hold the
+      # real admin database and the admin app's full secret set (including
+      # HARVEST_API_TOKEN and the CF deployer credentials), so a compromised
+      # validator would inherit far more privilege than it needs. .profile
+      # derives the service names it looks up from HARVEST_SERVICE_NAME,
+      # defaulting to the app's own CF name when unset - left unset here on
+      # purpose so it resolves to ((app_name))-validator and picks up the
+      # services below instead. -validator-db is a fake, non-resolving URI:
+      # harvester/__init__.py builds a SQLAlchemy engine at import time
+      # regardless (it never connects at construction), but nothing on the
+      # validator's routes ever queries it. -validator-secrets holds its own
+      # throwaway FLASK_APP_SECRET_KEY/HARVEST_API_TOKEN (checked for
+      # non-empty at boot, never compared against anything the validator
+      # serves) plus the real CF_SERVICE_USER/CF_SERVICE_AUTH/
+      # NEW_RELIC_LICENSE_KEY, which do have to be real: LoadManager
+      # authenticates to the CF API with them at import time. See
+      # docs/developer.md for how to provision both.
+      - ((app_name))-validator-db
+      - ((app_name))-validator-secrets
       - logstack-space-drain
     instances: ((validator_instances))
     memory: ((validator_memory_quota))
     disk_quota: ((validator_disk_quota))
     env:
       FLASK_APP: run.py
-      HARVEST_SERVICE_NAME: ((harvest_service_name))
       EXTERNAL_ROUTE: ((route_external))
       CF_API_URL: ((CF_API_URL))
       # Not used by the validator's routes, but required at import time:

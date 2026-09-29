@@ -3,7 +3,7 @@ import json
 import logging
 import os
 import socket
-from urllib.parse import urlparse
+from urllib.parse import urljoin, urlparse
 
 import requests
 from jsonschema import Draft202012Validator, FormatChecker
@@ -123,9 +123,26 @@ PAYLOAD_TOO_LARGE_MESSAGE = (
     f"JSON payload too large - must be {MAX_UPLOAD_MB}MB or less."
 )
 
+# CloudFront/the CF router appear to give up on us around 30s (that's the
+# 499s in the logs - the proxy's own proxy_read_timeout is 110s, see
+# proxy/nginx-common.conf, so it isn't the one giving up first). Set below
+# that ceiling, with a few seconds of margin for the timeout to actually fire
+# and an error response to make it back through nginx before CloudFront's own
+# clock runs out, so a slow/hung target ends in a clean, logged ValueError
+# here instead of a worker stuck open until the client-facing hop disconnects
+# on us mid-request.
+FETCH_TIMEOUT_SECONDS = 25
 
-def fetch_json_from_url(url: str) -> dict:
+# requests.get(..., allow_redirects=True) (the default) follows redirects
+# without re-checking the target, so a URL that itself resolves to a public IP
+# could still redirect us to an internal address the check below would have
+# blocked. Each hop is re-validated by hand instead; capped so a redirect loop
+# can't hang the request.
+MAX_FETCH_REDIRECTS = 5
+_REDIRECT_STATUS_CODES = {301, 302, 303, 307, 308}
 
+
+def _validate_fetch_target(url: str) -> None:
     parsed = urlparse(url)
 
     if parsed.scheme not in ("http", "https"):
@@ -137,36 +154,74 @@ def fetch_json_from_url(url: str) -> dict:
     if not is_public_ip(parsed.hostname) and IS_PROD:
         raise ValueError("Access to private/internal addresses is not allowed.")
 
+
+def fetch_json_from_url(url: str) -> dict:
+    # The URL itself isn't sensitive - it's a pointer to a public DCAT catalog,
+    # which is the whole point of this feature - so it's safe to log, unlike
+    # pasted/uploaded catalog content. Logged up front so a hung or rejected
+    # fetch still shows which URL was responsible.
+    logger.info("Validator fetching url=%s", url)
+
+    _validate_fetch_target(url)
+
+    response = None
     try:
-        response = requests.get(
-            url,
-            headers={"User-Agent": USER_AGENT},
-            stream=True,
-        )
+        for _ in range(MAX_FETCH_REDIRECTS + 1):
+            response = requests.get(
+                url,
+                headers={"User-Agent": USER_AGENT},
+                stream=True,
+                timeout=FETCH_TIMEOUT_SECONDS,
+                allow_redirects=False,
+            )
+            if response.status_code not in _REDIRECT_STATUS_CODES:
+                break
+
+            location = response.headers.get("Location")
+            response.close()
+            if not location:
+                raise ValueError("Redirected without a Location header.")
+
+            url = urljoin(url, location)
+            _validate_fetch_target(url)
+        else:
+            raise ValueError("Too many redirects.")
+
         response.raise_for_status()
-    except Exception as e:
-        raise ValueError(f"Error processing request: {str(e)}")
 
-    content_length = response.headers.get("Content-Length")
-    if content_length and int(content_length) > MAX_UPLOAD_BYTES:
-        raise ValueError(PAYLOAD_TOO_LARGE_MESSAGE)
+        content_length = response.headers.get("Content-Length")
+        if content_length and int(content_length) > MAX_UPLOAD_BYTES:
+            raise ValueError(PAYLOAD_TOO_LARGE_MESSAGE)
 
-    content_type = response.headers.get("Content-Type", "")
-    if "application/json" not in content_type:
-        raise ValueError("URL did not return JSON.")
+        content_type = response.headers.get("Content-Type", "")
+        if "application/json" not in content_type:
+            raise ValueError("URL did not return JSON.")
 
-    chunks = []
-    total_size = 0
-
-    try:
+        chunks = []
+        total_size = 0
         for chunk in response.iter_content(chunk_size=8192):
             if chunk:
                 total_size += len(chunk)
                 if total_size > MAX_UPLOAD_BYTES:
                     raise ValueError(PAYLOAD_TOO_LARGE_MESSAGE)
                 chunks.append(chunk)
+    except requests.exceptions.Timeout:
+        logger.warning(
+            "Validator URL fetch timed out after %ss url=%s",
+            FETCH_TIMEOUT_SECONDS,
+            url,
+        )
+        raise ValueError(
+            f"The URL took longer than {FETCH_TIMEOUT_SECONDS} seconds to "
+            "respond. Check that the URL is correct and the server is up."
+        )
+    except ValueError:
+        raise
+    except Exception as e:
+        raise ValueError(f"Error processing request: {str(e)}")
     finally:
-        response.close()
+        if response is not None:
+            response.close()
 
     content = b"".join(chunks)
 
