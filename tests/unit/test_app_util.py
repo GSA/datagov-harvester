@@ -4,7 +4,12 @@ from unittest.mock import Mock, patch
 import pytest
 import requests
 
-from app.util import FETCH_TIMEOUT_SECONDS, fetch_json_from_url
+from app.util import (
+    FETCH_CONNECT_TIMEOUT_SECONDS,
+    FETCH_TIMEOUT_SECONDS,
+    InvalidCatalogSource,
+    fetch_json_from_url,
+)
 
 
 class TestFetchJsonFromUrl:
@@ -125,9 +130,11 @@ class TestFetchJsonFromUrl:
         fetch_json_from_url("https://example.com/small-file.json")
 
         # The deadline is set once and the remaining budget shrinks as time
-        # passes, so this is bounded by (not exactly equal to) the constant.
-        timeout_used = mock_get.call_args.kwargs["timeout"]
-        assert 0 < timeout_used <= FETCH_TIMEOUT_SECONDS
+        # passes, so these are bounded by (not exactly equal to) the constants.
+        connect_timeout, read_timeout = mock_get.call_args.kwargs["timeout"]
+        assert 0 < connect_timeout <= FETCH_CONNECT_TIMEOUT_SECONDS
+        assert 0 < read_timeout <= FETCH_TIMEOUT_SECONDS
+        assert connect_timeout < read_timeout
         assert mock_get.call_args.kwargs["allow_redirects"] is False
 
     @patch("app.util.requests.get")
@@ -161,9 +168,9 @@ class TestFetchJsonFromUrl:
         every redirect hop - otherwise a chain of slow redirects could run for
         MAX_FETCH_REDIRECTS x FETCH_TIMEOUT_SECONDS in total."""
 
-        # deadline set at t=100; hop 1's request issued at t=100 (25s left);
-        # 20s "pass" before hop 2's request is issued (5s left).
-        clock = itertools.chain([100.0, 100.0, 120.0], itertools.repeat(120.0))
+        # deadline set at t=100; hop 1's request issued at t=100 (full budget
+        # left); 4s "pass" before hop 2's request is issued.
+        clock = itertools.chain([100.0, 100.0, 104.0], itertools.repeat(104.0))
         monkeypatch.setattr("app.util.time.monotonic", lambda: next(clock))
 
         redirect_response = Mock()
@@ -182,22 +189,23 @@ class TestFetchJsonFromUrl:
 
         fetch_json_from_url("https://example.com/redirect-me")
 
-        first_timeout = mock_get.call_args_list[0].kwargs["timeout"]
-        second_timeout = mock_get.call_args_list[1].kwargs["timeout"]
-        assert first_timeout == pytest.approx(FETCH_TIMEOUT_SECONDS)
-        assert second_timeout == pytest.approx(FETCH_TIMEOUT_SECONDS - 20)
-        assert second_timeout < first_timeout
+        _, first_read = mock_get.call_args_list[0].kwargs["timeout"]
+        _, second_read = mock_get.call_args_list[1].kwargs["timeout"]
+        assert first_read == pytest.approx(FETCH_TIMEOUT_SECONDS)
+        assert second_read == pytest.approx(FETCH_TIMEOUT_SECONDS - 4)
+        assert second_read < first_read
 
     @patch("app.util.requests.get")
     def test_fetch_json_from_url_redirect_chain_exceeding_budget_times_out(
         self, mock_get, monkeypatch
     ):
         """If the budget is exhausted partway through a redirect chain, the
-        next hop never gets a fresh 25s - it times out instead."""
+        next hop never gets a fresh budget - it times out instead."""
 
-        # deadline at t=100 (25s budget); by the second hop, 30s have already
-        # elapsed, so the shared budget is gone.
-        clock = itertools.chain([100.0, 100.0, 130.0], itertools.repeat(130.0))
+        # deadline at t=100 + FETCH_TIMEOUT_SECONDS; by the second hop more
+        # than the whole budget has elapsed, so there is nothing left to spend.
+        exhausted = 100.0 + FETCH_TIMEOUT_SECONDS + 1
+        clock = itertools.chain([100.0, 100.0, exhausted], itertools.repeat(exhausted))
         monkeypatch.setattr("app.util.time.monotonic", lambda: next(clock))
 
         redirect_response = Mock()
@@ -247,3 +255,45 @@ class TestFetchJsonFromUrl:
 
         with pytest.raises(ValueError, match="Too many redirects."):
             fetch_json_from_url("https://example.com/redirect-me")
+
+    @patch("app.util.requests.get")
+    def test_rejections_raise_disclosable_exception(self, mock_get, monkeypatch):
+        """Every submitter-actionable refusal raises InvalidCatalogSource, which
+        is what lets both callers show the reason - the API answers 400 with
+        str(e) only for this type, and falls back to a generic 500 otherwise."""
+        monkeypatch.setattr("app.util.IS_PROD", True)
+
+        not_json = Mock()
+        not_json.status_code = 200
+        not_json.headers = {"Content-Type": "text/html"}
+        not_json.raise_for_status = Mock()
+        not_json.close = Mock()
+
+        cases = {
+            "ftp://example.com/data.json": "Only HTTP/HTTPS URLs are allowed.",
+            "http://127.0.0.1/data.json": "private/internal addresses",
+        }
+        for url, expected in cases.items():
+            with pytest.raises(InvalidCatalogSource, match=expected):
+                fetch_json_from_url(url)
+
+        mock_get.return_value = not_json
+        with pytest.raises(InvalidCatalogSource, match="did not return JSON"):
+            fetch_json_from_url("https://example.com/page.html")
+
+    @patch("app.util.requests.get")
+    def test_unexpected_transport_error_is_not_leaked(self, mock_get, caplog):
+        """A connection-level failure is still reported as a refusal the
+        submitter can act on, but with a fixed message - requests' own error
+        text can carry internals, so it goes to the log, not the response."""
+        mock_get.side_effect = requests.exceptions.SSLError(
+            "certificate verify failed: /internal/path/to/ca-bundle.crt"
+        )
+
+        with pytest.raises(InvalidCatalogSource) as excinfo:
+            fetch_json_from_url("https://example.com/data.json")
+
+        assert "ca-bundle" not in str(excinfo.value)
+        assert "Could not retrieve the catalog" in str(excinfo.value)
+        # the detail is still recoverable by an operator
+        assert any("ca-bundle" in record.message for record in caplog.records)
