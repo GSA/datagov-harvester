@@ -13,6 +13,7 @@ from app.util import (
     CatalogTooDeeplyNested,
     InvalidCatalogSource,
     fetch_json_from_url,
+    invalid_json_message,
     validate_records,
 )
 
@@ -70,10 +71,18 @@ def validator(json_data):
         # client (CodeQL py/stack-trace-exposure).
         logger.warning(f"API Validator could not walk the document :: {repr(e)}")
         return make_response(jsonify({"error": NESTING_TOO_DEEP_MESSAGE}), 422)
-    except (InvalidCatalogSource, json.JSONDecodeError) as e:
+    except json.JSONDecodeError as e:
+        # Pasted text that won't parse. Reported by position only - never
+        # str(e), which would put the decoder's own text (and reachable from
+        # the same object, the whole document) into the response. See
+        # invalid_json_message.
+        logger.info("API validator got unparseable pasted JSON :: %s", repr(e))
+        return make_response(jsonify({"error": invalid_json_message(e)}), 400)
+    except InvalidCatalogSource as e:
         # Bad submission, not a server fault - 400, and say which reason so API
-        # callers get the same explanation the validator page shows. These
-        # messages are built to be disclosed; see InvalidCatalogSource.
+        # callers get the same explanation the validator page shows. Safe to
+        # echo: these messages are literals and numbers by construction, which
+        # is the invariant InvalidCatalogSource exists to carry.
         logger.info(
             "API validator refused submission fetch_method=%s reason=%s",
             json_data["fetch_method"],

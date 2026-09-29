@@ -158,15 +158,33 @@ class InvalidCatalogSource(ValueError):
     unsupported scheme, internal address, oversized body, not JSON, unparseable
     JSON, too many redirects, or a timeout.
 
-    Both callers render `str()` of this straight back to the submitter, so the
-    message must stay safe to disclose - never build one from an underlying
-    exception's text or a stack trace (CodeQL py/stack-trace-exposure).
+    Both callers render `str()` of this straight back to the submitter, so
+    every message here must be built only from literals and numbers. No
+    exceptions to that rule: never interpolate another exception's text, even
+    one that looks harmless, because the objects carrying it also carry things
+    that are not (json.JSONDecodeError.doc is the whole submitted document,
+    which for a URL submission may be content the submitter cannot otherwise
+    read). Keeping the rule absolute is what makes it reviewable, and keeps
+    CodeQL py/stack-trace-exposure honest rather than suppressed.
+
     Anything we *didn't* anticipate should stay an ordinary exception so
     callers answer with UNEXPECTED_FETCH_ERROR_MESSAGE and log the detail
     instead.
 
     Subclasses ValueError so existing callers catching ValueError still do.
     """
+
+
+def invalid_json_message(error: json.JSONDecodeError, source: str = "") -> str:
+    """Describe a JSON parse failure by position only.
+
+    The single place that turns a decode error into something a submitter
+    sees, so the "literals and numbers only" rule in InvalidCatalogSource has
+    one place to hold rather than every call site. lineno/colno are ints;
+    error.msg and str(error) are deliberately unused.
+    """
+    where = f" in the {source}" if source else ""
+    return f"Invalid JSON{where} at line {error.lineno}, column {error.colno}."
 
 
 def _validate_fetch_target(url: str) -> None:
@@ -287,11 +305,7 @@ def fetch_json_from_url(url: str) -> dict:
     try:
         return json.loads(content)
     except json.JSONDecodeError as e:
-        # The one exception to keeping underlying exception text out of these
-        # messages: a decode error describes only the submitted document
-        # ("Expecting ',' delimiter: line 5 column 3"), which is exactly what
-        # the submitter needs and reveals nothing about us.
-        raise InvalidCatalogSource(f"Invalid JSON: {str(e)}")
+        raise InvalidCatalogSource(invalid_json_message(e))
 
 
 class CatalogTooDeeplyNested(ValueError):
