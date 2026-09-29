@@ -11,7 +11,9 @@ from app.deps import logger
 from app.util import (
     NESTING_TOO_DEEP_MESSAGE,
     CatalogTooDeeplyNested,
+    InvalidCatalogSource,
     fetch_json_from_url,
+    invalid_json_message,
     validate_records,
 )
 
@@ -25,6 +27,15 @@ from . import api
     summary="Validate a DCAT catalog against a v1.1 or v3.0 schema",
     description="Downloads or parses a DCATUS catalog and validates each dataset.",
     responses={
+        400: {
+            "description": (
+                "Submission refused: the URL could not be retrieved (bad scheme, "
+                "internal address, timeout, too many redirects), or the catalog "
+                "was oversized, not JSON, or unparseable. The `error` field says "
+                "which."
+            ),
+            "content": {"application/json": {"schema": ValidationErrorResponseSchema}},
+        },
         422: {
             "description": "Catalog cannot be walked, e.g. nested too deeply",
             "content": {"application/json": {"schema": ValidationErrorResponseSchema}},
@@ -60,6 +71,24 @@ def validator(json_data):
         # client (CodeQL py/stack-trace-exposure).
         logger.warning(f"API Validator could not walk the document :: {repr(e)}")
         return make_response(jsonify({"error": NESTING_TOO_DEEP_MESSAGE}), 422)
+    except json.JSONDecodeError as e:
+        # Pasted text that won't parse. Reported by position only - never
+        # str(e), which would put the decoder's own text (and reachable from
+        # the same object, the whole document) into the response. See
+        # invalid_json_message.
+        logger.info("API validator got unparseable pasted JSON :: %s", repr(e))
+        return make_response(jsonify({"error": invalid_json_message(e)}), 400)
+    except InvalidCatalogSource as e:
+        # Bad submission, not a server fault - 400, and say which reason so API
+        # callers get the same explanation the validator page shows. Safe to
+        # echo: these messages are literals and numbers by construction, which
+        # is the invariant InvalidCatalogSource exists to carry.
+        logger.info(
+            "API validator refused submission fetch_method=%s reason=%s",
+            json_data["fetch_method"],
+            e,
+        )
+        return make_response(jsonify({"error": str(e)}), 400)
     except Exception as e:
         logger.error(f"API Validator error :: {repr(e)}")
         return make_response(
