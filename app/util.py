@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import socket
+import time
 from urllib.parse import urljoin, urlparse
 
 import requests
@@ -164,6 +165,21 @@ def fetch_json_from_url(url: str) -> dict:
 
     _validate_fetch_target(url)
 
+    # One deadline for the whole operation, not a fresh FETCH_TIMEOUT_SECONDS
+    # per redirect hop - otherwise a chain of MAX_FETCH_REDIRECTS redirects,
+    # each just under the timeout, could run for
+    # MAX_FETCH_REDIRECTS x FETCH_TIMEOUT_SECONDS in total, defeating the
+    # point of bounding this at all.
+    deadline = time.monotonic() + FETCH_TIMEOUT_SECONDS
+
+    def _remaining_budget() -> float:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise requests.exceptions.Timeout(
+                f"Exceeded the {FETCH_TIMEOUT_SECONDS}s fetch budget"
+            )
+        return remaining
+
     response = None
     try:
         for _ in range(MAX_FETCH_REDIRECTS + 1):
@@ -171,7 +187,7 @@ def fetch_json_from_url(url: str) -> dict:
                 url,
                 headers={"User-Agent": USER_AGENT},
                 stream=True,
-                timeout=FETCH_TIMEOUT_SECONDS,
+                timeout=_remaining_budget(),
                 allow_redirects=False,
             )
             if response.status_code not in _REDIRECT_STATUS_CODES:
@@ -200,6 +216,10 @@ def fetch_json_from_url(url: str) -> dict:
         chunks = []
         total_size = 0
         for chunk in response.iter_content(chunk_size=8192):
+            # A response trickling in just under requests' own per-read
+            # timeout could otherwise stay within budget on every individual
+            # read while still blowing past FETCH_TIMEOUT_SECONDS overall.
+            _remaining_budget()
             if chunk:
                 total_size += len(chunk)
                 if total_size > MAX_UPLOAD_BYTES:

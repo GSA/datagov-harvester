@@ -1,3 +1,4 @@
+import itertools
 from unittest.mock import Mock, patch
 
 import pytest
@@ -123,7 +124,10 @@ class TestFetchJsonFromUrl:
 
         fetch_json_from_url("https://example.com/small-file.json")
 
-        assert mock_get.call_args.kwargs["timeout"] == FETCH_TIMEOUT_SECONDS
+        # The deadline is set once and the remaining budget shrinks as time
+        # passes, so this is bounded by (not exactly equal to) the constant.
+        timeout_used = mock_get.call_args.kwargs["timeout"]
+        assert 0 < timeout_used <= FETCH_TIMEOUT_SECONDS
         assert mock_get.call_args.kwargs["allow_redirects"] is False
 
     @patch("app.util.requests.get")
@@ -148,6 +152,65 @@ class TestFetchJsonFromUrl:
         assert result == {"test": "data"}
         assert mock_get.call_count == 2
         assert mock_get.call_args_list[1].args[0] == "https://example.com/final.json"
+
+    @patch("app.util.requests.get")
+    def test_fetch_json_from_url_redirect_budget_shrinks_over_time(
+        self, mock_get, monkeypatch
+    ):
+        """The timeout budget is shared across the whole fetch, not reset on
+        every redirect hop - otherwise a chain of slow redirects could run for
+        MAX_FETCH_REDIRECTS x FETCH_TIMEOUT_SECONDS in total."""
+
+        # deadline set at t=100; hop 1's request issued at t=100 (25s left);
+        # 20s "pass" before hop 2's request is issued (5s left).
+        clock = itertools.chain([100.0, 100.0, 120.0], itertools.repeat(120.0))
+        monkeypatch.setattr("app.util.time.monotonic", lambda: next(clock))
+
+        redirect_response = Mock()
+        redirect_response.status_code = 302
+        redirect_response.headers = {"Location": "https://example.com/final.json"}
+        redirect_response.close = Mock()
+
+        final_response = Mock()
+        final_response.status_code = 200
+        final_response.headers = {"Content-Type": "application/json"}
+        final_response.raise_for_status = Mock()
+        final_response.close = Mock()
+        final_response.iter_content = Mock(return_value=[b'{"test": "data"}'])
+
+        mock_get.side_effect = [redirect_response, final_response]
+
+        fetch_json_from_url("https://example.com/redirect-me")
+
+        first_timeout = mock_get.call_args_list[0].kwargs["timeout"]
+        second_timeout = mock_get.call_args_list[1].kwargs["timeout"]
+        assert first_timeout == pytest.approx(FETCH_TIMEOUT_SECONDS)
+        assert second_timeout == pytest.approx(FETCH_TIMEOUT_SECONDS - 20)
+        assert second_timeout < first_timeout
+
+    @patch("app.util.requests.get")
+    def test_fetch_json_from_url_redirect_chain_exceeding_budget_times_out(
+        self, mock_get, monkeypatch
+    ):
+        """If the budget is exhausted partway through a redirect chain, the
+        next hop never gets a fresh 25s - it times out instead."""
+
+        # deadline at t=100 (25s budget); by the second hop, 30s have already
+        # elapsed, so the shared budget is gone.
+        clock = itertools.chain([100.0, 100.0, 130.0], itertools.repeat(130.0))
+        monkeypatch.setattr("app.util.time.monotonic", lambda: next(clock))
+
+        redirect_response = Mock()
+        redirect_response.status_code = 302
+        redirect_response.headers = {"Location": "https://example.com/final.json"}
+        redirect_response.close = Mock()
+        mock_get.return_value = redirect_response
+
+        with pytest.raises(ValueError, match="took longer than"):
+            fetch_json_from_url("https://example.com/redirect-me")
+
+        # never attempted a second request once the shared budget was gone
+        assert mock_get.call_count == 1
 
     @patch("app.util.requests.get")
     def test_fetch_json_from_url_rejects_redirect_to_private_address_in_prod(
