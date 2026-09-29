@@ -24,6 +24,13 @@
       JSON, or upload a document below.
     </p>
 
+    <p class="usa-alert__text">
+      For the DCAT-US 3.0 catalog schema, results also include content-quality
+      warnings, the same non-blocking checks (duplicate identifiers, NARA
+      restriction vocabulary, spatial resolution, and similar) that a real
+      harvest run applies on top of schema validation.
+    </p>
+
   </div>
 </div>
 
@@ -133,7 +140,7 @@
             <div class="error-block">
                 <p style="word-break: break-all"><strong>Identifier:</strong> {{ record_error[0] ~ " (dataset position)" if record_error[0] is number else record_error[0] }}</p>
                 <p>
-                    <strong>Error Message:</strong> 
+                    <strong>Error Message:</strong>
                     <ul>
                         <li>{{ record_error[1] }}</li>
                     </ul>
@@ -141,6 +148,43 @@
             </div>
             {% endfor %}
         </div>
+        {% endif %}
+
+        {% if form.schema.data == "dcatus3.0 catalog" %}
+        <h2>Content-quality warnings</h2>
+        <p class="usa-hint">
+            These don't fail validation, but they're checks a real harvest also
+            runs and the schema alone can't catch (e.g. duplicate identifiers,
+            NARA restriction vocabulary, spatial resolution).
+        </p>
+        {% set warning_total = data.record_warnings | length %}
+        {% if not data.record_warnings %}
+            <p>No content-quality warnings found</p>
+        {% else %}
+        <button class="usa-button" id="btn-download-warnings" title="Download all {{ warning_total }} warning(s) as CSV"
+            aria-label="Download all warnings as CSV">
+            <i class="fa fa-download margin-right-1" aria-hidden="true"></i>
+            Download all warnings (.csv)
+        </button>
+        <script nonce="{{ csp_nonce() }}" id="all-warnings-data" type="application/json">{{ data.record_warnings | tojson }}</script>
+        {% if warning_total > 10 %}
+        <p><strong>Showing First 10 of {{ warning_total }}</strong></p>
+        {% endif %}
+        <div class="error-list">
+            {% for record_warning in data.record_warnings[:10] %}
+            <div class="error-block">
+                <p style="word-break: break-all"><strong>Identifier:</strong> {{ record_warning[0] ~ " (dataset position)" if record_warning[0] is number else record_warning[0] }}</p>
+                <p><strong>Type:</strong> {{ record_warning[1] }}</p>
+                <p>
+                    <strong>Warning Message:</strong>
+                    <ul>
+                        <li>{{ record_warning[2] }}</li>
+                    </ul>
+                </p>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
         {% endif %}
     {% endif %}
 </div>
@@ -218,20 +262,8 @@
         document.getElementById(FIELD_CONFIG[method].show).appendChild(error);
     });
 
-    /* ── CSV download of all errors ── */
-    function downloadValidationErrors() {
-        const raw = document.getElementById("all-errors-data");
-        if (!raw) return;
-
-        let errors;
-        try {
-            errors = JSON.parse(raw.textContent);
-        } catch (e) {
-            alert("Could not read error data.");
-            return;
-        }
-
-        const rows = [["Dataset identifier", "Error"]].concat(errors);
+    /* ── CSV download, shared by the errors and warnings buttons ── */
+    function downloadRowsAsCsv(rows, filename) {
         const csv = rows
             .map(row =>
                 row.map(cell => '"' + String(cell).replace(/"/g, '""') + '"').join(",")
@@ -242,17 +274,51 @@
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = "validation_errors.csv";
+        a.download = filename;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
     }
 
+    function downloadJsonDataAsCsv(dataElementId, header, filename, errorMessage) {
+        const raw = document.getElementById(dataElementId);
+        if (!raw) return;
+
+        let records;
+        try {
+            records = JSON.parse(raw.textContent);
+        } catch (e) {
+            alert(errorMessage);
+            return;
+        }
+
+        downloadRowsAsCsv([header].concat(records), filename);
+    }
+
     document.addEventListener("DOMContentLoaded", function () {
         const btnDownload = document.getElementById("btn-download");
         if (btnDownload) {
-            btnDownload.addEventListener("click", downloadValidationErrors);
+            btnDownload.addEventListener("click", () =>
+                downloadJsonDataAsCsv(
+                    "all-errors-data",
+                    ["Dataset identifier", "Error"],
+                    "validation_errors.csv",
+                    "Could not read error data."
+                )
+            );
+        }
+
+        const btnDownloadWarnings = document.getElementById("btn-download-warnings");
+        if (btnDownloadWarnings) {
+            btnDownloadWarnings.addEventListener("click", () =>
+                downloadJsonDataAsCsv(
+                    "all-warnings-data",
+                    ["Dataset identifier", "Warning type", "Warning"],
+                    "validation_warnings.csv",
+                    "Could not read warning data."
+                )
+            );
         }
     });
 </script>

@@ -12,7 +12,7 @@ from app.deps import (
 )
 from app.forms import DatasetSlugForm, ValidatorForm
 from app.paginate import Pagination
-from app.util import CatalogTooDeeplyNested, fetch_json_from_url, validate_records
+from app.util import CatalogTooDeeplyNested, fetch_json_from_url, validate_catalog
 from harvester.utils.general_utils import (
     convert_to_int,
     get_datetime,
@@ -269,6 +269,7 @@ _VALIDATOR_INPUT_FIELDS = {"url": "url", "paste": "json_text", "upload": "json_f
 def view_validators():
     """View for validating v1.1 or v3.0 dcatus catalogs using form."""
     errors = []
+    warnings = []
     submitted = False
 
     form = ValidatorForm()
@@ -295,14 +296,15 @@ def view_validators():
 
         if not form.errors:
             try:
-                errors = validate_records(data, form.schema.data)
+                errors, warnings = validate_catalog(data, form.schema.data)
                 submitted = True
                 logger.info(
                     "Rendered validator results fetch_method=%s schema=%s "
-                    "validation_errors=%s",
+                    "validation_errors=%s validation_warnings=%s",
                     form.fetch_method.data,
                     form.schema.data,
                     len(errors),
+                    len(warnings),
                 )
             except CatalogTooDeeplyNested as e:
                 field = getattr(form, _VALIDATOR_INPUT_FIELDS[form.fetch_method.data])
@@ -323,6 +325,7 @@ def view_validators():
 
     template_data = {
         "record_errors": errors,
+        "record_warnings": warnings,
     }
 
     if request.method == "GET":

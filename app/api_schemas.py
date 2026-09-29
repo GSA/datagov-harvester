@@ -182,6 +182,7 @@ class ValidatorInfo(Schema):
             [
                 "dcatus1.1: federal dataset",
                 "dcatus1.1: non-federal dataset",
+                "dcatus3.0 catalog",
             ]
         ),
     )
@@ -222,6 +223,13 @@ class ValidationResultSchema(Schema):
         List(
             String(),
             validate=validate.Length(equal=2),
+        ),
+        required=True,
+    )
+    validation_warnings = List(
+        List(
+            String(),
+            validate=validate.Length(equal=3),
         ),
         required=True,
     )

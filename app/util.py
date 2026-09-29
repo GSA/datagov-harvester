@@ -9,10 +9,13 @@ import requests
 from jsonschema import Draft202012Validator, FormatChecker
 
 from app.constants import MAX_UPLOAD_BYTES, MAX_UPLOAD_MB
+from harvester.utils.dcat_warnings import detect_dcat_warnings
 from harvester.utils.general_utils import (
     USER_AGENT,
     assemble_validation_errors,
     build_dcatus3_validator,
+    find_indexes_for_duplicates,
+    normalize_dataset_identifier,
     open_json,
 )
 from harvester.utils.schema_paths import DCATUS1_1_DIR, DCATUS3_DEFINITIONS_DIR
@@ -239,3 +242,73 @@ def validate_records(dcatus_catalog: dict, schema_name: str) -> list:
         output += list(zip([""] * len(errors), errors))
 
     return output
+
+
+def detect_catalog_warnings(dcatus_catalog: dict, schema_name: str) -> list:
+    """
+    Detects DCAT-US 3 content-quality warnings for the given catalog, mirroring
+    what a real harvest job flags via `harvester.harvest.HarvestRecord.validate`
+    and `HarvestSource.filter_duplicate_identifiers` (GSA/data.gov#6127).
+
+    Schema validation (`validate_records`) only owns type/format/structure
+    checks, so a catalog can pass it cleanly and still trip these warnings once
+    harvested. Surfacing both together here closes that gap for anyone using
+    the validator page or API to predict harvest behavior.
+
+    Only meaningful for the "dcatus3.0 catalog" schema; other schemas have no
+    warning detection today and return an empty list unconditionally, matching
+    the harvest pipeline's own `schema_type == "dcatus3.0"` gate.
+
+    Returns a list of (identifier, warning_type, message) tuples, identifier
+    falling back to the dataset's position when it has none, same convention
+    as `validate_records` uses for 1.1 schema errors.
+    """
+    if schema_name != "dcatus3.0 catalog" or not isinstance(dcatus_catalog, dict):
+        return []
+
+    output = []
+    records = dcatus_catalog.get("dataset") or []
+    if not isinstance(records, list):
+        return []
+    # non-dict entries are already flagged as schema errors by validate_records;
+    # skip them here rather than crash on .get() against e.g. a bare string.
+    records = [r for r in records if isinstance(r, dict)]
+
+    for idx in find_indexes_for_duplicates(records):
+        identifier = normalize_dataset_identifier(records[idx].get("identifier"))
+        output.append(
+            (
+                idx if identifier is None else identifier,
+                "duplicate_identifier",
+                f"Duplicate identifier '{identifier}' found in this catalog.",
+            )
+        )
+
+    for idx, record in enumerate(records):
+        identifier = record.get("identifier")
+        identifier = idx if identifier is None else identifier
+        for warning in detect_dcat_warnings(record):
+            output.append((identifier, warning.warning_type, warning.message))
+
+    return output
+
+
+def validate_catalog(dcatus_catalog: dict, schema_name: str) -> tuple[list, list]:
+    """
+    Single entry point for "validate this submitted catalog": schema errors
+    plus content-quality warnings, together.
+
+    `/validate/` (app/main/pages.py) and `/api/v1/validate` (app/api/validate.py)
+    both call this exclusively rather than validate_records/
+    detect_catalog_warnings directly, so the two surfaces can't drift apart on
+    what "validating a catalog" means; a future change here reaches both at
+    once instead of needing the same edit made twice.
+
+    Returns (errors, warnings):
+        errors: list of (identifier, message) tuples, from validate_records.
+        warnings: list of (identifier, warning_type, message) tuples, from
+            detect_catalog_warnings.
+    """
+    return validate_records(dcatus_catalog, schema_name), detect_catalog_warnings(
+        dcatus_catalog, schema_name
+    )
