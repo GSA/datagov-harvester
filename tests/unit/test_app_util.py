@@ -282,6 +282,30 @@ class TestFetchJsonFromUrl:
             fetch_json_from_url("https://example.com/page.html")
 
     @patch("app.util.requests.get")
+    def test_unparseable_json_is_reported_by_position_only(self, mock_get):
+        """A fetched document that won't parse is described by line/column, with
+        neither the decoder's own text nor the document itself in the message -
+        the document may be something the submitter could not otherwise read."""
+        body = b'{"internal_secret": "hunter2",, "b": 2}'
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.headers = {"Content-Type": "application/json"}
+        mock_response.raise_for_status = Mock()
+        mock_response.close = Mock()
+        mock_response.iter_content = Mock(return_value=[body])
+        mock_get.return_value = mock_response
+
+        with pytest.raises(InvalidCatalogSource) as excinfo:
+            fetch_json_from_url("https://example.com/broken.json")
+
+        message = str(excinfo.value)
+        assert message == "Invalid JSON at line 1, column 31."
+        assert "hunter2" not in message
+        assert "internal_secret" not in message
+        # the decoder's own phrasing is not reused
+        assert "Expecting" not in message
+
+    @patch("app.util.requests.get")
     def test_unexpected_transport_error_is_not_leaked(self, mock_get, caplog):
         """A connection-level failure is still reported as a refusal the
         submitter can act on, but with a fixed message - requests' own error

@@ -17,6 +17,7 @@ from app.util import (
     CatalogTooDeeplyNested,
     InvalidCatalogSource,
     fetch_json_from_url,
+    invalid_json_message,
     validate_records,
 )
 from harvester.utils.general_utils import (
@@ -297,7 +298,7 @@ def view_validators():
             try:
                 data = json.loads(form.json_text.data)
             except json.JSONDecodeError as e:
-                form.json_text.errors.append(f"Invalid JSON: {e}")
+                form.json_text.errors.append(invalid_json_message(e))
             except Exception as e:
                 logger.error("Validator paste parse failed :: %s", repr(e))
                 form.json_text.errors.append("Could not read the pasted JSON.")
@@ -306,7 +307,9 @@ def view_validators():
                 raw = form.json_file.data.read()
                 data = json.loads(raw)
             except json.JSONDecodeError as e:
-                form.json_file.errors.append(f"Invalid JSON in uploaded file: {e}")
+                form.json_file.errors.append(
+                    invalid_json_message(e, source="uploaded file")
+                )
             except Exception as e:
                 logger.error("Validator upload read failed :: %s", repr(e))
                 form.json_file.errors.append("Could not read the uploaded file.")
