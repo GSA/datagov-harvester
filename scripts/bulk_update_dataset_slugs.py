@@ -125,10 +125,13 @@ def bulk_update(csv_path, apply=False):
 
     successful = 0
     failed = 0
+    total = len(ready)
 
-    for change in ready:
+    for index, change in enumerate(ready, start=1):
         dataset_id = change["dataset_id"]
         new_slug = change["new_slug"]
+
+        print(f"[{index}/{total}] Updating {dataset_id} -> {new_slug}")
 
         dataset, os_synced, error = interface.update_dataset_slug(
             dataset_id,
