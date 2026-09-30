@@ -137,7 +137,9 @@ def test_cookie_names_are_configurable_so_validator_cant_collide_with_admin(
     response = app.test_client().get("/login")
 
     set_cookies = response.headers.getlist("Set-Cookie")
-    assert any(header.startswith("harvest_validator_session=") for header in set_cookies)
+    assert any(
+        header.startswith("harvest_validator_session=") for header in set_cookies
+    )
     assert not any(header.startswith("harvest_session=") for header in set_cookies)
 
 
