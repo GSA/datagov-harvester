@@ -25,6 +25,7 @@ from harvester.exceptions import (
     ClearJobException,
     CompareException,
     DuplicateIdentifierException,
+    EmptyFieldNameException,
     ExternalRecordToClass,
     ExtractExternalException,
     ExtractInternalException,
@@ -1519,6 +1520,14 @@ class Record:
                     dataset.dcat.get("title", dataset.id),
                     dataset.slug,
                 )
+        except EmptyFieldNameException as e:
+            logger.error(
+                "Validation failed for dataset %s (slug %s): %s",
+                dataset.id,
+                dataset.slug,
+                str(e),
+            )
+            raise
         except Exception as e:
             logger.exception(
                 "OpenSearch indexing error for dataset %s (slug %s): %s",
@@ -1586,34 +1595,57 @@ class Record:
 
             if self.action in ("create", "update") and metadata is not None:
                 dataset_payload = self._dataset_payload(metadata)
-                if self.action == "create":
-                    dataset = self._insert_dataset_with_unique_slug(dataset_payload)
-                    if dataset:
-                        logger.info(
-                            "Created dataset '%s' (slug: %s) from record %s",
-                            metadata.get("title", "Unknown"),
-                            dataset.slug,
-                            self.identifier,
+                dataset = None
+                try:
+                    if self.action == "create":
+                        dataset = self._insert_dataset_with_unique_slug(dataset_payload)
+                        if dataset:
+                            logger.info(
+                                "Created dataset '%s' (slug: %s) from record %s",
+                                metadata.get("title", "Unknown"),
+                                dataset.slug,
+                                self.identifier,
+                            )
+                    else:
+                        update_payload = {
+                            k: v for k, v in dataset_payload.items() if k != "slug"
+                        }
+                        update_payload["slug"] = self.dataset_slug
+                        dataset = self.harvest_source.db_interface.upsert_dataset(
+                            update_payload
                         )
-                else:
-                    # harvester should never update the slug
-                    update_payload = {
-                        k: v for k, v in dataset_payload.items() if k != "slug"
-                    }
-                    update_payload["slug"] = self.dataset_slug
-                    dataset = self.harvest_source.db_interface.upsert_dataset(
-                        update_payload
+                        if dataset:
+                            logger.info(
+                                "Updated dataset '%s' (slug: %s) from record %s",
+                                metadata.get("title", "Unknown"),
+                                dataset.slug,
+                                self.identifier,
+                            )
+                    if dataset:
+                        self.status = "success"
+                    self._index_dataset_in_opensearch(dataset)
+                except EmptyFieldNameException as e:
+                    if dataset:
+                        self.harvest_source.db_interface.delete_dataset_by_slug(
+                            dataset.slug
+                        )
+                        logger.info(
+                            "Rolled back dataset %s due to validation error",
+                            dataset.slug,
+                        )
+                    log_non_critical_error(
+                        str(e),
+                        self.harvest_source.job_id,
+                        self.id,
+                        "EmptyFieldNameException",
                     )
-                    if dataset:
-                        logger.info(
-                            "Updated dataset '%s' (slug: %s) from record %s",
-                            metadata.get("title", "Unknown"),
-                            dataset.slug,
-                            self.identifier,
-                        )
-                if dataset:
-                    self.status = "success"
-                self._index_dataset_in_opensearch(dataset)
+                    self.status = "error"
+                    self.harvest_source.update_job_record_count_by_action("errored")
+                    logger.error(
+                        "Dataset validation failed for identifier %s: %s",
+                        self.identifier,
+                        str(e),
+                    )
             elif self.action == "delete" and self.dataset_slug:
                 dataset = self.harvest_source.db_interface.get_dataset_by_slug(
                     self.dataset_slug

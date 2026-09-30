@@ -24,6 +24,8 @@ class TestHarvestSourceUnauthed:
                 "Test Org",
                 "Name",
                 "Test Source",
+                "Description",
+                "N/A",
                 "URL",
                 "http://localhost:80/dcatus/dcatus.json",
                 "Frequency",

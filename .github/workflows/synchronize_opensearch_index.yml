@@ -58,7 +58,7 @@ jobs:
       cancel-in-progress: false
     env:
       CF_SPACE: ${{ matrix.environment }}
-      # Keep this aligned with OPENSEARCH_INDEX_BATCH_FAILURE_MESSAGE in app/commands/search.py.
+      # Keep this aligned with OPENSEARCH_INDEX_BATCH_FAILURE_MESSAGE in search/writer.py.
       OPENSEARCH_INDEX_BATCH_FAILURE_PATTERN: failed to index in this batch
     steps:
       - name: Check out the code

@@ -137,3 +137,9 @@ class CKANDownException(SynchronizeException):
 
 class NoIdentifierException(HarvestNonCriticalException):
     pass
+
+
+class EmptyFieldNameException(Exception):
+    def __init__(self, message="Field name cannot be an empty string"):
+        self.message = message
+        super().__init__(self.message)

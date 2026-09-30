@@ -44,8 +44,10 @@ times can result in overloading the memory quota for our cloud.gov
 organization and the jobs will not actually be started even though the API
 call succeeds. In order to kick off harvest jobs that will run under the
 cap for the number of running tasks, set `date_next_run` on the harvest
-source. The 15-minute scheduler creates a job when that time is due and
-starts jobs up to the running-task cap.
+source. The scheduled GitHub Actions workflow runs `cf run-task
+datagov-harvest --command "flask harvest start"` every ten minutes. That task
+creates a job when its time is due and starts jobs up to the running-task cap;
+the web application's startup does not run the scheduler.
 
 On a Mac, this command will schedule a harvest source to be harvested at a
 specified amount of time in the future (see the `-v` option to the Mac OS X
@@ -64,4 +66,3 @@ start harvests for a large number of sources, but subject to the running
 tasks limit necessitated by our limited memory quota. Do not POST a future
 `date_created` on `/harvest_job/add` to schedule a run; that field is the
 job row's created time, not the calendar.
-

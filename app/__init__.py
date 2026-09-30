@@ -159,6 +159,12 @@ def create_app():
     app.config["SESSION_IDLE_TIMEOUT_SECONDS"] = int(
         os.getenv("SESSION_IDLE_TIMEOUT_SECONDS", "900")
     )
+    # GSA/data.gov#6293: the validator shares its external domain with the
+    # admin app (nginx just proxies a few paths to it), so without its own
+    # cookie names its session/auth cookies would overwrite the admin app's
+    # and log admin users out. Set via SESSION_COOKIE_NAME/AUTH_COOKIE_NAME
+    # in manifest.yml for the validator app.
+    app.config["SERVED_BY"] = os.getenv("SERVED_BY", "datagov-harvest")
     from app.static_assets import get_asset_version
 
     app.config["ASSET_VERSION"] = get_asset_version(app.static_folder)
@@ -272,6 +278,11 @@ def create_app():
         method = request.method
         has_session_user = bool(session.get("user"))
 
+        # GSA/data.gov#6293: lets New Relic synthetic checks confirm a
+        # /validate request actually reached the validator app rather than
+        # the admin app (nginx routes them separately - see proxy/nginx.conf).
+        response.headers["X-Served-By"] = app.config["SERVED_BY"]
+
         if getattr(g, "clear_session_cookie", False):
             response = clear_session_cookie(response)
 
@@ -337,17 +348,6 @@ def create_app():
 
     add_template_filters(app)
     register_cli(app)
-
-    with app.app_context():
-        # SQL-Alchemy can't be used to create the schema here
-        # Instead, `flask db upgrade` must already have been run
-        # db.create_all()
-        try:
-            load_manager.start()
-        except Exception as e:
-            # we need to get to app start up, so ignore all errors
-            # from the load manager but log them
-            logger.warning("Load manager startup failed with exception: %s", repr(e))
 
     # emit new relic custom event for db idle-in-transaction monitoring
     new_relic_monitor_db_activity = (

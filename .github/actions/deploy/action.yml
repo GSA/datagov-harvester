@@ -21,6 +21,10 @@ inputs:
     description: "Whether to deploy the datagov-harvest proxy"
     required: false
     default: "true"
+  deploy_validator:
+    description: "Whether to deploy the datagov-harvest validator app"
+    required: false
+    default: "true"
   node-version-file:
     description: "Path to node version file"
     required: false
@@ -103,6 +107,19 @@ runs:
       with:
         command: >-
           cf push datagov-harvest-proxy --strategy rolling --no-wait --vars-file vars.${{ inputs.cf_space }}.yml
+        cf_org: ${{ inputs.cf_org }}
+        cf_space: ${{ inputs.cf_space }}
+        cf_username: ${{ inputs.cf_username }}
+        cf_password: ${{ inputs.cf_password }}
+
+    - name: Deploy datagov-harvest validator app
+      if: inputs.deploy_validator == 'true'
+      uses: cloud-gov/cg-cli-tools@main
+      with:
+        command: >-
+          cf push datagov-harvest-validator --strategy rolling --no-wait
+          --vars-file vars.${{ inputs.cf_space }}.yml
+          --var asset_version=${{ env.asset_version }}
         cf_org: ${{ inputs.cf_org }}
         cf_space: ${{ inputs.cf_space }}
         cf_username: ${{ inputs.cf_username }}
