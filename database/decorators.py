@@ -32,6 +32,17 @@ def paginate(fn: F) -> F:
         requested_page = kwargs.get("page")
         page = config.start_page if requested_page is None else requested_page
 
+        if requested_per_page is not None:
+            if requested_per_page < 0:
+                from app.deps import InvalidPaginationException
+
+                raise InvalidPaginationException(
+                    f"per_page must be non-negative "
+                    f"(received: {requested_per_page})"
+                )
+            if requested_per_page == 0:
+                return []
+
         per_page = max(
             min(per_page, config.max_entries_per_page),
             1,
