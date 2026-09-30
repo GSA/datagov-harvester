@@ -50,6 +50,24 @@ def test_anonymous_page_is_publicly_cacheable(client):
     assert "Expires" not in response.headers
 
 
+def test_served_by_header_defaults_to_admin_app(client):
+    response = client.get("/_cache_test")
+
+    assert response.headers["X-Served-By"] == "datagov-harvest"
+
+
+def test_served_by_header_reflects_env_override(monkeypatch):
+    monkeypatch.delenv("ENABLE_LOCAL_DEV_LOGIN", raising=False)
+    monkeypatch.setenv("SERVED_BY", "datagov-harvest-validator")
+    with patch("app.deps.load_manager.start", lambda: True):
+        app = create_app()
+    app.config.update({"TESTING": True})
+
+    response = app.test_client().get("/login")
+
+    assert response.headers["X-Served-By"] == "datagov-harvest-validator"
+
+
 def test_https_responses_set_preload_ready_hsts_header(client):
     response = client.get("/_cache_test", headers={"X-Forwarded-Proto": "https"})
 
@@ -101,6 +119,26 @@ def test_logged_in_session_without_last_activity_is_initialized(client):
     with client.session_transaction() as sess:
         assert sess["user"] == "test.user@gsa.gov"
         assert sess["last_activity"] == 1_100
+
+
+def test_cookie_names_are_configurable_so_validator_cant_collide_with_admin(
+    monkeypatch,
+):
+    # GSA/data.gov#6293: the validator app shares its external domain with
+    # the admin app, so it's given its own cookie names (see manifest.yml)
+    # to keep its cookies from overwriting the admin app's.
+    monkeypatch.delenv("ENABLE_LOCAL_DEV_LOGIN", raising=False)
+    monkeypatch.setenv("SESSION_COOKIE_NAME", "harvest_validator_session")
+    monkeypatch.setenv("AUTH_COOKIE_NAME", "harvest_validator_auth")
+    with patch("app.deps.load_manager.start", lambda: True):
+        app = create_app()
+    app.config.update({"TESTING": True})
+
+    response = app.test_client().get("/login")
+
+    set_cookies = response.headers.getlist("Set-Cookie")
+    assert any(header.startswith("harvest_validator_session=") for header in set_cookies)
+    assert not any(header.startswith("harvest_session=") for header in set_cookies)
 
 
 def test_login_route_is_private_no_store(client):
