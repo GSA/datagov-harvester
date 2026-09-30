@@ -1339,3 +1339,72 @@ def test_harvest_source_list_search_includes_description(
     response_text = response.data.decode()
     assert "Environmental monitoring data" in response_text
     assert "data-meta=" in response_text
+
+
+class TestPaginationValidation:
+    """Test validation of pagination parameters across list endpoints."""
+
+    def test_per_page_zero_returns_empty_array(
+        self, client, interface, organization_data, source_data_dcatus
+    ):
+        """Test that per_page=0 returns HTTP 200 with empty array."""
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_dcatus)
+
+        response = client.get("/api/v1/harvest_sources/?per_page=0")
+
+        assert response.status_code == 200
+        assert response.json == []
+
+    def test_per_page_negative_returns_422(
+        self, client, interface, organization_data, source_data_dcatus
+    ):
+        """Test that negative per_page returns HTTP 422 error."""
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_dcatus)
+
+        response = client.get("/api/v1/harvest_sources/?per_page=-5")
+
+        assert response.status_code == 422
+        assert "per_page" in response.json.get("error", "").lower()
+
+    def test_per_page_one_returns_results(
+        self, client, interface, organization_data, source_data_dcatus
+    ):
+        """Test that per_page=1 returns exactly one result."""
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_dcatus)
+
+        response = client.get("/api/v1/harvest_sources/?per_page=1")
+
+        assert response.status_code == 200
+        data = response.json
+        assert len(data) == 1
+
+    def test_per_page_validation_consistent_across_endpoints(
+        self, client, interface_with_fixture_json
+    ):
+        """Test that all list endpoints handle per_page=0 and negative values consistently."""
+        endpoints = [
+            "/api/v1/organizations/",
+            "/api/v1/harvest_sources/",
+            "/api/v1/harvest_jobs/",
+            "/api/v1/harvest_records/",
+            "/api/v1/harvest_job_errors/",
+            "/api/v1/harvest_record_errors/",
+        ]
+
+        for endpoint in endpoints:
+            # per_page=0 should return empty array
+            response = client.get(f"{endpoint}?per_page=0")
+            assert response.status_code == 200, f"{endpoint} should accept per_page=0"
+            assert (
+                response.json == []
+            ), f"{endpoint} should return empty array for per_page=0"
+
+            # Negative per_page should return 422
+            response = client.get(f"{endpoint}?per_page=-1")
+            assert (
+                response.status_code == 422
+            ), f"{endpoint} should reject negative per_page"
+            assert "per_page" in response.json.get("error", "").lower()
