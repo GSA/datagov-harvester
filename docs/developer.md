@@ -315,14 +315,14 @@ A user provided service by the name of `datagov-harvest-secrets` is also expecte
 
 CF_SERVICE_* variables can be extracted from from service-keys by running `cf service-key ci-deployer datagov-harvest-deployer` in the appropriate space.
 
-`datagov-harvest-validator` binds its own `datagov-harvest-validator-secrets` and `datagov-harvest-validator-db` instead, so a compromised validator (it takes public, server-side URL-fetch requests) doesn't inherit the admin app's full secret set (GSA/data.gov#6293). `create_cloudgov_services.sh` creates both empty/placeholder if missing, but only the app code enforces that `FLASK_APP_SECRET_KEY`/`HARVEST_API_TOKEN` are *non-empty* - it never checks their value, and nothing the validator serves is `@login_required`, so these two can be any throwaway string, independent of the admin app's real ones. `CF_SERVICE_USER`/`CF_SERVICE_AUTH`/`NEW_RELIC_LICENSE_KEY` must be the *same real values* as `datagov-harvest-secrets` - `LoadManager` authenticates to the CF API with them at import time regardless of which app is running, so fake values crash the boot rather than sitting unused. After `create_cloudgov_services.sh` runs (or by hand the first time), populate it once per space:
+`datagov-harvest-validator` binds its own `datagov-harvest-validator-secrets` and `datagov-harvest-validator-db` instead, so a compromised validator (it takes public, server-side URL-fetch requests) doesn't inherit the admin app's full secret set (GSA/data.gov#6293). `create_cloudgov_services.sh` creates both empty/placeholder if missing, but only the app code enforces that `FLASK_APP_SECRET_KEY`/`HARVEST_API_TOKEN`/`CF_SERVICE_AUTH`/`CF_SERVICE_USER` are *non-empty* - it never checks their value, and nothing the validator serves is `@login_required` or triggers a harvest task, so these can be any throwaway string, independent of the admin app's real ones. `LoadManager` (which needs real `CF_SERVICE_AUTH`/`CF_SERVICE_USER` to authenticate to the CF API) now constructs its CF client lazily on first use rather than at import (GSA/data.gov#6383), so an app whose routes never reach it, like the validator, doesn't need working credentials just to boot. `NEW_RELIC_LICENSE_KEY` must still be the *same real value* as `datagov-harvest-secrets`, since it's read by the New Relic agent independent of `LoadManager`. After `create_cloudgov_services.sh` runs (or by hand the first time), populate it once per space:
 
 ```bash
 cf cups datagov-harvest-validator-secrets -p '{
   "FLASK_APP_SECRET_KEY": "<any random string, independent of the admin app'"'"'s>",
   "HARVEST_API_TOKEN": "<any random string, independent of the admin app'"'"'s>",
-  "CF_SERVICE_AUTH": "<same value as datagov-harvest-secrets>",
-  "CF_SERVICE_USER": "<same value as datagov-harvest-secrets>",
+  "CF_SERVICE_AUTH": "<any random string, independent of the admin app'"'"'s>",
+  "CF_SERVICE_USER": "<any random string, independent of the admin app'"'"'s>",
   "NEW_RELIC_LICENSE_KEY": "<same value as datagov-harvest-secrets>"
 }'
 ```

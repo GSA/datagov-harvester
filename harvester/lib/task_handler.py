@@ -25,8 +25,8 @@ def create_task_handler():
 
     We only attempt CFHandler when all three CF_* credentials are configured.
     This keeps local development from making a doomed OAuth round-trip (and the
-    resulting 401) on every LoadManager construction when only CF_API_URL is
-    set but the service credentials are not.
+    resulting 401) on every call here when only CF_API_URL is set but the
+    service credentials are not.
 
     LocalTaskHandler is never used on Cloud Foundry; missing or invalid CF
     configuration fails fast in deployed environments.

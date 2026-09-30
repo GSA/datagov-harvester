@@ -88,11 +88,12 @@ applications:
       # harvester/__init__.py builds a SQLAlchemy engine at import time
       # regardless (it never connects at construction), but nothing on the
       # validator's routes ever queries it. -validator-secrets holds its own
-      # throwaway FLASK_APP_SECRET_KEY/HARVEST_API_TOKEN (checked for
-      # non-empty at boot, never compared against anything the validator
-      # serves) plus the real CF_SERVICE_USER/CF_SERVICE_AUTH/
-      # NEW_RELIC_LICENSE_KEY, which do have to be real: LoadManager
-      # authenticates to the CF API with them at import time. See
+      # throwaway FLASK_APP_SECRET_KEY/HARVEST_API_TOKEN/CF_SERVICE_USER/
+      # CF_SERVICE_AUTH (checked for non-empty at boot, never compared
+      # against anything the validator serves - LoadManager's CF client is
+      # built lazily on first use, and nothing on the validator's routes
+      # triggers that, GSA/data.gov#6383) plus the real NEW_RELIC_LICENSE_KEY,
+      # which the New Relic agent reads independent of LoadManager. See
       # docs/developer.md for how to provision both.
       - ((app_name))-validator-db
       - ((app_name))-validator-secrets

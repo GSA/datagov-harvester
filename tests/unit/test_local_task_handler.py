@@ -119,6 +119,32 @@ class TestLoadManagerLocalHandler:
         assert hasattr(load_manager, "handler")
         assert isinstance(load_manager.handler, LocalTaskHandler)
 
+    def test_construction_does_not_create_task_handler(self, monkeypatch):
+        # On Cloud Foundry without credentials, create_task_handler() raises.
+        # Construction must not call it, so an app that never triggers a
+        # task (e.g. the validator) can boot without CF task API creds.
+        monkeypatch.setenv("VCAP_APPLICATION", '{"application_id":"abc"}')
+        for var in ("CF_API_URL", "CF_SERVICE_USER", "CF_SERVICE_AUTH"):
+            monkeypatch.delenv(var, raising=False)
+
+        LoadManager()
+
+    def test_handler_is_created_lazily_and_cached(self, monkeypatch):
+        monkeypatch.delenv("VCAP_APPLICATION", raising=False)
+        for var in ("CF_API_URL", "CF_SERVICE_USER", "CF_SERVICE_AUTH"):
+            monkeypatch.delenv(var, raising=False)
+
+        with patch(
+            "harvester.lib.load_manager.create_task_handler"
+        ) as create_task_handler_mock:
+            load_manager = LoadManager()
+            create_task_handler_mock.assert_not_called()
+
+            load_manager.handler
+            load_manager.handler
+
+        create_task_handler_mock.assert_called_once()
+
 
 SLEEP_CMD = 'python -c "import time; time.sleep(5)"'
 NOOP_CMD = 'python -c "pass"'

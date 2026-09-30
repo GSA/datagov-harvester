@@ -21,7 +21,20 @@ logger = logging.getLogger("harvest_admin")
 
 class LoadManager:
     def __init__(self):
-        self.handler = create_task_handler()
+        self._handler = None
+
+    @property
+    def handler(self):
+        """Task handler, constructed on first use rather than at import time.
+
+        Deferred so that constructing a LoadManager (e.g. the module-level
+        instance in app/deps.py, built for every app that imports it) doesn't
+        require CF task API credentials for apps that never trigger a task,
+        such as the validator (GSA/data.gov#6383).
+        """
+        if self._handler is None:
+            self._handler = create_task_handler()
+        return self._handler
 
     def _email_recipients_of_failed_jobs(self, failed_jobs: list[tuple]):
         """
