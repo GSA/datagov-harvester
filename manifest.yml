@@ -50,6 +50,7 @@ applications:
       NEW_RELIC_CONFIG_FILE: /home/vcap/app/config/newrelic.ini
       NEW_RELIC_MONITOR_DB_ACTIVITY: ((new_relic_monitor_db_activity))
       ASSET_VERSION: ((asset_version))
+      SERVED_BY: ((app_name))
     command: ./app-start.sh
 
   - <<: *harvest_app
@@ -116,4 +117,12 @@ applications:
       NEW_RELIC_MONITOR_MODE: ((new_relic_monitor_mode))
       NEW_RELIC_CONFIG_FILE: /home/vcap/app/config/newrelic.ini
       ASSET_VERSION: ((asset_version))
+      # Distinct from the admin app's so a validator response can't overwrite
+      # the admin app's session/auth cookies on their shared external domain
+      # (GSA/data.gov#6293) - see app/__init__.py.
+      SESSION_COOKIE_NAME: harvest_validator_session
+      AUTH_COOKIE_NAME: harvest_validator_auth
+      # Lets synthetic monitoring confirm /validate requests actually reach
+      # this app rather than the admin app (see X-Served-By in app/__init__.py).
+      SERVED_BY: ((app_name))-validator
     command: ./app-start.sh
