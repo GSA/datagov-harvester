@@ -1,7 +1,14 @@
 import json
+from unittest.mock import Mock
+
+import requests
 
 from app.constants import MAX_UPLOAD_BYTES, MAX_UPLOAD_MB
-from app.util import NESTING_TOO_DEEP_MESSAGE
+from app.util import (
+    FETCH_TIMEOUT_SECONDS,
+    NESTING_TOO_DEEP_MESSAGE,
+    UNEXPECTED_FETCH_ERROR_MESSAGE,
+)
 
 # Flask 3.1's MAX_FORM_MEMORY_SIZE default, which used to cap pasted JSON far
 # below the advertised limit.
@@ -163,3 +170,98 @@ class TestDeeplyNestedCatalog:
 
         assert res.status_code == 422
         assert res.get_json() == {"error": NESTING_TOO_DEEP_MESSAGE}
+
+
+class TestRefusedUrlIsExplained:
+    """
+    A URL we decline to fetch has to say why on both surfaces. The page renders
+    it beside the url input; the API answers 400 (bad submission, not a server
+    fault) with the same reason, rather than an opaque 500. GSA/data.gov#6293.
+    """
+
+    def _url_form(self, url):
+        return {
+            "schema": "dcatus1.1: federal dataset",
+            "fetch_method": "url",
+            "url": url,
+        }
+
+    def test_html_route_shows_the_timeout_reason_by_the_field(
+        self, app, client, monkeypatch
+    ):
+        monkeypatch.setattr(
+            "app.util.requests.get",
+            Mock(side_effect=requests.exceptions.Timeout("timed out")),
+        )
+        app.config.update({"WTF_CSRF_ENABLED": False})
+
+        res = client.post(
+            "/validate/",
+            data=self._url_form("https://example.com/slow.json"),
+            content_type="multipart/form-data",
+        )
+
+        assert res.status_code == 200
+        assert f"longer than {FETCH_TIMEOUT_SECONDS} seconds" in res.text
+        assert '<span class="usa-error-message" role="alert">' in res.text
+        assert "No validation errors found" not in res.text
+
+    def test_api_route_returns_400_with_the_timeout_reason(self, client, monkeypatch):
+        monkeypatch.setattr(
+            "app.util.requests.get",
+            Mock(side_effect=requests.exceptions.Timeout("timed out")),
+        )
+
+        res = client.post(
+            "/api/v1/validate",
+            json=self._url_form("https://example.com/slow.json"),
+        )
+
+        assert res.status_code == 400
+        assert f"longer than {FETCH_TIMEOUT_SECONDS} seconds" in res.get_json()["error"]
+
+    def test_html_route_shows_the_private_address_reason(
+        self, app, client, monkeypatch
+    ):
+        monkeypatch.setattr("app.util.IS_PROD", True)
+        app.config.update({"WTF_CSRF_ENABLED": False})
+
+        res = client.post(
+            "/validate/",
+            data=self._url_form("http://127.0.0.1/secret.json"),
+            content_type="multipart/form-data",
+        )
+
+        assert res.status_code == 200
+        assert "private/internal addresses is not allowed" in res.text
+
+    def test_api_route_returns_400_for_a_private_address(self, client, monkeypatch):
+        monkeypatch.setattr("app.util.IS_PROD", True)
+
+        res = client.post(
+            "/api/v1/validate",
+            json=self._url_form("http://127.0.0.1/secret.json"),
+        )
+
+        assert res.status_code == 400
+        assert "private/internal addresses is not allowed" in res.get_json()["error"]
+
+    def test_unexpected_transport_error_is_not_disclosed(self, client, monkeypatch):
+        """Still a 400 the submitter can act on, but requests' own text - which
+        can name internal paths - must not reach the response body."""
+        monkeypatch.setattr(
+            "app.util.requests.get",
+            Mock(
+                side_effect=requests.exceptions.SSLError(
+                    "verify failed: /internal/path/ca-bundle.crt"
+                )
+            ),
+        )
+
+        res = client.post(
+            "/api/v1/validate",
+            json=self._url_form("https://example.com/data.json"),
+        )
+
+        assert res.status_code == 400
+        assert res.get_json() == {"error": UNEXPECTED_FETCH_ERROR_MESSAGE}

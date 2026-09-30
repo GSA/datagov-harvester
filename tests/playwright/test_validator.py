@@ -230,8 +230,10 @@ class TestValidator:
         upage.locator("input[type=file][name=json_file]").set_input_files(str(bad_file))
         upage.locator("input[type=submit]").click()
 
+        # Position only - the decoder's own message is deliberately not shown,
+        # see app.util.invalid_json_message.
         expect(upage.locator("#upload_field .usa-error-message")).to_have_text(
-            "Invalid JSON in uploaded file: Expecting value: line 1 column 1 (char 0)"
+            "Invalid JSON in the uploaded file at line 1, column 1."
         )
         expect(upage.locator(".error-list")).not_to_be_visible()
 

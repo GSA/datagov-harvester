@@ -3,7 +3,8 @@ import json
 import logging
 import os
 import socket
-from urllib.parse import urlparse
+import time
+from urllib.parse import urljoin, urlparse
 
 import requests
 from jsonschema import Draft202012Validator, FormatChecker
@@ -123,60 +124,188 @@ PAYLOAD_TOO_LARGE_MESSAGE = (
     f"JSON payload too large - must be {MAX_UPLOAD_MB}MB or less."
 )
 
+# Bounded well inside every ceiling upstream of us: nginx's proxy_read_timeout
+# (110s, proxy/nginx-common.conf), gunicorn's 120s worker timeout, and a
+# client-facing limit somewhere near 30s that shows up as 499s in the proxy
+# log (whether that one is CloudFront or the CF router is unconfirmed).
+# Answering well before any of them means a slow or hung target produces a
+# clean, logged rejection instead of us being disconnected mid-request.
+#
+# It is also a capacity limit, not just a latency one: gunicorn runs 3 workers
+# with 1 thread each, so each in-flight fetch holds one of only 3 concurrent
+# slots per instance. The connect phase gets a tighter budget of its own
+# because a dead, typo'd, or firewalled host is almost always a connect
+# failure, and there's no reason to hold a slot for the full budget to learn
+# that.
+FETCH_TIMEOUT_SECONDS = 10
+FETCH_CONNECT_TIMEOUT_SECONDS = 5
 
-def fetch_json_from_url(url: str) -> dict:
+# requests.get(..., allow_redirects=True) (the default) follows redirects
+# without re-checking the target, so a URL that itself resolves to a public IP
+# could still redirect us to an internal address the check below would have
+# blocked. Each hop is re-validated by hand instead; capped so a redirect loop
+# can't hang the request.
+MAX_FETCH_REDIRECTS = 5
+_REDIRECT_STATUS_CODES = {301, 302, 303, 307, 308}
 
+UNEXPECTED_FETCH_ERROR_MESSAGE = (
+    "Could not retrieve the catalog from that URL. Check the URL and try again."
+)
+
+
+class InvalidCatalogSource(ValueError):
+    """A submission was refused for a reason the submitter can act on:
+    unsupported scheme, internal address, oversized body, not JSON, unparseable
+    JSON, too many redirects, or a timeout.
+
+    Both callers render `str()` of this straight back to the submitter, so
+    every message here must be built only from literals and numbers. No
+    exceptions to that rule: never interpolate another exception's text, even
+    one that looks harmless, because the objects carrying it also carry things
+    that are not (json.JSONDecodeError.doc is the whole submitted document,
+    which for a URL submission may be content the submitter cannot otherwise
+    read). Keeping the rule absolute is what makes it reviewable, and keeps
+    CodeQL py/stack-trace-exposure honest rather than suppressed.
+
+    Anything we *didn't* anticipate should stay an ordinary exception so
+    callers answer with UNEXPECTED_FETCH_ERROR_MESSAGE and log the detail
+    instead.
+
+    Subclasses ValueError so existing callers catching ValueError still do.
+    """
+
+
+def invalid_json_message(error: json.JSONDecodeError, source: str = "") -> str:
+    """Describe a JSON parse failure by position only.
+
+    The single place that turns a decode error into something a submitter
+    sees, so the "literals and numbers only" rule in InvalidCatalogSource has
+    one place to hold rather than every call site. lineno/colno are ints;
+    error.msg and str(error) are deliberately unused.
+    """
+    where = f" in the {source}" if source else ""
+    return f"Invalid JSON{where} at line {error.lineno}, column {error.colno}."
+
+
+def _validate_fetch_target(url: str) -> None:
     parsed = urlparse(url)
 
     if parsed.scheme not in ("http", "https"):
-        raise ValueError("Only HTTP/HTTPS URLs are allowed.")
+        raise InvalidCatalogSource("Only HTTP/HTTPS URLs are allowed.")
 
     if not parsed.hostname:
-        raise ValueError("Invalid URL.")
+        raise InvalidCatalogSource("Invalid URL.")
 
     if not is_public_ip(parsed.hostname) and IS_PROD:
-        raise ValueError("Access to private/internal addresses is not allowed.")
-
-    try:
-        response = requests.get(
-            url,
-            headers={"User-Agent": USER_AGENT},
-            stream=True,
+        raise InvalidCatalogSource(
+            "Access to private/internal addresses is not allowed."
         )
-        response.raise_for_status()
-    except Exception as e:
-        raise ValueError(f"Error processing request: {str(e)}")
 
-    content_length = response.headers.get("Content-Length")
-    if content_length and int(content_length) > MAX_UPLOAD_BYTES:
-        raise ValueError(PAYLOAD_TOO_LARGE_MESSAGE)
 
-    content_type = response.headers.get("Content-Type", "")
-    if "application/json" not in content_type:
-        raise ValueError("URL did not return JSON.")
+def fetch_json_from_url(url: str) -> dict:
+    # The URL itself isn't sensitive - it's a pointer to a public DCAT catalog,
+    # which is the whole point of this feature - so it's safe to log, unlike
+    # pasted/uploaded catalog content. Logged up front so a hung or rejected
+    # fetch still shows which URL was responsible.
+    logger.info("Validator fetching url=%s", url)
 
-    chunks = []
-    total_size = 0
+    _validate_fetch_target(url)
 
+    # One deadline for the whole operation, not a fresh FETCH_TIMEOUT_SECONDS
+    # per redirect hop - otherwise a chain of MAX_FETCH_REDIRECTS redirects,
+    # each just under the timeout, could run for
+    # MAX_FETCH_REDIRECTS x FETCH_TIMEOUT_SECONDS in total, defeating the
+    # point of bounding this at all.
+    deadline = time.monotonic() + FETCH_TIMEOUT_SECONDS
+
+    def _remaining_budget() -> float:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise requests.exceptions.Timeout(
+                f"Exceeded the {FETCH_TIMEOUT_SECONDS}s fetch budget"
+            )
+        return remaining
+
+    response = None
     try:
+        for _ in range(MAX_FETCH_REDIRECTS + 1):
+            remaining = _remaining_budget()
+            response = requests.get(
+                url,
+                headers={"User-Agent": USER_AGENT},
+                stream=True,
+                timeout=(
+                    min(FETCH_CONNECT_TIMEOUT_SECONDS, remaining),
+                    remaining,
+                ),
+                allow_redirects=False,
+            )
+            if response.status_code not in _REDIRECT_STATUS_CODES:
+                break
+
+            location = response.headers.get("Location")
+            response.close()
+            if not location:
+                raise InvalidCatalogSource("Redirected without a Location header.")
+
+            url = urljoin(url, location)
+            _validate_fetch_target(url)
+        else:
+            raise InvalidCatalogSource("Too many redirects.")
+
+        response.raise_for_status()
+
+        content_length = response.headers.get("Content-Length")
+        if content_length and int(content_length) > MAX_UPLOAD_BYTES:
+            raise InvalidCatalogSource(PAYLOAD_TOO_LARGE_MESSAGE)
+
+        content_type = response.headers.get("Content-Type", "")
+        if "application/json" not in content_type:
+            raise InvalidCatalogSource("URL did not return JSON.")
+
+        chunks = []
+        total_size = 0
         for chunk in response.iter_content(chunk_size=8192):
+            # A response trickling in just under requests' own per-read
+            # timeout could otherwise stay within budget on every individual
+            # read while still blowing past FETCH_TIMEOUT_SECONDS overall.
+            _remaining_budget()
             if chunk:
                 total_size += len(chunk)
                 if total_size > MAX_UPLOAD_BYTES:
-                    raise ValueError(PAYLOAD_TOO_LARGE_MESSAGE)
+                    raise InvalidCatalogSource(PAYLOAD_TOO_LARGE_MESSAGE)
                 chunks.append(chunk)
+    except requests.exceptions.Timeout:
+        logger.warning(
+            "Validator URL fetch timed out after %ss url=%s",
+            FETCH_TIMEOUT_SECONDS,
+            url,
+        )
+        raise InvalidCatalogSource(
+            f"The URL took longer than {FETCH_TIMEOUT_SECONDS} seconds to "
+            "respond. Check that the URL is correct and the server is up."
+        )
+    except InvalidCatalogSource:
+        raise
+    except Exception as e:
+        # Connection refused, DNS failure, TLS error, bad status - the
+        # submitter can act on these, but requests' own text can carry
+        # internals, so log it and answer with a fixed message.
+        logger.warning("Validator URL fetch failed url=%s error=%s", url, repr(e))
+        raise InvalidCatalogSource(UNEXPECTED_FETCH_ERROR_MESSAGE)
     finally:
-        response.close()
+        if response is not None:
+            response.close()
 
     content = b"".join(chunks)
 
     if len(content) > MAX_UPLOAD_BYTES:
-        raise ValueError(PAYLOAD_TOO_LARGE_MESSAGE)
+        raise InvalidCatalogSource(PAYLOAD_TOO_LARGE_MESSAGE)
 
     try:
         return json.loads(content)
     except json.JSONDecodeError as e:
-        raise ValueError(f"Invalid JSON: {str(e)}")
+        raise InvalidCatalogSource(invalid_json_message(e))
 
 
 class CatalogTooDeeplyNested(ValueError):
