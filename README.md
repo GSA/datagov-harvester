@@ -11,6 +11,8 @@ This repository holds the source code the Data.gov Harvester 2.0, which includes
 
 - datagov-harvest-proxy: This is an nginx app which owns the public route and proxies traffic to the internal Flask app route.
 
+DCAT-US validation (the admin app's `/validate/` page and `/api/v1/validate`) runs in a separate service, [GSA/datagov-validator](https://github.com/GSA/datagov-validator).
+
 There is further documentation in the [developer](/docs/developer.md) quickstart.
 
 

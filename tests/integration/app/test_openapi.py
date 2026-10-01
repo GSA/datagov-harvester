@@ -64,7 +64,6 @@ class TestOpenAPI:
             {"name": "Harvest Records"},
             {"name": "Harvest Sources"},
             {"name": "Organizations"},
-            {"name": "Validate"},
         ]
         assert all(path.startswith("/api/v1/") for path in spec["paths"])
 
@@ -84,7 +83,6 @@ class TestOpenAPI:
             "/api/v1/organization/{org_identifier}": "Organizations",
             "/api/v1/organization_list/": "Organizations",
             "/api/v1/organizations/": "Organizations",
-            "/api/v1/validate": "Validate",
         }
         assert set(expected_tags) == set(spec["paths"])
         for path, operations in spec["paths"].items():

@@ -79,60 +79,6 @@ class TestValidator:
         expect(upage.locator(".error-list")).to_be_visible()
         expect(upage.locator(".error-block")).to_have_count(1)
 
-    def test_api_validate_by_url(self, upage, validator_api_url):
-
-        res = upage.request.post(
-            "/api/v1/validate",
-            headers={
-                "Content-Type": "application/json",
-            },
-            data=validator_api_url,
-        )
-
-        assert res.status == 200
-        assert res.json() == {
-            "validation_errors": [[0, "$, 'identifier' is a required property"]]
-        }
-
-    def test_api_validate_by_bad_url(self, upage, validator_api_url):
-
-        validator_api_url["url"] = "nonsense"
-
-        res = upage.request.post(
-            "/api/v1/validate",
-            headers={
-                "Content-Type": "application/json",
-            },
-            data=validator_api_url,
-        )
-
-        assert res.status == 422
-        assert res.json() == {
-            "detail": {"json": {"url": ["Not a valid URL."]}},
-            "message": "Validation error",
-        }
-
-    def test_api_validate_by_json(self, upage, validator_api_json):
-
-        res = upage.request.post(
-            "/api/v1/validate",
-            headers={
-                "Content-Type": "application/json",
-            },
-            data=validator_api_json,
-        )
-
-        # ruff: noqa: E501
-        assert res.status == 200
-        assert res.json() == {
-            "validation_errors": [
-                [
-                    "https://www.arcgis.com/home/item.html?id=99731bb0369848169d98f31ce83fb0e2",
-                    "$.license, 'center' does not match any of the acceptable formats: 'uri', 'null', '^(\\\\[\\\\[REDACTED).*?(\\\\]\\\\])$'",
-                ]
-            ]
-        }
-
     def test_download_button_triggers_csv(self, upage, dcatus_many_invalid_json):
         """
         The download button should only appear when there are more than 10 errors,
@@ -231,9 +177,9 @@ class TestValidator:
         upage.locator("input[type=submit]").click()
 
         # Position only - the decoder's own message is deliberately not shown,
-        # see app.util.invalid_json_message.
+        # see invalid_json_message in GSA/datagov-validator.
         expect(upage.locator("#upload_field .usa-error-message")).to_have_text(
-            "Invalid JSON in the uploaded file at line 1, column 1."
+            "Invalid JSON at line 1, column 1."
         )
         expect(upage.locator(".error-list")).not_to_be_visible()
 
