@@ -1734,6 +1734,7 @@ def sample_dataset():
             "title": "Dataset Title",
             "description": "Dataset description",
             "publisher": {"name": "Publisher"},
+            "accessLevel": "public",
             "keyword": ["kw-1"],
             "theme": ["theme-1"],
             "identifier": "id-1",
