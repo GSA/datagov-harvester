@@ -89,7 +89,6 @@ jobs:
           manifest_vars: >-
             --var opensearch_service_name=datagov-catalog-opensearch-next
           deploy_proxy: "false"
-          deploy_validator: "false"
           cf_username: ${{ secrets.CF_SERVICE_USER }}
           cf_password: ${{ secrets.CF_SERVICE_AUTH }}
 
@@ -258,12 +257,26 @@ jobs:
           cf_username: ${{ secrets.CF_SERVICE_USER }}
           cf_password: ${{ secrets.CF_SERVICE_AUTH }}
 
+      # datagov-validator is deployed from GSA/datagov-validator, so it has to
+      # exist in the space before these policies can be added.
       - name: Add proxy-to-validator network policy
         id: proxy_validator_policy
         uses: cloud-gov/cg-cli-tools@main
         with:
           command: >
-            cf add-network-policy datagov-harvest-proxy datagov-harvest-validator
+            cf add-network-policy datagov-harvest-proxy datagov-validator
+            --protocol tcp --port 61443
+          cf_org: gsa-datagov
+          cf_space: ${{ env.CF_SPACE }}
+          cf_username: ${{ secrets.CF_SERVICE_USER }}
+          cf_password: ${{ secrets.CF_SERVICE_AUTH }}
+
+      - name: Add admin-to-validator network policy
+        id: admin_validator_policy
+        uses: cloud-gov/cg-cli-tools@main
+        with:
+          command: >
+            cf add-network-policy datagov-harvest datagov-validator
             --protocol tcp --port 61443
           cf_org: gsa-datagov
           cf_space: ${{ env.CF_SPACE }}

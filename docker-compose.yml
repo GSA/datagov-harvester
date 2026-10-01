@@ -60,6 +60,21 @@ services:
         interval: 5s
         timeout: 5s
         retries: 5
+  # Backs the /validate/ page (GSA/datagov-validator). Build it from a local
+  # checkout instead with VALIDATOR_IMAGE and
+  # `docker build -t "$VALIDATOR_IMAGE" ../datagov-validator`.
+  validator:
+    image: ${VALIDATOR_IMAGE:-ghcr.io/gsa/datagov-validator:latest}
+    environment:
+      # so the sample catalogs on nginx-harvest-source can be fetched by URL
+      ALLOW_PRIVATE_ADDRESSES: "true"
+    ports:
+      - "${VALIDATOR_PORT:-8081}:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
   app:
     build: .
     depends_on:
@@ -69,6 +84,8 @@ services:
         condition: service_healthy
       transformer:
         condition: service_healthy
+      validator:
+        condition: service_healthy
     volumes:
       - .:/app
     environment:
@@ -77,6 +94,7 @@ services:
       CF_SERVICE_USER: ${CF_SERVICE_USER}
       CF_SERVICE_AUTH: ${CF_SERVICE_AUTH}
       SESSION_IDLE_TIMEOUT_SECONDS: ${SESSION_IDLE_TIMEOUT_SECONDS:-28800}
+      VALIDATOR_API_URL: http://validator:8080/api/v1/validate
       FLASK_APP: run.py
       FLASK_DEBUG: "1"
     ports:

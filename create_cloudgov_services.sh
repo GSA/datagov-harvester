@@ -18,20 +18,6 @@ cf service "${app_name}-smtp"  > /dev/null 2>&1 || cf create-service --wait aws-
 # create the secrets service if necessary
 cf service "${app_name}-secrets"  > /dev/null 2>&1 || cf cups "${app_name}-secrets"
 
-# create a validator-scoped secrets service if necessary. datagov-harvest-validator
-# binds this instead of ${app_name}-secrets so a compromised validator (it takes
-# public, server-side URL-fetch requests) doesn't inherit the admin app's full
-# secret set (GSA/data.gov#6293). `cf cups` with no `-p` creates it empty, same as
-# ${app_name}-secrets above; see docs/developer.md for what to populate it with.
-cf service "${app_name}-validator-secrets"  > /dev/null 2>&1 || cf cups "${app_name}-validator-secrets"
-
-# create a validator-scoped fake database binding if necessary. The validator's
-# routes never query a database, but harvester/__init__.py builds a SQLAlchemy
-# engine (it never connects at construction) at import time regardless, so it
-# needs *some* syntactically valid URI - deliberately not one that resolves to
-# the real admin database.
-cf service "${app_name}-validator-db" > /dev/null 2>&1 || cf cups "${app_name}-validator-db" -p '{"uri":"postgres://invalid:invalid@127.0.0.1:5432/invalid"}'
-
 # create the OpenSearch service if necessary
 opensearch_plan=$(opensearch_plan_for_space "$space")
 if [ -n "$opensearch_plan" ]; then

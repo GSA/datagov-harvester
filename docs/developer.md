@@ -315,20 +315,6 @@ A user provided service by the name of `datagov-harvest-secrets` is also expecte
 
 CF_SERVICE_* variables can be extracted from from service-keys by running `cf service-key ci-deployer datagov-harvest-deployer` in the appropriate space.
 
-`datagov-harvest-validator` binds its own `datagov-harvest-validator-secrets` and `datagov-harvest-validator-db` instead, so a compromised validator (it takes public, server-side URL-fetch requests) doesn't inherit the admin app's full secret set (GSA/data.gov#6293). `create_cloudgov_services.sh` creates both empty/placeholder if missing, but only the app code enforces that `FLASK_APP_SECRET_KEY`/`HARVEST_API_TOKEN` are *non-empty* - it never checks their value, and nothing the validator serves is `@login_required`, so these two can be any throwaway string, independent of the admin app's real ones. `CF_SERVICE_USER`/`CF_SERVICE_AUTH`/`NEW_RELIC_LICENSE_KEY` must be the *same real values* as `datagov-harvest-secrets` - `LoadManager` authenticates to the CF API with them at import time regardless of which app is running, so fake values crash the boot rather than sitting unused. After `create_cloudgov_services.sh` runs (or by hand the first time), populate it once per space:
-
-```bash
-cf cups datagov-harvest-validator-secrets -p '{
-  "FLASK_APP_SECRET_KEY": "<any random string, independent of the admin app'"'"'s>",
-  "HARVEST_API_TOKEN": "<any random string, independent of the admin app'"'"'s>",
-  "CF_SERVICE_AUTH": "<same value as datagov-harvest-secrets>",
-  "CF_SERVICE_USER": "<same value as datagov-harvest-secrets>",
-  "NEW_RELIC_LICENSE_KEY": "<same value as datagov-harvest-secrets>"
-}'
-```
-
-`datagov-harvest-validator-db` needs no manual step - `create_cloudgov_services.sh` populates it with a fake, non-resolving URI, which is all `harvester/__init__.py`'s `create_engine()` call needs to boot (it never connects at construction, and nothing the validator serves ever queries it).
-
 ### Manually Deploying the Flask Application to development
 
 Note: we prefer that you deploy to the development environment by pushing to the `develop` branch, which triggers deployment. That approach provides better team visibility. However, there are circumstances where deploying from the command line is necessary; for example if a failing action is preventing deployment.
@@ -354,20 +340,17 @@ Note: we prefer that you deploy to the development environment by pushing to the
 ## Applications
 
 ### datagov-harvest-proxy
-This is an nginx app which owns the public route and proxies traffic to the internal Flask app route. It also splits off validator traffic: `/validate`, `/validate/`, `/api/validate`, and `/api/v1/validate` are proxied to `datagov-harvest-validator` instead of `datagov-harvest` (see `proxy/nginx-common.conf` and `proxy/nginx-maps.conf`). Everything else goes to `datagov-harvest` as before.
+This is an nginx app which owns the public route and proxies traffic to the internal Flask app route. `/api/validate` and `/api/v1/validate` are forwarded to `datagov-validator` instead, so existing callers of `harvest.data.gov/api/v1/validate` keep working (see `proxy/nginx-common.conf` and `proxy/nginx-maps.conf`). Everything else, including the `/validate/` page, goes to `datagov-harvest`.
 
 ### datagov-harvest
 This is a Flask app which manages the configuration of harvest sources, organizations, and the creation of harvest jobs.
 
-### datagov-harvest-validator
-Runs the identical codebase as `datagov-harvest`, deployed as a separate Cloud Foundry app so public validator traffic (schema validation, including the server-side URL-fetch option) can't consume the admin app's capacity or be scaled/restarted independently of it (GSA/data.gov#6293). Its manifest entry:
+### datagov-validator
+DCAT-US validation (the `/validate/` page's results and the validate API) runs in the standalone [GSA/datagov-validator](https://github.com/GSA/datagov-validator) app. It has no database and no authentication, and it is deployed from its own repo. The `/validate/` page renders the form and the results here, and calls that app's `POST /api/v1/validate` server-side through `VALIDATOR_API_URL` (`app/validator_client.py`, `validator_api_url` in `vars.<space>.yml`). URL submissions are fetched by the validator, not by this app.
 
-- Binds its own `datagov-harvest-validator-db` and `datagov-harvest-validator-secrets` rather than the admin app's — see [Services > User provided](#user-provided) for what goes in each and why. It does not bind OpenSearch or SMTP — nothing on the validator's request path uses either.
-- Still sets `CLIENT_ID`/`ISSUER`/`REDIRECT_URI` even though the validator never serves `/login` or `/callback`: `app/main/auth.py` and `harvester/utils/general_utils.py`'s `SMTP_CONFIG` both dereference `ISSUER`/`REDIRECT_URI` unconditionally at import time, and those modules load during `create_app()` regardless of which routes a given app actually serves.
-- Sets `SKIP_DB_MIGRATIONS=true` so its own instance 0 doesn't also run `flask db upgrade` against the shared database (`app-start.sh` checks this before migrating).
-- Has its own `validator_instances`/`validator_memory_quota`/`validator_disk_quota` vars per space, separate from `admin_*`.
-
-The `/validate*` routes still exist on `datagov-harvest` itself (unchanged) - the split is only in how the proxy routes traffic, so reverting the two `proxy/nginx-*.conf` location/map additions is a full rollback to routing everything through the admin app.
+- `datagov-harvest` and `datagov-harvest-proxy` reach it over its internal route (`route_internal_validator`) on port 61443. `release-space.yml` adds both network policies, so `datagov-validator` has to exist in a space before a harvester release there.
+- Locally, `docker compose` runs it as the `validator` service from `ghcr.io/gsa/datagov-validator:latest`. To use a local checkout, build it with `docker build -t datagov-validator:local ../datagov-validator` and set `VALIDATOR_IMAGE=datagov-validator:local`.
+- The harvest runner still validates records with its own copy of the error-message formatting (`harvester/utils/general_utils.py`). datagov-validator has a copy of the same code, so change both together.
 
 #### User management
 

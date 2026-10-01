@@ -12,13 +12,11 @@ from app.deps import (
 )
 from app.forms import DatasetSlugForm, ValidatorForm
 from app.paginate import Pagination
-from app.util import (
-    UNEXPECTED_FETCH_ERROR_MESSAGE,
-    CatalogTooDeeplyNested,
-    InvalidCatalogSource,
-    fetch_json_from_url,
-    invalid_json_message,
-    validate_records,
+from app.validator_client import (
+    VALIDATOR_UNAVAILABLE_MESSAGE,
+    ValidatorRefused,
+    ValidatorUnavailable,
+    validate_catalog,
 )
 from harvester.utils.general_utils import (
     convert_to_int,
@@ -280,43 +278,34 @@ def view_validators():
 
     form = ValidatorForm()
     if form.validate_on_submit():
-        data = []
-        # Rejections render next to the offending field (see view_validators.html),
-        # so the submitter is told *why* - a timeout, an internal address, an
-        # oversized body. Only messages built to be disclosed are shown;
-        # anything unanticipated is logged and reported generically rather than
-        # putting exception text on a public page.
-        if form.fetch_method.data == "url":
-            try:
-                data = fetch_json_from_url(form.url.data)
-            except InvalidCatalogSource as e:
-                form.url.errors.append(str(e))
-            except Exception as e:
-                logger.error("Validator url fetch failed unexpectedly :: %s", repr(e))
-                form.url.errors.append(UNEXPECTED_FETCH_ERROR_MESSAGE)
-        elif form.fetch_method.data == "paste":
-            try:
-                data = json.loads(form.json_text.data)
-            except json.JSONDecodeError as e:
-                form.json_text.errors.append(invalid_json_message(e))
-            except Exception as e:
-                logger.error("Validator paste parse failed :: %s", repr(e))
-                form.json_text.errors.append("Could not read the pasted JSON.")
+        # Validation itself runs in the datagov-validator service (see
+        # app/validator_client.py). Rejections render next to the offending
+        # field (see view_validators.html), so the submitter is told *why* - a
+        # timeout, an internal address, an oversized body. Only messages built
+        # to be disclosed are shown; anything unanticipated is logged and
+        # reported generically rather than putting exception text on a public
+        # page.
+        field = getattr(form, _VALIDATOR_INPUT_FIELDS[form.fetch_method.data])
+        json_text = None
+        if form.fetch_method.data == "paste":
+            json_text = form.json_text.data
         elif form.fetch_method.data == "upload":
             try:
                 raw = form.json_file.data.read()
-                data = json.loads(raw)
-            except json.JSONDecodeError as e:
-                form.json_file.errors.append(
-                    invalid_json_message(e, source="uploaded file")
-                )
+                # same encodings (and BOM handling) json.loads(bytes) accepts
+                json_text = raw.decode(json.detect_encoding(raw))
             except Exception as e:
                 logger.error("Validator upload read failed :: %s", repr(e))
-                form.json_file.errors.append("Could not read the uploaded file.")
+                field.errors.append("Could not read the uploaded file.")
 
         if not form.errors:
             try:
-                errors = validate_records(data, form.schema.data)
+                errors = validate_catalog(
+                    form.schema.data,
+                    "url" if form.fetch_method.data == "url" else "paste",
+                    url=form.url.data,
+                    json_text=json_text,
+                )
                 submitted = True
                 logger.info(
                     "Rendered validator results fetch_method=%s schema=%s "
@@ -325,14 +314,16 @@ def view_validators():
                     form.schema.data,
                     len(errors),
                 )
-            except CatalogTooDeeplyNested as e:
-                field = getattr(form, _VALIDATOR_INPUT_FIELDS[form.fetch_method.data])
+            except ValidatorRefused as e:
                 field.errors.append(str(e))
-                logger.warning(
-                    "Validator could not walk the document fetch_method=%s schema=%s",
+                logger.info(
+                    "Validator refused submission fetch_method=%s schema=%s",
                     form.fetch_method.data,
                     form.schema.data,
                 )
+            except ValidatorUnavailable as e:
+                logger.error("Validator API call failed :: %s", e)
+                field.errors.append(VALIDATOR_UNAVAILABLE_MESSAGE)
         else:
             logger.warning(
                 "Validator submission failed fetch_method=%s url_errors=%s "
