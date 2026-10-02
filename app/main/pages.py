@@ -1,4 +1,3 @@
-import json
 from datetime import timedelta
 
 from flask import flash, redirect, render_template, request, session, url_for
@@ -12,12 +11,6 @@ from app.deps import (
 )
 from app.forms import DatasetSlugForm, ValidatorForm
 from app.paginate import Pagination
-from app.validator_client import (
-    VALIDATOR_UNAVAILABLE_MESSAGE,
-    ValidatorRefused,
-    ValidatorUnavailable,
-    validate_catalog,
-)
 from harvester.utils.general_utils import (
     convert_to_int,
     get_datetime,
@@ -266,85 +259,18 @@ def openapi_docs():
     return render_template("/swagger.html")
 
 
-# the field carrying the document, so a rejection renders next to the input
-_VALIDATOR_INPUT_FIELDS = {"url": "url", "paste": "json_text", "upload": "json_file"}
-
-
-@main.route("/validate/", methods=["GET", "POST"])
+@main.route("/validate/", methods=["GET"])
 def view_validators():
-    """View for validating v1.1 or v3.0 dcatus catalogs using form."""
-    errors = []
-    submitted = False
-
+    """View for the DCAT-US validator page. Submission is a same-origin
+    client-side fetch() straight to /api/v1/validate (see
+    app/static/js/view_validators.js) - nginx proxies that path directly to
+    the datagov-validator service, so this app has no code path that calls
+    out to the validator and can't be made to block on it."""
     form = ValidatorForm()
-    if form.validate_on_submit():
-        # Validation itself runs in the datagov-validator service (see
-        # app/validator_client.py). Rejections render next to the offending
-        # field (see view_validators.html), so the submitter is told *why* - a
-        # timeout, an internal address, an oversized body. Only messages built
-        # to be disclosed are shown; anything unanticipated is logged and
-        # reported generically rather than putting exception text on a public
-        # page.
-        field = getattr(form, _VALIDATOR_INPUT_FIELDS[form.fetch_method.data])
-        json_text = None
-        if form.fetch_method.data == "paste":
-            json_text = form.json_text.data
-        elif form.fetch_method.data == "upload":
-            try:
-                raw = form.json_file.data.read()
-                # same encodings (and BOM handling) json.loads(bytes) accepts
-                json_text = raw.decode(json.detect_encoding(raw))
-            except Exception as e:
-                logger.error("Validator upload read failed :: %s", repr(e))
-                field.errors.append("Could not read the uploaded file.")
-
-        if not form.errors:
-            try:
-                errors = validate_catalog(
-                    form.schema.data,
-                    "url" if form.fetch_method.data == "url" else "paste",
-                    url=form.url.data,
-                    json_text=json_text,
-                )
-                submitted = True
-                logger.info(
-                    "Rendered validator results fetch_method=%s schema=%s "
-                    "validation_errors=%s",
-                    form.fetch_method.data,
-                    form.schema.data,
-                    len(errors),
-                )
-            except ValidatorRefused as e:
-                field.errors.append(str(e))
-                logger.info(
-                    "Validator refused submission fetch_method=%s schema=%s",
-                    form.fetch_method.data,
-                    form.schema.data,
-                )
-            except ValidatorUnavailable as e:
-                logger.error("Validator API call failed :: %s", e)
-                field.errors.append(VALIDATOR_UNAVAILABLE_MESSAGE)
-        else:
-            logger.warning(
-                "Validator submission failed fetch_method=%s url_errors=%s "
-                "json_errors=%s",
-                form.fetch_method.data,
-                len(form.url.errors),
-                len(form.json_text.errors),
-            )
-
-    template_data = {
-        "record_errors": errors,
-    }
-
-    if request.method == "GET":
-        logger.info("Rendered validator page")
-
+    logger.info("Rendered validator page")
     return render_template(
         "view_validators.html",
         form=form,
-        data=template_data,
-        submitted=submitted,
         max_upload_bytes=MAX_UPLOAD_BYTES,
         max_upload_mb=MAX_UPLOAD_MB,
     )
