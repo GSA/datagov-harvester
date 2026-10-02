@@ -1,55 +1,64 @@
 import json
 from unittest.mock import Mock
 
+import pytest
 import requests
 
 from app.constants import MAX_UPLOAD_BYTES, MAX_UPLOAD_MB
-from app.util import (
-    FETCH_TIMEOUT_SECONDS,
-    NESTING_TOO_DEEP_MESSAGE,
-    UNEXPECTED_FETCH_ERROR_MESSAGE,
-)
+from app.validator_client import VALIDATOR_UNAVAILABLE_MESSAGE
 
 # Flask 3.1's MAX_FORM_MEMORY_SIZE default, which used to cap pasted JSON far
 # below the advertised limit.
 FLASK_DEFAULT_FORM_MEMORY_SIZE = 500_000
 
+VALIDATOR_API_URL = "http://validator.test/api/v1/validate"
 
-def _paste_form(json_text):
+# messages datagov-validator answers with; it owns their wording
+NESTING_TOO_DEEP_MESSAGE = (
+    "Catalog is nested too deeply to validate. "
+    "Flatten the nested catalog or hasPart chains and try again."
+)
+TIMEOUT_MESSAGE = (
+    "The URL took longer than 10 seconds to respond. "
+    "Check that the URL is correct and the server is up."
+)
+PRIVATE_ADDRESS_MESSAGE = "Access to private/internal addresses is not allowed."
+
+
+def _api_response(status_code, body):
+    response = Mock()
+    response.status_code = status_code
+    response.json = Mock(return_value=body)
+    return response
+
+
+@pytest.fixture
+def validator_api(app, monkeypatch):
+    """
+    Stands in for datagov-validator. Answers "no errors" unless a test sets
+    `return_value`/`side_effect`; inspect `call_args` for what the page sent.
+    """
+    app.config.update({"WTF_CSRF_ENABLED": False})
+    monkeypatch.setenv("VALIDATOR_API_URL", VALIDATOR_API_URL)
+    post = Mock(return_value=_api_response(200, {"validation_errors": []}))
+    monkeypatch.setattr("app.validator_client.requests.post", post)
+    return post
+
+
+def _paste_form(json_text, schema="dcatus1.1: federal dataset"):
     return {
-        "schema": "dcatus1.1: federal dataset",
+        "schema": schema,
         "fetch_method": "paste",
         "json_text": json_text,
     }
 
 
-def _deeply_nested_catalog(depth=200):
-    """3.0: Catalog.catalog is `items: {"$ref": "#"}`. 150 validates, 200 does not."""
-    catalog = {"@type": "Catalog", "title": "t", "description": "d", "dataset": []}
-    for _ in range(depth):
-        catalog = {
-            "@type": "Catalog",
-            "title": "t",
-            "description": "d",
-            "dataset": [],
-            "catalog": [catalog],
-        }
-    return json.dumps(catalog)
-
-
-def _deeply_nested_publisher(depth=300):
-    """1.1: $defs/organization.subOrganizationOf is `{"$ref": "#"}`, so it recurses
-    into the whole dataset schema. 200 validates, 300 does not."""
-    org = {"@type": "org:Organization", "name": "n"}
-    for _ in range(depth):
-        org = {"@type": "org:Organization", "name": "n", "subOrganizationOf": org}
-    return json.dumps(
-        {
-            "dataset": [
-                {"title": "t", "description": "d", "identifier": "i", "publisher": org}
-            ]
-        }
-    )
+def _url_form(url):
+    return {
+        "schema": "dcatus1.1: federal dataset",
+        "fetch_method": "url",
+        "url": url,
+    }
 
 
 class TestValidatorUploadLimits:
@@ -69,12 +78,13 @@ class TestValidatorUploadLimits:
         assert f"const MAX_UPLOAD_BYTES = {MAX_UPLOAD_BYTES};" in res.text
         assert f"Maximum size: {MAX_UPLOAD_MB} MB." in res.text
 
-    def test_pasted_json_over_flask_form_default_is_accepted(self, app, client):
+    def test_pasted_json_over_flask_form_default_is_accepted(
+        self, client, validator_api
+    ):
         padding = "x" * (2 * 1024 * 1024)
         catalog = json.dumps({"dataset": [], "padding": padding})
         assert FLASK_DEFAULT_FORM_MEMORY_SIZE < len(catalog) < MAX_UPLOAD_BYTES
 
-        app.config.update({"WTF_CSRF_ENABLED": False})
         res = client.post(
             "/validate/",
             data=_paste_form(catalog),
@@ -84,11 +94,11 @@ class TestValidatorUploadLimits:
         assert res.status_code == 200
         # the form was processed, not re-rendered blank
         assert b"No validation errors found" in res.data
+        assert validator_api.call_args.kwargs["json"]["json_text"] == catalog
 
-    def test_pasted_json_over_the_upload_limit_is_rejected(self, app, client):
+    def test_pasted_json_over_the_upload_limit_is_rejected(self, client, validator_api):
         oversized = "x" * (MAX_UPLOAD_BYTES + 1024)
 
-        app.config.update({"WTF_CSRF_ENABLED": False})
         res = client.post(
             "/validate/",
             data=_paste_form(oversized),
@@ -96,6 +106,7 @@ class TestValidatorUploadLimits:
         )
 
         assert res.status_code == 413
+        validator_api.assert_not_called()
 
 
 class TestRequestEntityTooLargeHandler:
@@ -104,8 +115,7 @@ class TestRequestEntityTooLargeHandler:
     blob. See GSA/data.gov#6067.
     """
 
-    def test_html_route_renders_the_error_page(self, app, client):
-        app.config.update({"WTF_CSRF_ENABLED": False})
+    def test_html_route_renders_the_error_page(self, client, validator_api):
         res = client.post(
             "/validate/",
             data=_paste_form("x" * (MAX_UPLOAD_BYTES + 1024)),
@@ -118,10 +128,10 @@ class TestRequestEntityTooLargeHandler:
         # rendered through base.html, not a bare APIFlask response
         assert "Return to the JSON Schema Validator" in res.text
 
-    def test_api_route_returns_json(self, app, client):
+    def test_api_route_returns_json(self, client):
         res = client.post(
-            "/api/v1/validate",
-            data=b'{"json_text":"' + b"x" * (MAX_UPLOAD_BYTES + 1024) + b'"}',
+            "/api/v1/organization/add",
+            data=b'{"name":"' + b"x" * (MAX_UPLOAD_BYTES + 1024) + b'"}',
             content_type="application/json",
         )
 
@@ -133,135 +143,186 @@ class TestRequestEntityTooLargeHandler:
         }
 
 
-class TestDeeplyNestedCatalog:
-    """
-    A document small enough to pass every size limit can still be too deep to walk.
-    Both surfaces must say so rather than 500. See GSA/data.gov#6067.
-    """
+class TestSubmissionsReachTheValidator:
+    def test_results_are_rendered(self, client, validator_api):
+        validator_api.return_value = _api_response(
+            200,
+            {
+                "validation_errors": [
+                    [0, "$, 'identifier' is a required property"],
+                    ["abc", "$.title, 'title' is a required property"],
+                ]
+            },
+        )
 
-    def test_html_route_reports_it_as_a_field_error(self, app, client):
-        app.config.update({"WTF_CSRF_ENABLED": False})
+        res = client.post(
+            "/validate/",
+            data=_paste_form('{"dataset": [{}]}'),
+            content_type="multipart/form-data",
+        )
+
+        assert res.status_code == 200
+        assert "0 (dataset position)" in res.text
+        assert "$, &#39;identifier&#39; is a required property" in res.text
+        assert "abc" in res.text
+
+    def test_url_is_sent_for_the_validator_to_fetch(self, client, validator_api):
+        res = client.post(
+            "/validate/",
+            data=_url_form("https://example.com/data.json"),
+            content_type="multipart/form-data",
+        )
+
+        assert res.status_code == 200
+        assert validator_api.call_args.args == (VALIDATOR_API_URL,)
+        assert validator_api.call_args.kwargs["json"] == {
+            "schema": "dcatus1.1: federal dataset",
+            "fetch_method": "url",
+            "url": "https://example.com/data.json",
+        }
+
+    def test_dcatus3_paste(self, client, validator_api):
+        client.post(
+            "/validate/",
+            data=_paste_form('{"@type": "Catalog"}', schema="dcatus3.0 catalog"),
+            content_type="multipart/form-data",
+        )
+
+        assert validator_api.call_args.kwargs["json"] == {
+            "schema": "dcatus3.0 catalog",
+            "fetch_method": "paste",
+            "json_text": '{"@type": "Catalog"}',
+        }
+
+    def test_upload_is_sent_as_pasted_text(self, client, validator_api):
+        from io import BytesIO
+
+        # BOM-prefixed, which json.loads(bytes) accepted when the page parsed it
+        document = '{"dataset": []}'
         res = client.post(
             "/validate/",
             data={
-                "schema": "dcatus3.0 catalog",
-                "fetch_method": "paste",
-                "json_text": _deeply_nested_catalog(),
+                "schema": "dcatus1.1: federal dataset",
+                "fetch_method": "upload",
+                "json_file": (BytesIO(b"\xef\xbb\xbf" + document.encode()), "c.json"),
             },
+            content_type="multipart/form-data",
+        )
+
+        assert res.status_code == 200
+        assert b"No validation errors found" in res.data
+        assert validator_api.call_args.kwargs["json"] == {
+            "schema": "dcatus1.1: federal dataset",
+            "fetch_method": "paste",
+            "json_text": document,
+        }
+
+
+class TestRefusalsAreExplained:
+    """
+    A submission the validator refuses has to say why, beside the input that
+    carried it (GSA/data.gov#6067, GSA/data.gov#6293).
+    """
+
+    @pytest.mark.parametrize(
+        "status_code,message",
+        [
+            (400, TIMEOUT_MESSAGE),
+            (400, PRIVATE_ADDRESS_MESSAGE),
+            (422, NESTING_TOO_DEEP_MESSAGE),
+        ],
+    )
+    def test_url_refusal_shows_the_reason_by_the_field(
+        self, client, validator_api, status_code, message
+    ):
+        validator_api.return_value = _api_response(status_code, {"error": message})
+
+        res = client.post(
+            "/validate/",
+            data=_url_form("https://example.com/slow.json"),
+            content_type="multipart/form-data",
+        )
+
+        assert res.status_code == 200
+        assert message in res.text
+        assert '<span class="usa-error-message" role="alert">' in res.text
+        assert "No validation errors found" not in res.text
+
+    def test_paste_refusal_shows_the_reason_by_the_field(self, client, validator_api):
+        validator_api.return_value = _api_response(
+            422, {"error": NESTING_TOO_DEEP_MESSAGE}
+        )
+
+        res = client.post(
+            "/validate/",
+            data=_paste_form('{"dataset": []}', schema="dcatus3.0 catalog"),
             content_type="multipart/form-data",
         )
 
         assert res.status_code == 200
         assert NESTING_TOO_DEEP_MESSAGE in res.text
-        # rendered beside the input that carried it, not as a results table
-        assert '<span class="usa-error-message" role="alert">' in res.text
         assert "No validation errors found" not in res.text
 
-    def test_api_route_returns_422_naming_the_reason(self, client):
-        # 1.1, because ValidatorInfo rejects "dcatus3.0 catalog" (its own follow-up)
-        res = client.post(
-            "/api/v1/validate",
-            json={
-                "schema": "dcatus1.1: federal dataset",
-                "fetch_method": "paste",
-                "json_text": _deeply_nested_publisher(),
+    def test_request_the_validator_rejects_is_explained(self, client, validator_api):
+        """A URL the form accepts but the validator's own schema doesn't."""
+        validator_api.return_value = _api_response(
+            422,
+            {
+                "message": "Validation error",
+                "detail": {"json": {"url": ["Not a valid URL."]}},
             },
         )
 
-        assert res.status_code == 422
-        assert res.get_json() == {"error": NESTING_TOO_DEEP_MESSAGE}
-
-
-class TestRefusedUrlIsExplained:
-    """
-    A URL we decline to fetch has to say why on both surfaces. The page renders
-    it beside the url input; the API answers 400 (bad submission, not a server
-    fault) with the same reason, rather than an opaque 500. GSA/data.gov#6293.
-    """
-
-    def _url_form(self, url):
-        return {
-            "schema": "dcatus1.1: federal dataset",
-            "fetch_method": "url",
-            "url": url,
-        }
-
-    def test_html_route_shows_the_timeout_reason_by_the_field(
-        self, app, client, monkeypatch
-    ):
-        monkeypatch.setattr(
-            "app.util.requests.get",
-            Mock(side_effect=requests.exceptions.Timeout("timed out")),
-        )
-        app.config.update({"WTF_CSRF_ENABLED": False})
-
         res = client.post(
             "/validate/",
-            data=self._url_form("https://example.com/slow.json"),
+            data=_url_form("http://localhost/data.json"),
             content_type="multipart/form-data",
         )
 
         assert res.status_code == 200
-        assert f"longer than {FETCH_TIMEOUT_SECONDS} seconds" in res.text
-        assert '<span class="usa-error-message" role="alert">' in res.text
+        assert "Not a valid URL." in res.text
+
+
+class TestValidatorUnavailable:
+    """Anything unanticipated is logged and reported generically."""
+
+    @pytest.mark.parametrize(
+        "post",
+        [
+            Mock(side_effect=requests.exceptions.ConnectionError("internal detail")),
+            Mock(side_effect=requests.exceptions.Timeout("internal detail")),
+            Mock(return_value=_api_response(500, {"error": "internal detail"})),
+            Mock(return_value=_api_response(502, None)),
+            Mock(return_value=_api_response(200, {"unexpected": "shape"})),
+        ],
+    )
+    def test_failure_is_reported_generically(
+        self, client, validator_api, monkeypatch, post
+    ):
+        monkeypatch.setattr("app.validator_client.requests.post", post)
+
+        res = client.post(
+            "/validate/",
+            data=_url_form("https://example.com/data.json"),
+            content_type="multipart/form-data",
+        )
+
+        assert res.status_code == 200
+        assert VALIDATOR_UNAVAILABLE_MESSAGE in res.text
+        assert "internal detail" not in res.text
         assert "No validation errors found" not in res.text
 
-    def test_api_route_returns_400_with_the_timeout_reason(self, client, monkeypatch):
-        monkeypatch.setattr(
-            "app.util.requests.get",
-            Mock(side_effect=requests.exceptions.Timeout("timed out")),
-        )
-
-        res = client.post(
-            "/api/v1/validate",
-            json=self._url_form("https://example.com/slow.json"),
-        )
-
-        assert res.status_code == 400
-        assert f"longer than {FETCH_TIMEOUT_SECONDS} seconds" in res.get_json()["error"]
-
-    def test_html_route_shows_the_private_address_reason(
-        self, app, client, monkeypatch
+    def test_missing_configuration_is_reported_generically(
+        self, client, validator_api, monkeypatch
     ):
-        monkeypatch.setattr("app.util.IS_PROD", True)
-        app.config.update({"WTF_CSRF_ENABLED": False})
+        monkeypatch.delenv("VALIDATOR_API_URL")
 
         res = client.post(
             "/validate/",
-            data=self._url_form("http://127.0.0.1/secret.json"),
+            data=_paste_form('{"dataset": []}'),
             content_type="multipart/form-data",
         )
 
         assert res.status_code == 200
-        assert "private/internal addresses is not allowed" in res.text
-
-    def test_api_route_returns_400_for_a_private_address(self, client, monkeypatch):
-        monkeypatch.setattr("app.util.IS_PROD", True)
-
-        res = client.post(
-            "/api/v1/validate",
-            json=self._url_form("http://127.0.0.1/secret.json"),
-        )
-
-        assert res.status_code == 400
-        assert "private/internal addresses is not allowed" in res.get_json()["error"]
-
-    def test_unexpected_transport_error_is_not_disclosed(self, client, monkeypatch):
-        """Still a 400 the submitter can act on, but requests' own text - which
-        can name internal paths - must not reach the response body."""
-        monkeypatch.setattr(
-            "app.util.requests.get",
-            Mock(
-                side_effect=requests.exceptions.SSLError(
-                    "verify failed: /internal/path/ca-bundle.crt"
-                )
-            ),
-        )
-
-        res = client.post(
-            "/api/v1/validate",
-            json=self._url_form("https://example.com/data.json"),
-        )
-
-        assert res.status_code == 400
-        assert res.get_json() == {"error": UNEXPECTED_FETCH_ERROR_MESSAGE}
+        assert VALIDATOR_UNAVAILABLE_MESSAGE in res.text
+        validator_api.assert_not_called()

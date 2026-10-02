@@ -1,11 +1,8 @@
-import json
-import os
 from enum import Enum as PyEnum
 
 import marshmallow
 from apiflask import Schema, validators
 from apiflask.fields import (
-    URL,
     UUID,
     Boolean,
     DateTime,
@@ -15,7 +12,7 @@ from apiflask.fields import (
     List,
     String,
 )
-from marshmallow import ValidationError, validate
+from marshmallow import ValidationError
 
 from shared.constants import (
     ACTION_VALUES,
@@ -28,8 +25,6 @@ from shared.constants import (
     SEVERITY_VALUES,
     SOURCE_TYPE_VALUES,
 )
-
-IS_PROD = os.getenv("FLASK_ENV") == "production"
 
 
 def _to_enum(name, values):
@@ -173,59 +168,3 @@ class SourceInfo(Schema):
     notification_frequency = Enum(NOTIFICATION_FREQUENCY_ENUM, required=True)
     collection_parent_url = String()
     date_next_run = DateTime()
-
-
-class ValidatorInfo(Schema):
-    schema = String(
-        required=True,
-        validate=validators.OneOf(
-            [
-                "dcatus1.1: federal dataset",
-                "dcatus1.1: non-federal dataset",
-            ]
-        ),
-    )
-    fetch_method = String(
-        required=True,
-        validate=validators.OneOf(
-            [
-                "url",
-                "paste",
-            ]
-        ),
-    )
-    url = URL(require_tld=IS_PROD)
-
-    @marshmallow.validates_schema
-    def validate_url(self, data, **kwargs):
-        if data.get("fetch_method") == "url" and not data.get("url"):
-            raise ValidationError("'url' field is required when fetch_method is 'url'")
-
-    json_text = String()
-
-    @marshmallow.validates_schema
-    def validate_json_text(self, data, **kwargs):
-        if data.get("fetch_method") == "paste":
-            if not data.get("json_text"):
-                raise ValidationError(
-                    "'json_text' field is required when fetch_method is 'paste'"
-                )
-            else:
-                try:
-                    json.loads(data.get("json_text"))
-                except json.JSONDecodeError:
-                    raise ValidationError("Invalid JSON")
-
-
-class ValidationResultSchema(Schema):
-    validation_errors = List(
-        List(
-            String(),
-            validate=validate.Length(equal=2),
-        ),
-        required=True,
-    )
-
-
-class ValidationErrorResponseSchema(Schema):
-    error = String(required=True)
