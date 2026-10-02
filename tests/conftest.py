@@ -160,13 +160,6 @@ def dcatus_long_description_json():
         return file.read()
 
 
-@pytest.fixture
-def dcatus_bad_license_uri_json():
-    file = Path(__file__).parents[1] / "example_data/dcatus/dcatus_bad_license_uri.json"
-    with open(file, "r") as file:
-        return file.read()
-
-
 ## ORGS
 @pytest.fixture
 def organization_data(fixtures_json) -> dict:
@@ -1685,24 +1678,6 @@ def view_count_datasets():
         {"dataset_slug": "c", "view_count": 10},
         {"dataset_slug": "d", "view_count": 1},
     ]
-
-
-@pytest.fixture
-def validator_api_url():
-    return {
-        "schema": "dcatus1.1: non-federal dataset",
-        "fetch_method": "url",
-        "url": "http://nginx-harvest-source/dcatus/dcatus_no_identifier.json",
-    }
-
-
-@pytest.fixture
-def validator_api_json(dcatus_bad_license_uri_json):
-    return {
-        "schema": "dcatus1.1: non-federal dataset",
-        "fetch_method": "paste",
-        "json_text": dcatus_bad_license_uri_json,
-    }
 
 
 @pytest.fixture()

@@ -5,10 +5,16 @@ from playwright.sync_api import expect
 
 is_prod = os.getenv("FLASK_ENV") == "production"
 
+# /validate/ submits via a same-origin fetch() to /api/v1/validate, which only
+# the local nginx proxy (docker-compose's `proxy` service, PROXY_PORT) knows
+# to route to the validator container - the bare Flask dev server (base_url)
+# doesn't have that route at all.
+VALIDATOR_PROXY_URL = f"http://localhost:{os.getenv('PROXY_PORT', '8082')}/validate/"
+
 
 @pytest.fixture()
 def upage(unauthed_page):
-    unauthed_page.goto("/validate/")
+    unauthed_page.goto(VALIDATOR_PROXY_URL)
     yield unauthed_page
 
 
@@ -78,60 +84,6 @@ class TestValidator:
         # error table should be visible and with 5 validation errors
         expect(upage.locator(".error-list")).to_be_visible()
         expect(upage.locator(".error-block")).to_have_count(1)
-
-    def test_api_validate_by_url(self, upage, validator_api_url):
-
-        res = upage.request.post(
-            "/api/v1/validate",
-            headers={
-                "Content-Type": "application/json",
-            },
-            data=validator_api_url,
-        )
-
-        assert res.status == 200
-        assert res.json() == {
-            "validation_errors": [[0, "$, 'identifier' is a required property"]]
-        }
-
-    def test_api_validate_by_bad_url(self, upage, validator_api_url):
-
-        validator_api_url["url"] = "nonsense"
-
-        res = upage.request.post(
-            "/api/v1/validate",
-            headers={
-                "Content-Type": "application/json",
-            },
-            data=validator_api_url,
-        )
-
-        assert res.status == 422
-        assert res.json() == {
-            "detail": {"json": {"url": ["Not a valid URL."]}},
-            "message": "Validation error",
-        }
-
-    def test_api_validate_by_json(self, upage, validator_api_json):
-
-        res = upage.request.post(
-            "/api/v1/validate",
-            headers={
-                "Content-Type": "application/json",
-            },
-            data=validator_api_json,
-        )
-
-        # ruff: noqa: E501
-        assert res.status == 200
-        assert res.json() == {
-            "validation_errors": [
-                [
-                    "https://www.arcgis.com/home/item.html?id=99731bb0369848169d98f31ce83fb0e2",
-                    "$.license, 'center' does not match any of the acceptable formats: 'uri', 'null', '^(\\\\[\\\\[REDACTED).*?(\\\\]\\\\])$'",
-                ]
-            ]
-        }
 
     def test_download_button_triggers_csv(self, upage, dcatus_many_invalid_json):
         """
@@ -231,9 +183,9 @@ class TestValidator:
         upage.locator("input[type=submit]").click()
 
         # Position only - the decoder's own message is deliberately not shown,
-        # see app.util.invalid_json_message.
+        # see invalid_json_message in GSA/datagov-validator.
         expect(upage.locator("#upload_field .usa-error-message")).to_have_text(
-            "Invalid JSON in the uploaded file at line 1, column 1."
+            "Invalid JSON at line 1, column 1."
         )
         expect(upage.locator(".error-list")).not_to_be_visible()
 
@@ -280,16 +232,19 @@ class TestValidator:
         )
         assert upage.evaluate("window.__sameDocument") is True
 
-    def test_oversized_post_bypassing_the_browser_gets_the_413_page(self, upage):
-        """A request that skips the client-side guard still gets a readable page."""
+    def test_post_bypassing_the_browser_is_rejected(self, upage):
+        """
+        A request that skips the client-side guard entirely can't reach any
+        validation code - /validate/ only accepts GET now, so this can't be
+        used to tie up datagov-harvest's own workers (GSA/data.gov#6293).
+        """
         res = upage.request.post(
             "/validate/",
             headers={"Content-Type": "application/x-www-form-urlencoded"},
             data=b"json_text=" + b"x" * (11 * 1024 * 1024),
         )
 
-        assert res.status == 413
-        assert "must be 10MB or less" in res.text()
+        assert res.status == 405
 
     def test_ui_dcatus3_info(self, upage):
         """

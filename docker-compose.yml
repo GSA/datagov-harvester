@@ -60,6 +60,21 @@ services:
         interval: 5s
         timeout: 5s
         retries: 5
+  # Backs the /validate/ page (GSA/datagov-validator). Build it from a local
+  # checkout instead with VALIDATOR_IMAGE and
+  # `docker build -t "$VALIDATOR_IMAGE" ../datagov-validator`.
+  validator:
+    image: ${VALIDATOR_IMAGE:-ghcr.io/gsa/datagov-validator:latest}
+    environment:
+      # so the sample catalogs on nginx-harvest-source can be fetched by URL
+      ALLOW_PRIVATE_ADDRESSES: "true"
+    ports:
+      - "${VALIDATOR_PORT:-8081}:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
   app:
     build: .
     depends_on:
@@ -68,6 +83,8 @@ services:
       opensearch:
         condition: service_healthy
       transformer:
+        condition: service_healthy
+      validator:
         condition: service_healthy
     volumes:
       - .:/app
@@ -87,6 +104,20 @@ services:
       - |
         flask db upgrade
         flask run --host=0.0.0.0 --port=8080 --debug --reload --extra-files app/templates
+
+  # Local stand-in for the cloud.gov nginx proxy (proxy/nginx-common.conf):
+  # the browser's /validate/ page fetch()es /api/v1/validate same-origin, and
+  # only this reverse proxy - not the Flask dev server above - knows to send
+  # that path to the validator container instead of back to app.
+  proxy:
+    image: nginx
+    depends_on:
+      - app
+      - validator
+    volumes:
+      - ./nginx-local-proxy.conf:/etc/nginx/conf.d/default.conf
+    ports:
+      - "${PROXY_PORT:-8082}:80"
 
 volumes:
   postgres_data:
