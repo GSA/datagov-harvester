@@ -1,3 +1,5 @@
+from datetime import timezone
+
 from flask import jsonify, request
 from markupsafe import escape
 
@@ -21,6 +23,29 @@ from app.deps import (
 from harvester.utils.general_utils import convert_to_int, is_it_true
 
 from . import api
+
+def _serialize_job_datetimes(data):
+    """Serialize harvest job datetime values as ISO 8601 UTC."""
+    datetime_fields = ("date_created", "date_started", "date_finished")
+
+    if isinstance(data, list):
+        for item in data:
+            _serialize_job_datetimes(item)
+    elif isinstance(data, dict):
+        for field in datetime_fields:
+            value = data.get(field)
+
+            if value is not None and hasattr(value, "isoformat"):
+                if value.tzinfo is None:
+                    value = value.replace(tzinfo=timezone.utc)
+                else:
+                    value = value.astimezone(timezone.utc)
+
+                data[field] = value.isoformat(
+                    timespec="milliseconds"
+                ).replace("+00:00", "Z")
+
+    return data
 
 
 @api.route("/organizations/", methods=["GET"])
@@ -101,7 +126,12 @@ def json_builder_query(**kwargs):
         elif isinstance(res, list):
             if not res and request.args.get("per_page", type=convert_to_int) != 0:
                 return f"No {model} found for this query", 404
-            return jsonify(deps.db._to_dict(res))
+            data = deps.db._to_dict(res)
+
+            if model == "harvest_jobs":
+                data = _serialize_job_datetimes(data)
+
+            return jsonify(data)
         else:
             return f"No {model} found for this query", 404
     except InvalidPaginationException as e:
