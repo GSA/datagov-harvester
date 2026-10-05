@@ -53,9 +53,6 @@ applications:
       NEW_RELIC_MONITOR_DB_ACTIVITY: ((new_relic_monitor_db_activity))
       ASSET_VERSION: ((asset_version))
       SERVED_BY: ((app_name))
-      # The /validate/ page's validation runs in datagov-validator; see
-      # app/validator_client.py.
-      VALIDATOR_API_URL: ((validator_api_url))
     command: ./app-start.sh
 
   - <<: *harvest_app

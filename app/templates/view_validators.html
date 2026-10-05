@@ -1,5 +1,9 @@
 {% extends "base.html" %}
 
+{% block script_head %}
+<script src="{{ static_url('js/view_validators.js') }}"></script>
+{% endblock %}
+
 {% block content %}
 
 <h1>JSON Schema Validator</h1>
@@ -27,9 +31,17 @@
   </div>
 </div>
 
+<noscript>
+    <div class="usa-alert usa-alert--warning margin-bottom-4">
+        <div class="usa-alert__body">
+            <p class="usa-alert__text">The validator requires JavaScript to run.</p>
+        </div>
+    </div>
+</noscript>
+
 <form class="usa-form usa-form--large" method="POST" enctype="multipart/form-data" id="validator-form">
     {{ form.hidden_tag() }}
-    
+
     <!-- schema and fetch_method can't be empty so they won't have errors to display -->
     <div class="usa-form-group">
         <label for="{{ form.schema.id }}" class="usa-label">
@@ -62,9 +74,6 @@
             </button>
         </label>
         {{ form.url(class="usa-input", placeholder="https://example.com/data.json", type="url") }}
-        {% for error in form.url.errors %}
-            <span class="usa-error-message" role="alert">{{ error }}</span>
-        {% endfor %}
     </div>
 
     <div id="json_field" class="usa-form-group">
@@ -73,9 +82,6 @@
         </label>
         <span class="usa-hint" id="json_text-hint">Maximum size: {{ max_upload_mb }} MB.</span>
         {{ form.json_text(class="usa-textarea", rows="10", placeholder='{"key": "value"}', aria_describedby="json_text-hint") }}
-        {% for error in form.json_text.errors %}
-            <span class="usa-error-message" role="alert">{{ error }}</span>
-        {% endfor %}
     </div>
 
     <div id="upload_field" class="usa-form-group">
@@ -84,9 +90,6 @@
         </label>
         <span class="usa-hint" id="json_file-hint">Maximum size: {{ max_upload_mb }} MB.</span>
         {{ form.json_file(class="usa-file-input", aria_describedby="json_file-hint") }}
-        {% for error in form.json_file.errors %}
-        <span class="usa-error-message" role="alert">{{ error }}</span>
-        {% endfor %}
     </div>
 
     <div class="usa-form-group">
@@ -112,149 +115,15 @@
     </div>
 </div>
 
-<div class="section">
-    {% if submitted %}
-        <h2>Validation results</h2>
-        {% set total = data.record_errors | length %}
-        {% if not data.record_errors %}
-            <p>No validation errors found</p>
-        {% else %}
-        <button class="usa-button" id="btn-download" title="Download all {{ total }} error(s) as CSV"
-            aria-label="Download all errors as CSV">
-            <i class="fa fa-download margin-right-1" aria-hidden="true"></i>
-            Download all errors (.csv)
-        </button>
-        <script nonce="{{ csp_nonce() }}" id="all-errors-data" type="application/json">{{ data.record_errors | tojson }}</script>
-        {% if total > 10 %}
-        <p><strong>Showing First 10 of {{ total }}</strong></p>
-        {% endif %}
-        <div class="error-list">
-            {% for record_error in data.record_errors[:10] %}
-            <div class="error-block">
-                <p style="word-break: break-all"><strong>Identifier:</strong> {{ record_error[0] ~ " (dataset position)" if record_error[0] is number else record_error[0] }}</p>
-                <p>
-                    <strong>Error Message:</strong> 
-                    <ul>
-                        <li>{{ record_error[1] }}</li>
-                    </ul>
-                </p>
-            </div>
-            {% endfor %}
-        </div>
-        {% endif %}
-    {% endif %}
-</div>
+<div class="section" id="validator-results"></div>
 
 {% endblock %}
 
 {% block scripts %}
 
 <script nonce="{{ csp_nonce() }}">
-    const FIELD_CONFIG = {
-        url: { show: "url_field", clear: ["json_text", "json_file"] },
-        paste: { show: "json_field", clear: ["url", "json_file"] },
-        upload: { show: "upload_field", clear: ["url", "json_text"] },
-    };
-
-    const MAX_UPLOAD_BYTES = {{ max_upload_bytes }};
-    const MAX_UPLOAD_LABEL = "{{ max_upload_mb }} MB";
-
-    function toggleInputFields() {
-        const method = document.getElementById("fetch_method").value;
-        const config = FIELD_CONFIG[method];
-
-        Object.values(FIELD_CONFIG).forEach(({ show }) => {
-            document.getElementById(show).style.display = "none";
-        });
-
-        document.getElementById(config.show).style.display = "block";
-
-        config.clear.forEach(id => {
-            document.getElementById(id).value = "";
-        });
-    }
-
-    function clearErrors() {
-        document.querySelectorAll(".section, .usa-error-message").forEach(el => el.remove());
-    }
-
-    document.addEventListener("DOMContentLoaded", toggleInputFields);
-
-    document.getElementById("fetch_method").addEventListener("change", toggleInputFields);
-
-    ["fetch_method", "url", "schema", "json_text", "json_file"].forEach(id => {
-        document.getElementById(id).addEventListener("change", clearErrors);
-    });
-
-    /* ── size guard: reject oversized input before upload ── */
-    function oversizeMessage(method) {
-        if (method === "upload") {
-            const file = document.getElementById("json_file").files[0];
-            if (file && file.size > MAX_UPLOAD_BYTES) {
-                return "File is too large. Maximum size is " + MAX_UPLOAD_LABEL + ".";
-            }
-        } else if (method === "paste") {
-            const text = document.getElementById("json_text").value;
-            if (new Blob([text]).size > MAX_UPLOAD_BYTES) {
-                return "Pasted JSON is too large. Maximum size is " + MAX_UPLOAD_LABEL + ".";
-            }
-        }
-        // url is fetched server-side, which enforces its own limit
-        return null;
-    }
-
-    document.getElementById("validator-form").addEventListener("submit", function (event) {
-        const method = document.getElementById("fetch_method").value;
-        const message = oversizeMessage(method);
-        if (!message) return;
-
-        event.preventDefault();
-        clearErrors();
-
-        const error = document.createElement("span");
-        error.className = "usa-error-message";
-        error.setAttribute("role", "alert");
-        error.textContent = message;
-        document.getElementById(FIELD_CONFIG[method].show).appendChild(error);
-    });
-
-    /* ── CSV download of all errors ── */
-    function downloadValidationErrors() {
-        const raw = document.getElementById("all-errors-data");
-        if (!raw) return;
-
-        let errors;
-        try {
-            errors = JSON.parse(raw.textContent);
-        } catch (e) {
-            alert("Could not read error data.");
-            return;
-        }
-
-        const rows = [["Dataset identifier", "Error"]].concat(errors);
-        const csv = rows
-            .map(row =>
-                row.map(cell => '"' + String(cell).replace(/"/g, '""') + '"').join(",")
-            )
-            .join("\r\n");
-
-        const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = "validation_errors.csv";
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-    }
-
-    document.addEventListener("DOMContentLoaded", function () {
-        const btnDownload = document.getElementById("btn-download");
-        if (btnDownload) {
-            btnDownload.addEventListener("click", downloadValidationErrors);
-        }
-    });
+    window.MAX_UPLOAD_BYTES = {{ max_upload_bytes }};
+    window.MAX_UPLOAD_LABEL = "{{ max_upload_mb }} MB";
 </script>
 
 {% endblock %}

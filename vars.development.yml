@@ -5,7 +5,6 @@ space_name: development
 route_external: harvest-dev.data.gov
 route_internal: datagov-harvest-dev.apps.internal
 route_internal_validator: datagov-validator-dev.apps.internal
-validator_api_url: https://datagov-validator-dev.apps.internal:61443/api/v1/validate
 proxy_instances: 1
 basic_auth_enabled: on # nginx terminology 'on' 'off'. cf will interpret these as 'true' 'false'
 admin_instances: 2
