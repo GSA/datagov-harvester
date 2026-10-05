@@ -241,10 +241,8 @@ class TestValidator:
         """
         upage.locator("select[name=fetch_method]").select_option("paste")
         # ~8.5MB of mostly quotes, so escaping makes the request ~14MB
-        upage.evaluate(
-            """document.getElementById('json_text').value =
-                '{"dataset": [], "padding": [' + '"",'.repeat(2900000) + '""]}'"""
-        )
+        upage.evaluate("""document.getElementById('json_text').value =
+                '{"dataset": [], "padding": [' + '"",'.repeat(2900000) + '""]}'""")
         upage.locator("input[type=submit]").click()
 
         expect(upage.locator("#validator-results h2")).to_have_text(
