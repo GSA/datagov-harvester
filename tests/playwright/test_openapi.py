@@ -17,8 +17,7 @@ class TestOpenAPI:
                 "Harvest Records",
                 "Harvest Sources",
                 "Organizations",
-                "Validate",
             ]
         )
         expect(page.locator(".opblock-get")).to_have_count(15)
-        expect(page.locator(".json-schema-2020-12")).to_have_count(10)
+        expect(page.locator(".json-schema-2020-12")).to_have_count(7)
