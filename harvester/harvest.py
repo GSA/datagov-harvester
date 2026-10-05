@@ -18,6 +18,17 @@ sys.path.insert(1, "/".join(os.path.realpath(__file__).split("/")[0:-2]))
 
 
 from database.models import HarvestSource as HarvestSourceORM
+from dcatus_validation.fetch import USER_AGENT
+from dcatus_validation.messages import (
+    assemble_validation_errors,
+    build_dcatus3_validator,
+    open_json,
+)
+from dcatus_validation.schema_paths import (
+    DCATUS1_1_DIR,
+    DCATUS3_DATASET_SCHEMA,
+    DCATUS3_DEFINITIONS_DIR,
+)
 
 # ruff: noqa: E402
 from harvester import CATALOG_BASE_URL, SMTP_CONFIG, HarvesterDBInterface, db_interface
@@ -41,11 +52,8 @@ from harvester.lib.task_handler import create_task_handler
 from harvester.utils.dcat_warnings import DcatWarning, detect_dcat_warnings
 from harvester.utils.general_utils import (
     DT_PLACEHOLDER,
-    USER_AGENT,
     add_uuid_to_package_name,
-    assemble_validation_errors,
     backfill_catalog_record_identifiers,
-    build_dcatus3_validator,
     build_report_email_section,
     dataset_to_hash,
     describe_identifier_error,
@@ -63,7 +71,6 @@ from harvester.utils.general_utils import (
     munge_spatial,
     munge_title_to_name,
     normalize_dataset_identifier,
-    open_json,
     prepare_distributions,
     prepare_transform_msg,
     send_email_to_recipients,
@@ -71,11 +78,6 @@ from harvester.utils.general_utils import (
     strip_dcatus3_catalog_objects,
     translate_spatial_to_geojson,
     traverse_waf,
-)
-from harvester.utils.schema_paths import (
-    DCATUS1_1_DIR,
-    DCATUS3_DATASET_SCHEMA,
-    DCATUS3_DEFINITIONS_DIR,
 )
 
 # logging data
@@ -1794,7 +1796,9 @@ def check_for_more_work():
 if __name__ == "__main__":
     import sys
 
-    from harvester.utils.general_utils import parse_args
+    from harvester.utils.general_utils import (
+        parse_args,
+    )
 
     exit_code = 0
 

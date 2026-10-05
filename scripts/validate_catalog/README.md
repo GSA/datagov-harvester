@@ -1,6 +1,6 @@
 # Validate a catalog URL
 
-The hosted `/validate` page caps uploads at 10MB (`app/constants.py`
+The hosted `/validate` page caps uploads at 10MB (`dcatus_validation/limits.py`
 `MAX_UPLOAD_MB`). `validate_catalog.py` calls the same validation logic
 directly, with no size limit, for catalogs too large to check that way.
 

@@ -9,7 +9,8 @@ import requests
 from requests.exceptions import ConnectionError, JSONDecodeError, Timeout
 from requests.models import Response
 
-from harvester.utils.general_utils import USER_AGENT, get_server_type, traverse_waf
+from dcatus_validation.fetch import USER_AGENT
+from harvester.utils.general_utils import get_server_type, traverse_waf
 
 logger = logging.getLogger(__name__)
 

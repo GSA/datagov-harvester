@@ -1,23 +1,30 @@
 import json
+import logging
 
+from apiflask import APIBlueprint
 from flask import jsonify, make_response
 
-from app.api_schemas import (
+from dcatus_validation.fetch import (
+    PAYLOAD_TOO_LARGE_MESSAGE,
+    InvalidCatalogSource,
+    fetch_json_from_url,
+    invalid_json_message,
+)
+from dcatus_validation.limits import MAX_UPLOAD_BYTES
+from dcatus_validation.validate import (
+    NESTING_TOO_DEEP_MESSAGE,
+    CatalogTooDeeplyNested,
+    validate_records,
+)
+from validator_api.schemas import (
     ValidationErrorResponseSchema,
     ValidationResultSchema,
     ValidatorInfo,
 )
-from app.deps import logger
-from app.util import (
-    NESTING_TOO_DEEP_MESSAGE,
-    CatalogTooDeeplyNested,
-    InvalidCatalogSource,
-    fetch_json_from_url,
-    invalid_json_message,
-    validate_records,
-)
 
-from . import api
+logger = logging.getLogger("validator_api")
+
+api = APIBlueprint("api", __name__, url_prefix="/api", tag="Validate")
 
 
 @api.route("/validate", methods=["POST"])
@@ -36,8 +43,15 @@ from . import api
             ),
             "content": {"application/json": {"schema": ValidationErrorResponseSchema}},
         },
+        413: {
+            "description": "Request body too large",
+            "content": {"application/json": {"schema": ValidationErrorResponseSchema}},
+        },
         422: {
-            "description": "Catalog cannot be walked, e.g. nested too deeply",
+            "description": (
+                "Catalog cannot be walked, e.g. nested too deeply (`error`), or "
+                "the request itself is invalid (`message`/`detail`)"
+            ),
             "content": {"application/json": {"schema": ValidationErrorResponseSchema}},
         },
         500: {
@@ -53,10 +67,14 @@ def validator(json_data):
     try:
         if json_data["fetch_method"] == "url":
             data = fetch_json_from_url(json_data["url"])
-        elif json_data["fetch_method"] == "paste":
-            data = json.loads(json_data["json_text"])
         else:
-            data = []
+            json_text = json_data["json_text"]
+            # MAX_CONTENT_LENGTH caps the request body, which has room for JSON
+            # escaping (see app.constants); this caps the document itself, the
+            # same limit a URL submission gets.
+            if len(json_text.encode("utf-8")) > MAX_UPLOAD_BYTES:
+                raise InvalidCatalogSource(PAYLOAD_TOO_LARGE_MESSAGE)
+            data = json.loads(json_text)
 
         errors = validate_records(data, json_data["schema"])
         logger.info(
@@ -79,10 +97,10 @@ def validator(json_data):
         logger.info("API validator got unparseable pasted JSON :: %s", repr(e))
         return make_response(jsonify({"error": invalid_json_message(e)}), 400)
     except InvalidCatalogSource as e:
-        # Bad submission, not a server fault - 400, and say which reason so API
-        # callers get the same explanation the validator page shows. Safe to
-        # echo: these messages are literals and numbers by construction, which
-        # is the invariant InvalidCatalogSource exists to carry.
+        # Bad submission, not a server fault - 400, and say which reason so
+        # callers can show it to the submitter. Safe to echo: these messages
+        # are literals and numbers by construction, which is the invariant
+        # InvalidCatalogSource exists to carry.
         logger.info(
             "API validator refused submission fetch_method=%s reason=%s",
             json_data["fetch_method"],

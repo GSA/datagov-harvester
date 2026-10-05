@@ -63,66 +63,34 @@ applications:
       - ((opensearch_service_name))
       - logstack-space-drain
 
-  # Serves the public /validate, /validate/, /api/validate, and /api/v1/validate
-  # routes (proxied here by datagov-harvest-proxy) in isolation from the admin
-  # app, so validator load and its server-side URL fetching can't affect
-  # harvester administration (GSA/data.gov#6293). Runs the same codebase as
-  # ((app_name)) - the routes stay live there too as a rollback path - but
-  # skips migrations (SKIP_DB_MIGRATIONS) and binds its own scoped -db/-secrets
-  # (see below) rather than the admin app's, and never binds OpenSearch or
-  # SMTP, since the validator doesn't use any of those.
+  # The public DCAT-US validation API (validator_api/), proxied here by
+  # datagov-harvest-proxy for /api/validate, /api/v1/validate and its docs at
+  # /validator/docs. The admin app's /validate/ page submits to it from the
+  # browser, so validation load and its server-side URL fetching never run on
+  # the admin app's workers (GSA/data.gov#6293). A separate, minimal WSGI app:
+  # it imports only dcatus_validation, so it needs no database, admin secrets
+  # or CF credentials - only the New Relic key in -validator-secrets.
   - name: ((app_name))-validator
     buildpacks:
       - python_buildpack
     routes:
       - route: ((route_internal_validator))
     services:
-      # Deliberately not ((harvest_service_name))-db/-secrets: those hold the
-      # real admin database and the admin app's full secret set (including
-      # HARVEST_API_TOKEN and the CF deployer credentials), so a compromised
-      # validator would inherit far more privilege than it needs. .profile
-      # derives the service names it looks up from HARVEST_SERVICE_NAME,
-      # defaulting to the app's own CF name when unset - left unset here on
-      # purpose so it resolves to ((app_name))-validator and picks up the
-      # services below instead. -validator-db is a fake, non-resolving URI:
-      # harvester/__init__.py builds a SQLAlchemy engine at import time
-      # regardless (it never connects at construction), but nothing on the
-      # validator's routes ever queries it. -validator-secrets holds its own
-      # throwaway FLASK_APP_SECRET_KEY/HARVEST_API_TOKEN (checked for
-      # non-empty at boot, never compared against anything the validator
-      # serves) plus the real CF_SERVICE_USER/CF_SERVICE_AUTH/
-      # NEW_RELIC_LICENSE_KEY, which do have to be real: LoadManager
-      # authenticates to the CF API with them at import time. See
-      # docs/developer.md for how to provision both.
-      - ((app_name))-validator-db
       - ((app_name))-validator-secrets
       - logstack-space-drain
     instances: ((validator_instances))
     memory: ((validator_memory_quota))
     disk_quota: ((validator_disk_quota))
+    health-check-type: http
+    health-check-http-endpoint: /health
     env:
-      FLASK_APP: run.py
+      # the docs' "Try it out" server, so it goes through the proxy
       EXTERNAL_ROUTE: ((route_external))
-      CF_API_URL: ((CF_API_URL))
-      # Not used by the validator's routes, but required at import time:
-      # app/main/auth.py builds AUTH_URL/TOKEN_URL from ISSUER unconditionally,
-      # and harvester/utils/general_utils.py's SMTP_CONFIG does the same with
-      # REDIRECT_URI - both modules load during create_app() regardless of app.
-      CLIENT_ID: ((CLIENT_ID))
-      ISSUER: ((ISSUER))
-      REDIRECT_URI: ((REDIRECT_URI))
-      SKIP_DB_MIGRATIONS: true
       NEW_RELIC_APP_NAME: ((app_name))-validator-((space_name))
       NEW_RELIC_HOST: gov-collector.newrelic.com
       NEW_RELIC_MONITOR_MODE: ((new_relic_monitor_mode))
       NEW_RELIC_CONFIG_FILE: /home/vcap/app/config/newrelic.ini
-      ASSET_VERSION: ((asset_version))
-      # Distinct from the admin app's so a validator response can't overwrite
-      # the admin app's session/auth cookies on their shared external domain
-      # (GSA/data.gov#6293) - see app/__init__.py.
-      SESSION_COOKIE_NAME: harvest_validator_session
-      AUTH_COOKIE_NAME: harvest_validator_auth
-      # Lets synthetic monitoring confirm /validate requests actually reach
-      # this app rather than the admin app (see X-Served-By in app/__init__.py).
+      # Lets synthetic monitoring confirm a request forwarded by the proxy
+      # reached this app (X-Served-By).
       SERVED_BY: ((app_name))-validator
-    command: ./app-start.sh
+    command: ./validator-start.sh

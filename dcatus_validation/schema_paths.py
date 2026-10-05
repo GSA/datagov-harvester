@@ -12,7 +12,7 @@ DCAT-US 1.1 has no GSA/dcat-us equivalent and stays vendored under `schemas/`.
 
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+REPO_ROOT = Path(__file__).resolve().parents[1]
 
 DCATUS1_1_DIR = REPO_ROOT / "schemas" / "dcatus1.1"
 
