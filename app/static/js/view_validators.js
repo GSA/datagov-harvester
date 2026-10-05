@@ -47,20 +47,45 @@ function showFieldError(method, message) {
 function fieldErrorMessage(method) {
     if (method === "upload") {
         const file = document.getElementById("json_file").files[0];
-        if (file && !file.name.toLowerCase().endsWith(".json")) {
+        if (!file) {
+            return "A JSON file is required.";
+        }
+        if (!file.name.toLowerCase().endsWith(".json")) {
             return "Only .json files are accepted.";
         }
-        if (file && file.size > window.MAX_UPLOAD_BYTES) {
+        if (file.size > window.MAX_UPLOAD_BYTES) {
             return "File is too large. Maximum size is " + window.MAX_UPLOAD_LABEL + ".";
         }
     } else if (method === "paste") {
         const text = document.getElementById("json_text").value;
+        if (!text) {
+            return "JSON input is required.";
+        }
         if (new Blob([text]).size > window.MAX_UPLOAD_BYTES) {
             return "Pasted JSON is too large. Maximum size is " + window.MAX_UPLOAD_LABEL + ".";
         }
+    } else if (!document.getElementById("url").value.trim()) {
+        return "URL is required.";
     }
-    // url is fetched by the validator service, which enforces its own limit
+    // a url is fetched by the validator service, which enforces its own limit
     return null;
+}
+
+/* JSON may be UTF-8, -16 or -32 (RFC 8259); like Python's json.detect_encoding,
+ * tell them apart by BOM or by where the nulls fall in the first bytes. Browsers
+ * can't decode UTF-32, so those fall through to UTF-8 and fail as invalid JSON. */
+function detectEncoding(bytes) {
+    if (bytes[0] === 0xfe && bytes[1] === 0xff) return "utf-16be";
+    if (bytes[0] === 0xff && bytes[1] === 0xfe) return "utf-16le";
+    if (bytes.length >= 2 && bytes[0] === 0 && bytes[1] !== 0) return "utf-16be";
+    if (bytes.length >= 2 && bytes[0] !== 0 && bytes[1] === 0) return "utf-16le";
+    return "utf-8";
+}
+
+async function readJsonFile(file) {
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    // TextDecoder strips a leading BOM for whichever encoding it's given
+    return new TextDecoder(detectEncoding(bytes), { fatal: true }).decode(bytes);
 }
 
 /* ── build the validator API payload for the selected fetch method ── */
@@ -80,8 +105,7 @@ async function buildPayload(method) {
     }
 
     // "upload": read the file client-side and send it the same way a paste is sent
-    const file = document.getElementById("json_file").files[0];
-    const json_text = await file.text();
+    const json_text = await readJsonFile(document.getElementById("json_file").files[0]);
     return { schema, fetch_method: "paste", json_text };
 }
 
@@ -224,8 +248,12 @@ document.addEventListener("DOMContentLoaded", function () {
             return;
         }
 
+        // Locked while in flight so the answer can't land beside a field that
+        // has since been hidden, or under input that's since been swapped out.
         const submitButton = document.getElementById("validator-form").querySelector("[type=submit]");
+        const fetchMethod = document.getElementById("fetch_method");
         submitButton.disabled = true;
+        fetchMethod.disabled = true;
 
         try {
             let payload;
@@ -261,13 +289,18 @@ document.addEventListener("DOMContentLoaded", function () {
             }
 
             if ([400, 413, 422].includes(response.status)) {
-                showFieldError(method, extractRefusalMessage(body) ?? VALIDATOR_UNAVAILABLE_MESSAGE);
+                // a 413 without a JSON body is nginx's own, refused before the validator saw it
+                const fallback = response.status === 413
+                    ? "Submission is too large. Maximum size is " + window.MAX_UPLOAD_LABEL + "."
+                    : VALIDATOR_UNAVAILABLE_MESSAGE;
+                showFieldError(method, extractRefusalMessage(body) ?? fallback);
                 return;
             }
 
             showFieldError(method, VALIDATOR_UNAVAILABLE_MESSAGE);
         } finally {
             submitButton.disabled = false;
+            fetchMethod.disabled = false;
         }
     });
 });

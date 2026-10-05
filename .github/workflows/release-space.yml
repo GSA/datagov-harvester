@@ -258,25 +258,15 @@ jobs:
           cf_password: ${{ secrets.CF_SERVICE_AUTH }}
 
       # datagov-validator is deployed from GSA/datagov-validator, so it has to
-      # exist in the space before these policies can be added.
+      # exist in the space before this policy can be added. Only the proxy
+      # needs it: the admin app never calls the validator (the /validate/ page
+      # fetch()es /api/v1/validate through the proxy from the browser).
       - name: Add proxy-to-validator network policy
         id: proxy_validator_policy
         uses: cloud-gov/cg-cli-tools@main
         with:
           command: >
             cf add-network-policy datagov-harvest-proxy datagov-validator
-            --protocol tcp --port 61443
-          cf_org: gsa-datagov
-          cf_space: ${{ env.CF_SPACE }}
-          cf_username: ${{ secrets.CF_SERVICE_USER }}
-          cf_password: ${{ secrets.CF_SERVICE_AUTH }}
-
-      - name: Add admin-to-validator network policy
-        id: admin_validator_policy
-        uses: cloud-gov/cg-cli-tools@main
-        with:
-          command: >
-            cf add-network-policy datagov-harvest datagov-validator
             --protocol tcp --port 61443
           cf_org: gsa-datagov
           cf_space: ${{ env.CF_SPACE }}
