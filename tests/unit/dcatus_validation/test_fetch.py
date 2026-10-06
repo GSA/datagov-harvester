@@ -31,6 +31,7 @@ def _json_response(body=b'{"dataset": []}'):
     response.raise_for_status = Mock()
     response.close = Mock()
     response.iter_content = Mock(return_value=[body])
+    response._validator_timeout_controller = Mock()
     return response
 
 
@@ -324,7 +325,9 @@ class TestFetchJsonFromUrl:
         assert 0 < connect_timeout <= FETCH_CONNECT_TIMEOUT_SECONDS
         assert 0 < read_timeout <= FETCH_TIMEOUT_SECONDS
         assert connect_timeout < read_timeout
-        stream_timeouts = mock_response.raw._connection.sock.settimeout.call_args_list
+        stream_timeouts = (
+            mock_response._validator_timeout_controller.settimeout.call_args_list
+        )
         assert stream_timeouts
         assert all(
             0 < call.args[0] <= FETCH_TIMEOUT_SECONDS for call in stream_timeouts

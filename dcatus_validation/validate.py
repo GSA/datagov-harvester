@@ -2,6 +2,7 @@
 scripts/validate_catalog). The harvest runner validates record by record with
 the same messages module instead."""
 
+from functools import lru_cache
 from itertools import islice
 
 from jsonschema import Draft202012Validator, FormatChecker
@@ -18,7 +19,6 @@ from dcatus_validation.messages import (
 )
 from dcatus_validation.schema_paths import DCATUS1_1_DIR, DCATUS3_DEFINITIONS_DIR
 
-# the values accepted for the validator API's `schema` field
 SCHEMA_NAMES = [
     "dcatus1.1: federal dataset",
     "dcatus1.1: non-federal dataset",
@@ -95,6 +95,21 @@ def _validation_messages(
     return messages, incomplete
 
 
+@lru_cache(maxsize=len(SCHEMA_NAMES))
+def _validator_for_schema(schema_name: str):
+    if schema_name.startswith("dcatus1.1"):
+        schema_path = {
+            "dcatus1.1: federal dataset": DCATUS1_1_DIR / "federal_dataset.json",
+            "dcatus1.1: non-federal dataset": (
+                DCATUS1_1_DIR / "non-federal_dataset.json"
+            ),
+        }[schema_name]
+        return Draft202012Validator(
+            open_json(schema_path), format_checker=FormatChecker()
+        )
+    return build_dcatus3_validator(DCATUS3_DEFINITIONS_DIR)
+
+
 def _validate_records(
     dcatus_catalog: dict,
     schema_name: str,
@@ -117,15 +132,7 @@ def _validate_records(
         if structure_errors:
             return list(zip([""] * len(structure_errors), structure_errors)), incomplete
 
-        schema_path = {
-            "dcatus1.1: federal dataset": DCATUS1_1_DIR / "federal_dataset.json",
-            "dcatus1.1: non-federal dataset": (
-                DCATUS1_1_DIR / "non-federal_dataset.json"
-            ),
-        }[schema_name]
-        validator = Draft202012Validator(
-            open_json(schema_path), format_checker=FormatChecker()
-        )
+        validator = _validator_for_schema(schema_name)
         records = dcatus_catalog["dataset"]
 
         for idx, record in enumerate(records):
@@ -150,7 +157,7 @@ def _validate_records(
 
         return output, False
 
-    validator = build_dcatus3_validator(DCATUS3_DEFINITIONS_DIR)
+    validator = _validator_for_schema(schema_name)
     errors, incomplete = _validation_messages(validator, dcatus_catalog, max_errors)
     # DCAT-US 3.0 messages carry the JSON path instead of a record identifier.
     return list(zip([""] * len(errors), errors)), incomplete

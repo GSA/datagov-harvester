@@ -123,22 +123,15 @@ def validator(json_data):
             validation_incomplete,
         )
     except CatalogTooDeeplyNested:
-        # the submitter can act on this one, so say what it was. Respond with the
-        # constant rather than `str(e)` so nothing from the exception reaches the
-        # client (CodeQL py/stack-trace-exposure).
+        # Use a constant so exception data cannot reach the client.
         logger.warning("API Validator could not walk the document")
         return make_response(jsonify({"error": NESTING_TOO_DEEP_MESSAGE}), 422)
     except RecursionError:
-        # json.loads can exhaust the Python stack before schema validation sees
-        # a deeply nested document. Treat it like equivalent validator
-        # recursion instead of returning a 500.
+        # Parsing can exhaust the stack before schema validation.
         logger.warning("API Validator could not parse a deeply nested document")
         return make_response(jsonify({"error": NESTING_TOO_DEEP_MESSAGE}), 422)
     except json.JSONDecodeError as e:
-        # Pasted text that won't parse. Reported by position only - never
-        # str(e), which would put the decoder's own text (and reachable from
-        # the same object, the whole document) into the response. See
-        # invalid_json_message.
+        # Decoder exceptions retain the submitted document; expose position only.
         logger.info(
             "API validator got unparseable pasted JSON line=%s column=%s",
             e.lineno,
@@ -146,9 +139,7 @@ def validator(json_data):
         )
         return make_response(jsonify({"error": invalid_json_message(e)}), 400)
     except InvalidCatalogSource as e:
-        # Bad submission, not a server fault - 400, and say which reason so
-        # callers can show it to the submitter. public_message is literals and
-        # numbers by construction; never render the exception itself.
+        # public_message contains only safe literals and positions.
         logger.info(
             "API validator refused submission fetch_method=%s reason=%s",
             json_data["fetch_method"],

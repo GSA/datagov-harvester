@@ -20,6 +20,7 @@ from dcatus_validation.limits import (
     MAX_UPLOAD_MB,
     MAX_VALIDATION_ERRORS,
 )
+from validator_api import create_app
 
 URL = "/api/v1/validate"
 
@@ -548,5 +549,27 @@ class TestService:
         assert "securitySchemes" not in spec.get("components", {})
 
     def test_docs(self, validator_client):
-        assert validator_client.get("/validator/docs").status_code == 200
+        response = validator_client.get(
+            "/validator/docs", headers={"X-Forwarded-Proto": "https"}
+        )
+
+        assert response.status_code == 200
+        assert response.headers["X-Content-Type-Options"] == "nosniff"
+        assert response.headers["X-Frame-Options"] == "SAMEORIGIN"
+        assert "max-age=31536000" in response.headers["Strict-Transport-Security"]
+        csp = response.headers["Content-Security-Policy"]
+        assert "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net" in csp
+        assert "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net" in csp
+        assert "img-src 'self' data: https://apiflask.com" in csp
         assert validator_client.get("/").location == "/validator/docs"
+
+    def test_docs_csp_allows_configured_server(self, monkeypatch):
+        monkeypatch.setenv("EXTERNAL_ROUTE", "https://validator.example.gov")
+        app = create_app()
+
+        response = app.test_client().get("/validator/docs")
+
+        assert (
+            "connect-src 'self' https://validator.example.gov"
+            in response.headers["Content-Security-Policy"]
+        )

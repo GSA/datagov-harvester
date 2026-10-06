@@ -18,17 +18,13 @@ logger = logging.getLogger("dcatus_validation")
 
 
 def open_json(file_path):
-    """open input json file as dictionary
-    file_path (str)     :   json file path.
-    """
+    """Load a JSON file."""
     with open(file_path) as fp:
         return json.load(fp)
 
 
 def get_format_from_str(validation_msg: str) -> str:
-    """
-    gets the format/rule used against the data (e.g. 'uri', 'string', some regex)
-    """
+    """Extract the format or rule from a jsonschema message."""
     if "is too long" in validation_msg:
         match = re.search(r"\[maxLength=(\d+)\]", validation_msg)
         if match:
@@ -49,7 +45,6 @@ def get_format_from_str(validation_msg: str) -> str:
     if "has non-unique elements" in validation_msg:
         return "unique items"
 
-    # for constants where a single value is acceptable
     if "was expected" in validation_msg:
         return f"constant value {validation_msg}"
     return validation_msg.split(" ")[-1]
@@ -64,19 +59,10 @@ def found_simple_message(
 
     `forced` is a last-resort override set by `_collect_validation_messages`.
     """
-    # these are all the unique dtypes found in the
-    # non-federal schema (no different than federal)
-    # {"'boolean'", "'null'", "'array'", "'number'", "'object'", "'string'"}
-
-    # the required field at the root is missing entirely
     if validation_error.json_path == "$":
         return True
 
-    # we need to dig a little deeper when it's a list or dict
     if isinstance(validation_error.instance, (dict, list)):
-        # if it's empty you'll get something like
-        # ['$.keyword', '[] should be non-empty']
-        # which is simple and what we want
         if len(validation_error.instance) == 0:
             return True
 
@@ -119,25 +105,11 @@ def _unquoted_type_error_value(message: str) -> str | None:
 
 
 def finalize_validation_messages(messages: defaultdict) -> list:
-    """
-    build the final validation messages either individually (root) or
-    bundled by field. see tests for output.
-
-    the input default dict is organized by { json_path: [errors...]} format
-        { "$": [ "'a' is required", "'b' is required" ],
-          "$.keyword": [ "[] should be non-empty", "[] is not of type 'string'" ],
-          "$.contactPoint.hasEmail": [ format1, format2, format3, etc...]
-        }
-
-    the regex says: get me the first word(s) in single quotes or just empty brackets [].
-    what's inside the single quotes represents the invalid data
-    """
+    """Bundle validation messages by JSON path."""
 
     output = []
 
     for json_path, formats in messages.items():
-        # required property messages aren't based on format but simply
-        # "[field] is a required property"
         if is_required_property(formats):
             output += map(
                 lambda error: ValidationError(f"{json_path}, {error}"),
@@ -145,12 +117,6 @@ def finalize_validation_messages(messages: defaultdict) -> list:
             )
             continue
 
-        # all other errors are bundled based on the formats/rules
-
-        # constants like in "accrualPeriodicity" don't include the invalid data
-        # but >1 format/rule is used against it so grabbing
-        # the last one which is a regex and does include the invalid data
-        # excluding constants [0] == [n]
         # jsonschema renders containers as repr; quoting an inner element (or a
         # const's expected value) would mislead, so name the kind of value.
         # "[]" already reads as itself.
@@ -168,7 +134,6 @@ def finalize_validation_messages(messages: defaultdict) -> list:
             match = re.search(r"'(.*?)'|\[\]", formats[-1])
             invalid_value = match.group(0) if match else None
 
-        # if neither branch above found anything, none of them will
         if invalid_value is None:
             logger.warning(f"can't find invalid data from error message: {formats[0]}")
             continue
@@ -184,7 +149,6 @@ def finalize_validation_messages(messages: defaultdict) -> list:
 
         formats = map(get_format_from_str, formats)
 
-        # build the bundled error message by json_path
         msg = ValidationError(
             f"{json_path}, {invalid_value} does not match any of "
             "the acceptable formats: " + ", ".join(formats)
@@ -195,21 +159,9 @@ def finalize_validation_messages(messages: defaultdict) -> list:
 
 
 def assemble_validation_errors(validation_errors: list, messages=None) -> list:
-    """
-    given a list of errors, follow each one recursively through its context
-    and get the simplest cause for error. store the error in a defaultdict
-    such that { json_path: [errors...]}
-
-    errors with lists or dicts (other than empty)
-    will often return the entire object followed by 'is not valid under any
-    of the given schemas' which isn't helpful.
-
-    pass `messages` to accumulate across calls; the formatted list is returned
-    either way.
-    """
+    """Return the most specific causes, grouped by JSON path."""
 
     if messages is None:
-        # {'$.distribution[2].title' = ["'' should be non-empty", etc...]}
         messages = defaultdict(list)
 
     _collect_validation_messages(validation_errors, messages, forced=False)
@@ -219,22 +171,12 @@ def assemble_validation_errors(validation_errors: list, messages=None) -> list:
 def _collect_validation_messages(
     validation_errors: list, messages: defaultdict, *, forced: bool
 ) -> int:
-    """
-    fill `messages` and return how many were appended, nested walks included.
-    Formatting is the caller's job; doing it on every recursive return, like
-    re-counting the dict, made this quadratic in the number of errors.
-
-    `forced` is a last-resort fallback. After an unforced context walk records
-    nothing, we re-walk forced so a same-path type error is reported vaguely
-    instead of silently. A walk that already recorded a specific cause is left
-    alone.
-    """
+    """Append specific causes recursively and return how many were added."""
 
     recorded = 0
 
     for error in validation_errors:
         if found_simple_message(error, forced=forced):
-            # these aren't specific enough which make them unhelpful
             generic_msg = "is not valid under any of the given schemas"
             is_generic_msg = error.message.endswith(generic_msg)
             if error.validator == "maxLength":
@@ -253,9 +195,7 @@ def _collect_validation_messages(
                 )
             else:
                 formatted_message = error.message
-            # if not the generic message, and if the message is not already
-            # present in the list for the given path we skip to avoid duplicates
-            # based on how messages are returned from the validator
+            # Avoid duplicate messages for a path.
             if (
                 not is_generic_msg
                 and formatted_message not in messages[error.json_path]
@@ -263,14 +203,12 @@ def _collect_validation_messages(
                 messages[error.json_path].append(formatted_message)
                 recorded += 1
 
-        # Prefer a specific cause in context before falling back.
         from_context = _collect_validation_messages(
             error.context, messages, forced=False
         )
         recorded += from_context
 
-        # Nothing recorded: re-walk forced so the defect is not dropped.
-        # `forced` only flips `type` errors, which have no context to recurse.
+        # Fall back to a vague type error rather than dropping the defect.
         if error.context and from_context == 0:
             recorded += _collect_validation_messages(
                 error.context, messages, forced=True
@@ -283,14 +221,7 @@ def build_dcatus3_validator(
     definitions_dir,
     root_ref="https://resources.data.gov/dcat-us/3.0.0/definitions/catalog",
 ):
-    """
-    builds a dcatus v3.0 validator based on schema files in [definitions_dir].
-
-    root_ref selects the entry point into the schema definitions. it defaults to
-    the catalog definition (used by the validator web tool to validate a whole
-    catalog), but can be pointed at the dataset definition so the validator can
-    check a single dataset record at a time during harvest.
-    """
+    """Build a DCAT-US 3.0 validator for the selected root definition."""
     registry = Registry()
 
     schema_files = sorted(definitions_dir.glob("*.json"))

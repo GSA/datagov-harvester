@@ -8,10 +8,25 @@ from dcatus_validation.errors import (
 )
 from dcatus_validation.limits import MAX_DOCUMENT_NESTING_DEPTH
 from dcatus_validation.messages import build_dcatus3_validator
-from dcatus_validation.validate import validate_records, validate_records_limited
+from dcatus_validation.validate import (
+    _validator_for_schema,
+    validate_records,
+    validate_records_limited,
+)
 
 
 class TestValidateRecords:
+    @pytest.mark.parametrize(
+        "schema_name",
+        ["dcatus1.1: federal dataset", "dcatus3.0 catalog"],
+    )
+    def test_schema_validators_are_cached(self, schema_name):
+        _validator_for_schema.cache_clear()
+
+        first = _validator_for_schema(schema_name)
+
+        assert _validator_for_schema(schema_name) is first
+
     def test_dcatus1_1_errors_are_keyed_by_identifier(
         self, dcatus_bad_license_uri_json
     ):

@@ -161,6 +161,12 @@ INVALID_JSON_ENCODING_MESSAGE = "Invalid JSON encoding. Use UTF-8, UTF-16, or UT
 INVALID_JSON_NUMBER_MESSAGE = "JSON contains a number outside the supported range."
 
 
+class _ConnectPhaseTimeout(requests.exceptions.Timeout):
+    def __init__(self, attempts: int):
+        self.attempts = attempts
+        super().__init__(f"Connection timed out after {attempts} attempts")
+
+
 def _is_json_media_type(content_type: str) -> bool:
     media_type = content_type.partition(";")[0].strip().lower()
     return media_type == "application/json" or (
@@ -194,7 +200,7 @@ class InvalidCatalogSource(ValueError):
         super().__init__(public_message)
 
 
-def invalid_json_message(error: json.JSONDecodeError, source: str = "") -> str:
+def invalid_json_message(error: json.JSONDecodeError) -> str:
     """Describe a JSON parse failure by position only.
 
     The single place that turns a decode error into something a submitter
@@ -202,8 +208,7 @@ def invalid_json_message(error: json.JSONDecodeError, source: str = "") -> str:
     one place to hold rather than every call site. lineno/colno are ints;
     error.msg and str(error) are deliberately unused.
     """
-    where = f" in the {source}" if source else ""
-    return f"Invalid JSON{where} at line {error.lineno}, column {error.colno}."
+    return f"Invalid JSON at line {error.lineno}, column {error.colno}."
 
 
 def _parse_json_integer(value: str) -> int:
@@ -271,8 +276,9 @@ def parse_json_document(document: str | bytes | bytearray):
 class _PinnedConnectionMixin:
     """Connect to the approved IP while retaining the hostname for Host/TLS."""
 
-    def __init__(self, *args, pinned_ip: str, **kwargs):
+    def __init__(self, *args, pinned_ip: str, timeout_controller, **kwargs):
         self._pinned_ip = pinned_ip
+        self._timeout_controller = timeout_controller
         super().__init__(*args, **kwargs)
 
     def _new_conn(self):
@@ -282,6 +288,27 @@ class _PinnedConnectionMixin:
             return super()._new_conn()
         finally:
             self._dns_host = dns_host
+
+    def connect(self):
+        super().connect()
+        self._timeout_controller.attach(self.sock)
+
+
+class _SocketTimeoutController:
+    """Set read deadlines without depending on urllib3 response internals."""
+
+    def __init__(self):
+        self._socket = None
+
+    def attach(self, connected_socket) -> None:
+        self._socket = connected_socket
+
+    def settimeout(self, timeout: float) -> None:
+        if self._socket is None:
+            raise RuntimeError("Validator response socket is unavailable")
+        if self._socket.fileno() < 0:
+            return
+        self._socket.settimeout(timeout)
 
 
 class _PinnedHTTPConnection(_PinnedConnectionMixin, HTTPConnection):
@@ -303,8 +330,9 @@ class _PinnedHTTPSConnectionPool(HTTPSConnectionPool):
 class _PinnedAddressAdapter(HTTPAdapter):
     """A one-address adapter used for one request and then closed."""
 
-    def __init__(self, pinned_ip: str):
+    def __init__(self, pinned_ip: str, timeout_controller):
         self._pinned_ip = pinned_ip
+        self._timeout_controller = timeout_controller
         self._pools = []
         super().__init__()
 
@@ -327,6 +355,7 @@ class _PinnedAddressAdapter(HTTPAdapter):
             host_params["host"],
             host_params["port"],
             pinned_ip=self._pinned_ip,
+            timeout_controller=self._timeout_controller,
             **pool_kwargs,
         )
         self._pools.append(pool)
@@ -347,8 +376,9 @@ def _pinned_get(target: str, ip: str, timeout: tuple[float, float]):
     """
     session = requests.Session()
     session.trust_env = False
-    session.mount("http://", _PinnedAddressAdapter(ip))
-    session.mount("https://", _PinnedAddressAdapter(ip))
+    timeout_controller = _SocketTimeoutController()
+    session.mount("http://", _PinnedAddressAdapter(ip, timeout_controller))
+    session.mount("https://", _PinnedAddressAdapter(ip, timeout_controller))
     verify = os.getenv("REQUESTS_CA_BUNDLE") or True
 
     try:
@@ -365,6 +395,7 @@ def _pinned_get(target: str, ip: str, timeout: tuple[float, float]):
         raise
 
     response._validator_session = session
+    response._validator_timeout_controller = timeout_controller
     return response
 
 
@@ -444,30 +475,7 @@ def fetch_json_from_url(url: str) -> dict:
             )
         return remaining
 
-    def _set_stream_timeout(response: requests.Response, timeout: float) -> None:
-        """Bound the next body read by the remaining overall fetch budget."""
-        connection = getattr(response.raw, "_connection", None)
-        sock = getattr(connection, "sock", None)
-        if sock is None:
-            try:
-                sock = response.raw._fp.fp.raw._sock
-            except AttributeError:
-                sock = None
-        if sock is None:
-            # The network connection can close while iter_content still has
-            # decoded bytes buffered. Those reads cannot block on the network.
-            if getattr(response.raw, "closed", False) is True:
-                return
-            raise RuntimeError("Could not set validator response timeout")
-        sock.settimeout(timeout)
-
-    connect_timeouts = 0
-    connecting = False
-
     def _get(target: str, addresses: list[str]) -> requests.Response:
-        nonlocal connect_timeouts, connecting
-        connecting = True
-        connect_timeouts = 0
         attempts = 0
         while True:
             remaining = _remaining_budget()
@@ -493,10 +501,9 @@ def fetch_json_from_url(url: str) -> dict:
                 # out, which retrying can't help.
                 if time.monotonic() >= deadline - 0.5:
                     raise
-                connect_timeouts += 1
                 attempts += 1
                 if attempts >= FETCH_CONNECT_ATTEMPTS:
-                    raise
+                    raise _ConnectPhaseTimeout(attempts) from None
                 logger.info(
                     "Validator URL fetch connect attempt %s timed out, retrying url=%s",
                     attempts,
@@ -515,7 +522,6 @@ def fetch_json_from_url(url: str) -> dict:
                     _target_for_log(target),
                 )
                 continue
-            connecting = False
             return result
 
     response = None
@@ -552,7 +558,7 @@ def fetch_json_from_url(url: str) -> dict:
             # requests' read timeout is fixed when the request starts. Reduce
             # the socket timeout before every body read so a late stall cannot
             # consume a second full FETCH_TIMEOUT_SECONDS.
-            _set_stream_timeout(response, _remaining_budget())
+            response._validator_timeout_controller.settimeout(_remaining_budget())
             try:
                 chunk = next(chunk_iterator)
             except StopIteration:
@@ -567,18 +573,17 @@ def fetch_json_from_url(url: str) -> dict:
                 if total_size > MAX_UPLOAD_BYTES:
                     raise InvalidCatalogSource(PAYLOAD_TOO_LARGE_MESSAGE)
                 chunks.append(chunk)
+    except _ConnectPhaseTimeout as e:
+        logger.warning(
+            "Validator URL fetch could not connect in time attempts=%s target=%s",
+            e.attempts,
+            _target_for_log(url),
+        )
+        raise InvalidCatalogSource(
+            "Could not connect to the URL's server in time. Check that the "
+            "URL is correct and the server is up, then try again."
+        )
     except requests.exceptions.Timeout:
-        if connecting and connect_timeouts:
-            logger.warning(
-                "Validator URL fetch could not connect in time "
-                "connect_timeouts=%s target=%s",
-                connect_timeouts,
-                _target_for_log(url),
-            )
-            raise InvalidCatalogSource(
-                "Could not connect to the URL's server in time. Check that the "
-                "URL is correct and the server is up, then try again."
-            )
         logger.warning(
             "Validator URL fetch timed out after %ss target=%s",
             FETCH_TIMEOUT_SECONDS,
