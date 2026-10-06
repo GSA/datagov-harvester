@@ -7,6 +7,7 @@ from dcatus_validation.validate import (
     NESTING_TOO_DEEP_MESSAGE,
     CatalogTooDeeplyNested,
     validate_records,
+    validate_records_limited,
 )
 
 
@@ -52,3 +53,58 @@ class TestValidateRecords:
     def test_missing_dcatus3_definitions_say_how_to_fix_it(self, tmp_path):
         with pytest.raises(FileNotFoundError, match="git submodule update"):
             build_dcatus3_validator(tmp_path)
+
+    @pytest.mark.parametrize(
+        ("catalog", "expected"),
+        [
+            ({}, "$, 'dataset' is a required property"),
+            ([], "$, [] does not match any of the acceptable formats: 'object'"),
+            (
+                {"dataset": {}},
+                "$.dataset, object value does not match any of the acceptable "
+                "formats: 'array'",
+            ),
+            (
+                {"dataset": [1]},
+                "$.dataset[0], 1 does not match any of the acceptable "
+                "formats: 'object'",
+            ),
+            (
+                {"dataset": [True]},
+                "$.dataset[0], True does not match any of the acceptable "
+                "formats: 'object'",
+            ),
+        ],
+    )
+    def test_dcatus1_1_catalog_structure_is_a_validation_error(self, catalog, expected):
+        assert validate_records(catalog, "dcatus1.1: federal dataset") == [
+            ("", expected)
+        ]
+
+    def test_invalid_identifier_falls_back_to_dataset_position(self):
+        errors = validate_records(
+            {"dataset": [{"identifier": {"not": "a string"}}]},
+            "dcatus1.1: federal dataset",
+        )
+
+        assert errors
+        assert {identifier for identifier, _ in errors} == {0}
+
+    def test_direct_validation_remains_uncapped(self):
+        catalog = {"dataset": [{} for _ in range(101)]}
+
+        errors = validate_records(catalog, "dcatus1.1: federal dataset")
+
+        assert len(errors) == 1010
+
+    def test_limited_validation_reports_when_it_stops(self):
+        catalog = {"dataset": [{} for _ in range(101)]}
+
+        errors, incomplete = validate_records_limited(
+            catalog,
+            "dcatus1.1: federal dataset",
+            max_errors=1000,
+        )
+
+        assert len(errors) == 1000
+        assert incomplete is True

@@ -6,15 +6,21 @@ redirect hop, size, one overall time budget) are what keep that from being used
 to reach internal services.
 """
 
+import hashlib
 import ipaddress
 import json
 import logging
+import math
 import os
 import socket
 import time
 from urllib.parse import urljoin, urlparse
 
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.connection import HTTPConnection, HTTPSConnection
+from urllib3.connectionpool import HTTPConnectionPool, HTTPSConnectionPool
+from urllib3.poolmanager import SSL_KEYWORDS
 
 from dcatus_validation.limits import MAX_UPLOAD_BYTES, MAX_UPLOAD_MB
 
@@ -30,6 +36,60 @@ ALLOW_PRIVATE_ADDRESSES = (
     os.getenv("ALLOW_PRIVATE_ADDRESSES", "false").lower() == "true"
 )
 
+_IPV4_COMPATIBLE_NETWORK = ipaddress.ip_network("::/96")
+_IPV4_PROTOCOL_ASSIGNMENTS_NETWORK = ipaddress.ip_network("192.0.0.0/24")
+_IPV4_DEPRECATED_6TO4_RELAY_NETWORK = ipaddress.ip_network("192.88.99.0/24")
+_NAT64_WELL_KNOWN_NETWORK = ipaddress.ip_network("64:ff9b::/96")
+_NAT64_LOCAL_NETWORK = ipaddress.ip_network("64:ff9b:1::/48")
+_TEREDO_NETWORK = ipaddress.ip_network("2001::/32")
+_SIX_TO_FOUR_NETWORK = ipaddress.ip_network("2002::/16")
+_IPV6_DOCUMENTATION_NETWORK = ipaddress.ip_network("3fff::/20")
+
+
+def _is_public_ipv4_address(ip: ipaddress.IPv4Address) -> bool:
+    return (
+        ip.is_global
+        and not ip.is_multicast
+        and not ip.is_reserved
+        and ip not in _IPV4_PROTOCOL_ASSIGNMENTS_NETWORK
+        and ip not in _IPV4_DEPRECATED_6TO4_RELAY_NETWORK
+    )
+
+
+def _resolve_addresses(hostname: str, port: int | None = None) -> list[str]:
+    addresses = socket.getaddrinfo(hostname, port, type=socket.SOCK_STREAM)
+    return list(dict.fromkeys(addr[4][0] for addr in addresses))
+
+
+def _is_public_address(address: str) -> bool:
+    """Reject non-global addresses, including IPv4 hidden inside IPv6."""
+    ip = ipaddress.ip_address(address)
+    if not ip.is_global or ip.is_multicast or getattr(ip, "is_site_local", False):
+        return False
+    if not isinstance(ip, ipaddress.IPv6Address):
+        return _is_public_ipv4_address(ip)
+
+    if ip.ipv4_mapped is not None:
+        return _is_public_ipv4_address(ip.ipv4_mapped)
+    if ip in _NAT64_WELL_KNOWN_NETWORK:
+        embedded_ipv4 = ipaddress.IPv4Address(int(ip) & 0xFFFFFFFF)
+        return _is_public_ipv4_address(embedded_ipv4)
+    if ip.is_reserved:
+        return False
+
+    # Python 3.12 considers these globally routable even when they encode
+    # loopback or private IPv4. Transition and local-use ranges are not valid
+    # public web origins; inspect the embedded IPv4 in the public NAT64 /96.
+    if (
+        ip in _IPV4_COMPATIBLE_NETWORK
+        or ip in _NAT64_LOCAL_NETWORK
+        or ip in _TEREDO_NETWORK
+        or ip in _SIX_TO_FOUR_NETWORK
+        or ip in _IPV6_DOCUMENTATION_NETWORK
+    ):
+        return False
+    return True
+
 
 def is_public_ip(hostname: str) -> bool:
     """
@@ -44,17 +104,8 @@ def is_public_ip(hostname: str) -> bool:
     - metadata services
     """
     try:
-        addresses = socket.getaddrinfo(hostname, None)
-        for addr in addresses:
-            ip = addr[4][0]
-            ip_obj = ipaddress.ip_address(ip)
-
-            # `is_private` does not include every non-public range. In
-            # particular, RFC 6598 shared address space (100.64.0.0/10) may be
-            # used inside hosting networks and must not be reachable here.
-            if not ip_obj.is_global:
-                return False
-        return True
+        addresses = _resolve_addresses(hostname)
+        return bool(addresses) and all(_is_public_address(ip) for ip in addresses)
     except Exception:
         return False
 
@@ -73,7 +124,7 @@ PAYLOAD_TOO_LARGE_MESSAGE = (
 # logged rejection instead of us being disconnected mid-request.
 #
 # It is also a capacity limit, not just a latency one: gunicorn runs 3 workers
-# with 1 thread each, so each in-flight fetch holds one of only 3 concurrent
+# with 2 threads each, so each in-flight fetch holds one of only 6 concurrent
 # slots per instance.
 #
 # From cloud.gov, some hosts (data.nola.gov) lose a handshake packet on 10-25%
@@ -98,6 +149,15 @@ _REDIRECT_STATUS_CODES = {301, 302, 303, 307, 308}
 UNEXPECTED_FETCH_ERROR_MESSAGE = (
     "Could not retrieve the catalog from that URL. Check the URL and try again."
 )
+INVALID_JSON_ENCODING_MESSAGE = "Invalid JSON encoding. Use UTF-8, UTF-16, or UTF-32."
+INVALID_JSON_NUMBER_MESSAGE = "JSON contains a number outside the supported range."
+
+
+def _is_json_media_type(content_type: str) -> bool:
+    media_type = content_type.partition(";")[0].strip().lower()
+    return media_type == "application/json" or (
+        media_type.startswith("application/") and media_type.endswith("+json")
+    )
 
 
 class InvalidCatalogSource(ValueError):
@@ -135,7 +195,161 @@ def invalid_json_message(error: json.JSONDecodeError, source: str = "") -> str:
     return f"Invalid JSON{where} at line {error.lineno}, column {error.colno}."
 
 
-def _validate_fetch_target(url: str) -> None:
+def _parse_json_integer(value: str) -> int:
+    try:
+        return int(value)
+    except ValueError:
+        raise InvalidCatalogSource(INVALID_JSON_NUMBER_MESSAGE) from None
+
+
+def _parse_json_float(value: str) -> float:
+    parsed = float(value)
+    if not math.isfinite(parsed):
+        raise InvalidCatalogSource(INVALID_JSON_NUMBER_MESSAGE)
+    return parsed
+
+
+def _reject_nonfinite_json_constant(_value: str):
+    # Python accepts NaN and Infinity by default even though JSON does not.
+    raise InvalidCatalogSource(INVALID_JSON_NUMBER_MESSAGE)
+
+
+def parse_json_document(document: str | bytes | bytearray):
+    """Parse strict JSON and normalize unsupported encoding/numeric failures."""
+    try:
+        return json.loads(
+            document,
+            parse_int=_parse_json_integer,
+            parse_float=_parse_json_float,
+            parse_constant=_reject_nonfinite_json_constant,
+        )
+    except UnicodeDecodeError:
+        raise InvalidCatalogSource(INVALID_JSON_ENCODING_MESSAGE) from None
+
+
+class _PinnedConnectionMixin:
+    """Connect to the approved IP while retaining the hostname for Host/TLS."""
+
+    def __init__(self, *args, pinned_ip: str, **kwargs):
+        self._pinned_ip = pinned_ip
+        super().__init__(*args, **kwargs)
+
+    def _new_conn(self):
+        dns_host = self._dns_host
+        try:
+            self._dns_host = self._pinned_ip
+            return super()._new_conn()
+        finally:
+            self._dns_host = dns_host
+
+
+class _PinnedHTTPConnection(_PinnedConnectionMixin, HTTPConnection):
+    pass
+
+
+class _PinnedHTTPSConnection(_PinnedConnectionMixin, HTTPSConnection):
+    pass
+
+
+class _PinnedHTTPConnectionPool(HTTPConnectionPool):
+    ConnectionCls = _PinnedHTTPConnection
+
+
+class _PinnedHTTPSConnectionPool(HTTPSConnectionPool):
+    ConnectionCls = _PinnedHTTPSConnection
+
+
+class _PinnedAddressAdapter(HTTPAdapter):
+    """A one-address adapter used for one request and then closed."""
+
+    def __init__(self, pinned_ip: str):
+        self._pinned_ip = pinned_ip
+        self._pools = []
+        super().__init__()
+
+    def get_connection_with_tls_context(self, request, verify, proxies=None, cert=None):
+        if proxies:
+            raise RuntimeError("Proxies are not supported by the pinned URL fetcher")
+
+        host_params, pool_kwargs = self.build_connection_pool_key_attributes(
+            request, verify, cert
+        )
+        pool_class = (
+            _PinnedHTTPSConnectionPool
+            if host_params["scheme"] == "https"
+            else _PinnedHTTPConnectionPool
+        )
+        if host_params["scheme"] == "http":
+            for keyword in SSL_KEYWORDS:
+                pool_kwargs.pop(keyword, None)
+        pool = pool_class(
+            host_params["host"],
+            host_params["port"],
+            pinned_ip=self._pinned_ip,
+            **pool_kwargs,
+        )
+        self._pools.append(pool)
+        return pool
+
+    def close(self):
+        for pool in self._pools:
+            pool.close()
+        self._pools.clear()
+        super().close()
+
+
+def _pinned_get(target: str, ip: str, timeout: tuple[float, float]):
+    """
+    Fetch target through the IP that passed validation. A fresh Session avoids
+    ambient proxy and netrc credentials, either of which would hand hostname
+    resolution back to another component after the security check.
+    """
+    session = requests.Session()
+    session.trust_env = False
+    session.mount("http://", _PinnedAddressAdapter(ip))
+    session.mount("https://", _PinnedAddressAdapter(ip))
+    verify = os.getenv("REQUESTS_CA_BUNDLE") or True
+
+    try:
+        response = session.get(
+            target,
+            headers={"User-Agent": USER_AGENT},
+            stream=True,
+            timeout=timeout,
+            allow_redirects=False,
+            verify=verify,
+        )
+    except Exception:
+        session.close()
+        raise
+
+    response._validator_session = session
+    return response
+
+
+def _close_response(response: requests.Response) -> None:
+    session = getattr(response, "_validator_session", None)
+    try:
+        response.close()
+    finally:
+        if session is not None:
+            session.close()
+
+
+def _target_for_log(url: str) -> str:
+    """Log an origin and correlation hash, never credentials or signed paths."""
+    parsed = urlparse(url)
+    origin = f"{parsed.scheme}://{parsed.hostname or '<invalid>'}"
+    try:
+        if parsed.port is not None:
+            origin = f"{origin}:{parsed.port}"
+    except ValueError:
+        pass
+    digest = hashlib.sha256(url.encode("utf-8", errors="replace")).hexdigest()[:12]
+    return f"{origin} url_hash={digest}"
+
+
+def _validate_fetch_target(url: str) -> list[str]:
     parsed = urlparse(url)
 
     if parsed.scheme not in ("http", "https"):
@@ -144,23 +358,37 @@ def _validate_fetch_target(url: str) -> None:
     if not parsed.hostname:
         raise InvalidCatalogSource("Invalid URL.")
 
-    if not ALLOW_PRIVATE_ADDRESSES and not is_public_ip(parsed.hostname):
+    if parsed.username is not None or parsed.password is not None:
+        raise InvalidCatalogSource("URLs containing credentials are not allowed.")
+
+    try:
+        port = parsed.port
+    except ValueError:
+        raise InvalidCatalogSource("Invalid URL.") from None
+
+    try:
+        addresses = _resolve_addresses(parsed.hostname, port)
+    except Exception:
+        addresses = []
+
+    if not addresses:
+        raise InvalidCatalogSource(UNEXPECTED_FETCH_ERROR_MESSAGE)
+
+    if not ALLOW_PRIVATE_ADDRESSES and any(
+        not _is_public_address(ip) for ip in addresses
+    ):
         raise InvalidCatalogSource(
             "Access to private/internal addresses is not allowed."
         )
+    return addresses
 
 
 def fetch_json_from_url(url: str) -> dict:
-    # The URL itself isn't sensitive - it's a pointer to a public DCAT catalog,
-    # which is the whole point of this feature - so it's safe to log, unlike
-    # pasted/uploaded catalog content. Logged up front so a hung or rejected
-    # fetch still shows which URL was responsible.
-    logger.info("Validator fetching url=%s", url)
-
     # DNS validation is part of the fetch, so time spent resolving the
     # submitted hostname counts against the same deadline as the request.
     deadline = time.monotonic() + FETCH_TIMEOUT_SECONDS
-    _validate_fetch_target(url)
+    approved_addresses = _validate_fetch_target(url)
+    logger.info("Validator fetching target=%s", _target_for_log(url))
 
     # One deadline for the whole operation, not a fresh FETCH_TIMEOUT_SECONDS
     # per redirect hop - otherwise a chain of MAX_FETCH_REDIRECTS redirects,
@@ -195,24 +423,27 @@ def fetch_json_from_url(url: str) -> dict:
     connect_timeouts = 0
     connecting = False
 
-    def _get(target: str) -> requests.Response:
+    def _get(target: str, addresses: list[str]) -> requests.Response:
         nonlocal connect_timeouts, connecting
         connecting = True
+        connect_timeouts = 0
+        attempts = 0
         while True:
             remaining = _remaining_budget()
+            ip = addresses[attempts % len(addresses)]
             try:
-                # requests.get opens a new connection every call, so a retry
-                # doesn't reuse the stalled one.
-                result = requests.get(
+                # _pinned_get opens a fresh connection to the address that
+                # passed validation, so DNS cannot change underneath us.
+                result = _pinned_get(
                     target,
-                    headers={"User-Agent": USER_AGENT},
-                    stream=True,
+                    ip,
                     timeout=(
                         min(FETCH_CONNECT_TIMEOUT_SECONDS, remaining),
                         remaining,
                     ),
-                    allow_redirects=False,
                 )
+            except requests.exceptions.SSLError:
+                raise
             except requests.exceptions.Timeout:
                 # A stalled TLS handshake is bounded by the connect timeout but
                 # raised as ReadTimeout, so the exception type can't tell the
@@ -222,12 +453,25 @@ def fetch_json_from_url(url: str) -> dict:
                 if time.monotonic() >= deadline - 0.5:
                     raise
                 connect_timeouts += 1
-                if connect_timeouts >= FETCH_CONNECT_ATTEMPTS:
+                attempts += 1
+                if attempts >= FETCH_CONNECT_ATTEMPTS:
                     raise
                 logger.info(
                     "Validator URL fetch connect attempt %s timed out, retrying url=%s",
-                    connect_timeouts,
-                    target,
+                    attempts,
+                    _target_for_log(target),
+                )
+                continue
+            except requests.exceptions.ConnectionError:
+                # One unusable address (commonly an IPv6 address on an
+                # IPv4-only network) must not hide another approved address.
+                attempts += 1
+                if attempts >= FETCH_CONNECT_ATTEMPTS:
+                    raise
+                logger.info(
+                    "Validator URL fetch connect attempt %s failed, retrying target=%s",
+                    attempts,
+                    _target_for_log(target),
                 )
                 continue
             connecting = False
@@ -236,17 +480,17 @@ def fetch_json_from_url(url: str) -> dict:
     response = None
     try:
         for _ in range(MAX_FETCH_REDIRECTS + 1):
-            response = _get(url)
+            response = _get(url, approved_addresses)
             if response.status_code not in _REDIRECT_STATUS_CODES:
                 break
 
             location = response.headers.get("Location")
-            response.close()
+            _close_response(response)
             if not location:
                 raise InvalidCatalogSource("Redirected without a Location header.")
 
             url = urljoin(url, location)
-            _validate_fetch_target(url)
+            approved_addresses = _validate_fetch_target(url)
         else:
             raise InvalidCatalogSource("Too many redirects.")
 
@@ -257,7 +501,7 @@ def fetch_json_from_url(url: str) -> dict:
             raise InvalidCatalogSource(PAYLOAD_TOO_LARGE_MESSAGE)
 
         content_type = response.headers.get("Content-Type", "")
-        if "application/json" not in content_type:
+        if not _is_json_media_type(content_type):
             raise InvalidCatalogSource("URL did not return JSON.")
 
         chunks = []
@@ -286,18 +530,18 @@ def fetch_json_from_url(url: str) -> dict:
         if connecting and connect_timeouts:
             logger.warning(
                 "Validator URL fetch could not connect in time "
-                "connect_timeouts=%s url=%s",
+                "connect_timeouts=%s target=%s",
                 connect_timeouts,
-                url,
+                _target_for_log(url),
             )
             raise InvalidCatalogSource(
                 "Could not connect to the URL's server in time. Check that the "
                 "URL is correct and the server is up, then try again."
             )
         logger.warning(
-            "Validator URL fetch timed out after %ss url=%s",
+            "Validator URL fetch timed out after %ss target=%s",
             FETCH_TIMEOUT_SECONDS,
-            url,
+            _target_for_log(url),
         )
         raise InvalidCatalogSource(
             f"The URL took longer than {FETCH_TIMEOUT_SECONDS} seconds to "
@@ -306,14 +550,17 @@ def fetch_json_from_url(url: str) -> dict:
     except InvalidCatalogSource:
         raise
     except Exception as e:
-        # Connection refused, DNS failure, TLS error, bad status - the
-        # submitter can act on these, but requests' own text can carry
-        # internals, so log it and answer with a fixed message.
-        logger.warning("Validator URL fetch failed url=%s error=%s", url, repr(e))
+        # Connection refused, TLS error, bad status - requests' exception text
+        # can repeat signed query strings or credentials, so log only its type.
+        logger.warning(
+            "Validator URL fetch failed target=%s error_type=%s",
+            _target_for_log(url),
+            type(e).__name__,
+        )
         raise InvalidCatalogSource(UNEXPECTED_FETCH_ERROR_MESSAGE)
     finally:
         if response is not None:
-            response.close()
+            _close_response(response)
 
     content = b"".join(chunks)
 
@@ -321,6 +568,6 @@ def fetch_json_from_url(url: str) -> dict:
         raise InvalidCatalogSource(PAYLOAD_TOO_LARGE_MESSAGE)
 
     try:
-        return json.loads(content)
+        return parse_json_document(content)
     except json.JSONDecodeError as e:
         raise InvalidCatalogSource(invalid_json_message(e))

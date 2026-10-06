@@ -128,7 +128,7 @@ function extractRefusalMessage(body) {
 }
 
 /* ── render the validator's [identifier, message] pairs ── */
-function renderResults(errors) {
+function renderResults(errors, validationIncomplete = false) {
     lastValidationErrors = errors;
 
     const container = document.getElementById("validator-results");
@@ -137,6 +137,19 @@ function renderResults(errors) {
     const heading = document.createElement("h2");
     heading.textContent = "Validation results";
     container.appendChild(heading);
+
+    if (validationIncomplete) {
+        const notice = document.createElement("p");
+        const strong = document.createElement("strong");
+        strong.textContent = "Validation stopped early. ";
+        notice.appendChild(strong);
+        notice.appendChild(
+            document.createTextNode(
+                "Fix the reported errors and validate again to find any remaining errors."
+            )
+        );
+        container.appendChild(notice);
+    }
 
     if (!errors.length) {
         const p = document.createElement("p");
@@ -294,7 +307,10 @@ document.addEventListener("DOMContentLoaded", function () {
             }
 
             if (response.ok && body && Array.isArray(body.validation_errors)) {
-                renderResults(body.validation_errors);
+                renderResults(
+                    body.validation_errors,
+                    body.validation_incomplete === true
+                );
                 return;
             }
 

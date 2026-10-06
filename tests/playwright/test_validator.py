@@ -448,6 +448,25 @@ class TestValidatorApiResponses:
         expect(blocks.nth(1)).to_contain_text("<b>bold</b>")
         expect(upage.locator("#validator-results img")).to_have_count(0)
 
+    def test_incomplete_validation_is_explained(self, upage):
+        upage.route(
+            "**/api/v1/validate",
+            lambda route: route.fulfill(
+                status=200,
+                content_type="application/json",
+                body='{"validation_errors": [[0, "first error"]], '
+                '"validation_incomplete": true}',
+            ),
+        )
+        self._submit_url(upage)
+
+        expect(upage.locator("#validator-results")).to_contain_text(
+            "Validation stopped early."
+        )
+        expect(upage.locator("#validator-results")).to_contain_text(
+            "Fix the reported errors and validate again"
+        )
+
     def test_fetch_method_is_locked_while_validating(self, upage):
         pending = []
         upage.route("**/api/v1/validate", lambda route: pending.append(route))

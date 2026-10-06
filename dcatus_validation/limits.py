@@ -3,6 +3,13 @@
 MAX_UPLOAD_MB = 10
 MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024
 
+# A small document containing many invalid datasets can expand into millions of
+# validation errors. The public API stops before that amplification can exhaust
+# a worker; direct/offline callers of validate_records remain uncapped.
+MAX_VALIDATION_ERRORS = 1000
+MAX_RESULT_IDENTIFIER_CHARS = 1000
+MAX_RESULT_MESSAGE_CHARS = 4000
+
 # Largest validator API request body. Pasted catalogs arrive as a JSON string,
 # and encoding one escapes every quote, backslash and control character, so a
 # document at the limit can double in size. Leave room for the surrounding API

@@ -1,14 +1,21 @@
 import itertools
+import socket
+import threading
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from unittest.mock import Mock, patch
 
 import pytest
 import requests
 
+import dcatus_validation.fetch as fetch
 from dcatus_validation.fetch import (
     FETCH_CONNECT_ATTEMPTS,
     FETCH_CONNECT_TIMEOUT_SECONDS,
     FETCH_TIMEOUT_SECONDS,
+    INVALID_JSON_ENCODING_MESSAGE,
+    INVALID_JSON_NUMBER_MESSAGE,
     InvalidCatalogSource,
+    _is_json_media_type,
     fetch_json_from_url,
     is_public_ip,
 )
@@ -27,7 +34,7 @@ def _json_response(body=b'{"dataset": []}'):
 class TestFetchJsonFromUrl:
     """Tests for fetch_json_from_url function"""
 
-    @patch("dcatus_validation.fetch.requests.get")
+    @patch("dcatus_validation.fetch._pinned_get")
     def test_fetch_json_from_url_exceeds_size_limit(self, mock_get):
         """Test that fetch_json_from_url raises ValueError when content exceeds 10MB"""
         mock_response = Mock()
@@ -45,7 +52,7 @@ class TestFetchJsonFromUrl:
         ):
             fetch_json_from_url("https://example.com/large-file.json")
 
-    @patch("dcatus_validation.fetch.requests.get")
+    @patch("dcatus_validation.fetch._pinned_get")
     def test_fetch_json_from_url_within_size_limit(self, mock_get):
         """Test that fetch_json_from_url succeeds when content is within 10MB limit"""
         mock_response = Mock()
@@ -61,7 +68,26 @@ class TestFetchJsonFromUrl:
         result = fetch_json_from_url("https://example.com/small-file.json")
         assert result == {"test": "data"}
 
-    @patch("dcatus_validation.fetch.requests.get")
+    @pytest.mark.parametrize(
+        "content_type",
+        [
+            "application/json",
+            "Application/JSON; charset=UTF-8",
+            "application/ld+json",
+            "application/vnd.api+json; profile=example",
+        ],
+    )
+    def test_json_media_types(self, content_type):
+        assert _is_json_media_type(content_type) is True
+
+    @pytest.mark.parametrize(
+        "content_type",
+        ["", "text/json", "text/html", "application/jsonp"],
+    )
+    def test_non_json_media_types(self, content_type):
+        assert _is_json_media_type(content_type) is False
+
+    @patch("dcatus_validation.fetch._pinned_get")
     def test_fetch_json_from_url_content_length_exceeds_limit(self, mock_get):
         """Test that fetch_json_from_url raises ValueError when Content-Length
         header exceeds 10MB"""
@@ -79,7 +105,7 @@ class TestFetchJsonFromUrl:
         ):
             fetch_json_from_url("https://example.com/large-file.json")
 
-    @patch("dcatus_validation.fetch.requests.get")
+    @patch("dcatus_validation.fetch._pinned_get")
     def test_fetch_json_from_url_stops_streaming_when_limit_exceeded(self, mock_get):
         """Test that fetch_json_from_url stops downloading chunks when size
         exceeds 10MB"""
@@ -114,7 +140,7 @@ class TestFetchJsonFromUrl:
         )
         mock_response.close.assert_called_once()
 
-    @patch("dcatus_validation.fetch.requests.get")
+    @patch("dcatus_validation.fetch._pinned_get")
     def test_fetch_json_from_url_times_out(self, mock_get, caplog, monkeypatch):
         """A hung/unresponsive target raises a clear, logged ValueError instead
         of hanging the worker indefinitely."""
@@ -131,10 +157,12 @@ class TestFetchJsonFromUrl:
         ):
             fetch_json_from_url("https://example.com/slow.json")
 
-        assert any(
-            "timed out" in record.message and "example.com/slow.json" in record.message
-            for record in caplog.records
+        timeout_log = next(
+            record.message for record in caplog.records if "timed out" in record.message
         )
+        assert "example.com" in timeout_log
+        assert "url_hash=" in timeout_log
+        assert "/slow.json" not in timeout_log
 
     @pytest.mark.parametrize(
         "error",
@@ -144,7 +172,7 @@ class TestFetchJsonFromUrl:
             requests.exceptions.ReadTimeout("handshake stalled"),
         ],
     )
-    @patch("dcatus_validation.fetch.requests.get")
+    @patch("dcatus_validation.fetch._pinned_get")
     def test_fetch_json_from_url_connect_phase_timeout(
         self, mock_get, caplog, monkeypatch, error
     ):
@@ -162,11 +190,14 @@ class TestFetchJsonFromUrl:
             fetch_json_from_url("https://example.com/flaky.json")
 
         assert mock_get.call_count == FETCH_CONNECT_ATTEMPTS
-        assert any(
-            "could not connect" in record.message
-            and "example.com/flaky.json" in record.message
+        failure_log = next(
+            record.message
             for record in caplog.records
+            if "could not connect" in record.message
         )
+        assert "example.com" in failure_log
+        assert "url_hash=" in failure_log
+        assert "/flaky.json" not in failure_log
 
     @pytest.mark.parametrize(
         "error",
@@ -175,7 +206,7 @@ class TestFetchJsonFromUrl:
             requests.exceptions.ReadTimeout("handshake stalled"),
         ],
     )
-    @patch("dcatus_validation.fetch.requests.get")
+    @patch("dcatus_validation.fetch._pinned_get")
     def test_fetch_json_from_url_retries_a_stalled_connect(self, mock_get, error):
         """The data.nola.gov case: one connection's handshake stalls, the next
         connects straight away."""
@@ -184,7 +215,28 @@ class TestFetchJsonFromUrl:
         assert fetch_json_from_url("https://example.com/flaky.json") == {"dataset": []}
         assert mock_get.call_count == 2
 
-    @patch("dcatus_validation.fetch.requests.get")
+    @patch("dcatus_validation.fetch._pinned_get")
+    def test_fetch_json_from_url_retries_with_another_approved_address(
+        self, mock_get, monkeypatch
+    ):
+        monkeypatch.setattr(
+            "dcatus_validation.fetch._resolve_addresses",
+            lambda hostname, port=None: ["2001:4860:4860::8888", "8.8.8.8"],
+        )
+        mock_get.side_effect = [
+            requests.exceptions.ConnectionError("network unreachable"),
+            _json_response(),
+        ]
+
+        assert fetch_json_from_url("https://example.com/catalog.json") == {
+            "dataset": []
+        }
+        assert [call.args[1] for call in mock_get.call_args_list] == [
+            "2001:4860:4860::8888",
+            "8.8.8.8",
+        ]
+
+    @patch("dcatus_validation.fetch._pinned_get")
     def test_fetch_json_from_url_does_not_retry_at_the_deadline(
         self, mock_get, monkeypatch
     ):
@@ -202,7 +254,7 @@ class TestFetchJsonFromUrl:
 
         assert mock_get.call_count == 1
 
-    @patch("dcatus_validation.fetch.requests.get")
+    @patch("dcatus_validation.fetch._pinned_get")
     def test_fetch_json_from_url_body_timeout_after_a_retry(
         self, mock_get, monkeypatch
     ):
@@ -233,7 +285,7 @@ class TestFetchJsonFromUrl:
         )
         assert FETCH_TIMEOUT_SECONDS + 12 <= 25
 
-    @patch("dcatus_validation.fetch.requests.get")
+    @patch("dcatus_validation.fetch._pinned_get")
     def test_fetch_json_from_url_passes_timeout_to_requests(self, mock_get):
         """requests.get is bounded by FETCH_TIMEOUT_SECONDS, not unbounded."""
         mock_response = Mock()
@@ -252,14 +304,13 @@ class TestFetchJsonFromUrl:
         assert 0 < connect_timeout <= FETCH_CONNECT_TIMEOUT_SECONDS
         assert 0 < read_timeout <= FETCH_TIMEOUT_SECONDS
         assert connect_timeout < read_timeout
-        assert mock_get.call_args.kwargs["allow_redirects"] is False
         stream_timeouts = mock_response.raw._connection.sock.settimeout.call_args_list
         assert stream_timeouts
         assert all(
             0 < call.args[0] <= FETCH_TIMEOUT_SECONDS for call in stream_timeouts
         )
 
-    @patch("dcatus_validation.fetch.requests.get")
+    @patch("dcatus_validation.fetch._pinned_get")
     def test_fetch_json_from_url_follows_redirect_to_public_url(self, mock_get):
         """A single redirect to another public URL is followed and validated."""
         redirect_response = Mock()
@@ -282,7 +333,7 @@ class TestFetchJsonFromUrl:
         assert mock_get.call_count == 2
         assert mock_get.call_args_list[1].args[0] == "https://example.com/final.json"
 
-    @patch("dcatus_validation.fetch.requests.get")
+    @patch("dcatus_validation.fetch._pinned_get")
     def test_fetch_json_from_url_redirect_budget_shrinks_over_time(
         self, mock_get, monkeypatch
     ):
@@ -319,7 +370,7 @@ class TestFetchJsonFromUrl:
         assert second_read == pytest.approx(FETCH_TIMEOUT_SECONDS - 4)
         assert second_read < first_read
 
-    @patch("dcatus_validation.fetch.requests.get")
+    @patch("dcatus_validation.fetch._pinned_get")
     def test_fetch_json_from_url_redirect_chain_exceeding_budget_times_out(
         self, mock_get, monkeypatch
     ):
@@ -346,7 +397,7 @@ class TestFetchJsonFromUrl:
         # never attempted a second request once the shared budget was gone
         assert mock_get.call_count == 1
 
-    @patch("dcatus_validation.fetch.requests.get")
+    @patch("dcatus_validation.fetch._pinned_get")
     def test_fetch_json_from_url_rejects_redirect_to_private_address_in_prod(
         self, mock_get, monkeypatch
     ):
@@ -369,7 +420,7 @@ class TestFetchJsonFromUrl:
         # never followed the redirect to the private address
         mock_get.assert_called_once()
 
-    @patch("dcatus_validation.fetch.requests.get")
+    @patch("dcatus_validation.fetch._pinned_get")
     def test_fetch_json_from_url_caps_redirect_chain(self, mock_get):
         """A redirect loop/chain longer than MAX_FETCH_REDIRECTS is rejected
         rather than followed indefinitely."""
@@ -382,7 +433,7 @@ class TestFetchJsonFromUrl:
         with pytest.raises(ValueError, match="Too many redirects."):
             fetch_json_from_url("https://example.com/redirect-me")
 
-    @patch("dcatus_validation.fetch.requests.get")
+    @patch("dcatus_validation.fetch._pinned_get")
     def test_rejections_raise_disclosable_exception(self, mock_get, monkeypatch):
         """Every submitter-actionable refusal raises InvalidCatalogSource, which
         is what lets both callers show the reason - the API answers 400 with
@@ -407,7 +458,7 @@ class TestFetchJsonFromUrl:
         with pytest.raises(InvalidCatalogSource, match="did not return JSON"):
             fetch_json_from_url("https://example.com/page.html")
 
-    @patch("dcatus_validation.fetch.requests.get")
+    @patch("dcatus_validation.fetch._pinned_get")
     def test_unparseable_json_is_reported_by_position_only(self, mock_get):
         """A fetched document that won't parse is described by line/column, with
         neither the decoder's own text nor the document itself in the message -
@@ -431,7 +482,30 @@ class TestFetchJsonFromUrl:
         # the decoder's own phrasing is not reused
         assert "Expecting" not in message
 
-    @patch("dcatus_validation.fetch.requests.get")
+    @patch("dcatus_validation.fetch._pinned_get")
+    def test_invalid_json_encoding_is_a_submission_error(self, mock_get):
+        mock_get.return_value = _json_response(b'{"secret":"\xff"}')
+
+        with pytest.raises(InvalidCatalogSource, match=INVALID_JSON_ENCODING_MESSAGE):
+            fetch_json_from_url("https://example.com/broken.json")
+
+    @pytest.mark.parametrize(
+        "body",
+        [
+            b'{"value": NaN}',
+            b'{"value": Infinity}',
+            b'{"value": 1e9999}',
+            b'{"value": ' + b"9" * 5000 + b"}",
+        ],
+    )
+    @patch("dcatus_validation.fetch._pinned_get")
+    def test_unsupported_json_numbers_are_submission_errors(self, mock_get, body):
+        mock_get.return_value = _json_response(body)
+
+        with pytest.raises(InvalidCatalogSource, match=INVALID_JSON_NUMBER_MESSAGE):
+            fetch_json_from_url("https://example.com/broken.json")
+
+    @patch("dcatus_validation.fetch._pinned_get")
     def test_unexpected_transport_error_is_not_leaked(self, mock_get, caplog):
         """A connection-level failure is still reported as a refusal the
         submitter can act on, but with a fixed message - requests' own error
@@ -445,21 +519,154 @@ class TestFetchJsonFromUrl:
 
         assert "ca-bundle" not in str(excinfo.value)
         assert "Could not retrieve the catalog" in str(excinfo.value)
-        # the detail is still recoverable by an operator
-        assert any("ca-bundle" in record.message for record in caplog.records)
+        assert any("SSLError" in record.message for record in caplog.records)
+        assert not any("ca-bundle" in record.message for record in caplog.records)
+
+    def test_pinned_get_ignores_ambient_credentials_and_proxies(self, monkeypatch):
+        monkeypatch.setenv("https_proxy", "http://proxy.internal:8080")
+        monkeypatch.setenv("REQUESTS_CA_BUNDLE", "/tmp/test-ca.pem")
+
+        with patch("requests.Session.get") as session_get:
+            session_get.return_value = Mock()
+            response = fetch._pinned_get(
+                "https://example.com/data.json",
+                "93.184.216.34",
+                (1, 2),
+            )
+
+        assert response._validator_session.trust_env is False
+        assert session_get.call_args.kwargs["allow_redirects"] is False
+        assert session_get.call_args.kwargs["verify"] == "/tmp/test-ca.pem"
+        response._validator_session.close()
+
+    def test_hostname_resolution_is_pinned_for_the_connection(self, monkeypatch):
+        class CatalogHandler(BaseHTTPRequestHandler):
+            def do_GET(self):
+                body = b'{"dataset": []}'
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+
+            def log_message(self, format, *args):
+                pass
+
+        server = ThreadingHTTPServer(("127.0.0.1", 0), CatalogHandler)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+
+        original_getaddrinfo = socket.getaddrinfo
+        hostname_resolutions = 0
+
+        def rebinding_getaddrinfo(host, port, *args, **kwargs):
+            nonlocal hostname_resolutions
+            if host == "rebind.test":
+                hostname_resolutions += 1
+                if hostname_resolutions > 1:
+                    raise AssertionError("hostname was resolved more than once")
+                return [
+                    (
+                        socket.AF_INET,
+                        socket.SOCK_STREAM,
+                        socket.IPPROTO_TCP,
+                        "",
+                        ("127.0.0.1", port),
+                    )
+                ]
+            return original_getaddrinfo(host, port, *args, **kwargs)
+
+        monkeypatch.setattr(fetch, "ALLOW_PRIVATE_ADDRESSES", True)
+        monkeypatch.setattr(socket, "getaddrinfo", rebinding_getaddrinfo)
+        try:
+            result = fetch_json_from_url(
+                f"http://rebind.test:{server.server_port}/catalog.json"
+            )
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join()
+
+        assert result == {"dataset": []}
+        assert hostname_resolutions == 1
+
+    def test_url_credentials_are_rejected_without_being_logged(
+        self, caplog, monkeypatch
+    ):
+        monkeypatch.setattr(fetch, "ALLOW_PRIVATE_ADDRESSES", True)
+
+        with pytest.raises(InvalidCatalogSource, match="credentials"):
+            fetch_json_from_url("https://user:hunter2@example.com/catalog.json")
+
+        assert "hunter2" not in caplog.text
+
+    @patch("dcatus_validation.fetch._pinned_get")
+    def test_signed_query_is_not_logged(self, mock_get, caplog):
+        mock_get.return_value = _json_response()
+
+        fetch_json_from_url("https://example.com/catalog.json?access_token=hunter2")
+
+        assert "hunter2" not in caplog.text
+        assert "catalog.json" not in caplog.text
+        assert "url_hash=" in caplog.text
 
 
 class TestPrivateAddressDefault:
     def test_shared_address_space_is_not_public(self, monkeypatch):
         """RFC 6598 addresses are not `is_private`, but can still be internal."""
         monkeypatch.setattr(
-            "dcatus_validation.fetch.socket.getaddrinfo",
-            lambda hostname, port: [
-                (2, 1, 6, "", ("100.64.0.1", 0)),
-            ],
+            "dcatus_validation.fetch._resolve_addresses",
+            lambda hostname, port=None: ["100.64.0.1"],
         )
 
         assert is_public_ip("shared.example") is False
+
+    @pytest.mark.parametrize(
+        "address",
+        [
+            "::ffff:100.64.0.1",
+            "::ffff:192.0.0.8",
+            "::ffff:192.88.99.1",
+            "::127.0.0.1",
+            "64:ff9b::7f00:1",
+            "64:ff9b::c000:8",
+            "64:ff9b::c058:6301",
+            "64:ff9b::e000:1",
+            "64:ff9b:1::7f00:1",
+            "2002:7f00:1::",
+            "2002:0808:0808::",
+            "192.0.0.8",
+            "192.88.99.1",
+            "224.0.0.1",
+            "3fff::1",
+            "fec0::1",
+            "ff0e::1",
+        ],
+    )
+    def test_embedded_non_public_ipv4_is_not_public(self, address, monkeypatch):
+        monkeypatch.setattr(
+            "dcatus_validation.fetch._resolve_addresses",
+            lambda hostname, port=None: [address],
+        )
+
+        assert is_public_ip("embedded.example") is False
+
+    @pytest.mark.parametrize(
+        "address",
+        [
+            "::ffff:8.8.8.8",
+            "64:ff9b::808:808",
+            "8.8.8.8",
+            "2001:4860:4860::8888",
+        ],
+    )
+    def test_embedded_public_ipv4_remains_public(self, address, monkeypatch):
+        monkeypatch.setattr(
+            "dcatus_validation.fetch._resolve_addresses",
+            lambda hostname, port=None: [address],
+        )
+
+        assert is_public_ip("embedded.example") is True
 
     def test_private_addresses_are_refused_unless_explicitly_allowed(self, monkeypatch):
         """Fail closed: an unset ALLOW_PRIVATE_ADDRESSES must mean refuse."""

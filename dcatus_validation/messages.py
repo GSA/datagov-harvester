@@ -110,6 +110,14 @@ def is_required_property(messages: str) -> bool:
     return False
 
 
+def _unquoted_type_error_value(message: str) -> str | None:
+    """Extract JSON scalars that jsonschema renders without quotes."""
+    value, separator, _ = message.partition(" is not of type ")
+    if not separator or not value or value[0] in "'\"[{<":
+        return None
+    return value
+
+
 def finalize_validation_messages(messages: defaultdict) -> list:
     """
     build the final validation messages either individually (root) or
@@ -153,6 +161,8 @@ def finalize_validation_messages(messages: defaultdict) -> list:
             invalid_value = "None"
         elif container is not None:
             invalid_value = "array value" if container[0] == "[" else "object value"
+        elif unquoted_value := _unquoted_type_error_value(formats[-1]):
+            invalid_value = unquoted_value
         else:
             # group(0): the `[]` alternative has no capture groups.
             match = re.search(r"'(.*?)'|\[\]", formats[-1])
