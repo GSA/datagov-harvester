@@ -1,3 +1,4 @@
+import ast
 import json
 import subprocess
 import sys
@@ -29,6 +30,11 @@ client = application.test_client()
 print(json.dumps({
     "modules": sorted({name.split(".")[0] for name in sys.modules}),
     "health": client.get("/health").status_code,
+    "validation": client.post("/api/v1/validate", json={
+        "schema": "dcatus1.1: federal dataset",
+        "fetch_method": "paste",
+        "json_text": json.dumps({"dataset": []}),
+    }).status_code,
 }))
 """
 
@@ -51,4 +57,26 @@ def test_validator_api_imports_with_no_database_or_secrets():
     assert result.returncode == 0, result.stderr
     probe = json.loads(result.stdout.strip().splitlines()[-1])
     assert probe["health"] == 200
+    assert probe["validation"] == 200
     assert not FORBIDDEN & set(probe["modules"])
+
+
+def test_validator_source_has_no_direct_forbidden_imports():
+    violations = []
+    for package_name in ("validator_api", "dcatus_validation"):
+        for path in (REPO_ROOT / package_name).rglob("*.py"):
+            for node in ast.walk(ast.parse(path.read_text())):
+                if isinstance(node, ast.Import):
+                    modules = [alias.name for alias in node.names]
+                elif isinstance(node, ast.ImportFrom) and node.module:
+                    modules = [node.module]
+                else:
+                    continue
+
+                for module in modules:
+                    if module.split(".")[0] in FORBIDDEN:
+                        violations.append(
+                            f"{path.relative_to(REPO_ROOT)}:{node.lineno}"
+                        )
+
+    assert violations == []

@@ -128,7 +128,7 @@ function extractRefusalMessage(body) {
 }
 
 /* ── render the validator's [identifier, message] pairs ── */
-function renderResults(errors) {
+function renderResults(errors, validationIncomplete = false) {
     lastValidationErrors = errors;
 
     const container = document.getElementById("validator-results");
@@ -137,6 +137,19 @@ function renderResults(errors) {
     const heading = document.createElement("h2");
     heading.textContent = "Validation results";
     container.appendChild(heading);
+
+    if (validationIncomplete) {
+        const notice = document.createElement("p");
+        const strong = document.createElement("strong");
+        strong.textContent = "Validation stopped early. ";
+        notice.appendChild(strong);
+        notice.appendChild(
+            document.createTextNode(
+                "Fix the reported errors and validate again to find any remaining errors."
+            )
+        );
+        container.appendChild(notice);
+    }
 
     if (!errors.length) {
         const p = document.createElement("p");
@@ -210,7 +223,13 @@ function renderResults(errors) {
 function downloadValidationErrors() {
     const rows = [["Dataset identifier", "Error"]].concat(lastValidationErrors);
     const csv = rows
-        .map(row => row.map(cell => '"' + String(cell).replace(/"/g, '""') + '"').join(","))
+        .map(row => row.map(cell => {
+            let text = String(cell);
+            if (/^[=+\-@\t\r]/.test(text)) {
+                text = "'" + text;
+            }
+            return '"' + text.replace(/"/g, '""') + '"';
+        }).join(","))
         .join("\r\n");
 
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
@@ -250,10 +269,14 @@ document.addEventListener("DOMContentLoaded", function () {
 
         // Locked while in flight so the answer can't land beside a field that
         // has since been hidden, or under input that's since been swapped out.
-        const submitButton = document.getElementById("validator-form").querySelector("[type=submit]");
-        const fetchMethod = document.getElementById("fetch_method");
-        submitButton.disabled = true;
-        fetchMethod.disabled = true;
+        const form = document.getElementById("validator-form");
+        const controls = Array.from(
+            form.querySelectorAll("input:not([type=hidden]), select, textarea, button")
+        );
+        const disabledBeforeSubmit = controls.map(control => control.disabled);
+        controls.forEach(control => {
+            control.disabled = true;
+        });
 
         try {
             let payload;
@@ -284,7 +307,10 @@ document.addEventListener("DOMContentLoaded", function () {
             }
 
             if (response.ok && body && Array.isArray(body.validation_errors)) {
-                renderResults(body.validation_errors);
+                renderResults(
+                    body.validation_errors,
+                    body.validation_incomplete === true
+                );
                 return;
             }
 
@@ -299,8 +325,9 @@ document.addEventListener("DOMContentLoaded", function () {
 
             showFieldError(method, VALIDATOR_UNAVAILABLE_MESSAGE);
         } finally {
-            submitButton.disabled = false;
-            fetchMethod.disabled = false;
+            controls.forEach((control, index) => {
+                control.disabled = disabledBeforeSubmit[index];
+            });
         }
     });
 });

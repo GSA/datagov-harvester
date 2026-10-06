@@ -15,43 +15,26 @@ from urllib.parse import urlsplit
 
 from apiflask import APIFlask
 from flask import jsonify, redirect, request
+from flask_talisman import Talisman
 from werkzeug.exceptions import RequestEntityTooLarge
 
+from config.logger_config import LOGGING_CONFIG
+from config.security import TALISMAN_BASELINE_OPTIONS
 from dcatus_validation.limits import MAX_REQUEST_BYTES, MAX_UPLOAD_MB
 
 logger = logging.getLogger("validator_api")
-
-HSTS_MAX_AGE_SECONDS = 60 * 60 * 24 * 365
-HSTS_HEADER = f"max-age={HSTS_MAX_AGE_SECONDS}; includeSubDomains; preload"
 
 # Served under /validator/ so datagov-harvest-proxy can expose them on the
 # harvester's own domain without colliding with the admin app's /openapi/docs.
 DOCS_PATH = "/validator/docs"
 SPEC_PATH = "/validator/openapi.json"
 
-LOGGING_CONFIG = {
-    "version": 1,
-    "disable_existing_loggers": False,
-    "formatters": {
-        "standard": {
-            "format": (
-                "[%(asctime)s] %(levelname)s "
-                "[%(name)s.%(funcName)s:%(lineno)d] %(message)s"
-            )
-        },
-    },
-    "handlers": {
-        "console": {
-            "level": "INFO",
-            "formatter": "standard",
-            "class": "logging.StreamHandler",
-            "stream": "ext://sys.stdout",
-        },
-    },
-    "loggers": {
-        name: {"handlers": ["console"], "level": "INFO", "propagate": False}
-        for name in ("validator_api", "dcatus_validation")
-    },
+VALIDATOR_CONTENT_SECURITY_POLICY = {
+    "default-src": "'self'",
+    "script-src": ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net"],
+    "style-src": ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net"],
+    "font-src": ["'self'", "data:", "https://cdn.jsdelivr.net"],
+    "img-src": ["'self'", "data:", "https://apiflask.com"],
 }
 
 
@@ -80,10 +63,22 @@ def create_app():
         docs_path=DOCS_PATH,
         spec_path=SPEC_PATH,
     )
+    external_server_url = _external_route_to_server_url(os.getenv("EXTERNAL_ROUTE"))
+    connect_sources = ["'self'"]
+    if external_server_url:
+        connect_sources.append(external_server_url)
+    Talisman(
+        app,
+        content_security_policy={
+            **VALIDATOR_CONTENT_SECURITY_POLICY,
+            "connect-src": connect_sources,
+        },
+        session_cookie_secure=False,
+        **TALISMAN_BASELINE_OPTIONS,
+    )
 
     # The harvester's external route, so the docs' "Try it out" goes through
     # the proxy like every other caller.
-    external_server_url = _external_route_to_server_url(os.getenv("EXTERNAL_ROUTE"))
     if external_server_url:
         app.config["SERVERS"] = [{"url": external_server_url}]
 
@@ -95,8 +90,6 @@ def create_app():
     @app.after_request
     def apply_headers(response):
         response.headers["X-Served-By"] = app.config["SERVED_BY"]
-        response.headers["X-Content-Type-Options"] = "nosniff"
-        response.headers["Strict-Transport-Security"] = HSTS_HEADER
         # Every validation answer is specific to the submitted document.
         if request.method not in {"GET", "HEAD"} or response.status_code >= 400:
             response.headers["Cache-Control"] = "private, no-store, max-age=0"
@@ -118,7 +111,11 @@ def create_app():
 
     app.register_blueprint(api, name="api_v1", url_prefix="/api/v1")
 
-    @app.route("/api/<path:subpath>", methods=["GET", "POST", "PUT", "PATCH", "DELETE"])
+    @app.route(
+        "/api/<path:subpath>",
+        methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
+        merge_slashes=False,
+    )
     @app.doc(hide=True)
     def api_latest_redirect(subpath):
         """Unversioned /api/... (e.g. /api/validate) goes to the latest version."""
@@ -128,6 +125,13 @@ def create_app():
         target = f"/api/v1/{subpath}"
         if request.query_string:
             target = f"{target}?{request.query_string.decode()}"
+
+        # Browsers treat backslashes like path separators. Normalize them, then
+        # verify the redirect remains relative even for an adversarial route.
+        target = target.replace("\\", "/")
+        parsed_target = urlsplit(target)
+        if parsed_target.scheme or parsed_target.netloc:
+            return jsonify({"message": "Not Found"}), 404
         return redirect(target, code=308)
 
     @app.get("/health")

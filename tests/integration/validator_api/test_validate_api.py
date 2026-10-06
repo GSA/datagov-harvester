@@ -2,15 +2,25 @@ import itertools
 import json
 from unittest.mock import Mock
 
+import pytest
 import requests
 
+from dcatus_validation.errors import NESTING_TOO_DEEP_MESSAGE
 from dcatus_validation.fetch import (
     FETCH_TIMEOUT_SECONDS,
+    INVALID_JSON_NUMBER_MESSAGE,
     PAYLOAD_TOO_LARGE_MESSAGE,
     UNEXPECTED_FETCH_ERROR_MESSAGE,
 )
-from dcatus_validation.limits import MAX_REQUEST_BYTES, MAX_UPLOAD_BYTES, MAX_UPLOAD_MB
-from dcatus_validation.validate import NESTING_TOO_DEEP_MESSAGE
+from dcatus_validation.limits import (
+    MAX_REQUEST_BYTES,
+    MAX_RESULT_IDENTIFIER_CHARS,
+    MAX_RESULT_MESSAGE_CHARS,
+    MAX_UPLOAD_BYTES,
+    MAX_UPLOAD_MB,
+    MAX_VALIDATION_ERRORS,
+)
+from validator_api import create_app
 
 URL = "/api/v1/validate"
 
@@ -63,7 +73,7 @@ class TestValidate:
 
     def test_url(self, validator_client, monkeypatch, dcatus_no_identifier_json):
         get = Mock(return_value=_json_response(dcatus_no_identifier_json))
-        monkeypatch.setattr("dcatus_validation.fetch.requests.get", get)
+        monkeypatch.setattr("dcatus_validation.fetch._pinned_get", get)
 
         res = validator_client.post(
             URL,
@@ -85,7 +95,7 @@ class TestValidate:
         self, validator_client, monkeypatch, dcatus_multiple_invalid_json
     ):
         monkeypatch.setattr(
-            "dcatus_validation.fetch.requests.get",
+            "dcatus_validation.fetch._pinned_get",
             Mock(return_value=_json_response(dcatus_multiple_invalid_json)),
         )
 
@@ -139,6 +149,29 @@ class TestValidate:
 
         assert res.status_code == 308
         assert res.location == URL
+
+    @pytest.mark.parametrize(
+        ("path", "expected_location"),
+        [
+            ("/api/%5C%5Cevil.example", "/api/v1///evil.example"),
+            ("/api/http:%2F%2Fevil.example", "/api/v1/http://evil.example"),
+        ],
+    )
+    def test_unversioned_redirect_cannot_become_external(
+        self, validator_client, path, expected_location
+    ):
+        res = validator_client.get(path)
+
+        assert res.status_code == 308
+        assert res.location == expected_location
+
+    def test_unversioned_redirect_rejects_protocol_relative_path(
+        self, validator_client
+    ):
+        res = validator_client.get("/api//evil.example")
+
+        assert res.status_code == 404
+        assert "Location" not in res.headers
 
     def test_responses_are_not_cached_and_name_the_app(self, validator_client):
         res = validator_client.post(
@@ -208,6 +241,49 @@ class TestRequestValidation:
         assert res.status_code == 400
         assert res.get_json() == {"error": "Invalid JSON at line 1, column 14."}
 
+    def test_nonfinite_json_number_is_refused(self, validator_client):
+        res = validator_client.post(
+            URL,
+            json={
+                "schema": "dcatus1.1: federal dataset",
+                "fetch_method": "paste",
+                "json_text": '{"dataset": [], "value": NaN}',
+            },
+        )
+
+        assert res.status_code == 400
+        assert res.get_json() == {"error": INVALID_JSON_NUMBER_MESSAGE}
+
+    def test_malformed_catalog_is_a_validation_result(self, validator_client):
+        res = validator_client.post(
+            URL,
+            json={
+                "schema": "dcatus1.1: federal dataset",
+                "fetch_method": "paste",
+                "json_text": "{}",
+            },
+        )
+
+        assert res.status_code == 200
+        assert res.get_json() == {
+            "validation_errors": [["", "$, 'dataset' is a required property"]]
+        }
+
+    def test_url_credentials_are_refused(self, validator_client):
+        res = validator_client.post(
+            URL,
+            json={
+                "schema": "dcatus1.1: federal dataset",
+                "fetch_method": "url",
+                "url": "https://user:secret@example.com/catalog.json",
+            },
+        )
+
+        assert res.status_code == 400
+        assert res.get_json() == {
+            "error": "URLs containing credentials are not allowed."
+        }
+
 
 class TestLimits:
     def test_request_body_over_the_limit_returns_json(self, validator_client):
@@ -224,11 +300,13 @@ class TestLimits:
 
     def test_pasted_document_at_the_limit_fits_despite_escaping(self, validator_client):
         """
-        A document just under the limit whose JSON encoding is larger than it
-        (every quote escaped) must still be accepted.
+        A document just under the limit can double when JSON-encoded. The
+        request limit must leave room for the surrounding API fields too.
         """
-        padding = [""] * (MAX_UPLOAD_BYTES // 5)
-        document = json.dumps({"dataset": [], "padding": padding})
+        prefix = '{"dataset":[],"padding":"'
+        suffix = '"}'
+        remaining = MAX_UPLOAD_BYTES - len(prefix) - len(suffix)
+        document = prefix + "\\\\" * (remaining // 2) + suffix
         assert len(document) < MAX_UPLOAD_BYTES
         body = json.dumps(
             {
@@ -237,7 +315,7 @@ class TestLimits:
                 "json_text": document,
             }
         )
-        assert MAX_UPLOAD_BYTES < len(body) < MAX_REQUEST_BYTES
+        assert 2 * MAX_UPLOAD_BYTES < len(body) < MAX_REQUEST_BYTES
 
         res = validator_client.post(URL, data=body, content_type="application/json")
 
@@ -272,6 +350,85 @@ class TestLimits:
         assert res.status_code == 422
         assert res.get_json() == {"error": NESTING_TOO_DEEP_MESSAGE}
 
+    def test_json_nested_too_deeply_to_parse_returns_422(self, validator_client):
+        depth = 2000
+        document = "[" * depth + "0" + "]" * depth
+
+        res = validator_client.post(
+            URL,
+            json={
+                "schema": "dcatus1.1: federal dataset",
+                "fetch_method": "paste",
+                "json_text": document,
+            },
+        )
+
+        assert res.status_code == 422
+        assert res.get_json() == {"error": NESTING_TOO_DEEP_MESSAGE}
+
+    def test_validation_error_amplification_is_capped(self, validator_client):
+        catalog = {"dataset": [{} for _ in range(101)]}
+
+        res = validator_client.post(
+            URL,
+            json={
+                "schema": "dcatus1.1: federal dataset",
+                "fetch_method": "paste",
+                "json_text": json.dumps(catalog),
+            },
+        )
+
+        assert res.status_code == 200
+        assert len(res.get_json()["validation_errors"]) == MAX_VALIDATION_ERRORS
+        assert res.get_json()["validation_incomplete"] is True
+
+    def test_dcatus3_validation_error_amplification_is_capped(self, validator_client):
+        catalog = {"dataset": [{} for _ in range(251)]}
+
+        res = validator_client.post(
+            URL,
+            json={
+                "schema": "dcatus3.0 catalog",
+                "fetch_method": "paste",
+                "json_text": json.dumps(catalog),
+            },
+        )
+
+        assert res.status_code == 200
+        assert len(res.get_json()["validation_errors"]) == MAX_VALIDATION_ERRORS
+        assert res.get_json()["validation_incomplete"] is True
+
+    def test_result_values_are_bounded(self, validator_client, monkeypatch):
+        monkeypatch.setattr(
+            "validator_api.api.validate_records_limited",
+            Mock(
+                return_value=(
+                    [
+                        (
+                            "i" * (MAX_RESULT_IDENTIFIER_CHARS + 1),
+                            "m" * (MAX_RESULT_MESSAGE_CHARS + 1),
+                        )
+                    ],
+                    False,
+                )
+            ),
+        )
+
+        res = validator_client.post(
+            URL,
+            json={
+                "schema": "dcatus1.1: federal dataset",
+                "fetch_method": "paste",
+                "json_text": '{"dataset": []}',
+            },
+        )
+
+        identifier, message = res.get_json()["validation_errors"][0]
+        assert identifier.endswith("... [truncated]")
+        assert message.endswith("... [truncated]")
+        assert len(identifier) == MAX_RESULT_IDENTIFIER_CHARS
+        assert len(message) == MAX_RESULT_MESSAGE_CHARS
+
 
 class TestRefusedUrlIsExplained:
     """
@@ -292,7 +449,7 @@ class TestRefusedUrlIsExplained:
             "dcatus_validation.fetch.time.monotonic", lambda: next(clock)
         )
         monkeypatch.setattr(
-            "dcatus_validation.fetch.requests.get",
+            "dcatus_validation.fetch._pinned_get",
             Mock(side_effect=requests.exceptions.Timeout("timed out")),
         )
 
@@ -305,7 +462,7 @@ class TestRefusedUrlIsExplained:
 
     def test_connect_timeout(self, validator_client, monkeypatch):
         monkeypatch.setattr(
-            "dcatus_validation.fetch.requests.get",
+            "dcatus_validation.fetch._pinned_get",
             Mock(side_effect=requests.exceptions.ConnectTimeout("syn lost")),
         )
 
@@ -332,7 +489,7 @@ class TestRefusedUrlIsExplained:
         """Still a 400 the submitter can act on, but requests' own text - which
         can name internal paths - must not reach the response body."""
         monkeypatch.setattr(
-            "dcatus_validation.fetch.requests.get",
+            "dcatus_validation.fetch._pinned_get",
             Mock(
                 side_effect=requests.exceptions.SSLError(
                     "verify failed: /internal/path/ca-bundle.crt"
@@ -350,8 +507,10 @@ class TestRefusedUrlIsExplained:
     def test_unexpected_server_error_is_not_disclosed(
         self, validator_client, monkeypatch
     ):
+        log_error = Mock()
+        monkeypatch.setattr("validator_api.api.logger.error", log_error)
         monkeypatch.setattr(
-            "validator_api.api.validate_records",
+            "validator_api.api.validate_records_limited",
             Mock(side_effect=KeyError("/internal/detail")),
         )
 
@@ -368,6 +527,10 @@ class TestRefusedUrlIsExplained:
         assert res.get_json() == {
             "error": "API Validator error: failed to validate dcatus catalog"
         }
+        assert log_error.call_args.args == (
+            "API Validator error error_type=%s",
+            "KeyError",
+        )
 
 
 class TestService:
@@ -386,5 +549,27 @@ class TestService:
         assert "securitySchemes" not in spec.get("components", {})
 
     def test_docs(self, validator_client):
-        assert validator_client.get("/validator/docs").status_code == 200
+        response = validator_client.get(
+            "/validator/docs", headers={"X-Forwarded-Proto": "https"}
+        )
+
+        assert response.status_code == 200
+        assert response.headers["X-Content-Type-Options"] == "nosniff"
+        assert response.headers["X-Frame-Options"] == "SAMEORIGIN"
+        assert "max-age=31536000" in response.headers["Strict-Transport-Security"]
+        csp = response.headers["Content-Security-Policy"]
+        assert "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net" in csp
+        assert "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net" in csp
+        assert "img-src 'self' data: https://apiflask.com" in csp
         assert validator_client.get("/").location == "/validator/docs"
+
+    def test_docs_csp_allows_configured_server(self, monkeypatch):
+        monkeypatch.setenv("EXTERNAL_ROUTE", "https://validator.example.gov")
+        app = create_app()
+
+        response = app.test_client().get("/validator/docs")
+
+        assert (
+            "connect-src 'self' https://validator.example.gov"
+            in response.headers["Content-Security-Policy"]
+        )

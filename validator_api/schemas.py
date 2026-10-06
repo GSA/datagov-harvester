@@ -1,6 +1,6 @@
 import marshmallow
 from apiflask import Schema, validators
-from apiflask.fields import URL, List, Raw, String
+from apiflask.fields import URL, Boolean, List, Raw, String
 from marshmallow import ValidationError, validate
 
 from dcatus_validation.fetch import ALLOW_PRIVATE_ADDRESSES
@@ -53,6 +53,14 @@ class ValidationResultSchema(Schema):
             validate=validate.Length(equal=2),
         ),
         required=True,
+    )
+    validation_incomplete = Boolean(
+        metadata={
+            "description": (
+                "True when the public service stopped after reaching its error "
+                "limit. Fix the returned errors and validate again."
+            )
+        }
     )
 
 

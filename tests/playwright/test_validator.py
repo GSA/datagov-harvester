@@ -448,12 +448,33 @@ class TestValidatorApiResponses:
         expect(blocks.nth(1)).to_contain_text("<b>bold</b>")
         expect(upage.locator("#validator-results img")).to_have_count(0)
 
+    def test_incomplete_validation_is_explained(self, upage):
+        upage.route(
+            "**/api/v1/validate",
+            lambda route: route.fulfill(
+                status=200,
+                content_type="application/json",
+                body='{"validation_errors": [[0, "first error"]], '
+                '"validation_incomplete": true}',
+            ),
+        )
+        self._submit_url(upage)
+
+        expect(upage.locator("#validator-results")).to_contain_text(
+            "Validation stopped early."
+        )
+        expect(upage.locator("#validator-results")).to_contain_text(
+            "Fix the reported errors and validate again"
+        )
+
     def test_fetch_method_is_locked_while_validating(self, upage):
         pending = []
         upage.route("**/api/v1/validate", lambda route: pending.append(route))
         self._submit_url(upage)
 
         expect(upage.locator("select[name=fetch_method]")).to_be_disabled()
+        expect(upage.locator("select[name=schema]")).to_be_disabled()
+        expect(upage.locator("input[name=url]")).to_be_disabled()
         expect(upage.locator("input[type=submit]")).to_be_disabled()
 
         pending[0].fulfill(
@@ -465,3 +486,24 @@ class TestValidatorApiResponses:
             "No validation errors found"
         )
         expect(upage.locator("select[name=fetch_method]")).to_be_enabled()
+        expect(upage.locator("select[name=schema]")).to_be_enabled()
+        expect(upage.locator("input[name=url]")).to_be_enabled()
+
+    def test_csv_download_neutralizes_spreadsheet_formulas(self, upage):
+        upage.route(
+            "**/api/v1/validate",
+            lambda route: route.fulfill(
+                status=200,
+                content_type="application/json",
+                body='{"validation_errors": ['
+                '["=HYPERLINK(\\"https://example.com\\")", "@SUM(1,1)"]]}',
+            ),
+        )
+        self._submit_url(upage)
+
+        with upage.expect_download() as download_info:
+            upage.locator("#btn-download").click()
+
+        content = download_info.value.path().read_text(encoding="utf-8")
+        assert "\"'=HYPERLINK(" in content
+        assert '"\'@SUM(1,1)"' in content
