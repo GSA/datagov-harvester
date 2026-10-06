@@ -10,6 +10,7 @@ from dcatus_validation.fetch import (
     FETCH_TIMEOUT_SECONDS,
     InvalidCatalogSource,
     fetch_json_from_url,
+    is_public_ip,
 )
 
 
@@ -252,6 +253,11 @@ class TestFetchJsonFromUrl:
         assert 0 < read_timeout <= FETCH_TIMEOUT_SECONDS
         assert connect_timeout < read_timeout
         assert mock_get.call_args.kwargs["allow_redirects"] is False
+        stream_timeouts = mock_response.raw._connection.sock.settimeout.call_args_list
+        assert stream_timeouts
+        assert all(
+            0 < call.args[0] <= FETCH_TIMEOUT_SECONDS for call in stream_timeouts
+        )
 
     @patch("dcatus_validation.fetch.requests.get")
     def test_fetch_json_from_url_follows_redirect_to_public_url(self, mock_get):
@@ -444,6 +450,17 @@ class TestFetchJsonFromUrl:
 
 
 class TestPrivateAddressDefault:
+    def test_shared_address_space_is_not_public(self, monkeypatch):
+        """RFC 6598 addresses are not `is_private`, but can still be internal."""
+        monkeypatch.setattr(
+            "dcatus_validation.fetch.socket.getaddrinfo",
+            lambda hostname, port: [
+                (2, 1, 6, "", ("100.64.0.1", 0)),
+            ],
+        )
+
+        assert is_public_ip("shared.example") is False
+
     def test_private_addresses_are_refused_unless_explicitly_allowed(self, monkeypatch):
         """Fail closed: an unset ALLOW_PRIVATE_ADDRESSES must mean refuse."""
         import importlib

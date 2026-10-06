@@ -49,13 +49,10 @@ def is_public_ip(hostname: str) -> bool:
             ip = addr[4][0]
             ip_obj = ipaddress.ip_address(ip)
 
-            if (
-                ip_obj.is_private
-                or ip_obj.is_loopback
-                or ip_obj.is_reserved
-                or ip_obj.is_link_local
-                or ip_obj.is_multicast
-            ):
+            # `is_private` does not include every non-public range. In
+            # particular, RFC 6598 shared address space (100.64.0.0/10) may be
+            # used inside hosting networks and must not be reachable here.
+            if not ip_obj.is_global:
                 return False
         return True
     except Exception:
@@ -160,6 +157,9 @@ def fetch_json_from_url(url: str) -> dict:
     # fetch still shows which URL was responsible.
     logger.info("Validator fetching url=%s", url)
 
+    # DNS validation is part of the fetch, so time spent resolving the
+    # submitted hostname counts against the same deadline as the request.
+    deadline = time.monotonic() + FETCH_TIMEOUT_SECONDS
     _validate_fetch_target(url)
 
     # One deadline for the whole operation, not a fresh FETCH_TIMEOUT_SECONDS
@@ -167,8 +167,6 @@ def fetch_json_from_url(url: str) -> dict:
     # each just under the timeout, could run for
     # MAX_FETCH_REDIRECTS x FETCH_TIMEOUT_SECONDS in total, defeating the
     # point of bounding this at all.
-    deadline = time.monotonic() + FETCH_TIMEOUT_SECONDS
-
     def _remaining_budget() -> float:
         remaining = deadline - time.monotonic()
         if remaining <= 0:
@@ -176,6 +174,23 @@ def fetch_json_from_url(url: str) -> dict:
                 f"Exceeded the {FETCH_TIMEOUT_SECONDS}s fetch budget"
             )
         return remaining
+
+    def _set_stream_timeout(response: requests.Response, timeout: float) -> None:
+        """Bound the next body read by the remaining overall fetch budget."""
+        connection = getattr(response.raw, "_connection", None)
+        sock = getattr(connection, "sock", None)
+        if sock is None:
+            try:
+                sock = response.raw._fp.fp.raw._sock
+            except AttributeError:
+                sock = None
+        if sock is None:
+            # The network connection can close while iter_content still has
+            # decoded bytes buffered. Those reads cannot block on the network.
+            if getattr(response.raw, "closed", False) is True:
+                return
+            raise RuntimeError("Could not set validator response timeout")
+        sock.settimeout(timeout)
 
     connect_timeouts = 0
     connecting = False
@@ -247,11 +262,21 @@ def fetch_json_from_url(url: str) -> dict:
 
         chunks = []
         total_size = 0
-        for chunk in response.iter_content(chunk_size=8192):
-            # A response trickling in just under requests' own per-read
-            # timeout could otherwise stay within budget on every individual
-            # read while still blowing past FETCH_TIMEOUT_SECONDS overall.
-            _remaining_budget()
+        chunk_iterator = iter(response.iter_content(chunk_size=8192))
+        while True:
+            # requests' read timeout is fixed when the request starts. Reduce
+            # the socket timeout before every body read so a late stall cannot
+            # consume a second full FETCH_TIMEOUT_SECONDS.
+            _set_stream_timeout(response, _remaining_budget())
+            try:
+                chunk = next(chunk_iterator)
+            except StopIteration:
+                break
+            except requests.exceptions.ConnectionError:
+                # iter_content wraps urllib3's body ReadTimeoutError in
+                # ConnectionError. Reclassify it when the deadline caused it.
+                _remaining_budget()
+                raise
             if chunk:
                 total_size += len(chunk)
                 if total_size > MAX_UPLOAD_BYTES:

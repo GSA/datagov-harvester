@@ -224,11 +224,13 @@ class TestLimits:
 
     def test_pasted_document_at_the_limit_fits_despite_escaping(self, validator_client):
         """
-        A document just under the limit whose JSON encoding is larger than it
-        (every quote escaped) must still be accepted.
+        A document just under the limit can double when JSON-encoded. The
+        request limit must leave room for the surrounding API fields too.
         """
-        padding = [""] * (MAX_UPLOAD_BYTES // 5)
-        document = json.dumps({"dataset": [], "padding": padding})
+        prefix = '{"dataset":[],"padding":"'
+        suffix = '"}'
+        remaining = MAX_UPLOAD_BYTES - len(prefix) - len(suffix)
+        document = prefix + "\\\\" * (remaining // 2) + suffix
         assert len(document) < MAX_UPLOAD_BYTES
         body = json.dumps(
             {
@@ -237,7 +239,7 @@ class TestLimits:
                 "json_text": document,
             }
         )
-        assert MAX_UPLOAD_BYTES < len(body) < MAX_REQUEST_BYTES
+        assert 2 * MAX_UPLOAD_BYTES < len(body) < MAX_REQUEST_BYTES
 
         res = validator_client.post(URL, data=body, content_type="application/json")
 
