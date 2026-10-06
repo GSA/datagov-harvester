@@ -11,9 +11,9 @@ from dcatus_validation.fetch import (
     UNEXPECTED_FETCH_ERROR_MESSAGE,
 )
 from dcatus_validation.limits import (
+    MAX_REQUEST_BYTES,
     MAX_RESULT_IDENTIFIER_CHARS,
     MAX_RESULT_MESSAGE_CHARS,
-    MAX_REQUEST_BYTES,
     MAX_UPLOAD_BYTES,
     MAX_UPLOAD_MB,
     MAX_VALIDATION_ERRORS,
