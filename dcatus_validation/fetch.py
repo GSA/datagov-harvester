@@ -165,15 +165,14 @@ class InvalidCatalogSource(ValueError):
     unsupported scheme, internal address, oversized body, not JSON, unparseable
     JSON, too many redirects, or a timeout.
 
-    The API renders `str()` of this straight back to the submitter (and the
-    harvester's validator page shows it beside the form field), so
-    every message here must be built only from literals and numbers. No
-    exceptions to that rule: never interpolate another exception's text, even
-    one that looks harmless, because the objects carrying it also carry things
-    that are not (json.JSONDecodeError.doc is the whole submitted document,
-    which for a URL submission may be content the submitter cannot otherwise
-    read). Keeping the rule absolute is what makes it reviewable, and keeps
-    CodeQL py/stack-trace-exposure honest rather than suppressed.
+    The API renders `public_message` back to the submitter (and the harvester's
+    validator page shows it beside the form field), so every message here must
+    be built only from literals and numbers. No exceptions to that rule: never
+    interpolate another exception's text, even one that looks harmless, because
+    the objects carrying it also carry things that are not
+    (json.JSONDecodeError.doc is the whole submitted document, which for a URL
+    submission may be content the submitter cannot otherwise read). Keeping the
+    rule absolute is what makes it reviewable.
 
     Anything we *didn't* anticipate should stay an ordinary exception so
     callers answer with UNEXPECTED_FETCH_ERROR_MESSAGE and log the detail
@@ -181,6 +180,10 @@ class InvalidCatalogSource(ValueError):
 
     Subclasses ValueError so callers catching ValueError still do.
     """
+
+    def __init__(self, public_message: str):
+        self.public_message = public_message
+        super().__init__(public_message)
 
 
 def invalid_json_message(error: json.JSONDecodeError, source: str = "") -> str:

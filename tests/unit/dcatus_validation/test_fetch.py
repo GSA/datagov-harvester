@@ -157,12 +157,13 @@ class TestFetchJsonFromUrl:
         ):
             fetch_json_from_url("https://example.com/slow.json")
 
-        timeout_log = next(
-            record.message for record in caplog.records if "timed out" in record.message
+        timeout_record = next(
+            record for record in caplog.records if "timed out" in record.message
         )
-        assert "example.com" in timeout_log
-        assert "url_hash=" in timeout_log
-        assert "/slow.json" not in timeout_log
+        origin, url_hash = timeout_record.args[-1].split()
+        assert origin == "https://example.com"
+        assert url_hash.startswith("url_hash=")
+        assert len(url_hash) == len("url_hash=") + 12
 
     @pytest.mark.parametrize(
         "error",
@@ -190,14 +191,13 @@ class TestFetchJsonFromUrl:
             fetch_json_from_url("https://example.com/flaky.json")
 
         assert mock_get.call_count == FETCH_CONNECT_ATTEMPTS
-        failure_log = next(
-            record.message
-            for record in caplog.records
-            if "could not connect" in record.message
+        failure_record = next(
+            record for record in caplog.records if "could not connect" in record.message
         )
-        assert "example.com" in failure_log
-        assert "url_hash=" in failure_log
-        assert "/flaky.json" not in failure_log
+        origin, url_hash = failure_record.args[-1].split()
+        assert origin == "https://example.com"
+        assert url_hash.startswith("url_hash=")
+        assert len(url_hash) == len("url_hash=") + 12
 
     @pytest.mark.parametrize(
         "error",

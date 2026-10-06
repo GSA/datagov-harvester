@@ -147,15 +147,14 @@ def validator(json_data):
         return make_response(jsonify({"error": invalid_json_message(e)}), 400)
     except InvalidCatalogSource as e:
         # Bad submission, not a server fault - 400, and say which reason so
-        # callers can show it to the submitter. Safe to echo: these messages
-        # are literals and numbers by construction, which is the invariant
-        # InvalidCatalogSource exists to carry.
+        # callers can show it to the submitter. public_message is literals and
+        # numbers by construction; never render the exception itself.
         logger.info(
             "API validator refused submission fetch_method=%s reason=%s",
             json_data["fetch_method"],
-            e,
+            e.public_message,
         )
-        return make_response(jsonify({"error": str(e)}), 400)
+        return make_response(jsonify({"error": e.public_message}), 400)
     except Exception as e:
         logger.error("API Validator error error_type=%s", type(e).__name__)
         return make_response(

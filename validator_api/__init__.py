@@ -118,7 +118,11 @@ def create_app():
 
     app.register_blueprint(api, name="api_v1", url_prefix="/api/v1")
 
-    @app.route("/api/<path:subpath>", methods=["GET", "POST", "PUT", "PATCH", "DELETE"])
+    @app.route(
+        "/api/<path:subpath>",
+        methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
+        merge_slashes=False,
+    )
     @app.doc(hide=True)
     def api_latest_redirect(subpath):
         """Unversioned /api/... (e.g. /api/validate) goes to the latest version."""
@@ -128,6 +132,13 @@ def create_app():
         target = f"/api/v1/{subpath}"
         if request.query_string:
             target = f"{target}?{request.query_string.decode()}"
+
+        # Browsers treat backslashes like path separators. Normalize them, then
+        # verify the redirect remains relative even for an adversarial route.
+        target = target.replace("\\", "/")
+        parsed_target = urlsplit(target)
+        if parsed_target.scheme or parsed_target.netloc:
+            return jsonify({"message": "Not Found"}), 404
         return redirect(target, code=308)
 
     @app.get("/health")

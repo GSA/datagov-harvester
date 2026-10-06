@@ -2,6 +2,7 @@ import itertools
 import json
 from unittest.mock import Mock
 
+import pytest
 import requests
 
 from dcatus_validation.fetch import (
@@ -147,6 +148,29 @@ class TestValidate:
 
         assert res.status_code == 308
         assert res.location == URL
+
+    @pytest.mark.parametrize(
+        ("path", "expected_location"),
+        [
+            ("/api/%5C%5Cevil.example", "/api/v1///evil.example"),
+            ("/api/http:%2F%2Fevil.example", "/api/v1/http://evil.example"),
+        ],
+    )
+    def test_unversioned_redirect_cannot_become_external(
+        self, validator_client, path, expected_location
+    ):
+        res = validator_client.get(path)
+
+        assert res.status_code == 308
+        assert res.location == expected_location
+
+    def test_unversioned_redirect_rejects_protocol_relative_path(
+        self, validator_client
+    ):
+        res = validator_client.get("/api//evil.example")
+
+        assert res.status_code == 404
+        assert "Location" not in res.headers
 
     def test_responses_are_not_cached_and_name_the_app(self, validator_client):
         res = validator_client.post(
