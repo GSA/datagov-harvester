@@ -6,6 +6,9 @@ Changes that may affect API consumers are documented here, including changes
 to endpoints, request parameters, response fields, response formats,
 pagination, ordering, authentication, and deprecations.
 
+Issues that result in an entry in this changelog should be labeled
+`changelog` in the GSA/data.gov issue tracker.
+
 ## Unreleased
 
 ### Changed
