@@ -4,7 +4,8 @@ from unittest.mock import Mock, patch
 import pytest
 import requests
 
-from app.util import (
+from dcatus_validation.fetch import (
+    FETCH_CONNECT_ATTEMPTS,
     FETCH_CONNECT_TIMEOUT_SECONDS,
     FETCH_TIMEOUT_SECONDS,
     InvalidCatalogSource,
@@ -12,10 +13,20 @@ from app.util import (
 )
 
 
+def _json_response(body=b'{"dataset": []}'):
+    response = Mock()
+    response.status_code = 200
+    response.headers = {"Content-Type": "application/json"}
+    response.raise_for_status = Mock()
+    response.close = Mock()
+    response.iter_content = Mock(return_value=[body])
+    return response
+
+
 class TestFetchJsonFromUrl:
     """Tests for fetch_json_from_url function"""
 
-    @patch("app.util.requests.get")
+    @patch("dcatus_validation.fetch.requests.get")
     def test_fetch_json_from_url_exceeds_size_limit(self, mock_get):
         """Test that fetch_json_from_url raises ValueError when content exceeds 10MB"""
         mock_response = Mock()
@@ -33,7 +44,7 @@ class TestFetchJsonFromUrl:
         ):
             fetch_json_from_url("https://example.com/large-file.json")
 
-    @patch("app.util.requests.get")
+    @patch("dcatus_validation.fetch.requests.get")
     def test_fetch_json_from_url_within_size_limit(self, mock_get):
         """Test that fetch_json_from_url succeeds when content is within 10MB limit"""
         mock_response = Mock()
@@ -49,7 +60,7 @@ class TestFetchJsonFromUrl:
         result = fetch_json_from_url("https://example.com/small-file.json")
         assert result == {"test": "data"}
 
-    @patch("app.util.requests.get")
+    @patch("dcatus_validation.fetch.requests.get")
     def test_fetch_json_from_url_content_length_exceeds_limit(self, mock_get):
         """Test that fetch_json_from_url raises ValueError when Content-Length
         header exceeds 10MB"""
@@ -67,7 +78,7 @@ class TestFetchJsonFromUrl:
         ):
             fetch_json_from_url("https://example.com/large-file.json")
 
-    @patch("app.util.requests.get")
+    @patch("dcatus_validation.fetch.requests.get")
     def test_fetch_json_from_url_stops_streaming_when_limit_exceeded(self, mock_get):
         """Test that fetch_json_from_url stops downloading chunks when size
         exceeds 10MB"""
@@ -102,13 +113,21 @@ class TestFetchJsonFromUrl:
         )
         mock_response.close.assert_called_once()
 
-    @patch("app.util.requests.get")
-    def test_fetch_json_from_url_times_out(self, mock_get, caplog):
+    @patch("dcatus_validation.fetch.requests.get")
+    def test_fetch_json_from_url_times_out(self, mock_get, caplog, monkeypatch):
         """A hung/unresponsive target raises a clear, logged ValueError instead
         of hanging the worker indefinitely."""
-        mock_get.side_effect = requests.exceptions.Timeout("timed out")
+        # deadline set at t=100; the timeout surfaces once it has passed
+        exhausted = 100.0 + FETCH_TIMEOUT_SECONDS
+        clock = itertools.chain([100.0, 100.0], itertools.repeat(exhausted))
+        monkeypatch.setattr(
+            "dcatus_validation.fetch.time.monotonic", lambda: next(clock)
+        )
+        mock_get.side_effect = requests.exceptions.ReadTimeout("timed out")
 
-        with pytest.raises(ValueError, match="took longer than"):
+        with pytest.raises(
+            ValueError, match=f"took longer than {FETCH_TIMEOUT_SECONDS} seconds"
+        ):
             fetch_json_from_url("https://example.com/slow.json")
 
         assert any(
@@ -116,7 +135,104 @@ class TestFetchJsonFromUrl:
             for record in caplog.records
         )
 
-    @patch("app.util.requests.get")
+    @pytest.mark.parametrize(
+        "error",
+        [
+            requests.exceptions.ConnectTimeout("syn lost"),
+            # how requests reports a TLS handshake stalled past the connect timeout
+            requests.exceptions.ReadTimeout("handshake stalled"),
+        ],
+    )
+    @patch("dcatus_validation.fetch.requests.get")
+    def test_fetch_json_from_url_connect_phase_timeout(
+        self, mock_get, caplog, monkeypatch, error
+    ):
+        """A connect-phase timeout is retried on a fresh connection, and once
+        the attempts run out it's reported as a connect failure, not as the
+        whole budget running out."""
+        early = 100.0 + FETCH_CONNECT_TIMEOUT_SECONDS
+        clock = itertools.chain([100.0, 100.0], itertools.repeat(early))
+        monkeypatch.setattr(
+            "dcatus_validation.fetch.time.monotonic", lambda: next(clock)
+        )
+        mock_get.side_effect = error
+
+        with pytest.raises(InvalidCatalogSource, match="Could not connect"):
+            fetch_json_from_url("https://example.com/flaky.json")
+
+        assert mock_get.call_count == FETCH_CONNECT_ATTEMPTS
+        assert any(
+            "could not connect" in record.message
+            and "example.com/flaky.json" in record.message
+            for record in caplog.records
+        )
+
+    @pytest.mark.parametrize(
+        "error",
+        [
+            requests.exceptions.ConnectTimeout("syn lost"),
+            requests.exceptions.ReadTimeout("handshake stalled"),
+        ],
+    )
+    @patch("dcatus_validation.fetch.requests.get")
+    def test_fetch_json_from_url_retries_a_stalled_connect(self, mock_get, error):
+        """The data.nola.gov case: one connection's handshake stalls, the next
+        connects straight away."""
+        mock_get.side_effect = [error, _json_response()]
+
+        assert fetch_json_from_url("https://example.com/flaky.json") == {"dataset": []}
+        assert mock_get.call_count == 2
+
+    @patch("dcatus_validation.fetch.requests.get")
+    def test_fetch_json_from_url_does_not_retry_at_the_deadline(
+        self, mock_get, monkeypatch
+    ):
+        """A server that connected but never answered used the whole budget;
+        retrying can't help, and it's reported as the budget running out."""
+        exhausted = 100.0 + FETCH_TIMEOUT_SECONDS
+        clock = itertools.chain([100.0, 100.0], itertools.repeat(exhausted))
+        monkeypatch.setattr(
+            "dcatus_validation.fetch.time.monotonic", lambda: next(clock)
+        )
+        mock_get.side_effect = requests.exceptions.ReadTimeout("no response")
+
+        with pytest.raises(InvalidCatalogSource, match="took longer than"):
+            fetch_json_from_url("https://example.com/slow.json")
+
+        assert mock_get.call_count == 1
+
+    @patch("dcatus_validation.fetch.requests.get")
+    def test_fetch_json_from_url_body_timeout_after_a_retry(
+        self, mock_get, monkeypatch
+    ):
+        """Once connected, running out of budget mid-download is a slow
+        response, even if an earlier connect attempt was retried."""
+        # deadline, attempt 1, its timeout check, attempt 2 - then the budget
+        # is gone by the first downloaded chunk
+        clock = itertools.chain([100.0] * 4, itertools.repeat(200.0))
+        monkeypatch.setattr(
+            "dcatus_validation.fetch.time.monotonic", lambda: next(clock)
+        )
+        mock_get.side_effect = [
+            requests.exceptions.ConnectTimeout("syn lost"),
+            _json_response(),
+        ]
+
+        with pytest.raises(InvalidCatalogSource, match="took longer than"):
+            fetch_json_from_url("https://example.com/slow-body.json")
+
+    def test_connect_attempts_fit_inside_the_fetch_budget(self):
+        """Every connect attempt fits inside the one deadline, each allows for
+        a quick SYN retransmit (~1s, then ~3s), and validation (up to ~12s at
+        10MB) has to fit after the fetch inside CloudFront's 30s, with
+        padding."""
+        assert FETCH_CONNECT_TIMEOUT_SECONDS >= 3.5
+        assert FETCH_CONNECT_TIMEOUT_SECONDS * FETCH_CONNECT_ATTEMPTS <= (
+            FETCH_TIMEOUT_SECONDS
+        )
+        assert FETCH_TIMEOUT_SECONDS + 12 <= 25
+
+    @patch("dcatus_validation.fetch.requests.get")
     def test_fetch_json_from_url_passes_timeout_to_requests(self, mock_get):
         """requests.get is bounded by FETCH_TIMEOUT_SECONDS, not unbounded."""
         mock_response = Mock()
@@ -137,7 +253,7 @@ class TestFetchJsonFromUrl:
         assert connect_timeout < read_timeout
         assert mock_get.call_args.kwargs["allow_redirects"] is False
 
-    @patch("app.util.requests.get")
+    @patch("dcatus_validation.fetch.requests.get")
     def test_fetch_json_from_url_follows_redirect_to_public_url(self, mock_get):
         """A single redirect to another public URL is followed and validated."""
         redirect_response = Mock()
@@ -160,7 +276,7 @@ class TestFetchJsonFromUrl:
         assert mock_get.call_count == 2
         assert mock_get.call_args_list[1].args[0] == "https://example.com/final.json"
 
-    @patch("app.util.requests.get")
+    @patch("dcatus_validation.fetch.requests.get")
     def test_fetch_json_from_url_redirect_budget_shrinks_over_time(
         self, mock_get, monkeypatch
     ):
@@ -171,7 +287,9 @@ class TestFetchJsonFromUrl:
         # deadline set at t=100; hop 1's request issued at t=100 (full budget
         # left); 4s "pass" before hop 2's request is issued.
         clock = itertools.chain([100.0, 100.0, 104.0], itertools.repeat(104.0))
-        monkeypatch.setattr("app.util.time.monotonic", lambda: next(clock))
+        monkeypatch.setattr(
+            "dcatus_validation.fetch.time.monotonic", lambda: next(clock)
+        )
 
         redirect_response = Mock()
         redirect_response.status_code = 302
@@ -195,7 +313,7 @@ class TestFetchJsonFromUrl:
         assert second_read == pytest.approx(FETCH_TIMEOUT_SECONDS - 4)
         assert second_read < first_read
 
-    @patch("app.util.requests.get")
+    @patch("dcatus_validation.fetch.requests.get")
     def test_fetch_json_from_url_redirect_chain_exceeding_budget_times_out(
         self, mock_get, monkeypatch
     ):
@@ -206,7 +324,9 @@ class TestFetchJsonFromUrl:
         # than the whole budget has elapsed, so there is nothing left to spend.
         exhausted = 100.0 + FETCH_TIMEOUT_SECONDS + 1
         clock = itertools.chain([100.0, 100.0, exhausted], itertools.repeat(exhausted))
-        monkeypatch.setattr("app.util.time.monotonic", lambda: next(clock))
+        monkeypatch.setattr(
+            "dcatus_validation.fetch.time.monotonic", lambda: next(clock)
+        )
 
         redirect_response = Mock()
         redirect_response.status_code = 302
@@ -220,14 +340,14 @@ class TestFetchJsonFromUrl:
         # never attempted a second request once the shared budget was gone
         assert mock_get.call_count == 1
 
-    @patch("app.util.requests.get")
+    @patch("dcatus_validation.fetch.requests.get")
     def test_fetch_json_from_url_rejects_redirect_to_private_address_in_prod(
         self, mock_get, monkeypatch
     ):
         """A redirect target is re-validated like any other URL - a public URL
         that redirects to a private/internal address is refused in prod, and
         the redirect is never followed."""
-        monkeypatch.setattr("app.util.IS_PROD", True)
+        monkeypatch.setattr("dcatus_validation.fetch.ALLOW_PRIVATE_ADDRESSES", False)
 
         redirect_response = Mock()
         redirect_response.status_code = 302
@@ -243,7 +363,7 @@ class TestFetchJsonFromUrl:
         # never followed the redirect to the private address
         mock_get.assert_called_once()
 
-    @patch("app.util.requests.get")
+    @patch("dcatus_validation.fetch.requests.get")
     def test_fetch_json_from_url_caps_redirect_chain(self, mock_get):
         """A redirect loop/chain longer than MAX_FETCH_REDIRECTS is rejected
         rather than followed indefinitely."""
@@ -256,12 +376,12 @@ class TestFetchJsonFromUrl:
         with pytest.raises(ValueError, match="Too many redirects."):
             fetch_json_from_url("https://example.com/redirect-me")
 
-    @patch("app.util.requests.get")
+    @patch("dcatus_validation.fetch.requests.get")
     def test_rejections_raise_disclosable_exception(self, mock_get, monkeypatch):
         """Every submitter-actionable refusal raises InvalidCatalogSource, which
         is what lets both callers show the reason - the API answers 400 with
         str(e) only for this type, and falls back to a generic 500 otherwise."""
-        monkeypatch.setattr("app.util.IS_PROD", True)
+        monkeypatch.setattr("dcatus_validation.fetch.ALLOW_PRIVATE_ADDRESSES", False)
 
         not_json = Mock()
         not_json.status_code = 200
@@ -281,7 +401,7 @@ class TestFetchJsonFromUrl:
         with pytest.raises(InvalidCatalogSource, match="did not return JSON"):
             fetch_json_from_url("https://example.com/page.html")
 
-    @patch("app.util.requests.get")
+    @patch("dcatus_validation.fetch.requests.get")
     def test_unparseable_json_is_reported_by_position_only(self, mock_get):
         """A fetched document that won't parse is described by line/column, with
         neither the decoder's own text nor the document itself in the message -
@@ -305,7 +425,7 @@ class TestFetchJsonFromUrl:
         # the decoder's own phrasing is not reused
         assert "Expecting" not in message
 
-    @patch("app.util.requests.get")
+    @patch("dcatus_validation.fetch.requests.get")
     def test_unexpected_transport_error_is_not_leaked(self, mock_get, caplog):
         """A connection-level failure is still reported as a refusal the
         submitter can act on, but with a fixed message - requests' own error
@@ -321,3 +441,23 @@ class TestFetchJsonFromUrl:
         assert "Could not retrieve the catalog" in str(excinfo.value)
         # the detail is still recoverable by an operator
         assert any("ca-bundle" in record.message for record in caplog.records)
+
+
+class TestPrivateAddressDefault:
+    def test_private_addresses_are_refused_unless_explicitly_allowed(self, monkeypatch):
+        """Fail closed: an unset ALLOW_PRIVATE_ADDRESSES must mean refuse."""
+        import importlib
+
+        import dcatus_validation.fetch
+
+        monkeypatch.delenv("ALLOW_PRIVATE_ADDRESSES", raising=False)
+        try:
+            module = importlib.reload(dcatus_validation.fetch)
+            assert module.ALLOW_PRIVATE_ADDRESSES is False
+            with pytest.raises(
+                module.InvalidCatalogSource, match="private/internal addresses"
+            ):
+                module.fetch_json_from_url("http://127.0.0.1/secret.json")
+        finally:
+            monkeypatch.undo()
+            importlib.reload(dcatus_validation.fetch)
