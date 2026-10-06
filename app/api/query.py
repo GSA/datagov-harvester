@@ -1,3 +1,6 @@
+import math
+import re
+
 from flask import jsonify, request
 from markupsafe import escape
 
@@ -21,6 +24,52 @@ from app.deps import (
 from harvester.utils.general_utils import convert_to_int, is_it_true
 
 from . import api
+
+
+def make_response_envelope(
+    data: list[dict],
+    page: int,
+    per_page: int,
+    total: int,
+    page_count: int,
+    order_by: str,
+    requested_route: str,
+):
+    """
+    adds api metadata to the data payload
+    """
+
+    from app.routes import API_VERSIONS
+
+    page_pattern = r"(?<!per_)page=\d+"
+    next_page = None
+    prev_page = None
+
+    if isinstance(page, int) and re.search(page_pattern, requested_route):
+        if page < page_count - 1:
+            next_page = re.sub(page_pattern, f"page={page + 1}", requested_route)
+        if 0 < page <= page_count:
+            prev_page = re.sub(page_pattern, f"page={page - 1}", requested_route)
+
+    return {
+        "data": data,
+        "meta": {
+            "page": page,
+            "per_page": per_page,
+            "total": total,
+            "page_count": page_count,
+            "order_by": order_by,
+            "api_version": API_VERSIONS[-1][0],
+            # "application_version": "2026.09.30.1" # TODO?
+        },
+        "links": {
+            "self": requested_route,
+            "next": next_page,
+            "previous": prev_page,
+            "documentation": "/openapi/docs",
+            # "changelog": "/api/changelog" # TODO
+        },
+    }
 
 
 @api.route("/organizations/", methods=["GET"])
@@ -86,22 +135,50 @@ def json_builder_query(**kwargs):
                 facets += f",severity eq {severity}"
             else:
                 facets = f"severity eq {severity}"
+
+    page = request.args.get("page", type=convert_to_int, default=0)
+    per_page = request.args.get("per_page", type=convert_to_int, default=10)
+    paginate = request.args.get("paginate", type=is_it_true, default=True)
+    count = request.args.get("count", type=is_it_true, default=False)
+    order_by = request.args.get("order_by")
+
     try:
         res = deps.db.pget_db_query(
             model=model,
-            page=request.args.get("page", type=convert_to_int),
-            per_page=request.args.get("per_page", type=convert_to_int),
-            paginate=request.args.get("paginate", type=is_it_true),
-            count=request.args.get("count", type=is_it_true),
-            order_by=request.args.get("order_by"),
+            page=page,
+            per_page=per_page,
+            paginate=paginate,
+            count=count,
+            order_by=order_by,
             facets=facets,
         )
+
+        # get this by default to populate metadata envelope
+        total = deps.db.pget_db_query(model=model, count=True)
+
         if isinstance(res, int):
             return {"count": res, "type": model}
         elif isinstance(res, list):
             if not res and request.args.get("per_page", type=convert_to_int) != 0:
                 return f"No {model} found for this query", 404
-            return jsonify(deps.db._to_dict(res))
+
+            # schema validation should enforce only data which is castable to integers
+            if all([total, per_page]):
+                page_count = math.ceil(total / per_page)
+            else:
+                page_count = None
+
+            resp = make_response_envelope(
+                deps.db._to_dict(res),
+                page,
+                per_page,
+                total,
+                page_count,
+                order_by if order_by else "asc",
+                request.full_path,
+            )
+
+            return jsonify(resp)
         else:
             return f"No {model} found for this query", 404
     except InvalidPaginationException as e:

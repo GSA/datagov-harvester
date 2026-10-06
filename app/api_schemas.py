@@ -13,9 +13,10 @@ from apiflask.fields import (
     Enum,
     Integer,
     List,
+    Nested,
     String,
 )
-from marshmallow import ValidationError, validate
+from marshmallow import ValidationError, fields, validate
 
 from shared.constants import (
     ACTION_VALUES,
@@ -136,13 +137,42 @@ class QueryInfo(Schema):
     harvest_job_id = UUID()
     harvest_source_id = UUID()
     facets = String()
-    page = Integer()
-    per_page = Integer()
+    page = Integer(validate=validators.Range(min=0, error="page must be >= 0"))
+    per_page = Integer(
+        validate=validators.Range(
+            min=0, max=1000, error="per page must be >= 0 and <= 1000"
+        )
+    )
     paginate = Boolean()
     count = Boolean()
     order_by = String()
     # only meaningful for harvest_record_errors; omit it to get every issue
     severity = Enum(SEVERITY_ENUM)
+
+
+class QueryInfoMetadata(Schema):
+    page = Integer()
+    per_page = Integer()
+    total = Integer()
+    page_count = Integer()
+    order_by = String()
+    api_version = String()
+
+
+class QueryInfoLinks(Schema):
+    req_link = fields.Str(data_key="self")  # because it's a reversed word
+    next_link = fields.Str(data_key="next")
+    prev_link = fields.Str(data_key="previous")
+    documentation = String()
+
+
+class QueryInfoResult(Schema):
+    """Query output for various models types"""
+
+    # varies depending on the model so it's not one single schema
+    data = List(Dict)
+    meta = Nested(QueryInfoMetadata)
+    links = Nested(QueryInfoLinks)
 
 
 class RecordInfo(Schema):
