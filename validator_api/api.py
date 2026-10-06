@@ -4,6 +4,10 @@ import logging
 from apiflask import APIBlueprint
 from flask import jsonify, make_response
 
+from dcatus_validation.errors import (
+    NESTING_TOO_DEEP_MESSAGE,
+    CatalogTooDeeplyNested,
+)
 from dcatus_validation.fetch import (
     PAYLOAD_TOO_LARGE_MESSAGE,
     InvalidCatalogSource,
@@ -17,11 +21,7 @@ from dcatus_validation.limits import (
     MAX_UPLOAD_BYTES,
     MAX_VALIDATION_ERRORS,
 )
-from dcatus_validation.validate import (
-    NESTING_TOO_DEEP_MESSAGE,
-    CatalogTooDeeplyNested,
-    validate_records_limited,
-)
+from dcatus_validation.validate import validate_records_limited
 from validator_api.schemas import (
     ValidationErrorResponseSchema,
     ValidationResultSchema,

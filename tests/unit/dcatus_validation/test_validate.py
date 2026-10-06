@@ -2,13 +2,13 @@ import json
 
 import pytest
 
-from dcatus_validation.messages import build_dcatus3_validator
-from dcatus_validation.validate import (
+from dcatus_validation.errors import (
     NESTING_TOO_DEEP_MESSAGE,
     CatalogTooDeeplyNested,
-    validate_records,
-    validate_records_limited,
 )
+from dcatus_validation.limits import MAX_DOCUMENT_NESTING_DEPTH
+from dcatus_validation.messages import build_dcatus3_validator
+from dcatus_validation.validate import validate_records, validate_records_limited
 
 
 class TestValidateRecords:
@@ -49,6 +49,14 @@ class TestValidateRecords:
 
         with pytest.raises(CatalogTooDeeplyNested, match=NESTING_TOO_DEEP_MESSAGE):
             validate_records(catalog, "dcatus3.0 catalog")
+
+    def test_nesting_limit_does_not_depend_on_parser_recursion(self):
+        catalog = 0
+        for _ in range(MAX_DOCUMENT_NESTING_DEPTH + 1):
+            catalog = [catalog]
+
+        with pytest.raises(CatalogTooDeeplyNested, match=NESTING_TOO_DEEP_MESSAGE):
+            validate_records(catalog, "dcatus1.1: federal dataset")
 
     def test_missing_dcatus3_definitions_say_how_to_fix_it(self, tmp_path):
         with pytest.raises(FileNotFoundError, match="git submodule update"):

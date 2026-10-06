@@ -8,6 +8,7 @@ import pytest
 import requests
 
 import dcatus_validation.fetch as fetch
+from dcatus_validation.errors import CatalogTooDeeplyNested
 from dcatus_validation.fetch import (
     FETCH_CONNECT_ATTEMPTS,
     FETCH_CONNECT_TIMEOUT_SECONDS,
@@ -18,7 +19,9 @@ from dcatus_validation.fetch import (
     _is_json_media_type,
     fetch_json_from_url,
     is_public_ip,
+    parse_json_document,
 )
+from dcatus_validation.limits import MAX_DOCUMENT_NESTING_DEPTH
 
 
 def _json_response(body=b'{"dataset": []}'):
@@ -86,6 +89,23 @@ class TestFetchJsonFromUrl:
     )
     def test_non_json_media_types(self, content_type):
         assert _is_json_media_type(content_type) is False
+
+    @pytest.mark.parametrize("encoding", ["utf-8", "utf-16", "utf-32"])
+    @patch("dcatus_validation.fetch.json.loads")
+    def test_deep_json_is_rejected_before_parsing(self, mock_loads, encoding):
+        depth = MAX_DOCUMENT_NESTING_DEPTH + 1
+        document = ("[" * depth + "0" + "]" * depth).encode(encoding)
+
+        with pytest.raises(CatalogTooDeeplyNested):
+            parse_json_document(document)
+
+        mock_loads.assert_not_called()
+
+    def test_nesting_characters_inside_strings_are_ignored(self):
+        brackets = "[" * (MAX_DOCUMENT_NESTING_DEPTH + 1)
+        document = f'{{"value": "{brackets}"}}'
+
+        assert parse_json_document(document) == {"value": brackets}
 
     @patch("dcatus_validation.fetch._pinned_get")
     def test_fetch_json_from_url_content_length_exceeds_limit(self, mock_get):

@@ -6,6 +6,11 @@ from itertools import islice
 
 from jsonschema import Draft202012Validator, FormatChecker
 
+from dcatus_validation.errors import (
+    NESTING_TOO_DEEP_MESSAGE,
+    CatalogTooDeeplyNested,
+)
+from dcatus_validation.limits import MAX_DOCUMENT_NESTING_DEPTH
 from dcatus_validation.messages import (
     assemble_validation_errors,
     build_dcatus3_validator,
@@ -34,18 +39,36 @@ _DCATUS1_1_CATALOG_STRUCTURE_VALIDATOR = Draft202012Validator(
 )
 
 
-class CatalogTooDeeplyNested(ValueError):
-    """
-    Catalog's `catalog` and `hasPart` are `items: {"$ref": "#"}`, which jsonschema
-    resolves by recursion, so a chain of nested catalogs exhausts the stack at ~17KB
-    (depth 200 fails, 150 does not). Raised so callers can say so instead of 500ing.
-    """
+def _check_catalog_nesting(document) -> None:
+    """Reject deep containers with a depth-first walk that does not recurse."""
 
+    def children(value):
+        if isinstance(value, dict):
+            return iter(value.values())
+        if isinstance(value, list):
+            return iter(value)
+        return None
 
-NESTING_TOO_DEEP_MESSAGE = (
-    "Catalog is nested too deeply to validate. "
-    "Flatten the nested catalog or hasPart chains and try again."
-)
+    root_children = children(document)
+    if root_children is None:
+        return
+
+    # Keep one iterator per active level instead of putting every item from a
+    # wide catalog on a second, potentially large work list.
+    stack = [root_children]
+    while stack:
+        try:
+            value = next(stack[-1])
+        except StopIteration:
+            stack.pop()
+            continue
+
+        child_iterator = children(value)
+        if child_iterator is None:
+            continue
+        if len(stack) >= MAX_DOCUMENT_NESTING_DEPTH:
+            raise CatalogTooDeeplyNested(NESTING_TOO_DEEP_MESSAGE)
+        stack.append(child_iterator)
 
 
 def _validation_messages(
@@ -80,6 +103,8 @@ def _validate_records(
     """Return validation errors and whether validation stopped at max_errors."""
     if max_errors is not None and max_errors < 1:
         raise ValueError("max_errors must be at least 1")
+
+    _check_catalog_nesting(dcatus_catalog)
 
     output = []
 

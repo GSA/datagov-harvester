@@ -5,6 +5,7 @@ from unittest.mock import Mock
 import pytest
 import requests
 
+from dcatus_validation.errors import NESTING_TOO_DEEP_MESSAGE
 from dcatus_validation.fetch import (
     FETCH_TIMEOUT_SECONDS,
     INVALID_JSON_NUMBER_MESSAGE,
@@ -19,7 +20,6 @@ from dcatus_validation.limits import (
     MAX_UPLOAD_MB,
     MAX_VALIDATION_ERRORS,
 )
-from dcatus_validation.validate import NESTING_TOO_DEEP_MESSAGE
 
 URL = "/api/v1/validate"
 

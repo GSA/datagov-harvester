@@ -22,7 +22,15 @@ from urllib3.connection import HTTPConnection, HTTPSConnection
 from urllib3.connectionpool import HTTPConnectionPool, HTTPSConnectionPool
 from urllib3.poolmanager import SSL_KEYWORDS
 
-from dcatus_validation.limits import MAX_UPLOAD_BYTES, MAX_UPLOAD_MB
+from dcatus_validation.errors import (
+    NESTING_TOO_DEEP_MESSAGE,
+    CatalogTooDeeplyNested,
+)
+from dcatus_validation.limits import (
+    MAX_DOCUMENT_NESTING_DEPTH,
+    MAX_UPLOAD_BYTES,
+    MAX_UPLOAD_MB,
+)
 
 logger = logging.getLogger("dcatus_validation")
 
@@ -217,9 +225,39 @@ def _reject_nonfinite_json_constant(_value: str):
     raise InvalidCatalogSource(INVALID_JSON_NUMBER_MESSAGE)
 
 
+def _check_json_text_nesting(document: str) -> None:
+    """Count JSON containers without interpreting brackets inside strings."""
+    depth = 0
+    in_string = False
+    escaped = False
+
+    for character in document:
+        if in_string:
+            if escaped:
+                escaped = False
+            elif character == "\\":
+                escaped = True
+            elif character == '"':
+                in_string = False
+            continue
+
+        if character == '"':
+            in_string = True
+        elif character in "[{":
+            depth += 1
+            if depth > MAX_DOCUMENT_NESTING_DEPTH:
+                raise CatalogTooDeeplyNested(NESTING_TOO_DEEP_MESSAGE)
+        elif character in "]}" and depth:
+            depth -= 1
+
+
 def parse_json_document(document: str | bytes | bytearray):
     """Parse strict JSON and normalize unsupported encoding/numeric failures."""
     try:
+        if not isinstance(document, str):
+            encoded_document = bytes(document)
+            document = encoded_document.decode(json.detect_encoding(encoded_document))
+        _check_json_text_nesting(document)
         return json.loads(
             document,
             parse_int=_parse_json_integer,

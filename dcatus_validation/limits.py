@@ -10,6 +10,10 @@ MAX_VALIDATION_ERRORS = 1000
 MAX_RESULT_IDENTIFIER_CHARS = 1000
 MAX_RESULT_MESSAGE_CHARS = 4000
 
+# Keep attacker-controlled documents comfortably below Python's recursion
+# limit, independent of the parser and interpreter patch version in use.
+MAX_DOCUMENT_NESTING_DEPTH = 100
+
 # Largest validator API request body. Pasted catalogs arrive as a JSON string,
 # and encoding one escapes every quote, backslash and control character, so a
 # document at the limit can double in size. Leave room for the surrounding API
