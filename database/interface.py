@@ -208,6 +208,18 @@ class HarvesterDBInterface:
     def get_harvest_source_by_url(self, url: str):
         return self.db.query(HarvestSource).filter_by(url=url).first()
 
+    def get_harvest_source_by_url_excluding_id(self, url: str, exclude_id: str):
+        """Like get_harvest_source_by_url, but excludes exclude_id -- used on
+        edit so a source isn't flagged as a duplicate of itself. A UNIQUE
+        index check on UPDATE compares against every other row sharing the
+        value, including a pre-existing duplicate from before this
+        constraint existed, not just the row's own prior value."""
+        return (
+            self.db.query(HarvestSource)
+            .filter(HarvestSource.url == url, HarvestSource.id != exclude_id)
+            .first()
+        )
+
     def get_harvest_source(self, source_id):
         result = self.db.query(HarvestSource).filter_by(id=source_id).first()
         return result
@@ -237,6 +249,16 @@ class HarvesterDBInterface:
         """Like update_harvest_source, but returns (source, error_message)
         instead of letting a constraint violation (e.g. duplicate URL)
         propagate as an unhandled 500."""
+        new_url = updates.get("url")
+        if new_url:
+            conflict = self.get_harvest_source_by_url_excluding_id(new_url, source_id)
+            if conflict:
+                return None, (
+                    "A harvest source with this URL already exists "
+                    f"(source ID: {conflict.id}). "
+                    "Use a different URL or edit the existing source."
+                )
+
         try:
             source = self.db.get(HarvestSource, source_id)
             for key, value in updates.items():
