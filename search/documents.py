@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 from datetime import date, datetime
 from typing import Any
@@ -8,6 +9,8 @@ from harvester.exceptions import EmptyFieldNameException
 from search.config import DEFAULT_CATALOG_BASE_URL, INDEX_NAME
 from search.spatial import calc_geometry_centroid
 from search.transforms import DcatIndexTransformer, coerce_access_level
+
+logger = logging.getLogger(__name__)
 
 
 class DatasetDocument:
@@ -69,9 +72,15 @@ class DatasetDocument:
         return value
 
     @classmethod
-    def _normalize_dcat_dates(cls, dcat: dict) -> dict:
+    def _normalize_dcat_dates(cls, dcat: dict, dataset_id: Any = None) -> dict:
         """Normalize DCAT values for OpenSearch metadata indexing."""
-        normalized_dcat = dcat.copy()
+        normalized_dcat = {key: value for key, value in dcat.items() if key != ""}
+        if len(normalized_dcat) != len(dcat):
+            logger.warning(
+                "Dropping empty-string field name from dcat for dataset %s; "
+                "source metadata contains an invalid empty key.",
+                dataset_id,
+            )
         date_fields = ["modified", "issued"]
         for field in date_fields:
             if field in normalized_dcat:
@@ -122,7 +131,7 @@ class DatasetDocument:
             and str(distribution.get("downloadURL") or "").strip()
             for distribution in (dataset.dcat.get("distribution") or [])
         )
-        nested_dcat = self._normalize_dcat_dates(dataset.dcat)
+        nested_dcat = self._normalize_dcat_dates(dataset.dcat, dataset_id=dataset.id)
 
         index_fields["access_level"] = coerce_access_level(
             dataset.dcat.get("accessLevel") or dataset.dcat.get("accessRights") or None
