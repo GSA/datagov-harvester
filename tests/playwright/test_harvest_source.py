@@ -24,6 +24,8 @@ class TestHarvestSourceUnauthed:
                 "Test Org",
                 "Name",
                 "Test Source",
+                "Description",
+                "N/A",
                 "URL",
                 "http://localhost:80/dcatus/dcatus.json",
                 "Frequency",
@@ -34,6 +36,8 @@ class TestHarvestSourceUnauthed:
                 "document",
                 "Notification frequency",
                 "always",
+                "Send harvest report",
+                "False",
                 "Date next run",
                 "N/A",
                 "ID",
@@ -69,7 +73,7 @@ class TestHarvestSourceUnauthed:
         # Test static content that doesn't change
         expect(first_row.nth(0)).to_contain_text("4e5f6a")  # Job ID (truncated)
         expect(first_row.nth(1)).to_contain_text("in_progress")  # Status
-        # Skip columns 2-4 (type, date_created, date_finished) as they're dynamic
+        # Skip columns 2-4 (type, date_created, duration) as they're dynamic
         expect(first_row.nth(5)).to_contain_text("0")  # records_added
         expect(first_row.nth(6)).to_contain_text("0")  # records_updated
         expect(first_row.nth(7)).to_contain_text("0")  # records_deleted
@@ -112,16 +116,18 @@ class TestHarvestSourceUnauthed:
     def test_dataset_table(self, upage):
         """
         Checks to see if the dataset table is populated with the dataset.id,
-        dataset.type, and dataset.slug.
+        dataset.type, dataset.slug, and a catalog.data.gov link.
         """
         expect(upage.locator("#paginated__datasets table tr td")).to_have_text(
             [
                 "a1b2c3d4-e5f6-7890-abcd-ef1234567891",
                 "dataset",
                 "fixture-dataset-1",
+                "catalog",
                 "b2c3d4e5-f6a7-8901-bcde-f12345678902",
                 "dataset",
                 "fixture-dataset-2",
+                "catalog",
             ],
             use_inner_text=True,
         )

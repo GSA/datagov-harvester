@@ -12,16 +12,6 @@ from harvester.lib.load_manager import LoadManager
 
 
 @pytest.fixture
-def mock_good_cf_index(monkeypatch):
-    monkeypatch.setenv("CF_INSTANCE_INDEX", "0")
-
-
-@pytest.fixture
-def mock_bad_cf_index(monkeypatch):
-    monkeypatch.setenv("CF_INSTANCE_INDEX", "1")
-
-
-@pytest.fixture
 def all_tasks_json_fixture():
     file = Path(__file__).parents[0] / "fixtures/task_manager_all_tasks.json"
     with open(file, "r") as file:
@@ -44,7 +34,6 @@ class TestLoadManager:
         CFCMock,
         interface_no_jobs,
         source_data_dcatus_orm,
-        mock_good_cf_index,
         force_cf_handler,
     ):
         intervals = [-1, -2]
@@ -100,7 +89,7 @@ class TestLoadManager:
     @patch("harvester.lib.cf_handler.CloudFoundryClient")
     @patch("harvester.lib.load_manager.MAX_TASKS_COUNT", 3)
     def test_load_manager_hits_task_limit(
-        self, CFCMock, logger_mock, interface, mock_good_cf_index, force_cf_handler
+        self, CFCMock, logger_mock, interface, force_cf_handler
     ):
         CFCMock.return_value.v3.apps._pagination.return_value = [
             {"state": "RUNNING", "name": "harvest-job-"},
@@ -118,29 +107,12 @@ class TestLoadManager:
             == "3 running tasks >= max tasks count (3)."
         )
 
-    @patch("harvester.lib.load_manager.logger")
-    def test_load_manager_bails_on_incorrect_index(
-        self,
-        logger_mock,
-        mock_bad_cf_index,
-    ):
-        load_manager = LoadManager()
-        load_manager.start()
-
-        # assert logger called with correct args
-        assert logger_mock.debug.call_count == 1
-        assert (
-            logger_mock.debug.call_args[0][0]
-            == "CF_INSTANCE_INDEX is not set or not equal to zero"
-        )
-
     @patch("harvester.lib.cf_handler.CloudFoundryClient")
     def test_load_manager_enqueues_due_source(
         self,
         CFCMock,
         interface_no_jobs,
         source_data_dcatus,
-        mock_good_cf_index,
     ):
         CFCMock.return_value.v3.apps._pagination.return_value = []
         interface_no_jobs.update_harvest_source(
@@ -169,7 +141,6 @@ class TestLoadManager:
         CFCMock,
         interface_no_jobs,
         source_data_dcatus,
-        mock_good_cf_index,
     ):
         CFCMock.return_value.v3.apps._pagination.return_value = []
         interface_no_jobs.update_harvest_source(
@@ -194,7 +165,6 @@ class TestLoadManager:
         CFCMock,
         interface_no_jobs,
         source_data_dcatus,
-        mock_good_cf_index,
     ):
         CFCMock.return_value.v3.apps._pagination.return_value = [
             {"state": "RUNNING", "name": "harvest-job-existing-harvest"},
@@ -229,7 +199,6 @@ class TestLoadManager:
         CFCMock,
         interface_with_multiple_jobs,
         source_data_dcatus,
-        mock_good_cf_index,
         force_cf_handler,
     ):
         queued = interface_with_multiple_jobs.get_queued_harvest_jobs_for_source(
@@ -257,7 +226,6 @@ class TestLoadManager:
     def test_manual_job_doesnt_affect_scheduled_jobs(
         self,
         CFCMock,
-        mock_good_cf_index,
         force_cf_handler,
         interface_no_jobs,
         source_data_dcatus,
@@ -286,7 +254,6 @@ class TestLoadManager:
     def test_dont_create_new_job_if_job_already_in_progress(
         self,
         CFCMock,
-        mock_good_cf_index,
         interface_no_jobs,
         source_data_dcatus,
     ):
@@ -318,7 +285,6 @@ class TestLoadManager:
     def test_dont_trigger_manual_job_if_job_already_queued(
         self,
         CFCMock,
-        mock_good_cf_index,
         interface_no_jobs,
         source_data_dcatus,
     ):
@@ -337,7 +303,6 @@ class TestLoadManager:
     def test_dont_start_new_job_if_job_already_in_progress(
         self,
         CFCMock,
-        mock_good_cf_index,
         interface_no_jobs,
         source_data_dcatus,
     ):
@@ -369,7 +334,6 @@ class TestLoadManager:
         CFCMock,
         interface_no_jobs,
         source_data_dcatus,
-        mock_good_cf_index,
         force_cf_handler,
     ):
         load_manager = LoadManager()
@@ -385,7 +349,6 @@ class TestLoadManager:
     def test_assert_env_var_changes_task_size(
         self,
         CFCMock,
-        mock_good_cf_index,
         force_cf_handler,
         interface_no_jobs,
         source_data_dcatus,
@@ -595,7 +558,6 @@ class TestLoadManager:
         self,
         CFCMock,
         all_tasks_json_fixture,
-        mock_good_cf_index,
         force_cf_handler,
         interface_no_jobs,
         source_data_dcatus,

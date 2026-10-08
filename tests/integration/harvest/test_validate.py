@@ -123,6 +123,26 @@ class TestValidateDataset:
         test_record = next(external_records_to_process)
         assert test_record.validate()
 
+    def test_validate_dcatus3_0_spatial_temporal(
+        self,
+        interface,
+        organization_data,
+        source_data_dcatus3_0_with_spatial_temporal,
+        job_data_dcatus3_0_with_spatial_temporal,
+    ):
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_dcatus3_0_with_spatial_temporal)
+        harvest_job = interface.add_harvest_job(
+            job_data_dcatus3_0_with_spatial_temporal
+        )
+
+        harvest_source = HarvestSource(harvest_job.id)
+        harvest_source.acquire_minimum_external_data()
+        external_records_to_process = harvest_source.external_records_to_process()
+
+        test_record = next(external_records_to_process)
+        assert test_record.validate()
+
     def test_invalid_dcatus3_0(
         self,
         interface,

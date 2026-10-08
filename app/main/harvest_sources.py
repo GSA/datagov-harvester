@@ -2,6 +2,7 @@ from flask import flash, redirect, render_template, request, url_for
 
 from app import deps, htmx
 from app.deps import (
+    CATALOG_BASE_URL,
     CKAN_URL,
     _log_mutation,
     create_harvest_source,
@@ -111,6 +112,7 @@ def view_harvest_source(source_id: str):
             )
             data = {
                 "source": {"id": source_id},
+                "catalog_base_url": CATALOG_BASE_URL,
                 "datasets": datasets,
                 "datasets_htmx_vars": datasets_htmx_vars,
             }
@@ -196,38 +198,38 @@ def view_harvest_source(source_id: str):
                 {
                     "label": "Added",
                     "data": chart_data_values["records_added"],
-                    "borderColor": "green",
-                    "backgroundColor": "green",
+                    "borderColor": "#2e7044",
+                    "backgroundColor": "#4f9f62",
                 },
                 {
                     "label": "Updated",
                     "data": chart_data_values["records_updated"],
-                    "borderColor": "blue",
-                    "backgroundColor": "blue",
+                    "borderColor": "#005ea8",
+                    "backgroundColor": "#2f8ec5",
                 },
                 {
                     "label": "Deleted",
                     "data": chart_data_values["records_deleted"],
-                    "borderColor": "black",
-                    "backgroundColor": "black",
+                    "borderColor": "#8b4b13",
+                    "backgroundColor": "#b87535",
                 },
                 {
                     "label": "Errored",
                     "data": chart_data_values["records_errored"],
-                    "borderColor": "red",
-                    "backgroundColor": "red",
+                    "borderColor": "#b50909",
+                    "backgroundColor": "#d54343",
                 },
                 {
                     "label": "Warned",
                     "data": chart_data_values["records_warned"],
-                    "borderColor": "orange",
-                    "backgroundColor": "orange",
+                    "borderColor": "#7d5f00",
+                    "backgroundColor": "#b38b00",
                 },
                 {
                     "label": "Unchanged",
                     "data": chart_data_values["records_ignored"],
-                    "borderColor": "grey",
-                    "backgroundColor": "grey",
+                    "borderColor": "#565c65",
+                    "backgroundColor": "#7f858c",
                 },
             ],
         }
@@ -244,6 +246,7 @@ def view_harvest_source(source_id: str):
         )
         data = {
             "ckan_url": CKAN_URL,
+            "catalog_base_url": CATALOG_BASE_URL,
             "source": source,
             "summary_data": summary_data,
             "jobs": jobs,
@@ -339,26 +342,35 @@ def edit_harvest_source(source_id: str):
             source_data["notification_emails"] = ", ".join(
                 source_data.get("notification_emails") or []
             )
+            source_data["send_report_email"] = str(
+                source_data.get("send_report_email", False)
+            )
             form = HarvestSourceForm(data=source_data)
             form.organization_id.choices = organization_choices
             if form.validate_on_submit():
                 old_frequency = source.frequency
                 new_source_data = make_new_source_contract(form)
-                source = deps.db.update_harvest_source(source_id, new_source_data)
-                job_message = ""
-                if source and source.frequency != old_frequency:
-                    job_message = deps.load_manager.reschedule_next_run(source.id)
-                if source:
-                    _log_mutation(
-                        "edit",
-                        "harvest_source",
-                        source.id,
-                        organization_id=source.organization_id,
-                        source_name=source.name,
+
+                source, error = deps.db.try_update_harvest_source(
+                    source_id, new_source_data
+                )
+                if not source:
+                    flash(error or "Failed to update harvest source.")
+                    return redirect(
+                        url_for("main.edit_harvest_source", source_id=source_id)
                     )
-                    flash(f"Updated source with ID: {source.id}. {job_message}")
-                else:
-                    flash("Failed to update harvest source.")
+
+                job_message = ""
+                if source.frequency != old_frequency:
+                    job_message = deps.load_manager.reschedule_next_run(source.id)
+                _log_mutation(
+                    "edit",
+                    "harvest_source",
+                    source.id,
+                    organization_id=source.organization_id,
+                    source_name=source.name,
+                )
+                flash(f"Updated source with ID: {source.id}. {job_message}")
                 return redirect(
                     url_for("main.view_harvest_source", source_id=source.id)
                 )

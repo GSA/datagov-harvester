@@ -23,7 +23,7 @@ class TestOrganizationUnauthed:
                 "Name",
                 "Test Org",
                 "Logo",
-                "https://raw.githubusercontent.com/GSA/datagov-harvester/refs/heads/main/app/static/assets/img/placeholder-organization.png",
+                "https://example.com/fixture-org-logo.png",
                 "Description",
                 "Fixture org description",
                 "Slug",

@@ -27,6 +27,24 @@ class TestForms:
         assert org.description == "A sample description"
         assert org.slug == "test-slug"
 
+    def test_add_organization_without_logo_is_allowed(self, app, client, interface):
+        app.config.update({"WTF_CSRF_ENABLED": False})
+        with client.session_transaction() as sess:
+            sess["user"] = "tester@gsa.gov"
+
+        data = {
+            "name": "No Logo Org",
+            "logo": "",
+            "description": "An org with no logo provided",
+            "slug": "no-logo-org",
+        }
+        res = client.post("/organization/add", data=data)
+
+        assert res.status_code == 302
+        orgs = interface.get_all_organizations()
+        org = orgs[0]
+        assert org.logo is None
+
     def test_add_organization_aliases(self, app, client, interface):
         app.config.update({"WTF_CSRF_ENABLED": False})
         with client.session_transaction() as sess:
@@ -189,6 +207,82 @@ class TestForms:
         source = interface.get_harvest_source(source_data_waf_collection["id"])
         assert source.source_type == "document"
         assert source.collection_parent_url is None
+
+    def test_edit_harvest_source_duplicate_url_shows_friendly_error(
+        self,
+        app,
+        client,
+        interface,
+        organization_data,
+        source_data_dcatus,
+        source_data_dcatus_2,
+    ):
+        app.config.update({"WTF_CSRF_ENABLED": False})
+        with client.session_transaction() as sess:
+            sess["user"] = "tester@gsa.gov"
+
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_dcatus)
+        interface.add_harvest_source(source_data_dcatus_2)
+
+        form_data = {
+            "organization_id": organization_data["id"],
+            "name": source_data_dcatus_2["name"],
+            "url": source_data_dcatus["url"],
+            "notification_emails": "user@example.com",
+            "frequency": "daily",
+            "schema_type": "dcatus1.1: federal",
+            "source_type": "document",
+            "notification_frequency": "always",
+        }
+        res = client.post(
+            f"/harvest_source/edit/{source_data_dcatus_2['id']}",
+            data=form_data,
+            follow_redirects=True,
+        )
+
+        assert res.status_code == 200
+        assert b"already exists" in res.data
+
+    def test_edit_harvest_source_keeping_same_url_does_not_flag_itself(
+        self,
+        app,
+        client,
+        interface,
+        organization_data,
+        source_data_dcatus,
+        source_data_dcatus_2,
+    ):
+        """Editing a source without changing its URL must never flag it as a
+        duplicate of itself, even though a different source also exists."""
+        app.config.update({"WTF_CSRF_ENABLED": False})
+        with client.session_transaction() as sess:
+            sess["user"] = "tester@gsa.gov"
+
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_dcatus)
+        interface.add_harvest_source(source_data_dcatus_2)
+
+        form_data = {
+            "organization_id": organization_data["id"],
+            "name": "Renamed Source",
+            "url": source_data_dcatus["url"],
+            "notification_emails": "user@example.com",
+            "frequency": "daily",
+            "schema_type": "dcatus1.1: federal",
+            "source_type": "document",
+            "notification_frequency": "always",
+        }
+        res = client.post(
+            f"/harvest_source/edit/{source_data_dcatus['id']}",
+            data=form_data,
+            follow_redirects=True,
+        )
+
+        assert res.status_code == 200
+        assert b"already exists" not in res.data
+        source = interface.get_harvest_source(source_data_dcatus["id"])
+        assert source.name == "Renamed Source"
 
     def test_add_harvest_source_waf_collection(
         self, app, client, interface, organization_data

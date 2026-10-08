@@ -657,6 +657,18 @@ _TYPE_RULES = {
 }
 
 
+def _local_name(type_value: str) -> str:
+    """Strip a CURIE prefix from an @type, e.g. "dcat:Dataset" -> "Dataset".
+
+    The DCAT-US 3 schema allows @type to be a bare class name or a prefixed
+    CURIE (no enum/const on the field), and real feeds commonly send the
+    CURIE form (e.g. "dcat:Dataset", "dct:Location"). Matching on the local
+    name keeps `_TYPE_RULES` prefix-agnostic instead of hardcoding every
+    prefix a source might use.
+    """
+    return type_value.rsplit(":", 1)[-1]
+
+
 def _walk_objects(node):
     """Yield every dict nested anywhere within a record (depth-first)."""
     if isinstance(node, dict):
@@ -671,9 +683,11 @@ def _walk_objects(node):
 def detect_dcat_warnings(data: dict) -> list:
     """Detect DCAT-US 3 content-quality warnings in a dataset record.
 
-    Walks the record and dispatches each typed object to its class rules.
-    Returns a flat list of `DcatWarning` tuples (empty when the record is
-    clean). Invalid `@id` IRIs are schema `format` errors, not warnings.
+    Walks the record and dispatches each typed object to its class rules,
+    matching on the @type's local name so a CURIE-prefixed value (e.g.
+    "dcat:Dataset") dispatches the same as its bare form ("Dataset"). Returns
+    a flat list of `DcatWarning` tuples (empty when the record is clean).
+    Invalid `@id` IRIs are schema `format` errors, not warnings.
     """
     warnings = []
     for obj in _walk_objects(data):
@@ -681,7 +695,7 @@ def detect_dcat_warnings(data: dict) -> list:
         # Non-string @type is a schema error, and unhashable for `_TYPE_RULES.get`.
         if not isinstance(type_value, str):
             continue
-        rule = _TYPE_RULES.get(type_value)
+        rule = _TYPE_RULES.get(_local_name(type_value))
         if rule is not None:
             _append(warnings, rule(obj))
     return warnings

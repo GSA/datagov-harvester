@@ -4,9 +4,10 @@ from datetime import date, datetime
 from typing import Any
 
 from database.models import Dataset
+from harvester.exceptions import EmptyFieldNameException
 from search.config import DEFAULT_CATALOG_BASE_URL, INDEX_NAME
 from search.spatial import calc_geometry_centroid
-from search.transforms import DcatIndexTransformer
+from search.transforms import DcatIndexTransformer, coerce_access_level
 
 
 class DatasetDocument:
@@ -22,10 +23,27 @@ class DatasetDocument:
             return json.dumps(value, sort_keys=True)
         return str(value)
 
+    @staticmethod
+    def _validate_no_empty_keys(obj, path=""):
+        if isinstance(obj, dict):
+            for key, value in obj.items():
+                if key == "":
+                    location = path or "root"
+                    raise EmptyFieldNameException(
+                        f"Field name cannot be an empty string "
+                        f"(found at path: {location})"
+                    )
+                new_path = f"{path}.{key}" if path else key
+                DatasetDocument._validate_no_empty_keys(value, new_path)
+        elif isinstance(obj, list):
+            for index, item in enumerate(obj):
+                new_path = f"{path}[{index}]"
+                DatasetDocument._validate_no_empty_keys(item, new_path)
+
     @classmethod
     def _normalize_dcat_metadata_value(cls, value: Any) -> Any:
-        # stringify nested objects/lists because
-        # OpenSearch expect those fields to be text.
+        cls._validate_no_empty_keys(value)
+
         if isinstance(value, dict):
             return {
                 field: (
@@ -54,7 +72,7 @@ class DatasetDocument:
     def _normalize_dcat_dates(cls, dcat: dict) -> dict:
         """Normalize DCAT values for OpenSearch metadata indexing."""
         normalized_dcat = dcat.copy()
-        date_fields = ["modified", "issued", "temporal"]
+        date_fields = ["modified", "issued"]
         for field in date_fields:
             if field in normalized_dcat:
                 value = normalized_dcat[field]
@@ -62,12 +80,19 @@ class DatasetDocument:
                     normalized_dcat[field] = value.isoformat()
                 elif value is not None and not isinstance(value, str):
                     normalized_dcat[field] = str(value)
-        spatial = normalized_dcat.get("spatial")
-        if spatial is not None and not isinstance(spatial, str):
-            normalized_dcat["spatial"] = cls._serialize_dcat_value(spatial)
 
+        # `temporal` is a scalar interval string under DCAT-US v1.1 but a
+        # list of PeriodOfTime objects under v3.0; serialize non-string
+        # values the same way as `spatial` (json.dumps) instead of str(),
+        # which produces an unparseable Python repr for lists/dicts.
+        for field in ("spatial", "temporal"):
+            value = normalized_dcat.get(field)
+            if value is not None and not isinstance(value, str):
+                normalized_dcat[field] = cls._serialize_dcat_value(value)
+
+        skip_fields = set(date_fields) | {"publisher", "spatial", "temporal"}
         for field, value in normalized_dcat.items():
-            if field in date_fields or field in {"publisher", "spatial"}:
+            if field in skip_fields:
                 continue
             normalized_dcat[field] = cls._normalize_dcat_metadata_value(value)
         return normalized_dcat
@@ -98,6 +123,11 @@ class DatasetDocument:
             for distribution in (dataset.dcat.get("distribution") or [])
         )
         nested_dcat = self._normalize_dcat_dates(dataset.dcat)
+
+        index_fields["access_level"] = coerce_access_level(
+            dataset.dcat.get("accessLevel") or dataset.dcat.get("accessRights") or None
+        )
+
         spatial_centroid = calc_geometry_centroid(dataset.translated_spatial)
         last_harvested = (
             dataset.last_harvested_date.isoformat()
@@ -122,6 +152,7 @@ class DatasetDocument:
             "last_harvested_date": last_harvested,
             "description": index_fields["description"],
             "publisher": index_fields["publisher"],
+            "access_level": index_fields["access_level"],
             "dcat": nested_dcat,
             "keyword": index_fields["keyword"],
             "theme": index_fields["theme"],

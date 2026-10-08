@@ -167,11 +167,7 @@ def generate_dynamic_fixtures() -> Dict[str, Any]:
         "organization": [
             {
                 "name": "Test Org",
-                "logo": (
-                    "https://raw.githubusercontent.com/GSA/datagov-harvester"
-                    "/refs/heads/main/app/static/assets/img"
-                    "/placeholder-organization.png"
-                ),
+                "logo": "https://example.com/fixture-org-logo.png",
                 "description": "Fixture org description",
                 "slug": "fixture-org",
                 "organization_type": "Federal Government",
@@ -242,7 +238,7 @@ def generate_dynamic_fixtures() -> Dict[str, Any]:
             "records_validated": 80,
         },
         {
-            "id": "1a2b3c4d-5e6f-7890-abcd-ef1234567890",
+            "id": "1a2b3c4d-5e6f-4890-abcd-ef1234567890",
             "status": "complete",
             "days_ago": 2,
             "duration_minutes": 0,
@@ -255,7 +251,7 @@ def generate_dynamic_fixtures() -> Dict[str, Any]:
             "records_validated": 0,
         },
         {
-            "id": "9f8e7d6c-5b4a-3928-1765-fedcba098765",
+            "id": "9f8e7d6c-5b4a-4928-9765-fedcba098765",
             "status": "complete",
             "days_ago": 6,
             "duration_minutes": 2,
@@ -268,7 +264,7 @@ def generate_dynamic_fixtures() -> Dict[str, Any]:
             "records_validated": 65,
         },
         {
-            "id": "4e5f6a7b-8c9d-0123-4567-890abcdef123",
+            "id": "4e5f6a7b-8c9d-4123-8567-890abcdef123",
             "status": "in_progress",
             "days_ago": 0,
             "duration_minutes": 4,

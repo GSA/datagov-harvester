@@ -2,10 +2,13 @@
 
 This is miscellaneous notes on operating the Harvester system.
 
-## OpenSearch deployments
+## Reindexing OpenSearch
 
-See [Zero-downtime OpenSearch deployment](opensearch-zero-downtime-deployment.md)
-for the label-driven replacement-cluster release flow and failure recovery.
+See [Reindexing the OpenSearch dataset index](opensearch-reindex.md): open a
+PR, attach the `force re-index recommended` label, and merge it. That doc
+also links to [Zero-downtime OpenSearch deployment](opensearch-zero-downtime-deployment.md)
+for the full release sequence and failure recovery, and covers the manual
+`flask search` commands and workflows used for ops troubleshooting.
 
 ## Enabling or disabling harvesting
 
@@ -41,8 +44,10 @@ times can result in overloading the memory quota for our cloud.gov
 organization and the jobs will not actually be started even though the API
 call succeeds. In order to kick off harvest jobs that will run under the
 cap for the number of running tasks, set `date_next_run` on the harvest
-source. The 15-minute scheduler creates a job when that time is due and
-starts jobs up to the running-task cap.
+source. The scheduled GitHub Actions workflow runs `cf run-task
+datagov-harvest --command "flask harvest start"` every ten minutes. That task
+creates a job when its time is due and starts jobs up to the running-task cap;
+the web application's startup does not run the scheduler.
 
 On a Mac, this command will schedule a harvest source to be harvested at a
 specified amount of time in the future (see the `-v` option to the Mac OS X
@@ -61,4 +66,3 @@ start harvests for a large number of sources, but subject to the running
 tasks limit necessitated by our limited memory quota. Do not POST a future
 `date_created` on `/harvest_job/add` to schedule a run; that field is the
 job row's created time, not the calendar.
-

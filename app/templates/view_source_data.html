@@ -55,6 +55,9 @@
                 <td class="word-break-all">
                     <a href="{{value}}" target="_blank">{{value}}</a> {{ 'launch' | usa_icon | safe }}
                 </td>
+                {% elif key == 'description' %}
+                <td>{{ key | humanize }}</td>
+                <td>{{ value | else_na }}</td>
                 {% elif key == 'collection_parent_url' %}
                 {% if value %}
                 <td>{{ key | humanize }}</td>
@@ -62,6 +65,9 @@
                     <a href="{{value}}" target="_blank">{{value}}</a> {{ 'launch' | usa_icon | safe }}
                 </td>
                 {% endif %}
+                {% elif key == 'send_report_email' %}
+                <td>Send harvest report</td>
+                <td>{{value}}</td>
                 {% else %}
                 <td>{{ key | humanize }}</td>
                 <td class="word-break-all">{{value}}</td>
@@ -143,7 +149,9 @@
             </div>
         </div>
         {% else %}
-        <canvas id="datagov-line-chart" height="200"></canvas>
+        <div class="harvest-job-chart">
+            <canvas id="datagov-line-chart"></canvas>
+        </div>
         {% block htmx_paginated %}
         <div id="paginated__harvest-jobs">
             <!-- job_table is undefined on pagination so importing here -->
@@ -174,6 +182,9 @@
                             <th scope="col">ID</th>
                             <th scope="col">Type</th>
                             <th scope="col">Slug</th>
+                            {% if data.catalog_base_url %}
+                            <th scope="col">Catalog</th>
+                            {% endif %}
                         </tr>
                     </thead>
                     <tbody>
@@ -186,6 +197,13 @@
                                     {{ dataset.slug }}
                                 </a>
                             </td>
+                            {% if data.catalog_base_url %}
+                            <td>
+                                <a href="{{ data.catalog_base_url }}/dataset/{{ dataset.slug }}">
+                                    catalog
+                                </a>
+                            </td>
+                            {% endif %}
                         </tr>
                         {% endfor %}
                     </tbody>

@@ -1,4 +1,5 @@
 import argparse
+import ast
 import hashlib
 import http
 import json
@@ -9,6 +10,7 @@ import re
 import smtplib
 import time
 import uuid
+import warnings
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from email.mime.multipart import MIMEMultipart
@@ -21,10 +23,13 @@ import geojson_validator
 import requests
 import shapely.wkt
 from bs4 import BeautifulSoup
+from dateutil import parser as dateutil_parser
+from dateutil.parser import ParserError
 from jsonschema import Draft202012Validator, FormatChecker
 from jsonschema.exceptions import ValidationError
 from referencing import Registry
 from referencing.jsonschema import DRAFT202012
+from shapely.geometry import LineString, Point
 from shapely.geometry import mapping as shapely_geom_mapping
 
 logging.basicConfig(level=logging.INFO)
@@ -50,6 +55,8 @@ SMTP_CONFIG = {
     "base_url": os.getenv("REDIRECT_URI").rsplit("/", 1)[0],
     "recipient": os.getenv("HARVEST_SMTP_RECIPIENT"),
 }
+
+CATALOG_BASE_URL = os.getenv("CATALOG_BASE_URL") or ""
 
 RESOURCE_MAPPING = {
     # ArcGIS File Types
@@ -295,6 +302,26 @@ URL_RESOURCE_MAPPING = {
     "arcims": ("com.esri.esrimap.esrimap",),
     "arcgis_rest": ("arcgis/rest/services",),
 }
+
+# geojson validator criteria
+INVALID_CRITERIA = [
+    "unclosed",
+    "less_three_unique_nodes",
+    "exterior_not_ccw",
+    "interior_not_cw",
+]
+
+PROBLEMATIC_CRITERIA = [
+    "holes",
+    "inner_and_exterior_ring_intersect",
+    "self_intersection",
+    "duplicate_nodes",
+    # "excessive_coordinate_precision",  # ignore
+    "excessive_vertices",
+    "3d_coordinates",
+    "outside_lat_lon_boundaries",
+    "crosses_antimeridian",
+]
 
 
 def add_landing_page_as_distribution(dcatus_doc: dict) -> dict:
@@ -748,22 +775,11 @@ def find_indexes_for_duplicates(records: list, identifier_field: str = "identifi
 
 
 def get_waf_datetimes(soup: BeautifulSoup, expected_length: int) -> list:
-    """Return each WAF XML link's modification time in link order."""
-    date_formats = [
-        (r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}", "%Y-%m-%d %H:%M"),
-        (r"\d{2}-[A-Za-z]{3}-\d{4}\s\d{2}:\d{2}", "%d-%b-%Y %H:%M"),
-        (
-            r"\d{1,2}/\d{1,2}/\d{4}\s+\d{1,2}:\d{2}\s(?:AM|PM)",
-            "%m/%d/%Y %I:%M %p",
-        ),
-        (
-            (
-                r"[A-Za-z]+,\s+[A-Za-z]+\s+\d{1,2},\s+\d{4}\s+"
-                r"\d{1,2}:\d{2}\s+(?:AM|PM)"
-            ),
-            "%A, %B %d, %Y %I:%M %p",
-        ),
-    ]
+    """Return each WAF XML link's modification time in link order.
+
+    Extracts datetime strings and uses python-dateutil to parse them flexibly.
+    Based on ckanext-spatial approach: extract string, then dateutil.parser.parse().
+    """
     anchors = [
         anchor
         for anchor in soup.find_all("a", href=True)
@@ -781,12 +797,22 @@ def get_waf_datetimes(soup: BeautifulSoup, expected_length: int) -> list:
         )
         modified_date = None
 
-        for date_pattern, date_format in date_formats:
-            match = re.search(date_pattern, date_text)
-            if match is not None:
-                modified_date = datetime.strptime(match.group(0), date_format)
-                parsed_count += 1
-                break
+        if date_text:
+            try:
+                date_candidates = re.findall(
+                    r"(?:\d{1,4}[-/]\d{1,2}[-/]\d{1,4}|\d{1,2}-[A-Za-z]{3}-\d{4}|"
+                    r"[A-Za-z]+,?\s+[A-Za-z]+\s+\d{1,2},?\s+\d{4})"
+                    r"\s+\d{1,2}:\d{2}(?:\s*(?:AM|PM))?",
+                    date_text,
+                )
+
+                if date_candidates:
+                    modified_date = dateutil_parser.parse(
+                        date_candidates[0], default=datetime(1900, 1, 1)
+                    )
+                    parsed_count += 1
+            except (ValueError, TypeError, ParserError, OverflowError):
+                pass
 
         output.append(modified_date or DT_PLACEHOLDER)
 
@@ -882,12 +908,27 @@ def is_number(s):
 
 # Find if a line between 2 x coordinates would cross the meridian
 def crosses_meridian(val1, val2):
+    """
+    checks if the 2 values cross the anti-meridian
+
+    this function is only called under the condition that geojson-validator
+    identified the geometry as "crosses_antimeridian" so something like
+    abs(-160-40) > 180 shouldn't happen.
+    """
+
+    # A jump greater than 180 degrees means the edge crosses
+    # the antimeridian while both coordinates are already normalized.
+    if abs(val1 - val2) > 180:
+        return True, val1 < 0
+
     longs = [val1, val2]
     longs.sort()
+
     if longs[1] > 180 and longs[0] <= 180:
         return True, val1 - val2 > 0
     if longs[0] < -180 and longs[1] >= -180:
         return True, val1 - val2 > 0
+
     return False, None
 
 
@@ -898,6 +939,19 @@ def fix_longitude(val):
     if val < -180:
         return fix_longitude(val + 360)
     return val
+
+
+def ensure_counter_clockwise(points: list[list]):
+    """
+    the input points represent the external ring of a polygon.
+    geojson requires external rings to be counterclockwise.
+    """
+    area = sum(x1 * y2 - x2 * y1 for (x1, y1), (x2, y2) in zip(points, points[1:]))
+
+    if area < 0:
+        points.reverse()
+
+    return points
 
 
 # https://www.rfc-editor.org/rfc/rfc7946#section-3.1.9
@@ -932,6 +986,10 @@ def spatial_wrap_around_meridian(geom):
                 longs = [-180.0, 180.0]
             # Calculate the distance longitude between the 2 points
             x_dist = abs(coord[0] - point_list[i + 1][0])
+
+            if x_dist > 180:
+                x_dist = 360 - x_dist
+
             # Calculate the percentage of the longitude to the meridian
             x_perc = abs(abs(new_long) - 180.0) / x_dist
             # Calculate the height at the meridian
@@ -949,7 +1007,9 @@ def spatial_wrap_around_meridian(geom):
                 )
             polygon_num = (polygon_num + 1) % 2
             # Start the next polygon at the same point, just on the other side.
-            new_geom["coordinates"][0][polygon_num].append([longs[1], coord[1]])
+            new_geom["coordinates"][0][polygon_num].append(
+                [longs[1], height_at_meridian]
+            )
         # If not, continue to add to the current polygon
         else:
             new_geom["coordinates"][0][polygon_num].append(
@@ -957,13 +1017,21 @@ def spatial_wrap_around_meridian(geom):
             )
     # Unclear why this is needed, but to work with the right hand rule.
     # https://medium.com/@jinagamvasubabu/solution-polygons-and-multipolygons-should-follow-the-right-hand-rule-27b96fa61c6
-    new_geom["coordinates"][0][1].reverse()
+    new_geom["coordinates"] = [
+        [ensure_counter_clockwise(new_geom["coordinates"][0][0])],
+        [ensure_counter_clockwise(new_geom["coordinates"][0][1])],
+    ]
+
     return new_geom
 
 
 def validate_geojson(geojson_str: str) -> bool:
     try:
-        res = geojson_validator.validate_geometries(json.loads(geojson_str))
+        res = geojson_validator.validate_geometries(
+            json.loads(geojson_str),
+            criteria_invalid=INVALID_CRITERIA,
+            criteria_problematic=PROBLEMATIC_CRITERIA,
+        )
         # If the geometry is valid, return the string
         if res.get("invalid") == {} and res.get("problematic") == {}:
             return geojson_str
@@ -989,7 +1057,11 @@ def validate_geojson(geojson_str: str) -> bool:
             geojson["coordinates"] = geojson["coordinates"][0]
         fixed_geom = geojson_validator.fix_geometries(geojson)
         fixed_geom = fixed_geom.get("features")[0].get("geometry")
-        res = geojson_validator.validate_geometries(fixed_geom)
+        res = geojson_validator.validate_geometries(
+            fixed_geom,
+            criteria_invalid=INVALID_CRITERIA,
+            criteria_problematic=PROBLEMATIC_CRITERIA,
+        )
         if res.get("invalid") == {} and res.get("problematic") == {}:
             return json.dumps(fixed_geom)
         elif (
@@ -1135,6 +1207,28 @@ _WKT_GEOMETRY_RE = re.compile(
 )
 
 
+def _reduce_degenerate_polygon(geom):
+    """Collapse a zero-area Polygon exterior ring into a Point or LineString.
+
+    Coordinate rounding by some sources (e.g. bboxes rounded to 2 decimal
+    places for a small survey area) can collapse a Polygon's corners onto
+    each other or onto a line. shapely still parses these, but
+    geojson_validator's less_three_unique_nodes/exterior_not_ccw checks
+    reject them outright. munge_spatial already reduces this same situation
+    for v1.1 comma-separated bboxes, so mirror that here instead of losing
+    the geometry.
+    """
+    if geom.geom_type != "Polygon":
+        return geom
+
+    unique_coords = list(dict.fromkeys(geom.exterior.coords))
+    if len(unique_coords) == 1:
+        return Point(unique_coords[0])
+    if len(unique_coords) == 2:
+        return LineString(unique_coords)
+    return geom
+
+
 def translate_wkt_to_geojson(spatial_value: str) -> str:
     """Convert a WKT geometry string into a GeoJSON string, if possible."""
 
@@ -1146,6 +1240,7 @@ def translate_wkt_to_geojson(spatial_value: str) -> str:
         # GeoJSON is 2D; drop any Z/M dimension rather than let the
         # 3d_coordinates check in validate_geojson silently discard it.
         geom = shapely.force_2d(geom)
+        geom = _reduce_degenerate_polygon(geom)
         return json.dumps(shapely_geom_mapping(geom))
     except:  # noqa: E722
         logger.warning(
@@ -1236,15 +1331,13 @@ def _get_geo_lookup_interface():
         return None
 
 
-def _unwrap_location(input_value):
-    """Extract the geometry-bearing value from a DCAT-US 3.0 Location object.
+def _unwrap_single_location(input_value):
+    """Resolve a single (non-array) spatial value to its geometry-bearing
+    value, or None if it has nothing usable.
 
-    v3.0 `spatial` is a Location object or a list of them; v1.1 is a plain
-    string. A bare {type, coordinates} GeoJSON dict is passed through.
+    When a Location defines more than one of these at once, bbox outranks
+    centroid outranks geometry (decided in #6297).
     """
-
-    if isinstance(input_value, list):
-        input_value = next((item for item in input_value if item), None)
 
     if (
         isinstance(input_value, dict)
@@ -1254,13 +1347,68 @@ def _unwrap_location(input_value):
         }
         <= input_value.keys()
     ):
-        for field in ("geometry", "bbox", "centroid"):
+        for field in ("bbox", "centroid", "geometry"):
             value = input_value.get(field)
             if value:
                 return value
         return None
 
     return input_value
+
+
+def _extract_label(input_value, field_name):
+    """Return a Location's `field_name` (prefLabel or altLabel) as a plain
+    string, or None if absent, blank, or not a dict.
+
+    Consulted by _unwrap_location only when nothing in the whole input has
+    usable geometry - real geometry always outranks a named-place fallback.
+    (Full hierarchy is geojson > delimited coords > named location; the
+    delimited-coords tier isn't implemented yet - translate_spatial's
+    existing validate_geojson -> get_geo_from_string -> munge_spatial order
+    is unchanged by this.)
+    """
+
+    if not isinstance(input_value, dict):
+        return None
+    label = input_value.get(field_name)
+    if isinstance(label, str) and label.strip():
+        return label
+    return None
+
+
+def _unwrap_location(input_value):
+    """Extract the geometry-bearing value from a DCAT-US 3.0 Location object.
+
+    v3.0 `spatial` is a Location object or a list of them; v1.1 is a plain
+    string. A bare {type, coordinates} GeoJSON dict is passed through.
+
+    Priority (decided in #6297) is bbox > centroid > geometry > prefLabel >
+    altLabel, first valid value wins:
+
+    Real geometry anywhere in the input always wins over a named-place
+    (prefLabel/altLabel) fallback found anywhere else: the first element
+    with usable geometry short-circuits the scan immediately. Only when NO
+    element has any geometry do we fall back to the first prefLabel seen
+    across the whole input, or - only if no element has a prefLabel either -
+    the first altLabel seen. The winning label is returned as a plain string
+    so it flows into translate_spatial's existing string branch (and from
+    there, its existing locations-table lookup) instead of being discarded.
+    """
+
+    items = input_value if isinstance(input_value, list) else [input_value]
+
+    for item in items:
+        unwrapped = _unwrap_single_location(item)
+        if unwrapped:
+            return unwrapped
+
+    for field_name in ("prefLabel", "altLabel"):
+        for item in items:
+            label = _extract_label(item, field_name)
+            if label:
+                return label
+
+    return None
 
 
 def translate_spatial(input_value) -> str:
@@ -1534,6 +1682,128 @@ def get_format_from_str(validation_msg: str) -> str:
     if "was expected" in validation_msg:
         return f"constant value {validation_msg}"
     return validation_msg.split(" ")[-1]
+
+
+_VALIDATION_ERROR_WRAPPER_RE = re.compile(
+    r"^<(?:ValidationError|ValidationException):\s*(.*)>$", re.DOTALL
+)
+_ACCEPTABLE_FORMATS_PREFIX = "does not match any of the acceptable formats: "
+
+
+def parse_validation_message(message: str) -> tuple[Optional[str], str]:
+    """
+    split a stored record error message into (field, rule).
+
+    validation messages are stored as `repr()` of a jsonschema
+    `ValidationError`, e.g.
+        <ValidationError: "$.license, 'center' does not match any of the
+        acceptable formats: 'uri', 'null'">
+    other message types (TransformationException, DCAT warnings, etc.) don't
+    have this shape and are returned as (None, message).
+    """
+    wrapper_match = _VALIDATION_ERROR_WRAPPER_RE.match(message)
+    if not wrapper_match:
+        return None, message
+
+    try:
+        with warnings.catch_warnings():
+            # repr() embeds raw regex backslashes (e.g. the REDACTED format)
+            # that aren't valid escapes; literal_eval still parses them fine.
+            warnings.simplefilter("ignore", SyntaxWarning)
+            inner = ast.literal_eval(wrapper_match.group(1))
+    except (ValueError, SyntaxError):
+        inner = wrapper_match.group(1).strip("'\"")
+
+    json_path, _, rule_text = inner.partition(", ")
+    if not rule_text:
+        return None, message
+
+    field = json_path[2:] if json_path.startswith("$.") else json_path
+    if field in ("", "$"):
+        field = "(root)"
+    field = re.sub(r"\[\d+\]", "[]", field)
+
+    if rule_text.endswith("is a required property"):
+        rule = "required property"
+    elif _ACCEPTABLE_FORMATS_PREFIX in rule_text:
+        rule = rule_text.split(_ACCEPTABLE_FORMATS_PREFIX, 1)[1]
+    else:
+        rule = rule_text
+
+    return field, rule
+
+
+def group_record_error_fields(rows: list[tuple]) -> list[dict]:
+    """
+    group (severity, type, message, count) rows into per-field/rule summaries
+    for the harvest job report. rows are pre-aggregated by exact message, so
+    identical (field, rule) pairs from different messages are merged here.
+    """
+    severity_order = {"error": 0, "warning": 1}
+    grouped: dict[tuple, dict] = {}
+
+    for severity, error_type, message, count in rows:
+        if error_type in ("ValidationError", "ValidationException"):
+            field, rule = parse_validation_message(message)
+        else:
+            field, rule = None, error_type
+
+        key = (severity, field, rule)
+        entry = grouped.setdefault(
+            key,
+            {
+                "severity": severity,
+                "field": field,
+                "rule": rule,
+                "type": error_type,
+                "count": 0,
+                "examples": [],
+            },
+        )
+        entry["count"] += count
+        if len(entry["examples"]) < 3:
+            entry["examples"].append(message)
+
+    return sorted(
+        grouped.values(),
+        key=lambda entry: (
+            severity_order.get(entry["severity"], 2),
+            -entry["count"],
+        ),
+    )
+
+
+def build_report_email_section(
+    error_field_summary: list[dict], sample_datasets: list, catalog_base_url: str
+) -> str:
+    """
+    Plain-text rendering of the /report page's issues-by-field and sample
+    dataset sections, for inlining into the harvest job notification email.
+    """
+    lines = ["Issues by field:"]
+    if not error_field_summary:
+        lines.append("- No record errors or warnings found.")
+    else:
+        for row in error_field_summary:
+            field = row["field"] or "(root)"
+            lines.append(
+                f"- {row['severity']}: {field} - {row['rule']} ({row['count']})"
+            )
+
+    lines.append("")
+    lines.append("Sample datasets:")
+    if not sample_datasets:
+        lines.append("- No datasets have been harvested from this source yet.")
+    else:
+        for dataset in sample_datasets:
+            if catalog_base_url:
+                lines.append(
+                    f"- {dataset.slug}: {catalog_base_url}/dataset/{dataset.slug}"
+                )
+            else:
+                lines.append(f"- {dataset.slug}")
+
+    return "\n".join(lines)
 
 
 def found_simple_message(

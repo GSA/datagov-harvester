@@ -54,6 +54,25 @@ def test_get_all_harvest_sources(interface, organization_data, source_data_dcatu
     assert sources[0].name == source_data_dcatus["name"]
 
 
+def test_pget_harvest_sources_order_by_name(
+    interface, organization_data, source_data_dcatus
+):
+    """harvest_sources sort by the requested column and honor the `-` descending prefix."""
+    interface.add_organization(organization_data)
+    for i in range(3):
+        source = source_data_dcatus.copy()
+        del source["id"]
+        source["name"] = f"source-{i}"
+        source["url"] = f"http://localhost:80/dcatus/source-{i}.json"
+        interface.add_harvest_source(source)
+
+    ascending = interface.pget_harvest_sources(order_by="name")
+    assert [s.name for s in ascending] == ["source-0", "source-1", "source-2"]
+
+    descending = interface.pget_harvest_sources(order_by="-name")
+    assert [s.name for s in descending] == ["source-2", "source-1", "source-0"]
+
+
 def test_get_harvest_source(interface, organization_data, source_data_dcatus):
     interface.add_organization(organization_data)
     source = interface.add_harvest_source(source_data_dcatus)
@@ -301,3 +320,70 @@ def test_extract_unsupported_schema(
     interface.add_organization(organization_data)
     # we can't add the source because we use an enum for schema type
     assert interface.add_harvest_source(source_data_waf_csdgm) is None
+
+
+def test_add_harvest_source_with_description(interface, organization_data):
+    """Test adding harvest source with description via interface."""
+    interface.add_organization(organization_data)
+
+    source_data = {
+        "organization_id": organization_data["id"],
+        "name": "EPA Data",
+        "url": "https://epa.gov/data.json",
+        "frequency": "daily",
+        "schema_type": "dcatus1.1: federal",
+        "source_type": "document",
+        "notification_frequency": "on_error",
+        "description": "Environmental Protection Agency open data catalog",
+    }
+
+    source = interface.add_harvest_source(source_data)
+    assert source.description == "Environmental Protection Agency open data catalog"
+
+
+def test_add_harvest_source_description_nullable(interface, organization_data):
+    """Test that description field is nullable."""
+    interface.add_organization(organization_data)
+
+    source_data = {
+        "organization_id": organization_data["id"],
+        "name": "Test Source No Desc",
+        "url": "https://example.com/data2.json",
+        "frequency": "weekly",
+        "schema_type": "dcatus1.1: federal",
+        "source_type": "document",
+        "notification_frequency": "on_error",
+        "description": None,
+    }
+
+    source = interface.add_harvest_source(source_data)
+    assert source.description is None
+
+
+def test_update_harvest_source_description(
+    interface, organization_data, source_data_dcatus
+):
+    """Test updating harvest source description."""
+    interface.add_organization(organization_data)
+    source = interface.add_harvest_source(source_data_dcatus)
+
+    updated = interface.update_harvest_source(
+        source.id, {"description": "Updated description for testing"}
+    )
+    assert updated.description == "Updated description for testing"
+
+
+def test_get_harvest_source_includes_description(
+    interface, organization_data, source_data_dcatus
+):
+    """Test that retrieved harvest source includes description."""
+    interface.add_organization(organization_data)
+    source = interface.add_harvest_source(source_data_dcatus)
+
+    # Add description via update
+    interface.update_harvest_source(
+        source.id, {"description": "Test description content"}
+    )
+
+    retrieved = interface.get_harvest_source(source.id)
+    assert retrieved.description == "Test description content"

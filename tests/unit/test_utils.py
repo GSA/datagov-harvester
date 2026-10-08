@@ -149,15 +149,17 @@ class TestCKANUtils:
                                 [180.0, 50.0],
                                 [170.0, 50.0],
                                 [170.0, 40.0],
-                            ],
+                            ]
+                        ],
+                        [
                             [
                                 [-180.0, 40.0],
-                                [-180.0, 50.0],
-                                [-170.0, 50.0],
                                 [-170.0, 40.0],
+                                [-170.0, 50.0],
+                                [-180.0, 50.0],
                                 [-180.0, 40.0],
-                            ],
-                        ]
+                            ]
+                        ],
                     ],
                 }
             )
@@ -181,15 +183,17 @@ class TestCKANUtils:
                                 [-180.0, 50.0],
                                 [-180.0, 40.0],
                                 [-170.0, 40.0],
-                            ],
+                            ]
+                        ],
+                        [
                             [
                                 [180.0, 50.0],
-                                [180.0, 40.0],
-                                [170.0, 40.0],
                                 [170.0, 50.0],
+                                [170.0, 40.0],
+                                [180.0, 40.0],
                                 [180.0, 50.0],
-                            ],
-                        ]
+                            ]
+                        ],
                     ],
                 }
             )
@@ -285,6 +289,47 @@ class TestCKANUtils:
         # Looks like WKT (has the "POLYGON" prefix) but isn't parseable.
         assert translate_wkt_to_geojson("POLYGON((not valid))") == ""
 
+    def test_translate_wkt_to_geojson_degenerate_polygon_becomes_point(self):
+        # Coordinate rounding can collapse a small survey area's bbox onto
+        # a single point. shapely parses this ring fine, but
+        # geojson_validator rejects it (less_three_unique_nodes) unless we
+        # reduce it the same way munge_spatial does for v1.1 bboxes.
+        assert (
+            translate_wkt_to_geojson(
+                "POLYGON((-115.63 32.49, -115.63 32.49, -115.63 32.49, "
+                "-115.63 32.49, -115.63 32.49))"
+            )
+            == '{"type": "Point", "coordinates": [-115.63, 32.49]}'
+        )
+
+    def test_translate_wkt_to_geojson_degenerate_polygon_becomes_linestring(self):
+        # Two unique corners (a sliver) reduces to a LineString rather than
+        # being rejected as a degenerate Polygon.
+        assert translate_wkt_to_geojson(
+            "POLYGON((-87.88 43.34, -87.88 43.35, -87.88 43.35, "
+            "-87.88 43.34, -87.88 43.34))"
+        ) == (
+            '{"type": "LineString", "coordinates": '
+            "[[-87.88, 43.34], [-87.88, 43.35]]}"
+        )
+
+    def test_translate_wkt_to_geojson_valid_triangle_unaffected(self):
+        # Three unique corners is a valid, non-degenerate Polygon and must
+        # not be reduced.
+        assert translate_wkt_to_geojson("POLYGON((0 0, 1 0, 0 1, 0 0))") == (
+            '{"type": "Polygon", "coordinates": '
+            "[[[0.0, 0.0], [1.0, 0.0], [0.0, 1.0], [0.0, 0.0]]]}"
+        )
+
+    def test_translate_spatial_to_geojson_degenerate_wkt_polygon(self):
+        # End-to-end through translate_spatial_to_geojson: a degenerate WKT
+        # bbox must resolve to a geometry instead of being dropped (None).
+        geojson = translate_spatial_to_geojson(
+            "POLYGON((-115.63 32.49, -115.63 32.49, -115.63 32.49, "
+            "-115.63 32.49, -115.63 32.49))"
+        )
+        assert geojson == {"type": "Point", "coordinates": [-115.63, 32.49]}
+
     def test_translate_spatial_to_geojson_wkt_polygon(self):
         geojson = translate_spatial_to_geojson(
             "POLYGON((-125 24, -66 24, -66 50, -125 50, -125 24))"
@@ -337,6 +382,120 @@ class TestCKANUtils:
             '{"type": "Point", "coordinates": [0.0, 0.0]}'
         )
 
+    def test_translate_spatial_location_array_geometry_after_pref_label_skips_lookup(
+        self,
+    ):
+        locations = [
+            {"@type": "Location", "prefLabel": "Nebraska"},
+            {"@type": "Location", "geometry": "POINT (1.0 1.0)"},
+        ]
+        fake_dbi = Mock(get_geo_from_string=Mock())
+        with patch(
+            "harvester.utils.general_utils._get_geo_lookup_interface",
+            lambda: fake_dbi,
+        ):
+            assert translate_spatial(locations) == (
+                '{"type": "Point", "coordinates": [1.0, 1.0]}'
+            )
+        fake_dbi.get_geo_from_string.assert_not_called()
+
+    def test_translate_spatial_location_array_falls_back_to_pref_label_db_hit(self):
+        locations = [
+            {"@type": "Location", "prefLabel": "Nebraska"},
+            {"@type": "Location", "altLabel": "NE"},
+        ]
+        fake_dbi = Mock(
+            get_geo_from_string=Mock(
+                return_value='{"type": "Point", "coordinates": [-99.9018, 41.4925]}'
+            )
+        )
+        with patch(
+            "harvester.utils.general_utils._get_geo_lookup_interface",
+            lambda: fake_dbi,
+        ):
+            assert translate_spatial(locations) == (
+                '{"type": "Point", "coordinates": [-99.9018, 41.4925]}'
+            )
+        fake_dbi.get_geo_from_string.assert_called_once_with("Nebraska")
+
+    def test_translate_spatial_location_array_falls_back_to_pref_label_db_miss(self):
+        locations = [
+            {"@type": "Location", "prefLabel": "Nebraska"},
+            {"@type": "Location", "altLabel": "NE"},
+        ]
+        fake_dbi = Mock(get_geo_from_string=Mock(return_value=None))
+        with patch(
+            "harvester.utils.general_utils._get_geo_lookup_interface",
+            lambda: fake_dbi,
+        ):
+            assert translate_spatial(locations) == ""
+            fake_dbi.get_geo_from_string.assert_called_once_with("Nebraska")
+            fake_dbi.get_geo_from_string.reset_mock()
+            assert translate_spatial_to_geojson(locations) is None
+            fake_dbi.get_geo_from_string.assert_called_once_with("Nebraska")
+
+    def test_translate_spatial_location_bbox_centroid_geometry_all_present_prefers_bbox(
+        self,
+    ):
+        location = {
+            "@type": "Location",
+            "geometry": "POINT (1.0 1.0)",
+            "centroid": {"type": "Point", "coordinates": [2.0, 2.0]},
+            "bbox": {"type": "Point", "coordinates": [3.0, 3.0]},
+        }
+        assert translate_spatial(location) == (
+            '{"type": "Point", "coordinates": [3.0, 3.0]}'
+        )
+
+    def test_translate_spatial_location_centroid_and_geometry_prefers_centroid(self):
+        location = {
+            "@type": "Location",
+            "geometry": "POINT (1.0 1.0)",
+            "centroid": {"type": "Point", "coordinates": [2.0, 2.0]},
+        }
+        assert translate_spatial(location) == (
+            '{"type": "Point", "coordinates": [2.0, 2.0]}'
+        )
+
+    def test_translate_spatial_location_array_pref_label_wins_over_earlier_alt_label(
+        self,
+    ):
+        locations = [
+            {"@type": "Location", "altLabel": "NE"},
+            {"@type": "Location", "prefLabel": "Nebraska"},
+        ]
+        fake_dbi = Mock(
+            get_geo_from_string=Mock(
+                return_value='{"type": "Point", "coordinates": [-99.9018, 41.4925]}'
+            )
+        )
+        with patch(
+            "harvester.utils.general_utils._get_geo_lookup_interface",
+            lambda: fake_dbi,
+        ):
+            assert translate_spatial(locations) == (
+                '{"type": "Point", "coordinates": [-99.9018, 41.4925]}'
+            )
+        fake_dbi.get_geo_from_string.assert_called_once_with("Nebraska")
+
+    def test_translate_spatial_location_array_falls_back_to_alt_label_db_hit(self):
+        locations = [
+            {"@type": "Location", "altLabel": "NE"},
+        ]
+        fake_dbi = Mock(
+            get_geo_from_string=Mock(
+                return_value='{"type": "Point", "coordinates": [-99.9018, 41.4925]}'
+            )
+        )
+        with patch(
+            "harvester.utils.general_utils._get_geo_lookup_interface",
+            lambda: fake_dbi,
+        ):
+            assert translate_spatial(locations) == (
+                '{"type": "Point", "coordinates": [-99.9018, 41.4925]}'
+            )
+        fake_dbi.get_geo_from_string.assert_called_once_with("NE")
+
     def test_translate_spatial_location_falls_back_to_bbox(self):
         location = {
             "@type": "Location",
@@ -365,10 +524,63 @@ class TestCKANUtils:
             '{"type": "Point", "coordinates": [-77.0369, 38.9072]}'
         )
 
-    def test_translate_spatial_location_with_no_geometry_fields(self):
+    def test_translate_spatial_location_pref_label_only_db_hit(self):
         location = {"@type": "Location", "prefLabel": "Washington, D.C."}
-        assert translate_spatial(location) == ""
-        assert translate_spatial_to_geojson(location) is None
+        fake_dbi = Mock(
+            get_geo_from_string=Mock(
+                return_value='{"type": "Point", "coordinates": [-77.0369, 38.9072]}'
+            )
+        )
+        with patch(
+            "harvester.utils.general_utils._get_geo_lookup_interface",
+            lambda: fake_dbi,
+        ):
+            assert translate_spatial(location) == (
+                '{"type": "Point", "coordinates": [-77.0369, 38.9072]}'
+            )
+        fake_dbi.get_geo_from_string.assert_called_once_with("Washington, D.C.")
+
+    def test_translate_spatial_location_pref_label_only_db_miss(self):
+        location = {"@type": "Location", "prefLabel": "Washington, D.C."}
+        fake_dbi = Mock(get_geo_from_string=Mock(return_value=None))
+        with patch(
+            "harvester.utils.general_utils._get_geo_lookup_interface",
+            lambda: fake_dbi,
+        ):
+            assert translate_spatial(location) == ""
+            fake_dbi.get_geo_from_string.assert_called_once_with("Washington, D.C.")
+            fake_dbi.get_geo_from_string.reset_mock()
+            assert translate_spatial_to_geojson(location) is None
+            fake_dbi.get_geo_from_string.assert_called_once_with("Washington, D.C.")
+
+    def test_translate_spatial_location_alt_label_only_db_hit(self):
+        location = {"@type": "Location", "altLabel": "D.C."}
+        fake_dbi = Mock(
+            get_geo_from_string=Mock(
+                return_value='{"type": "Point", "coordinates": [-77.0369, 38.9072]}'
+            )
+        )
+        with patch(
+            "harvester.utils.general_utils._get_geo_lookup_interface",
+            lambda: fake_dbi,
+        ):
+            assert translate_spatial(location) == (
+                '{"type": "Point", "coordinates": [-77.0369, 38.9072]}'
+            )
+        fake_dbi.get_geo_from_string.assert_called_once_with("D.C.")
+
+    def test_translate_spatial_location_alt_label_only_db_miss(self):
+        location = {"@type": "Location", "altLabel": "D.C."}
+        fake_dbi = Mock(get_geo_from_string=Mock(return_value=None))
+        with patch(
+            "harvester.utils.general_utils._get_geo_lookup_interface",
+            lambda: fake_dbi,
+        ):
+            assert translate_spatial(location) == ""
+            fake_dbi.get_geo_from_string.assert_called_once_with("D.C.")
+            fake_dbi.get_geo_from_string.reset_mock()
+            assert translate_spatial_to_geojson(location) is None
+            fake_dbi.get_geo_from_string.assert_called_once_with("D.C.")
 
     def test_translate_spatial_location_input_unchanged(self):
         location = {
@@ -444,6 +656,50 @@ class TestGeneralUtils:
         # assert the new default
         assert datetimes[0] == DT_PLACEHOLDER
         assert datetimes[1] == DT_PLACEHOLDER
+
+    def test_get_waf_datetimes_flexible_parsing(self):
+        """Test flexible datetime parsing with dateutil handles format variations."""
+        # Apache format with extra spaces
+        page_apache_variation = """<html><body><pre>
+<a href="file1.xml">file1.xml</a>    2025-01-22  14:30    10K
+<a href="file2.xml">file2.xml</a>    2026-07-12   02:23   15K
+</pre></body></html>"""
+
+        soup = BeautifulSoup(page_apache_variation, "html.parser")
+        datetimes = get_waf_datetimes(soup, 2)
+
+        assert datetimes == [
+            datetime(2025, 1, 22, 14, 30),
+            datetime(2026, 7, 12, 2, 23),
+        ]
+
+        # Nginx format - month abbreviation
+        page_nginx = """<html><body><pre>
+<a href="file1.xml">file1.xml</a>    02-Oct-2025 11:47    10K
+<a href="file2.xml">file2.xml</a>    15-Dec-2026  09:30   15K
+</pre></body></html>"""
+
+        soup = BeautifulSoup(page_nginx, "html.parser")
+        datetimes = get_waf_datetimes(soup, 2)
+
+        assert datetimes == [
+            datetime(2025, 10, 2, 11, 47),
+            datetime(2026, 12, 15, 9, 30),
+        ]
+
+        # BTS long format - full day and month names
+        page_bts = """<html><body><pre>
+<a href="file1.xml">file1.xml</a>    Friday, July 31, 2026  4:53 PM    10K
+<a href="file2.xml">file2.xml</a>    Monday, January 5, 2025 10:30 AM  15K
+</pre></body></html>"""
+
+        soup = BeautifulSoup(page_bts, "html.parser")
+        datetimes = get_waf_datetimes(soup, 2)
+
+        assert datetimes == [
+            datetime(2026, 7, 31, 16, 53),
+            datetime(2025, 1, 5, 10, 30),
+        ]
 
     def test_assemble_validation_messages(
         self, dol_distribution_json, dcatus_non_federal_schema

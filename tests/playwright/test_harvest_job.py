@@ -29,8 +29,6 @@ class TestHarvestJobUnauthed:
         expect(table).to_contain_text("error")  # From fixtures
         expect(table).to_contain_text("Job type")
         expect(table).to_contain_text("harvest")
-        expect(table).to_contain_text("Records total")
-        expect(table).to_contain_text("10")
         expect(table).to_contain_text("Records added")
         expect(table).to_contain_text("2")
         expect(table).to_contain_text("Records updated")

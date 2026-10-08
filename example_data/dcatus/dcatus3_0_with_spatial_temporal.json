@@ -1,0 +1,38 @@
+{
+  "@type": "Catalog",
+  "@id": "https://example.gov/data.json",
+  "conformsTo": {
+    "@type": "Standard",
+    "title": "DCAT-US 3.0"
+  },
+  "title": "Example DCAT-US 3.0 Catalog (spatial and temporal)",
+  "description": "A sample DCAT-US 3.0 catalog with a populated, well-formed spatial Location and temporal PeriodOfTime array, used for harvest testing.",
+  "dataset": [
+    {
+      "@type": "Dataset",
+      "title": "Test Dataset With Spatial And Temporal",
+      "description": "A dataset with a real bounding box spatial value and a populated temporal coverage period.",
+      "identifier": "https://example.gov/datasets/with-spatial-temporal",
+      "publisher": {
+        "@type": "Organization",
+        "name": "Test Agency"
+      },
+      "contactPoint": {
+        "@type": "Kind",
+        "fn": "Test Contact",
+        "hasEmail": "mailto:spatial-temporal@example.gov"
+      },
+      "spatial": {
+        "@type": "Location",
+        "bbox": "POLYGON((-125 24, -66 24, -66 50, -125 50, -125 24))"
+      },
+      "temporal": [
+        {
+          "@type": "PeriodOfTime",
+          "startDate": "2020-01-01",
+          "endDate": "2020-12-31"
+        }
+      ]
+    }
+  ]
+}

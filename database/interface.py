@@ -6,7 +6,7 @@ import sqlalchemy.sql.operators as sa_operators
 from sqlalchemy import Text, asc, cast, desc, exists, func, inspect, literal, text
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import NoResultFound
-from sqlalchemy.orm import aliased, lazyload
+from sqlalchemy.orm import aliased, lazyload, load_only
 
 from database.configs import PaginationConfig
 from database.decorators import count, count_wrapper, paginate
@@ -39,6 +39,21 @@ class HarvesterDBInterface:
 
     def __init__(self, session=None):
         self.db = session if session else db.session
+
+    def get_model_fields_by_filter(self, model, fields_filter=None):
+        """
+        Return Column objects from model, filtered by fields_filter list.
+        """
+        if fields_filter is None:
+            field_names = [field.name for field in model.__table__.columns]
+        else:
+            field_names = [
+                field.name
+                for field in model.__table__.columns
+                if field.name in fields_filter
+            ]
+
+        return [getattr(model, field) for field in field_names]
 
     @staticmethod
     def query_filter_builder(model, facets_string):
@@ -193,6 +208,18 @@ class HarvesterDBInterface:
     def get_harvest_source_by_url(self, url: str):
         return self.db.query(HarvestSource).filter_by(url=url).first()
 
+    def get_harvest_source_by_url_excluding_id(self, url: str, exclude_id: str):
+        """Like get_harvest_source_by_url, but excludes exclude_id -- used on
+        edit so a source isn't flagged as a duplicate of itself. A UNIQUE
+        index check on UPDATE compares against every other row sharing the
+        value, including a pre-existing duplicate from before this
+        constraint existed, not just the row's own prior value."""
+        return (
+            self.db.query(HarvestSource)
+            .filter(HarvestSource.url == url, HarvestSource.id != exclude_id)
+            .first()
+        )
+
     def get_harvest_source(self, source_id):
         result = self.db.query(HarvestSource).filter_by(id=source_id).first()
         return result
@@ -215,6 +242,23 @@ class HarvesterDBInterface:
         return [source for source in harvest_sources]
 
     def update_harvest_source(self, source_id, updates):
+        source, _ = self.try_update_harvest_source(source_id, updates)
+        return source
+
+    def try_update_harvest_source(self, source_id, updates):
+        """Like update_harvest_source, but returns (source, error_message)
+        instead of letting a constraint violation (e.g. duplicate URL)
+        propagate as an unhandled 500."""
+        new_url = updates.get("url")
+        if new_url:
+            conflict = self.get_harvest_source_by_url_excluding_id(new_url, source_id)
+            if conflict:
+                return None, (
+                    "A harvest source with this URL already exists "
+                    f"(source ID: {conflict.id}). "
+                    "Use a different URL or edit the existing source."
+                )
+
         try:
             source = self.db.get(HarvestSource, source_id)
             for key, value in updates.items():
@@ -225,11 +269,16 @@ class HarvesterDBInterface:
                         "Warning: non-existing field '%s' in HarvestSource", key
                     )
             self.db.commit()
-            return source
+            return source, None
 
         except NoResultFound:
             self.db.rollback()
-            return None
+            return None, "Harvest source not found."
+
+        except Exception as e:
+            logger.error("Error: %s", e)
+            self.db.rollback()
+            return None, self.harvest_source_save_error_message(e)
 
     def can_delete_harvest_source(self, source_id):
         """Return whether a harvest source may be deleted.
@@ -690,6 +739,33 @@ class HarvesterDBInterface:
         return [
             {"severity": severity, "type": error_type, "count": error_count}
             for severity, error_type, error_count in query
+        ]
+
+    def get_record_error_messages_summary_by_job(self, job_id: str, limit: int = 50000):
+        """
+        Get a summary of all record issues for this job, grouped by severity,
+        type, and exact message, for field-level grouping in the harvest
+        source report.
+        """
+        query = (
+            self.db.query(
+                HarvestRecordError.severity,
+                HarvestRecordError.type,
+                HarvestRecordError.message,
+                func.count(),
+            )
+            .where(HarvestRecordError.harvest_job_id == job_id)
+            .group_by(
+                HarvestRecordError.severity,
+                HarvestRecordError.type,
+                HarvestRecordError.message,
+            )
+            .order_by(HarvestRecordError.severity, HarvestRecordError.type)
+            .limit(limit)
+        )
+        return [
+            (severity, error_type, message, count)
+            for severity, error_type, message, count in query
         ]
 
     ## HARVEST RECORD
@@ -1213,13 +1289,18 @@ class HarvesterDBInterface:
 
         facet_list = HarvesterDBInterface.query_filter_builder(model_class, facets)
 
-        # TODO: should we add date_created to these models??
-        if model in ["organizations", "harvest_sources"]:
-            return self.db.query(model_class).filter(*facet_list)
-
         order_by_val = order_by_helper(model_class, order_by)
 
-        return self.db.query(model_class).filter(*facet_list).order_by(order_by_val)
+        model_data = self.get_model_fields_by_filter(
+            model_class, kwargs.get("fields_filter")
+        )
+
+        return (
+            self.db.query(model_class)
+            .options(load_only(*model_data))
+            .filter(*facet_list)
+            .order_by(order_by_val)
+        )
 
     #### FILTERED BUILDER QUERIES ####
     def pget_organizations(self, facets="", **kwargs):
@@ -1316,4 +1397,21 @@ class HarvesterDBInterface:
 
 
 def order_by_helper(model, order_by):
-    return model.date_created.asc() if order_by == "asc" else model.date_created.desc()
+    """Build an ORDER BY clause for `model` from an `order_by` request value.
+
+    Accepts a column name (`"name"`), a column name with a leading `-` for
+    descending (`"-name"`), or the legacy literals `"asc"`/`"desc"` (and
+    `None`/empty), which sort the model's default column. The default column is
+    `date_created` when the model has one, else `name`. An unrecognized column
+    name falls back to the default column while keeping the requested direction.
+    """
+    default_column = "date_created" if hasattr(model, "date_created") else "name"
+    if not order_by or order_by in ("asc", "desc"):
+        column_name, descending = default_column, order_by == "desc"
+    else:
+        descending = order_by.startswith("-")
+        column_name = order_by[1:] if descending else order_by
+    if column_name not in model.__table__.columns.keys():
+        column_name = default_column
+    column = getattr(model, column_name)
+    return column.desc() if descending else column.asc()

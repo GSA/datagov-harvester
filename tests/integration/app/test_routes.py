@@ -688,7 +688,7 @@ class TestJSONResponses:
                 "code_repo_url": None,
                 "description": "Fixture org description",
                 "id": "d925f84d-955b-4cb7-812f-dcfd6681a18f",
-                "logo": "https://raw.githubusercontent.com/GSA/datagov-harvester/refs/heads/main/app/static/assets/img/placeholder-organization.png",
+                "logo": "https://example.com/fixture-org-logo.png",
                 "name": "Test Org",
                 "organization_type": "Federal Government",
                 "slug": "fixture-org",
@@ -1281,3 +1281,130 @@ class TestOrganizationCodeRepoFields:
             "Code repo URL" in response_text or "Code Repository URL" in response_text
         )
         assert "https://github.com/GSA" in response_text
+
+
+def test_harvest_source_list_displays_description(
+    client, interface, organization_data, source_data_dcatus
+):
+    """Test that harvest source list shows description column."""
+    interface.add_organization(organization_data)
+    source_data_dcatus["description"] = "Test harvest source description"
+    interface.add_harvest_source(source_data_dcatus)
+
+    response = client.get("/harvest_source_list/")
+    assert response.status_code == 200
+    response_text = response.data.decode()
+    assert "Description" in response_text
+    assert "Test harvest source description" in response_text
+
+
+def test_harvest_source_list_hides_url_column(
+    client, interface, organization_data, source_data_dcatus
+):
+    """Test that URL column is replaced by description in list view."""
+    interface.add_organization(organization_data)
+    interface.add_harvest_source(source_data_dcatus)
+
+    response = client.get("/harvest_source_list/")
+    assert response.status_code == 200
+    response_text = response.data.decode()
+    assert '<th scope="col">URL</th>' not in response_text
+    assert '<th scope="col">Description</th>' in response_text
+
+
+def test_harvest_source_detail_displays_description(
+    client, interface, organization_data, source_data_dcatus
+):
+    """Test that harvest source detail page shows description."""
+    interface.add_organization(organization_data)
+    source_data_dcatus["description"] = "Detailed source description"
+    source = interface.add_harvest_source(source_data_dcatus)
+
+    response = client.get(f"/harvest_source/{source.id}")
+    assert response.status_code == 200
+    response_text = response.data.decode()
+    assert "Detailed source description" in response_text
+
+
+def test_harvest_source_list_search_includes_description(
+    client, interface, organization_data, source_data_dcatus
+):
+    """Test that filter.js searches description field via data-meta."""
+    interface.add_organization(organization_data)
+    source_data_dcatus["description"] = "Environmental monitoring data"
+    interface.add_harvest_source(source_data_dcatus)
+
+    response = client.get("/harvest_source_list/")
+    assert response.status_code == 200
+    response_text = response.data.decode()
+    assert "Environmental monitoring data" in response_text
+    assert "data-meta=" in response_text
+
+
+class TestPaginationValidation:
+    """Test validation of pagination parameters across list endpoints."""
+
+    def test_per_page_zero_returns_empty_array(
+        self, client, interface, organization_data, source_data_dcatus
+    ):
+        """Test that per_page=0 returns HTTP 200 with empty array."""
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_dcatus)
+
+        response = client.get("/api/v1/harvest_sources/?per_page=0")
+
+        assert response.status_code == 200
+        assert response.json == []
+
+    def test_per_page_negative_returns_422(
+        self, client, interface, organization_data, source_data_dcatus
+    ):
+        """Test that negative per_page returns HTTP 422 error."""
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_dcatus)
+
+        response = client.get("/api/v1/harvest_sources/?per_page=-5")
+
+        assert response.status_code == 422
+        assert "per_page" in response.json.get("error", "").lower()
+
+    def test_per_page_one_returns_results(
+        self, client, interface, organization_data, source_data_dcatus
+    ):
+        """Test that per_page=1 returns exactly one result."""
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_dcatus)
+
+        response = client.get("/api/v1/harvest_sources/?per_page=1")
+
+        assert response.status_code == 200
+        data = response.json
+        assert len(data) == 1
+
+    def test_per_page_validation_consistent_across_endpoints(
+        self, client, interface_with_fixture_json
+    ):
+        """Test that all list endpoints handle per_page=0 and negative values consistently."""
+        endpoints = [
+            "/api/v1/organizations/",
+            "/api/v1/harvest_sources/",
+            "/api/v1/harvest_jobs/",
+            "/api/v1/harvest_records/",
+            "/api/v1/harvest_job_errors/",
+            "/api/v1/harvest_record_errors/",
+        ]
+
+        for endpoint in endpoints:
+            # per_page=0 should return empty array
+            response = client.get(f"{endpoint}?per_page=0")
+            assert response.status_code == 200, f"{endpoint} should accept per_page=0"
+            assert (
+                response.json == []
+            ), f"{endpoint} should return empty array for per_page=0"
+
+            # Negative per_page should return 422
+            response = client.get(f"{endpoint}?per_page=-1")
+            assert (
+                response.status_code == 422
+            ), f"{endpoint} should reject negative per_page"
+            assert "per_page" in response.json.get("error", "").lower()

@@ -69,3 +69,140 @@ def test_faceted_builder_queries(
         count=True,
     )
     assert db_records == 1
+
+
+def test_get_model_fields_by_filter_returns_all_when_none(interface):
+    """Test that helper returns all fields when filter is None."""
+    from database.models import HarvestRecord
+
+    fields = interface.get_model_fields_by_filter(HarvestRecord, fields_filter=None)
+    field_names = [field.name for field in fields]
+
+    assert "id" in field_names
+    assert "harvest_job_id" in field_names
+    assert "harvest_source_id" in field_names
+    assert "identifier" in field_names
+    assert "source_raw" in field_names
+    assert "source_hash" in field_names
+    assert "action" in field_names
+    assert "status" in field_names
+
+
+def test_get_model_fields_by_filter_returns_filtered_fields(interface):
+    """Test that helper returns only requested fields."""
+    from database.models import HarvestRecord
+
+    fields = interface.get_model_fields_by_filter(
+        HarvestRecord, fields_filter=["id", "harvest_source_id"]
+    )
+    field_names = [field.name for field in fields]
+
+    assert len(field_names) == 2
+    assert "id" in field_names
+    assert "harvest_source_id" in field_names
+    assert "source_raw" not in field_names
+    assert "identifier" not in field_names
+
+
+def test_get_model_fields_by_filter_handles_invalid_fields(interface):
+    """Test that helper ignores non-existent field names."""
+    from database.models import HarvestRecord
+
+    fields = interface.get_model_fields_by_filter(
+        HarvestRecord, fields_filter=["id", "nonexistent_field", "harvest_source_id"]
+    )
+    field_names = [field.name for field in fields]
+
+    assert len(field_names) == 2
+    assert "id" in field_names
+    assert "harvest_source_id" in field_names
+    assert "nonexistent_field" not in field_names
+
+
+def test_pget_db_query_with_fields_filter_loads_only_specified_fields(
+    interface,
+    organization_data,
+    source_data_dcatus,
+    job_data_dcatus,
+    record_data_dcatus,
+):
+    """Test that pget_db_query with fields_filter loads only requested columns."""
+    interface.add_organization(organization_data)
+    interface.add_harvest_source(source_data_dcatus)
+    interface.add_harvest_job(job_data_dcatus)
+
+    for i in range(2):
+        record = record_data_dcatus[0].copy()
+        del record["id"]
+        record["identifier"] = f"test-record-{i}"
+        record["source_raw"] = "large data content"
+        interface.add_harvest_record(record)
+
+    results = interface.pget_db_query(
+        model="harvest_records", fields_filter=["id", "harvest_source_id", "identifier"]
+    )
+
+    assert len(results) == 2
+    assert results[0].id is not None
+    assert results[0].identifier in ["test-record-0", "test-record-1"]
+
+
+def test_pget_db_query_without_fields_filter_loads_all_fields(
+    interface,
+    organization_data,
+    source_data_dcatus,
+    job_data_dcatus,
+    record_data_dcatus,
+):
+    """Test that pget_db_query without fields_filter maintains existing behavior."""
+    interface.add_organization(organization_data)
+    interface.add_harvest_source(source_data_dcatus)
+    interface.add_harvest_job(job_data_dcatus)
+
+    record = record_data_dcatus[0].copy()
+    del record["id"]
+    record["identifier"] = "test-record-full"
+    record["source_hash"] = "hash-full"
+    record["source_raw"] = "test data value"
+    record["action"] = "create"
+    record["status"] = "success"
+    interface.add_harvest_record(record)
+
+    results = interface.pget_db_query(model="harvest_records")
+
+    assert len(results) == 1
+    assert results[0].id is not None
+    assert results[0].identifier == "test-record-full"
+    assert results[0].source_hash == "hash-full"
+    assert results[0].source_raw == "test data value"
+    assert results[0].action == "create"
+
+
+def test_pget_db_query_fields_filter_with_facets(
+    interface,
+    organization_data,
+    source_data_dcatus,
+    job_data_dcatus,
+    record_data_dcatus,
+):
+    """Test that fields_filter works with facet filtering."""
+    interface.add_organization(organization_data)
+    interface.add_harvest_source(source_data_dcatus)
+    interface.add_harvest_job(job_data_dcatus)
+
+    for status in ["success", "error"]:
+        record = record_data_dcatus[0].copy()
+        del record["id"]
+        record["identifier"] = f"{status}-record"
+        record["status"] = status
+        interface.add_harvest_record(record)
+
+    results = interface.pget_db_query(
+        model="harvest_records",
+        facets="status eq success",
+        fields_filter=["id", "identifier", "status"],
+    )
+
+    assert len(results) == 1
+    assert results[0].identifier == "success-record"
+    assert results[0].status == "success"

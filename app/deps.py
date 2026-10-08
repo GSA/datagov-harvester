@@ -22,6 +22,7 @@ auth = LoginRequiredAuth()
 login_required = auth.login_required()
 
 CKAN_URL = os.getenv("CKAN_URL") or ""
+CATALOG_BASE_URL = os.getenv("CATALOG_BASE_URL") or ""
 
 STATUS_STRINGS_ENUM = {404: "Not Found"}
 
@@ -47,6 +48,17 @@ def JSON_INVALID_SEVERITY():
         {"error": f"Invalid severity. Must be one of: {', '.join(SEVERITY_VALUES)}."}
     )
     response.status_code = 400
+    return response
+
+
+class InvalidPaginationException(Exception):
+    """Raised when pagination parameters are invalid."""
+
+
+def JSON_INVALID_PAGINATION(message="Invalid pagination parameter"):
+    """Return a 422 JSON for invalid pagination."""
+    response = jsonify({"error": message})
+    response.status_code = 422
     return response
 
 

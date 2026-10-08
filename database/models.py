@@ -105,6 +105,7 @@ class HarvestSource(Base):
     )
 
     name = Column(String, nullable=False)
+    description = Column(Text, nullable=True, index=True)
     url = Column(String, nullable=False, unique=True)
     notification_emails = Column(ARRAY(String))
 
@@ -148,6 +149,10 @@ class HarvestSource(Base):
         ),
         nullable=False,
     )
+
+    # default off: existing sources' notification emails (used for ops
+    # alerting) shouldn't change until explicitly opted in.
+    send_report_email = Column(Boolean, nullable=False, server_default="false")
 
     collection_parent_url = Column(String)
     date_next_run = Column(DateTime, index=True)

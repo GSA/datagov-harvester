@@ -4,11 +4,15 @@ opensearch_service_name: datagov-catalog-opensearch
 space_name: staging
 route_external: harvest-stage.data.gov
 route_internal: datagov-harvest-staging.apps.internal
+route_internal_validator: datagov-harvest-validator-staging.apps.internal
 proxy_instances: 2
 basic_auth_enabled: on # nginx terminology 'on' 'off'. cf will interpret these as 'true' 'false'
 admin_instances: 2
 admin_memory_quota: 1G
 admin_disk_quota: 4G
+validator_instances: 1
+validator_memory_quota: 512M
+validator_disk_quota: 2G
 
 # Placeholder for manifest ((asset_version)); CI overrides via --var on deploy
 asset_version: set-at-deploy
