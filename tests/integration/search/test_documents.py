@@ -110,6 +110,33 @@ def test_normalize_dcat_preserves_publisher_suborganization_object():
     assert normalized["publisher"]["subOrganizationOf"] == {"name": "U.S. Government"}
 
 
+def test_normalize_dcat_strips_top_level_empty_key(caplog):
+    """A source feed can emit a malformed top-level property with an empty
+    string key (e.g. a stray spreadsheet column with no header). OpenSearch
+    rejects any document containing one outright, so it must be dropped
+    before indexing rather than left for OpenSearch to reject the whole
+    dataset over.
+    """
+    dcat = {
+        "title": "Status Of Budgetary Resources Total_CPE",
+        "": 43281,
+    }
+
+    normalized = DatasetDocument._normalize_dcat_dates(dcat, dataset_id="ba35e626")
+
+    assert "" not in normalized
+    assert normalized["title"] == "Status Of Budgetary Resources Total_CPE"
+    assert "ba35e626" in caplog.text
+
+
+def test_normalize_dcat_without_empty_key_is_unaffected():
+    dcat = {"title": "A normal dataset"}
+
+    normalized = DatasetDocument._normalize_dcat_dates(dcat)
+
+    assert normalized == {"title": "A normal dataset"}
+
+
 def test_dataset_to_document(sample_dataset, monkeypatch):
     monkeypatch.delenv("CATALOG_BASE_URL", raising=False)
 
