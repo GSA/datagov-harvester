@@ -28,6 +28,16 @@ LOGGING_CONFIG = {
             "level": "INFO",
             "propagate": False,
         },
+        "validator_api": {
+            "handlers": ["console"],
+            "level": "INFO",
+            "propagate": False,
+        },
+        "dcatus_validation": {
+            "handlers": ["console"],
+            "level": "INFO",
+            "propagate": False,
+        },
         "opensearch": {
             "level": "WARNING",
             "propagate": True,

@@ -5,10 +5,18 @@ from playwright.sync_api import expect
 
 is_prod = os.getenv("FLASK_ENV") == "production"
 
+# /validate/ submits via a same-origin fetch() to /api/v1/validate, which only
+# the local nginx proxy (docker-compose's `proxy` service, PROXY_PORT) knows
+# to route to the validator container - the bare Flask dev server (base_url)
+# doesn't have that route at all.
+PROXY_ORIGIN = f"http://localhost:{os.getenv('PROXY_PORT', '8082')}"
+VALIDATOR_PROXY_URL = f"{PROXY_ORIGIN}/validate/"
+VALIDATE_API_URL = f"{PROXY_ORIGIN}/api/v1/validate"
+
 
 @pytest.fixture()
 def upage(unauthed_page):
-    unauthed_page.goto("/validate/")
+    unauthed_page.goto(VALIDATOR_PROXY_URL)
     yield unauthed_page
 
 
@@ -79,64 +87,10 @@ class TestValidator:
         expect(upage.locator(".error-list")).to_be_visible()
         expect(upage.locator(".error-block")).to_have_count(1)
 
-    def test_api_validate_by_url(self, upage, validator_api_url):
-
-        res = upage.request.post(
-            "/api/v1/validate",
-            headers={
-                "Content-Type": "application/json",
-            },
-            data=validator_api_url,
-        )
-
-        assert res.status == 200
-        assert res.json() == {
-            "validation_errors": [[0, "$, 'identifier' is a required property"]]
-        }
-
-    def test_api_validate_by_bad_url(self, upage, validator_api_url):
-
-        validator_api_url["url"] = "nonsense"
-
-        res = upage.request.post(
-            "/api/v1/validate",
-            headers={
-                "Content-Type": "application/json",
-            },
-            data=validator_api_url,
-        )
-
-        assert res.status == 422
-        assert res.json() == {
-            "detail": {"json": {"url": ["Not a valid URL."]}},
-            "message": "Validation error",
-        }
-
-    def test_api_validate_by_json(self, upage, validator_api_json):
-
-        res = upage.request.post(
-            "/api/v1/validate",
-            headers={
-                "Content-Type": "application/json",
-            },
-            data=validator_api_json,
-        )
-
-        # ruff: noqa: E501
-        assert res.status == 200
-        assert res.json() == {
-            "validation_errors": [
-                [
-                    "https://www.arcgis.com/home/item.html?id=99731bb0369848169d98f31ce83fb0e2",
-                    "$.license, 'center' does not match any of the acceptable formats: 'uri', 'null', '^(\\\\[\\\\[REDACTED).*?(\\\\]\\\\])$'",
-                ]
-            ]
-        }
-
     def test_download_button_triggers_csv(self, upage, dcatus_many_invalid_json):
         """
-        The download button should only appear when there are more than 10 errors,
-        and clicking it should trigger a CSV file download.
+        With more errors than the 10 shown, the download button should still
+        export all of them as a CSV file.
         """
         upage.locator("select[name=fetch_method]").select_option("paste")
         upage.locator("textarea[name=json_text]").fill(dcatus_many_invalid_json)
@@ -231,9 +185,9 @@ class TestValidator:
         upage.locator("input[type=submit]").click()
 
         # Position only - the decoder's own message is deliberately not shown,
-        # see app.util.invalid_json_message.
+        # see dcatus_validation.fetch.invalid_json_message.
         expect(upage.locator("#upload_field .usa-error-message")).to_have_text(
-            "Invalid JSON in the uploaded file at line 1, column 1."
+            "Invalid JSON at line 1, column 1."
         )
         expect(upage.locator(".error-list")).not_to_be_visible()
 
@@ -280,16 +234,69 @@ class TestValidator:
         )
         assert upage.evaluate("window.__sameDocument") is True
 
-    def test_oversized_post_bypassing_the_browser_gets_the_413_page(self, upage):
-        """A request that skips the client-side guard still gets a readable page."""
+    def test_ui_paste_near_the_limit_reaches_the_validator(self, upage):
+        """
+        A document under the 10MB cap is sent JSON-escaped inside json_text,
+        which can grow the request past the proxy's general 12M body limit;
+        the validate route has to allow more (proxy/nginx-common.conf,
+        nginx-local-proxy.conf) or nginx refuses it before the validator sees it.
+        """
+        upage.locator("select[name=fetch_method]").select_option("paste")
+        # ~8.5MB of mostly quotes, so escaping makes the request ~14MB
+        upage.evaluate("""document.getElementById('json_text').value =
+                '{"dataset": [], "padding": [' + '"",'.repeat(2900000) + '""]}'""")
+        upage.locator("input[type=submit]").click()
+
+        expect(upage.locator("#validator-results h2")).to_have_text(
+            "Validation results", timeout=30000
+        )
+        expect(upage.locator("#json_field .usa-error-message")).to_have_count(0)
+
+    def test_post_bypassing_the_browser_is_rejected(self, upage):
+        """
+        A request that skips the client-side guard entirely can't reach any
+        validation code - /validate/ only accepts GET now, so this can't be
+        used to tie up datagov-harvest's own workers (GSA/data.gov#6293).
+        """
         res = upage.request.post(
-            "/validate/",
+            VALIDATOR_PROXY_URL,
             headers={"Content-Type": "application/x-www-form-urlencoded"},
             data=b"json_text=" + b"x" * (11 * 1024 * 1024),
         )
 
-        assert res.status == 413
-        assert "must be 10MB or less" in res.text()
+        assert res.status == 405
+
+    @pytest.mark.parametrize(
+        "method,field,message",
+        [
+            ("url", "#url_field", "URL is required."),
+            ("paste", "#json_field", "JSON input is required."),
+            ("upload", "#upload_field", "A JSON file is required."),
+        ],
+    )
+    def test_ui_empty_input_is_refused_before_submitting(
+        self, upage, method, field, message
+    ):
+        requests = []
+        upage.on("request", lambda req: requests.append(req.url))
+        upage.locator("select[name=fetch_method]").select_option(method)
+        upage.locator("input[type=submit]").click()
+
+        expect(upage.locator(f"{field} .usa-error-message")).to_have_text(message)
+        assert not [url for url in requests if url.endswith("/api/v1/validate")]
+
+    def test_ui_upload_utf16_file(self, upage, dcatus_long_description_json, tmp_path):
+        """UTF-16 with a BOM decodes the way json.loads(bytes) used to accept it."""
+        json_file = tmp_path / "catalog.json"
+        json_file.write_bytes(dcatus_long_description_json.encode("utf-16"))
+
+        upage.locator("select[name=fetch_method]").select_option("upload")
+        upage.locator("input[type=file][name=json_file]").set_input_files(
+            str(json_file)
+        )
+        upage.locator("input[type=submit]").click()
+
+        expect(upage.locator(".error-block")).to_have_count(1)
 
     def test_ui_dcatus3_info(self, upage):
         """
@@ -297,3 +304,206 @@ class TestValidator:
         on the validator page
         """
         expect(upage.locator("div[id=dcatus3-validator-info]")).to_be_visible()
+
+
+class TestValidatorApi:
+    """The validate API end to end: proxy -> validator container, including a
+    real URL fetch from the compose network."""
+
+    def test_api_validate_by_url(self, upage, validator_api_url):
+        res = upage.request.post(VALIDATE_API_URL, data=validator_api_url)
+
+        assert res.status == 200
+        assert res.headers["x-served-by"] == "datagov-harvest-validator"
+        assert res.json() == {
+            "validation_errors": [[0, "$, 'identifier' is a required property"]]
+        }
+
+    def test_api_validate_by_bad_url(self, upage, validator_api_url):
+        validator_api_url["url"] = "nonsense"
+
+        res = upage.request.post(VALIDATE_API_URL, data=validator_api_url)
+
+        assert res.status == 422
+        assert res.json() == {
+            "detail": {"json": {"url": ["Not a valid URL."]}},
+            "message": "Validation error",
+        }
+
+    def test_api_validate_by_json(self, upage, validator_api_json):
+        res = upage.request.post(VALIDATE_API_URL, data=validator_api_json)
+
+        # ruff: noqa: E501
+        assert res.status == 200
+        assert res.json() == {
+            "validation_errors": [
+                [
+                    "https://www.arcgis.com/home/item.html?id=99731bb0369848169d98f31ce83fb0e2",
+                    "$.license, 'center' does not match any of the acceptable formats: 'uri', 'null', '^(\\\\[\\\\[REDACTED).*?(\\\\]\\\\])$'",
+                ]
+            ]
+        }
+
+    def test_unversioned_path_redirects(self, upage, validator_api_json):
+        res = upage.request.post(
+            f"{PROXY_ORIGIN}/api/validate",
+            data=validator_api_json,
+            max_redirects=0,
+        )
+
+        assert res.status == 308
+        assert res.headers["location"] == "/api/v1/validate"
+
+    def test_docs_are_served_through_the_proxy(self, unauthed_page):
+        unauthed_page.goto(f"{PROXY_ORIGIN}/validator/docs")
+
+        expect(unauthed_page.get_by_role("heading", level=1)).to_contain_text(
+            "Datagov Validator"
+        )
+        expect(unauthed_page.locator(".opblock-post")).to_have_count(1)
+        # "Try it out" must go through the proxy, like every other caller
+        expect(unauthed_page.locator(".servers select")).to_have_value(PROXY_ORIGIN)
+
+
+class TestValidatorApiResponses:
+    """
+    How each kind of /api/v1/validate answer is shown, with the API stubbed so
+    the answers that are hard to provoke for real (nginx's own 413, a 502,
+    a dropped connection) are covered too.
+    """
+
+    UNAVAILABLE = "The validator is unavailable right now. Please try again later."
+
+    def _submit_url(self, upage):
+        upage.locator("input[name=url]").fill("https://example.gov/data.json")
+        upage.locator("input[type=submit]").click()
+
+    @pytest.mark.parametrize(
+        "status,content_type,body,message",
+        [
+            (
+                400,
+                "application/json",
+                '{"error": "Access to private/internal addresses is not allowed."}',
+                "Access to private/internal addresses is not allowed.",
+            ),
+            (
+                422,
+                "application/json",
+                '{"message": "Validation error", '
+                '"detail": {"json": {"url": ["Not a valid URL."]}}}',
+                "Not a valid URL.",
+            ),
+            (
+                413,
+                "text/html",
+                "<html><body><h1>413 Request Entity Too Large</h1></body></html>",
+                "Submission is too large. Maximum size is 10 MB.",
+            ),
+            (502, "text/html", "<html>Bad Gateway</html>", UNAVAILABLE),
+            (500, "application/json", '{"error": "internal detail"}', UNAVAILABLE),
+            (200, "application/json", '{"unexpected": "shape"}', UNAVAILABLE),
+        ],
+    )
+    def test_answer_is_shown_beside_the_field(
+        self, upage, status, content_type, body, message
+    ):
+        upage.route(
+            "**/api/v1/validate",
+            lambda route: route.fulfill(
+                status=status, content_type=content_type, body=body
+            ),
+        )
+        self._submit_url(upage)
+
+        expect(upage.locator("#url_field .usa-error-message")).to_have_text(message)
+        expect(upage.locator(".error-list")).to_have_count(0)
+
+    def test_dropped_connection_is_reported_generically(self, upage):
+        upage.route("**/api/v1/validate", lambda route: route.abort())
+        self._submit_url(upage)
+
+        expect(upage.locator("#url_field .usa-error-message")).to_have_text(
+            self.UNAVAILABLE
+        )
+
+    def test_results_are_rendered_as_text(self, upage):
+        """Identifiers and messages come from the submitted document."""
+        upage.route(
+            "**/api/v1/validate",
+            lambda route: route.fulfill(
+                status=200,
+                content_type="application/json",
+                body='{"validation_errors": ['
+                "[0, \"$, 'identifier' is a required property\"], "
+                '["<img src=x onerror=alert(1)>", "<b>bold</b>"]]}',
+            ),
+        )
+        self._submit_url(upage)
+
+        blocks = upage.locator(".error-block")
+        expect(blocks).to_have_count(2)
+        expect(blocks.nth(0)).to_contain_text("0 (dataset position)")
+        expect(blocks.nth(1)).to_contain_text("<img src=x onerror=alert(1)>")
+        expect(blocks.nth(1)).to_contain_text("<b>bold</b>")
+        expect(upage.locator("#validator-results img")).to_have_count(0)
+
+    def test_incomplete_validation_is_explained(self, upage):
+        upage.route(
+            "**/api/v1/validate",
+            lambda route: route.fulfill(
+                status=200,
+                content_type="application/json",
+                body='{"validation_errors": [[0, "first error"]], '
+                '"validation_incomplete": true}',
+            ),
+        )
+        self._submit_url(upage)
+
+        expect(upage.locator("#validator-results")).to_contain_text(
+            "Validation stopped early."
+        )
+        expect(upage.locator("#validator-results")).to_contain_text(
+            "Fix the reported errors and validate again"
+        )
+
+    def test_fetch_method_is_locked_while_validating(self, upage):
+        pending = []
+        upage.route("**/api/v1/validate", lambda route: pending.append(route))
+        self._submit_url(upage)
+
+        expect(upage.locator("select[name=fetch_method]")).to_be_disabled()
+        expect(upage.locator("select[name=schema]")).to_be_disabled()
+        expect(upage.locator("input[name=url]")).to_be_disabled()
+        expect(upage.locator("input[type=submit]")).to_be_disabled()
+
+        pending[0].fulfill(
+            status=200,
+            content_type="application/json",
+            body='{"validation_errors": []}',
+        )
+        expect(upage.locator("#validator-results")).to_contain_text(
+            "No validation errors found"
+        )
+        expect(upage.locator("select[name=fetch_method]")).to_be_enabled()
+        expect(upage.locator("select[name=schema]")).to_be_enabled()
+        expect(upage.locator("input[name=url]")).to_be_enabled()
+
+    def test_csv_download_neutralizes_spreadsheet_formulas(self, upage):
+        upage.route(
+            "**/api/v1/validate",
+            lambda route: route.fulfill(
+                status=200,
+                content_type="application/json",
+                body='{"validation_errors": ['
+                '["=HYPERLINK(\\"https://example.com\\")", "@SUM(1,1)"]]}',
+            ),
+        )
+        self._submit_url(upage)
+
+        with upage.expect_download() as download_info:
+            upage.locator("#btn-download").click()
+
+        content = download_info.value.path().read_text(encoding="utf-8")
+        assert "\"'=HYPERLINK(" in content
+        assert '"\'@SUM(1,1)"' in content
