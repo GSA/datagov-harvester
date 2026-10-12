@@ -596,6 +596,31 @@ def backfill_catalog_record_identifiers(records: list) -> list:
     return backfilled
 
 
+def backfill_object_identifiers_from_title(
+    records: list, identifier_field: str, type_label: str
+) -> list:
+    """
+    DataService's "identifier" and DatasetSeries's "@id" are both optional
+    per the DCAT-US3.0 schema. Resolve each record's own identifier --
+    preferring "identifier", then "@id" -- and if neither is usable,
+    synthesize a stable one from its title (required by both schemas) so
+    harvester can still track the object and link its child datasets to it.
+    """
+    backfilled = []
+    for record in records:
+        record = dict(record)
+        if normalize_dataset_identifier(record.get(identifier_field)) is None:
+            resolved = normalize_dataset_identifier(
+                record.get("identifier")
+            ) or normalize_dataset_identifier(record.get("@id"))
+            if resolved is None:
+                digest = hashlib.sha256(str(record.get("title")).encode()).hexdigest()
+                resolved = f"urn:datagov:{type_label}:{digest}"
+            record[identifier_field] = resolved
+        backfilled.append(record)
+    return backfilled
+
+
 def extract_dcatus3_catalog_dataset_series(catalog: dict) -> list:
     """
     recursively collect every DatasetSeries from a DCAT-US3 Catalog dict,

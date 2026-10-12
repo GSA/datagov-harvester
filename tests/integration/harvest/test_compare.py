@@ -96,3 +96,63 @@ class TestCompare:
             "distributor"
         ]
         assert {d["distorCont"]["rpOrgName"] for d in distributors} == {"FRA", "DOT"}
+
+    def test_parent_identifier_change_forces_update(
+        self,
+        organization_data,
+        source_data_dcatus3_0_service_serves_dataset,
+        job_data_dcatus3_0_service_serves_dataset,
+        interface,
+    ):
+        """
+        a DataService/DatasetSeries identifier change must still force an
+        update of its already-synced child dataset even though the child's
+        own content (and thus its metadata_hash) hasn't changed, otherwise
+        the child's isPartOf link in catalog goes stale.
+        see GSA/data.gov#6431.
+        """
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_dcatus3_0_service_serves_dataset)
+        first_job = interface.add_harvest_job(job_data_dcatus3_0_service_serves_dataset)
+
+        first_source = HarvestSource(first_job.id)
+        first_source.acquire_minimum_external_data()
+        child = next(
+            r
+            for r in first_source.external_records_to_process()
+            if r.identifier == "https://example.gov/datasets/served-by-service-one"
+        )
+        assert child.parent_identifier == "https://example.gov/services/one"
+
+        # seed a prior successful harvest of the same child, but tagged with
+        # a different (now-outdated) parent identifier, as if the
+        # DataService's identifier had changed between harvests
+        interface.add_harvest_record(
+            {
+                "identifier": child.identifier,
+                "harvest_job_id": first_job.id,
+                "harvest_source_id": source_data_dcatus3_0_service_serves_dataset["id"],
+                "source_hash": child.metadata_hash,
+                "parent_identifier": "https://example.gov/services/outdated",
+                "status": "success",
+                "action": "create",
+                "record_type": "dataset",
+                "ckan_id": "existing-ckan-id",
+            }
+        )
+
+        second_job_data = dict(job_data_dcatus3_0_service_serves_dataset)
+        second_job_data["id"] = "a0b1c2d3-e4f5-4a6b-8c9d-0e1f2a3b4c5d"
+        second_job = interface.add_harvest_job(second_job_data)
+
+        second_source = HarvestSource(second_job.id)
+        second_source.acquire_data_sources()
+        second_child = next(
+            r
+            for r in second_source.external_records_to_process()
+            if r.identifier == "https://example.gov/datasets/served-by-service-one"
+        )
+        second_child.compare()
+
+        assert second_child.action == "update"
+        assert second_child.ckan_id == "existing-ckan-id"
