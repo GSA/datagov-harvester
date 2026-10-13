@@ -1125,6 +1125,43 @@ class TestGeneralUtils:
             == 1
         )
 
+    def test_facet_builder_enum_eq(self):
+        facets = HarvesterDBInterface.query_filter_builder(
+            HarvestSource, "schema_type eq dcatus1.1: non-federal"
+        )
+        assert len(facets) == 1
+        compiled = facets[0].compile(compile_kwargs={"literal_binds": True})
+        assert "CAST" not in str(compiled)
+
+    def test_facet_builder_enum_startswith(self):
+        facets = HarvesterDBInterface.query_filter_builder(
+            HarvestSource, "schema_type startswith_op dcat"
+        )
+        assert len(facets) == 1
+        compiled = str(facets[0].compile(compile_kwargs={"literal_binds": True}))
+        assert "CAST" in compiled
+        assert "LIKE" in compiled
+
+    @pytest.mark.parametrize(
+        "op",
+        [
+            "like_op",
+            "notlike_op",
+            "ilike_op",
+            "notilike_op",
+            "startswith_op",
+            "endswith_op",
+            "contains_op",
+        ],
+    )
+    def test_facet_builder_enum_text_pattern_operators(self, op):
+        facets = HarvesterDBInterface.query_filter_builder(
+            HarvestSource, f"schema_type {op} dcat"
+        )
+        assert len(facets) == 1
+        compiled = str(facets[0].compile(compile_kwargs={"literal_binds": True}))
+        assert "CAST" in compiled
+
     def test_facet_builder_multiple(self):
         assert (
             len(
