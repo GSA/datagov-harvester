@@ -167,6 +167,22 @@ def dcatus_bad_license_uri_json():
         return file.read()
 
 
+@pytest.fixture
+def dcatus_no_identifier_json():
+    file = Path(__file__).parents[1] / "example_data/dcatus/dcatus_no_identifier.json"
+    with open(file, "r") as file:
+        return file.read()
+
+
+@pytest.fixture
+def dcatus_multiple_invalid_json():
+    file = (
+        Path(__file__).parents[1] / "example_data/dcatus/dcatus_multiple_invalid.json"
+    )
+    with open(file, "r") as file:
+        return file.read()
+
+
 ## ORGS
 @pytest.fixture
 def organization_data(fixtures_json) -> dict:

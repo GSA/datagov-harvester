@@ -14,14 +14,21 @@ from requests.exceptions import ConnectionError
 
 from database.interface import HarvesterDBInterface
 from database.models import HarvestSource
+from dcatus_validation import messages
+from dcatus_validation.fetch import USER_AGENT
+from dcatus_validation.messages import (
+    assemble_validation_errors,
+    build_dcatus3_validator,
+)
+from dcatus_validation.schema_paths import (
+    DCATUS3_COMPLETE_EXAMPLE,
+    DCATUS3_DEFINITIONS_DIR,
+)
 from harvester.utils import general_utils
 from harvester.utils.general_utils import (
     DT_PLACEHOLDER,
-    USER_AGENT,
     RetrySession,
-    assemble_validation_errors,
     backfill_catalog_record_identifiers,
-    build_dcatus3_validator,
     create_retry_session,
     describe_identifier_error,
     download_file,
@@ -47,10 +54,6 @@ from harvester.utils.general_utils import (
     translate_spatial_to_geojson,
     translate_wkt_to_geojson,
     validate_geojson,
-)
-from harvester.utils.schema_paths import (
-    DCATUS3_COMPLETE_EXAMPLE,
-    DCATUS3_DEFINITIONS_DIR,
 )
 
 # Real DCAT-US 3.0 validator, used to reproduce assembler errors on the
@@ -992,8 +995,8 @@ class TestGeneralUtils:
         del dcatus3_complete_example["title"]
 
         with patch(
-            "harvester.utils.general_utils.finalize_validation_messages",
-            wraps=general_utils.finalize_validation_messages,
+            "dcatus_validation.messages.finalize_validation_messages",
+            wraps=messages.finalize_validation_messages,
         ) as finalize:
             errors = assemble_validation_errors(
                 DCATUS3_DATASET_VALIDATOR.iter_errors(dcatus3_complete_example)
