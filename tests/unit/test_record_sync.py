@@ -113,3 +113,24 @@ def test_iso_dataset_payload_meridian():
             ],
         ],
     }
+
+
+def test_dataset_payload_clears_translated_spatial_when_spatial_removed():
+    """translated_spatial must be explicitly set to None (not omitted) when the
+    incoming record has no spatial value, so the upsert clears any stale
+    geometry from a prior harvest instead of leaving it untouched."""
+
+    record = Record.__new__(Record)
+    record._harvest_source = MagicMock(
+        organization_id="a", schema_type="dcatus1.1: federal", id="b"
+    )
+    record._record_type = "dataset"
+    record._identifier = "test-id"
+    record._dataset_slug = "test-slug"
+    record._id = "record-123"
+    record._date_finished = "test datetime"
+
+    res = record._dataset_payload({"title": "Test"})
+
+    assert "translated_spatial" in res
+    assert res["translated_spatial"] is None
