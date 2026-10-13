@@ -20,8 +20,9 @@ from app.deps import (
     get_requested_severity,
     logger,
 )
-from database.interface import InvalidOrderByException
 from harvester.utils.general_utils import convert_to_int, is_it_true
+
+from database.interface import InvalidOrderByException
 
 from . import api
 
