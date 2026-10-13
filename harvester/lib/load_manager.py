@@ -100,18 +100,18 @@ class LoadManager:
     def _enqueue_due_sources(self):
         """Create a job for each due source and bump date_next_run."""
         for source in interface.get_due_harvest_sources():
-            job_data = interface.add_harvest_job(
-                {
-                    "harvest_source_id": source.id,
-                    "status": "new",
-                    "date_created": datetime.now(),
-                }
-            )
-            if not job_data:
-                logger.error(f"Failed to queue harvest job for source {source.id}.")
+            try:
+                next_run = create_future_date(source.frequency)
+                job_data, _active_job = interface.enqueue_harvest_job_if_idle(
+                    source.id, next_run=next_run, require_due=True
+                )
+            except Exception:
+                logger.exception(
+                    "Failed to queue harvest job for source %s.", source.id
+                )
                 continue
-            next_run = create_future_date(source.frequency)
-            interface.update_harvest_source(source.id, {"date_next_run": next_run})
+            if not job_data:
+                continue
             logger.info(
                 f"Queued harvest job {job_data.id} for source {source.id}; "
                 f"next run at {next_run}."
@@ -349,20 +349,13 @@ class LoadManager:
     def trigger_manual_job(self, source_id, job_type="harvest"):
         """manual trigger harvest job, takes a source_id"""
         try:
-            source = interface.get_harvest_source(source_id)
-            active_job = interface.get_active_harvest_job_for_source(source.id)
+            job_data, active_job = interface.enqueue_harvest_job_if_idle(
+                source_id, job_type=job_type
+            )
             if active_job:
                 if active_job.status == "in_progress":
                     return f"Can't trigger harvest. Job {active_job.id} already in progress."  # noqa E501
                 return f"Can't trigger harvest. Job {active_job.id} already queued."
-            job_data = interface.add_harvest_job(
-                {
-                    "harvest_source_id": source.id,
-                    "status": "new",
-                    "job_type": job_type,
-                    "date_created": datetime.now(),
-                }
-            )
             if job_data:
                 logger.info(
                     f"Created new manual harvest job: for {job_data.harvest_source_id}."

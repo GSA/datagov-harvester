@@ -136,10 +136,9 @@ def test_no_dry_run_queues_job_for_each_source(app):
             make_source("1", "DCAT-US Source", "dcatus1.1: federal"),
             make_source("2", "DCAT-US Source 2", "dcatus3.0"),
         ]
-        mock_db.get_active_harvest_job_for_source.return_value = None
         queued_job = MagicMock()
         queued_job.id = "job-1"
-        mock_db.add_harvest_job.return_value = queued_job
+        mock_db.enqueue_harvest_job_if_idle.return_value = (queued_job, None)
 
         result = app.test_cli_runner().invoke(
             args=[
@@ -152,11 +151,9 @@ def test_no_dry_run_queues_job_for_each_source(app):
         )
 
     assert result.exit_code == 0
-    assert mock_db.add_harvest_job.call_count == 2
-    for call in mock_db.add_harvest_job.call_args_list:
-        job_data = call.args[0]
-        assert job_data["status"] == "new"
-        assert job_data["job_type"] == "force_harvest"
+    assert mock_db.enqueue_harvest_job_if_idle.call_count == 2
+    for call in mock_db.enqueue_harvest_job_if_idle.call_args_list:
+        assert call.kwargs["job_type"] == "force_harvest"
     assert "queued job job-1" in result.output
 
 
@@ -167,7 +164,7 @@ def test_no_dry_run_skips_source_with_active_job(app):
         ]
         active_job = MagicMock()
         active_job.id = "active-job-1"
-        mock_db.get_active_harvest_job_for_source.return_value = active_job
+        mock_db.enqueue_harvest_job_if_idle.return_value = (None, active_job)
 
         result = app.test_cli_runner().invoke(
             args=[
@@ -180,7 +177,9 @@ def test_no_dry_run_skips_source_with_active_job(app):
         )
 
     assert result.exit_code == 0
-    mock_db.add_harvest_job.assert_not_called()
+    mock_db.enqueue_harvest_job_if_idle.assert_called_once_with(
+        "1", job_type="force_harvest"
+    )
     assert "skipped, job active-job-1 already new/in_progress" in result.output
 
 

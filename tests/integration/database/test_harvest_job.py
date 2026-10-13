@@ -1,11 +1,87 @@
 from datetime import datetime, timedelta, timezone
+from concurrent.futures import ThreadPoolExecutor
+from threading import Barrier
 
 from freezegun import freeze_time
 from sqlalchemy import asc, text
 from sqlalchemy.dialects import postgresql
-from sqlalchemy.orm import lazyload
+from sqlalchemy.orm import lazyload, sessionmaker
 
-from database.models import HarvestJob, HarvestJobError
+from database.interface import HarvesterDBInterface
+from database.models import HarvestJob, HarvestJobError, HarvestSource, Organization, db
+
+
+def test_concurrent_manual_and_scheduled_enqueue_create_one_job(
+    organization_data, source_data_dcatus
+):
+    """Separate sessions must serialize their check and insert on the source."""
+    source_id = source_data_dcatus["id"]
+    source = HarvestSource(**source_data_dcatus)
+    source.date_next_run = datetime.now() - timedelta(days=1)
+    db.session.add_all([Organization(**organization_data), source])
+    db.session.commit()
+
+    sessions = sessionmaker(bind=db.engine)
+    start = Barrier(3)
+
+    def enqueue(scheduled):
+        session = sessions()
+        try:
+            interface = HarvesterDBInterface(session)
+            start.wait()
+            job, active = interface.enqueue_harvest_job_if_idle(
+                source_id,
+                next_run=datetime.now() + timedelta(days=1) if scheduled else None,
+                require_due=scheduled,
+            )
+            return (job.id if job else None, active.id if active else None)
+        finally:
+            session.close()
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        manual = executor.submit(enqueue, False)
+        scheduled = executor.submit(enqueue, True)
+        start.wait()
+        results = [manual.result(), scheduled.result()]
+
+    jobs = db.session.query(HarvestJob).filter_by(harvest_source_id=source_id).all()
+    assert len(jobs) == 1
+    assert sorted(job_id for job_id, _ in results if job_id) == [jobs[0].id]
+    assert sorted(active_id for _, active_id in results if active_id) == [jobs[0].id]
+
+
+def test_scheduled_enqueue_rechecks_due_source_after_lock(
+    organization_data, source_data_dcatus
+):
+    source_id = source_data_dcatus["id"]
+    source = HarvestSource(**source_data_dcatus)
+    source.date_next_run = datetime.now() - timedelta(days=1)
+    db.session.add_all([Organization(**organization_data), source])
+    db.session.commit()
+
+    sessions = sessionmaker(bind=db.engine)
+    stale_session = sessions()
+    other_session = sessions()
+    try:
+        stale_interface = HarvesterDBInterface(stale_session)
+        other_interface = HarvesterDBInterface(other_session)
+        assert len(stale_interface.get_due_harvest_sources()) == 1
+
+        next_run = datetime.now() + timedelta(days=1)
+        job, _ = other_interface.enqueue_harvest_job_if_idle(
+            source_id, next_run=next_run, require_due=True
+        )
+        other_interface.update_harvest_job(job.id, {"status": "complete"})
+
+        new_job, active_job = stale_interface.enqueue_harvest_job_if_idle(
+            source_id, next_run=next_run, require_due=True
+        )
+        assert new_job is None
+        assert active_job is None
+        assert stale_interface.get_harvest_source(source_id).date_next_run == next_run
+    finally:
+        stale_session.close()
+        other_session.close()
 
 
 def test_add_harvest_job_error(

@@ -810,6 +810,28 @@ class TestAPIBehavior:
         assert response.status_code == 302
         assert response.location == f"/harvest_job/{job.id}"
 
+    def test_job_add_rejects_a_second_active_job(
+        self, app, client, interface, organization_data, source_data_dcatus
+    ):
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_dcatus)
+        headers = {"X-API-Key": app.config["API_TOKEN"]}
+        job_data = {
+            "harvest_source_id": source_data_dcatus["id"],
+            "status": "new",
+            "job_type": "harvest",
+        }
+
+        first = client.post("/api/v1/harvest_job/add", json=job_data, headers=headers)
+        second = client.post("/api/v1/harvest_job/add", json=job_data, headers=headers)
+
+        assert first.status_code == 200
+        assert second.status_code == 409
+        assert (
+            len(interface.get_queued_harvest_jobs_for_source(source_data_dcatus["id"]))
+            == 1
+        )
+
     def test_invalid_harvest_job_type(self, app, client, source_data_dcatus):
         api_token = app.config["API_TOKEN"]
         headers = {

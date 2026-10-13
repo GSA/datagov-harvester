@@ -1,5 +1,3 @@
-from datetime import datetime
-
 import click
 from flask import Blueprint
 
@@ -123,22 +121,13 @@ def cli_force_reharvest_sources(schema_type_prefixes, organizations, dry_run):
         return
 
     for s in sources:
-        active_job = db.get_active_harvest_job_for_source(s.id)
+        job, active_job = db.enqueue_harvest_job_if_idle(s.id, job_type="force_harvest")
         if active_job:
             print(
                 f"{s.id} ({s.name}): skipped, "
                 f"job {active_job.id} already new/in_progress"
             )
             continue
-
-        job = db.add_harvest_job(
-            {
-                "harvest_source_id": s.id,
-                "status": "new",
-                "job_type": "force_harvest",
-                "date_created": datetime.now(),
-            }
-        )
         if job:
             print(f"{s.id} ({s.name}): queued job {job.id}")
         else:
