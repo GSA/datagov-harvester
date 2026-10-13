@@ -109,7 +109,6 @@ class TestCompare:
         update of its already-synced child dataset even though the child's
         own content (and thus its metadata_hash) hasn't changed, otherwise
         the child's isPartOf link in catalog goes stale.
-        see GSA/data.gov#6431.
         """
         interface.add_organization(organization_data)
         interface.add_harvest_source(source_data_dcatus3_0_service_serves_dataset)
