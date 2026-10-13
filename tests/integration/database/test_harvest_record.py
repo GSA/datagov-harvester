@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from database.interface import PAGINATE_ENTRIES_PER_PAGE
+from database.interface import InvalidOrderByException, PAGINATE_ENTRIES_PER_PAGE
 
 
 def test_add_harvest_record(
@@ -110,9 +110,13 @@ def test_endpoint_order_by(
     db_records = interface.pget_harvest_records(order_by="-identifier")
     assert db_records[0].identifier == "test-identifier-99"
 
-    # an unrecognized field falls back to the default order without raising
-    db_records = interface.pget_harvest_records(order_by="bogus")
-    assert db_records[0].identifier == "test-identifier-0"
+    # an unrecognized field raises instead of silently using default ordering
+    try:
+        interface.pget_harvest_records(order_by="bogus")
+    except InvalidOrderByException as exc:
+        assert str(exc) == "Invalid order_by field: bogus"
+    else:
+        raise AssertionError("Expected InvalidOrderByException")
 
 
 def test_endpoint_count_for_non_paginated_methods(
