@@ -24,6 +24,7 @@ from harvester.utils.general_utils import convert_to_int, is_it_true
 
 from . import api
 
+
 def _serialize_job_datetimes(data):
     """Serialize harvest job datetime values as ISO 8601 UTC."""
     datetime_fields = ("date_created", "date_started", "date_finished")
@@ -41,9 +42,9 @@ def _serialize_job_datetimes(data):
                 else:
                     value = value.astimezone(timezone.utc)
 
-                data[field] = value.isoformat(
-                    timespec="milliseconds"
-                ).replace("+00:00", "Z")
+                data[field] = value.isoformat(timespec="milliseconds").replace(
+                    "+00:00", "Z"
+                )
 
     return data
 
