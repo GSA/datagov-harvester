@@ -43,9 +43,9 @@ def _serialize_job_datetimes(data):
                 else:
                     value = value.astimezone(timezone.utc)
 
-                data[field] = value.isoformat(
-                    timespec="milliseconds"
-                ).replace("+00:00", "Z")
+                data[field] = value.isoformat(timespec="milliseconds").replace(
+                    "+00:00", "Z"
+                )
 
     return data
 
