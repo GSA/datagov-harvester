@@ -20,9 +20,11 @@ from app.deps import (
     get_requested_severity,
     logger,
 )
+from database.interface import InvalidOrderByException
 from harvester.utils.general_utils import convert_to_int, is_it_true
 
 from . import api
+
 
 def _serialize_job_datetimes(data):
     """Serialize harvest job datetime values as ISO 8601 UTC."""
@@ -41,9 +43,9 @@ def _serialize_job_datetimes(data):
                 else:
                     value = value.astimezone(timezone.utc)
 
-                data[field] = value.isoformat(
-                    timespec="milliseconds"
-                ).replace("+00:00", "Z")
+                data[field] = value.isoformat(timespec="milliseconds").replace(
+                    "+00:00", "Z"
+                )
 
     return data
 
@@ -137,6 +139,9 @@ def json_builder_query(**kwargs):
     except InvalidPaginationException as e:
         logger.info(f"Invalid pagination in json_builder_query :: {repr(e)}")
         return JSON_INVALID_PAGINATION(str(e))
+    except InvalidOrderByException as e:
+        logger.info(f"Invalid order_by in json_builder_query :: {repr(e)}")
+        return jsonify({"error": str(e)}), 422
     except Exception as e:
         logger.info(f"Failed json_builder_query :: {repr(e)} ")
         return "Error with query", 400
