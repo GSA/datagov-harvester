@@ -6,9 +6,11 @@ from app.api import api
 from app.main import main
 
 # Ordered oldest -> newest; unprefixed `/api` redirects to the LAST entry.
-API_VERSIONS = [
-    ("v1", api),
-]
+API_VERSIONS = sorted(
+    [
+        ("v1", api),
+    ]
+)
 
 
 def register_routes(app):
