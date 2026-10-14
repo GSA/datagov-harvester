@@ -1,3 +1,5 @@
+import logging
+
 import click
 from flask import Blueprint
 
@@ -9,6 +11,7 @@ from .evaluate_sources import evaluate_sources
 source = Blueprint("harvest_source", __name__)
 
 db = HarvesterDBInterface()
+logger = logging.getLogger(__name__)
 
 
 @source.cli.command("list")
@@ -120,8 +123,17 @@ def cli_force_reharvest_sources(schema_type_prefixes, organizations, dry_run):
         print("Dry run: no jobs queued. Use --no-dry-run to queue them.")
         return
 
+    failed = 0
     for s in sources:
-        job, active_job = db.enqueue_harvest_job_if_idle(s.id, job_type="force_harvest")
+        try:
+            job, active_job = db.enqueue_harvest_job_if_idle(
+                s.id, job_type="force_harvest"
+            )
+        except Exception:
+            logger.exception("Failed to queue force harvest for source %s", s.id)
+            print(f"{s.id} ({s.name}): failed to queue job")
+            failed += 1
+            continue
         if active_job:
             print(
                 f"{s.id} ({s.name}): skipped, "
@@ -132,3 +144,6 @@ def cli_force_reharvest_sources(schema_type_prefixes, organizations, dry_run):
             print(f"{s.id} ({s.name}): queued job {job.id}")
         else:
             print(f"{s.id} ({s.name}): failed to queue job")
+
+    if failed:
+        raise SystemExit(1)

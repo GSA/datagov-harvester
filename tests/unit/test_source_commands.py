@@ -183,6 +183,30 @@ def test_no_dry_run_skips_source_with_active_job(app):
     assert "skipped, job active-job-1 already new/in_progress" in result.output
 
 
+def test_no_dry_run_continues_after_enqueue_error(app, caplog):
+    with patch("app.commands.source.db") as mock_db:
+        mock_db.get_all_harvest_sources.return_value = [
+            make_source("1", "First Source", "dcatus3.0"),
+            make_source("2", "Second Source", "dcatus3.0"),
+        ]
+        queued_job = MagicMock()
+        queued_job.id = "job-2"
+        mock_db.enqueue_harvest_job_if_idle.side_effect = [
+            RuntimeError("database timeout"),
+            (queued_job, None),
+        ]
+
+        result = app.test_cli_runner().invoke(
+            args=["harvest_source", "force_reharvest_sources", "--no-dry-run"]
+        )
+
+    assert result.exit_code == 1
+    assert mock_db.enqueue_harvest_job_if_idle.call_count == 2
+    assert "1 (First Source): failed to queue job" in result.output
+    assert "2 (Second Source): queued job job-2" in result.output
+    assert "Failed to queue force harvest for source 1" in caplog.text
+
+
 def test_no_dry_run_no_matching_sources(app):
     with patch("app.commands.source.db") as mock_db:
         mock_db.get_all_harvest_sources.return_value = [
