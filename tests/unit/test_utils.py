@@ -21,6 +21,7 @@ from harvester.utils.general_utils import (
     RetrySession,
     assemble_validation_errors,
     backfill_catalog_record_identifiers,
+    backfill_object_identifiers_from_title,
     build_dcatus3_validator,
     create_retry_session,
     describe_identifier_error,
@@ -1778,6 +1779,67 @@ class TestBackfillCatalogRecordIdentifiers:
         records = [{"primaryTopic": "ds-1", "modified": "2024-06-15"}]
 
         backfill_catalog_record_identifiers(records)
+
+        assert "@id" not in records[0]
+
+
+class TestBackfillObjectIdentifiersFromTitle:
+    def test_missing_identifier_gets_synthesized_from_title(self):
+        records = [{"title": "Data Service Without Identifier"}]
+
+        result = backfill_object_identifiers_from_title(
+            records, "identifier", "dataservice"
+        )
+
+        assert result[0]["identifier"].startswith("urn:datagov:dataservice:")
+
+    def test_existing_identifier_left_alone(self):
+        records = [{"identifier": "https://example.gov/svc-1", "title": "Service One"}]
+
+        result = backfill_object_identifiers_from_title(
+            records, "identifier", "dataservice"
+        )
+
+        assert result[0]["identifier"] == "https://example.gov/svc-1"
+
+    def test_falls_back_to_atid_before_synthesizing(self):
+        """A provider's object may carry an "@id" even though the type's
+        own identifier field (e.g. "identifier" for DataService) is
+        missing; prefer that over generating a new one."""
+        records = [{"@id": "https://example.gov/svc-1", "title": "Service One"}]
+
+        result = backfill_object_identifiers_from_title(
+            records, "identifier", "dataservice"
+        )
+
+        assert result[0]["identifier"] == "https://example.gov/svc-1"
+
+    def test_synthesized_id_is_stable_for_same_title(self):
+        records = [{"title": "Dataset Series Without An Id"}]
+
+        first = backfill_object_identifiers_from_title(records, "@id", "datasetseries")[
+            0
+        ]["@id"]
+        second = backfill_object_identifiers_from_title(
+            records, "@id", "datasetseries"
+        )[0]["@id"]
+
+        assert first == second
+
+    def test_synthesized_id_differs_for_different_title(self):
+        a = backfill_object_identifiers_from_title(
+            [{"title": "Series A"}], "@id", "datasetseries"
+        )[0]["@id"]
+        b = backfill_object_identifiers_from_title(
+            [{"title": "Series B"}], "@id", "datasetseries"
+        )[0]["@id"]
+
+        assert a != b
+
+    def test_does_not_mutate_input(self):
+        records = [{"title": "Dataset Series Without An Id"}]
+
+        backfill_object_identifiers_from_title(records, "@id", "datasetseries")
 
         assert "@id" not in records[0]
 
