@@ -102,7 +102,7 @@ class LoadManager:
         for source in interface.get_due_harvest_sources():
             try:
                 next_run = create_future_date(source.frequency)
-                job_data, _active_job = interface.enqueue_harvest_job_if_idle(
+                job_data, active_job = interface.enqueue_harvest_job_if_idle(
                     source.id, next_run=next_run, require_due=True
                 )
             except Exception:
@@ -111,6 +111,17 @@ class LoadManager:
                 )
                 continue
             if not job_data:
+                if active_job:
+                    logger.info(
+                        "Skipped source %s: job %s already active.",
+                        source.id,
+                        active_job.id,
+                    )
+                else:
+                    logger.info(
+                        "Skipped source %s: no longer due.",
+                        source.id,
+                    )
                 continue
             logger.info(
                 f"Queued harvest job {job_data.id} for source {source.id}; "
