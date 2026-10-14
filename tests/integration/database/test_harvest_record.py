@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from database.interface import InvalidOrderByException, PAGINATE_ENTRIES_PER_PAGE
+from database.interface import PAGINATE_ENTRIES_PER_PAGE, InvalidOrderByException
 
 
 def test_add_harvest_record(
