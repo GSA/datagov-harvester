@@ -1160,6 +1160,7 @@ class HarvesterDBInterface:
             sq_alias.date_finished,
             sq_alias.id,
             sq_alias.action,
+            sq_alias.parent_identifier,
         ]
 
         query = self.db.query(*columns).filter(sq_alias.action != "delete")
