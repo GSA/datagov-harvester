@@ -1,0 +1,34 @@
+{
+  "@type": "Catalog",
+  "@id": "https://example.gov/data-series-no-id.json",
+  "conformsTo": {
+    "@type": "Standard",
+    "title": "DCAT-US 3.0"
+  },
+  "title": "Example DCAT-US 3.0 Catalog With A DatasetSeries Missing An @id",
+  "description": "A sample DCAT-US 3.0 catalog with a DatasetSeries missing @id, used for harvest testing.",
+  "dataset": [
+    {
+      "@type": "Dataset",
+      "title": "Test Dataset One",
+      "description": "First test dataset in the DCAT-US 3.0 catalog.",
+      "identifier": "https://example.gov/datasets/one",
+      "publisher": {
+        "@type": "Organization",
+        "name": "Test Agency"
+      },
+      "contactPoint": {
+        "@type": "Kind",
+        "fn": "Test Contact One",
+        "hasEmail": "mailto:one@example.gov"
+      }
+    }
+  ],
+  "datasetSeries": [
+    {
+      "@type": "DatasetSeries",
+      "title": "Dataset Series Without An Id",
+      "description": "A dataset series with no @id field."
+    }
+  ]
+}
