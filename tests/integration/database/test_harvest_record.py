@@ -194,6 +194,7 @@ def test_get_latest_harvest_records(
             "date_finished": None,
             "ckan_id": None,
             "action": "update",
+            "parent_identifier": None,
         },
         {
             "identifier": "b",
@@ -203,6 +204,7 @@ def test_get_latest_harvest_records(
             "date_finished": None,
             "ckan_id": None,
             "action": "create",
+            "parent_identifier": None,
         },
         {
             "identifier": "c",
@@ -212,6 +214,7 @@ def test_get_latest_harvest_records(
             "date_finished": None,
             "ckan_id": None,
             "action": "create",
+            "parent_identifier": None,
         },
         {
             "identifier": "e",
@@ -221,6 +224,7 @@ def test_get_latest_harvest_records(
             "date_finished": None,
             "ckan_id": None,
             "action": "create",
+            "parent_identifier": None,
         },
     ]
 

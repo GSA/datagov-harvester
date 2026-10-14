@@ -45,6 +45,7 @@ from harvester.utils.general_utils import (
     add_uuid_to_package_name,
     assemble_validation_errors,
     backfill_catalog_record_identifiers,
+    backfill_object_identifiers_from_title,
     build_dcatus3_validator,
     build_report_email_section,
     dataset_to_hash,
@@ -507,23 +508,25 @@ class HarvestSource:
     def filter_datasets_with_no_identifier(self) -> None:
         """
         identifies and removes datasets without a harvestable identifier from
-        self.external_records, and non-dataset records (DataService,
-        CatalogRecord, ...) without one from self.external_records_by_type,
-        logging each as a record-level error.
+        self.external_records, and CatalogRecords without one from
+        self.external_records_by_type, logging each as a record-level error.
+
+        DataService and DatasetSeries are backfilled instead (see
+        acquire_minimum_external_data), not filtered here, since both are
+        always resolvable from the object's title.
 
         string identifiers are used as-is. object identifiers must provide @id.
         """
         self.external_records = self._filter_records_with_no_identifier(
             self.external_records, "dataset"
         )
-        for record_type, config in NON_DATASET_RECORD_TYPES.items():
-            self.external_records_by_type[record_type] = (
-                self._filter_records_with_no_identifier(
-                    self.external_records_by_type.get(record_type, []),
-                    record_type,
-                    config["identifier_field"],
-                )
+        self.external_records_by_type["catalog_record"] = (
+            self._filter_records_with_no_identifier(
+                self.external_records_by_type.get("catalog_record", []),
+                "catalog_record",
+                NON_DATASET_RECORD_TYPES["catalog_record"]["identifier_field"],
             )
+        )
 
     def determine_internal_deletions(self) -> None:
         """
@@ -688,6 +691,24 @@ class HarvestSource:
                         self.external_records_by_type["catalog_record"] = (
                             backfill_catalog_record_identifiers(
                                 self.external_records_by_type.get("catalog_record", [])
+                            )
+                        )
+                        self.external_records_by_type["data_service"] = (
+                            backfill_object_identifiers_from_title(
+                                self.external_records_by_type.get("data_service", []),
+                                NON_DATASET_RECORD_TYPES["data_service"][
+                                    "identifier_field"
+                                ],
+                                "dataservice",
+                            )
+                        )
+                        self.external_records_by_type["data_series"] = (
+                            backfill_object_identifiers_from_title(
+                                self.external_records_by_type.get("data_series", []),
+                                NON_DATASET_RECORD_TYPES["data_series"][
+                                    "identifier_field"
+                                ],
+                                "datasetseries",
                             )
                         )
                         self.external_records = merge_dcatus3_datasets(
@@ -1135,8 +1156,14 @@ class Record:
 
         if internal_record is not None:
             not_same_hash = internal_record.metadata_hash != self.metadata_hash
+            # parent_identifier is excluded from metadata_hash, so check separately
+            parent_changed = self.parent_identifier != internal_record.parent_identifier
             # TODO: should a force-harvest be an update or a create?
-            if not_same_hash or self.harvest_source.job_type == "force_harvest":
+            if (
+                not_same_hash
+                or parent_changed
+                or self.harvest_source.job_type == "force_harvest"
+            ):
                 self.action = "update"
                 self.ckan_id = internal_record.ckan_id
                 self.dataset_slug = internal_record.dataset_slug
