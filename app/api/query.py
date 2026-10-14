@@ -110,7 +110,7 @@ def json_builder_query(**kwargs):
         return JSON_INVALID_PAGINATION(str(e))
     except InvalidOrderByException as e:
         logger.info(f"Invalid order_by in json_builder_query :: {repr(e)}")
-        return jsonify({"error": str(e)}), 422
+        return jsonify({"error": "Invalid order_by parameter"}), 422
     except Exception as e:
         logger.info(f"Failed json_builder_query :: {repr(e)} ")
         return "Error with query", 400
