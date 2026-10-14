@@ -13,9 +13,10 @@ from flask import (
     url_for,
 )
 from markupsafe import escape
+from marshmallow import ValidationError
 
 from app import deps
-from app.api_schemas import JobInfo
+from app.api_schemas import JobCreate, JobInfo
 from app.deps import (
     JSON_NOT_FOUND,
     _log_mutation,
@@ -39,11 +40,18 @@ def add_harvest_job():
         return {"error": "Failed to add harvest job."}, 400
     if job_data.get("status") in ("new", "in_progress"):
         try:
+            job_data = JobCreate().load(job_data)
+        except ValidationError:
+            return {"error": "Failed to add harvest job."}, 400
+        try:
             job, active_job = deps.db.enqueue_harvest_job_if_idle(
                 job_data["harvest_source_id"], job_data=job_data
             )
         except (KeyError, ValueError):
             return {"error": "Failed to add harvest job."}, 400
+        except Exception:
+            logger.exception("Failed to add harvest job")
+            return {"error": "Failed to add harvest job."}, 500
         if active_job:
             return {"error": f"Job {active_job.id} already active."}, 409
     else:
