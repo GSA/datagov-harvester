@@ -1477,9 +1477,8 @@ class Record:
             spatial_value = munge_spatial(spatial_value)
 
         translated_spatial = translate_spatial_to_geojson(spatial_value)
+        payload["translated_spatial"] = translated_spatial
         try:
-            if translated_spatial is not None:
-                payload["translated_spatial"] = translated_spatial
             if metadata.get("spatial") and translated_spatial is None:
                 raise SpatialTransformationException(
                     f"unable to spatially fix {metadata.get('spatial')}",
