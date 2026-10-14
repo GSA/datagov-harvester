@@ -3,7 +3,18 @@ from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 
 import sqlalchemy.sql.operators as sa_operators
-from sqlalchemy import Text, asc, cast, desc, exists, func, inspect, literal, text
+from sqlalchemy import (
+    Enum,
+    Text,
+    asc,
+    cast,
+    desc,
+    exists,
+    func,
+    inspect,
+    literal,
+    text,
+)
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import NoResultFound
 from sqlalchemy.orm import aliased, lazyload, load_only
@@ -55,6 +66,18 @@ class HarvesterDBInterface:
 
         return [getattr(model, field) for field in field_names]
 
+    # Postgres enum columns don't define a LIKE operator, so these text-pattern
+    # operators need the column cast to text first to work against them.
+    TEXT_PATTERN_OPERATORS = {
+        "like_op",
+        "notlike_op",
+        "ilike_op",
+        "notilike_op",
+        "startswith_op",
+        "endswith_op",
+        "contains_op",
+    }
+
     @staticmethod
     def query_filter_builder(model, facets_string):
         """Builds a list of filter expressions from a comma-separated string of facets
@@ -80,7 +103,14 @@ class HarvesterDBInterface:
             # these could raise attribute errors
             column = getattr(model, column_name)
             operator = getattr(sa_operators, op)
-            facets.append(operator(column, literal(value, type_=column.type)))
+            column_type = column.type
+            if (
+                isinstance(column_type, Enum)
+                and op in HarvesterDBInterface.TEXT_PATTERN_OPERATORS
+            ):
+                column = cast(column, Text)
+                column_type = Text()
+            facets.append(operator(column, literal(value, type_=column_type)))
         return facets
 
     @staticmethod
