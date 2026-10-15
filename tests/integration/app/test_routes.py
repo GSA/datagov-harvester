@@ -820,6 +820,98 @@ class TestAPIBehavior:
         assert response.status_code == 302
         assert response.location == f"/harvest_job/{job.id}"
 
+    def test_job_add_rejects_a_second_active_job(
+        self, app, client, interface, organization_data, source_data_dcatus
+    ):
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_dcatus)
+        headers = {"X-API-Key": app.config["API_TOKEN"]}
+        job_data = {
+            "harvest_source_id": source_data_dcatus["id"],
+            "status": "new",
+            "job_type": "harvest",
+        }
+
+        first = client.post("/api/v1/harvest_job/add", json=job_data, headers=headers)
+        second = client.post("/api/v1/harvest_job/add", json=job_data, headers=headers)
+
+        assert first.status_code == 200
+        assert second.status_code == 409
+        assert (
+            len(interface.get_queued_harvest_jobs_for_source(source_data_dcatus["id"]))
+            == 1
+        )
+
+    def test_job_add_accepts_scheduled_date(
+        self, app, client, interface, organization_data, source_data_dcatus
+    ):
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_dcatus)
+        headers = {"X-API-Key": app.config["API_TOKEN"]}
+        job_data = {
+            "harvest_source_id": source_data_dcatus["id"],
+            "status": "new",
+            "date_created": "2030-01-01T00:00:00",
+        }
+
+        response = client.post(
+            "/api/v1/harvest_job/add", json=job_data, headers=headers
+        )
+
+        assert response.status_code == 200
+        queued = interface.get_queued_harvest_jobs_for_source(source_data_dcatus["id"])
+        assert len(queued) == 1
+        assert queued[0].date_created.year == 2030
+
+    @pytest.mark.parametrize(
+        "invalid_field",
+        [
+            {"unknown_field": "invalid"},
+            {"date_created": "not-a-date"},
+            {"records_total": "not-a-number"},
+        ],
+    )
+    def test_job_add_rejects_invalid_field(
+        self, app, client, source_data_dcatus, invalid_field
+    ):
+        headers = {"X-API-Key": app.config["API_TOKEN"]}
+        job_data = {
+            "harvest_source_id": source_data_dcatus["id"],
+            "status": "new",
+            **invalid_field,
+        }
+
+        with patch(
+            "app.api.harvest_jobs.deps.db.enqueue_harvest_job_if_idle"
+        ) as enqueue:
+            response = client.post(
+                "/api/v1/harvest_job/add", json=job_data, headers=headers
+            )
+
+        assert response.status_code == 400
+        enqueue.assert_not_called()
+
+    def test_job_add_reports_enqueue_error_as_server_error(
+        self, app, client, source_data_dcatus, caplog
+    ):
+        headers = {"X-API-Key": app.config["API_TOKEN"]}
+        job_data = {
+            "harvest_source_id": source_data_dcatus["id"],
+            "status": "new",
+        }
+
+        with patch(
+            "app.api.harvest_jobs.deps.db.enqueue_harvest_job_if_idle",
+            side_effect=RuntimeError("database unavailable"),
+        ):
+            response = client.post(
+                "/api/v1/harvest_job/add", json=job_data, headers=headers
+            )
+
+        assert response.status_code == 500
+        assert response.json == {"error": "Failed to add harvest job."}
+        assert "Failed to add harvest job" in caplog.text
+
     def test_invalid_harvest_job_type(self, app, client, source_data_dcatus):
         api_token = app.config["API_TOKEN"]
         headers = {

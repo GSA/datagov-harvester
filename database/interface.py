@@ -363,6 +363,67 @@ class HarvesterDBInterface:
             self.db.rollback()
             return None
 
+    def enqueue_harvest_job_if_idle(
+        self,
+        source_id,
+        job_type="harvest",
+        *,
+        next_run=None,
+        require_due=False,
+        job_data=None,
+    ):
+        """Queue one job per source, serializing competing requests on its row.
+
+        Return (new_job, active_job). Both are None if a scheduled source is no
+        longer due. The source lock covers the active-job check and insertion;
+        task launch happens after this transaction commits.
+        """
+        try:
+            if job_data is not None and job_data.get("harvest_source_id") != source_id:
+                raise ValueError("Job source does not match the requested source")
+            source = (
+                self.db.query(HarvestSource)
+                .filter(HarvestSource.id == source_id)
+                .populate_existing()
+                .with_for_update(of=HarvestSource)
+                .one_or_none()
+            )
+            if source is None:
+                raise ValueError(f"Harvest source {source_id} not found")
+
+            active_job = self.get_active_harvest_job_for_source(source_id)
+            if active_job:
+                self.db.commit()
+                return None, active_job
+
+            if require_due and (
+                source.frequency == "manual"
+                or source.date_next_run is None
+                or source.date_next_run > datetime.now()
+            ):
+                self.db.commit()
+                return None, None
+
+            job = (
+                HarvestJob(**job_data)
+                if job_data is not None
+                else HarvestJob(
+                    harvest_source_id=source_id,
+                    status="new",
+                    job_type=job_type,
+                    date_created=datetime.now(),
+                )
+            )
+            self.db.add(job)
+            if require_due:
+                source.date_next_run = next_run
+            self.db.commit()
+            self.db.refresh(job)
+            return job, None
+        except Exception:
+            self.db.rollback()
+            raise
+
     def get_harvest_job(self, job_id):
         return self.db.query(HarvestJob).filter_by(id=job_id).first()
 
