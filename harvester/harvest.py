@@ -1124,6 +1124,9 @@ class Record:
                     and synched_with_ckan is False
                 ):
                     self.harvest_source.clear_complete = False
+                self.harvest_source.db_interface.clear_current_record_issues(
+                    self.harvest_source.id, self.record_type, self.identifier
+                )
                 return
             self.compare()
             if self.action is None:
@@ -1136,6 +1139,7 @@ class Record:
                 self.improve_distributions()
                 self._save_transformed_data()
             self.validate()
+            self.sync_current_issues()
             self.sync()
         except (
             CompareException,
@@ -1470,6 +1474,18 @@ class Record:
                 len(errors),
             )
             return False
+
+    def sync_current_issues(self) -> None:
+        """Refresh this record's current-issue state with whatever
+        validate() just reported (#6440)."""
+        if self.id is None:
+            return
+        self.harvest_source.db_interface.sync_current_record_issues(
+            self.harvest_source.id,
+            self.record_type,
+            self.identifier,
+            self.id,
+        )
 
     def _metadata_for_dataset(self):
         if self.transformed_data is not None:
