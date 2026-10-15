@@ -657,6 +657,16 @@ class TestJSONResponses:
                 404,
                 "No harvest_sources found for this query",
             ),
+            (
+                "/api/v1/harvest_sources/?facets=schema_type startswith_op dcatus",
+                200,
+                1,
+            ),
+            (
+                "/api/v1/harvest_sources/?facets=schema_type startswith_op nomatch",
+                404,
+                "No harvest_sources found for this query",
+            ),
         ],
     )
     def test_json_builder_query(
