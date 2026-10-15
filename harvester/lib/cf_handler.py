@@ -155,6 +155,8 @@ class CFHandler:
         if app_guuid is None:
             app_guuid = self._app_guuid()
         self.setup()
-        app = self.client.v2.apps[app_guuid]
-        logs = filter(lambda lg: task_id in lg, [str(log) for log in app.recent_logs()])
+        logs = filter(
+            lambda lg: task_id in lg,
+            [str(log) for log in self.client.doppler.recent_logs(app_guuid)],
+        )
         return "\n".join(logs)

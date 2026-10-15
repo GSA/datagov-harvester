@@ -40,7 +40,7 @@
             ]
         },
         {
-            "accessLevel": "public",
+            "accessLevel": "restricted public",
             "bureauCode": [
                 "339:00"
             ],
@@ -74,7 +74,7 @@
             "title": "Bank Participation Reports"
         },
         {
-            "accessLevel": "public",
+            "accessLevel": "non-public",
             "bureauCode": [
                 "339:00"
             ],

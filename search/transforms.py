@@ -15,6 +15,14 @@ schema versions can share one mapping:
 * ``keyword``         -> list of strings
 * ``title``/``description`` -> string
 * ``distribution_titles``   -> list of distribution titles
+* ``accessLevel``   -> best-effort normalized lowercase access level
+                        string. Returns one of ``public``, ``restricted
+                        public``, or ``non-public`` when the value is
+                        recognized (via exact match or keyword match
+                        against known accessRights phrasing); otherwise
+                        returns the original value, lowercased and
+                        cleaned. Returns an empty string if no value was
+                        provided.
 
 To add a new indexed field, register it in :data:`INDEX_FIELDS`. The module
 performs no I/O and knows nothing about OpenSearch itself.
@@ -121,6 +129,60 @@ def distribution_titles(value: Any) -> list[str]:
     return titles
 
 
+_NON_PUBLIC_MARKERS = ("non-public", "not available", "not for public")
+_RESTRICTED_MARKERS = ("restricted",)
+_PUBLIC_MARKERS = ("public",)
+_CANONICAL_LEVELS = {"public", "restricted public", "non-public"}
+
+
+def coerce_access_level(value: Any) -> str:
+    """Normalize a raw ``accessLevel`` or ``accessRights`` value.
+
+    Returns one of ``public``, ``restricted public``, or ``non-public``
+    when the value is recognized via exact match or keyword-based
+    inference. If the value doesn't match any known pattern, returns the
+    original value (lowercased and cleaned) unchanged, so callers retain
+    visibility into unresolved/unexpected data rather than losing it
+    silently. Returns an empty string if no value was provided at all.
+
+    Background: DCAT-US v3.0 does not include `accessLevel`, but agencies
+    may keep it during the transition. Per the DCAT-US v3.0 Implementation
+    Guide (Step 3 categorization guidance and Step 5 migration notes),
+    `accessRights` may either directly replace `accessLevel` with the same
+    three canonical values, or contain descriptive free text explaining the
+    access restriction (mirroring v1.1's separate `rights` field). This
+    function tolerates both shapes via keyword matching, since agencies are
+    not required to converge on identical wording.
+
+    References (retrieved 2026-09; content may be revised without notice):
+      - DCAT-US v3.0 Implementation Guide (authoritative for field
+        definitions): resources.data.gov/assets/documents/
+        dcat-us-3-implementation-guide.pdf
+      - DCAT-US v3.0 Migration Guide (technical guide only; explicitly
+        NOT authoritative for field definitions or M-25-05 guidance):
+        resources.data.gov/resources/dcat-us-3-migration/
+    """
+    text = _clean_string(value)
+    if text is None:
+        return ""
+
+    normalized = text.lower()
+
+    if normalized in _CANONICAL_LEVELS:
+        return normalized
+
+    if any(marker in normalized for marker in _NON_PUBLIC_MARKERS):
+        return "non-public"
+    if any(marker in normalized for marker in _RESTRICTED_MARKERS):
+        return "restricted public"
+    if any(marker in normalized for marker in _PUBLIC_MARKERS):
+        return "public"
+
+    return (
+        normalized  # Return the original string if it doesn't match any known markers
+    )
+
+
 # dest_field -> (source_dcat_key, coercer)
 INDEX_FIELDS: dict[str, tuple[str, Callable[[Any], Any]]] = {
     "title": ("title", coerce_text),
@@ -130,6 +192,7 @@ INDEX_FIELDS: dict[str, tuple[str, Callable[[Any], Any]]] = {
     "theme": ("theme", coerce_theme_labels),
     "identifier": ("identifier", coerce_identifier),
     "distribution_titles": ("distribution", distribution_titles),
+    "access_level": ("accessLevel", coerce_access_level),
 }
 
 

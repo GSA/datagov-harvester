@@ -244,6 +244,46 @@ class TestForms:
         assert res.status_code == 200
         assert b"already exists" in res.data
 
+    def test_edit_harvest_source_keeping_same_url_does_not_flag_itself(
+        self,
+        app,
+        client,
+        interface,
+        organization_data,
+        source_data_dcatus,
+        source_data_dcatus_2,
+    ):
+        """Editing a source without changing its URL must never flag it as a
+        duplicate of itself, even though a different source also exists."""
+        app.config.update({"WTF_CSRF_ENABLED": False})
+        with client.session_transaction() as sess:
+            sess["user"] = "tester@gsa.gov"
+
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_dcatus)
+        interface.add_harvest_source(source_data_dcatus_2)
+
+        form_data = {
+            "organization_id": organization_data["id"],
+            "name": "Renamed Source",
+            "url": source_data_dcatus["url"],
+            "notification_emails": "user@example.com",
+            "frequency": "daily",
+            "schema_type": "dcatus1.1: federal",
+            "source_type": "document",
+            "notification_frequency": "always",
+        }
+        res = client.post(
+            f"/harvest_source/edit/{source_data_dcatus['id']}",
+            data=form_data,
+            follow_redirects=True,
+        )
+
+        assert res.status_code == 200
+        assert b"already exists" not in res.data
+        source = interface.get_harvest_source(source_data_dcatus["id"])
+        assert source.name == "Renamed Source"
+
     def test_add_harvest_source_waf_collection(
         self, app, client, interface, organization_data
     ):

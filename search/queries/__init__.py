@@ -15,6 +15,7 @@ from search.queries.registry import (
     build_filter_sections,
     build_ispartof_query,
     build_last_harvested_stats_query,
+    build_multi_match_query,
     build_organization_counts_query,
     build_publisher_counts_query,
     build_search_body_query,
@@ -46,6 +47,7 @@ __all__ = [
     "build_publisher_counts_query",
     "build_last_harvested_stats_query",
     "build_ispartof_query",
+    "build_multi_match_query",
     "build_search_body_query",
     "build_search_filter_body_query",
 ]
