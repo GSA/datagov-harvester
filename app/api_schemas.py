@@ -63,7 +63,7 @@ ErrorInfo = Schema.from_dict(
         "message": String(),
         "severity": Enum(SEVERITY_ENUM),
         "harvest_record_id": UUID(required=True),
-        "harvest_job_id": UUID(required=True),
+        "harvest_job_id": UUID(allow_none=True),
     },
     name="ErrorInfo",
 )

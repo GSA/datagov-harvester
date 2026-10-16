@@ -157,9 +157,14 @@ def view_harvest_source(source_id: str):
             source_id=source_id,
             count=True,
         )
+        # open issues right now, not just what the last job wrote (#6440)
+        current_error_count = deps.db.get_current_record_issues_by_source(
+            source_id,
+            count=True,
+        )
         summary_data = {
             "records_count": records_count,
-            "last_job_errors": None,
+            "last_job_errors": current_error_count,
             "last_job_finished": None,
             "next_job_scheduled": None,
             "active_job_in_progress": False,
@@ -170,11 +175,6 @@ def view_harvest_source(source_id: str):
             if last_job.status == "in_progress":
                 summary_data["active_job_in_progress"] = True
 
-            last_job_error_count = deps.db.get_harvest_record_errors_by_job(
-                count=True,
-                job_id=last_job.id,
-            )
-            summary_data["last_job_errors"] = last_job_error_count
             summary_data["last_job_finished"] = last_job.date_finished
 
         source = deps.db.get_harvest_source(source_id)
