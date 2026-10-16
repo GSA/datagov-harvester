@@ -1,6 +1,6 @@
 import json
 
-from harvester.harvest import HarvestSource
+from harvester.harvest import HarvestSource, Record
 from harvester.utils.general_utils import dataset_to_hash, sort_dataset
 
 
@@ -44,6 +44,63 @@ class TestCompare:
 
         # 6 create + 1 update + 1 delete + 2 seeded records at beginning
         assert len(written_compare_records) == 10
+
+    def test_current_errors_persist_when_record_unchanged(
+        self,
+        organization_data,
+        source_data_dcatus,
+        job_data_dcatus,
+        interface,
+        internal_compare_data,
+    ):
+        """An unchanged record keeps its prior warning: compare() leaves
+        action=None, so harvest() returns before ever touching
+        sync_current_issues (#6440)."""
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_dcatus)
+        interface.add_harvest_job(job_data_dcatus)
+
+        first_record_data = internal_compare_data["records"][0]
+        record_hash = dataset_to_hash(sort_dataset(first_record_data))
+        source_id = internal_compare_data["harvest_source_id"]
+        db_record = interface.add_harvest_record(
+            {
+                "identifier": first_record_data["identifier"],
+                "harvest_job_id": internal_compare_data["job_id"],
+                "harvest_source_id": source_id,
+                "source_hash": record_hash,
+                "status": "success",
+                "action": "create",
+            }
+        )
+        interface.add_harvest_record_error(
+            {
+                "message": "a carried-forward warning",
+                "type": "TestException",
+                "harvest_job_id": internal_compare_data["job_id"],
+                "harvest_record_id": db_record.id,
+                "severity": "warning",
+            }
+        )
+        assert interface.get_current_record_issues_by_source(source_id, count=True) == 1
+
+        # a later job runs over the exact same (unchanged) content
+        second_job = interface.add_harvest_job(
+            {"status": "new", "harvest_source_id": source_id}
+        )
+        harvest_source = HarvestSource(second_job.id)
+        harvest_source.acquire_minimum_internal_data()
+
+        record = Record(
+            harvest_source,
+            first_record_data["identifier"],
+            json.dumps(first_record_data),
+            record_hash,
+        )
+        record.compare()
+
+        assert record.action is None
+        assert interface.get_current_record_issues_by_source(source_id, count=True) == 1
 
     def test_record_with_non_dcatus_fields_is_prepared_not_errored(
         self,
@@ -109,7 +166,6 @@ class TestCompare:
         update of its already-synced child dataset even though the child's
         own content (and thus its metadata_hash) hasn't changed, otherwise
         the child's isPartOf link in catalog goes stale.
-        see GSA/data.gov#6431.
         """
         interface.add_organization(organization_data)
         interface.add_harvest_source(source_data_dcatus3_0_service_serves_dataset)
