@@ -888,10 +888,6 @@ class HarvesterDBInterface:
         ]
 
     ## HARVEST RECORD CURRENT ISSUE
-    #
-    # Current, job-independent issue state per record; replaced wholesale on
-    # each reprocess rather than appended, so unchanged records don't lose
-    # their issue just because they got no new harvest_record row (#6440).
     def sync_current_record_issues(
         self,
         harvest_source_id: str,

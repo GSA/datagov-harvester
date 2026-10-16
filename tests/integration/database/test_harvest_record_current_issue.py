@@ -66,7 +66,6 @@ def test_sync_current_record_issues_replaces_prior_set(
     )
     assert interface.get_current_record_issues_by_source(source_id, count=True) == 1
 
-    # a reprocessed, now-valid record: new harvest_record, no errors on it
     new_record = interface.add_harvest_record(
         {
             **record_data_dcatus[2],
