@@ -823,10 +823,15 @@ class HarvesterDBInterface:
     def get_harvest_error(self, error_id: str) -> dict:
         job_query = self.db.query(HarvestJobError).filter_by(id=error_id).first()
         record_query = self.db.query(HarvestRecordError).filter_by(id=error_id).first()
+        current_issue_query = (
+            self.db.query(HarvestRecordCurrentIssue).filter_by(id=error_id).first()
+        )
         if job_query is not None:
             return job_query
         elif record_query is not None:
             return record_query
+        elif current_issue_query is not None:
+            return current_issue_query
         else:
             return None
 
