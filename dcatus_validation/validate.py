@@ -142,6 +142,8 @@ def _validate_records(
 
             errors, incomplete = _validation_messages(validator, record, remaining)
             identifier = record.get("identifier")
+            # A missing, empty or non-string identifier can't label the record,
+            # so key its errors by its position in `dataset` instead.
             if not isinstance(identifier, str) or not identifier:
                 identifier = idx
             output += list(zip([identifier] * len(errors), errors))

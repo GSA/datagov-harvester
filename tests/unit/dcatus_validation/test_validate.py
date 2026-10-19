@@ -104,9 +104,14 @@ class TestValidateRecords:
             ("", expected)
         ]
 
-    def test_invalid_identifier_falls_back_to_dataset_position(self):
+    @pytest.mark.parametrize(
+        "identifier",
+        ["", None, 42, {"not": "a string"}],
+        ids=["empty-string", "none", "int", "dict"],
+    )
+    def test_invalid_identifier_falls_back_to_dataset_position(self, identifier):
         errors = validate_records(
-            {"dataset": [{"identifier": {"not": "a string"}}]},
+            {"dataset": [{"identifier": identifier}]},
             "dcatus1.1: federal dataset",
         )
 
