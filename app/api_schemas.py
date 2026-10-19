@@ -207,6 +207,7 @@ class SourceInfo(Schema):
     schema_type = Enum(SCHEMA_TYPE_ENUM, required=True)
     source_type = Enum(SOURCE_TYPE_ENUM, required=True)
     notification_frequency = Enum(NOTIFICATION_FREQUENCY_ENUM, required=True)
+    is_locked = Boolean(required=True)
     collection_parent_url = String()
     date_next_run = DateTime()
 

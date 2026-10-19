@@ -2,6 +2,7 @@ import logging
 import os
 from datetime import datetime
 
+from database.interface import HarvestSourceLockedError
 from harvester import SMTP_CONFIG
 from harvester.lib.task_handler import create_task_handler
 from harvester.utils.general_utils import (
@@ -105,6 +106,9 @@ class LoadManager:
                 job_data, active_job = interface.enqueue_harvest_job_if_idle(
                     source.id, next_run=next_run, require_due=True
                 )
+            except HarvestSourceLockedError:
+                logger.info("Skipped source %s: source is locked.", source.id)
+                continue
             except Exception:
                 logger.exception(
                     "Failed to queue harvest job for source %s.", source.id
@@ -229,9 +233,13 @@ class LoadManager:
         harvest_job = interface.get_harvest_job(job_id)
 
         # Try to atomically transition this job from 'new' -> 'in_progress'.
-        updated = interface.update_harvest_job_if_status(
-            job_id, "new", {"status": "in_progress", "date_started": get_datetime()}
-        )
+        try:
+            updated = interface.start_harvest_job_if_unlocked(job_id, get_datetime())
+        except HarvestSourceLockedError:
+            return (
+                "Can't trigger harvest. Harvest source "
+                f"{harvest_job.harvest_source_id} is locked."
+            )
         if not updated:
             return (
                 f"Can't trigger harvest. Job {job_id} already started "
@@ -372,6 +380,8 @@ class LoadManager:
                     f"Created new manual harvest job: for {job_data.harvest_source_id}."
                 )
                 return self.start_job(job_data.id, job_type)
+        except HarvestSourceLockedError:
+            return f"Can't trigger harvest. Harvest source {source_id} is locked."
         except Exception as e:
             message = f"LoadManager: trigger_manual_job failed :: {repr(e)}"
             logger.error(message)
