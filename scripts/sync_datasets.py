@@ -60,9 +60,9 @@ def _insert_dataset_for_record(interface: HarvesterDBInterface, record: HarvestR
         "last_harvested_date": record.date_finished or get_datetime(),
     }
 
-    translated_spatial = translate_spatial_to_geojson(metadata.get("spatial"))
-    if translated_spatial is not None:
-        payload["translated_spatial"] = translated_spatial
+    payload["translated_spatial"] = translate_spatial_to_geojson(
+        metadata.get("spatial")
+    )
 
     while True:
         try:

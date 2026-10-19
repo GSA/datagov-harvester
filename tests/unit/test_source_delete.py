@@ -24,7 +24,7 @@ class TestEnqueueHarvestSourceDelete:
         assert message == DELETE_IN_PROGRESS_MESSAGE
         db.delete_harvest_source.assert_not_called()
         handler.start_task.assert_called_once_with(
-            command=f"python harvester/delete_source.py {source_id}",
+            command=f"python -m harvester.delete_source {source_id}",
             task_id=f"delete-harvest-source-{source_id}",
         )
 

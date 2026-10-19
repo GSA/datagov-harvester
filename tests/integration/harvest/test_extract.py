@@ -214,6 +214,9 @@ class TestExtract:
         source_data_dcatus3_0_service_no_identifier,
         job_data_dcatus3_0_service_no_identifier,
     ):
+        """A DataService's identifier is optional per the DCAT-US3.0 schema.
+        A missing identifier gets a synthesized one instead of being
+        dropped as an error."""
         harvest_source = make_harvest_source(
             source_data_dcatus3_0_service_no_identifier,
             job_data_dcatus3_0_service_no_identifier,
@@ -223,14 +226,40 @@ class TestExtract:
 
         # the dataset is unaffected by the service's missing identifier
         assert len(harvest_source.external_records) == 1
-        assert len(harvest_source.external_records_by_type["data_service"]) == 0
+        assert len(harvest_source.external_records_by_type["data_service"]) == 1
+
+        record = harvest_source.external_records_by_type["data_service"][0]
+        assert record["identifier"].startswith("urn:datagov:dataservice:")
 
         errors = interface.get_harvest_record_errors_by_job(harvest_source.job_id)
-        msg = (
-            "Test Source DCAT-US 3.0 (service no identifier) "
-            "Data Service Without Identifier is missing 'identifier' field"
+        assert errors == []
+
+    def test_extract_dcatus3_0_series_missing_id(
+        self,
+        interface,
+        make_harvest_source,
+        source_data_dcatus3_0_series_no_id,
+        job_data_dcatus3_0_series_no_id,
+    ):
+        """A DatasetSeries's @id is optional per the DCAT-US3.0 schema. A
+        missing @id gets a synthesized identifier instead of being dropped
+        as an error."""
+        harvest_source = make_harvest_source(
+            source_data_dcatus3_0_series_no_id,
+            job_data_dcatus3_0_series_no_id,
         )
-        assert errors[0][0].message == msg
+        harvest_source.acquire_data_sources()
+        harvest_source.filter_datasets_with_no_identifier()
+
+        # the dataset is unaffected by the series' missing @id
+        assert len(harvest_source.external_records) == 1
+        assert len(harvest_source.external_records_by_type["data_series"]) == 1
+
+        record = harvest_source.external_records_by_type["data_series"][0]
+        assert record["@id"].startswith("urn:datagov:datasetseries:")
+
+        errors = interface.get_harvest_record_errors_by_job(harvest_source.job_id)
+        assert errors == []
 
     def test_extract_dcatus3_0_with_records(
         self,
