@@ -13,7 +13,7 @@ repository = "https://github.com/GSA/datagov-harvester"
 poetry-plugin-export = ">=1.8"
 
 [tool.poetry.dependencies]
-python = "^3.12"
+python = "~3.14"
 jsonschema = {extras = ["format"], version = "^4.26.0"}
 python-dotenv = ">=1"
 deepdiff = ">=8.6.1"
