@@ -1814,6 +1814,30 @@ class TestBackfillObjectIdentifiersFromTitle:
 
         assert result[0]["identifier"] == "https://example.gov/svc-1"
 
+    def test_plain_identifier_fallback_for_atid_is_wrapped_as_iri(self):
+        """A DatasetSeries missing "@id" but carrying a plain alphanumeric
+        "identifier" (e.g. SSA's "US-GOV-SSA-3379") must not have that value
+        copied verbatim into "@id" -- "@id" requires IRI format and a bare
+        alphanumeric string isn't one. See GSA/data.gov#6431."""
+        records = [{"identifier": "US-GOV-SSA-3379", "title": "National Series"}]
+
+        result = backfill_object_identifiers_from_title(
+            records, "@id", "datasetseries"
+        )
+
+        assert result[0]["@id"].startswith("urn:datagov:datasetseries:")
+
+    def test_iri_shaped_identifier_fallback_for_atid_is_kept_as_is(self):
+        """If the fallback "identifier" is already IRI-shaped, there's no
+        format violation, so keep it rather than re-wrapping it."""
+        records = [{"identifier": "https://example.gov/series-1", "title": "Series"}]
+
+        result = backfill_object_identifiers_from_title(
+            records, "@id", "datasetseries"
+        )
+
+        assert result[0]["@id"] == "https://example.gov/series-1"
+
     def test_synthesized_id_is_stable_for_same_title(self):
         records = [{"title": "Dataset Series Without An Id"}]
 

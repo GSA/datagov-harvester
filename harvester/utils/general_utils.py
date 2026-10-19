@@ -610,6 +610,9 @@ def backfill_catalog_record_identifiers(records: list) -> list:
     return backfilled
 
 
+_IRI_SCHEME_RE = re.compile(r"^[a-zA-Z][a-zA-Z0-9+.-]*:")
+
+
 def backfill_object_identifiers_from_title(
     records: list, identifier_field: str, type_label: str
 ) -> list:
@@ -619,6 +622,11 @@ def backfill_object_identifiers_from_title(
     preferring "identifier", then "@id" -- and if neither is usable,
     synthesize a stable one from its title (required by both schemas) so
     harvester can still track the object and link its child datasets to it.
+
+    "@id" must be an IRI (DCAT-US3.0 format: iri). A plain identifier value
+    (e.g. "US-GOV-SSA-3379") copied there verbatim fails that format, so a
+    non-IRI source gets hashed into a stable "urn:datagov:..." value instead
+    of being used as-is; "identifier" has no such format constraint.
     """
     backfilled = []
     for record in records:
@@ -627,8 +635,12 @@ def backfill_object_identifiers_from_title(
             resolved = normalize_dataset_identifier(
                 record.get("identifier")
             ) or normalize_dataset_identifier(record.get("@id"))
-            if resolved is None:
-                digest = hashlib.sha256(str(record.get("title")).encode()).hexdigest()
+            needs_urn = resolved is None or (
+                identifier_field == "@id" and not _IRI_SCHEME_RE.match(resolved)
+            )
+            if needs_urn:
+                digest_source = resolved or str(record.get("title"))
+                digest = hashlib.sha256(digest_source.encode()).hexdigest()
                 resolved = f"urn:datagov:{type_label}:{digest}"
             record[identifier_field] = resolved
         backfilled.append(record)
