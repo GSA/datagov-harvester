@@ -290,6 +290,16 @@ def update_harvest_source_actions(source_id: str):
 
     if form.edit.data:
         return redirect(url_for("main.edit_harvest_source", source_id=source_id))
+    elif form.lock.data or form.unlock.data:
+        locked = bool(form.lock.data)
+        source = deps.db.set_harvest_source_lock(source_id, locked)
+        if source is None:
+            flash("Harvest source not found.")
+        else:
+            action = "lock" if locked else "unlock"
+            _log_mutation(action, "harvest_source", source_id)
+            flash(f"Harvest source {source_id} {'locked' if locked else 'unlocked'}.")
+        return redirect(url_for("main.view_harvest_source", source_id=source_id))
     elif form.harvest.data:
         if form.force_check.data:
             return trigger_manual_job_helper(source_id, "force_harvest")
