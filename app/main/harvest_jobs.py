@@ -34,8 +34,7 @@ def view_harvest_job(job_id=None):
             return
 
     record_error_count = deps.db.get_harvest_record_errors_by_job(
-        job_id,
-        count=True,
+        job_id, for_view=True, count=True
     )
     htmx_vars = {
         "target_div": "#error_results_pagination",

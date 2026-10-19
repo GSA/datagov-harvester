@@ -10,9 +10,10 @@ from apiflask.fields import (
     Enum,
     Integer,
     List,
+    Raw,
     String,
 )
-from marshmallow import ValidationError
+from marshmallow import ValidationError, validate
 
 from shared.constants import (
     ACTION_VALUES,
@@ -81,6 +82,25 @@ class JobInfo(Schema):
     records_warned = Integer()
 
 
+class JobCreate(Schema):
+    id = String()
+    harvest_source_id = String(required=True)
+    status = String(required=True, validate=validate.OneOf(JOB_STATUS_VALUES))
+    job_type = String()
+    date_created = DateTime()
+    date_started = DateTime()
+    date_finished = DateTime()
+    records_total = Integer()
+    records_added = Integer()
+    records_updated = Integer()
+    records_deleted = Integer()
+    records_errored = Integer()
+    records_warned = Integer()
+    records_ignored = Integer()
+    records_validated = Integer()
+    dcatus_catalog = Raw()
+
+
 class OrgCreate(Schema):
     id = UUID()
     name = String(required=True)
@@ -107,6 +127,22 @@ class OrgCreate(Schema):
         if value and value.strip():
             if not (value.startswith("http://") or value.startswith("https://")):
                 raise ValidationError("URL must start with http:// or https://")
+
+    @marshmallow.post_load
+    def unwrap_organization_type(self, data, **kwargs):
+        """Return the organization type as the plain string.
+
+        The Enum field deserializes to the enum member, but
+        Organization.organization_type is declared with the values
+        themselves, so the member reaches the insert as
+        "OrganizationType.Non-Profit" and Postgres rejects it. _to_enum
+        builds these with the name and the value the same, so the value is
+        exactly what came in.
+        """
+        organization_type = data.get("organization_type")
+        if isinstance(organization_type, PyEnum):
+            data["organization_type"] = organization_type.value
+        return data
 
 
 class OrgInfo(OrgCreate):

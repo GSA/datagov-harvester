@@ -39,6 +39,7 @@ jobs:
     needs: determine-environments
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         environment: ${{ fromJson(needs.determine-environments.outputs.environments) }}
     environment: ${{ matrix.environment }}

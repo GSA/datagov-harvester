@@ -29,6 +29,7 @@ from harvester.utils.general_utils import (
     DT_PLACEHOLDER,
     RetrySession,
     backfill_catalog_record_identifiers,
+    backfill_object_identifiers_from_title,
     create_retry_session,
     describe_identifier_error,
     download_file,
@@ -1128,6 +1129,43 @@ class TestGeneralUtils:
             == 1
         )
 
+    def test_facet_builder_enum_eq(self):
+        facets = HarvesterDBInterface.query_filter_builder(
+            HarvestSource, "schema_type eq dcatus1.1: non-federal"
+        )
+        assert len(facets) == 1
+        compiled = facets[0].compile(compile_kwargs={"literal_binds": True})
+        assert "CAST" not in str(compiled)
+
+    def test_facet_builder_enum_startswith(self):
+        facets = HarvesterDBInterface.query_filter_builder(
+            HarvestSource, "schema_type startswith_op dcat"
+        )
+        assert len(facets) == 1
+        compiled = str(facets[0].compile(compile_kwargs={"literal_binds": True}))
+        assert "CAST" in compiled
+        assert "LIKE" in compiled
+
+    @pytest.mark.parametrize(
+        "op",
+        [
+            "like_op",
+            "notlike_op",
+            "ilike_op",
+            "notilike_op",
+            "startswith_op",
+            "endswith_op",
+            "contains_op",
+        ],
+    )
+    def test_facet_builder_enum_text_pattern_operators(self, op):
+        facets = HarvesterDBInterface.query_filter_builder(
+            HarvestSource, f"schema_type {op} dcat"
+        )
+        assert len(facets) == 1
+        compiled = str(facets[0].compile(compile_kwargs={"literal_binds": True}))
+        assert "CAST" in compiled
+
     def test_facet_builder_multiple(self):
         assert (
             len(
@@ -1744,6 +1782,67 @@ class TestBackfillCatalogRecordIdentifiers:
         records = [{"primaryTopic": "ds-1", "modified": "2024-06-15"}]
 
         backfill_catalog_record_identifiers(records)
+
+        assert "@id" not in records[0]
+
+
+class TestBackfillObjectIdentifiersFromTitle:
+    def test_missing_identifier_gets_synthesized_from_title(self):
+        records = [{"title": "Data Service Without Identifier"}]
+
+        result = backfill_object_identifiers_from_title(
+            records, "identifier", "dataservice"
+        )
+
+        assert result[0]["identifier"].startswith("urn:datagov:dataservice:")
+
+    def test_existing_identifier_left_alone(self):
+        records = [{"identifier": "https://example.gov/svc-1", "title": "Service One"}]
+
+        result = backfill_object_identifiers_from_title(
+            records, "identifier", "dataservice"
+        )
+
+        assert result[0]["identifier"] == "https://example.gov/svc-1"
+
+    def test_falls_back_to_atid_before_synthesizing(self):
+        """A provider's object may carry an "@id" even though the type's
+        own identifier field (e.g. "identifier" for DataService) is
+        missing; prefer that over generating a new one."""
+        records = [{"@id": "https://example.gov/svc-1", "title": "Service One"}]
+
+        result = backfill_object_identifiers_from_title(
+            records, "identifier", "dataservice"
+        )
+
+        assert result[0]["identifier"] == "https://example.gov/svc-1"
+
+    def test_synthesized_id_is_stable_for_same_title(self):
+        records = [{"title": "Dataset Series Without An Id"}]
+
+        first = backfill_object_identifiers_from_title(records, "@id", "datasetseries")[
+            0
+        ]["@id"]
+        second = backfill_object_identifiers_from_title(
+            records, "@id", "datasetseries"
+        )[0]["@id"]
+
+        assert first == second
+
+    def test_synthesized_id_differs_for_different_title(self):
+        a = backfill_object_identifiers_from_title(
+            [{"title": "Series A"}], "@id", "datasetseries"
+        )[0]["@id"]
+        b = backfill_object_identifiers_from_title(
+            [{"title": "Series B"}], "@id", "datasetseries"
+        )[0]["@id"]
+
+        assert a != b
+
+    def test_does_not_mutate_input(self):
+        records = [{"title": "Dataset Series Without An Id"}]
+
+        backfill_object_identifiers_from_title(records, "@id", "datasetseries")
 
         assert "@id" not in records[0]
 
