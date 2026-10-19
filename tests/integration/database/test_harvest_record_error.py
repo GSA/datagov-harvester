@@ -178,6 +178,30 @@ def test_record_errors_by_severity(
     assert {issue["severity"] for issue in streamed_issues} == {"error", "warning"}
 
 
+def test_record_errors_count_view_vs_total(
+    interface_with_fixture_json, job_data_dcatus
+):
+    """
+    record errors are aggregated per dataset on the harvest job page so pagination
+    in the view shouldn't depend on the total record count but the number of records
+    AFTER aggregation of the errors. if there's at least one record with > 1 error
+    then the record view count will be lower than the total count
+    """
+    job_id = job_data_dcatus["id"]
+
+    for_view_count = interface_with_fixture_json.get_harvest_record_errors_by_job(
+        job_id, for_view=True, count=True
+    )
+
+    total_count = interface_with_fixture_json.get_harvest_record_errors_by_job(
+        job_id, count=True
+    )
+
+    # the first record has 2 validation errors so the total count for pagination
+    # will be less than the total record error count
+    assert for_view_count < total_count
+
+
 def test_get_harvest_record_issues(
     interface,
     organization_data,

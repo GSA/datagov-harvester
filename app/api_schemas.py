@@ -13,6 +13,7 @@ from apiflask.fields import (
     Enum,
     Integer,
     List,
+    Raw,
     String,
 )
 from marshmallow import ValidationError, validate
@@ -84,6 +85,25 @@ class JobInfo(Schema):
     records_ignored = Integer()
     records_validated = Integer()
     records_warned = Integer()
+
+
+class JobCreate(Schema):
+    id = String()
+    harvest_source_id = String(required=True)
+    status = String(required=True, validate=validate.OneOf(JOB_STATUS_VALUES))
+    job_type = String()
+    date_created = DateTime()
+    date_started = DateTime()
+    date_finished = DateTime()
+    records_total = Integer()
+    records_added = Integer()
+    records_updated = Integer()
+    records_deleted = Integer()
+    records_errored = Integer()
+    records_warned = Integer()
+    records_ignored = Integer()
+    records_validated = Integer()
+    dcatus_catalog = Raw()
 
 
 class OrgCreate(Schema):
