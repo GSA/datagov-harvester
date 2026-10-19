@@ -42,6 +42,12 @@ PAGINATE_START_PAGE = 0
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger()
 
+JOB_TYPES_BLOCKED_BY_SOURCE_LOCK = ("harvest", "force_harvest")
+
+
+class HarvestSourceLockedError(Exception):
+    """A locked source cannot queue or start a harvest."""
+
 
 class HarvesterDBInterface:
     pagination = PaginationConfig(
@@ -311,6 +317,25 @@ class HarvesterDBInterface:
             self.db.rollback()
             return None, self.harvest_source_save_error_message(e)
 
+    def set_harvest_source_lock(self, source_id, locked):
+        """Serialize a lock change with harvest queuing and starting."""
+        try:
+            source = (
+                self.db.query(HarvestSource)
+                .filter(HarvestSource.id == source_id)
+                .with_for_update(of=HarvestSource)
+                .one_or_none()
+            )
+            if source is None:
+                self.db.rollback()
+                return None
+            source.is_locked = locked
+            self.db.commit()
+            return source
+        except Exception:
+            self.db.rollback()
+            raise
+
     def can_delete_harvest_source(self, source_id):
         """Return whether a harvest source may be deleted.
 
@@ -392,6 +417,13 @@ class HarvesterDBInterface:
             if source is None:
                 raise ValueError(f"Harvest source {source_id} not found")
 
+            effective_type = (
+                job_data.get("job_type", job_type) if job_data else job_type
+            )
+            if source.is_locked and effective_type in JOB_TYPES_BLOCKED_BY_SOURCE_LOCK:
+                self.db.commit()
+                raise HarvestSourceLockedError(source_id)
+
             active_job = self.get_active_harvest_job_for_source(source_id)
             if active_job:
                 self.db.commit()
@@ -421,6 +453,8 @@ class HarvesterDBInterface:
             self.db.commit()
             self.db.refresh(job)
             return job, None
+        except HarvestSourceLockedError:
+            raise
         except Exception:
             self.db.rollback()
             raise
@@ -484,12 +518,15 @@ class HarvesterDBInterface:
         return (
             self.db.query(HarvestJob)
             .options(lazyload(HarvestJob.source))
+            .join(HarvestSource, HarvestJob.harvest_source_id == HarvestSource.id)
             .filter(
                 HarvestJob.date_created <= datetime.now(timezone.utc),
                 HarvestJob.status == "new",
+                HarvestSource.is_locked.is_(False)
+                | (~HarvestJob.job_type.in_(JOB_TYPES_BLOCKED_BY_SOURCE_LOCK)),
             )
             .order_by(asc(HarvestJob.date_created))
-            .with_for_update(skip_locked=True)
+            .with_for_update(of=HarvestJob, skip_locked=True)
             .limit(limit)
             .all()
         )
@@ -531,6 +568,7 @@ class HarvesterDBInterface:
             self.db.query(HarvestSource)
             .filter(
                 HarvestSource.frequency != "manual",
+                HarvestSource.is_locked.is_(False),
                 HarvestSource.date_next_run.isnot(None),
                 HarvestSource.date_next_run <= datetime.now(),
                 ~active_job,
@@ -583,6 +621,44 @@ class HarvesterDBInterface:
             logger.error("Error: %s", e)
             self.db.rollback()
             return None
+
+    def start_harvest_job_if_unlocked(self, job_id, started_at):
+        """Claim a queued job only while its source is unlocked."""
+        try:
+            job = self.get_harvest_job(job_id)
+            if job is None:
+                self.db.rollback()
+                return None
+            if job.job_type in JOB_TYPES_BLOCKED_BY_SOURCE_LOCK:
+                source = (
+                    self.db.query(HarvestSource)
+                    .filter(HarvestSource.id == job.harvest_source_id)
+                    .populate_existing()
+                    .with_for_update(of=HarvestSource)
+                    .one()
+                )
+                if source.is_locked:
+                    self.db.commit()
+                    raise HarvestSourceLockedError(source.id)
+
+            changed = (
+                self.db.query(HarvestJob)
+                .filter(HarvestJob.id == job_id, HarvestJob.status == "new")
+                .update(
+                    {"status": "in_progress", "date_started": started_at},
+                    synchronize_session=False,
+                )
+            )
+            if not changed:
+                self.db.rollback()
+                return None
+            self.db.commit()
+            return self.get_harvest_job(job_id)
+        except HarvestSourceLockedError:
+            raise
+        except Exception:
+            self.db.rollback()
+            raise
 
     def delete_harvest_job(self, job_id):
         job = self.db.get(HarvestJob, job_id)

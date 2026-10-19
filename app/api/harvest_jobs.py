@@ -24,6 +24,7 @@ from app.deps import (
     login_required,
     valid_id_required,
 )
+from database.interface import HarvestSourceLockedError
 from harvester.utils.general_utils import is_valid_uuid4
 
 from . import api
@@ -47,6 +48,8 @@ def add_harvest_job():
             job, active_job = deps.db.enqueue_harvest_job_if_idle(
                 job_data["harvest_source_id"], job_data=job_data
             )
+        except HarvestSourceLockedError:
+            return {"error": "Harvest source is locked."}, 409
         except (KeyError, ValueError):
             return {"error": "Failed to add harvest job."}, 400
         except Exception:
