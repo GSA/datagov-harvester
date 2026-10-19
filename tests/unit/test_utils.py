@@ -1821,9 +1821,7 @@ class TestBackfillObjectIdentifiersFromTitle:
         alphanumeric string isn't one. See GSA/data.gov#6431."""
         records = [{"identifier": "US-GOV-SSA-3379", "title": "National Series"}]
 
-        result = backfill_object_identifiers_from_title(
-            records, "@id", "datasetseries"
-        )
+        result = backfill_object_identifiers_from_title(records, "@id", "datasetseries")
 
         assert result[0]["@id"].startswith("urn:datagov:datasetseries:")
 
@@ -1832,9 +1830,7 @@ class TestBackfillObjectIdentifiersFromTitle:
         format violation, so keep it rather than re-wrapping it."""
         records = [{"identifier": "https://example.gov/series-1", "title": "Series"}]
 
-        result = backfill_object_identifiers_from_title(
-            records, "@id", "datasetseries"
-        )
+        result = backfill_object_identifiers_from_title(records, "@id", "datasetseries")
 
         assert result[0]["@id"] == "https://example.gov/series-1"
 
