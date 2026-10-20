@@ -248,6 +248,10 @@ class HarvestTriggerForm(FlaskForm):
     force_check = BooleanField("Force Update")
 
 
+class ReharvestForm(FlaskForm):
+    refresh = SubmitField("Refresh now")
+
+
 class OrganizationTriggerForm(FlaskForm):
     edit = SubmitField("Edit")
     delete = SubmitField("Delete")

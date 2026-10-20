@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>{{ title }}</title>
+  </head>
+  <body style="margin: 0; padding: 24px; background: #f4f6f8; color: #1b1b1b; font-family: Arial, Helvetica, sans-serif; font-size: 16px; line-height: 1.5;">
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+      <tr>
+        <td align="center">
+          <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="640" style="width: 100%; max-width: 640px; background: #ffffff; border: 1px solid #dfe1e2;">
+            <tr>
+              <td style="padding: 24px 32px; background: #003d5b; color: #ffffff;">
+                <p style="margin: 0 0 8px; font-size: 12px; font-weight: bold; letter-spacing: 1px;">DATA.GOV HARVESTER</p>
+                <h1 style="margin: 0; font-size: 24px; line-height: 1.25;">{{ title }}</h1>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding: 28px 32px;">
+                <p style="margin: 0 0 24px;">{{ introduction }}</p>
+
+                <table role="presentation" cellpadding="8" cellspacing="0" border="0" width="100%" style="margin-bottom: 24px; border-collapse: collapse;">
+                  {% if organization_name %}
+                  <tr>
+                    <th align="left" style="width: 150px; border-bottom: 1px solid #dfe1e2;">Organization</th>
+                    <td style="border-bottom: 1px solid #dfe1e2;">{{ organization_name }}</td>
+                  </tr>
+                  {% endif %}
+                  <tr>
+                    <th align="left" style="width: 150px; border-bottom: 1px solid #dfe1e2;">Harvest source</th>
+                    <td style="border-bottom: 1px solid #dfe1e2;">{{ source_name }}</td>
+                  </tr>
+                  <tr>
+                    <th align="left" style="width: 150px; border-bottom: 1px solid #dfe1e2;">Job ID</th>
+                    <td style="border-bottom: 1px solid #dfe1e2;">{{ job_id }}</td>
+                  </tr>
+                  <tr>
+                    <th align="left" style="width: 150px; border-bottom: 1px solid #dfe1e2;">Technical details</th>
+                    <td style="border-bottom: 1px solid #dfe1e2;"><a href="{{ job_url }}" style="color: #005ea8;">View harvest job</a></td>
+                  </tr>
+                </table>
+
+                {% if error_message %}
+                <div style="margin-bottom: 24px; padding: 16px; border-left: 4px solid #b50909; background: #fff1f1;">
+                  <strong>Error</strong>
+                  <div style="white-space: pre-wrap;">{{ error_message }}</div>
+                </div>
+                {% endif %}
+
+                {% if summary is not none %}
+                <h2 style="margin: 0 0 12px; font-size: 19px;">Job summary</h2>
+                <table role="presentation" cellpadding="8" cellspacing="0" border="0" width="100%" style="margin-bottom: 24px; border-collapse: collapse;">
+                  {% for label, count in summary %}
+                  <tr>
+                    <th align="left" style="border-bottom: 1px solid #dfe1e2;">{{ label }}</th>
+                    <td align="right" style="border-bottom: 1px solid #dfe1e2;">{{ count }}</td>
+                  </tr>
+                  {% endfor %}
+                </table>
+                {% endif %}
+
+                {% if error_field_summary is not none %}
+                <h2 style="margin: 0 0 12px; font-size: 19px;">Issues by field</h2>
+                {% if error_field_summary %}
+                <table role="presentation" cellpadding="8" cellspacing="0" border="0" width="100%" style="margin-bottom: 24px; border-collapse: collapse;">
+                  <tr>
+                    <th align="left" style="border-bottom: 2px solid #dfe1e2;">Severity</th>
+                    <th align="left" style="border-bottom: 2px solid #dfe1e2;">Field and rule</th>
+                    <th align="right" style="border-bottom: 2px solid #dfe1e2;">Count</th>
+                  </tr>
+                  {% for issue in error_field_summary %}
+                  <tr>
+                    <td style="border-bottom: 1px solid #dfe1e2;">{{ issue.severity }}</td>
+                    <td style="border-bottom: 1px solid #dfe1e2;">{{ issue.field or '(root)' }} — {{ issue.rule }}</td>
+                    <td align="right" style="border-bottom: 1px solid #dfe1e2;">{{ issue.count }}</td>
+                  </tr>
+                  {% endfor %}
+                </table>
+                {% else %}
+                <p style="margin: 0 0 24px;">No record errors or warnings found.</p>
+                {% endif %}
+                {% endif %}
+
+                {% if sample_datasets is not none %}
+                <h2 style="margin: 0 0 12px; font-size: 19px;">Sample datasets</h2>
+                {% if sample_datasets %}
+                <ul style="margin: 0 0 24px; padding-left: 24px;">
+                  {% for dataset in sample_datasets %}
+                  <li style="margin-bottom: 8px;">
+                    {% if dataset.url %}<a href="{{ dataset.url }}" style="color: #005ea8;">{{ dataset.slug }}</a>{% else %}{{ dataset.slug }}{% endif %}
+                  </li>
+                  {% endfor %}
+                </ul>
+                {% else %}
+                <p style="margin: 0 0 24px;">No datasets have been harvested from this source yet.</p>
+                {% endif %}
+                {% endif %}
+
+                <div style="margin-top: 28px; padding: 24px; background: #eef6fc; border-top: 3px solid #005ea8;">
+                  <h2 style="margin: 0 0 12px; font-size: 20px;">Updated your metadata?</h2>
+                  <p style="margin: 0 0 20px;">You can request a reharvest without contacting the Data.gov team.</p>
+                  <p style="margin: 0 0 20px;"><a href="{{ refresh_url }}" style="display: inline-block; padding: 10px 16px; background: #005ea8; color: #ffffff; font-weight: bold; text-decoration: none;">Refresh this source</a></p>
+                  <p style="margin: 0 0 8px;">This link opens a confirmation page and remains valid while no newer harvest job exists for this source.</p>
+                  <p style="margin: 0;">Please don’t share it outside your agency.</p>
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding: 20px 32px; background: #f4f6f8; color: #565c65; font-size: 13px;">
+                {{ footer_message }}<br>
+                Please do not reply to this email, as it is not monitored.
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>

@@ -1,4 +1,4 @@
-from flask import flash, redirect, render_template, request, url_for
+from flask import current_app, flash, redirect, render_template, request, url_for
 
 from app import deps, htmx
 from app.deps import (
@@ -11,15 +11,17 @@ from app.deps import (
     render_block,
     valid_id_required,
 )
-from app.forms import HarvestSourceForm, HarvestTriggerForm
+from app.forms import HarvestSourceForm, HarvestTriggerForm, ReharvestForm
 from app.paginate import Pagination
 from app.util import make_new_source_contract
+from database.interface import HarvestSourceLockedError, StaleReharvestLinkError
 from harvester.lib.source_delete import enqueue_harvest_source_delete
 from harvester.utils.general_utils import (
     convert_to_int,
     dynamic_map_list_items_to_dict,
     get_datetime,
 )
+from harvester.utils.reharvest_links import read_reharvest_token
 
 from . import main
 
@@ -28,6 +30,121 @@ def trigger_manual_job_helper(source_id, job_type="harvest"):
     message = deps.load_manager.trigger_manual_job(source_id, job_type)
     flash(message)
     return redirect(url_for("main.view_harvest_source", source_id=source_id))
+
+
+@main.route("/harvest_source/refresh", methods=["GET", "POST"])
+def refresh_harvest_source():
+    """Confirm a signed notification link before requesting a normal harvest."""
+    token = request.values.get("token", "")
+    payload = read_reharvest_token(current_app.config["SECRET_KEY"], token)
+    if payload is None:
+        return (
+            render_template("refresh_harvest_source.html", message="Invalid link."),
+            400,
+        )
+
+    source_id = payload["source_id"]
+    report_job_id = payload["report_job_id"]
+    recipient = payload["email"]
+
+    def audit(outcome, new_job_id=None):
+        logger.info(
+            "Audit reharvest recipient=%s source_id=%s report_job_id=%s "
+            "new_job_id=%s outcome=%s",
+            recipient,
+            source_id,
+            report_job_id,
+            new_job_id,
+            outcome,
+        )
+
+    source = deps.db.get_harvest_source(source_id)
+    latest_job = deps.db.get_latest_harvest_job_for_source(source_id)
+    if (
+        source is None
+        or latest_job is None
+        or latest_job.id != report_job_id
+        or latest_job.status not in ("complete", "error")
+        or latest_job.date_finished is None
+    ):
+        if request.method == "POST":
+            audit("stale")
+        return (
+            render_template(
+                "refresh_harvest_source.html", message="This link is no longer valid."
+            ),
+            410,
+        )
+
+    if source.is_locked:
+        if request.method == "POST":
+            audit("locked")
+        return (
+            render_template(
+                "refresh_harvest_source.html",
+                source=source,
+                message="Harvesting is locked for this source.",
+            ),
+            409,
+        )
+
+    form = ReharvestForm()
+    if request.method == "POST":
+        if not form.validate_on_submit():
+            audit("invalid_form")
+            return (
+                render_template(
+                    "refresh_harvest_source.html", message="Invalid request."
+                ),
+                400,
+            )
+        try:
+            job, active_job = deps.db.enqueue_harvest_job_if_idle(
+                source_id,
+                job_type="harvest",
+                expected_latest_job_id=report_job_id,
+            )
+        except HarvestSourceLockedError:
+            audit("locked")
+            return (
+                render_template(
+                    "refresh_harvest_source.html",
+                    message="Harvesting is locked for this source.",
+                ),
+                409,
+            )
+        except StaleReharvestLinkError:
+            audit("stale")
+            return (
+                render_template(
+                    "refresh_harvest_source.html",
+                    message="This link is no longer valid.",
+                ),
+                410,
+            )
+        if active_job:
+            audit("already_active", active_job.id)
+            return (
+                render_template(
+                    "refresh_harvest_source.html",
+                    source=source,
+                    message=f"Job {active_job.id} is already queued or running.",
+                ),
+                409,
+            )
+
+        result = deps.load_manager.start_job(job.id, "harvest")
+        audit("requested", job.id)
+        return render_template(
+            "refresh_harvest_source.html",
+            source=source,
+            message=result,
+            new_job_id=job.id,
+        )
+
+    return render_template(
+        "refresh_harvest_source.html", source=source, form=form, token=token
+    )
 
 
 @main.route("/harvest_source/add", methods=["POST", "GET"])
