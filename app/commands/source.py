@@ -3,7 +3,7 @@ import logging
 import click
 from flask import Blueprint
 
-from database.interface import HarvesterDBInterface
+from database.interface import HarvesterDBInterface, HarvestSourceLockedError
 from shared.constants import SCHEMA_TYPE_VALUES
 
 from .evaluate_sources import evaluate_sources
@@ -129,6 +129,9 @@ def cli_force_reharvest_sources(schema_type_prefixes, organizations, dry_run):
             job, active_job = db.enqueue_harvest_job_if_idle(
                 s.id, job_type="force_harvest"
             )
+        except HarvestSourceLockedError:
+            print(f"{s.id} ({s.name}): skipped, source is locked")
+            continue
         except Exception:
             logger.exception("Failed to queue force harvest for source %s", s.id)
             print(f"{s.id} ({s.name}): failed to queue job")

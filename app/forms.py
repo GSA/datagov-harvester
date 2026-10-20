@@ -239,6 +239,8 @@ class OrganizationForm(FlaskForm):
 class HarvestTriggerForm(FlaskForm):
     edit = SubmitField("Edit")
     harvest = SubmitField("Harvest")
+    lock = SubmitField("Lock")
+    unlock = SubmitField("Unlock")
     clear = SubmitField(
         "Clear",
     )

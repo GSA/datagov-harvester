@@ -154,6 +154,7 @@ class HarvestSource(Base):
     # alerting) shouldn't change until explicitly opted in.
     send_report_email = Column(Boolean, nullable=False, server_default="false")
 
+    is_locked = Column(Boolean, nullable=False, server_default=text("false"))
     collection_parent_url = Column(String)
     date_next_run = Column(DateTime, index=True)
 
