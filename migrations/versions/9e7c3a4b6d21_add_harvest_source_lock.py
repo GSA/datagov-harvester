@@ -1,7 +1,7 @@
 """Add a persistent harvest source lock.
 
 Revision ID: 9e7c3a4b6d21
-Revises: cd1b89204949
+Revises: 25d350b0b942
 """
 
 import sqlalchemy as sa

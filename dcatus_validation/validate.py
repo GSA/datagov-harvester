@@ -142,6 +142,8 @@ def _validate_records(
 
             errors, incomplete = _validation_messages(validator, record, remaining)
             identifier = record.get("identifier")
+            # A missing, empty or non-string identifier can't label the record,
+            # so key its errors by its position in `dataset` instead.
             if not isinstance(identifier, str) or not identifier:
                 identifier = idx
             output += list(zip([identifier] * len(errors), errors))
@@ -161,6 +163,13 @@ def _validate_records(
     errors, incomplete = _validation_messages(validator, dcatus_catalog, max_errors)
     # DCAT-US 3.0 messages carry the JSON path instead of a record identifier.
     return list(zip([""] * len(errors), errors)), incomplete
+
+
+def load_schema_validators() -> None:
+    """Build and cache every schema's validator now, so a missing or broken
+    schema fails at startup rather than on the first request that needs it."""
+    for schema_name in SCHEMA_NAMES:
+        _validator_for_schema(schema_name)
 
 
 def validate_records(dcatus_catalog: dict, schema_name: str) -> list:

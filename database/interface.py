@@ -626,32 +626,6 @@ class HarvesterDBInterface:
             self.db.rollback()
             return None
 
-    def update_harvest_job_if_status(self, job_id, expected_status, updates):
-        """Atomically update a harvest job only if its current status matches
-        `expected_status`.
-
-        Returns the updated job object if the update succeeded (row affected),
-        otherwise returns None.
-        """
-        try:
-            result = (
-                self.db.query(HarvestJob)
-                .filter(HarvestJob.id == job_id, HarvestJob.status == expected_status)
-                .update(updates)
-            )
-
-            if result == 0:
-                self.db.rollback()
-                return None
-
-            self.db.commit()
-            return self.get_harvest_job(job_id)
-
-        except Exception as e:
-            logger.error("Error: %s", e)
-            self.db.rollback()
-            return None
-
     def start_harvest_job_if_unlocked(self, job_id, started_at):
         """Claim a queued job only while its source is unlocked."""
         try:
@@ -1185,6 +1159,24 @@ class HarvesterDBInterface:
             {"severity": severity, "type": error_type, "count": error_count}
             for severity, error_type, error_count in query
         ]
+
+    def get_current_issue_dates_by_source(
+        self, harvest_source_id: str, severity: str = None
+    ) -> list:
+        """date_created of every current-state issue for this source.
+
+        A carried-forward issue (one whose record was unchanged on later
+        jobs) keeps the date_created of the job that last actually wrote
+        it, so this lets callers figure out which jobs a still-open issue
+        was already active for, without a job/issue join table (#6440's
+        decoupled-from-jobs tradeoff).
+        """
+        query = self.db.query(HarvestRecordCurrentIssue.date_created).filter(
+            HarvestRecordCurrentIssue.harvest_source_id == harvest_source_id
+        )
+        if severity is not None:
+            query = query.filter(HarvestRecordCurrentIssue.severity == severity)
+        return [row.date_created for row in query]
 
     ## HARVEST RECORD
     def add_harvest_record(self, record_data):

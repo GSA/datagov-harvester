@@ -1,3 +1,6 @@
+import json
+from bisect import bisect_right
+
 from flask import current_app, flash, redirect, render_template, request, url_for
 
 from app import deps, htmx
@@ -13,7 +16,7 @@ from app.deps import (
 )
 from app.forms import HarvestSourceForm, HarvestTriggerForm, ReharvestForm
 from app.paginate import Pagination
-from app.util import make_new_source_contract
+from app.util import make_new_record_error_contract, make_new_source_contract
 from database.interface import HarvestSourceLockedError, StaleReharvestLinkError
 from harvester.lib.source_delete import enqueue_harvest_source_delete
 from harvester.utils.general_utils import (
@@ -259,6 +262,45 @@ def add_harvest_source():
     )
 
 
+class _JobWithDisplayWarned:
+    """Wraps a HarvestJob so the job table/chart can show warnings
+    carried forward from an earlier, unchanged-record job (#6461)
+    without mutating the ORM instance's real records_warned column."""
+
+    def __init__(self, job, records_warned):
+        self._job = job
+        self.records_warned = records_warned
+
+    def __getattr__(self, name):
+        return getattr(self._job, name)
+
+
+def _carried_forward_warned_counts(source_id: str, jobs: list) -> dict:
+    """Map each job's id to how many warnings were active as of that
+    job's finish time, including ones carried forward because the
+    record was unchanged.
+
+    harvest_job.records_warned only counts warnings detected while
+    validating a record during that specific job; a record skipped as
+    unchanged never gets re-validated, so a warning that's still open
+    disappears from every later job's own count even though
+    harvest_record_current_issue still carries it (#6440 decouples
+    warnings from jobs, by design, so there's no job/issue join to
+    recompute this from directly).
+    """
+    warning_dates = sorted(
+        deps.db.get_current_issue_dates_by_source(source_id, severity="warning")
+    )
+    return {
+        job.id: (
+            bisect_right(warning_dates, job.date_finished)
+            if job.date_finished
+            else job.records_warned
+        )
+        for job in jobs
+    }
+
+
 @main.route("/harvest_source/<source_id>", methods=["GET"])
 @valid_id_required
 def view_harvest_source(source_id: str):
@@ -326,9 +368,12 @@ def view_harvest_source(source_id: str):
                 datasets_pagination=datasets_pagination.to_dict(),
             )
         else:
+            warned_counts = _carried_forward_warned_counts(source_id, jobs)
             data = {
                 "source": {"id": source_id},
-                "jobs": jobs,
+                "jobs": [
+                    _JobWithDisplayWarned(job, warned_counts[job.id]) for job in jobs
+                ],
                 "htmx_vars": jobs_htmx_vars,
             }
             logger.info(
@@ -374,8 +419,12 @@ def view_harvest_source(source_id: str):
         source = deps.db.get_harvest_source(source_id)
         summary_data["next_job_scheduled"] = source.date_next_run if source else None
 
+        warned_counts = _carried_forward_warned_counts(source_id, jobs)
+        job_dicts = deps.db._to_dict(jobs[::-1])
+        for job_dict in job_dicts:
+            job_dict["records_warned"] = warned_counts[job_dict["id"]]
         chart_data_values = dynamic_map_list_items_to_dict(
-            deps.db._to_dict(jobs[::-1]),
+            job_dicts,
             [
                 "date_finished",
                 "records_added",
@@ -443,7 +492,7 @@ def view_harvest_source(source_id: str):
             "catalog_base_url": CATALOG_BASE_URL,
             "source": source,
             "summary_data": summary_data,
-            "jobs": jobs,
+            "jobs": [_JobWithDisplayWarned(job, warned_counts[job.id]) for job in jobs],
             "chart_data": chart_data,
             "htmx_vars": jobs_htmx_vars,
             "datasets": datasets,
@@ -468,6 +517,89 @@ def view_harvest_source(source_id: str):
             pagination=pagination.to_dict(),
             datasets_pagination=datasets_pagination.to_dict(),
             data=data,
+        )
+
+
+def _load_json_title(json_string, error_type):
+    try:
+        if json_string is None:
+            return None
+        if error_type == "TransformationException":
+            # can't json load an xml doc
+            return None
+        return json.loads(json_string).get("title", None)
+    except Exception as e:
+        logger.error(f"Error loading json source_raw: {repr(e)}")
+        return None
+
+
+@main.route("/harvest_source/<source_id>/warnings", methods=["GET"])
+@valid_id_required
+def view_harvest_source_warnings(source_id: str):
+    source = deps.db.get_harvest_source(source_id)
+
+    record_error_count = deps.db.get_current_record_issues_by_source(
+        source_id, for_view=True, count=True
+    )
+    htmx_vars = {
+        "target_div": "#error_results_pagination",
+        "endpoint_url": f"/harvest_source/{source_id}/warnings",
+        "page_param": "page",
+    }
+    pagination = Pagination(
+        count=record_error_count,
+        current=request.args.get("page", 1, type=convert_to_int),
+    )
+    record_error_summary = deps.db.get_record_issues_summary_by_source(source_id)
+    record_errors = deps.db.get_current_record_issues_by_source(
+        source_id, page=pagination.db_current, for_view=True
+    )
+    record_errors_dict = [
+        {
+            "error": make_new_record_error_contract(row),
+            "identifier": row[-2],
+            "title": _load_json_title(row[-1], row[3]),
+        }
+        for row in record_errors
+    ]
+
+    if htmx:
+        data = {
+            "source": {"id": source_id},
+            "record_errors": record_errors_dict,
+            "htmx_vars": htmx_vars,
+        }
+        logger.info(
+            "Rendered harvest source warnings partial source_id=%s page=%s "
+            "error_count=%s returned=%s",
+            source_id,
+            pagination.current,
+            pagination.count,
+            len(record_errors_dict),
+        )
+        return render_block(
+            "view_source_warnings.html",
+            "record_errors_table",
+            data=data,
+            pagination=pagination.to_dict(),
+        )
+    else:
+        data = {
+            "source": source,
+            "record_error_summary": record_error_summary,
+            "record_errors": record_errors_dict,
+            "htmx_vars": htmx_vars,
+        }
+        logger.info(
+            "Rendered harvest source warnings page source_id=%s error_count=%s "
+            "returned=%s page=%s",
+            source_id,
+            record_error_count,
+            len(record_errors_dict),
+            pagination.current,
+        )
+        return render_template(
+            "view_source_warnings.html", data=data, pagination=pagination.to_dict()
         )
 
 

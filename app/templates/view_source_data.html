@@ -129,7 +129,13 @@
             <tr>
                 <td>Current errors and warnings</td>
                 <td>
+                    {% if data.summary_data["last_job_errors"] %}
+                    <a href="{{ url_for('main.view_harvest_source_warnings', source_id=data.source.id) }}">
+                        {{data.summary_data["last_job_errors"]}}
+                    </a>
+                    {% else %}
                     {{data.summary_data["last_job_errors"] | else_na }}
+                    {% endif %}
                 </td>
             </tr>
             <tr>

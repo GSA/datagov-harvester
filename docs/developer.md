@@ -347,7 +347,7 @@ Note: we prefer that you deploy to the development environment by pushing to the
 ## Applications
 
 ### datagov-harvest-proxy
-This is an nginx app which owns the public route and proxies traffic to the internal Flask app route. It also splits off validator traffic: `/api/validate`, `/api/v1/validate`, and the validator's docs at `/validator/docs` and `/validator/openapi.json` are proxied to `datagov-harvest-validator` instead of `datagov-harvest` (see `proxy/nginx-common.conf` and `proxy/nginx-maps.conf`). Everything else, including the `/validate/` page, goes to `datagov-harvest`.
+This is an nginx app which owns the public route and proxies traffic to the internal Flask app route. It also splits off validator traffic: `/api/validate`, `/api/v1/validate`, the validator's docs at `/validator/docs` and `/validator/openapi.json`, and its health check at `/validator/health` are proxied to `datagov-harvest-validator` instead of `datagov-harvest` (see `proxy/nginx-common.conf` and `proxy/nginx-maps.conf`). Everything else, including the `/validate/` page, goes to `datagov-harvest`.
 
 ### datagov-harvest
 This is a Flask app which manages the configuration of harvest sources, organizations, and the creation of harvest jobs.
@@ -360,6 +360,8 @@ The public DCAT-US validation API, deployed as its own Cloud Foundry app so vali
 - **The `/validate/` page doesn't call it server-side.** `datagov-harvest` only renders the page (GET only); the browser `fetch()`es `/api/v1/validate` same-origin through the proxy (`app/static/js/view_validators.js`), so the admin app's workers are never involved.
 - **URL fetches** get one 12s budget, with each connect attempt capped at 4s and retried up to 3 times on a fresh connection (`dcatus_validation/fetch.py`). Private and internal addresses are refused unless `ALLOW_PRIVATE_ADDRESSES=true` (local `docker compose` only).
 - Its docs are at `/validator/docs`, linked from the admin app's `/openapi/docs`.
+- **Health check:** `/health` on the internal route (Cloud Foundry's health check) and `/validator/health` through the proxy (uptime monitoring). Every schema validator is built at startup, so an instance with missing schemas fails to start rather than reporting healthy.
+- **Security:** the SSRF protections, resource limits and rules for changing this code are in [validator-security.md](validator-security.md).
 - Has its own `validator_instances`/`validator_memory_quota`/`validator_disk_quota` vars per space, separate from `admin_*`. gunicorn runs 3 workers × 2 threads per instance.
 
 Locally, `docker compose` runs it as the `validator` service, plus a `proxy` service (`nginx-local-proxy.conf`, port 8082) that reproduces the cloud.gov routing and body limits, since the Flask dev server has no nginx in front of it. `/validate/` only works end to end through port 8082.
