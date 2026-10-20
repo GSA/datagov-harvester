@@ -80,6 +80,8 @@ from harvester.utils.general_utils import (
     translate_spatial_to_geojson,
     traverse_waf,
 )
+from harvester.utils.harvest_job_email import render_harvest_job_email_html
+from harvester.utils.reharvest_links import create_reharvest_url
 
 # logging data
 logger = logging.getLogger("harvest_runner")
