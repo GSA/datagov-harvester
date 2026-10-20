@@ -898,6 +898,9 @@ class HarvestSource:
 
             source = self.get_source_orm()
             org_name = source.org.name
+            error_message = None
+            error_field_summary = None
+            sample_datasets = None
 
             if job_status == "error":
                 subject = "Harvest Job Failed"
@@ -962,9 +965,58 @@ class HarvestSource:
                 )
             support_recipient = SMTP_CONFIG.get("recipient")
             user_recipients = self.notification_emails
-            all_recipients = [support_recipient] + user_recipients
+            all_recipients = [
+                recipient
+                for recipient in [support_recipient] + user_recipients
+                if recipient
+            ]
 
-            send_email_to_recipients(all_recipients, subject, body)
+            for recipient in all_recipients:
+                refresh_url = create_reharvest_url(
+                    SMTP_CONFIG["base_url"],
+                    os.getenv("FLASK_APP_SECRET_KEY"),
+                    recipient,
+                    self.id,
+                    self.job_id,
+                )
+                recipient_body = (
+                    f"{body}\n\n"
+                    "Updated your metadata?\n"
+                    "You can request a reharvest without contacting the Data.gov "
+                    "team.\n\n"
+                    "Refresh this source:\n"
+                    f"{refresh_url}\n\n"
+                    "This link opens a confirmation page and remains valid while "
+                    "no newer harvest job exists for this source.\n"
+                    "Please don’t share it outside your agency."
+                )
+                html_body = render_harvest_job_email_html(
+                    title=subject,
+                    introduction=(
+                        "A harvest job failed and did not complete."
+                        if job_status == "error"
+                        else "A harvest job has been successfully completed."
+                    ),
+                    organization_name=org_name,
+                    source_name=self.name,
+                    job_id=self.job_id,
+                    job_url=job_url,
+                    refresh_url=refresh_url,
+                    job_results=job_results if job_status != "error" else None,
+                    error_message=error_message,
+                    error_field_summary=error_field_summary,
+                    sample_datasets=sample_datasets,
+                    catalog_base_url=CATALOG_BASE_URL,
+                )
+                send_email_to_recipients(
+                    [recipient], subject, recipient_body, html_body=html_body
+                )
+                logger.info(
+                    "Reharvest link emailed recipient=%s source_id=%s report_job_id=%s",
+                    recipient,
+                    self.id,
+                    self.job_id,
+                )
 
         except Exception as e:
             logger.error(f"Error preparing or sending notification emails: {e}")
