@@ -10,6 +10,8 @@ from harvester.utils.general_utils import (
     get_datetime,
     send_email_to_recipients,
 )
+from harvester.utils.harvest_job_email import render_harvest_job_email_html
+from harvester.utils.reharvest_links import create_reharvest_url
 
 # use the session scoped interface already made for the harvester
 from .. import db_interface as interface
@@ -28,16 +30,53 @@ class LoadManager:
         """
         Emails recipients of recently failed jobs
         """
-        for job_id, source_name in failed_jobs:
+        for job_id, source_name, source_id in failed_jobs:
             job_url = f"{SMTP_CONFIG['base_url']}/harvest_job/{job_id}"
+            recipient = SMTP_CONFIG.get("recipient")
+            if not recipient:
+                continue
+            refresh_url = create_reharvest_url(
+                SMTP_CONFIG["base_url"],
+                os.getenv("FLASK_APP_SECRET_KEY"),
+                recipient,
+                source_id,
+                job_id,
+            )
+            html_body = render_harvest_job_email_html(
+                title=f"Failed job cleaned up for {source_name}",
+                introduction=(
+                    "An in-progress harvest job stopped unexpectedly and was "
+                    "marked as failed."
+                ),
+                source_name=source_name,
+                job_id=job_id,
+                job_url=job_url,
+                refresh_url=refresh_url,
+                footer_message="This is an automated Data.gov Harvester notice.",
+            )
             send_email_to_recipients(
-                [SMTP_CONFIG.get("recipient")],
+                [recipient],
                 f"Failed job cleaned up for {source_name}",
                 (
                     f"The harvest job ({job_id}) for harvest source {source_name}\n"
                     "was found to have failed.\n\n"
-                    f"You can view the details here: {job_url}\n"
+                    f"You can view the details here: {job_url}\n\n"
+                    "Updated your metadata?\n"
+                    "You can request a reharvest without contacting the Data.gov "
+                    "team.\n\n"
+                    "Refresh this source:\n"
+                    f"{refresh_url}\n\n"
+                    "This link opens a confirmation page and remains valid while "
+                    "no newer harvest job exists for this source.\n"
+                    "Please don’t share it outside your agency."
                 ),
+                html_body=html_body,
+            )
+            logger.info(
+                "Reharvest link emailed recipient=%s source_id=%s report_job_id=%s",
+                recipient,
+                source_id,
+                job_id,
             )
 
     def _handle_failed_job(self, job):
@@ -68,7 +107,7 @@ class LoadManager:
             }
         )
 
-        return job.id, job.source.name
+        return job.id, job.source.name, job.harvest_source_id
 
     def _clean_old_jobs(self):
         """Check for in_progress jobs in the database that aren't running."""
