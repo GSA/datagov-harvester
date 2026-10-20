@@ -6,7 +6,7 @@ from urllib.parse import urljoin
 import pytest
 
 from harvester.harvest import DT_PLACEHOLDER
-from harvester.utils.general_utils import traverse_waf
+from harvester.utils.general_utils import RESOLVED_IDENTIFIER_KEY, traverse_waf
 
 WAF_HTML_EXAMPLES = Path(__file__).parents[2] / "waf-html-examples"
 
@@ -215,8 +215,10 @@ class TestExtract:
         job_data_dcatus3_0_service_no_identifier,
     ):
         """A DataService's identifier is optional per the DCAT-US3.0 schema.
-        A missing identifier gets a synthesized one instead of being
-        dropped as an error."""
+        A missing identifier gets a resolved bookkeeping identifier instead
+        of being dropped as an error, but the record itself (what gets
+        validated/persisted) is left exactly as the provider sent it --
+        see GSA/data.gov#6431."""
         harvest_source = make_harvest_source(
             source_data_dcatus3_0_service_no_identifier,
             job_data_dcatus3_0_service_no_identifier,
@@ -229,7 +231,8 @@ class TestExtract:
         assert len(harvest_source.external_records_by_type["data_service"]) == 1
 
         record = harvest_source.external_records_by_type["data_service"][0]
-        assert record["identifier"].startswith("urn:datagov:dataservice:")
+        assert record[RESOLVED_IDENTIFIER_KEY] == "data-service-without-identifier"
+        assert "identifier" not in record
 
         errors = interface.get_harvest_record_errors_by_job(harvest_source.job_id)
         assert errors == []
@@ -242,8 +245,10 @@ class TestExtract:
         job_data_dcatus3_0_series_no_id,
     ):
         """A DatasetSeries's @id is optional per the DCAT-US3.0 schema. A
-        missing @id gets a synthesized identifier instead of being dropped
-        as an error."""
+        missing @id gets a resolved bookkeeping identifier instead of being
+        dropped as an error, but the record itself (what gets
+        validated/persisted) is left exactly as the provider sent it --
+        see GSA/data.gov#6431."""
         harvest_source = make_harvest_source(
             source_data_dcatus3_0_series_no_id,
             job_data_dcatus3_0_series_no_id,
@@ -256,7 +261,8 @@ class TestExtract:
         assert len(harvest_source.external_records_by_type["data_series"]) == 1
 
         record = harvest_source.external_records_by_type["data_series"][0]
-        assert record["@id"].startswith("urn:datagov:datasetseries:")
+        assert record[RESOLVED_IDENTIFIER_KEY] == "dataset-series-without-an-id"
+        assert "@id" not in record
 
         errors = interface.get_harvest_record_errors_by_job(harvest_source.job_id)
         assert errors == []
