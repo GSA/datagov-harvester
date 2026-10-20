@@ -1130,6 +1130,24 @@ class HarvesterDBInterface:
             for severity, error_type, error_count in query
         ]
 
+    def get_current_issue_dates_by_source(
+        self, harvest_source_id: str, severity: str = None
+    ) -> list:
+        """date_created of every current-state issue for this source.
+
+        A carried-forward issue (one whose record was unchanged on later
+        jobs) keeps the date_created of the job that last actually wrote
+        it, so this lets callers figure out which jobs a still-open issue
+        was already active for, without a job/issue join table (#6440's
+        decoupled-from-jobs tradeoff).
+        """
+        query = self.db.query(HarvestRecordCurrentIssue.date_created).filter(
+            HarvestRecordCurrentIssue.harvest_source_id == harvest_source_id
+        )
+        if severity is not None:
+            query = query.filter(HarvestRecordCurrentIssue.severity == severity)
+        return [row.date_created for row in query]
+
     ## HARVEST RECORD
     def add_harvest_record(self, record_data):
         try:
