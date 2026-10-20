@@ -596,32 +596,6 @@ class HarvesterDBInterface:
             self.db.rollback()
             return None
 
-    def update_harvest_job_if_status(self, job_id, expected_status, updates):
-        """Atomically update a harvest job only if its current status matches
-        `expected_status`.
-
-        Returns the updated job object if the update succeeded (row affected),
-        otherwise returns None.
-        """
-        try:
-            result = (
-                self.db.query(HarvestJob)
-                .filter(HarvestJob.id == job_id, HarvestJob.status == expected_status)
-                .update(updates)
-            )
-
-            if result == 0:
-                self.db.rollback()
-                return None
-
-            self.db.commit()
-            return self.get_harvest_job(job_id)
-
-        except Exception as e:
-            logger.error("Error: %s", e)
-            self.db.rollback()
-            return None
-
     def start_harvest_job_if_unlocked(self, job_id, started_at):
         """Claim a queued job only while its source is unlocked."""
         try:
