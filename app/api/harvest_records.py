@@ -166,6 +166,10 @@ def get_all_harvest_record_errors(record_id: str, **kwargs) -> list:
 def get_harvest_error(error_id: str = None) -> Response:
     try:
         error = deps.db.get_harvest_error(error_id)
-        return jsonify(deps.db._to_dict(error)) if error else JSON_NOT_FOUND()
+        if not error:
+            return JSON_NOT_FOUND()
+        error_dict = deps.db._to_dict(error)
+        error_dict.setdefault("harvest_job_id", None)
+        return jsonify(error_dict)
     except Exception:
         return jsonify({"error": "Please provide a valid record_id"}), 404
