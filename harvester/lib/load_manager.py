@@ -10,7 +10,10 @@ from harvester.utils.general_utils import (
     get_datetime,
     send_email_to_recipients,
 )
-from harvester.utils.harvest_job_email import render_harvest_job_email_html
+from harvester.utils.harvest_job_email import (
+    reharvest_link_guidance,
+    render_harvest_job_email_html,
+)
 from harvester.utils.reharvest_links import create_reharvest_url
 
 # use the session scoped interface already made for the harvester
@@ -35,6 +38,8 @@ class LoadManager:
             recipient = SMTP_CONFIG.get("recipient")
             if not recipient:
                 continue
+            source = interface.get_harvest_source(source_id)
+            notification_frequency = source.notification_frequency if source else None
             refresh_url = create_reharvest_url(
                 SMTP_CONFIG["base_url"],
                 os.getenv("FLASK_APP_SECRET_KEY"),
@@ -53,6 +58,7 @@ class LoadManager:
                 job_url=job_url,
                 refresh_url=refresh_url,
                 footer_message="This is an automated Data.gov Harvester notice.",
+                notification_frequency=notification_frequency,
             )
             send_email_to_recipients(
                 [recipient],
@@ -66,8 +72,8 @@ class LoadManager:
                     "team.\n\n"
                     "Refresh this source:\n"
                     f"{refresh_url}\n\n"
-                    "This link opens a confirmation page and remains valid while "
-                    "no newer harvest job exists for this source.\n"
+                    "This link opens a confirmation page. "
+                    f"{reharvest_link_guidance(notification_frequency)}\n"
                     "Please don’t share it outside your agency."
                 ),
                 html_body=html_body,
