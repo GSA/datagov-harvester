@@ -165,6 +165,13 @@ def _validate_records(
     return list(zip([""] * len(errors), errors)), incomplete
 
 
+def load_schema_validators() -> None:
+    """Build and cache every schema's validator now, so a missing or broken
+    schema fails at startup rather than on the first request that needs it."""
+    for schema_name in SCHEMA_NAMES:
+        _validator_for_schema(schema_name)
+
+
 def validate_records(dcatus_catalog: dict, schema_name: str) -> list:
     """
     validates records from the input dcatus catalog based on the provided schema_name

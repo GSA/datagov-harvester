@@ -534,8 +534,10 @@ class TestRefusedUrlIsExplained:
 
 
 class TestService:
-    def test_health(self, validator_client):
-        res = validator_client.get("/health")
+    # /health for Cloud Foundry, /validator/health through the proxy.
+    @pytest.mark.parametrize("path", ["/health", "/validator/health"])
+    def test_health(self, validator_client, path):
+        res = validator_client.get(path)
 
         assert res.status_code == 200
         assert res.get_json() == {"status": "ok"}

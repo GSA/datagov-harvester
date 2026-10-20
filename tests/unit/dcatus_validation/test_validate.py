@@ -9,7 +9,9 @@ from dcatus_validation.errors import (
 from dcatus_validation.limits import MAX_DOCUMENT_NESTING_DEPTH
 from dcatus_validation.messages import build_dcatus3_validator
 from dcatus_validation.validate import (
+    SCHEMA_NAMES,
     _validator_for_schema,
+    load_schema_validators,
     validate_records,
     validate_records_limited,
 )
@@ -26,6 +28,25 @@ class TestValidateRecords:
         first = _validator_for_schema(schema_name)
 
         assert _validator_for_schema(schema_name) is first
+
+    def test_load_schema_validators_caches_every_schema(self):
+        _validator_for_schema.cache_clear()
+
+        load_schema_validators()
+
+        assert _validator_for_schema.cache_info().currsize == len(SCHEMA_NAMES)
+
+    def test_load_schema_validators_fails_on_a_missing_schema(
+        self, monkeypatch, tmp_path
+    ):
+        _validator_for_schema.cache_clear()
+        monkeypatch.setattr("dcatus_validation.validate.DCATUS1_1_DIR", tmp_path)
+
+        try:
+            with pytest.raises(FileNotFoundError):
+                load_schema_validators()
+        finally:
+            _validator_for_schema.cache_clear()
 
     def test_dcatus1_1_errors_are_keyed_by_identifier(
         self, dcatus_bad_license_uri_json
