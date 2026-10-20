@@ -8,7 +8,10 @@
     {% if source %}<p><strong>Source:</strong> {{ source.name }}</p>{% endif %}
     {% if message %}
     <div class="usa-alert usa-alert--info" role="status">
-        <div class="usa-alert__body"><p class="usa-alert__text">{{ message }}</p></div>
+        <div class="usa-alert__body">
+            <p class="usa-alert__text">{{ message }}</p>
+            {% if explanation %}<p class="usa-alert__text">{{ explanation }}</p>{% endif %}
+        </div>
     </div>
     {% endif %}
     {% if new_job_id %}

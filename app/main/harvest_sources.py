@@ -39,7 +39,14 @@ def refresh_harvest_source():
     payload = read_reharvest_token(current_app.config["SECRET_KEY"], token)
     if payload is None:
         return (
-            render_template("refresh_harvest_source.html", message="Invalid link."),
+            render_template(
+                "refresh_harvest_source.html",
+                message="Invalid link.",
+                explanation=(
+                    "This link could not be verified. Open the complete link from "
+                    "your notification email, or contact the Data.gov team for help."
+                ),
+            ),
             400,
         )
 
@@ -58,35 +65,102 @@ def refresh_harvest_source():
             outcome,
         )
 
-    source = deps.db.get_harvest_source(source_id)
-    latest_job = deps.db.get_latest_harvest_job_for_source(source_id)
-    if (
-        source is None
-        or latest_job is None
-        or latest_job.id != report_job_id
-        or latest_job.status not in ("complete", "error")
-        or latest_job.date_finished is None
-    ):
-        if request.method == "POST":
-            audit("stale")
+    def locked_issue():
         return (
-            render_template(
-                "refresh_harvest_source.html", message="This link is no longer valid."
-            ),
-            410,
+            "Harvesting is locked for this source.",
+            "Contact the Data.gov team to have it unlocked. You can retry this "
+            "link after it is unlocked if no newer harvest job exists.",
+            409,
+            "locked",
         )
 
-    if source.is_locked:
+    def link_issue():
+        """Describe the current reason this signed link cannot request a job."""
+        source = deps.db.get_harvest_source(source_id)
+        if source is None:
+            return None, (
+                "This harvest source has been removed.",
+                "Contact the Data.gov team if this source should be restored "
+                "or harvested again.",
+                410,
+                "stale",
+            )
+
+        latest_job = deps.db.get_latest_harvest_job_for_source(source_id)
+        if latest_job is None:
+            return source, (
+                "We could not find the harvest job associated with this link.",
+                "Contact the Data.gov team for help requesting another harvest.",
+                410,
+                "stale",
+            )
+        if latest_job.id != report_job_id:
+            linked_job = deps.db.get_harvest_job(report_job_id)
+            if linked_job is None or linked_job.harvest_source_id != source_id:
+                return source, (
+                    "We could not find the harvest job associated with this link.",
+                    "Contact the Data.gov team for help requesting another harvest.",
+                    410,
+                    "stale",
+                )
+            if latest_job.status in ("complete", "error") and latest_job.date_finished:
+                explanation = (
+                    "A newer harvest job has finished. If you received a newer "
+                    "notification email, use the link in that email; otherwise, "
+                    "contact the Data.gov team."
+                )
+            else:
+                explanation = (
+                    "A newer harvest job is queued or running. Wait for it to "
+                    "finish. If you receive a newer notification email, use the "
+                    "link in that email; otherwise, contact the Data.gov team."
+                )
+            if source.notification_frequency != "always":
+                explanation += (
+                    " This source's Notification frequency is not set to Always, "
+                    "so you might not receive a new link for each harvest job. "
+                    "Ask the Data.gov team to set it to Always so you receive "
+                    "notifications for every finished harvest job."
+                )
+            return source, (
+                "This link is from an earlier harvest notification.",
+                explanation,
+                410,
+                "stale",
+            )
+        if (
+            latest_job.status not in ("complete", "error")
+            or latest_job.date_finished is None
+        ):
+            return source, (
+                "The harvest job associated with this link is not recorded "
+                "as finished.",
+                "Wait for it to finish. If it is already complete, contact "
+                "the Data.gov team.",
+                410,
+                "stale",
+            )
+        if source.is_locked:
+            return source, locked_issue()
+        return source, None
+
+    def unavailable_response(source, issue):
+        message, explanation, status, outcome = issue
         if request.method == "POST":
-            audit("locked")
+            audit(outcome)
         return (
             render_template(
                 "refresh_harvest_source.html",
                 source=source,
-                message="Harvesting is locked for this source.",
+                message=message,
+                explanation=explanation,
             ),
-            409,
+            status,
         )
+
+    source, issue = link_issue()
+    if issue is not None:
+        return unavailable_response(source, issue)
 
     form = ReharvestForm()
     if request.method == "POST":
@@ -105,23 +179,26 @@ def refresh_harvest_source():
                 expected_latest_job_id=report_job_id,
             )
         except HarvestSourceLockedError:
-            audit("locked")
-            return (
-                render_template(
-                    "refresh_harvest_source.html",
-                    message="Harvesting is locked for this source.",
-                ),
-                409,
-            )
+            return unavailable_response(source, locked_issue())
         except StaleReharvestLinkError:
-            audit("stale")
-            return (
-                render_template(
-                    "refresh_harvest_source.html",
-                    message="This link is no longer valid.",
+            source, issue = link_issue()
+            return unavailable_response(
+                source,
+                issue
+                or (
+                    "The harvest source changed while your request was "
+                    "being processed.",
+                    "Open the link again to check its current status.",
+                    410,
+                    "stale",
                 ),
-                410,
             )
+        except ValueError:
+            # The source may have been deleted after the initial page check.
+            source, issue = link_issue()
+            if source is None:
+                return unavailable_response(source, issue)
+            raise
         if active_job:
             audit("already_active", active_job.id)
             return (

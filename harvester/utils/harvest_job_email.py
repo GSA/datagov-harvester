@@ -24,6 +24,29 @@ _SUMMARY_FIELDS = (
     ("Records Validated", "records_validated"),
 )
 
+_NOTIFICATION_FREQUENCY_LABELS = {
+    "always": "Always",
+    "on_error": "On error",
+    "on_error_or_update": "On error or update",
+}
+
+
+def reharvest_link_guidance(notification_frequency):
+    """Keep the plain-text and HTML link guidance in sync."""
+    guidance = (
+        "Use the link in your most recent notification for this source. A newer "
+        "harvest job expires links in earlier notification emails."
+    )
+    label = _NOTIFICATION_FREQUENCY_LABELS.get(notification_frequency)
+    if label:
+        guidance += f" Notification frequency: {label}."
+    if notification_frequency != "always":
+        guidance += (
+            " Ask the Data.gov team to set it to Always if you need a link "
+            "after every finished job."
+        )
+    return guidance
+
 
 def render_harvest_job_email_html(
     *,
@@ -40,6 +63,7 @@ def render_harvest_job_email_html(
     sample_datasets=None,
     catalog_base_url=None,
     footer_message=_SUBSCRIPTION_FOOTER,
+    notification_frequency=None,
 ):
     """Render all email content; Jinja escapes names, errors, and URLs."""
     summary = (
@@ -72,4 +96,5 @@ def render_harvest_job_email_html(
         error_field_summary=error_field_summary,
         sample_datasets=datasets,
         footer_message=footer_message,
+        link_guidance=reharvest_link_guidance(notification_frequency),
     )
