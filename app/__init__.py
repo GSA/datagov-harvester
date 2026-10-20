@@ -298,6 +298,10 @@ def create_app():
         if path.startswith(("/login", "/callback", "/logout")) or path == "/login/oidc":
             return set_private_no_store(response)
 
+        if path == "/harvest_source/refresh":
+            response.headers["Referrer-Policy"] = "no-referrer"
+            return set_private_no_store(response)
+
         if request.endpoint == "static":
             return set_public_cache(response, 3600)
 

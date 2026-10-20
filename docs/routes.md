@@ -61,6 +61,10 @@ and are omitted from the public Swagger docs at `/openapi/docs`.
   Login required (JSON API).
 - `/harvest_source/<id>`: Details for a single harvest source. GET only, no
   login required
+- `/harvest_source/refresh`: Signed link from a harvest notification email.
+  GET shows a confirmation form; POST requests a normal harvest if the linked
+  job is still the source's latest job and the source is unlocked. No login
+  required; the signed token and form CSRF token authorize the request.
 - `/api/harvest_sources/`: List of harvest sources, GET only, no login required
 - `/harvest_source/edit/<id>`: HTML form to edit an existing source. GET renders
   the `edit_data` template, POST handles the form submission. Login required.
