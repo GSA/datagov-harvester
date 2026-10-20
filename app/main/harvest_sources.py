@@ -1,3 +1,5 @@
+import json
+
 from flask import flash, redirect, render_template, request, url_for
 
 from app import deps, htmx
@@ -13,7 +15,7 @@ from app.deps import (
 )
 from app.forms import HarvestSourceForm, HarvestTriggerForm
 from app.paginate import Pagination
-from app.util import make_new_source_contract
+from app.util import make_new_record_error_contract, make_new_source_contract
 from harvester.lib.source_delete import enqueue_harvest_source_delete
 from harvester.utils.general_utils import (
     convert_to_int,
@@ -274,6 +276,89 @@ def view_harvest_source(source_id: str):
             pagination=pagination.to_dict(),
             datasets_pagination=datasets_pagination.to_dict(),
             data=data,
+        )
+
+
+def _load_json_title(json_string, error_type):
+    try:
+        if json_string is None:
+            return None
+        if error_type == "TransformationException":
+            # can't json load an xml doc
+            return None
+        return json.loads(json_string).get("title", None)
+    except Exception as e:
+        logger.error(f"Error loading json source_raw: {repr(e)}")
+        return None
+
+
+@main.route("/harvest_source/<source_id>/warnings", methods=["GET"])
+@valid_id_required
+def view_harvest_source_warnings(source_id: str):
+    source = deps.db.get_harvest_source(source_id)
+
+    record_error_count = deps.db.get_current_record_issues_by_source(
+        source_id, for_view=True, count=True
+    )
+    htmx_vars = {
+        "target_div": "#error_results_pagination",
+        "endpoint_url": f"/harvest_source/{source_id}/warnings",
+        "page_param": "page",
+    }
+    pagination = Pagination(
+        count=record_error_count,
+        current=request.args.get("page", 1, type=convert_to_int),
+    )
+    record_error_summary = deps.db.get_record_issues_summary_by_source(source_id)
+    record_errors = deps.db.get_current_record_issues_by_source(
+        source_id, page=pagination.db_current, for_view=True
+    )
+    record_errors_dict = [
+        {
+            "error": make_new_record_error_contract(row),
+            "identifier": row[-2],
+            "title": _load_json_title(row[-1], row[3]),
+        }
+        for row in record_errors
+    ]
+
+    if htmx:
+        data = {
+            "source": {"id": source_id},
+            "record_errors": record_errors_dict,
+            "htmx_vars": htmx_vars,
+        }
+        logger.info(
+            "Rendered harvest source warnings partial source_id=%s page=%s "
+            "error_count=%s returned=%s",
+            source_id,
+            pagination.current,
+            pagination.count,
+            len(record_errors_dict),
+        )
+        return render_block(
+            "view_source_warnings.html",
+            "record_errors_table",
+            data=data,
+            pagination=pagination.to_dict(),
+        )
+    else:
+        data = {
+            "source": source,
+            "record_error_summary": record_error_summary,
+            "record_errors": record_errors_dict,
+            "htmx_vars": htmx_vars,
+        }
+        logger.info(
+            "Rendered harvest source warnings page source_id=%s error_count=%s "
+            "returned=%s page=%s",
+            source_id,
+            record_error_count,
+            len(record_errors_dict),
+            pagination.current,
+        )
+        return render_template(
+            "view_source_warnings.html", data=data, pagination=pagination.to_dict()
         )
 
 

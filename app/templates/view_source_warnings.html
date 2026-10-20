@@ -1,0 +1,110 @@
+{% extends 'base.html' %}
+
+{% block title %}
+<title>Harvest Source Warnings</title>
+{% endblock %}
+
+{% block content %}
+<div class="wrapper source-warnings">
+    {% if not data.source %}
+    <h1>Harvest source not found</h1>
+    <div class="usa-alert usa-alert--error" role="alert">
+        <div class="usa-alert__body">
+            <h2 class="usa-alert__heading">We couldn't find that harvest source</h2>
+            <p class="usa-alert__text">
+                The harvest source you navigated to doesn't exist.
+                <a href="{{ url_for('main.harvest_source_list') }}">Return to the harvest source list</a>.
+            </p>
+        </div>
+    </div>
+    {% else %}
+    <h1 class="word-break-all">Warnings for harvest source {{ data.source.name }}</h1>
+    <p>
+        <a href="{{ url_for('main.view_harvest_source', source_id=data.source.id) }}">
+            Back to harvest source
+        </a>
+    </p>
+
+    <div class="section">
+        {% if not data.record_errors %}
+        <div class="usa-alert usa-alert--info">
+            <div class="usa-alert__body">
+                <p class="usa-alert__text">No record errors or warnings found.</p>
+            </div>
+        </div>
+        {% else %}
+        <table class="usa-table usa-table--striped" id="harvest-source-error-summary">
+          <caption>Record issue type summary</caption>
+          <thead>
+            <tr>
+              <td scope="col">Severity</td>
+              <td scope="col">Error type</td>
+              <td scope="col">Number of issues</td>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in data.record_error_summary %}
+            <tr>
+              <td>{{ row.severity }}</td>
+              <td>{{ row.type }}</td>
+              <td>{{ row.count }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+
+        <div class="usa-table-container--scrollable" tabindex="0">
+            {% block record_errors_table %}
+            <div id="error_results_pagination">
+                <div class="error-list">
+                    {% for record_error in data.record_errors %}
+                    <div class="error-block">
+                        <h3>{{ record_error.error.id }}</h3>
+                        <p class="word-break-all"><strong>Identifier:</strong> {{ record_error.identifier if record_error.identifier else "N/A"
+                            }}</p>
+                        <p><strong>Title:</strong> {{ record_error.title if record_error.title else "N/A" }}</p>
+                        <p><strong>Harvest Record ID:</strong>
+                            {% if record_error.error.harvest_record_id %}
+                            <a
+                                href="{{ url_for('api_v1.get_harvest_record', record_id=record_error.error.harvest_record_id) }}">
+                                {{ record_error.error.harvest_record_id }}
+                            </a>
+                            {% else %}
+                            N/A
+                            {% endif %}
+                        </p>
+                        {% if record_error.error.type in ["ValidationError", "ValidationException"] %}
+                            <p>
+                                <strong>Error Message:</strong>
+                                <ul>
+                                    {% for msg in record_error.error.message %}
+                                        <li>{{msg}}</li>
+                                    {% endfor %}
+                                </ul>
+                            </p>
+                        {% else %}
+                            <p><strong>Error Message:</strong> {{ record_error.error.message }}</p>
+                        {% endif %}
+                        <p><strong>Severity:</strong> {{ record_error.error.severity | else_na }}</p>
+                        <p><strong>Type:</strong> {{ record_error.error.type }}</p>
+                        <p class="utc-date" data-utc-date="{{record_error.error.date_created | utc_isoformat }}">
+                            <strong>Date Created:</strong> {{ record_error.error.date_created | else_na }}
+                        </p>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% if pagination.count > data.record_errors|count %}
+                {% include '/components/pagination/pagination.html' %}
+                {% endif %}
+            </div>
+            {% endblock %}
+            <div class="usa-sr-only usa-table__announcement-region" aria-live="polite"></div>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+{% endblock %}
