@@ -8,7 +8,7 @@ import json
 
 import pytest
 
-from harvester.utils.schema_paths import DCATUS3_COMPLETE_EXAMPLE
+from dcatus_validation.schema_paths import DCATUS3_COMPLETE_EXAMPLE
 from search.transforms import (
     INDEX_FIELDS,
     DcatIndexTransformer,

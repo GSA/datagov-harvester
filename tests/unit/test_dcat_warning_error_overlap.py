@@ -10,16 +10,16 @@ import copy
 
 import pytest
 
-from harvester.utils.dcat_warnings import detect_dcat_warnings
-from harvester.utils.general_utils import (
+from dcatus_validation.messages import (
     assemble_validation_errors,
     build_dcatus3_validator,
     open_json,
 )
-from harvester.utils.schema_paths import (
+from dcatus_validation.schema_paths import (
     DCATUS3_COMPLETE_EXAMPLE,
     DCATUS3_DEFINITIONS_DIR,
 )
+from harvester.utils.dcat_warnings import detect_dcat_warnings
 
 DATASET_REF = "https://resources.data.gov/dcat-us/3.0.0/definitions/dataset"
 

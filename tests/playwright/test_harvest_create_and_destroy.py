@@ -1,4 +1,5 @@
 import os
+import re
 import time
 from uuid import uuid4
 
@@ -33,7 +34,7 @@ def apage_with_org(apage):
     apage.get_by_role("link", name="Organizations").click()
     apage.get_by_role("link", name=org_name).click()
     apage.once("dialog", lambda dialog: dialog.accept())
-    apage.get_by_role("button", name="Delete", exact=True).click()
+    apage.get_by_role("button", name=re.compile(r"^Delete\b")).click()
 
 
 class TestHarvestCreateAndDestroy:
@@ -58,7 +59,7 @@ class TestHarvestCreateAndDestroy:
         apage.get_by_role("link", name="Organizations").click()
         apage.get_by_role("link", name=org_name).click()
         apage.once("dialog", lambda dialog: dialog.accept())
-        apage.get_by_role("button", name="Delete", exact=True).click()
+        apage.get_by_role("button", name=re.compile(r"^Delete\b")).click()
         expect(apage.locator(".usa-alert--warning")).to_contain_text(
             ["Deleted organization with ID:"]
         )
@@ -94,7 +95,7 @@ class TestHarvestCreateAndDestroy:
 
         apage_with_org.get_by_role("link", name=source_name).click()
         apage_with_org.once("dialog", lambda dialog: dialog.accept())
-        apage_with_org.get_by_role("button", name="Delete", exact=True).click()
+        apage_with_org.get_by_role("button", name=re.compile(r"^Delete\b")).click()
         expect(apage_with_org.locator(".usa-alert--warning")).to_contain_text(
             ["This harvest source may take some time to delete."]
         )
