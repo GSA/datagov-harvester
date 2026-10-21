@@ -5,6 +5,8 @@ from urllib.parse import quote
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
+from harvester.utils.notification_frequency import notification_frequency_notice
+
 _TEMPLATE_DIR = Path(__file__).resolve().parents[1] / "templates"
 _SUBSCRIPTION_FOOTER = (
     "You received this email because you subscribed to harvester updates."
@@ -25,6 +27,14 @@ _SUMMARY_FIELDS = (
 )
 
 
+def reharvest_link_guidance():
+    """Describe when a notification's refresh link expires."""
+    return (
+        "Use the link in your most recent notification for this source. A newer "
+        "harvest job expires links in earlier notification emails."
+    )
+
+
 def render_harvest_job_email_html(
     *,
     title,
@@ -40,6 +50,7 @@ def render_harvest_job_email_html(
     sample_datasets=None,
     catalog_base_url=None,
     footer_message=_SUBSCRIPTION_FOOTER,
+    notification_frequency=None,
 ):
     """Render all email content; Jinja escapes names, errors, and URLs."""
     summary = (
@@ -72,4 +83,6 @@ def render_harvest_job_email_html(
         error_field_summary=error_field_summary,
         sample_datasets=datasets,
         footer_message=footer_message,
+        link_guidance=reharvest_link_guidance(),
+        frequency_notice=notification_frequency_notice(notification_frequency),
     )
