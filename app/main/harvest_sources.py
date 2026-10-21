@@ -44,7 +44,7 @@ def refresh_harvest_source():
         )
 
     source_id = payload["source_id"]
-    report_job_id = payload["report_job_id"]
+    report_job_id = payload["job_id"]
     recipient = payload["email"]
 
     def audit(outcome, new_job_id=None):

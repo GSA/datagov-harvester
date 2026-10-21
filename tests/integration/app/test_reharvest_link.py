@@ -77,7 +77,7 @@ def test_each_notification_recipient_gets_own_link(
         assert payload == {
             "email": recipient,
             "source_id": source_data_dcatus["id"],
-            "report_job_id": job.id,
+            "job_id": job.id,
         }
 
 
@@ -107,7 +107,7 @@ def test_failed_job_cleanup_email_also_has_a_link(app, monkeypatch):
     assert read_reharvest_token(app.config["SECRET_KEY"], token) == {
         "email": "support@gsa.gov",
         "source_id": "source-1",
-        "report_job_id": "job-1",
+        "job_id": "job-1",
     }
 
 
