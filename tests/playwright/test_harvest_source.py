@@ -61,7 +61,7 @@ class TestHarvestSourceUnauthed:
         # Test static labels and values
         expect(summary_table).to_contain_text("Records")
         expect(summary_table).to_contain_text("2")
-        expect(summary_table).to_contain_text("Current errors and warnings")
+        expect(summary_table).to_contain_text("Outstanding errors and warnings")
         expect(summary_table).to_contain_text("N/A")
         expect(summary_table).to_contain_text("Last job finished")
         expect(summary_table).to_contain_text("Next job scheduled")
