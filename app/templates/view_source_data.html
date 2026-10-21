@@ -127,7 +127,7 @@
                 <td>{{data.summary_data["records_count"]}}</td>
             </tr>
             <tr>
-                <td>Current errors and warnings</td>
+                <td>Outstanding errors and warnings</td>
                 <td>
                     {% if data.summary_data["last_job_errors"] %}
                     <a href="{{ url_for('main.view_harvest_source_warnings', source_id=data.source.id) }}">
@@ -161,6 +161,11 @@
             </div>
         </div>
         {% else %}
+        <p class="text-base-dark">
+            "New Warnings" below is only what each job detected at the time it ran.
+            For everything still open right now, see
+            <a href="{{ url_for('main.view_harvest_source_warnings', source_id=data.source.id) }}">Outstanding Warnings</a>.
+        </p>
         <div class="harvest-job-chart">
             <canvas id="datagov-line-chart"></canvas>
         </div>

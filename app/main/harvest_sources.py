@@ -222,7 +222,7 @@ def view_harvest_source(source_id: str):
                     "backgroundColor": "#d54343",
                 },
                 {
-                    "label": "Warned",
+                    "label": "New Warnings",
                     "data": chart_data_values["records_warned"],
                     "borderColor": "#7d5f00",
                     "backgroundColor": "#b38b00",

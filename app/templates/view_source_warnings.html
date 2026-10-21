@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 
 {% block title %}
-<title>Harvest Source Warnings</title>
+<title>Outstanding Warnings</title>
 {% endblock %}
 
 {% block content %}
@@ -18,7 +18,7 @@
         </div>
     </div>
     {% else %}
-    <h1 class="word-break-all">Warnings for harvest source {{ data.source.name }}</h1>
+    <h1 class="word-break-all">Outstanding warnings and errors for harvest source {{ data.source.name }}</h1>
     <p>
         <a href="{{ url_for('main.view_harvest_source', source_id=data.source.id) }}">
             Back to harvest source
