@@ -77,10 +77,26 @@ def test_each_notification_recipient_gets_own_link(
                 in version
             )
             if index < 3:
-                assert "Notification frequency: Always." in version
+                assert "Notification frequency:" not in version
             else:
                 assert "Notification frequency: On error." in version
                 assert "Ask the Data.gov team to set it to Always" in version
+        line = BeautifulSoup(html_body, "html.parser").select_one(
+            ".notification-frequency-line"
+        )
+        if index < 3:
+            assert line is None
+        else:
+            assert line is not None
+            assert [tag.get_text() for tag in line.find_all("strong")] == [
+                "On error",
+                "Always",
+            ]
+            assert "\n\nNotification frequency: On error." in body
+            assert line.get_text() == (
+                "Notification frequency: On error. Ask the Data.gov team to set "
+                "it to Always to receive a new link after every finished harvest job."
+            )
         url = next(
             line
             for line in body.splitlines()
@@ -120,7 +136,13 @@ def test_failed_job_cleanup_email_also_has_a_link(
             "A newer harvest job expires links in earlier notification emails."
             in version
         )
-        assert "Notification frequency: Always." in version
+        assert "Notification frequency:" not in version
+    assert (
+        BeautifulSoup(html_body, "html.parser").select_one(
+            ".notification-frequency-line"
+        )
+        is None
+    )
     url = next(
         line
         for line in body.splitlines()
@@ -132,6 +154,37 @@ def test_failed_job_cleanup_email_also_has_a_link(
         "source_id": source_data_dcatus["id"],
         "job_id": "job-1",
     }
+
+    interface_no_jobs.update_harvest_source(
+        source_data_dcatus["id"], {"notification_frequency": "on_error_or_update"}
+    )
+    with (
+        patch(
+            "harvester.lib.load_manager.SMTP_CONFIG",
+            {
+                "base_url": "https://harvest.data.gov",
+                "recipient": "support@gsa.gov",
+            },
+        ),
+        patch("harvester.lib.load_manager.send_email_to_recipients") as send_email,
+    ):
+        LoadManager._email_recipients_of_failed_jobs(
+            None, [("job-1", "Example source", source_data_dcatus["id"])]
+        )
+    body = send_email.call_args.args[2]
+    line = BeautifulSoup(
+        send_email.call_args.kwargs["html_body"], "html.parser"
+    ).select_one(".notification-frequency-line")
+    assert line is not None
+    assert line.get_text() == (
+        "Notification frequency: On error or update. Ask the Data.gov team "
+        "to set it to Always to receive a new link after every finished harvest job."
+    )
+    assert "\n\n" + line.get_text() in body
+    assert [tag.get_text() for tag in line.find_all("strong")] == [
+        "On error or update",
+        "Always",
+    ]
 
 
 def test_refresh_link_requires_confirmation_and_latest_job(
@@ -179,7 +232,13 @@ def test_refresh_link_requires_confirmation_and_latest_job(
     assert "This link is from an earlier harvest notification." in stale_get.text
     assert "A newer harvest job is queued or running." in stale_get.text
     assert "Wait for it to finish" in stale_get.text
-    assert "Notification frequency is not set to Always" not in stale_get.text
+    assert "Notification frequency:" not in stale_get.text
+    assert (
+        BeautifulSoup(stale_get.text, "html.parser").select_one(
+            ".notification-frequency-line"
+        )
+        is None
+    )
     assert "Audit reharvest recipient=person@gsa.gov" in caplog.text
     assert f"report_job_id={report_job.id}" in caplog.text
     assert f"new_job_id={new_job.id}" in caplog.text
@@ -236,8 +295,19 @@ def test_newer_job_suggests_always_when_notifications_are_conditional(
         response = client.get(f"/harvest_source/refresh?token={token}")
         assert response.status_code == 410
         assert "This link is from an earlier harvest notification." in response.text
-        assert "Notification frequency is not set to Always" in response.text
-        assert "Ask the Data.gov team to set it to Always" in response.text
+        soup = BeautifulSoup(response.text, "html.parser")
+        line = soup.select_one(".notification-frequency-line")
+        assert line is not None
+        assert soup.select_one(".usa-alert--warning") is None
+        label = "On error" if frequency == "on_error" else "On error or update"
+        assert line.get_text() == (
+            f"Notification frequency: {label}. Ask the Data.gov team to set "
+            "it to Always to receive a new link after every finished harvest job."
+        )
+        assert [tag.get_text() for tag in line.find_all("strong")] == [
+            label,
+            "Always",
+        ]
 
     interface_no_jobs.update_harvest_job(
         new_job.id, {"status": "complete", "date_finished": datetime.now()}
@@ -250,7 +320,13 @@ def test_newer_job_suggests_always_when_notifications_are_conditional(
     assert "This link is from an earlier harvest notification." in response.text
     assert "A newer harvest job has finished." in response.text
     assert "If you received a newer notification email" in response.text
-    assert "Notification frequency is not set to Always" not in response.text
+    assert "Notification frequency:" not in response.text
+    assert (
+        BeautifulSoup(response.text, "html.parser").select_one(
+            ".notification-frequency-line"
+        )
+        is None
+    )
 
 
 def test_refresh_link_rejects_tampering_and_locked_source(

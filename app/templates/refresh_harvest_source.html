@@ -11,6 +11,9 @@
         <div class="usa-alert__body">
             <p class="usa-alert__text">{{ message }}</p>
             {% if explanation %}<p class="usa-alert__text">{{ explanation }}</p>{% endif %}
+            {% if frequency_notice %}
+            <p class="usa-alert__text margin-top-2 notification-frequency-line">Notification frequency: <strong>{{ frequency_notice.value }}</strong>. {{ frequency_notice.before_always }}<strong>Always</strong>{{ frequency_notice.after_always }}</p>
+            {% endif %}
         </div>
     </div>
     {% endif %}

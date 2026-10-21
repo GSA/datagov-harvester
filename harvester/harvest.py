@@ -84,6 +84,7 @@ from harvester.utils.harvest_job_email import (
     reharvest_link_guidance,
     render_harvest_job_email_html,
 )
+from harvester.utils.notification_frequency import notification_frequency_notice
 from harvester.utils.reharvest_links import create_reharvest_url
 
 # logging data
@@ -984,6 +985,9 @@ class HarvestSource:
                     self.id,
                     self.job_id,
                 )
+                frequency_notice = notification_frequency_notice(
+                    source.notification_frequency
+                )
                 recipient_body = (
                     f"{body}\n\n"
                     "Updated your metadata?\n"
@@ -992,9 +996,11 @@ class HarvestSource:
                     "Refresh this source:\n"
                     f"{refresh_url}\n\n"
                     "This link opens a confirmation page. "
-                    f"{reharvest_link_guidance(source.notification_frequency)}\n"
+                    f"{reharvest_link_guidance()}\n"
                     "Please don’t share it outside your agency."
                 )
+                if frequency_notice:
+                    recipient_body += f"\n\n{frequency_notice.text}"
                 html_body = render_harvest_job_email_html(
                     title=subject,
                     introduction=(

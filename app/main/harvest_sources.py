@@ -21,6 +21,7 @@ from harvester.utils.general_utils import (
     dynamic_map_list_items_to_dict,
     get_datetime,
 )
+from harvester.utils.notification_frequency import notification_frequency_notice
 from harvester.utils.reharvest_links import read_reharvest_token
 
 from . import main
@@ -69,7 +70,7 @@ def refresh_harvest_source():
         return (
             "Harvesting is locked for this source.",
             "Contact the Data.gov team to have it unlocked. You can retry this "
-            "link after it is unlocked if no newer harvest job exists.",
+            "link after it is unlocked.",
             409,
             "locked",
         )
@@ -115,13 +116,6 @@ def refresh_harvest_source():
                     "finish. If you receive a newer notification email, use the "
                     "link in that email; otherwise, contact the Data.gov team."
                 )
-            if source.notification_frequency != "always":
-                explanation += (
-                    " This source's Notification frequency is not set to Always, "
-                    "so you might not receive a new link for each harvest job. "
-                    "Ask the Data.gov team to set it to Always so you receive "
-                    "notifications for every finished harvest job."
-                )
             return source, (
                 "This link is from an earlier harvest notification.",
                 explanation,
@@ -148,12 +142,19 @@ def refresh_harvest_source():
         message, explanation, status, outcome = issue
         if request.method == "POST":
             audit(outcome)
+        frequency_notice = (
+            notification_frequency_notice(source.notification_frequency)
+            if source is not None
+            and message == "This link is from an earlier harvest notification."
+            else None
+        )
         return (
             render_template(
                 "refresh_harvest_source.html",
                 source=source,
                 message=message,
                 explanation=explanation,
+                frequency_notice=frequency_notice,
             ),
             status,
         )

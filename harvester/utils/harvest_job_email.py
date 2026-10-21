@@ -5,6 +5,8 @@ from urllib.parse import quote
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
+from harvester.utils.notification_frequency import notification_frequency_notice
+
 _TEMPLATE_DIR = Path(__file__).resolve().parents[1] / "templates"
 _SUBSCRIPTION_FOOTER = (
     "You received this email because you subscribed to harvester updates."
@@ -24,28 +26,13 @@ _SUMMARY_FIELDS = (
     ("Records Validated", "records_validated"),
 )
 
-_NOTIFICATION_FREQUENCY_LABELS = {
-    "always": "Always",
-    "on_error": "On error",
-    "on_error_or_update": "On error or update",
-}
 
-
-def reharvest_link_guidance(notification_frequency):
-    """Keep the plain-text and HTML link guidance in sync."""
-    guidance = (
+def reharvest_link_guidance():
+    """Describe when a notification's refresh link expires."""
+    return (
         "Use the link in your most recent notification for this source. A newer "
         "harvest job expires links in earlier notification emails."
     )
-    label = _NOTIFICATION_FREQUENCY_LABELS.get(notification_frequency)
-    if label:
-        guidance += f" Notification frequency: {label}."
-    if notification_frequency != "always":
-        guidance += (
-            " Ask the Data.gov team to set it to Always if you need a link "
-            "after every finished job."
-        )
-    return guidance
 
 
 def render_harvest_job_email_html(
@@ -96,5 +83,6 @@ def render_harvest_job_email_html(
         error_field_summary=error_field_summary,
         sample_datasets=datasets,
         footer_message=footer_message,
-        link_guidance=reharvest_link_guidance(notification_frequency),
+        link_guidance=reharvest_link_guidance(),
+        frequency_notice=notification_frequency_notice(notification_frequency),
     )

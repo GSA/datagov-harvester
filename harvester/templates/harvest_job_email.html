@@ -102,6 +102,9 @@
                   <p style="margin: 0 0 20px;"><a href="{{ refresh_url }}" style="display: inline-block; padding: 10px 16px; background: #005ea8; color: #ffffff; font-weight: bold; text-decoration: none;">Refresh this source</a></p>
                   <p style="margin: 0 0 8px;">This link opens a confirmation page. {{ link_guidance }}</p>
                   <p style="margin: 0;">Please don’t share it outside your agency.</p>
+                  {% if frequency_notice %}
+                  <p class="notification-frequency-line" style="margin: 16px 0 0;">Notification frequency: <strong>{{ frequency_notice.value }}</strong>. {{ frequency_notice.before_always }}<strong>Always</strong>{{ frequency_notice.after_always }}</p>
+                  {% endif %}
                 </div>
               </td>
             </tr>
