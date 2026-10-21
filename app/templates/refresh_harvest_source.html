@@ -5,7 +5,7 @@
 {% block content %}
 <main class="grid-container margin-y-4">
     <h1>Refresh harvest source</h1>
-    {% if source %}<p><strong>Source:</strong> {{ source.name }}</p>{% endif %}
+    {% if source %}<p><strong>Source:</strong> <a href="{{ url_for('main.view_harvest_source', source_id=source.id) }}">{{ source.name }}</a></p>{% endif %}
     {% if message %}
     <div class="usa-alert usa-alert--info" role="status">
         <div class="usa-alert__body">

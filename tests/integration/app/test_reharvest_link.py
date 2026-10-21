@@ -203,6 +203,11 @@ def test_refresh_link_requires_confirmation_and_latest_job(
     response = client.get(path)
     assert response.status_code == 200
     assert "Refresh now" in response.text
+    source_link = BeautifulSoup(response.text, "html.parser").find(
+        "a", href=f"/harvest_source/{source_data_dcatus['id']}"
+    )
+    assert source_link is not None
+    assert source_link.get_text(strip=True) == source_data_dcatus["name"]
     assert "no-store" in response.headers["Cache-Control"]
     assert response.headers["Referrer-Policy"] == "no-referrer"
     assert (
@@ -229,6 +234,9 @@ def test_refresh_link_requires_confirmation_and_latest_job(
     assert new_job.job_type == "harvest"
     stale_get = client.get(path)
     assert stale_get.status_code == 410
+    assert BeautifulSoup(stale_get.text, "html.parser").find(
+        "a", href=f"/harvest_source/{source_data_dcatus['id']}"
+    )
     assert "This link is from an earlier harvest notification." in stale_get.text
     assert "A newer harvest job is queued or running." in stale_get.text
     assert "Wait for it to finish" in stale_get.text
