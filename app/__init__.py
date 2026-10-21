@@ -15,6 +15,7 @@ from werkzeug.exceptions import RequestEntityTooLarge
 
 from app.constants import MAX_UPLOAD_BYTES, MAX_UPLOAD_MB
 from app.filters import elapsed_time, else_na, humanize, usa_icon, utc_isoformat
+from app.json_provider import ISO8601JSONProvider
 from app.local_dev_auth import is_running_on_cloud_foundry
 from app.startup_validation import validate_required_env_vars
 from config.logger_config import LOGGING_CONFIG
@@ -93,6 +94,7 @@ def create_app():
     app = VersionedStaticAPIFlask(
         __name__, static_url_path="", static_folder="static", docs_path=None
     )
+    app.json = ISO8601JSONProvider(app)
 
     # OpenAPI fields
     app.config["INFO"] = {
