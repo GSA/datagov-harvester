@@ -87,7 +87,6 @@ from harvester.utils.harvest_job_email import (
 from harvester.utils.notification_frequency import notification_frequency_notice
 from harvester.utils.reharvest_links import create_reharvest_url
 
-
 # logging data
 logger = logging.getLogger("harvest_runner")
 
