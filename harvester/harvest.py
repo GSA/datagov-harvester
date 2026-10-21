@@ -18,6 +18,17 @@ sys.path.insert(1, "/".join(os.path.realpath(__file__).split("/")[0:-2]))
 
 
 from database.models import HarvestSource as HarvestSourceORM
+from dcatus_validation.fetch import USER_AGENT
+from dcatus_validation.messages import (
+    assemble_validation_errors,
+    build_dcatus3_validator,
+    open_json,
+)
+from dcatus_validation.schema_paths import (
+    DCATUS1_1_DIR,
+    DCATUS3_DATASET_SCHEMA,
+    DCATUS3_DEFINITIONS_DIR,
+)
 
 # ruff: noqa: E402
 from harvester import CATALOG_BASE_URL, SMTP_CONFIG, HarvesterDBInterface, db_interface
@@ -41,11 +52,9 @@ from harvester.lib.task_handler import create_task_handler
 from harvester.utils.dcat_warnings import DcatWarning, detect_dcat_warnings
 from harvester.utils.general_utils import (
     DT_PLACEHOLDER,
-    USER_AGENT,
     add_uuid_to_package_name,
-    assemble_validation_errors,
     backfill_catalog_record_identifiers,
-    build_dcatus3_validator,
+    backfill_object_identifiers_from_title,
     build_report_email_section,
     dataset_to_hash,
     describe_identifier_error,
@@ -63,7 +72,6 @@ from harvester.utils.general_utils import (
     munge_spatial,
     munge_title_to_name,
     normalize_dataset_identifier,
-    open_json,
     prepare_distributions,
     prepare_transform_msg,
     send_email_to_recipients,
@@ -71,11 +79,6 @@ from harvester.utils.general_utils import (
     strip_dcatus3_catalog_objects,
     translate_spatial_to_geojson,
     traverse_waf,
-)
-from harvester.utils.schema_paths import (
-    DCATUS1_1_DIR,
-    DCATUS3_DATASET_SCHEMA,
-    DCATUS3_DEFINITIONS_DIR,
 )
 
 # logging data
@@ -507,23 +510,25 @@ class HarvestSource:
     def filter_datasets_with_no_identifier(self) -> None:
         """
         identifies and removes datasets without a harvestable identifier from
-        self.external_records, and non-dataset records (DataService,
-        CatalogRecord, ...) without one from self.external_records_by_type,
-        logging each as a record-level error.
+        self.external_records, and CatalogRecords without one from
+        self.external_records_by_type, logging each as a record-level error.
+
+        DataService and DatasetSeries are backfilled instead (see
+        acquire_minimum_external_data), not filtered here, since both are
+        always resolvable from the object's title.
 
         string identifiers are used as-is. object identifiers must provide @id.
         """
         self.external_records = self._filter_records_with_no_identifier(
             self.external_records, "dataset"
         )
-        for record_type, config in NON_DATASET_RECORD_TYPES.items():
-            self.external_records_by_type[record_type] = (
-                self._filter_records_with_no_identifier(
-                    self.external_records_by_type.get(record_type, []),
-                    record_type,
-                    config["identifier_field"],
-                )
+        self.external_records_by_type["catalog_record"] = (
+            self._filter_records_with_no_identifier(
+                self.external_records_by_type.get("catalog_record", []),
+                "catalog_record",
+                NON_DATASET_RECORD_TYPES["catalog_record"]["identifier_field"],
             )
+        )
 
     def determine_internal_deletions(self) -> None:
         """
@@ -688,6 +693,24 @@ class HarvestSource:
                         self.external_records_by_type["catalog_record"] = (
                             backfill_catalog_record_identifiers(
                                 self.external_records_by_type.get("catalog_record", [])
+                            )
+                        )
+                        self.external_records_by_type["data_service"] = (
+                            backfill_object_identifiers_from_title(
+                                self.external_records_by_type.get("data_service", []),
+                                NON_DATASET_RECORD_TYPES["data_service"][
+                                    "identifier_field"
+                                ],
+                                "dataservice",
+                            )
+                        )
+                        self.external_records_by_type["data_series"] = (
+                            backfill_object_identifiers_from_title(
+                                self.external_records_by_type.get("data_series", []),
+                                NON_DATASET_RECORD_TYPES["data_series"][
+                                    "identifier_field"
+                                ],
+                                "datasetseries",
                             )
                         )
                         self.external_records = merge_dcatus3_datasets(
@@ -1103,6 +1126,9 @@ class Record:
                     and synched_with_ckan is False
                 ):
                     self.harvest_source.clear_complete = False
+                self.harvest_source.db_interface.clear_current_record_issues(
+                    self.harvest_source.id, self.record_type, self.identifier
+                )
                 return
             self.compare()
             if self.action is None:
@@ -1115,6 +1141,7 @@ class Record:
                 self.improve_distributions()
                 self._save_transformed_data()
             self.validate()
+            self.sync_current_issues()
             self.sync()
         except (
             CompareException,
@@ -1135,8 +1162,14 @@ class Record:
 
         if internal_record is not None:
             not_same_hash = internal_record.metadata_hash != self.metadata_hash
+            # parent_identifier is excluded from metadata_hash, so check separately
+            parent_changed = self.parent_identifier != internal_record.parent_identifier
             # TODO: should a force-harvest be an update or a create?
-            if not_same_hash or self.harvest_source.job_type == "force_harvest":
+            if (
+                not_same_hash
+                or parent_changed
+                or self.harvest_source.job_type == "force_harvest"
+            ):
                 self.action = "update"
                 self.ckan_id = internal_record.ckan_id
                 self.dataset_slug = internal_record.dataset_slug
@@ -1444,6 +1477,18 @@ class Record:
             )
             return False
 
+    def sync_current_issues(self) -> None:
+        """Refresh this record's current-issue state with whatever
+        validate() just reported (#6440)."""
+        if self.id is None:
+            return
+        self.harvest_source.db_interface.sync_current_record_issues(
+            self.harvest_source.id,
+            self.record_type,
+            self.identifier,
+            self.id,
+        )
+
     def _metadata_for_dataset(self):
         if self.transformed_data is not None:
             return self.transformed_data
@@ -1477,9 +1522,8 @@ class Record:
             spatial_value = munge_spatial(spatial_value)
 
         translated_spatial = translate_spatial_to_geojson(spatial_value)
+        payload["translated_spatial"] = translated_spatial
         try:
-            if translated_spatial is not None:
-                payload["translated_spatial"] = translated_spatial
             if metadata.get("spatial") and translated_spatial is None:
                 raise SpatialTransformationException(
                     f"unable to spatially fix {metadata.get('spatial')}",
@@ -1794,7 +1838,9 @@ def check_for_more_work():
 if __name__ == "__main__":
     import sys
 
-    from harvester.utils.general_utils import parse_args
+    from harvester.utils.general_utils import (
+        parse_args,
+    )
 
     exit_code = 0
 

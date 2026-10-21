@@ -1,9 +1,9 @@
-from datetime import datetime
+import logging
 
 import click
 from flask import Blueprint
 
-from database.interface import HarvesterDBInterface
+from database.interface import HarvesterDBInterface, HarvestSourceLockedError
 from shared.constants import SCHEMA_TYPE_VALUES
 
 from .evaluate_sources import evaluate_sources
@@ -11,6 +11,7 @@ from .evaluate_sources import evaluate_sources
 source = Blueprint("harvest_source", __name__)
 
 db = HarvesterDBInterface()
+logger = logging.getLogger(__name__)
 
 
 @source.cli.command("list")
@@ -122,24 +123,30 @@ def cli_force_reharvest_sources(schema_type_prefixes, organizations, dry_run):
         print("Dry run: no jobs queued. Use --no-dry-run to queue them.")
         return
 
+    failed = 0
     for s in sources:
-        active_job = db.get_active_harvest_job_for_source(s.id)
+        try:
+            job, active_job = db.enqueue_harvest_job_if_idle(
+                s.id, job_type="force_harvest"
+            )
+        except HarvestSourceLockedError:
+            print(f"{s.id} ({s.name}): skipped, source is locked")
+            continue
+        except Exception:
+            logger.exception("Failed to queue force harvest for source %s", s.id)
+            print(f"{s.id} ({s.name}): failed to queue job")
+            failed += 1
+            continue
         if active_job:
             print(
                 f"{s.id} ({s.name}): skipped, "
                 f"job {active_job.id} already new/in_progress"
             )
             continue
-
-        job = db.add_harvest_job(
-            {
-                "harvest_source_id": s.id,
-                "status": "new",
-                "job_type": "force_harvest",
-                "date_created": datetime.now(),
-            }
-        )
         if job:
             print(f"{s.id} ({s.name}): queued job {job.id}")
         else:
             print(f"{s.id} ({s.name}): failed to queue job")
+
+    if failed:
+        raise SystemExit(1)

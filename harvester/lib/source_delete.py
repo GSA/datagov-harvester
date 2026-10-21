@@ -44,7 +44,7 @@ def enqueue_harvest_source_delete(source_id, db_interface):
         return message, status
 
     task_id = f"delete-harvest-source-{source_id}"
-    command = f"python harvester/delete_source.py {source_id}"
+    command = f"python -m harvester.delete_source {source_id}"
     try:
         _task_handler_for_delete().start_task(command=command, task_id=task_id)
     except Exception as e:

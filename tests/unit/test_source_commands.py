@@ -1,5 +1,7 @@
 from unittest.mock import MagicMock, patch
 
+from database.interface import HarvestSourceLockedError
+
 
 def make_source(source_id, name, schema_type, organization_id=None):
     source = MagicMock()
@@ -136,10 +138,9 @@ def test_no_dry_run_queues_job_for_each_source(app):
             make_source("1", "DCAT-US Source", "dcatus1.1: federal"),
             make_source("2", "DCAT-US Source 2", "dcatus3.0"),
         ]
-        mock_db.get_active_harvest_job_for_source.return_value = None
         queued_job = MagicMock()
         queued_job.id = "job-1"
-        mock_db.add_harvest_job.return_value = queued_job
+        mock_db.enqueue_harvest_job_if_idle.return_value = (queued_job, None)
 
         result = app.test_cli_runner().invoke(
             args=[
@@ -152,11 +153,9 @@ def test_no_dry_run_queues_job_for_each_source(app):
         )
 
     assert result.exit_code == 0
-    assert mock_db.add_harvest_job.call_count == 2
-    for call in mock_db.add_harvest_job.call_args_list:
-        job_data = call.args[0]
-        assert job_data["status"] == "new"
-        assert job_data["job_type"] == "force_harvest"
+    assert mock_db.enqueue_harvest_job_if_idle.call_count == 2
+    for call in mock_db.enqueue_harvest_job_if_idle.call_args_list:
+        assert call.kwargs["job_type"] == "force_harvest"
     assert "queued job job-1" in result.output
 
 
@@ -167,7 +166,7 @@ def test_no_dry_run_skips_source_with_active_job(app):
         ]
         active_job = MagicMock()
         active_job.id = "active-job-1"
-        mock_db.get_active_harvest_job_for_source.return_value = active_job
+        mock_db.enqueue_harvest_job_if_idle.return_value = (None, active_job)
 
         result = app.test_cli_runner().invoke(
             args=[
@@ -180,8 +179,49 @@ def test_no_dry_run_skips_source_with_active_job(app):
         )
 
     assert result.exit_code == 0
-    mock_db.add_harvest_job.assert_not_called()
+    mock_db.enqueue_harvest_job_if_idle.assert_called_once_with(
+        "1", job_type="force_harvest"
+    )
     assert "skipped, job active-job-1 already new/in_progress" in result.output
+
+
+def test_no_dry_run_continues_after_enqueue_error(app, caplog):
+    with patch("app.commands.source.db") as mock_db:
+        mock_db.get_all_harvest_sources.return_value = [
+            make_source("1", "First Source", "dcatus3.0"),
+            make_source("2", "Second Source", "dcatus3.0"),
+        ]
+        queued_job = MagicMock()
+        queued_job.id = "job-2"
+        mock_db.enqueue_harvest_job_if_idle.side_effect = [
+            RuntimeError("database timeout"),
+            (queued_job, None),
+        ]
+
+        result = app.test_cli_runner().invoke(
+            args=["harvest_source", "force_reharvest_sources", "--no-dry-run"]
+        )
+
+    assert result.exit_code == 1
+    assert mock_db.enqueue_harvest_job_if_idle.call_count == 2
+    assert "1 (First Source): failed to queue job" in result.output
+    assert "2 (Second Source): queued job job-2" in result.output
+    assert "Failed to queue force harvest for source 1" in caplog.text
+
+
+def test_no_dry_run_skips_locked_source(app):
+    with patch("app.commands.source.db") as mock_db:
+        mock_db.get_all_harvest_sources.return_value = [
+            make_source("1", "Locked Source", "dcatus3.0")
+        ]
+        mock_db.enqueue_harvest_job_if_idle.side_effect = HarvestSourceLockedError("1")
+
+        result = app.test_cli_runner().invoke(
+            args=["harvest_source", "force_reharvest_sources", "--no-dry-run"]
+        )
+
+    assert result.exit_code == 0
+    assert "skipped, source is locked" in result.output
 
 
 def test_no_dry_run_no_matching_sources(app):

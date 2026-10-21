@@ -1,6 +1,7 @@
 {% extends 'base.html' %}
 
 {% import 'components/job-table/job_table.j2' as job_table %}
+{% import 'components/confirm_button.j2' as confirm_button %}
 
 {% block script_head %}
 <script src="{{ static_url('assets/chartjs/chart.umd.js') }}"></script>
@@ -28,8 +29,6 @@
     <div class="display-flex flex-align-center flex-wrap">
         <h1 class="margin-right-2">{{data.source.name}}</h1>
     </div>
-
-
     <h2>Configuration</h2>
     <div class="config-table harvest-source-config-properties">
         <table class="usa-table usa-table--borderless width-full">
@@ -85,19 +84,26 @@
                     {{form.edit(class_='usa-button')}}
                 </li>
                 <li class="usa-button-group__item">
-                    {{form.harvest(class_='usa-button usa-button--outline')}}
+                    {{form.harvest(class_='usa-button usa-button--outline', disabled=data.source.is_locked)}}
                 </li>
                 <li class="usa-button-group__item">
-                    {{form.clear(class_='usa-button usa-button--outline confirm-submit', data_action="clear")}}
+                    {% if data.source.is_locked %}
+                    {{ confirm_button.render(form.unlock, 'usa-button--outline', 'unlock') }}
+                    {% else %}
+                    {{ confirm_button.render(form.lock, 'usa-button--outline', 'lock') }}
+                    {% endif %}
                 </li>
                 <li class="usa-button-group__item">
-                    {{form.delete(class_='usa-button usa-button--secondary confirm-submit', data_action="delete")}}
+                    {{ confirm_button.render(form.clear, 'usa-button--outline', 'clear') }}
+                </li>
+                <li class="usa-button-group__item">
+                    {{ confirm_button.render(form.delete, 'usa-button--secondary', 'delete') }}
 
                 </li>
             </ul>
             <fieldset class="usa-fieldset margin-top-2">
                 <div class="usa-checkbox">
-                    {{form.force_check(class_='usa-checkbox__input')}}
+                    {{form.force_check(class_='usa-checkbox__input', disabled=data.source.is_locked)}}
                     {{form.force_check.label(class_='usa-checkbox__label')}}
                 </div>
             </fieldset>
@@ -121,7 +127,7 @@
                 <td>{{data.summary_data["records_count"]}}</td>
             </tr>
             <tr>
-                <td>Last job errors and warnings</td>
+                <td>Current errors and warnings</td>
                 <td>
                     {{data.summary_data["last_job_errors"] | else_na }}
                 </td>

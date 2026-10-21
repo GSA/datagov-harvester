@@ -13,9 +13,10 @@ from flask import (
     url_for,
 )
 from markupsafe import escape
+from marshmallow import ValidationError
 
 from app import deps
-from app.api_schemas import JobInfo
+from app.api_schemas import JobCreate, JobInfo
 from app.deps import (
     JSON_NOT_FOUND,
     _log_mutation,
@@ -23,6 +24,7 @@ from app.deps import (
     login_required,
     valid_id_required,
 )
+from database.interface import HarvestSourceLockedError
 from harvester.utils.general_utils import is_valid_uuid4
 
 from . import api
@@ -34,7 +36,29 @@ from . import api
 def add_harvest_job():
     if not request.is_json:
         return make_response(jsonify({"error": "Request must be JSON"}), 415)
-    job = deps.db.add_harvest_job(request.json)
+    job_data = request.json
+    if not isinstance(job_data, dict):
+        return {"error": "Failed to add harvest job."}, 400
+    if job_data.get("status") in ("new", "in_progress"):
+        try:
+            job_data = JobCreate().load(job_data)
+        except ValidationError:
+            return {"error": "Failed to add harvest job."}, 400
+        try:
+            job, active_job = deps.db.enqueue_harvest_job_if_idle(
+                job_data["harvest_source_id"], job_data=job_data
+            )
+        except HarvestSourceLockedError:
+            return {"error": "Harvest source is locked."}, 409
+        except (KeyError, ValueError):
+            return {"error": "Failed to add harvest job."}, 400
+        except Exception:
+            logger.exception("Failed to add harvest job")
+            return {"error": "Failed to add harvest job."}, 500
+        if active_job:
+            return {"error": f"Job {active_job.id} already active."}, 409
+    else:
+        job = deps.db.add_harvest_job(job_data)
     if job:
         _log_mutation(
             "create",

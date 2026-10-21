@@ -167,6 +167,22 @@ def dcatus_bad_license_uri_json():
         return file.read()
 
 
+@pytest.fixture
+def dcatus_no_identifier_json():
+    file = Path(__file__).parents[1] / "example_data/dcatus/dcatus_no_identifier.json"
+    with open(file, "r") as file:
+        return file.read()
+
+
+@pytest.fixture
+def dcatus_multiple_invalid_json():
+    file = (
+        Path(__file__).parents[1] / "example_data/dcatus/dcatus_multiple_invalid.json"
+    )
+    with open(file, "r") as file:
+        return file.read()
+
+
 ## ORGS
 @pytest.fixture
 def organization_data(fixtures_json) -> dict:
@@ -369,6 +385,21 @@ def source_data_dcatus3_0_series_with_members(organization_data: dict) -> dict:
         "organization_id": organization_data["id"],
         "frequency": "daily",
         "url": f"{HARVEST_SOURCE_URL}/dcatus/dcatus3_0_series_with_members.json",
+        "schema_type": "dcatus3.0",
+        "source_type": "document",
+        "notification_frequency": "always",
+    }
+
+
+@pytest.fixture
+def source_data_dcatus3_0_series_no_id(organization_data: dict) -> dict:
+    return {
+        "id": "a1c2e4f6-8901-4cde-f012-345678901236",
+        "name": "Test Source DCAT-US 3.0 (series no @id)",
+        "notification_emails": ["email@example.com"],
+        "organization_id": organization_data["id"],
+        "frequency": "daily",
+        "url": f"{HARVEST_SOURCE_URL}/dcatus/dcatus3_0_series_no_id.json",
         "schema_type": "dcatus3.0",
         "source_type": "document",
         "notification_frequency": "always",
@@ -819,6 +850,17 @@ def job_data_dcatus3_0_series_with_members(
         "id": "a1c2e4f6-8901-4cde-f012-345678901235",
         "status": "new",
         "harvest_source_id": source_data_dcatus3_0_series_with_members["id"],
+    }
+
+
+@pytest.fixture
+def job_data_dcatus3_0_series_no_id(
+    source_data_dcatus3_0_series_no_id: dict,
+) -> dict:
+    return {
+        "id": "b2d3f5a7-9012-4def-0123-456789012347",
+        "status": "new",
+        "harvest_source_id": source_data_dcatus3_0_series_no_id["id"],
     }
 
 
