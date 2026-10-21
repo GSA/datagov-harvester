@@ -1,3 +1,5 @@
+import re
+
 import pytest
 from playwright.sync_api import expect
 
@@ -38,6 +40,8 @@ class TestHarvestSourceUnauthed:
                 "always",
                 "Send harvest report",
                 "False",
+                "Is locked",
+                "False",
                 "Date next run",
                 "N/A",
                 "ID",
@@ -57,7 +61,7 @@ class TestHarvestSourceUnauthed:
         # Test static labels and values
         expect(summary_table).to_contain_text("Records")
         expect(summary_table).to_contain_text("2")
-        expect(summary_table).to_contain_text("Last job errors and warnings")
+        expect(summary_table).to_contain_text("Current errors and warnings")
         expect(summary_table).to_contain_text("N/A")
         expect(summary_table).to_contain_text("Last job finished")
         expect(summary_table).to_contain_text("Next job scheduled")
@@ -135,13 +139,17 @@ class TestHarvestSourceUnauthed:
 
 class TestHarvestSourceAuthed:
     def test_can_perform_actions(self, apage):
-        expect(
-            apage.locator(".harvest-source-config-actions ul li input")
-        ).to_have_text(["Edit", "Harvest", "Clear", "Delete"])
+        actions = apage.locator(".harvest-source-config-actions")
+        for name in ("Edit", "Harvest"):
+            expect(actions.get_by_role("button", name=name, exact=True)).to_be_visible()
+        for name in ("Lock", "Clear", "Delete"):
+            expect(
+                actions.get_by_role("button", name=re.compile(rf"^{name}\b"))
+            ).to_be_visible()
 
     def test_cant_delete_harvest_source_with_records(self, apage):
         apage.once("dialog", lambda dialog: dialog.accept())
-        apage.get_by_role("button", name="Delete", exact=True).click()
+        apage.get_by_role("button", name=re.compile(r"^Delete\b")).click()
         expect(apage.locator(".usa-alert--warning")).to_contain_text(
             ["Failed: 2 records in the Harvest source, please clear it first."]
         )
