@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% import 'components/confirm_button.j2' as confirm_button %}
 
 {% block title %}
 <title>View Org Data</title>
@@ -84,7 +85,7 @@
                 </li>
 
                 <li class="usa-button-group__item">
-                    {{form.delete(class_='usa-button usa-button--secondary confirm-submit', data_action="delete")}}
+                    {{ confirm_button.render(form.delete, 'usa-button--secondary', 'delete') }}
                 </li>
             </ul>
         </form>

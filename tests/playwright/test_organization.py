@@ -1,3 +1,5 @@
+import re
+
 import pytest
 from playwright.sync_api import expect
 
@@ -81,13 +83,15 @@ class TestOrganizationUnauthed:
 
 class TestOrganizationAuthed:
     def test_can_perform_actions(self, apage):
-        expect(apage.locator(".organization-config-actions ul li input")).to_have_text(
-            ["Edit", "Delete"]
-        )
+        actions = apage.locator(".organization-config-actions")
+        expect(actions.get_by_role("button", name="Edit", exact=True)).to_be_visible()
+        expect(
+            actions.get_by_role("button", name=re.compile(r"^Delete\b"))
+        ).to_be_visible()
 
     def test_cant_delete_org_with_harvest_sources(self, apage):
         apage.once("dialog", lambda dialog: dialog.accept())
-        apage.get_by_role("button", name="Delete", exact=True).click()
+        apage.get_by_role("button", name=re.compile(r"^Delete\b")).click()
         # ruff: noqa: E501
         expect(apage.locator(".usa-alert--warning")).to_contain_text(
             [

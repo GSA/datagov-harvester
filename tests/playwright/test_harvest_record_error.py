@@ -15,7 +15,9 @@ class TestHarvestRecordErrorUnauthed:
     def test_response(self, ures):
         res = ures.json()
         fixture_dict = {
-            "harvest_job_id": "6bce761c-7a39-41c1-ac73-94234c139c76",
+            # The job page now surfaces current-state issues, which aren't
+            # tied to any job (see #6440), so harvest_job_id is always None.
+            "harvest_job_id": None,
             "harvest_record_id": "0779c855-df20-49c8-9108-66359d82b77c",
             "message": "record is invalid",
             "type": "ValidationException",

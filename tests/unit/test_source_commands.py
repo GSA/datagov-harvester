@@ -1,5 +1,7 @@
 from unittest.mock import MagicMock, patch
 
+from database.interface import HarvestSourceLockedError
+
 
 def make_source(source_id, name, schema_type, organization_id=None):
     source = MagicMock()
@@ -205,6 +207,21 @@ def test_no_dry_run_continues_after_enqueue_error(app, caplog):
     assert "1 (First Source): failed to queue job" in result.output
     assert "2 (Second Source): queued job job-2" in result.output
     assert "Failed to queue force harvest for source 1" in caplog.text
+
+
+def test_no_dry_run_skips_locked_source(app):
+    with patch("app.commands.source.db") as mock_db:
+        mock_db.get_all_harvest_sources.return_value = [
+            make_source("1", "Locked Source", "dcatus3.0")
+        ]
+        mock_db.enqueue_harvest_job_if_idle.side_effect = HarvestSourceLockedError("1")
+
+        result = app.test_cli_runner().invoke(
+            args=["harvest_source", "force_reharvest_sources", "--no-dry-run"]
+        )
+
+    assert result.exit_code == 0
+    assert "skipped, source is locked" in result.output
 
 
 def test_no_dry_run_no_matching_sources(app):

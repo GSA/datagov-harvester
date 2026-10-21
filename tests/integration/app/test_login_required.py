@@ -53,7 +53,7 @@ class TestLogin:
         # ruff: noqa: E501
         button_string_text = '<div class="config-actions organization-config-actions">'
         org_edit_text = '<input class="usa-button" id="edit" name="edit" type="submit" value="Edit">'
-        org_delete_text = '<input class="usa-button usa-button--secondary confirm-submit" data-action="delete" id="delete" name="delete" type="submit" value="Delete">'
+        org_delete_text = '<button class="usa-button usa-button--secondary confirm-submit" data-action="delete" id="delete" name="delete" type="submit" value="Delete" title="Confirmation required">'
         assert res.status_code == 200
         assert res.text.find(button_string_text) != -1
         assert res.text.find(org_edit_text) != -1
@@ -66,7 +66,7 @@ class TestLogin:
         res = client.get(f"/organization/{organization_data['id']}")
         button_string_text = '<div class="config-actions">'
         org_edit_text = '<input class="usa-button" id="edit" name="edit" type="submit" value="Edit">'
-        org_delete_text = '<input class="usa-button usa-button--secondary confirm-submit" data-action="delete" id="delete" name="delete" type="submit" value="Delete">'
+        org_delete_text = '<button class="usa-button usa-button--secondary confirm-submit" data-action="delete" id="delete" name="delete" type="submit" value="Delete" title="Confirmation required">'
         assert res.status_code == 200
         assert res.text.find(button_string_text) == -1
         assert res.text.find(org_edit_text) == -1
@@ -95,8 +95,8 @@ class TestLogin:
         )
         source_edit_text = '<input class="usa-button" id="edit" name="edit" type="submit" value="Edit">'
         source_harvest_text = '<input class="usa-button usa-button--outline" id="harvest" name="harvest" type="submit" value="Harvest">'
-        source_clear_text = ' <input class="usa-button usa-button--outline confirm-submit" data-action="clear" id="clear" name="clear" type="submit" value="Clear">'
-        source_delete_text = '<input class="usa-button usa-button--secondary confirm-submit" data-action="delete" id="delete" name="delete" type="submit" value="Delete">'
+        source_clear_text = '<button class="usa-button usa-button--outline confirm-submit" data-action="clear" id="clear" name="clear" type="submit" value="Clear" title="Confirmation required">'
+        source_delete_text = '<button class="usa-button usa-button--secondary confirm-submit" data-action="delete" id="delete" name="delete" type="submit" value="Delete" title="Confirmation required">'
         assert res.status_code == 200
         assert res.text.find(button_string_text) != -1
         assert res.text.find(source_edit_text) != -1
@@ -114,8 +114,8 @@ class TestLogin:
         )
         source_edit_text = '<input class="usa-button" id="edit" name="edit" type="submit" value="Edit">'
         source_harvest_text = '<input class="usa-button usa-button--outline" id="harvest" name="harvest" type="submit" value="Harvest">'
-        source_clear_text = ' <input class="usa-button usa-button--outline confirm-submit" data-action="clear" id="clear" name="clear" type="submit" value="Clear">'
-        source_delete_text = '<input class="usa-button usa-button--secondary confirm-submit" data-action="delete" id="delete" name="delete" type="submit" value="Delete">'
+        source_clear_text = '<button class="usa-button usa-button--outline confirm-submit" data-action="clear" id="clear" name="clear" type="submit" value="Clear" title="Confirmation required">'
+        source_delete_text = '<button class="usa-button usa-button--secondary confirm-submit" data-action="delete" id="delete" name="delete" type="submit" value="Delete" title="Confirmation required">'
         assert res.status_code == 200
         assert res.text.find(button_string_text) == -1
         assert res.text.find(source_edit_text) == -1
