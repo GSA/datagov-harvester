@@ -20,7 +20,7 @@ import requests
 from requests.adapters import HTTPAdapter
 from urllib3.connection import HTTPConnection, HTTPSConnection
 from urllib3.connectionpool import HTTPConnectionPool, HTTPSConnectionPool
-from urllib3.poolmanager import SSL_KEYWORDS
+from urllib3.poolmanager import SSL_KEYWORDS, ProxyManager
 
 from dcatus_validation.errors import (
     NESTING_TOO_DEEP_MESSAGE,
@@ -43,6 +43,12 @@ USER_AGENT = "HarvesterBot/0.0 (https://data.gov; datagovhelp@gsa.gov) Data.gov/
 ALLOW_PRIVATE_ADDRESSES = (
     os.getenv("ALLOW_PRIVATE_ADDRESSES", "false").lower() == "true"
 )
+
+# On cloud.gov every fetch goes through an egress proxy (GSA-TTS/cg-egress-proxy,
+# deployed by `cf-deployproxy -e proxy_url`, which sets this variable). Read
+# here and passed to requests explicitly, never through the ambient
+# http(s)_proxy variables. Unset (local development), fetches connect directly.
+EGRESS_PROXY_URL = os.getenv("proxy_url") or None
 
 _IPV4_COMPATIBLE_NETWORK = ipaddress.ip_network("::/96")
 _IPV4_PROTOCOL_ASSIGNMENTS_NETWORK = ipaddress.ip_network("192.0.0.0/24")
@@ -279,12 +285,23 @@ def parse_json_document(document: str | bytes | bytearray):
         raise InvalidCatalogSource(INVALID_JSON_ENCODING_MESSAGE) from None
 
 
-class _PinnedConnectionMixin:
+class _DeadlineConnectionMixin:
+    """Hand each connected socket to the request's timeout controller."""
+
+    def __init__(self, *args, timeout_controller, **kwargs):
+        self._timeout_controller = timeout_controller
+        super().__init__(*args, **kwargs)
+
+    def connect(self):
+        super().connect()
+        self._timeout_controller.attach(self.sock)
+
+
+class _PinnedConnectionMixin(_DeadlineConnectionMixin):
     """Connect to the approved IP while retaining the hostname for Host/TLS."""
 
-    def __init__(self, *args, pinned_ip: str, timeout_controller, **kwargs):
+    def __init__(self, *args, pinned_ip: str, **kwargs):
         self._pinned_ip = pinned_ip
-        self._timeout_controller = timeout_controller
         super().__init__(*args, **kwargs)
 
     def _new_conn(self):
@@ -294,10 +311,6 @@ class _PinnedConnectionMixin:
             return super()._new_conn()
         finally:
             self._dns_host = dns_host
-
-    def connect(self):
-        super().connect()
-        self._timeout_controller.attach(self.sock)
 
 
 class _SocketTimeoutController:
@@ -374,17 +387,94 @@ class _PinnedAddressAdapter(HTTPAdapter):
         super().close()
 
 
+class _ProxiedHTTPConnection(_DeadlineConnectionMixin, HTTPConnection):
+    pass
+
+
+class _ProxiedHTTPSConnection(_DeadlineConnectionMixin, HTTPSConnection):
+    pass
+
+
+class _ProxiedHTTPConnectionPool(HTTPConnectionPool):
+    ConnectionCls = _ProxiedHTTPConnection
+
+
+class _ProxiedHTTPSConnectionPool(HTTPSConnectionPool):
+    ConnectionCls = _ProxiedHTTPSConnection
+
+
+class _EgressProxyManager(ProxyManager):
+    """urllib3's ProxyManager, with the request's timeout controller attached
+    to every connection it opens (the proxy hop and any tunnel inside it)."""
+
+    def __init__(self, *args, timeout_controller, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._timeout_controller = timeout_controller
+        self.pool_classes_by_scheme = {
+            "http": _ProxiedHTTPConnectionPool,
+            "https": _ProxiedHTTPSConnectionPool,
+        }
+
+    def _new_pool(self, scheme, host, port, request_context=None):
+        if request_context is None:
+            request_context = self.connection_pool_kw.copy()
+        request_context = {
+            **request_context,
+            "timeout_controller": self._timeout_controller,
+        }
+        return super()._new_pool(scheme, host, port, request_context)
+
+
+class _EgressProxyAdapter(HTTPAdapter):
+    """A one-request adapter that only ever connects through the egress proxy."""
+
+    def __init__(self, timeout_controller):
+        self._timeout_controller = timeout_controller
+        super().__init__()
+
+    def get_connection_with_tls_context(self, request, verify, proxies=None, cert=None):
+        if not proxies:
+            raise RuntimeError("The egress proxy adapter never connects directly")
+        return super().get_connection_with_tls_context(
+            request, verify, proxies=proxies, cert=cert
+        )
+
+    def proxy_manager_for(self, proxy, **proxy_kwargs):
+        if proxy not in self.proxy_manager:
+            self.proxy_manager[proxy] = _EgressProxyManager(
+                proxy,
+                proxy_headers=self.proxy_headers(proxy),
+                num_pools=self._pool_connections,
+                maxsize=self._pool_maxsize,
+                block=self._pool_block,
+                timeout_controller=self._timeout_controller,
+                **proxy_kwargs,
+            )
+        return self.proxy_manager[proxy]
+
+
 def _pinned_get(target: str, ip: str, timeout: tuple[float, float]):
     """
     Fetch target through the IP that passed validation. A fresh Session avoids
     ambient proxy and netrc credentials, either of which would hand hostname
     resolution back to another component after the security check.
+
+    With EGRESS_PROXY_URL set, the request goes through the egress proxy
+    instead and `ip` is unused: the proxy resolves the hostname itself, so its
+    deny list of private ranges (checked against every address it resolves) is
+    what keeps a DNS-rebinding answer from reaching an internal address.
     """
     session = requests.Session()
     session.trust_env = False
     timeout_controller = _SocketTimeoutController()
-    session.mount("http://", _PinnedAddressAdapter(ip, timeout_controller))
-    session.mount("https://", _PinnedAddressAdapter(ip, timeout_controller))
+    if EGRESS_PROXY_URL:
+        proxies = {"http": EGRESS_PROXY_URL, "https": EGRESS_PROXY_URL}
+        session.mount("http://", _EgressProxyAdapter(timeout_controller))
+        session.mount("https://", _EgressProxyAdapter(timeout_controller))
+    else:
+        proxies = None
+        session.mount("http://", _PinnedAddressAdapter(ip, timeout_controller))
+        session.mount("https://", _PinnedAddressAdapter(ip, timeout_controller))
     verify = os.getenv("REQUESTS_CA_BUNDLE") or True
 
     try:
@@ -395,6 +485,7 @@ def _pinned_get(target: str, ip: str, timeout: tuple[float, float]):
             timeout=timeout,
             allow_redirects=False,
             verify=verify,
+            proxies=proxies,
         )
     except Exception:
         session.close()
@@ -478,7 +569,11 @@ def fetch_json_from_url(url: str) -> dict:
     # submitted hostname counts against the same deadline as the request.
     deadline = time.monotonic() + FETCH_TIMEOUT_SECONDS
     approved_addresses = _validate_fetch_target(url)
-    logger.info("Validator fetching target=%s", _target_for_log(url))
+    logger.info(
+        "Validator fetching target=%s egress=%s",
+        _target_for_log(url),
+        "proxy" if EGRESS_PROXY_URL else "direct",
+    )
 
     # One deadline for the whole operation, not a fresh FETCH_TIMEOUT_SECONDS
     # per redirect hop - otherwise a chain of MAX_FETCH_REDIRECTS redirects,

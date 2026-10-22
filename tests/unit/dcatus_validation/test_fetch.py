@@ -622,6 +622,7 @@ class TestFetchJsonFromUrl:
         assert response._validator_session.trust_env is False
         assert session_get.call_args.kwargs["allow_redirects"] is False
         assert session_get.call_args.kwargs["verify"] == "/tmp/test-ca.pem"
+        assert session_get.call_args.kwargs["proxies"] is None
         response._validator_session.close()
 
     def test_hostname_resolution_is_pinned_for_the_connection(self, monkeypatch):
@@ -770,3 +771,127 @@ class TestPrivateAddressDefault:
         finally:
             monkeypatch.undo()
             importlib.reload(dcatus_validation.fetch)
+
+
+class _ForwardProxy:
+    """A minimal forward proxy on localhost that records what it was asked for.
+
+    Plain-HTTP targets arrive in absolute form and are answered directly with
+    `body` (after `stall` seconds of silence mid-body, if set). CONNECT
+    requests are refused with 403, the way cg-egress-proxy refuses a denied
+    host or port.
+    """
+
+    def __init__(self, body=b'{"dataset": []}', stall=0):
+        self.requests = []
+        proxy = self
+
+        class Handler(BaseHTTPRequestHandler):
+            def do_GET(self):
+                proxy.requests.append(
+                    (self.command, self.path, self.headers.get("Proxy-Authorization"))
+                )
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                if stall:
+                    self.wfile.write(body[:1])
+                    self.wfile.flush()
+                    proxy.release.wait(stall)
+                    return
+                self.wfile.write(body)
+
+            def do_CONNECT(self):
+                proxy.requests.append(
+                    (self.command, self.path, self.headers.get("Proxy-Authorization"))
+                )
+                self.send_response(403)
+                self.end_headers()
+
+            def log_message(self, format, *args):
+                pass
+
+        self.release = threading.Event()
+        self.server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        self.url = f"http://user:secret@127.0.0.1:{self.server.server_port}"
+        self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
+
+    def __enter__(self):
+        self.thread.start()
+        return self
+
+    def __exit__(self, *exc):
+        self.release.set()
+        self.server.shutdown()
+        self.server.server_close()
+        self.thread.join()
+
+
+# base64("user:secret")
+_PROXY_AUTHORIZATION = "Basic dXNlcjpzZWNyZXQ="
+
+
+class TestEgressProxy:
+    # Through the module, not the names imported above:
+    # TestPrivateAddressDefault reloads it, replacing its classes.
+
+    @pytest.fixture(autouse=True)
+    def public_target(self, monkeypatch):
+        """The targets resolve to a public address that isn't serving them, so
+        a fetch can only return the proxy's answer if it went through it."""
+        monkeypatch.setattr(fetch, "ALLOW_PRIVATE_ADDRESSES", False)
+        monkeypatch.setattr(
+            fetch, "_resolve_addresses", lambda hostname, port=None: ["8.8.8.8"]
+        )
+
+    def test_http_fetch_is_forwarded_through_the_proxy(self, monkeypatch, caplog):
+        with _ForwardProxy() as proxy:
+            monkeypatch.setattr(fetch, "EGRESS_PROXY_URL", proxy.url)
+            result = fetch.fetch_json_from_url("http://catalog.test/data.json")
+
+        assert result == {"dataset": []}
+        assert proxy.requests == [
+            ("GET", "http://catalog.test/data.json", _PROXY_AUTHORIZATION)
+        ]
+        assert "egress=proxy" in caplog.text
+        assert "secret" not in caplog.text
+
+    def test_https_fetch_tunnels_through_the_proxy(self, monkeypatch, caplog):
+        """A refused CONNECT is a fetch failure, never a fallback to a direct
+        connection, and the proxy's credentials stay out of the logs."""
+        with _ForwardProxy() as proxy:
+            monkeypatch.setattr(fetch, "EGRESS_PROXY_URL", proxy.url)
+            with pytest.raises(fetch.InvalidCatalogSource, match="Could not retrieve"):
+                fetch.fetch_json_from_url("https://catalog.test:8443/data.json")
+
+        assert proxy.requests
+        assert set(proxy.requests) == {
+            ("CONNECT", "catalog.test:8443", _PROXY_AUTHORIZATION)
+        }
+        assert "secret" not in caplog.text
+
+    def test_body_deadline_applies_through_the_proxy(self, monkeypatch):
+        monkeypatch.setattr(fetch, "FETCH_TIMEOUT_SECONDS", 1)
+        with _ForwardProxy(stall=5) as proxy:
+            monkeypatch.setattr(fetch, "EGRESS_PROXY_URL", proxy.url)
+            with pytest.raises(fetch.InvalidCatalogSource, match="took longer than 1"):
+                fetch.fetch_json_from_url("http://catalog.test/data.json")
+
+    def test_private_targets_are_refused_before_reaching_the_proxy(self, monkeypatch):
+        monkeypatch.setattr(
+            fetch, "_resolve_addresses", lambda hostname, port=None: ["10.0.0.5"]
+        )
+        with _ForwardProxy() as proxy:
+            monkeypatch.setattr(fetch, "EGRESS_PROXY_URL", proxy.url)
+            with pytest.raises(fetch.InvalidCatalogSource, match="private/internal"):
+                fetch.fetch_json_from_url("http://internal.test/data.json")
+
+        assert proxy.requests == []
+
+    def test_proxy_adapter_never_connects_directly(self):
+        adapter = fetch._EgressProxyAdapter(fetch._SocketTimeoutController())
+        request = requests.Request("GET", "https://example.com/").prepare()
+
+        with pytest.raises(RuntimeError, match="never connects directly"):
+            adapter.get_connection_with_tls_context(request, True, proxies={})

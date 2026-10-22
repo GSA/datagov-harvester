@@ -26,12 +26,18 @@ Every URL fetch, including every redirect hop, goes through these checks:
 2. **No embedded credentials.** URLs with `user:pass@` are refused, and the credentials are never logged.
 3. **Known unwanted domains are blocked before DNS.** `nip.io`, `rbndr.us`, `sslip.io`, and `traefik.me`, including their subdomains, are refused. The match uses the IDNA hostname the resolver would use, accepts a trailing DNS dot, and requires a domain boundary so similar looking publisher domains remain eligible. The list is intentionally narrow; add domains when the network team confirms they cause unwanted lookup or egress traffic (GSA/data.gov#6419).
 4. **Every resolved address must be public.** The hostname is resolved, and if *any* address is non-global, the request is refused. The non-global check covers loopback, RFC 1918, link-local and cloud metadata (`169.254.0.0/16`), CGNAT (`100.64.0.0/10`), multicast, reserved, and documentation ranges. It also unwraps IPv4 hidden inside IPv6 (IPv4-mapped, NAT64, 6to4, Teredo, IPv4-compatible), which Python's `is_global` alone gets wrong.
-5. **DNS pinning.** The connection goes to the exact IP that passed the check (`_PinnedAddressAdapter`). The hostname is kept only for the `Host` header and TLS SNI/verification, so a DNS-rebinding answer between the check and the connect can't redirect the request.
+5. **DNS pinning.** Without an egress proxy (local development), the connection goes to the exact IP that passed the check (`_PinnedAddressAdapter`). The hostname is kept only for the `Host` header and TLS SNI/verification, so a DNS-rebinding answer between the check and the connect can't redirect the request. Through the egress proxy (below), the proxy resolves the hostname itself, and its deny list of private ranges, checked against every address it resolves, does this job.
 6. **Redirects re-checked by hand.** `requests` would follow redirects without re-checking them, so redirects are disabled and each `Location` goes back through steps 1–5. Chains are capped at 5 hops.
-7. **No ambient proxies or `.netrc`.** Each fetch uses a fresh `Session` with `trust_env = False`, so environment proxy settings can't take over hostname resolution after the check.
+7. **No ambient proxies or `.netrc`.** Each fetch uses a fresh `Session` with `trust_env = False`, so environment proxy settings can't take over hostname resolution after the check. The egress proxy is passed explicitly from `proxy_url` instead, and its adapter refuses to connect without it.
 8. **Fails closed.** Private addresses are allowed only when `ALLOW_PRIVATE_ADDRESSES=true`. Only local `docker compose` sets it, so it can fetch the sample catalogs. Never set it on cloud.gov.
 
-Tests: `tests/unit/dcatus_validation/test_fetch.py`, especially `TestPrivateAddressDefault`, `test_hostname_resolution_is_pinned_for_the_connection`, `test_fetch_json_from_url_rejects_redirect_to_private_address_in_prod`, and `test_pinned_get_ignores_ambient_credentials_and_proxies`.
+## Egress proxy
+
+On cloud.gov the validator's fetches go through its own egress proxy, [cg-egress-proxy](https://github.com/GSA-TTS/cg-egress-proxy) in the `<space>-egress` space, which `cf-deployproxy` sets up and points to with the app's `proxy_url` variable (`EGRESS_PROXY_URL` in `fetch.py`). It allows every domain but only port 443 by default, and denies private address ranges. The checks above still run first, so a refused URL never reaches the proxy and the submitter still gets a specific message. Setup steps are under "Validator egress proxy" in [developer.md](developer.md).
+
+The proxy only constrains egress if the app can't connect directly; that depends on the space's application security groups, not on this code.
+
+Tests: `tests/unit/dcatus_validation/test_fetch.py`, especially `TestPrivateAddressDefault`, `TestEgressProxy`, `test_hostname_resolution_is_pinned_for_the_connection`, `test_fetch_json_from_url_rejects_redirect_to_private_address_in_prod`, and `test_pinned_get_ignores_ambient_credentials_and_proxies`.
 
 ## Resource limits
 
