@@ -1,6 +1,6 @@
 """
 Validate a DCAT-US catalog URL against a schema, bypassing the 10MB upload
-cap on the hosted /validate page (app/constants.py MAX_UPLOAD_MB).
+cap on the hosted /validate page (dcatus_validation/limits.py MAX_UPLOAD_MB).
 
 Usage (run inside the app container):
     docker compose exec app python3 scripts/validate_catalog/validate_catalog.py \
@@ -18,7 +18,7 @@ import sys
 
 import requests
 
-from app.util import validate_records
+from dcatus_validation.validate import validate_records
 
 DEFAULT_SCHEMA = "dcatus3.0 catalog"
 DEFAULT_OUTPUT_PATH = os.path.join(os.path.dirname(__file__), "output", "errors.txt")
