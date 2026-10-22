@@ -154,6 +154,12 @@ FETCH_CONNECT_ATTEMPTS = 3
 MAX_FETCH_REDIRECTS = 5
 _REDIRECT_STATUS_CODES = {301, 302, 303, 307, 308}
 
+# These DNS rebinding/IP-mapping services cause unwanted lookup and egress
+# traffic when submitted to the public validator. Keep this narrow: ordinary
+# publisher domains still follow the existing address and egress rules.
+BLOCKED_VALIDATOR_DOMAINS = frozenset({"nip.io", "rbndr.us", "sslip.io", "traefik.me"})
+BLOCKED_VALIDATOR_DOMAIN_MESSAGE = "Validation of this URL's domain is not allowed."
+
 UNEXPECTED_FETCH_ERROR_MESSAGE = (
     "Could not retrieve the catalog from that URL. Check the URL and try again."
 )
@@ -425,6 +431,18 @@ def _validate_fetch_target(url: str) -> list[str]:
 
     if parsed.username is not None or parsed.password is not None:
         raise InvalidCatalogSource("URLs containing credentials are not allowed.")
+
+    try:
+        # Match the same IDNA hostname that the resolver would use, including
+        # Unicode equivalents of a dot between labels.
+        hostname = parsed.hostname.encode("idna").decode("ascii").rstrip(".")
+    except UnicodeError:
+        raise InvalidCatalogSource("Invalid URL.") from None
+    if any(
+        hostname == domain or hostname.endswith(f".{domain}")
+        for domain in BLOCKED_VALIDATOR_DOMAINS
+    ):
+        raise InvalidCatalogSource(BLOCKED_VALIDATOR_DOMAIN_MESSAGE)
 
     try:
         port = parsed.port

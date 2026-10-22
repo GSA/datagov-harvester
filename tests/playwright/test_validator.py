@@ -386,6 +386,12 @@ class TestValidatorApiResponses:
             (
                 400,
                 "application/json",
+                '{"error": "Validation of this URL\'s domain is not allowed."}',
+                "Validation of this URL's domain is not allowed.",
+            ),
+            (
+                400,
+                "application/json",
                 '{"error": "Access to private/internal addresses is not allowed."}',
                 "Access to private/internal addresses is not allowed.",
             ),
