@@ -1,0 +1,32 @@
+{% extends 'base.html' %}
+
+{% block title %}<title>Refresh harvest source</title>{% endblock %}
+
+{% block content %}
+<main class="grid-container margin-y-4">
+    <h1>Refresh harvest source</h1>
+    {% if source %}<p><strong>Source:</strong> <a href="{{ url_for('main.view_harvest_source', source_id=source.id) }}">{{ source.name }}</a></p>{% endif %}
+    {% if message %}
+    <div class="usa-alert usa-alert--info" role="status">
+        <div class="usa-alert__body">
+            <p class="usa-alert__text">{{ message }}</p>
+            {% if explanation %}<p class="usa-alert__text">{{ explanation }}</p>{% endif %}
+            {% if frequency_notice %}
+            <p class="usa-alert__text margin-top-2 notification-frequency-line">Notification frequency: <strong>{{ frequency_notice.value }}</strong>. {{ frequency_notice.before_always }}<strong>Always</strong>{{ frequency_notice.after_always }}</p>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+    {% if new_job_id %}
+    <p><a href="{{ url_for('main.view_harvest_job', job_id=new_job_id) }}">View the requested job</a></p>
+    {% endif %}
+    {% if form %}
+    <p>Updated your metadata? Confirm to request a normal harvest of this source.</p>
+    <form method="post" action="{{ url_for('main.refresh_harvest_source') }}">
+        {{ form.hidden_tag() }}
+        <input type="hidden" name="token" value="{{ token }}">
+        {{ form.refresh(class_='usa-button') }}
+    </form>
+    {% endif %}
+</main>
+{% endblock %}
