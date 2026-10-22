@@ -52,9 +52,9 @@ from harvester.lib.task_handler import create_task_handler
 from harvester.utils.dcat_warnings import DcatWarning, detect_dcat_warnings
 from harvester.utils.general_utils import (
     DT_PLACEHOLDER,
+    RESOLVED_IDENTIFIER_KEY,
     add_uuid_to_package_name,
     backfill_catalog_record_identifiers,
-    backfill_object_identifiers_from_title,
     build_report_email_section,
     dataset_to_hash,
     describe_identifier_error,
@@ -74,6 +74,7 @@ from harvester.utils.general_utils import (
     normalize_dataset_identifier,
     prepare_distributions,
     prepare_transform_msg,
+    resolve_object_identifier,
     send_email_to_recipients,
     sort_dataset,
     strip_dcatus3_catalog_objects,
@@ -408,8 +409,8 @@ class HarvestSource:
         for idx in indices:
             try:
                 identifier = normalize_dataset_identifier(
-                    records[idx].get(identifier_field)
-                )
+                    records[idx].get(RESOLVED_IDENTIFIER_KEY)
+                ) or normalize_dataset_identifier(records[idx].get(identifier_field))
                 self.write_duplicate_to_db(identifier, record_type)
             except DuplicateIdentifierException:
                 del records[idx]
@@ -552,7 +553,8 @@ class HarvestSource:
         for record_type, config in NON_DATASET_RECORD_TYPES.items():
             external_ids |= {
                 (
-                    normalize_dataset_identifier(
+                    normalize_dataset_identifier(record.get(RESOLVED_IDENTIFIER_KEY))
+                    or normalize_dataset_identifier(
                         record.get(config["identifier_field"])
                     ),
                     record_type,
@@ -648,9 +650,10 @@ class HarvestSource:
             while len(records) > 0:
                 try:
                     record = records.pop(0)
+                    resolved_identifier = record.pop(RESOLVED_IDENTIFIER_KEY, None)
                     serialized = json.dumps(sort_dataset(record))
                     record_hash = dataset_to_hash(serialized)
-                    identifier = normalize_dataset_identifier(
+                    identifier = resolved_identifier or normalize_dataset_identifier(
                         record.get(identifier_field)
                     )
 
@@ -702,21 +705,13 @@ class HarvestSource:
                             )
                         )
                         self.external_records_by_type["data_service"] = (
-                            backfill_object_identifiers_from_title(
-                                self.external_records_by_type.get("data_service", []),
-                                NON_DATASET_RECORD_TYPES["data_service"][
-                                    "identifier_field"
-                                ],
-                                "dataservice",
+                            resolve_object_identifier(
+                                self.external_records_by_type.get("data_service", [])
                             )
                         )
                         self.external_records_by_type["data_series"] = (
-                            backfill_object_identifiers_from_title(
-                                self.external_records_by_type.get("data_series", []),
-                                NON_DATASET_RECORD_TYPES["data_series"][
-                                    "identifier_field"
-                                ],
-                                "datasetseries",
+                            resolve_object_identifier(
+                                self.external_records_by_type.get("data_series", [])
                             )
                         )
                         self.external_records = merge_dcatus3_datasets(
