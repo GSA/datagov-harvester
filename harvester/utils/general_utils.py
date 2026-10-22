@@ -1653,8 +1653,8 @@ def create_retry_session() -> RetrySession:
         return RetrySession(max_retries=0, backoff_factor=0)
 
 
-def send_email_to_recipients(recipients, subject, body):
-    """Send an email to a list of recipiencts.
+def send_email_to_recipients(recipients, subject, body, html_body=None):
+    """Send plain text and optional HTML versions to each recipient.
 
     The subject and body stay the same and it sends messages to each address
     in the iterable `recipients`.
@@ -1665,12 +1665,14 @@ def send_email_to_recipients(recipients, subject, body):
         server.login(SMTP_CONFIG["username"], SMTP_CONFIG["password"])
 
         for recipient in recipients:
-            msg = MIMEMultipart()
+            msg = MIMEMultipart("alternative" if html_body is not None else "mixed")
             msg["From"] = SMTP_CONFIG["default_sender"]
             msg["To"] = recipient
             msg["Reply-To"] = "no-reply@gsa.gov"
             msg["Subject"] = subject
             msg.attach(MIMEText(body, "plain"))
+            if html_body is not None:
+                msg.attach(MIMEText(html_body, "html"))
 
             server.sendmail(SMTP_CONFIG["default_sender"], [recipient], msg.as_string())
             logger.info(f"Notification email sent to: {recipient}")
