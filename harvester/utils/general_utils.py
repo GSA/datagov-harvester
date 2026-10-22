@@ -596,29 +596,33 @@ def backfill_catalog_record_identifiers(records: list) -> list:
     return backfilled
 
 
-def backfill_object_identifiers_from_title(
-    records: list, identifier_field: str, type_label: str
-) -> list:
+RESOLVED_IDENTIFIER_KEY = "_resolved_identifier"
+
+
+def resolve_object_identifier(records: list) -> list:
     """
     DataService's "identifier" and DatasetSeries's "@id" are both optional
     per the DCAT-US3.0 schema. Resolve each record's own identifier --
-    preferring "identifier", then "@id" -- and if neither is usable,
-    synthesize a stable one from its title (required by both schemas) so
-    harvester can still track the object and link its child datasets to it.
+    preferring "identifier", then "@id", then a slug munged from its title
+    (required by both schemas) -- so harvester can still track the object
+    and link its child datasets to it.
+
+    This is for harvester's own bookkeeping only: the resolved value is
+    stashed under RESOLVED_IDENTIFIER_KEY, never written into "identifier"
+    or "@id" themselves. The record we validate, persist, and index must
+    stay exactly what the provider sent us -- see GSA/data.gov#6431.
     """
-    backfilled = []
+    resolved_records = []
     for record in records:
         record = dict(record)
-        if normalize_dataset_identifier(record.get(identifier_field)) is None:
-            resolved = normalize_dataset_identifier(
-                record.get("identifier")
-            ) or normalize_dataset_identifier(record.get("@id"))
-            if resolved is None:
-                digest = hashlib.sha256(str(record.get("title")).encode()).hexdigest()
-                resolved = f"urn:datagov:{type_label}:{digest}"
-            record[identifier_field] = resolved
-        backfilled.append(record)
-    return backfilled
+        resolved = (
+            normalize_dataset_identifier(record.get("identifier"))
+            or normalize_dataset_identifier(record.get("@id"))
+            or munge_title_to_name(str(record.get("title")))
+        )
+        record[RESOLVED_IDENTIFIER_KEY] = resolved
+        resolved_records.append(record)
+    return resolved_records
 
 
 def extract_dcatus3_catalog_dataset_series(catalog: dict) -> list:
@@ -640,6 +644,11 @@ def extract_dcatus3_nested_datasets(
     field selects which key on the parent holds its own identifier, since
     DatasetSeries and CatalogRecord use "@id" instead of "identifier".
 
+    If a parent carries RESOLVED_IDENTIFIER_KEY (see resolve_object_identifier),
+    that bookkeeping value is used instead of parent_identifier_field directly,
+    so a child's parent_identifier always matches the parent's own tracked
+    identifier even when the parent's "identifier"/"@id" is missing.
+
     The same dataset can appear in more than one of [fields] on the same
     parent (e.g. a series's "first" usually also appears in "seriesMember").
     That's redundant source data, so each parent contributes one copy per
@@ -649,8 +658,8 @@ def extract_dcatus3_nested_datasets(
 
     for parent in parents:
         parent_identifier = normalize_dataset_identifier(
-            parent.get(parent_identifier_field)
-        )
+            parent.get(RESOLVED_IDENTIFIER_KEY)
+        ) or normalize_dataset_identifier(parent.get(parent_identifier_field))
         seen_identifiers = set()
         for field in fields:
             value = parent.get(field)
@@ -776,7 +785,9 @@ def find_indexes_for_duplicates(records: list, identifier_field: str = "identifi
     seen = set()
     output = []
     for i in range(len(records)):
-        identifier = normalize_dataset_identifier(records[i].get(identifier_field))
+        identifier = normalize_dataset_identifier(
+            records[i].get(RESOLVED_IDENTIFIER_KEY)
+        ) or normalize_dataset_identifier(records[i].get(identifier_field))
         if identifier in seen:
             output.append(i)
         seen.add(identifier)
@@ -1642,8 +1653,8 @@ def create_retry_session() -> RetrySession:
         return RetrySession(max_retries=0, backoff_factor=0)
 
 
-def send_email_to_recipients(recipients, subject, body):
-    """Send an email to a list of recipiencts.
+def send_email_to_recipients(recipients, subject, body, html_body=None):
+    """Send plain text and optional HTML versions to each recipient.
 
     The subject and body stay the same and it sends messages to each address
     in the iterable `recipients`.
@@ -1654,12 +1665,14 @@ def send_email_to_recipients(recipients, subject, body):
         server.login(SMTP_CONFIG["username"], SMTP_CONFIG["password"])
 
         for recipient in recipients:
-            msg = MIMEMultipart()
+            msg = MIMEMultipart("alternative" if html_body is not None else "mixed")
             msg["From"] = SMTP_CONFIG["default_sender"]
             msg["To"] = recipient
             msg["Reply-To"] = "no-reply@gsa.gov"
             msg["Subject"] = subject
             msg.attach(MIMEText(body, "plain"))
+            if html_body is not None:
+                msg.attach(MIMEText(html_body, "html"))
 
             server.sendmail(SMTP_CONFIG["default_sender"], [recipient], msg.as_string())
             logger.info(f"Notification email sent to: {recipient}")

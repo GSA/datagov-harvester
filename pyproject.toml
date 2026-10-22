@@ -57,7 +57,7 @@ python-dateutil = "^2.9.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = ">=9.0.3"
-ruff = ">=0.15.10,<0.17.0"
+ruff = ">=0.15.10,<0.18.0"
 pytest-cov = "^7.1.0"
 debugpy = "^1.8.20"
 isort = ">=8.0.1,<10.0.0"
