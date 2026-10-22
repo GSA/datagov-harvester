@@ -245,7 +245,9 @@ class TestValidator:
         # ~8.5MB of mostly quotes, so escaping makes the request ~14MB
         upage.evaluate("""document.getElementById('json_text').value =
                 '{"dataset": [], "padding": [' + '"",'.repeat(2900000) + '""]}'""")
-        upage.locator("input[type=submit]").click()
+        # The submit handler serializes ~8.5MB on the main thread, which can
+        # outlast the 2.5s default on a slow CI runner.
+        upage.locator("input[type=submit]").click(timeout=30000)
 
         expect(upage.locator("#validator-results h2")).to_have_text(
             "Validation results", timeout=30000
