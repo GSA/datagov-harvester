@@ -49,6 +49,10 @@ class HarvestSourceLockedError(Exception):
     """A locked source cannot queue or start a harvest."""
 
 
+class StaleReharvestLinkError(Exception):
+    """The linked report job is no longer the source's latest job."""
+
+
 class HarvesterDBInterface:
     pagination = PaginationConfig(
         entries_per_page=PAGINATE_ENTRIES_PER_PAGE,
@@ -397,6 +401,7 @@ class HarvesterDBInterface:
         next_run=None,
         require_due=False,
         job_data=None,
+        expected_latest_job_id=None,
     ):
         """Queue one job per source, serializing competing requests on its row.
 
@@ -423,6 +428,21 @@ class HarvesterDBInterface:
             if source.is_locked and effective_type in JOB_TYPES_BLOCKED_BY_SOURCE_LOCK:
                 self.db.commit()
                 raise HarvestSourceLockedError(source_id)
+
+            if expected_latest_job_id is not None:
+                latest = self.get_latest_harvest_job_for_source(source_id)
+                # The linked job must still be this source's latest job; a
+                # newer job makes the link stale while that job exists.
+                # Only a finished job (complete or error) with a recorded
+                # finish time can authorize another harvest.
+                if (
+                    latest is None
+                    or latest.id != expected_latest_job_id
+                    or latest.status not in ("complete", "error")
+                    or latest.date_finished is None
+                ):
+                    self.db.commit()
+                    raise StaleReharvestLinkError(source_id)
 
             active_job = self.get_active_harvest_job_for_source(source_id)
             if active_job:
@@ -455,12 +475,22 @@ class HarvesterDBInterface:
             return job, None
         except HarvestSourceLockedError:
             raise
+        except StaleReharvestLinkError:
+            raise
         except Exception:
             self.db.rollback()
             raise
 
     def get_harvest_job(self, job_id):
         return self.db.query(HarvestJob).filter_by(id=job_id).first()
+
+    def get_latest_harvest_job_for_source(self, source_id):
+        return (
+            self.db.query(HarvestJob)
+            .filter(HarvestJob.harvest_source_id == source_id)
+            .order_by(HarvestJob.date_created.desc(), HarvestJob.id.desc())
+            .first()
+        )
 
     def get_orphaned_harvest_jobs(self) -> List[HarvestJob]:
         """

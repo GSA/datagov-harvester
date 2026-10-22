@@ -489,7 +489,13 @@ class TestLoadManager:
     @patch("harvester.lib.load_manager.send_email_to_recipients")
     @patch("harvester.lib.cf_handler.CloudFoundryClient")
     def test_clean_old_jobs_failed(
-        self, CFCMock, email_mock, interface_with_multiple_jobs, force_cf_handler
+        self,
+        CFCMock,
+        email_mock,
+        interface_with_multiple_jobs,
+        force_cf_handler,
+        app,
+        monkeypatch,
     ):
         """Cleans up failed in_progress jobs in the database."""
         assert len(interface_with_multiple_jobs.get_in_progress_jobs()) == 3
@@ -499,8 +505,13 @@ class TestLoadManager:
             {"state": "SUCCEEDED", "name": "harvest-job-"},
         ]
 
+        monkeypatch.setenv("FLASK_APP_SECRET_KEY", app.config["SECRET_KEY"])
         load_manager = LoadManager()
-        load_manager._clean_old_jobs()
+        with patch.dict(
+            "harvester.lib.load_manager.SMTP_CONFIG",
+            {"recipient": "support@example.gov"},
+        ):
+            load_manager._clean_old_jobs()
 
         # no in progress jobs
         assert len(interface_with_multiple_jobs.get_in_progress_jobs()) == 0
