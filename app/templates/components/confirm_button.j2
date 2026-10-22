@@ -1,0 +1,7 @@
+{% macro render(field, variant, action) -%}
+<button class="usa-button {{ variant }} confirm-submit" data-action="{{ action }}" id="{{ field.id }}" name="{{ field.name }}" type="submit" value="{{ field.label.text }}" title="Confirmation required">
+    {{ field.label.text }}
+    {{ 'error_outline' | usa_icon | safe }}
+    <span class="usa-sr-only">(confirmation required)</span>
+</button>
+{%- endmacro %}

@@ -18,6 +18,17 @@ sys.path.insert(1, "/".join(os.path.realpath(__file__).split("/")[0:-2]))
 
 
 from database.models import HarvestSource as HarvestSourceORM
+from dcatus_validation.fetch import USER_AGENT
+from dcatus_validation.messages import (
+    assemble_validation_errors,
+    build_dcatus3_validator,
+    open_json,
+)
+from dcatus_validation.schema_paths import (
+    DCATUS1_1_DIR,
+    DCATUS3_DATASET_SCHEMA,
+    DCATUS3_DEFINITIONS_DIR,
+)
 
 # ruff: noqa: E402
 from harvester import CATALOG_BASE_URL, SMTP_CONFIG, HarvesterDBInterface, db_interface
@@ -41,12 +52,9 @@ from harvester.lib.task_handler import create_task_handler
 from harvester.utils.dcat_warnings import DcatWarning, detect_dcat_warnings
 from harvester.utils.general_utils import (
     DT_PLACEHOLDER,
-    USER_AGENT,
     add_uuid_to_package_name,
-    assemble_validation_errors,
     backfill_catalog_record_identifiers,
     backfill_object_identifiers_from_title,
-    build_dcatus3_validator,
     build_report_email_section,
     dataset_to_hash,
     describe_identifier_error,
@@ -64,7 +72,6 @@ from harvester.utils.general_utils import (
     munge_spatial,
     munge_title_to_name,
     normalize_dataset_identifier,
-    open_json,
     prepare_distributions,
     prepare_transform_msg,
     send_email_to_recipients,
@@ -72,11 +79,6 @@ from harvester.utils.general_utils import (
     strip_dcatus3_catalog_objects,
     translate_spatial_to_geojson,
     traverse_waf,
-)
-from harvester.utils.schema_paths import (
-    DCATUS1_1_DIR,
-    DCATUS3_DATASET_SCHEMA,
-    DCATUS3_DEFINITIONS_DIR,
 )
 
 # logging data
@@ -1124,6 +1126,9 @@ class Record:
                     and synched_with_ckan is False
                 ):
                     self.harvest_source.clear_complete = False
+                self.harvest_source.db_interface.clear_current_record_issues(
+                    self.harvest_source.id, self.record_type, self.identifier
+                )
                 return
             self.compare()
             if self.action is None:
@@ -1136,6 +1141,7 @@ class Record:
                 self.improve_distributions()
                 self._save_transformed_data()
             self.validate()
+            self.sync_current_issues()
             self.sync()
         except (
             CompareException,
@@ -1470,6 +1476,18 @@ class Record:
                 len(errors),
             )
             return False
+
+    def sync_current_issues(self) -> None:
+        """Refresh this record's current-issue state with whatever
+        validate() just reported (#6440)."""
+        if self.id is None:
+            return
+        self.harvest_source.db_interface.sync_current_record_issues(
+            self.harvest_source.id,
+            self.record_type,
+            self.identifier,
+            self.id,
+        )
 
     def _metadata_for_dataset(self):
         if self.transformed_data is not None:
@@ -1820,7 +1838,9 @@ def check_for_more_work():
 if __name__ == "__main__":
     import sys
 
-    from harvester.utils.general_utils import parse_args
+    from harvester.utils.general_utils import (
+        parse_args,
+    )
 
     exit_code = 0
 

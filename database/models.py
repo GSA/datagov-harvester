@@ -154,6 +154,7 @@ class HarvestSource(Base):
     # alerting) shouldn't change until explicitly opted in.
     send_report_email = Column(Boolean, nullable=False, server_default="false")
 
+    is_locked = Column(Boolean, nullable=False, server_default=text("false"))
     collection_parent_url = Column(String)
     date_next_run = Column(DateTime, index=True)
 
@@ -434,6 +435,56 @@ class HarvestRecordError(Error):
     __table_args__ = (
         Index("ix_hre_job_id", "harvest_job_id"),
         Index("ix_harvest_record_error_harvest_record_id", "harvest_record_id"),
+    )
+
+
+class HarvestRecordCurrentIssue(Error):
+    """Current issues per (harvest_source, record_type, identifier),
+    independent of any job. Deleted-and-reinserted on each reprocess, so an
+    unchanged record keeps showing its issue instead of losing it just
+    because it got no new harvest_record row this job. See #6440.
+    """
+
+    __tablename__ = "harvest_record_current_issue"
+
+    harvest_source_id = Column(
+        String(36),
+        ForeignKey("harvest_source.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+
+    record_type = Column(
+        Enum(*RECORD_TYPE_VALUES, name="record_type"),
+        nullable=False,
+        server_default="dataset",
+    )
+
+    identifier = Column(String, nullable=False)
+
+    # SET NULL, not CASCADE: same reasoning as HarvestRecordError above.
+    harvest_record_id = Column(
+        String(36),
+        ForeignKey("harvest_record.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+
+    severity = Column(
+        Enum(*SEVERITY_VALUES, name="error_severity"),
+        nullable=False,
+        server_default="error",
+    )
+
+    __table_args__ = (
+        Index(
+            "ix_harvest_record_current_issue_source_type_identifier",
+            "harvest_source_id",
+            "record_type",
+            "identifier",
+        ),
+        Index(
+            "ix_harvest_record_current_issue_harvest_record_id",
+            "harvest_record_id",
+        ),
     )
 
 
