@@ -154,6 +154,13 @@ FETCH_CONNECT_ATTEMPTS = 3
 MAX_FETCH_REDIRECTS = 5
 _REDIRECT_STATUS_CODES = {301, 302, 303, 307, 308}
 
+# Only the standard web ports, on every hop. Catalogs are served from these in
+# practice, and allowing any port would let callers probe arbitrary services on
+# public hosts from our addresses: the different refusals (timeout, refused,
+# not JSON) are enough to tell open, closed and filtered ports apart.
+ALLOWED_FETCH_PORTS = frozenset({80, 443})
+_DEFAULT_PORTS = {"http": 80, "https": 443}
+
 UNEXPECTED_FETCH_ERROR_MESSAGE = (
     "Could not retrieve the catalog from that URL. Check the URL and try again."
 )
@@ -437,6 +444,11 @@ def _validate_fetch_target(url: str) -> list[str]:
         port = parsed.port
     except ValueError:
         raise InvalidCatalogSource("Invalid URL.") from None
+
+    if port is None:
+        port = _DEFAULT_PORTS[parsed.scheme]
+    if port not in ALLOWED_FETCH_PORTS:
+        raise InvalidCatalogSource("Only ports 80 and 443 are allowed.")
 
     try:
         addresses = _resolve_addresses(parsed.hostname, port)

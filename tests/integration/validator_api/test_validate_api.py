@@ -483,6 +483,14 @@ class TestRefusedUrlIsExplained:
         assert res.status_code == 400
         assert "private/internal addresses is not allowed" in res.get_json()["error"]
 
+    def test_nonstandard_port(self, validator_client):
+        res = validator_client.post(
+            URL, json=self._url_form("https://example.com:8443/data.json")
+        )
+
+        assert res.status_code == 400
+        assert "Only ports 80 and 443 are allowed." in res.get_json()["error"]
+
     def test_unexpected_transport_error_is_not_disclosed(
         self, validator_client, monkeypatch
     ):

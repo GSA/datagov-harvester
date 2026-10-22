@@ -443,6 +443,52 @@ class TestFetchJsonFromUrl:
         # never followed the redirect to the private address
         mock_get.assert_called_once()
 
+    @pytest.mark.parametrize(
+        "url",
+        [
+            "http://example.com/data.json",
+            "https://example.com/data.json",
+            "http://example.com:80/data.json",
+            "https://example.com:443/data.json",
+            "http://example.com:443/data.json",
+        ],
+    )
+    @patch("dcatus_validation.fetch._pinned_get")
+    def test_standard_ports_are_fetched(self, mock_get, url):
+        mock_get.return_value = _json_response()
+
+        assert fetch_json_from_url(url) == {"dataset": []}
+
+    @pytest.mark.parametrize(
+        "url",
+        [
+            "http://example.com:8080/data.json",
+            "https://example.com:8443/data.json",
+            "http://example.com:22/",
+            "https://example.com:0/data.json",
+        ],
+    )
+    @patch("dcatus_validation.fetch._pinned_get")
+    def test_nonstandard_ports_are_refused(self, mock_get, url):
+        """Any other port would let callers probe services on public hosts."""
+        with pytest.raises(InvalidCatalogSource, match="Only ports 80 and 443"):
+            fetch_json_from_url(url)
+
+        mock_get.assert_not_called()
+
+    @patch("dcatus_validation.fetch._pinned_get")
+    def test_redirect_to_nonstandard_port_is_refused(self, mock_get):
+        redirect_response = Mock()
+        redirect_response.status_code = 302
+        redirect_response.headers = {"Location": "http://example.com:6379/"}
+        redirect_response.close = Mock()
+        mock_get.return_value = redirect_response
+
+        with pytest.raises(InvalidCatalogSource, match="Only ports 80 and 443"):
+            fetch_json_from_url("https://example.com/redirect-me")
+
+        mock_get.assert_called_once()
+
     @patch("dcatus_validation.fetch._pinned_get")
     def test_fetch_json_from_url_caps_redirect_chain(self, mock_get):
         """A redirect loop/chain longer than MAX_FETCH_REDIRECTS is rejected
@@ -600,6 +646,9 @@ class TestFetchJsonFromUrl:
             return original_getaddrinfo(host, port, *args, **kwargs)
 
         monkeypatch.setattr(fetch, "ALLOW_PRIVATE_ADDRESSES", True)
+        monkeypatch.setattr(
+            fetch, "ALLOWED_FETCH_PORTS", frozenset({server.server_port})
+        )
         monkeypatch.setattr(socket, "getaddrinfo", rebinding_getaddrinfo)
         try:
             result = fetch_json_from_url(
