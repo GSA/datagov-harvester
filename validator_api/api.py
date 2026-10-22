@@ -69,7 +69,8 @@ def _bound_validation_results(errors: list) -> list:
         400: {
             "description": (
                 "Submission refused: the URL could not be retrieved (bad scheme, "
-                "internal address, timeout, too many redirects), or the catalog "
+                "blocked domain, internal address, timeout, too many redirects), "
+                "or the catalog "
                 "was oversized, not JSON, or unparseable. The `error` field says "
                 "which."
             ),

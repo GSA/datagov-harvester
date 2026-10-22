@@ -10,6 +10,7 @@ import requests
 import dcatus_validation.fetch as fetch
 from dcatus_validation.errors import CatalogTooDeeplyNested
 from dcatus_validation.fetch import (
+    BLOCKED_VALIDATOR_DOMAIN_MESSAGE,
     FETCH_CONNECT_ATTEMPTS,
     FETCH_CONNECT_TIMEOUT_SECONDS,
     FETCH_TIMEOUT_SECONDS,
@@ -37,6 +38,67 @@ def _json_response(body=b'{"dataset": []}'):
 
 class TestFetchJsonFromUrl:
     """Tests for fetch_json_from_url function"""
+
+    @pytest.mark.parametrize("domain", ["nip.io", "rbndr.us", "sslip.io", "traefik.me"])
+    @pytest.mark.parametrize(
+        "host", ["{domain}", "sub.{domain}", "SUB.{domain}.", "sub。{domain}"]
+    )
+    def test_blocked_domain_is_rejected_before_dns_or_fetch(
+        self, domain, host, monkeypatch
+    ):
+        resolve = Mock()
+        get = Mock()
+        monkeypatch.setattr(fetch, "_resolve_addresses", resolve)
+        monkeypatch.setattr(fetch, "_pinned_get", get)
+
+        with pytest.raises(
+            InvalidCatalogSource, match=BLOCKED_VALIDATOR_DOMAIN_MESSAGE
+        ):
+            fetch_json_from_url(f"https://{host.format(domain=domain)}/data.json")
+
+        resolve.assert_not_called()
+        get.assert_not_called()
+
+    @pytest.mark.parametrize(
+        "host",
+        [
+            "notnip.io",
+            "nip.io.example.com",
+            "rbndr.us.evil.org",
+            "example.gov",
+            "www.yahoo.com",
+        ],
+    )
+    def test_other_domains_use_existing_fetch_rules(self, host, monkeypatch):
+        resolve = Mock(return_value=["8.8.8.8"])
+        get = Mock(return_value=_json_response())
+        monkeypatch.setattr(fetch, "_resolve_addresses", resolve)
+        monkeypatch.setattr(fetch, "_pinned_get", get)
+
+        assert fetch_json_from_url(f"https://{host}/data.json") == {"dataset": []}
+        resolve.assert_called_once_with(host, None)
+        get.assert_called_once()
+
+    def test_redirect_to_blocked_domain_is_rejected_before_dns_or_fetch(
+        self, monkeypatch
+    ):
+        redirect = Mock(
+            status_code=302, headers={"Location": "https://sub.nip.io/data.json"}
+        )
+        redirect.close = Mock()
+        resolve = Mock(return_value=["8.8.8.8"])
+        get = Mock(return_value=redirect)
+        monkeypatch.setattr(fetch, "_resolve_addresses", resolve)
+        monkeypatch.setattr(fetch, "_pinned_get", get)
+
+        with pytest.raises(
+            InvalidCatalogSource, match=BLOCKED_VALIDATOR_DOMAIN_MESSAGE
+        ):
+            fetch_json_from_url("https://example.gov/redirect")
+
+        resolve.assert_called_once_with("example.gov", None)
+        get.assert_called_once()
+        redirect.close.assert_called()
 
     @patch("dcatus_validation.fetch._pinned_get")
     def test_fetch_json_from_url_exceeds_size_limit(self, mock_get):

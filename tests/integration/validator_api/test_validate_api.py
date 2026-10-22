@@ -7,6 +7,7 @@ import requests
 
 from dcatus_validation.errors import NESTING_TOO_DEEP_MESSAGE
 from dcatus_validation.fetch import (
+    BLOCKED_VALIDATOR_DOMAIN_MESSAGE,
     FETCH_TIMEOUT_SECONDS,
     INVALID_JSON_NUMBER_MESSAGE,
     PAYLOAD_TOO_LARGE_MESSAGE,
@@ -442,6 +443,21 @@ class TestRefusedUrlIsExplained:
             "fetch_method": "url",
             "url": url,
         }
+
+    def test_blocked_domain(self, validator_client, monkeypatch):
+        resolve = Mock()
+        get = Mock()
+        monkeypatch.setattr("dcatus_validation.fetch._resolve_addresses", resolve)
+        monkeypatch.setattr("dcatus_validation.fetch._pinned_get", get)
+
+        res = validator_client.post(
+            URL, json=self._url_form("https://sub.rbndr.us/catalog.json")
+        )
+
+        assert res.status_code == 400
+        assert res.get_json() == {"error": BLOCKED_VALIDATOR_DOMAIN_MESSAGE}
+        resolve.assert_not_called()
+        get.assert_not_called()
 
     def test_timeout(self, validator_client, monkeypatch):
         clock = itertools.chain([100.0, 100.0], itertools.repeat(200.0))
