@@ -1009,9 +1009,21 @@ class TestHarvestJobFullFlow:
 class TestCheckMoreWork:
     @patch("harvester.lib.cf_handler.CloudFoundryClient")
     def test_check_more_work(
-        self, CFCMock, interface, organization_data, source_data_dcatus_single_record
+        self,
+        CFCMock,
+        interface,
+        organization_data,
+        source_data_dcatus_single_record,
+        monkeypatch,
     ):
         """Check more work starts another task."""
+        # create_task_handler() only picks CFHandler when all three CF_* vars
+        # are set; .env.sample ships CF_SERVICE_USER/CF_SERVICE_AUTH empty, so
+        # without this the job starts via LocalTaskHandler and CFCMock is
+        # never called.
+        monkeypatch.setenv("CF_API_URL", "https://api.example.com")
+        monkeypatch.setenv("CF_SERVICE_USER", "user")
+        monkeypatch.setenv("CF_SERVICE_AUTH", "pass")
 
         interface.add_organization(organization_data)
         interface.add_harvest_source(source_data_dcatus_single_record)
