@@ -366,6 +366,28 @@ The public DCAT-US validation API, deployed as its own Cloud Foundry app so vali
 
 Locally, `docker compose` runs it as the `validator` service, plus a `proxy` service (`nginx-local-proxy.conf`, port 8082) that reproduces the cloud.gov routing and body limits, since the Flask dev server has no nginx in front of it. `/validate/` only works end to end through port 8082.
 
+#### Validator egress proxy
+
+The validator fetches through its own [cg-egress-proxy](https://github.com/GSA-TTS/cg-egress-proxy), separate from the admin app's: it allows every domain (the admin app's proxy uses the per-space allow list in GSA/data.gov `egress/acl/`), denies private ranges, and allows port 443 only unless `PROXY_PORTS` says otherwise. `fetch.py` reads the proxy from `proxy_url`; with it unset, fetches go direct. It is set up by hand with the cf CLI, once per space (`development` shown):
+
+```bash
+git clone https://github.com/GSA-TTS/cg-egress-proxy && cd cg-egress-proxy
+git checkout 4d4aacf85cea46699571df93df46919e489128be   # the commit GSA/data.gov's enable-egress workflow uses
+GOOS=linux GOARCH=amd64 xcaddy build --with github.com/caddyserver/forwardproxy --output proxy/caddy
+
+echo all > datagov-harvest-validator.allow.acl
+printf '%s\n' 0.0.0.0/8 10.0.0.0/8 100.64.0.0/10 127.0.0.0/8 169.254.0.0/16 \
+  172.16.0.0/12 192.168.0.0/16 ::1/128 fc00::/7 fe80::/10 \
+  > datagov-harvest-validator.deny.acl
+
+cf target -o gsa-datagov -s development
+bin/cf-deployproxy -a datagov-harvest-validator -s development-egress -e proxy_url
+```
+
+`cf-deployproxy` pushes `proxy-gsa-datagov-development-datagov-harvest-validator` to `development-egress`, adds the network policy, sets `proxy_url` on the validator and restarts it. Re-running it rotates the proxy credentials. To also allow plain `http://` catalogs, run `cf set-env <proxy app> PROXY_PORTS "80 443"` in the egress space and restart the proxy.
+
+To check it: the validator logs `egress=proxy` for each fetch, and the proxy app's logs show each request (`cf logs proxy-gsa-datagov-development-datagov-harvest-validator` in `development-egress`).
+
 #### User management
 
 The Data.gov team are the only intended users of the harvester admin app. Since users are rarely added or deleted, no user management UI has been built and adding/deleting users must be done via the command line.
