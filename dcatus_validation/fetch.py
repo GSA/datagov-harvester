@@ -623,6 +623,11 @@ def fetch_json_from_url(url: str) -> dict:
                     _target_for_log(target),
                 )
                 continue
+            except requests.exceptions.ProxyError:
+                # The egress proxy refused the target (a denied port or
+                # address) or couldn't reach it after trying every address it
+                # resolved. A fresh connection gets the same answer.
+                raise
             except requests.exceptions.ConnectionError:
                 # One unusable address (commonly an IPv6 address on an
                 # IPv4-only network) must not hide another approved address.

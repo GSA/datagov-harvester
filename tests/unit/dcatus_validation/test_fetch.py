@@ -858,17 +858,17 @@ class TestEgressProxy:
         assert "secret" not in caplog.text
 
     def test_https_fetch_tunnels_through_the_proxy(self, monkeypatch, caplog):
-        """A refused CONNECT is a fetch failure, never a fallback to a direct
-        connection, and the proxy's credentials stay out of the logs."""
+        """A refused CONNECT is a fetch failure, not retried and never a
+        fallback to a direct connection, and the proxy's credentials stay out
+        of the logs."""
         with _ForwardProxy() as proxy:
             monkeypatch.setattr(fetch, "EGRESS_PROXY_URL", proxy.url)
             with pytest.raises(fetch.InvalidCatalogSource, match="Could not retrieve"):
                 fetch.fetch_json_from_url("https://catalog.test:8443/data.json")
 
-        assert proxy.requests
-        assert set(proxy.requests) == {
+        assert proxy.requests == [
             ("CONNECT", "catalog.test:8443", _PROXY_AUTHORIZATION)
-        }
+        ]
         assert "secret" not in caplog.text
 
     def test_body_deadline_applies_through_the_proxy(self, monkeypatch):
