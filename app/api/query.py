@@ -22,6 +22,40 @@ from harvester.utils.general_utils import convert_to_int, is_it_true
 
 from . import api
 
+ENDPOINT_VALID_FILTERS = {
+    "organizations": [],
+    "harvest_sources": ["organization_id"],
+    "harvest_jobs": ["harvest_source_id"],
+    "harvest_records": ["harvest_source_id", "harvest_job_id"],
+    "harvest_job_errors": ["harvest_job_id"],
+    "harvest_record_errors": ["harvest_job_id", "harvest_record_id", "severity"],
+}
+
+
+def _validate_query_parameters(model: str, provided_params: dict) -> tuple[bool, str]:
+    """
+    Validate that query filter parameters are valid for the given endpoint model.
+
+    Args:
+        model: The endpoint model name (e.g., "harvest_job_errors")
+        provided_params: Dict of query parameters provided in request
+
+    Returns:
+        Tuple of (is_valid, error_message). error_message is empty string if valid.
+    """
+    valid_filters = ENDPOINT_VALID_FILTERS.get(model, [])
+    filter_params = ["harvest_source_id", "harvest_job_id", "harvest_record_id"]
+
+    for param in filter_params:
+        if param in provided_params and param not in valid_filters:
+            valid_filters_str = ", ".join(valid_filters) if valid_filters else "facets"
+            return False, (
+                f"{param} is not a valid parameter for /{model}/. "
+                f"Valid filter parameters: {valid_filters_str}."
+            )
+
+    return True, ""
+
 
 @api.route("/organizations/", methods=["GET"])
 @api.route("/harvest_sources/", methods=["GET"])
