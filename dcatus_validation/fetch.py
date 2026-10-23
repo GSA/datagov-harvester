@@ -2,8 +2,11 @@
 
 The validator is public and unauthenticated, so every URL it fetches is
 attacker-chosen: the checks here (scheme, private/internal addresses on every
-redirect hop, size, one overall time budget) are what keep that from being used
-to reach internal services.
+redirect hop, size, a time budget) reject what they can with a specific
+message. Like the harvester, fetches use requests' environment settings, so on
+cloud.gov they go through the app's egress proxy (`.profile` sets
+https_proxy/http_proxy from proxy_url), which enforces egress itself: HTTPS
+only, and no private or internal addresses.
 """
 
 import hashlib
@@ -17,10 +20,6 @@ import time
 from urllib.parse import urljoin, urlparse
 
 import requests
-from requests.adapters import HTTPAdapter
-from urllib3.connection import HTTPConnection, HTTPSConnection
-from urllib3.connectionpool import HTTPConnectionPool, HTTPSConnectionPool
-from urllib3.poolmanager import SSL_KEYWORDS, ProxyManager
 
 from dcatus_validation.errors import (
     NESTING_TOO_DEEP_MESSAGE,
@@ -43,12 +42,6 @@ USER_AGENT = "HarvesterBot/0.0 (https://data.gov; datagovhelp@gsa.gov) Data.gov/
 ALLOW_PRIVATE_ADDRESSES = (
     os.getenv("ALLOW_PRIVATE_ADDRESSES", "false").lower() == "true"
 )
-
-# On cloud.gov every fetch goes through an egress proxy (GSA-TTS/cg-egress-proxy,
-# deployed by `cf-deployproxy -e proxy_url`, which sets this variable). Read
-# here and passed to requests explicitly, never through the ambient
-# http(s)_proxy variables. Unset (local development), fetches connect directly.
-EGRESS_PROXY_URL = os.getenv("proxy_url") or None
 
 _IPV4_COMPATIBLE_NETWORK = ipaddress.ip_network("::/96")
 _IPV4_PROTOCOL_ASSIGNMENTS_NETWORK = ipaddress.ip_network("192.0.0.0/24")
@@ -148,6 +141,10 @@ PAYLOAD_TOO_LARGE_MESSAGE = (
 # connect attempt is short - long enough for a single quick retransmit - and
 # a connect-phase timeout is retried on a new connection, all inside the one
 # deadline. A dead host still fails by FETCH_TIMEOUT_SECONDS.
+#
+# The deadline is checked between body reads, and each read is bounded by the
+# time left when the request started, so a body that trickles in and then
+# stalls can overrun it by up to one read timeout.
 FETCH_TIMEOUT_SECONDS = 12
 FETCH_CONNECT_TIMEOUT_SECONDS = 4
 FETCH_CONNECT_ATTEMPTS = 3
@@ -285,224 +282,16 @@ def parse_json_document(document: str | bytes | bytearray):
         raise InvalidCatalogSource(INVALID_JSON_ENCODING_MESSAGE) from None
 
 
-class _DeadlineConnectionMixin:
-    """Hand each connected socket to the request's timeout controller."""
-
-    def __init__(self, *args, timeout_controller, **kwargs):
-        self._timeout_controller = timeout_controller
-        super().__init__(*args, **kwargs)
-
-    def connect(self):
-        super().connect()
-        self._timeout_controller.attach(self.sock)
-
-
-class _PinnedConnectionMixin(_DeadlineConnectionMixin):
-    """Connect to the approved IP while retaining the hostname for Host/TLS."""
-
-    def __init__(self, *args, pinned_ip: str, **kwargs):
-        self._pinned_ip = pinned_ip
-        super().__init__(*args, **kwargs)
-
-    def _new_conn(self):
-        dns_host = self._dns_host
-        try:
-            self._dns_host = self._pinned_ip
-            return super()._new_conn()
-        finally:
-            self._dns_host = dns_host
-
-
-class _SocketTimeoutController:
-    """Set read deadlines without depending on urllib3 response internals."""
-
-    def __init__(self):
-        self._socket = None
-
-    def attach(self, connected_socket) -> None:
-        self._socket = connected_socket
-
-    def settimeout(self, timeout: float) -> None:
-        if self._socket is None:
-            raise RuntimeError("Validator response socket is unavailable")
-        if self._socket.fileno() < 0:
-            return
-        self._socket.settimeout(timeout)
-
-
-class _PinnedHTTPConnection(_PinnedConnectionMixin, HTTPConnection):
-    pass
-
-
-class _PinnedHTTPSConnection(_PinnedConnectionMixin, HTTPSConnection):
-    pass
-
-
-class _PinnedHTTPConnectionPool(HTTPConnectionPool):
-    ConnectionCls = _PinnedHTTPConnection
-
-
-class _PinnedHTTPSConnectionPool(HTTPSConnectionPool):
-    ConnectionCls = _PinnedHTTPSConnection
-
-
-class _PinnedAddressAdapter(HTTPAdapter):
-    """A one-address adapter used for one request and then closed."""
-
-    def __init__(self, pinned_ip: str, timeout_controller):
-        self._pinned_ip = pinned_ip
-        self._timeout_controller = timeout_controller
-        self._pools = []
-        super().__init__()
-
-    def get_connection_with_tls_context(self, request, verify, proxies=None, cert=None):
-        if proxies:
-            raise RuntimeError("Proxies are not supported by the pinned URL fetcher")
-
-        host_params, pool_kwargs = self.build_connection_pool_key_attributes(
-            request, verify, cert
-        )
-        pool_class = (
-            _PinnedHTTPSConnectionPool
-            if host_params["scheme"] == "https"
-            else _PinnedHTTPConnectionPool
-        )
-        if host_params["scheme"] == "http":
-            for keyword in SSL_KEYWORDS:
-                pool_kwargs.pop(keyword, None)
-        pool = pool_class(
-            host_params["host"],
-            host_params["port"],
-            pinned_ip=self._pinned_ip,
-            timeout_controller=self._timeout_controller,
-            **pool_kwargs,
-        )
-        self._pools.append(pool)
-        return pool
-
-    def close(self):
-        for pool in self._pools:
-            pool.close()
-        self._pools.clear()
-        super().close()
-
-
-class _ProxiedHTTPConnection(_DeadlineConnectionMixin, HTTPConnection):
-    pass
-
-
-class _ProxiedHTTPSConnection(_DeadlineConnectionMixin, HTTPSConnection):
-    pass
-
-
-class _ProxiedHTTPConnectionPool(HTTPConnectionPool):
-    ConnectionCls = _ProxiedHTTPConnection
-
-
-class _ProxiedHTTPSConnectionPool(HTTPSConnectionPool):
-    ConnectionCls = _ProxiedHTTPSConnection
-
-
-class _EgressProxyManager(ProxyManager):
-    """urllib3's ProxyManager, with the request's timeout controller attached
-    to every connection it opens (the proxy hop and any tunnel inside it)."""
-
-    def __init__(self, *args, timeout_controller, **kwargs):
-        super().__init__(*args, **kwargs)
-        self._timeout_controller = timeout_controller
-        self.pool_classes_by_scheme = {
-            "http": _ProxiedHTTPConnectionPool,
-            "https": _ProxiedHTTPSConnectionPool,
-        }
-
-    def _new_pool(self, scheme, host, port, request_context=None):
-        if request_context is None:
-            request_context = self.connection_pool_kw.copy()
-        request_context = {
-            **request_context,
-            "timeout_controller": self._timeout_controller,
-        }
-        return super()._new_pool(scheme, host, port, request_context)
-
-
-class _EgressProxyAdapter(HTTPAdapter):
-    """A one-request adapter that only ever connects through the egress proxy."""
-
-    def __init__(self, timeout_controller):
-        self._timeout_controller = timeout_controller
-        super().__init__()
-
-    def get_connection_with_tls_context(self, request, verify, proxies=None, cert=None):
-        if not proxies:
-            raise RuntimeError("The egress proxy adapter never connects directly")
-        return super().get_connection_with_tls_context(
-            request, verify, proxies=proxies, cert=cert
-        )
-
-    def proxy_manager_for(self, proxy, **proxy_kwargs):
-        if proxy not in self.proxy_manager:
-            self.proxy_manager[proxy] = _EgressProxyManager(
-                proxy,
-                proxy_headers=self.proxy_headers(proxy),
-                num_pools=self._pool_connections,
-                maxsize=self._pool_maxsize,
-                block=self._pool_block,
-                timeout_controller=self._timeout_controller,
-                **proxy_kwargs,
-            )
-        return self.proxy_manager[proxy]
-
-
-def _pinned_get(target: str, ip: str, timeout: tuple[float, float]):
-    """
-    Fetch target through the IP that passed validation. A fresh Session avoids
-    ambient proxy and netrc credentials, either of which would hand hostname
-    resolution back to another component after the security check.
-
-    With EGRESS_PROXY_URL set, the request goes through the egress proxy
-    instead and `ip` is unused: the proxy resolves the hostname itself, so its
-    deny list of private ranges (checked against every address it resolves) is
-    what keeps a DNS-rebinding answer from reaching an internal address.
-    """
-    session = requests.Session()
-    session.trust_env = False
-    timeout_controller = _SocketTimeoutController()
-    if EGRESS_PROXY_URL:
-        proxies = {"http": EGRESS_PROXY_URL, "https": EGRESS_PROXY_URL}
-        session.mount("http://", _EgressProxyAdapter(timeout_controller))
-        session.mount("https://", _EgressProxyAdapter(timeout_controller))
-    else:
-        proxies = None
-        session.mount("http://", _PinnedAddressAdapter(ip, timeout_controller))
-        session.mount("https://", _PinnedAddressAdapter(ip, timeout_controller))
-    verify = os.getenv("REQUESTS_CA_BUNDLE") or True
-
-    try:
-        response = session.get(
-            target,
-            headers={"User-Agent": USER_AGENT},
-            stream=True,
-            timeout=timeout,
-            allow_redirects=False,
-            verify=verify,
-            proxies=proxies,
-        )
-    except Exception:
-        session.close()
-        raise
-
-    response._validator_session = session
-    response._validator_timeout_controller = timeout_controller
-    return response
-
-
-def _close_response(response: requests.Response) -> None:
-    session = getattr(response, "_validator_session", None)
-    try:
-        response.close()
-    finally:
-        if session is not None:
-            session.close()
+def _http_get(target: str, timeout: tuple[float, float]) -> requests.Response:
+    """Fetch one hop. Redirects are followed by the caller, so each one is
+    checked by _validate_fetch_target first."""
+    return requests.get(
+        target,
+        headers={"User-Agent": USER_AGENT},
+        stream=True,
+        timeout=timeout,
+        allow_redirects=False,
+    )
 
 
 def _target_for_log(url: str) -> str:
@@ -568,12 +357,8 @@ def fetch_json_from_url(url: str) -> dict:
     # DNS validation is part of the fetch, so time spent resolving the
     # submitted hostname counts against the same deadline as the request.
     deadline = time.monotonic() + FETCH_TIMEOUT_SECONDS
-    approved_addresses = _validate_fetch_target(url)
-    logger.info(
-        "Validator fetching target=%s egress=%s",
-        _target_for_log(url),
-        "proxy" if EGRESS_PROXY_URL else "direct",
-    )
+    _validate_fetch_target(url)
+    logger.info("Validator fetching target=%s", _target_for_log(url))
 
     # One deadline for the whole operation, not a fresh FETCH_TIMEOUT_SECONDS
     # per redirect hop - otherwise a chain of MAX_FETCH_REDIRECTS redirects,
@@ -588,17 +373,13 @@ def fetch_json_from_url(url: str) -> dict:
             )
         return remaining
 
-    def _get(target: str, addresses: list[str]) -> requests.Response:
+    def _get(target: str) -> requests.Response:
         attempts = 0
         while True:
             remaining = _remaining_budget()
-            ip = addresses[attempts % len(addresses)]
             try:
-                # _pinned_get opens a fresh connection to the address that
-                # passed validation, so DNS cannot change underneath us.
-                result = _pinned_get(
+                return _http_get(
                     target,
-                    ip,
                     timeout=(
                         min(FETCH_CONNECT_TIMEOUT_SECONDS, remaining),
                         remaining,
@@ -623,39 +404,21 @@ def fetch_json_from_url(url: str) -> dict:
                     _target_for_log(target),
                 )
                 continue
-            except requests.exceptions.ProxyError:
-                # The egress proxy refused the target (a denied port or
-                # address) or couldn't reach it after trying every address it
-                # resolved. A fresh connection gets the same answer.
-                raise
-            except requests.exceptions.ConnectionError:
-                # One unusable address (commonly an IPv6 address on an
-                # IPv4-only network) must not hide another approved address.
-                attempts += 1
-                if attempts >= FETCH_CONNECT_ATTEMPTS:
-                    raise
-                logger.info(
-                    "Validator URL fetch connect attempt %s failed, retrying target=%s",
-                    attempts,
-                    _target_for_log(target),
-                )
-                continue
-            return result
 
     response = None
     try:
         for _ in range(MAX_FETCH_REDIRECTS + 1):
-            response = _get(url, approved_addresses)
+            response = _get(url)
             if response.status_code not in _REDIRECT_STATUS_CODES:
                 break
 
             location = response.headers.get("Location")
-            _close_response(response)
+            response.close()
             if not location:
                 raise InvalidCatalogSource("Redirected without a Location header.")
 
             url = urljoin(url, location)
-            approved_addresses = _validate_fetch_target(url)
+            _validate_fetch_target(url)
         else:
             raise InvalidCatalogSource("Too many redirects.")
 
@@ -671,26 +434,23 @@ def fetch_json_from_url(url: str) -> dict:
 
         chunks = []
         total_size = 0
-        chunk_iterator = iter(response.iter_content(chunk_size=8192))
-        while True:
-            # requests' read timeout is fixed when the request starts. Reduce
-            # the socket timeout before every body read so a late stall cannot
-            # consume a second full FETCH_TIMEOUT_SECONDS.
-            response._validator_timeout_controller.settimeout(_remaining_budget())
-            try:
-                chunk = next(chunk_iterator)
-            except StopIteration:
-                break
-            except requests.exceptions.ConnectionError:
-                # iter_content wraps urllib3's body ReadTimeoutError in
-                # ConnectionError. Reclassify it when the deadline caused it.
+        try:
+            for chunk in response.iter_content(chunk_size=8192):
+                # requests' read timeout bounds each read, not the whole body,
+                # so a slow trickle is stopped here at the next read after the
+                # deadline. A single stalled read can still run one read
+                # timeout past it.
                 _remaining_budget()
-                raise
-            if chunk:
-                total_size += len(chunk)
-                if total_size > MAX_UPLOAD_BYTES:
-                    raise InvalidCatalogSource(PAYLOAD_TOO_LARGE_MESSAGE)
-                chunks.append(chunk)
+                if chunk:
+                    total_size += len(chunk)
+                    if total_size > MAX_UPLOAD_BYTES:
+                        raise InvalidCatalogSource(PAYLOAD_TOO_LARGE_MESSAGE)
+                    chunks.append(chunk)
+        except requests.exceptions.ConnectionError:
+            # iter_content wraps urllib3's body ReadTimeoutError in
+            # ConnectionError. Reclassify it when the deadline caused it.
+            _remaining_budget()
+            raise
     except _ConnectPhaseTimeout as e:
         logger.warning(
             "Validator URL fetch could not connect in time attempts=%s target=%s",
@@ -724,7 +484,7 @@ def fetch_json_from_url(url: str) -> dict:
         raise InvalidCatalogSource(UNEXPECTED_FETCH_ERROR_MESSAGE)
     finally:
         if response is not None:
-            _close_response(response)
+            response.close()
 
     content = b"".join(chunks)
 
