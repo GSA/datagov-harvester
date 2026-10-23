@@ -140,7 +140,7 @@ class TestFetchJsonFromUrl:
             None,
         ],
     )
-    @patch("dcatus_validation.fetch._pinned_get")
+    @patch("dcatus_validation.fetch._http_get")
     def test_content_type_is_not_required_to_be_json(self, mock_get, content_type):
         """Like the harvester, the body decides whether it is JSON - hosts such
         as raw.githubusercontent.com and S3 serve data.json as text/plain or
