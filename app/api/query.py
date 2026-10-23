@@ -90,7 +90,22 @@ def _validate_query_parameters(model: str, provided_params: dict) -> tuple[bool,
 def json_builder_query(**kwargs):
     job_id = request.args.get("harvest_job_id")
     source_id = request.args.get("harvest_source_id")
+    record_id = request.args.get("harvest_record_id")
     facets = request.args.get("facets", default="")
+
+    model = escape(request.path.strip("/").split("/")[-1])
+
+    provided_params = {}
+    if source_id is not None:
+        provided_params["harvest_source_id"] = source_id
+    if job_id is not None:
+        provided_params["harvest_job_id"] = job_id
+    if record_id is not None:
+        provided_params["harvest_record_id"] = record_id
+
+    is_valid, error_msg = _validate_query_parameters(model, provided_params)
+    if not is_valid:
+        return jsonify({"error": error_msg}), 400
 
     if job_id is not None:
         if facets:
@@ -102,9 +117,11 @@ def json_builder_query(**kwargs):
             facets += f",harvest_source_id eq {source_id}"
         else:
             facets = f"harvest_source_id eq {source_id}"
-
-    # Object type is the last path segment: "/api/harvest_jobs/" -> "harvest_jobs".
-    model = escape(request.path.strip("/").split("/")[-1])
+    if record_id is not None:
+        if facets:
+            facets += f",harvest_record_id eq {record_id}"
+        else:
+            facets = f"harvest_record_id eq {record_id}"
 
     # severity only exists on harvest_record_error, so it is ignored elsewhere.
     # No default: an absent param returns every issue, matching the job-level
