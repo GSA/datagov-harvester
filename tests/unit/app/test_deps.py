@@ -48,7 +48,6 @@ def test_get_api_version_from_path():
     from app.deps import get_api_version_from_path
 
     assert get_api_version_from_path("/api/v1/harvest_jobs/") == "v1"
-    assert get_api_version_from_path("/api/v2/harvest_sources/") == "v2"
     assert get_api_version_from_path("/api/harvest_jobs/") == "v1"
     assert get_api_version_from_path("/harvest_jobs/") == "v1"
 

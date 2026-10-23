@@ -199,3 +199,63 @@ def create_harvest_source(source_data):
         source_name=source.name,
     )
     return source, f"Added new harvest source with ID: {source.id}. {job_message}", 200
+
+
+def get_application_version():
+    """
+    Get application version from VCAP_APPLICATION or git describe.
+
+    Returns:
+        Version string (e.g., "2026.09.30.1") or "unknown"
+    """
+    import json
+    import os
+    import subprocess
+
+    vcap_app = os.environ.get("VCAP_APPLICATION")
+    if vcap_app:
+        try:
+            vcap_data = json.loads(vcap_app)
+            app_version = vcap_data.get("application_version", "")
+            if "-" in app_version:
+                return app_version.split("-", 1)[1]
+            return app_version
+        except (json.JSONDecodeError, KeyError):
+            pass
+
+    try:
+        result = subprocess.run(
+            ["git", "describe", "--tags", "--always"],
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=5,
+        )
+        return result.stdout.strip().lstrip("v")
+    except Exception:
+        pass
+
+    return "unknown"
+
+
+def get_api_version_from_path(path):
+    """
+    Extract API version from request path.
+
+    Args:
+        path: Request path (e.g., "/api/v1/harvest_jobs/")
+
+    Returns:
+        API version string (e.g., "v1")
+    """
+    from app.routes import API_VERSIONS
+
+    parts = path.strip("/").split("/")
+    if len(parts) >= 2 and parts[0] == "api":
+        version_part = parts[1]
+        api_versions = {version for version, _ in API_VERSIONS}
+        if version_part in api_versions:
+            return version_part
+
+    latest_version, _ = API_VERSIONS[-1]
+    return latest_version
