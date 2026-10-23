@@ -185,13 +185,19 @@ def test_harvest_records_collection_response_structure(client):
 
 
 def test_harvest_job_errors_collection_response_structure(client):
-    """Test harvest job errors endpoint returns structured response (404 when no data)."""
+    """Test harvest job errors endpoint returns structured response.
+
+    Returns 404 when no data.
+    """
     response = client.get("/api/v1/harvest_job_errors/")
     assert response.status_code == 404
 
 
 def test_harvest_record_errors_collection_response_structure(client):
-    """Test harvest record errors endpoint returns structured response (404 when no data)."""
+    """Test harvest record errors endpoint returns structured response.
+
+    Returns 404 when no data.
+    """
     response = client.get("/api/v1/harvest_record_errors/")
     assert response.status_code == 404
 
