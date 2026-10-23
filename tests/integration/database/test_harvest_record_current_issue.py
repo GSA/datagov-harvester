@@ -138,7 +138,7 @@ def test_sync_current_record_issues_carries_forward_latest_set(
     )
     assert len(current_errors) == 1
     assert current_errors[0].error.message == "second warning"
-    assert current_errors[0].harvest_record_id == new_record.id
+    assert current_errors[0].error.harvest_record_id == new_record.id
 
 
 def test_clear_current_record_issues(

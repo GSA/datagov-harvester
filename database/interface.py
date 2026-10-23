@@ -714,7 +714,6 @@ class HarvesterDBInterface:
                     harvest_source_id=record.harvest_source_id,
                     record_type=record.record_type,
                     identifier=record.identifier,
-                    harvest_record_id=record.id,
                 )
             )
             self.db.commit()
@@ -1002,7 +1001,6 @@ class HarvesterDBInterface:
                         harvest_source_id=harvest_source_id,
                         record_type=record_type,
                         identifier=identifier,
-                        harvest_record_id=harvest_record_id,
                     )
                 )
             self.db.commit()
@@ -1035,12 +1033,13 @@ class HarvesterDBInterface:
         in the returned rows since current-state issues aren't tied to a job.
         """
         error_types = ["ValidationException", "ValidationError"]
-        # id/date_created/type/message/severity live on harvest_record_error;
-        # HarvestRecordCurrentIssue.id is that row's id (FK), so this join is
-        # always exactly one row per current-issue row.
+        # harvest_record_id/date_created/type/message/severity live on
+        # harvest_record_error; HarvestRecordCurrentIssue.id is that row's
+        # id (FK), so this join is always exactly one row per current-issue
+        # row.
         base = (
             self.db.query(
-                HarvestRecordCurrentIssue.harvest_record_id.label("harvest_record_id"),
+                HarvestRecordError.harvest_record_id.label("harvest_record_id"),
                 literal(None).label("harvest_job_id"),
                 HarvestRecordError.date_created.label("date_created"),
                 HarvestRecordError.type.label("type"),
