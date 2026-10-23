@@ -259,3 +259,68 @@ def get_api_version_from_path(path):
 
     latest_version, _ = API_VERSIONS[-1]
     return latest_version
+
+
+def build_collection_response(
+    data, path, query_string, page, per_page, total, order_by
+):
+    """
+    Build structured collection response with data, meta, and links.
+
+    Args:
+        data: List of result records
+        path: Request path (e.g., "/api/v1/harvest_jobs/")
+        query_string: Request query string (e.g., "page=0&per_page=10")
+        page: Current page number (0-indexed)
+        per_page: Page size
+        total: Total record count
+        order_by: Applied ordering (e.g., "-date_created")
+
+    Returns:
+        Dict with data, meta, and links structure
+    """
+    import math
+    from urllib.parse import parse_qs, urlencode
+
+    page_count = math.ceil(total / per_page) if per_page > 0 else 0
+
+    api_version = get_api_version_from_path(path)
+    app_version = get_application_version()
+
+    query_params = parse_qs(query_string) if query_string else {}
+    base_params = {
+        k: v[0] if isinstance(v, list) else v for k, v in query_params.items()
+    }
+    base_params["page"] = page
+    base_params["per_page"] = per_page
+    if order_by and order_by not in ("asc", "desc"):
+        base_params["order_by"] = order_by
+
+    base_path = path
+    if not path.startswith("/api/"):
+        base_path = f"/api/{api_version}{path}"
+
+    def build_url(page_num):
+        params = base_params.copy()
+        params["page"] = page_num
+        return f"{base_path}?{urlencode(params)}"
+
+    meta = {
+        "page": page,
+        "per_page": per_page,
+        "total": total,
+        "page_count": page_count,
+        "order_by": order_by,
+        "api_version": api_version,
+        "application_version": app_version,
+    }
+
+    links = {
+        "self": build_url(page),
+        "next": build_url(page + 1) if page < page_count - 1 else None,
+        "previous": build_url(page - 1) if page > 0 else None,
+        "documentation": "/openapi/docs",
+        "changelog": "/api/changelog",
+    }
+
+    return {"data": data, "meta": meta, "links": links}
