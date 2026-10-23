@@ -167,7 +167,16 @@ class RecordIssueQuery(Schema):
 
 
 class QueryInfo(Schema):
-    """Query input for various object types."""
+    """Query input for various object types.
+
+    Parameter availability varies by endpoint:
+    - organizations: facets only (no harvest_job_id or harvest_source_id)
+    - harvest_sources: organization_id, facets
+    - harvest_jobs: harvest_source_id, facets
+    - harvest_records: harvest_source_id, harvest_job_id, facets
+    - harvest_job_errors: harvest_job_id, facets
+    - harvest_record_errors: harvest_job_id, harvest_record_id, severity, facets
+    """
 
     harvest_job_id = UUID()
     harvest_source_id = UUID()

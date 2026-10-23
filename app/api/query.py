@@ -25,6 +25,40 @@ from harvester.utils.general_utils import convert_to_int, is_it_true
 
 from . import api
 
+ENDPOINT_VALID_FILTERS = {
+    "organizations": [],
+    "harvest_sources": ["organization_id"],
+    "harvest_jobs": ["harvest_source_id"],
+    "harvest_records": ["harvest_source_id", "harvest_job_id"],
+    "harvest_job_errors": ["harvest_job_id"],
+    "harvest_record_errors": ["harvest_job_id", "harvest_record_id", "severity"],
+}
+
+
+def _validate_query_parameters(model: str, provided_params: dict) -> tuple[bool, str]:
+    """
+    Validate that query filter parameters are valid for the given endpoint model.
+
+    Args:
+        model: The endpoint model name (e.g., "harvest_job_errors")
+        provided_params: Dict of query parameters provided in request
+
+    Returns:
+        Tuple of (is_valid, error_message). error_message is empty string if valid.
+    """
+    valid_filters = ENDPOINT_VALID_FILTERS.get(model, [])
+    filter_params = ["harvest_source_id", "harvest_job_id", "harvest_record_id"]
+
+    for param in filter_params:
+        if param in provided_params and param not in valid_filters:
+            valid_filters_str = ", ".join(valid_filters) if valid_filters else "facets"
+            return False, (
+                f"{param} is not a valid parameter for /{model}/. "
+                f"Valid filter parameters: {valid_filters_str}."
+            )
+
+    return True, ""
+
 
 def _serialize_job_datetimes(data):
     """Serialize harvest job datetime values as ISO 8601 UTC."""
@@ -83,7 +117,22 @@ def _serialize_job_datetimes(data):
 def json_builder_query(**kwargs):
     job_id = request.args.get("harvest_job_id")
     source_id = request.args.get("harvest_source_id")
+    record_id = request.args.get("harvest_record_id")
     facets = request.args.get("facets", default="")
+
+    model = escape(request.path.strip("/").split("/")[-1])
+
+    provided_params = {}
+    if source_id is not None:
+        provided_params["harvest_source_id"] = source_id
+    if job_id is not None:
+        provided_params["harvest_job_id"] = job_id
+    if record_id is not None:
+        provided_params["harvest_record_id"] = record_id
+
+    is_valid, error_msg = _validate_query_parameters(model, provided_params)
+    if not is_valid:
+        return jsonify({"error": error_msg}), 400
 
     if job_id is not None:
         if facets:
@@ -95,8 +144,11 @@ def json_builder_query(**kwargs):
             facets += f",harvest_source_id eq {source_id}"
         else:
             facets = f"harvest_source_id eq {source_id}"
-
-    model = escape(request.path.strip("/").split("/")[-1])
+    if record_id is not None:
+        if facets:
+            facets += f",harvest_record_id eq {record_id}"
+        else:
+            facets = f"harvest_record_id eq {record_id}"
 
     if model == "harvest_record_errors":
         try:
