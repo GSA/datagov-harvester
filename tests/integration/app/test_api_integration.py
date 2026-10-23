@@ -13,6 +13,7 @@ def test_harvest_jobs_collection_response_structure(client, interface):
             "organization_id": org.id,
             "notification_emails": [],
             "frequency": "manual",
+            "notification_frequency": "on_error",
             "url": "http://example.com",
             "schema_type": "dcatus1.1: federal",
             "source_type": "document",
@@ -20,7 +21,7 @@ def test_harvest_jobs_collection_response_structure(client, interface):
     )
     interface.add_harvest_job({"harvest_source_id": source.id, "status": "complete"})
     interface.add_harvest_job({"harvest_source_id": source.id, "status": "complete"})
-    interface.session.commit()
+    interface.db.commit()
 
     response = client.get("/api/v1/harvest_jobs/")
 
@@ -49,6 +50,7 @@ def test_harvest_jobs_collection_meta_structure(client, interface):
             "organization_id": org.id,
             "notification_emails": [],
             "frequency": "manual",
+            "notification_frequency": "on_error",
             "url": "http://example.com",
             "schema_type": "dcatus1.1: federal",
             "source_type": "document",
@@ -58,7 +60,7 @@ def test_harvest_jobs_collection_meta_structure(client, interface):
         interface.add_harvest_job(
             {"harvest_source_id": source.id, "status": "complete"}
         )
-    interface.session.commit()
+    interface.db.commit()
 
     response = client.get("/api/v1/harvest_jobs/?page=0&per_page=10")
 
@@ -94,6 +96,7 @@ def test_harvest_jobs_collection_links_structure(client, interface):
             "organization_id": org.id,
             "notification_emails": [],
             "frequency": "manual",
+            "notification_frequency": "on_error",
             "url": "http://example.com",
             "schema_type": "dcatus1.1: federal",
             "source_type": "document",
@@ -103,7 +106,7 @@ def test_harvest_jobs_collection_links_structure(client, interface):
         interface.add_harvest_job(
             {"harvest_source_id": source.id, "status": "complete"}
         )
-    interface.session.commit()
+    interface.db.commit()
 
     response = client.get("/api/v1/harvest_jobs/?page=1&per_page=10")
 
@@ -121,8 +124,17 @@ def test_harvest_jobs_collection_links_structure(client, interface):
     assert data["links"]["previous"] is not None
 
 
-def test_organizations_collection_response_structure(client):
+def test_organizations_collection_response_structure(client, interface):
     """Test organizations endpoint returns structured response."""
+    interface.add_organization(
+        {
+            "name": "Test Org",
+            "organization_type": "Federal Government",
+            "slug": "test-org",
+        }
+    )
+    interface.db.commit()
+
     response = client.get("/api/v1/organizations/")
 
     assert response.status_code == 200
@@ -133,8 +145,29 @@ def test_organizations_collection_response_structure(client):
     assert "links" in data
 
 
-def test_harvest_sources_collection_response_structure(client):
+def test_harvest_sources_collection_response_structure(client, interface):
     """Test harvest sources endpoint returns structured response."""
+    org = interface.add_organization(
+        {
+            "name": "Test Org",
+            "organization_type": "Federal Government",
+            "slug": "test-org",
+        }
+    )
+    interface.add_harvest_source(
+        {
+            "name": "Test Source",
+            "organization_id": org.id,
+            "notification_emails": [],
+            "frequency": "manual",
+            "notification_frequency": "on_error",
+            "url": "http://example.com",
+            "schema_type": "dcatus1.1: federal",
+            "source_type": "document",
+        }
+    )
+    interface.db.commit()
+
     response = client.get("/api/v1/harvest_sources/")
 
     assert response.status_code == 200
@@ -146,45 +179,31 @@ def test_harvest_sources_collection_response_structure(client):
 
 
 def test_harvest_records_collection_response_structure(client):
-    """Test harvest records endpoint returns structured response."""
+    """Test harvest records endpoint returns structured response (404 when no data)."""
     response = client.get("/api/v1/harvest_records/")
-
-    assert response.status_code == 200
-    data = response.get_json()
-
-    assert "data" in data
-    assert "meta" in data
-    assert "links" in data
+    assert response.status_code == 404
 
 
 def test_harvest_job_errors_collection_response_structure(client):
-    """Test harvest job errors endpoint returns structured response."""
+    """Test harvest job errors endpoint returns structured response (404 when no data)."""
     response = client.get("/api/v1/harvest_job_errors/")
-
-    assert response.status_code == 200
-    data = response.get_json()
-
-    assert "data" in data
-    assert "meta" in data
-    assert "links" in data
+    assert response.status_code == 404
 
 
 def test_harvest_record_errors_collection_response_structure(client):
-    """Test harvest record errors endpoint returns structured response."""
+    """Test harvest record errors endpoint returns structured response (404 when no data)."""
     response = client.get("/api/v1/harvest_record_errors/")
-
-    assert response.status_code == 200
-    data = response.get_json()
-
-    assert "data" in data
-    assert "meta" in data
-    assert "links" in data
+    assert response.status_code == 404
 
 
 def test_collection_response_with_facets(client, interface):
     """Test collection response structure preserved with facets."""
     org = interface.add_organization(
-        {"name": "Test Org", "organization_type": "Federal Government"}
+        {
+            "name": "Test Org",
+            "organization_type": "Federal Government",
+            "slug": "test-org",
+        }
     )
     source = interface.add_harvest_source(
         {
@@ -192,6 +211,7 @@ def test_collection_response_with_facets(client, interface):
             "organization_id": org.id,
             "notification_emails": [],
             "frequency": "manual",
+            "notification_frequency": "on_error",
             "url": "http://example.com",
             "schema_type": "dcatus1.1: federal",
             "source_type": "document",
@@ -199,7 +219,7 @@ def test_collection_response_with_facets(client, interface):
     )
     interface.add_harvest_job({"harvest_source_id": source.id, "status": "complete"})
     interface.add_harvest_job({"harvest_source_id": source.id, "status": "error"})
-    interface.session.commit()
+    interface.db.commit()
 
     response = client.get("/api/v1/harvest_jobs/?facets=status eq complete")
 

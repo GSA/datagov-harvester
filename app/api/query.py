@@ -112,6 +112,9 @@ def json_builder_query(**kwargs):
         )
 
         if isinstance(res, list):
+            if not res and per_page != 0:
+                return f"No {model} found for this query", 404
+
             total = deps.db.pget_db_query(
                 model=model,
                 page=page,
