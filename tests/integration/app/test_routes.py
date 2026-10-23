@@ -1510,3 +1510,87 @@ class TestPaginationValidation:
                 response.status_code == 422
             ), f"{endpoint} should reject negative per_page"
             assert "per_page" in response.json.get("error", "").lower()
+
+
+class TestQueryParameterValidation:
+    """Test that invalid query parameters return proper JSON errors."""
+
+    def test_harvest_record_errors_rejects_harvest_source_id(self, client):
+        """Test that harvest_record_errors returns JSON error for harvest_source_id."""
+        response = client.get(
+            "/api/v1/harvest_record_errors/?harvest_source_id=35d79097-243c-414d-b67e-d8484397abc6"
+        )
+
+        assert response.status_code == 400
+        assert response.is_json
+        data = response.get_json()
+        assert "error" in data
+        assert "harvest_source_id" in data["error"]
+        assert "not a valid parameter" in data["error"]
+        assert "/harvest_record_errors/" in data["error"]
+
+    def test_harvest_job_errors_rejects_harvest_source_id(self, client):
+        """Test that harvest_job_errors returns JSON error for harvest_source_id."""
+        response = client.get(
+            "/api/v1/harvest_job_errors/?harvest_source_id=35d79097-243c-414d-b67e-d8484397abc6"
+        )
+
+        assert response.status_code == 400
+        assert response.is_json
+        data = response.get_json()
+        assert "error" in data
+        assert "harvest_source_id" in data["error"]
+        assert "not a valid parameter" in data["error"]
+        assert "/harvest_job_errors/" in data["error"]
+
+    def test_harvest_record_errors_accepts_harvest_job_id(
+        self, client, interface_with_fixture_json
+    ):
+        """Test that harvest_record_errors still accepts harvest_job_id."""
+        response = client.get(
+            "/api/v1/harvest_record_errors/?harvest_job_id=6bce761c-7a39-41c1-ac73-94234c139c76"
+        )
+
+        assert response.status_code in [200, 404]
+
+    def test_harvest_job_errors_accepts_harvest_job_id(
+        self, client, interface_with_fixture_json
+    ):
+        """Test that harvest_job_errors still accepts harvest_job_id."""
+        response = client.get(
+            "/api/v1/harvest_job_errors/?harvest_job_id=6bce761c-7a39-41c1-ac73-94234c139c76"
+        )
+
+        assert response.status_code in [200, 404]
+
+    def test_harvest_records_accepts_harvest_source_id(
+        self, client, interface_with_fixture_json
+    ):
+        """Test that harvest_records still accepts harvest_source_id (has the field)."""
+        response = client.get(
+            "/api/v1/harvest_records/?harvest_source_id=2f2652de-91df-4c63-8b53-bfced20b276b"
+        )
+
+        assert response.status_code == 200
+
+    def test_harvest_jobs_accepts_harvest_source_id(
+        self, client, interface_with_fixture_json
+    ):
+        """Test that harvest_jobs still accepts harvest_source_id (has the field)."""
+        response = client.get(
+            "/api/v1/harvest_jobs/?harvest_source_id=2f2652de-91df-4c63-8b53-bfced20b276b"
+        )
+
+        assert response.status_code in [200, 404]
+
+    def test_organizations_rejects_harvest_source_id(self, client):
+        """Test that organizations returns JSON error for harvest_source_id."""
+        response = client.get(
+            "/api/v1/organizations/?harvest_source_id=35d79097-243c-414d-b67e-d8484397abc6"
+        )
+
+        assert response.status_code == 400
+        assert response.is_json
+        data = response.get_json()
+        assert "error" in data
+        assert "harvest_source_id" in data["error"]
