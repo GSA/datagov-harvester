@@ -550,7 +550,13 @@ class HarvesterDBInterface:
             .options(lazyload(HarvestJob.source))
             .join(HarvestSource, HarvestJob.harvest_source_id == HarvestSource.id)
             .filter(
-                HarvestJob.date_created <= datetime.now(timezone.utc),
+                # Compare against the DB's own clock, not the app host's:
+                # date_created is set via Postgres statement_timestamp(), and
+                # any drift between the app host clock and the DB clock can
+                # make a just-created job look like it's "in the future".
+                # statement_timestamp() (not now()/transaction_timestamp())
+                # re-evaluates per statement, matching the column default.
+                HarvestJob.date_created <= func.statement_timestamp(),
                 HarvestJob.status == "new",
                 HarvestSource.is_locked.is_(False)
                 | (~HarvestJob.job_type.in_(JOB_TYPES_BLOCKED_BY_SOURCE_LOCK)),
@@ -794,7 +800,13 @@ class HarvesterDBInterface:
 
         per_page = kwargs.get("per_page") or PAGINATE_ENTRIES_PER_PAGE
         page = kwargs.get("page") or PAGINATE_START_PAGE
-        paged = grouped.select().limit(per_page).offset(page * per_page).subquery()
+        paged = (
+            grouped.select()
+            .order_by(grouped.c.date_created, grouped.c.harvest_record_id)
+            .limit(per_page)
+            .offset(page * per_page)
+            .subquery()
+        )
 
         return (
             self.db.query(
@@ -811,6 +823,7 @@ class HarvesterDBInterface:
                 ),
             )
             .outerjoin(HarvestRecord, HarvestRecord.id == paged.c.harvest_record_id)
+            .order_by(paged.c.date_created, paged.c.harvest_record_id)
             .all()
         )
 
@@ -1100,7 +1113,13 @@ class HarvesterDBInterface:
 
         per_page = kwargs.get("per_page") or PAGINATE_ENTRIES_PER_PAGE
         page = kwargs.get("page") or PAGINATE_START_PAGE
-        paged = grouped.select().limit(per_page).offset(page * per_page).subquery()
+        paged = (
+            grouped.select()
+            .order_by(grouped.c.date_created, grouped.c.harvest_record_id)
+            .limit(per_page)
+            .offset(page * per_page)
+            .subquery()
+        )
 
         return (
             self.db.query(
@@ -1117,6 +1136,7 @@ class HarvesterDBInterface:
                 ),
             )
             .outerjoin(HarvestRecord, HarvestRecord.id == paged.c.harvest_record_id)
+            .order_by(paged.c.date_created, paged.c.harvest_record_id)
             .all()
         )
 
