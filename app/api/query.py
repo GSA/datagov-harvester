@@ -96,13 +96,8 @@ def json_builder_query(**kwargs):
         else:
             facets = f"harvest_source_id eq {source_id}"
 
-    # Object type is the last path segment: "/api/harvest_jobs/" -> "harvest_jobs".
     model = escape(request.path.strip("/").split("/")[-1])
 
-    # severity only exists on harvest_record_error, so it is ignored elsewhere.
-    # No default: an absent param returns every issue, matching the job-level
-    # reads (#799). Callers tell errors from warnings by the `severity` field
-    # now published on each row, and narrow with ?severity= when they want one.
     if model == "harvest_record_errors":
         try:
             severity = get_requested_severity(default=None)
@@ -113,27 +108,68 @@ def json_builder_query(**kwargs):
                 facets += f",severity eq {severity}"
             else:
                 facets = f"severity eq {severity}"
+
+    page = request.args.get("page", type=convert_to_int)
+    per_page = request.args.get("per_page", type=convert_to_int)
+    paginate_flag = request.args.get("paginate", type=is_it_true)
+    count_flag = request.args.get("count", type=is_it_true)
+    order_by = request.args.get("order_by")
+
     try:
+        if count_flag:
+            total = deps.db.pget_db_query(
+                model=model,
+                page=page,
+                per_page=per_page,
+                paginate=paginate_flag,
+                count=True,
+                order_by=order_by,
+                facets=facets,
+            )
+            return {"count": total, "type": model}
+
         res = deps.db.pget_db_query(
             model=model,
-            page=request.args.get("page", type=convert_to_int),
-            per_page=request.args.get("per_page", type=convert_to_int),
-            paginate=request.args.get("paginate", type=is_it_true),
-            count=request.args.get("count", type=is_it_true),
-            order_by=request.args.get("order_by"),
+            page=page,
+            per_page=per_page,
+            paginate=paginate_flag,
+            count=False,
+            order_by=order_by,
             facets=facets,
         )
-        if isinstance(res, int):
-            return {"count": res, "type": model}
-        elif isinstance(res, list):
-            if not res and request.args.get("per_page", type=convert_to_int) != 0:
+
+        if isinstance(res, list):
+            if not res and per_page != 0:
                 return f"No {model} found for this query", 404
+
+            total = deps.db.pget_db_query(
+                model=model,
+                page=page,
+                per_page=per_page,
+                paginate=paginate_flag,
+                count=True,
+                order_by=order_by,
+                facets=facets,
+            )
+
             data = deps.db._to_dict(res)
 
             if model == "harvest_jobs":
                 data = _serialize_job_datetimes(data)
 
-            return jsonify(data)
+            from app.deps import build_collection_response
+
+            response = build_collection_response(
+                data=data,
+                path=request.path,
+                query_string=request.query_string.decode(),
+                page=page if page is not None else 0,
+                per_page=per_page if per_page is not None else 10,
+                total=total,
+                order_by=order_by if order_by else "asc",
+            )
+
+            return jsonify(response)
         else:
             return f"No {model} found for this query", 404
     except InvalidPaginationException as e:
