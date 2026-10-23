@@ -17,7 +17,6 @@ from dcatus_validation.fetch import (
     INVALID_JSON_ENCODING_MESSAGE,
     INVALID_JSON_NUMBER_MESSAGE,
     InvalidCatalogSource,
-    _is_json_media_type,
     fetch_json_from_url,
     is_public_ip,
     parse_json_document,
@@ -138,20 +137,23 @@ class TestFetchJsonFromUrl:
         "content_type",
         [
             "application/json",
-            "Application/JSON; charset=UTF-8",
-            "application/ld+json",
-            "application/vnd.api+json; profile=example",
+            "text/plain; charset=utf-8",
+            "application/octet-stream",
+            None,
         ],
     )
-    def test_json_media_types(self, content_type):
-        assert _is_json_media_type(content_type) is True
+    @patch("dcatus_validation.fetch._pinned_get")
+    def test_content_type_is_not_required_to_be_json(self, mock_get, content_type):
+        """Like the harvester, the body decides whether it is JSON - hosts such
+        as raw.githubusercontent.com and S3 serve data.json as text/plain or
+        octet-stream, or omit the header entirely."""
+        response = _json_response(b'{"test": "data"}')
+        response.headers = (
+            {} if content_type is None else {"Content-Type": content_type}
+        )
+        mock_get.return_value = response
 
-    @pytest.mark.parametrize(
-        "content_type",
-        ["", "text/json", "text/html", "application/jsonp"],
-    )
-    def test_non_json_media_types(self, content_type):
-        assert _is_json_media_type(content_type) is False
+        assert fetch_json_from_url("https://example.com/data.json") == {"test": "data"}
 
     @pytest.mark.parametrize("encoding", ["utf-8", "utf-16", "utf-32"])
     @patch("dcatus_validation.fetch.json.loads")
@@ -525,11 +527,8 @@ class TestFetchJsonFromUrl:
         str(e) only for this type, and falls back to a generic 500 otherwise."""
         monkeypatch.setattr("dcatus_validation.fetch.ALLOW_PRIVATE_ADDRESSES", False)
 
-        not_json = Mock()
-        not_json.status_code = 200
+        not_json = _json_response(b"<html><body>Not a catalog</body></html>")
         not_json.headers = {"Content-Type": "text/html"}
-        not_json.raise_for_status = Mock()
-        not_json.close = Mock()
 
         cases = {
             "ftp://example.com/data.json": "Only HTTP/HTTPS URLs are allowed.",
@@ -540,7 +539,7 @@ class TestFetchJsonFromUrl:
                 fetch_json_from_url(url)
 
         mock_get.return_value = not_json
-        with pytest.raises(InvalidCatalogSource, match="did not return JSON"):
+        with pytest.raises(InvalidCatalogSource, match="Invalid JSON at line 1"):
             fetch_json_from_url("https://example.com/page.html")
 
     @patch("dcatus_validation.fetch._pinned_get")
