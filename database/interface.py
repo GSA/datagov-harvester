@@ -710,13 +710,11 @@ class HarvesterDBInterface:
         try:
             self.db.add(
                 HarvestRecordCurrentIssue(
+                    id=error.id,
                     harvest_source_id=record.harvest_source_id,
                     record_type=record.record_type,
                     identifier=record.identifier,
                     harvest_record_id=record.id,
-                    type=error.type,
-                    severity=error.severity,
-                    message=error.message,
                 )
             )
             self.db.commit()
@@ -901,17 +899,17 @@ class HarvesterDBInterface:
         )
 
     def get_harvest_error(self, error_id: str) -> dict:
+        # A harvest_record_current_issue row always shares its id with the
+        # harvest_record_error row it mirrors (enforced by FK), so
+        # record_query below also covers ids that originated as a current
+        # issue; a separate HarvestRecordCurrentIssue lookup would never
+        # find anything record_query didn't already find.
         job_query = self.db.query(HarvestJobError).filter_by(id=error_id).first()
         record_query = self.db.query(HarvestRecordError).filter_by(id=error_id).first()
-        current_issue_query = (
-            self.db.query(HarvestRecordCurrentIssue).filter_by(id=error_id).first()
-        )
         if job_query is not None:
             return job_query
         elif record_query is not None:
             return record_query
-        elif current_issue_query is not None:
-            return current_issue_query
         else:
             return None
 
@@ -1000,13 +998,11 @@ class HarvesterDBInterface:
             for error in current_errors:
                 self.db.add(
                     HarvestRecordCurrentIssue(
+                        id=error.id,
                         harvest_source_id=harvest_source_id,
                         record_type=record_type,
                         identifier=identifier,
                         harvest_record_id=harvest_record_id,
-                        type=error.type,
-                        severity=error.severity,
-                        message=error.message,
                     )
                 )
             self.db.commit()
@@ -1039,18 +1035,29 @@ class HarvesterDBInterface:
         in the returned rows since current-state issues aren't tied to a job.
         """
         error_types = ["ValidationException", "ValidationError"]
-        base = self.db.query(
-            HarvestRecordCurrentIssue.harvest_record_id.label("harvest_record_id"),
-            literal(None).label("harvest_job_id"),
-            HarvestRecordCurrentIssue.date_created.label("date_created"),
-            HarvestRecordCurrentIssue.type.label("type"),
-            HarvestRecordCurrentIssue.severity.label("severity"),
-            HarvestRecordCurrentIssue.message.label("message"),
-            HarvestRecordCurrentIssue.id.label("id"),
-            HarvestRecordCurrentIssue.identifier.label("identifier"),
-        ).filter(HarvestRecordCurrentIssue.harvest_source_id == harvest_source_id)
+        # id/date_created/type/message/severity live on harvest_record_error;
+        # HarvestRecordCurrentIssue.id is that row's id (FK), so this join is
+        # always exactly one row per current-issue row.
+        base = (
+            self.db.query(
+                HarvestRecordCurrentIssue.harvest_record_id.label("harvest_record_id"),
+                literal(None).label("harvest_job_id"),
+                HarvestRecordError.date_created.label("date_created"),
+                HarvestRecordError.type.label("type"),
+                HarvestRecordError.severity.label("severity"),
+                HarvestRecordError.message.label("message"),
+                HarvestRecordCurrentIssue.id.label("id"),
+                HarvestRecordCurrentIssue.identifier.label("identifier"),
+            )
+            .select_from(HarvestRecordCurrentIssue)
+            .join(
+                HarvestRecordError,
+                HarvestRecordError.id == HarvestRecordCurrentIssue.id,
+            )
+            .filter(HarvestRecordCurrentIssue.harvest_source_id == harvest_source_id)
+        )
         if severity is not None:
-            base = base.filter(HarvestRecordCurrentIssue.severity == severity)
+            base = base.filter(HarvestRecordError.severity == severity)
         base = base.subquery()
 
         # aggregate the validation messages by harvest_record_id using 1st row for
@@ -1128,7 +1135,10 @@ class HarvesterDBInterface:
         )
 
         if severity is not None:
-            query = query.filter(HarvestRecordCurrentIssue.severity == severity)
+            query = query.join(
+                HarvestRecordError,
+                HarvestRecordError.id == HarvestRecordCurrentIssue.id,
+            ).filter(HarvestRecordError.severity == severity)
 
         for_view = kwargs.get("for_view", False)
         if for_view:
@@ -1143,17 +1153,18 @@ class HarvesterDBInterface:
         grouped by severity."""
         query = (
             self.db.query(
-                HarvestRecordCurrentIssue.severity,
-                HarvestRecordCurrentIssue.type,
+                HarvestRecordError.severity,
+                HarvestRecordError.type,
                 func.count(),
             )
+            .select_from(HarvestRecordCurrentIssue)
+            .join(
+                HarvestRecordError,
+                HarvestRecordError.id == HarvestRecordCurrentIssue.id,
+            )
             .where(HarvestRecordCurrentIssue.harvest_source_id == harvest_source_id)
-            .group_by(
-                HarvestRecordCurrentIssue.severity, HarvestRecordCurrentIssue.type
-            )
-            .order_by(
-                HarvestRecordCurrentIssue.severity, HarvestRecordCurrentIssue.type
-            )
+            .group_by(HarvestRecordError.severity, HarvestRecordError.type)
+            .order_by(HarvestRecordError.severity, HarvestRecordError.type)
         )
         return [
             {"severity": severity, "type": error_type, "count": error_count}
