@@ -33,7 +33,7 @@ Every URL fetch, including every redirect hop, goes through these checks:
 
 ## Egress proxy
 
-On cloud.gov the validator's fetches go through its own egress proxy, [cg-egress-proxy](https://github.com/GSA-TTS/cg-egress-proxy) in the `<space>-egress` space, which `cf-deployproxy` sets up and points to with the app's `proxy_url` variable (`EGRESS_PROXY_URL` in `fetch.py`). It allows every domain but only port 443 by default, and denies private address ranges. The checks above still run first, so a refused URL never reaches the proxy and the submitter still gets a specific message. Setup steps are under "Validator egress proxy" in [developer.md](developer.md).
+On cloud.gov the validator's fetches go through its own egress proxy, [cg-egress-proxy](https://github.com/GSA-TTS/cg-egress-proxy) in the `<space>-egress` space, which `cf-deployproxy` sets up and points to with the app's `proxy_url` variable (`EGRESS_PROXY_URL` in `fetch.py`). It allows every domain but only port 443 by default, and denies private address ranges. The checks above still run first, so a refused URL never reaches the proxy and the submitter still gets a specific message. Its lists are in GSA/data.gov (`egress/acl/datagov-harvest-validator.*.acl`), and it's deployed by that repo's "enable egress proxy" workflow; see "Validator egress proxy" in [developer.md](developer.md).
 
 The proxy only constrains egress if the app can't connect directly; that depends on the space's application security groups, not on this code.
 

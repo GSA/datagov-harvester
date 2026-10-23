@@ -368,25 +368,16 @@ Locally, `docker compose` runs it as the `validator` service, plus a `proxy` ser
 
 #### Validator egress proxy
 
-The validator fetches through its own [cg-egress-proxy](https://github.com/GSA-TTS/cg-egress-proxy), separate from the admin app's: it allows every domain (the admin app's proxy uses the per-space allow list in GSA/data.gov `egress/acl/`), denies private ranges, and allows port 443 only unless `PROXY_PORTS` says otherwise. `fetch.py` reads the proxy from `proxy_url`; with it unset, fetches go direct. It is set up by hand with the cf CLI, once per space (`development` shown):
+The validator fetches through its own [cg-egress-proxy](https://github.com/GSA-TTS/cg-egress-proxy), separate from the admin app's. It allows every domain (the admin app's proxy uses the per-space allow list), denies private ranges, and allows HTTPS (port 443) only. `fetch.py` reads the proxy from `proxy_url`; with it unset, fetches go direct.
 
-```bash
-git clone https://github.com/GSA-TTS/cg-egress-proxy && cd cg-egress-proxy
-git checkout 4d4aacf85cea46699571df93df46919e489128be   # the commit GSA/data.gov's enable-egress workflow uses
-GOOS=linux GOARCH=amd64 xcaddy build --with github.com/caddyserver/forwardproxy --output proxy/caddy
+Its lists live in GSA/data.gov (`egress/acl/datagov-harvest-validator.allow.acl` and `.deny.acl`, explained in that repo's `egress/README.md`). It's deployed per space by that repo's "enable egress proxy" workflow: choose `datagov-harvest-validator` and the space. The workflow runs `cf-deployproxy`, which:
+- pushes `proxy-gsa-datagov-<space>-datagov-harvest-validator` to `<space>-egress`;
+- adds the network policy from the validator to it;
+- sets `proxy_url` on the validator and restarts it.
 
-echo all > datagov-harvest-validator.allow.acl
-printf '%s\n' 0.0.0.0/8 10.0.0.0/8 100.64.0.0/10 127.0.0.0/8 169.254.0.0/16 \
-  172.16.0.0/12 192.168.0.0/16 ::1/128 fc00::/7 fe80::/10 \
-  > datagov-harvest-validator.deny.acl
+Re-running it rotates the proxy credentials. "disable egress proxy" undoes it, after which the validator fetches directly.
 
-cf target -o gsa-datagov -s development
-bin/cf-deployproxy -a datagov-harvest-validator -s development-egress -e proxy_url
-```
-
-`cf-deployproxy` pushes `proxy-gsa-datagov-development-datagov-harvest-validator` to `development-egress`, adds the network policy, sets `proxy_url` on the validator and restarts it. Re-running it rotates the proxy credentials. To also allow plain `http://` catalogs, run `cf set-env <proxy app> PROXY_PORTS "80 443"` in the egress space and restart the proxy.
-
-To check it: the validator logs `egress=proxy` for each fetch, and the proxy app's logs show each request (`cf logs proxy-gsa-datagov-development-datagov-harvest-validator` in `development-egress`).
+To check it: the validator logs `egress=proxy` for each fetch, and the proxy app's logs show each request it allowed or refused (`cf logs proxy-gsa-datagov-<space>-datagov-harvest-validator` in `<space>-egress`).
 
 #### User management
 
