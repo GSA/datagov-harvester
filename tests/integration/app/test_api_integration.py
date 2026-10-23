@@ -1,10 +1,11 @@
-import pytest
-
-
 def test_harvest_jobs_collection_response_structure(client, interface):
     """Test harvest jobs endpoint returns structured response."""
     org = interface.add_organization(
-        {"name": "Test Org", "organization_type": "federal"}
+        {
+            "name": "Test Org",
+            "organization_type": "Federal Government",
+            "slug": "test-org",
+        }
     )
     source = interface.add_harvest_source(
         {
@@ -13,16 +14,12 @@ def test_harvest_jobs_collection_response_structure(client, interface):
             "notification_emails": [],
             "frequency": "manual",
             "url": "http://example.com",
-            "schema_type": "strict",
-            "source_type": "datajson",
+            "schema_type": "dcatus1.1: federal",
+            "source_type": "document",
         }
     )
-    job1 = interface.add_harvest_job(
-        {"harvest_source_id": source.id, "status": "complete"}
-    )
-    job2 = interface.add_harvest_job(
-        {"harvest_source_id": source.id, "status": "complete"}
-    )
+    interface.add_harvest_job({"harvest_source_id": source.id, "status": "complete"})
+    interface.add_harvest_job({"harvest_source_id": source.id, "status": "complete"})
     interface.session.commit()
 
     response = client.get("/api/v1/harvest_jobs/")
@@ -40,7 +37,11 @@ def test_harvest_jobs_collection_response_structure(client, interface):
 def test_harvest_jobs_collection_meta_structure(client, interface):
     """Test meta object contains all required fields."""
     org = interface.add_organization(
-        {"name": "Test Org", "organization_type": "federal"}
+        {
+            "name": "Test Org",
+            "organization_type": "Federal Government",
+            "slug": "test-org",
+        }
     )
     source = interface.add_harvest_source(
         {
@@ -49,8 +50,8 @@ def test_harvest_jobs_collection_meta_structure(client, interface):
             "notification_emails": [],
             "frequency": "manual",
             "url": "http://example.com",
-            "schema_type": "strict",
-            "source_type": "datajson",
+            "schema_type": "dcatus1.1: federal",
+            "source_type": "document",
         }
     )
     for i in range(15):
@@ -81,7 +82,11 @@ def test_harvest_jobs_collection_meta_structure(client, interface):
 def test_harvest_jobs_collection_links_structure(client, interface):
     """Test links object contains all required fields."""
     org = interface.add_organization(
-        {"name": "Test Org", "organization_type": "federal"}
+        {
+            "name": "Test Org",
+            "organization_type": "Federal Government",
+            "slug": "test-org",
+        }
     )
     source = interface.add_harvest_source(
         {
@@ -90,8 +95,8 @@ def test_harvest_jobs_collection_links_structure(client, interface):
             "notification_emails": [],
             "frequency": "manual",
             "url": "http://example.com",
-            "schema_type": "strict",
-            "source_type": "datajson",
+            "schema_type": "dcatus1.1: federal",
+            "source_type": "document",
         }
     )
     for i in range(25):
@@ -179,7 +184,7 @@ def test_harvest_record_errors_collection_response_structure(client):
 def test_collection_response_with_facets(client, interface):
     """Test collection response structure preserved with facets."""
     org = interface.add_organization(
-        {"name": "Test Org", "organization_type": "federal"}
+        {"name": "Test Org", "organization_type": "Federal Government"}
     )
     source = interface.add_harvest_source(
         {
@@ -188,8 +193,8 @@ def test_collection_response_with_facets(client, interface):
             "notification_emails": [],
             "frequency": "manual",
             "url": "http://example.com",
-            "schema_type": "strict",
-            "source_type": "datajson",
+            "schema_type": "dcatus1.1: federal",
+            "source_type": "document",
         }
     )
     interface.add_harvest_job({"harvest_source_id": source.id, "status": "complete"})

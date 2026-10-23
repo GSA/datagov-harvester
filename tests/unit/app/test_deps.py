@@ -1,7 +1,5 @@
 from unittest.mock import Mock, patch
 
-import pytest
-
 
 def test_get_application_version_from_vcap():
     """Test application version extraction from VCAP_APPLICATION."""
