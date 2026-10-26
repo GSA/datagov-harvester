@@ -59,13 +59,15 @@ def backfill_current_record_issues(dry_run: bool) -> None:
     """One-time backfill of harvest_record_current_issue for warnings/errors
     that predate that table (#6440).
 
-    harvest_record_current_issue is only kept in sync going forward, as
-    records get reprocessed. A source with open issues from before the
-    table existed shows zero on the Outstanding Warnings page (#6461) until
-    it happens to be harvested again. This resyncs every harvest source that
-    currently shows zero current issues, from each identifier's latest
-    successful harvest_record, the same way sync_current_record_issues does
-    for a single record during a live harvest run.
+    harvest_record_current_issue is only kept in sync going forward, as a
+    record gets reprocessed. An unchanged record is never reprocessed, so an
+    identifier whose last real update predates #6440 stays missing from the
+    table forever, even though other identifiers in the same source may
+    already be synced from their own more recent runs. Checking per source
+    rather than per identifier would let those already-synced identifiers
+    mask the gap, so this resyncs every identifier's latest successful
+    harvest_record unconditionally, the same way sync_current_record_issues
+    does for a single record during a live harvest run.
 
     https://github.com/GSA/data.gov/issues/6471
     """
@@ -73,9 +75,6 @@ def backfill_current_record_issues(dry_run: bool) -> None:
     resynced_identifiers = 0
 
     for source in interface.get_all_harvest_sources():
-        if interface.get_current_record_issues_by_source(source.id, count=True):
-            continue
-
         latest_records = interface.get_latest_harvest_records_by_source_orm(source.id)
         if not latest_records:
             continue

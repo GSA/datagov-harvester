@@ -21,7 +21,6 @@ def test_dry_run_reports_without_writing(app):
         mock_interface.get_all_harvest_sources.return_value = [
             make_source("1", "Source With Gap"),
         ]
-        mock_interface.get_current_record_issues_by_source.return_value = 0
         mock_interface.get_latest_harvest_records_by_source_orm.return_value = [
             make_record("r1", "dataset-1"),
             make_record("r2", "dataset-2"),
@@ -38,30 +37,11 @@ def test_dry_run_reports_without_writing(app):
     mock_interface.sync_current_record_issues.assert_not_called()
 
 
-def test_skips_sources_with_existing_current_issues(app):
-    with patch("app.commands.database.interface") as mock_interface:
-        mock_interface.get_all_harvest_sources.return_value = [
-            make_source("1", "Already Synced Source"),
-        ]
-        mock_interface.get_current_record_issues_by_source.return_value = 3
-
-        result = app.test_cli_runner().invoke(
-            args=["database", "backfill-current-record-issues", "--no-dry-run"]
-        )
-
-    assert result.exit_code == 0
-    assert "Already Synced Source" not in result.output
-    assert "Resynced 0 identifier(s) across 0 harvest source(s)." in result.output
-    mock_interface.get_latest_harvest_records_by_source_orm.assert_not_called()
-    mock_interface.sync_current_record_issues.assert_not_called()
-
-
 def test_skips_sources_with_no_successful_records(app):
     with patch("app.commands.database.interface") as mock_interface:
         mock_interface.get_all_harvest_sources.return_value = [
             make_source("1", "Empty Source"),
         ]
-        mock_interface.get_current_record_issues_by_source.return_value = 0
         mock_interface.get_latest_harvest_records_by_source_orm.return_value = []
 
         result = app.test_cli_runner().invoke(
@@ -73,12 +53,13 @@ def test_skips_sources_with_no_successful_records(app):
     mock_interface.sync_current_record_issues.assert_not_called()
 
 
-def test_no_dry_run_resyncs_each_identifier(app):
+def test_no_dry_run_resyncs_every_source_regardless_of_existing_issues(app):
+    """A source already showing current issues from some recently-reprocessed
+    identifier must not mask other identifiers that still need backfilling."""
     with patch("app.commands.database.interface") as mock_interface:
         mock_interface.get_all_harvest_sources.return_value = [
             make_source("1", "Source With Gap"),
         ]
-        mock_interface.get_current_record_issues_by_source.return_value = 0
         mock_interface.get_latest_harvest_records_by_source_orm.return_value = [
             make_record("r1", "dataset-1"),
             make_record("r2", "dataset-2", record_type="data_service"),
@@ -97,3 +78,4 @@ def test_no_dry_run_resyncs_each_identifier(app):
     mock_interface.sync_current_record_issues.assert_any_call(
         "1", "data_service", "dataset-2", "r2"
     )
+    mock_interface.get_current_record_issues_by_source.assert_not_called()
