@@ -46,7 +46,11 @@ class HarvestSources(OutputBase):
             if self.source_type == "catalog":
                 self.sources = res.json()["result"]["results"]
             else:
-                self.sources = res.json()
+                response_data = res.json()
+                if isinstance(response_data, dict) and "data" in response_data:
+                    self.sources = response_data["data"]
+                else:
+                    self.sources = response_data
         self.sources = {source["name"]: source for source in self.sources}
 
     def map_names_and_titles(self, harvest_counts):
