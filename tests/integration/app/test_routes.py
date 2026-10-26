@@ -813,7 +813,7 @@ class TestAPIBehavior:
         job = interface.add_harvest_job(job_data_dcatus)
 
         # the value itself doesn't matter. we just want to mock stop_job so it completes.
-        LMMock.stop_job.return_value = "a test value"
+        LMMock.stop_job.return_value = ("a test value", "success")
 
         headers = {"X-API-Key": app.config["API_TOKEN"]}
         response = client.get(f"/api/v1/harvest_job/cancel/{job.id}", headers=headers)

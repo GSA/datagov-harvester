@@ -264,11 +264,11 @@ class TestLoadManager:
         new_job = interface_no_jobs.pget_harvest_jobs(
             facets=f"harvest_source_id eq {source_id},status eq in_progress"
         )
-        assert message == f"Updated job {new_job[0].id} to in_progress"
+        assert message == (f"Updated job {new_job[0].id} to in_progress", "success")
         message = load_manager.trigger_manual_job(source_data_dcatus["id"])
-        assert (
-            message
-            == f"Can't trigger harvest. Job {new_job[0].id} already in progress."
+        assert message == (
+            f"Can't trigger harvest. Job {new_job[0].id} already in progress.",
+            "warning",
         )
 
         jobs = interface_no_jobs.pget_harvest_jobs(
@@ -297,7 +297,10 @@ class TestLoadManager:
         )
         load_manager = LoadManager()
         message = load_manager.trigger_manual_job(source_data_dcatus["id"])
-        assert message == f"Can't trigger harvest. Job {queued.id} already queued."
+        assert message == (
+            f"Can't trigger harvest. Job {queued.id} already queued.",
+            "warning",
+        )
 
     @patch("harvester.lib.cf_handler.CloudFoundryClient")
     def test_dont_start_new_job_if_job_already_in_progress(
@@ -312,7 +315,7 @@ class TestLoadManager:
         current_job = interface_no_jobs.pget_harvest_jobs(
             facets=f"harvest_source_id eq {source_id},status eq in_progress"
         )[0]
-        assert message == f"Updated job {current_job.id} to in_progress"
+        assert message == (f"Updated job {current_job.id} to in_progress", "success")
 
         queued_job = interface_no_jobs.add_harvest_job(
             {
@@ -321,10 +324,11 @@ class TestLoadManager:
                 "date_created": datetime.now(),
             }
         )
-        failing_start_job_msg = load_manager.start_job(
+        failing_start_job_msg, category = load_manager.start_job(
             queued_job.id, job_type="harvest"
         )
         assert f"Job {current_job.id} already in progress" in failing_start_job_msg
+        assert category == "warning"
         assert queued_job.status == "new"
         assert queued_job.date_started is None
 
@@ -420,7 +424,10 @@ class TestLoadManager:
         assert cancel_task_mock.call_count == 1
         assert cancel_task_mock.call_args[0][0] == task_guid_val
         # Assert return message for user feedback
-        assert message == f"Updated job {jobs[0].id} to error and stopped the job."
+        assert message == (
+            f"Updated job {jobs[0].id} to error and stopped the job.",
+            "success",
+        )
         # Assert job status updated
         jobs = interface_no_jobs.pget_harvest_jobs(
             facets=f"harvest_source_id eq {source_id}"
@@ -470,9 +477,9 @@ class TestLoadManager:
         message = load_manager.stop_job(jobs[0].id)
 
         # Assert return message for user feedback
-        assert (
-            message
-            == f"Task for job {jobs[0].id} is not running, but marked job as error."
+        assert message == (
+            f"Task for job {jobs[0].id} is not running, but marked job as error.",
+            "warning",
         )
         # Assert job status updated
         jobs = interface_no_jobs.pget_harvest_jobs(
@@ -482,8 +489,9 @@ class TestLoadManager:
         # try again, but with job status already error.
         interface_no_jobs.update_harvest_job(jobs[0].id, {"status": "error"})
         message = load_manager.stop_job(jobs[0].id)
-        assert (
-            message == f"Task for job {jobs[0].id} is not running, job status is error."
+        assert message == (
+            f"Task for job {jobs[0].id} is not running, job status is error.",
+            "warning",
         )
 
     @patch("harvester.lib.load_manager.send_email_to_recipients")
@@ -585,8 +593,22 @@ class TestLoadManager:
             facets=f"harvest_source_id eq {source_id}"
         )
 
-        retval = load_manager.stop_job(jobs[0].id)
+        retval, category = load_manager.stop_job(jobs[0].id)
         assert "Could not stop job" in retval
+        assert category == "error"
+
+    def test_trigger_manual_job_reports_when_no_job_was_created(
+        self, interface_no_jobs, source_data_dcatus
+    ):
+        with patch(
+            "harvester.lib.load_manager.interface.enqueue_harvest_job_if_idle",
+            return_value=(None, None),
+        ):
+            message, category = LoadManager().trigger_manual_job(
+                source_data_dcatus["id"]
+            )
+        assert "No job was created" in message
+        assert category == "error"
 
     @patch("harvester.lib.cf_handler.CloudFoundryClient")
     def test_load_manager_from_tasks_invokes_one_task(

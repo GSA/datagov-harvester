@@ -30,8 +30,8 @@ from . import main
 
 
 def trigger_manual_job_helper(source_id, job_type="harvest"):
-    message = deps.load_manager.trigger_manual_job(source_id, job_type)
-    flash(message)
+    message, category = deps.load_manager.trigger_manual_job(source_id, job_type)
+    flash(message, category)
     return redirect(url_for("main.view_harvest_source", source_id=source_id))
 
 
@@ -45,6 +45,7 @@ def refresh_harvest_source():
             render_template(
                 "refresh_harvest_source.html",
                 message="Invalid link.",
+                category="error",
                 explanation=(
                     "This link could not be verified. Open the complete link from "
                     "your notification email, or contact the Data.gov team for help."
@@ -155,6 +156,7 @@ def refresh_harvest_source():
                 "refresh_harvest_source.html",
                 source=source,
                 message=message,
+                category="error",
                 explanation=explanation,
                 frequency_notice=frequency_notice,
             ),
@@ -171,7 +173,9 @@ def refresh_harvest_source():
             audit("invalid_form")
             return (
                 render_template(
-                    "refresh_harvest_source.html", message="Invalid request."
+                    "refresh_harvest_source.html",
+                    message="Invalid request.",
+                    category="error",
                 ),
                 400,
             )
@@ -209,16 +213,18 @@ def refresh_harvest_source():
                     "refresh_harvest_source.html",
                     source=source,
                     message=f"Job {active_job.id} is already queued or running.",
+                    category="warning",
                 ),
                 409,
             )
 
-        result = deps.load_manager.start_job(job.id, "harvest")
+        result, category = deps.load_manager.start_job(job.id, "harvest")
         audit("requested", job.id)
         return render_template(
             "refresh_harvest_source.html",
             source=source,
             message=result,
+            category=category,
             new_job_id=job.id,
         )
 
@@ -240,18 +246,25 @@ def add_harvest_source():
     if form.validate_on_submit():
         try:
             source_data = make_new_source_contract(form)
-            source, message, _status = create_harvest_source(source_data)
+            source, message, status = create_harvest_source(source_data)
         except Exception as e:
             message = "Failed to add harvest source."
             logger.error(f"{message} :: {repr(e)}")
-            flash(message)
+            flash(message, "error")
             return redirect(url_for("main.add_harvest_source"))
-        flash(message)
+        if source is None:
+            category = "error"
+        elif status != 200:
+            # created, but scheduling its first harvest failed
+            category = "warning"
+        else:
+            category = "success"
+        flash(message, category)
         if source is None:
             return redirect(url_for("main.add_harvest_source"))
         return redirect(url_for("main.harvest_source_list"))
     elif form.errors:
-        flash(form.errors)
+        flash(form.errors, "error")
         return redirect(url_for("main.add_harvest_source"))
     return render_template(
         "edit_data.html",
@@ -565,7 +578,7 @@ def update_harvest_source_actions(source_id: str):
     form = HarvestTriggerForm()
 
     if not form.validate_on_submit():
-        flash(form.errors)
+        flash(form.errors, "error")
         return redirect(url_for("main.view_harvest_source", source_id=source_id))
 
     if form.edit.data:
@@ -574,11 +587,14 @@ def update_harvest_source_actions(source_id: str):
         locked = bool(form.lock.data)
         source = deps.db.set_harvest_source_lock(source_id, locked)
         if source is None:
-            flash("Harvest source not found.")
+            flash("Harvest source not found.", "error")
         else:
             action = "lock" if locked else "unlock"
             _log_mutation(action, "harvest_source", source_id)
-            flash(f"Harvest source {source_id} {'locked' if locked else 'unlocked'}.")
+            flash(
+                f"Harvest source {source_id} {'locked' if locked else 'unlocked'}.",
+                "success",
+            )
         return redirect(url_for("main.view_harvest_source", source_id=source_id))
     elif form.harvest.data:
         if form.force_check.data:
@@ -590,7 +606,8 @@ def update_harvest_source_actions(source_id: str):
         try:
             message, status = enqueue_harvest_source_delete(source_id, deps.db)
             _log_mutation("delete", "harvest_source", source_id, status=status)
-            flash(message)
+            # 202: the delete task was scheduled; anything else was refused
+            flash(message, "success" if status == 202 else "error")
             if status == 409:
                 return redirect(
                     url_for("main.view_harvest_source", source_id=source_id)
@@ -599,7 +616,7 @@ def update_harvest_source_actions(source_id: str):
         except Exception as e:
             message = f"Failed to delete harvest source :: {repr(e)}"
             logger.error(message)
-            flash(message)
+            flash(message, "error")
             return redirect(url_for("main.view_harvest_source", source_id=source_id))
 
     return redirect(url_for("main.view_harvest_source", source_id=source_id))
@@ -645,7 +662,7 @@ def edit_harvest_source(source_id: str):
                     source_id, new_source_data
                 )
                 if not source:
-                    flash(error or "Failed to update harvest source.")
+                    flash(error or "Failed to update harvest source.", "error")
                     return redirect(
                         url_for("main.edit_harvest_source", source_id=source_id)
                     )
@@ -660,12 +677,12 @@ def edit_harvest_source(source_id: str):
                     organization_id=source.organization_id,
                     source_name=source.name,
                 )
-                flash(f"Updated source with ID: {source.id}. {job_message}")
+                flash(f"Updated source with ID: {source.id}. {job_message}", "success")
                 return redirect(
                     url_for("main.view_harvest_source", source_id=source.id)
                 )
             elif form.errors:
-                flash(form.errors)
+                flash(form.errors, "error")
                 return redirect(
                     url_for("main.edit_harvest_source", source_id=source_id)
                 )
@@ -678,5 +695,5 @@ def edit_harvest_source(source_id: str):
                 source_id=source_id,
             )
         else:
-            flash(f"No source with id: {source_id}")
+            flash(f"No source with id: {source_id}", "error")
             return redirect(url_for("main.harvest_source_list"))

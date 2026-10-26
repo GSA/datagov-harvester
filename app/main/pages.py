@@ -32,7 +32,7 @@ def view_dataset(dataset_slug: str):
 
     if request.method == "POST":
         if not session.get("user"):
-            flash("You must be logged in to edit a dataset slug.")
+            flash("You must be logged in to edit a dataset slug.", "error")
             return redirect(url_for("main.view_dataset", dataset_slug=dataset_slug))
 
         form = DatasetSlugForm(
@@ -41,7 +41,7 @@ def view_dataset(dataset_slug: str):
             db_interface=deps.db,
         )
         if dataset is None:
-            flash("Dataset not found.")
+            flash("Dataset not found.", "error")
             return redirect(url_for("main.harvest_source_list"))
 
         if form.validate():
@@ -73,7 +73,7 @@ def view_dataset(dataset_slug: str):
             else:
                 flash(
                     f"Failed to update slug. Error: {os_error}",
-                    "danger",
+                    "error",
                 )
                 return redirect(url_for("main.view_dataset", dataset_slug=dataset_slug))
         else:
