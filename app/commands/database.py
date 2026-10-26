@@ -65,9 +65,15 @@ def backfill_current_record_issues(dry_run: bool) -> None:
     table forever, even though other identifiers in the same source may
     already be synced from their own more recent runs. Checking per source
     rather than per identifier would let those already-synced identifiers
-    mask the gap, so this resyncs every identifier's latest successful
-    harvest_record unconditionally, the same way sync_current_record_issues
-    does for a single record during a live harvest run.
+    mask the gap, so this resyncs every identifier's latest attempt
+    unconditionally, the same way sync_current_record_issues does for a
+    single record during a live harvest run.
+
+    Uses get_latest_harvest_record_attempts_by_source rather than
+    get_latest_harvest_records_by_source_orm: the latter is scoped to
+    status='success' records only, which would skip (or fall back to a
+    stale record for) any identifier whose latest attempt errored, even
+    though that same record may carry real warnings too.
 
     https://github.com/GSA/data.gov/issues/6471
     """
@@ -75,7 +81,9 @@ def backfill_current_record_issues(dry_run: bool) -> None:
     resynced_identifiers = 0
 
     for source in interface.get_all_harvest_sources():
-        latest_records = interface.get_latest_harvest_records_by_source_orm(source.id)
+        latest_records = interface.get_latest_harvest_record_attempts_by_source(
+            source.id
+        )
         if not latest_records:
             continue
 

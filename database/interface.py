@@ -1595,6 +1595,35 @@ class HarvesterDBInterface:
 
         return query
 
+    def get_latest_harvest_record_attempts_by_source(self, source_id):
+        """Get the latest harvest_record per (identifier, record_type) for
+        this source, regardless of status.
+
+        Unlike get_latest_harvest_records_by_source_orm, which is scoped to
+        status='success' records only (dataset-eligible), this includes a
+        record whose most recent attempt errored -- matching what
+        sync_current_issues() does live during harvest(), which mirrors
+        whatever a record's latest attempt wrote regardless of outcome.
+        Used by the harvest_record_current_issue backfill.
+        """
+        subq = (
+            self.db.query(HarvestRecord)
+            .filter(HarvestRecord.harvest_source_id == source_id)
+            .order_by(
+                HarvestRecord.identifier,
+                HarvestRecord.record_type,
+                desc(HarvestRecord.date_created),
+            )
+            .distinct(HarvestRecord.identifier, HarvestRecord.record_type)
+            .subquery()
+        )
+        sq_alias = aliased(HarvestRecord, subq)
+        return (
+            self.db.query(sq_alias.identifier, sq_alias.record_type, sq_alias.id)
+            .filter(sq_alias.action != "delete")
+            .all()
+        )
+
     def get_latest_harvest_records_by_source(self, source_id):
         return [
             dict(row._mapping)

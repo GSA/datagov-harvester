@@ -21,7 +21,7 @@ def test_dry_run_reports_without_writing(app):
         mock_interface.get_all_harvest_sources.return_value = [
             make_source("1", "Source With Gap"),
         ]
-        mock_interface.get_latest_harvest_records_by_source_orm.return_value = [
+        mock_interface.get_latest_harvest_record_attempts_by_source.return_value = [
             make_record("r1", "dataset-1"),
             make_record("r2", "dataset-2"),
         ]
@@ -37,12 +37,12 @@ def test_dry_run_reports_without_writing(app):
     mock_interface.sync_current_record_issues.assert_not_called()
 
 
-def test_skips_sources_with_no_successful_records(app):
+def test_skips_sources_with_no_record_attempts(app):
     with patch("app.commands.database.interface") as mock_interface:
         mock_interface.get_all_harvest_sources.return_value = [
             make_source("1", "Empty Source"),
         ]
-        mock_interface.get_latest_harvest_records_by_source_orm.return_value = []
+        mock_interface.get_latest_harvest_record_attempts_by_source.return_value = []
 
         result = app.test_cli_runner().invoke(
             args=["database", "backfill-current-record-issues", "--no-dry-run"]
@@ -60,7 +60,7 @@ def test_no_dry_run_resyncs_every_source_regardless_of_existing_issues(app):
         mock_interface.get_all_harvest_sources.return_value = [
             make_source("1", "Source With Gap"),
         ]
-        mock_interface.get_latest_harvest_records_by_source_orm.return_value = [
+        mock_interface.get_latest_harvest_record_attempts_by_source.return_value = [
             make_record("r1", "dataset-1"),
             make_record("r2", "dataset-2", record_type="data_service"),
         ]
