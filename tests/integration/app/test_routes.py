@@ -1616,3 +1616,25 @@ class TestQueryParameterValidation:
         assert response.is_json
         data = response.get_json()
         assert "error" in data
+
+    def test_harvest_sources_accepts_organization_id(
+        self, client, interface_with_fixture_json
+    ):
+        """Test that harvest_sources accepts organization_id parameter."""
+        response = client.get(
+            "/api/v1/harvest_sources/?organization_id=35d79097-243c-414d-b67e-d8484397abc6"
+        )
+
+        assert response.status_code in [200, 404]
+
+    def test_harvest_jobs_rejects_organization_id(self, client):
+        """Test that harvest_jobs returns JSON error for organization_id."""
+        response = client.get(
+            "/api/v1/harvest_jobs/?organization_id=35d79097-243c-414d-b67e-d8484397abc6"
+        )
+
+        assert response.status_code == 400
+        assert response.is_json
+        data = response.get_json()
+        assert "error" in data
+        assert "organization_id" in data["error"]
