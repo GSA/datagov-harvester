@@ -679,6 +679,8 @@ class TestJSONResponses:
             json_res = json.loads(res.data)
             if "count" in json_res:
                 assert json_res["count"] == response
+            elif "error" in json_res:
+                assert json_res["error"] == response
             else:
                 assert len(json_res) == response
         except Exception:

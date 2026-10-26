@@ -50,6 +50,8 @@ def _validate_query_parameters(model: str, provided_params: dict) -> tuple[bool,
     allowed_params = set(SHARED_QUERY_PARAMS + valid_filters)
 
     for param in provided_params:
+        if param == "severity":
+            continue
         if param not in allowed_params:
             valid_filters_str = ", ".join(valid_filters) if valid_filters else "none"
             return False, (
