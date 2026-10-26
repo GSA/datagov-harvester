@@ -1638,3 +1638,31 @@ class TestQueryParameterValidation:
         data = response.get_json()
         assert "error" in data
         assert "organization_id" in data["error"]
+
+    def test_harvest_job_errors_rejects_severity(self, client):
+        """Test that harvest_job_errors returns JSON error for severity parameter."""
+        response = client.get("/api/v1/harvest_job_errors/?severity=error")
+
+        assert response.status_code == 400
+        assert response.is_json
+        data = response.get_json()
+        assert "error" in data
+        assert "severity" in data["error"]
+
+    def test_harvest_record_errors_accepts_severity(
+        self, client, interface_with_fixture_json
+    ):
+        """Test that harvest_record_errors accepts severity parameter."""
+        response = client.get("/api/v1/harvest_record_errors/?severity=error")
+
+        assert response.status_code in [200, 404]
+
+    def test_organizations_rejects_invalid_param(self, client):
+        """Test that organizations returns JSON error for any invalid parameter."""
+        response = client.get("/api/v1/organizations/?invalid_param=test")
+
+        assert response.status_code == 400
+        assert response.is_json
+        data = response.get_json()
+        assert "error" in data
+        assert "invalid_param" in data["error"]

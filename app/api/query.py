@@ -28,6 +28,8 @@ from harvester.utils.general_utils import convert_to_int, is_it_true
 
 from . import api
 
+SHARED_QUERY_PARAMS = ["facets", "page", "per_page", "paginate", "count", "order_by"]
+
 ENDPOINT_VALID_FILTERS = {
     "organizations": [],
     "harvest_sources": ["organization_id"],
@@ -40,7 +42,7 @@ ENDPOINT_VALID_FILTERS = {
 
 def _validate_query_parameters(model: str, provided_params: dict) -> tuple[bool, str]:
     """
-    Validate that query filter parameters are valid for the given endpoint model.
+    Validate that all query parameters are valid for the given endpoint.
 
     Args:
         model: The endpoint model name (e.g., "harvest_job_errors")
@@ -50,46 +52,32 @@ def _validate_query_parameters(model: str, provided_params: dict) -> tuple[bool,
         Tuple of (is_valid, error_message). error_message is empty string if valid.
     """
     valid_filters = ENDPOINT_VALID_FILTERS.get(model, [])
-    filter_params = [
-        "harvest_source_id",
-        "harvest_job_id",
-        "harvest_record_id",
-        "organization_id",
-    ]
+    allowed_params = set(SHARED_QUERY_PARAMS + valid_filters)
 
-    for param in filter_params:
-        if param in provided_params and param not in valid_filters:
-            valid_filters_str = ", ".join(valid_filters) if valid_filters else "facets"
+    for param in provided_params:
+        if param not in allowed_params:
+            valid_filters_str = ", ".join(valid_filters) if valid_filters else "none"
             return False, (
                 f"{param} is not a valid parameter for /{model}/. "
-                f"Valid filter parameters: {valid_filters_str}."
+                f"Valid filter parameters: {valid_filters_str}. "
+                f"Valid shared parameters: {', '.join(SHARED_QUERY_PARAMS)}."
             )
 
     return True, ""
 
 
 def _json_builder_query_impl(**kwargs):
+    model = escape(request.path.strip("/").split("/")[-1])
+
+    is_valid, error_msg = _validate_query_parameters(model, request.args.keys())
+    if not is_valid:
+        return jsonify({"error": error_msg}), 400
+
     job_id = request.args.get("harvest_job_id")
     source_id = request.args.get("harvest_source_id")
     record_id = request.args.get("harvest_record_id")
     org_id = request.args.get("organization_id")
     facets = request.args.get("facets", default="")
-
-    model = escape(request.path.strip("/").split("/")[-1])
-
-    provided_params = {}
-    if source_id is not None:
-        provided_params["harvest_source_id"] = source_id
-    if job_id is not None:
-        provided_params["harvest_job_id"] = job_id
-    if record_id is not None:
-        provided_params["harvest_record_id"] = record_id
-    if org_id is not None:
-        provided_params["organization_id"] = org_id
-
-    is_valid, error_msg = _validate_query_parameters(model, provided_params)
-    if not is_valid:
-        return jsonify({"error": error_msg}), 400
 
     if job_id is not None:
         if facets:
