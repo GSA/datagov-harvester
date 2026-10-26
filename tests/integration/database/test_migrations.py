@@ -2,6 +2,7 @@ import pytest
 from alembic.script import ScriptDirectory
 from flask import current_app
 from flask_migrate import downgrade, upgrade
+from sqlalchemy import text
 
 from database.models import db
 
@@ -12,11 +13,22 @@ def dbapp(app):
 
     Migrations manage their own schema from an empty database, so this
     drops all ORM-created tables instead of also recreating them.
+
+    alembic_version isn't part of db.metadata, so db.drop_all() leaves it
+    stamped at whatever revision the app container's own startup migration
+    left it at. Without dropping it too, upgrade()/downgrade() below think
+    they're already at that revision on an otherwise-empty schema, and skip
+    or misdirect steps (e.g. downgrading straight to a later migration's
+    script against tables that were never created).
     """
     with app.app_context():
+        db.session.execute(text("DROP TABLE IF EXISTS alembic_version"))
+        db.session.commit()
         db.drop_all()
     yield
     with app.app_context():
+        db.session.execute(text("DROP TABLE IF EXISTS alembic_version"))
+        db.session.commit()
         db.drop_all()
         db.create_all()
 
