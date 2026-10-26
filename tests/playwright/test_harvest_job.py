@@ -52,11 +52,9 @@ class TestHarvestJobUnauthed:
         expect(
             upage.locator("#error_results_pagination .error-list .error-block")
         ).to_have_count(
-            10
-        )  # paginated at 10 entries
+            8
+        )  # one card per distinct record; all 8 fit on a single page
 
-        # Target by identifier, not position: the grouped query has no
-        # ORDER BY, so which block renders first isn't stable across runs.
         expect(
             upage.locator("#error_results_pagination .error-list .error-block")
             .filter(has_text="test_identifier-1")
@@ -79,15 +77,24 @@ class TestHarvestJobUnauthed:
         )
 
     def test_harvest_job_validation_errors_aggregated(self, upage):
-        # test_identifier-1 has two aggregated validation messages.
-        validation_msgs = (
-            upage.locator("#error_results_pagination .error-list .error-block")
-            .filter(has_text="test_identifier-1")
-            .locator("ul li")
-            .all()
-        )
+        # test_identifier-1 has two ValidationException messages combined
+        # into a single section's bullet list.
+        validation_block = upage.locator(
+            "#error_results_pagination .error-list .error-block"
+        ).filter(has_text="test_identifier-1")
+        expect(validation_block.get_by_text("Error Message")).to_have_count(1)
+        assert len(validation_block.locator("ul li").all()) == 2
 
-        assert len(validation_msgs) == 2
+        # test_identifier-2..8 each have one ValidationException and one
+        # TestException on the same record, so one card with two sections.
+        for i in range(2, 9):
+            block = upage.locator(
+                "#error_results_pagination .error-list .error-block"
+            ).filter(has_text=f"test_identifier-{i}")
+            expect(block).to_have_count(1)
+            expect(block.get_by_text("Error Message")).to_have_count(2)
+            expect(block).to_contain_text("ValidationException")
+            expect(block).to_contain_text("TestException")
 
     def test_download_harvest_errors_csv(self, upage):
         pytest_harvest_errors_csv = "pytest_harvest_errors.csv"

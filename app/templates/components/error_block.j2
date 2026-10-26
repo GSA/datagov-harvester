@@ -1,0 +1,30 @@
+{% macro error_block(record) %}
+<div class="error-block">
+    <h3 class="word-break-all">{{ record.identifier }}</h3>
+    <p><strong>Title:</strong> {{ record.title if record.title else "N/A" }}</p>
+    <p><strong>Harvest Record ID:</strong>
+        {% if record.harvest_record_id %}
+        <a href="{{ url_for('api_v1.get_harvest_record', record_id=record.harvest_record_id) }}">
+            {{ record.harvest_record_id }}
+        </a>
+        {% else %}
+        N/A
+        {% endif %}
+    </p>
+    {% for issue in record.issues %}
+    <p>
+        <strong>Error Message:</strong>
+        <ul>
+            {% for msg in issue.messages %}
+            <li>{{ msg }}</li>
+            {% endfor %}
+        </ul>
+    </p>
+    <p><strong>Severity:</strong> {{ issue.severity | else_na }}</p>
+    <p><strong>Type:</strong> {{ issue.type }}</p>
+    {% endfor %}
+    <p class="utc-date" data-utc-date="{{ record.date_created | utc_isoformat }}">
+        <strong>Date Created:</strong> {{ record.date_created | else_na }}
+    </p>
+</div>
+{% endmacro %}

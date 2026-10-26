@@ -15,7 +15,7 @@ from app.deps import (
 )
 from app.forms import HarvestSourceForm, HarvestTriggerForm, ReharvestForm
 from app.paginate import Pagination
-from app.util import make_new_record_error_contract, make_new_source_contract
+from app.util import make_new_source_contract
 from database.interface import HarvestSourceLockedError, StaleReharvestLinkError
 from harvester.lib.source_delete import enqueue_harvest_source_delete
 from harvester.utils.general_utils import (
@@ -474,11 +474,11 @@ def view_harvest_source(source_id: str):
         )
 
 
-def _load_json_title(json_string, error_type):
+def _load_json_title(json_string, issue_types):
     try:
         if json_string is None:
             return None
-        if error_type == "TransformationException":
+        if "TransformationException" in issue_types:
             # can't json load an xml doc
             return None
         return json.loads(json_string).get("title", None)
@@ -510,11 +510,15 @@ def view_harvest_source_warnings(source_id: str):
     )
     record_errors_dict = [
         {
-            "error": make_new_record_error_contract(row),
-            "identifier": row[-2],
-            "title": _load_json_title(row[-1], row[3]),
+            "identifier": record["identifier"] or record["harvest_record_id"],
+            "harvest_record_id": record["harvest_record_id"],
+            "title": _load_json_title(
+                record["title_source"], [issue["type"] for issue in record["issues"]]
+            ),
+            "date_created": record["date_created"],
+            "issues": record["issues"],
         }
-        for row in record_errors
+        for record in record_errors
     ]
 
     if htmx:
