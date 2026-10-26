@@ -989,13 +989,17 @@ class HarvesterDBInterface:
         record_type: str,
         identifier: str,
         harvest_record_id: str,
-    ) -> None:
+    ) -> bool:
         """Replace the current-state issues for this identifier with
         whatever harvest_record_id's issues are right now.
 
         Called once per reprocessed record, after validation has written
         this run's harvest_record_error rows for harvest_record_id. If the
         record now has no issues, this clears any carried-forward ones.
+
+        Returns False on a DB error (and rolls back) instead of raising, so
+        callers that process many identifiers in a loop can skip one and
+        keep going; callers that need to know should check the return value.
         """
         try:
             self.db.query(HarvestRecordCurrentIssue).filter_by(
@@ -1017,9 +1021,11 @@ class HarvesterDBInterface:
                     )
                 )
             self.db.commit()
+            return True
         except Exception as e:
             logger.error("Error: %s", e)
             self.db.rollback()
+            return False
 
     def clear_current_record_issues(
         self, harvest_source_id: str, record_type: str, identifier: str

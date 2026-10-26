@@ -79,3 +79,23 @@ def test_no_dry_run_resyncs_every_source_regardless_of_existing_issues(app):
         "1", "data_service", "dataset-2", "r2"
     )
     mock_interface.get_current_record_issues_by_source.assert_not_called()
+
+
+def test_no_dry_run_reports_failures_without_counting_them_as_resynced(app):
+    with patch("app.commands.database.interface") as mock_interface:
+        mock_interface.get_all_harvest_sources.return_value = [
+            make_source("1", "Source With Gap"),
+        ]
+        mock_interface.get_latest_harvest_record_attempts_by_source.return_value = [
+            make_record("r1", "dataset-1"),
+            make_record("r2", "dataset-2"),
+        ]
+        mock_interface.sync_current_record_issues.side_effect = [True, False]
+
+        result = app.test_cli_runner().invoke(
+            args=["database", "backfill-current-record-issues", "--no-dry-run"]
+        )
+
+    assert result.exit_code == 0
+    assert "Resynced 1 identifier(s) across 1 harvest source(s)." in result.output
+    assert "Failed to resync 1 identifier(s)" in result.output

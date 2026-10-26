@@ -79,6 +79,7 @@ def backfill_current_record_issues(dry_run: bool) -> None:
     """
     touched_sources = 0
     resynced_identifiers = 0
+    failed_identifiers = 0
 
     for source in interface.get_all_harvest_sources():
         latest_records = interface.get_latest_harvest_record_attempts_by_source(
@@ -92,15 +93,18 @@ def backfill_current_record_issues(dry_run: bool) -> None:
             "identifier(s)"
         )
         touched_sources += 1
-        resynced_identifiers += len(latest_records)
 
         if dry_run:
+            resynced_identifiers += len(latest_records)
             continue
 
         for record in latest_records:
-            interface.sync_current_record_issues(
+            if interface.sync_current_record_issues(
                 source.id, record.record_type, record.identifier, record.id
-            )
+            ):
+                resynced_identifiers += 1
+            else:
+                failed_identifiers += 1
 
     click.echo(
         f"{'Would resync' if dry_run else 'Resynced'} {resynced_identifiers} "
@@ -108,3 +112,8 @@ def backfill_current_record_issues(dry_run: bool) -> None:
     )
     if dry_run:
         click.echo("Use --no-dry-run to write the changes.")
+    elif failed_identifiers:
+        click.echo(
+            f"Failed to resync {failed_identifiers} identifier(s), see "
+            "errors above. Rerun this command to retry them."
+        )
