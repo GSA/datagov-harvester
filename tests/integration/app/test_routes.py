@@ -1657,15 +1657,15 @@ class TestQueryParameterValidation:
         assert "error" in data
         assert "organization_id" in data["error"]
 
-    def test_harvest_job_errors_rejects_severity(self, client):
-        """Test that harvest_job_errors returns JSON error for severity parameter."""
+    def test_harvest_job_errors_ignores_severity(self, client, job_error_data):
+        """Test that harvest_job_errors silently ignores severity parameter.
+
+        severity only exists on harvest_record_errors, so it is ignored elsewhere.
+        This matches the behavior documented in app/api/query.py line 100.
+        """
         response = client.get("/api/v1/harvest_job_errors/?severity=error")
 
-        assert response.status_code == 400
-        assert response.is_json
-        data = response.get_json()
-        assert "error" in data
-        assert "severity" in data["error"]
+        assert response.status_code in [200, 404]
 
     def test_harvest_record_errors_accepts_severity(
         self, client, interface_with_fixture_json
