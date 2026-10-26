@@ -550,7 +550,13 @@ class HarvesterDBInterface:
             .options(lazyload(HarvestJob.source))
             .join(HarvestSource, HarvestJob.harvest_source_id == HarvestSource.id)
             .filter(
-                HarvestJob.date_created <= datetime.now(timezone.utc),
+                # Compare against the DB's own clock, not the app host's:
+                # date_created is set via Postgres statement_timestamp(), and
+                # any drift between the app host clock and the DB clock can
+                # make a just-created job look like it's "in the future".
+                # statement_timestamp() (not now()/transaction_timestamp())
+                # re-evaluates per statement, matching the column default.
+                HarvestJob.date_created <= func.statement_timestamp(),
                 HarvestJob.status == "new",
                 HarvestSource.is_locked.is_(False)
                 | (~HarvestJob.job_type.in_(JOB_TYPES_BLOCKED_BY_SOURCE_LOCK)),
@@ -797,7 +803,13 @@ class HarvesterDBInterface:
 
         per_page = kwargs.get("per_page") or PAGINATE_ENTRIES_PER_PAGE
         page = kwargs.get("page") or PAGINATE_START_PAGE
-        paged = grouped.select().limit(per_page).offset(page * per_page).subquery()
+        paged = (
+            grouped.select()
+            .order_by(grouped.c.date_created, grouped.c.harvest_record_id)
+            .limit(per_page)
+            .offset(page * per_page)
+            .subquery()
+        )
 
         return (
             self.db.query(
@@ -814,6 +826,7 @@ class HarvesterDBInterface:
                 ),
             )
             .outerjoin(HarvestRecord, HarvestRecord.id == paged.c.harvest_record_id)
+            .order_by(paged.c.date_created, paged.c.harvest_record_id)
             .all()
         )
 
@@ -1094,7 +1107,13 @@ class HarvesterDBInterface:
 
         per_page = kwargs.get("per_page") or PAGINATE_ENTRIES_PER_PAGE
         page = kwargs.get("page") or PAGINATE_START_PAGE
-        paged = grouped.select().limit(per_page).offset(page * per_page).subquery()
+        paged = (
+            grouped.select()
+            .order_by(grouped.c.date_created, grouped.c.harvest_record_id)
+            .limit(per_page)
+            .offset(page * per_page)
+            .subquery()
+        )
 
         return (
             self.db.query(
@@ -1111,6 +1130,7 @@ class HarvesterDBInterface:
                 ),
             )
             .outerjoin(HarvestRecord, HarvestRecord.id == paged.c.harvest_record_id)
+            .order_by(paged.c.date_created, paged.c.harvest_record_id)
             .all()
         )
 
@@ -1789,6 +1809,10 @@ class HarvesterDBInterface:
             self.db.rollback()
 
 
+class InvalidOrderByException(ValueError):
+    """Raised when order_by references an invalid model field."""
+
+
 def order_by_helper(model, order_by):
     """Build an ORDER BY clause for `model` from an `order_by` request value.
 
@@ -1796,7 +1820,7 @@ def order_by_helper(model, order_by):
     descending (`"-name"`), or the legacy literals `"asc"`/`"desc"` (and
     `None`/empty), which sort the model's default column. The default column is
     `date_created` when the model has one, else `name`. An unrecognized column
-    name falls back to the default column while keeping the requested direction.
+    name raises InvalidOrderByException.
     """
     default_column = "date_created" if hasattr(model, "date_created") else "name"
     if not order_by or order_by in ("asc", "desc"):
@@ -1805,6 +1829,6 @@ def order_by_helper(model, order_by):
         descending = order_by.startswith("-")
         column_name = order_by[1:] if descending else order_by
     if column_name not in model.__table__.columns.keys():
-        column_name = default_column
+        raise InvalidOrderByException(f"Invalid order_by field: {column_name}")
     column = getattr(model, column_name)
     return column.desc() if descending else column.asc()

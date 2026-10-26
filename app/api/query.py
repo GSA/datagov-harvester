@@ -23,6 +23,7 @@ from app.deps import (
     get_requested_severity,
     logger,
 )
+from database.interface import InvalidOrderByException
 from harvester.utils.general_utils import convert_to_int, is_it_true
 
 from . import api
@@ -146,6 +147,9 @@ def _json_builder_query_impl(**kwargs):
     except InvalidPaginationException as e:
         logger.info(f"Invalid pagination in json_builder_query :: {repr(e)}")
         return JSON_INVALID_PAGINATION(str(e))
+    except InvalidOrderByException as e:
+        logger.info(f"Invalid order_by in json_builder_query :: {repr(e)}")
+        return jsonify({"error": "Invalid order_by parameter"}), 422
     except Exception as e:
         logger.info(f"Failed json_builder_query :: {repr(e)} ")
         return jsonify({"error": "Error with query"}), 400
