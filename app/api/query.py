@@ -4,9 +4,14 @@ from markupsafe import escape
 from app import deps
 from app.api_schemas import (
     ErrorInfo,
+    HarvestJobErrorsQueryInfo,
+    HarvestJobsQueryInfo,
+    HarvestRecordErrorsQueryInfo,
+    HarvestRecordsQueryInfo,
+    HarvestSourcesQueryInfo,
     JobInfo,
+    OrganizationsQueryInfo,
     OrgInfo,
-    QueryInfo,
     RecordInfo,
     SourceInfo,
 )
@@ -57,37 +62,7 @@ def _validate_query_parameters(model: str, provided_params: dict) -> tuple[bool,
     return True, ""
 
 
-@api.route("/organizations/", methods=["GET"])
-@api.route("/harvest_sources/", methods=["GET"])
-@api.route("/harvest_records/", methods=["GET"])
-@api.route("/harvest_jobs/", methods=["GET"])
-@api.route("/harvest_job_errors/", methods=["GET"])
-@api.route("/harvest_record_errors/", methods=["GET"])
-@api.input(QueryInfo, location="query", validation=False)
-@api.doc(
-    responses={
-        200: {
-            "description": "List of reuslts for this query",
-            "content": {
-                "application/json": {
-                    "schema": {
-                        "type": "array",
-                        "items": {
-                            "oneOf": [
-                                ErrorInfo,
-                                OrgInfo,
-                                SourceInfo,
-                                RecordInfo,
-                                JobInfo,
-                            ]
-                        },
-                    }
-                },
-            },
-        }
-    }
-)
-def json_builder_query(**kwargs):
+def _json_builder_query_impl(**kwargs):
     job_id = request.args.get("harvest_job_id")
     source_id = request.args.get("harvest_source_id")
     record_id = request.args.get("harvest_record_id")
@@ -161,3 +136,39 @@ def json_builder_query(**kwargs):
     except Exception as e:
         logger.info(f"Failed json_builder_query :: {repr(e)} ")
         return "Error with query", 400
+
+
+@api.route("/organizations/", methods=["GET"])
+@api.input(OrganizationsQueryInfo, location="query", validation=False)
+def organizations_query(**kwargs):
+    return _json_builder_query_impl(**kwargs)
+
+
+@api.route("/harvest_sources/", methods=["GET"])
+@api.input(HarvestSourcesQueryInfo, location="query", validation=False)
+def harvest_sources_query(**kwargs):
+    return _json_builder_query_impl(**kwargs)
+
+
+@api.route("/harvest_jobs/", methods=["GET"])
+@api.input(HarvestJobsQueryInfo, location="query", validation=False)
+def harvest_jobs_query(**kwargs):
+    return _json_builder_query_impl(**kwargs)
+
+
+@api.route("/harvest_records/", methods=["GET"])
+@api.input(HarvestRecordsQueryInfo, location="query", validation=False)
+def harvest_records_query(**kwargs):
+    return _json_builder_query_impl(**kwargs)
+
+
+@api.route("/harvest_job_errors/", methods=["GET"])
+@api.input(HarvestJobErrorsQueryInfo, location="query", validation=False)
+def harvest_job_errors_query(**kwargs):
+    return _json_builder_query_impl(**kwargs)
+
+
+@api.route("/harvest_record_errors/", methods=["GET"])
+@api.input(HarvestRecordErrorsQueryInfo, location="query", validation=False)
+def harvest_record_errors_query(**kwargs):
+    return _json_builder_query_impl(**kwargs)
