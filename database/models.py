@@ -438,14 +438,28 @@ class HarvestRecordError(Error):
     )
 
 
-class HarvestRecordCurrentIssue(Error):
+class HarvestRecordCurrentIssue(Base):
     """Current issues per (harvest_source, record_type, identifier),
     independent of any job. Deleted-and-reinserted on each reprocess, so an
     unchanged record keeps showing its issue instead of losing it just
     because it got no new harvest_record row this job. See #6440.
+
+    id is the id of the harvest_record_error row this mirrors, not an
+    independently generated UUID, so an issue shown here and the error it
+    came from always share one id/date_created/type/message/severity/
+    harvest_record_id - there is exactly one row of data, this table just
+    indexes it by (harvest_source, record_type, identifier) instead of by
+    job. Cascades with that error row, so deleting the job that produced
+    it also removes the now-stale current-issue pointer.
     """
 
     __tablename__ = "harvest_record_current_issue"
+
+    id = Column(
+        String(36),
+        ForeignKey("harvest_record_error.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
 
     harvest_source_id = Column(
         String(36),
@@ -461,18 +475,7 @@ class HarvestRecordCurrentIssue(Error):
 
     identifier = Column(String, nullable=False)
 
-    # SET NULL, not CASCADE: same reasoning as HarvestRecordError above.
-    harvest_record_id = Column(
-        String(36),
-        ForeignKey("harvest_record.id", ondelete="SET NULL"),
-        nullable=True,
-    )
-
-    severity = Column(
-        Enum(*SEVERITY_VALUES, name="error_severity"),
-        nullable=False,
-        server_default="error",
-    )
+    error = relationship("HarvestRecordError", lazy=True)
 
     __table_args__ = (
         Index(
@@ -480,10 +483,6 @@ class HarvestRecordCurrentIssue(Error):
             "harvest_source_id",
             "record_type",
             "identifier",
-        ),
-        Index(
-            "ix_harvest_record_current_issue_harvest_record_id",
-            "harvest_record_id",
         ),
     )
 
