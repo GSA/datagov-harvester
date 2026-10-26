@@ -3,17 +3,12 @@ from markupsafe import escape
 
 from app import deps
 from app.api_schemas import (
-    ErrorInfo,
     HarvestJobErrorsQueryInfo,
     HarvestJobsQueryInfo,
     HarvestRecordErrorsQueryInfo,
     HarvestRecordsQueryInfo,
     HarvestSourcesQueryInfo,
-    JobInfo,
     OrganizationsQueryInfo,
-    OrgInfo,
-    RecordInfo,
-    SourceInfo,
 )
 from app.deps import (
     JSON_INVALID_PAGINATION,
