@@ -249,7 +249,7 @@ def add_harvest_source():
         flash(message)
         if source is None:
             return redirect(url_for("main.add_harvest_source"))
-        return redirect(url_for("main.harvest_source_list"))
+        return redirect(url_for("main.view_harvest_source", source_id=source.id))
     elif form.errors:
         flash(form.errors)
         return redirect(url_for("main.add_harvest_source"))

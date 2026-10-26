@@ -129,6 +129,37 @@ class TestForms:
             "other@example.com",
         ]
 
+    def test_add_harvest_source_redirects_to_new_source(
+        self, app, client, interface, organization_data
+    ):
+        app.config.update({"WTF_CSRF_ENABLED": False})
+        with client.session_transaction() as sess:
+            sess["user"] = "tester@gsa.gov"
+
+        interface.add_organization(organization_data)
+
+        form_data = {
+            "organization_id": organization_data["id"],
+            "name": "Redirect Source",
+            "url": "https://example.com/redirect/data.json",
+            "notification_emails": "user@example.com",
+            "frequency": "daily",
+            "schema_type": "dcatus1.1: federal",
+            "source_type": "document",
+            "notification_frequency": "always",
+        }
+        res = client.post("/harvest_source/add", data=form_data)
+
+        assert res.status_code == 302
+        sources = interface.get_all_harvest_sources()
+        assert len(sources) == 1
+        assert res.headers["Location"] == f"/harvest_source/{sources[0].id}"
+
+        follow = client.get(res.headers["Location"])
+        assert follow.status_code == 200
+        assert b"Redirect Source" in follow.data
+        assert b"Added new harvest source with ID:" in follow.data
+
     def test_add_harvest_source_source_type_options_match_enum(
         self, app, client, interface, organization_data
     ):
