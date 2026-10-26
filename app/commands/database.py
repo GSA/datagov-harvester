@@ -3,9 +3,11 @@ from flask import Blueprint
 from flask_migrate import upgrade
 from sqlalchemy import text
 
+from database.interface import HarvesterDBInterface
 from database.models import db
 
 database = Blueprint("database", __name__)
+interface = HarvesterDBInterface()
 
 
 @database.cli.command("reset")
@@ -44,3 +46,58 @@ def reset_database(yes: bool) -> None:
     click.echo("Applying migrations...")
     upgrade()
     click.echo("Database reset complete.")
+
+
+@database.cli.command("backfill-current-record-issues")
+@click.option(
+    "--dry-run/--no-dry-run",
+    default=True,
+    type=bool,
+    help="Report what would be resynced without writing anything.",
+)
+def backfill_current_record_issues(dry_run: bool) -> None:
+    """One-time backfill of harvest_record_current_issue for warnings/errors
+    that predate that table (#6440).
+
+    harvest_record_current_issue is only kept in sync going forward, as
+    records get reprocessed. A source with open issues from before the
+    table existed shows zero on the Outstanding Warnings page (#6461) until
+    it happens to be harvested again. This resyncs every harvest source that
+    currently shows zero current issues, from each identifier's latest
+    successful harvest_record, the same way sync_current_record_issues does
+    for a single record during a live harvest run.
+
+    https://github.com/GSA/data.gov/issues/6471
+    """
+    touched_sources = 0
+    resynced_identifiers = 0
+
+    for source in interface.get_all_harvest_sources():
+        if interface.get_current_record_issues_by_source(source.id, count=True):
+            continue
+
+        latest_records = interface.get_latest_harvest_records_by_source_orm(source.id)
+        if not latest_records:
+            continue
+
+        click.echo(
+            f"{source.id} ({source.name}): resyncing {len(latest_records)} "
+            "identifier(s)"
+        )
+        touched_sources += 1
+        resynced_identifiers += len(latest_records)
+
+        if dry_run:
+            continue
+
+        for record in latest_records:
+            interface.sync_current_record_issues(
+                source.id, record.record_type, record.identifier, record.id
+            )
+
+    click.echo(
+        f"{'Would resync' if dry_run else 'Resynced'} {resynced_identifiers} "
+        f"identifier(s) across {touched_sources} harvest source(s)."
+    )
+    if dry_run:
+        click.echo("Use --no-dry-run to write the changes.")
