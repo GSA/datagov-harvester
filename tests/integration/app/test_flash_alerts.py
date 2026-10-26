@@ -42,8 +42,8 @@ def page_alert_class(html):
 
 
 @pytest.fixture
-def admin_client(app, client):
-    app.config.update({"WTF_CSRF_ENABLED": False})
+def admin_client(app, client, monkeypatch):
+    monkeypatch.setitem(app.config, "WTF_CSRF_ENABLED", False)
     with client.session_transaction() as sess:
         sess["user"] = "tester@gsa.gov"
     return client
@@ -217,11 +217,15 @@ class TestFlashColors:
         ],
     )
     def test_add_source_color_follows_scheduling(
-        self, admin_client, interface_no_jobs, organization_data, status, expected
+        self,
+        admin_client,
+        interface_no_jobs,
+        organization_data,
+        source_data_dcatus,
+        status,
+        expected,
     ):
-        source = interface_no_jobs.get_harvest_source_by_url(
-            interface_no_jobs.get_all_harvest_sources()[0].url
-        )
+        source = interface_no_jobs.get_harvest_source(source_data_dcatus["id"])
         with patch(
             "app.main.harvest_sources.create_harvest_source",
             return_value=(source, "create result", status),
@@ -292,9 +296,16 @@ class TestRefreshPageColors:
         ],
     )
     def test_requested_harvest_uses_start_job_category(
-        self, app, client, interface_no_jobs, source_data_dcatus, result, expected
+        self,
+        app,
+        client,
+        monkeypatch,
+        interface_no_jobs,
+        source_data_dcatus,
+        result,
+        expected,
     ):
-        app.config.update({"WTF_CSRF_ENABLED": False})
+        monkeypatch.setitem(app.config, "WTF_CSRF_ENABLED", False)
         token = self.make_token(app, interface_no_jobs, source_data_dcatus)
         with patch("app.deps.load_manager.start_job", return_value=result):
             response = client.post(
@@ -305,9 +316,9 @@ class TestRefreshPageColors:
         assert page_alert_class(response.text) == expected
 
     def test_already_queued_is_yellow(
-        self, app, client, interface_no_jobs, source_data_dcatus
+        self, app, client, monkeypatch, interface_no_jobs, source_data_dcatus
     ):
-        app.config.update({"WTF_CSRF_ENABLED": False})
+        monkeypatch.setitem(app.config, "WTF_CSRF_ENABLED", False)
         token = self.make_token(app, interface_no_jobs, source_data_dcatus)
         # A job queued between the link check and the enqueue (e.g. by the
         # scheduler) is reported as the active job.
