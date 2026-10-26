@@ -1594,3 +1594,25 @@ class TestQueryParameterValidation:
         data = response.get_json()
         assert "error" in data
         assert "harvest_source_id" in data["error"]
+
+    def test_harvest_record_errors_rejects_harvest_source_id_in_facets(self, client):
+        """Test that harvest_record_errors returns JSON error for harvest_source_id in facets."""
+        response = client.get(
+            "/api/v1/harvest_record_errors/?facets=harvest_source_id eq 35d79097-243c-414d-b67e-d8484397abc6"
+        )
+
+        assert response.status_code == 400
+        assert response.is_json
+        data = response.get_json()
+        assert "error" in data
+
+    def test_harvest_job_errors_rejects_harvest_source_id_in_facets(self, client):
+        """Test that harvest_job_errors returns JSON error for harvest_source_id in facets."""
+        response = client.get(
+            "/api/v1/harvest_job_errors/?facets=harvest_source_id eq 35d79097-243c-414d-b67e-d8484397abc6"
+        )
+
+        assert response.status_code == 400
+        assert response.is_json
+        data = response.get_json()
+        assert "error" in data
