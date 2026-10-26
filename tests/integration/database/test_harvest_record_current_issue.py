@@ -17,7 +17,7 @@ def test_add_harvest_record_error_mirrors_current_issue(
     interface.add_harvest_job(job_data_dcatus)
     record = interface.add_harvest_record(record_data_dcatus[2])
 
-    interface.add_harvest_record_error(
+    error = interface.add_harvest_record_error(
         {
             "message": "a warning",
             "type": "TestException",
@@ -34,8 +34,10 @@ def test_add_harvest_record_error_mirrors_current_issue(
     )
     assert len(current_errors) == 1
     assert current_errors[0].identifier == record.identifier
-    assert current_errors[0].message == "a warning"
-    assert current_errors[0].severity == "warning"
+    # Same id/message/severity as the harvest_record_error row, not a copy.
+    assert current_errors[0].id == error.id
+    assert current_errors[0].error.message == "a warning"
+    assert current_errors[0].error.severity == "warning"
 
 
 def test_sync_current_record_issues_replaces_prior_set(
@@ -135,8 +137,8 @@ def test_sync_current_record_issues_carries_forward_latest_set(
         .all()
     )
     assert len(current_errors) == 1
-    assert current_errors[0].message == "second warning"
-    assert current_errors[0].harvest_record_id == new_record.id
+    assert current_errors[0].error.message == "second warning"
+    assert current_errors[0].error.harvest_record_id == new_record.id
 
 
 def test_clear_current_record_issues(
@@ -205,6 +207,38 @@ def test_current_record_issues_cascade_on_source_delete(
     )
 
 
+def test_current_record_issue_cascades_on_job_delete(
+    interface,
+    organization_data,
+    source_data_dcatus,
+    job_data_dcatus,
+    record_data_dcatus,
+):
+    """A current-issue row's id is its harvest_record_error row's id (FK),
+    so deleting the job that produced that error also removes the
+    now-stale current-issue pointer instead of leaving it dangling."""
+    interface.add_organization(organization_data)
+    interface.add_harvest_source(source_data_dcatus)
+    interface.add_harvest_job(job_data_dcatus)
+    record = interface.add_harvest_record(record_data_dcatus[2])
+    source_id = source_data_dcatus["id"]
+
+    interface.add_harvest_record_error(
+        {
+            "message": "a warning",
+            "type": "TestException",
+            "harvest_job_id": job_data_dcatus["id"],
+            "harvest_record_id": record.id,
+            "severity": "warning",
+        }
+    )
+    assert interface.get_current_record_issues_by_source(source_id, count=True) == 1
+
+    interface.delete_harvest_job(job_data_dcatus["id"])
+
+    assert interface.get_current_record_issues_by_source(source_id, count=True) == 0
+
+
 def test_get_current_record_issues_by_source_for_view(
     interface,
     organization_data,
@@ -218,7 +252,7 @@ def test_get_current_record_issues_by_source_for_view(
     record = interface.add_harvest_record(record_data_dcatus[2])
     source_id = source_data_dcatus["id"]
 
-    interface.add_harvest_record_error(
+    error = interface.add_harvest_record_error(
         {
             "message": "a warning",
             "type": "TestException",
@@ -235,7 +269,9 @@ def test_get_current_record_issues_by_source_for_view(
     #  message, id, identifier, source_raw/transform)
     assert row[0] == record.id
     assert row[1] is None  # current-state issues aren't tied to a job
+    assert row[2] == error.date_created
     assert row[3] == "TestException"
     assert row[4] == "warning"
     assert row[5] == "a warning"
+    assert row[6] == error.id  # same id as the harvest_record_error row
     assert row[7] == record.identifier

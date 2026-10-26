@@ -4,9 +4,14 @@ import pytest
 @pytest.fixture()
 def ures(unauthed_page):
     unauthed_page.goto("/harvest_job/6bce761c-7a39-41c1-ac73-94234c139c76")
-    err_id = unauthed_page.locator(
-        "#error_results_pagination .error-list .error-block:first-child h3"
-    ).inner_text()
+    # Target by identifier, not position: the grouped query has no ORDER
+    # BY, so which block renders first isn't stable across test runs.
+    err_id = (
+        unauthed_page.locator("#error_results_pagination .error-list .error-block")
+        .filter(has_text="test_identifier-1")
+        .locator("h3")
+        .inner_text()
+    )
     res = unauthed_page.goto(f"/api/v1/harvest_error/{err_id}")
     yield res
 
@@ -15,9 +20,8 @@ class TestHarvestRecordErrorUnauthed:
     def test_response(self, ures):
         res = ures.json()
         fixture_dict = {
-            # The job page now surfaces current-state issues, which aren't
-            # tied to any job (see #6440), so harvest_job_id is always None.
-            "harvest_job_id": None,
+            # The job page shows only this job's own errors (#6461).
+            "harvest_job_id": "6bce761c-7a39-41c1-ac73-94234c139c76",
             "harvest_record_id": "0779c855-df20-49c8-9108-66359d82b77c",
             "message": "record is invalid",
             "type": "ValidationException",
