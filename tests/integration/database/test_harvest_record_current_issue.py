@@ -138,7 +138,7 @@ def test_sync_current_record_issues_carries_forward_latest_set(
     )
     assert len(current_errors) == 1
     assert current_errors[0].error.message == "second warning"
-    assert current_errors[0].harvest_record_id == new_record.id
+    assert current_errors[0].error.harvest_record_id == new_record.id
 
 
 def test_clear_current_record_issues(
@@ -262,16 +262,14 @@ def test_get_current_record_issues_by_source_for_view(
         }
     )
 
-    rows = interface.get_current_record_issues_by_source(source_id, for_view=True)
-    assert len(rows) == 1
-    row = rows[0]
-    # (harvest_record_id, harvest_job_id, date_created, type, severity,
-    #  message, id, identifier, source_raw/transform)
-    assert row[0] == record.id
-    assert row[1] is None  # current-state issues aren't tied to a job
-    assert row[2] == error.date_created
-    assert row[3] == "TestException"
-    assert row[4] == "warning"
-    assert row[5] == "a warning"
-    assert row[6] == error.id  # same id as the harvest_record_error row
-    assert row[7] == record.identifier
+    records = interface.get_current_record_issues_by_source(source_id, for_view=True)
+    assert len(records) == 1
+    record_view = records[0]
+    assert record_view["harvest_record_id"] == record.id
+    assert record_view["identifier"] == record.identifier
+    assert record_view["date_created"] == error.date_created
+    assert len(record_view["issues"]) == 1
+    issue = record_view["issues"][0]
+    assert issue["type"] == "TestException"
+    assert issue["severity"] == "warning"
+    assert issue["messages"] == ["a warning"]

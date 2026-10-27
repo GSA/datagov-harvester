@@ -101,6 +101,7 @@ def create_app():
     app = VersionedStaticAPIFlask(
         __name__, static_url_path="", static_folder="static", docs_path=None
     )
+    app.json = ISO8601JSONProvider(app)
 
     # OpenAPI fields
     app.config["INFO"] = {
