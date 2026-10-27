@@ -3,12 +3,12 @@ from markupsafe import escape
 
 from app import deps
 from app.api_schemas import (
-    ErrorInfo,
-    JobInfo,
-    OrgInfo,
-    QueryInfo,
-    RecordInfo,
-    SourceInfo,
+    HarvestJobErrorsQueryInfo,
+    HarvestJobsQueryInfo,
+    HarvestRecordErrorsQueryInfo,
+    HarvestRecordsQueryInfo,
+    HarvestSourcesQueryInfo,
+    OrganizationsQueryInfo,
 )
 from app.deps import (
     JSON_INVALID_PAGINATION,
@@ -23,40 +23,57 @@ from harvester.utils.general_utils import convert_to_int, is_it_true
 
 from . import api
 
+SHARED_QUERY_PARAMS = ["facets", "page", "per_page", "paginate", "count", "order_by"]
 
-@api.route("/organizations/", methods=["GET"])
-@api.route("/harvest_sources/", methods=["GET"])
-@api.route("/harvest_records/", methods=["GET"])
-@api.route("/harvest_jobs/", methods=["GET"])
-@api.route("/harvest_job_errors/", methods=["GET"])
-@api.route("/harvest_record_errors/", methods=["GET"])
-@api.input(QueryInfo, location="query", validation=False)
-@api.doc(
-    responses={
-        200: {
-            "description": "List of reuslts for this query",
-            "content": {
-                "application/json": {
-                    "schema": {
-                        "type": "array",
-                        "items": {
-                            "oneOf": [
-                                ErrorInfo,
-                                OrgInfo,
-                                SourceInfo,
-                                RecordInfo,
-                                JobInfo,
-                            ]
-                        },
-                    }
-                },
-            },
-        }
-    }
-)
-def json_builder_query(**kwargs):
+ENDPOINT_VALID_FILTERS = {
+    "organizations": [],
+    "harvest_sources": ["organization_id"],
+    "harvest_jobs": ["harvest_source_id"],
+    "harvest_records": ["harvest_source_id", "harvest_job_id"],
+    "harvest_job_errors": ["harvest_job_id"],
+    "harvest_record_errors": ["harvest_job_id", "harvest_record_id", "severity"],
+}
+
+
+def _validate_query_parameters(model: str, provided_params: dict) -> tuple[bool, str]:
+    """
+    Validate that all query parameters are valid for the given endpoint.
+
+    Args:
+        model: The endpoint model name (e.g., "harvest_job_errors")
+        provided_params: Dict of query parameters provided in request
+
+    Returns:
+        Tuple of (is_valid, error_message). error_message is empty string if valid.
+    """
+    valid_filters = ENDPOINT_VALID_FILTERS.get(model, [])
+    allowed_params = set(SHARED_QUERY_PARAMS + valid_filters)
+
+    for param in provided_params:
+        if param == "severity":
+            continue
+        if param not in allowed_params:
+            valid_filters_str = ", ".join(valid_filters) if valid_filters else "none"
+            return False, (
+                f"{param} is not a valid parameter for /{model}/. "
+                f"Valid filter parameters: {valid_filters_str}. "
+                f"Valid shared parameters: {', '.join(SHARED_QUERY_PARAMS)}."
+            )
+
+    return True, ""
+
+
+def _json_builder_query_impl(**kwargs):
+    model = escape(request.path.strip("/").split("/")[-1])
+
+    is_valid, error_msg = _validate_query_parameters(model, request.args.keys())
+    if not is_valid:
+        return jsonify({"error": error_msg}), 400
+
     job_id = request.args.get("harvest_job_id")
     source_id = request.args.get("harvest_source_id")
+    record_id = request.args.get("harvest_record_id")
+    org_id = request.args.get("organization_id")
     facets = request.args.get("facets", default="")
 
     if job_id is not None:
@@ -69,9 +86,16 @@ def json_builder_query(**kwargs):
             facets += f",harvest_source_id eq {source_id}"
         else:
             facets = f"harvest_source_id eq {source_id}"
-
-    # Object type is the last path segment: "/api/harvest_jobs/" -> "harvest_jobs".
-    model = escape(request.path.strip("/").split("/")[-1])
+    if record_id is not None:
+        if facets:
+            facets += f",harvest_record_id eq {record_id}"
+        else:
+            facets = f"harvest_record_id eq {record_id}"
+    if org_id is not None:
+        if facets:
+            facets += f",organization_id eq {org_id}"
+        else:
+            facets = f"organization_id eq {org_id}"
 
     # severity only exists on harvest_record_error, so it is ignored elsewhere.
     # No default: an absent param returns every issue, matching the job-level
@@ -113,4 +137,40 @@ def json_builder_query(**kwargs):
         return jsonify({"error": "Invalid order_by parameter"}), 422
     except Exception as e:
         logger.info(f"Failed json_builder_query :: {repr(e)} ")
-        return "Error with query", 400
+        return jsonify({"error": "Error with query"}), 400
+
+
+@api.route("/organizations/", methods=["GET"])
+@api.input(OrganizationsQueryInfo, location="query", validation=False)
+def organizations_query(**kwargs):
+    return _json_builder_query_impl(**kwargs)
+
+
+@api.route("/harvest_sources/", methods=["GET"])
+@api.input(HarvestSourcesQueryInfo, location="query", validation=False)
+def harvest_sources_query(**kwargs):
+    return _json_builder_query_impl(**kwargs)
+
+
+@api.route("/harvest_jobs/", methods=["GET"])
+@api.input(HarvestJobsQueryInfo, location="query", validation=False)
+def harvest_jobs_query(**kwargs):
+    return _json_builder_query_impl(**kwargs)
+
+
+@api.route("/harvest_records/", methods=["GET"])
+@api.input(HarvestRecordsQueryInfo, location="query", validation=False)
+def harvest_records_query(**kwargs):
+    return _json_builder_query_impl(**kwargs)
+
+
+@api.route("/harvest_job_errors/", methods=["GET"])
+@api.input(HarvestJobErrorsQueryInfo, location="query", validation=False)
+def harvest_job_errors_query(**kwargs):
+    return _json_builder_query_impl(**kwargs)
+
+
+@api.route("/harvest_record_errors/", methods=["GET"])
+@api.input(HarvestRecordErrorsQueryInfo, location="query", validation=False)
+def harvest_record_errors_query(**kwargs):
+    return _json_builder_query_impl(**kwargs)
