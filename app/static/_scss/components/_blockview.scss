@@ -20,7 +20,6 @@
     p {
         margin: units("05") 0;
         font-size: font-size("body", "sm");
-        text-indent: units(2);
     }
 
     a {
@@ -29,6 +28,31 @@
 
         &:hover {
             text-decoration: underline;
+        }
+    }
+
+    ul {
+        margin: 0;
+    }
+
+    li {
+        margin: 0;
+    }
+
+    // A divider shown above every issue block -- separating the record's
+    // metadata from its first issue, and each issue from the next. Kept
+    // tight to the content on both sides so it doesn't look like it's
+    // floating in the middle of a large gap.
+    .issue-section {
+        margin-top: units(1);
+        padding-top: units(1);
+        padding-left: units(2);
+        border-top: units("1px") solid color("gray-30");
+
+        // Explicit gap instead of relying on collapsed whitespace between
+        // the tag and the following "(type)" text.
+        .usa-tag {
+            margin-right: units("05");
         }
     }
 }

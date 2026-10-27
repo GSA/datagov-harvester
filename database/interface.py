@@ -779,6 +779,7 @@ class HarvesterDBInterface:
                 HarvestRecordError.severity.label("severity"),
                 func.array_agg(HarvestRecordError.message).label("messages"),
                 HarvestRecord.identifier.label("identifier"),
+                HarvestRecord.record_type.label("record_type"),
                 func.coalesce(
                     cast(HarvestRecord.source_transform, Text), HarvestRecord.source_raw
                 ).label("title_source"),
@@ -795,6 +796,7 @@ class HarvesterDBInterface:
             HarvestRecordError.type,
             HarvestRecordError.severity,
             HarvestRecord.identifier,
+            HarvestRecord.record_type,
             HarvestRecord.source_transform,
             HarvestRecord.source_raw,
         ).order_by(HarvestRecordError.harvest_record_id, HarvestRecordError.type)
@@ -806,6 +808,7 @@ class HarvesterDBInterface:
                 {
                     "harvest_record_id": row.harvest_record_id,
                     "identifier": row.identifier,
+                    "record_type": row.record_type,
                     "title_source": row.title_source,
                     "date_created": first_seen_by_id[row.harvest_record_id],
                     "issues": [],
@@ -1087,6 +1090,7 @@ class HarvesterDBInterface:
                 HarvestRecordError.severity.label("severity"),
                 func.array_agg(HarvestRecordError.message).label("messages"),
                 HarvestRecordCurrentIssue.identifier.label("identifier"),
+                HarvestRecordCurrentIssue.record_type.label("record_type"),
                 func.coalesce(
                     cast(HarvestRecord.source_transform, Text), HarvestRecord.source_raw
                 ).label("title_source"),
@@ -1108,6 +1112,7 @@ class HarvesterDBInterface:
             HarvestRecordError.type,
             HarvestRecordError.severity,
             HarvestRecordCurrentIssue.identifier,
+            HarvestRecordCurrentIssue.record_type,
             HarvestRecord.source_transform,
             HarvestRecord.source_raw,
         ).order_by(HarvestRecordError.harvest_record_id, HarvestRecordError.type)
@@ -1119,6 +1124,7 @@ class HarvesterDBInterface:
                 {
                     "harvest_record_id": row.harvest_record_id,
                     "identifier": row.identifier,
+                    "record_type": row.record_type,
                     "title_source": row.title_source,
                     "date_created": first_seen_by_id[row.harvest_record_id],
                     "issues": [],

@@ -491,6 +491,7 @@ def _load_json_title(json_string, issue_types):
 @valid_id_required
 def view_harvest_source_warnings(source_id: str):
     source = deps.db.get_harvest_source(source_id)
+    show_record_type = bool(source and source.schema_type == "dcatus3.0")
 
     record_error_count = deps.db.get_current_record_issues_by_source(
         source_id, for_view=True, count=True
@@ -512,6 +513,7 @@ def view_harvest_source_warnings(source_id: str):
         {
             "identifier": record["identifier"] or record["harvest_record_id"],
             "harvest_record_id": record["harvest_record_id"],
+            "record_type": record["record_type"] if show_record_type else None,
             "title": _load_json_title(
                 record["title_source"], [issue["type"] for issue in record["issues"]]
             ),

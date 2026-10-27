@@ -257,7 +257,7 @@ class TestViewHarvestJob:
         self, client, interface, job
     ):
         """A record with one error + one warning of different types is one
-        card with two "Error Message" sections, per #6476."""
+        card with an Error section and a Warning section, per #6476."""
         harvest_record = interface.add_harvest_record(
             {
                 "harvest_job_id": job.id,
@@ -288,7 +288,9 @@ class TestViewHarvestJob:
         resp = client.get(f"/harvest_job/{job.id}")
 
         assert resp.text.count("mixed-issue-record-001") == 1
-        assert resp.text.count("Error Message") == 2
+        assert resp.text.count('class="issue-section"') == 2
+        assert "usa-tag bg-error-dark text-white" in resp.text
+        assert "usa-tag bg-warning" in resp.text
         assert "record is invalid" in resp.text
         assert "keyword appears twice" in resp.text
 
@@ -327,7 +329,7 @@ class TestViewHarvestJob:
         resp = client.get(f"/harvest_job/{job.id}")
 
         assert resp.text.count("same-type-warning-record-001") == 1
-        assert resp.text.count("Error Message") == 1
+        assert resp.text.count('class="issue-section"') == 1
         assert "first duplicate keyword" in resp.text
         assert "second duplicate keyword" in resp.text
 

@@ -32,6 +32,11 @@ def view_harvest_job(job_id=None):
             logger.error(f"Error loading json source_raw: {repr(e)}")
             return
 
+    job = deps.db.get_harvest_job(job_id)
+    show_record_type = bool(
+        job and job.source and job.source.schema_type == "dcatus3.0"
+    )
+
     record_error_count = deps.db.get_harvest_record_errors_by_job(
         job_id, for_view=True, count=True
     )
@@ -53,6 +58,7 @@ def view_harvest_job(job_id=None):
         {
             "identifier": record["identifier"] or record["harvest_record_id"],
             "harvest_record_id": record["harvest_record_id"],
+            "record_type": record["record_type"] if show_record_type else None,
             "title": _load_json_title(
                 record["title_source"], [issue["type"] for issue in record["issues"]]
             ),
@@ -83,7 +89,6 @@ def view_harvest_job(job_id=None):
             pagination=pagination.to_dict(),
         )
     else:
-        job = deps.db.get_harvest_job(job_id)
         data = {
             "job": job,
             "record_error_summary": record_error_summary,
