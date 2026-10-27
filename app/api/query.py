@@ -201,7 +201,7 @@ def _json_builder_query_impl(**kwargs):
         return jsonify({"error": "Invalid order_by parameter"}), 422
     except Exception as e:
         logger.info(f"Failed json_builder_query :: {repr(e)} ")
-        return "Error with query", 400
+        return jsonify({"error": "Error with query"}), 400
 
 
 @api.route("/organizations/", methods=["GET"])
