@@ -1,44 +1,54 @@
 from unittest.mock import Mock, patch
 
 
-def test_get_application_version_from_vcap():
-    """Test application version extraction from VCAP_APPLICATION."""
-    vcap_json = '{"application_version": "abc123-2026.09.30.1"}'
+def test_get_application_version_from_env():
+    """Test application version from APP_VERSION env var."""
+    # Clear the cache before test
+    from app.deps import get_application_version
 
-    with patch.dict("os.environ", {"VCAP_APPLICATION": vcap_json}):
-        from app.deps import get_application_version
+    get_application_version.cache_clear()
 
+    with patch.dict("os.environ", {"APP_VERSION": "a1b2c3d"}):
         version = get_application_version()
+        assert version == "a1b2c3d"
 
-        assert version == "2026.09.30.1"
+    get_application_version.cache_clear()
 
 
 def test_get_application_version_from_git():
-    """Test application version extraction from git describe."""
+    """Test application version extraction from git rev-parse."""
+    from app.deps import get_application_version
+
+    get_application_version.cache_clear()
+
     with patch.dict("os.environ", {}, clear=True):
         with patch("subprocess.run") as mock_run:
-            mock_run.return_value = Mock(
-                returncode=0, stdout="v2026.09.30.1-5-g1234567\n"
-            )
-
-            from app.deps import get_application_version
+            mock_run.return_value = Mock(returncode=0, stdout="abc1234\n")
 
             version = get_application_version()
 
-            assert version == "2026.09.30.1-5-g1234567"
+            assert version == "abc1234"
+            mock_run.assert_called_once()
+            assert mock_run.call_args[0][0] == ["git", "rev-parse", "--short=7", "HEAD"]
+
+    get_application_version.cache_clear()
 
 
 def test_get_application_version_fallback():
     """Test application version fallback when no version available."""
+    from app.deps import get_application_version
+
+    get_application_version.cache_clear()
+
     with patch.dict("os.environ", {}, clear=True):
         with patch("subprocess.run") as mock_run:
             mock_run.side_effect = Exception("git not available")
 
-            from app.deps import get_application_version
-
             version = get_application_version()
 
             assert version == "unknown"
+
+    get_application_version.cache_clear()
 
 
 def test_get_api_version_from_path():
@@ -219,4 +229,5 @@ def test_build_collection_response_static_links():
     )
 
     assert result["links"]["documentation"] == "/openapi/docs"
-    assert result["links"]["changelog"] == "/api/changelog"
+    # Will be set once #6364/#6369 is implemented
+    assert result["links"]["changelog"] is None

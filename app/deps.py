@@ -218,7 +218,8 @@ def get_application_version():
     import os
     import subprocess
 
-    # Check for APP_VERSION env var (set in manifest from --var app_version during deploy)
+    # Check for APP_VERSION env var (set in manifest from --var app_version
+    # during deploy)
     app_version = os.environ.get("APP_VERSION")
     if app_version:
         return app_version
@@ -343,7 +344,8 @@ def build_collection_response(
         "next": build_url(page + 1) if page < page_count - 1 else None,
         "previous": build_url(page - 1) if page > 0 else None,
         "documentation": "/openapi/docs",
-        "changelog": None,  # TODO: Set to "/api/changelog" once #6364/#6369 is implemented
+        # TODO: Set to "/api/changelog" once #6364/#6369 is implemented
+        "changelog": None,
     }
 
     return {"data": data, "meta": meta, "links": links}
