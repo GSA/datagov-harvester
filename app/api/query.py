@@ -34,20 +34,48 @@ from . import api
 @api.doc(
     responses={
         200: {
-            "description": "List of reuslts for this query",
+            "description": "Structured collection response with data, meta, and links",
             "content": {
                 "application/json": {
                     "schema": {
-                        "type": "array",
-                        "items": {
-                            "oneOf": [
-                                ErrorInfo,
-                                OrgInfo,
-                                SourceInfo,
-                                RecordInfo,
-                                JobInfo,
-                            ]
+                        "type": "object",
+                        "properties": {
+                            "data": {
+                                "type": "array",
+                                "items": {
+                                    "oneOf": [
+                                        ErrorInfo,
+                                        OrgInfo,
+                                        SourceInfo,
+                                        RecordInfo,
+                                        JobInfo,
+                                    ]
+                                },
+                            },
+                            "meta": {
+                                "type": "object",
+                                "properties": {
+                                    "page": {"type": "integer"},
+                                    "per_page": {"type": "integer"},
+                                    "total": {"type": "integer"},
+                                    "page_count": {"type": "integer"},
+                                    "order_by": {"type": "string"},
+                                    "api_version": {"type": "string"},
+                                    "application_version": {"type": "string"},
+                                },
+                            },
+                            "links": {
+                                "type": "object",
+                                "properties": {
+                                    "self": {"type": "string"},
+                                    "next": {"type": ["string", "null"]},
+                                    "previous": {"type": ["string", "null"]},
+                                    "documentation": {"type": "string"},
+                                    "changelog": {"type": "string"},
+                                },
+                            },
                         },
+                        "required": ["data", "meta", "links"],
                     }
                 },
             },
