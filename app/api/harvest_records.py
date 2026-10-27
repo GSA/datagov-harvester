@@ -30,12 +30,13 @@ def get_harvest_record(record_id):
 @api.doc(
     responses={
         200: {
-            "description": "Raw harvest record contents",
+            "description": "Raw source metadata as originally harvested",
             "content": {
-                "application/json": {"type": "object"},
-                "application/xml": {"type": "object"},
+                "application/json": {"schema": {"type": "object"}},
+                "application/xml": {"schema": {"type": "object"}},
             },
-        }
+        },
+        404: {"description": "Record not found"},
     }
 )
 @valid_id_required
@@ -68,11 +69,12 @@ def get_harvest_record_raw(record_id=None):
 @api.doc(
     responses={
         200: {
-            "description": "Transformed harvest record contents",
+            "description": "Transformed DCAT-US metadata",
             "content": {
-                "application/json": {"type": "object"},
+                "application/json": {"schema": {"type": "object"}},
             },
-        }
+        },
+        404: {"description": "Record not found"},
     }
 )
 @valid_id_required
