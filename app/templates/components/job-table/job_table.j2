@@ -75,7 +75,7 @@
                 </td>
                 {% elif job.status == 'in_progress' %}
                 <td class="job-table-duration font-mono-sm text-no-wrap">
-                    In progress
+                    {{ job.date_started | running_elapsed_time }}
                 </td>
                 {% else %}
                 <td class="job-table-duration font-mono-sm text-no-wrap">
