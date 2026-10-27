@@ -261,6 +261,28 @@ def get_api_version_from_path(path):
     return latest_version
 
 
+def get_model_class_from_name(model_name):
+    """Get the model class from the model name string."""
+    from database.models import (
+        HarvestJob,
+        HarvestJobError,
+        HarvestRecord,
+        HarvestRecordError,
+        HarvestSource,
+        Organization,
+    )
+
+    model_map = {
+        "organizations": Organization,
+        "harvest_sources": HarvestSource,
+        "harvest_records": HarvestRecord,
+        "harvest_jobs": HarvestJob,
+        "harvest_job_errors": HarvestJobError,
+        "harvest_record_errors": HarvestRecordError,
+    }
+    return model_map.get(model_name)
+
+
 def build_collection_response(
     data, path, query_string, page, per_page, total, order_by
 ):

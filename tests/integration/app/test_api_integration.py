@@ -237,7 +237,6 @@ def test_collection_response_with_facets(client, interface):
     assert data["meta"]["total"] == 1
 
 
-
 def test_pagination_clamps_per_page_to_max(client, interface):
     """Test that per_page is clamped to 100 max."""
     org = interface.add_organization(
@@ -339,3 +338,114 @@ def test_negative_page_clamped_to_zero(client, interface):
     data = response.get_json()
 
     assert data["meta"]["page"] == 0  # Clamped to 0
+
+
+def test_order_by_default_reports_date_created(client, interface):
+    """Test that default ordering reports the actual column (date_created)."""
+    org = interface.add_organization(
+        {
+            "name": "Test Org",
+            "organization_type": "Federal Government",
+            "slug": "test-org",
+        }
+    )
+    source = interface.add_harvest_source(
+        {
+            "name": "Test Source",
+            "organization_id": org.id,
+            "notification_emails": [],
+            "frequency": "manual",
+            "notification_frequency": "on_error",
+            "url": "http://example.com",
+            "schema_type": "dcatus1.1: federal",
+            "source_type": "document",
+        }
+    )
+    interface.add_harvest_job({"harvest_source_id": source.id, "status": "complete"})
+    interface.db.commit()
+
+    response = client.get("/api/v1/harvest_jobs/")
+    assert response.status_code == 200
+    data = response.get_json()
+
+    assert data["meta"]["order_by"] == "date_created"
+
+
+def test_order_by_desc_reports_descending_date_created(client, interface):
+    """Test that order_by=desc reports -date_created."""
+    org = interface.add_organization(
+        {
+            "name": "Test Org",
+            "organization_type": "Federal Government",
+            "slug": "test-org",
+        }
+    )
+    source = interface.add_harvest_source(
+        {
+            "name": "Test Source",
+            "organization_id": org.id,
+            "notification_emails": [],
+            "frequency": "manual",
+            "notification_frequency": "on_error",
+            "url": "http://example.com",
+            "schema_type": "dcatus1.1: federal",
+            "source_type": "document",
+        }
+    )
+    interface.add_harvest_job({"harvest_source_id": source.id, "status": "complete"})
+    interface.db.commit()
+
+    response = client.get("/api/v1/harvest_jobs/?order_by=desc")
+    assert response.status_code == 200
+    data = response.get_json()
+
+    assert data["meta"]["order_by"] == "-date_created"
+
+
+def test_order_by_explicit_column(client, interface):
+    """Test that explicit column ordering is reported correctly."""
+    org = interface.add_organization(
+        {
+            "name": "Test Org",
+            "organization_type": "Federal Government",
+            "slug": "test-org",
+        }
+    )
+    source = interface.add_harvest_source(
+        {
+            "name": "Test Source",
+            "organization_id": org.id,
+            "notification_emails": [],
+            "frequency": "manual",
+            "notification_frequency": "on_error",
+            "url": "http://example.com",
+            "schema_type": "dcatus1.1: federal",
+            "source_type": "document",
+        }
+    )
+    interface.add_harvest_job({"harvest_source_id": source.id, "status": "complete"})
+    interface.db.commit()
+
+    response = client.get("/api/v1/harvest_jobs/?order_by=-status")
+    assert response.status_code == 200
+    data = response.get_json()
+
+    assert data["meta"]["order_by"] == "-status"
+
+
+def test_order_by_organizations_defaults_to_name(client, interface):
+    """Test that organizations default to name column."""
+    interface.add_organization(
+        {
+            "name": "Test Org",
+            "organization_type": "Federal Government",
+            "slug": "test-org",
+        }
+    )
+    interface.db.commit()
+
+    response = client.get("/api/v1/organizations/")
+    assert response.status_code == 200
+    data = response.get_json()
+
+    assert data["meta"]["order_by"] == "name"

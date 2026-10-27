@@ -126,8 +126,11 @@ def json_builder_query(**kwargs):
                 facets=facets,
             )
 
-            from app.deps import build_collection_response
-            from database.interface import PAGINATE_ENTRIES_PER_PAGE
+            from app.deps import build_collection_response, get_model_class_from_name
+            from database.interface import (
+                PAGINATE_ENTRIES_PER_PAGE,
+                resolve_order_by_string,
+            )
 
             if paginate_flag is False:
                 actual_page = 0
@@ -140,6 +143,9 @@ def json_builder_query(**kwargs):
                 actual_page = 0 if page is None else page
                 actual_page = max(actual_page, 0)
 
+            model_class = get_model_class_from_name(model)
+            resolved_order_by = resolve_order_by_string(model_class, order_by)
+
             response = build_collection_response(
                 data=deps.db._to_dict(res),
                 path=request.path,
@@ -147,7 +153,7 @@ def json_builder_query(**kwargs):
                 page=actual_page,
                 per_page=actual_per_page,
                 total=total,
-                order_by=order_by if order_by else "asc",
+                order_by=resolved_order_by,
             )
 
             return jsonify(response)
