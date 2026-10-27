@@ -127,13 +127,25 @@ def json_builder_query(**kwargs):
             )
 
             from app.deps import build_collection_response
+            from database.interface import PAGINATE_ENTRIES_PER_PAGE
+
+            if paginate_flag is False:
+                actual_page = 0
+                actual_per_page = total
+            else:
+                actual_per_page = (
+                    PAGINATE_ENTRIES_PER_PAGE if per_page is None else per_page
+                )
+                actual_per_page = max(min(actual_per_page, 100), 1)
+                actual_page = 0 if page is None else page
+                actual_page = max(actual_page, 0)
 
             response = build_collection_response(
                 data=deps.db._to_dict(res),
                 path=request.path,
                 query_string=request.query_string.decode(),
-                page=page if page is not None else 0,
-                per_page=per_page if per_page is not None else 10,
+                page=actual_page,
+                per_page=actual_per_page,
                 total=total,
                 order_by=order_by if order_by else "asc",
             )

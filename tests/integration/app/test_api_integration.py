@@ -235,3 +235,107 @@ def test_collection_response_with_facets(client, interface):
     assert "data" in data
     assert len(data["data"]) == 1
     assert data["meta"]["total"] == 1
+
+
+
+def test_pagination_clamps_per_page_to_max(client, interface):
+    """Test that per_page is clamped to 100 max."""
+    org = interface.add_organization(
+        {
+            "name": "Test Org",
+            "organization_type": "Federal Government",
+            "slug": "test-org",
+        }
+    )
+    source = interface.add_harvest_source(
+        {
+            "name": "Test Source",
+            "organization_id": org.id,
+            "notification_emails": [],
+            "frequency": "manual",
+            "notification_frequency": "on_error",
+            "url": "http://example.com",
+            "schema_type": "dcatus1.1: federal",
+            "source_type": "document",
+        }
+    )
+    for i in range(150):
+        interface.add_harvest_job(
+            {"harvest_source_id": source.id, "status": "complete"}
+        )
+    interface.db.commit()
+
+    response = client.get("/api/v1/harvest_jobs/?per_page=500")
+    assert response.status_code == 200
+    data = response.get_json()
+
+    assert data["meta"]["per_page"] == 100  # Clamped to max
+    assert len(data["data"]) == 100
+    assert data["links"]["next"] is not None  # Should have next page
+
+
+def test_pagination_false_reports_single_page(client, interface):
+    """Test that paginate=false is treated as a single page."""
+    org = interface.add_organization(
+        {
+            "name": "Test Org",
+            "organization_type": "Federal Government",
+            "slug": "test-org",
+        }
+    )
+    source = interface.add_harvest_source(
+        {
+            "name": "Test Source",
+            "organization_id": org.id,
+            "notification_emails": [],
+            "frequency": "manual",
+            "notification_frequency": "on_error",
+            "url": "http://example.com",
+            "schema_type": "dcatus1.1: federal",
+            "source_type": "document",
+        }
+    )
+    for i in range(25):
+        interface.add_harvest_job(
+            {"harvest_source_id": source.id, "status": "complete"}
+        )
+    interface.db.commit()
+
+    response = client.get("/api/v1/harvest_jobs/?paginate=false")
+    assert response.status_code == 200
+    data = response.get_json()
+
+    assert data["meta"]["per_page"] == 25  # Total count
+    assert len(data["data"]) == 25
+    assert data["links"]["next"] is None  # No next page
+
+
+def test_negative_page_clamped_to_zero(client, interface):
+    """Test that negative page numbers are clamped to 0."""
+    org = interface.add_organization(
+        {
+            "name": "Test Org",
+            "organization_type": "Federal Government",
+            "slug": "test-org",
+        }
+    )
+    source = interface.add_harvest_source(
+        {
+            "name": "Test Source",
+            "organization_id": org.id,
+            "notification_emails": [],
+            "frequency": "manual",
+            "notification_frequency": "on_error",
+            "url": "http://example.com",
+            "schema_type": "dcatus1.1: federal",
+            "source_type": "document",
+        }
+    )
+    interface.add_harvest_job({"harvest_source_id": source.id, "status": "complete"})
+    interface.db.commit()
+
+    response = client.get("/api/v1/harvest_jobs/?page=-1")
+    assert response.status_code == 200
+    data = response.get_json()
+
+    assert data["meta"]["page"] == 0  # Clamped to 0
