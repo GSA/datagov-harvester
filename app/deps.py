@@ -343,7 +343,7 @@ def build_collection_response(
         "next": build_url(page + 1) if page < page_count - 1 else None,
         "previous": build_url(page - 1) if page > 0 else None,
         "documentation": "/openapi/docs",
-        "changelog": "/api/changelog",
+        "changelog": None,  # TODO: Set to "/api/changelog" once #6364/#6369 is implemented
     }
 
     return {"data": data, "meta": meta, "links": links}
