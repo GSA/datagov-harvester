@@ -125,6 +125,11 @@
 
     <div class="section">
         <h2>Record issue details</h2>
+        <p class="text-base-dark">
+            Shows only warnings and errors found during this job. For all
+            open warnings, see
+            <a href="{{ url_for('main.view_harvest_source_warnings', source_id=data.job.harvest_source_id) }}">Outstanding Warnings</a>.
+        </p>
         {% if not data.record_errors %}
         <div class="usa-alert usa-alert--info">
             <div class="usa-alert__body">
