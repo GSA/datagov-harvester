@@ -1,6 +1,6 @@
 import logging
 import os
-from functools import wraps
+from functools import cache, wraps
 
 from dotenv import load_dotenv
 from flask import Response, current_app, g, jsonify, request, session
@@ -201,9 +201,12 @@ def create_harvest_source(source_data):
     return source, f"Added new harvest source with ID: {source.id}. {job_message}", 200
 
 
+@cache
 def get_application_version():
     """
     Get application version from environment or git.
+
+    Cached after first call since the version cannot change while the process runs.
 
     Checks in order:
     1. APP_VERSION env var (commit SHA set during deploy)
