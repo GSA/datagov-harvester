@@ -161,9 +161,10 @@ class RecordIssueQuery(Schema):
     severity = Enum(SEVERITY_ENUM)
 
 
-class QueryInfo(Schema):
-    """Query input for various object types."""
+class BaseQueryInfo(Schema):
+    """Base query parameters available to all collection endpoints."""
 
+    facets = String()
     harvest_job_id = UUID()
     harvest_source_id = UUID()
     facets = String(
@@ -182,7 +183,52 @@ class QueryInfo(Schema):
     paginate = Boolean()
     count = Boolean()
     order_by = String()
-    # only meaningful for harvest_record_errors; omit it to get every issue
+
+
+class OrganizationsQueryInfo(BaseQueryInfo):
+    """Query input for /organizations/ endpoint."""
+
+    pass
+
+
+class HarvestSourcesQueryInfo(BaseQueryInfo):
+    """Query input for /harvest_sources/ endpoint."""
+
+    organization_id = UUID()
+
+
+class HarvestJobsQueryInfo(BaseQueryInfo):
+    """Query input for /harvest_jobs/ endpoint."""
+
+    harvest_source_id = UUID()
+
+
+class HarvestRecordsQueryInfo(BaseQueryInfo):
+    """Query input for /harvest_records/ endpoint."""
+
+    harvest_source_id = UUID()
+    harvest_job_id = UUID()
+
+
+class HarvestJobErrorsQueryInfo(BaseQueryInfo):
+    """Query input for /harvest_job_errors/ endpoint."""
+
+    harvest_job_id = UUID()
+
+
+class HarvestRecordErrorsQueryInfo(BaseQueryInfo):
+    """Query input for /harvest_record_errors/ endpoint."""
+
+    harvest_job_id = UUID()
+    harvest_record_id = UUID()
+    severity = Enum(SEVERITY_ENUM)
+
+
+class QueryInfo(BaseQueryInfo):
+    """Legacy query input schema for backward compatibility."""
+
+    harvest_job_id = UUID()
+    harvest_source_id = UUID()
     severity = Enum(SEVERITY_ENUM)
 
 
