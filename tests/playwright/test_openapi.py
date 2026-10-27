@@ -20,7 +20,7 @@ class TestOpenAPI:
             ]
         )
         expect(page.locator(".opblock-get")).to_have_count(15)
-        expect(page.locator(".json-schema-2020-12")).to_have_count(7)
+        expect(page.locator(".json-schema-2020-12")).to_have_count(6)
 
     def test_links_to_the_validator_api_docs(self, page):
         """/api/v1/validate is served, and documented, by the validator app."""
