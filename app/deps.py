@@ -203,35 +203,33 @@ def create_harvest_source(source_data):
 
 def get_application_version():
     """
-    Get application version from VCAP_APPLICATION or git describe.
+    Get application version from environment or git.
+
+    Checks in order:
+    1. APP_VERSION env var (commit SHA set during deploy)
+    2. git rev-parse (local development)
 
     Returns:
-        Version string (e.g., "2026.09.30.1") or "unknown"
+        Version string (e.g., "a1b2c3d") or "unknown"
     """
-    import json
     import os
     import subprocess
 
-    vcap_app = os.environ.get("VCAP_APPLICATION")
-    if vcap_app:
-        try:
-            vcap_data = json.loads(vcap_app)
-            app_version = vcap_data.get("application_version", "")
-            if "-" in app_version:
-                return app_version.split("-", 1)[1]
-            return app_version
-        except (json.JSONDecodeError, KeyError):
-            pass
+    # Check for APP_VERSION env var (set in manifest from --var app_version during deploy)
+    app_version = os.environ.get("APP_VERSION")
+    if app_version:
+        return app_version
 
+    # Fall back to git for local development
     try:
         result = subprocess.run(
-            ["git", "describe", "--tags", "--always"],
+            ["git", "rev-parse", "--short=7", "HEAD"],
             capture_output=True,
             text=True,
             check=True,
             timeout=5,
         )
-        return result.stdout.strip().lstrip("v")
+        return result.stdout.strip()
     except Exception:
         pass
 
