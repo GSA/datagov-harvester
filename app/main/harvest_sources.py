@@ -236,7 +236,7 @@ def refresh_harvest_source():
 @main.route("/harvest_source/add", methods=["POST", "GET"])
 @login_required
 def add_harvest_source():
-    form = HarvestSourceForm()
+    form = HarvestSourceForm(organization_id=request.args.get("organization_id"))
     organizations = deps.db.get_all_organizations()
     organization_choices = sorted(
         [(str(org.id), f"{org.name} - {org.id}") for org in organizations],

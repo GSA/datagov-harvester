@@ -79,9 +79,22 @@ class TestOrganizationUnauthed:
         expect(
             upage.locator(".organization-config-actions ul li button")
         ).to_have_count(0)
+        expect(upage.get_by_role("link", name="Add Harvest Source")).to_have_count(0)
 
 
 class TestOrganizationAuthed:
+    def test_can_add_harvest_source_for_organization(self, apage):
+        add_source = apage.get_by_role("link", name="Add Harvest Source")
+        expect(add_source).to_be_visible()
+        expect(add_source).to_have_attribute(
+            "href",
+            "/harvest_source/add?organization_id=d925f84d-955b-4cb7-812f-dcfd6681a18f",
+        )
+        add_source.click()
+        expect(apage.locator("select#organization_id")).to_have_value(
+            "d925f84d-955b-4cb7-812f-dcfd6681a18f"
+        )
+
     def test_can_perform_actions(self, apage):
         actions = apage.locator(".organization-config-actions")
         expect(actions.get_by_role("button", name="Edit", exact=True)).to_be_visible()
