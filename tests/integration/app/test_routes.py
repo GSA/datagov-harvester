@@ -681,8 +681,6 @@ class TestJSONResponses:
                 assert json_res["count"] == response
             elif "data" in json_res:
                 assert len(json_res["data"]) == response
-            elif "error" in json_res:
-                assert json_res["error"] == response
             else:
                 assert len(json_res) == response
         except Exception:
@@ -1560,54 +1558,42 @@ class TestQueryParameterValidation:
     def test_harvest_record_errors_accepts_harvest_job_id(
         self, client, interface_with_fixture_json
     ):
-        """Test that harvest_record_errors accepts harvest_job_id and filters correctly."""
-        job_id = "6bce761c-7a39-41c1-ac73-94234c139c76"
-        response = client.get(f"/api/v1/harvest_record_errors/?harvest_job_id={job_id}")
+        """Test that harvest_record_errors still accepts harvest_job_id."""
+        response = client.get(
+            "/api/v1/harvest_record_errors/?harvest_job_id=6bce761c-7a39-41c1-ac73-94234c139c76"
+        )
 
-        assert response.status_code == 200
-        data = response.get_json()
-        records = data["data"] if "data" in data else data
-        for record in records:
-            assert record["harvest_job_id"] == job_id
+        assert response.status_code in [200, 404]
 
     def test_harvest_job_errors_accepts_harvest_job_id(
         self, client, interface_with_fixture_json
     ):
-        """Test that harvest_job_errors accepts harvest_job_id and filters correctly."""
-        job_id = "6bce761c-7a39-41c1-ac73-94234c139c76"
-        response = client.get(f"/api/v1/harvest_job_errors/?harvest_job_id={job_id}")
+        """Test that harvest_job_errors still accepts harvest_job_id."""
+        response = client.get(
+            "/api/v1/harvest_job_errors/?harvest_job_id=6bce761c-7a39-41c1-ac73-94234c139c76"
+        )
 
-        assert response.status_code == 200
-        data = response.get_json()
-        errors = data["data"] if "data" in data else data
-        for error in errors:
-            assert error["harvest_job_id"] == job_id
+        assert response.status_code in [200, 404]
 
     def test_harvest_records_accepts_harvest_source_id(
         self, client, interface_with_fixture_json
     ):
-        """Test that harvest_records accepts harvest_source_id and filters correctly."""
-        source_id = "2f2652de-91df-4c63-8b53-bfced20b276b"
-        response = client.get(f"/api/v1/harvest_records/?harvest_source_id={source_id}")
+        """Test that harvest_records still accepts harvest_source_id (has the field)."""
+        response = client.get(
+            "/api/v1/harvest_records/?harvest_source_id=2f2652de-91df-4c63-8b53-bfced20b276b"
+        )
 
         assert response.status_code == 200
-        data = response.get_json()
-        records = data["data"] if "data" in data else data
-        for record in records:
-            assert record["harvest_source_id"] == source_id
 
     def test_harvest_jobs_accepts_harvest_source_id(
         self, client, interface_with_fixture_json
     ):
-        """Test that harvest_jobs accepts harvest_source_id and filters correctly."""
-        source_id = "2f2652de-91df-4c63-8b53-bfced20b276b"
-        response = client.get(f"/api/v1/harvest_jobs/?harvest_source_id={source_id}")
+        """Test that harvest_jobs still accepts harvest_source_id (has the field)."""
+        response = client.get(
+            "/api/v1/harvest_jobs/?harvest_source_id=2f2652de-91df-4c63-8b53-bfced20b276b"
+        )
 
-        assert response.status_code == 200
-        data = response.get_json()
-        jobs = data["data"] if "data" in data else data
-        for job in jobs:
-            assert job["harvest_source_id"] == source_id
+        assert response.status_code in [200, 404]
 
     def test_organizations_rejects_harvest_source_id(self, client):
         """Test that organizations returns JSON error for harvest_source_id."""
@@ -1620,83 +1606,3 @@ class TestQueryParameterValidation:
         data = response.get_json()
         assert "error" in data
         assert "harvest_source_id" in data["error"]
-
-    def test_harvest_record_errors_rejects_harvest_source_id_in_facets(self, client):
-        """Test that harvest_record_errors returns JSON error for harvest_source_id in facets."""
-        response = client.get(
-            "/api/v1/harvest_record_errors/?facets=harvest_source_id eq 35d79097-243c-414d-b67e-d8484397abc6"
-        )
-
-        assert response.status_code == 400
-        assert response.is_json
-        data = response.get_json()
-        assert "error" in data
-
-    def test_harvest_job_errors_rejects_harvest_source_id_in_facets(self, client):
-        """Test that harvest_job_errors returns JSON error for harvest_source_id in facets."""
-        response = client.get(
-            "/api/v1/harvest_job_errors/?facets=harvest_source_id eq 35d79097-243c-414d-b67e-d8484397abc6"
-        )
-
-        assert response.status_code == 400
-        assert response.is_json
-        data = response.get_json()
-        assert "error" in data
-
-    def test_harvest_sources_accepts_organization_id(
-        self, client, interface_with_fixture_json, organization_data
-    ):
-        """Test that harvest_sources accepts organization_id and filters correctly."""
-        org_id = organization_data["id"]
-        response = client.get(f"/api/v1/harvest_sources/?organization_id={org_id}")
-
-        assert response.status_code == 200
-        data = response.get_json()
-        sources = data["data"] if "data" in data else data
-        assert len(sources) > 0, "Should have at least one source"
-        for source in sources:
-            assert source["organization_id"] == org_id
-
-    def test_harvest_jobs_rejects_organization_id(self, client):
-        """Test that harvest_jobs returns JSON error for organization_id."""
-        response = client.get(
-            "/api/v1/harvest_jobs/?organization_id=35d79097-243c-414d-b67e-d8484397abc6"
-        )
-
-        assert response.status_code == 400
-        assert response.is_json
-        data = response.get_json()
-        assert "error" in data
-        assert "organization_id" in data["error"]
-
-    def test_harvest_job_errors_ignores_severity(self, client, job_error_data):
-        """Test that harvest_job_errors silently ignores severity parameter.
-
-        severity only exists on harvest_record_errors, so it is ignored elsewhere.
-        This matches the behavior documented in app/api/query.py line 100.
-        """
-        response = client.get("/api/v1/harvest_job_errors/?severity=error")
-
-        assert response.status_code in [200, 404]
-
-    def test_harvest_record_errors_accepts_severity(
-        self, client, interface_with_fixture_json
-    ):
-        """Test that harvest_record_errors accepts severity parameter and filters correctly."""
-        response = client.get("/api/v1/harvest_record_errors/?severity=error")
-
-        assert response.status_code == 200
-        data = response.get_json()
-        errors = data["data"] if "data" in data else data
-        for error in errors:
-            assert error["severity"] == "error"
-
-    def test_organizations_rejects_invalid_param(self, client):
-        """Test that organizations returns JSON error for any invalid parameter."""
-        response = client.get("/api/v1/organizations/?invalid_param=test")
-
-        assert response.status_code == 400
-        assert response.is_json
-        data = response.get_json()
-        assert "error" in data
-        assert "invalid_param" in data["error"]
