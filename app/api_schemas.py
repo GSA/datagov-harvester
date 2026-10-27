@@ -166,7 +166,17 @@ class QueryInfo(Schema):
 
     harvest_job_id = UUID()
     harvest_source_id = UUID()
-    facets = String()
+    facets = String(
+        metadata={
+            "description": (
+                "Advanced filtering using facet syntax. "
+                "Format: 'field operator value' where operator is one of: "
+                "eq (equal), ne (not equal), gt (greater than), lt (less than), "
+                "like_op (SQL LIKE pattern matching). "
+                "Example: 'status eq complete' or 'date_created gt 2024-01-01'"
+            )
+        }
+    )
     page = Integer()
     per_page = Integer()
     paginate = Boolean()
