@@ -243,6 +243,11 @@ def add_harvest_source():
         key=lambda x: x[1].lower(),
     )
     form.organization_id.choices = organization_choices
+    if request.method == "GET":
+        # "Save and add another" returns here with the previous organization
+        requested_org = request.args.get("organization_id")
+        if requested_org in dict(organization_choices):
+            form.organization_id.data = requested_org
     if form.validate_on_submit():
         try:
             source_data = make_new_source_contract(form)
@@ -262,7 +267,14 @@ def add_harvest_source():
         flash(message, category)
         if source is None:
             return redirect(url_for("main.add_harvest_source"))
-        return redirect(url_for("main.harvest_source_list"))
+        if request.form.get("add_another"):
+            return redirect(
+                url_for(
+                    "main.add_harvest_source",
+                    organization_id=source.organization_id,
+                )
+            )
+        return redirect(url_for("main.view_harvest_source", source_id=source.id))
     elif form.errors:
         flash(form.errors, "error")
         return redirect(url_for("main.add_harvest_source"))
@@ -272,6 +284,7 @@ def add_harvest_source():
         action="Add",
         data_type="Harvest Source",
         button="Submit",
+        add_another=True,
     )
 
 

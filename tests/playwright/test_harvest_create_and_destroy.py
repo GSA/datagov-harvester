@@ -86,8 +86,10 @@ class TestHarvestCreateAndDestroy:
         expect(apage_with_org.locator(".usa-alert--success")).to_contain_text(
             ["Added new harvest source with ID:"]
         )
+        expect(
+            apage_with_org.get_by_role("heading", name=source_name, level=1)
+        ).to_be_visible()
 
-        apage_with_org.get_by_role("link", name=source_name).click()
         apage_with_org.get_by_role("button", name="Edit", exact=True).click()
         assert apage_with_org.locator("#name").get_attribute("readonly") is not None
 
