@@ -446,11 +446,11 @@ class HarvestRecordCurrentIssue(Base):
 
     id is the id of the harvest_record_error row this mirrors, not an
     independently generated UUID, so an issue shown here and the error it
-    came from always share one id/date_created/type/message/severity -
-    there is exactly one row of data, this table just indexes it by
-    (harvest_source, record_type, identifier) instead of by job. Cascades
-    with that error row, so deleting the job that produced it also removes
-    the now-stale current-issue pointer.
+    came from always share one id/date_created/type/message/severity/
+    harvest_record_id - there is exactly one row of data, this table just
+    indexes it by (harvest_source, record_type, identifier) instead of by
+    job. Cascades with that error row, so deleting the job that produced
+    it also removes the now-stale current-issue pointer.
     """
 
     __tablename__ = "harvest_record_current_issue"
@@ -475,13 +475,6 @@ class HarvestRecordCurrentIssue(Base):
 
     identifier = Column(String, nullable=False)
 
-    # SET NULL, not CASCADE: same reasoning as HarvestRecordError above.
-    harvest_record_id = Column(
-        String(36),
-        ForeignKey("harvest_record.id", ondelete="SET NULL"),
-        nullable=True,
-    )
-
     error = relationship("HarvestRecordError", lazy=True)
 
     __table_args__ = (
@@ -490,10 +483,6 @@ class HarvestRecordCurrentIssue(Base):
             "harvest_source_id",
             "record_type",
             "identifier",
-        ),
-        Index(
-            "ix_harvest_record_current_issue_harvest_record_id",
-            "harvest_record_id",
         ),
     )
 

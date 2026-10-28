@@ -1,0 +1,50 @@
+{% macro error_block(record) %}
+{# .j2 templates aren't autoescaped by Flask by default (only .html/.htm/
+   .xml/.xhtml are) -- force it here since record/issue content ultimately
+   comes from harvested source data and validator/exception output. #}
+{% autoescape true %}
+<div class="error-block">
+    <h3 class="word-break-all">{{ record.identifier }}</h3>
+    <p><strong>Title:</strong> {{ record.title if record.title else "N/A" }}</p>
+    {% if record.record_type %}
+    <p><strong>Record Type:</strong> {{ record.record_type }}</p>
+    {% endif %}
+    <p><strong>Harvest Record ID:</strong>
+        {% if record.harvest_record_id %}
+        <a href="{{ url_for('api_v1.get_harvest_record', record_id=record.harvest_record_id) }}">
+            {{ record.harvest_record_id }}
+        </a>
+        {% else %}
+        N/A
+        {% endif %}
+    </p>
+    <p class="utc-date" data-utc-date="{{ record.date_created | utc_isoformat }}">
+        <strong>Date Created:</strong> {{ record.date_created | else_na }}
+    </p>
+    {% set error_issues = record.issues | selectattr("severity", "equalto", "error") | list %}
+    {% set warning_issues = record.issues | selectattr("severity", "equalto", "warning") | list %}
+    {% for issue in error_issues + warning_issues %}
+    <div class="issue-section">
+        <p>
+            <span class="usa-tag {{ 'bg-error-dark text-white' if issue.severity == 'error' else 'bg-warning' }}">
+                {{ "Error" if issue.severity == "error" else "Warning" }}
+            </span>
+            ({{ issue.type }})
+        </p>
+        {% if issue.messages | length == 1 %}
+        <p><strong>Message:</strong> {{ issue.messages[0] }}</p>
+        {% else %}
+        <p>
+            <strong>Message:</strong>
+            <ul>
+                {% for msg in issue.messages %}
+                <li>{{ msg }}</li>
+                {% endfor %}
+            </ul>
+        </p>
+        {% endif %}
+    </div>
+    {% endfor %}
+</div>
+{% endautoescape %}
+{% endmacro %}

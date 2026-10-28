@@ -5,7 +5,6 @@ from flask import render_template, request
 from app import deps, htmx
 from app.deps import logger, render_block, valid_id_required
 from app.paginate import Pagination
-from app.util import make_new_record_error_contract
 from harvester.utils.general_utils import (
     convert_to_int,
     process_job_complete_percentage,
@@ -17,12 +16,12 @@ from . import main
 @main.route("/harvest_job/<job_id>", methods=["GET"])
 @valid_id_required
 def view_harvest_job(job_id=None):
-    def _load_json_title(json_string, error_type):
+    def _load_json_title(json_string, issue_types):
         try:
             if json_string is None:
                 logger.warning("harvest record doesn't have a source to load")
                 return
-            if error_type == "TransformationException":
+            if "TransformationException" in issue_types:
                 logger.warning(
                     "transformation error produced no source_transform. "
                     "can't json load an xml doc"
@@ -32,6 +31,11 @@ def view_harvest_job(job_id=None):
         except Exception as e:
             logger.error(f"Error loading json source_raw: {repr(e)}")
             return
+
+    job = deps.db.get_harvest_job(job_id)
+    show_record_type = bool(
+        job and job.source and job.source.schema_type == "dcatus3.0"
+    )
 
     record_error_count = deps.db.get_harvest_record_errors_by_job(
         job_id, for_view=True, count=True
@@ -52,11 +56,16 @@ def view_harvest_job(job_id=None):
     )
     record_errors_dict = [
         {
-            "error": make_new_record_error_contract(row),
-            "identifier": row[-2],
-            "title": _load_json_title(row[-1], row[3]),
+            "identifier": record["identifier"] or record["harvest_record_id"],
+            "harvest_record_id": record["harvest_record_id"],
+            "record_type": record["record_type"] if show_record_type else None,
+            "title": _load_json_title(
+                record["title_source"], [issue["type"] for issue in record["issues"]]
+            ),
+            "date_created": record["date_created"],
+            "issues": record["issues"],
         }
-        for row in record_errors
+        for record in record_errors
     ]
 
     if htmx:
@@ -80,7 +89,6 @@ def view_harvest_job(job_id=None):
             pagination=pagination.to_dict(),
         )
     else:
-        job = deps.db.get_harvest_job(job_id)
         data = {
             "job": job,
             "record_error_summary": record_error_summary,

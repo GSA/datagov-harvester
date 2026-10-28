@@ -176,17 +176,10 @@ class _ConnectPhaseTimeout(requests.exceptions.Timeout):
         super().__init__(f"Connection timed out after {attempts} attempts")
 
 
-def _is_json_media_type(content_type: str) -> bool:
-    media_type = content_type.partition(";")[0].strip().lower()
-    return media_type == "application/json" or (
-        media_type.startswith("application/") and media_type.endswith("+json")
-    )
-
-
 class InvalidCatalogSource(ValueError):
     """A submission was refused for a reason the submitter can act on:
-    unsupported scheme, internal address, oversized body, not JSON, unparseable
-    JSON, too many redirects, or a timeout.
+    unsupported scheme, internal address, oversized body, unparseable JSON,
+    too many redirects, or a timeout.
 
     The API renders `public_message` back to the submitter (and the harvester's
     validator page shows it beside the form field), so every message here must
@@ -427,10 +420,6 @@ def fetch_json_from_url(url: str) -> dict:
         content_length = response.headers.get("Content-Length")
         if content_length and int(content_length) > MAX_UPLOAD_BYTES:
             raise InvalidCatalogSource(PAYLOAD_TOO_LARGE_MESSAGE)
-
-        content_type = response.headers.get("Content-Type", "")
-        if not _is_json_media_type(content_type):
-            raise InvalidCatalogSource("URL did not return JSON.")
 
         chunks = []
         total_size = 0
