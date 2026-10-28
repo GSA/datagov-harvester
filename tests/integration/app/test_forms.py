@@ -129,6 +129,107 @@ class TestForms:
             "other@example.com",
         ]
 
+    def test_add_harvest_source_redirects_to_new_source(
+        self, app, client, interface, organization_data
+    ):
+        app.config.update({"WTF_CSRF_ENABLED": False})
+        with client.session_transaction() as sess:
+            sess["user"] = "tester@gsa.gov"
+
+        interface.add_organization(organization_data)
+
+        form_data = {
+            "organization_id": organization_data["id"],
+            "name": "Redirect Source",
+            "url": "https://example.com/redirect/data.json",
+            "notification_emails": "user@example.com",
+            "frequency": "daily",
+            "schema_type": "dcatus1.1: federal",
+            "source_type": "document",
+            "notification_frequency": "always",
+        }
+        res = client.post("/harvest_source/add", data=form_data)
+
+        assert res.status_code == 302
+        sources = interface.get_all_harvest_sources()
+        assert len(sources) == 1
+        assert res.headers["Location"] == f"/harvest_source/{sources[0].id}"
+
+        follow = client.get(res.headers["Location"])
+        assert follow.status_code == 200
+        assert b"Redirect Source" in follow.data
+        assert b"Added new harvest source with ID:" in follow.data
+
+    def test_add_harvest_source_add_another_returns_to_form(
+        self, app, client, interface, organization_data
+    ):
+        app.config.update({"WTF_CSRF_ENABLED": False})
+        with client.session_transaction() as sess:
+            sess["user"] = "tester@gsa.gov"
+
+        interface.add_organization(organization_data)
+
+        form_data = {
+            "organization_id": organization_data["id"],
+            "name": "First Of Many",
+            "url": "https://example.com/first/data.json",
+            "notification_emails": "user@example.com",
+            "frequency": "daily",
+            "schema_type": "dcatus1.1: federal",
+            "source_type": "document",
+            "notification_frequency": "always",
+            "add_another": "1",
+        }
+        res = client.post("/harvest_source/add", data=form_data)
+
+        assert res.status_code == 302
+        assert res.headers["Location"] == (
+            f"/harvest_source/add?organization_id={organization_data['id']}"
+        )
+        assert len(interface.get_all_harvest_sources()) == 1
+
+        follow = client.get(res.headers["Location"])
+        assert follow.status_code == 200
+        assert b"Added new harvest source with ID:" in follow.data
+        soup = BeautifulSoup(follow.data, "html.parser")
+        selected = soup.select_one("select#organization_id option[selected]")
+        assert selected["value"] == organization_data["id"]
+        assert soup.select_one("input#name")["value"] == ""
+
+    def test_add_harvest_source_ignores_unknown_organization_param(
+        self, app, client, interface, organization_data
+    ):
+        with client.session_transaction() as sess:
+            sess["user"] = "tester@gsa.gov"
+
+        interface.add_organization(organization_data)
+
+        res = client.get("/harvest_source/add?organization_id=not-a-real-org")
+
+        assert res.status_code == 200
+        soup = BeautifulSoup(res.data, "html.parser")
+        assert soup.select_one("select#organization_id option[selected]") is None
+
+    def test_add_another_button_only_on_add_harvest_source(
+        self, client, interface, organization_data, source_data_dcatus
+    ):
+        with client.session_transaction() as sess:
+            sess["user"] = "tester@gsa.gov"
+
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_dcatus)
+
+        add_page = client.get("/harvest_source/add")
+        assert b'name="add_another"' in add_page.data
+
+        edit_page = client.get(f"/harvest_source/edit/{source_data_dcatus['id']}")
+        assert edit_page.status_code == 200
+        assert b'name="add_another"' not in edit_page.data
+
+        org_page = client.get("/organization/add")
+        assert org_page.status_code == 200
+        assert b'name="add_another"' not in org_page.data
+
     def test_add_harvest_source_source_type_options_match_enum(
         self, app, client, interface, organization_data
     ):
