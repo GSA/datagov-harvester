@@ -53,6 +53,9 @@
 
         <div class="usa-form-group">
             <button type="submit" class="usa-button">{{button}}</button>
+            {% if add_another %}
+                <button type="submit" name="add_another" value="1" class="usa-button usa-button--outline">Save and add another</button>
+            {% endif %}
         </div>
     </fieldset>
 </form>
