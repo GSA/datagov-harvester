@@ -33,12 +33,8 @@ def view_harvest_job(job_id=None):
             logger.error(f"Error loading json source_raw: {repr(e)}")
             return
 
-    # current state for the source, not just this job's own writes (#6440)
-    job = deps.db.get_harvest_job(job_id)
-    harvest_source_id = job.harvest_source_id if job else None
-
-    record_error_count = deps.db.get_current_record_issues_by_source(
-        harvest_source_id, for_view=True, count=True
+    record_error_count = deps.db.get_harvest_record_errors_by_job(
+        job_id, for_view=True, count=True
     )
     htmx_vars = {
         "target_div": "#error_results_pagination",
@@ -50,11 +46,9 @@ def view_harvest_job(job_id=None):
         count=record_error_count,
         current=request.args.get("page", 1, type=convert_to_int),
     )
-    record_error_summary = deps.db.get_record_issues_summary_by_source(
-        harvest_source_id
-    )
-    record_errors = deps.db.get_current_record_issues_by_source(
-        harvest_source_id, page=pagination.db_current, for_view=True
+    record_error_summary = deps.db.get_record_errors_summary_by_job(job_id)
+    record_errors = deps.db.get_harvest_record_errors_by_job(
+        job_id, page=pagination.db_current, for_view=True
     )
     record_errors_dict = [
         {
@@ -86,6 +80,7 @@ def view_harvest_job(job_id=None):
             pagination=pagination.to_dict(),
         )
     else:
+        job = deps.db.get_harvest_job(job_id)
         data = {
             "job": job,
             "record_error_summary": record_error_summary,
