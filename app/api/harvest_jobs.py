@@ -129,6 +129,16 @@ def cancel_harvest_job(job_id):
 
 
 @api.route("/harvest_job/<string:job_id>/errors/<string:error_type>", methods=["GET"])
+@api.doc(
+    responses={
+        200: {
+            "description": "Error report as CSV file",
+            "content": {"text/csv": {"schema": {"type": "string"}}},
+        },
+        400: {"description": "Invalid error type"},
+        404: {"description": "Job not found"},
+    }
+)
 @api.output(FileSchema, content_type="text/csv")
 def download_harvest_errors_by_job(job_id, error_type):
     if not is_valid_uuid4(job_id):
