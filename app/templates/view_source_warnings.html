@@ -40,6 +40,9 @@
             </div>
         </div>
         {% else %}
+        <a href="{{ url_for('api_v1.download_current_record_issues_by_source', source_id=data.source.id) }}">
+            <button class="usa-button">Download outstanding issues as .csv</button>
+        </a>
         <table class="usa-table usa-table--striped" id="harvest-source-error-summary">
           <caption>Record issue type summary</caption>
           <thead>

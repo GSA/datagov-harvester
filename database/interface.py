@@ -1196,6 +1196,40 @@ class HarvesterDBInterface:
             for severity, error_type, error_count in query
         ]
 
+    def stream_current_record_issues_by_source(
+        self, harvest_source_id: str, batch_size=1000
+    ):
+        """Stream current-state record issues for CSV export without
+        OFFSET pagination. See stream_harvest_record_errors_by_job for the
+        job-scoped equivalent.
+        """
+        query = text("""
+            SELECT
+                harvest_record_error.id,
+                harvest_record_current_issue.identifier,
+                CASE
+                    WHEN left(ltrim(harvest_record.source_raw), 1) IN ('{', '[')
+                    THEN harvest_record.source_raw
+                    ELSE NULL
+                END AS source_raw,
+                harvest_record_error.harvest_record_id,
+                harvest_record_error.type,
+                harvest_record_error.severity,
+                harvest_record_error.message,
+                harvest_record_error.date_created
+            FROM harvest_record_current_issue
+            JOIN harvest_record_error
+                ON harvest_record_error.id = harvest_record_current_issue.id
+            LEFT OUTER JOIN harvest_record
+                ON harvest_record.id = harvest_record_error.harvest_record_id
+            WHERE harvest_record_current_issue.harvest_source_id = :harvest_source_id
+        """)
+        return (
+            self.db.execute(query, {"harvest_source_id": harvest_source_id})
+            .mappings()
+            .yield_per(batch_size)
+        )
+
     ## HARVEST RECORD
     def add_harvest_record(self, record_data):
         try:
