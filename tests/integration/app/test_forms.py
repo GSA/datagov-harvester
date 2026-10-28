@@ -562,6 +562,25 @@ class TestForms:
         option_labels = [opt.text.split(" - ")[0] for opt in select.find_all("option")]
         assert option_labels == sorted(option_labels, key=str.lower)
 
+    def test_add_harvest_source_preselects_organization_from_query_string(
+        self, client, interface, organization_data
+    ):
+        with client.session_transaction() as sess:
+            sess["user"] = "tester@gsa.gov"
+
+        interface.add_organization(organization_data)
+
+        res = client.get(
+            "/harvest_source/add",
+            query_string={"organization_id": organization_data["id"]},
+        )
+
+        assert res.status_code == 200
+        soup = BeautifulSoup(res.data, "html.parser")
+        selected = soup.select_one("select#organization_id option[selected]")
+        assert selected is not None
+        assert selected["value"] == organization_data["id"]
+
 
 @pytest.mark.usefixtures("mock_opensearch")
 class TestDatasetSlugForm:
