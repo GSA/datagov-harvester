@@ -355,13 +355,21 @@ def view_harvest_source(source_id: str):
             count=True,
         )
         # open issues right now, not just what the last job wrote (#6440)
-        current_error_count = deps.db.get_current_record_issues_by_source(
-            source_id,
-            count=True,
+        issue_record_count = deps.db.get_current_record_issues_by_source(
+            source_id, for_view=True, count=True
+        )
+        issue_summary = deps.db.get_record_issues_summary_by_source(source_id)
+        issue_error_total = sum(
+            row["count"] for row in issue_summary if row["severity"] == "error"
+        )
+        issue_warning_total = sum(
+            row["count"] for row in issue_summary if row["severity"] == "warning"
         )
         summary_data = {
             "records_count": records_count,
-            "last_job_errors": current_error_count,
+            "issue_record_count": issue_record_count,
+            "issue_error_total": issue_error_total,
+            "issue_warning_total": issue_warning_total,
             "last_job_finished": None,
             "next_job_scheduled": None,
             "active_job_in_progress": False,
@@ -506,6 +514,12 @@ def view_harvest_source_warnings(source_id: str):
         current=request.args.get("page", 1, type=convert_to_int),
     )
     record_error_summary = deps.db.get_record_issues_summary_by_source(source_id)
+    error_total = sum(
+        row["count"] for row in record_error_summary if row["severity"] == "error"
+    )
+    warning_total = sum(
+        row["count"] for row in record_error_summary if row["severity"] == "warning"
+    )
     record_errors = deps.db.get_current_record_issues_by_source(
         source_id, page=pagination.db_current, for_view=True
     )
@@ -547,6 +561,9 @@ def view_harvest_source_warnings(source_id: str):
         data = {
             "source": source,
             "record_error_summary": record_error_summary,
+            "record_count": record_error_count,
+            "error_total": error_total,
+            "warning_total": warning_total,
             "record_errors": record_errors_dict,
             "htmx_vars": htmx_vars,
         }

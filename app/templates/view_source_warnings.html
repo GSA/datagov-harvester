@@ -19,6 +19,13 @@
     </div>
     {% else %}
     <h1 class="word-break-all">Outstanding warnings and errors for harvest source {{ data.source.name }}</h1>
+    {% if data.record_errors or data.record_count %}
+    <p>
+        {{ data.record_count }} record{{ "s" if data.record_count != 1 }} with
+        {{ data.error_total }} error{{ "s" if data.error_total != 1 }} and
+        {{ data.warning_total }} warning{{ "s" if data.warning_total != 1 }}
+    </p>
+    {% endif %}
     <p>
         <a href="{{ url_for('main.view_harvest_source', source_id=data.source.id) }}">
             Back to harvest source

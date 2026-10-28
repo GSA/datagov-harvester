@@ -128,7 +128,12 @@
         <p class="text-base-dark">
             Shows only warnings and errors found during this job. For all
             open warnings, see
-            <a href="{{ url_for('main.view_harvest_source_warnings', source_id=data.job.harvest_source_id) }}">Outstanding Warnings</a>.
+            <a href="{{ url_for('main.view_harvest_source_warnings', source_id=data.job.harvest_source_id) }}">Outstanding Warnings</a>
+            {% if data.source_issue_record_count %}
+            ({{ data.source_issue_record_count }} record{{ "s" if data.source_issue_record_count != 1 }} with
+            {{ data.source_issue_error_total }} error{{ "s" if data.source_issue_error_total != 1 }} and
+            {{ data.source_issue_warning_total }} warning{{ "s" if data.source_issue_warning_total != 1 }})
+            {% endif %}.
         </p>
         {% if not data.record_errors %}
         <div class="usa-alert usa-alert--info">
