@@ -11,6 +11,22 @@ Issues that result in an entry in this changelog should be labeled
 
 ## Unreleased
 
+### Added
+
+#### Outstanding record issues CSV download
+
+**Issue:** GSA/data.gov#6476  
+**Endpoint:** `GET /api/v1/harvest_source/<source_id>/warnings/download`
+
+New endpoint that streams a CSV export of a harvest source's current
+outstanding record issues (errors and warnings), independent of any single
+job. Columns: `record_error_id`, `identifier`, `title`, `harvest_record_id`,
+`record_error_type`, `severity`, `message`, `date_created`.
+
+This mirrors the existing per-job error CSV export
+(`GET /api/v1/harvest_job/<job_id>/errors/<error_type>`) but is scoped to a
+source's current state rather than a single job's run.
+
 ### Changed
 
 #### Harvest Jobs date format
