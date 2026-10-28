@@ -1,4 +1,17 @@
-from flask import flash, jsonify, make_response, redirect, request, url_for
+import csv
+import json
+
+from apiflask.schemas import FileSchema
+from flask import (
+    Response,
+    flash,
+    jsonify,
+    make_response,
+    redirect,
+    request,
+    stream_with_context,
+    url_for,
+)
 
 from app import deps
 from app.deps import (
@@ -88,3 +101,78 @@ def trigger_harvest_source(source_id, job_type):
     message = deps.load_manager.trigger_manual_job(source_id, job_type)
     flash(message)
     return redirect(url_for("main.view_harvest_source", source_id=source_id))
+
+
+@api.route("/harvest_source/<string:source_id>/warnings/download", methods=["GET"])
+@api.doc(
+    responses={
+        200: {
+            "description": "Outstanding record issues report as CSV file",
+            "content": {"text/csv": {"schema": {"type": "string"}}},
+        },
+        404: {"description": "Source not found"},
+    }
+)
+@api.output(FileSchema, content_type="text/csv")
+@valid_id_required
+def download_current_record_issues_by_source(source_id):
+    try:
+
+        class Echo:
+            def write(self, value):
+                return value
+
+        csv_writer = csv.writer(Echo())
+
+        def generate_csv():
+            header = [
+                "record_error_id",
+                "identifier",
+                "title",
+                "harvest_record_id",
+                "record_error_type",
+                "severity",
+                "message",
+                "date_created",
+            ]
+            yield csv_writer.writerow(header)
+
+            for error in deps.db.stream_current_record_issues_by_source(source_id):
+                title = ""
+                source_raw = error["source_raw"]
+                if source_raw:
+                    try:
+                        title = json.loads(source_raw).get("title", "")
+                    except (json.JSONDecodeError, AttributeError):
+                        title = ""
+
+                row = [
+                    str(error["id"]) if error["id"] else "",
+                    str(error["identifier"]) if error["identifier"] else "",
+                    str(title),
+                    (
+                        str(error["harvest_record_id"])
+                        if error["harvest_record_id"]
+                        else ""
+                    ),
+                    str(error["type"]) if error["type"] else "",
+                    str(error["severity"]) if error["severity"] else "",
+                    str(error["message"]) if error["message"] else "",
+                    str(error["date_created"]) if error["date_created"] else "",
+                ]
+                yield csv_writer.writerow(row)
+
+        return Response(
+            stream_with_context(generate_csv()),
+            mimetype="text/csv",
+            headers={
+                "Content-Disposition": (
+                    f"attachment; filename={source_id}_outstanding_issues.csv"
+                ),
+                "Content-Type": "text/csv",
+            },
+        )
+
+    except Exception as e:
+        logger.error(f"Error in download_current_record_issues_by_source: {repr(e)}")
+        return "Error generating error report", 500
