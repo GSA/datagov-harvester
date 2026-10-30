@@ -1877,3 +1877,20 @@ def order_by_helper(model, order_by):
         raise InvalidOrderByException(f"Invalid order_by field: {column_name}")
     column = getattr(model, column_name)
     return column.desc() if descending else column.asc()
+
+
+def resolve_order_by_string(model, order_by):
+    """Resolve order_by parameter to the actual column and direction string.
+
+    Returns the resolved order_by string (e.g., "-date_created", "name")
+    that reflects what order_by_helper actually applies.
+    """
+    default_column = "date_created" if hasattr(model, "date_created") else "name"
+    if not order_by or order_by in ("asc", "desc"):
+        column_name, descending = default_column, order_by == "desc"
+    else:
+        descending = order_by.startswith("-")
+        column_name = order_by[1:] if descending else order_by
+    if column_name not in model.__table__.columns.keys():
+        raise InvalidOrderByException(f"Invalid order_by field: {column_name}")
+    return f"-{column_name}" if descending else column_name

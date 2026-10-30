@@ -679,6 +679,8 @@ class TestJSONResponses:
             json_res = json.loads(res.data)
             if "count" in json_res:
                 assert json_res["count"] == response
+            elif "data" in json_res:
+                assert len(json_res["data"]) == response
             elif "error" in json_res:
                 assert json_res["error"] == response
             else:
@@ -693,7 +695,7 @@ class TestJSONResponses:
         res = client.get("/api/v1/organizations/")
         assert res.status_code == 200
 
-        assert res.json == [
+        assert res.json["data"] == [
             {
                 "aliases": ["testorg"],
                 "code_repo_exempt": False,
@@ -707,6 +709,8 @@ class TestJSONResponses:
                 "source_count": 1,
             }
         ]
+        assert "meta" in res.json
+        assert "links" in res.json
 
 
 class TestHarvestRecordRawAPI:
@@ -1055,9 +1059,9 @@ class TestRecordIssueSeverityAPI:
         res = client.get("/api/v1/harvest_record_errors/?paginate=False")
 
         assert res.status_code == 200
-        assert {e["severity"] for e in res.json} == {"error", "warning"}
+        assert {e["severity"] for e in res.json["data"]} == {"error", "warning"}
         # every seeded error plus the warning this fixture added
-        assert len(res.json) == len(record_error_data) + 1
+        assert len(res.json["data"]) == len(record_error_data) + 1
 
     def test_severity_facet_is_not_double_filtered(
         self, client, interface_with_warning
@@ -1072,15 +1076,15 @@ class TestRecordIssueSeverityAPI:
         )
 
         assert res.status_code == 200
-        assert {e["severity"] for e in res.json} == {"warning"}
+        assert {e["severity"] for e in res.json["data"]} == {"warning"}
 
     def test_collection_severity_warning(self, client, interface_with_warning):
         """?severity=warning returns only the warning row."""
         res = client.get("/api/v1/harvest_record_errors/?severity=warning")
 
         assert res.status_code == 200
-        assert [e["severity"] for e in res.json] == ["warning"]
-        assert res.json[0]["message"] == self.WARNING_MESSAGE
+        assert [e["severity"] for e in res.json["data"]] == ["warning"]
+        assert res.json["data"][0]["message"] == self.WARNING_MESSAGE
 
     def test_collection_severity_error_excludes_warnings(
         self, client, interface_with_warning, record_error_data
@@ -1135,14 +1139,18 @@ class TestRecordIssueSeverityAPI:
 
         errors = client.get(f"{route}&severity=error")
         assert errors.status_code == 200
-        assert {e["severity"] for e in errors.json} == {"error"}
-        assert {e["harvest_record_id"] for e in errors.json} == {warning_record_id}
-        assert len(errors.json) == seeded_error_count
+        assert {e["severity"] for e in errors.json["data"]} == {"error"}
+        assert {e["harvest_record_id"] for e in errors.json["data"]} == {
+            warning_record_id
+        }
+        assert len(errors.json["data"]) == seeded_error_count
 
         warnings = client.get(f"{route}&severity=warning")
         assert warnings.status_code == 200
-        assert [e["severity"] for e in warnings.json] == ["warning"]
-        assert {e["harvest_record_id"] for e in warnings.json} == {warning_record_id}
+        assert [e["severity"] for e in warnings.json["data"]] == ["warning"]
+        assert {e["harvest_record_id"] for e in warnings.json["data"]} == {
+            warning_record_id
+        }
 
     def test_severity_ignored_on_other_models(
         self, client, interface_with_warning, job_error_data
@@ -1156,7 +1164,7 @@ class TestRecordIssueSeverityAPI:
         res = client.get("/api/v1/harvest_job_errors/?severity=warning")
 
         assert res.status_code == 200
-        assert [e["message"] for e in res.json] == [job_error_data["message"]]
+        assert [e["message"] for e in res.json["data"]] == [job_error_data["message"]]
 
     def test_record_route_reaches_warnings(
         self, client, interface_with_warning, warning_record_id
@@ -1458,7 +1466,9 @@ class TestPaginationValidation:
         response = client.get("/api/v1/harvest_sources/?per_page=0")
 
         assert response.status_code == 200
-        assert response.json == []
+        assert response.json["data"] == []
+        assert "meta" in response.json
+        assert "links" in response.json
 
     def test_per_page_negative_returns_422(
         self, client, interface, organization_data, source_data_dcatus
@@ -1483,7 +1493,9 @@ class TestPaginationValidation:
 
         assert response.status_code == 200
         data = response.json
-        assert len(data) == 1
+        assert len(data["data"]) == 1
+        assert "meta" in data
+        assert "links" in data
 
     def test_per_page_validation_consistent_across_endpoints(
         self, client, interface_with_fixture_json
@@ -1503,8 +1515,8 @@ class TestPaginationValidation:
             response = client.get(f"{endpoint}?per_page=0")
             assert response.status_code == 200, f"{endpoint} should accept per_page=0"
             assert (
-                response.json == []
-            ), f"{endpoint} should return empty array for per_page=0"
+                response.json["data"] == []
+            ), f"{endpoint} should return empty data array for per_page=0"
 
             # Negative per_page should return 422
             response = client.get(f"{endpoint}?per_page=-1")
