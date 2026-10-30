@@ -26,12 +26,16 @@ Every URL fetch, including every redirect hop, goes through these checks:
 2. **No embedded credentials.** URLs with `user:pass@` are refused, and the credentials are never logged.
 3. **Known unwanted domains are blocked before DNS.** `nip.io`, `rbndr.us`, `sslip.io`, and `traefik.me`, including their subdomains, are refused. The match uses the IDNA hostname the resolver would use, accepts a trailing DNS dot, and requires a domain boundary so similar looking publisher domains remain eligible. The list is intentionally narrow; add domains when the network team confirms they cause unwanted lookup or egress traffic (GSA/data.gov#6419).
 4. **Every resolved address must be public.** The hostname is resolved, and if *any* address is non-global, the request is refused. The non-global check covers loopback, RFC 1918, link-local and cloud metadata (`169.254.0.0/16`), CGNAT (`100.64.0.0/10`), multicast, reserved, and documentation ranges. It also unwraps IPv4 hidden inside IPv6 (IPv4-mapped, NAT64, 6to4, Teredo, IPv4-compatible), which Python's `is_global` alone gets wrong.
-5. **DNS pinning.** The connection goes to the exact IP that passed the check (`_PinnedAddressAdapter`). The hostname is kept only for the `Host` header and TLS SNI/verification, so a DNS-rebinding answer between the check and the connect can't redirect the request.
+5. **The egress proxy enforces it again.** On cloud.gov every fetch goes through the validator's egress proxy (below), which resolves the hostname itself and allows only HTTPS, and its egress space's security groups don't reach private networks. That is what stops a DNS-rebinding answer, one that changes between the check above and the connect, from reaching an internal address.
 6. **Redirects re-checked by hand.** `requests` would follow redirects without re-checking them, so redirects are disabled and each `Location` goes back through steps 1–5. Chains are capped at 5 hops.
-7. **No ambient proxies or `.netrc`.** Each fetch uses a fresh `Session` with `trust_env = False`, so environment proxy settings can't take over hostname resolution after the check.
+7. **Proxy from the environment, like the harvester.** Fetches use plain `requests`, which reads `http_proxy`/`https_proxy`; `.profile` sets them from `proxy_url`. If `proxy_url` is ever missing, fetches go direct and only the checks above apply. A DNS-rebinding hostname could then reach what the app space's `trusted_local_networks_egress` allows: HTTPS to some brokered-service ranges (`10.10.x`). Keep the proxy enabled in every space.
 8. **Fails closed.** Private addresses are allowed only when `ALLOW_PRIVATE_ADDRESSES=true`. Only local `docker compose` sets it, so it can fetch the sample catalogs. Never set it on cloud.gov.
 
-Tests: `tests/unit/dcatus_validation/test_fetch.py`, especially `TestPrivateAddressDefault`, `test_hostname_resolution_is_pinned_for_the_connection`, `test_fetch_json_from_url_rejects_redirect_to_private_address_in_prod`, and `test_pinned_get_ignores_ambient_credentials_and_proxies`.
+## Egress proxy
+
+On cloud.gov the validator's fetches go through its own [cg-egress-proxy](https://github.com/GSA-TTS/cg-egress-proxy) in the `<space>-egress` space. It allows every domain but only port 443, and the egress space's security groups don't allow private networks, so it can't reach internal addresses. Its lists are in GSA/data.gov (`egress/acl/datagov-harvest-validator.<space>.*.acl`), and it's deployed by that repo's "enable egress proxy" workflow; see "Validator egress proxy" in [developer.md](developer.md).
+
+Tests: `tests/unit/dcatus_validation/test_fetch.py`, especially `TestPrivateAddressDefault`, `TestEgressProxy`, and `test_fetch_json_from_url_rejects_redirect_to_private_address_in_prod`.
 
 ## Resource limits
 
@@ -42,7 +46,7 @@ All limits are in `dcatus_validation/limits.py` unless noted.
 | Catalog document size | 10MB (`MAX_UPLOAD_BYTES`) | Fetch: the `Content-Length` header, then a running byte count while streaming, so an untruthful header can't get past it. Paste: the route. |
 | Request body | 20MB + 1KB (`MAX_REQUEST_BYTES`) | Flask `MAX_CONTENT_LENGTH`. It has room for a JSON-escaped 10MB paste. |
 | Proxy body | 21M | `client_max_body_size` in `proxy/nginx-common.conf`. It sits just above the app limit so the app's JSON 413 is what callers see. |
-| Fetch time | 12s total, including DNS and every redirect hop | `FETCH_TIMEOUT_SECONDS` in `fetch.py`. Each connect attempt is capped at 4s, with up to 3 attempts. The socket timeout shrinks before every body read so a late stall can't extend it. |
+| Fetch time | 12s, including DNS and every redirect hop | `FETCH_TIMEOUT_SECONDS` in `fetch.py`. Each connect attempt is capped at 4s, with up to 3 attempts. The deadline is checked between body reads; a single stalled read can overrun it by up to one read timeout. |
 | JSON nesting | 100 levels | Checked by a character scan *before* `json.loads`, so a deep document can't exhaust the stack. |
 | JSON numbers | finite only | `NaN`/`Infinity` and integers too large to parse are refused. |
 | Validation errors returned | 1000, with `validation_incomplete: true` | `MAX_VALIDATION_ERRORS`. This stops a small document from expanding into millions of errors. |
@@ -71,7 +75,7 @@ Larger documents are under discussion in GSA/data.gov#6460. Raising `MAX_UPLOAD_
 
 ## Rules for changes
 
-- Any new outbound request must go through `fetch_json_from_url`, or reuse its target validation and `_pinned_get`. Never call `requests` directly on user input.
+- Any new outbound request must go through `fetch_json_from_url`, or reuse its target validation and `_http_get`. Never call `requests` directly on user input.
 - Never put exception text, fetched content, or raw URLs into a response or a log line.
 - Any new route must be added to `proxy/nginx-common.conf` (and `nginx-local-proxy.conf`) explicitly. The proxy forwards nothing to the validator by default.
 - Keep `validator_api` and `dcatus_validation` free of `app`, `harvester`, and `database` imports. The import guard enforces this, so don't weaken it.
