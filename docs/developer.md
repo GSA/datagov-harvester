@@ -98,6 +98,23 @@ We use [Ruff](https://github.com/astral-sh/ruff) to format and lint our Python f
  - Create a branch from `main`. We prefer short descriptive branch names.
  - To test changes in the `development` space in Cloud.gov, merge changes into the `develop` branch. Coordinate with other developers by announcing your plans in #datagov-devsecops.
 
+## Alert banners
+
+Every `flash()` call passes an explicit category, and
+`app/templates/components/alert.j2` is the only place that maps a category to
+a USWDS alert class:
+
+| Category  | Color  | Use for                                                    |
+|-----------|--------|------------------------------------------------------------|
+| `success` | green  | the requested action completed                             |
+| `warning` | yellow | partial success, a non-fatal problem, or nothing changed   |
+| `error`   | red    | the action failed, or the input or link was invalid        |
+| `info`    | blue   | neutral information that reports no action outcome         |
+
+`LoadManager` methods that report to the UI (`trigger_manual_job`,
+`start_job`, `stop_job`) return a `(message, category)` tuple, so callers can
+flash the message without parsing it.
+
 ## DCAT-US 3.0 schemas
 
 The DCAT-US 3.0 JSON Schemas are **not in this repo**. They come from
