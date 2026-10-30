@@ -25,7 +25,9 @@ def test_lock_blocks_queuing_and_starting_until_unlock(
         db.enqueue_harvest_job_if_idle(source_id)
     assert db.get_due_harvest_sources() == []
     assert db.get_new_harvest_jobs_in_past() == []
-    assert "locked" in LoadManager()._prepare_job_in_db(queued_job.id)
+    message, category = LoadManager()._prepare_job_in_db(queued_job.id)
+    assert "locked" in message
+    assert category == "error"
     assert db.get_harvest_job(queued_job.id).status == "new"
     assert db.get_harvest_source(source_id).date_next_run == next_run
 
@@ -48,8 +50,9 @@ def test_locked_source_rejects_admin_request_and_logs_lock(
     assert interface_no_jobs.get_harvest_source(source_id).is_locked is True
     assert "Audit lock harvest_source" in caplog.text
 
-    message = LoadManager().trigger_manual_job(source_id)
+    message, category = LoadManager().trigger_manual_job(source_id)
     assert "locked" in message
+    assert category == "error"
     assert interface_no_jobs.get_active_harvest_job_for_source(source_id) is None
 
     response = client.post(f"/harvest_source/{source_id}", data={"unlock": "Unlock"})
