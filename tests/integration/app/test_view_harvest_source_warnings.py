@@ -110,3 +110,50 @@ class TestViewHarvestSourceWarnings:
         assert "unable to spatially fix Virginia" in resp.text
         assert "Outstanding warnings and errors for harvest source" not in resp.text
         assert "Back to harvest source" not in resp.text
+
+    def test_warnings_page_shows_download_link(
+        self, client, source, record_with_warning
+    ):
+        resp = client.get(f"/harvest_source/{source.id}/warnings")
+
+        assert resp.status_code == 200
+        assert (
+            f'href="/api/v1/harvest_source/{source.id}/warnings/download"' in resp.text
+        )
+
+    def test_warnings_page_empty_state_omits_download_link(self, client, source):
+        resp = client.get(f"/harvest_source/{source.id}/warnings")
+
+        assert resp.status_code == 200
+        assert "warnings/download" not in resp.text
+
+
+class TestDownloadCurrentRecordIssuesBySource:
+    def test_download_includes_current_issues(
+        self, client, source, record_with_warning
+    ):
+        resp = client.get(f"/api/v1/harvest_source/{source.id}/warnings/download")
+
+        assert resp.status_code == 200
+        assert resp.headers["Content-Type"].startswith("text/csv")
+        rows = resp.text.splitlines()
+        assert rows[0] == (
+            "record_error_id,identifier,title,harvest_record_id,"
+            "record_error_type,severity,message,date_created"
+        )
+        assert len(rows) == 2
+        assert "warning-record-001" in rows[1]
+        assert "unable to spatially fix Virginia" in rows[1]
+        assert "warning" in rows[1]
+
+    def test_download_empty_state_is_header_only(self, client, source):
+        resp = client.get(f"/api/v1/harvest_source/{source.id}/warnings/download")
+
+        assert resp.status_code == 200
+        rows = resp.text.splitlines()
+        assert len(rows) == 1
+
+    def test_download_invalid_source_id(self, client):
+        resp = client.get("/api/v1/harvest_source/not-a-uuid/warnings/download")
+
+        assert resp.status_code == 404

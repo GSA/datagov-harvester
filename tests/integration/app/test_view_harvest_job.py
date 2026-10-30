@@ -8,19 +8,28 @@ import pytest
 
 @pytest.fixture
 def job_with_many_errors(interface_with_fixture_json):
-    # Need at lest seven pages of errors to get the next and previous
-    # arrows, so let's make 100 of them.
+    # Pagination is by distinct record, so spread errors across many
+    # records (one page's worth of page-1 + page-2) rather than piling
+    # them onto a single record.
     job = interface_with_fixture_json.get_first_harvest_job_by_filter({})
-    record_id = job.records[0].id
-    for i in range(100):
-        interface_with_fixture_json.add_harvest_record_error(
+    for r in range(15):
+        record = interface_with_fixture_json.add_harvest_record(
             {
-                "type": "testing",
-                "message": f"Error {i}",
                 "harvest_job_id": job.id,
-                "harvest_record_id": record_id,
+                "harvest_source_id": job.source.id,
+                "identifier": f"many-errors-record-{r}",
+                "status": "error",
             }
         )
+        for i in range(5):
+            interface_with_fixture_json.add_harvest_record_error(
+                {
+                    "type": "testing",
+                    "message": f"Error {r}-{i}",
+                    "harvest_job_id": job.id,
+                    "harvest_record_id": record.id,
+                }
+            )
     return job
 
 
@@ -244,6 +253,86 @@ class TestViewHarvestJob:
         assert "SpatialTransformationException" in resp.text
         assert "warning" in resp.text
 
+    def test_record_with_error_and_warning_renders_one_card_two_sections(
+        self, client, interface, job
+    ):
+        """A record with one error + one warning of different types is one
+        card with an Error section and a Warning section, per #6476."""
+        harvest_record = interface.add_harvest_record(
+            {
+                "harvest_job_id": job.id,
+                "harvest_source_id": job.source.id,
+                "identifier": "mixed-issue-record-001",
+                "status": "error",
+            }
+        )
+        interface.add_harvest_record_error(
+            {
+                "harvest_job_id": job.id,
+                "harvest_record_id": harvest_record.id,
+                "type": "ValidationException",
+                "message": "record is invalid",
+                "severity": "error",
+            }
+        )
+        interface.add_harvest_record_error(
+            {
+                "harvest_job_id": job.id,
+                "harvest_record_id": harvest_record.id,
+                "type": "duplicate_keyword",
+                "message": "keyword appears twice",
+                "severity": "warning",
+            }
+        )
+
+        resp = client.get(f"/harvest_job/{job.id}")
+
+        assert resp.text.count("mixed-issue-record-001") == 1
+        assert resp.text.count('class="issue-section"') == 2
+        assert "usa-tag bg-error-dark text-white" in resp.text
+        assert "usa-tag bg-warning" in resp.text
+        assert "record is invalid" in resp.text
+        assert "keyword appears twice" in resp.text
+
+    def test_record_with_two_same_type_warnings_renders_one_section(
+        self, client, interface, job
+    ):
+        """A record with two warnings of the identical type is one card
+        with one section containing both messages, per #6476."""
+        harvest_record = interface.add_harvest_record(
+            {
+                "harvest_job_id": job.id,
+                "harvest_source_id": job.source.id,
+                "identifier": "same-type-warning-record-001",
+                "status": "error",
+            }
+        )
+        interface.add_harvest_record_error(
+            {
+                "harvest_job_id": job.id,
+                "harvest_record_id": harvest_record.id,
+                "type": "duplicate_keyword",
+                "message": "first duplicate keyword",
+                "severity": "warning",
+            }
+        )
+        interface.add_harvest_record_error(
+            {
+                "harvest_job_id": job.id,
+                "harvest_record_id": harvest_record.id,
+                "type": "duplicate_keyword",
+                "message": "second duplicate keyword",
+                "severity": "warning",
+            }
+        )
+
+        resp = client.get(f"/harvest_job/{job.id}")
+
+        assert resp.text.count("same-type-warning-record-001") == 1
+        assert resp.text.count('class="issue-section"') == 1
+        assert "first duplicate keyword" in resp.text
+        assert "second duplicate keyword" in resp.text
+
     def test_job_accept_json(self, client, job_with_many_errors):
         resp = client.get(
             f"/api/v1/harvest_job/{job_with_many_errors.id}",
@@ -255,11 +344,12 @@ class TestViewHarvestJob:
     def test_iso_transformation_no_exception(
         self, client, caplog, job_with_transformation_error
     ):
-
+        # fixture job has 8 distinct error records, all of which fit on
+        # page 1 now that pagination is by record, not row.
         client.get(
-            f"/harvest_job/{job_with_transformation_error.id}?page=2",
+            f"/harvest_job/{job_with_transformation_error.id}",
         )
         assert (
-            caplog.messages[0] == "transformation error produced no source_transform. "
-            "can't json load an xml doc"
+            "transformation error produced no source_transform. "
+            "can't json load an xml doc" in caplog.messages
         )
