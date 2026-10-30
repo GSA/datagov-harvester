@@ -291,7 +291,7 @@ class HarvesterDBInterface:
         query = self.db.query(HarvestSource)
 
         if not include_archived:
-            query = query.filter(HarvestSource.is_archived == False)
+            query = query.filter(~HarvestSource.is_archived)
 
         sources = query.all()
 

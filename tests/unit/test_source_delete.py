@@ -4,7 +4,6 @@ from harvester.archive_source import archive_source_command
 from harvester.lib.source_delete import (
     ARCHIVE_IN_PROGRESS_MESSAGE,
     enqueue_harvest_source_archive,
-    enqueue_harvest_source_delete,
 )
 
 
@@ -43,7 +42,9 @@ class TestEnqueueHarvestSourceArchive:
             "harvester.lib.source_delete._task_handler_for_archive",
             return_value=handler,
         ):
-            message, status = enqueue_harvest_source_archive("abc", "test@example.com", db)
+            message, status = enqueue_harvest_source_archive(
+                "abc", "test@example.com", db
+            )
 
         assert status == 409
         assert "clear it first" in message
@@ -62,7 +63,9 @@ class TestEnqueueHarvestSourceArchive:
             "harvester.lib.source_delete._task_handler_for_archive",
             return_value=handler,
         ):
-            message, status = enqueue_harvest_source_archive("missing", "test@example.com", db)
+            message, status = enqueue_harvest_source_archive(
+                "missing", "test@example.com", db
+            )
 
         assert (message, status) == ("Harvest source not found", 404)
         handler.start_task.assert_not_called()
@@ -77,7 +80,9 @@ class TestEnqueueHarvestSourceArchive:
             "harvester.lib.source_delete._task_handler_for_archive",
             return_value=handler,
         ):
-            message, status = enqueue_harvest_source_archive("abc", "test@example.com", db)
+            message, status = enqueue_harvest_source_archive(
+                "abc", "test@example.com", db
+            )
 
         assert status == 500
         assert "Failed to schedule harvest source archive" in message
@@ -96,9 +101,13 @@ class TestEnqueueHarvestSourceArchive:
                 "harvester.lib.source_delete.LocalTaskHandler",
                 return_value=local_handler,
             ) as local_cls,
-            patch("harvester.lib.source_delete.create_task_handler") as create_handler,
+            patch(
+                "harvester.lib.source_delete.create_task_handler"
+            ) as create_handler,
         ):
-            message, status = enqueue_harvest_source_archive("abc", "test@example.com", db)
+            message, status = enqueue_harvest_source_archive(
+                "abc", "test@example.com", db
+            )
 
         assert status == 202
         assert message == ARCHIVE_IN_PROGRESS_MESSAGE
@@ -122,7 +131,9 @@ class TestEnqueueHarvestSourceArchive:
             ) as create_handler,
             patch("harvester.lib.source_delete.LocalTaskHandler") as local_cls,
         ):
-            message, status = enqueue_harvest_source_archive("abc", "test@example.com", db)
+            message, status = enqueue_harvest_source_archive(
+                "abc", "test@example.com", db
+            )
 
         assert status == 202
         create_handler.assert_called_once_with()

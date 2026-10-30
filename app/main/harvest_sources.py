@@ -1,6 +1,6 @@
 import json
 
-from flask import current_app, flash, redirect, render_template, request, url_for
+from flask import current_app, flash, g, redirect, render_template, request, url_for
 
 from app import deps, htmx
 from app.deps import (
@@ -17,7 +17,7 @@ from app.forms import HarvestSourceForm, HarvestTriggerForm, ReharvestForm
 from app.paginate import Pagination
 from app.util import make_new_record_error_contract, make_new_source_contract
 from database.interface import HarvestSourceLockedError, StaleReharvestLinkError
-from harvester.lib.source_delete import enqueue_harvest_source_delete
+from harvester.lib.source_delete import enqueue_harvest_source_archive
 from harvester.utils.general_utils import (
     convert_to_int,
     dynamic_map_list_items_to_dict,
@@ -601,8 +601,11 @@ def update_harvest_source_actions(source_id: str):
         return trigger_manual_job_helper(source_id, "clear")
     elif form.delete.data:
         try:
-            message, status = enqueue_harvest_source_delete(source_id, deps.db)
-            _log_mutation("delete", "harvest_source", source_id, status=status)
+            user_email = g.get("request_actor", "unknown")
+            message, status = enqueue_harvest_source_archive(
+                source_id, user_email, deps.db
+            )
+            _log_mutation("archive", "harvest_source", source_id, status=status)
             flash(message)
             if status == 409:
                 return redirect(
@@ -610,7 +613,7 @@ def update_harvest_source_actions(source_id: str):
                 )
             return redirect(url_for("main.harvest_source_list"))
         except Exception as e:
-            message = f"Failed to delete harvest source :: {repr(e)}"
+            message = f"Failed to archive harvest source :: {repr(e)}"
             logger.error(message)
             flash(message)
             return redirect(url_for("main.view_harvest_source", source_id=source_id))
