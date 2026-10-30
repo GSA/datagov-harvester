@@ -412,7 +412,7 @@ class TestLoadManager:
                     "47442c62-716d-4678-947c-61990106685f harvest"
                 ),
                 "state": "RUNNING",
-                "memory_in_mb": 4096,
+                "memory_in_mb": 8192,
                 "disk_in_mb": 8192,
             }
         )
@@ -469,7 +469,7 @@ class TestLoadManager:
                     "47442c62-716d-4678-947c-61990106685f harvest"
                 ),
                 "state": "CANCELING",
-                "memory_in_mb": 4096,
+                "memory_in_mb": 8192,
                 "disk_in_mb": 8192,
             }
         )

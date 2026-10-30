@@ -7,7 +7,7 @@
         "name": "harvest-job-b22a8e9b-4906-4515-97ab-3a24b55a02b0-harvest",
         "command": "python harvester/harvest.py 47442c62-716d-4678-947c-61990106685f harvest",
         "state": "SUCCEEDED",
-        "memory_in_mb": 4096,
+        "memory_in_mb": 8192,
         "disk_in_mb": 8192,
         "log_rate_limit_in_bytes_per_second": -1,
         "result": {
