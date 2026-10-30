@@ -155,7 +155,9 @@ class HarvestSource(Base):
     send_report_email = Column(Boolean, nullable=False, server_default="false")
 
     is_locked = Column(Boolean, nullable=False, server_default=text("false"))
-    is_archived = Column(Boolean, nullable=False, server_default=text("false"), index=True)
+    is_archived = Column(
+        Boolean, nullable=False, server_default=text("false"), index=True
+    )
     archived_at = Column(DateTime, nullable=True)
     archived_by = Column(String, nullable=True)
     collection_parent_url = Column(String)

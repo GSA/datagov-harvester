@@ -278,9 +278,29 @@ class HarvesterDBInterface:
         else:
             return harvest_job.source
 
-    def get_all_harvest_sources(self):
-        harvest_sources = self.db.query(HarvestSource).all()
-        return [source for source in harvest_sources]
+    def get_all_harvest_sources(self, include_archived=True):
+        """Get all harvest sources, optionally excluding archived ones.
+
+        Args:
+            include_archived: If False, exclude archived sources. If True, include
+                             archived sources but sort them to the end of the list.
+
+        Returns:
+            List of HarvestSource objects
+        """
+        query = self.db.query(HarvestSource)
+
+        if not include_archived:
+            query = query.filter(HarvestSource.is_archived == False)
+
+        sources = query.all()
+
+        if include_archived:
+            active_sources = [s for s in sources if not s.is_archived]
+            archived_sources = [s for s in sources if s.is_archived]
+            return active_sources + archived_sources
+
+        return sources
 
     def update_harvest_source(self, source_id, updates):
         source, _ = self.try_update_harvest_source(source_id, updates)
@@ -340,8 +360,8 @@ class HarvesterDBInterface:
             self.db.rollback()
             raise
 
-    def can_delete_harvest_source(self, source_id):
-        """Return whether a harvest source may be deleted.
+    def can_archive_harvest_source(self, source_id):
+        """Return whether a harvest source may be archived.
 
         Returns:
             tuple[bool, str | None, int]: ``(ok, message, status)``.
@@ -360,25 +380,49 @@ class HarvesterDBInterface:
         if record_count == 0:
             return True, None, 200
 
-        # ruff: noqa: E501
         return (
             False,
             f"Failed: {record_count} records in the Harvest source, please clear it first.",
             409,
         )
 
-    def delete_harvest_source(self, source_id):
-        ok, message, status = self.can_delete_harvest_source(source_id)
+    def archive_harvest_source(self, source_id, user_email):
+        """Archive a harvest source instead of deleting it.
+
+        Args:
+            source_id: ID of the harvest source to archive
+            user_email: Email of the user performing the archive operation
+
+        Returns:
+            tuple[str, int]: ``(message, status)`` - success message with 200,
+            or error message with appropriate status code
+        """
+        ok, message, status = self.can_archive_harvest_source(source_id)
         if not ok:
             return message, status
 
         source = self.db.get(HarvestSource, source_id)
-        self.db.delete(source)
+        source.is_archived = True
+        source.is_locked = True
+        source.archived_at = datetime.now(timezone.utc)
+        source.archived_by = user_email
+
         self.db.commit()
+
         return (
-            f"Deleted harvest source with ID:{source_id} successfully",
+            f"Archived harvest source with ID:{source_id} successfully",
             200,
         )
+
+    def can_delete_harvest_source(self, source_id):
+        """Deprecated: Use can_archive_harvest_source() instead."""
+        return self.can_archive_harvest_source(source_id)
+
+    def delete_harvest_source(self, source_id, user_email=None):
+        """Deprecated: Use archive_harvest_source() instead."""
+        if user_email is None:
+            user_email = "unknown"
+        return self.archive_harvest_source(source_id, user_email)
 
     ## HARVEST JOB
     def add_harvest_job(self, job_data):

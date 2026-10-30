@@ -668,7 +668,7 @@ def test_get_all_harvest_sources_archived_sorted_last(
     del source_data_dcatus["id"]
     source_data_dcatus["name"] = "Active Source 1"
     source_data_dcatus["url"] = "https://example.com/active-1-sort"
-    active_source_1 = interface.add_harvest_source(source_data_dcatus)
+    interface.add_harvest_source(source_data_dcatus)
 
     source_data_dcatus["name"] = "Archived Source"
     source_data_dcatus["url"] = "https://example.com/archived-mid-sort"
@@ -676,7 +676,7 @@ def test_get_all_harvest_sources_archived_sorted_last(
 
     source_data_dcatus["name"] = "Active Source 2"
     source_data_dcatus["url"] = "https://example.com/active-2-sort"
-    active_source_2 = interface.add_harvest_source(source_data_dcatus)
+    interface.add_harvest_source(source_data_dcatus)
 
     interface.archive_harvest_source(archived_source.id, "test@example.com")
 
