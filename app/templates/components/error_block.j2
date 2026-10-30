@@ -22,7 +22,7 @@
     {% for issue in error_issues + warning_issues %}
     <div class="issue-section">
         <p>
-            <span class="usa-tag {{ 'bg-error-dark text-white' if issue.severity == 'error' else 'bg-warning' }}">
+            <span class="usa-tag {{ 'issue-tag--error' if issue.severity == 'error' else 'issue-tag--warning' }}">
                 {{ "Error" if issue.severity == "error" else "Warning" }}
             </span>
             ({{ issue.type }})
