@@ -4,8 +4,10 @@ Invoked via:
     python -m harvester.archive_source <source_id> <user_email>
 """
 
-import sys
 import logging
+import sys
+
+from harvester import db_interface
 
 logging.basicConfig(
     level=logging.INFO,
@@ -21,8 +23,6 @@ def archive_source_command(source_id, user_email):
         source_id: ID of the harvest source to archive
         user_email: Email of the user who initiated the archive
     """
-    from harvester import db_interface
-
     logger.info("Archiving harvest source %s (requested by %s)", source_id, user_email)
 
     message, status = db_interface.archive_harvest_source(source_id, user_email)

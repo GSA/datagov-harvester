@@ -101,9 +101,7 @@ class TestEnqueueHarvestSourceArchive:
                 "harvester.lib.source_delete.LocalTaskHandler",
                 return_value=local_handler,
             ) as local_cls,
-            patch(
-                "harvester.lib.source_delete.create_task_handler"
-            ) as create_handler,
+            patch("harvester.lib.source_delete.create_task_handler") as create_handler,
         ):
             message, status = enqueue_harvest_source_archive(
                 "abc", "test@example.com", db
