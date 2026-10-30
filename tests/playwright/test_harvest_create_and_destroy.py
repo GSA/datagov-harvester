@@ -99,7 +99,7 @@ class TestHarvestCreateAndDestroy:
         apage_with_org.once("dialog", lambda dialog: dialog.accept())
         apage_with_org.get_by_role("button", name=re.compile(r"^Delete\b")).click()
         expect(apage_with_org.locator(".usa-alert--warning")).to_contain_text(
-            ["This harvest source may take some time to delete."]
+            ["This harvest source may take some time to archive."]
         )
         # List HTML is rendered before the background task finishes; reload until
         # the source is gone so org fixture cleanup can succeed.

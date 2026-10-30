@@ -41,14 +41,14 @@ class TestOrganizationUnauthed:
                 "ID",
                 "d925f84d-955b-4cb7-812f-dcfd6681a18f",
                 "Source count",
-                "2",
+                "3",
             ]
         )
 
     def test_harvest_source_table(self, upage):
         expect(
             upage.locator(".organization-harvest-source-list table.usa-table tbody tr")
-        ).to_have_count(2)
+        ).to_have_count(3)
         expect(
             upage.locator(".organization-harvest-source-list table.usa-table tr td")
         ).to_have_text(
@@ -108,7 +108,7 @@ class TestOrganizationAuthed:
         # ruff: noqa: E501
         expect(apage.locator(".usa-alert--warning")).to_contain_text(
             [
-                "Failed: 2 harvest sources in the organization, please delete those first."
+                "Failed: 3 harvest sources in the organization, please delete those first."
             ]
         )
 

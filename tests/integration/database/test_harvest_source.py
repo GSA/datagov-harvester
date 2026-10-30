@@ -387,3 +387,308 @@ def test_get_harvest_source_includes_description(
 
     retrieved = interface.get_harvest_source(source.id)
     assert retrieved.description == "Test description content"
+
+
+def test_harvest_source_has_archive_columns(interface):
+    """Test HarvestSource model has archive-related columns."""
+    from sqlalchemy import inspect
+    from database.models import HarvestSource
+
+    inspector = inspect(HarvestSource)
+    column_names = [c.name for c in inspector.columns]
+
+    assert "is_archived" in column_names
+    assert "archived_at" in column_names
+    assert "archived_by" in column_names
+
+
+def test_harvest_source_archive_columns_default_values(
+    interface, organization_data, source_data_dcatus
+):
+    """Test archive columns have correct default values for new sources."""
+    interface.add_organization(organization_data)
+    del source_data_dcatus["id"]
+    source_data_dcatus["url"] = "https://example.com/archive-default-test"
+    source = interface.add_harvest_source(source_data_dcatus)
+
+    assert source.is_archived is False
+    assert source.archived_at is None
+    assert source.archived_by is None
+
+
+def test_can_archive_harvest_source_success(
+    interface, organization_data, source_data_dcatus
+):
+    """Test can_archive_harvest_source returns True when source is cleared."""
+    interface.add_organization(organization_data)
+    del source_data_dcatus["id"]
+    source_data_dcatus["url"] = "https://example.com/can-archive-success"
+    source = interface.add_harvest_source(source_data_dcatus)
+
+    ok, message, status = interface.can_archive_harvest_source(source.id)
+
+    assert ok is True
+    assert message is None
+    assert status == 200
+
+
+def test_can_archive_harvest_source_not_found(interface):
+    """Test can_archive_harvest_source returns False for non-existent source."""
+    ok, message, status = interface.can_archive_harvest_source("nonexistent-id")
+
+    assert ok is False
+    assert message == "Harvest source not found"
+    assert status == 404
+
+
+def test_can_archive_harvest_source_has_records(
+    interface, organization_data, source_data_dcatus, job_data_dcatus
+):
+    """Test can_archive_harvest_source returns False when records exist."""
+    interface.add_organization(organization_data)
+    del source_data_dcatus["id"]
+    source_data_dcatus["url"] = "https://example.com/has-records-test"
+    source = interface.add_harvest_source(source_data_dcatus)
+
+    job_data_dcatus["harvest_source_id"] = source.id
+    del job_data_dcatus["id"]
+    job = interface.add_harvest_job(job_data_dcatus)
+
+    record = interface.add_harvest_record(
+        {
+            "harvest_job_id": job.id,
+            "harvest_source_id": source.id,
+            "identifier": "test-record-1",
+            "action": "create",
+            "status": "success",
+        }
+    )
+
+    dataset_payload_data = dataset_payload(
+        "test-dataset-archive", record, organization_data, source_data_dcatus
+    )
+    dataset_payload_data["harvest_source_id"] = source.id
+    interface.insert_dataset(dataset_payload_data)
+
+    ok, message, status = interface.can_archive_harvest_source(source.id)
+
+    assert ok is False
+    assert "records in the Harvest source" in message
+    assert "please clear it first" in message
+    assert status == 409
+
+
+def test_archive_harvest_source_success(
+    interface, organization_data, source_data_dcatus
+):
+    """Test archive_harvest_source sets archive flags and locks source."""
+    from datetime import datetime, timezone
+
+    interface.add_organization(organization_data)
+    del source_data_dcatus["id"]
+    source_data_dcatus["url"] = "https://example.com/archive-success"
+    source = interface.add_harvest_source(source_data_dcatus)
+
+    user_email = "test@example.com"
+    before_archive = datetime.now(timezone.utc)
+
+    message, status = interface.archive_harvest_source(source.id, user_email)
+
+    after_archive = datetime.now(timezone.utc)
+
+    assert status == 200
+    assert "Archived harvest source" in message
+
+    interface.db.refresh(source)
+
+    assert source.is_archived is True
+    assert source.archived_by == user_email
+    assert source.is_locked is True
+    assert source.archived_at is not None
+    assert before_archive <= source.archived_at <= after_archive
+
+
+def test_archive_harvest_source_not_found(interface):
+    """Test archive_harvest_source returns 404 for non-existent source."""
+    message, status = interface.archive_harvest_source(
+        "nonexistent-id", "test@example.com"
+    )
+
+    assert status == 404
+    assert "Harvest source not found" in message
+
+
+def test_archive_harvest_source_has_records(
+    interface, organization_data, source_data_dcatus, job_data_dcatus
+):
+    """Test archive_harvest_source returns 409 when records exist."""
+    interface.add_organization(organization_data)
+    del source_data_dcatus["id"]
+    source_data_dcatus["url"] = "https://example.com/archive-has-records"
+    source = interface.add_harvest_source(source_data_dcatus)
+
+    job_data_dcatus["harvest_source_id"] = source.id
+    del job_data_dcatus["id"]
+    job = interface.add_harvest_job(job_data_dcatus)
+
+    record = interface.add_harvest_record(
+        {
+            "harvest_job_id": job.id,
+            "harvest_source_id": source.id,
+            "identifier": "test-record-archive-fail",
+            "action": "create",
+            "status": "success",
+        }
+    )
+
+    dataset_payload_data = dataset_payload(
+        "test-dataset-archive-fail", record, organization_data, source_data_dcatus
+    )
+    dataset_payload_data["harvest_source_id"] = source.id
+    interface.insert_dataset(dataset_payload_data)
+
+    message, status = interface.archive_harvest_source(source.id, "test@example.com")
+
+    assert status == 409
+    assert "records in the Harvest source" in message
+
+
+def test_archive_harvest_source_preserves_jobs(
+    interface, organization_data, source_data_dcatus, job_data_dcatus
+):
+    """Test archiving preserves all associated harvest jobs."""
+    from database.models import HarvestJob
+
+    interface.add_organization(organization_data)
+    del source_data_dcatus["id"]
+    source_data_dcatus["url"] = "https://example.com/archive-preserves-jobs"
+    source = interface.add_harvest_source(source_data_dcatus)
+
+    job_data_dcatus["harvest_source_id"] = source.id
+    del job_data_dcatus["id"]
+    job = interface.add_harvest_job(job_data_dcatus)
+
+    job_id = job.id
+
+    message, status = interface.archive_harvest_source(source.id, "test@example.com")
+
+    assert status == 200
+
+    job_after = interface.db.get(HarvestJob, job_id)
+    assert job_after is not None
+    assert job_after.harvest_source_id == source.id
+
+
+def test_archive_harvest_source_preserves_errors(
+    interface, organization_data, source_data_dcatus, job_data_dcatus
+):
+    """Test archiving preserves all associated errors."""
+    from database.models import HarvestJobError
+    import uuid
+
+    interface.add_organization(organization_data)
+    del source_data_dcatus["id"]
+    source_data_dcatus["url"] = "https://example.com/archive-preserves-errors"
+    source = interface.add_harvest_source(source_data_dcatus)
+
+    job_data_dcatus["harvest_source_id"] = source.id
+    del job_data_dcatus["id"]
+    job = interface.add_harvest_job(job_data_dcatus)
+
+    error = HarvestJobError(
+        id=str(uuid.uuid4()),
+        harvest_job_id=job.id,
+        type="connection_error",
+        message="Test error",
+    )
+    interface.db.add(error)
+    interface.db.commit()
+    error_id = error.id
+
+    message, status = interface.archive_harvest_source(source.id, "test@example.com")
+
+    assert status == 200
+
+    error_after = interface.db.get(HarvestJobError, error_id)
+    assert error_after is not None
+
+
+def test_get_all_harvest_sources_excludes_archived(
+    interface, organization_data, source_data_dcatus
+):
+    """Test get_all_harvest_sources excludes archived sources by default."""
+    interface.add_organization(organization_data)
+
+    del source_data_dcatus["id"]
+    source_data_dcatus["url"] = "https://example.com/active-source-exclude"
+    active_source = interface.add_harvest_source(source_data_dcatus)
+
+    source_data_dcatus["name"] = "Archived Source"
+    source_data_dcatus["url"] = "https://example.com/archived-source-exclude"
+    archived_source = interface.add_harvest_source(source_data_dcatus)
+
+    interface.archive_harvest_source(archived_source.id, "test@example.com")
+
+    sources = interface.get_all_harvest_sources(include_archived=False)
+    source_ids = [s.id for s in sources]
+
+    assert active_source.id in source_ids
+    assert archived_source.id not in source_ids
+
+
+def test_get_all_harvest_sources_includes_archived_when_requested(
+    interface, organization_data, source_data_dcatus
+):
+    """Test get_all_harvest_sources includes archived sources when requested."""
+    interface.add_organization(organization_data)
+
+    del source_data_dcatus["id"]
+    source_data_dcatus["url"] = "https://example.com/active-source-include"
+    active_source = interface.add_harvest_source(source_data_dcatus)
+
+    source_data_dcatus["name"] = "Archived Source"
+    source_data_dcatus["url"] = "https://example.com/archived-source-include"
+    archived_source = interface.add_harvest_source(source_data_dcatus)
+
+    interface.archive_harvest_source(archived_source.id, "test@example.com")
+
+    sources = interface.get_all_harvest_sources(include_archived=True)
+    source_ids = [s.id for s in sources]
+
+    assert active_source.id in source_ids
+    assert archived_source.id in source_ids
+
+
+def test_get_all_harvest_sources_archived_sorted_last(
+    interface, organization_data, source_data_dcatus
+):
+    """Test archived sources appear at end of list."""
+    interface.add_organization(organization_data)
+
+    del source_data_dcatus["id"]
+    source_data_dcatus["name"] = "Active Source 1"
+    source_data_dcatus["url"] = "https://example.com/active-1-sort"
+    interface.add_harvest_source(source_data_dcatus)
+
+    source_data_dcatus["name"] = "Archived Source"
+    source_data_dcatus["url"] = "https://example.com/archived-mid-sort"
+    archived_source = interface.add_harvest_source(source_data_dcatus)
+
+    source_data_dcatus["name"] = "Active Source 2"
+    source_data_dcatus["url"] = "https://example.com/active-2-sort"
+    interface.add_harvest_source(source_data_dcatus)
+
+    interface.archive_harvest_source(archived_source.id, "test@example.com")
+
+    sources = interface.get_all_harvest_sources(include_archived=True)
+
+    archived_sources = [s for s in sources if s.is_archived]
+    active_sources = [s for s in sources if not s.is_archived]
+
+    assert len(active_sources) >= 2
+    assert len(archived_sources) >= 1
+
+    first_archived_index = sources.index(archived_sources[0])
+    last_active_index = sources.index(active_sources[-1])
+
+    assert first_archived_index > last_active_index
