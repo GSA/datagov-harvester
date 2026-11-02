@@ -433,7 +433,12 @@ class HarvestRecordError(Error):
     )
 
     __table_args__ = (
-        Index("ix_hre_job_id", "harvest_job_id"),
+        Index(
+            "ix_hre_job_record",
+            "harvest_job_id",
+            "harvest_record_id",
+            postgresql_include=["date_created"],
+        ),
         Index("ix_harvest_record_error_harvest_record_id", "harvest_record_id"),
     )
 
