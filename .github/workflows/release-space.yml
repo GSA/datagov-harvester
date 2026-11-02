@@ -188,6 +188,61 @@ jobs:
           cf_username: ${{ secrets.CF_SERVICE_USER }}
           cf_password: ${{ secrets.CF_SERVICE_AUTH }}
 
+      - name: Name database migration task
+        if: ${{ !inputs.migrate_opensearch }}
+        run: |
+          echo "DB_MIGRATE_TASK=db-migrate-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_ENV"
+
+      - name: Push temporary migration app
+        id: push_migrate_temp
+        if: ${{ !inputs.migrate_opensearch }}
+        uses: ./.github/actions/deploy
+        with:
+          cf_space: ${{ env.CF_SPACE }}
+          command: cf push datagov-harvest-next --task
+          deploy_proxy: "false"
+          deploy_validator: "false"
+          cf_username: ${{ secrets.CF_SERVICE_USER }}
+          cf_password: ${{ secrets.CF_SERVICE_AUTH }}
+
+      - name: Run database migrations
+        id: db_migrate
+        if: ${{ !inputs.migrate_opensearch }}
+        uses: cloud-gov/cg-cli-tools@main
+        with:
+          command: >
+            cf run-task "$TEMP_HARVEST_APP" --name "$DB_MIGRATE_TASK" -k 2G -m 1G
+            --command "flask db upgrade"
+          cf_org: gsa-datagov
+          cf_space: ${{ env.CF_SPACE }}
+          cf_username: ${{ secrets.CF_SERVICE_USER }}
+          cf_password: ${{ secrets.CF_SERVICE_AUTH }}
+
+      - name: Monitor database migration task
+        id: db_migrate_monitor
+        if: ${{ !inputs.migrate_opensearch }}
+        uses: cloud-gov/cg-cli-tools@main
+        with:
+          command: bin/monitor_cf_logs.sh "$TEMP_HARVEST_APP" "$DB_MIGRATE_TASK"
+          cf_org: gsa-datagov
+          cf_space: ${{ env.CF_SPACE }}
+          cf_username: ${{ secrets.CF_SERVICE_USER }}
+          cf_password: ${{ secrets.CF_SERVICE_AUTH }}
+
+      - name: Delete temporary migration app
+        id: delete_migrate_temp
+        if: ${{ always() && !inputs.migrate_opensearch }}
+        uses: cloud-gov/cg-cli-tools@main
+        with:
+          command: >
+            if cf app "$TEMP_HARVEST_APP" > /dev/null 2>&1;
+            then cf delete "$TEMP_HARVEST_APP" -f;
+            fi
+          cf_org: gsa-datagov
+          cf_space: ${{ env.CF_SPACE }}
+          cf_username: ${{ secrets.CF_SERVICE_USER }}
+          cf_password: ${{ secrets.CF_SERVICE_AUTH }}
+
       - name: Deploy canonical harvester
         id: deploy
         uses: ./.github/actions/deploy

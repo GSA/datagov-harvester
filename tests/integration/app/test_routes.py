@@ -683,8 +683,8 @@ class TestJSONResponses:
             json_res = json.loads(res.data)
             if "count" in json_res:
                 assert json_res["count"] == response
-            elif "data" in json_res:
-                assert len(json_res["data"]) == response
+            elif "error" in json_res:
+                assert json_res["error"] == response
             else:
                 assert len(json_res) == response
         except Exception:
@@ -697,7 +697,7 @@ class TestJSONResponses:
         res = client.get("/api/v1/organizations/")
         assert res.status_code == 200
 
-        assert res.json["data"] == [
+        assert res.json == [
             {
                 "aliases": ["testorg"],
                 "code_repo_exempt": False,
@@ -711,8 +711,6 @@ class TestJSONResponses:
                 "source_count": 1,
             }
         ]
-        assert "meta" in res.json
-        assert "links" in res.json
 
 
 class TestHarvestRecordRawAPI:
@@ -1061,9 +1059,9 @@ class TestRecordIssueSeverityAPI:
         res = client.get("/api/v1/harvest_record_errors/?paginate=False")
 
         assert res.status_code == 200
-        assert {e["severity"] for e in res.json["data"]} == {"error", "warning"}
+        assert {e["severity"] for e in res.json} == {"error", "warning"}
         # every seeded error plus the warning this fixture added
-        assert len(res.json["data"]) == len(record_error_data) + 1
+        assert len(res.json) == len(record_error_data) + 1
 
     def test_severity_facet_is_not_double_filtered(
         self, client, interface_with_warning
@@ -1078,15 +1076,15 @@ class TestRecordIssueSeverityAPI:
         )
 
         assert res.status_code == 200
-        assert {e["severity"] for e in res.json["data"]} == {"warning"}
+        assert {e["severity"] for e in res.json} == {"warning"}
 
     def test_collection_severity_warning(self, client, interface_with_warning):
         """?severity=warning returns only the warning row."""
         res = client.get("/api/v1/harvest_record_errors/?severity=warning")
 
         assert res.status_code == 200
-        assert [e["severity"] for e in res.json["data"]] == ["warning"]
-        assert res.json["data"][0]["message"] == self.WARNING_MESSAGE
+        assert [e["severity"] for e in res.json] == ["warning"]
+        assert res.json[0]["message"] == self.WARNING_MESSAGE
 
     def test_collection_severity_error_excludes_warnings(
         self, client, interface_with_warning, record_error_data
@@ -1141,18 +1139,14 @@ class TestRecordIssueSeverityAPI:
 
         errors = client.get(f"{route}&severity=error")
         assert errors.status_code == 200
-        assert {e["severity"] for e in errors.json["data"]} == {"error"}
-        assert {e["harvest_record_id"] for e in errors.json["data"]} == {
-            warning_record_id
-        }
-        assert len(errors.json["data"]) == seeded_error_count
+        assert {e["severity"] for e in errors.json} == {"error"}
+        assert {e["harvest_record_id"] for e in errors.json} == {warning_record_id}
+        assert len(errors.json) == seeded_error_count
 
         warnings = client.get(f"{route}&severity=warning")
         assert warnings.status_code == 200
-        assert [e["severity"] for e in warnings.json["data"]] == ["warning"]
-        assert {e["harvest_record_id"] for e in warnings.json["data"]} == {
-            warning_record_id
-        }
+        assert [e["severity"] for e in warnings.json] == ["warning"]
+        assert {e["harvest_record_id"] for e in warnings.json} == {warning_record_id}
 
     def test_severity_ignored_on_other_models(
         self, client, interface_with_warning, job_error_data
@@ -1166,7 +1160,7 @@ class TestRecordIssueSeverityAPI:
         res = client.get("/api/v1/harvest_job_errors/?severity=warning")
 
         assert res.status_code == 200
-        assert [e["message"] for e in res.json["data"]] == [job_error_data["message"]]
+        assert [e["message"] for e in res.json] == [job_error_data["message"]]
 
     def test_record_route_reaches_warnings(
         self, client, interface_with_warning, warning_record_id
@@ -1468,9 +1462,7 @@ class TestPaginationValidation:
         response = client.get("/api/v1/harvest_sources/?per_page=0")
 
         assert response.status_code == 200
-        assert response.json["data"] == []
-        assert "meta" in response.json
-        assert "links" in response.json
+        assert response.json == []
 
     def test_per_page_negative_returns_422(
         self, client, interface, organization_data, source_data_dcatus
@@ -1495,9 +1487,7 @@ class TestPaginationValidation:
 
         assert response.status_code == 200
         data = response.json
-        assert len(data["data"]) == 1
-        assert "meta" in data
-        assert "links" in data
+        assert len(data) == 1
 
     def test_per_page_validation_consistent_across_endpoints(
         self, client, interface_with_fixture_json
@@ -1517,8 +1507,8 @@ class TestPaginationValidation:
             response = client.get(f"{endpoint}?per_page=0")
             assert response.status_code == 200, f"{endpoint} should accept per_page=0"
             assert (
-                response.json["data"] == []
-            ), f"{endpoint} should return empty data array for per_page=0"
+                response.json == []
+            ), f"{endpoint} should return empty array for per_page=0"
 
             # Negative per_page should return 422
             response = client.get(f"{endpoint}?per_page=-1")
@@ -1562,42 +1552,54 @@ class TestQueryParameterValidation:
     def test_harvest_record_errors_accepts_harvest_job_id(
         self, client, interface_with_fixture_json
     ):
-        """Test that harvest_record_errors still accepts harvest_job_id."""
-        response = client.get(
-            "/api/v1/harvest_record_errors/?harvest_job_id=6bce761c-7a39-41c1-ac73-94234c139c76"
-        )
+        """Test that harvest_record_errors accepts harvest_job_id and filters correctly."""
+        job_id = "6bce761c-7a39-41c1-ac73-94234c139c76"
+        response = client.get(f"/api/v1/harvest_record_errors/?harvest_job_id={job_id}")
 
-        assert response.status_code in [200, 404]
+        assert response.status_code == 200
+        data = response.get_json()
+        records = data["data"] if "data" in data else data
+        for record in records:
+            assert record["harvest_job_id"] == job_id
 
     def test_harvest_job_errors_accepts_harvest_job_id(
         self, client, interface_with_fixture_json
     ):
-        """Test that harvest_job_errors still accepts harvest_job_id."""
-        response = client.get(
-            "/api/v1/harvest_job_errors/?harvest_job_id=6bce761c-7a39-41c1-ac73-94234c139c76"
-        )
+        """Test that harvest_job_errors accepts harvest_job_id and filters correctly."""
+        job_id = "6bce761c-7a39-41c1-ac73-94234c139c76"
+        response = client.get(f"/api/v1/harvest_job_errors/?harvest_job_id={job_id}")
 
-        assert response.status_code in [200, 404]
+        assert response.status_code == 200
+        data = response.get_json()
+        errors = data["data"] if "data" in data else data
+        for error in errors:
+            assert error["harvest_job_id"] == job_id
 
     def test_harvest_records_accepts_harvest_source_id(
         self, client, interface_with_fixture_json
     ):
-        """Test that harvest_records still accepts harvest_source_id (has the field)."""
-        response = client.get(
-            "/api/v1/harvest_records/?harvest_source_id=2f2652de-91df-4c63-8b53-bfced20b276b"
-        )
+        """Test that harvest_records accepts harvest_source_id and filters correctly."""
+        source_id = "2f2652de-91df-4c63-8b53-bfced20b276b"
+        response = client.get(f"/api/v1/harvest_records/?harvest_source_id={source_id}")
 
         assert response.status_code == 200
+        data = response.get_json()
+        records = data["data"] if "data" in data else data
+        for record in records:
+            assert record["harvest_source_id"] == source_id
 
     def test_harvest_jobs_accepts_harvest_source_id(
         self, client, interface_with_fixture_json
     ):
-        """Test that harvest_jobs still accepts harvest_source_id (has the field)."""
-        response = client.get(
-            "/api/v1/harvest_jobs/?harvest_source_id=2f2652de-91df-4c63-8b53-bfced20b276b"
-        )
+        """Test that harvest_jobs accepts harvest_source_id and filters correctly."""
+        source_id = "2f2652de-91df-4c63-8b53-bfced20b276b"
+        response = client.get(f"/api/v1/harvest_jobs/?harvest_source_id={source_id}")
 
-        assert response.status_code in [200, 404]
+        assert response.status_code == 200
+        data = response.get_json()
+        jobs = data["data"] if "data" in data else data
+        for job in jobs:
+            assert job["harvest_source_id"] == source_id
 
     def test_organizations_rejects_harvest_source_id(self, client):
         """Test that organizations returns JSON error for harvest_source_id."""
@@ -1610,3 +1612,83 @@ class TestQueryParameterValidation:
         data = response.get_json()
         assert "error" in data
         assert "harvest_source_id" in data["error"]
+
+    def test_harvest_record_errors_rejects_harvest_source_id_in_facets(self, client):
+        """Test that harvest_record_errors returns JSON error for harvest_source_id in facets."""
+        response = client.get(
+            "/api/v1/harvest_record_errors/?facets=harvest_source_id eq 35d79097-243c-414d-b67e-d8484397abc6"
+        )
+
+        assert response.status_code == 400
+        assert response.is_json
+        data = response.get_json()
+        assert "error" in data
+
+    def test_harvest_job_errors_rejects_harvest_source_id_in_facets(self, client):
+        """Test that harvest_job_errors returns JSON error for harvest_source_id in facets."""
+        response = client.get(
+            "/api/v1/harvest_job_errors/?facets=harvest_source_id eq 35d79097-243c-414d-b67e-d8484397abc6"
+        )
+
+        assert response.status_code == 400
+        assert response.is_json
+        data = response.get_json()
+        assert "error" in data
+
+    def test_harvest_sources_accepts_organization_id(
+        self, client, interface_with_fixture_json, organization_data
+    ):
+        """Test that harvest_sources accepts organization_id and filters correctly."""
+        org_id = organization_data["id"]
+        response = client.get(f"/api/v1/harvest_sources/?organization_id={org_id}")
+
+        assert response.status_code == 200
+        data = response.get_json()
+        sources = data["data"] if "data" in data else data
+        assert len(sources) > 0, "Should have at least one source"
+        for source in sources:
+            assert source["organization_id"] == org_id
+
+    def test_harvest_jobs_rejects_organization_id(self, client):
+        """Test that harvest_jobs returns JSON error for organization_id."""
+        response = client.get(
+            "/api/v1/harvest_jobs/?organization_id=35d79097-243c-414d-b67e-d8484397abc6"
+        )
+
+        assert response.status_code == 400
+        assert response.is_json
+        data = response.get_json()
+        assert "error" in data
+        assert "organization_id" in data["error"]
+
+    def test_harvest_job_errors_ignores_severity(self, client, job_error_data):
+        """Test that harvest_job_errors silently ignores severity parameter.
+
+        severity only exists on harvest_record_errors, so it is ignored elsewhere.
+        This matches the behavior documented in app/api/query.py line 100.
+        """
+        response = client.get("/api/v1/harvest_job_errors/?severity=error")
+
+        assert response.status_code in [200, 404]
+
+    def test_harvest_record_errors_accepts_severity(
+        self, client, interface_with_fixture_json
+    ):
+        """Test that harvest_record_errors accepts severity parameter and filters correctly."""
+        response = client.get("/api/v1/harvest_record_errors/?severity=error")
+
+        assert response.status_code == 200
+        data = response.get_json()
+        errors = data["data"] if "data" in data else data
+        for error in errors:
+            assert error["severity"] == "error"
+
+    def test_organizations_rejects_invalid_param(self, client):
+        """Test that organizations returns JSON error for any invalid parameter."""
+        response = client.get("/api/v1/organizations/?invalid_param=test")
+
+        assert response.status_code == 400
+        assert response.is_json
+        data = response.get_json()
+        assert "error" in data
+        assert "invalid_param" in data["error"]

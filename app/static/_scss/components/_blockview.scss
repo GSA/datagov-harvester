@@ -54,5 +54,18 @@
         .usa-tag {
             margin-right: units("05");
         }
+
+        // Matches the job-table's errored/warned column colors (see
+        // _uswds-theme-custom-styles.scss) so a record's issue tags read
+        // the same as the counts that pointed here.
+        .usa-tag.issue-tag--error {
+            background-color: #d54343;
+            color: #f0f0f0;
+        }
+
+        .usa-tag.issue-tag--warning {
+            background-color: #b38b00;
+            color: #f0f0f0;
+        }
     }
 }

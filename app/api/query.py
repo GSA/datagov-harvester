@@ -1,16 +1,14 @@
-from datetime import timezone
-
 from flask import jsonify, request
 from markupsafe import escape
 
 from app import deps
 from app.api_schemas import (
-    ErrorInfo,
-    JobInfo,
-    OrgInfo,
-    QueryInfo,
-    RecordInfo,
-    SourceInfo,
+    HarvestJobErrorsQueryInfo,
+    HarvestJobsQueryInfo,
+    HarvestRecordErrorsQueryInfo,
+    HarvestRecordsQueryInfo,
+    HarvestSourcesQueryInfo,
+    OrganizationsQueryInfo,
 )
 from app.deps import (
     JSON_INVALID_PAGINATION,
@@ -25,6 +23,8 @@ from harvester.utils.general_utils import convert_to_int, is_it_true
 
 from . import api
 
+SHARED_QUERY_PARAMS = ["facets", "page", "per_page", "paginate", "count", "order_by"]
+
 ENDPOINT_VALID_FILTERS = {
     "organizations": [],
     "harvest_sources": ["organization_id"],
@@ -37,7 +37,7 @@ ENDPOINT_VALID_FILTERS = {
 
 def _validate_query_parameters(model: str, provided_params: dict) -> tuple[bool, str]:
     """
-    Validate that query filter parameters are valid for the given endpoint model.
+    Validate that all query parameters are valid for the given endpoint.
 
     Args:
         model: The endpoint model name (e.g., "harvest_job_errors")
@@ -47,92 +47,34 @@ def _validate_query_parameters(model: str, provided_params: dict) -> tuple[bool,
         Tuple of (is_valid, error_message). error_message is empty string if valid.
     """
     valid_filters = ENDPOINT_VALID_FILTERS.get(model, [])
-    filter_params = ["harvest_source_id", "harvest_job_id", "harvest_record_id"]
+    allowed_params = set(SHARED_QUERY_PARAMS + valid_filters)
 
-    for param in filter_params:
-        if param in provided_params and param not in valid_filters:
-            valid_filters_str = ", ".join(valid_filters) if valid_filters else "facets"
+    for param in provided_params:
+        if param == "severity":
+            continue
+        if param not in allowed_params:
+            valid_filters_str = ", ".join(valid_filters) if valid_filters else "none"
             return False, (
                 f"{param} is not a valid parameter for /{model}/. "
-                f"Valid filter parameters: {valid_filters_str}."
+                f"Valid filter parameters: {valid_filters_str}. "
+                f"Valid shared parameters: {', '.join(SHARED_QUERY_PARAMS)}."
             )
 
     return True, ""
 
 
-def _serialize_job_datetimes(data):
-    """Serialize harvest job datetime values as ISO 8601 UTC."""
-    datetime_fields = ("date_created", "date_started", "date_finished")
+def _json_builder_query_impl(**kwargs):
+    model = escape(request.path.strip("/").split("/")[-1])
 
-    if isinstance(data, list):
-        for item in data:
-            _serialize_job_datetimes(item)
-    elif isinstance(data, dict):
-        for field in datetime_fields:
-            value = data.get(field)
+    is_valid, error_msg = _validate_query_parameters(model, request.args.keys())
+    if not is_valid:
+        return jsonify({"error": error_msg}), 400
 
-            if value is not None and hasattr(value, "isoformat"):
-                if value.tzinfo is None:
-                    value = value.replace(tzinfo=timezone.utc)
-                else:
-                    value = value.astimezone(timezone.utc)
-
-                data[field] = value.isoformat(timespec="milliseconds").replace(
-                    "+00:00", "Z"
-                )
-
-    return data
-
-
-@api.route("/organizations/", methods=["GET"])
-@api.route("/harvest_sources/", methods=["GET"])
-@api.route("/harvest_records/", methods=["GET"])
-@api.route("/harvest_jobs/", methods=["GET"])
-@api.route("/harvest_job_errors/", methods=["GET"])
-@api.route("/harvest_record_errors/", methods=["GET"])
-@api.input(QueryInfo, location="query", validation=False)
-@api.doc(
-    responses={
-        200: {
-            "description": "List of reuslts for this query",
-            "content": {
-                "application/json": {
-                    "schema": {
-                        "type": "array",
-                        "items": {
-                            "oneOf": [
-                                ErrorInfo,
-                                OrgInfo,
-                                SourceInfo,
-                                RecordInfo,
-                                JobInfo,
-                            ]
-                        },
-                    }
-                },
-            },
-        }
-    }
-)
-def json_builder_query(**kwargs):
     job_id = request.args.get("harvest_job_id")
     source_id = request.args.get("harvest_source_id")
     record_id = request.args.get("harvest_record_id")
+    org_id = request.args.get("organization_id")
     facets = request.args.get("facets", default="")
-
-    model = escape(request.path.strip("/").split("/")[-1])
-
-    provided_params = {}
-    if source_id is not None:
-        provided_params["harvest_source_id"] = source_id
-    if job_id is not None:
-        provided_params["harvest_job_id"] = job_id
-    if record_id is not None:
-        provided_params["harvest_record_id"] = record_id
-
-    is_valid, error_msg = _validate_query_parameters(model, provided_params)
-    if not is_valid:
-        return jsonify({"error": error_msg}), 400
 
     if job_id is not None:
         if facets:
@@ -149,7 +91,16 @@ def json_builder_query(**kwargs):
             facets += f",harvest_record_id eq {record_id}"
         else:
             facets = f"harvest_record_id eq {record_id}"
+    if org_id is not None:
+        if facets:
+            facets += f",organization_id eq {org_id}"
+        else:
+            facets = f"organization_id eq {org_id}"
 
+    # severity only exists on harvest_record_error, so it is ignored elsewhere.
+    # No default: an absent param returns every issue, matching the job-level
+    # reads (#799). Callers tell errors from warnings by the `severity` field
+    # now published on each row, and narrow with ?severity= when they want one.
     if model == "harvest_record_errors":
         try:
             severity = get_requested_severity(default=None)
@@ -160,68 +111,22 @@ def json_builder_query(**kwargs):
                 facets += f",severity eq {severity}"
             else:
                 facets = f"severity eq {severity}"
-
-    page = request.args.get("page", type=convert_to_int)
-    per_page = request.args.get("per_page", type=convert_to_int)
-    paginate_flag = request.args.get("paginate", type=is_it_true)
-    count_flag = request.args.get("count", type=is_it_true)
-    order_by = request.args.get("order_by")
-
     try:
-        if count_flag:
-            total = deps.db.pget_db_query(
-                model=model,
-                page=page,
-                per_page=per_page,
-                paginate=paginate_flag,
-                count=True,
-                order_by=order_by,
-                facets=facets,
-            )
-            return {"count": total, "type": model}
-
         res = deps.db.pget_db_query(
             model=model,
-            page=page,
-            per_page=per_page,
-            paginate=paginate_flag,
-            count=False,
-            order_by=order_by,
+            page=request.args.get("page", type=convert_to_int),
+            per_page=request.args.get("per_page", type=convert_to_int),
+            paginate=request.args.get("paginate", type=is_it_true),
+            count=request.args.get("count", type=is_it_true),
+            order_by=request.args.get("order_by"),
             facets=facets,
         )
-
-        if isinstance(res, list):
-            if not res and per_page != 0:
+        if isinstance(res, int):
+            return {"count": res, "type": model}
+        elif isinstance(res, list):
+            if not res and request.args.get("per_page", type=convert_to_int) != 0:
                 return f"No {model} found for this query", 404
-
-            total = deps.db.pget_db_query(
-                model=model,
-                page=page,
-                per_page=per_page,
-                paginate=paginate_flag,
-                count=True,
-                order_by=order_by,
-                facets=facets,
-            )
-
-            data = deps.db._to_dict(res)
-
-            if model == "harvest_jobs":
-                data = _serialize_job_datetimes(data)
-
-            from app.deps import build_collection_response
-
-            response = build_collection_response(
-                data=data,
-                path=request.path,
-                query_string=request.query_string.decode(),
-                page=page if page is not None else 0,
-                per_page=per_page if per_page is not None else 10,
-                total=total,
-                order_by=order_by if order_by else "asc",
-            )
-
-            return jsonify(response)
+            return jsonify(deps.db._to_dict(res))
         else:
             return f"No {model} found for this query", 404
     except InvalidPaginationException as e:
@@ -229,7 +134,43 @@ def json_builder_query(**kwargs):
         return JSON_INVALID_PAGINATION(str(e))
     except InvalidOrderByException as e:
         logger.info(f"Invalid order_by in json_builder_query :: {repr(e)}")
-        return jsonify({"error": str(e)}), 422
+        return jsonify({"error": "Invalid order_by parameter"}), 422
     except Exception as e:
         logger.info(f"Failed json_builder_query :: {repr(e)} ")
-        return "Error with query", 400
+        return jsonify({"error": "Error with query"}), 400
+
+
+@api.route("/organizations/", methods=["GET"])
+@api.input(OrganizationsQueryInfo, location="query", validation=False)
+def organizations_query(**kwargs):
+    return _json_builder_query_impl(**kwargs)
+
+
+@api.route("/harvest_sources/", methods=["GET"])
+@api.input(HarvestSourcesQueryInfo, location="query", validation=False)
+def harvest_sources_query(**kwargs):
+    return _json_builder_query_impl(**kwargs)
+
+
+@api.route("/harvest_jobs/", methods=["GET"])
+@api.input(HarvestJobsQueryInfo, location="query", validation=False)
+def harvest_jobs_query(**kwargs):
+    return _json_builder_query_impl(**kwargs)
+
+
+@api.route("/harvest_records/", methods=["GET"])
+@api.input(HarvestRecordsQueryInfo, location="query", validation=False)
+def harvest_records_query(**kwargs):
+    return _json_builder_query_impl(**kwargs)
+
+
+@api.route("/harvest_job_errors/", methods=["GET"])
+@api.input(HarvestJobErrorsQueryInfo, location="query", validation=False)
+def harvest_job_errors_query(**kwargs):
+    return _json_builder_query_impl(**kwargs)
+
+
+@api.route("/harvest_record_errors/", methods=["GET"])
+@api.input(HarvestRecordErrorsQueryInfo, location="query", validation=False)
+def harvest_record_errors_query(**kwargs):
+    return _json_builder_query_impl(**kwargs)

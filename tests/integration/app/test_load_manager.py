@@ -361,7 +361,7 @@ class TestLoadManager:
         load_manager = LoadManager()
         load_manager.trigger_manual_job(source_data_dcatus["id"])
         start_task_mock = CFCMock.return_value.v3.tasks.create
-        assert start_task_mock.call_args.kwargs["memory_in_mb"] == "1536"
+        assert start_task_mock.call_args.kwargs["memory_in_mb"] == "4096"
         assert start_task_mock.call_args.kwargs["disk_in_mb"] == "4096"
 
         # clear out in progress jobs
@@ -412,8 +412,8 @@ class TestLoadManager:
                     "47442c62-716d-4678-947c-61990106685f harvest"
                 ),
                 "state": "RUNNING",
-                "memory_in_mb": 8192,
-                "disk_in_mb": 8192,
+                "memory_in_mb": 1536,
+                "disk_in_mb": 4096,
             }
         )
 
@@ -469,8 +469,8 @@ class TestLoadManager:
                     "47442c62-716d-4678-947c-61990106685f harvest"
                 ),
                 "state": "CANCELING",
-                "memory_in_mb": 8192,
-                "disk_in_mb": 8192,
+                "memory_in_mb": 1536,
+                "disk_in_mb": 4096,
             }
         )
 
