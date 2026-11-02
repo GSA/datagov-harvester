@@ -1076,7 +1076,9 @@ class HarvesterDBInterface:
             record_ids_q = record_ids_q.filter(
                 HarvestRecordCurrentIssue.severity == severity
             )
-        record_ids_q = record_ids_q.group_by(HarvestRecordCurrentIssue.harvest_record_id)
+        record_ids_q = record_ids_q.group_by(
+            HarvestRecordCurrentIssue.harvest_record_id
+        )
 
         if kwargs.get("count") is True:
             return self.db.query(record_ids_q.subquery())
@@ -1190,8 +1192,12 @@ class HarvesterDBInterface:
                 func.count(),
             )
             .where(HarvestRecordCurrentIssue.harvest_source_id == harvest_source_id)
-            .group_by(HarvestRecordCurrentIssue.severity, HarvestRecordCurrentIssue.type)
-            .order_by(HarvestRecordCurrentIssue.severity, HarvestRecordCurrentIssue.type)
+            .group_by(
+                HarvestRecordCurrentIssue.severity, HarvestRecordCurrentIssue.type
+            )
+            .order_by(
+                HarvestRecordCurrentIssue.severity, HarvestRecordCurrentIssue.type
+            )
         )
         return [
             {"severity": severity, "type": error_type, "count": error_count}
