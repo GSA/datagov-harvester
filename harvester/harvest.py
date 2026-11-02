@@ -1,4 +1,3 @@
-import gc
 import json
 import logging
 import os
@@ -860,7 +859,6 @@ class HarvestSource:
             for record in records:
                 record.harvest()
                 del record
-                gc.collect()
 
         except (ExtractInternalException, ExtractExternalException):
             self.finish_job_with_status("error")
