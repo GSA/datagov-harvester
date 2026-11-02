@@ -289,8 +289,8 @@ class TestViewHarvestJob:
 
         assert resp.text.count("mixed-issue-record-001") == 1
         assert resp.text.count('class="issue-section"') == 2
-        assert "usa-tag bg-error-dark text-white" in resp.text
-        assert "usa-tag bg-warning" in resp.text
+        assert "usa-tag issue-tag--error" in resp.text
+        assert "usa-tag issue-tag--warning" in resp.text
         assert "record is invalid" in resp.text
         assert "keyword appears twice" in resp.text
 
