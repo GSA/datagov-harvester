@@ -15,6 +15,7 @@ from dcatus_validation.fetch import (
 )
 from dcatus_validation.limits import (
     MAX_REQUEST_BYTES,
+    MAX_REQUEST_OVERHEAD_BYTES,
     MAX_RESULT_IDENTIFIER_CHARS,
     MAX_RESULT_MESSAGE_CHARS,
     MAX_UPLOAD_BYTES,
@@ -286,51 +287,117 @@ class TestRequestValidation:
         }
 
 
+# Small stand-ins for the 150MB document / 300MB request limits, so the
+# boundary tests don't build bodies that size. test_limits.py pins the real
+# values and how they relate.
+SMALL_UPLOAD_BYTES = 64 * 1024
+SMALL_REQUEST_BYTES = 2 * SMALL_UPLOAD_BYTES + MAX_REQUEST_OVERHEAD_BYTES
+
+
+@pytest.fixture
+def small_limits(monkeypatch, validator_app):
+    """Scale the document and request limits down together, the way
+    validator_api applies them: the route's document check and Flask's
+    MAX_CONTENT_LENGTH."""
+    monkeypatch.setattr("validator_api.api.MAX_UPLOAD_BYTES", SMALL_UPLOAD_BYTES)
+    monkeypatch.setitem(validator_app.config, "MAX_CONTENT_LENGTH", SMALL_REQUEST_BYTES)
+
+
+def _paste_body(document: str) -> str:
+    return json.dumps(
+        {
+            "schema": "dcatus1.1: federal dataset",
+            "fetch_method": "paste",
+            "json_text": document,
+        }
+    )
+
+
+def _document_of_size(size: int, padding_char: str = "x") -> str:
+    """A valid, empty DCAT-US 1.1 catalog of exactly `size` UTF-8 bytes."""
+    prefix = '{"dataset":[],"padding":"'
+    suffix = '"}'
+    room = size - len(prefix) - len(suffix)
+    pad = padding_char * (room // len(padding_char))
+    document = prefix + pad + "x" * (room - len(pad)) + suffix
+    assert len(document.encode("utf-8")) == size
+    return document
+
+
 class TestLimits:
-    def test_request_body_over_the_limit_returns_json(self, validator_client):
+    def test_app_uses_the_150mb_limits(self, validator_app):
+        """The boundary tests below patch both limits down; this pins what
+        they stand in for."""
+        # Imported here, not at module level, like create_app does: a test in
+        # test_fetch.py reloads dcatus_validation.fetch, and an early import
+        # would keep the old InvalidCatalogSource class.
+        import validator_api.api
+
+        assert MAX_UPLOAD_MB == 150
+        assert validator_api.api.MAX_UPLOAD_BYTES == MAX_UPLOAD_BYTES
+        assert validator_app.config["MAX_CONTENT_LENGTH"] == MAX_REQUEST_BYTES
+
+    def test_request_body_over_the_limit_returns_json(
+        self, validator_client, small_limits
+    ):
         res = validator_client.post(
             URL,
-            data=b'{"json_text":"' + b"x" * (MAX_REQUEST_BYTES + 1024) + b'"}',
+            data=b'{"json_text":"' + b"x" * (SMALL_REQUEST_BYTES + 1024) + b'"}',
             content_type="application/json",
         )
 
         assert res.status_code == 413
         assert res.get_json() == {
-            "error": f"Submission too large - must be {MAX_UPLOAD_MB}MB or less."
+            "error": "Submission too large - must be 150MB or less."
         }
 
-    def test_pasted_document_at_the_limit_fits_despite_escaping(self, validator_client):
-        """
-        A document just under the limit can double when JSON-encoded. The
-        request limit must leave room for the surrounding API fields too.
-        """
-        prefix = '{"dataset":[],"padding":"'
-        suffix = '"}'
-        remaining = MAX_UPLOAD_BYTES - len(prefix) - len(suffix)
-        document = prefix + "\\\\" * (remaining // 2) + suffix
-        assert len(document) < MAX_UPLOAD_BYTES
-        body = json.dumps(
-            {
-                "schema": "dcatus1.1: federal dataset",
-                "fetch_method": "paste",
-                "json_text": document,
-            }
+    @pytest.mark.parametrize(
+        "size_offset, accepted",
+        [(-1, True), (0, True), (1, False)],
+        ids=["just-under", "at", "just-over"],
+    )
+    def test_pasted_document_size_boundary(
+        self, validator_client, small_limits, size_offset, accepted
+    ):
+        """The document limit is inclusive and counted in UTF-8 bytes."""
+        document = _document_of_size(SMALL_UPLOAD_BYTES + size_offset)
+
+        res = validator_client.post(
+            URL, data=_paste_body(document), content_type="application/json"
         )
-        assert 2 * MAX_UPLOAD_BYTES < len(body) < MAX_REQUEST_BYTES
+
+        if accepted:
+            assert res.status_code == 200
+            assert res.get_json() == {"validation_errors": []}
+        else:
+            assert res.status_code == 400
+            assert res.get_json() == {"error": PAYLOAD_TOO_LARGE_MESSAGE}
+
+    def test_pasted_document_at_the_limit_fits_despite_escaping(
+        self, validator_client, small_limits
+    ):
+        """
+        A document at the limit can double when JSON-encoded. The request
+        limit must leave room for the surrounding API fields too.
+        """
+        document = _document_of_size(SMALL_UPLOAD_BYTES, padding_char="\\\\")
+        body = _paste_body(document)
+        assert 2 * SMALL_UPLOAD_BYTES - 100 < len(body) < SMALL_REQUEST_BYTES
 
         res = validator_client.post(URL, data=body, content_type="application/json")
 
         assert res.status_code == 200
         assert res.get_json() == {"validation_errors": []}
 
-    def test_pasted_document_over_the_limit_is_refused(self, validator_client):
+    def test_multibyte_document_over_the_limit_in_bytes_is_refused(
+        self, validator_client, small_limits
+    ):
+        """At the limit in characters but over it in UTF-8 bytes is over."""
+        document = _document_of_size(SMALL_UPLOAD_BYTES).replace("x", "é", 1)
+        assert len(document) == SMALL_UPLOAD_BYTES < len(document.encode("utf-8"))
+
         res = validator_client.post(
-            URL,
-            json={
-                "schema": "dcatus1.1: federal dataset",
-                "fetch_method": "paste",
-                "json_text": "x" * (MAX_UPLOAD_BYTES + 1),
-            },
+            URL, data=_paste_body(document), content_type="application/json"
         )
 
         assert res.status_code == 400

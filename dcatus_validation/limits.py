@@ -1,6 +1,12 @@
-# Largest catalog document accepted, however it arrives: an upload or form
-# field on the admin app, or a URL fetch or `json_text` on the validator API.
-MAX_UPLOAD_MB = 10
+# Largest catalog document the validator accepts, however it arrives: a URL
+# fetch or `json_text` (which is also how the /validate/ page sends an uploaded
+# file). 150MB per GSA/data.gov#6460: big enough for nearly every agency
+# catalog without sizing the service for the largest outlier (a ~600MB Census
+# file). It sets the validator's memory need: a 150MB catalog peaks at roughly
+# 1GB in the worker validating it (validator_memory_quota in vars.*.yml). Keep
+# client_max_body_size in proxy/nginx-common.conf (and nginx-local-proxy.conf)
+# above MAX_REQUEST_BYTES when changing it.
+MAX_UPLOAD_MB = 150
 MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024
 
 # A small document containing many invalid datasets can expand into millions of

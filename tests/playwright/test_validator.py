@@ -194,19 +194,23 @@ class TestValidator:
     def test_ui_shows_the_upload_size_limit(self, upage):
         """The form advertises the limit it enforces."""
         upage.locator("select[name=fetch_method]").select_option("upload")
-        expect(upage.locator("#json_file-hint")).to_have_text("Maximum size: 10 MB.")
+        expect(upage.locator("#json_file-hint")).to_have_text("Maximum size: 150 MB.")
 
         upage.locator("select[name=fetch_method]").select_option("paste")
-        expect(upage.locator("#json_text-hint")).to_have_text("Maximum size: 10 MB.")
+        expect(upage.locator("#json_text-hint")).to_have_text("Maximum size: 150 MB.")
+        assert upage.evaluate("window.MAX_UPLOAD_BYTES") == 150 * 1024 * 1024
 
     def test_ui_upload_rejects_file_exceeding_size_limit(self, upage):
-        """Refused client-side: inline error, nothing uploaded."""
+        """Refused client-side: inline error, nothing uploaded. The page's
+        limit is lowered so the test needn't push a 150MB file into the
+        browser; test_ui_shows_the_upload_size_limit pins the real one."""
+        upage.evaluate("window.MAX_UPLOAD_BYTES = 1024")
         upage.locator("select[name=fetch_method]").select_option("upload")
         upage.locator("input[type=file][name=json_file]").set_input_files(
             {
                 "name": "large.json",
                 "mimeType": "application/json",
-                "buffer": b"x" * (11 * 1024 * 1024),  # 11MB, over the 10MB cap
+                "buffer": b"x" * 1025,  # one byte over the lowered limit
             }
         )
 
@@ -215,22 +219,23 @@ class TestValidator:
         upage.locator("input[type=submit]").click()
 
         expect(upage.locator("#upload_field .usa-error-message")).to_have_text(
-            "File is too large. Maximum size is 10 MB."
+            "File is too large. Maximum size is 150 MB."
         )
         assert upage.evaluate("window.__sameDocument") is True
 
     def test_ui_paste_rejects_json_exceeding_size_limit(self, upage):
-        """Same guard on the paste path, measured in bytes."""
+        """Same guard on the paste path, measured in bytes: 513 two-byte
+        characters are under the lowered limit in characters, over it in
+        bytes."""
+        upage.evaluate("window.MAX_UPLOAD_BYTES = 1024")
         upage.locator("select[name=fetch_method]").select_option("paste")
-        upage.evaluate(
-            "document.getElementById('json_text').value = 'x'.repeat(11 * 1024 * 1024)"
-        )
+        upage.evaluate("document.getElementById('json_text').value = 'é'.repeat(513)")
 
         upage.evaluate("window.__sameDocument = true")
         upage.locator("input[type=submit]").click()
 
         expect(upage.locator("#json_field .usa-error-message")).to_have_text(
-            "Pasted JSON is too large. Maximum size is 10 MB."
+            "Pasted JSON is too large. Maximum size is 150 MB."
         )
         assert upage.evaluate("window.__sameDocument") is True
 
