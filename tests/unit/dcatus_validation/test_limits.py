@@ -38,7 +38,10 @@ def test_size_limit_is_150mb():
 
 
 def test_request_limit_fits_a_json_escaped_document_at_the_limit():
-    assert MAX_REQUEST_BYTES == 2 * MAX_UPLOAD_BYTES + MAX_REQUEST_OVERHEAD_BYTES
+    """1.5x the document limit, for JSON escaping, plus the other API fields:
+    225MB + 1KB, so nginx's 226M sits just above it (GSA/data.gov#6460)."""
+    assert MAX_REQUEST_BYTES == MAX_UPLOAD_BYTES * 3 // 2 + MAX_REQUEST_OVERHEAD_BYTES
+    assert MAX_REQUEST_BYTES == 225 * 1024 * 1024 + 1024
 
 
 @pytest.mark.parametrize(

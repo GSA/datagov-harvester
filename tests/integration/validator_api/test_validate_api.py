@@ -287,11 +287,11 @@ class TestRequestValidation:
         }
 
 
-# Small stand-ins for the 150MB document / 300MB request limits, so the
+# Small stand-ins for the 150MB document / 225MB request limits, so the
 # boundary tests don't build bodies that size. test_limits.py pins the real
 # values and how they relate.
 SMALL_UPLOAD_BYTES = 64 * 1024
-SMALL_REQUEST_BYTES = 2 * SMALL_UPLOAD_BYTES + MAX_REQUEST_OVERHEAD_BYTES
+SMALL_REQUEST_BYTES = SMALL_UPLOAD_BYTES * 3 // 2 + MAX_REQUEST_OVERHEAD_BYTES
 
 
 @pytest.fixture
@@ -377,17 +377,38 @@ class TestLimits:
         self, validator_client, small_limits
     ):
         """
-        A document at the limit can double when JSON-encoded. The request
-        limit must leave room for the surrounding API fields too.
+        JSON-encoding a document makes it bigger (1.01-1.23x for real
+        catalogs). One at the limit growing 1.4x still fits, with room for the
+        surrounding API fields.
         """
-        document = _document_of_size(SMALL_UPLOAD_BYTES, padding_char="\\\\")
+        # every 5 characters, 2 backslashes: 5 bytes become 7 when escaped
+        document = _document_of_size(SMALL_UPLOAD_BYTES, padding_char="\\\\xxx")
         body = _paste_body(document)
-        assert 2 * SMALL_UPLOAD_BYTES - 100 < len(body) < SMALL_REQUEST_BYTES
+        assert 1.39 * SMALL_UPLOAD_BYTES < len(body) < SMALL_REQUEST_BYTES
 
         res = validator_client.post(URL, data=body, content_type="application/json")
 
         assert res.status_code == 200
         assert res.get_json() == {"validation_errors": []}
+
+    def test_escape_heavy_document_at_the_limit_gets_a_json_413(
+        self, validator_client, small_limits
+    ):
+        """
+        A document made of backslashes doubles when JSON-encoded, past the
+        1.5x request limit. The validator, not nginx, refuses it, so the caller
+        still gets the {"error": ...} JSON answer.
+        """
+        document = _document_of_size(SMALL_UPLOAD_BYTES, padding_char="\\\\")
+        body = _paste_body(document)
+        assert len(body) > SMALL_REQUEST_BYTES
+
+        res = validator_client.post(URL, data=body, content_type="application/json")
+
+        assert res.status_code == 413
+        assert res.get_json() == {
+            "error": "Submission too large - must be 150MB or less."
+        }
 
     def test_multibyte_document_over_the_limit_in_bytes_is_refused(
         self, validator_client, small_limits

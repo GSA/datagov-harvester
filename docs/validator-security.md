@@ -40,8 +40,8 @@ All limits are in `dcatus_validation/limits.py` unless noted.
 | Limit | Value | Enforced by |
 | --- | --- | --- |
 | Catalog document size | 150MB (`MAX_UPLOAD_BYTES`) | Fetch: the `Content-Length` header, then a running byte count while streaming, so an untruthful header can't get past it. Paste: the route. |
-| Request body | 300MB + 1KB (`MAX_REQUEST_BYTES`) | Flask `MAX_CONTENT_LENGTH`. It has room for a JSON-escaped 150MB paste. |
-| Proxy body | 301M | `client_max_body_size` in `proxy/nginx-common.conf`. It sits just above the app limit so the app's JSON 413 is what callers see. |
+| Request body | 225MB + 1KB (`MAX_REQUEST_BYTES`) | Flask `MAX_CONTENT_LENGTH`. It has room for a JSON-escaped 150MB paste: escaping adds 1–23% to real catalogs, and 1.5× covers that. A document made mostly of quotes or backslashes (up to 2×) gets the validator's JSON 413. |
+| Proxy body | 226M | `client_max_body_size` in `proxy/nginx-common.conf`. It sits just above the app limit so the app's JSON 413 is what callers see. |
 | Fetch time | 12s total, including DNS and every redirect hop | `FETCH_TIMEOUT_SECONDS` in `fetch.py`. Each connect attempt is capped at 4s, with up to 3 attempts. The socket timeout shrinks before every body read so a late stall can't extend it. |
 | JSON nesting | 100 levels | Checked by a character scan *before* `json.loads`, so a deep document can't exhaust the stack. |
 | JSON numbers | finite only | `NaN`/`Infinity` and integers too large to parse are refused. |

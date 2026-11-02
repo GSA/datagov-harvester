@@ -21,9 +21,12 @@ MAX_RESULT_MESSAGE_CHARS = 4000
 MAX_DOCUMENT_NESTING_DEPTH = 100
 
 # Largest validator API request body. Pasted catalogs arrive as a JSON string,
-# and encoding one escapes every quote, backslash and control character, so a
-# document at the limit can double in size. Leave room for the surrounding API
-# fields as well. The document itself is still held to MAX_UPLOAD_BYTES; this
-# only keeps that check reachable.
+# and encoding one escapes every quote, backslash and newline, so the body is
+# bigger than the document: 1.01-1.23x for the catalogs in example_data/dcatus
+# and 1.10x for a pretty-printed 150MB one (GSA/data.gov#6460). 1.5x leaves room
+# for all of those, plus the surrounding API fields. Only a document made mostly
+# of escapes (up to 2x) can miss it, and the validator still answers that with
+# its own JSON 413 rather than nginx's. The document itself is still held to
+# MAX_UPLOAD_BYTES; this only keeps that check reachable.
 MAX_REQUEST_OVERHEAD_BYTES = 1024
-MAX_REQUEST_BYTES = 2 * MAX_UPLOAD_BYTES + MAX_REQUEST_OVERHEAD_BYTES
+MAX_REQUEST_BYTES = MAX_UPLOAD_BYTES * 3 // 2 + MAX_REQUEST_OVERHEAD_BYTES
