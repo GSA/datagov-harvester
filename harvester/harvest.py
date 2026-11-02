@@ -91,8 +91,6 @@ from harvester.utils.reharvest_links import create_reharvest_url
 # logging data
 logger = logging.getLogger("harvest_runner")
 
-# harvest worker count
-harvest_worker_sync_count = int(os.getenv("HARVEST_WORKER_SYNC_COUNT", 1))
 UNCHANGED_COUNT_BATCH_SIZE = 100
 UNCHANGED_COUNT_FLUSH_SECONDS = 2
 
