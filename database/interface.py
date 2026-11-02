@@ -858,6 +858,10 @@ class HarvesterDBInterface:
                 HarvestRecord, HarvestRecord.id == HarvestRecordError.harvest_record_id
             )
             .filter(HarvestRecordError.harvest_job_id == job_id)
+            # explicit order, not implicit index-scan order: callers (e.g.
+            # tests asserting error insertion order) depend on a stable
+            # ordering that must not shift when the query plan changes.
+            .order_by(HarvestRecordError.date_created, HarvestRecordError.id)
         )
 
         if severity is not None:
