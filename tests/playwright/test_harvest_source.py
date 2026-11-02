@@ -150,7 +150,7 @@ class TestHarvestSourceAuthed:
     def test_cant_delete_harvest_source_with_records(self, apage):
         apage.once("dialog", lambda dialog: dialog.accept())
         apage.get_by_role("button", name=re.compile(r"^Delete\b")).click()
-        expect(apage.locator(".usa-alert--warning")).to_contain_text(
+        expect(apage.locator(".usa-alert--error")).to_contain_text(
             ["Failed: 2 records in the Harvest source, please clear it first."]
         )
 

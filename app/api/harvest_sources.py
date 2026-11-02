@@ -98,8 +98,8 @@ def trigger_harvest_source(source_id, job_type):
         return JSON_NOT_FOUND()
     if job_type not in ["harvest", "force_harvest", "clear", "validate"]:
         return JSON_NOT_FOUND()
-    message = deps.load_manager.trigger_manual_job(source_id, job_type)
-    flash(message)
+    message, category = deps.load_manager.trigger_manual_job(source_id, job_type)
+    flash(message, category)
     return redirect(url_for("main.view_harvest_source", source_id=source_id))
 
 
