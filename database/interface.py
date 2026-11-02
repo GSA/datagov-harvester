@@ -720,6 +720,10 @@ class HarvesterDBInterface:
                     harvest_source_id=record.harvest_source_id,
                     record_type=record.record_type,
                     identifier=record.identifier,
+                    harvest_record_id=error.harvest_record_id,
+                    severity=error.severity,
+                    type=error.type,
+                    date_created=error.date_created,
                 )
             )
             self.db.commit()
@@ -1019,6 +1023,10 @@ class HarvesterDBInterface:
                         harvest_source_id=harvest_source_id,
                         record_type=record_type,
                         identifier=identifier,
+                        harvest_record_id=error.harvest_record_id,
+                        severity=error.severity,
+                        type=error.type,
+                        date_created=error.date_created,
                     )
                 )
             self.db.commit()
@@ -1055,25 +1063,20 @@ class HarvesterDBInterface:
         See get_harvest_record_errors_by_job_for_view for the two-step
         pagination-by-distinct-record approach this mirrors.
         """
-        # harvest_record_id/date_created/type/message/severity live on
-        # harvest_record_error; HarvestRecordCurrentIssue.id is that row's
-        # id (FK), so this join is always exactly one row per current-issue
-        # row.
-        record_ids_q = (
-            self.db.query(
-                HarvestRecordError.harvest_record_id.label("harvest_record_id"),
-                func.min(HarvestRecordError.date_created).label("first_seen"),
-            )
-            .select_from(HarvestRecordCurrentIssue)
-            .join(
-                HarvestRecordError,
-                HarvestRecordError.id == HarvestRecordCurrentIssue.id,
-            )
-            .filter(HarvestRecordCurrentIssue.harvest_source_id == harvest_source_id)
-        )
+        # harvest_record_id/date_created are denormalized onto
+        # HarvestRecordCurrentIssue (kept in sync at write time), so this
+        # stage never touches harvest_record_error: that table grows with
+        # every job ever run, while a source's current issues stay bounded
+        # by its own record count, and this runs on every page view.
+        record_ids_q = self.db.query(
+            HarvestRecordCurrentIssue.harvest_record_id.label("harvest_record_id"),
+            func.min(HarvestRecordCurrentIssue.date_created).label("first_seen"),
+        ).filter(HarvestRecordCurrentIssue.harvest_source_id == harvest_source_id)
         if severity is not None:
-            record_ids_q = record_ids_q.filter(HarvestRecordError.severity == severity)
-        record_ids_q = record_ids_q.group_by(HarvestRecordError.harvest_record_id)
+            record_ids_q = record_ids_q.filter(
+                HarvestRecordCurrentIssue.severity == severity
+            )
+        record_ids_q = record_ids_q.group_by(HarvestRecordCurrentIssue.harvest_record_id)
 
         if kwargs.get("count") is True:
             return self.db.query(record_ids_q.subquery())
@@ -1164,10 +1167,7 @@ class HarvesterDBInterface:
         )
 
         if severity is not None:
-            query = query.join(
-                HarvestRecordError,
-                HarvestRecordError.id == HarvestRecordCurrentIssue.id,
-            ).filter(HarvestRecordError.severity == severity)
+            query = query.filter(HarvestRecordCurrentIssue.severity == severity)
 
         for_view = kwargs.get("for_view", False)
         if for_view:
@@ -1180,20 +1180,18 @@ class HarvesterDBInterface:
     def get_record_issues_summary_by_source(self, harvest_source_id: str):
         """Get a summary of all current record issues for this source,
         grouped by severity."""
+        # severity/type are denormalized onto HarvestRecordCurrentIssue, so
+        # this never has to join harvest_record_error (see
+        # get_current_record_issues_by_source_for_view for why that matters).
         query = (
             self.db.query(
-                HarvestRecordError.severity,
-                HarvestRecordError.type,
+                HarvestRecordCurrentIssue.severity,
+                HarvestRecordCurrentIssue.type,
                 func.count(),
             )
-            .select_from(HarvestRecordCurrentIssue)
-            .join(
-                HarvestRecordError,
-                HarvestRecordError.id == HarvestRecordCurrentIssue.id,
-            )
             .where(HarvestRecordCurrentIssue.harvest_source_id == harvest_source_id)
-            .group_by(HarvestRecordError.severity, HarvestRecordError.type)
-            .order_by(HarvestRecordError.severity, HarvestRecordError.type)
+            .group_by(HarvestRecordCurrentIssue.severity, HarvestRecordCurrentIssue.type)
+            .order_by(HarvestRecordCurrentIssue.severity, HarvestRecordCurrentIssue.type)
         )
         return [
             {"severity": severity, "type": error_type, "count": error_count}
