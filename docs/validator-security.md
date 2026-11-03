@@ -39,16 +39,21 @@ All limits are in `dcatus_validation/limits.py` unless noted.
 
 | Limit | Value | Enforced by |
 | --- | --- | --- |
-| Catalog document size | 10MB (`MAX_UPLOAD_BYTES`) | Fetch: the `Content-Length` header, then a running byte count while streaming, so an untruthful header can't get past it. Paste: the route. |
-| Request body | 20MB + 1KB (`MAX_REQUEST_BYTES`) | Flask `MAX_CONTENT_LENGTH`. It has room for a JSON-escaped 10MB paste. |
-| Proxy body | 21M | `client_max_body_size` in `proxy/nginx-common.conf`. It sits just above the app limit so the app's JSON 413 is what callers see. |
+| Catalog document size | 150MB (`MAX_UPLOAD_BYTES`) | Fetch: the `Content-Length` header, then a running byte count while streaming, so an untruthful header can't get past it. Paste: the route. |
+| Request body | 225MB + 1KB (`MAX_REQUEST_BYTES`) | Flask `MAX_CONTENT_LENGTH`. It has room for a JSON-escaped 150MB paste: escaping adds 1–23% to real catalogs, and 1.5× covers that. A document made mostly of quotes or backslashes (up to 2×) gets the validator's JSON 413. |
+| Proxy body | 226M | `client_max_body_size` in `proxy/nginx-common.conf`. It sits just above the app limit so the app's JSON 413 is what callers see. |
 | Fetch time | 12s total, including DNS and every redirect hop | `FETCH_TIMEOUT_SECONDS` in `fetch.py`. Each connect attempt is capped at 4s, with up to 3 attempts. The socket timeout shrinks before every body read so a late stall can't extend it. |
 | JSON nesting | 100 levels | Checked by a character scan *before* `json.loads`, so a deep document can't exhaust the stack. |
 | JSON numbers | finite only | `NaN`/`Infinity` and integers too large to parse are refused. |
 | Validation errors returned | 1000, with `validation_incomplete: true` | `MAX_VALIDATION_ERRORS`. This stops a small document from expanding into millions of errors. |
 | Result text | identifiers 1000 chars, messages 4000 | Truncated in `validator_api/api.py`. |
 
-Larger documents are under discussion in GSA/data.gov#6460. Raising `MAX_UPLOAD_MB` also has to keep the fetch and validation time inside CloudFront's 30s request ceiling, and keep each worker's memory within `validator_memory_quota`.
+The document limit was raised from 10MB to 150MB in GSA/data.gov#6460. That covers nearly every agency catalog without sizing the service for the largest outlier, a ~600MB Census file. What it costs:
+
+- **Memory.** A 150MB catalog peaks near 1GB in the worker validating it, through either the paste or the URL path, and that worker keeps 300–450MB afterwards. Two at once in the same worker peaked at 2.1GB. `validator_memory_quota` is 2G in every space so one maximum-size validation fits beside the other workers. Several large submissions at once can still exceed it, and Cloud Foundry then restarts the instance.
+- **Time.** Validation is CPU-bound: about 0.3 s/MB on a fast laptop (~45s for 150MB), against this repo's earlier estimate of 0.5–1.2 s/MB in production. Catalogs past roughly 25–100MB can therefore run past CloudFront's 30s request ceiling, so the submitter sees a timeout even though the size was accepted. The worker still finishes the validation. A URL submission also has to download within the 12s fetch budget.
+
+Changing `MAX_UPLOAD_MB` means rechecking both of these, and keeping `client_max_body_size` in `proxy/nginx-common.conf` above `MAX_REQUEST_BYTES`.
 
 ## Information disclosure
 

@@ -127,7 +127,11 @@ PAYLOAD_TOO_LARGE_MESSAGE = (
 # The binding ceiling is CloudFront's hard 30s for the whole request
 # (harvest.data.gov/api/v1/validate), and validation only starts once the
 # fetch is done: roughly 0.5-1.2 s/MB, so up to ~12s for a 10MB catalog. 12s
-# here keeps that worst case near 25s, leaving padding for proxy hops.
+# here keeps that worst case near 25s, leaving padding for proxy hops. That no
+# longer holds near MAX_UPLOAD_MB: a 150MB catalog takes ~45s to validate even
+# on a fast laptop, and fetching one in 12s needs a server sending ~100Mbps, so
+# the largest catalogs the size limit allows can still time out
+# (GSA/data.gov#6460).
 # Answering inside the ceiling means a slow or hung target produces a clean,
 # logged rejection instead of us being disconnected mid-request.
 #

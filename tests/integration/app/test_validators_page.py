@@ -21,6 +21,9 @@ class TestValidatorPage:
         assert res.status_code == 200
         assert f"window.MAX_UPLOAD_BYTES = {MAX_UPLOAD_BYTES};" in res.text
         assert f"Maximum size: {MAX_UPLOAD_MB} MB." in res.text
+        # the validator's limit (GSA/data.gov#6460), not the admin app's own
+        assert MAX_UPLOAD_MB == 150
+        assert 'window.MAX_UPLOAD_LABEL = "150 MB";' in res.text
 
     def test_post_is_not_allowed(self, client):
         """
