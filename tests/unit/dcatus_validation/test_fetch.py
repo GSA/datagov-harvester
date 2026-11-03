@@ -750,6 +750,41 @@ class TestEgressProxy:
             ("CONNECT", "catalog.test:8443"),
         ]
 
+    @pytest.mark.parametrize(
+        "proxy_env, no_proxy, expected",
+        [
+            ({"https_proxy": "http://proxy.test:8080"}, None, "egress=proxy"),
+            ({}, None, "egress=direct"),
+            (
+                {"https_proxy": "http://proxy.test:8080"},
+                "catalog.test",
+                "egress=direct",
+            ),
+        ],
+        ids=["proxy-set", "proxy-unset", "no-proxy-match"],
+    )
+    @patch("dcatus_validation.fetch._http_get")
+    def test_fetch_log_says_whether_it_goes_through_the_proxy(
+        self, mock_get, monkeypatch, caplog, proxy_env, no_proxy, expected
+    ):
+        """Operators check this field to catch an unset proxy_url."""
+        for name in ("http_proxy", "https_proxy", "HTTP_PROXY", "HTTPS_PROXY"):
+            monkeypatch.delenv(name, raising=False)
+        for name, value in proxy_env.items():
+            monkeypatch.setenv(name, value)
+        if no_proxy:
+            monkeypatch.setenv("no_proxy", no_proxy)
+        mock_get.return_value = _json_response(b'{"dataset": []}')
+
+        with caplog.at_level("INFO"):
+            fetch.fetch_json_from_url("https://catalog.test/data.json")
+
+        fetch_logs = [
+            r.message for r in caplog.records if "Validator fetching" in r.message
+        ]
+        assert len(fetch_logs) == 1
+        assert expected in fetch_logs[0]
+
     def test_private_targets_are_refused_before_reaching_the_proxy(self, monkeypatch):
         monkeypatch.setattr(
             fetch, "_resolve_addresses", lambda hostname, port=None: ["10.0.0.5"]

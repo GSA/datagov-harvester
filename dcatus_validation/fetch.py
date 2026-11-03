@@ -287,6 +287,14 @@ def _http_get(target: str, timeout: tuple[float, float]) -> requests.Response:
     )
 
 
+def _egress_for_log(url: str) -> str:
+    """'proxy' if requests will send `url` through a proxy from the
+    environment (https_proxy/http_proxy, honoring no_proxy), else 'direct'.
+    On cloud.gov 'direct' means proxy_url is unset."""
+    proxies = requests.utils.get_environ_proxies(url)
+    return "proxy" if requests.utils.select_proxy(url, proxies) else "direct"
+
+
 def _target_for_log(url: str) -> str:
     """Log an origin and correlation hash, never credentials or signed paths."""
     parsed = urlparse(url)
@@ -351,7 +359,11 @@ def fetch_json_from_url(url: str) -> dict:
     # submitted hostname counts against the same deadline as the request.
     deadline = time.monotonic() + FETCH_TIMEOUT_SECONDS
     _validate_fetch_target(url)
-    logger.info("Validator fetching target=%s", _target_for_log(url))
+    logger.info(
+        "Validator fetching target=%s egress=%s",
+        _target_for_log(url),
+        _egress_for_log(url),
+    )
 
     # One deadline for the whole operation, not a fresh FETCH_TIMEOUT_SECONDS
     # per redirect hop - otherwise a chain of MAX_FETCH_REDIRECTS redirects,
