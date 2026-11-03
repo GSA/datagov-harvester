@@ -241,8 +241,8 @@ class TestValidator:
 
     def test_ui_paste_near_the_limit_reaches_the_validator(self, upage):
         """
-        A document under the 10MB cap is sent JSON-escaped inside json_text,
-        which can grow the request past the proxy's general 12M body limit;
+        A pasted document is sent JSON-escaped inside json_text, which can
+        grow the request past the proxy's general 12M body limit;
         the validate route has to allow more (proxy/nginx-common.conf,
         nginx-local-proxy.conf) or nginx refuses it before the validator sees it.
         """
@@ -411,7 +411,7 @@ class TestValidatorApiResponses:
                 413,
                 "text/html",
                 "<html><body><h1>413 Request Entity Too Large</h1></body></html>",
-                "Submission is too large. Maximum size is 10 MB.",
+                "Submission is too large. Maximum size is 150 MB.",
             ),
             (502, "text/html", "<html>Bad Gateway</html>", UNAVAILABLE),
             (500, "application/json", '{"error": "internal detail"}', UNAVAILABLE),

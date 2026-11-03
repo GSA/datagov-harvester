@@ -302,8 +302,8 @@ def measure_api(path, schema, mode, fetch_method):
     os.environ["DCATUS_VALIDATION_FAST_PATH"] = "true" if mode == "new" else "false"
     from validator_api import create_app
 
-    # main still refuses documents over 10MB; GSA/datagov-harvester#1068
-    # raises that to 150MB. Lift the limits here so the request is served.
+    # A generated catalog can overshoot --size-mb by up to one record, past
+    # MAX_UPLOAD_MB at the default 150. Lift the limits so it is still served.
     limit = 2 * os.path.getsize(path) + 1024 * 1024
     app = create_app()
     app.config["MAX_CONTENT_LENGTH"] = 2 * limit
