@@ -30,12 +30,13 @@ def get_harvest_record(record_id):
 @api.doc(
     responses={
         200: {
-            "description": "Raw harvest record contents",
+            "description": "Raw source metadata as originally harvested",
             "content": {
-                "application/json": {"type": "object"},
-                "application/xml": {"type": "object"},
+                "application/json": {"schema": {"type": "object"}},
+                "application/xml": {"schema": {"type": "object"}},
             },
-        }
+        },
+        404: {"description": "Record not found"},
     }
 )
 @valid_id_required
@@ -68,11 +69,12 @@ def get_harvest_record_raw(record_id=None):
 @api.doc(
     responses={
         200: {
-            "description": "Transformed harvest record contents",
+            "description": "Transformed DCAT-US metadata",
             "content": {
-                "application/json": {"type": "object"},
+                "application/json": {"schema": {"type": "object"}},
             },
-        }
+        },
+        404: {"description": "Record not found"},
     }
 )
 @valid_id_required
@@ -166,6 +168,10 @@ def get_all_harvest_record_errors(record_id: str, **kwargs) -> list:
 def get_harvest_error(error_id: str = None) -> Response:
     try:
         error = deps.db.get_harvest_error(error_id)
-        return jsonify(deps.db._to_dict(error)) if error else JSON_NOT_FOUND()
+        if not error:
+            return JSON_NOT_FOUND()
+        error_dict = deps.db._to_dict(error)
+        error_dict.setdefault("harvest_job_id", None)
+        return jsonify(error_dict)
     except Exception:
         return jsonify({"error": "Please provide a valid record_id"}), 404

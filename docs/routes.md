@@ -61,6 +61,10 @@ and are omitted from the public Swagger docs at `/openapi/docs`.
   Login required (JSON API).
 - `/harvest_source/<id>`: Details for a single harvest source. GET only, no
   login required
+- `/harvest_source/refresh`: Signed link from a harvest notification email.
+  GET shows a confirmation form; POST requests a normal harvest if the linked
+  job is still the source's latest job and the source is unlocked. No login
+  required; the signed token and form CSRF token authorize the request.
 - `/api/harvest_sources/`: List of harvest sources, GET only, no login required
 - `/harvest_source/edit/<id>`: HTML form to edit an existing source. GET renders
   the `edit_data` template, POST handles the form submission. Login required.
@@ -96,16 +100,44 @@ and are omitted from the public Swagger docs at `/openapi/docs`.
   is returned, errors and DCAT-US v3 warnings alike, and each row carries its
   own `severity`.
 - `/api/harvest_job_errors/`: List harvest job errors as JSON, GET only, no
-  login required
+  login required. Accepts `harvest_job_id` as a filter parameter. Does not
+  accept `harvest_source_id` (use `/api/harvest_jobs/?harvest_source_id=X` to
+  find jobs first, then query errors by job).
 - `/api/harvest_record_errors/`: List harvest record issues as JSON, GET only,
   no login required. Takes the same optional `severity` query parameter, and
   likewise returns every issue when it is omitted. Because severity is also an
   ordinary column, `?facets=severity eq warning` works too; nothing is injected
   when the parameter is absent, so a severity facet is never double-filtered.
+  Accepts `harvest_job_id` and `harvest_record_id` as filter parameters. Does
+  not accept `harvest_source_id` (use `/api/harvest_jobs/?harvest_source_id=X`
+  to find jobs first, then query errors by job).
 - `/api/harvest_error/<id>`: Details for a harvest error, GET only, no login required
 
 
 - `/metrics/`: recent harvest job details, GET only, no login required
+
+## Query Parameter Validation
+
+List endpoints validate that filter parameters are appropriate for the resource
+being queried. The following table shows which filter parameters are accepted
+by each endpoint:
+
+| Endpoint                    | Accepted Parameters                                    |
+|-----------------------------|--------------------------------------------------------|
+| `/api/organizations/`       | `facets` only                                          |
+| `/api/harvest_sources/`     | `organization_id`, `facets`                            |
+| `/api/harvest_jobs/`        | `harvest_source_id`, `facets`                          |
+| `/api/harvest_records/`     | `harvest_source_id`, `harvest_job_id`, `facets`        |
+| `/api/harvest_job_errors/`  | `harvest_job_id`, `facets`                             |
+| `/api/harvest_record_errors/` | `harvest_job_id`, `harvest_record_id`, `severity`, `facets` |
+
+Providing an invalid filter parameter returns a 400 error with a message
+indicating which parameters are valid for that endpoint. For example, attempting
+to filter `/api/harvest_job_errors/` by `harvest_source_id` will fail because
+job errors are associated with jobs, not sources directly.
+
+All endpoints also support pagination parameters (`page`, `per_page`, `count`)
+and sorting (`order_by`) regardless of the resource type.
 
 ## Notes
 

@@ -2,8 +2,10 @@
 
 // Confirmation dialog for form submission actions
 function confirmSubmit(event) {
-    const type = event.target.getAttribute("data-action");
+    const type = event.currentTarget.getAttribute("data-action");
     let messageEnum = {
+        'lock': 'Are you sure you want to lock harvesting for this source?',
+        'unlock': 'Are you sure you want to unlock harvesting for this source?',
         'clear': 'Are you sure you want to clear all datasets?',
         'delete': 'Are you sure you want to delete this source? Deletion may take some time.'
     };

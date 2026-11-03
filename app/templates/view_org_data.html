@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% import 'components/confirm_button.j2' as confirm_button %}
 
 {% block title %}
 <title>View Org Data</title>
@@ -84,14 +85,23 @@
                 </li>
 
                 <li class="usa-button-group__item">
-                    {{form.delete(class_='usa-button usa-button--secondary confirm-submit', data_action="delete")}}
+                    {{ confirm_button.render(form.delete, 'usa-button--secondary', 'delete') }}
                 </li>
             </ul>
         </form>
     </div>
     {% endif %}
     <div class="section margin-top-5 organization-harvest-source-list">
-        <h2>Harvest sources</h2>
+        <div class="display-flex flex-align-center flex-wrap margin-bottom-3">
+            <h2 class="margin-y-0">Harvest sources</h2>
+            {% if session['user'] %}
+            <a href="{{ url_for('main.add_harvest_source', organization_id=data.organization.id) }}"
+                class="usa-button list-page-add__button margin-left-auto">
+                {{ 'add' | usa_icon | safe }}
+                Add Harvest Source
+            </a>
+            {% endif %}
+        </div>
         {% if not data.harvest_sources %}
         <div class="usa-alert usa-alert--info">
             <div class="usa-alert__body">

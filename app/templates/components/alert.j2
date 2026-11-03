@@ -1,0 +1,22 @@
+{#-
+  Alert category -> USWDS alert color. Every flash() call and any page-level
+  status alert picks one of these categories; nothing else maps to a color.
+
+    success  the requested action completed                          green
+    warning  partial success, a non-fatal problem, or nothing changed yellow
+    error    the action failed, or the input or link was invalid      red
+    info     neutral information that reports no action outcome       blue
+
+  Unknown categories (including Flask's default "message") render as info so
+  that a missing category never looks like a warning.
+-#}
+{% set ALERT_CLASSES = {
+  'success': 'usa-alert--success',
+  'warning': 'usa-alert--warning',
+  'error': 'usa-alert--error',
+  'info': 'usa-alert--info',
+} %}
+
+{% macro alert_class(category) -%}
+{{ ALERT_CLASSES.get(category, ALERT_CLASSES['info']) }}
+{%- endmacro %}

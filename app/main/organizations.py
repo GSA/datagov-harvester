@@ -33,7 +33,7 @@ def add_organization():
         org = deps.db.add_organization(new_org)
         if org:
             _log_mutation("create", "organization", org.id, organization_slug=org.slug)
-            flash(f"Added new organization with ID: {org.id}")
+            flash(f"Added new organization with ID: {org.id}", "success")
             # Show warning if both URL and exempt flag are set
             if form.has_conflict():
                 flash(
@@ -44,7 +44,7 @@ def add_organization():
                     "warning",
                 )
         else:
-            flash("Failed to add organization.")
+            flash("Failed to add organization.", "error")
         return redirect(url_for("main.organization_list"))
     elif form.errors:
         # Flash individual error messages
@@ -104,7 +104,7 @@ def update_organization_actions(org_identifier: str):
     form = OrganizationTriggerForm()
 
     if not form.validate_on_submit():
-        flash(form.errors)
+        flash(form.errors, "error")
         return redirect(
             url_for("main.view_organization", org_identifier=org_url_identifier)
         )
@@ -121,7 +121,7 @@ def update_organization_actions(org_identifier: str):
                 organization_slug=org_url_identifier,
                 status=status,
             )
-            flash(message)
+            flash(message, "success" if status == 200 else "error")
             if status == 409:
                 return redirect(
                     url_for(
@@ -134,7 +134,7 @@ def update_organization_actions(org_identifier: str):
         except Exception as e:
             message = f"Failed to delete organization :: {repr(e)}"
             logger.error(message)
-            flash(message)
+            flash(message, "error")
             return redirect(
                 url_for(
                     "main.view_organization",
@@ -159,7 +159,7 @@ def edit_organization(org_id):
         org = deps.db.update_organization(org_id, new_org_data)
         if org:
             _log_mutation("edit", "organization", org.id, organization_slug=org.slug)
-            flash(f"Updated org with ID: {org.id}")
+            flash(f"Updated org with ID: {org.id}", "success")
             # Show warning if both URL and exempt flag are set
             if form.has_conflict():
                 flash(
@@ -170,7 +170,7 @@ def edit_organization(org_id):
                     "warning",
                 )
         else:
-            flash("Failed to update organization.")
+            flash("Failed to update organization.", "error")
         return redirect(
             url_for(
                 "main.view_organization",

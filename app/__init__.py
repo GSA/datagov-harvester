@@ -14,10 +14,20 @@ from flask_talisman import Talisman
 from werkzeug.exceptions import RequestEntityTooLarge
 
 from app.constants import MAX_UPLOAD_BYTES, MAX_UPLOAD_MB
-from app.filters import elapsed_time, else_na, humanize, usa_icon, utc_isoformat
+from app.filters import (
+    elapsed_time,
+    else_na,
+    humanize,
+    running_elapsed_time,
+    usa_icon,
+    utc_isoformat,
+)
+from app.json_provider import ISO8601JSONProvider
 from app.local_dev_auth import is_running_on_cloud_foundry
 from app.startup_validation import validate_required_env_vars
 from config.logger_config import LOGGING_CONFIG
+from config.security import HSTS_HEADER as HSTS_HEADER
+from config.security import TALISMAN_BASELINE_OPTIONS
 from database.models import db
 from scripts.sync_datasets import register_cli
 
@@ -30,8 +40,6 @@ logging.config.dictConfig(LOGGING_CONFIG)
 
 # fixes a bug with Flask-HTMX not being able to find the app context
 htmx = None
-HSTS_MAX_AGE_SECONDS = 60 * 60 * 24 * 365
-HSTS_HEADER = f"max-age={HSTS_MAX_AGE_SECONDS}; includeSubDomains; preload"
 
 _VERSIONED_API_PATH = re.compile(r"^/api/(v\d+)/([^/]+)")
 
@@ -93,6 +101,7 @@ def create_app():
     app = VersionedStaticAPIFlask(
         __name__, static_url_path="", static_folder="static", docs_path=None
     )
+    app.json = ISO8601JSONProvider(app)
 
     # OpenAPI fields
     app.config["INFO"] = {
@@ -298,6 +307,10 @@ def create_app():
         if path.startswith(("/login", "/callback", "/logout")) or path == "/login/oidc":
             return set_private_no_store(response)
 
+        if path == "/harvest_source/refresh":
+            response.headers["Referrer-Policy"] = "no-referrer"
+            return set_private_no_store(response)
+
         if request.endpoint == "static":
             return set_public_cache(response, 3600)
 
@@ -415,11 +428,8 @@ def create_app():
         app,
         content_security_policy=csp,
         content_security_policy_nonce_in=["script-src", "style-src-elem"],
-        strict_transport_security_max_age=HSTS_MAX_AGE_SECONDS,
-        strict_transport_security_preload=True,
-        # our https connections are terminated outside this app
-        force_https=False,
         session_cookie_secure=is_running_on_cloud_foundry(),
+        **TALISMAN_BASELINE_OPTIONS,
     )
 
     return app
@@ -428,6 +438,13 @@ def create_app():
 def add_template_filters(app):
     from app.static_assets import static_url
 
-    for fn in [usa_icon, else_na, utc_isoformat, humanize, elapsed_time]:
+    for fn in [
+        usa_icon,
+        else_na,
+        utc_isoformat,
+        humanize,
+        elapsed_time,
+        running_elapsed_time,
+    ]:
         app.add_template_filter(fn)
     app.add_template_global(static_url, "static_url")

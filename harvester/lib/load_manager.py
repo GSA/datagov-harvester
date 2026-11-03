@@ -2,6 +2,7 @@ import logging
 import os
 from datetime import datetime
 
+from database.interface import HarvestSourceLockedError
 from harvester import SMTP_CONFIG
 from harvester.lib.task_handler import create_task_handler
 from harvester.utils.general_utils import (
@@ -9,6 +10,12 @@ from harvester.utils.general_utils import (
     get_datetime,
     send_email_to_recipients,
 )
+from harvester.utils.harvest_job_email import (
+    reharvest_link_guidance,
+    render_harvest_job_email_html,
+)
+from harvester.utils.notification_frequency import notification_frequency_notice
+from harvester.utils.reharvest_links import create_reharvest_url
 
 # use the session scoped interface already made for the harvester
 from .. import db_interface as interface
@@ -27,16 +34,60 @@ class LoadManager:
         """
         Emails recipients of recently failed jobs
         """
-        for job_id, source_name in failed_jobs:
+        for job_id, source_name, source_id in failed_jobs:
             job_url = f"{SMTP_CONFIG['base_url']}/harvest_job/{job_id}"
-            send_email_to_recipients(
-                [SMTP_CONFIG.get("recipient")],
-                f"Failed job cleaned up for {source_name}",
-                (
-                    f"The harvest job ({job_id}) for harvest source {source_name}\n"
-                    "was found to have failed.\n\n"
-                    f"You can view the details here: {job_url}\n"
+            recipient = SMTP_CONFIG.get("recipient")
+            if not recipient:
+                continue
+            source = interface.get_harvest_source(source_id)
+            notification_frequency = source.notification_frequency if source else None
+            frequency_notice = notification_frequency_notice(notification_frequency)
+            refresh_url = create_reharvest_url(
+                SMTP_CONFIG["base_url"],
+                os.getenv("FLASK_APP_SECRET_KEY"),
+                recipient,
+                source_id,
+                job_id,
+            )
+            html_body = render_harvest_job_email_html(
+                title=f"Failed job cleaned up for {source_name}",
+                introduction=(
+                    "An in-progress harvest job stopped unexpectedly and was "
+                    "marked as failed."
                 ),
+                source_name=source_name,
+                job_id=job_id,
+                job_url=job_url,
+                refresh_url=refresh_url,
+                footer_message="This is an automated Data.gov Harvester notice.",
+                notification_frequency=notification_frequency,
+            )
+            body = (
+                f"The harvest job ({job_id}) for harvest source {source_name}\n"
+                "was found to have failed.\n\n"
+                f"You can view the details here: {job_url}\n\n"
+                "Updated your metadata?\n"
+                "You can request a reharvest without contacting the Data.gov "
+                "team.\n\n"
+                "Refresh this source:\n"
+                f"{refresh_url}\n\n"
+                "This link opens a confirmation page. "
+                f"{reharvest_link_guidance()}\n"
+                "Please don’t share it outside your agency."
+            )
+            if frequency_notice:
+                body += f"\n\n{frequency_notice.text}"
+            send_email_to_recipients(
+                [recipient],
+                f"Failed job cleaned up for {source_name}",
+                body,
+                html_body=html_body,
+            )
+            logger.info(
+                "Reharvest link emailed recipient=%s source_id=%s report_job_id=%s",
+                recipient,
+                source_id,
+                job_id,
             )
 
     def _handle_failed_job(self, job):
@@ -67,7 +118,7 @@ class LoadManager:
             }
         )
 
-        return job.id, job.source.name
+        return job.id, job.source.name, job.harvest_source_id
 
     def _clean_old_jobs(self):
         """Check for in_progress jobs in the database that aren't running."""
@@ -105,6 +156,9 @@ class LoadManager:
                 job_data, active_job = interface.enqueue_harvest_job_if_idle(
                     source.id, next_run=next_run, require_due=True
                 )
+            except HarvestSourceLockedError:
+                logger.info("Skipped source %s: source is locked.", source.id)
+                continue
             except Exception:
                 logger.exception(
                     "Failed to queue harvest job for source %s.", source.id
@@ -186,6 +240,9 @@ class LoadManager:
 
         the reason behind this is to isolate db interactions from irrelevant network
         calls (i.e. call to cf api to start task) to avoid "idle-in-transactions"
+
+        Returns a ``(message, category)`` tuple; ``category`` is the flash
+        category ("success", "warning" or "error") for showing ``message``.
         """
         try:
             msg = self._prepare_job_in_db(job_id)
@@ -196,7 +253,7 @@ class LoadManager:
 
             self._start_job_as_task(job_id, job_type)
 
-            return f"Updated job {job_id} to in_progress"
+            return f"Updated job {job_id} to in_progress", "success"
 
         except Exception:
             logger.exception("LoadManager: start_job failed for job %s", job_id)
@@ -214,28 +271,39 @@ class LoadManager:
             if reverted:
                 return (
                     f"Can't trigger harvest. Job {job_id} failed to start "
-                    f"and was reset to 'new'. Please try again."
+                    f"and was reset to 'new'. Please try again.",
+                    "error",
                 )
             return (
                 f"Can't trigger harvest. Job {job_id} failed to start and may be "
-                f"stuck in progress. Please contact an administrator."
+                f"stuck in progress. Please contact an administrator.",
+                "error",
             )
 
     def _prepare_job_in_db(self, job_id: str):
         """
         updates the job in the database in preparation of starting the work as a cloud
         foundry task
+
+        Returns None when the job is ready to start, otherwise a
+        ``(message, category)`` tuple explaining why it was not started.
         """
         harvest_job = interface.get_harvest_job(job_id)
 
         # Try to atomically transition this job from 'new' -> 'in_progress'.
-        updated = interface.update_harvest_job_if_status(
-            job_id, "new", {"status": "in_progress", "date_started": get_datetime()}
-        )
+        try:
+            updated = interface.start_harvest_job_if_unlocked(job_id, get_datetime())
+        except HarvestSourceLockedError:
+            return (
+                "Can't trigger harvest. Harvest source "
+                f"{harvest_job.harvest_source_id} is locked.",
+                "error",
+            )
         if not updated:
             return (
                 f"Can't trigger harvest. Job {job_id} already started "
-                f"or not in 'new' state."
+                f"or not in 'new' state.",
+                "warning",
             )
 
         logger.info("Updated job %s to in_progress", updated.id)
@@ -258,7 +326,8 @@ class LoadManager:
             )
             return (
                 f"Can't trigger harvest. Job {jobs_in_progress[0].id} "
-                f"already in progress."
+                f"already in progress.",
+                "warning",
             )
 
     def _start_job_as_task(self, job_id: str, job_type: str):
@@ -272,11 +341,15 @@ class LoadManager:
         self.handler.start_task(**task_contract)
 
     def stop_job(self, job_id, job_type="harvest"):
-        """task manager stop interface, takes a job_id"""
+        """task manager stop interface, takes a job_id
+
+        Returns a ``(message, category)`` tuple; ``category`` is the flash
+        category ("success", "warning" or "error") for showing ``message``.
+        """
         tasks = self.handler.get_all_app_tasks()
         if tasks is None:
             # couldn't list tasks, nothing to do
-            return f"Could not stop job {job_id}, can't list tasks"
+            return f"Could not stop job {job_id}, can't list tasks", "error"
         job_task = [
             (t["guid"], t["state"])
             for t in tasks
@@ -284,7 +357,7 @@ class LoadManager:
         ]
 
         if len(job_task) == 0:
-            return f"No task with job_id: {job_id}"
+            return f"No task with job_id: {job_id}", "warning"
 
         # Task options from https://v3-apidocs.cloudfoundry.org/version/3.202.0/index.html#tasks
         # Should be nothing to do, but make sure the job is marked error if needed
@@ -299,7 +372,7 @@ class LoadManager:
                 message = f"Task for job {job_id} is not running, job status is {current_job.status}."  # noqa E501
 
             logger.info(message)
-            return message
+            return message, "warning"
 
         self.handler.stop_task(job_task[0][0])
 
@@ -316,7 +389,7 @@ class LoadManager:
         )
         message = f"Updated job {updated_job.id} to error and stopped the job."
         logger.info(message)
-        return message
+        return message, "success"
 
     def reschedule_next_run(self, source_id):
         """Set date_next_run on harvest source registration or frequency change.
@@ -358,21 +431,40 @@ class LoadManager:
         return message
 
     def trigger_manual_job(self, source_id, job_type="harvest"):
-        """manual trigger harvest job, takes a source_id"""
+        """manual trigger harvest job, takes a source_id
+
+        Returns a ``(message, category)`` tuple; ``category`` is the flash
+        category ("success", "warning" or "error") for showing ``message``.
+        """
         try:
             job_data, active_job = interface.enqueue_harvest_job_if_idle(
                 source_id, job_type=job_type
             )
             if active_job:
                 if active_job.status == "in_progress":
-                    return f"Can't trigger harvest. Job {active_job.id} already in progress."  # noqa E501
-                return f"Can't trigger harvest. Job {active_job.id} already queued."
+                    return (
+                        f"Can't trigger harvest. Job {active_job.id} already in progress.",  # noqa E501
+                        "warning",
+                    )
+                return (
+                    f"Can't trigger harvest. Job {active_job.id} already queued.",
+                    "warning",
+                )
             if job_data:
                 logger.info(
                     f"Created new manual harvest job: for {job_data.harvest_source_id}."
                 )
                 return self.start_job(job_data.id, job_type)
+            return (
+                f"Can't trigger harvest. No job was created for {source_id}.",
+                "error",
+            )
+        except HarvestSourceLockedError:
+            return (
+                f"Can't trigger harvest. Harvest source {source_id} is locked.",
+                "error",
+            )
         except Exception as e:
             message = f"LoadManager: trigger_manual_job failed :: {repr(e)}"
             logger.error(message)
-            return message
+            return message, "error"

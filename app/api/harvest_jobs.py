@@ -24,6 +24,7 @@ from app.deps import (
     login_required,
     valid_id_required,
 )
+from database.interface import HarvestSourceLockedError
 from harvester.utils.general_utils import is_valid_uuid4
 
 from . import api
@@ -47,6 +48,8 @@ def add_harvest_job():
             job, active_job = deps.db.enqueue_harvest_job_if_idle(
                 job_data["harvest_source_id"], job_data=job_data
             )
+        except HarvestSourceLockedError:
+            return {"error": "Harvest source is locked."}, 409
         except (KeyError, ValueError):
             return {"error": "Failed to add harvest job."}, 400
         except Exception:
@@ -118,14 +121,24 @@ def delete_harvest_job(job_id):
 def cancel_harvest_job(job_id):
     """Cancels a harvest job"""
     if not is_valid_uuid4(job_id):
-        flash("Invalid job ID.")
+        flash("Invalid job ID.", "error")
         return redirect("/")
-    message = deps.load_manager.stop_job(job_id)
-    flash(message)
+    message, category = deps.load_manager.stop_job(job_id)
+    flash(message, category)
     return redirect(url_for("main.view_harvest_job", job_id=job_id))
 
 
 @api.route("/harvest_job/<string:job_id>/errors/<string:error_type>", methods=["GET"])
+@api.doc(
+    responses={
+        200: {
+            "description": "Error report as CSV file",
+            "content": {"text/csv": {"schema": {"type": "string"}}},
+        },
+        400: {"description": "Invalid error type"},
+        404: {"description": "Job not found"},
+    }
+)
 @api.output(FileSchema, content_type="text/csv")
 def download_harvest_errors_by_job(job_id, error_type):
     if not is_valid_uuid4(job_id):

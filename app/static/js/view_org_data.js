@@ -2,7 +2,7 @@
 
 // Confirmation dialog for form submission actions
 function confirmSubmit(event) {
-    const type = event.target.getAttribute("data-action");
+    const type = event.currentTarget.getAttribute("data-action");
     let messageEnum = {
         'delete': 'Are you sure you want to delete this organization?'
     };

@@ -35,12 +35,19 @@ def add_harvest_source_api():
 def edit_harvest_source_api(source_id: str):
     existing_source = deps.db.get_harvest_source(source_id)
     old_frequency = existing_source.frequency if existing_source else None
+    old_locked = existing_source.is_locked if existing_source else None
     updated_source = deps.db.update_harvest_source(source_id, request.json)
     job_message = ""
     if updated_source and updated_source.frequency != old_frequency:
         job_message = deps.load_manager.reschedule_next_run(updated_source.id)
 
     if updated_source:
+        if old_locked != updated_source.is_locked:
+            _log_mutation(
+                "lock" if updated_source.is_locked else "unlock",
+                "harvest_source",
+                updated_source.id,
+            )
         _log_mutation(
             "edit",
             "harvest_source",
@@ -78,6 +85,6 @@ def trigger_harvest_source(source_id, job_type):
         return JSON_NOT_FOUND()
     if job_type not in ["harvest", "force_harvest", "clear", "validate"]:
         return JSON_NOT_FOUND()
-    message = deps.load_manager.trigger_manual_job(source_id, job_type)
-    flash(message)
+    message, category = deps.load_manager.trigger_manual_job(source_id, job_type)
+    flash(message, category)
     return redirect(url_for("main.view_harvest_source", source_id=source_id))
