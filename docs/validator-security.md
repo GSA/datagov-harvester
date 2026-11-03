@@ -70,15 +70,7 @@ Larger documents are under discussion in GSA/data.gov#6460. Raising `MAX_UPLOAD_
 
 - `GET /health` on the internal route is Cloud Foundry's http health check (`manifest.yml`).
 - `GET /validator/health` is the same check through the proxy's public route, for uptime monitoring.
-- Both return `{"status": "ok"}`. The app builds every schema validator at startup (`load_schema_validators`), so an instance whose schemas are missing or broken (for example, the `_external/dcat-us` submodule wasn't checked out) fails to start instead of passing the health check and then failing requests.
-
-## Known gap: place names
-
-The harvester resolves a free-text spatial value (e.g. `"spatial": "United States"`, or a DCAT-US 3.0 Location with only a `prefLabel`) by looking it up in the `locations` table. The validator has no database, so it does no place-name lookup: every free-text place name produces a `SpatialTransformationException` warning, and a DCAT-US 3.0 Location `bbox`/`geometry` given as a place name produces `unresolvable_spatial_value`.
-
-- For most names this matches harvest. The harvester's lookup (`get_geo_from_string`) resolves a name only when exactly one row matches `ILIKE '%name%'`, so common names like "California", "Virginia", or "Canada" don't resolve at harvest either.
-- It differs for the names that do resolve at harvest: about 3,300 exact display names, mostly `"<County> County, <State>"` and a few states and countries such as "United States". The validator warns on these and the harvester doesn't.
-- Closing the gap would need place-name data in the validator (a bundled copy of the table's names, about 1.5MB) or a lookup call to the harvester, which would let public traffic reach its database. Neither is in place.
+- Both return `{"status": "ok"}`. The app builds every schema validator at startup (`load_schema_validators`) and loads the place-name CSV (`load_location_names`), so an instance whose schemas or place-name data are missing or broken (for example, the `_external/dcat-us` submodule wasn't checked out) fails to start instead of passing the health check and then failing requests.
 
 ## Rules for changes
 
@@ -87,4 +79,5 @@ The harvester resolves a free-text spatial value (e.g. `"spatial": "United State
 - Any new route must be added to `proxy/nginx-common.conf` (and `nginx-local-proxy.conf`) explicitly. The proxy forwards nothing to the validator by default.
 - Keep `validator_api` and `dcatus_validation` free of `app`, `harvester`, and `database` imports. The import guard enforces this, so don't weaken it.
 - Warning checks run the harvester's own code (`dcatus_validation/content_warnings.py`, `spatial.py`, `catalog.py`, `catalog_issues.py`). Change them there, never in a validator-only copy, and keep `tests/integration/harvest/test_validator_parity.py` passing so the validator keeps reporting what a harvest reports.
+- The validator answers place-name lookups from `dcatus_validation/reference_data/location_names.csv`, not the database. Regenerate it with `scripts/refresh_location_names.py` whenever the locations table is reloaded. It keeps county, state, and country rows only, which gives the harvester's answer for every one of those names; the one known difference is a partial name that is also part of a postal-code name (e.g. "Abbeville", which matches "Abbeville County, South Carolina" and "Abbeville, AL (36310)"), which resolves in the validator but not at harvest. See `dcatus_validation/places.py`.
 - Add a test with each new limit or check, next to the existing ones in `tests/unit/dcatus_validation/` and `tests/integration/validator_api/`.

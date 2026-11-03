@@ -22,6 +22,7 @@ from werkzeug.exceptions import RequestEntityTooLarge
 from config.logger_config import LOGGING_CONFIG
 from config.security import TALISMAN_BASELINE_OPTIONS
 from dcatus_validation.limits import MAX_REQUEST_BYTES, MAX_UPLOAD_MB
+from dcatus_validation.places import load_location_names
 from dcatus_validation.validate import load_schema_validators
 
 logger = logging.getLogger("validator_api")
@@ -136,9 +137,10 @@ def create_app():
             return jsonify({"message": "Not Found"}), 404
         return redirect(target, code=308)
 
-    # Schemas load before the app can answer anything, so a healthy instance is
-    # one that can validate.
+    # Schemas and the place-name CSV load before the app can answer
+    # anything, so a healthy instance is one that can validate.
     load_schema_validators()
+    load_location_names()
     # geojson_validator logs three loguru lines per spatial value it checks,
     # which a large catalog turns into tens of thousands per request.
     loguru_logger.disable("geojson_validator")

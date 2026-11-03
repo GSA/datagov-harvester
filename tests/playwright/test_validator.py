@@ -131,14 +131,12 @@ class TestValidator:
 
         # duplicates are errors, as they are at harvest time
         expect(upage.locator(".error-block")).to_have_count(2)
-        # includes "United States", which the validator can't resolve (no
-        # place-name lookup) though the harvester can
-        expect(upage.locator(".warning-block")).to_have_count(5)
+        expect(upage.locator(".warning-block")).to_have_count(4)
 
         summary = upage.locator("#warning-summary tbody tr")
         expect(summary).to_have_count(3)
         expect(summary.first).to_contain_text("SpatialTransformationException")
-        expect(summary.first).to_contain_text("3")
+        expect(summary.first).to_contain_text("2")
 
         with upage.expect_download() as download_info:
             upage.locator("#btn-download-warnings").click()
@@ -147,7 +145,7 @@ class TestValidator:
         assert download.suggested_filename == "validation_warnings.csv"
         lines = download.path().read_text(encoding="utf-8").strip().splitlines()
         assert lines[0] == '"Identifier","Record type","Warning type","Message"'
-        assert len(lines) == 6
+        assert len(lines) == 5
 
     def test_ui_reports_no_warnings(self, upage, dcatus_long_description_json):
         upage.locator("select[name=fetch_method]").select_option("paste")
@@ -359,15 +357,7 @@ class TestValidatorApi:
         assert res.headers["x-served-by"] == "datagov-harvest-validator"
         assert res.json() == {
             "validation_errors": [[0, "$, 'identifier' is a required property"]],
-            # no place-name lookup in the validator (documented gap)
-            "validation_warnings": [
-                {
-                    "identifier": 0,
-                    "record_type": "dataset",
-                    "warning_type": "SpatialTransformationException",
-                    "message": "unable to spatially fix United States",
-                }
-            ],
+            "validation_warnings": [],
         }
 
     def test_api_validate_by_bad_url(self, upage, validator_api_url):
