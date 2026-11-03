@@ -215,7 +215,11 @@ def positions(document, prefix=()):
 
 
 def replaced(document, path, value):
+    """A copy of `document` with a copy of `value` at `path`: shared values
+    (VALUE_REPLACEMENTS, Hypothesis's draws) must never be edited in place by
+    a later mutation."""
     document = copy.deepcopy(document)
+    value = copy.deepcopy(value)
     parent = document
     for key in path[:-1]:
         parent = parent[key]
