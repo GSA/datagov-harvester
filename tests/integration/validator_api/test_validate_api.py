@@ -92,16 +92,7 @@ class TestValidate:
         # dataset position, not a string, when the dataset has no identifier
         assert res.get_json() == {
             "validation_errors": [[0, "$, 'identifier' is a required property"]],
-            # no place-name lookup in the validator (documented gap), so the
-            # fixture's "United States" spatial value warns
-            "validation_warnings": [
-                {
-                    "identifier": 0,
-                    "record_type": "dataset",
-                    "warning_type": "SpatialTransformationException",
-                    "message": "unable to spatially fix United States",
-                }
-            ],
+            "validation_warnings": [],
         }
         assert get.call_args.args[0] == "https://example.com/data.json"
 
@@ -499,8 +490,6 @@ class TestWarnings:
         ) == [
             ("bad-geometry", "dataset", "SpatialTransformationException"),
             ("bad-geometry", "dataset", "unresolvable_spatial_value"),
-            # resolves at harvest, but the validator has no place-name lookup
-            ("known-place", "dataset", "SpatialTransformationException"),
             ("legacy", "dataset", "legacy_access_rights"),
             ("unknown-place", "dataset", "SpatialTransformationException"),
         ]
@@ -517,21 +506,14 @@ class TestWarnings:
         assert body["validation_errors"] == [
             ["parity-1-1-a", "Duplicate identifier 'parity-1-1-a' found"]
         ]
-        # parity-1-1-c ("United States") resolves at harvest, but the validator
-        # has no place-name lookup, so it warns too
+        # "United States" resolves through the bundled place-name CSV
         assert body["validation_warnings"] == [
             {
                 "identifier": "parity-1-1-b",
                 "record_type": "dataset",
                 "warning_type": "SpatialTransformationException",
                 "message": "unable to spatially fix Nowhere In Particular",
-            },
-            {
-                "identifier": "parity-1-1-c",
-                "record_type": "dataset",
-                "warning_type": "SpatialTransformationException",
-                "message": "unable to spatially fix United States",
-            },
+            }
         ]
 
     def test_warnings_never_add_errors(self, validator_client):
