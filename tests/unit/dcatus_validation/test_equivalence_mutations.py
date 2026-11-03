@@ -22,7 +22,11 @@ import pytest
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
-from dcatus_validation.fast_path import PYTHON_VALIDATION_KEYWORDS, schema_keywords
+from dcatus_validation.fast_path import (
+    PYTHON_VALIDATION_KEYWORDS,
+    check_catalog,
+    schema_keywords,
+)
 from dcatus_validation.messages import load_dcatus3_definitions, open_json
 from dcatus_validation.schema_paths import DCATUS1_1_DIR, DCATUS3_DEFINITIONS_DIR
 from dcatus_validation.validate import _fast_validators_for_schema
@@ -331,10 +335,11 @@ def test_jsonschema_rs_never_accepts_a_3_0_mutation_python_rejects():
     for base_name in DCATUS3_BASES:
         cases = zip(_mutated("3.0", base_name), _python_errors(DCATUS3, base_name))
         for (description, document), errors in cases:
-            assert fast.prefilter.is_valid(catalog_of(document)) is (
-                not errors
-            ), description
+            catalog = catalog_of(document)
+            assert fast.prefilter.is_valid(catalog) is (not errors), description
             assert dataset_prefilter.is_valid(document) is (not errors), description
+            # The item-by-item check the fast path uses gives the same answer.
+            assert check_catalog(catalog, fast).valid is (not errors), description
 
 
 # --- random mutations (Hypothesis) -------------------------------------------

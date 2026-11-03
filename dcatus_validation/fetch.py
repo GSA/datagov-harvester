@@ -696,6 +696,8 @@ def fetch_json_from_url(url: str) -> dict:
             _close_response(response)
 
     content = b"".join(chunks)
+    # Don't hold the document twice while it's parsed.
+    del chunks
 
     if len(content) > MAX_UPLOAD_BYTES:
         raise InvalidCatalogSource(PAYLOAD_TOO_LARGE_MESSAGE)

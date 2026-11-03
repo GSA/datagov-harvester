@@ -6,13 +6,15 @@ Not a test. It generates large DCAT-US 1.1 and 3.0 catalogs (valid, and
 invalid with a few bad records spread through them) in a temporary directory
 under /tmp, validates each one the way the validator API does, once per path,
 in a fresh process each time, and prints a table of time and peak memory. It
-also checks that both paths return exactly the same errors, and times the
-harvest runner's per-record validation with and without the pre-crawled
-registry. The catalogs are deleted afterwards unless --keep is given.
+also checks that both paths return exactly the same errors, times the harvest
+runner's per-record validation with and without the pre-crawled registry, and
+with --api sends the valid catalogs through the validator API itself (paste and
+URL fetch, the fetch served from memory). The catalogs are deleted afterwards
+unless --keep is given.
 
 Usage:
     poetry run python scripts/benchmark_validation.py [--size-mb 150]
-        [--only 1.1-valid,3.0-invalid] [--keep] [--skip-harvest]
+        [--only 1.1-valid,3.0-invalid] [--keep] [--skip-harvest] [--api]
 
 Each measurement runs as a subprocess:
     python scripts/benchmark_validation.py measure FILE SCHEMA old|new
@@ -65,11 +67,11 @@ def _date(i, with_time):
 # --- DCAT-US 1.1 --------------------------------------------------------------
 
 
-def _dcatus1_1_pool():
+def _dcatus1_1_pool(names=("dcatus.json", "dcatus_2.json", "dcatus_with_none.json")):
     """Real records from example_data, repaired to be valid federal datasets:
     the Philadelphia records lack bureau/program codes and a modified date."""
     pool = []
-    for name in ("dcatus.json", "dcatus_2.json", "dcatus_with_none.json"):
+    for name in names:
         for record in _load(EXAMPLES / name)["dataset"]:
             record.setdefault("bureauCode", ["015:11"])
             record.setdefault("programCode", ["015:001"])
@@ -164,9 +166,13 @@ def _break_dcatus3(dataset, i):
 
 
 def generate(path, version, target_bytes, invalid):
-    """Write a catalog of about target_bytes to path, one record at a time."""
-    if version == "1.1":
-        pool, unique, broken = _dcatus1_1_pool(), _unique_dcatus1_1, _break_dcatus1_1
+    """Write a catalog of about target_bytes to path, one record at a time.
+    Version "1.1-federal" uses only the federal records, whose publishers all
+    have a subOrganizationOf (what the pre-crawled registry speeds up)."""
+    if version.startswith("1.1"):
+        names = ("dcatus.json", "dcatus_2.json") if version == "1.1-federal" else None
+        pool = _dcatus1_1_pool(names) if names else _dcatus1_1_pool()
+        unique, broken = _unique_dcatus1_1, _break_dcatus1_1
         header = {
             "@type": "dcat:Catalog",
             "conformsTo": "https://project-open-data.cio.gov/v1.1/schema",
@@ -288,6 +294,64 @@ def measure_harvest(path, schema, mode):
     }
 
 
+def measure_api(path, schema, mode, fetch_method):
+    """One request to the validator API (validator_api), by paste or by URL,
+    with the fetch served from memory in 8KB chunks like requests would."""
+    from unittest import mock
+
+    os.environ["DCATUS_VALIDATION_FAST_PATH"] = "true" if mode == "new" else "false"
+    from validator_api import create_app
+
+    # main still refuses documents over 10MB; GSA/datagov-harvester#1068
+    # raises that to 150MB. Lift the limits here so the request is served.
+    limit = 2 * os.path.getsize(path) + 1024 * 1024
+    app = create_app()
+    app.config["MAX_CONTENT_LENGTH"] = 2 * limit
+    client = app.test_client()
+    with open(path, "rb") as fp:
+        content = fp.read()
+    if fetch_method == "paste":
+        body = json.dumps(
+            {"schema": schema, "fetch_method": "paste", "json_text": content.decode()}
+        ).encode()
+        del content
+    else:
+        body = json.dumps(
+            {"schema": schema, "fetch_method": "url", "url": "https://example.com/d"}
+        ).encode()
+    input_rss = _peak_rss_mb()
+
+    def served(*args, **kwargs):
+        response = mock.Mock(status_code=200, headers={})
+        response.iter_content = lambda chunk_size: (
+            content[i : i + chunk_size] for i in range(0, len(content), chunk_size)
+        )
+        return response
+
+    with (
+        mock.patch(
+            "dcatus_validation.fetch._resolve_addresses",
+            return_value=["93.184.216.34"],
+        ),
+        mock.patch("dcatus_validation.fetch._pinned_get", side_effect=served),
+        mock.patch("dcatus_validation.fetch.MAX_UPLOAD_BYTES", limit),
+        mock.patch("validator_api.api.MAX_UPLOAD_BYTES", limit),
+    ):
+        start = time.perf_counter()
+        response = client.post(
+            "/api/v1/validate", data=body, content_type="application/json"
+        )
+        elapsed = time.perf_counter() - start
+    digest = hashlib.sha256(response.data).hexdigest()
+    return {
+        "total_s": elapsed,
+        "status": response.status_code,
+        "peak_rss_mb": _peak_rss_mb(),
+        "input_rss_mb": input_rss,
+        "errors_sha256": digest,
+    }
+
+
 def _run(command, *args):
     result = subprocess.run(
         [sys.executable, __file__, command, *map(str, args)],
@@ -302,6 +366,7 @@ def _run(command, *args):
 
 VARIANTS = {
     "1.1-valid": ("1.1", False, FEDERAL),
+    "1.1-federal-valid": ("1.1-federal", False, FEDERAL),
     "1.1-invalid": ("1.1", True, FEDERAL),
     "3.0-valid": ("3.0", False, DCATUS3),
     "3.0-invalid": ("3.0", True, DCATUS3),
@@ -314,17 +379,21 @@ def main():
         function = measure if command == "measure" else measure_harvest
         print(json.dumps(function(path, schema, mode)))
         return
+    if len(sys.argv) > 1 and sys.argv[1] == "measure-api":
+        print(json.dumps(measure_api(*sys.argv[2:6])))
+        return
 
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--size-mb", type=float, default=150)
     parser.add_argument("--only", default=",".join(VARIANTS))
     parser.add_argument("--keep", action="store_true")
     parser.add_argument("--skip-harvest", action="store_true")
+    parser.add_argument("--api", action="store_true")
     args = parser.parse_args()
 
     workdir = Path(tempfile.mkdtemp(prefix="dcatus-benchmark-", dir="/tmp"))
     print(f"catalogs in {workdir}", file=sys.stderr)
-    rows, harvest_rows = [], []
+    rows, harvest_rows, api_rows = [], [], []
     try:
         for name in args.only.split(","):
             version, invalid, schema = VARIANTS[name]
@@ -343,6 +412,16 @@ def main():
                         _run("measure-harvest", path, schema, "new"),
                     )
                 )
+            if args.api and not invalid:
+                for fetch_method in ("paste", "url"):
+                    api_rows.append(
+                        (
+                            name,
+                            fetch_method,
+                            _run("measure-api", path, schema, "old", fetch_method),
+                            _run("measure-api", path, schema, "new", fetch_method),
+                        )
+                    )
             path.unlink()
     finally:
         if args.keep:
@@ -377,6 +456,21 @@ def main():
             print(
                 f"| {name} | {old['records']:,} | {old['total_s']:.1f}s "
                 f"| {new['total_s']:.1f}s | {old['total_s'] / new['total_s']:.1f}x "
+                f"| {'yes' if old['errors_sha256'] == new['errors_sha256'] else 'NO'} |"
+            )
+    if api_rows:
+        print()
+        print(
+            "| through the API | fetch | status | old: time | new: time "
+            "| old peak RSS | new peak RSS | same response |"
+        )
+        print("| --- | --- | --- | --- | --- | --- | --- | --- |")
+        for name, fetch_method, old, new in api_rows:
+            status = f"{old['status']}/{new['status']}"
+            print(
+                f"| {name} | {fetch_method} | {status} | {old['total_s']:.1f}s "
+                f"| {new['total_s']:.2f}s | {old['peak_rss_mb']:.0f}MB "
+                f"| {new['peak_rss_mb']:.0f}MB "
                 f"| {'yes' if old['errors_sha256'] == new['errors_sha256'] else 'NO'} |"
             )
     if any(o["errors_sha256"] != n["errors_sha256"] for *_, o, n in rows):

@@ -17,6 +17,7 @@ from dcatus_validation.fast_path import (
     build_dcatus1_1_fast_validators,
     build_dcatus3_fast_validators,
     build_prefilter,
+    check_catalog,
     fast_path_enabled,
     skipping_known_valid_items,
 )
@@ -227,13 +228,16 @@ def _validate_records(
 
         return output, False
 
-    if prefilter is None:
+    check = (
+        None if prefilter is None else check_catalog(dcatus_catalog, fast_validators)
+    )
+    if check is None:
         errors, incomplete = _validation_messages(validator, dcatus_catalog, max_errors)
-    elif prefilter.is_valid(dcatus_catalog):
+    elif check.valid:
         # What Python jsonschema returns for a valid catalog.
         errors, incomplete = [], False
     else:
-        with skipping_known_valid_items(dcatus_catalog, fast_validators):
+        with skipping_known_valid_items(check):
             errors, incomplete = _validation_messages(
                 validator, dcatus_catalog, max_errors
             )

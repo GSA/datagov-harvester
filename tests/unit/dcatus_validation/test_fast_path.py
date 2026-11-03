@@ -606,6 +606,80 @@ class TestDcatus3Skipping:
         ]
         assert into_datasets == [bad]
 
+    def test_the_catalog_splits_into_items(self):
+        """jsonschema-rs checks a 3.0 catalog item by item (bounded memory)
+        rather than in one call, because the catalog schema allows it."""
+        assert _fast_validators_for_schema(DCATUS3).splits_into_items is True
+
+    @pytest.mark.parametrize(
+        "change",
+        [
+            {"properties": {"dataset": {"minItems": 1}}},
+            {"properties": {"dataset": {"uniqueItems": True}}},
+            {"properties": {"dataset": {"maxItems": 3}}},
+            {"properties": {"dataset": {"contains": {}}}},
+            {"anyOf": [{"required": ["dataset"]}]},
+            {"dependentSchemas": {"title": {}}},
+            {"unevaluatedProperties": False},
+        ],
+    )
+    def test_no_split_when_the_schema_looks_at_the_arrays(self, change):
+        """Emptying an array could then change the answer: a split would be a
+        guess, so the whole catalog goes to jsonschema-rs in one call."""
+        catalog_schema = {
+            "type": "object",
+            "required": ["dataset"],
+            "properties": {
+                "dataset": {"type": "array", "items": {"$ref": "/d"}},
+                "title": {"type": "string"},
+            },
+        }
+        for key, value in change.items():
+            if key == "properties":
+                catalog_schema["properties"]["dataset"].update(value["dataset"])
+            else:
+                catalog_schema[key] = value
+
+        assert fast_path._splits_into_items(catalog_schema, ["dataset"]) is False
+        assert fast_path._splits_into_items(
+            {
+                "type": "object",
+                "properties": {"dataset": {"type": "array", "items": {"$ref": "/d"}}},
+            },
+            ["dataset"],
+        )
+
+    def test_the_rest_of_the_catalog_is_checked_with_the_arrays_emptied(self):
+        fast = _fast_validators_for_schema(DCATUS3)
+        datasets = load_json(EXAMPLES / "dcatus3_0.json")["dataset"]
+        catalog = {**catalog_of(*datasets), "service": [], "keyword": ["a"]}
+        seen = []
+        real = fast.prefilter.is_valid
+
+        def recording(instance):
+            seen.append(instance)
+            return real(instance)
+
+        with mock.patch.object(fast.prefilter, "is_valid", side_effect=recording):
+            check = fast_path.check_catalog(catalog, fast)
+
+        assert check.valid is True
+        assert seen == [{**catalog, "dataset": []}]
+        assert len(check.known_valid["/dcat-us/3.0.0/definitions/dataset"]) == len(
+            datasets
+        )
+
+    @pytest.mark.parametrize(
+        "path", sorted((EXAMPLES).glob("dcatus3_0*.json")), ids=lambda p: p.name
+    )
+    def test_split_and_whole_catalog_checks_agree(self, path):
+        fast = _fast_validators_for_schema(DCATUS3)
+        catalog = load_json(path)
+
+        assert fast_path.check_catalog(catalog, fast).valid is fast.prefilter.is_valid(
+            catalog
+        )
+
     def test_the_known_valid_set_only_lasts_one_validation(self):
         catalog = catalog_of(*load_json(EXAMPLES / "dcatus3_0.json")["dataset"])
         catalog["title"] = 5

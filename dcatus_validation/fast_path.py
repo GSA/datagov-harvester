@@ -368,6 +368,9 @@ class FastValidators:
     # DCAT-US 3.0: catalog property -> (the `$ref` its items use, jsonschema-rs
     # for one item), for the arrays whose valid items Python can skip.
     item_prefilters: dict[str, tuple[str, Prefilter]] = field(default_factory=dict)
+    # DCAT-US 3.0: whether the catalog is valid exactly when every item of
+    # those arrays is and the rest of the catalog is (see _splits_into_items).
+    splits_into_items: bool = False
 
 
 def build_dcatus1_1_fast_validators(python_validator) -> FastValidators:
@@ -478,15 +481,51 @@ def build_dcatus3_fast_validators(
             )
             if item_prefilter is not None:
                 item_prefilters[name] = (ref, item_prefilter)
-    return FastValidators(python_validator, prefilter, item_prefilters)
+    return FastValidators(
+        python_validator,
+        prefilter,
+        item_prefilters,
+        _splits_into_items(definitions[catalog_ref], item_prefilters),
+    )
 
 
-def _known_valid_items(catalog, fast_validators: FastValidators) -> dict:
-    """The catalog's top-level datasets, services, ... that jsonschema-rs found
-    valid, grouped by the `$ref` the catalog schema checks them with."""
-    known_valid = {}
+def _splits_into_items(catalog_schema: dict, names) -> bool:
+    """Whether a catalog is valid exactly when each item in the `names` arrays
+    is valid against its `$ref` and the catalog with those arrays emptied is
+    valid. That holds when nothing in the catalog schema looks at those arrays
+    except each one's own `type` and `items`: emptying an array changes neither
+    its type nor any other property.
+
+    jsonschema-rs then checks a large catalog one item at a time. In one call
+    it holds on to memory for every Python keyword it calls back into until the
+    call returns: about 150MB for a 150MB catalog."""
+    root = set(catalog_schema) & PYTHON_VALIDATION_KEYWORDS
+    if not root <= {"type", "required", "properties"}:
+        return False
+    return all(
+        set(catalog_schema["properties"][name]) & PYTHON_VALIDATION_KEYWORDS
+        <= {"type", "items"}
+        for name in names
+    )
+
+
+@dataclass(frozen=True)
+class CatalogCheck:
+    """What jsonschema-rs found about one 3.0 catalog."""
+
+    valid: bool
+    # By `$ref` as written, the top-level items it found valid, by id(). The
+    # objects are kept too, so their ids can't be reused meanwhile.
+    known_valid: dict[str, dict[int, object]]
+
+
+def check_catalog(catalog, fast_validators: FastValidators) -> CatalogCheck:
+    """Whether jsonschema-rs finds a 3.0 catalog valid, and which of its
+    top-level datasets, services, ... it finds valid."""
     if not isinstance(catalog, dict):
-        return known_valid
+        return CatalogCheck(fast_validators.prefilter.is_valid(catalog), {})
+
+    known_valid, all_items_valid = {}, True
     for name, (ref, item_prefilter) in fast_validators.item_prefilters.items():
         items = catalog.get(name)
         if not isinstance(items, list):
@@ -494,16 +533,33 @@ def _known_valid_items(catalog, fast_validators: FastValidators) -> dict:
         valid = known_valid.setdefault(ref, {})
         for item in items:
             if item_prefilter.is_valid(item):
-                # Keep the object too, so its id() can't be reused meanwhile.
                 valid[id(item)] = item
-    return known_valid
+            else:
+                all_items_valid = False
+
+    if not fast_validators.splits_into_items:
+        valid = fast_validators.prefilter.is_valid(catalog)
+    elif not all_items_valid:
+        valid = False
+    else:
+        # The catalog with the arrays just checked emptied.
+        rest = {
+            key: (
+                []
+                if key in fast_validators.item_prefilters and isinstance(value, list)
+                else value
+            )
+            for key, value in catalog.items()
+        }
+        valid = fast_validators.prefilter.is_valid(rest)
+    return CatalogCheck(valid, known_valid)
 
 
 @contextmanager
-def skipping_known_valid_items(catalog, fast_validators: FastValidators):
-    """For Python validation of `catalog` inside this block, skip the
-    top-level items jsonschema-rs finds valid."""
-    token = _known_valid_refs.set(_known_valid_items(catalog, fast_validators))
+def skipping_known_valid_items(check: CatalogCheck):
+    """For Python validation of the checked catalog inside this block, skip
+    the top-level items jsonschema-rs found valid."""
+    token = _known_valid_refs.set(check.known_valid)
     try:
         yield
     finally:
