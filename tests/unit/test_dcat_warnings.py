@@ -10,9 +10,9 @@ every test.
 
 from pathlib import Path
 
+from dcatus_validation.content_warnings import detect_dcat_warnings
 from dcatus_validation.messages import open_json
 from dcatus_validation.schema_paths import DCATUS3_COMPLETE_EXAMPLE
-from harvester.utils.dcat_warnings import detect_dcat_warnings
 
 _EXAMPLE_DATA_DIR = Path(__file__).resolve().parents[2] / "example_data" / "dcatus"
 

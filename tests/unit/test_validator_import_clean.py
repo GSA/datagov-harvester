@@ -11,6 +11,8 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 # credentials) and the drivers they bring. sqlalchemy/flask_sqlalchemy are not
 # listed: APIFlask imports flask_marshmallow, which imports flask_sqlalchemy
 # whenever it's installed - a library import with no engine or env behind it.
+# shapely is not listed: the validator parses spatial values the same way the
+# harvester does (dcatus_validation.spatial) to report spatial warnings.
 FORBIDDEN = {
     "app",
     "harvester",
@@ -20,7 +22,6 @@ FORBIDDEN = {
     "psycopg",
     "geoalchemy2",
     "opensearchpy",
-    "shapely",
 }
 
 PROBE = """

@@ -1,5 +1,6 @@
 import pytest
 
+from dcatus_validation.catalog import normalize_dataset_identifier
 from dcatus_validation.messages import (
     build_dcatus3_validator,
     open_json,
@@ -8,7 +9,6 @@ from dcatus_validation.schema_paths import (
     DCATUS3_COMPLETE_EXAMPLE,
     DCATUS3_DEFINITIONS_DIR,
 )
-from harvester.utils.general_utils import normalize_dataset_identifier
 
 DATASET_REF = "https://resources.data.gov/dcat-us/3.0.0/definitions/dataset"
 DATASET_VALIDATOR = build_dcatus3_validator(

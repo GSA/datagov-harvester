@@ -1,7 +1,7 @@
 """Regenerate the bundled reference-data snapshots used by DCAT-US 3 warning
 detection (GSA/data.gov#6127).
 
-The warning checkers in ``harvester/utils/dcat_warnings.py`` validate a handful
+The warning checkers in ``dcatus_validation/content_warnings.py`` validate a handful
 of fields against controlled vocabularies. Rather than call these registries at
 harvest time (per-record network I/O in a failure-sensitive path, for
 non-blocking warnings), we bundle static JSON snapshots and refresh them by
@@ -29,7 +29,7 @@ from pathlib import Path
 import requests
 
 REFERENCE_DATA_DIR = (
-    Path(__file__).resolve().parents[1] / "harvester" / "utils" / "reference_data"
+    Path(__file__).resolve().parents[1] / "dcatus_validation" / "reference_data"
 )
 
 ISO_639_1_URL = "https://id.loc.gov/vocabulary/iso639-1.json"

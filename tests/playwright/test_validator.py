@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 
 import pytest
 from playwright.sync_api import expect
@@ -12,6 +13,7 @@ is_prod = os.getenv("FLASK_ENV") == "production"
 PROXY_ORIGIN = f"http://localhost:{os.getenv('PROXY_PORT', '8082')}"
 VALIDATOR_PROXY_URL = f"{PROXY_ORIGIN}/validate/"
 VALIDATE_API_URL = f"{PROXY_ORIGIN}/api/v1/validate"
+EXAMPLE_DIR = Path(__file__).resolve().parents[2] / "example_data" / "dcatus"
 
 
 @pytest.fixture()
@@ -116,6 +118,42 @@ class TestValidator:
         assert len(lines) > 1, "CSV should contain at least one error row"
         for line in lines[1:]:
             assert line.count('"') >= 4, f"Malformed CSV row: {line}"
+
+    def test_ui_shows_warnings_with_summary_and_csv(self, upage):
+        """Warnings render in their own section: counts by type, the cards,
+        and a CSV of every warning (GSA/data.gov#6380)."""
+        upage.locator("select[name=fetch_method]").select_option("paste")
+        upage.locator("select[name=schema]").select_option("dcatus3.0 catalog")
+        upage.locator("textarea[name=json_text]").fill(
+            (EXAMPLE_DIR / "dcatus3_0_validator_parity.json").read_text()
+        )
+        upage.locator("input[type=submit]").click()
+
+        # duplicates are errors, as they are at harvest time
+        expect(upage.locator(".error-block")).to_have_count(2)
+        expect(upage.locator(".warning-block")).to_have_count(4)
+
+        summary = upage.locator("#warning-summary tbody tr")
+        expect(summary).to_have_count(3)
+        expect(summary.first).to_contain_text("SpatialTransformationException")
+        expect(summary.first).to_contain_text("2")
+
+        with upage.expect_download() as download_info:
+            upage.locator("#btn-download-warnings").click()
+
+        download = download_info.value
+        assert download.suggested_filename == "validation_warnings.csv"
+        lines = download.path().read_text(encoding="utf-8").strip().splitlines()
+        assert lines[0] == '"Identifier","Record type","Warning type","Message"'
+        assert len(lines) == 5
+
+    def test_ui_reports_no_warnings(self, upage, dcatus_long_description_json):
+        upage.locator("select[name=fetch_method]").select_option("paste")
+        upage.locator("textarea[name=json_text]").fill(dcatus_long_description_json)
+        upage.locator("input[type=submit]").click()
+
+        expect(upage.get_by_text("No warnings found")).to_be_visible()
+        expect(upage.locator("#btn-download-warnings")).to_have_count(0)
 
     def test_ui_upload_field_hidden_by_default(self, upage):
         """
@@ -318,7 +356,8 @@ class TestValidatorApi:
         assert res.status == 200
         assert res.headers["x-served-by"] == "datagov-harvest-validator"
         assert res.json() == {
-            "validation_errors": [[0, "$, 'identifier' is a required property"]]
+            "validation_errors": [[0, "$, 'identifier' is a required property"]],
+            "validation_warnings": [],
         }
 
     def test_api_validate_by_bad_url(self, upage, validator_api_url):
@@ -343,7 +382,8 @@ class TestValidatorApi:
                     "https://www.arcgis.com/home/item.html?id=99731bb0369848169d98f31ce83fb0e2",
                     "$.license, 'center' does not match any of the acceptable formats: 'uri', 'null', '^(\\\\[\\\\[REDACTED).*?(\\\\]\\\\])$'",
                 ]
-            ]
+            ],
+            "validation_warnings": [],
         }
 
     def test_unversioned_path_redirects(self, upage, validator_api_json):
