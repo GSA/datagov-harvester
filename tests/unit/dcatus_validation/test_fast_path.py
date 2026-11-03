@@ -202,6 +202,31 @@ class TestKeywordReview:
 
         assert build_prefilter(schema, Draft202012Validator(schema)) is None
 
+    @pytest.mark.parametrize(
+        "ref, reviewable",
+        [
+            ("#", True),
+            ("#/$defs/vcard", True),
+            ("/dcat-us/3.0.0/definitions/dataset", True),
+            ("https://example.gov/schema.json", True),
+            ("https://example.gov/schema.json#/$defs/a", True),
+            ("#/_oldDocs/range", False),
+            ("#/properties/a", False),
+            ("#/$defs/vcard/properties/fn", False),
+            ("#anchor", False),
+        ],
+    )
+    def test_refs_must_point_where_keywords_are_checked(self, ref, reviewable):
+        """A `$ref` into an annotation (or deep into a subschema) could apply
+        keywords the review never saw."""
+        schema = {
+            "$defs": {"vcard": {"type": "object"}},
+            "_oldDocs": {"range": {"minimum": 1}},
+            "properties": {"a": {"$ref": ref}},
+        }
+
+        assert (unreviewed_keywords([schema]) == set()) is reviewable
+
     def test_annotations_and_unknown_keywords_are_not_validation_keywords(self):
         schema = {
             "title": "t",
@@ -270,20 +295,24 @@ class TestPythonKeywords:
         assert prefilter.is_valid(instance) is python.is_valid(instance)
 
     def test_these_are_real_disagreements_without_the_bridge(self):
-        """Guards the cases above: each one does trip jsonschema-rs on its
-        own (with its own formats), so the bridge is what makes them agree."""
-        disagree = [
-            (schema, instance)
-            for schema, instance in self.DISAGREEMENTS
-            if _native(schema).is_valid(instance)
-            != Draft202012Validator(schema, format_checker=FormatChecker()).is_valid(
-                instance
-            )
-        ]
+        """Guards the cases above: every regex and equality case does trip
+        jsonschema-rs on its own, so the bridge is what makes them agree.
+        Five of them would be silent misses: jsonschema-rs alone says valid
+        where Python says invalid. (The format cases happen to agree.)"""
+        native = {
+            index: _native(schema).is_valid(instance)
+            for index, (schema, instance) in enumerate(self.DISAGREEMENTS)
+        }
+        python = {
+            index: Draft202012Validator(
+                schema, format_checker=FormatChecker()
+            ).is_valid(instance)
+            for index, (schema, instance) in enumerate(self.DISAGREEMENTS)
+        }
+        regex_and_equality = range(len(self.DISAGREEMENTS) - 2)
 
-        # The format cases may agree natively; the regex and equality ones
-        # must not, or the bridge isn't what is being tested.
-        assert len(disagree) >= len(self.DISAGREEMENTS) - 2
+        assert all(native[i] != python[i] for i in regex_and_equality)
+        assert sum(native[i] and not python[i] for i in regex_and_equality) == 5
 
     @pytest.mark.parametrize("keyword", sorted(fast_path._ONLY_CHECKS))
     def test_type_shortcuts_match_python(self, keyword):
