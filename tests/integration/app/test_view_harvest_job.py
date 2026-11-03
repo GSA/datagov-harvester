@@ -333,6 +333,34 @@ class TestViewHarvestJob:
         assert "first duplicate keyword" in resp.text
         assert "second duplicate keyword" in resp.text
 
+    def test_record_issue_messages_are_html_escaped(self, client, interface, job):
+        harvest_record = interface.add_harvest_record(
+            {
+                "harvest_job_id": job.id,
+                "harvest_source_id": job.source.id,
+                "identifier": "escape-record-001",
+                "status": "error",
+            }
+        )
+        for message in [
+            "<ValidationError: \"$.landingPage, 'ADD ME' is not a uri\">",
+            '<ValidationError: "$.title is required">',
+        ]:
+            interface.add_harvest_record_error(
+                {
+                    "harvest_job_id": job.id,
+                    "harvest_record_id": harvest_record.id,
+                    "type": "ValidationException",
+                    "message": message,
+                    "severity": "error",
+                }
+            )
+
+        resp = client.get(f"/harvest_job/{job.id}")
+
+        assert "<ValidationError" not in resp.text
+        assert "&lt;ValidationError" in resp.text
+
     def test_job_accept_json(self, client, job_with_many_errors):
         resp = client.get(
             f"/api/v1/harvest_job/{job_with_many_errors.id}",
