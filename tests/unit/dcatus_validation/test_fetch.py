@@ -157,12 +157,48 @@ class TestFetchJsonFromUrl:
 
     @pytest.mark.parametrize("encoding", ["utf-8", "utf-16", "utf-32"])
     @patch("dcatus_validation.fetch.json.loads")
-    def test_deep_json_is_rejected_before_parsing(self, mock_loads, encoding):
+    def test_deep_json_is_rejected_before_parsing(
+        self, mock_loads, encoding, monkeypatch
+    ):
+        """The pure-Python parser (DCATUS_VALIDATION_FAST_PATH=false) scans
+        for depth before json.loads can recurse."""
+        monkeypatch.setenv("DCATUS_VALIDATION_FAST_PATH", "false")
         depth = MAX_DOCUMENT_NESTING_DEPTH + 1
         document = ("[" * depth + "0" + "]" * depth).encode(encoding)
 
         with pytest.raises(CatalogTooDeeplyNested):
             parse_json_document(document)
+
+        mock_loads.assert_not_called()
+
+    @pytest.mark.parametrize("encoding", ["utf-16", "utf-32"])
+    @patch("dcatus_validation.fetch.json.loads")
+    def test_deep_json_orjson_refuses_is_rejected_before_parsing(
+        self, mock_loads, encoding
+    ):
+        """orjson takes UTF-8 only; anything else gets the scan as before."""
+        depth = MAX_DOCUMENT_NESTING_DEPTH + 1
+        document = ("[" * depth + "0" + "]" * depth).encode(encoding)
+
+        with pytest.raises(CatalogTooDeeplyNested):
+            parse_json_document(document)
+
+        mock_loads.assert_not_called()
+
+    @pytest.mark.parametrize("depth", [MAX_DOCUMENT_NESTING_DEPTH + 1, 1024, 100_000])
+    @patch("dcatus_validation.fetch.json.loads")
+    def test_deep_json_never_reaches_json_loads(self, mock_loads, depth):
+        """The fast path: orjson parses up to 1024 levels without recursing
+        (the post-parse walk in validate.py then refuses anything past
+        MAX_DOCUMENT_NESTING_DEPTH); deeper than that, the scan refuses it."""
+        document = ("[" * depth + "0" + "]" * depth).encode()
+
+        try:
+            parse_json_document(document)
+        except CatalogTooDeeplyNested:
+            assert depth > 1024
+        else:
+            assert depth <= 1024
 
         mock_loads.assert_not_called()
 
@@ -769,3 +805,58 @@ class TestPrivateAddressDefault:
         finally:
             monkeypatch.undo()
             importlib.reload(dcatus_validation.fetch)
+
+
+class TestFetchedDocumentsParseTheSameOnBothPaths:
+    """The URL path through fetch_json_from_url, with the fast path
+    (orjson) on and off: the same document or the same refusal
+    (GSA/data.gov#6460; tests/unit/dcatus_validation/test_parse_equivalence.py
+    covers parse_json_document itself)."""
+
+    BODIES = {
+        "catalog": b'{"dataset": [{"title": "x"}]}',
+        "UTF-8 BOM": b'\xef\xbb\xbf{"dataset": []}',
+        "UTF-16": '{"dataset": []}'.encode("utf-16"),
+        "invalid UTF-8": b'{"secret":"\xff"}',
+        "NaN": b'{"value": NaN}',
+        "infinite float": b'{"value": 1e9999}',
+        "huge integer": b'{"value": ' + b"9" * 5000 + b"}",
+        "integer beyond 64 bits": b'{"value": 18446744073709551616}',
+        "escaped lone surrogate": b'{"value": "\\ud800"}',
+        "duplicate keys": b'{"a": 1, "a": 2}',
+        "syntax error": b'{"internal_secret": "hunter2",, "b": 2}',
+        "HTML": b"<html><body>Not JSON</body></html>",
+        "empty": b"",
+        "101 deep": b"[" * 101 + b"]" * 101,
+        "100,000 deep": b"[" * 100_000 + b"]" * 100_000,
+    }
+
+    @staticmethod
+    def _fetch(monkeypatch, body, fast):
+        # Through the module: a test above reloads it, which replaces
+        # InvalidCatalogSource and fetch_json_from_url.
+        monkeypatch.setenv("DCATUS_VALIDATION_FAST_PATH", "true" if fast else "false")
+        try:
+            document = fetch.fetch_json_from_url("https://example.com/d.json")
+            return ("document", repr(document))
+        except fetch.InvalidCatalogSource as error:
+            return ("refused", error.public_message)
+        except CatalogTooDeeplyNested as error:
+            return ("too deep", str(error))
+
+    @pytest.mark.parametrize("body", BODIES.values(), ids=list(BODIES))
+    @patch("dcatus_validation.fetch._pinned_get")
+    def test_same_result(self, mock_get, monkeypatch, body):
+        mock_get.side_effect = lambda *args, **kwargs: _json_response(body)
+
+        old = self._fetch(monkeypatch, body, fast=False)
+        new = self._fetch(monkeypatch, body, fast=True)
+
+        if body.startswith(b"[" * 101) and len(body) < 2050:
+            # Refused while parsing on the old path; parsed on the fast path
+            # and refused by validation's post-parse walk, with the same
+            # error (see test_parse_equivalence.py).
+            assert old[0] == "too deep"
+            assert new[0] == "document"
+        else:
+            assert new == old

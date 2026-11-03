@@ -797,3 +797,64 @@ class TestValidateWarnings:
             harvest_source.job_id, severity="warning"
         )
         assert len(warnings) == 0
+
+
+class TestPrecrawledDcatus1_1Validator:
+    """GSA/data.gov#6460 (change C): the harvest runner's 1.1 validator
+    crawls its schema once instead of once per record, unless the
+    DCATUS_VALIDATION_FAST_PATH kill switch is off."""
+
+    @pytest.mark.parametrize("setting, precrawl", [("true", True), ("false", False)])
+    def test_follows_the_kill_switch(
+        self,
+        monkeypatch,
+        make_harvest_source,
+        source_data_dcatus,
+        job_data_dcatus,
+        setting,
+        precrawl,
+    ):
+        from unittest import mock
+
+        from dcatus_validation.messages import build_dcatus1_1_validator
+
+        monkeypatch.setenv("DCATUS_VALIDATION_FAST_PATH", setting)
+        with mock.patch(
+            "harvester.harvest.build_dcatus1_1_validator",
+            wraps=build_dcatus1_1_validator,
+        ) as build:
+            harvest_source = make_harvest_source(source_data_dcatus, job_data_dcatus)
+
+        assert build.call_args.kwargs == {"precrawl": precrawl}
+        assert build.call_args.args == (harvest_source.dataset_schema,)
+
+    def test_same_errors_either_way(
+        self, monkeypatch, make_harvest_source, source_data_dcatus, job_data_dcatus
+    ):
+        from pathlib import Path
+
+        from dcatus_validation.messages import assemble_validation_errors
+
+        examples = Path(__file__).resolve().parents[3] / "example_data" / "dcatus"
+        records = [
+            record
+            for name in (
+                "dcatus.json",
+                "dcatus_multiple_invalid.json",
+                "dcatus_with_none.json",
+            )
+            for record in json.loads((examples / name).read_text())["dataset"]
+        ]
+        harvest_source = make_harvest_source(source_data_dcatus, job_data_dcatus)
+        fast = harvest_source.validator_for("dataset")
+        monkeypatch.setenv("DCATUS_VALIDATION_FAST_PATH", "false")
+        from dcatus_validation.messages import build_dcatus1_1_validator
+
+        old = build_dcatus1_1_validator(harvest_source.dataset_schema, precrawl=False)
+
+        for record in records:
+            assert [
+                e.message for e in assemble_validation_errors(fast.iter_errors(record))
+            ] == [
+                e.message for e in assemble_validation_errors(old.iter_errors(record))
+            ]
