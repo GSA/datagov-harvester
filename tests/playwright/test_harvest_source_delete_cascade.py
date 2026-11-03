@@ -283,7 +283,7 @@ class TestHarvestSourceDeleteCascade:
         authed_page.once("dialog", lambda dialog: dialog.accept())
         authed_page.get_by_role("button", name=re.compile(r"^Delete\b")).click()
 
-        expect(authed_page.locator(".usa-alert--warning")).to_contain_text(
+        expect(authed_page.locator(".usa-alert--success")).to_contain_text(
             ["This harvest source may take some time to delete."]
         )
 

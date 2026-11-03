@@ -3,16 +3,12 @@ import pytest
 
 @pytest.fixture()
 def ures(unauthed_page):
-    unauthed_page.goto("/harvest_job/6bce761c-7a39-41c1-ac73-94234c139c76")
-    # Target by identifier, not position: the grouped query has no ORDER
-    # BY, so which block renders first isn't stable across test runs.
-    err_id = (
-        unauthed_page.locator("#error_results_pagination .error-list .error-block")
-        .filter(has_text="test_identifier-1")
-        .locator("h3")
-        .inner_text()
+    # Cards group by record, so individual error ids are no longer shown in
+    # the UI (#6476) — use the known fixture id for test_identifier-1's
+    # first ValidationException row (see tests/generate_fixtures.py).
+    res = unauthed_page.goto(
+        "/api/v1/harvest_error/3ccb48db-21fc-427a-9ec7-36b0d0f621d0"
     )
-    res = unauthed_page.goto(f"/api/v1/harvest_error/{err_id}")
     yield res
 
 
@@ -32,11 +28,13 @@ class TestHarvestRecordErrorUnauthed:
     def test_iso(self, unauthed_page):
         unauthed_page.goto("/harvest_job/8c90626b-09c6-4098-8828-76c7b981639a")
 
+        # Card heading is now the record identifier; "Title:" is the first
+        # <p> in the card (was nth(1) when the heading used to be blank/id).
         assert (
             unauthed_page.locator(
                 "#error_results_pagination .error-list .error-block:first-child p"
             )
-            .nth(1)
+            .nth(0)
             .inner_text()
         ) == "Title: Test ISO19115 title"
 

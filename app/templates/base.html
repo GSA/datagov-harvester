@@ -116,15 +116,10 @@
   {% include 'glossary.html' %}
 
   <div class="harvester-layout__main grid-container-widescreen margin-y-3">
-    {% set _category_map = {
-      'success': 'usa-alert--success',
-      'warning': 'usa-alert--warning',
-      'danger':  'usa-alert--error',
-      'error':   'usa-alert--error'
-    } %}
+    {% from 'components/alert.j2' import alert_class %}
     <div role="region" aria-label="Notifications" aria-live="polite">
       {% for category, message in get_flashed_messages(with_categories=true) %}
-      <div class="usa-alert {{ _category_map.get(category, 'usa-alert--warning') }} usa-alert--dismissible margin-bottom-2">
+      <div class="usa-alert {{ alert_class(category) }} usa-alert--dismissible margin-bottom-2">
         <div class="usa-alert__body">
           <p class="usa-alert__text">{{ message }}</p>
         </div>

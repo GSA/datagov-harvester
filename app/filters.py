@@ -76,3 +76,11 @@ def elapsed_time(start, end):
         return f"{hours}h"
 
     return f"{hours}h {remaining_minutes}m"
+
+
+def running_elapsed_time(start):
+    """Format a running job's elapsed time from its start to now."""
+    if not start:
+        return "N/A"
+    now = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+    return elapsed_time(start, now)
