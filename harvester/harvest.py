@@ -18,9 +18,11 @@ sys.path.insert(1, "/".join(os.path.realpath(__file__).split("/")[0:-2]))
 
 
 from database.models import HarvestSource as HarvestSourceORM
+from dcatus_validation.fast_path import fast_path_enabled
 from dcatus_validation.fetch import USER_AGENT
 from dcatus_validation.messages import (
     assemble_validation_errors,
+    build_dcatus1_1_validator,
     build_dcatus3_validator,
     open_json,
 )
@@ -211,8 +213,8 @@ class HarvestSource:
                 )
         else:
             self._validators = {
-                "dataset": Draft202012Validator(
-                    self.dataset_schema, format_checker=FormatChecker()
+                "dataset": build_dcatus1_1_validator(
+                    self.dataset_schema, precrawl=fast_path_enabled()
                 )
             }
         self._reporter = HarvestReporter()
