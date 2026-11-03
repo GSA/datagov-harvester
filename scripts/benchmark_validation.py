@@ -6,15 +6,14 @@ Not a test. It generates large DCAT-US 1.1 and 3.0 catalogs (valid, and
 invalid with a few bad records spread through them) in a temporary directory
 under /tmp, validates each one the way the validator API does, once per path,
 in a fresh process each time, and prints a table of time and peak memory. It
-also checks that both paths return exactly the same errors, times the harvest
-runner's per-record validation with and without the pre-crawled registry, and
-with --api sends the valid catalogs through the validator API itself (paste and
-URL fetch, the fetch served from memory). The catalogs are deleted afterwards
+also checks that both paths return exactly the same errors, and with --api
+sends the valid catalogs through the validator API itself (paste and URL
+fetch, the fetch served from memory). The catalogs are deleted afterwards
 unless --keep is given.
 
 Usage:
     poetry run python scripts/benchmark_validation.py [--size-mb 150]
-        [--only 1.1-valid,3.0-invalid] [--keep] [--skip-harvest] [--api]
+        [--only 1.1-valid,3.0-invalid] [--keep] [--api]
 
 Each measurement runs as a subprocess:
     python scripts/benchmark_validation.py measure FILE SCHEMA old|new
@@ -246,54 +245,6 @@ def measure(path, schema, mode):
     }
 
 
-def measure_harvest(path, schema, mode):
-    """The harvest runner's per-record validation (harvester/harvest.py): the
-    1.1 validator with the old registry or the pre-crawled one."""
-    import orjson
-
-    from dcatus_validation.messages import (
-        assemble_validation_errors,
-        build_dcatus1_1_validator,
-        build_dcatus3_validator,
-        open_json,
-    )
-    from dcatus_validation.schema_paths import (
-        DCATUS1_1_DIR,
-        DCATUS3_DEFINITIONS_DIR,
-    )
-
-    if schema == DCATUS3:
-        validator = build_dcatus3_validator(
-            DCATUS3_DEFINITIONS_DIR,
-            root_ref="https://resources.data.gov/dcat-us/3.0.0/definitions/dataset",
-        )
-    else:
-        validator = build_dcatus1_1_validator(
-            open_json(DCATUS1_1_DIR / "federal_dataset.json"),
-            precrawl=mode == "new",
-        )
-    with open(path, "rb") as fp:
-        records = orjson.loads(fp.read())["dataset"]
-
-    start = time.perf_counter()
-    messages = [
-        [
-            error.message
-            for error in assemble_validation_errors(validator.iter_errors(r))
-        ]
-        for r in records
-    ]
-    elapsed = time.perf_counter() - start
-    digest = hashlib.sha256(json.dumps(messages).encode()).hexdigest()
-    return {
-        "total_s": elapsed,
-        "records": len(records),
-        "errors": sum(map(len, messages)),
-        "errors_sha256": digest,
-        "peak_rss_mb": _peak_rss_mb(),
-    }
-
-
 def measure_api(path, schema, mode, fetch_method):
     """One request to the validator API (validator_api), by paste or by URL,
     with the fetch served from memory in 8KB chunks like requests would."""
@@ -374,10 +325,8 @@ VARIANTS = {
 
 
 def main():
-    if len(sys.argv) > 1 and sys.argv[1] in ("measure", "measure-harvest"):
-        command, path, schema, mode = sys.argv[1:5]
-        function = measure if command == "measure" else measure_harvest
-        print(json.dumps(function(path, schema, mode)))
+    if len(sys.argv) > 1 and sys.argv[1] == "measure":
+        print(json.dumps(measure(*sys.argv[2:5])))
         return
     if len(sys.argv) > 1 and sys.argv[1] == "measure-api":
         print(json.dumps(measure_api(*sys.argv[2:6])))
@@ -387,13 +336,12 @@ def main():
     parser.add_argument("--size-mb", type=float, default=150)
     parser.add_argument("--only", default=",".join(VARIANTS))
     parser.add_argument("--keep", action="store_true")
-    parser.add_argument("--skip-harvest", action="store_true")
     parser.add_argument("--api", action="store_true")
     args = parser.parse_args()
 
     workdir = Path(tempfile.mkdtemp(prefix="dcatus-benchmark-", dir="/tmp"))
     print(f"catalogs in {workdir}", file=sys.stderr)
-    rows, harvest_rows, api_rows = [], [], []
+    rows, api_rows = [], []
     try:
         for name in args.only.split(","):
             version, invalid, schema = VARIANTS[name]
@@ -404,14 +352,6 @@ def main():
             old = _run("measure", path, schema, "old")
             new = _run("measure", path, schema, "new")
             rows.append((name, size_mb, records, old, new))
-            if not args.skip_harvest and not invalid:
-                harvest_rows.append(
-                    (
-                        name,
-                        _run("measure-harvest", path, schema, "old"),
-                        _run("measure-harvest", path, schema, "new"),
-                    )
-                )
             if args.api and not invalid:
                 for fetch_method in ("paste", "url"):
                     api_rows.append(
@@ -445,19 +385,6 @@ def main():
             f"| {old['peak_rss_mb']:.0f}MB | {new['peak_rss_mb']:.0f}MB "
             f"| {'yes' if old['errors_sha256'] == new['errors_sha256'] else 'NO'} |"
         )
-    if harvest_rows:
-        print()
-        print(
-            "| harvest runner, per record | records | old registry "
-            "| pre-crawled registry | speed-up | same result |"
-        )
-        print("| --- | --- | --- | --- | --- | --- |")
-        for name, old, new in harvest_rows:
-            print(
-                f"| {name} | {old['records']:,} | {old['total_s']:.1f}s "
-                f"| {new['total_s']:.1f}s | {old['total_s'] / new['total_s']:.1f}x "
-                f"| {'yes' if old['errors_sha256'] == new['errors_sha256'] else 'NO'} |"
-            )
     if api_rows:
         print()
         print(

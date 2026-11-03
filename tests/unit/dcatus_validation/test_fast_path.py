@@ -50,16 +50,11 @@ from tests.unit.dcatus_validation.equivalence_helpers import (
 from tests.unit.dcatus_validation.equivalence_helpers import fast_path as use_fast_path
 from tests.unit.dcatus_validation.equivalence_helpers import load_json
 
-# The 1.1 dataset schemas: the validator API's two (which get a fast path) and
-# the harvest runner's ISO one (which gets only the pre-crawled registry).
-# schemas/dcatus1.1/catalog.json validates nothing here.
+# The validator API's two 1.1 dataset schemas. schemas/dcatus1.1/catalog.json
+# validates nothing here.
 FAST_PATH_1_1_SCHEMA_FILES = [
     DCATUS1_1_DIR / "federal_dataset.json",
     DCATUS1_1_DIR / "non-federal_dataset.json",
-]
-DCATUS1_1_SCHEMA_FILES = [
-    *FAST_PATH_1_1_SCHEMA_FILES,
-    DCATUS1_1_DIR / "iso-non-federal_dataset.json",
 ]
 EXAMPLE_COUNT = int(os.getenv("DCATUS_EQUIVALENCE_EXAMPLES", "300"))
 
@@ -690,10 +685,10 @@ class TestDcatus3Skipping:
 
 
 class TestPrecrawledRegistry:
-    """Change C: the 1.1 validator crawls its schema once, not once per
-    record (the harvest runner and the validator API)."""
+    """Change C: the validator API's 1.1 validator crawls its schema once,
+    not once per record."""
 
-    @pytest.mark.parametrize("schema_path", DCATUS1_1_SCHEMA_FILES)
+    @pytest.mark.parametrize("schema_path", FAST_PATH_1_1_SCHEMA_FILES)
     def test_no_crawling_while_validating(self, schema_path):
         validator = build_dcatus1_1_validator(open_json(schema_path))
         records = load_json(EXAMPLES / "dcatus.json")["dataset"]
@@ -721,7 +716,7 @@ class TestPrecrawledRegistry:
 
         assert crawled.call_count >= len(records)
 
-    @pytest.mark.parametrize("schema_path", DCATUS1_1_SCHEMA_FILES)
+    @pytest.mark.parametrize("schema_path", FAST_PATH_1_1_SCHEMA_FILES)
     def test_same_errors_as_the_old_build(self, schema_path):
         schema = open_json(schema_path)
         old = build_dcatus1_1_validator(schema, precrawl=False)

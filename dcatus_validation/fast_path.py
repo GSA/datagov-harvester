@@ -57,10 +57,10 @@ def fast_path_enabled() -> bool:
     """Whether to use orjson and jsonschema-rs (the default).
 
     The kill switch for operators: `cf set-env <app> DCATUS_VALIDATION_FAST_PATH
-    false` and a restart puts the validator API (and the harvest runner, on the
-    admin app) back on the old pure-Python parser and validator. Only "true"
-    (any case) keeps the fast path on, so a mistyped value also falls back to
-    the old path. Read on every call, never cached at import.
+    false` and a restart puts the validator API back on the old pure-Python
+    parser and validator. Only "true" (any case) keeps the fast path on, so a
+    mistyped value also falls back to the old path. Read on every call, never
+    cached at import.
     """
     return os.getenv(FAST_PATH_ENV_VAR, "true").strip().lower() == "true"
 

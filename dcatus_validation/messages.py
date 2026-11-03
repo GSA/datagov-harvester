@@ -218,7 +218,7 @@ def _collect_validation_messages(
 
 
 def build_dcatus1_1_validator(schema: dict, *, precrawl: bool = True):
-    """Build a validator for one DCAT-US 1.1 (or ISO 19115) dataset schema.
+    """Build a validator for one DCAT-US 1.1 dataset schema.
 
     The 1.1 schemas define vcard, distribution and organization in `$defs`,
     each with its own `$id`, and organization `$ref`s itself by that `$id`.

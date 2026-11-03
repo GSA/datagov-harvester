@@ -242,37 +242,6 @@ def test_python_validators_match_on_the_golden_set():
             )
 
 
-def test_harvest_runner_validators_match_on_the_golden_set():
-    """Change C in the harvest runner: per-record 1.1 errors with the
-    pre-crawled registry are the old ones, message for message."""
-    from dcatus_validation.messages import (
-        assemble_validation_errors,
-        build_dcatus1_1_validator,
-        open_json,
-    )
-    from dcatus_validation.schema_paths import DCATUS1_1_DIR
-
-    for schema_file in (
-        "federal_dataset.json",
-        "non-federal_dataset.json",
-        "iso-non-federal_dataset.json",
-    ):
-        schema = open_json(DCATUS1_1_DIR / schema_file)
-        old = build_dcatus1_1_validator(schema, precrawl=False)
-        new = build_dcatus1_1_validator(schema)
-        for _, schema_name, catalog in EXAMPLE_CATALOGS:
-            if schema_name != FEDERAL or not isinstance(catalog.get("dataset"), list):
-                continue
-            for record in catalog["dataset"]:
-                assert [
-                    e.message
-                    for e in assemble_validation_errors(new.iter_errors(record))
-                ] == [
-                    e.message
-                    for e in assemble_validation_errors(old.iter_errors(record))
-                ]
-
-
 def test_jsonschema_rs_and_python_agree_on_every_example_record():
     """Record by record, jsonschema-rs says valid exactly when Python finds no
     errors: not only never more lenient (which the fast path needs), but not

@@ -96,7 +96,7 @@ Validation takes two paths to the same answer (GSA/data.gov#6460):
 
 **Memory.** The fast path is about 20 times faster but peaks higher while parsing. orjson needs the document as UTF-8 and builds its own parse tree before creating Python objects. For a 150MB catalog that adds roughly 100–170MB fetched by URL, and 250–315MB pasted, where a non-ASCII str needs a UTF-8 copy (measured with `scripts/benchmark_validation.py --api`). The resulting gunicorn worker peaks, and what they mean for `validator_memory_quota`, are under "Memory" in [Resource limits](#resource-limits).
 
-**Kill switch.** Set `DCATUS_VALIDATION_FAST_PATH=false` and restart (`cf set-env datagov-harvest-validator DCATUS_VALIDATION_FAST_PATH false`, then `cf restart datagov-harvest-validator`) to go back to the pure-Python parser and validator, with no deploy. Only `true` (the default when unset) keeps the fast path on, so a mistyped value also turns it off. On the admin app (`datagov-harvest`) the same variable controls the harvest runner's pre-crawled 1.1 schema registry, its only part of the fast path. Harvest jobs run as tasks of that app, so they take its environment.
+**Kill switch.** Set `DCATUS_VALIDATION_FAST_PATH=false` and restart (`cf set-env datagov-harvest-validator DCATUS_VALIDATION_FAST_PATH false`, then `cf restart datagov-harvest-validator`) to go back to the pure-Python parser and validator, with no deploy. Only `true` (the default when unset) keeps the fast path on, so a mistyped value also turns it off.
 
 ## Rules for changes
 
