@@ -1,6 +1,6 @@
 import marshmallow
 from apiflask import Schema, validators
-from apiflask.fields import URL, Boolean, List, Raw, String
+from apiflask.fields import URL, Boolean, List, Nested, Raw, String
 from marshmallow import ValidationError, validate
 
 from dcatus_validation.fetch import ALLOW_PRIVATE_ADDRESSES
@@ -43,6 +43,37 @@ class ValidatorInfo(Schema):
             )
 
 
+class ValidationWarningSchema(Schema):
+    identifier = Raw(
+        required=True,
+        metadata={
+            "description": (
+                "The record's identifier, or its position among records of its "
+                "type (an integer) when it has none."
+            )
+        },
+    )
+    record_type = String(
+        required=True,
+        metadata={
+            "description": (
+                "dataset, data_service, catalog_record, or data_series. DCAT-US "
+                "1.1 catalogs only have datasets."
+            )
+        },
+    )
+    warning_type = String(
+        required=True,
+        metadata={
+            "description": (
+                "Stable slug for the kind of warning, the same value the "
+                "harvester records for it."
+            )
+        },
+    )
+    message = String(required=True)
+
+
 class ValidationResultSchema(Schema):
     validation_errors = List(
         # [identifier, message]. The identifier is the dataset's `identifier`,
@@ -59,6 +90,24 @@ class ValidationResultSchema(Schema):
             "description": (
                 "True when the public service stopped after reaching its error "
                 "limit. Fix the returned errors and validate again."
+            )
+        }
+    )
+    validation_warnings = List(
+        Nested(ValidationWarningSchema),
+        required=True,
+        metadata={
+            "description": (
+                "Content-quality issues a harvest would report. Warnings never "
+                "make a catalog invalid."
+            )
+        },
+    )
+    warnings_incomplete = Boolean(
+        metadata={
+            "description": (
+                "True when warning checks stopped at the warning limit, or could "
+                "not run because the catalog couldn't be split into records."
             )
         }
     )

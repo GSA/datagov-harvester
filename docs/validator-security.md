@@ -45,8 +45,10 @@ All limits are in `dcatus_validation/limits.py` unless noted.
 | Fetch time | 12s total, including DNS and every redirect hop | `FETCH_TIMEOUT_SECONDS` in `fetch.py`. Each connect attempt is capped at 4s, with up to 3 attempts. The socket timeout shrinks before every body read so a late stall can't extend it. |
 | JSON nesting | 100 levels | Checked by a character scan *before* `json.loads`, so a deep document can't exhaust the stack. |
 | JSON numbers | finite only | `NaN`/`Infinity` and integers too large to parse are refused. |
-| Validation errors returned | 1000, with `validation_incomplete: true` | `MAX_VALIDATION_ERRORS`. This stops a small document from expanding into millions of errors. |
-| Result text | identifiers 1000 chars, messages 4000 | Truncated in `validator_api/api.py`. |
+| Validation errors returned | 1000, with `validation_incomplete: true` | `MAX_VALIDATION_ERRORS`. This stops a small document from expanding into millions of errors. Duplicate-identifier errors count toward it. |
+| Validation warnings returned | 1000, with `warnings_incomplete: true` | `MAX_VALIDATION_WARNINGS`, counted separately from errors so neither can crowd out the other. Duplicate detection still runs to the end after the cap. |
+| Result text | identifiers 1000 chars, messages 4000 | Truncated in `validator_api/api.py`, for errors and warnings alike. |
+| Spatial parsing | no separate cap | Spatial values are parsed with shapely and geojson_validator, the same as at harvest. Cost is linear in value size, measured at roughly 0.15 to 0.25s per MB, including self-intersecting polygons that take the geometry-fix path, so the 10MB document limit already bounds it to a few seconds. |
 
 Larger documents are under discussion in GSA/data.gov#6460. Raising `MAX_UPLOAD_MB` also has to keep the fetch and validation time inside CloudFront's 30s request ceiling, and keep each worker's memory within `validator_memory_quota`.
 
@@ -54,6 +56,7 @@ Larger documents are under discussion in GSA/data.gov#6460. Raising `MAX_UPLOAD_
 
 - **Only safe literals reach the submitter.** `InvalidCatalogSource.public_message` is built only from literals and numbers. Never interpolate another exception's text into it: `json.JSONDecodeError.doc`, for example, holds the whole fetched document, which the submitter may not otherwise be able to read. JSON parse errors report only line and column (`invalid_json_message`).
 - **Unexpected errors are generic.** Anything unanticipated returns a fixed 500 message, and the log records only the exception *type*, because `requests` exception text can include signed URLs or credentials.
+- **Spatial values are never logged.** `dcatus_validation/spatial.py` logs only at debug level and without the value, and the validator disables geojson_validator's own loguru output, which would otherwise write three lines per spatial value.
 - **Logged URLs are redacted.** Fetch targets are logged as scheme, host, and port plus a 12-character SHA-256 hash for correlation (`_target_for_log`). Paths, query strings, and credentials are never logged.
 
 ## HTTP hardening
@@ -67,7 +70,7 @@ Larger documents are under discussion in GSA/data.gov#6460. Raising `MAX_UPLOAD_
 
 - `GET /health` on the internal route is Cloud Foundry's http health check (`manifest.yml`).
 - `GET /validator/health` is the same check through the proxy's public route, for uptime monitoring.
-- Both return `{"status": "ok"}`. The app builds every schema validator at startup (`load_schema_validators`), so an instance whose schemas are missing or broken (for example, the `_external/dcat-us` submodule wasn't checked out) fails to start instead of passing the health check and then failing requests.
+- Both return `{"status": "ok"}`. The app builds every schema validator at startup (`load_schema_validators`) and loads the place-name CSV (`load_location_names`), so an instance whose schemas or place-name data are missing or broken (for example, the `_external/dcat-us` submodule wasn't checked out) fails to start instead of passing the health check and then failing requests.
 
 ## Rules for changes
 
@@ -75,4 +78,6 @@ Larger documents are under discussion in GSA/data.gov#6460. Raising `MAX_UPLOAD_
 - Never put exception text, fetched content, or raw URLs into a response or a log line.
 - Any new route must be added to `proxy/nginx-common.conf` (and `nginx-local-proxy.conf`) explicitly. The proxy forwards nothing to the validator by default.
 - Keep `validator_api` and `dcatus_validation` free of `app`, `harvester`, and `database` imports. The import guard enforces this, so don't weaken it.
+- Warning checks run the harvester's own code (`dcatus_validation/content_warnings.py`, `spatial.py`, `catalog.py`, `catalog_issues.py`). Change them there, never in a validator-only copy, and keep `tests/integration/harvest/test_validator_parity.py` passing so the validator keeps reporting what a harvest reports.
+- The validator answers place-name lookups from `dcatus_validation/reference_data/location_names.csv`, not the database. Regenerate it with `scripts/refresh_location_names.py` whenever the locations table is reloaded. It keeps county, state, and country rows only, which gives the harvester's answer for every one of those names; the one known difference is a partial name that is also part of a postal-code name (e.g. "Abbeville", which matches "Abbeville County, South Carolina" and "Abbeville, AL (36310)"), which resolves in the validator but not at harvest. See `dcatus_validation/places.py`.
 - Add a test with each new limit or check, next to the existing ones in `tests/unit/dcatus_validation/` and `tests/integration/validator_api/`.

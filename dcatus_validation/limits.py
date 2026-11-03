@@ -7,6 +7,9 @@ MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024
 # validation errors. The public API stops before that amplification can exhaust
 # a worker; direct/offline callers of validate_records remain uncapped.
 MAX_VALIDATION_ERRORS = 1000
+# Same reasoning for content-quality warnings, capped separately so a catalog
+# full of warnings can't hide its errors (or the reverse).
+MAX_VALIDATION_WARNINGS = 1000
 MAX_RESULT_IDENTIFIER_CHARS = 1000
 MAX_RESULT_MESSAGE_CHARS = 4000
 

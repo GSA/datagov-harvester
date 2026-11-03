@@ -1,0 +1,148 @@
+{
+  "@context": "https://project-open-data.cio.gov/v1.1/schema/catalog.jsonld",
+  "@id": "http://www.cftc.gov/data.json",
+  "@type": "dcat:Catalog",
+  "conformsTo": "https://project-open-data.cio.gov/v1.1/schema",
+  "describedBy": "https://project-open-data.cio.gov/v1.1/schema/catalog.json",
+  "dataset": [
+    {
+      "contactPoint": {
+        "fn": "Harold W. Hild",
+        "hasEmail": "mailto:hhild@CFTC.GOV"
+      },
+      "describedBy": "https://www.cftc.gov/MarketReports/CommitmentsofTraders/ExplanatoryNotes/index.htm",
+      "description": "COT reports provide a breakdown of each Tuesday's open interest for futures and options on futures market in which 20 or more traders hold positions equal to or above the reporting levels established by CFTC",
+      "distribution": [
+        {
+          "accessURL": "https://www.cftc.gov/MarketReports/CommitmentsofTraders/index.htm"
+        }
+      ],
+      "modified": "R/P1W",
+      "programCode": [
+        "000:000"
+      ],
+      "publisher": {
+        "name": "U.S. Commodity Futures Trading Commission",
+        "subOrganizationOf": {
+          "name": "U.S. Government"
+        }
+      },
+      "title": "Parity parity-1-1-a",
+      "accessLevel": "public",
+      "bureauCode": [
+        "339:00"
+      ],
+      "identifier": "parity-1-1-a",
+      "keyword": [
+        "commitment of traders",
+        "cot",
+        "open interest"
+      ],
+      "spatial": "-77.1,38.8,-76.9,39.0"
+    },
+    {
+      "contactPoint": {
+        "fn": "Harold W. Hild",
+        "hasEmail": "mailto:hhild@CFTC.GOV"
+      },
+      "describedBy": "https://www.cftc.gov/MarketReports/CommitmentsofTraders/ExplanatoryNotes/index.htm",
+      "description": "COT reports provide a breakdown of each Tuesday's open interest for futures and options on futures market in which 20 or more traders hold positions equal to or above the reporting levels established by CFTC",
+      "distribution": [
+        {
+          "accessURL": "https://www.cftc.gov/MarketReports/CommitmentsofTraders/index.htm"
+        }
+      ],
+      "modified": "R/P1W",
+      "programCode": [
+        "000:000"
+      ],
+      "publisher": {
+        "name": "U.S. Commodity Futures Trading Commission",
+        "subOrganizationOf": {
+          "name": "U.S. Government"
+        }
+      },
+      "title": "Parity parity-1-1-a",
+      "accessLevel": "public",
+      "bureauCode": [
+        "339:00"
+      ],
+      "identifier": "parity-1-1-a",
+      "keyword": [
+        "commitment of traders",
+        "cot",
+        "open interest"
+      ]
+    },
+    {
+      "contactPoint": {
+        "fn": "Harold W. Hild",
+        "hasEmail": "mailto:hhild@CFTC.GOV"
+      },
+      "describedBy": "https://www.cftc.gov/MarketReports/CommitmentsofTraders/ExplanatoryNotes/index.htm",
+      "description": "COT reports provide a breakdown of each Tuesday's open interest for futures and options on futures market in which 20 or more traders hold positions equal to or above the reporting levels established by CFTC",
+      "distribution": [
+        {
+          "accessURL": "https://www.cftc.gov/MarketReports/CommitmentsofTraders/index.htm"
+        }
+      ],
+      "modified": "R/P1W",
+      "programCode": [
+        "000:000"
+      ],
+      "publisher": {
+        "name": "U.S. Commodity Futures Trading Commission",
+        "subOrganizationOf": {
+          "name": "U.S. Government"
+        }
+      },
+      "title": "Parity parity-1-1-b",
+      "accessLevel": "public",
+      "bureauCode": [
+        "339:00"
+      ],
+      "identifier": "parity-1-1-b",
+      "keyword": [
+        "commitment of traders",
+        "cot",
+        "open interest"
+      ],
+      "spatial": "Nowhere In Particular"
+    },
+    {
+      "contactPoint": {
+        "fn": "Harold W. Hild",
+        "hasEmail": "mailto:hhild@CFTC.GOV"
+      },
+      "describedBy": "https://www.cftc.gov/MarketReports/CommitmentsofTraders/ExplanatoryNotes/index.htm",
+      "description": "COT reports provide a breakdown of each Tuesday's open interest for futures and options on futures market in which 20 or more traders hold positions equal to or above the reporting levels established by CFTC",
+      "distribution": [
+        {
+          "accessURL": "https://www.cftc.gov/MarketReports/CommitmentsofTraders/index.htm"
+        }
+      ],
+      "modified": "R/P1W",
+      "programCode": [
+        "000:000"
+      ],
+      "publisher": {
+        "name": "U.S. Commodity Futures Trading Commission",
+        "subOrganizationOf": {
+          "name": "U.S. Government"
+        }
+      },
+      "title": "Parity parity-1-1-c",
+      "accessLevel": "public",
+      "bureauCode": [
+        "339:00"
+      ],
+      "identifier": "parity-1-1-c",
+      "keyword": [
+        "commitment of traders",
+        "cot",
+        "open interest"
+      ],
+      "spatial": "United States"
+    }
+  ]
+}

@@ -5,8 +5,9 @@ from urllib.parse import urljoin
 
 import pytest
 
+from dcatus_validation.catalog import RESOLVED_IDENTIFIER_KEY
 from harvester.harvest import DT_PLACEHOLDER
-from harvester.utils.general_utils import RESOLVED_IDENTIFIER_KEY, traverse_waf
+from harvester.utils.general_utils import traverse_waf
 
 WAF_HTML_EXAMPLES = Path(__file__).parents[2] / "waf-html-examples"
 
