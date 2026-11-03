@@ -60,14 +60,18 @@ def build_rows(csv_path: Path) -> list[list]:
     ]
 
 
+def write_location_names(rows: list[list], path: Path) -> None:
+    with open(path, "w", newline="") as f:
+        writer = csv.writer(f, lineterminator="\n")
+        writer.writerow(["display_name", "row_count", "in_postal_code_name"])
+        writer.writerows(rows)
+
+
 def main() -> None:
     if len(sys.argv) != 2:
         raise SystemExit(__doc__)
     rows = build_rows(Path(sys.argv[1]))
-    with open(OUTPUT_PATH, "w", newline="") as f:
-        writer = csv.writer(f, lineterminator="\n")
-        writer.writerow(["display_name", "row_count", "in_postal_code_name"])
-        writer.writerows(rows)
+    write_location_names(rows, OUTPUT_PATH)
     print(f"Wrote {len(rows)} names to {OUTPUT_PATH}")
 
 
