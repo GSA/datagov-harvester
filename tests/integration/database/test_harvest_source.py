@@ -392,6 +392,7 @@ def test_get_harvest_source_includes_description(
 def test_harvest_source_has_archive_columns(interface):
     """Test HarvestSource model has archive-related columns."""
     from sqlalchemy import inspect
+
     from database.models import HarvestSource
 
     inspector = inspect(HarvestSource)
@@ -583,8 +584,9 @@ def test_archive_harvest_source_preserves_errors(
     interface, organization_data, source_data_dcatus, job_data_dcatus
 ):
     """Test archiving preserves all associated errors."""
-    from database.models import HarvestJobError
     import uuid
+
+    from database.models import HarvestJobError
 
     interface.add_organization(organization_data)
     del source_data_dcatus["id"]

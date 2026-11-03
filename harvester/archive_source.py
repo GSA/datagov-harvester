@@ -25,16 +25,24 @@ def archive_source_command(source_id, user_email):
     """
     logger.info("Archiving harvest source %s (requested by %s)", source_id, user_email)
 
-    message, status = db_interface.archive_harvest_source(source_id, user_email)
+    try:
+        message, status = db_interface.archive_harvest_source(source_id, user_email)
 
-    if status == 200:
-        logger.info("Successfully archived harvest source %s", source_id)
-    else:
+        if status == 200:
+            logger.info("Successfully archived harvest source %s", source_id)
+        else:
+            logger.error(
+                "Failed to archive harvest source %s: %s (status %d)",
+                source_id,
+                message,
+                status,
+            )
+            sys.exit(1)
+    except Exception as e:
         logger.error(
-            "Failed to archive harvest source %s: %s (status %d)",
+            "Exception while archiving harvest source %s: %s",
             source_id,
-            message,
-            status,
+            str(e),
         )
         sys.exit(1)
 

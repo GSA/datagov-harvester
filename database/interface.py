@@ -265,11 +265,30 @@ class HarvesterDBInterface:
         result = self.db.query(HarvestSource).filter_by(id=source_id).first()
         return result
 
-    def get_harvest_source_by_org(self, org_id):
-        harvest_source = (
-            self.db.query(HarvestSource).filter_by(organization_id=org_id).all()
-        )
-        return [src for src in harvest_source]
+    def get_harvest_source_by_org(self, org_id, include_archived=False):
+        """Get harvest sources for an organization.
+
+        Args:
+            org_id: ID of the organization
+            include_archived: If False, exclude archived sources. If True, include
+                             archived sources but sort them to the end of the list.
+
+        Returns:
+            List of HarvestSource objects
+        """
+        query = self.db.query(HarvestSource).filter_by(organization_id=org_id)
+
+        if not include_archived:
+            query = query.filter(~HarvestSource.is_archived)
+
+        sources = query.all()
+
+        if include_archived:
+            active_sources = [s for s in sources if not s.is_archived]
+            archived_sources = [s for s in sources if s.is_archived]
+            return active_sources + archived_sources
+
+        return sources
 
     def get_harvest_source_by_jobid(self, jobid):
         harvest_job = self.db.query(HarvestJob).filter_by(id=jobid).first()
@@ -278,7 +297,7 @@ class HarvesterDBInterface:
         else:
             return harvest_job.source
 
-    def get_all_harvest_sources(self, include_archived=True):
+    def get_all_harvest_sources(self, include_archived=False):
         """Get all harvest sources, optionally excluding archived ones.
 
         Args:
