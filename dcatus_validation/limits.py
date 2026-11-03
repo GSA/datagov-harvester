@@ -2,8 +2,9 @@
 # fetch or `json_text` (which is also how the /validate/ page sends an uploaded
 # file). 150MB per GSA/data.gov#6460: big enough for nearly every agency
 # catalog without sizing the service for the largest outlier (a ~600MB Census
-# file). It sets the validator's memory need: a 150MB catalog peaks at roughly
-# 1GB in the worker validating it (validator_memory_quota in vars.*.yml). Keep
+# file). It sets the validator's memory need: a 150MB catalog peaks at
+# 1.1-1.7GB in the worker validating it (validator_memory_quota in vars.*.yml;
+# measurements in docs/validator-security.md). Keep
 # client_max_body_size in proxy/nginx-common.conf (and nginx-local-proxy.conf)
 # above MAX_REQUEST_BYTES when changing it.
 MAX_UPLOAD_MB = 150

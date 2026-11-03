@@ -461,10 +461,10 @@ class TestFetchJsonFromUrl:
 
     def test_connect_attempts_fit_inside_the_fetch_budget(self):
         """Every connect attempt fits inside the one deadline, each allows for
-        a quick SYN retransmit (~1s, then ~3s), and validation (up to ~12s at
-        10MB) has to fit after the fetch inside CloudFront's 30s, with
-        padding. Catalogs near the 150MB limit take longer than that to
-        validate (GSA/data.gov#6460), so this is sized for typical ones."""
+        a quick SYN retransmit (~1s, then ~3s), and validation has to fit
+        after the fetch inside CloudFront's 30s, with padding. The fast path
+        validates even a 150MB catalog in ~2s on a fast laptop
+        (GSA/data.gov#6460); 12s leaves room for slower production CPUs."""
         assert FETCH_CONNECT_TIMEOUT_SECONDS >= 3.5
         assert FETCH_CONNECT_TIMEOUT_SECONDS * FETCH_CONNECT_ATTEMPTS <= (
             FETCH_TIMEOUT_SECONDS
