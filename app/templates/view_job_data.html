@@ -128,7 +128,12 @@
         <p class="text-base-dark">
             Shows only warnings and errors found during this job. For all
             open warnings, see
-            <a href="{{ url_for('main.view_harvest_source_warnings', source_id=data.job.harvest_source_id) }}">Outstanding Warnings</a>.
+            <a href="{{ url_for('main.view_harvest_source_warnings', source_id=data.job.harvest_source_id) }}">Outstanding Warnings</a>
+            {% if data.source_issue_record_count %}
+            ({{ data.source_issue_record_count }} record{{ "s" if data.source_issue_record_count != 1 }} with
+            {{ data.source_issue_error_total }} error{{ "s" if data.source_issue_error_total != 1 }} and
+            {{ data.source_issue_warning_total }} warning{{ "s" if data.source_issue_warning_total != 1 }})
+            {% endif %}.
         </p>
         {% if not data.record_errors %}
         <div class="usa-alert usa-alert--info">
@@ -164,43 +169,11 @@
 
         <div class="usa-table-container--scrollable" tabindex="0">
             {% block record_errors_table %}
+            {% import 'components/error_block.j2' as error_block_macro %}
             <div id="error_results_pagination">
                 <div class="error-list">
                     {% for record_error in data.record_errors %}
-                    <div class="error-block">
-                        <h3>{{ record_error.error.id }}</h3>
-                        <p class="word-break-all"><strong>Identifier:</strong> {{ record_error.identifier if record_error.identifier else "N/A"
-                            }}</p>
-                        <p><strong>Title:</strong> {{ record_error.title if record_error.title else "N/A" }}</p>
-                        <p><strong>Harvest Record ID:</strong>
-                            {% if record_error.error.harvest_record_id %}
-                            <a
-                                href="{{ url_for('api_v1.get_harvest_record', record_id=record_error.error.harvest_record_id) }}">
-                                {{ record_error.error.harvest_record_id }}
-                            </a>
-                            {% else %}
-                            N/A
-                            {% endif %}
-                        </p>
-                        <!-- mixup between deployed app and testing env. TODO: fix this. -->
-                        {% if record_error.error.type in ["ValidationError", "ValidationException"] %}
-                            <p>
-                                <strong>Error Message:</strong> 
-                                <ul>
-                                    {% for msg in record_error.error.message %}
-                                        <li>{{msg}}</li>
-                                    {% endfor %}
-                                </ul>
-                            </p>
-                        {% else %}
-                            <p><strong>Error Message:</strong> {{ record_error.error.message }}</p>
-                        {% endif %} 
-                        <p><strong>Severity:</strong> {{ record_error.error.severity | else_na }}</p>
-                        <p><strong>Type:</strong> {{ record_error.error.type }}</p>
-                        <p class="utc-date" data-utc-date="{{record_error.error.date_created | utc_isoformat }}">
-                            <strong>Date Created:</strong> {{ record_error.error.date_created | else_na }}
-                        </p>
-                    </div>
+                    {{ error_block_macro.error_block(record_error) }}
                     {% endfor %}
                 </div>
                 {% if pagination.count > data.record_errors|count %}
