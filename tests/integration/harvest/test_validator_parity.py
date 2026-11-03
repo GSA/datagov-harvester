@@ -1,7 +1,8 @@
 """The public validator must report what a real harvest of the same catalog
 reports beyond schema errors: duplicate identifiers and warnings
 (GSA/data.gov#6380). Both sides use the test database's place lookup here, so
-this covers the record pipeline; the snapshot lookup is tested separately."""
+this covers the record pipeline. The deployed validator has no place lookup,
+a documented gap (see docs/validator-security.md)."""
 
 import json
 import uuid

@@ -25,12 +25,3 @@ this is split into 2 distinct processes.
 If you need to load this to the local DB, simply overwrite the
 credentials with what is in the `.env` file at the root of this
 project.
-
-## Validator place-name snapshot
-
-The public validator has no database, so it answers place-name lookups from
-`dcatus_validation/reference_data/location_names.json`, a snapshot of this
-table's display names. Whenever the locations table is reloaded, regenerate it
-from the same `locations.csv` and commit the result:
-
-`poetry run python scripts/refresh_location_names.py path/to/locations.csv`

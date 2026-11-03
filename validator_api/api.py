@@ -23,7 +23,6 @@ from dcatus_validation.limits import (
     MAX_VALIDATION_ERRORS,
     MAX_VALIDATION_WARNINGS,
 )
-from dcatus_validation.places import snapshot_place_lookup
 from dcatus_validation.validate import validate_records_limited
 from validator_api.schemas import (
     ValidationErrorResponseSchema,
@@ -82,11 +81,11 @@ def _catalog_issues(data, schema_name: str) -> tuple[list, list, bool]:
     if not isinstance(data, dict):
         return [], [], False
     try:
+        # No place_lookup: the validator has no database, so place names never
+        # resolve here even when the harvester's locations table would resolve
+        # them. Documented gap, see docs/validator-security.md.
         return find_catalog_issues(
-            data,
-            schema_name,
-            place_lookup=snapshot_place_lookup,
-            max_warnings=MAX_VALIDATION_WARNINGS,
+            data, schema_name, max_warnings=MAX_VALIDATION_WARNINGS
         )
     # What malformed records raise when walked; anything else is a real bug.
     except (AttributeError, TypeError, ValueError, KeyError):

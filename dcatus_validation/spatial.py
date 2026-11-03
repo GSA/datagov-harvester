@@ -1,7 +1,7 @@
 """Spatial value normalization shared by the harvest runner and the public
 validator. Place-name resolution is passed in as `place_lookup` (the harvester
-uses the locations table; the validator a bundled snapshot), so this module
-needs no database."""
+uses the locations table; the validator has none), so this module needs no
+database."""
 
 import json
 import logging
@@ -16,8 +16,7 @@ from shapely.geometry import mapping as shapely_geom_mapping
 
 logger = logging.getLogger(__name__)
 
-# Resolves a place name to a GeoJSON string, or None. A caller that only needs
-# to know whether a value resolves may return any truthy value instead.
+# Resolves a place name to a GeoJSON string, or None.
 PlaceLookup = Callable[[str], str | None]
 
 

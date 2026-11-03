@@ -36,6 +36,11 @@ beyond schema errors, for both DCAT-US 1.1 and 3.0:
 
 Existing `validation_errors` entries are unchanged.
 
+Known gap: the validator does no place-name lookup, so a free-text spatial
+value (e.g. `"United States"`) always produces a warning, even for the names
+the harvester can resolve from its locations table. See "Known gap: place
+names" in `docs/validator-security.md`.
+
 #### Outstanding record issues CSV download
 
 **Issue:** GSA/data.gov#6476  
