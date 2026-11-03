@@ -1,4 +1,8 @@
 {% macro error_block(record) %}
+{# .j2 templates aren't autoescaped by Flask by default (only .html/.htm/
+   .xml/.xhtml are) -- force it here since record/issue content ultimately
+   comes from harvested source data and validator/exception output. #}
+{% autoescape true %}
 <div class="error-block">
     <h3 class="word-break-all">{{ record.identifier }}</h3>
     <p><strong>Title:</strong> {{ record.title if record.title else "N/A" }}</p>
@@ -42,4 +46,5 @@
     </div>
     {% endfor %}
 </div>
+{% endautoescape %}
 {% endmacro %}
