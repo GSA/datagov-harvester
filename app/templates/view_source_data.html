@@ -29,6 +29,19 @@
     <div class="display-flex flex-align-center flex-wrap">
         <h1 class="margin-right-2">{{data.source.name}}</h1>
     </div>
+
+    {% if data.source.is_archived %}
+    <div class="usa-alert usa-alert--warning margin-top-2 margin-bottom-3" role="alert">
+        <div class="usa-alert__body">
+            <h2 class="usa-alert__heading">This harvest source is archived</h2>
+            <p class="usa-alert__text">
+                This source was archived on {{ data.source.archived_at | utc_isoformat }} by {{ data.source.archived_by }}.
+                Archived sources are locked and cannot be modified or harvested. All historical job information remains available.
+            </p>
+        </div>
+    </div>
+    {% endif %}
+
     <h2>Configuration</h2>
     <div class="config-table harvest-source-config-properties">
         <table class="usa-table usa-table--borderless width-full">
@@ -97,8 +110,13 @@
                     {{ confirm_button.render(form.clear, 'usa-button--outline', 'clear') }}
                 </li>
                 <li class="usa-button-group__item">
-                    {{ confirm_button.render(form.delete, 'usa-button--secondary', 'delete') }}
-
+                    {% if data.source.is_archived %}
+                    <button type="button" class="usa-button usa-button--secondary" disabled>
+                        {{ 'check' | usa_icon | safe }} Archived
+                    </button>
+                    {% else %}
+                    {{ confirm_button.render(form.delete, 'usa-button--secondary', 'archive') }}
+                    {% endif %}
                 </li>
             </ul>
             <fieldset class="usa-fieldset margin-top-2">
