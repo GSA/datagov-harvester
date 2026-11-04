@@ -59,6 +59,24 @@ def _wait_for_source_gone(engine, source_id, timeout_seconds=DELETE_WAIT_SECONDS
     )
 
 
+def _wait_for_source_archived(engine, source_id, timeout_seconds=DELETE_WAIT_SECONDS):
+    """Poll until the background archive task marks the source as archived."""
+    deadline = time.monotonic() + timeout_seconds
+    while time.monotonic() < deadline:
+        with engine.connect() as conn:
+            result = conn.execute(
+                text("SELECT is_archived FROM harvest_source WHERE id = :source_id"),
+                {"source_id": source_id},
+            )
+            row = result.fetchone()
+            if row and row[0] is True:
+                return
+        time.sleep(0.25)
+    raise AssertionError(
+        f"Harvest source {source_id} was not archived within {timeout_seconds}s"
+    )
+
+
 @pytest.fixture()
 def engine():
     """Engine on the app-under-test's db, not the host pytest db.
@@ -283,16 +301,16 @@ class TestHarvestSourceDeleteCascade:
         authed_page.once("dialog", lambda dialog: dialog.accept())
         authed_page.get_by_role("button", name=re.compile(r"^Delete\b")).click()
 
-        expect(authed_page.locator(".usa-alert--warning")).to_contain_text(
+        expect(authed_page.locator(".usa-alert--success")).to_contain_text(
             ["This harvest source may take some time to archive."]
         )
 
-        _wait_for_source_gone(engine, source_id)
+        _wait_for_source_archived(engine, source_id)
 
         assert _child_row_counts(engine, source_id) == {
-            "sources": 0,
-            "jobs": 0,
-            "records": 0,
+            "sources": 1,
+            "jobs": 2,
+            "records": 11,
             "record_errors": 0,
             "datasets": 0,
         }

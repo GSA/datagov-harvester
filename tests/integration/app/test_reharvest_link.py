@@ -218,7 +218,10 @@ def test_refresh_link_requires_confirmation_and_latest_job(
     csrf = BeautifulSoup(response.text, "html.parser").find(
         "input", {"name": "csrf_token"}
     )["value"]
-    with patch("app.deps.load_manager.start_job", return_value="Harvest requested"):
+    with patch(
+        "app.deps.load_manager.start_job",
+        return_value=("Harvest requested", "success"),
+    ):
         response = client.post(
             "/harvest_source/refresh",
             data={"token": token, "csrf_token": csrf, "refresh": "Refresh now"},
@@ -265,7 +268,10 @@ def test_refresh_link_requires_confirmation_and_latest_job(
     csrf = BeautifulSoup(response.text, "html.parser").find(
         "input", {"name": "csrf_token"}
     )["value"]
-    with patch("app.deps.load_manager.start_job", return_value="Harvest requested"):
+    with patch(
+        "app.deps.load_manager.start_job",
+        return_value=("Harvest requested", "success"),
+    ):
         retry = client.post(
             "/harvest_source/refresh",
             data={"token": token, "csrf_token": csrf, "refresh": "Refresh now"},

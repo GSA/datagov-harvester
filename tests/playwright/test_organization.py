@@ -106,7 +106,7 @@ class TestOrganizationAuthed:
         apage.once("dialog", lambda dialog: dialog.accept())
         apage.get_by_role("button", name=re.compile(r"^Delete\b")).click()
         # ruff: noqa: E501
-        expect(apage.locator(".usa-alert--warning")).to_contain_text(
+        expect(apage.locator(".usa-alert--error")).to_contain_text(
             [
                 "Failed: 3 harvest sources in the organization, please delete those first."
             ]

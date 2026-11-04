@@ -52,7 +52,7 @@ class TestHarvestCreateAndDestroy:
         apage.get_by_role("textbox", name="Logo").click()
         apage.get_by_role("textbox", name="Logo").fill("https://example.com/logo.png")
         apage.get_by_role("button", name="Submit").click()
-        expect(apage.locator(".usa-alert--warning")).to_contain_text(
+        expect(apage.locator(".usa-alert--success")).to_contain_text(
             ["Added new organization"]
         )
 
@@ -60,7 +60,7 @@ class TestHarvestCreateAndDestroy:
         apage.get_by_role("link", name=org_name).click()
         apage.once("dialog", lambda dialog: dialog.accept())
         apage.get_by_role("button", name=re.compile(r"^Delete\b")).click()
-        expect(apage.locator(".usa-alert--warning")).to_contain_text(
+        expect(apage.locator(".usa-alert--success")).to_contain_text(
             ["Deleted organization with ID:"]
         )
 
@@ -83,7 +83,7 @@ class TestHarvestCreateAndDestroy:
         apage_with_org.get_by_role("textbox", name="Notification emails").press("Tab")
         apage_with_org.get_by_label("Frequency", exact=True).press("Tab")
         apage_with_org.get_by_role("button", name="Submit").click()
-        expect(apage_with_org.locator(".usa-alert--warning")).to_contain_text(
+        expect(apage_with_org.locator(".usa-alert--success")).to_contain_text(
             ["Added new harvest source with ID:"]
         )
         expect(
@@ -98,18 +98,21 @@ class TestHarvestCreateAndDestroy:
         apage_with_org.get_by_role("link", name=source_name).click()
         apage_with_org.once("dialog", lambda dialog: dialog.accept())
         apage_with_org.get_by_role("button", name=re.compile(r"^Delete\b")).click()
-        expect(apage_with_org.locator(".usa-alert--warning")).to_contain_text(
+        expect(apage_with_org.locator(".usa-alert--success")).to_contain_text(
             ["This harvest source may take some time to archive."]
         )
         # List HTML is rendered before the background task finishes; reload until
-        # the source is gone so org fixture cleanup can succeed.
+        # the source is archived so org fixture cleanup can succeed.
         deadline = time.monotonic() + 60
         while time.monotonic() < deadline:
             apage_with_org.goto("/harvest_source_list/")
-            if apage_with_org.get_by_role("link", name=source_name).count() == 0:
+            source_row = apage_with_org.get_by_role("link", name=source_name).locator(
+                ".."
+            )
+            if source_row.get_by_text("Archived").count() > 0:
                 break
             time.sleep(0.25)
         else:
             raise AssertionError(
-                f"Harvest source {source_name!r} was not removed within 60s"
+                f"Harvest source {source_name!r} was not archived within 60s"
             )
