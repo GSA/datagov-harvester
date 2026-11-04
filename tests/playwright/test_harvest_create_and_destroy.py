@@ -34,7 +34,7 @@ def apage_with_org(apage):
     apage.get_by_role("link", name="Organizations").click()
     apage.get_by_role("link", name=org_name).click()
     apage.once("dialog", lambda dialog: dialog.accept())
-    apage.get_by_role("button", name=re.compile(r"^Delete\b")).click()
+    apage.get_by_role("button", name=re.compile(r"^Delete\b", re.IGNORECASE)).click()
 
 
 class TestHarvestCreateAndDestroy:
@@ -59,7 +59,9 @@ class TestHarvestCreateAndDestroy:
         apage.get_by_role("link", name="Organizations").click()
         apage.get_by_role("link", name=org_name).click()
         apage.once("dialog", lambda dialog: dialog.accept())
-        apage.get_by_role("button", name=re.compile(r"^Delete\b")).click()
+        apage.get_by_role(
+            "button", name=re.compile(r"^Delete\b", re.IGNORECASE)
+        ).click()
         expect(apage.locator(".usa-alert--success")).to_contain_text(
             ["Deleted organization with ID:"]
         )
@@ -97,19 +99,17 @@ class TestHarvestCreateAndDestroy:
 
         apage_with_org.get_by_role("link", name=source_name).click()
         apage_with_org.once("dialog", lambda dialog: dialog.accept())
-        apage_with_org.get_by_role("button", name=re.compile(r"^Delete\b")).click()
+        apage_with_org.get_by_role("button", name=re.compile(r"^Archive\b")).click()
         expect(apage_with_org.locator(".usa-alert--success")).to_contain_text(
             ["This harvest source may take some time to archive."]
         )
-        # List HTML is rendered before the background task finishes; reload until
-        # the source is archived so org fixture cleanup can succeed.
+        # Archive happens in background; wait for it to complete by checking that
+        # the source no longer appears in the non-archived list
         deadline = time.monotonic() + 60
         while time.monotonic() < deadline:
             apage_with_org.goto("/harvest_source_list/")
-            source_row = apage_with_org.get_by_role("link", name=source_name).locator(
-                ".."
-            )
-            if source_row.get_by_text("Archived").count() > 0:
+            # If archived, source won't appear in list (include_archived=False by default)
+            if apage_with_org.get_by_role("link", name=source_name).count() == 0:
                 break
             time.sleep(0.25)
         else:
