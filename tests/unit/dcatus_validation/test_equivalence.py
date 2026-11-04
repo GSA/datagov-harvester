@@ -1613,6 +1613,21 @@ class TestPythonKeywords:
         assert prefilter.is_valid(["a", "a", "b", "a"])
         assert calls == ["a", "b"]
 
+    def test_long_strings_are_not_remembered(self):
+        """The validators live as long as the worker, so a submitted catalog's
+        long strings mustn't stay in their cache after the request."""
+        calls = []
+        checker = FormatChecker()
+        checker.checks("counted")(lambda instance: calls.append(instance) or True)
+        schema = {"items": {"format": "counted"}}
+        prefilter = build_prefilter(
+            schema, Draft202012Validator(schema, format_checker=checker)
+        )
+        short, long = "x" * 256, "x" * 257
+
+        assert prefilter.is_valid([short, short, long, long])
+        assert calls == [short, long, long]
+
 
 class TestValuesJsonSchemaRsCannotTake:
     def test_lone_surrogate_is_left_to_python(self):

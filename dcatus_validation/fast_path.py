@@ -246,9 +246,12 @@ def _python_keyword(keyword: str, python_validator: Draft202012Validator):
     class PythonKeyword:
         # A string's answer never changes, and catalogs repeat many of them
         # (bureau and program codes, media types, dates), so each schema
-        # location remembers recent answers for strings. Small, so a catalog of
-        # unique strings can't make it hold much.
+        # location remembers recent answers for short strings. The validators
+        # live as long as the worker, so the cache is small and skips long
+        # strings: a submitted catalog's strings can't stay in memory after
+        # its request (at most 256 x 256 characters per location).
         _MAX_REMEMBERED = 256
+        _MAX_REMEMBERED_CHARS = 256
 
         def __init__(self, parent_schema, value, schema_path):
             self._value = value
@@ -270,6 +273,8 @@ def _python_keyword(keyword: str, python_validator: Draft202012Validator):
                 valid = self._is_valid(instance)
             elif self._simple_url_is_valid and SIMPLE_HTTP_URL.fullmatch(instance):
                 return
+            elif len(instance) > self._MAX_REMEMBERED_CHARS:
+                valid = self._is_valid(instance)
             else:
                 valid = self._remembered.get(instance)
                 if valid is None:
