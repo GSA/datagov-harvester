@@ -15,17 +15,17 @@ from dcatus_validation.fast_path import (
     FastValidators,
     Prefilter,
     build_dcatus1_1_fast_validators,
+    build_dcatus1_1_validator,
     build_dcatus3_fast_validators,
     build_prefilter,
     check_catalog,
+    load_dcatus3_definitions,
     skipping_known_valid_items,
 )
 from dcatus_validation.limits import MAX_DOCUMENT_NESTING_DEPTH
 from dcatus_validation.messages import (
     assemble_validation_errors,
-    build_dcatus1_1_validator,
     build_dcatus3_validator,
-    load_dcatus3_definitions,
     open_json,
 )
 from dcatus_validation.schema_paths import DCATUS1_1_DIR, DCATUS3_DEFINITIONS_DIR

@@ -1,7 +1,8 @@
 import json
 import logging
 
-from apiflask import APIBlueprint
+from apiflask import APIBlueprint, Schema, validators
+from apiflask.fields import String
 from flask import jsonify, make_response, request
 
 from dcatus_validation.errors import (
@@ -22,9 +23,8 @@ from dcatus_validation.limits import (
     MAX_UPLOAD_BYTES,
     MAX_VALIDATION_ERRORS,
 )
-from dcatus_validation.validate import validate_records_limited
+from dcatus_validation.validate import SCHEMA_NAMES, validate_records_limited
 from validator_api.schemas import (
-    DocumentQuery,
     ValidationErrorResponseSchema,
     ValidationResultSchema,
     ValidatorInfo,
@@ -212,6 +212,13 @@ def _uploaded_file_as_utf8(raw: bytes) -> bytes | memoryview:
     except UnicodeDecodeError:
         raise InvalidCatalogSource(INVALID_JSON_ENCODING_MESSAGE) from None
     return text.removeprefix("\ufeff").encode("utf-8")
+
+
+class DocumentQuery(Schema):
+    schema = String(required=True, validate=validators.OneOf(SCHEMA_NAMES))
+    fetch_method = String(
+        load_default="upload", validate=validators.OneOf(["paste", "upload"])
+    )
 
 
 @api.route("/validate/document", methods=["POST"])

@@ -44,7 +44,28 @@ from jsonschema import Draft202012Validator, FormatChecker, validators
 from referencing import Registry
 from referencing.jsonschema import DRAFT202012
 
+from dcatus_validation.messages import open_json
+
 logger = logging.getLogger("dcatus_validation")
+
+
+def build_dcatus1_1_validator(schema: dict):
+    """Python jsonschema for one DCAT-US 1.1 dataset schema, with its registry
+    crawled once. Python jsonschema adds the root schema uncrawled, so every
+    record whose publisher has a subOrganizationOf re-crawled the whole schema
+    to resolve its `$id`s, about half of all 1.1 validation time."""
+    resource = DRAFT202012.create_resource(schema)
+    registry = Registry().with_resource(uri=resource.id() or "", resource=resource)
+    return Draft202012Validator(
+        schema, registry=registry.crawl(), format_checker=FormatChecker()
+    )
+
+
+def load_dcatus3_definitions(definitions_dir) -> dict:
+    """Every DCAT-US 3.0 definition, by its `$id`."""
+    schemas = map(open_json, sorted(definitions_dir.glob("*.json")))
+    return {schema["$id"]: schema for schema in schemas}
+
 
 # Validation keywords whose behavior depends on the implementation. For these
 # jsonschema-rs calls Python jsonschema's own keyword function, so the answer is
@@ -183,7 +204,7 @@ _ONLY_CHECKS = {"pattern": str, "uniqueItems": list}
 # unreserved characters, sub-delims, ":", "@" (and "/" and "?" in the query
 # and fragment) or complete %XX escapes. Every string this matches is a URI
 # and an IRI to rfc3987, which is what Python jsonschema checks "uri" and "iri"
-# with (tests/unit/dcatus_validation/test_fast_path.py checks that with
+# with (tests/unit/dcatus_validation/test_equivalence.py checks that with
 # Hypothesis). Most catalog URLs match it in about a microsecond, against about
 # five for rfc3987's full grammar; anything else still goes to rfc3987.
 _PCHARS = r"A-Za-z0-9._~!$&'()*+,;=:@\-"

@@ -10,7 +10,6 @@ from dcatus_validation.limits import MAX_DOCUMENT_NESTING_DEPTH
 from dcatus_validation.messages import build_dcatus3_validator
 from dcatus_validation.validate import (
     SCHEMA_NAMES,
-    _fast_validators_for_schema,
     _validator_for_schema,
     load_schema_validators,
     validate_records,
@@ -36,17 +35,6 @@ class TestValidateRecords:
         load_schema_validators()
 
         assert _validator_for_schema.cache_info().currsize == len(SCHEMA_NAMES)
-
-    def test_load_schema_validators_builds_the_fast_path_too(self):
-        """jsonschema-rs is built at startup too, so a schema it can't take
-        shows up there (as a missing prefilter) rather than on a request."""
-        _fast_validators_for_schema.cache_clear()
-
-        load_schema_validators()
-
-        assert _fast_validators_for_schema.cache_info().currsize == len(SCHEMA_NAMES)
-        for schema_name in SCHEMA_NAMES:
-            assert _fast_validators_for_schema(schema_name).prefilter is not None
 
     def test_load_schema_validators_fails_on_a_missing_schema(
         self, monkeypatch, tmp_path

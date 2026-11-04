@@ -141,9 +141,6 @@ norecursedirs = [
     "venv",
     "{arch}",
 ]
-markers = [
-    "large_upload: real-size (~150MB+) catalogs sent to the validator; slow and memory-heavy, deselect with -m 'not large_upload'",
-]
 
 
 [build-system]

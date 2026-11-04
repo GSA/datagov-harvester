@@ -1,5 +1,5 @@
 """
-Validate a DCAT-US catalog URL against a schema, bypassing the 150MB upload
+Validate a DCAT-US catalog URL against a schema, bypassing the 10MB upload
 cap on the hosted /validate page (dcatus_validation/limits.py MAX_UPLOAD_MB).
 
 Usage (run inside the app container):

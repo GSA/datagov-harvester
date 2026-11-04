@@ -80,7 +80,7 @@ Validation is ~20 times faster than Python jsonschema alone, with the same resul
 
 - **Parsing.** orjson parses the document. Anything orjson refuses or parses differently (a byte order mark, UTF-16 or UTF-32, a lone surrogate, NaN, a syntax error, an integer past 64 bits, nesting past 1024) is parsed again by the pure-Python parser, so it gets the same value or error as before.
 - **Validation.** jsonschema-rs only decides which records (1.1) or top-level items (3.0) are valid. Python jsonschema validates everything else, so every error message, its path and order, and the 1,000-error cap still come from Python jsonschema. Keywords the two libraries treat differently (`pattern`, `format`, `uniqueItems`, `enum`, `const`) call back into Python jsonschema, the rest are a reviewed list (`fast_path.RUST_KEYWORDS`), and a schema using any other keyword gets no fast path.
-- **Tests.** `tests/unit/dcatus_validation/test_equivalence_*.py` and `tests/integration/validator_api/test_fast_path_api.py` run every example catalog, thousands of mutations and a Hypothesis fuzzer through both the fast path and Python jsonschema alone, and require identical results.
+- **Tests.** `tests/unit/dcatus_validation/test_equivalence.py` and `tests/integration/validator_api/test_validate_api.py` run every example catalog, thousands of mutations and a Hypothesis fuzzer through both the fast path and Python jsonschema alone, and require identical results.
 
 ## Rules for changes
 
