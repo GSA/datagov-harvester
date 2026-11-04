@@ -448,6 +448,7 @@ class HarvestSource:
         adds a record error about the duplicate to the db and removes the
         duplicate from processing.
         """
+        self.db_interface.clear_duplicate_identifier_issues(self.id)
         self._filter_duplicate_identifiers_from(self.external_records, "dataset")
         for record_type, config in NON_DATASET_RECORD_TYPES.items():
             self._filter_duplicate_identifiers_from(
