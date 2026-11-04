@@ -59,15 +59,10 @@ def _document(client, schema, body: bytes, fetch_method="upload", path="/api/v1"
     return res.status_code, res.get_json()
 
 
-@pytest.fixture(params=["true", "false"], ids=["fast path", "kill switch"])
-def fast_path_setting(request, monkeypatch):
-    monkeypatch.setenv("DCATUS_VALIDATION_FAST_PATH", request.param)
-
-
 @pytest.mark.parametrize("fetch_method", ["paste", "upload"])
 @pytest.mark.parametrize("schema, text", TEXTS.values(), ids=list(TEXTS))
 def test_the_body_gets_what_json_text_gets(
-    validator_client, fast_path_setting, schema, text, fetch_method
+    validator_client, schema, text, fetch_method
 ):
     expected = _json_paste(validator_client, schema, text)
     if text == "":
@@ -80,9 +75,7 @@ def test_the_body_gets_what_json_text_gets(
 
 
 class TestPaste:
-    def test_a_byte_order_mark_is_refused_as_in_json_text(
-        self, validator_client, fast_path_setting
-    ):
+    def test_a_byte_order_mark_is_refused_as_in_json_text(self, validator_client):
         text = '﻿{"dataset": []}'
         expected = _json_paste(validator_client, FEDERAL, text)
         assert expected[0] == 400
@@ -108,9 +101,7 @@ class TestUpload:
     @pytest.mark.parametrize(
         "encoding", ["utf-8-sig", "utf-16", "utf-16-le", "utf-16-be"]
     )
-    def test_decodes_as_the_page_did(
-        self, validator_client, fast_path_setting, encoding
-    ):
+    def test_decodes_as_the_page_did(self, validator_client, encoding):
         expected = _json_paste(validator_client, FEDERAL, self.CATALOG)
 
         assert (

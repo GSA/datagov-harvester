@@ -2,10 +2,6 @@
 the same result on the fast path as on the old pure-Python path, at every error
 cap (GSA/data.gov#6460). The comparison covers the whole outcome: each error's
 identifier and message, their order, `validation_incomplete`, or the exception.
-
-The kill switch (DCATUS_VALIDATION_FAST_PATH) is what selects the path, so
-these are also the kill switch's tests: both settings give identical results
-on the golden set.
 """
 
 import json

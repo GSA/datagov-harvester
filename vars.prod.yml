@@ -11,9 +11,7 @@ admin_instances: 2
 admin_memory_quota: 2G
 admin_disk_quota: 4G
 validator_instances: 2
-# A 150MB catalog (MAX_UPLOAD_MB) peaks near 1GB in the worker validating it,
-# and the worker drops back to ~200MB afterwards, so 2G fits one at a time but
-# not two at once (docs/validator-security.md, GSA/data.gov#6460).
+# A 150MB catalog peaks near 1GB in a worker; 2G fits one at a time.
 validator_memory_quota: 2G
 validator_disk_quota: 2G
 

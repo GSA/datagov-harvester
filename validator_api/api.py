@@ -62,15 +62,9 @@ def _bound_validation_results(errors: list) -> list:
 
 
 def _take_pasted_document(json_data) -> bytes:
-    """The pasted catalog as UTF-8, with every other copy of it released: the
-    decoded text (in json_data and werkzeug's parsed-JSON cache) and the raw
-    request body werkzeug caches. Otherwise a 150MB paste is alive three or
-    four times while it's parsed, ~300-600MB more at the peak
-    (GSA/data.gov#6460). Nothing reads the request body again after this.
-
-    Encoding raises UnicodeEncodeError for a lone surrogate, as the size
-    check always has.
-    """
+    """The pasted catalog as UTF-8, with werkzeug's cached copies of the
+    request released, so only one copy is alive while it's parsed
+    (GSA/data.gov#6460)."""
     document = json_data.pop("json_text").encode("utf-8")
     cache = vars(request._get_current_object())
     cache.pop("_cached_json", None)
@@ -108,9 +102,8 @@ _RESPONSES = {
 
 
 def _validation_response(fetch_method: str, schema: str, load_catalog):
-    """Load the catalog with load_catalog(), validate it, and answer. Both
-    request formats share this, so they give the same results, refusals and
-    statuses."""
+    """Load the catalog with load_catalog(), validate it, and answer: the same
+    for both endpoints."""
     errors = []
 
     try:
@@ -194,22 +187,17 @@ def validator(json_data):
 
 
 def _parse_document(document):
-    """Parse a pasted or uploaded catalog's UTF-8 bytes. MAX_CONTENT_LENGTH
-    caps the request body, which has room for JSON escaping (see
-    app.constants); this caps the document itself, the same limit a URL
-    submission gets."""
+    """Parse a pasted or uploaded catalog's UTF-8 bytes, held to the same
+    document limit a URL submission gets."""
     if len(document) > MAX_UPLOAD_BYTES:
         raise InvalidCatalogSource(PAYLOAD_TOO_LARGE_MESSAGE)
     return parse_pasted_json_document(document)
 
 
 def _uploaded_file_as_utf8(raw: bytes) -> bytes | memoryview:
-    """An uploaded file's text as UTF-8, decoded the way the /validate/ page
-    decoded it in the browser before it sent files as the body itself: UTF-16
-    when the file starts with a UTF-16 BOM or has a NUL in exactly one of its
-    first two bytes, otherwise UTF-8, without one leading BOM. A file that
-    doesn't decode is refused, as the page refused it. UTF-8 files, nearly
-    all of them, aren't copied."""
+    """An uploaded file's text as UTF-8, decoded as the /validate/ page used
+    to decode it in the browser: UTF-16 by BOM or NUL pattern, otherwise
+    UTF-8, minus one leading BOM."""
     first, second = raw[:1], raw[1:2]
     if raw[:2] == b"\xfe\xff" or (first == b"\0" and second not in (b"", b"\0")):
         encoding = "utf-16-be"
@@ -232,22 +220,16 @@ def _uploaded_file_as_utf8(raw: bytes) -> bytes | memoryview:
 @api.doc(
     summary="Validate a DCAT catalog sent as the request body",
     description=(
-        "The catalog itself is the request body; `schema` and `fetch_method` "
-        "are query parameters. `fetch_method=paste` takes the body as pasted "
-        "text in UTF-8 (a leading byte order mark is refused, as in a paste). "
-        "`fetch_method=upload` decodes it as a file: UTF-16 by its byte order "
-        "mark or NULs, otherwise UTF-8. This is how the /validate/ page sends "
-        "catalogs: nothing is JSON-escaped, so neither the browser nor the "
-        "service holds an extra copy. Same results and refusals as "
-        "`/validate` with `json_text`."
+        "The request body is the catalog; `schema` and `fetch_method` are "
+        "query parameters. `paste` reads the body as UTF-8 text, `upload` as "
+        "a UTF-8 or UTF-16 file. Same results as `/validate` with `json_text`."
     ),
     responses=_RESPONSES,
 )
 def validate_document(query_data):
     """The catalog as the raw request body (GSA/data.gov#6460)."""
-    # Read here, outside _validation_response, so an oversized body gets the
-    # app's JSON 413 rather than a 500. Held in a list so load_catalog can
-    # take the only reference and the body is freed once parsed.
+    # Read outside _validation_response so an oversized body gets the JSON 413,
+    # not a 500; a list so load_catalog holds the only reference.
     body = [request.get_data(cache=False)]
     fetch_method = query_data["fetch_method"]
 

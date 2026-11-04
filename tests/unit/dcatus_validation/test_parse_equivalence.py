@@ -403,7 +403,7 @@ PASTED_TEXTS = {
 }
 
 
-@pytest.mark.parametrize("enabled", [True, False], ids=["fast path", "kill switch"])
+@pytest.mark.parametrize("enabled", [True, False], ids=["fast path", "pure Python"])
 @pytest.mark.parametrize("text", PASTED_TEXTS.values(), ids=list(PASTED_TEXTS))
 def test_pasted_bytes_parse_like_the_pasted_text(text, enabled):
     """The paste route parses the text's UTF-8 bytes so it can drop the text

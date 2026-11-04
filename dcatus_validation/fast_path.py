@@ -29,13 +29,9 @@ DCAT-US 1.1 is validated record by record, so a record jsonschema-rs finds
 valid simply skips Python. DCAT-US 3.0 is validated as one catalog, so Python
 still runs over the catalog but skips the `$ref`s into the datasets (and other
 top-level items) jsonschema-rs found valid; see skipping_known_valid_items.
-
-Set DCATUS_VALIDATION_FAST_PATH=false to go back to the old pure-Python
-parser and validator without a deploy.
 """
 
 import logging
-import os
 import re
 from contextlib import contextmanager
 from contextvars import ContextVar
@@ -49,21 +45,6 @@ from referencing import Registry
 from referencing.jsonschema import DRAFT202012
 
 logger = logging.getLogger("dcatus_validation")
-
-FAST_PATH_ENV_VAR = "DCATUS_VALIDATION_FAST_PATH"
-
-
-def fast_path_enabled() -> bool:
-    """Whether to use orjson and jsonschema-rs (the default).
-
-    The kill switch for operators: `cf set-env <app> DCATUS_VALIDATION_FAST_PATH
-    false` and a restart puts the validator API back on the old pure-Python
-    parser and validator. Only "true" (any case) keeps the fast path on, so a
-    mistyped value also falls back to the old path. Read on every call, never
-    cached at import.
-    """
-    return os.getenv(FAST_PATH_ENV_VAR, "true").strip().lower() == "true"
-
 
 # Validation keywords whose behavior depends on the implementation. For these
 # jsonschema-rs calls Python jsonschema's own keyword function, so the answer is

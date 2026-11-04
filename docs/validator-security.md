@@ -50,27 +50,8 @@ All limits are in `dcatus_validation/limits.py` unless noted.
 
 The document limit was raised from 10MB to 150MB in GSA/data.gov#6460. That covers nearly every agency catalog without sizing the service for the largest outlier, a ~600MB Census file. What it costs:
 
-- **Memory.** Peak RSS of one gunicorn worker (gthread, 2 threads) validating a pasted catalog, on Linux as cloud.gov runs it (Python 3.14 in a Debian container). The 50MB and 100MB peaks were measured; the 150MB column, which follows from them because the peak grows linearly with size, is extrapolated:
-
-  | Part of the peak, 150MB catalog | Before the paste route dropped its extra copies | Now |
-  | --- | --- | --- |
-  | Idle worker | ~130MB | ~130MB |
-  | Raw request body, cached by werkzeug | ~165MB | released before parsing |
-  | Pasted text, decoded from the body | ~150MB (~300MB once any character is past U+00FF) | released before parsing |
-  | UTF-8 copy that orjson parses | ~150MB, text not pure ASCII only | ~150MB, the one copy kept |
-  | Parsed catalog as Python objects | ~690MB | ~690MB |
-  | **Peak, 150MB (extrapolated)** | **~1.13GB; ~1.5–1.6GB not pure ASCII** | **~0.97GB either way** |
-  | Peak, 100MB (measured) | 800MB; 1,005MB not pure ASCII | 690MB; 695MB not pure ASCII |
-  | Peak, 50MB (measured) | 466MB | 411MB |
-
-  The route keeps a single copy of a pasted catalog, its UTF-8 bytes, while it parses it (`_take_pasted_document` in `validator_api/api.py`). `/validate/document`, which the page uses, reads the body once without caching it and parses that, so it holds one copy too, and the browser sends the file without reading it into memory. `tests/integration/validator_api/test_paste_memory.py` checks both. A URL fetch already held one copy, so it peaks about the same. Most of the peak is the parsed catalog itself: each ~1.1KB record becomes ~5KB of Python strings and dicts, the cost of validating with Python jsonschema at all. After a large request a worker drops back to ~170–210MB. (macOS keeps several hundred MB more, so measurements on a Mac overstate this.)
-
-  For an instance (3 workers and a ~30MB master) under `validator_memory_quota`, 2G in every space, extrapolated from the above:
-  - **One 150MB submission at a time fits:** ~1.4GB in total.
-  - **Two at once don't fit.** In one worker, both catalogs can be alive together (~1.8GB in that worker, ~2.25GB for the instance). How much they overlap depends on timing, because the threads share one GIL; two 50MB pastes measured 458MB against 411MB for one. In two different workers, it's ~2.2GB.
-
-  Cloud Foundry restarts an instance that goes over its quota.
-- **Time.** On the fast path (see "Fast path and its kill switch" below), parsing and validating a 150MB catalog takes ~2s on a fast laptop (1.7–2.1s), and ~2–2.5s through the API. That is well inside CloudFront's 30s request ceiling, with room for slower production CPUs. A URL submission still has to download within the 12s fetch budget, which for 150MB takes a server sending ~100Mbps. With the kill switch on, validation is back to 0.2–0.5 s/MB on a fast laptop (31–79s for 150MB; this repo's earlier production estimate was 0.5–1.2 s/MB). Catalogs past roughly 25–100MB can then run past the 30s ceiling, and the submitter sees a timeout even though the worker finishes the validation.
+- **Memory.** On Linux, a worker validating a 150MB catalog peaks near 1GB: ~690MB of that is the parsed catalog as Python objects, and ~150MB is the one copy of the document the validator keeps while parsing it (measured at 50MB and 100MB, extrapolated to 150MB). A worker drops back to ~200MB afterwards. So the 2G `validator_memory_quota` (3 workers per instance) fits one 150MB submission at a time, ~1.4GB in total, but not two at once. Cloud Foundry restarts an instance that goes over its quota.
+- **Time.** Parsing and validating a 150MB catalog takes ~2s (see "Fast path" below), well inside CloudFront's 30s limit, which doesn't count the upload. A URL submission still has to download within the 12s fetch budget, which for 150MB takes a server sending ~100Mbps.
 
 Changing `MAX_UPLOAD_MB` means rechecking both of these, and keeping `client_max_body_size` in `proxy/nginx-common.conf` above `MAX_REQUEST_BYTES`.
 
@@ -93,18 +74,13 @@ Changing `MAX_UPLOAD_MB` means rechecking both of these, and keeping `client_max
 - `GET /validator/health` is the same check through the proxy's public route, for uptime monitoring.
 - Both return `{"status": "ok"}`. The app builds every schema validator at startup (`load_schema_validators`), so an instance whose schemas are missing or broken (for example, the `_external/dcat-us` submodule wasn't checked out) fails to start instead of passing the health check and then failing requests.
 
-## Fast path and its kill switch
+## Fast path
 
-Validation takes two paths to the same answer (GSA/data.gov#6460):
+Validation is ~20 times faster than Python jsonschema alone, with the same results (GSA/data.gov#6460):
 
-- **Parsing.** orjson parses the document. Whenever orjson refuses one (a byte order mark, UTF-16 or UTF-32, an escaped lone surrogate, NaN, a syntax error, nesting past 1024) or returns something `json.loads` wouldn't (an integer past 64 bits, which orjson turns into a float), the pure-Python parser parses it again. So every document parses to the same value, or fails with the same error and position, as before.
-- **Validation.** jsonschema-rs decides which records (1.1) or datasets and other top-level items (3.0) are valid. Python jsonschema then runs exactly as before on everything else. For 3.0 that means the same whole-catalog run, skipping only the `$ref`s into items jsonschema-rs found valid. Every error message, its path and order, and the 1,000-error cap still come from Python jsonschema alone.
-- **Agreement by construction.** jsonschema-rs is only ever trusted to say "valid". Where the libraries differ, it calls back into Python jsonschema's own code: `pattern` (ECMA-262 against Python `re`), `format` (rfc3987 and the date checkers), and `uniqueItems`, `enum` and `const` (number equality). The remaining keywords are a reviewed list (`fast_path.RUST_KEYWORDS`). A schema that uses any other validation keyword gets no fast path, and `tests/unit/dcatus_validation/test_fast_path.py` fails. A document containing anything a JSON parser can't produce (a tuple, say, from a direct caller) also gets no fast path.
-- **Tests.** `tests/unit/dcatus_validation/test_equivalence_*.py` and `tests/integration/validator_api/test_fast_path_api.py` run every example catalog, every GSA/dcat-us example, thousands of systematic mutations and a Hypothesis fuzzer through both paths and require identical results. Set `DCATUS_EQUIVALENCE_EXAMPLES` (e.g. `20000`) for a longer Hypothesis run. `scripts/benchmark_validation.py` measures both paths on large generated catalogs.
-
-**Memory.** The fast path is about 20 times faster but peaks higher while parsing. orjson needs the document as UTF-8 and builds its own parse tree before creating Python objects. For a 150MB catalog that adds roughly 100–170MB at the parse peak (measured by URL with `scripts/benchmark_validation.py --api`). Pasted text no longer needs a UTF-8 copy of its own: the route parses the UTF-8 bytes it already made. The resulting gunicorn worker peaks, and what they mean for `validator_memory_quota`, are under "Memory" in [Resource limits](#resource-limits).
-
-**Kill switch.** Set `DCATUS_VALIDATION_FAST_PATH=false` and restart (`cf set-env datagov-harvest-validator DCATUS_VALIDATION_FAST_PATH false`, then `cf restart datagov-harvest-validator`) to go back to the pure-Python parser and validator, with no deploy. Only `true` (the default when unset) keeps the fast path on, so a mistyped value also turns it off.
+- **Parsing.** orjson parses the document. Anything orjson refuses or parses differently (a byte order mark, UTF-16 or UTF-32, a lone surrogate, NaN, a syntax error, an integer past 64 bits, nesting past 1024) is parsed again by the pure-Python parser, so it gets the same value or error as before.
+- **Validation.** jsonschema-rs only decides which records (1.1) or top-level items (3.0) are valid. Python jsonschema validates everything else, so every error message, its path and order, and the 1,000-error cap still come from Python jsonschema. Keywords the two libraries treat differently (`pattern`, `format`, `uniqueItems`, `enum`, `const`) call back into Python jsonschema, the rest are a reviewed list (`fast_path.RUST_KEYWORDS`), and a schema using any other keyword gets no fast path.
+- **Tests.** `tests/unit/dcatus_validation/test_equivalence_*.py` and `tests/integration/validator_api/test_fast_path_api.py` run every example catalog, thousands of mutations and a Hypothesis fuzzer through both the fast path and Python jsonschema alone, and require identical results.
 
 ## Rules for changes
 

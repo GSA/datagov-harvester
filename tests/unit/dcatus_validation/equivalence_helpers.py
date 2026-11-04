@@ -2,19 +2,18 @@
 pre-crawled 1.1 registry) to exactly the old pure-Python path's results
 (GSA/data.gov#6460).
 
-Each comparison runs one document through both paths, switching with the
-DCATUS_VALIDATION_FAST_PATH kill switch, and compares the whole outcome: the
-errors (identifier, message, order) and `validation_incomplete`, or the
-exception raised.
+Each comparison runs one document through both paths (see fast_path) and
+compares the whole outcome: the errors (identifier, message, order) and
+`validation_incomplete`, or the exception raised.
 """
 
 import contextlib
 import copy
+import importlib
 import json
-import os
 from pathlib import Path
+from unittest import mock
 
-from dcatus_validation.fast_path import FAST_PATH_ENV_VAR
 from dcatus_validation.limits import MAX_VALIDATION_ERRORS
 from dcatus_validation.validate import (
     SCHEMA_NAMES,
@@ -35,15 +34,31 @@ CAPS = (MAX_VALIDATION_ERRORS, None, 1, 2, 7)
 
 @contextlib.contextmanager
 def fast_path(enabled: bool):
-    previous = os.environ.get(FAST_PATH_ENV_VAR)
-    os.environ[FAST_PATH_ENV_VAR] = "true" if enabled else "false"
-    try:
+    """With enabled=False, parse and validate the old pure-Python way, the
+    reference the fast path must match: orjson refuses every document, so the
+    stdlib parser parses it, and every document is validated by Python
+    jsonschema alone, as one that isn't plain JSON is."""
+    if enabled:
         yield
-    finally:
-        if previous is None:
-            os.environ.pop(FAST_PATH_ENV_VAR, None)
-        else:
-            os.environ[FAST_PATH_ENV_VAR] = previous
+        return
+    # Looked up now: tests/unit/dcatus_validation/test_fetch.py reloads fetch.
+    fetch = importlib.import_module("dcatus_validation.fetch")
+    validate = importlib.import_module("dcatus_validation.validate")
+    check_nesting = validate._check_catalog_nesting
+
+    def not_plain_json(document):
+        check_nesting(document)
+        return False
+
+    with (
+        mock.patch.object(
+            fetch, "_parse_json_document_orjson", return_value=fetch._ORJSON_REFUSED
+        ),
+        mock.patch.object(
+            validate, "_check_catalog_nesting", side_effect=not_plain_json
+        ),
+    ):
+        yield
 
 
 def outcome(document, schema_name, max_errors=MAX_VALIDATION_ERRORS):

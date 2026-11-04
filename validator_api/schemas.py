@@ -53,12 +53,6 @@ class DocumentQuery(Schema):
     fetch_method = String(
         load_default="upload",
         validate=validators.OneOf(["paste", "upload"]),
-        metadata={
-            "description": (
-                "`paste`: the body is pasted text, as UTF-8. `upload` (the "
-                "default): the body is a file, UTF-8 or UTF-16."
-            )
-        },
     )
 
 

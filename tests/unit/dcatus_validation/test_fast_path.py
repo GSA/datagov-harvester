@@ -1,4 +1,5 @@
-"""The fast path's machinery: the kill switch, which keywords jsonschema-rs may
+"""The fast path's machinery: the pure-Python reference it's compared with,
+which keywords jsonschema-rs may
 decide alone, the Python keyword bridge, the URL shortcut, DCAT-US 3.0's
 skipping of known-valid items and the pre-crawled 1.1 registry
 (GSA/data.gov#6460). test_equivalence_*.py compare the two paths' results."""
@@ -20,13 +21,11 @@ from jsonschema import Draft202012Validator, FormatChecker
 import dcatus_validation.fast_path as fast_path
 import dcatus_validation.validate as validate
 from dcatus_validation.fast_path import (
-    FAST_PATH_ENV_VAR,
     PYTHON_KEYWORDS,
     PYTHON_VALIDATION_KEYWORDS,
     RUST_KEYWORDS,
     SIMPLE_HTTP_URL,
     build_prefilter,
-    fast_path_enabled,
     schema_keywords,
     unreviewed_keywords,
 )
@@ -76,44 +75,21 @@ def _native(schema):
     return jsonschema_rs.Draft202012Validator(schema, validate_formats=True)
 
 
-class TestKillSwitch:
-    def test_on_by_default(self, monkeypatch):
-        monkeypatch.delenv(FAST_PATH_ENV_VAR, raising=False)
-
-        assert fast_path_enabled() is True
-
-    @pytest.mark.parametrize("value", ["true", "TRUE", "True", " true\n"])
-    def test_true_keeps_it_on(self, monkeypatch, value):
-        monkeypatch.setenv(FAST_PATH_ENV_VAR, value)
-
-        assert fast_path_enabled() is True
-
-    @pytest.mark.parametrize(
-        "value", ["false", "FALSE", "0", "no", "off", "", "flase", "1", "yes"]
-    )
-    def test_anything_else_turns_it_off(self, monkeypatch, value):
-        """A kill switch should fail toward the old path: only "true" keeps the
-        fast path, so a typo turns it off rather than leaving it on."""
-        monkeypatch.setenv(FAST_PATH_ENV_VAR, value)
-
-        assert fast_path_enabled() is False
-
-    def test_read_on_every_call(self, monkeypatch):
-        monkeypatch.setenv(FAST_PATH_ENV_VAR, "false")
-        assert fast_path_enabled() is False
-        monkeypatch.setenv(FAST_PATH_ENV_VAR, "true")
-        assert fast_path_enabled() is True
+class TestReferencePath:
+    """The equivalence tests compare the fast path with equivalence_helpers'
+    fast_path(False): that has to be Python jsonschema and the stdlib parser
+    alone."""
 
     @pytest.mark.parametrize("schema_name", SCHEMA_NAMES)
-    def test_off_never_touches_jsonschema_rs_or_orjson(self, monkeypatch, schema_name):
+    def test_it_never_touches_jsonschema_rs_or_orjson(self, schema_name):
         from dcatus_validation.fetch import parse_json_document
 
-        monkeypatch.setenv(FAST_PATH_ENV_VAR, "false")
         document = (EXAMPLES / "dcatus_multiple_invalid.json").read_bytes()
         if schema_name == DCATUS3:
             document = (EXAMPLES / "dcatus3_0_invalid.json").read_bytes()
 
         with (
+            use_fast_path(False),
             mock.patch("orjson.loads", side_effect=AssertionError("orjson used")),
             mock.patch.object(
                 fast_path.Prefilter,
@@ -130,18 +106,7 @@ class TestKillSwitch:
 
         assert errors
 
-    def test_off_uses_the_validators_built_the_old_way(self, monkeypatch):
-        monkeypatch.setenv(FAST_PATH_ENV_VAR, "false")
-        validate._validator_for_schema.cache_clear()
-        with mock.patch.object(
-            validate, "build_dcatus1_1_validator", wraps=build_dcatus1_1_validator
-        ) as builder:
-            validate_records({"dataset": [{}]}, FEDERAL)
-
-        assert builder.call_args.kwargs == {"precrawl": False}
-
-    def test_on_uses_jsonschema_rs(self, monkeypatch):
-        monkeypatch.setenv(FAST_PATH_ENV_VAR, "true")
+    def test_the_fast_path_uses_jsonschema_rs(self):
         with mock.patch.object(
             fast_path.Prefilter, "is_valid", autospec=True, return_value=False
         ) as is_valid:
@@ -703,8 +668,9 @@ class TestPrecrawledRegistry:
 
     def test_the_old_build_crawls_for_every_record(self):
         """What C fixes: publishers with subOrganizationOf crawl each time."""
-        validator = build_dcatus1_1_validator(
-            open_json(DCATUS1_1_DIR / "federal_dataset.json"), precrawl=False
+        validator = Draft202012Validator(
+            open_json(DCATUS1_1_DIR / "federal_dataset.json"),
+            format_checker=FormatChecker(),
         )
         records = load_json(EXAMPLES / "dcatus.json")["dataset"]
         crawl = referencing._core.Registry.crawl
@@ -719,7 +685,7 @@ class TestPrecrawledRegistry:
     @pytest.mark.parametrize("schema_path", FAST_PATH_1_1_SCHEMA_FILES)
     def test_same_errors_as_the_old_build(self, schema_path):
         schema = open_json(schema_path)
-        old = build_dcatus1_1_validator(schema, precrawl=False)
+        old = Draft202012Validator(schema, format_checker=FormatChecker())
         new = build_dcatus1_1_validator(schema)
         records = [
             record

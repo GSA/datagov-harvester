@@ -61,11 +61,7 @@ def _alive_when_parsing_starts(client, url, body: bytes) -> int:
     return alive
 
 
-@pytest.mark.parametrize("enabled", ["true", "false"], ids=["fast path", "kill switch"])
-def test_a_paste_is_held_once_while_it_is_parsed(
-    validator_client, tmp_path, monkeypatch, enabled
-):
-    monkeypatch.setenv("DCATUS_VALIDATION_FAST_PATH", enabled)
+def test_a_paste_is_held_once_while_it_is_parsed(validator_client, tmp_path):
     text = _catalog_text(tmp_path)
     document_size = len(text.encode("utf-8"))
     body = json.dumps(

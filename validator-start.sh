@@ -2,10 +2,7 @@
 # Start command for the datagov-harvest-validator app (manifest.yml). No
 # migrations: the validator has no database. 2 threads per worker because a
 # request mostly waits on a remote URL (up to 12s); kept low because each one
-# can also hold a catalog of up to 150MB in memory while it validates, which
-# peaks near 1GB in that worker (validator_memory_quota in vars.*.yml; see
-# docs/validator-security.md). The threads share one GIL, so two large
-# validations in a worker take twice as long rather than running in parallel.
+# can also hold a catalog of up to 150MB, which peaks near 1GB in that worker.
 
 DIR="$(dirname "${BASH_SOURCE[0]}")"
 

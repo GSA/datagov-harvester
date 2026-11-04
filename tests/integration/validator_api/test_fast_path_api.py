@@ -1,7 +1,6 @@
-"""The validator API answers exactly the same with the fast path on and off
-(DCATUS_VALIDATION_FAST_PATH), through both the paste and the URL fetch
-paths: status codes, errors, `validation_incomplete` and refusals
-(GSA/data.gov#6460)."""
+"""The validator API answers exactly the same on the fast path as on the old
+pure-Python path, through both the paste and the URL fetch paths: status
+codes, errors, `validation_incomplete` and refusals (GSA/data.gov#6460)."""
 
 import json
 from pathlib import Path
@@ -11,6 +10,7 @@ import pytest
 
 from dcatus_validation.errors import NESTING_TOO_DEEP_MESSAGE
 from dcatus_validation.fetch import INVALID_JSON_NUMBER_MESSAGE
+from tests.unit.dcatus_validation.equivalence_helpers import fast_path
 
 URL = "/api/v1/validate"
 EXAMPLES = Path(__file__).resolve().parents[3] / "example_data" / "dcatus"
@@ -30,9 +30,8 @@ def _response(body: bytes):
 
 
 def _submit(client, monkeypatch, body: bytes | str, schema, fetch_method, fast):
-    """POST a document by paste or by URL with the fast path on or off;
+    """POST a document by paste or by URL on the fast path or the old one;
     returns (status, JSON body)."""
-    monkeypatch.setenv("DCATUS_VALIDATION_FAST_PATH", "true" if fast else "false")
     if fetch_method == "paste":
         text = body if isinstance(body, str) else body.decode("utf-8", "surrogatepass")
         payload = {"schema": schema, "fetch_method": "paste", "json_text": text}
@@ -47,7 +46,8 @@ def _submit(client, monkeypatch, body: bytes | str, schema, fetch_method, fast):
             "fetch_method": "url",
             "url": "https://example.com/data.json",
         }
-    res = client.post(URL, json=payload)
+    with fast_path(fast):
+        res = client.post(URL, json=payload)
     return res.status_code, res.get_json()
 
 

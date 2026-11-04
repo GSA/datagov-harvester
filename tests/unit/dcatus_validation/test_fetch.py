@@ -28,6 +28,7 @@ from dcatus_validation.limits import (
     MAX_UPLOAD_BYTES,
     MAX_UPLOAD_MB,
 )
+from tests.unit.dcatus_validation.equivalence_helpers import fast_path
 
 
 def _json_body_of_size(size: int) -> bytes:
@@ -226,13 +227,12 @@ class TestFetchJsonFromUrl:
     def test_deep_json_is_rejected_before_parsing(
         self, mock_loads, encoding, monkeypatch
     ):
-        """The pure-Python parser (DCATUS_VALIDATION_FAST_PATH=false) scans
+        """The pure-Python parser, which parses whatever orjson refuses, scans
         for depth before json.loads can recurse."""
-        monkeypatch.setenv("DCATUS_VALIDATION_FAST_PATH", "false")
         depth = MAX_DOCUMENT_NESTING_DEPTH + 1
         document = ("[" * depth + "0" + "]" * depth).encode(encoding)
 
-        with pytest.raises(CatalogTooDeeplyNested):
+        with fast_path(False), pytest.raises(CatalogTooDeeplyNested):
             parse_json_document(document)
 
         mock_loads.assert_not_called()
@@ -900,9 +900,9 @@ class TestFetchedDocumentsParseTheSameOnBothPaths:
     def _fetch(monkeypatch, body, fast):
         # Through the module: a test above reloads it, which replaces
         # InvalidCatalogSource and fetch_json_from_url.
-        monkeypatch.setenv("DCATUS_VALIDATION_FAST_PATH", "true" if fast else "false")
         try:
-            document = fetch.fetch_json_from_url("https://example.com/d.json")
+            with fast_path(fast):
+                document = fetch.fetch_json_from_url("https://example.com/d.json")
             return ("document", repr(document))
         except fetch.InvalidCatalogSource as error:
             return ("refused", error.public_message)

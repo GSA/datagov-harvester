@@ -217,7 +217,7 @@ def _collect_validation_messages(
     return recorded
 
 
-def build_dcatus1_1_validator(schema: dict, *, precrawl: bool = True):
+def build_dcatus1_1_validator(schema: dict):
     """Build a validator for one DCAT-US 1.1 dataset schema.
 
     The 1.1 schemas define vcard, distribution and organization in `$defs`,
@@ -228,13 +228,7 @@ def build_dcatus1_1_validator(schema: dict, *, precrawl: bool = True):
     record crawls again, about half of all 1.1 validation time. Crawling once
     here means every lookup hits directly. References resolve to the same
     schemas either way.
-
-    precrawl=False builds the validator the way it was built before
-    (DCATUS_VALIDATION_FAST_PATH=false).
     """
-    if not precrawl:
-        return Draft202012Validator(schema, format_checker=FormatChecker())
-
     resource = DRAFT202012.create_resource(schema)
     registry = Registry().with_resource(uri=resource.id() or "", resource=resource)
     return Draft202012Validator(
