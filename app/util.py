@@ -18,30 +18,6 @@ def make_new_source_contract(form):
     }
 
 
-def make_new_record_error_contract(error: tuple) -> dict:
-    """
-    convert the record error row tuple into a dict. splits the validation message
-    value into an array
-    """
-    fields = [
-        "harvest_record_id",
-        "harvest_job_id",
-        "date_created",
-        "type",
-        "severity",
-        "message",
-        "id",
-    ]
-
-    # identifier and source_raw are the last 2 and kept the same
-    record_error = dict(zip(fields, error[:-2]))
-    error_type = error[3]
-    if error_type in ["ValidationException", "ValidationError"]:
-        record_error["message"] = record_error["message"].split("::")  # turn into array
-
-    return record_error
-
-
 def make_new_org_contract(form):
     # Convert empty string to None for code_repo_url
     code_repo_url = form.code_repo_url.data

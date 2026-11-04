@@ -121,10 +121,10 @@ def delete_harvest_job(job_id):
 def cancel_harvest_job(job_id):
     """Cancels a harvest job"""
     if not is_valid_uuid4(job_id):
-        flash("Invalid job ID.")
+        flash("Invalid job ID.", "error")
         return redirect("/")
-    message = deps.load_manager.stop_job(job_id)
-    flash(message)
+    message, category = deps.load_manager.stop_job(job_id)
+    flash(message, category)
     return redirect(url_for("main.view_harvest_job", job_id=job_id))
 
 
