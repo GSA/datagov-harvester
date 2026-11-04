@@ -373,3 +373,53 @@ def test_arbitrary_input_fails_the_same(document):
     old, new = both_parsers(document)
 
     assert new == old
+
+
+def pasted_outcome(text):
+    """parse_outcome for the validator's paste path, which parses the UTF-8
+    encoding of the pasted text (parse_pasted_json_document)."""
+    try:
+        return ("value", repr(fetch.parse_pasted_json_document(text.encode("utf-8"))))
+    except json.JSONDecodeError as error:
+        return ("JSONDecodeError", error.msg, error.lineno, error.colno, error.pos)
+    except fetch.InvalidCatalogSource as error:
+        return ("InvalidCatalogSource", error.public_message)
+    except Exception as error:
+        return (type(error).__name__, str(error))
+
+
+PASTED_TEXTS = {
+    "BOM": '﻿{"dataset": []}',
+    "leading NUL (bytes would guess UTF-16)": '\x00{"dataset": []}',
+    "NUL pairs (bytes would guess UTF-32)": '\x00\x00\x00{"dataset": []}',
+    "integer beyond 64 bits": '{"dataset": [{"title": 18446744073709551616}]}',
+    "NaN": '{"dataset": [NaN]}',
+    "syntax error on line 3": '{\n  "dataset": [\n    {"title": "x",}\n  ]\n}',
+    "non-ASCII": '{"dataset": [{"title": "Données ’ \U0001f600"}]}',
+    "nested 101 deep": "[" * 101 + "]" * 101,
+    "nested 1025 deep": "[" * 1025 + "]" * 1025,
+    "empty": "",
+    "escaped lone surrogate": '{"dataset": [{"title": "\\ud800"}]}',
+}
+
+
+@pytest.mark.parametrize("enabled", [True, False], ids=["fast path", "kill switch"])
+@pytest.mark.parametrize("text", PASTED_TEXTS.values(), ids=list(PASTED_TEXTS))
+def test_pasted_bytes_parse_like_the_pasted_text(text, enabled):
+    """The paste route parses the text's UTF-8 bytes so it can drop the text
+    first (GSA/data.gov#6460). That must end exactly as parsing the text did,
+    including the refusals bytes would otherwise change: a leading BOM, and
+    NULs that bytes parsing reads as UTF-16 or UTF-32."""
+    with fast_path(enabled):
+        assert pasted_outcome(text) == parse_outcome(text)
+
+
+@HYPOTHESIS_SETTINGS
+@given(
+    JSON_VALUES.map(lambda value: _serialize(value, False, None))
+    | st.text(max_size=60),
+    st.booleans(),
+)
+def test_random_pasted_texts_parse_like_the_text(text, enabled):
+    with fast_path(enabled):
+        assert pasted_outcome(text) == parse_outcome(text)

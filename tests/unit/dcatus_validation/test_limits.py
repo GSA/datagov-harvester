@@ -18,7 +18,8 @@ def _validate_location_body_limit(config_path: str) -> int:
     """client_max_body_size inside the validate API location block, in bytes."""
     config = Path(config_path).read_text()
     location = re.search(
-        r"location ~ \^/api\(/v1\)\?/validate\$ \{(?P<body>[^}]*)\}", config
+        r"location ~ \^/api\(/v1\)\?/validate\(/document\)\?\$ \{(?P<body>[^}]*)\}",
+        config,
     )
     assert location, f"no validate API location in {config_path}"
     size = re.search(

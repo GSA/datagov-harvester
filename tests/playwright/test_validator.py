@@ -241,17 +241,16 @@ class TestValidator:
 
     def test_ui_paste_near_the_limit_reaches_the_validator(self, upage):
         """
-        A pasted document is sent JSON-escaped inside json_text, which can
-        grow the request past the proxy's general 12M body limit;
-        the validate route has to allow more (proxy/nginx-common.conf,
-        nginx-local-proxy.conf) or nginx refuses it before the validator sees it.
+        A paste bigger than the proxy's general 12M body limit reaches the
+        validator: the validate routes allow more (proxy/nginx-common.conf,
+        nginx-local-proxy.conf), or nginx would refuse it first.
         """
         upage.locator("select[name=fetch_method]").select_option("paste")
-        # ~8.5MB of mostly quotes, so escaping makes the request ~14MB
+        # ~13MB, sent as the request body itself
         upage.evaluate("""document.getElementById('json_text').value =
-                '{"dataset": [], "padding": [' + '"",'.repeat(2900000) + '""]}'""")
-        # The submit handler serializes ~8.5MB on the main thread, which can
-        # outlast the 2.5s default on a slow CI runner.
+                '{"dataset": [], "padding": [' + '"",'.repeat(4400000) + '""]}'""")
+        # Encoding ~13MB for the request can outlast the 2.5s default on a
+        # slow CI runner.
         upage.locator("input[type=submit]").click(timeout=30000)
 
         expect(upage.locator("#validator-results h2")).to_have_text(
@@ -290,7 +289,36 @@ class TestValidator:
         upage.locator("input[type=submit]").click()
 
         expect(upage.locator(f"{field} .usa-error-message")).to_have_text(message)
-        assert not [url for url in requests if url.endswith("/api/v1/validate")]
+        assert not [url for url in requests if "/api/v1/validate" in url]
+
+    def test_ui_upload_sends_the_file_itself(
+        self, upage, dcatus_long_description_json, tmp_path
+    ):
+        """GSA/data.gov#6460: the page sends an uploaded file as the request
+        body, untouched, so the browser never reads it into a JS string or
+        JSON-escapes it."""
+        content = dcatus_long_description_json.encode("utf-8")
+        json_file = tmp_path / "catalog.json"
+        json_file.write_bytes(content)
+        sent = []
+        upage.on(
+            "request",
+            lambda req: sent.append(req) if "/api/v1/validate" in req.url else None,
+        )
+
+        upage.locator("select[name=fetch_method]").select_option("upload")
+        upage.locator("input[type=file][name=json_file]").set_input_files(
+            str(json_file)
+        )
+        upage.locator("input[type=submit]").click()
+
+        expect(upage.locator(".error-block")).to_have_count(1)
+        [request] = sent
+        assert "/api/v1/validate/document?" in request.url
+        assert "fetch_method=upload" in request.url
+        # Playwright doesn't expose a File body, but its length shows it went
+        # as is: not JSON-escaped inside json_text.
+        assert request.all_headers()["content-length"] == str(len(content))
 
     def test_ui_upload_utf16_file(self, upage, dcatus_long_description_json, tmp_path):
         """UTF-16 with a BOM decodes the way json.loads(bytes) used to accept it."""
@@ -367,7 +395,8 @@ class TestValidatorApi:
         expect(unauthed_page.get_by_role("heading", level=1)).to_contain_text(
             "Datagov Validator"
         )
-        expect(unauthed_page.locator(".opblock-post")).to_have_count(1)
+        # /validate and /validate/document
+        expect(unauthed_page.locator(".opblock-post")).to_have_count(2)
         # "Try it out" must go through the proxy, like every other caller
         expect(unauthed_page.locator(".servers select")).to_have_value(PROXY_ORIGIN)
 

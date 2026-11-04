@@ -86,6 +86,38 @@ class TestLargeSubmissionsThroughTheProxy:
         assert res.json() == {"error": PAYLOAD_TOO_LARGE_MESSAGE}
 
 
+class TestCatalogAsTheBodyThroughTheProxy:
+    """/validate/document, how the page sends catalogs."""
+
+    @staticmethod
+    def _post(path):
+        with open(path, "rb") as body:
+            res = requests.post(
+                f"{VALIDATE_API_URL}/document",
+                params={"schema": FEDERAL, "fetch_method": "upload"},
+                data=body,
+                headers={"Content-Type": "application/json"},
+                timeout=120,
+            )
+        path.unlink()
+        return res
+
+    def test_a_valid_catalog_at_the_limit_is_validated(self, catalog_file):
+        res = self._post(catalog_file(MAX_UPLOAD_BYTES))
+
+        assert res.status_code == 200
+        assert res.json() == {"validation_errors": []}
+
+    def test_a_catalog_over_the_limit_gets_the_validators_json_refusal(
+        self, catalog_file
+    ):
+        res = self._post(catalog_file(200 * MIB))
+
+        assert res.status_code == 400
+        assert res.headers["Content-Type"].startswith("application/json")
+        assert res.json() == {"error": PAYLOAD_TOO_LARGE_MESSAGE}
+
+
 class TestLargeUploadsInTheBrowser:
     @pytest.fixture
     def upload_page(self, unauthed_page):
