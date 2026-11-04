@@ -185,6 +185,10 @@ class TestDynamicRouteTable:
             "api_v1.download_harvest_errors_by_job": {
                 "GET": "Invalid error type. Must be 'job' or 'record'"
             },
+            "api_v1.download_current_record_issues_by_source": {
+                "GET": "record_error_id,identifier,title,harvest_record_id,"
+                "record_error_type,severity,message,date_created"
+            },
         }
         for route in client.application.url_map.iter_rules():
             if re.match(whitelisted_route_regex, route.endpoint):

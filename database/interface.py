@@ -720,6 +720,10 @@ class HarvesterDBInterface:
                     harvest_source_id=record.harvest_source_id,
                     record_type=record.record_type,
                     identifier=record.identifier,
+                    harvest_record_id=error.harvest_record_id,
+                    severity=error.severity,
+                    type=error.type,
+                    date_created=error.date_created,
                 )
             )
             self.db.commit()
@@ -735,97 +739,94 @@ class HarvesterDBInterface:
         self, job_id: str, severity=None, **kwargs
     ):
         """
-        groups validation messages based on harvest record id. aggregates the error
-        messages into a comma-separated string. for all other fields, the 1st row in
-        the group is used.
+        groups issues (errors and warnings) by harvest_record_id, so the view
+        renders one card per record. Within a record, issues are further
+        grouped by type, with same-type messages combined into a list.
 
-        This path is used by the harvest job detail page. Keep the expensive grouping
-        work on harvest_record_error, page those grouped results, then join
-        harvest_record only for the displayed rows.
+        Pagination operates on distinct record count, not row count, so it's
+        a two-step query: first page the distinct harvest_record_ids, then
+        fetch and group all issue rows for just that page's records.
 
         severity defaults to None to include all issues (errors and warnings).
         Pass severity="error" or severity="warning" to narrow the returned rows.
         """
-        error_types = ["ValidationException", "ValidationError"]
-        base = self.db.query(
+        record_ids_q = self.db.query(
             HarvestRecordError.harvest_record_id.label("harvest_record_id"),
-            HarvestRecordError.harvest_job_id.label("harvest_job_id"),
-            HarvestRecordError.date_created.label("date_created"),
-            HarvestRecordError.type.label("type"),
-            HarvestRecordError.severity.label("severity"),
-            HarvestRecordError.message.label("message"),
-            HarvestRecordError.id.label("id"),
+            func.min(HarvestRecordError.date_created).label("first_seen"),
         ).filter(HarvestRecordError.harvest_job_id == job_id)
         if severity is not None:
-            base = base.filter(HarvestRecordError.severity == severity)
-        base = base.subquery()
+            record_ids_q = record_ids_q.filter(HarvestRecordError.severity == severity)
+        record_ids_q = record_ids_q.group_by(HarvestRecordError.harvest_record_id)
 
-        # aggregate the validation messages by harvest_record_id using 1st row for
-        # all other fields. sql indexing starts at 1
-        instance_idx = 1
-        agg = (
-            self.db.query(
-                func.array_agg(base.c.harvest_record_id)[instance_idx].label(
-                    "harvest_record_id"
-                ),
-                func.array_agg(base.c.harvest_job_id)[instance_idx].label(
-                    "harvest_job_id"
-                ),
-                func.array_agg(base.c.date_created)[instance_idx].label("date_created"),
-                func.array_agg(base.c.type)[instance_idx].label("type"),
-                func.array_agg(base.c.severity)[instance_idx].label("severity"),
-                func.array_to_string(func.array_agg(base.c.message), "::").label(
-                    "message"
-                ),
-                func.array_agg(base.c.id)[instance_idx].label("id"),
-            )
-            .filter(base.c.type.in_(error_types))
-            .group_by(base.c.harvest_record_id)
-        )
-
-        # get all other messages as-is and combine
-        other = self.db.query(
-            base.c.harvest_record_id,
-            base.c.harvest_job_id,
-            base.c.date_created,
-            base.c.type,
-            base.c.severity,
-            base.c.message,
-            base.c.id,
-        ).filter(base.c.type.not_in(error_types))
-
-        grouped = agg.union_all(other).subquery()
         if kwargs.get("count") is True:
-            return self.db.query(grouped.c.harvest_record_id)
+            return self.db.query(record_ids_q.subquery())
 
         per_page = kwargs.get("per_page") or PAGINATE_ENTRIES_PER_PAGE
         page = kwargs.get("page") or PAGINATE_START_PAGE
-        paged = (
-            grouped.select()
-            .order_by(grouped.c.date_created, grouped.c.harvest_record_id)
+        page_ids_rows = (
+            record_ids_q.order_by("first_seen", "harvest_record_id")
             .limit(per_page)
             .offset(page * per_page)
-            .subquery()
-        )
-
-        return (
-            self.db.query(
-                paged.c.harvest_record_id,
-                paged.c.harvest_job_id,
-                paged.c.date_created,
-                paged.c.type,
-                paged.c.severity,
-                paged.c.message,
-                paged.c.id,
-                HarvestRecord.identifier,
-                func.coalesce(
-                    cast(HarvestRecord.source_transform, Text), HarvestRecord.source_raw
-                ),
-            )
-            .outerjoin(HarvestRecord, HarvestRecord.id == paged.c.harvest_record_id)
-            .order_by(paged.c.date_created, paged.c.harvest_record_id)
             .all()
         )
+        page_ids = [row.harvest_record_id for row in page_ids_rows]
+        first_seen_by_id = {
+            row.harvest_record_id: row.first_seen for row in page_ids_rows
+        }
+        if not page_ids:
+            return []
+
+        issues_q = (
+            self.db.query(
+                HarvestRecordError.harvest_record_id.label("harvest_record_id"),
+                HarvestRecordError.type.label("type"),
+                HarvestRecordError.severity.label("severity"),
+                func.array_agg(HarvestRecordError.message).label("messages"),
+                HarvestRecord.identifier.label("identifier"),
+                HarvestRecord.record_type.label("record_type"),
+                func.coalesce(
+                    cast(HarvestRecord.source_transform, Text), HarvestRecord.source_raw
+                ).label("title_source"),
+            )
+            .outerjoin(
+                HarvestRecord, HarvestRecord.id == HarvestRecordError.harvest_record_id
+            )
+            .filter(HarvestRecordError.harvest_record_id.in_(page_ids))
+        )
+        if severity is not None:
+            issues_q = issues_q.filter(HarvestRecordError.severity == severity)
+        issues_q = issues_q.group_by(
+            HarvestRecordError.harvest_record_id,
+            HarvestRecordError.type,
+            HarvestRecordError.severity,
+            HarvestRecord.identifier,
+            HarvestRecord.record_type,
+            HarvestRecord.source_transform,
+            HarvestRecord.source_raw,
+        ).order_by(HarvestRecordError.harvest_record_id, HarvestRecordError.type)
+
+        records_by_id = {}
+        for row in issues_q.all():
+            record = records_by_id.setdefault(
+                row.harvest_record_id,
+                {
+                    "harvest_record_id": row.harvest_record_id,
+                    "identifier": row.identifier,
+                    "record_type": row.record_type,
+                    "title_source": row.title_source,
+                    "date_created": first_seen_by_id[row.harvest_record_id],
+                    "issues": [],
+                },
+            )
+            record["issues"].append(
+                {
+                    "type": row.type,
+                    "severity": row.severity,
+                    "messages": row.messages,
+                }
+            )
+
+        return [records_by_id[record_id] for record_id in page_ids]
 
     @count
     @paginate
@@ -861,6 +862,10 @@ class HarvesterDBInterface:
                 HarvestRecord, HarvestRecord.id == HarvestRecordError.harvest_record_id
             )
             .filter(HarvestRecordError.harvest_job_id == job_id)
+            # explicit order, not implicit index-scan order: callers (e.g.
+            # tests asserting error insertion order) depend on a stable
+            # ordering that must not shift when the query plan changes.
+            .order_by(HarvestRecordError.date_created, HarvestRecordError.id)
         )
 
         if severity is not None:
@@ -1018,6 +1023,10 @@ class HarvesterDBInterface:
                         harvest_source_id=harvest_source_id,
                         record_type=record_type,
                         identifier=identifier,
+                        harvest_record_id=error.harvest_record_id,
+                        severity=error.severity,
+                        type=error.type,
+                        date_created=error.date_created,
                     )
                 )
             self.db.commit()
@@ -1050,101 +1059,101 @@ class HarvesterDBInterface:
         issues that are true right now for this source, regardless of which
         job (if any) last touched the record. harvest_job_id is always None
         in the returned rows since current-state issues aren't tied to a job.
+
+        See get_harvest_record_errors_by_job_for_view for the two-step
+        pagination-by-distinct-record approach this mirrors.
         """
-        error_types = ["ValidationException", "ValidationError"]
-        # harvest_record_id/date_created/type/message/severity live on
-        # harvest_record_error; HarvestRecordCurrentIssue.id is that row's
-        # id (FK), so this join is always exactly one row per current-issue
-        # row.
-        base = (
+        # harvest_record_id/date_created are denormalized onto
+        # HarvestRecordCurrentIssue (kept in sync at write time), so this
+        # stage never touches harvest_record_error: that table grows with
+        # every job ever run, while a source's current issues stay bounded
+        # by its own record count, and this runs on every page view.
+        record_ids_q = self.db.query(
+            HarvestRecordCurrentIssue.harvest_record_id.label("harvest_record_id"),
+            func.min(HarvestRecordCurrentIssue.date_created).label("first_seen"),
+        ).filter(HarvestRecordCurrentIssue.harvest_source_id == harvest_source_id)
+        if severity is not None:
+            record_ids_q = record_ids_q.filter(
+                HarvestRecordCurrentIssue.severity == severity
+            )
+        record_ids_q = record_ids_q.group_by(
+            HarvestRecordCurrentIssue.harvest_record_id
+        )
+
+        if kwargs.get("count") is True:
+            return self.db.query(record_ids_q.subquery())
+
+        per_page = kwargs.get("per_page") or PAGINATE_ENTRIES_PER_PAGE
+        page = kwargs.get("page") or PAGINATE_START_PAGE
+        page_ids_rows = (
+            record_ids_q.order_by("first_seen", "harvest_record_id")
+            .limit(per_page)
+            .offset(page * per_page)
+            .all()
+        )
+        page_ids = [row.harvest_record_id for row in page_ids_rows]
+        first_seen_by_id = {
+            row.harvest_record_id: row.first_seen for row in page_ids_rows
+        }
+        if not page_ids:
+            return []
+
+        issues_q = (
             self.db.query(
                 HarvestRecordError.harvest_record_id.label("harvest_record_id"),
-                literal(None).label("harvest_job_id"),
-                HarvestRecordError.date_created.label("date_created"),
                 HarvestRecordError.type.label("type"),
                 HarvestRecordError.severity.label("severity"),
-                HarvestRecordError.message.label("message"),
-                HarvestRecordCurrentIssue.id.label("id"),
+                func.array_agg(HarvestRecordError.message).label("messages"),
                 HarvestRecordCurrentIssue.identifier.label("identifier"),
+                HarvestRecordCurrentIssue.record_type.label("record_type"),
+                func.coalesce(
+                    cast(HarvestRecord.source_transform, Text), HarvestRecord.source_raw
+                ).label("title_source"),
             )
             .select_from(HarvestRecordCurrentIssue)
             .join(
                 HarvestRecordError,
                 HarvestRecordError.id == HarvestRecordCurrentIssue.id,
             )
-            .filter(HarvestRecordCurrentIssue.harvest_source_id == harvest_source_id)
+            .outerjoin(
+                HarvestRecord, HarvestRecord.id == HarvestRecordError.harvest_record_id
+            )
+            .filter(HarvestRecordError.harvest_record_id.in_(page_ids))
         )
         if severity is not None:
-            base = base.filter(HarvestRecordError.severity == severity)
-        base = base.subquery()
+            issues_q = issues_q.filter(HarvestRecordError.severity == severity)
+        issues_q = issues_q.group_by(
+            HarvestRecordError.harvest_record_id,
+            HarvestRecordError.type,
+            HarvestRecordError.severity,
+            HarvestRecordCurrentIssue.identifier,
+            HarvestRecordCurrentIssue.record_type,
+            HarvestRecord.source_transform,
+            HarvestRecord.source_raw,
+        ).order_by(HarvestRecordError.harvest_record_id, HarvestRecordError.type)
 
-        # aggregate the validation messages by harvest_record_id using 1st row for
-        # all other fields. sql indexing starts at 1
-        instance_idx = 1
-        agg = (
-            self.db.query(
-                func.array_agg(base.c.harvest_record_id)[instance_idx].label(
-                    "harvest_record_id"
-                ),
-                func.array_agg(base.c.harvest_job_id)[instance_idx].label(
-                    "harvest_job_id"
-                ),
-                func.array_agg(base.c.date_created)[instance_idx].label("date_created"),
-                func.array_agg(base.c.type)[instance_idx].label("type"),
-                func.array_agg(base.c.severity)[instance_idx].label("severity"),
-                func.array_to_string(func.array_agg(base.c.message), "::").label(
-                    "message"
-                ),
-                func.array_agg(base.c.id)[instance_idx].label("id"),
-                func.array_agg(base.c.identifier)[instance_idx].label("identifier"),
+        records_by_id = {}
+        for row in issues_q.all():
+            record = records_by_id.setdefault(
+                row.harvest_record_id,
+                {
+                    "harvest_record_id": row.harvest_record_id,
+                    "identifier": row.identifier,
+                    "record_type": row.record_type,
+                    "title_source": row.title_source,
+                    "date_created": first_seen_by_id[row.harvest_record_id],
+                    "issues": [],
+                },
             )
-            .filter(base.c.type.in_(error_types))
-            .group_by(base.c.harvest_record_id)
-        )
-
-        other = self.db.query(
-            base.c.harvest_record_id,
-            base.c.harvest_job_id,
-            base.c.date_created,
-            base.c.type,
-            base.c.severity,
-            base.c.message,
-            base.c.id,
-            base.c.identifier,
-        ).filter(base.c.type.not_in(error_types))
-
-        grouped = agg.union_all(other).subquery()
-        if kwargs.get("count") is True:
-            return self.db.query(grouped.c.harvest_record_id)
-
-        per_page = kwargs.get("per_page") or PAGINATE_ENTRIES_PER_PAGE
-        page = kwargs.get("page") or PAGINATE_START_PAGE
-        paged = (
-            grouped.select()
-            .order_by(grouped.c.date_created, grouped.c.harvest_record_id)
-            .limit(per_page)
-            .offset(page * per_page)
-            .subquery()
-        )
-
-        return (
-            self.db.query(
-                paged.c.harvest_record_id,
-                paged.c.harvest_job_id,
-                paged.c.date_created,
-                paged.c.type,
-                paged.c.severity,
-                paged.c.message,
-                paged.c.id,
-                paged.c.identifier,
-                func.coalesce(
-                    cast(HarvestRecord.source_transform, Text), HarvestRecord.source_raw
-                ),
+            record["issues"].append(
+                {
+                    "type": row.type,
+                    "severity": row.severity,
+                    "messages": row.messages,
+                }
             )
-            .outerjoin(HarvestRecord, HarvestRecord.id == paged.c.harvest_record_id)
-            .order_by(paged.c.date_created, paged.c.harvest_record_id)
-            .all()
-        )
+
+        return [records_by_id[record_id] for record_id in page_ids]
 
     @count
     @paginate
@@ -1160,10 +1169,7 @@ class HarvesterDBInterface:
         )
 
         if severity is not None:
-            query = query.join(
-                HarvestRecordError,
-                HarvestRecordError.id == HarvestRecordCurrentIssue.id,
-            ).filter(HarvestRecordError.severity == severity)
+            query = query.filter(HarvestRecordCurrentIssue.severity == severity)
 
         for_view = kwargs.get("for_view", False)
         if for_view:
@@ -1176,25 +1182,61 @@ class HarvesterDBInterface:
     def get_record_issues_summary_by_source(self, harvest_source_id: str):
         """Get a summary of all current record issues for this source,
         grouped by severity."""
+        # severity/type are denormalized onto HarvestRecordCurrentIssue, so
+        # this never has to join harvest_record_error (see
+        # get_current_record_issues_by_source_for_view for why that matters).
         query = (
             self.db.query(
-                HarvestRecordError.severity,
-                HarvestRecordError.type,
+                HarvestRecordCurrentIssue.severity,
+                HarvestRecordCurrentIssue.type,
                 func.count(),
             )
-            .select_from(HarvestRecordCurrentIssue)
-            .join(
-                HarvestRecordError,
-                HarvestRecordError.id == HarvestRecordCurrentIssue.id,
-            )
             .where(HarvestRecordCurrentIssue.harvest_source_id == harvest_source_id)
-            .group_by(HarvestRecordError.severity, HarvestRecordError.type)
-            .order_by(HarvestRecordError.severity, HarvestRecordError.type)
+            .group_by(
+                HarvestRecordCurrentIssue.severity, HarvestRecordCurrentIssue.type
+            )
+            .order_by(
+                HarvestRecordCurrentIssue.severity, HarvestRecordCurrentIssue.type
+            )
         )
         return [
             {"severity": severity, "type": error_type, "count": error_count}
             for severity, error_type, error_count in query
         ]
+
+    def stream_current_record_issues_by_source(
+        self, harvest_source_id: str, batch_size=1000
+    ):
+        """Stream current-state record issues for CSV export without
+        OFFSET pagination. See stream_harvest_record_errors_by_job for the
+        job-scoped equivalent.
+        """
+        query = text("""
+            SELECT
+                harvest_record_error.id,
+                harvest_record_current_issue.identifier,
+                CASE
+                    WHEN left(ltrim(harvest_record.source_raw), 1) IN ('{', '[')
+                    THEN harvest_record.source_raw
+                    ELSE NULL
+                END AS source_raw,
+                harvest_record_error.harvest_record_id,
+                harvest_record_error.type,
+                harvest_record_error.severity,
+                harvest_record_error.message,
+                harvest_record_error.date_created
+            FROM harvest_record_current_issue
+            JOIN harvest_record_error
+                ON harvest_record_error.id = harvest_record_current_issue.id
+            LEFT OUTER JOIN harvest_record
+                ON harvest_record.id = harvest_record_error.harvest_record_id
+            WHERE harvest_record_current_issue.harvest_source_id = :harvest_source_id
+        """)
+        return (
+            self.db.execute(query, {"harvest_source_id": harvest_source_id})
+            .mappings()
+            .yield_per(batch_size)
+        )
 
     ## HARVEST RECORD
     def add_harvest_record(self, record_data):

@@ -433,7 +433,12 @@ class HarvestRecordError(Error):
     )
 
     __table_args__ = (
-        Index("ix_hre_job_id", "harvest_job_id"),
+        Index(
+            "ix_hre_job_record",
+            "harvest_job_id",
+            "harvest_record_id",
+            postgresql_include=["date_created"],
+        ),
         Index("ix_harvest_record_error_harvest_record_id", "harvest_record_id"),
     )
 
@@ -446,11 +451,18 @@ class HarvestRecordCurrentIssue(Base):
 
     id is the id of the harvest_record_error row this mirrors, not an
     independently generated UUID, so an issue shown here and the error it
-    came from always share one id/date_created/type/message/severity/
-    harvest_record_id - there is exactly one row of data, this table just
-    indexes it by (harvest_source, record_type, identifier) instead of by
-    job. Cascades with that error row, so deleting the job that produced
-    it also removes the now-stale current-issue pointer.
+    came from always share one id - there is exactly one row of data, this
+    table just indexes it by (harvest_source, record_type, identifier)
+    instead of by job. Cascades with that error row, so deleting the job
+    that produced it also removes the now-stale current-issue pointer.
+
+    harvest_record_id/severity/type/date_created duplicate columns already
+    on that error row. The source-page views group/count current issues
+    across an entire source, and harvest_record_error has no index that
+    helps filter by source (only by job), so without these denormalized
+    copies that aggregation must join the ever-growing error history table.
+    Write paths (_mirror_current_record_issue, sync_current_record_issues)
+    keep them in sync at insert time.
     """
 
     __tablename__ = "harvest_record_current_issue"
@@ -475,6 +487,21 @@ class HarvestRecordCurrentIssue(Base):
 
     identifier = Column(String, nullable=False)
 
+    # Not FK'd: a plain denormalized copy of the error row's own
+    # harvest_record_id, which itself can go stale to NULL (SET NULL) if the
+    # harvest_record is deleted after this row was written.
+    harvest_record_id = Column(String, nullable=True)
+
+    severity = Column(
+        Enum(*SEVERITY_VALUES, name="error_severity"),
+        nullable=False,
+        server_default="error",
+    )
+
+    type = Column(String, nullable=True)
+
+    date_created = Column(DateTime, nullable=True)
+
     error = relationship("HarvestRecordError", lazy=True)
 
     __table_args__ = (
@@ -483,6 +510,18 @@ class HarvestRecordCurrentIssue(Base):
             "harvest_source_id",
             "record_type",
             "identifier",
+        ),
+        Index(
+            "ix_hrci_source_record",
+            "harvest_source_id",
+            "harvest_record_id",
+            postgresql_include=["date_created"],
+        ),
+        Index(
+            "ix_hrci_source_severity_type",
+            "harvest_source_id",
+            "severity",
+            "type",
         ),
     )
 
