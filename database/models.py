@@ -168,7 +168,10 @@ class HarvestSource(Base):
 # 2 models (Organization & HarvestSource)
 Organization.source_count = column_property(
     select(func.count(HarvestSource.id))
-    .where(HarvestSource.organization_id == Organization.id)
+    .where(
+        HarvestSource.organization_id == Organization.id,
+        HarvestSource.is_archived.is_(False),
+    )
     .correlate_except(HarvestSource)
     .scalar_subquery()
 )

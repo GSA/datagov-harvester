@@ -299,7 +299,7 @@ class TestHarvestSourceDeleteCascade:
         expect(authed_page.locator("h1")).to_have_text(cleared_source["name"])
 
         authed_page.once("dialog", lambda dialog: dialog.accept())
-        authed_page.get_by_role("button", name=re.compile(r"^Delete\b")).click()
+        authed_page.get_by_role("button", name=re.compile(r"^Archive\b")).click()
 
         expect(authed_page.locator(".usa-alert--success")).to_contain_text(
             ["This harvest source may take some time to archive."]
@@ -307,10 +307,11 @@ class TestHarvestSourceDeleteCascade:
 
         _wait_for_source_archived(engine, source_id)
 
+        # After archiving, the source is marked as archived but all related records remain
         assert _child_row_counts(engine, source_id) == {
             "sources": 1,
-            "jobs": 2,
-            "records": 11,
-            "record_errors": 0,
-            "datasets": 0,
+            "jobs": 1,
+            "records": RECORD_COUNT,
+            "record_errors": RECORD_COUNT,
+            "datasets": 1,
         }
