@@ -16,6 +16,7 @@ import socket
 import time
 from urllib.parse import urljoin, urlparse
 
+import orjson
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.connection import HTTPConnection, HTTPSConnection
@@ -26,6 +27,7 @@ from dcatus_validation.errors import (
     NESTING_TOO_DEEP_MESSAGE,
     CatalogTooDeeplyNested,
 )
+from dcatus_validation.fast_path import fast_path_enabled
 from dcatus_validation.limits import (
     MAX_DOCUMENT_NESTING_DEPTH,
     MAX_UPLOAD_BYTES,
@@ -126,8 +128,13 @@ PAYLOAD_TOO_LARGE_MESSAGE = (
 
 # The binding ceiling is CloudFront's hard 30s for the whole request
 # (harvest.data.gov/api/v1/validate), and validation only starts once the
-# fetch is done: roughly 0.5-1.2 s/MB, so up to ~12s for a 10MB catalog. 12s
-# here keeps that worst case near 25s, leaving padding for proxy hops.
+# fetch is done. On the fast path (fast_path.py) even a 150MB catalog parses
+# and validates in ~2s on a fast laptop, so 12s here keeps the worst case well
+# under 30s, leaving padding for proxy hops and slower production CPUs. At that
+# size the download is the tight part: fetching 150MB in 12s needs a server
+# sending ~100Mbps. With the fast path's kill switch on, validation is back to
+# 0.2-0.5 s/MB (31-79s for 150MB on the same laptop), and catalogs past
+# roughly 25-100MB can time out (GSA/data.gov#6460).
 # Answering inside the ceiling means a slow or hung target produces a clean,
 # logged rejection instead of us being disconnected mid-request.
 #
@@ -255,8 +262,11 @@ def _check_json_text_nesting(document: str) -> None:
             depth -= 1
 
 
-def parse_json_document(document: str | bytes | bytearray):
-    """Parse strict JSON and normalize unsupported encoding/numeric failures."""
+def _parse_json_document_stdlib(document: str | bytes | bytearray):
+    """The pure-Python parser: the only one before orjson, still the kill
+    switch's (DCATUS_VALIDATION_FAST_PATH=false), and the one every document
+    orjson refuses is re-parsed with, so a refused document gets the same
+    error as it always has."""
     try:
         if not isinstance(document, str):
             encoded_document = bytes(document)
@@ -270,6 +280,81 @@ def parse_json_document(document: str | bytes | bytearray):
         )
     except UnicodeDecodeError:
         raise InvalidCatalogSource(INVALID_JSON_ENCODING_MESSAGE) from None
+
+
+# orjson parses an integer literal outside the 64-bit range as the nearest
+# float, where the stdlib path keeps the exact int. Any such float is at least
+# 2**63 in magnitude, so a parsed float that large is re-parsed by the stdlib.
+_ORJSON_EXACT_INTEGER_LIMIT = float(2**63)
+_ORJSON_REFUSED = object()
+
+
+def _has_float_beyond_exact_integers(document) -> bool:
+    """Whether any float in `document` is at least 2**63 in magnitude. A walk
+    that does not recurse."""
+    if type(document) is float:
+        return not -_ORJSON_EXACT_INTEGER_LIMIT < document < _ORJSON_EXACT_INTEGER_LIMIT
+    if type(document) not in (dict, list):
+        return False
+    pending = [document]
+    while pending:
+        container = pending.pop()
+        values = container.values() if type(container) is dict else container
+        for value in values:
+            value_type = type(value)
+            if value_type is dict or value_type is list:
+                pending.append(value)
+            elif value_type is float and not (
+                -_ORJSON_EXACT_INTEGER_LIMIT < value < _ORJSON_EXACT_INTEGER_LIMIT
+            ):
+                return True
+    return False
+
+
+def _parse_json_document_orjson(document: str | bytes | bytearray):
+    """orjson's parse of `document` when it is exactly what the stdlib path
+    returns, otherwise _ORJSON_REFUSED. On a large catalog orjson is about 20
+    times faster than the stdlib path, mostly because it needs no character
+    scan first: it never recurses.
+
+    Every way orjson differs from the stdlib path ends in the stdlib path:
+    - Documents orjson refuses and the stdlib path accepts: a UTF-8 byte order
+      mark on bytes, UTF-16 or UTF-32, an escaped lone surrogate ("\\ud800").
+    - Documents both refuse, each with its own wording and position: syntax
+      errors, NaN and Infinity, numbers too large for a float, invalid UTF-8,
+      a lone surrogate in a pasted str, nesting past orjson's 1024 levels
+      (which the stdlib path's character scan reports as too deeply nested).
+      Re-parsing gives each the response it always had.
+    - Integers outside the 64-bit range, which orjson turns into floats (see
+      _ORJSON_EXACT_INTEGER_LIMIT).
+    Duplicate keys (the last value wins, in the first key's position) and
+    every other number parse the same in both.
+
+    Nesting up to 1024 levels gets through here: the post-parse walk in
+    validate.py holds every document to MAX_DOCUMENT_NESTING_DEPTH before
+    anything else touches it.
+    """
+    try:
+        parsed = orjson.loads(document)
+    except (orjson.JSONDecodeError, TypeError):
+        return _ORJSON_REFUSED
+    if _has_float_beyond_exact_integers(parsed):
+        return _ORJSON_REFUSED
+    return parsed
+
+
+def parse_json_document(document: str | bytes | bytearray):
+    """Parse strict JSON and normalize unsupported encoding/numeric failures.
+
+    Raises json.JSONDecodeError (with the position the stdlib parser reports),
+    InvalidCatalogSource or CatalogTooDeeplyNested exactly as the pure-Python
+    parser does, whichever parser accepted the document.
+    """
+    if fast_path_enabled():
+        parsed = _parse_json_document_orjson(document)
+        if parsed is not _ORJSON_REFUSED:
+            return parsed
+    return _parse_json_document_stdlib(document)
 
 
 class _PinnedConnectionMixin:
@@ -616,6 +701,8 @@ def fetch_json_from_url(url: str) -> dict:
             _close_response(response)
 
     content = b"".join(chunks)
+    # Don't hold the document twice while it's parsed.
+    del chunks
 
     if len(content) > MAX_UPLOAD_BYTES:
         raise InvalidCatalogSource(PAYLOAD_TOO_LARGE_MESSAGE)

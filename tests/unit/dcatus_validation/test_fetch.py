@@ -1,4 +1,5 @@
 import itertools
+import json
 import socket
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -16,12 +17,25 @@ from dcatus_validation.fetch import (
     FETCH_TIMEOUT_SECONDS,
     INVALID_JSON_ENCODING_MESSAGE,
     INVALID_JSON_NUMBER_MESSAGE,
+    PAYLOAD_TOO_LARGE_MESSAGE,
     InvalidCatalogSource,
     fetch_json_from_url,
     is_public_ip,
     parse_json_document,
 )
-from dcatus_validation.limits import MAX_DOCUMENT_NESTING_DEPTH
+from dcatus_validation.limits import (
+    MAX_DOCUMENT_NESTING_DEPTH,
+    MAX_UPLOAD_BYTES,
+    MAX_UPLOAD_MB,
+)
+
+
+def _json_body_of_size(size: int) -> bytes:
+    """A valid JSON catalog of exactly `size` bytes."""
+    prefix, suffix = b'{"dataset": [], "padding": "', b'"}'
+    body = prefix + b"x" * (size - len(prefix) - len(suffix)) + suffix
+    assert len(body) == size
+    return body
 
 
 def _json_response(body=b'{"dataset": []}'):
@@ -99,27 +113,80 @@ class TestFetchJsonFromUrl:
         get.assert_called_once()
         redirect.close.assert_called()
 
+    @pytest.mark.parametrize(
+        "size_offset, accepted",
+        [(-1, True), (0, True), (1, False)],
+        ids=["just-under", "at", "just-over"],
+    )
+    @patch("dcatus_validation.fetch._pinned_get")
+    def test_fetch_json_from_url_size_limit_boundary(
+        self, mock_get, monkeypatch, size_offset, accepted
+    ):
+        """The limit is inclusive: a body of exactly MAX_UPLOAD_BYTES is
+        fetched, one byte more is refused. The limit is patched down so the
+        boundary is cheap to build; test_size_limit_is_150mb pins the real
+        value."""
+        limit = 4096
+        monkeypatch.setattr(fetch, "MAX_UPLOAD_BYTES", limit)
+        body = _json_body_of_size(limit + size_offset)
+        mock_get.return_value = _json_response(body)
+
+        if accepted:
+            assert fetch_json_from_url("https://example.com/data.json") == (
+                json.loads(body)
+            )
+        else:
+            with pytest.raises(InvalidCatalogSource) as exc_info:
+                fetch_json_from_url("https://example.com/data.json")
+            assert exc_info.value.public_message == PAYLOAD_TOO_LARGE_MESSAGE
+
+    @pytest.mark.parametrize(
+        "size_offset, accepted",
+        [(-1, True), (0, True), (1, False)],
+        ids=["just-under", "at", "just-over"],
+    )
+    @patch("dcatus_validation.fetch._pinned_get")
+    def test_fetch_json_from_url_content_length_boundary(
+        self, mock_get, monkeypatch, size_offset, accepted
+    ):
+        """A Content-Length over the limit is refused before any of the body
+        is read; one at the limit is allowed through to the streamed count."""
+        limit = 4096
+        monkeypatch.setattr(fetch, "MAX_UPLOAD_BYTES", limit)
+        response = _json_response(b'{"dataset": []}')
+        response.headers["Content-Length"] = str(limit + size_offset)
+        mock_get.return_value = response
+
+        if accepted:
+            assert fetch_json_from_url("https://example.com/data.json") == {
+                "dataset": []
+            }
+        else:
+            with pytest.raises(InvalidCatalogSource, match=PAYLOAD_TOO_LARGE_MESSAGE):
+                fetch_json_from_url("https://example.com/data.json")
+            response.iter_content.assert_not_called()
+
     @patch("dcatus_validation.fetch._pinned_get")
     def test_fetch_json_from_url_exceeds_size_limit(self, mock_get):
-        """Test that fetch_json_from_url raises ValueError when content exceeds 10MB"""
-        mock_response = Mock()
-        mock_response.status_code = 200
-        mock_response.headers = {"Content-Type": "application/json"}
-        mock_response.raise_for_status = Mock()
-        mock_response.close = Mock()
-
-        large_content = b"x" * (11 * 1024 * 1024)
-        mock_response.iter_content = Mock(return_value=[large_content])
-        mock_get.return_value = mock_response
+        """At the real limit: a body one byte over 150MB is refused, built
+        from a reused chunk rather than one 150MB allocation."""
+        chunk = b"x" * (1024 * 1024)
+        chunk_count = MAX_UPLOAD_MB
+        mock_get.return_value = _json_response()
+        mock_get.return_value.iter_content = Mock(
+            side_effect=lambda chunk_size: itertools.chain(
+                itertools.repeat(chunk, chunk_count), [b"x"]
+            )
+        )
 
         with pytest.raises(
-            ValueError, match="JSON payload too large - must be 10MB or less."
+            ValueError, match="JSON payload too large - must be 150MB or less."
         ):
             fetch_json_from_url("https://example.com/large-file.json")
 
     @patch("dcatus_validation.fetch._pinned_get")
     def test_fetch_json_from_url_within_size_limit(self, mock_get):
-        """Test that fetch_json_from_url succeeds when content is within 10MB limit"""
+        """Test that fetch_json_from_url succeeds when content is within the limit"""
         mock_response = Mock()
         mock_response.status_code = 200
         mock_response.headers = {"Content-Type": "application/json"}
@@ -156,12 +223,48 @@ class TestFetchJsonFromUrl:
 
     @pytest.mark.parametrize("encoding", ["utf-8", "utf-16", "utf-32"])
     @patch("dcatus_validation.fetch.json.loads")
-    def test_deep_json_is_rejected_before_parsing(self, mock_loads, encoding):
+    def test_deep_json_is_rejected_before_parsing(
+        self, mock_loads, encoding, monkeypatch
+    ):
+        """The pure-Python parser (DCATUS_VALIDATION_FAST_PATH=false) scans
+        for depth before json.loads can recurse."""
+        monkeypatch.setenv("DCATUS_VALIDATION_FAST_PATH", "false")
         depth = MAX_DOCUMENT_NESTING_DEPTH + 1
         document = ("[" * depth + "0" + "]" * depth).encode(encoding)
 
         with pytest.raises(CatalogTooDeeplyNested):
             parse_json_document(document)
+
+        mock_loads.assert_not_called()
+
+    @pytest.mark.parametrize("encoding", ["utf-16", "utf-32"])
+    @patch("dcatus_validation.fetch.json.loads")
+    def test_deep_json_orjson_refuses_is_rejected_before_parsing(
+        self, mock_loads, encoding
+    ):
+        """orjson takes UTF-8 only; anything else gets the scan as before."""
+        depth = MAX_DOCUMENT_NESTING_DEPTH + 1
+        document = ("[" * depth + "0" + "]" * depth).encode(encoding)
+
+        with pytest.raises(CatalogTooDeeplyNested):
+            parse_json_document(document)
+
+        mock_loads.assert_not_called()
+
+    @pytest.mark.parametrize("depth", [MAX_DOCUMENT_NESTING_DEPTH + 1, 1024, 100_000])
+    @patch("dcatus_validation.fetch.json.loads")
+    def test_deep_json_never_reaches_json_loads(self, mock_loads, depth):
+        """The fast path: orjson parses up to 1024 levels without recursing
+        (the post-parse walk in validate.py then refuses anything past
+        MAX_DOCUMENT_NESTING_DEPTH); deeper than that, the scan refuses it."""
+        document = ("[" * depth + "0" + "]" * depth).encode()
+
+        try:
+            parse_json_document(document)
+        except CatalogTooDeeplyNested:
+            assert depth > 1024
+        else:
+            assert depth <= 1024
 
         mock_loads.assert_not_called()
 
@@ -174,32 +277,35 @@ class TestFetchJsonFromUrl:
     @patch("dcatus_validation.fetch._pinned_get")
     def test_fetch_json_from_url_content_length_exceeds_limit(self, mock_get):
         """Test that fetch_json_from_url raises ValueError when Content-Length
-        header exceeds 10MB"""
+        header exceeds 150MB"""
         mock_response = Mock()
         mock_response.status_code = 200
         mock_response.headers = {
             "Content-Type": "application/json",
-            "Content-Length": str(11 * 1024 * 1024),
+            "Content-Length": str(MAX_UPLOAD_BYTES + 1),
         }
         mock_response.raise_for_status = Mock()
         mock_get.return_value = mock_response
 
         with pytest.raises(
-            ValueError, match="JSON payload too large - must be 10MB or less."
+            ValueError, match="JSON payload too large - must be 150MB or less."
         ):
             fetch_json_from_url("https://example.com/large-file.json")
 
     @patch("dcatus_validation.fetch._pinned_get")
-    def test_fetch_json_from_url_stops_streaming_when_limit_exceeded(self, mock_get):
-        """Test that fetch_json_from_url stops downloading chunks when size
-        exceeds 10MB"""
+    def test_fetch_json_from_url_stops_streaming_when_limit_exceeded(
+        self, mock_get, monkeypatch
+    ):
+        """Test that fetch_json_from_url stops downloading chunks once the
+        size exceeds the limit (patched down to 10 chunks' worth)"""
+        chunk_size = 1024
+        monkeypatch.setattr(fetch, "MAX_UPLOAD_BYTES", 10 * chunk_size)
         mock_response = Mock()
         mock_response.status_code = 200
         mock_response.headers = {"Content-Type": "application/json"}
         mock_response.raise_for_status = Mock()
         mock_response.close = Mock()
 
-        chunk_size = 1024 * 1024  # 1MB
         chunks_generated = []
 
         def generate_chunks():
@@ -212,16 +318,11 @@ class TestFetchJsonFromUrl:
         )
         mock_get.return_value = mock_response
 
-        with pytest.raises(
-            ValueError, match="JSON payload too large - must be 10MB or less."
-        ):
+        with pytest.raises(InvalidCatalogSource, match=PAYLOAD_TOO_LARGE_MESSAGE):
             fetch_json_from_url("https://example.com/large-file.json")
 
-        # Verify we stopped after ~10 chunks (10MB), not all 15
-        assert len(chunks_generated) <= 11, (
-            f"Downloaded {len(chunks_generated)} chunks, should have stopped around "
-            f"10-11"
-        )
+        # Verify we stopped after the 11th chunk crossed the limit, not all 15
+        assert len(chunks_generated) == 11
         mock_response.close.assert_called_once()
 
     @patch("dcatus_validation.fetch._pinned_get")
@@ -360,9 +461,10 @@ class TestFetchJsonFromUrl:
 
     def test_connect_attempts_fit_inside_the_fetch_budget(self):
         """Every connect attempt fits inside the one deadline, each allows for
-        a quick SYN retransmit (~1s, then ~3s), and validation (up to ~12s at
-        10MB) has to fit after the fetch inside CloudFront's 30s, with
-        padding."""
+        a quick SYN retransmit (~1s, then ~3s), and validation has to fit
+        after the fetch inside CloudFront's 30s, with padding. The fast path
+        validates even a 150MB catalog in ~2s on a fast laptop
+        (GSA/data.gov#6460); 12s leaves room for slower production CPUs."""
         assert FETCH_CONNECT_TIMEOUT_SECONDS >= 3.5
         assert FETCH_CONNECT_TIMEOUT_SECONDS * FETCH_CONNECT_ATTEMPTS <= (
             FETCH_TIMEOUT_SECONDS
@@ -768,3 +870,58 @@ class TestPrivateAddressDefault:
         finally:
             monkeypatch.undo()
             importlib.reload(dcatus_validation.fetch)
+
+
+class TestFetchedDocumentsParseTheSameOnBothPaths:
+    """The URL path through fetch_json_from_url, with the fast path
+    (orjson) on and off: the same document or the same refusal
+    (GSA/data.gov#6460; tests/unit/dcatus_validation/test_parse_equivalence.py
+    covers parse_json_document itself)."""
+
+    BODIES = {
+        "catalog": b'{"dataset": [{"title": "x"}]}',
+        "UTF-8 BOM": b'\xef\xbb\xbf{"dataset": []}',
+        "UTF-16": '{"dataset": []}'.encode("utf-16"),
+        "invalid UTF-8": b'{"secret":"\xff"}',
+        "NaN": b'{"value": NaN}',
+        "infinite float": b'{"value": 1e9999}',
+        "huge integer": b'{"value": ' + b"9" * 5000 + b"}",
+        "integer beyond 64 bits": b'{"value": 18446744073709551616}',
+        "escaped lone surrogate": b'{"value": "\\ud800"}',
+        "duplicate keys": b'{"a": 1, "a": 2}',
+        "syntax error": b'{"internal_secret": "hunter2",, "b": 2}',
+        "HTML": b"<html><body>Not JSON</body></html>",
+        "empty": b"",
+        "101 deep": b"[" * 101 + b"]" * 101,
+        "100,000 deep": b"[" * 100_000 + b"]" * 100_000,
+    }
+
+    @staticmethod
+    def _fetch(monkeypatch, body, fast):
+        # Through the module: a test above reloads it, which replaces
+        # InvalidCatalogSource and fetch_json_from_url.
+        monkeypatch.setenv("DCATUS_VALIDATION_FAST_PATH", "true" if fast else "false")
+        try:
+            document = fetch.fetch_json_from_url("https://example.com/d.json")
+            return ("document", repr(document))
+        except fetch.InvalidCatalogSource as error:
+            return ("refused", error.public_message)
+        except CatalogTooDeeplyNested as error:
+            return ("too deep", str(error))
+
+    @pytest.mark.parametrize("body", BODIES.values(), ids=list(BODIES))
+    @patch("dcatus_validation.fetch._pinned_get")
+    def test_same_result(self, mock_get, monkeypatch, body):
+        mock_get.side_effect = lambda *args, **kwargs: _json_response(body)
+
+        old = self._fetch(monkeypatch, body, fast=False)
+        new = self._fetch(monkeypatch, body, fast=True)
+
+        if body.startswith(b"[" * 101) and len(body) < 2050:
+            # Refused while parsing on the old path; parsed on the fast path
+            # and refused by validation's post-parse walk, with the same
+            # error (see test_parse_equivalence.py).
+            assert old[0] == "too deep"
+            assert new[0] == "document"
+        else:
+            assert new == old

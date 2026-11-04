@@ -39,16 +39,32 @@ All limits are in `dcatus_validation/limits.py` unless noted.
 
 | Limit | Value | Enforced by |
 | --- | --- | --- |
-| Catalog document size | 10MB (`MAX_UPLOAD_BYTES`) | Fetch: the `Content-Length` header, then a running byte count while streaming, so an untruthful header can't get past it. Paste: the route. |
-| Request body | 20MB + 1KB (`MAX_REQUEST_BYTES`) | Flask `MAX_CONTENT_LENGTH`. It has room for a JSON-escaped 10MB paste. |
-| Proxy body | 21M | `client_max_body_size` in `proxy/nginx-common.conf`. It sits just above the app limit so the app's JSON 413 is what callers see. |
+| Catalog document size | 150MB (`MAX_UPLOAD_BYTES`) | Fetch: the `Content-Length` header, then a running byte count while streaming, so an untruthful header can't get past it. Paste: the route. |
+| Request body | 225MB + 1KB (`MAX_REQUEST_BYTES`) | Flask `MAX_CONTENT_LENGTH`. It has room for a JSON-escaped 150MB paste: escaping adds 1–23% to real catalogs, and 1.5× covers that. A document made mostly of quotes or backslashes (up to 2×) gets the validator's JSON 413. |
+| Proxy body | 226M | `client_max_body_size` in `proxy/nginx-common.conf`. It sits just above the app limit so the app's JSON 413 is what callers see. |
 | Fetch time | 12s total, including DNS and every redirect hop | `FETCH_TIMEOUT_SECONDS` in `fetch.py`. Each connect attempt is capped at 4s, with up to 3 attempts. The socket timeout shrinks before every body read so a late stall can't extend it. |
-| JSON nesting | 100 levels | Checked by a character scan *before* `json.loads`, so a deep document can't exhaust the stack. |
+| JSON nesting | 100 levels (`MAX_DOCUMENT_NESTING_DEPTH`) | orjson parses up to its own limit of 1024 levels without recursing, then a walk after parsing (`validate._check_catalog_nesting`) refuses anything deeper than 100 before validation starts. Anything orjson refuses, including a deeper document, goes to the pure-Python parser, whose character scan refuses it *before* `json.loads`, so a deep document can't exhaust the stack either way. |
 | JSON numbers | finite only | `NaN`/`Infinity` and integers too large to parse are refused. |
 | Validation errors returned | 1000, with `validation_incomplete: true` | `MAX_VALIDATION_ERRORS`. This stops a small document from expanding into millions of errors. |
 | Result text | identifiers 1000 chars, messages 4000 | Truncated in `validator_api/api.py`. |
 
-Larger documents are under discussion in GSA/data.gov#6460. Raising `MAX_UPLOAD_MB` also has to keep the fetch and validation time inside CloudFront's 30s request ceiling, and keep each worker's memory within `validator_memory_quota`.
+The document limit was raised from 10MB to 150MB in GSA/data.gov#6460. That covers nearly every agency catalog without sizing the service for the largest outlier, a ~600MB Census file. What it costs:
+
+- **Memory.** Peak RSS of a gunicorn worker (gthread, 2 threads) for a ~150MB catalog, measured on a fast laptop (macOS, Python 3.14) with the fast path on. Linux's allocator behaves differently, so check these against `cf app datagov-harvest-validator` after a deploy:
+
+  | Submission | Peak in the worker | Kept afterwards |
+  | --- | --- | --- |
+  | One, by URL | 1.1–1.3GB | ~400MB |
+  | One, pasted (ASCII text) | 1.25–1.4GB | ~500MB |
+  | One, pasted, text not pure ASCII (e.g. a curly apostrophe) | 1.7GB | ~830MB |
+  | Two at once in one worker, by URL | 1.9–2.1GB | ~650MB |
+  | Two at once in one worker, pasted (ASCII) | 2.2GB | ~870MB |
+  | Two at once in one worker, pasted (not pure ASCII) | 3.1GB | ~900MB |
+
+  Pasted text that isn't pure ASCII costs most: CPython stores the whole string at 2 bytes a character once it contains a character past U+00FF, and orjson needs a UTF-8 copy of it. An idle worker is ~130MB and the gunicorn master ~30MB, so a fresh instance (3 workers) peaks at 2.0GB for the worst single submission. But every worker keeps memory from its last large catalog, and across a run of single submissions to one 3-worker instance the total reached 2.6–3.2GB. So `validator_memory_quota` (2G in every space) fits one maximum-size submission in a fresh instance, but not two at once or a run of them. Cloud Foundry restarts an instance that goes over its quota. Parsing non-ASCII pastes with `json.loads` instead of orjson brings that single paste down to 1.3GB but takes 6s instead of 2.5s, and two at once still reach 2.6GB.
+- **Time.** On the fast path (see "Fast path and its kill switch" below), parsing and validating a 150MB catalog takes ~2s on a fast laptop (1.7–2.1s), and ~2–2.5s through the API. That is well inside CloudFront's 30s request ceiling, with room for slower production CPUs. A URL submission still has to download within the 12s fetch budget, which for 150MB takes a server sending ~100Mbps. With the kill switch on, validation is back to 0.2–0.5 s/MB on a fast laptop (31–79s for 150MB; this repo's earlier production estimate was 0.5–1.2 s/MB). Catalogs past roughly 25–100MB can then run past the 30s ceiling, and the submitter sees a timeout even though the worker finishes the validation.
+
+Changing `MAX_UPLOAD_MB` means rechecking both of these, and keeping `client_max_body_size` in `proxy/nginx-common.conf` above `MAX_REQUEST_BYTES`.
 
 ## Information disclosure
 
@@ -69,6 +85,19 @@ Larger documents are under discussion in GSA/data.gov#6460. Raising `MAX_UPLOAD_
 - `GET /validator/health` is the same check through the proxy's public route, for uptime monitoring.
 - Both return `{"status": "ok"}`. The app builds every schema validator at startup (`load_schema_validators`), so an instance whose schemas are missing or broken (for example, the `_external/dcat-us` submodule wasn't checked out) fails to start instead of passing the health check and then failing requests.
 
+## Fast path and its kill switch
+
+Validation takes two paths to the same answer (GSA/data.gov#6460):
+
+- **Parsing.** orjson parses the document. Whenever orjson refuses one (a byte order mark, UTF-16 or UTF-32, an escaped lone surrogate, NaN, a syntax error, nesting past 1024) or returns something `json.loads` wouldn't (an integer past 64 bits, which orjson turns into a float), the pure-Python parser parses it again. So every document parses to the same value, or fails with the same error and position, as before.
+- **Validation.** jsonschema-rs decides which records (1.1) or datasets and other top-level items (3.0) are valid. Python jsonschema then runs exactly as before on everything else. For 3.0 that means the same whole-catalog run, skipping only the `$ref`s into items jsonschema-rs found valid. Every error message, its path and order, and the 1,000-error cap still come from Python jsonschema alone.
+- **Agreement by construction.** jsonschema-rs is only ever trusted to say "valid". Where the libraries differ, it calls back into Python jsonschema's own code: `pattern` (ECMA-262 against Python `re`), `format` (rfc3987 and the date checkers), and `uniqueItems`, `enum` and `const` (number equality). The remaining keywords are a reviewed list (`fast_path.RUST_KEYWORDS`). A schema that uses any other validation keyword gets no fast path, and `tests/unit/dcatus_validation/test_fast_path.py` fails. A document containing anything a JSON parser can't produce (a tuple, say, from a direct caller) also gets no fast path.
+- **Tests.** `tests/unit/dcatus_validation/test_equivalence_*.py` and `tests/integration/validator_api/test_fast_path_api.py` run every example catalog, every GSA/dcat-us example, thousands of systematic mutations and a Hypothesis fuzzer through both paths and require identical results. Set `DCATUS_EQUIVALENCE_EXAMPLES` (e.g. `20000`) for a longer Hypothesis run. `scripts/benchmark_validation.py` measures both paths on large generated catalogs.
+
+**Memory.** The fast path is about 20 times faster but peaks higher while parsing. orjson needs the document as UTF-8 and builds its own parse tree before creating Python objects. For a 150MB catalog that adds roughly 100–170MB fetched by URL, and 250–315MB pasted, where a non-ASCII str needs a UTF-8 copy (measured with `scripts/benchmark_validation.py --api`). The resulting gunicorn worker peaks, and what they mean for `validator_memory_quota`, are under "Memory" in [Resource limits](#resource-limits).
+
+**Kill switch.** Set `DCATUS_VALIDATION_FAST_PATH=false` and restart (`cf set-env datagov-harvest-validator DCATUS_VALIDATION_FAST_PATH false`, then `cf restart datagov-harvest-validator`) to go back to the pure-Python parser and validator, with no deploy. Only `true` (the default when unset) keeps the fast path on, so a mistyped value also turns it off.
+
 ## Rules for changes
 
 - Any new outbound request must go through `fetch_json_from_url`, or reuse its target validation and `_pinned_get`. Never call `requests` directly on user input.
@@ -76,3 +105,4 @@ Larger documents are under discussion in GSA/data.gov#6460. Raising `MAX_UPLOAD_
 - Any new route must be added to `proxy/nginx-common.conf` (and `nginx-local-proxy.conf`) explicitly. The proxy forwards nothing to the validator by default.
 - Keep `validator_api` and `dcatus_validation` free of `app`, `harvester`, and `database` imports. The import guard enforces this, so don't weaken it.
 - Add a test with each new limit or check, next to the existing ones in `tests/unit/dcatus_validation/` and `tests/integration/validator_api/`.
+- Never take a message, path or count from jsonschema-rs. It only answers valid or invalid, and Python jsonschema reports every error. Adding a keyword to `fast_path.RUST_KEYWORDS` needs the same review and differential tests as the existing ones.
