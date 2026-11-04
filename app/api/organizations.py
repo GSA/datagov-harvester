@@ -3,7 +3,9 @@ from marshmallow import ValidationError
 
 from app import deps
 from app.api_schemas import OrgCreate, OrgInfo, OrgUpdate
+from app.constants import ORGANIZATION_SLUG_TAKEN_MESSAGE
 from app.deps import (
+    JSON_VALIDATION_ERROR,
     _get_org_by_identifier,
     _log_mutation,
     logger,
@@ -70,18 +72,16 @@ def add_organization_api(**kwargs):
 @login_required
 @valid_id_required
 def edit_organization_api(org_id):
-    org_data = request.json or {}
+    org_data = request.json
     try:
-        org_data = OrgUpdate().load(org_data)
+        org_data = OrgUpdate().load({} if org_data is None else org_data)
     except ValidationError as e:
-        return make_response(jsonify({"detail": e.messages}), 400)
+        return JSON_VALIDATION_ERROR(e.messages)
 
     if "slug" in org_data:
         existing = deps.db.get_organization_by_slug(org_data["slug"])
         if existing and existing.id != org_id:
-            return make_response(
-                jsonify({"detail": {"slug": ["Slug must be unique."]}}), 400
-            )
+            return JSON_VALIDATION_ERROR({"slug": [ORGANIZATION_SLUG_TAKEN_MESSAGE]})
 
     # Store a blank code_repo_url as None
     if "code_repo_url" in org_data:

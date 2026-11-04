@@ -8,6 +8,7 @@ from unittest.mock import Mock, patch
 import pytest
 from flask import Response
 
+from app.constants import SLUG_ERROR_MESSAGE
 from app.deps import UnsafeTemplateEnvError, render_block
 from harvester.harvest import HarvestSource
 
@@ -1511,12 +1512,12 @@ class TestOrganizationEditAPIValidation:
     @pytest.mark.parametrize(
         "slug,message",
         [
-            ("Fixture-Org", "lowercase letters, digits, and hyphens"),
-            ("fixture_org", "lowercase letters, digits, and hyphens"),
-            ("fixture org", "lowercase letters, digits, and hyphens"),
-            ("", "lowercase letters, digits, and hyphens"),
-            ("a" * 101, "Longer than maximum length 100"),
-            (None, "Field may not be null"),
+            ("Fixture-Org", SLUG_ERROR_MESSAGE),
+            ("fixture_org", SLUG_ERROR_MESSAGE),
+            ("fixture org", SLUG_ERROR_MESSAGE),
+            ("", SLUG_ERROR_MESSAGE),
+            ("a" * 101, "Longer than maximum length 100."),
+            (None, "Field may not be null."),
         ],
     )
     def test_invalid_slug_is_rejected(
@@ -1525,9 +1526,7 @@ class TestOrganizationEditAPIValidation:
         response = self.edit(client, org["id"], {"slug": slug}, headers)
 
         assert response.status_code == 400
-        detail = response.get_json()["detail"]
-        assert list(detail) == ["slug"]
-        assert message in detail["slug"][0]
+        assert response.get_json() == {"error": f"slug: {message}"}
         assert interface.get_organization(org["id"]).slug == org["slug"]
 
     def test_slug_of_max_length_is_accepted(self, client, interface, org, headers):
@@ -1542,7 +1541,7 @@ class TestOrganizationEditAPIValidation:
         response = self.edit(client, org["id"], {"slug": "other-org"}, headers)
 
         assert response.status_code == 400
-        assert response.get_json() == {"detail": {"slug": ["Slug must be unique."]}}
+        assert response.get_json() == {"error": "slug: Slug must be unique."}
         assert interface.get_organization(org["id"]).slug == org["slug"]
         assert interface.get_organization(other.id).slug == "other-org"
 
@@ -1553,7 +1552,7 @@ class TestOrganizationEditAPIValidation:
         )
 
         assert response.status_code == 400
-        assert response.get_json() == {"detail": {field: ["Unknown field."]}}
+        assert response.get_json() == {"error": f"{field}: Unknown field."}
         assert interface.get_organization(org["id"]).name == org["name"]
 
     def test_invalid_organization_type_is_rejected(
@@ -1564,7 +1563,7 @@ class TestOrganizationEditAPIValidation:
         )
 
         assert response.status_code == 400
-        assert "organization_type" in response.get_json()["detail"]
+        assert response.get_json()["error"].startswith("organization_type: ")
         assert (
             interface.get_organization(org["id"]).organization_type
             == org["organization_type"]
@@ -1577,8 +1576,21 @@ class TestOrganizationEditAPIValidation:
 
         assert response.status_code == 400
         assert response.get_json() == {
-            "detail": {"code_repo_url": ["URL must start with http:// or https://"]}
+            "error": "code_repo_url: URL must start with http:// or https://"
         }
+
+    def test_every_invalid_field_is_reported(self, client, org, headers):
+        response = self.edit(
+            client,
+            org["id"],
+            {"slug": "Bad", "code_repo_url": "ftp://github.com/test"},
+            headers,
+        )
+
+        assert response.status_code == 400
+        error = response.get_json()["error"]
+        assert f"slug: {SLUG_ERROR_MESSAGE}" in error
+        assert "code_repo_url: URL must start with http:// or https://" in error
 
     @pytest.mark.parametrize("code_repo_url", [None, "", "   "])
     def test_blank_code_repo_url_clears_it(
@@ -1599,7 +1611,7 @@ class TestOrganizationEditAPIValidation:
         response = self.edit(client, org["id"], ["slug", "x"], headers)
 
         assert response.status_code == 400
-        assert "_schema" in response.get_json()["detail"]
+        assert response.get_json() == {"error": "Invalid input type."}
 
     @pytest.mark.parametrize("api_key", [None, "invalid_token"])
     def test_auth_is_still_required(self, client, interface, org, api_key):

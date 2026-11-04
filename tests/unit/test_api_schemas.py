@@ -3,6 +3,7 @@ from marshmallow import ValidationError
 from sqlalchemy.dialects import postgresql
 
 from app.api_schemas import OrgCreate, OrgUpdate
+from app.constants import SLUG_ERROR_MESSAGE
 from database.models import Organization
 
 
@@ -67,9 +68,16 @@ class TestOrgUpdate:
     def test_slug_follows_the_create_rules(self):
         assert OrgUpdate().load({"slug": "gsa-2"}) == {"slug": "gsa-2"}
         for slug in ["GSA", "g_s_a", "", "a" * 101]:
-            with pytest.raises(ValidationError) as excinfo:
+            with pytest.raises(ValidationError) as update_error:
                 OrgUpdate().load({"slug": slug})
-            assert list(excinfo.value.messages) == ["slug"]
+            with pytest.raises(ValidationError) as create_error:
+                OrgCreate().load({"name": "GSA", "slug": slug})
+            assert update_error.value.messages == create_error.value.messages
+
+    def test_slug_uses_the_shared_error_message(self):
+        with pytest.raises(ValidationError) as excinfo:
+            OrgUpdate().load({"slug": "GSA"})
+        assert excinfo.value.messages == {"slug": [SLUG_ERROR_MESSAGE]}
 
     def test_id_and_unknown_fields_are_rejected(self):
         with pytest.raises(ValidationError) as excinfo:

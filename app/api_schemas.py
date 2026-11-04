@@ -15,6 +15,11 @@ from apiflask.fields import (
 )
 from marshmallow import ValidationError, validate
 
+from app.constants import (
+    ORGANIZATION_SLUG_MAX_LENGTH,
+    SLUG_ERROR_MESSAGE,
+    SLUG_REGEX,
+)
 from shared.constants import (
     ACTION_VALUES,
     FREQUENCY_VALUES,
@@ -109,11 +114,8 @@ class OrgCreate(Schema):
     slug = String(
         required=True,
         validate=[
-            validators.Length(max=100),
-            validators.Regexp(
-                r"^[a-z0-9-]+$",
-                error="Slug can only contain lowercase letters, digits, and hyphens.",
-            ),
+            validators.Length(max=ORGANIZATION_SLUG_MAX_LENGTH),
+            validators.Regexp(SLUG_REGEX, error=SLUG_ERROR_MESSAGE),
         ],
     )
     organization_type = Enum(ORGANIZATION_TYPE_ENUM)

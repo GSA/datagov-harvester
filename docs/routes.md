@@ -55,8 +55,8 @@ and are omitted from the public Swagger docs at `/openapi/docs`.
   Login required (JSON API). Partial update: send only the fields to change.
   Fields follow the same rules as `/api/organization/add` (for example, the
   slug must match `^[a-z0-9-]+$`, be at most 100 characters, and not belong to
-  another organization). Invalid or unknown fields return a 400 with the
-  errors under `detail`.
+  another organization). Invalid or unknown fields return a 400 with
+  `{"error": "<field>: <message>"}`.
 
 
 - `/harvest_source/add`: HTML form to add a new harvest source. GET renders the
