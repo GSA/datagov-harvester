@@ -4,7 +4,7 @@
 
 ## Threat model
 
-Anyone on the internet can call `POST /api/v1/validate`, either with a URL for the validator to fetch or with pasted JSON. The protections below are aimed at four threats:
+Anyone on the internet can call `POST /api/v1/validate`, either with a URL for the validator to fetch or with pasted JSON in `json_text`, and `POST /api/v1/validate/document`, whose request body is the catalog itself (how the `/validate/` page sends pasted text and uploaded files; `schema` and `fetch_method=paste|upload` are query parameters). The protections below are aimed at four threats:
 
 - **Server-side request forgery (SSRF):** using the validator's URL fetch to reach cloud.gov internal routes (`*.apps.internal`), cloud metadata, or other private services, and reading their responses back through validation errors.
 - **Resource exhaustion:** large, slow, deeply nested, or error-heavy submissions that tie up the few worker slots (3 workers × 2 threads per instance) or exhaust memory.
@@ -40,8 +40,8 @@ All limits are in `dcatus_validation/limits.py` unless noted.
 | Limit | Value | Enforced by |
 | --- | --- | --- |
 | Catalog document size | 150MB (`MAX_UPLOAD_BYTES`) | Fetch: the `Content-Length` header, then a running byte count while streaming, so an untruthful header can't get past it. Paste: the route. |
-| Request body | 225MB + 1KB (`MAX_REQUEST_BYTES`) | Flask `MAX_CONTENT_LENGTH`. It has room for a JSON-escaped 150MB paste: escaping adds 1–23% to real catalogs, and 1.5× covers that. A document made mostly of quotes or backslashes (up to 2×) gets the validator's JSON 413. |
-| Proxy body | 226M | `client_max_body_size` in `proxy/nginx-common.conf`. It sits just above the app limit so the app's JSON 413 is what callers see. |
+| Request body | 225MB + 1KB (`MAX_REQUEST_BYTES`) | Flask `MAX_CONTENT_LENGTH`, for both endpoints. It has room for a JSON-escaped 150MB paste in `json_text`: escaping adds 1–23% to real catalogs, and 1.5× covers that. A document made mostly of quotes or backslashes (up to 2×) gets the validator's JSON 413. `/validate/document` bodies aren't escaped, so a body over 150MB there is a document over the limit (400), and only one over 225MB gets the 413. |
+| Proxy body | 226M | `client_max_body_size` in `proxy/nginx-common.conf`. It sits just above the app limit so the app's JSON 413 is what callers see. `/validate/document` alone would need only ~151M, but both endpoints share the cap while `/validate` still takes pasted catalogs inside JSON. |
 | Fetch time | 12s total, including DNS and every redirect hop | `FETCH_TIMEOUT_SECONDS` in `fetch.py`. Each connect attempt is capped at 4s, with up to 3 attempts. The socket timeout shrinks before every body read so a late stall can't extend it. |
 | JSON nesting | 100 levels (`MAX_DOCUMENT_NESTING_DEPTH`) | orjson parses up to its own limit of 1024 levels without recursing, then a walk after parsing (`validate._check_catalog_nesting`) refuses anything deeper than 100 before validation starts. Anything orjson refuses, including a deeper document, goes to the pure-Python parser, whose character scan refuses it *before* `json.loads`, so a deep document can't exhaust the stack either way. |
 | JSON numbers | finite only | `NaN`/`Infinity` and integers too large to parse are refused. |
@@ -63,7 +63,7 @@ The document limit was raised from 10MB to 150MB in GSA/data.gov#6460. That cove
   | Peak, 100MB (measured) | 800MB; 1,005MB not pure ASCII | 690MB; 695MB not pure ASCII |
   | Peak, 50MB (measured) | 466MB | 411MB |
 
-  The route keeps a single copy of a pasted catalog, its UTF-8 bytes, while it parses it (`_take_pasted_document` in `validator_api/api.py`, checked by `tests/integration/validator_api/test_paste_memory.py`). A URL fetch already held one copy, so it peaks about the same. Most of the peak is the parsed catalog itself: each ~1.1KB record becomes ~5KB of Python strings and dicts, the cost of validating with Python jsonschema at all. After a large request a worker drops back to ~170–210MB. (macOS keeps several hundred MB more, so measurements on a Mac overstate this.)
+  The route keeps a single copy of a pasted catalog, its UTF-8 bytes, while it parses it (`_take_pasted_document` in `validator_api/api.py`). `/validate/document`, which the page uses, reads the body once without caching it and parses that, so it holds one copy too, and the browser sends the file without reading it into memory. `tests/integration/validator_api/test_paste_memory.py` checks both. A URL fetch already held one copy, so it peaks about the same. Most of the peak is the parsed catalog itself: each ~1.1KB record becomes ~5KB of Python strings and dicts, the cost of validating with Python jsonschema at all. After a large request a worker drops back to ~170–210MB. (macOS keeps several hundred MB more, so measurements on a Mac overstate this.)
 
   For an instance (3 workers and a ~30MB master) under `validator_memory_quota`, 2G in every space, extrapolated from the above:
   - **One 150MB submission at a time fits:** ~1.4GB in total.

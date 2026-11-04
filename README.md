@@ -11,7 +11,7 @@ This repository holds the source code the Data.gov Harvester 2.0, which includes
 
 - datagov-harvest-proxy: This is an nginx app which owns the public route and proxies traffic to the internal Flask app route.
 
-- datagov-harvest-validator: A minimal API (`validator_api/`) serving `/api/v1/validate`, which the admin app's `/validate/` page and external callers use. It shares the `dcatus_validation/` package with the harvest runner and needs no database or secrets.
+- datagov-harvest-validator: A minimal API (`validator_api/`) serving `/api/v1/validate` and `/api/v1/validate/document`, which the admin app's `/validate/` page and external callers use. It shares the `dcatus_validation/` package with the harvest runner and needs no database or secrets.
 
 There is further documentation in the [developer](/docs/developer.md) quickstart.
 

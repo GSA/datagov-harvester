@@ -43,6 +43,25 @@ class ValidatorInfo(Schema):
             )
 
 
+class DocumentQuery(Schema):
+    """Query parameters of /validate/document, whose body is the catalog."""
+
+    schema = String(
+        required=True,
+        validate=validators.OneOf(SCHEMA_NAMES),
+    )
+    fetch_method = String(
+        load_default="upload",
+        validate=validators.OneOf(["paste", "upload"]),
+        metadata={
+            "description": (
+                "`paste`: the body is pasted text, as UTF-8. `upload` (the "
+                "default): the body is a file, UTF-8 or UTF-16."
+            )
+        },
+    )
+
+
 class ValidationResultSchema(Schema):
     validation_errors = List(
         # [identifier, message]. The identifier is the dataset's `identifier`,

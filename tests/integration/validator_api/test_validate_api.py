@@ -649,8 +649,9 @@ class TestService:
     def test_openapi_spec_documents_validate(self, validator_client):
         spec = validator_client.get("/validator/openapi.json").get_json()
 
-        assert set(spec["paths"]) == {URL}
+        assert set(spec["paths"]) == {URL, f"{URL}/document"}
         assert "post" in spec["paths"][URL]
+        assert "post" in spec["paths"][f"{URL}/document"]
         # no auth anywhere in this service
         assert "securitySchemes" not in spec.get("components", {})
 

@@ -357,7 +357,7 @@ def parse_json_document(document: str | bytes | bytearray):
     return _parse_json_document_stdlib(document)
 
 
-def parse_pasted_json_document(document: bytes):
+def parse_pasted_json_document(document: bytes | memoryview):
     """parse_json_document for pasted text, given as its UTF-8 encoding so the
     caller can drop the text itself first: a 150MB paste is then held once
     while it's parsed, not as the text, its UTF-8 copy for orjson and the
@@ -368,12 +368,18 @@ def parse_pasted_json_document(document: bytes):
     first. Anything else goes to the stdlib parser as the text again, decoded
     back from those bytes: parsing bytes there would accept a leading BOM and
     guess UTF-16 or UTF-32 from NUL characters, which pasted text never got.
+    Bytes that aren't UTF-8 at all (only possible when a client sends the
+    text itself as the request body) get INVALID_JSON_ENCODING_MESSAGE.
     """
     if fast_path_enabled():
         parsed = _parse_json_document_orjson(document)
         if parsed is not _ORJSON_REFUSED:
             return parsed
-    return _parse_json_document_stdlib(document.decode("utf-8"))
+    try:
+        text = str(document, "utf-8")
+    except UnicodeDecodeError:
+        raise InvalidCatalogSource(INVALID_JSON_ENCODING_MESSAGE) from None
+    return _parse_json_document_stdlib(text)
 
 
 class _PinnedConnectionMixin:

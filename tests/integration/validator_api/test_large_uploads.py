@@ -206,3 +206,51 @@ class TestFetchedCatalog:
 
         assert res.status_code == 400
         assert res.get_json() == {"error": PAYLOAD_TOO_LARGE_MESSAGE}
+
+
+class TestCatalogAsTheBody:
+    """/validate/document, how the /validate/ page sends a pasted or uploaded
+    catalog: the body is the catalog itself."""
+
+    @staticmethod
+    def _post(client, path, fetch_method="upload"):
+        body = path.read_bytes()
+        path.unlink()
+        return client.post(
+            f"{URL}/document?schema={FEDERAL}&fetch_method={fetch_method}",
+            data=body,
+            content_type="application/json",
+        )
+
+    @pytest.mark.parametrize("fetch_method", ["paste", "upload"])
+    def test_a_catalog_at_the_limit_is_validated_to_its_last_record(
+        self, validator_client, catalog_file, fetch_method
+    ):
+        path = catalog_file(MAX_UPLOAD_BYTES, invalid_last="last-record")
+
+        res = self._post(validator_client, path, fetch_method)
+
+        assert res.status_code == 200
+        [[identifier, message]] = res.get_json()["validation_errors"]
+        assert identifier == "last-record"
+        assert INVALID_ACCESS_LEVEL in message
+
+    @pytest.mark.parametrize("size", [151 * MIB, 200 * MIB], ids=["151MB", "200MB"])
+    def test_a_catalog_over_the_limit_is_refused(
+        self, validator_client, catalog_file, size
+    ):
+        res = self._post(validator_client, catalog_file(size))
+
+        assert res.status_code == 400
+        assert res.get_json() == {"error": PAYLOAD_TOO_LARGE_MESSAGE}
+
+    def test_a_body_over_the_request_limit_gets_a_json_413(
+        self, validator_client, catalog_file
+    ):
+        path = catalog_file(230 * MIB)
+        assert path.stat().st_size > MAX_REQUEST_BYTES
+
+        res = self._post(validator_client, path)
+
+        assert res.status_code == 413
+        assert res.get_json() == {"error": SUBMISSION_TOO_LARGE_MESSAGE}
