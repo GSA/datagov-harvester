@@ -2,7 +2,7 @@ from flask import jsonify, make_response, request
 from marshmallow import ValidationError
 
 from app import deps
-from app.api_schemas import OrgCreate, OrgInfo
+from app.api_schemas import OrgCreate, OrgInfo, OrgUpdate
 from app.deps import (
     _get_org_by_identifier,
     _log_mutation,
@@ -71,18 +71,22 @@ def add_organization_api(**kwargs):
 @valid_id_required
 def edit_organization_api(org_id):
     org_data = request.json or {}
+    try:
+        org_data = OrgUpdate().load(org_data)
+    except ValidationError as e:
+        return make_response(jsonify({"detail": e.messages}), 400)
 
-    # Validate code_repo_url if provided
+    if "slug" in org_data:
+        existing = deps.db.get_organization_by_slug(org_data["slug"])
+        if existing and existing.id != org_id:
+            return make_response(
+                jsonify({"detail": {"slug": ["Slug must be unique."]}}), 400
+            )
+
+    # Store a blank code_repo_url as None
     if "code_repo_url" in org_data:
         code_repo_url = org_data.get("code_repo_url")
         if code_repo_url and code_repo_url.strip():
-            if not (
-                code_repo_url.startswith("http://")
-                or code_repo_url.startswith("https://")
-            ):
-                return make_response(
-                    jsonify({"error": "URL must start with http:// or https://"}), 400
-                )
             org_data["code_repo_url"] = code_repo_url.strip()
         else:
             org_data["code_repo_url"] = None

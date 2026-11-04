@@ -145,6 +145,28 @@ class OrgCreate(Schema):
         return data
 
 
+class OrgUpdate(OrgCreate):
+    """Input for the organization edit API.
+
+    Derived from OrgCreate so edit and create share the same field rules
+    (slug pattern and length, URL protocol, organization type, ...). Every
+    field is optional because an edit is a partial update, but a field that
+    is present must still pass the create rules, so an empty slug is still
+    rejected. The id can't be edited, so it is excluded and, like any other
+    unknown field, rejected. code_repo_url also accepts null, which clears
+    it, as this endpoint has always allowed.
+    """
+
+    class Meta:
+        exclude = ("id",)
+
+    code_repo_url = String(allow_none=True)
+
+    def __init__(self, *args, **kwargs):
+        kwargs.setdefault("partial", True)
+        super().__init__(*args, **kwargs)
+
+
 class OrgInfo(OrgCreate):
     id = UUID(required=True)
     source_count = Integer()
