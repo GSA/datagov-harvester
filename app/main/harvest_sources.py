@@ -665,7 +665,7 @@ def update_harvest_source_actions(source_id: str):
 
 @main.route("/harvest_source_list/", methods=["GET"])
 def harvest_source_list():
-    sources = deps.db.get_all_harvest_sources()
+    sources = deps.db.get_all_harvest_sources(include_archived=True)
     data = {"harvest_sources": sources}
     logger.info("Rendered harvest source list count=%s", len(sources) if sources else 0)
     return render_template("view_source_list.html", data=data)
