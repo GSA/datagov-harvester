@@ -256,10 +256,10 @@ the dev app.
 
 ### Exporting requirements.txt
 
-If you've added, updated, or removed any python dependencies, be sure to export requirements.txt:
+If you've added, updated, or removed any python dependencies, be sure to export requirements.txt. The export includes each package's hashes, so pip refuses any file that doesn't match `poetry.lock`:
 
    ```bash
-   poetry export -f requirements.txt --output requirements.txt --without-hashes
+   poetry export -f requirements.txt --output requirements.txt
    ```
 
 ### Database migrations
@@ -357,7 +357,7 @@ Note: we prefer that you deploy to the development environment by pushing to the
 2. Deploy the application using Cloud Foundry's `cf push` command with the variable file:
 
    ```bash
-   poetry export -f requirements.txt --output requirements.txt --without-hashes
+   poetry export -f requirements.txt --output requirements.txt
    cf push --vars-file vars.development.yml
    ```
 
