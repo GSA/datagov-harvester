@@ -307,7 +307,7 @@ class TestHarvestSourceDeleteCascade:
 
         _wait_for_source_archived(engine, source_id)
 
-        # After archiving, the source is marked as archived but all related records remain
+        # After archiving, source is marked archived but related records remain
         assert _child_row_counts(engine, source_id) == {
             "sources": 1,
             "jobs": 1,

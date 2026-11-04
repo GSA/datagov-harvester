@@ -108,7 +108,7 @@ class TestHarvestCreateAndDestroy:
         deadline = time.monotonic() + 60
         while time.monotonic() < deadline:
             apage_with_org.goto("/harvest_source_list/")
-            # If archived, source won't appear in list (include_archived=False by default)
+            # If archived, source won't appear (include_archived=False default)
             if apage_with_org.get_by_role("link", name=source_name).count() == 0:
                 break
             time.sleep(0.25)
