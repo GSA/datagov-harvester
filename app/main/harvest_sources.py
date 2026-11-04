@@ -647,7 +647,8 @@ def update_harvest_source_actions(source_id: str):
                 source_id, user_email, deps.db
             )
             _log_mutation("archive", "harvest_source", source_id, status=status)
-            flash(message, "success" if status == 202 else "error")
+            category = "success" if status == 202 else "error"
+            flash(message, category)
             if status == 409:
                 return redirect(
                     url_for("main.view_harvest_source", source_id=source_id)
