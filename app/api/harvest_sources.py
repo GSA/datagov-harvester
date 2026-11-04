@@ -69,9 +69,7 @@ def edit_harvest_source_api(source_id: str):
 def delete_harvest_source(source_id):
     try:
         user_email = g.get("request_actor", "unknown")
-        message, status = enqueue_harvest_source_archive(
-            source_id, user_email, deps.db
-        )
+        message, status = enqueue_harvest_source_archive(source_id, user_email, deps.db)
         _log_mutation("archive", "harvest_source", source_id, status=status)
         return make_response(jsonify({"message": message}), status)
     except Exception as e:

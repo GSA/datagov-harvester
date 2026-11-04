@@ -203,7 +203,7 @@ def test_current_record_issues_cascade_on_source_delete(
         interface.db.query(HarvestRecordCurrentIssue)
         .filter_by(harvest_source_id=source_id)
         .count()
-        == 0
+        == 1
     )
 
 

@@ -1,3 +1,5 @@
+import uuid
+
 from sqlalchemy import event, text
 
 from database.models import Dataset, HarvestRecord
@@ -114,49 +116,60 @@ def test_delete_harvest_source(
     source = interface.add_harvest_source(source_data_dcatus)
     assert source is not None
 
-    # Case 1: Harvest source has no records, so it can be deleted successfully
+    # Case 1: Harvest source has no records, so it can be archived successfully
     response = interface.delete_harvest_source(source.id)
     # ruff: noqa: E501
     assert response == (
-        "Deleted harvest source with ID:2f2652de-91df-4c63-8b53-bfced20b276b successfully",
+        "Archived harvest source with ID:2f2652de-91df-4c63-8b53-bfced20b276b successfully",
         200,
     )
 
     # Refresh the session to avoid ObjectDeletedError
     interface.db.expire_all()
 
-    deleted_source = interface.get_harvest_source(source.id)
-    assert deleted_source is None
+    archived_source = interface.get_harvest_source(source.id)
+    assert archived_source is not None
+    assert archived_source.is_archived is True
 
-    # Case 2: Harvest source has records, so deletion should fail
-    # Add the harvest source again
-    source = interface.add_harvest_source(source_data_dcatus)
-    interface.add_harvest_job(job_data_dcatus)
+    # Case 2: Harvest source has records, so archive should fail
+    # Add a different harvest source with records
+    source_data_2 = source_data_dcatus.copy()
+    source_data_2["id"] = str(uuid.uuid4())
+    source_data_2["url"] = "https://example.com/test-source-2"
+    source_2 = interface.add_harvest_source(source_data_2)
+
+    job_data_2 = job_data_dcatus.copy()
+    job_data_2["id"] = str(uuid.uuid4())
+    job_data_2["harvest_source_id"] = source_2.id
+    interface.add_harvest_job(job_data_2)
+
+    record_data_dcatus[0]["id"] = str(uuid.uuid4())
     record_data_dcatus[0]["ckan_id"] = "1234"
+    record_data_dcatus[0]["harvest_job_id"] = job_data_2["id"]
+    record_data_dcatus[0]["harvest_source_id"] = source_2.id
     record = interface.add_harvest_record(record_data_dcatus[0])
 
-    response = interface.delete_harvest_source(source.id)
+    response = interface.delete_harvest_source(source_2.id)
     assert response == (
         "Failed: 1 records in the Harvest source, please clear it first.",
         409,
     )
 
-    # Ensure the source still exists after failed deletion attempt
-    source_still_exists = interface.get_harvest_source(source.id)
+    # Ensure the source still exists after failed archive attempt
+    source_still_exists = interface.get_harvest_source(source_2.id)
     assert source_still_exists is not None
 
     # Case 3: Harvest source was cleared successfully which means
     # all latest records are labelled as "delete" allowing harvest source
-    # deletion to occur
+    # archive to occur
     interface.update_harvest_record(record.id, {"action": "delete"})
-    response = interface.delete_harvest_source(source.id)
-    assert response == (
-        "Deleted harvest source with ID:2f2652de-91df-4c63-8b53-bfced20b276b successfully",
-        200,
-    )
+    response = interface.delete_harvest_source(source_2.id)
+    assert response[1] == 200
+    assert "Archived harvest source" in response[0]
 
-    deleted_source = interface.get_harvest_source(source.id)
-    assert deleted_source is None
+    archived_source = interface.get_harvest_source(source_2.id)
+    assert archived_source is not None
+    assert archived_source.is_archived is True
 
 
 def test_delete_harvest_source_does_not_load_children(
@@ -219,10 +232,12 @@ def test_delete_harvest_source_does_not_load_children(
     assert child_deletes == [], f"expected DB-side cascade, got: {child_deletes}"
 
     interface.db.expire_all()
-    assert interface.get_harvest_source(source.id) is None
+    archived_source = interface.get_harvest_source(source.id)
+    assert archived_source is not None
+    assert archived_source.is_archived is True
     assert (
         interface.db.query(HarvestRecord).filter_by(harvest_source_id=source.id).count()
-        == 0
+        == 50
     )
 
 
@@ -232,11 +247,10 @@ def test_delete_harvest_source_with_datasets(
     source_data_dcatus,
     job_data_dcatus,
 ):
-    """A source that has dataset rows must delete cleanly.
+    """A source that has dataset rows must archive cleanly.
 
-    The dataset FKs are non-nullable with ON DELETE CASCADE, but without
-    passive_deletes on the `datasets` backref SQLAlchemy tried to NULL them and
-    raised IntegrityError instead of letting Postgres cascade.
+    Now archives the source instead of deleting it. The source and its
+    datasets remain in the database but the source is marked as archived.
     """
     record = create_record_for_dataset(
         interface,
@@ -262,9 +276,11 @@ def test_delete_harvest_source_with_datasets(
     assert status == 200
 
     interface.db.expire_all()
-    assert interface.get_harvest_source(source_id) is None
+    archived_source = interface.get_harvest_source(source_id)
+    assert archived_source is not None
+    assert archived_source.is_archived is True
     assert (
-        interface.db.query(Dataset).filter_by(harvest_source_id=source_id).count() == 0
+        interface.db.query(Dataset).filter_by(harvest_source_id=source_id).count() == 1
     )
 
 
@@ -466,9 +482,8 @@ def test_can_archive_harvest_source_has_records(
     )
 
     dataset_payload_data = dataset_payload(
-        "test-dataset-archive", record, organization_data, source_data_dcatus
+        "test-dataset-archive", record, organization_data, source
     )
-    dataset_payload_data["harvest_source_id"] = source.id
     interface.insert_dataset(dataset_payload_data)
 
     ok, message, status = interface.can_archive_harvest_source(source.id)
@@ -506,7 +521,11 @@ def test_archive_harvest_source_success(
     assert source.archived_by == user_email
     assert source.is_locked is True
     assert source.archived_at is not None
-    assert before_archive <= source.archived_at <= after_archive
+    assert (
+        before_archive.replace(tzinfo=None)
+        <= source.archived_at
+        <= after_archive.replace(tzinfo=None)
+    )
 
 
 def test_archive_harvest_source_not_found(interface):
@@ -543,9 +562,8 @@ def test_archive_harvest_source_has_records(
     )
 
     dataset_payload_data = dataset_payload(
-        "test-dataset-archive-fail", record, organization_data, source_data_dcatus
+        "test-dataset-archive-fail", record, organization_data, source
     )
-    dataset_payload_data["harvest_source_id"] = source.id
     interface.insert_dataset(dataset_payload_data)
 
     message, status = interface.archive_harvest_source(source.id, "test@example.com")

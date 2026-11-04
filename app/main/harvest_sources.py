@@ -28,6 +28,8 @@ from harvester.utils.reharvest_links import read_reharvest_token
 
 from . import main
 
+enqueue_harvest_source_delete = enqueue_harvest_source_archive
+
 
 def trigger_manual_job_helper(source_id, job_type="harvest"):
     message = deps.load_manager.trigger_manual_job(source_id, job_type)
@@ -80,7 +82,7 @@ def refresh_harvest_source():
     def link_issue():
         """Describe the current reason this signed link cannot request a job."""
         source = deps.db.get_harvest_source(source_id)
-        if source is None:
+        if source is None or (source and source.is_archived):
             return None, (
                 "This harvest source has been removed.",
                 "Contact the Data.gov team if this source should be restored "
