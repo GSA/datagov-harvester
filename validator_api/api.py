@@ -2,7 +2,7 @@ import json
 import logging
 
 from apiflask import APIBlueprint
-from flask import jsonify, make_response
+from flask import jsonify, make_response, request
 
 from dcatus_validation.errors import (
     NESTING_TOO_DEEP_MESSAGE,
@@ -13,7 +13,7 @@ from dcatus_validation.fetch import (
     InvalidCatalogSource,
     fetch_json_from_url,
     invalid_json_message,
-    parse_json_document,
+    parse_pasted_json_document,
 )
 from dcatus_validation.limits import (
     MAX_RESULT_IDENTIFIER_CHARS,
@@ -59,6 +59,23 @@ def _bound_validation_results(errors: list) -> list:
     return bounded
 
 
+def _take_pasted_document(json_data) -> bytes:
+    """The pasted catalog as UTF-8, with every other copy of it released: the
+    decoded text (in json_data and werkzeug's parsed-JSON cache) and the raw
+    request body werkzeug caches. Otherwise a 150MB paste is alive three or
+    four times while it's parsed, ~300-600MB more at the peak
+    (GSA/data.gov#6460). Nothing reads the request body again after this.
+
+    Encoding raises UnicodeEncodeError for a lone surrogate, as the size
+    check always has.
+    """
+    document = json_data.pop("json_text").encode("utf-8")
+    cache = vars(request._get_current_object())
+    cache.pop("_cached_json", None)
+    cache.pop("_cached_data", None)
+    return document
+
+
 @api.route("/validate", methods=["POST"])
 @api.input(ValidatorInfo)
 @api.output(ValidationResultSchema, status_code=200)
@@ -101,13 +118,14 @@ def validator(json_data):
         if json_data["fetch_method"] == "url":
             data = fetch_json_from_url(json_data["url"])
         else:
-            json_text = json_data["json_text"]
+            document = _take_pasted_document(json_data)
             # MAX_CONTENT_LENGTH caps the request body, which has room for JSON
             # escaping (see app.constants); this caps the document itself, the
             # same limit a URL submission gets.
-            if len(json_text.encode("utf-8")) > MAX_UPLOAD_BYTES:
+            if len(document) > MAX_UPLOAD_BYTES:
                 raise InvalidCatalogSource(PAYLOAD_TOO_LARGE_MESSAGE)
-            data = parse_json_document(json_text)
+            data = parse_pasted_json_document(document)
+            del document
 
         errors, validation_incomplete = validate_records_limited(
             data,

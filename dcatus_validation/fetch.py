@@ -357,6 +357,25 @@ def parse_json_document(document: str | bytes | bytearray):
     return _parse_json_document_stdlib(document)
 
 
+def parse_pasted_json_document(document: bytes):
+    """parse_json_document for pasted text, given as its UTF-8 encoding so the
+    caller can drop the text itself first: a 150MB paste is then held once
+    while it's parsed, not as the text, its UTF-8 copy for orjson and the
+    request body (GSA/data.gov#6460).
+
+    Same result or error as parse_json_document(text). orjson parses the
+    bytes exactly as it parses the text, which it encodes to the same bytes
+    first. Anything else goes to the stdlib parser as the text again, decoded
+    back from those bytes: parsing bytes there would accept a leading BOM and
+    guess UTF-16 or UTF-32 from NUL characters, which pasted text never got.
+    """
+    if fast_path_enabled():
+        parsed = _parse_json_document_orjson(document)
+        if parsed is not _ORJSON_REFUSED:
+            return parsed
+    return _parse_json_document_stdlib(document.decode("utf-8"))
+
+
 class _PinnedConnectionMixin:
     """Connect to the approved IP while retaining the hostname for Host/TLS."""
 
