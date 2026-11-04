@@ -1516,6 +1516,7 @@ class TestOrganizationEditAPIValidation:
             ("fixture_org", SLUG_ERROR_MESSAGE),
             ("fixture org", SLUG_ERROR_MESSAGE),
             ("", SLUG_ERROR_MESSAGE),
+            ("fixture-org\n", SLUG_ERROR_MESSAGE),
             ("a" * 101, "Longer than maximum length 100."),
             (None, "Field may not be null."),
         ],

@@ -18,6 +18,7 @@ from marshmallow import ValidationError, validate
 from app.constants import (
     ORGANIZATION_SLUG_MAX_LENGTH,
     SLUG_ERROR_MESSAGE,
+    SLUG_OPENAPI_PATTERN,
     SLUG_REGEX,
 )
 from shared.constants import (
@@ -117,6 +118,8 @@ class OrgCreate(Schema):
             validators.Length(max=ORGANIZATION_SLUG_MAX_LENGTH),
             validators.Regexp(SLUG_REGEX, error=SLUG_ERROR_MESSAGE),
         ],
+        # apispec would publish SLUG_REGEX, which JavaScript can't read
+        metadata={"pattern": SLUG_OPENAPI_PATTERN},
     )
     organization_type = Enum(ORGANIZATION_TYPE_ENUM)
     aliases = List(String())

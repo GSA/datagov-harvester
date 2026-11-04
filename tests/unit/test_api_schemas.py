@@ -67,7 +67,7 @@ class TestOrgUpdate:
 
     def test_slug_follows_the_create_rules(self):
         assert OrgUpdate().load({"slug": "gsa-2"}) == {"slug": "gsa-2"}
-        for slug in ["GSA", "g_s_a", "", "a" * 101]:
+        for slug in ["GSA", "g_s_a", "", "gsa\n", "a" * 101]:
             with pytest.raises(ValidationError) as update_error:
                 OrgUpdate().load({"slug": slug})
             with pytest.raises(ValidationError) as create_error:
@@ -99,3 +99,11 @@ class TestOrgUpdate:
         loaded = OrgUpdate().load({"organization_type": "Non-Profit"})
         assert loaded["organization_type"] == "Non-Profit"
         assert isinstance(loaded["organization_type"], str)
+
+
+@pytest.mark.parametrize("schema", [OrgCreate, OrgUpdate])
+def test_slug_with_trailing_newline_is_rejected(schema):
+    # $ would match just before the newline and let "gsa\n" through
+    with pytest.raises(ValidationError) as excinfo:
+        schema().load({"name": "GSA", "slug": "gsa\n"})
+    assert excinfo.value.messages == {"slug": [SLUG_ERROR_MESSAGE]}
