@@ -28,7 +28,15 @@ from harvester.utils.general_utils import convert_to_int, is_it_true
 
 from . import api
 
-SHARED_QUERY_PARAMS = ["facets", "page", "per_page", "paginate", "count", "order_by"]
+SHARED_QUERY_PARAMS = [
+    "facets",
+    "page",
+    "per_page",
+    "paginate",
+    "count",
+    "order_by",
+    "envelope",
+]
 
 ENDPOINT_VALID_FILTERS = {
     "organizations": [],
@@ -122,6 +130,7 @@ def _json_builder_query_impl(**kwargs):
     paginate_flag = request.args.get("paginate", type=is_it_true)
     count_flag = request.args.get("count", type=is_it_true)
     order_by = request.args.get("order_by")
+    envelope_flag = request.args.get("envelope", type=is_it_true)
 
     try:
         if count_flag:
@@ -150,47 +159,53 @@ def _json_builder_query_impl(**kwargs):
             if not res and per_page != 0:
                 return f"No {model} found for this query", 404
 
-            total = deps.db.pget_db_query(
-                model=model,
-                page=page,
-                per_page=per_page,
-                paginate=paginate_flag,
-                count=True,
-                order_by=order_by,
-                facets=facets,
-            )
-
-            from app.deps import build_collection_response, get_model_class_from_name
-            from database.interface import (
-                PAGINATE_ENTRIES_PER_PAGE,
-                resolve_order_by_string,
-            )
-
-            if paginate_flag is False:
-                actual_page = 0
-                actual_per_page = total
-            else:
-                actual_per_page = (
-                    PAGINATE_ENTRIES_PER_PAGE if per_page is None else per_page
+            if envelope_flag:
+                total = deps.db.pget_db_query(
+                    model=model,
+                    page=page,
+                    per_page=per_page,
+                    paginate=paginate_flag,
+                    count=True,
+                    order_by=order_by,
+                    facets=facets,
                 )
-                actual_per_page = max(min(actual_per_page, 100), 1)
-                actual_page = 0 if page is None else page
-                actual_page = max(actual_page, 0)
 
-            model_class = get_model_class_from_name(model)
-            resolved_order_by = resolve_order_by_string(model_class, order_by)
+                from app.deps import (
+                    build_collection_response,
+                    get_model_class_from_name,
+                )
+                from database.interface import (
+                    PAGINATE_ENTRIES_PER_PAGE,
+                    resolve_order_by_string,
+                )
 
-            response = build_collection_response(
-                data=deps.db._to_dict(res),
-                path=request.path,
-                query_string=request.query_string.decode(),
-                page=actual_page,
-                per_page=actual_per_page,
-                total=total,
-                order_by=resolved_order_by,
-            )
+                if paginate_flag is False:
+                    actual_page = 0
+                    actual_per_page = total
+                else:
+                    actual_per_page = (
+                        PAGINATE_ENTRIES_PER_PAGE if per_page is None else per_page
+                    )
+                    actual_per_page = max(min(actual_per_page, 100), 1)
+                    actual_page = 0 if page is None else page
+                    actual_page = max(actual_page, 0)
 
-            return jsonify(response)
+                model_class = get_model_class_from_name(model)
+                resolved_order_by = resolve_order_by_string(model_class, order_by)
+
+                response = build_collection_response(
+                    data=deps.db._to_dict(res),
+                    path=request.path,
+                    query_string=request.query_string.decode(),
+                    page=actual_page,
+                    per_page=actual_per_page,
+                    total=total,
+                    order_by=resolved_order_by,
+                )
+
+                return jsonify(response)
+            else:
+                return jsonify(deps.db._to_dict(res))
         else:
             return f"No {model} found for this query", 404
     except InvalidPaginationException as e:
@@ -209,40 +224,57 @@ def _json_builder_query_impl(**kwargs):
 @api.doc(
     responses={
         200: {
-            "description": "Structured collection response with data, meta, and links",
+            "description": (
+                "Array of organizations (default), "
+                "or structured envelope with ?envelope=true"
+            ),
             "content": {
                 "application/json": {
                     "schema": {
-                        "type": "object",
-                        "properties": {
-                            "data": {
+                        "oneOf": [
+                            {
                                 "type": "array",
                                 "items": OrgInfo,
+                                "description": (
+                                    "Default response format (without ?envelope=true)"
+                                ),
                             },
-                            "meta": {
+                            {
                                 "type": "object",
+                                "description": (
+                                    "Structured response with ?envelope=true"
+                                ),
                                 "properties": {
-                                    "page": {"type": "integer"},
-                                    "per_page": {"type": "integer"},
-                                    "total": {"type": "integer"},
-                                    "page_count": {"type": "integer"},
-                                    "order_by": {"type": "string"},
-                                    "api_version": {"type": "string"},
-                                    "application_version": {"type": "string"},
+                                    "data": {
+                                        "type": "array",
+                                        "items": OrgInfo,
+                                    },
+                                    "meta": {
+                                        "type": "object",
+                                        "properties": {
+                                            "page": {"type": "integer"},
+                                            "per_page": {"type": "integer"},
+                                            "total": {"type": "integer"},
+                                            "page_count": {"type": "integer"},
+                                            "order_by": {"type": "string"},
+                                            "api_version": {"type": "string"},
+                                            "application_version": {"type": "string"},
+                                        },
+                                    },
+                                    "links": {
+                                        "type": "object",
+                                        "properties": {
+                                            "self": {"type": "string"},
+                                            "next": {"type": ["string", "null"]},
+                                            "previous": {"type": ["string", "null"]},
+                                            "documentation": {"type": "string"},
+                                            "changelog": {"type": ["string", "null"]},
+                                        },
+                                    },
                                 },
+                                "required": ["data", "meta", "links"],
                             },
-                            "links": {
-                                "type": "object",
-                                "properties": {
-                                    "self": {"type": "string"},
-                                    "next": {"type": ["string", "null"]},
-                                    "previous": {"type": ["string", "null"]},
-                                    "documentation": {"type": "string"},
-                                    "changelog": {"type": ["string", "null"]},
-                                },
-                            },
-                        },
-                        "required": ["data", "meta", "links"],
+                        ]
                     }
                 },
             },
@@ -258,40 +290,57 @@ def organizations_query(**kwargs):
 @api.doc(
     responses={
         200: {
-            "description": "Structured collection response with data, meta, and links",
+            "description": (
+                "Array of harvest sources (default), "
+                "or structured envelope with ?envelope=true"
+            ),
             "content": {
                 "application/json": {
                     "schema": {
-                        "type": "object",
-                        "properties": {
-                            "data": {
+                        "oneOf": [
+                            {
                                 "type": "array",
                                 "items": SourceInfo,
+                                "description": (
+                                    "Default response format (without ?envelope=true)"
+                                ),
                             },
-                            "meta": {
+                            {
                                 "type": "object",
+                                "description": (
+                                    "Structured response with ?envelope=true"
+                                ),
                                 "properties": {
-                                    "page": {"type": "integer"},
-                                    "per_page": {"type": "integer"},
-                                    "total": {"type": "integer"},
-                                    "page_count": {"type": "integer"},
-                                    "order_by": {"type": "string"},
-                                    "api_version": {"type": "string"},
-                                    "application_version": {"type": "string"},
+                                    "data": {
+                                        "type": "array",
+                                        "items": SourceInfo,
+                                    },
+                                    "meta": {
+                                        "type": "object",
+                                        "properties": {
+                                            "page": {"type": "integer"},
+                                            "per_page": {"type": "integer"},
+                                            "total": {"type": "integer"},
+                                            "page_count": {"type": "integer"},
+                                            "order_by": {"type": "string"},
+                                            "api_version": {"type": "string"},
+                                            "application_version": {"type": "string"},
+                                        },
+                                    },
+                                    "links": {
+                                        "type": "object",
+                                        "properties": {
+                                            "self": {"type": "string"},
+                                            "next": {"type": ["string", "null"]},
+                                            "previous": {"type": ["string", "null"]},
+                                            "documentation": {"type": "string"},
+                                            "changelog": {"type": ["string", "null"]},
+                                        },
+                                    },
                                 },
+                                "required": ["data", "meta", "links"],
                             },
-                            "links": {
-                                "type": "object",
-                                "properties": {
-                                    "self": {"type": "string"},
-                                    "next": {"type": ["string", "null"]},
-                                    "previous": {"type": ["string", "null"]},
-                                    "documentation": {"type": "string"},
-                                    "changelog": {"type": ["string", "null"]},
-                                },
-                            },
-                        },
-                        "required": ["data", "meta", "links"],
+                        ]
                     }
                 },
             },
@@ -307,40 +356,57 @@ def harvest_sources_query(**kwargs):
 @api.doc(
     responses={
         200: {
-            "description": "Structured collection response with data, meta, and links",
+            "description": (
+                "Array of harvest jobs (default), "
+                "or structured envelope with ?envelope=true"
+            ),
             "content": {
                 "application/json": {
                     "schema": {
-                        "type": "object",
-                        "properties": {
-                            "data": {
+                        "oneOf": [
+                            {
                                 "type": "array",
                                 "items": JobInfo,
+                                "description": (
+                                    "Default response format (without ?envelope=true)"
+                                ),
                             },
-                            "meta": {
+                            {
                                 "type": "object",
+                                "description": (
+                                    "Structured response with ?envelope=true"
+                                ),
                                 "properties": {
-                                    "page": {"type": "integer"},
-                                    "per_page": {"type": "integer"},
-                                    "total": {"type": "integer"},
-                                    "page_count": {"type": "integer"},
-                                    "order_by": {"type": "string"},
-                                    "api_version": {"type": "string"},
-                                    "application_version": {"type": "string"},
+                                    "data": {
+                                        "type": "array",
+                                        "items": JobInfo,
+                                    },
+                                    "meta": {
+                                        "type": "object",
+                                        "properties": {
+                                            "page": {"type": "integer"},
+                                            "per_page": {"type": "integer"},
+                                            "total": {"type": "integer"},
+                                            "page_count": {"type": "integer"},
+                                            "order_by": {"type": "string"},
+                                            "api_version": {"type": "string"},
+                                            "application_version": {"type": "string"},
+                                        },
+                                    },
+                                    "links": {
+                                        "type": "object",
+                                        "properties": {
+                                            "self": {"type": "string"},
+                                            "next": {"type": ["string", "null"]},
+                                            "previous": {"type": ["string", "null"]},
+                                            "documentation": {"type": "string"},
+                                            "changelog": {"type": ["string", "null"]},
+                                        },
+                                    },
                                 },
+                                "required": ["data", "meta", "links"],
                             },
-                            "links": {
-                                "type": "object",
-                                "properties": {
-                                    "self": {"type": "string"},
-                                    "next": {"type": ["string", "null"]},
-                                    "previous": {"type": ["string", "null"]},
-                                    "documentation": {"type": "string"},
-                                    "changelog": {"type": ["string", "null"]},
-                                },
-                            },
-                        },
-                        "required": ["data", "meta", "links"],
+                        ]
                     }
                 },
             },
@@ -356,40 +422,57 @@ def harvest_jobs_query(**kwargs):
 @api.doc(
     responses={
         200: {
-            "description": "Structured collection response with data, meta, and links",
+            "description": (
+                "Array of harvest records (default), "
+                "or structured envelope with ?envelope=true"
+            ),
             "content": {
                 "application/json": {
                     "schema": {
-                        "type": "object",
-                        "properties": {
-                            "data": {
+                        "oneOf": [
+                            {
                                 "type": "array",
                                 "items": RecordInfo,
+                                "description": (
+                                    "Default response format (without ?envelope=true)"
+                                ),
                             },
-                            "meta": {
+                            {
                                 "type": "object",
+                                "description": (
+                                    "Structured response with ?envelope=true"
+                                ),
                                 "properties": {
-                                    "page": {"type": "integer"},
-                                    "per_page": {"type": "integer"},
-                                    "total": {"type": "integer"},
-                                    "page_count": {"type": "integer"},
-                                    "order_by": {"type": "string"},
-                                    "api_version": {"type": "string"},
-                                    "application_version": {"type": "string"},
+                                    "data": {
+                                        "type": "array",
+                                        "items": RecordInfo,
+                                    },
+                                    "meta": {
+                                        "type": "object",
+                                        "properties": {
+                                            "page": {"type": "integer"},
+                                            "per_page": {"type": "integer"},
+                                            "total": {"type": "integer"},
+                                            "page_count": {"type": "integer"},
+                                            "order_by": {"type": "string"},
+                                            "api_version": {"type": "string"},
+                                            "application_version": {"type": "string"},
+                                        },
+                                    },
+                                    "links": {
+                                        "type": "object",
+                                        "properties": {
+                                            "self": {"type": "string"},
+                                            "next": {"type": ["string", "null"]},
+                                            "previous": {"type": ["string", "null"]},
+                                            "documentation": {"type": "string"},
+                                            "changelog": {"type": ["string", "null"]},
+                                        },
+                                    },
                                 },
+                                "required": ["data", "meta", "links"],
                             },
-                            "links": {
-                                "type": "object",
-                                "properties": {
-                                    "self": {"type": "string"},
-                                    "next": {"type": ["string", "null"]},
-                                    "previous": {"type": ["string", "null"]},
-                                    "documentation": {"type": "string"},
-                                    "changelog": {"type": ["string", "null"]},
-                                },
-                            },
-                        },
-                        "required": ["data", "meta", "links"],
+                        ]
                     }
                 },
             },
@@ -405,40 +488,57 @@ def harvest_records_query(**kwargs):
 @api.doc(
     responses={
         200: {
-            "description": "Structured collection response with data, meta, and links",
+            "description": (
+                "Array of harvest job errors (default), "
+                "or structured envelope with ?envelope=true"
+            ),
             "content": {
                 "application/json": {
                     "schema": {
-                        "type": "object",
-                        "properties": {
-                            "data": {
+                        "oneOf": [
+                            {
                                 "type": "array",
                                 "items": ErrorInfo,
+                                "description": (
+                                    "Default response format (without ?envelope=true)"
+                                ),
                             },
-                            "meta": {
+                            {
                                 "type": "object",
+                                "description": (
+                                    "Structured response with ?envelope=true"
+                                ),
                                 "properties": {
-                                    "page": {"type": "integer"},
-                                    "per_page": {"type": "integer"},
-                                    "total": {"type": "integer"},
-                                    "page_count": {"type": "integer"},
-                                    "order_by": {"type": "string"},
-                                    "api_version": {"type": "string"},
-                                    "application_version": {"type": "string"},
+                                    "data": {
+                                        "type": "array",
+                                        "items": ErrorInfo,
+                                    },
+                                    "meta": {
+                                        "type": "object",
+                                        "properties": {
+                                            "page": {"type": "integer"},
+                                            "per_page": {"type": "integer"},
+                                            "total": {"type": "integer"},
+                                            "page_count": {"type": "integer"},
+                                            "order_by": {"type": "string"},
+                                            "api_version": {"type": "string"},
+                                            "application_version": {"type": "string"},
+                                        },
+                                    },
+                                    "links": {
+                                        "type": "object",
+                                        "properties": {
+                                            "self": {"type": "string"},
+                                            "next": {"type": ["string", "null"]},
+                                            "previous": {"type": ["string", "null"]},
+                                            "documentation": {"type": "string"},
+                                            "changelog": {"type": ["string", "null"]},
+                                        },
+                                    },
                                 },
+                                "required": ["data", "meta", "links"],
                             },
-                            "links": {
-                                "type": "object",
-                                "properties": {
-                                    "self": {"type": "string"},
-                                    "next": {"type": ["string", "null"]},
-                                    "previous": {"type": ["string", "null"]},
-                                    "documentation": {"type": "string"},
-                                    "changelog": {"type": ["string", "null"]},
-                                },
-                            },
-                        },
-                        "required": ["data", "meta", "links"],
+                        ]
                     }
                 },
             },
@@ -454,40 +554,57 @@ def harvest_job_errors_query(**kwargs):
 @api.doc(
     responses={
         200: {
-            "description": "Structured collection response with data, meta, and links",
+            "description": (
+                "Array of harvest record errors (default), "
+                "or structured envelope with ?envelope=true"
+            ),
             "content": {
                 "application/json": {
                     "schema": {
-                        "type": "object",
-                        "properties": {
-                            "data": {
+                        "oneOf": [
+                            {
                                 "type": "array",
                                 "items": ErrorInfo,
+                                "description": (
+                                    "Default response format (without ?envelope=true)"
+                                ),
                             },
-                            "meta": {
+                            {
                                 "type": "object",
+                                "description": (
+                                    "Structured response with ?envelope=true"
+                                ),
                                 "properties": {
-                                    "page": {"type": "integer"},
-                                    "per_page": {"type": "integer"},
-                                    "total": {"type": "integer"},
-                                    "page_count": {"type": "integer"},
-                                    "order_by": {"type": "string"},
-                                    "api_version": {"type": "string"},
-                                    "application_version": {"type": "string"},
+                                    "data": {
+                                        "type": "array",
+                                        "items": ErrorInfo,
+                                    },
+                                    "meta": {
+                                        "type": "object",
+                                        "properties": {
+                                            "page": {"type": "integer"},
+                                            "per_page": {"type": "integer"},
+                                            "total": {"type": "integer"},
+                                            "page_count": {"type": "integer"},
+                                            "order_by": {"type": "string"},
+                                            "api_version": {"type": "string"},
+                                            "application_version": {"type": "string"},
+                                        },
+                                    },
+                                    "links": {
+                                        "type": "object",
+                                        "properties": {
+                                            "self": {"type": "string"},
+                                            "next": {"type": ["string", "null"]},
+                                            "previous": {"type": ["string", "null"]},
+                                            "documentation": {"type": "string"},
+                                            "changelog": {"type": ["string", "null"]},
+                                        },
+                                    },
                                 },
+                                "required": ["data", "meta", "links"],
                             },
-                            "links": {
-                                "type": "object",
-                                "properties": {
-                                    "self": {"type": "string"},
-                                    "next": {"type": ["string", "null"]},
-                                    "previous": {"type": ["string", "null"]},
-                                    "documentation": {"type": "string"},
-                                    "changelog": {"type": ["string", "null"]},
-                                },
-                            },
-                        },
-                        "required": ["data", "meta", "links"],
+                        ]
                     }
                 },
             },
