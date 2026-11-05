@@ -15,6 +15,12 @@ from apiflask.fields import (
 )
 from marshmallow import ValidationError, validate
 
+from app.constants import (
+    ORGANIZATION_SLUG_MAX_LENGTH,
+    SLUG_ERROR_MESSAGE,
+    SLUG_OPENAPI_PATTERN,
+    SLUG_REGEX,
+)
 from shared.constants import (
     ACTION_VALUES,
     FREQUENCY_VALUES,
@@ -109,12 +115,11 @@ class OrgCreate(Schema):
     slug = String(
         required=True,
         validate=[
-            validators.Length(max=100),
-            validators.Regexp(
-                r"^[a-z0-9-]+$",
-                error="Slug can only contain lowercase letters, digits, and hyphens.",
-            ),
+            validators.Length(max=ORGANIZATION_SLUG_MAX_LENGTH),
+            validators.Regexp(SLUG_REGEX, error=SLUG_ERROR_MESSAGE),
         ],
+        # apispec would publish SLUG_REGEX, which JavaScript can't read
+        metadata={"pattern": SLUG_OPENAPI_PATTERN},
     )
     organization_type = Enum(ORGANIZATION_TYPE_ENUM)
     aliases = List(String())
@@ -143,6 +148,28 @@ class OrgCreate(Schema):
         if isinstance(organization_type, PyEnum):
             data["organization_type"] = organization_type.value
         return data
+
+
+class OrgUpdate(OrgCreate):
+    """Input for the organization edit API.
+
+    Derived from OrgCreate so edit and create share the same field rules
+    (slug pattern and length, URL protocol, organization type, ...). Every
+    field is optional because an edit is a partial update, but a field that
+    is present must still pass the create rules, so an empty slug is still
+    rejected. The id can't be edited, so it is excluded and, like any other
+    unknown field, rejected. code_repo_url also accepts null, which clears
+    it, as this endpoint has always allowed.
+    """
+
+    class Meta:
+        exclude = ("id",)
+
+    code_repo_url = String(allow_none=True)
+
+    def __init__(self, *args, **kwargs):
+        kwargs.setdefault("partial", True)
+        super().__init__(*args, **kwargs)
 
 
 class OrgInfo(OrgCreate):
