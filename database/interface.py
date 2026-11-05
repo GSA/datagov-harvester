@@ -44,10 +44,6 @@ logger = logging.getLogger()
 
 JOB_TYPES_BLOCKED_BY_SOURCE_LOCK = ("harvest", "force_harvest")
 
-# Duplicate identifier issues are written per source by the harvest's
-# duplicate filter, not per record, so per-record syncs must leave them alone.
-DUPLICATE_IDENTIFIER_ISSUE_TYPE = "DuplicateIdentifierException"
-
 
 class HarvestSourceLockedError(Exception):
     """A locked source cannot queue or start a harvest."""
@@ -998,6 +994,7 @@ class HarvesterDBInterface:
         record_type: str,
         identifier: str,
         harvest_record_id: str,
+        skip_types: tuple[str, ...] = (),
     ) -> bool:
         """Replace the current-state issues for this identifier with
         whatever harvest_record_id's issues are right now.
@@ -1006,21 +1003,29 @@ class HarvesterDBInterface:
         this run's harvest_record_error rows for harvest_record_id. If the
         record now has no issues, this clears any carried-forward ones.
 
+        Issues whose type is in skip_types are neither cleared nor copied,
+        for types the caller manages per source rather than per record.
+
         Returns False on a DB error (and rolls back) instead of raising, so
         callers that process many identifiers in a loop can skip one and
         keep going; callers that need to know should check the return value.
         """
         try:
-            self.db.query(HarvestRecordCurrentIssue).filter(
+            stale = self.db.query(HarvestRecordCurrentIssue).filter(
                 HarvestRecordCurrentIssue.harvest_source_id == harvest_source_id,
                 HarvestRecordCurrentIssue.record_type == record_type,
                 HarvestRecordCurrentIssue.identifier == identifier,
-                HarvestRecordCurrentIssue.type != DUPLICATE_IDENTIFIER_ISSUE_TYPE,
-            ).delete(synchronize_session=False)
-
+            )
             current_errors = self.db.query(HarvestRecordError).filter_by(
                 harvest_record_id=harvest_record_id
             )
+            if skip_types:
+                stale = stale.filter(HarvestRecordCurrentIssue.type.notin_(skip_types))
+                current_errors = current_errors.filter(
+                    HarvestRecordError.type.notin_(skip_types)
+                )
+            stale.delete(synchronize_session=False)
+
             for error in current_errors:
                 self.db.add(
                     HarvestRecordCurrentIssue(
@@ -1041,16 +1046,14 @@ class HarvesterDBInterface:
             self.db.rollback()
             return False
 
-    def clear_duplicate_identifier_issues(self, harvest_source_id: str) -> None:
-        """Drop every outstanding duplicate identifier issue for a source.
-
-        Called at the start of each full harvest before duplicates are
-        re-detected, so only the current run's duplicates stay outstanding.
-        """
+    def clear_current_issues_by_type(
+        self, harvest_source_id: str, issue_type: str
+    ) -> None:
+        """Drop every outstanding issue of one type for a source."""
         try:
             self.db.query(HarvestRecordCurrentIssue).filter_by(
                 harvest_source_id=harvest_source_id,
-                type=DUPLICATE_IDENTIFIER_ISSUE_TYPE,
+                type=issue_type,
             ).delete(synchronize_session=False)
             self.db.commit()
         except Exception as e:

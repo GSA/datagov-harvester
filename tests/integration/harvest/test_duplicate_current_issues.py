@@ -1,14 +1,16 @@
 import uuid
 
-from database.interface import DUPLICATE_IDENTIFIER_ISSUE_TYPE
 from database.models import HarvestRecordCurrentIssue
+from harvester.exceptions import DuplicateIdentifierException
 from harvester.harvest import HarvestSource
+
+DUPLICATE = DuplicateIdentifierException.__name__
 
 
 def _duplicate_issues(interface, source_id):
     return (
         interface.db.query(HarvestRecordCurrentIssue)
-        .filter_by(harvest_source_id=source_id, type=DUPLICATE_IDENTIFIER_ISSUE_TYPE)
+        .filter_by(harvest_source_id=source_id, type=DUPLICATE)
         .all()
     )
 
@@ -98,7 +100,34 @@ class TestDuplicateCurrentIssues:
             }
         )
         assert interface.sync_current_record_issues(
-            source_id, "dataset", kept.identifier, kept.id
+            source_id, "dataset", kept.identifier, kept.id, skip_types=(DUPLICATE,)
         )
 
+        assert len(_duplicate_issues(interface, source_id)) == 2
+
+    def test_resync_from_duplicate_placeholder_succeeds(
+        self,
+        interface,
+        organization_data,
+        source_data_dcatus,
+        job_data_dcatus,
+        duplicated_identifier_records,
+    ):
+        """The backfill resyncs an identifier from its latest attempt, which
+        for an unchanged duplicated identifier is the duplicate placeholder
+        record. That must not re-insert the duplicate issue it already has."""
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_dcatus)
+        source_id = source_data_dcatus["id"]
+
+        _run_duplicate_filter(interface, job_data_dcatus, duplicated_identifier_records)
+        placeholder = _duplicate_issues(interface, source_id)[0]
+
+        assert interface.sync_current_record_issues(
+            source_id,
+            placeholder.record_type,
+            placeholder.identifier,
+            placeholder.harvest_record_id,
+            skip_types=(DUPLICATE,),
+        )
         assert len(_duplicate_issues(interface, source_id)) == 2
