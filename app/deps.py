@@ -38,6 +38,40 @@ def JSON_NOT_FOUND():
     return response
 
 
+def format_validation_messages(messages) -> str:
+    """Flatten marshmallow error messages into one readable string.
+
+    {"slug": ["Bad slug."], "aliases": {0: ["Not a valid string."]}} becomes
+    "slug: Bad slug.; aliases.0: Not a valid string.". Errors that aren't tied
+    to a field (marshmallow's "_schema" key) are listed without a prefix.
+    """
+    parts = []
+
+    def walk(path, value):
+        if isinstance(value, dict):
+            for key, child in value.items():
+                key = "" if key == "_schema" else str(key)
+                walk(f"{path}.{key}" if path and key else path or key, child)
+        elif isinstance(value, (list, tuple)):
+            for child in value:
+                walk(path, child)
+        else:
+            parts.append(f"{path}: {value}" if path else str(value))
+
+    walk("", messages)
+    return "; ".join(parts)
+
+
+def JSON_VALIDATION_ERROR(messages, status_code=400):
+    """Return a JSON error for marshmallow validation messages.
+
+    Uses the {"error": "<message>"} shape the rest of the API returns.
+    """
+    response = jsonify({"error": format_validation_messages(messages)})
+    response.status_code = status_code
+    return response
+
+
 class InvalidSeverityError(ValueError):
     """Raised when a request asks for a severity outside SEVERITY_VALUES."""
 

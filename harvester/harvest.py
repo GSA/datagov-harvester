@@ -1,9 +1,9 @@
-import gc
 import json
 import logging
 import os
 import re
 import sys
+import time
 from dataclasses import dataclass, field
 from itertools import chain
 from typing import List
@@ -91,8 +91,8 @@ from harvester.utils.reharvest_links import create_reharvest_url
 # logging data
 logger = logging.getLogger("harvest_runner")
 
-# harvest worker count
-harvest_worker_sync_count = int(os.getenv("HARVEST_WORKER_SYNC_COUNT", 1))
+UNCHANGED_COUNT_BATCH_SIZE = 100
+UNCHANGED_COUNT_FLUSH_SECONDS = 2
 
 # DCAT-US 3.0 record types other than "dataset" (which has its own more
 # complex extraction path shared with WAF/ISO sources). Each entry's
@@ -166,6 +166,8 @@ class HarvestSource:
     deletions: set = field(default_factory=lambda: set(), repr=False)
     _opensearch: object = field(default=None, init=False, repr=False)
     _opensearch_initialized: bool = field(default=False, init=False, repr=False)
+    _pending_unchanged_count: int = field(default=0, init=False, repr=False)
+    _pending_unchanged_since: float | None = field(default=None, init=False, repr=False)
 
     def __post_init__(self) -> None:
         self._db_interface: HarvesterDBInterface = db_interface
@@ -328,8 +330,7 @@ class HarvestSource:
             )
 
     def update_job_record_count_by_action(self, action: str):
-        """updates the record action counter in the reporter
-        and updates the job with new count dict
+        """Update the reporter and persist counts, batching unchanged records.
 
         record actions are:
             create
@@ -341,7 +342,31 @@ class HarvestSource:
             warned
         """
         self.reporter.update(action)
+        if action is None:
+            # unchanged records can dominate a harvest; avoid a database write
+            # for each one while keeping progress visible during long runs.
+            if self._pending_unchanged_since is None:
+                self._pending_unchanged_since = time.monotonic()
+            self._pending_unchanged_count += 1
+            if (
+                self._pending_unchanged_count < UNCHANGED_COUNT_BATCH_SIZE
+                and time.monotonic() - self._pending_unchanged_since
+                < UNCHANGED_COUNT_FLUSH_SECONDS
+            ):
+                return
+
+        self._persist_job_record_counts()
+
+    def _persist_job_record_counts(self) -> None:
+        """persist the current counts to the database and reset the pending unchanged count."""
         self.db_interface.update_harvest_job(self.job_id, self.reporter.report())
+        self._pending_unchanged_count = 0
+        self._pending_unchanged_since = None
+
+    def flush_pending_unchanged_counts(self) -> None:
+        """Persist the last partial batch when record processing ends."""
+        if self._pending_unchanged_count:
+            self._persist_job_record_counts()
 
     def get_source_orm(self) -> HarvestSourceORM:
         """Get the harvest source object from the database."""
@@ -832,11 +857,13 @@ class HarvestSource:
             for record in records:
                 record.harvest()
                 del record
-                gc.collect()
 
         except (ExtractInternalException, ExtractExternalException):
             self.finish_job_with_status("error")
             return
+        finally:
+            # A harvest may end before the count or time threshold is reached.
+            self.flush_pending_unchanged_counts()
 
     def finish_job_with_status(self, status: str):
         """

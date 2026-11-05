@@ -46,7 +46,7 @@ urllib3 = ">=2.5.0" #SNYK-PYTHON-URLLIB3-10390193, SNYK-PYTHON-URLLIB3-10390194
 alembic-postgresql-enum = "^1.9.0"
 google-auth = "^2.49.2"
 google-api-python-client = "^2.194.0"
-pyasn1 = "^0.6.3" #SNYK-PYTHON-PYASN1-15032639
+pyasn1 = "^0.6.5" #SNYK-PYTHON-PYASN1-15032639, SNYK-PYTHON-PYASN1-22113910, SNYK-PYTHON-PYASN1-22113911
 werkzeug = "^3.1.8" #SNYK-PYTHON-WERKZEUG-14908843
 apiflask = "^3.1.0"
 flask-talisman = "^1.1.0"
