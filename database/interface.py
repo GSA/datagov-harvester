@@ -1348,24 +1348,41 @@ class HarvesterDBInterface:
 
     def upsert_dataset(self, dataset_data: dict):
         slug = dataset_data.get("slug")
+        source_id = dataset_data["harvest_source_id"]
+
         if not slug:
             raise ValueError("dataset_data must include a slug")
 
         stmt = insert(Dataset).values(**dataset_data)
+
+        # Ownership fields should never be reassigned in an upsert.
+        protected = {
+            "id",
+            "slug",
+            "harvest_source_id",
+        }
+
         update_cols = {
             column: getattr(stmt.excluded, column)
             for column in dataset_data
-            if column != "slug"
+            if column not in protected
         }
         stmt = stmt.on_conflict_do_update(
             index_elements=[Dataset.slug],
             set_=update_cols,
-        )
+            where=Dataset.harvest_source_id == source_id,
+        ).returning(Dataset.id)
 
         nested = self.db.begin_nested()
         dataset = None
         try:
-            self.db.execute(stmt)
+            result = self.db.execute(stmt).scalar_one_or_none()
+            if result is None:
+                logger.warning(
+                    f"Slug '{slug}' is owned by another harvest source; "
+                    f"attempted source={source_id}"
+                )
+                return
             self.db.flush()
             dataset = self.get_dataset_by_slug(slug)
             self._apply_popularity_from_view_count(dataset)
