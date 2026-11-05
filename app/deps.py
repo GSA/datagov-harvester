@@ -1,6 +1,6 @@
 import logging
 import os
-from functools import wraps
+from functools import cache, wraps
 
 from dotenv import load_dotenv
 from flask import Response, current_app, g, jsonify, request, session
@@ -199,3 +199,153 @@ def create_harvest_source(source_data):
         source_name=source.name,
     )
     return source, f"Added new harvest source with ID: {source.id}. {job_message}", 200
+
+
+@cache
+def get_application_version():
+    """
+    Get application version from environment or git.
+
+    Cached after first call since the version cannot change while the process runs.
+
+    Checks in order:
+    1. APP_VERSION env var (commit SHA set during deploy)
+    2. git rev-parse (local development)
+
+    Returns:
+        Version string (e.g., "a1b2c3d") or "unknown"
+    """
+    import os
+    import subprocess
+
+    # Check for APP_VERSION env var (set in manifest from --var app_version
+    # during deploy)
+    app_version = os.environ.get("APP_VERSION")
+    if app_version:
+        return app_version
+
+    # Fall back to git for local development
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--short=7", "HEAD"],
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=5,
+        )
+        return result.stdout.strip()
+    except Exception:
+        pass
+
+    return "unknown"
+
+
+def get_api_version_from_path(path):
+    """
+    Extract API version from request path.
+
+    Args:
+        path: Request path (e.g., "/api/v1/harvest_jobs/")
+
+    Returns:
+        API version string (e.g., "v1")
+    """
+    from app.routes import API_VERSIONS
+
+    parts = path.strip("/").split("/")
+    if len(parts) >= 2 and parts[0] == "api":
+        version_part = parts[1]
+        api_versions = {version for version, _ in API_VERSIONS}
+        if version_part in api_versions:
+            return version_part
+
+    latest_version, _ = API_VERSIONS[-1]
+    return latest_version
+
+
+def get_model_class_from_name(model_name):
+    """Get the model class from the model name string."""
+    from database.models import (
+        HarvestJob,
+        HarvestJobError,
+        HarvestRecord,
+        HarvestRecordError,
+        HarvestSource,
+        Organization,
+    )
+
+    model_map = {
+        "organizations": Organization,
+        "harvest_sources": HarvestSource,
+        "harvest_records": HarvestRecord,
+        "harvest_jobs": HarvestJob,
+        "harvest_job_errors": HarvestJobError,
+        "harvest_record_errors": HarvestRecordError,
+    }
+    return model_map.get(model_name)
+
+
+def build_collection_response(
+    data, path, query_string, page, per_page, total, order_by
+):
+    """
+    Build structured collection response with data, meta, and links.
+
+    Args:
+        data: List of result records
+        path: Request path (e.g., "/api/v1/harvest_jobs/")
+        query_string: Request query string (e.g., "page=0&per_page=10")
+        page: Current page number (0-indexed)
+        per_page: Page size
+        total: Total record count
+        order_by: Applied ordering (e.g., "-date_created")
+
+    Returns:
+        Dict with data, meta, and links structure
+    """
+    import math
+    from urllib.parse import parse_qs, urlencode
+
+    page_count = math.ceil(total / per_page) if per_page > 0 else 0
+
+    api_version = get_api_version_from_path(path)
+    app_version = get_application_version()
+
+    query_params = parse_qs(query_string) if query_string else {}
+    base_params = {
+        k: v[0] if isinstance(v, list) else v for k, v in query_params.items()
+    }
+    base_params["page"] = page
+    base_params["per_page"] = per_page
+    if order_by and order_by not in ("asc", "desc"):
+        base_params["order_by"] = order_by
+
+    base_path = path
+    if not path.startswith("/api/"):
+        base_path = f"/api/{api_version}{path}"
+
+    def build_url(page_num):
+        params = base_params.copy()
+        params["page"] = page_num
+        return f"{base_path}?{urlencode(params)}"
+
+    meta = {
+        "page": page,
+        "per_page": per_page,
+        "total": total,
+        "page_count": page_count,
+        "order_by": order_by,
+        "api_version": api_version,
+        "application_version": app_version,
+    }
+
+    links = {
+        "self": build_url(page),
+        "next": build_url(page + 1) if page < page_count - 1 else None,
+        "previous": build_url(page - 1) if page > 0 else None,
+        "documentation": "/openapi/docs",
+        # TODO: Set to "/api/changelog" once #6364/#6369 is implemented
+        "changelog": None,
+    }
+
+    return {"data": data, "meta": meta, "links": links}

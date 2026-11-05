@@ -28,3 +28,8 @@ Hitting `/api/<path>` without a version prefix redirects (308) to whichever vers
 4. Update the wiki page and the endpoint's Swagger docs with the version split.
 
 Note: `API_VERSIONS` in `app/routes.py` currently mounts the entire `api` blueprint per version, which versions the whole API, not individual endpoints. Landing one endpoint on `v2` while the rest stay on `v1` needs that mechanism to change to per-route overrides first.
+
+## Breaking changes in v1
+
+**Collection response envelope (2026-10):**
+All collection endpoints (`/api/v1/organizations/`, `/api/v1/harvest_sources/`, `/api/v1/harvest_jobs/`, `/api/v1/harvest_records/`, `/api/v1/harvest_job_errors/`, `/api/v1/harvest_record_errors/`) changed from returning a raw array to returning an object with `{data: [...], meta: {...}, links: {...}}` structure. This breaking change was accepted to provide pagination metadata, ordering information, and version tracking without creating a v2 API. Consumers must update to access `response.data` instead of iterating the response directly.
