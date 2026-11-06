@@ -5,6 +5,7 @@ from unittest.mock import patch
 from bs4 import BeautifulSoup
 
 from app import create_app
+from app.constants import SLUG_OPENAPI_PATTERN
 
 
 class TestOpenAPI:
@@ -22,6 +23,18 @@ class TestOpenAPI:
         assert "tags" in spec
 
         assert spec["info"]["title"] == "Datagov Harvester"
+
+    def test_openapi_slug_pattern_is_javascript_compatible(self, client):
+        """The spec publishes the slug rule in JavaScript regex syntax.
+
+        Validation uses \\Z, which JavaScript reads as a literal "Z", so a
+        client built from the spec would reject every valid slug.
+        """
+        schemas = client.get("/openapi.json").json["components"]["schemas"]
+        slug = schemas["OrgInfo"]["properties"]["slug"]
+
+        assert slug["pattern"] == SLUG_OPENAPI_PATTERN
+        assert "\\Z" not in slug["pattern"]
 
     def test_openapi_documents_warning_fields(self, client):
         """Warnings are written by the harvester, so the spec must describe them.
@@ -79,6 +92,7 @@ class TestOpenAPI:
             "/api/v1/harvest_record/{record_id}/transformed": "Harvest Records",
             "/api/v1/harvest_record_errors/": "Harvest Records",
             "/api/v1/harvest_records/": "Harvest Records",
+            "/api/v1/harvest_source/{source_id}/warnings/download": "Harvest Sources",
             "/api/v1/harvest_sources/": "Harvest Sources",
             "/api/v1/organization/{org_identifier}": "Organizations",
             "/api/v1/organization_list/": "Organizations",
