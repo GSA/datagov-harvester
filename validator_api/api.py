@@ -79,32 +79,32 @@ def _take_pasted_document(json_data) -> bytes:
 
 
 _RESPONSES = {
-        400: {
-            "description": (
-                "Submission refused: the URL could not be retrieved (bad scheme, "
-                "blocked domain, internal address, timeout, too many redirects), "
-                "or the catalog "
-                "was oversized, not JSON, or unparseable. The `error` field says "
-                "which."
-            ),
-            "content": {"application/json": {"schema": ValidationErrorResponseSchema}},
-        },
-        413: {
-            "description": "Request body too large",
-            "content": {"application/json": {"schema": ValidationErrorResponseSchema}},
-        },
-        422: {
-            "description": (
-                "Catalog cannot be walked, e.g. nested too deeply (`error`), or "
-                "the request itself is invalid (`message`/`detail`)"
-            ),
-            "content": {"application/json": {"schema": ValidationErrorResponseSchema}},
-        },
-        500: {
-            "description": "Failed to download or process the catalog",
-            "content": {"application/json": {"schema": ValidationErrorResponseSchema}},
-        },
-    }
+    400: {
+        "description": (
+            "Submission refused: the URL could not be retrieved (bad scheme, "
+            "blocked domain, internal address, timeout, too many redirects), "
+            "or the catalog "
+            "was oversized, not JSON, or unparseable. The `error` field says "
+            "which."
+        ),
+        "content": {"application/json": {"schema": ValidationErrorResponseSchema}},
+    },
+    413: {
+        "description": "Request body too large",
+        "content": {"application/json": {"schema": ValidationErrorResponseSchema}},
+    },
+    422: {
+        "description": (
+            "Catalog cannot be walked, e.g. nested too deeply (`error`), or "
+            "the request itself is invalid (`message`/`detail`)"
+        ),
+        "content": {"application/json": {"schema": ValidationErrorResponseSchema}},
+    },
+    500: {
+        "description": "Failed to download or process the catalog",
+        "content": {"application/json": {"schema": ValidationErrorResponseSchema}},
+    },
+}
 
 
 def _validation_response(fetch_method: str, schema: str, load_catalog):
