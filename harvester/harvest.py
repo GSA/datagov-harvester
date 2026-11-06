@@ -1878,26 +1878,34 @@ def harvest_job_starter(job_id, job_type="harvest"):
         # Don't finish the job here, just exit to prevent duplicate processing
         return
 
-    if job_type in ["harvest", "force_harvest", "clear"]:
-        harvest_source.run_full_harvest()
+    try:
+        if job_type in ["harvest", "force_harvest", "clear"]:
+            harvest_source.run_full_harvest()
 
-    if job_type == "validate":
-        harvest_source.acquire_minimum_external_data()
-        for record in harvest_source.external_records_to_process():
-            if harvest_source.schema_type.startswith("iso19115"):
-                record.transform()
-            try:
-                record.validate()
-            except:  # noqa: E722
-                pass
+        if job_type == "validate":
+            harvest_source.acquire_minimum_external_data()
+            for record in harvest_source.external_records_to_process():
+                if harvest_source.schema_type.startswith("iso19115"):
+                    record.transform()
+                try:
+                    record.validate()
+                except:  # noqa: E722
+                    pass
 
-    # generate harvest job report
-    harvest_source.report()
+        # generate harvest job report
+        harvest_source.report()
 
-    logger.info(f"Harvest job completed for JobId: {job_id}")
+    except Exception as e:
+        logger.error(
+            f"Harvest job {job_id} failed with uncaught exception: {repr(e)}",
+            exc_info=True,
+        )
+        harvest_source.finish_job_with_status("error")
 
-    # close the db connection after job to prevent persistent open connections
-    harvest_source.db_interface.close()
+    finally:
+        logger.info(f"Harvest job completed for JobId: {job_id}")
+        # close the db connection after job to prevent persistent open connections
+        harvest_source.db_interface.close()
 
 
 def check_for_more_work():
