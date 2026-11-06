@@ -1,6 +1,9 @@
-# Largest catalog document accepted, however it arrives: an upload or form
-# field on the admin app, or a URL fetch or `json_text` on the validator API.
-MAX_UPLOAD_MB = 10
+# Largest catalog document the validator accepts, however it arrives: a URL
+# fetch, `json_text`, or a /validate/document body (GSA/data.gov#6460). A
+# 150MB catalog peaks near 1GB in the worker validating it (see
+# validator_memory_quota in vars.*.yml). Keep client_max_body_size in
+# proxy/nginx-common.conf (and nginx-local-proxy.conf) above MAX_REQUEST_BYTES.
+MAX_UPLOAD_MB = 150
 MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024
 
 # A small document containing many invalid datasets can expand into millions of
@@ -12,12 +15,14 @@ MAX_RESULT_MESSAGE_CHARS = 4000
 
 # Keep attacker-controlled documents comfortably below Python's recursion
 # limit, independent of the parser and interpreter patch version in use.
+# orjson parses deeper documents without recursing, so validate.py checks this
+# after parsing (GSA/data.gov#6460).
 MAX_DOCUMENT_NESTING_DEPTH = 100
 
 # Largest validator API request body. Pasted catalogs arrive as a JSON string,
-# and encoding one escapes every quote, backslash and control character, so a
-# document at the limit can double in size. Leave room for the surrounding API
-# fields as well. The document itself is still held to MAX_UPLOAD_BYTES; this
-# only keeps that check reachable.
+# and encoding one escapes every quote, backslash and control character, so the
+# body is bigger than the document: 1.01-1.23x for real catalogs. 1.5x covers
+# that and the surrounding API fields. The document itself is still held to
+# MAX_UPLOAD_BYTES; this only keeps that check reachable.
 MAX_REQUEST_OVERHEAD_BYTES = 1024
-MAX_REQUEST_BYTES = 2 * MAX_UPLOAD_BYTES + MAX_REQUEST_OVERHEAD_BYTES
+MAX_REQUEST_BYTES = MAX_UPLOAD_BYTES * 3 // 2 + MAX_REQUEST_OVERHEAD_BYTES

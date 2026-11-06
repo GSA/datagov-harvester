@@ -9,8 +9,8 @@ poetry-update: ## Updates local Poetry to latest
 	poetry self update
 
 update-dependencies: ## Updates requirements.txt and requirements_dev.txt from pyproject.toml
-	poetry export --without-hashes --without=dev --format=requirements.txt > requirements.txt
-	poetry export --without-hashes --only=dev --format=requirements.txt > requirements-dev.txt
+	poetry export --without=dev --format=requirements.txt > requirements.txt
+	poetry export --only=dev --format=requirements.txt > requirements-dev.txt
 
 # pypi-upload-test: build-dist  ## Uploads new package to TEST PyPi after clean, build
 # 	twine upload -r testpypi dist/*

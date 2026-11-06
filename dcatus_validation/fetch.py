@@ -16,6 +16,7 @@ import socket
 import time
 from urllib.parse import urljoin, urlparse
 
+import orjson
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.connection import HTTPConnection, HTTPSConnection
@@ -126,8 +127,9 @@ PAYLOAD_TOO_LARGE_MESSAGE = (
 
 # The binding ceiling is CloudFront's hard 30s for the whole request
 # (harvest.data.gov/api/v1/validate), and validation only starts once the
-# fetch is done: roughly 0.5-1.2 s/MB, so up to ~12s for a 10MB catalog. 12s
-# here keeps that worst case near 25s, leaving padding for proxy hops.
+# fetch is done: ~2s even for a 150MB catalog (GSA/data.gov#6460). 12s here
+# keeps the worst case well under 30s, leaving padding for proxy hops.
+# Fetching 150MB in 12s needs a server sending ~100Mbps.
 # Answering inside the ceiling means a slow or hung target produces a clean,
 # logged rejection instead of us being disconnected mid-request.
 #
@@ -255,8 +257,10 @@ def _check_json_text_nesting(document: str) -> None:
             depth -= 1
 
 
-def parse_json_document(document: str | bytes | bytearray):
-    """Parse strict JSON and normalize unsupported encoding/numeric failures."""
+def _parse_json_document_stdlib(document: str | bytes | bytearray):
+    """The pure-Python parser, the only one before orjson. Every document
+    orjson refuses is re-parsed with it, so a refused document gets the same
+    error as it always has."""
     try:
         if not isinstance(document, str):
             encoded_document = bytes(document)
@@ -270,6 +274,82 @@ def parse_json_document(document: str | bytes | bytearray):
         )
     except UnicodeDecodeError:
         raise InvalidCatalogSource(INVALID_JSON_ENCODING_MESSAGE) from None
+
+
+# orjson parses an integer literal outside the 64-bit range as the nearest
+# float, where the stdlib path keeps the exact int. Any such float is at least
+# 2**63 in magnitude, so a parsed float that large is re-parsed by the stdlib.
+_ORJSON_EXACT_INTEGER_LIMIT = float(2**63)
+_ORJSON_REFUSED = object()
+
+
+def _has_float_beyond_exact_integers(document) -> bool:
+    """Whether any float in `document` is at least 2**63 in magnitude. A walk
+    that does not recurse."""
+    if type(document) is float:
+        return not -_ORJSON_EXACT_INTEGER_LIMIT < document < _ORJSON_EXACT_INTEGER_LIMIT
+    if type(document) not in (dict, list):
+        return False
+    pending = [document]
+    while pending:
+        container = pending.pop()
+        values = container.values() if type(container) is dict else container
+        for value in values:
+            value_type = type(value)
+            if value_type is dict or value_type is list:
+                pending.append(value)
+            elif value_type is float and not (
+                -_ORJSON_EXACT_INTEGER_LIMIT < value < _ORJSON_EXACT_INTEGER_LIMIT
+            ):
+                return True
+    return False
+
+
+def _parse_json_document_orjson(document: str | bytes | bytearray):
+    """orjson's parse of `document` (~20 times faster than the stdlib path)
+    when it is exactly what the stdlib path returns, otherwise _ORJSON_REFUSED.
+    Everything orjson refuses (BOMs, UTF-16/32, lone surrogates, NaN, syntax
+    errors, nesting past 1024) or parses differently (integers past 64 bits)
+    is re-parsed by the stdlib path, so it gets the same value or error as
+    before. Deep documents it accepts are held to MAX_DOCUMENT_NESTING_DEPTH
+    by validate.py after parsing.
+    """
+    try:
+        parsed = orjson.loads(document)
+    except (orjson.JSONDecodeError, TypeError):
+        return _ORJSON_REFUSED
+    if _has_float_beyond_exact_integers(parsed):
+        return _ORJSON_REFUSED
+    return parsed
+
+
+def parse_json_document(document: str | bytes | bytearray):
+    """Parse strict JSON and normalize unsupported encoding/numeric failures.
+
+    Raises json.JSONDecodeError (with the position the stdlib parser reports),
+    InvalidCatalogSource or CatalogTooDeeplyNested exactly as the pure-Python
+    parser does, whichever parser accepted the document.
+    """
+    parsed = _parse_json_document_orjson(document)
+    if parsed is not _ORJSON_REFUSED:
+        return parsed
+    return _parse_json_document_stdlib(document)
+
+
+def parse_pasted_json_document(document: bytes | memoryview):
+    """parse_json_document(text) for pasted text given as its UTF-8 bytes, so
+    the caller can drop the text first (GSA/data.gov#6460). The stdlib path
+    gets the text back, not the bytes, so a leading BOM is still refused and
+    NULs aren't read as UTF-16 or UTF-32.
+    """
+    parsed = _parse_json_document_orjson(document)
+    if parsed is not _ORJSON_REFUSED:
+        return parsed
+    try:
+        text = str(document, "utf-8")
+    except UnicodeDecodeError:
+        raise InvalidCatalogSource(INVALID_JSON_ENCODING_MESSAGE) from None
+    return _parse_json_document_stdlib(text)
 
 
 class _PinnedConnectionMixin:
@@ -616,6 +696,8 @@ def fetch_json_from_url(url: str) -> dict:
             _close_response(response)
 
     content = b"".join(chunks)
+    # Don't hold the document twice while it's parsed.
+    del chunks
 
     if len(content) > MAX_UPLOAD_BYTES:
         raise InvalidCatalogSource(PAYLOAD_TOO_LARGE_MESSAGE)
