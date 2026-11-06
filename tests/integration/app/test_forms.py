@@ -627,6 +627,29 @@ class TestDatasetSlugForm:
         assert slug_input is not None
         assert slug_input.attrs.get("name") == "slug"
 
+    def test_get_dataset_page_links_to_catalog(
+        self, client, interface, fixtures_json, monkeypatch
+    ):
+        """The dataset heading links to its public catalog page."""
+        dataset = self._setup_dataset(interface, fixtures_json)
+        monkeypatch.setattr(
+            "app.main.pages.CATALOG_BASE_URL", "https://catalog.data.gov/"
+        )
+
+        res = client.get(f"/dataset/{dataset['slug']}")
+
+        assert res.status_code == 200
+        soup = BeautifulSoup(res.data, "html.parser")
+        expected_url = f"https://catalog.data.gov/dataset/{dataset['slug']}"
+        catalog_link = soup.find(
+            "a",
+            class_="usa-button--outline",
+            href=expected_url,
+        )
+        assert catalog_link is not None
+        assert "View on catalog" in catalog_link.get_text(" ", strip=True)
+        assert catalog_link["target"] == "_blank"
+
     def test_edit_slug_success(self, app, client, interface, fixtures_json):
         """
         A valid, unique slug POST updates the dataset and redirects.
