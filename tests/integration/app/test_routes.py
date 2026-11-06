@@ -508,8 +508,8 @@ class TestHarvestSourceDeleteRedirects:
             sess["user"] = "tester@gsa.gov"
 
         with patch(
-            "app.main.harvest_sources.enqueue_harvest_source_delete",
-            return_value=("delete result", status),
+            "app.main.harvest_sources.enqueue_harvest_source_archive",
+            return_value=("archive result", status),
         ):
             response = client.post(
                 f"/harvest_source/{source_id}",

@@ -5,6 +5,7 @@ from apiflask.schemas import FileSchema
 from flask import (
     Response,
     flash,
+    g,
     jsonify,
     make_response,
     redirect,
@@ -22,7 +23,7 @@ from app.deps import (
     login_required,
     valid_id_required,
 )
-from harvester.lib.source_delete import enqueue_harvest_source_delete
+from harvester.lib.source_delete import enqueue_harvest_source_archive
 from harvester.utils.general_utils import is_valid_uuid4
 
 from . import api
@@ -81,11 +82,12 @@ def edit_harvest_source_api(source_id: str):
 @valid_id_required
 def delete_harvest_source(source_id):
     try:
-        message, status = enqueue_harvest_source_delete(source_id, deps.db)
-        _log_mutation("delete", "harvest_source", source_id, status=status)
+        user_email = g.get("request_actor", "unknown")
+        message, status = enqueue_harvest_source_archive(source_id, user_email, deps.db)
+        _log_mutation("archive", "harvest_source", source_id, status=status)
         return make_response(jsonify({"message": message}), status)
     except Exception as e:
-        message = f"Failed to delete harvest source :: {repr(e)}"
+        message = f"Failed to archive harvest source :: {repr(e)}"
         logger.error(message)
         return make_response(jsonify({"message": message}), 500)
 

@@ -28,8 +28,9 @@ def cli_list_harvest_source():
 @source.cli.command("delete")
 @click.argument("id")
 def cli_remove_harvest_source(id):
-    """Remove a harvest source with a given id."""
-    message, status = db.delete_harvest_source(id)
+    """Archive a harvest source by ID (soft delete)."""
+    user_email = "cli-user"
+    message, status = db.archive_harvest_source(id, user_email)
     print(message)
     if status != 200:
         raise SystemExit(1)

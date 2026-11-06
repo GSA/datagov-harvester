@@ -245,7 +245,7 @@ class HarvestTriggerForm(FlaskForm):
     clear = SubmitField(
         "Clear",
     )
-    delete = SubmitField("Delete")
+    delete = SubmitField("Archive")
     force_check = BooleanField("Force Update")
 
 

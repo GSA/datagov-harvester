@@ -1,6 +1,6 @@
 import json
 
-from flask import current_app, flash, redirect, render_template, request, url_for
+from flask import current_app, flash, g, redirect, render_template, request, url_for
 
 from app import deps, htmx
 from app.deps import (
@@ -17,7 +17,7 @@ from app.forms import HarvestSourceForm, HarvestTriggerForm, ReharvestForm
 from app.paginate import Pagination
 from app.util import make_new_source_contract
 from database.interface import HarvestSourceLockedError, StaleReharvestLinkError
-from harvester.lib.source_delete import enqueue_harvest_source_delete
+from harvester.lib.source_delete import enqueue_harvest_source_archive
 from harvester.utils.general_utils import (
     convert_to_int,
     dynamic_map_list_items_to_dict,
@@ -27,6 +27,8 @@ from harvester.utils.notification_frequency import notification_frequency_notice
 from harvester.utils.reharvest_links import read_reharvest_token
 
 from . import main
+
+enqueue_harvest_source_delete = enqueue_harvest_source_archive
 
 
 def trigger_manual_job_helper(source_id, job_type="harvest"):
@@ -81,7 +83,7 @@ def refresh_harvest_source():
     def link_issue():
         """Describe the current reason this signed link cannot request a job."""
         source = deps.db.get_harvest_source(source_id)
-        if source is None:
+        if source is None or (source and source.is_archived):
             return None, (
                 "This harvest source has been removed.",
                 "Contact the Data.gov team if this source should be restored "
@@ -640,17 +642,20 @@ def update_harvest_source_actions(source_id: str):
         return trigger_manual_job_helper(source_id, "clear")
     elif form.delete.data:
         try:
-            message, status = enqueue_harvest_source_delete(source_id, deps.db)
-            _log_mutation("delete", "harvest_source", source_id, status=status)
-            # 202: the delete task was scheduled; anything else was refused
-            flash(message, "success" if status == 202 else "error")
+            user_email = g.get("request_actor", "unknown")
+            message, status = enqueue_harvest_source_archive(
+                source_id, user_email, deps.db
+            )
+            _log_mutation("archive", "harvest_source", source_id, status=status)
+            category = "success" if status == 202 else "error"
+            flash(message, category)
             if status == 409:
                 return redirect(
                     url_for("main.view_harvest_source", source_id=source_id)
                 )
             return redirect(url_for("main.harvest_source_list"))
         except Exception as e:
-            message = f"Failed to delete harvest source :: {repr(e)}"
+            message = f"Failed to archive harvest source :: {repr(e)}"
             logger.error(message)
             flash(message, "error")
             return redirect(url_for("main.view_harvest_source", source_id=source_id))
@@ -660,7 +665,7 @@ def update_harvest_source_actions(source_id: str):
 
 @main.route("/harvest_source_list/", methods=["GET"])
 def harvest_source_list():
-    sources = deps.db.get_all_harvest_sources()
+    sources = deps.db.get_all_harvest_sources(include_archived=False)
     data = {"harvest_sources": sources}
     logger.info("Rendered harvest source list count=%s", len(sources) if sources else 0)
     return render_template("view_source_list.html", data=data)

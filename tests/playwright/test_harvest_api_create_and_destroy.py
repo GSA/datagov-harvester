@@ -96,5 +96,6 @@ class TestHarvestAPICreateAndDestroy:
         )
         assert res.status == 202
         assert (
-            res.json()["message"] == "This harvest source may take some time to delete."
+            res.json()["message"]
+            == "This harvest source may take some time to archive."
         )
