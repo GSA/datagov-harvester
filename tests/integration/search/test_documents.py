@@ -4,6 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from harvester.exceptions import EmptyFieldNameException
 from search.documents import DatasetDocument
 from tests.conftest import make_dataset_by_dcat
 
@@ -127,6 +128,23 @@ def test_normalize_dcat_strips_top_level_empty_key(caplog):
     assert "" not in normalized
     assert normalized["title"] == "Status Of Budgetary Resources Total_CPE"
     assert "ba35e626" in caplog.text
+
+
+def test_normalize_dcat_rejects_empty_key_inside_publisher():
+    """`publisher` is held back from the serializing loop so its
+    subOrganizationOf object survives, and that also held it back from the
+    empty-key check every other field gets.
+    """
+    dcat = {
+        "title": "Status Of Budgetary Resources Total_CPE",
+        "publisher": {
+            "": 43281,
+            "name": "U.S. Commodity Futures Trading Commission",
+        },
+    }
+
+    with pytest.raises(EmptyFieldNameException):
+        DatasetDocument._normalize_dcat_dates(dcat)
 
 
 def test_normalize_dcat_without_empty_key_is_unaffected():
