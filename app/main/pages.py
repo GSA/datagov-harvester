@@ -5,6 +5,7 @@ from flask import flash, redirect, render_template, request, session, url_for
 from app import deps, htmx
 from app.constants import MAX_UPLOAD_BYTES, MAX_UPLOAD_MB
 from app.deps import (
+    CATALOG_BASE_URL,
     _log_mutation,
     logger,
     render_block,
@@ -77,7 +78,10 @@ def view_dataset(dataset_slug: str):
                 )
                 return redirect(url_for("main.view_dataset", dataset_slug=dataset_slug))
         else:
-            data = {"dataset": dataset}
+            data = {
+                "catalog_base_url": CATALOG_BASE_URL,
+                "dataset": dataset,
+            }
             return (
                 render_template(
                     "view_dataset_data.html",
@@ -92,7 +96,10 @@ def view_dataset(dataset_slug: str):
         db_interface=deps.db,
         data={"slug": dataset.slug} if dataset else {},
     )
-    data = {"dataset": dataset}
+    data = {
+        "catalog_base_url": CATALOG_BASE_URL,
+        "dataset": dataset,
+    }
     return render_template(
         "view_dataset_data.html",
         data=data,
