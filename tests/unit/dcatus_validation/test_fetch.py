@@ -10,6 +10,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 import requests
+import yaml
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
@@ -894,6 +895,19 @@ def test_proxy_body_limit_sits_just_above_the_validator_limit(config_path):
     proxy_limit = _validate_location_body_limit(config_path)
 
     assert MAX_REQUEST_BYTES < proxy_limit <= MAX_REQUEST_BYTES + 2 * 1024 * 1024
+
+
+def test_proxy_disk_holds_several_maximum_size_uploads():
+    """nginx spools request bodies to the proxy app's disk, which also serves
+    the admin app, so it has room for several maximum-size uploads at once."""
+    manifest = yaml.safe_load(
+        re.sub(r"\(\((\w+)\)\)", r"\1", Path("manifest.yml").read_text())
+    )
+    [proxy] = [a for a in manifest["applications"] if a["name"].endswith("-proxy")]
+    match = re.fullmatch(r"(\d+)([MG])", proxy["disk_quota"])
+    disk = int(match.group(1)) * NGINX_SIZE_UNITS[match.group(2).lower()]
+
+    assert disk >= 8 * _validate_location_body_limit("proxy/nginx-common.conf")
 
 
 # Pasted text arrives as its UTF-8 bytes (parse_pasted_json_document), so the
