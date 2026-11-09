@@ -1,7 +1,12 @@
+import contextlib
+import fcntl
 import json
 import logging
+import os
+import tempfile
 
-from apiflask import APIBlueprint
+from apiflask import APIBlueprint, Schema, validators
+from apiflask.fields import String
 from flask import jsonify, make_response, request
 
 from dcatus_validation.errors import (
@@ -17,14 +22,14 @@ from dcatus_validation.fetch import (
     parse_pasted_json_document,
 )
 from dcatus_validation.limits import (
+    LARGE_DOCUMENT_BYTES,
     MAX_RESULT_IDENTIFIER_CHARS,
     MAX_RESULT_MESSAGE_CHARS,
     MAX_UPLOAD_BYTES,
     MAX_VALIDATION_ERRORS,
 )
-from dcatus_validation.validate import validate_records_limited
+from dcatus_validation.validate import SCHEMA_NAMES, validate_records_limited
 from validator_api.schemas import (
-    DocumentQuery,
     ValidationErrorResponseSchema,
     ValidationResultSchema,
     ValidatorInfo,
@@ -33,6 +38,33 @@ from validator_api.schemas import (
 logger = logging.getLogger("validator_api")
 
 api = APIBlueprint("api", __name__, url_prefix="/api", tag="Validate")
+
+# One file per instance: flock on it is shared by every gunicorn worker and
+# thread there, so only one document over LARGE_DOCUMENT_BYTES is parsed and
+# validated at a time (GSA/data.gov#6460).
+LARGE_DOCUMENT_LOCK_PATH = os.path.join(
+    tempfile.gettempdir(), "datagov-validator-large-document.lock"
+)
+VALIDATOR_BUSY_MESSAGE = (
+    "The validator is busy with another large catalog. Please try again in a " "minute."
+)
+
+
+class _ValidatorBusy(Exception):
+    pass
+
+
+def _hold_large_document_slot(stack: contextlib.ExitStack, size: int) -> None:
+    """For a document over LARGE_DOCUMENT_BYTES, take this instance's one slot
+    until `stack` closes, or raise _ValidatorBusy if another request has it.
+    Closing the lock file releases the lock."""
+    if size <= LARGE_DOCUMENT_BYTES:
+        return
+    lock = stack.enter_context(open(LARGE_DOCUMENT_LOCK_PATH, "a"))
+    try:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        raise _ValidatorBusy from None
 
 
 def _truncate_result_text(value: str, max_chars: int) -> str:
@@ -62,15 +94,9 @@ def _bound_validation_results(errors: list) -> list:
 
 
 def _take_pasted_document(json_data) -> bytes:
-    """The pasted catalog as UTF-8, with every other copy of it released: the
-    decoded text (in json_data and werkzeug's parsed-JSON cache) and the raw
-    request body werkzeug caches. Otherwise a 150MB paste is alive three or
-    four times while it's parsed, ~300-600MB more at the peak
-    (GSA/data.gov#6460). Nothing reads the request body again after this.
-
-    Encoding raises UnicodeEncodeError for a lone surrogate, as the size
-    check always has.
-    """
+    """The pasted catalog as UTF-8, with werkzeug's cached copies of the
+    request released, so only one copy is alive while it's parsed
+    (GSA/data.gov#6460)."""
     document = json_data.pop("json_text").encode("utf-8")
     cache = vars(request._get_current_object())
     cache.pop("_cached_json", None)
@@ -100,6 +126,12 @@ _RESPONSES = {
         ),
         "content": {"application/json": {"schema": ValidationErrorResponseSchema}},
     },
+    503: {
+        "description": (
+            "Busy validating another large catalog on this instance; try again"
+        ),
+        "content": {"application/json": {"schema": ValidationErrorResponseSchema}},
+    },
     500: {
         "description": "Failed to download or process the catalog",
         "content": {"application/json": {"schema": ValidationErrorResponseSchema}},
@@ -108,18 +140,20 @@ _RESPONSES = {
 
 
 def _validation_response(fetch_method: str, schema: str, load_catalog):
-    """Load the catalog with load_catalog(), validate it, and answer. Both
-    request formats share this, so they give the same results, refusals and
-    statuses."""
+    """Load the catalog with load_catalog(hold), validate it, and answer: the
+    same for both endpoints. load_catalog calls hold(size) before parsing, so a
+    large document holds the instance's slot until the answer is ready."""
     errors = []
 
     try:
-        data = load_catalog()
-        errors, validation_incomplete = validate_records_limited(
-            data,
-            schema,
-            max_errors=MAX_VALIDATION_ERRORS,
-        )
+        with contextlib.ExitStack() as stack:
+            data = load_catalog(lambda size: _hold_large_document_slot(stack, size))
+            errors, validation_incomplete = validate_records_limited(
+                data,
+                schema,
+                max_errors=MAX_VALIDATION_ERRORS,
+            )
+            del data
         errors = _bound_validation_results(errors)
         logger.info(
             "API validator completed fetch_method=%s schema=%s "
@@ -129,6 +163,14 @@ def _validation_response(fetch_method: str, schema: str, load_catalog):
             len(errors),
             validation_incomplete,
         )
+    except _ValidatorBusy:
+        logger.warning(
+            "API validator busy with another large document fetch_method=%s",
+            fetch_method,
+        )
+        response = make_response(jsonify({"error": VALIDATOR_BUSY_MESSAGE}), 503)
+        response.headers["Retry-After"] = "60"
+        return response
     except CatalogTooDeeplyNested:
         # Use a constant so exception data cannot reach the client.
         logger.warning("API Validator could not walk the document")
@@ -180,36 +222,32 @@ def validator(json_data):
     """API route for validating v1.1 or v3.0 dcatus catalogs."""
     if json_data["fetch_method"] == "url":
 
-        def load_catalog():
-            return fetch_json_from_url(json_data["url"])
+        def load_catalog(hold):
+            return fetch_json_from_url(json_data["url"], before_parse=hold)
 
     else:
 
-        def load_catalog():
-            return _parse_document(_take_pasted_document(json_data))
+        def load_catalog(hold):
+            return _parse_document(_take_pasted_document(json_data), hold)
 
     return _validation_response(
         json_data["fetch_method"], json_data["schema"], load_catalog
     )
 
 
-def _parse_document(document):
-    """Parse a pasted or uploaded catalog's UTF-8 bytes. MAX_CONTENT_LENGTH
-    caps the request body, which has room for JSON escaping (see
-    app.constants); this caps the document itself, the same limit a URL
-    submission gets."""
+def _parse_document(document, hold):
+    """Parse a pasted or uploaded catalog's UTF-8 bytes, held to the same
+    document limit a URL submission gets."""
     if len(document) > MAX_UPLOAD_BYTES:
         raise InvalidCatalogSource(PAYLOAD_TOO_LARGE_MESSAGE)
+    hold(len(document))
     return parse_pasted_json_document(document)
 
 
 def _uploaded_file_as_utf8(raw: bytes) -> bytes | memoryview:
-    """An uploaded file's text as UTF-8, decoded the way the /validate/ page
-    decoded it in the browser before it sent files as the body itself: UTF-16
-    when the file starts with a UTF-16 BOM or has a NUL in exactly one of its
-    first two bytes, otherwise UTF-8, without one leading BOM. A file that
-    doesn't decode is refused, as the page refused it. UTF-8 files, nearly
-    all of them, aren't copied."""
+    """An uploaded file's text as UTF-8, decoded as the /validate/ page used
+    to decode it in the browser: UTF-16 by BOM or NUL pattern, otherwise
+    UTF-8, minus one leading BOM."""
     first, second = raw[:1], raw[1:2]
     if raw[:2] == b"\xfe\xff" or (first == b"\0" and second not in (b"", b"\0")):
         encoding = "utf-16-be"
@@ -226,37 +264,38 @@ def _uploaded_file_as_utf8(raw: bytes) -> bytes | memoryview:
     return text.removeprefix("\ufeff").encode("utf-8")
 
 
+class DocumentQuery(Schema):
+    schema = String(required=True, validate=validators.OneOf(SCHEMA_NAMES))
+    fetch_method = String(
+        load_default="upload", validate=validators.OneOf(["paste", "upload"])
+    )
+
+
 @api.route("/validate/document", methods=["POST"])
 @api.input(DocumentQuery, location="query")
 @api.output(ValidationResultSchema, status_code=200)
 @api.doc(
     summary="Validate a DCAT catalog sent as the request body",
     description=(
-        "The catalog itself is the request body; `schema` and `fetch_method` "
-        "are query parameters. `fetch_method=paste` takes the body as pasted "
-        "text in UTF-8 (a leading byte order mark is refused, as in a paste). "
-        "`fetch_method=upload` decodes it as a file: UTF-16 by its byte order "
-        "mark or NULs, otherwise UTF-8. This is how the /validate/ page sends "
-        "catalogs: nothing is JSON-escaped, so neither the browser nor the "
-        "service holds an extra copy. Same results and refusals as "
-        "`/validate` with `json_text`."
+        "The request body is the catalog; `schema` and `fetch_method` are "
+        "query parameters. `paste` reads the body as UTF-8 text, `upload` as "
+        "a UTF-8 or UTF-16 file. Same results as `/validate` with `json_text`."
     ),
     responses=_RESPONSES,
 )
 def validate_document(query_data):
     """The catalog as the raw request body (GSA/data.gov#6460)."""
-    # Read here, outside _validation_response, so an oversized body gets the
-    # app's JSON 413 rather than a 500. Held in a list so load_catalog can
-    # take the only reference and the body is freed once parsed.
+    # Read outside _validation_response so an oversized body gets the JSON 413,
+    # not a 500; a list so load_catalog holds the only reference.
     body = [request.get_data(cache=False)]
     fetch_method = query_data["fetch_method"]
 
-    def load_catalog():
+    def load_catalog(hold):
         raw = body.pop()
         if len(raw) > MAX_UPLOAD_BYTES:
             raise InvalidCatalogSource(PAYLOAD_TOO_LARGE_MESSAGE)
         if fetch_method == "upload":
             raw = _uploaded_file_as_utf8(raw)
-        return _parse_document(raw)
+        return _parse_document(raw, hold)
 
     return _validation_response(fetch_method, query_data["schema"], load_catalog)

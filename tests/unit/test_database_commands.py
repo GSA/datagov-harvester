@@ -73,10 +73,18 @@ def test_no_dry_run_resyncs_every_source_regardless_of_existing_issues(app):
     assert "Resynced 2 identifier(s) across 1 harvest source(s)." in result.output
     assert mock_interface.sync_current_record_issues.call_count == 2
     mock_interface.sync_current_record_issues.assert_any_call(
-        "1", "dataset", "dataset-1", "r1"
+        "1",
+        "dataset",
+        "dataset-1",
+        "r1",
+        skip_types=("DuplicateIdentifierException",),
     )
     mock_interface.sync_current_record_issues.assert_any_call(
-        "1", "data_service", "dataset-2", "r2"
+        "1",
+        "data_service",
+        "dataset-2",
+        "r2",
+        skip_types=("DuplicateIdentifierException",),
     )
     mock_interface.get_current_record_issues_by_source.assert_not_called()
 

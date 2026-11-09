@@ -217,35 +217,13 @@ def _collect_validation_messages(
     return recorded
 
 
-def build_dcatus1_1_validator(schema: dict, *, precrawl: bool = True):
-    """Build a validator for one DCAT-US 1.1 dataset schema.
+def build_dcatus3_validator(
+    definitions_dir,
+    root_ref="https://resources.data.gov/dcat-us/3.0.0/definitions/catalog",
+):
+    """Build a DCAT-US 3.0 validator for the selected root definition."""
+    registry = Registry()
 
-    The 1.1 schemas define vcard, distribution and organization in `$defs`,
-    each with its own `$id`, and organization `$ref`s itself by that `$id`.
-    Python jsonschema adds the root schema to its registry uncrawled, so a
-    record that reaches one of those `$id`s has it crawl the whole schema (and
-    the metaschemas) to find it, and then drops the crawled registry: every
-    record crawls again, about half of all 1.1 validation time. Crawling once
-    here means every lookup hits directly. References resolve to the same
-    schemas either way.
-
-    precrawl=False builds the validator the way it was built before
-    (DCATUS_VALIDATION_FAST_PATH=false).
-    """
-    if not precrawl:
-        return Draft202012Validator(schema, format_checker=FormatChecker())
-
-    resource = DRAFT202012.create_resource(schema)
-    registry = Registry().with_resource(uri=resource.id() or "", resource=resource)
-    return Draft202012Validator(
-        schema,
-        registry=registry.crawl(),
-        format_checker=FormatChecker(),
-    )
-
-
-def load_dcatus3_definitions(definitions_dir) -> dict:
-    """Every DCAT-US 3.0 definition, by its `$id`."""
     schema_files = sorted(definitions_dir.glob("*.json"))
     if not schema_files:
         raise FileNotFoundError(
@@ -254,23 +232,10 @@ def load_dcatus3_definitions(definitions_dir) -> dict:
             "run `git submodule update --init _external/dcat-us`."
         )
 
-    definitions = {}
     for schema_file in schema_files:
         schema = open_json(schema_file)
-        definitions[schema["$id"]] = schema
-    return definitions
-
-
-def build_dcatus3_validator(
-    definitions_dir,
-    root_ref="https://resources.data.gov/dcat-us/3.0.0/definitions/catalog",
-):
-    """Build a DCAT-US 3.0 validator for the selected root definition."""
-    registry = Registry()
-
-    for uri, schema in load_dcatus3_definitions(definitions_dir).items():
         registry = registry.with_resource(
-            uri=uri,
+            uri=schema["$id"],
             resource=DRAFT202012.create_resource(schema),
         )
 

@@ -5,7 +5,7 @@ the same messages module instead."""
 from functools import lru_cache
 from itertools import islice
 
-from jsonschema import Draft202012Validator
+from jsonschema import Draft202012Validator, FormatChecker
 
 from dcatus_validation.errors import (
     NESTING_TOO_DEEP_MESSAGE,
@@ -15,18 +15,17 @@ from dcatus_validation.fast_path import (
     FastValidators,
     Prefilter,
     build_dcatus1_1_fast_validators,
+    build_dcatus1_1_validator,
     build_dcatus3_fast_validators,
     build_prefilter,
     check_catalog,
-    fast_path_enabled,
+    load_dcatus3_definitions,
     skipping_known_valid_items,
 )
 from dcatus_validation.limits import MAX_DOCUMENT_NESTING_DEPTH
 from dcatus_validation.messages import (
     assemble_validation_errors,
-    build_dcatus1_1_validator,
     build_dcatus3_validator,
-    load_dcatus3_definitions,
     open_json,
 )
 from dcatus_validation.schema_paths import DCATUS1_1_DIR, DCATUS3_DEFINITIONS_DIR
@@ -122,11 +121,12 @@ def _validation_messages(
 
 @lru_cache(maxsize=len(SCHEMA_NAMES))
 def _validator_for_schema(schema_name: str):
-    """The pure-Python validator, built as it was before the fast path. Used
-    when DCATUS_VALIDATION_FAST_PATH is off."""
+    """Python jsonschema alone, for a document that isn't plain JSON (a direct
+    caller's tuple, say), which the fast path can't take."""
     if schema_name.startswith("dcatus1.1"):
-        return build_dcatus1_1_validator(
-            open_json(_dcatus1_1_schema_path(schema_name)), precrawl=False
+        return Draft202012Validator(
+            open_json(_dcatus1_1_schema_path(schema_name)),
+            format_checker=FormatChecker(),
         )
     return build_dcatus3_validator(DCATUS3_DEFINITIONS_DIR)
 
@@ -170,8 +170,8 @@ def _validate_records(
     plain_json = _check_catalog_nesting(dcatus_catalog)
 
     # The fast path only ever skips Python jsonschema for what jsonschema-rs
-    # found valid; everything else, and every error, is the old path's.
-    fast = fast_path_enabled() and plain_json
+    # found valid; everything else, and every error, is Python jsonschema's.
+    fast = plain_json
     if fast:
         fast_validators = _fast_validators_for_schema(schema_name)
         validator = fast_validators.python

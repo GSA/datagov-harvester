@@ -364,7 +364,7 @@ Note: we prefer that you deploy to the development environment by pushing to the
 ## Applications
 
 ### datagov-harvest-proxy
-This is an nginx app which owns the public route and proxies traffic to the internal Flask app route. It also splits off validator traffic: `/api/validate`, `/api/v1/validate`, `/api/v1/validate/document` (and its unversioned `/api/validate/document`), the validator's docs at `/validator/docs` and `/validator/openapi.json`, and its health check at `/validator/health` are proxied to `datagov-harvest-validator` instead of `datagov-harvest` (see `proxy/nginx-common.conf` and `proxy/nginx-maps.conf`). Everything else, including the `/validate/` page, goes to `datagov-harvest`.
+This is an nginx app which owns the public route and proxies traffic to the internal Flask app route. It also splits off validator traffic: `/api/validate`, `/api/v1/validate`, the validator's docs at `/validator/docs` and `/validator/openapi.json`, and its health check at `/validator/health` are proxied to `datagov-harvest-validator` instead of `datagov-harvest` (see `proxy/nginx-common.conf` and `proxy/nginx-maps.conf`). Everything else, including the `/validate/` page, goes to `datagov-harvest`.
 
 ### datagov-harvest
 This is a Flask app which manages the configuration of harvest sources, organizations, and the creation of harvest jobs.
@@ -374,8 +374,7 @@ The public DCAT-US validation API, deployed as its own Cloud Foundry app so vali
 
 - **Minimal on purpose.** It runs `validator_api/` (`validator-start.sh`), not the admin app: it imports only `dcatus_validation/`, APIFlask and marshmallow, so it needs no database, no admin secrets and no CF credentials. `tests/unit/test_validator_import_clean.py` fails if it ever imports `app`, `harvester` or `database`.
 - **One copy of the validation code.** `dcatus_validation/` holds the error-message formatting, the schema paths, `validate_records` and the URL fetcher. The harvest runner imports the same module, so the validator and a harvest job describe a bad record the same way.
-- **Fast path.** orjson and jsonschema-rs get it to Python jsonschema's answer about 20 times sooner on a large catalog, with Python jsonschema still writing every error. `DCATUS_VALIDATION_FAST_PATH=false` turns it off without a deploy. See "Fast path and its kill switch" in [validator-security.md](validator-security.md).
-- **The `/validate/` page doesn't call it server-side.** `datagov-harvest` only renders the page (GET only); the browser `fetch()`es the validator same-origin through the proxy (`app/static/js/view_validators.js`), so the admin app's workers are never involved. A URL goes to `/api/v1/validate` as JSON; a pasted or uploaded catalog goes to `/api/v1/validate/document` as the request body itself, so the browser never reads a file into a string or JSON-escapes a catalog.
+- **The `/validate/` page doesn't call it server-side.** `datagov-harvest` only renders the page (GET only); the browser `fetch()`es `/api/v1/validate` same-origin through the proxy (`app/static/js/view_validators.js`), so the admin app's workers are never involved.
 - **URL fetches** get one 12s budget, with each connect attempt capped at 4s and retried up to 3 times on a fresh connection (`dcatus_validation/fetch.py`). Private and internal addresses are refused unless `ALLOW_PRIVATE_ADDRESSES=true` (local `docker compose` only).
 - Its docs are at `/validator/docs`, linked from the admin app's `/openapi/docs`.
 - **Health check:** `/health` on the internal route (Cloud Foundry's health check) and `/validator/health` through the proxy (uptime monitoring). Every schema validator is built at startup, so an instance with missing schemas fails to start rather than reporting healthy.

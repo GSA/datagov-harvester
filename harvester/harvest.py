@@ -448,6 +448,11 @@ class HarvestSource:
         adds a record error about the duplicate to the db and removes the
         duplicate from processing.
         """
+        # Duplicates are re-detected from scratch each run, so this run's
+        # are the only ones that stay outstanding.
+        self.db_interface.clear_current_issues_by_type(
+            self.id, DuplicateIdentifierException.__name__
+        )
         self._filter_duplicate_identifiers_from(self.external_records, "dataset")
         for record_type, config in NON_DATASET_RECORD_TYPES.items():
             self._filter_duplicate_identifiers_from(
@@ -1573,6 +1578,7 @@ class Record:
             self.record_type,
             self.identifier,
             self.id,
+            skip_types=(DuplicateIdentifierException.__name__,),
         )
 
     def _metadata_for_dataset(self):

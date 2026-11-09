@@ -1,9 +1,8 @@
-"""The fast path for DCAT-US validation, and the switch that turns it off.
+"""The fast path for DCAT-US validation.
 
 Python jsonschema alone takes tens of seconds on a catalog near
 MAX_UPLOAD_MB (GSA/data.gov#6460). The fast path reaches the same answer
-sooner: orjson parses the document (fetch.parse_json_document), and
-jsonschema-rs decides which records are valid. Python jsonschema still produces
+sooner: jsonschema-rs decides which records are valid. Python jsonschema still produces
 every error, exactly as before, for whatever jsonschema-rs could not show is
 valid. The messages, their paths and order, and the MAX_VALIDATION_ERRORS cap
 all still come from Python jsonschema alone.
@@ -29,13 +28,9 @@ DCAT-US 1.1 is validated record by record, so a record jsonschema-rs finds
 valid simply skips Python. DCAT-US 3.0 is validated as one catalog, so Python
 still runs over the catalog but skips the `$ref`s into the datasets (and other
 top-level items) jsonschema-rs found valid; see skipping_known_valid_items.
-
-Set DCATUS_VALIDATION_FAST_PATH=false to go back to the old pure-Python
-parser and validator without a deploy.
 """
 
 import logging
-import os
 import re
 from contextlib import contextmanager
 from contextvars import ContextVar
@@ -48,21 +43,27 @@ from jsonschema import Draft202012Validator, FormatChecker, validators
 from referencing import Registry
 from referencing.jsonschema import DRAFT202012
 
+from dcatus_validation.messages import open_json
+
 logger = logging.getLogger("dcatus_validation")
 
-FAST_PATH_ENV_VAR = "DCATUS_VALIDATION_FAST_PATH"
+
+def build_dcatus1_1_validator(schema: dict):
+    """Python jsonschema for one DCAT-US 1.1 dataset schema, with its registry
+    crawled once. Python jsonschema adds the root schema uncrawled, so every
+    record whose publisher has a subOrganizationOf re-crawled the whole schema
+    to resolve its `$id`s, about half of all 1.1 validation time."""
+    resource = DRAFT202012.create_resource(schema)
+    registry = Registry().with_resource(uri=resource.id() or "", resource=resource)
+    return Draft202012Validator(
+        schema, registry=registry.crawl(), format_checker=FormatChecker()
+    )
 
 
-def fast_path_enabled() -> bool:
-    """Whether to use orjson and jsonschema-rs (the default).
-
-    The kill switch for operators: `cf set-env <app> DCATUS_VALIDATION_FAST_PATH
-    false` and a restart puts the validator API back on the old pure-Python
-    parser and validator. Only "true" (any case) keeps the fast path on, so a
-    mistyped value also falls back to the old path. Read on every call, never
-    cached at import.
-    """
-    return os.getenv(FAST_PATH_ENV_VAR, "true").strip().lower() == "true"
+def load_dcatus3_definitions(definitions_dir) -> dict:
+    """Every DCAT-US 3.0 definition, by its `$id`."""
+    schemas = map(open_json, sorted(definitions_dir.glob("*.json")))
+    return {schema["$id"]: schema for schema in schemas}
 
 
 # Validation keywords whose behavior depends on the implementation. For these
@@ -202,7 +203,7 @@ _ONLY_CHECKS = {"pattern": str, "uniqueItems": list}
 # unreserved characters, sub-delims, ":", "@" (and "/" and "?" in the query
 # and fragment) or complete %XX escapes. Every string this matches is a URI
 # and an IRI to rfc3987, which is what Python jsonschema checks "uri" and "iri"
-# with (tests/unit/dcatus_validation/test_fast_path.py checks that with
+# with (tests/unit/dcatus_validation/test_equivalence.py checks that with
 # Hypothesis). Most catalog URLs match it in about a microsecond, against about
 # five for rfc3987's full grammar; anything else still goes to rfc3987.
 _PCHARS = r"A-Za-z0-9._~!$&'()*+,;=:@\-"
@@ -244,9 +245,12 @@ def _python_keyword(keyword: str, python_validator: Draft202012Validator):
     class PythonKeyword:
         # A string's answer never changes, and catalogs repeat many of them
         # (bureau and program codes, media types, dates), so each schema
-        # location remembers recent answers for strings. Small, so a catalog of
-        # unique strings can't make it hold much.
+        # location remembers recent answers for short strings. The validators
+        # live as long as the worker, so the cache is small and skips long
+        # strings: a submitted catalog's strings can't stay in memory after
+        # its request (at most 256 x 256 characters per location).
         _MAX_REMEMBERED = 256
+        _MAX_REMEMBERED_CHARS = 256
 
         def __init__(self, parent_schema, value, schema_path):
             self._value = value
@@ -268,6 +272,8 @@ def _python_keyword(keyword: str, python_validator: Draft202012Validator):
                 valid = self._is_valid(instance)
             elif self._simple_url_is_valid and SIMPLE_HTTP_URL.fullmatch(instance):
                 return
+            elif len(instance) > self._MAX_REMEMBERED_CHARS:
+                valid = self._is_valid(instance)
             else:
                 valid = self._remembered.get(instance)
                 if valid is None:

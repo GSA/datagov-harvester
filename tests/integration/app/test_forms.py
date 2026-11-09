@@ -650,6 +650,20 @@ class TestDatasetSlugForm:
         assert "View on catalog" in catalog_link.get_text(" ", strip=True)
         assert catalog_link["target"] == "_blank"
 
+    def test_get_dataset_page_does_not_link_to_catalog_when_base_url_is_empty(
+        self, client, interface, fixtures_json, monkeypatch
+    ):
+        """The catalog button is hidden when no catalog base URL is configured."""
+        dataset = self._setup_dataset(interface, fixtures_json)
+        monkeypatch.setattr("app.main.pages.CATALOG_BASE_URL", "")
+
+        res = client.get(f"/dataset/{dataset['slug']}")
+
+        assert res.status_code == 200
+        soup = BeautifulSoup(res.data, "html.parser")
+        catalog_link = soup.find("a", class_="usa-button--outline")
+        assert catalog_link is None
+
     def test_edit_slug_success(self, app, client, interface, fixtures_json):
         """
         A valid, unique slug POST updates the dataset and redirects.

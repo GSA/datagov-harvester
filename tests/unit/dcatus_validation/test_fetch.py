@@ -1,12 +1,18 @@
 import itertools
 import json
+import os
+import re
 import socket
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pytest
 import requests
+import yaml
+from hypothesis import HealthCheck, given, settings
+from hypothesis import strategies as st
 
 import dcatus_validation.fetch as fetch
 from dcatus_validation.errors import CatalogTooDeeplyNested
@@ -25,6 +31,8 @@ from dcatus_validation.fetch import (
 )
 from dcatus_validation.limits import (
     MAX_DOCUMENT_NESTING_DEPTH,
+    MAX_REQUEST_BYTES,
+    MAX_REQUEST_OVERHEAD_BYTES,
     MAX_UPLOAD_BYTES,
     MAX_UPLOAD_MB,
 )
@@ -222,51 +230,22 @@ class TestFetchJsonFromUrl:
         assert fetch_json_from_url("https://example.com/data.json") == {"test": "data"}
 
     @pytest.mark.parametrize("encoding", ["utf-8", "utf-16", "utf-32"])
-    @patch("dcatus_validation.fetch.json.loads")
-    def test_deep_json_is_rejected_before_parsing(
-        self, mock_loads, encoding, monkeypatch
-    ):
-        """The pure-Python parser (DCATUS_VALIDATION_FAST_PATH=false) scans
-        for depth before json.loads can recurse."""
-        monkeypatch.setenv("DCATUS_VALIDATION_FAST_PATH", "false")
+    def test_json_deeper_than_the_limit_still_parses(self, encoding):
+        """Nesting is checked after parsing, by validate.py's walk."""
         depth = MAX_DOCUMENT_NESTING_DEPTH + 1
+        document = ("[" * depth + "0" + "]" * depth).encode(encoding)
+
+        assert parse_json_document(document)
+
+    @pytest.mark.parametrize("encoding", ["utf-8", "utf-16", "utf-32"])
+    def test_json_too_deep_to_parse_is_too_deeply_nested(self, encoding):
+        """json.loads raises RecursionError rather than exhausting the stack
+        (GSA/data.gov#6460); that is reported as too deeply nested."""
+        depth = 1_000_000
         document = ("[" * depth + "0" + "]" * depth).encode(encoding)
 
         with pytest.raises(CatalogTooDeeplyNested):
             parse_json_document(document)
-
-        mock_loads.assert_not_called()
-
-    @pytest.mark.parametrize("encoding", ["utf-16", "utf-32"])
-    @patch("dcatus_validation.fetch.json.loads")
-    def test_deep_json_orjson_refuses_is_rejected_before_parsing(
-        self, mock_loads, encoding
-    ):
-        """orjson takes UTF-8 only; anything else gets the scan as before."""
-        depth = MAX_DOCUMENT_NESTING_DEPTH + 1
-        document = ("[" * depth + "0" + "]" * depth).encode(encoding)
-
-        with pytest.raises(CatalogTooDeeplyNested):
-            parse_json_document(document)
-
-        mock_loads.assert_not_called()
-
-    @pytest.mark.parametrize("depth", [MAX_DOCUMENT_NESTING_DEPTH + 1, 1024, 100_000])
-    @patch("dcatus_validation.fetch.json.loads")
-    def test_deep_json_never_reaches_json_loads(self, mock_loads, depth):
-        """The fast path: orjson parses up to 1024 levels without recursing
-        (the post-parse walk in validate.py then refuses anything past
-        MAX_DOCUMENT_NESTING_DEPTH); deeper than that, the scan refuses it."""
-        document = ("[" * depth + "0" + "]" * depth).encode()
-
-        try:
-            parse_json_document(document)
-        except CatalogTooDeeplyNested:
-            assert depth > 1024
-        else:
-            assert depth <= 1024
-
-        mock_loads.assert_not_called()
 
     def test_nesting_characters_inside_strings_are_ignored(self):
         brackets = "[" * (MAX_DOCUMENT_NESTING_DEPTH + 1)
@@ -872,56 +851,144 @@ class TestPrivateAddressDefault:
             importlib.reload(dcatus_validation.fetch)
 
 
-class TestFetchedDocumentsParseTheSameOnBothPaths:
-    """The URL path through fetch_json_from_url, with the fast path
-    (orjson) on and off: the same document or the same refusal
-    (GSA/data.gov#6460; tests/unit/dcatus_validation/test_parse_equivalence.py
-    covers parse_json_document itself)."""
+NGINX_SIZE_UNITS = {"": 1, "k": 1024, "m": 1024 * 1024, "g": 1024 * 1024 * 1024}
 
-    BODIES = {
-        "catalog": b'{"dataset": [{"title": "x"}]}',
-        "UTF-8 BOM": b'\xef\xbb\xbf{"dataset": []}',
-        "UTF-16": '{"dataset": []}'.encode("utf-16"),
-        "invalid UTF-8": b'{"secret":"\xff"}',
-        "NaN": b'{"value": NaN}',
-        "infinite float": b'{"value": 1e9999}',
-        "huge integer": b'{"value": ' + b"9" * 5000 + b"}",
-        "integer beyond 64 bits": b'{"value": 18446744073709551616}',
-        "escaped lone surrogate": b'{"value": "\\ud800"}',
-        "duplicate keys": b'{"a": 1, "a": 2}',
-        "syntax error": b'{"internal_secret": "hunter2",, "b": 2}',
-        "HTML": b"<html><body>Not JSON</body></html>",
-        "empty": b"",
-        "101 deep": b"[" * 101 + b"]" * 101,
-        "100,000 deep": b"[" * 100_000 + b"]" * 100_000,
-    }
 
-    @staticmethod
-    def _fetch(monkeypatch, body, fast):
-        # Through the module: a test above reloads it, which replaces
-        # InvalidCatalogSource and fetch_json_from_url.
-        monkeypatch.setenv("DCATUS_VALIDATION_FAST_PATH", "true" if fast else "false")
-        try:
-            document = fetch.fetch_json_from_url("https://example.com/d.json")
-            return ("document", repr(document))
-        except fetch.InvalidCatalogSource as error:
-            return ("refused", error.public_message)
-        except CatalogTooDeeplyNested as error:
-            return ("too deep", str(error))
+def _validate_location_body_limit(config_path: str) -> int:
+    """client_max_body_size inside the validate API location block, in bytes."""
+    config = Path(config_path).read_text()
+    location = re.search(
+        r"location ~ \^/api\(/v1\)\?/validate\(/document\)\?\$ \{(?P<body>[^}]*)\}",
+        config,
+    )
+    assert location, f"no validate API location in {config_path}"
+    size = re.search(
+        r"client_max_body_size\s+(\d+)([kKmMgG]?);", location.group("body")
+    )
+    assert size, f"no client_max_body_size in {config_path}'s validate location"
+    return int(size.group(1)) * NGINX_SIZE_UNITS[size.group(2).lower()]
 
-    @pytest.mark.parametrize("body", BODIES.values(), ids=list(BODIES))
-    @patch("dcatus_validation.fetch._pinned_get")
-    def test_same_result(self, mock_get, monkeypatch, body):
-        mock_get.side_effect = lambda *args, **kwargs: _json_response(body)
 
-        old = self._fetch(monkeypatch, body, fast=False)
-        new = self._fetch(monkeypatch, body, fast=True)
+def test_size_limit_is_150mb():
+    """GSA/data.gov#6460: 150MB, not the 600MB one Census file asked for."""
+    assert MAX_UPLOAD_MB == 150
+    assert MAX_UPLOAD_BYTES == 150 * 1024 * 1024
+    assert PAYLOAD_TOO_LARGE_MESSAGE == (
+        "JSON payload too large - must be 150MB or less."
+    )
 
-        if body.startswith(b"[" * 101) and len(body) < 2050:
-            # Refused while parsing on the old path; parsed on the fast path
-            # and refused by validation's post-parse walk, with the same
-            # error (see test_parse_equivalence.py).
-            assert old[0] == "too deep"
-            assert new[0] == "document"
-        else:
-            assert new == old
+
+def test_request_limit_fits_a_json_escaped_document_at_the_limit():
+    """1.5x the document limit, for JSON escaping, plus the other API fields:
+    225MB + 1KB, so nginx's 226M sits just above it (GSA/data.gov#6460)."""
+    assert MAX_REQUEST_BYTES == MAX_UPLOAD_BYTES * 3 // 2 + MAX_REQUEST_OVERHEAD_BYTES
+    assert MAX_REQUEST_BYTES == 225 * 1024 * 1024 + 1024
+
+
+@pytest.mark.parametrize(
+    "config_path", ["proxy/nginx-common.conf", "nginx-local-proxy.conf"]
+)
+def test_proxy_body_limit_sits_just_above_the_validator_limit(config_path):
+    """Above MAX_REQUEST_BYTES, so the validator's own JSON 413 is what callers
+    see rather than nginx's bare HTML one; within a few MB of it, so nginx
+    still refuses anything far larger before buffering it to disk."""
+    proxy_limit = _validate_location_body_limit(config_path)
+
+    assert MAX_REQUEST_BYTES < proxy_limit <= MAX_REQUEST_BYTES + 2 * 1024 * 1024
+
+
+def test_proxy_disk_holds_several_maximum_size_uploads():
+    """nginx spools request bodies to the proxy app's disk, which also serves
+    the admin app, so it has room for several maximum-size uploads at once."""
+    manifest = yaml.safe_load(
+        re.sub(r"\(\((\w+)\)\)", r"\1", Path("manifest.yml").read_text())
+    )
+    [proxy] = [a for a in manifest["applications"] if a["name"].endswith("-proxy")]
+    match = re.fullmatch(r"(\d+)([MG])", proxy["disk_quota"])
+    disk = int(match.group(1)) * NGINX_SIZE_UNITS[match.group(2).lower()]
+
+    assert disk >= 8 * _validate_location_body_limit("proxy/nginx-common.conf")
+
+
+# Pasted text arrives as its UTF-8 bytes (parse_pasted_json_document), so the
+# validator can drop the text before parsing (GSA/data.gov#6460). It must end
+# exactly as parsing the text itself does.
+
+EXAMPLE_COUNT = int(os.getenv("DCATUS_EQUIVALENCE_EXAMPLES", "300"))
+HYPOTHESIS_SETTINGS = settings(
+    max_examples=EXAMPLE_COUNT,
+    derandomize=True,
+    deadline=None,
+    suppress_health_check=list(HealthCheck),
+)
+JSON_VALUES = st.recursive(
+    st.none()
+    | st.booleans()
+    | st.integers()
+    | st.floats(allow_nan=False, allow_infinity=False)
+    | st.text(),
+    lambda children: st.lists(children, max_size=4)
+    | st.dictionaries(st.text(max_size=6), children, max_size=4),
+    max_leaves=12,
+)
+
+
+def parse_outcome(document):
+    """What a caller can observe: the value (repr keeps 1, 1.0 and True, and
+    key order, apart) or the error and everything it carries."""
+    # Through the module: a test above reloads it, which replaces
+    # InvalidCatalogSource and parse_json_document.
+    try:
+        return ("value", repr(fetch.parse_json_document(document)))
+    except json.JSONDecodeError as error:
+        return ("JSONDecodeError", error.msg, error.lineno, error.colno, error.pos)
+    except fetch.InvalidCatalogSource as error:
+        return ("InvalidCatalogSource", error.public_message)
+    except Exception as error:
+        return (type(error).__name__, str(error))
+
+
+def pasted_outcome(text):
+    """parse_outcome for the validator's paste path, which parses the UTF-8
+    encoding of the pasted text (parse_pasted_json_document)."""
+    try:
+        return ("value", repr(fetch.parse_pasted_json_document(text.encode("utf-8"))))
+    except json.JSONDecodeError as error:
+        return ("JSONDecodeError", error.msg, error.lineno, error.colno, error.pos)
+    except fetch.InvalidCatalogSource as error:
+        return ("InvalidCatalogSource", error.public_message)
+    except Exception as error:
+        return (type(error).__name__, str(error))
+
+
+PASTED_TEXTS = {
+    "BOM": '﻿{"dataset": []}',
+    "leading NUL (bytes would guess UTF-16)": '\x00{"dataset": []}',
+    "NUL pairs (bytes would guess UTF-32)": '\x00\x00\x00{"dataset": []}',
+    "integer beyond 64 bits": '{"dataset": [{"title": 18446744073709551616}]}',
+    "NaN": '{"dataset": [NaN]}',
+    "syntax error on line 3": '{\n  "dataset": [\n    {"title": "x",}\n  ]\n}',
+    "non-ASCII": '{"dataset": [{"title": "Données ’ \U0001f600"}]}',
+    "nested 101 deep": "[" * 101 + "]" * 101,
+    "nested 1,000,000 deep": "[" * 1_000_000 + "]" * 1_000_000,
+    "empty": "",
+    "escaped lone surrogate": '{"dataset": [{"title": "\\ud800"}]}',
+}
+
+
+@pytest.mark.parametrize("text", PASTED_TEXTS.values(), ids=list(PASTED_TEXTS))
+def test_pasted_bytes_parse_like_the_pasted_text(text):
+    """The paste route parses the text's UTF-8 bytes so it can drop the text
+    first (GSA/data.gov#6460). That must end exactly as parsing the text did,
+    including the refusals bytes would otherwise change: a leading BOM, and
+    NULs that bytes parsing reads as UTF-16 or UTF-32."""
+    assert pasted_outcome(text) == parse_outcome(text)
+
+
+@HYPOTHESIS_SETTINGS
+@given(
+    JSON_VALUES.map(lambda value: json.dumps(value, ensure_ascii=False))
+    | st.text(max_size=60)
+)
+def test_random_pasted_texts_parse_like_the_text(text):
+    assert pasted_outcome(text) == parse_outcome(text)

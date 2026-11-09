@@ -15,6 +15,7 @@ ignore:
           geojson-validator. No upgrade or patch available. Risk is acceptable
           as loguru is only used for logging, not processing untrusted input.
         expires: 2027-05-01T00:00:00.000Z
+        created: 2026-11-03T14:26:31.000Z
 patch: {}
 exclude:
   global:
