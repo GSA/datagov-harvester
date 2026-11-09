@@ -240,9 +240,7 @@ def find_indexes_for_duplicates(records: list, identifier_field: str = "identifi
     seen = set()
     output = []
     for i in range(len(records)):
-        identifier = normalize_dataset_identifier(
-            records[i].get(RESOLVED_IDENTIFIER_KEY)
-        ) or normalize_dataset_identifier(records[i].get(identifier_field))
+        identifier = record_identifier(records[i], identifier_field)
         if identifier in seen:
             output.append(i)
         seen.add(identifier)
@@ -366,19 +364,23 @@ def munge_title_to_name(name: str) -> str:
 
 # DCAT-US 3.0 record types other than "dataset". "identifier_field" is the key
 # holding the record's own identifier: CatalogRecord and DatasetSeries have no
-# "identifier" field, only a top-level "@id".
+# "identifier" field, only a top-level "@id". "schema_ref" is the dcatus3.0
+# definition each type is validated against.
 DCATUS3_NON_DATASET_RECORD_TYPES = {
     "data_service": {
         "extractor": extract_dcatus3_catalog_services,
         "identifier_field": "identifier",
+        "schema_ref": "dataservice",
     },
     "catalog_record": {
         "extractor": extract_dcatus3_catalog_records,
         "identifier_field": "@id",
+        "schema_ref": "catalogrecord",
     },
     "data_series": {
         "extractor": extract_dcatus3_catalog_dataset_series,
         "identifier_field": "@id",
+        "schema_ref": "datasetseries",
     },
 }
 

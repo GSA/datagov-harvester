@@ -56,7 +56,7 @@ Larger documents are under discussion in GSA/data.gov#6460. Raising `MAX_UPLOAD_
 
 - **Only safe literals reach the submitter.** `InvalidCatalogSource.public_message` is built only from literals and numbers. Never interpolate another exception's text into it: `json.JSONDecodeError.doc`, for example, holds the whole fetched document, which the submitter may not otherwise be able to read. JSON parse errors report only line and column (`invalid_json_message`).
 - **Unexpected errors are generic.** Anything unanticipated returns a fixed 500 message, and the log records only the exception *type*, because `requests` exception text can include signed URLs or credentials.
-- **Spatial values are never logged.** `dcatus_validation/spatial.py` logs only at debug level and without the value, and the validator disables geojson_validator's own loguru output, which would otherwise write three lines per spatial value.
+- **Spatial values are never logged.** `dcatus_validation/spatial.py` logs spatial values for the harvester, so the validator app disables that logger. It also disables geojson_validator's own loguru output, which would otherwise write three lines per spatial value.
 - **Logged URLs are redacted.** Fetch targets are logged as scheme, host, and port plus a 12-character SHA-256 hash for correlation (`_target_for_log`). Paths, query strings, and credentials are never logged.
 
 ## HTTP hardening

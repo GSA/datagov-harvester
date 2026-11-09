@@ -181,10 +181,14 @@ def validate_geojson(geojson_str: str) -> bool:
         if res.get("invalid") == {} and res.get("problematic") == {}:
             return geojson_str
         else:
-            logger.debug("Spatial value failed geometry checks; attempting a fix")
+            logger.warning(
+                "This spatial value has problems: %s, we will attempt a fix and "
+                "revalidate",
+                geojson_str,
+            )
     # ruff: noqa: E722
     except:
-        logger.debug("Spatial value could not be validated as GeoJSON")
+        logger.warning("This spatial value was unable be validated: %s", geojson_str)
         pass
 
     # Try to fix the geometry
@@ -215,10 +219,14 @@ def validate_geojson(geojson_str: str) -> bool:
             fixed_geom = spatial_wrap_around_meridian(fixed_geom)
             return json.dumps(fixed_geom)
         else:
-            logger.debug("Spatial value ignored after a failed geometry fix")
+            logger.warning(
+                "This spatial value will be ignored: %s, for the following reasons: %s",
+                geojson_str,
+                res,
+            )
     # ruff: noqa: E722
     except:
-        logger.debug("Spatial value geometry fix failed")
+        logger.warning("This spatial value was unable be fixed: %s", geojson_str)
         pass
     return False
 
@@ -266,7 +274,9 @@ def translate_wkt_to_geojson(spatial_value: str) -> str:
         geom = _reduce_degenerate_polygon(geom)
         return json.dumps(shapely_geom_mapping(geom))
     except:  # noqa: E722
-        logger.debug("Spatial value looked like WKT but failed to parse")
+        logger.warning(
+            "This spatial value looked like WKT but failed to parse: %s", spatial_value
+        )
         return ""
 
 

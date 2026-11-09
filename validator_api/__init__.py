@@ -144,6 +144,9 @@ def create_app():
     # geojson_validator logs three loguru lines per spatial value it checks,
     # which a large catalog turns into tens of thousands per request.
     loguru_logger.disable("geojson_validator")
+    # The shared spatial code logs submitted spatial values for harvest
+    # debugging; the validator must not log submitter content.
+    logging.getLogger("dcatus_validation.spatial").disabled = True
 
     # /health is Cloud Foundry's http health check (manifest.yml), on the
     # internal route. /validator/health is the same check through

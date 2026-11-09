@@ -7,6 +7,7 @@ from itertools import islice
 
 from jsonschema import Draft202012Validator, FormatChecker
 
+from dcatus_validation.catalog import DCATUS3_NON_DATASET_RECORD_TYPES
 from dcatus_validation.errors import (
     NESTING_TOO_DEEP_MESSAGE,
     CatalogTooDeeplyNested,
@@ -18,6 +19,8 @@ from dcatus_validation.messages import (
     open_json,
 )
 from dcatus_validation.schema_paths import DCATUS1_1_DIR, DCATUS3_DEFINITIONS_DIR
+
+_DCATUS3_DEFINITIONS_URL = "https://resources.data.gov/dcat-us/3.0.0/definitions/"
 
 SCHEMA_NAMES = [
     "dcatus1.1: federal dataset",
@@ -110,6 +113,21 @@ def _validator_for_schema(schema_name: str):
     return build_dcatus3_validator(DCATUS3_DEFINITIONS_DIR)
 
 
+@lru_cache(maxsize=None)
+def record_validator(schema_name: str, record_type: str = "dataset"):
+    """The validator the harvest runner applies to one record of record_type."""
+    if schema_name.startswith("dcatus1.1"):
+        return _validator_for_schema(schema_name)
+    schema_ref = (
+        "dataset"
+        if record_type == "dataset"
+        else DCATUS3_NON_DATASET_RECORD_TYPES[record_type]["schema_ref"]
+    )
+    return build_dcatus3_validator(
+        DCATUS3_DEFINITIONS_DIR, root_ref=_DCATUS3_DEFINITIONS_URL + schema_ref
+    )
+
+
 def _validate_records(
     dcatus_catalog: dict,
     schema_name: str,
@@ -170,6 +188,8 @@ def load_schema_validators() -> None:
     schema fails at startup rather than on the first request that needs it."""
     for schema_name in SCHEMA_NAMES:
         _validator_for_schema(schema_name)
+    for record_type in ["dataset", *DCATUS3_NON_DATASET_RECORD_TYPES]:
+        record_validator("dcatus3.0 catalog", record_type)
 
 
 def validate_records(dcatus_catalog: dict, schema_name: str) -> list:

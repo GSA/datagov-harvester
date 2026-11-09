@@ -34,17 +34,8 @@ VALIDATOR = build_dcatus3_validator(DCATUS3_DEFINITIONS_DIR, root_ref=DATASET_RE
 # a record starts with zero warnings. (Its WKT `geometry` used to trip a
 # second baseline warning, unresolvable_spatial_value, until WKT support
 # landed in GSA/data.gov#6264.)
-#
-# Baseline warnings are deliberately *not* precomputed into a module-level
-# constant here (unlike VALIDATOR above). Detecting warnings can exercise
-# `translate_spatial`'s DB-backed lookup fallback, which tests/conftest.py's
-# autouse `default_function_fixture` only points at a safe, per-test,
-# rolled-back session once a test is actually running. Computing it at
-# import time (module collection, before any test/fixture runs) would
-# instead reach the real module-level `harvester.db_interface` and leak an
-# uncommitted transaction. So `_new_warning_types` recomputes the baseline
-# fresh on every call, inside the test.
 BASE_RECORD = open_json(DCATUS3_COMPLETE_EXAMPLE)
+BASELINE_WARNINGS = detect_dcat_warnings(BASE_RECORD)
 
 
 def _record() -> dict:
@@ -55,9 +46,8 @@ def _record() -> dict:
 def _new_warning_types(mutated: dict) -> list:
     """Warning types produced by `mutated` that are not already produced by
     the unmutated base record."""
-    baseline = detect_dcat_warnings(BASE_RECORD)
     produced = detect_dcat_warnings(mutated)
-    return [w.warning_type for w in produced if w not in baseline]
+    return [w.warning_type for w in produced if w not in BASELINE_WARNINGS]
 
 
 def _schema_errors(mutated: dict) -> list:

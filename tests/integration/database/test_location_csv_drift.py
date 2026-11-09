@@ -91,10 +91,10 @@ def csv_lookup(interface, tmp_path, monkeypatch):
     write_location_names(build_rows(export), location_names)
     monkeypatch.setattr(places, "LOCATION_NAMES_PATH", location_names)
     places._snapshot.cache_clear()
-    places.snapshot_place_lookup.cache_clear()
+    places._cached_lookup.cache_clear()
     yield places.snapshot_place_lookup
     places._snapshot.cache_clear()
-    places.snapshot_place_lookup.cache_clear()
+    places._cached_lookup.cache_clear()
 
 
 @pytest.mark.parametrize("query", QUERIES)

@@ -1,4 +1,5 @@
 import csv
+import time
 from collections import Counter
 
 import pytest
@@ -21,11 +22,11 @@ def snapshot(tmp_path, monkeypatch):
                 writer.writerow([name, count, int(name in in_postal_code)])
         monkeypatch.setattr(places, "LOCATION_NAMES_PATH", path)
         places._snapshot.cache_clear()
-        places.snapshot_place_lookup.cache_clear()
+        places._cached_lookup.cache_clear()
 
     yield use
     places._snapshot.cache_clear()
-    places.snapshot_place_lookup.cache_clear()
+    places._cached_lookup.cache_clear()
 
 
 class TestSnapshotPlaceLookup:
@@ -89,7 +90,28 @@ class TestSnapshotPlaceLookup:
 
 def test_bundled_snapshot_loads_and_resolves_a_unique_name():
     places._snapshot.cache_clear()
-    places.snapshot_place_lookup.cache_clear()
+    places._cached_lookup.cache_clear()
     places.load_location_names()
 
     assert places.snapshot_place_lookup("United States") == "United States"
+
+
+@pytest.mark.parametrize(
+    "label",
+    ["%%%%%%%%\x01", "%_" * 50 + "\x01", "%" * 1_000_000, "a%" * 1_000_000],
+)
+def test_wildcard_heavy_labels_return_quickly(snapshot, label):
+    snapshot(["Ohio", "Utah", "Abbeville County, South Carolina"])
+
+    start = time.monotonic()
+    places.snapshot_place_lookup(label)
+
+    assert time.monotonic() - start < 1
+
+
+def test_long_names_are_not_cached(snapshot):
+    snapshot(["Ohio"])
+
+    places.snapshot_place_lookup("x" * (places._MAX_CACHED_NAME_CHARS + 1))
+
+    assert places._cached_lookup.cache_info().currsize == 0

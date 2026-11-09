@@ -19,7 +19,6 @@ reports warnings. Regenerate the CSV with `scripts/refresh_location_names.py`.
 """
 
 import csv
-import re
 from bisect import bisect_right
 from functools import lru_cache
 from pathlib import Path
@@ -36,7 +35,8 @@ class _Snapshot:
         self.names = [row["display_name"] for row in rows]
         self.row_counts = [int(row["row_count"]) for row in rows]
         self.in_postal_code_name = [row["in_postal_code_name"] == "1" for row in rows]
-        lowered = [name.lower() for name in self.names]
+        self.lowered = lowered = [name.lower() for name in self.names]
+        self.longest_name = max(map(len, lowered), default=0)
         # One newline-delimited string makes a plain substring search a single
         # C-level str.find instead of a Python loop over every name.
         self.haystack = "\n".join(lowered)
@@ -58,23 +58,64 @@ def load_location_names() -> None:
     _snapshot()
 
 
-def _like_to_regex(pattern: str) -> re.Pattern:
-    """Translate a LIKE pattern to a regex for fullmatch. Callers pass the
-    whole `%name%` pattern, as the harvester builds it, so a name ending in
-    the escape character escapes the closing `%` just as it does there."""
-    parts = []
-    chars = iter(pattern)
+_ANY_CHAR = None
+
+
+def _like_segments(pattern: str, max_chars: int) -> list[list] | None:
+    """Split a LIKE pattern on its unescaped `%` into segments of characters,
+    with `_` as _ANY_CHAR, or None when it needs more than max_chars characters
+    to match. Callers pass the whole `%name%` pattern, as the harvester builds
+    it, so a name ending in the escape character escapes the closing `%` just
+    as it does there."""
+    segments = [[]]
+    chars_needed = 0
+    chars = iter(pattern.lower())
     for char in chars:
+        if char == "%":
+            if len(segments) == 1 or segments[-1]:
+                segments.append([])
+            continue
         if char == "\\":
-            escaped = next(chars, None)
-            parts.append(re.escape(escaped) if escaped is not None else "")
-        elif char == "%":
-            parts.append(".*")
+            char = next(chars, None)
+            if char is None:
+                break
         elif char == "_":
-            parts.append(".")
-        else:
-            parts.append(re.escape(char))
-    return re.compile("".join(parts), re.IGNORECASE | re.DOTALL)
+            char = _ANY_CHAR
+        segments[-1].append(char)
+        chars_needed += 1
+        if chars_needed > max_chars:
+            return None
+    return segments
+
+
+def _segment_at(name: str, segment: list, position: int) -> bool:
+    if position < 0 or position + len(segment) > len(name):
+        return False
+    return all(
+        char is _ANY_CHAR or name[position + i] == char
+        for i, char in enumerate(segment)
+    )
+
+
+def _like_match(name: str, segments: list[list]) -> bool:
+    """LIKE match without a backtracking regex: with `%` matching any run,
+    taking each middle segment at its leftmost fit is always safe, so this is
+    linear in the name for each segment and can't be made to blow up."""
+    if len(segments) == 1:
+        return len(name) == len(segments[0]) and _segment_at(name, segments[0], 0)
+    first, *middle, last = segments
+    if not _segment_at(name, first, 0):
+        return False
+    position = len(first)
+    for segment in middle:
+        while not _segment_at(name, segment, position):
+            position += 1
+            if position + len(segment) > len(name):
+                return False
+        position += len(segment)
+    return len(name) - len(last) >= position and _segment_at(
+        name, last, len(name) - len(last)
+    )
 
 
 def _substring_matches(snapshot: _Snapshot, needle: str):
@@ -90,19 +131,32 @@ def _substring_matches(snapshot: _Snapshot, needle: str):
         position = snapshot.haystack.find(needle, snapshot.starts[row + 1])
 
 
-def _pattern_matches(snapshot: _Snapshot, pattern: re.Pattern):
-    for row, name in enumerate(snapshot.names):
-        if pattern.fullmatch(name):
+def _pattern_matches(snapshot: _Snapshot, pattern: str):
+    segments = _like_segments(pattern, snapshot.longest_name)
+    if segments is None:
+        return
+    for row, name in enumerate(snapshot.lowered):
+        if _like_match(name, segments):
             yield row
 
 
-@lru_cache(maxsize=4096)
+# Longer names are looked up uncached so submitted text can't pile up in a
+# cache that lives as long as the worker.
+_MAX_CACHED_NAME_CHARS = 256
+
+
 def snapshot_place_lookup(name: str) -> str | None:
     """Return the matching display name when exactly one locations row matches
     `name` the way the harvester's lookup would, else None."""
+    if len(name) > _MAX_CACHED_NAME_CHARS:
+        return _lookup(name)
+    return _cached_lookup(name)
+
+
+def _lookup(name: str) -> str | None:
     snapshot = _snapshot()
     if any(char in name for char in _LIKE_SPECIAL):
-        matches = _pattern_matches(snapshot, _like_to_regex(f"%{name}%"))
+        matches = _pattern_matches(snapshot, f"%{name}%")
     else:
         matches = _substring_matches(snapshot, name.lower())
 
@@ -116,3 +170,6 @@ def snapshot_place_lookup(name: str) -> str | None:
     if matched_row is None or snapshot.in_postal_code_name[matched_row]:
         return None
     return snapshot.names[matched_row]
+
+
+_cached_lookup = lru_cache(maxsize=4096)(_lookup)

@@ -556,12 +556,12 @@ class TestWarnings:
         ]
 
     def test_warning_values_are_bounded(self, validator_client):
-        catalog = {
-            "dataset": [
-                {"identifier": "i" * (MAX_RESULT_IDENTIFIER_CHARS + 1), "spatial": "x"}
-            ]
-        }
-        catalog["dataset"][0]["spatial"] = "m" * (MAX_RESULT_MESSAGE_CHARS + 1)
+        # spatial is only checked on schema-valid records, as at harvest
+        valid = json.loads((EXAMPLE_DIR / "dcatus_validator_parity.json").read_text())
+        dataset = valid["dataset"][0]
+        dataset["identifier"] = "i" * (MAX_RESULT_IDENTIFIER_CHARS + 1)
+        dataset["spatial"] = "m" * (MAX_RESULT_MESSAGE_CHARS + 1)
+        catalog = {"dataset": [dataset]}
 
         body = _post(validator_client, "dcatus1.1: federal dataset", catalog).get_json()
 

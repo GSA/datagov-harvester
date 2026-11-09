@@ -25,6 +25,7 @@ from dcatus_validation.catalog import (
     find_indexes_for_duplicates,
     munge_title_to_name,
     normalize_dataset_identifier,
+    record_identifier,
     split_dcatus3_catalog,
 )
 from dcatus_validation.content_warnings import DcatWarning, detect_dcat_warnings
@@ -89,20 +90,6 @@ logger = logging.getLogger("harvest_runner")
 # harvest worker count
 harvest_worker_sync_count = int(os.getenv("HARVEST_WORKER_SYNC_COUNT", 1))
 
-# DCAT-US 3.0 record types other than "dataset", extended with "schema_ref":
-# the dcatus3.0 definitions root_ref used to build each type's validator. Built
-# from the shared registry (not hand-listed) so a new entry can't forget to wire
-# up validation.
-_SCHEMA_REFS = {
-    "data_service": "dataservice",
-    "catalog_record": "catalogrecord",
-    "data_series": "datasetseries",
-}
-NON_DATASET_RECORD_TYPES = {
-    record_type: {**config, "schema_ref": _SCHEMA_REFS[record_type]}
-    for record_type, config in DCATUS3_NON_DATASET_RECORD_TYPES.items()
-}
-
 # Record types persisted only as a HarvestRecord, no Dataset row. Excludes
 # "data_series" and "data_service" on purpose: see Dataset.type in
 # database/models.py.
@@ -139,8 +126,8 @@ class HarvestSource:
     external_records: dict = field(default_factory=lambda: {}, repr=False)
     # DCAT-US 3.0 record types other than "dataset" (data_service,
     # catalog_record, ...), keyed by record_type. Always empty for other
-    # schema types. See NON_DATASET_RECORD_TYPES for the catalog field and
-    # identifier field backing each record_type.
+    # schema types. See DCATUS3_NON_DATASET_RECORD_TYPES for the catalog
+    # field and identifier field backing each record_type.
     external_records_by_type: dict = field(default_factory=lambda: {}, repr=False)
     # keyed by (identifier, record_type), not identifier alone, so a Dataset
     # and a DataService sharing an identifier don't collide.
@@ -184,7 +171,7 @@ class HarvestSource:
                     root_ref="https://resources.data.gov/dcat-us/3.0.0/definitions/dataset",
                 ),
             }
-            for record_type, config in NON_DATASET_RECORD_TYPES.items():
+            for record_type, config in DCATUS3_NON_DATASET_RECORD_TYPES.items():
                 self._validators[record_type] = build_dcatus3_validator(
                     DCATUS3_DEFINITIONS_DIR,
                     root_ref=(
@@ -391,9 +378,7 @@ class HarvestSource:
         indices = find_indexes_for_duplicates(records, identifier_field)
         for idx in indices:
             try:
-                identifier = normalize_dataset_identifier(
-                    records[idx].get(RESOLVED_IDENTIFIER_KEY)
-                ) or normalize_dataset_identifier(records[idx].get(identifier_field))
+                identifier = record_identifier(records[idx], identifier_field)
                 self.write_duplicate_to_db(identifier, record_type)
             except DuplicateIdentifierException:
                 del records[idx]
@@ -407,7 +392,7 @@ class HarvestSource:
         duplicate from processing.
         """
         self._filter_duplicate_identifiers_from(self.external_records, "dataset")
-        for record_type, config in NON_DATASET_RECORD_TYPES.items():
+        for record_type, config in DCATUS3_NON_DATASET_RECORD_TYPES.items():
             self._filter_duplicate_identifiers_from(
                 self.external_records_by_type.get(record_type, []),
                 record_type,
@@ -516,7 +501,7 @@ class HarvestSource:
             self._filter_records_with_no_identifier(
                 self.external_records_by_type.get("catalog_record", []),
                 "catalog_record",
-                NON_DATASET_RECORD_TYPES["catalog_record"]["identifier_field"],
+                DCATUS3_NON_DATASET_RECORD_TYPES["catalog_record"]["identifier_field"],
             )
         )
 
@@ -533,15 +518,9 @@ class HarvestSource:
             (normalize_dataset_identifier(record.get("identifier")), "dataset")
             for record in self.external_records
         }
-        for record_type, config in NON_DATASET_RECORD_TYPES.items():
+        for record_type, config in DCATUS3_NON_DATASET_RECORD_TYPES.items():
             external_ids |= {
-                (
-                    normalize_dataset_identifier(record.get(RESOLVED_IDENTIFIER_KEY))
-                    or normalize_dataset_identifier(
-                        record.get(config["identifier_field"])
-                    ),
-                    record_type,
-                )
+                (record_identifier(record, config["identifier_field"]), record_type)
                 for record in self.external_records_by_type.get(record_type, [])
             }
         internal_ids = set(self.internal_records.keys())
@@ -627,7 +606,7 @@ class HarvestSource:
                     None,  # there is no record id to associate
                 )
 
-        for record_type, config in NON_DATASET_RECORD_TYPES.items():
+        for record_type, config in DCATUS3_NON_DATASET_RECORD_TYPES.items():
             records = self.external_records_by_type.get(record_type, [])
             identifier_field = config["identifier_field"]
             while len(records) > 0:
