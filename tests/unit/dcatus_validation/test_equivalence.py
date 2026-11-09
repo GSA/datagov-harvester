@@ -357,8 +357,9 @@ def test_the_golden_set_has_valid_and_invalid_catalogs_of_both_versions():
     assert results == {"1.1": {True, False}, "3.0": {True, False}}
 
 
-def test_kill_switch_settings_agree_on_the_whole_golden_set():
-    """Both settings, the whole golden set at once, in one comparison."""
+def test_fast_path_matches_python_alone_on_the_whole_golden_set():
+    """The fast path and Python jsonschema alone, the whole golden set at once,
+    in one comparison."""
     with use_fast_path(True):
         on = [outcome(c, s) for _, s, c in EXAMPLE_CATALOGS]
     with use_fast_path(False):

@@ -1,4 +1,4 @@
-"""The fast path for DCAT-US validation, and the switch that turns it off.
+"""The fast path for DCAT-US validation.
 
 Python jsonschema alone takes tens of seconds on a catalog near
 MAX_UPLOAD_MB (GSA/data.gov#6460). The fast path reaches the same answer
