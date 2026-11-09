@@ -449,6 +449,15 @@ class TestValidatorApiResponses:
                 "<html><body><h1>413 Request Entity Too Large</h1></body></html>",
                 "Submission is too large. Maximum size is 150 MB.",
             ),
+            (
+                503,
+                "application/json",
+                '{"error": "The validator is busy with another large catalog. '
+                'Please try again in a minute."}',
+                "The validator is busy with another large catalog. "
+                "Please try again in a minute.",
+            ),
+            (503, "text/html", "<html>Service Unavailable</html>", UNAVAILABLE),
             (502, "text/html", "<html>Bad Gateway</html>", UNAVAILABLE),
             (500, "application/json", '{"error": "internal detail"}', UNAVAILABLE),
             (200, "application/json", '{"unexpected": "shape"}', UNAVAILABLE),

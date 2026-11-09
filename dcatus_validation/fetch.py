@@ -460,7 +460,9 @@ def _validate_fetch_target(url: str) -> list[str]:
     return addresses
 
 
-def fetch_json_from_url(url: str) -> dict:
+def fetch_json_from_url(url: str, before_parse=None) -> dict:
+    """Fetch and parse the catalog at `url`. before_parse(size), if given, is
+    called with the document's size once it's downloaded, before parsing."""
     # DNS validation is part of the fetch, so time spent resolving the
     # submitted hostname counts against the same deadline as the request.
     deadline = time.monotonic() + FETCH_TIMEOUT_SECONDS
@@ -615,6 +617,9 @@ def fetch_json_from_url(url: str) -> dict:
 
     if len(content) > MAX_UPLOAD_BYTES:
         raise InvalidCatalogSource(PAYLOAD_TOO_LARGE_MESSAGE)
+
+    if before_parse is not None:
+        before_parse(len(content))
 
     try:
         return parse_json_document(content)

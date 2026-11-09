@@ -45,12 +45,13 @@ All limits are in `dcatus_validation/limits.py` unless noted.
 | Fetch time | 12s total, including DNS and every redirect hop | `FETCH_TIMEOUT_SECONDS` in `fetch.py`. Each connect attempt is capped at 4s, with up to 3 attempts. The socket timeout shrinks before every body read so a late stall can't extend it. |
 | JSON nesting | 100 levels (`MAX_DOCUMENT_NESTING_DEPTH`) | A walk after parsing (`validate._check_catalog_nesting`) refuses anything deeper before validation starts. On Python 3.14 `json.loads` parses deep documents without exhausting the stack (about 47,000 levels in a gunicorn worker thread on Linux) and raises `RecursionError` beyond that, which is refused the same way. |
 | JSON numbers | finite only | `NaN`/`Infinity` and integers too large to parse are refused. |
+| Large documents at once | 1 per instance over 50MB (`LARGE_DOCUMENT_BYTES`) | A file lock in `validator_api/api.py`, shared by the instance's gunicorn workers, held while the document is parsed and validated. Another large one gets a JSON 503 with `Retry-After: 60`. |
 | Validation errors returned | 1000, with `validation_incomplete: true` | `MAX_VALIDATION_ERRORS`. This stops a small document from expanding into millions of errors. |
 | Result text | identifiers 1000 chars, messages 4000 | Truncated in `validator_api/api.py`. |
 
 The document limit was raised from 10MB to 150MB in GSA/data.gov#6460. That covers nearly every agency catalog without sizing the service for the largest outlier, a ~600MB Census file. What it costs:
 
-- **Memory.** On Linux, a worker validating a 150MB catalog peaks near 1GB, most of it the parsed catalog as Python objects (measured at 100MB, 616MB for ASCII text and 721MB otherwise, and extrapolated to 150MB). A worker drops back to ~200MB afterwards. So the 2G `validator_memory_quota` (3 workers per instance) fits one 150MB submission at a time, ~1.4GB in total, but not two at once. Cloud Foundry restarts an instance that goes over its quota.
+- **Memory.** On Linux, a worker validating a 150MB catalog peaks near 1GB, most of it the parsed catalog as Python objects (measured at 100MB, 616MB for ASCII text and 721MB otherwise, and extrapolated to 150MB). A worker drops back to ~200MB afterwards. So the 2G `validator_memory_quota` (3 workers per instance) fits one 150MB submission at a time, ~1.4GB in total, but not two, which is why documents over 50MB are validated one at a time per instance (see the table). Cloud Foundry restarts an instance that goes over its quota.
 - **Time.** Parsing and validating a 150MB catalog takes ~2s (see "Fast path" below), well inside CloudFront's 30s limit, which doesn't count the upload. A URL submission still has to download within the 12s fetch budget, which for 150MB takes a server sending ~100Mbps.
 
 Changing `MAX_UPLOAD_MB` means rechecking both of these, and keeping `client_max_body_size` in `proxy/nginx-common.conf` above `MAX_REQUEST_BYTES`.

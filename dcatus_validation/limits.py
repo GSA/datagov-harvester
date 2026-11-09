@@ -6,6 +6,12 @@
 MAX_UPLOAD_MB = 150
 MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024
 
+# Documents bigger than this are parsed and validated one at a time per
+# instance: a 150MB one peaks near 1GB, so two at once could exceed
+# validator_memory_quota and get the instance restarted. Another one gets a
+# 503 while one runs (validator_api.api).
+LARGE_DOCUMENT_BYTES = 50 * 1024 * 1024
+
 # A small document containing many invalid datasets can expand into millions of
 # validation errors. The public API stops before that amplification can exhaust
 # a worker; direct/offline callers of validate_records remain uncapped.

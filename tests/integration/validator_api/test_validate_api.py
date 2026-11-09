@@ -1377,3 +1377,108 @@ def test_a_document_body_is_held_once_while_it_is_parsed(
     )
 
     assert alive < 1.3 * len(body), (alive, len(body))
+
+
+# One document over LARGE_DOCUMENT_BYTES at a time per instance
+# (GSA/data.gov#6460): two at once could exceed validator_memory_quota.
+
+LARGE = 1024  # stands in for LARGE_DOCUMENT_BYTES
+BUSY = {
+    "error": "The validator is busy with another large catalog. "
+    "Please try again in a minute."
+}
+
+
+@pytest.fixture
+def large_document_lock(monkeypatch, tmp_path):
+    monkeypatch.setattr("validator_api.api.LARGE_DOCUMENT_BYTES", LARGE)
+    path = tmp_path / "large-document.lock"
+    monkeypatch.setattr("validator_api.api.LARGE_DOCUMENT_LOCK_PATH", str(path))
+    return path
+
+
+class TestOneLargeDocumentAtATime:
+    def test_a_second_large_document_is_turned_away_while_one_runs(
+        self, validator_app, large_document_lock, monkeypatch
+    ):
+        import validator_api.api as api_module
+
+        started, release, calls = threading.Event(), threading.Event(), []
+        validate = api_module.validate_records_limited
+
+        def first_call_waits(*args, **kwargs):
+            calls.append(1)
+            if len(calls) == 1:
+                started.set()
+                release.wait(10)
+            return validate(*args, **kwargs)
+
+        monkeypatch.setattr(
+            "validator_api.api.validate_records_limited", first_call_waits
+        )
+        large = _paste_body(_document_of_size(LARGE + 1))
+        small = _paste_body(_document_of_size(LARGE))
+        first = {}
+
+        def submit_first():
+            res = validator_app.test_client().post(
+                URL, data=large, content_type="application/json"
+            )
+            first["result"] = (res.status_code, res.get_json())
+
+        thread = threading.Thread(target=submit_first)
+        thread.start()
+        assert started.wait(10)
+        client = validator_app.test_client()
+        busy = client.post(URL, data=large, content_type="application/json")
+        allowed = client.post(URL, data=small, content_type="application/json")
+        release.set()
+        thread.join(10)
+        after = client.post(URL, data=large, content_type="application/json")
+
+        assert (busy.status_code, busy.get_json()) == (503, BUSY)
+        assert busy.headers["Retry-After"] == "60"
+        assert (allowed.status_code, allowed.get_json()) == (
+            200,
+            {"validation_errors": []},
+        )
+        assert first["result"] == (200, {"validation_errors": []})
+        assert after.status_code == 200
+
+    def test_every_way_in_takes_the_slot(
+        self, validator_client, large_document_lock, monkeypatch
+    ):
+        """With the slot held (here by another open file, as another gunicorn
+        worker would hold it), a large paste, body or URL fetch gets the 503;
+        a small one doesn't."""
+        import fcntl
+
+        document = _document_of_size(LARGE + 1)
+        monkeypatch.setattr(
+            "dcatus_validation.fetch._pinned_get",
+            Mock(side_effect=lambda *a, **k: _json_response(document)),
+        )
+        query = urlencode({"schema": FEDERAL, "fetch_method": "paste"})
+        url_body = {"schema": FEDERAL, "fetch_method": "url"}
+        url_body["url"] = "https://example.com/data.json"
+
+        with open(large_document_lock, "a") as held:
+            fcntl.flock(held, fcntl.LOCK_EX)
+            results = [
+                validator_client.post(
+                    URL, data=_paste_body(document), content_type="application/json"
+                ),
+                validator_client.post(f"{URL}/document?{query}", data=document),
+                validator_client.post(
+                    f"{URL}/document?schema={FEDERAL}", data=document.encode()
+                ),
+                validator_client.post(URL, json=url_body),
+            ]
+            small = validator_client.post(
+                URL,
+                data=_paste_body(_document_of_size(LARGE)),
+                content_type="application/json",
+            )
+
+        assert [(r.status_code, r.get_json()) for r in results] == [(503, BUSY)] * 4
+        assert small.status_code == 200
