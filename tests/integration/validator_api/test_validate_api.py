@@ -1,6 +1,5 @@
 import itertools
 import json
-from pathlib import Path
 from unittest.mock import Mock
 
 import pytest
@@ -23,9 +22,11 @@ from dcatus_validation.limits import (
     MAX_VALIDATION_ERRORS,
     MAX_VALIDATION_WARNINGS,
 )
+from tests.conftest import EXAMPLE_DATA
 from validator_api import create_app
 
 URL = "/api/v1/validate"
+ONE_SCHEMA_ERROR = [{"severity": "error", "type": "ValidationException", "count": 1}]
 
 
 def _json_response(body: str):
@@ -73,6 +74,7 @@ class TestValidate:
                 ]
             ],
             "validation_warnings": [],
+            "issue_summary": ONE_SCHEMA_ERROR,
         }
 
     def test_url(self, validator_client, monkeypatch, dcatus_no_identifier_json):
@@ -93,6 +95,7 @@ class TestValidate:
         assert res.get_json() == {
             "validation_errors": [[0, "$, 'identifier' is a required property"]],
             "validation_warnings": [],
+            "issue_summary": ONE_SCHEMA_ERROR,
         }
         assert get.call_args.args[0] == "https://example.com/data.json"
 
@@ -135,6 +138,7 @@ class TestValidate:
                 ["", "$.dataset[0], 'identifier' is a required property"]
             ],
             "validation_warnings": [],
+            "issue_summary": ONE_SCHEMA_ERROR,
         }
 
     def test_valid_catalog_has_no_errors(self, validator_client):
@@ -148,7 +152,11 @@ class TestValidate:
         )
 
         assert res.status_code == 200
-        assert res.get_json() == {"validation_errors": [], "validation_warnings": []}
+        assert res.get_json() == {
+            "validation_errors": [],
+            "validation_warnings": [],
+            "issue_summary": [],
+        }
 
     def test_unversioned_path_redirects_to_latest(self, validator_client):
         res = validator_client.post("/api/validate", json={})
@@ -274,6 +282,7 @@ class TestRequestValidation:
         assert res.get_json() == {
             "validation_errors": [["", "$, 'dataset' is a required property"]],
             "validation_warnings": [],
+            "issue_summary": ONE_SCHEMA_ERROR,
         }
 
     def test_url_credentials_are_refused(self, validator_client):
@@ -327,7 +336,11 @@ class TestLimits:
         res = validator_client.post(URL, data=body, content_type="application/json")
 
         assert res.status_code == 200
-        assert res.get_json() == {"validation_errors": [], "validation_warnings": []}
+        assert res.get_json() == {
+            "validation_errors": [],
+            "validation_warnings": [],
+            "issue_summary": [],
+        }
 
     def test_pasted_document_over_the_limit_is_refused(self, validator_client):
         res = validator_client.post(
@@ -437,7 +450,7 @@ class TestLimits:
         assert len(message) == MAX_RESULT_MESSAGE_CHARS
 
 
-EXAMPLE_DIR = Path(__file__).resolve().parents[3] / "example_data" / "dcatus"
+EXAMPLE_DIR = EXAMPLE_DATA / "dcatus"
 
 
 def _post(client, schema, catalog):
@@ -494,6 +507,39 @@ class TestWarnings:
             ("unknown-place", "dataset", "SpatialTransformationException"),
         ]
         assert "warnings_incomplete" not in body
+        assert body["issue_summary"] == [
+            {"severity": "error", "type": "DuplicateIdentifierException", "count": 2},
+            {
+                "severity": "warning",
+                "type": "SpatialTransformationException",
+                "count": 2,
+            },
+            {"severity": "warning", "type": "legacy_access_rights", "count": 1},
+            {"severity": "warning", "type": "unresolvable_spatial_value", "count": 1},
+        ]
+
+    def test_issue_summary_counts_schema_errors_and_duplicates_separately(
+        self, validator_client
+    ):
+        catalog = {"dataset": [_legacy_dataset("a"), _legacy_dataset("a"), {}]}
+
+        body = _post(validator_client, "dcatus1.1: federal dataset", catalog).get_json()
+
+        schema_errors = [
+            e for e in body["validation_errors"] if "Duplicate" not in e[1]
+        ]
+        assert body["issue_summary"] == [
+            {
+                "severity": "error",
+                "type": "DuplicateIdentifierException",
+                "count": 1,
+            },
+            {
+                "severity": "error",
+                "type": "ValidationException",
+                "count": len(schema_errors),
+            },
+        ]
 
     def test_dcatus1_1_spatial_warning_and_duplicate(self, validator_client):
         res = _post(
@@ -513,6 +559,7 @@ class TestWarnings:
                 "record_type": "dataset",
                 "warning_type": "SpatialTransformationException",
                 "message": "unable to spatially fix Nowhere In Particular",
+                "title": "Parity parity-1-1-b",
             }
         ]
 
@@ -561,6 +608,7 @@ class TestWarnings:
         dataset = valid["dataset"][0]
         dataset["identifier"] = "i" * (MAX_RESULT_IDENTIFIER_CHARS + 1)
         dataset["spatial"] = "m" * (MAX_RESULT_MESSAGE_CHARS + 1)
+        dataset["title"] = "t" * (MAX_RESULT_IDENTIFIER_CHARS + 1)
         catalog = {"dataset": [dataset]}
 
         body = _post(validator_client, "dcatus1.1: federal dataset", catalog).get_json()
@@ -569,6 +617,7 @@ class TestWarnings:
         assert len(warning["identifier"]) == MAX_RESULT_IDENTIFIER_CHARS
         assert len(warning["message"]) == MAX_RESULT_MESSAGE_CHARS
         assert warning["message"].endswith("... [truncated]")
+        assert len(warning["title"]) == MAX_RESULT_IDENTIFIER_CHARS
 
     @pytest.mark.parametrize(
         "malformed",

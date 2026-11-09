@@ -1,6 +1,6 @@
 import marshmallow
 from apiflask import Schema, validators
-from apiflask.fields import URL, Boolean, List, Nested, Raw, String
+from apiflask.fields import URL, Boolean, Integer, List, Nested, Raw, String
 from marshmallow import ValidationError, validate
 
 from dcatus_validation.fetch import ALLOW_PRIVATE_ADDRESSES
@@ -72,6 +72,29 @@ class ValidationWarningSchema(Schema):
         },
     )
     message = String(required=True)
+    title = String(
+        required=True,
+        allow_none=True,
+        metadata={"description": "The record's title, or null when it has none."},
+    )
+
+
+class IssueSummaryRowSchema(Schema):
+    severity = String(
+        required=True,
+        validate=validate.OneOf(["error", "warning"]),
+    )
+    type = String(
+        required=True,
+        metadata={
+            "description": (
+                "The issue type a harvest records: ValidationException for schema "
+                "errors, DuplicateIdentifierException for duplicate identifiers, "
+                "or a warning's warning_type."
+            )
+        },
+    )
+    count = Integer(required=True)
 
 
 class ValidationResultSchema(Schema):
@@ -100,6 +123,17 @@ class ValidationResultSchema(Schema):
             "description": (
                 "Content-quality issues a harvest would report. Warnings never "
                 "make a catalog invalid."
+            )
+        },
+    )
+    issue_summary = List(
+        Nested(IssueSummaryRowSchema),
+        required=True,
+        metadata={
+            "description": (
+                "Count of returned errors and warnings by severity and type, "
+                "ordered by severity then type, like a harvest job's record issue "
+                "summary."
             )
         },
     )

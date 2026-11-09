@@ -9,10 +9,15 @@ states, countries) with its row count, and a flag for names that also appear
 inside a postal-code name. Postal-code rows themselves are left out because
 each has at least two rows, so they only ever make a match ambiguous.
 
-Known gap: a query that matches one kept name but is also part of a postal-code
-name without being that whole name (e.g. "Abbeville", which is both
-"Abbeville County, South Carolina" and "Abbeville, AL (36310)") resolves here
-but not at harvest.
+Known gaps:
+- A query that matches one kept name but is also part of a postal-code name
+  without being that whole name (e.g. "Abbeville", which is both
+  "Abbeville County, South Carolina" and "Abbeville, AL (36310)") resolves here
+  but not at harvest.
+- `%`, `_` and `\\` are matched as plain characters, not as ILIKE wildcards. A
+  wildcard match scans every name instead of one substring search, and a
+  submitter can make each name unique to dodge the cache, so honoring them let
+  one document run for many minutes. Real place names don't contain them.
 
 It answers whether a name resolves, not with what geometry: the validator only
 reports warnings. Regenerate the CSV with `scripts/refresh_location_names.py`.
@@ -27,16 +32,13 @@ LOCATION_NAMES_PATH = (
     Path(__file__).resolve().parent / "reference_data" / "location_names.csv"
 )
 
-_LIKE_SPECIAL = ("%", "_", "\\")
-
 
 class _Snapshot:
     def __init__(self, rows: list[dict]):
         self.names = [row["display_name"] for row in rows]
         self.row_counts = [int(row["row_count"]) for row in rows]
         self.in_postal_code_name = [row["in_postal_code_name"] == "1" for row in rows]
-        self.lowered = lowered = [name.lower() for name in self.names]
-        self.longest_name = max(map(len, lowered), default=0)
+        lowered = [name.lower() for name in self.names]
         # One newline-delimited string makes a plain substring search a single
         # C-level str.find instead of a Python loop over every name.
         self.haystack = "\n".join(lowered)
@@ -58,66 +60,6 @@ def load_location_names() -> None:
     _snapshot()
 
 
-_ANY_CHAR = None
-
-
-def _like_segments(pattern: str, max_chars: int) -> list[list] | None:
-    """Split a LIKE pattern on its unescaped `%` into segments of characters,
-    with `_` as _ANY_CHAR, or None when it needs more than max_chars characters
-    to match. Callers pass the whole `%name%` pattern, as the harvester builds
-    it, so a name ending in the escape character escapes the closing `%` just
-    as it does there."""
-    segments = [[]]
-    chars_needed = 0
-    chars = iter(pattern.lower())
-    for char in chars:
-        if char == "%":
-            if len(segments) == 1 or segments[-1]:
-                segments.append([])
-            continue
-        if char == "\\":
-            char = next(chars, None)
-            if char is None:
-                break
-        elif char == "_":
-            char = _ANY_CHAR
-        segments[-1].append(char)
-        chars_needed += 1
-        if chars_needed > max_chars:
-            return None
-    return segments
-
-
-def _segment_at(name: str, segment: list, position: int) -> bool:
-    if position < 0 or position + len(segment) > len(name):
-        return False
-    return all(
-        char is _ANY_CHAR or name[position + i] == char
-        for i, char in enumerate(segment)
-    )
-
-
-def _like_match(name: str, segments: list[list]) -> bool:
-    """LIKE match without a backtracking regex: with `%` matching any run,
-    taking each middle segment at its leftmost fit is always safe, so this is
-    linear in the name for each segment and can't be made to blow up."""
-    if len(segments) == 1:
-        return len(name) == len(segments[0]) and _segment_at(name, segments[0], 0)
-    first, *middle, last = segments
-    if not _segment_at(name, first, 0):
-        return False
-    position = len(first)
-    for segment in middle:
-        while not _segment_at(name, segment, position):
-            position += 1
-            if position + len(segment) > len(name):
-                return False
-        position += len(segment)
-    return len(name) - len(last) >= position and _segment_at(
-        name, last, len(name) - len(last)
-    )
-
-
 def _substring_matches(snapshot: _Snapshot, needle: str):
     """Yield each row whose name contains needle, once per row."""
     if "\n" in needle:
@@ -129,15 +71,6 @@ def _substring_matches(snapshot: _Snapshot, needle: str):
         if row + 1 >= len(snapshot.starts):
             return
         position = snapshot.haystack.find(needle, snapshot.starts[row + 1])
-
-
-def _pattern_matches(snapshot: _Snapshot, pattern: str):
-    segments = _like_segments(pattern, snapshot.longest_name)
-    if segments is None:
-        return
-    for row, name in enumerate(snapshot.lowered):
-        if _like_match(name, segments):
-            yield row
 
 
 # Longer names are looked up uncached so submitted text can't pile up in a
@@ -155,10 +88,7 @@ def snapshot_place_lookup(name: str) -> str | None:
 
 def _lookup(name: str) -> str | None:
     snapshot = _snapshot()
-    if any(char in name for char in _LIKE_SPECIAL):
-        matches = _pattern_matches(snapshot, f"%{name}%")
-    else:
-        matches = _substring_matches(snapshot, name.lower())
+    matches = _substring_matches(snapshot, name.lower())
 
     matched_row = None
     total_rows = 0

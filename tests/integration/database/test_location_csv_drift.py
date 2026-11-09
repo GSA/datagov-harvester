@@ -53,10 +53,6 @@ QUERIES = [
     "Georgia",
     "Nowhere",
     "",
-    "Fair_ax",
-    "Fair%Virginia",
-    "100\\%",
-    "100%",
     "Islands",
 ]
 
@@ -111,3 +107,20 @@ def test_known_gap_city_name_inside_a_postal_code_name(interface, csv_lookup):
     # gap is closed; update the docs that describe it.
     assert interface.get_geo_from_string("Abbeville") is None
     assert csv_lookup("Abbeville") == "Abbeville County, South Carolina"
+
+
+def test_known_gap_like_wildcards_are_literal(interface, csv_lookup):
+    # Documented in dcatus_validation/places.py: the database treats %, _ and \
+    # as ILIKE wildcards/escape, the CSV lookup matches them as plain characters.
+    assert interface.get_geo_from_string("Fair_ax") is not None
+    assert csv_lookup("Fair_ax") is None
+
+    assert interface.get_geo_from_string("Fair%Virginia") is not None
+    assert csv_lookup("Fair%Virginia") is None
+
+    assert interface.get_geo_from_string("100\\%") is not None
+    assert csv_lookup("100\\%") is None
+
+    # "%100%%" also matches "1000 Islands"; the literal "100%" does not
+    assert interface.get_geo_from_string("100%") is None
+    assert csv_lookup("100%") == "100% Island"

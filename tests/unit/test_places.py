@@ -58,23 +58,23 @@ class TestSnapshotPlaceLookup:
 
         assert places.snapshot_place_lookup("Nowhere") is None
 
-    def test_like_wildcards_match_as_in_postgres(self, snapshot):
+    def test_like_wildcards_are_plain_characters(self, snapshot):
+        # unlike the harvester's ILIKE; see the places.py docstring
         snapshot(["Ohio", "Utah"])
 
-        assert places.snapshot_place_lookup("O_io") == "Ohio"
-        assert places.snapshot_place_lookup("U%h") == "Utah"
-        assert places.snapshot_place_lookup("%") is None
+        assert places.snapshot_place_lookup("O_io") is None
+        assert places.snapshot_place_lookup("U%h") is None
 
-    def test_escaped_wildcard_is_literal(self, snapshot):
+    def test_percent_matches_only_a_literal_percent(self, snapshot):
         snapshot(["100% County", "1000 County"])
 
-        assert places.snapshot_place_lookup("100\\%") == "100% County"
+        assert places.snapshot_place_lookup("100%") == "100% County"
+        assert places.snapshot_place_lookup("100\\%") is None
 
-    def test_trailing_escape_escapes_the_closing_wildcard(self, snapshot):
-        # the harvester builds f"%{name}%", so "Ohio\\" means "ends in Ohio%"
-        snapshot(["Ohio", "x Ohio%", "Ohio% y"])
+    def test_backslash_is_a_plain_character(self, snapshot):
+        snapshot(["Ohio", "x Ohio\\", "x Ohio%"])
 
-        assert places.snapshot_place_lookup("Ohio\\") == "x Ohio%"
+        assert places.snapshot_place_lookup("Ohio\\") == "x Ohio\\"
 
     def test_name_inside_a_postal_code_name_does_not_resolve(self, snapshot):
         # "Angola" is also inside "Angola, IN (46703)", whose rows were left out
@@ -100,7 +100,7 @@ def test_bundled_snapshot_loads_and_resolves_a_unique_name():
     "label",
     ["%%%%%%%%\x01", "%_" * 50 + "\x01", "%" * 1_000_000, "a%" * 1_000_000],
 )
-def test_wildcard_heavy_labels_return_quickly(snapshot, label):
+def test_wildcard_and_long_labels_return_quickly(snapshot, label):
     snapshot(["Ohio", "Utah", "Abbeville County, South Carolina"])
 
     start = time.monotonic()

@@ -124,6 +124,8 @@
 <script nonce="{{ csp_nonce() }}">
     window.MAX_UPLOAD_BYTES = {{ max_upload_bytes }};
     window.MAX_UPLOAD_LABEL = "{{ max_upload_mb }} MB";
+    window.MAX_VALIDATION_ERRORS = {{ max_validation_errors }};
+    window.MAX_VALIDATION_WARNINGS = {{ max_validation_warnings }};
 </script>
 
 {% endblock %}

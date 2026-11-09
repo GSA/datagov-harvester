@@ -20,6 +20,8 @@ sys.path.insert(1, "/".join(os.path.realpath(__file__).split("/")[0:-2]))
 from database.models import HarvestSource as HarvestSourceORM
 from dcatus_validation.catalog import (
     DCATUS3_NON_DATASET_RECORD_TYPES,
+    IDENTIFIER_REQUIRED_RECORD_TYPES,
+    RECORD_TYPES_WITHOUT_DATASET_ROW,
     RESOLVED_IDENTIFIER_KEY,
     describe_identifier_error,
     find_indexes_for_duplicates,
@@ -28,19 +30,23 @@ from dcatus_validation.catalog import (
     record_identifier,
     split_dcatus3_catalog,
 )
+from dcatus_validation.catalog_issues import (
+    VALIDATION_ERROR_TYPE,
+    duplicate_identifier_message,
+    spatial_transformation_message,
+)
 from dcatus_validation.content_warnings import DcatWarning, detect_dcat_warnings
 from dcatus_validation.fetch import USER_AGENT
 from dcatus_validation.messages import (
     assemble_validation_errors,
-    build_dcatus3_validator,
     open_json,
 )
 from dcatus_validation.schema_paths import (
     DCATUS1_1_DIR,
     DCATUS3_DATASET_SCHEMA,
-    DCATUS3_DEFINITIONS_DIR,
 )
 from dcatus_validation.spatial import munge_spatial, translate_spatial_to_geojson
+from dcatus_validation.validate import record_validator
 
 # ruff: noqa: E402
 from harvester import CATALOG_BASE_URL, SMTP_CONFIG, HarvesterDBInterface, db_interface
@@ -87,13 +93,16 @@ from harvester.utils.reharvest_links import create_reharvest_url
 # logging data
 logger = logging.getLogger("harvest_runner")
 
+# Harvest source schema_type -> the public validator's schema name, so
+# validator_for returns the same cached validators (record_validator).
+VALIDATOR_SCHEMA_NAMES = {
+    "dcatus1.1: federal": "dcatus1.1: federal dataset",
+    "dcatus1.1: non-federal": "dcatus1.1: non-federal dataset",
+    "dcatus3.0": "dcatus3.0 catalog",
+}
+
 # harvest worker count
 harvest_worker_sync_count = int(os.getenv("HARVEST_WORKER_SYNC_COUNT", 1))
-
-# Record types persisted only as a HarvestRecord, no Dataset row. Excludes
-# "data_series" and "data_service" on purpose: see Dataset.type in
-# database/models.py.
-RECORD_TYPES_WITHOUT_DATASET_ROW = {"catalog_record"}
 
 
 @dataclass
@@ -161,24 +170,17 @@ class HarvestSource:
             raise Exception
 
         self.dataset_schema = open_json(self.schema_file)
-        if self.schema_type == "dcatus3.0":
-            # validate one record at a time against the dcatus3.0 schema
-            # matching its record_type, which plugs into the same per-record
-            # validation flow as dcatus1.1.
+        if self.schema_type in VALIDATOR_SCHEMA_NAMES:
+            # validate one record at a time against the schema matching its
+            # record_type, with the same validators the public validator uses.
+            record_types = ["dataset"]
+            if self.schema_type == "dcatus3.0":
+                record_types += list(DCATUS3_NON_DATASET_RECORD_TYPES)
+            schema_name = VALIDATOR_SCHEMA_NAMES[self.schema_type]
             self._validators = {
-                "dataset": build_dcatus3_validator(
-                    DCATUS3_DEFINITIONS_DIR,
-                    root_ref="https://resources.data.gov/dcat-us/3.0.0/definitions/dataset",
-                ),
+                record_type: record_validator(schema_name, record_type)
+                for record_type in record_types
             }
-            for record_type, config in DCATUS3_NON_DATASET_RECORD_TYPES.items():
-                self._validators[record_type] = build_dcatus3_validator(
-                    DCATUS3_DEFINITIONS_DIR,
-                    root_ref=(
-                        "https://resources.data.gov/dcat-us/3.0.0/definitions/"
-                        f"{config['schema_ref']}"
-                    ),
-                )
         else:
             self._validators = {
                 "dataset": Draft202012Validator(
@@ -360,7 +362,7 @@ class HarvestSource:
         harvest_record_id = new_record.id if new_record else None
 
         raise DuplicateIdentifierException(
-            f"Duplicate identifier '{identifier}' found for source: {self.name}",
+            f"{duplicate_identifier_message(identifier)} for source: {self.name}",
             self.job_id,
             harvest_record_id,
         )
@@ -497,13 +499,14 @@ class HarvestSource:
         self.external_records = self._filter_records_with_no_identifier(
             self.external_records, "dataset"
         )
-        self.external_records_by_type["catalog_record"] = (
-            self._filter_records_with_no_identifier(
-                self.external_records_by_type.get("catalog_record", []),
-                "catalog_record",
-                DCATUS3_NON_DATASET_RECORD_TYPES["catalog_record"]["identifier_field"],
+        for record_type in IDENTIFIER_REQUIRED_RECORD_TYPES - {"dataset"}:
+            self.external_records_by_type[record_type] = (
+                self._filter_records_with_no_identifier(
+                    self.external_records_by_type.get(record_type, []),
+                    record_type,
+                    DCATUS3_NON_DATASET_RECORD_TYPES[record_type]["identifier_field"],
+                )
             )
-        )
 
     def determine_internal_deletions(self) -> None:
         """
@@ -1377,7 +1380,7 @@ class Record:
         e_msg = re.sub(r"\\+", r"\\", repr(e))
 
         error_type = (
-            "ValidationException"
+            VALIDATION_ERROR_TYPE
             if isinstance(e, ValidationError)
             else e.__class__.__name__
         )
@@ -1517,7 +1520,7 @@ class Record:
         try:
             if metadata.get("spatial") and translated_spatial is None:
                 raise SpatialTransformationException(
-                    f"unable to spatially fix {metadata.get('spatial')}",
+                    spatial_transformation_message(metadata.get("spatial")),
                     self.harvest_source.job_id,
                     self.id,
                     is_error=False,

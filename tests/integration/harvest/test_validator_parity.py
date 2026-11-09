@@ -4,58 +4,34 @@ reports beyond schema errors: duplicate identifiers and warnings
 this covers the record pipeline; the CSV place lookup is tested separately."""
 
 import json
-import uuid
-from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 
-from dcatus_validation.catalog_issues import find_catalog_issues
-from harvester.harvest import harvest_job_starter
-from tests.conftest import HARVEST_SOURCE_URL
-
-EXAMPLE_DIR = Path(__file__).resolve().parents[3] / "example_data" / "dcatus"
-
-CASES = [
-    ("dcatus3_0_validator_parity.json", "dcatus3.0", "dcatus3.0 catalog"),
-    (
-        "dcatus_validator_parity.json",
-        "dcatus1.1: federal",
-        "dcatus1.1: federal dataset",
-    ),
-    ("dcatus3_0_warning.json", "dcatus3.0", "dcatus3.0 catalog"),
-    (
-        "dcatus_spatial_no_translate.json",
-        "dcatus1.1: federal",
-        "dcatus1.1: federal dataset",
-    ),
-]
+from dcatus_validation.catalog_issues import (
+    DUPLICATE_IDENTIFIER_TYPE,
+    find_catalog_issues,
+)
+from harvester.harvest import VALIDATOR_SCHEMA_NAMES, harvest_job_starter
+from tests.conftest import EXAMPLE_DATA
 
 
-@pytest.mark.parametrize("filename, source_schema, validator_schema", CASES)
+@pytest.mark.parametrize(
+    "source_fixture",
+    [
+        "source_data_dcatus3_0_validator_parity",
+        "source_data_dcatus_validator_parity",
+        "source_data_dcatus3_0_warning",
+        "source_data_dcatus_cant_translate_spatial",
+    ],
+)
 @patch("harvester.harvest.HarvestSource.send_notification_emails")
 def test_validator_reports_what_harvest_reports(
-    _send_notification_emails,
-    interface,
-    organization_data,
-    filename,
-    source_schema,
-    validator_schema,
+    _send_notification_emails, request, interface, organization_data, source_fixture
 ):
+    source_data = request.getfixturevalue(source_fixture)
     interface.add_organization(organization_data)
-    source = interface.add_harvest_source(
-        {
-            "id": str(uuid.uuid4()),
-            "name": f"Parity {filename}",
-            "notification_emails": ["email@example.com"],
-            "organization_id": organization_data["id"],
-            "frequency": "daily",
-            "url": f"{HARVEST_SOURCE_URL}/dcatus/{filename}",
-            "schema_type": source_schema,
-            "source_type": "document",
-            "notification_frequency": "always",
-        }
-    )
+    source = interface.add_harvest_source(source_data)
     job = interface.add_harvest_job({"status": "new", "harvest_source_id": source.id})
 
     harvest_job_starter(job.id, "harvest")
@@ -64,7 +40,7 @@ def test_validator_reports_what_harvest_reports(
     harvest_duplicates = sorted(
         identifier
         for error, identifier, _ in harvested
-        if error.type == "DuplicateIdentifierException"
+        if error.type == DUPLICATE_IDENTIFIER_TYPE
     )
     harvest_warnings = sorted(
         (identifier, error.type, error.message)
@@ -75,9 +51,12 @@ def test_validator_reports_what_harvest_reports(
     # every case is authored to produce issues, so equality below isn't vacuous
     assert harvest_duplicates or harvest_warnings
 
-    catalog = json.loads((EXAMPLE_DIR / filename).read_text())
+    filename = source_data["url"].rsplit("/", 1)[-1]
+    catalog = json.loads((EXAMPLE_DATA / "dcatus" / filename).read_text())
     duplicate_errors, warnings, incomplete = find_catalog_issues(
-        catalog, validator_schema, place_lookup=interface.get_geo_from_string
+        catalog,
+        VALIDATOR_SCHEMA_NAMES[source_data["schema_type"]],
+        place_lookup=interface.get_geo_from_string,
     )
 
     assert not incomplete

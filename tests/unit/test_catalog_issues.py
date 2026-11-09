@@ -1,20 +1,16 @@
-import copy
-
 from dcatus_validation.catalog_issues import (
+    DUPLICATE_IDENTIFIER_TYPE,
     SPATIAL_TRANSFORMATION_TYPE,
+    VALIDATION_ERROR_TYPE,
+    CatalogWarning,
     find_catalog_issues,
+    summarize_issues,
 )
 from dcatus_validation.messages import open_json
-from dcatus_validation.schema_paths import DCATUS3_COMPLETE_EXAMPLE
+from tests.conftest import EXAMPLE_DATA
+from tests.conftest import dcatus3_complete_example as _dataset
 
 DCATUS3 = "dcatus3.0 catalog"
-BASE_DATASET = open_json(DCATUS3_COMPLETE_EXAMPLE)
-
-
-def _dataset(**changes) -> dict:
-    record = copy.deepcopy(BASE_DATASET)
-    record.update(changes)
-    return {k: v for k, v in record.items() if v is not None}
 
 
 def _spatial_warnings(warnings) -> list:
@@ -62,9 +58,9 @@ def test_unresolvable_spatial_does_not_warn_on_an_invalid_dataset():
 
 
 def test_unresolvable_spatial_warns_on_a_valid_dcatus1_1_dataset():
-    dataset = open_json("example_data/dcatus/dcatus_validator_parity.json")["dataset"][
-        0
-    ]
+    dataset = open_json(EXAMPLE_DATA / "dcatus" / "dcatus_validator_parity.json")[
+        "dataset"
+    ][0]
     dataset = {**dataset, "spatial": "not a place"}
 
     _, warnings, _ = find_catalog_issues(
@@ -74,3 +70,33 @@ def test_unresolvable_spatial_warns_on_a_valid_dcatus1_1_dataset():
     )
 
     assert len(_spatial_warnings(warnings)) == 1
+
+
+def test_issue_types_are_the_harvester_exception_names():
+    # dcatus_validation can't import the harvester, so pin the names here
+    from harvester.exceptions import (
+        DuplicateIdentifierException,
+        SpatialTransformationException,
+    )
+
+    assert DUPLICATE_IDENTIFIER_TYPE == DuplicateIdentifierException.__name__
+    assert SPATIAL_TRANSFORMATION_TYPE == SpatialTransformationException.__name__
+
+
+def test_summarize_issues_orders_by_severity_then_type():
+    warnings = [
+        CatalogWarning("a", "dataset", "invalid_tel", "m"),
+        CatalogWarning("b", "dataset", SPATIAL_TRANSFORMATION_TYPE, "m"),
+        CatalogWarning("c", "dataset", "invalid_tel", "m"),
+    ]
+
+    assert summarize_issues(3, 1, warnings) == [
+        {"severity": "error", "type": DUPLICATE_IDENTIFIER_TYPE, "count": 1},
+        {"severity": "error", "type": VALIDATION_ERROR_TYPE, "count": 3},
+        {"severity": "warning", "type": SPATIAL_TRANSFORMATION_TYPE, "count": 1},
+        {"severity": "warning", "type": "invalid_tel", "count": 2},
+    ]
+
+
+def test_summarize_issues_omits_zero_counts():
+    assert summarize_issues(0, 0, []) == []

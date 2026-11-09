@@ -172,18 +172,174 @@ function showingFirstTen(total) {
     return p;
 }
 
+function countOf(count, noun) {
+    return `${count.toLocaleString("en-US")} ${noun}${count === 1 ? "" : "s"}`;
+}
+
+/* ── how much was found, and the limits that bound it ── */
+function resultsOverview(errorCount, warningCount) {
+    const p = document.createElement("p");
+    p.id = "results-overview";
+    p.textContent =
+        `Found ${countOf(errorCount, "error")} and ${countOf(warningCount, "warning")}. ` +
+        `The validator reports up to ${countOf(window.MAX_VALIDATION_ERRORS, "error")} ` +
+        `and ${countOf(window.MAX_VALIDATION_WARNINGS, "warning")} for each catalog.`;
+    return p;
+}
+
 function describeIdentifier(identifier, recordType = "dataset") {
     return typeof identifier === "number"
         ? `${identifier} (${recordType.replace("_", " ")} position)`
         : identifier;
 }
 
-/* ── render the validator's [identifier, message] error pairs ── */
+/* ── one record and its issues, with the job page's markup (components/error_block.j2) ── */
+function recordBlock({ identifier, title, recordType, issues }) {
+    const block = document.createElement("div");
+    block.className = "error-block";
+
+    const heading = document.createElement("h3");
+    heading.className = "word-break-all";
+    heading.textContent = identifier;
+    block.appendChild(heading);
+
+    block.appendChild(labeledParagraph("Title:", title || "N/A"));
+    if (recordType) {
+        block.appendChild(labeledParagraph("Record Type:", recordType));
+    }
+
+    issues.forEach(({ severity, type, messages }) => {
+        const section = document.createElement("div");
+        section.className = "issue-section";
+
+        const tagLine = document.createElement("p");
+        const tag = document.createElement("span");
+        tag.className = `usa-tag issue-tag--${severity}`;
+        tag.textContent = severity === "error" ? "Error" : "Warning";
+        tagLine.appendChild(tag);
+        if (type) {
+            tagLine.appendChild(document.createTextNode(`(${type})`));
+        }
+        section.appendChild(tagLine);
+
+        if (messages.length === 1) {
+            section.appendChild(labeledParagraph("Message:", messages[0]));
+        } else {
+            const p = document.createElement("p");
+            const strong = document.createElement("strong");
+            strong.textContent = "Message:";
+            p.appendChild(strong);
+            const ul = document.createElement("ul");
+            messages.forEach(message => {
+                const li = document.createElement("li");
+                li.textContent = message;
+                ul.appendChild(li);
+            });
+            p.appendChild(ul);
+            section.appendChild(p);
+        }
+        block.appendChild(section);
+    });
+
+    return block;
+}
+
+function issueList(id, blocks) {
+    const list = document.createElement("div");
+    list.className = "error-list";
+    list.id = id;
+    blocks.forEach(block => list.appendChild(block));
+    return list;
+}
+
+/* ── group issues by record, then by type, the way the job page's query does;
+ * a record's errors come before its warnings, as in error_block.j2 ── */
+function groupIssuesByRecord(errors, warnings) {
+    const records = new Map();
+
+    function add(identifier, recordType, issue, title = null) {
+        // 1.1 errors carry no record type; everything they name is a dataset
+        const key = recordType && recordType !== "dataset"
+            ? `${recordType}\u0000${identifier}`
+            : identifier;
+        if (!records.has(key)) {
+            records.set(key, { identifier, title: null, recordType: null, issues: new Map() });
+        }
+        const record = records.get(key);
+        record.title = record.title || title;
+        record.recordType = record.recordType || recordType;
+
+        const issueKey = `${issue.severity}\u0000${issue.type || ""}`;
+        if (!record.issues.has(issueKey)) {
+            record.issues.set(issueKey, { severity: issue.severity, type: issue.type, messages: [] });
+        }
+        record.issues.get(issueKey).messages.push(issue.message);
+    }
+
+    // DCAT-US 3.0 schema errors have no record: their message carries the JSON path
+    errors.forEach(([identifier, message]) => add(
+        describeIdentifier(identifier) || "Catalog",
+        null,
+        { severity: "error", type: null, message }
+    ));
+    warnings.forEach(({ identifier, record_type, warning_type, message, title }) => add(
+        describeIdentifier(identifier, record_type),
+        record_type,
+        { severity: "warning", type: warning_type, message },
+        title
+    ));
+
+    return Array.from(records.values(), record => ({
+        ...record,
+        issues: Array.from(record.issues.values()),
+    }));
+}
+
+/* ── the API's issue_summary, as the job page's record issue type summary ── */
+function issueSummaryTable(rows) {
+    const table = document.createElement("table");
+    table.className = "usa-table usa-table--striped";
+    table.id = "issue-summary";
+
+    const caption = document.createElement("caption");
+    caption.textContent = "Record issue type summary";
+    table.appendChild(caption);
+
+    const thead = document.createElement("thead");
+    const headRow = document.createElement("tr");
+    ["Severity", "Error type", "Number of issues"].forEach(text => {
+        const th = document.createElement("th");
+        th.scope = "col";
+        th.textContent = text;
+        headRow.appendChild(th);
+    });
+    thead.appendChild(headRow);
+    table.appendChild(thead);
+
+    const tbody = document.createElement("tbody");
+    rows.forEach(({ severity, type, count }) => {
+        const row = document.createElement("tr");
+        [severity, type, String(count)].forEach(text => {
+            const td = document.createElement("td");
+            td.textContent = text;
+            row.appendChild(td);
+        });
+        tbody.appendChild(row);
+    });
+    table.appendChild(tbody);
+    return table;
+}
+
+/* ── the validator's [identifier, message] error pairs: notices and a CSV ── */
 function renderErrors(container, errors, validationIncomplete) {
+    const heading = document.createElement("h3");
+    heading.textContent = "Errors";
+    container.appendChild(heading);
+
     if (validationIncomplete) {
         container.appendChild(noticeParagraph(
-            "Validation stopped early.",
-            "Fix the reported errors and validate again to find any remaining errors."
+            `Stopped at ${countOf(errors.length, "error")}.`,
+            "There may be more. Fix these and validate again to find the rest."
         ));
     }
 
@@ -201,83 +357,9 @@ function renderErrors(container, errors, validationIncomplete) {
         `Download all ${total} error(s) as CSV`,
         downloadValidationErrors
     ));
-
-    if (total > 10) {
-        container.appendChild(showingFirstTen(total));
-    }
-
-    const list = document.createElement("div");
-    list.className = "error-list";
-
-    errors.slice(0, 10).forEach(([identifier, message]) => {
-        const block = document.createElement("div");
-        block.className = "error-block";
-        block.appendChild(labeledParagraph("Identifier:", describeIdentifier(identifier)));
-
-        const msgP = document.createElement("p");
-        const msgStrong = document.createElement("strong");
-        msgStrong.textContent = "Error Message:";
-        msgP.appendChild(msgStrong);
-        msgP.appendChild(document.createTextNode(" "));
-        const ul = document.createElement("ul");
-        const li = document.createElement("li");
-        li.textContent = message;
-        ul.appendChild(li);
-        msgP.appendChild(ul);
-        block.appendChild(msgP);
-
-        list.appendChild(block);
-    });
-
-    container.appendChild(list);
 }
 
-/* ── count warnings per type, most common first ── */
-function summarizeWarnings(warnings) {
-    const counts = new Map();
-    warnings.forEach(({ warning_type }) => {
-        counts.set(warning_type, (counts.get(warning_type) || 0) + 1);
-    });
-    return Array.from(counts.entries()).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
-}
-
-function warningSummaryTable(warnings) {
-    const table = document.createElement("table");
-    table.className = "usa-table usa-table--borderless";
-    table.id = "warning-summary";
-
-    const caption = document.createElement("caption");
-    caption.textContent = "Warnings by type";
-    table.appendChild(caption);
-
-    const thead = document.createElement("thead");
-    const headRow = document.createElement("tr");
-    ["Warning type", "Count"].forEach(text => {
-        const th = document.createElement("th");
-        th.scope = "col";
-        th.textContent = text;
-        headRow.appendChild(th);
-    });
-    thead.appendChild(headRow);
-    table.appendChild(thead);
-
-    const tbody = document.createElement("tbody");
-    summarizeWarnings(warnings).forEach(([type, count]) => {
-        const row = document.createElement("tr");
-        const typeCell = document.createElement("th");
-        typeCell.scope = "row";
-        typeCell.textContent = type;
-        const countCell = document.createElement("td");
-        countCell.textContent = String(count);
-        row.appendChild(typeCell);
-        row.appendChild(countCell);
-        tbody.appendChild(row);
-    });
-    table.appendChild(tbody);
-    return table;
-}
-
-/* ── render content-quality warnings: summary, first ten, CSV ── */
+/* ── content-quality warnings: notices and a CSV ── */
 function renderWarnings(container, warnings, warningsIncomplete) {
     const heading = document.createElement("h3");
     heading.textContent = "Warnings";
@@ -289,10 +371,16 @@ function renderWarnings(container, warnings, warningsIncomplete) {
         "catalog would report as possible data-quality problems.";
     container.appendChild(intro);
 
-    if (warningsIncomplete) {
+    if (warningsIncomplete && warnings.length >= window.MAX_VALIDATION_WARNINGS) {
         container.appendChild(noticeParagraph(
-            "Warning checks stopped early.",
-            "Fix the reported errors and warnings and validate again to see the rest."
+            `Stopped at ${countOf(warnings.length, "warning")}.`,
+            "There may be more. Fix these and validate again to see the rest."
+        ));
+    } else if (warningsIncomplete) {
+        // the catalog couldn't be split into records; its schema errors say why
+        container.appendChild(noticeParagraph(
+            "Not every record was checked for warnings.",
+            "Fix the reported errors and validate again to see the rest."
         ));
     }
 
@@ -304,39 +392,37 @@ function renderWarnings(container, warnings, warningsIncomplete) {
     }
 
     const total = warnings.length;
-    container.appendChild(warningSummaryTable(warnings));
     container.appendChild(downloadButton(
         "btn-download-warnings",
         "Download all warnings",
         `Download all ${total} warning(s) as CSV`,
         downloadValidationWarnings
     ));
+}
 
-    if (total > 10) {
-        container.appendChild(showingFirstTen(total));
+/* ── every record with issues, first ten shown, like the job page's record list ── */
+function renderRecordIssues(container, errors, warnings) {
+    const records = groupIssuesByRecord(errors, warnings);
+    if (!records.length) {
+        return;
     }
 
-    const list = document.createElement("div");
-    list.className = "warning-list";
+    const heading = document.createElement("h3");
+    heading.textContent = "Record issue details";
+    container.appendChild(heading);
 
-    warnings.slice(0, 10).forEach(({ identifier, record_type, warning_type, message }) => {
-        const block = document.createElement("div");
-        block.className = "warning-block";
-        block.appendChild(labeledParagraph("Identifier:", describeIdentifier(identifier, record_type)));
-        block.appendChild(labeledParagraph("Record type:", record_type));
-        block.appendChild(labeledParagraph("Warning type:", warning_type));
-        block.appendChild(labeledParagraph("Message:", message));
-        list.appendChild(block);
-    });
-
-    container.appendChild(list);
+    if (records.length > 10) {
+        container.appendChild(showingFirstTen(countOf(records.length, "record")));
+    }
+    container.appendChild(issueList("record-issues", records.slice(0, 10).map(recordBlock)));
 }
 
 function renderResults(
     errors,
     validationIncomplete = false,
     warnings = [],
-    warningsIncomplete = false
+    warningsIncomplete = false,
+    issueSummary = []
 ) {
     lastValidationErrors = errors;
     lastValidationWarnings = warnings;
@@ -348,8 +434,13 @@ function renderResults(
     heading.textContent = "Validation results";
     container.appendChild(heading);
 
+    container.appendChild(resultsOverview(errors.length, warnings.length));
+    if (issueSummary.length) {
+        container.appendChild(issueSummaryTable(issueSummary));
+    }
     renderErrors(container, errors, validationIncomplete);
     renderWarnings(container, warnings, warningsIncomplete);
+    renderRecordIssues(container, errors, warnings);
 }
 
 /* ── CSV downloads ── */
@@ -460,7 +551,8 @@ document.addEventListener("DOMContentLoaded", function () {
                     body.validation_errors,
                     body.validation_incomplete === true,
                     Array.isArray(body.validation_warnings) ? body.validation_warnings : [],
-                    body.warnings_incomplete === true
+                    body.warnings_incomplete === true,
+                    Array.isArray(body.issue_summary) ? body.issue_summary : []
                 );
                 return;
             }

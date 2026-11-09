@@ -4,7 +4,7 @@ import logging
 from apiflask import APIBlueprint
 from flask import jsonify, make_response
 
-from dcatus_validation.catalog_issues import find_catalog_issues
+from dcatus_validation.catalog_issues import find_catalog_issues, summarize_issues
 from dcatus_validation.errors import (
     NESTING_TOO_DEEP_MESSAGE,
     CatalogTooDeeplyNested,
@@ -70,6 +70,11 @@ def _bound_warnings(warnings: list) -> list:
             "record_type": w.record_type,
             "warning_type": w.warning_type,
             "message": _truncate_result_text(w.message, MAX_RESULT_MESSAGE_CHARS),
+            "title": (
+                _truncate_result_text(w.title, MAX_RESULT_IDENTIFIER_CHARS)
+                if w.title is not None
+                else None
+            ),
         }
         for w in warnings
     ]
@@ -137,6 +142,7 @@ def validator(json_data):
     """API route for validating v1.1 or v3.0 dcatus catalogs."""
     errors = []
     warnings = []
+    issue_summary = []
     warnings_incomplete = False
 
     try:
@@ -161,10 +167,14 @@ def validator(json_data):
         )
         # Duplicates are errors at harvest time (the record is dropped), so
         # they share the error list and its cap.
+        schema_error_count = len(errors)
         errors += duplicate_errors
         if len(errors) > MAX_VALIDATION_ERRORS:
             errors = errors[:MAX_VALIDATION_ERRORS]
             validation_incomplete = True
+        issue_summary = summarize_issues(
+            schema_error_count, len(errors) - schema_error_count, warnings
+        )
         errors = _bound_validation_results(errors)
         warnings = _bound_warnings(warnings)
         logger.info(
@@ -211,7 +221,11 @@ def validator(json_data):
             500,
         )
 
-    result = {"validation_errors": errors, "validation_warnings": warnings}
+    result = {
+        "validation_errors": errors,
+        "validation_warnings": warnings,
+        "issue_summary": issue_summary,
+    }
     if validation_incomplete:
         result["validation_incomplete"] = True
     if warnings_incomplete:

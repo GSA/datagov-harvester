@@ -14,13 +14,12 @@ from dcatus_validation.errors import (
 )
 from dcatus_validation.limits import MAX_DOCUMENT_NESTING_DEPTH
 from dcatus_validation.messages import (
+    DCATUS3_DEFINITIONS_URL,
     assemble_validation_errors,
     build_dcatus3_validator,
     open_json,
 )
 from dcatus_validation.schema_paths import DCATUS1_1_DIR, DCATUS3_DEFINITIONS_DIR
-
-_DCATUS3_DEFINITIONS_URL = "https://resources.data.gov/dcat-us/3.0.0/definitions/"
 
 SCHEMA_NAMES = [
     "dcatus1.1: federal dataset",
@@ -124,7 +123,7 @@ def record_validator(schema_name: str, record_type: str = "dataset"):
         else DCATUS3_NON_DATASET_RECORD_TYPES[record_type]["schema_ref"]
     )
     return build_dcatus3_validator(
-        DCATUS3_DEFINITIONS_DIR, root_ref=_DCATUS3_DEFINITIONS_URL + schema_ref
+        DCATUS3_DEFINITIONS_DIR, root_ref=DCATUS3_DEFINITIONS_URL + schema_ref
     )
 
 

@@ -1,8 +1,11 @@
+import json
 import os
-from pathlib import Path
+import re
 
 import pytest
 from playwright.sync_api import expect
+
+from tests.conftest import EXAMPLE_DATA
 
 is_prod = os.getenv("FLASK_ENV") == "production"
 
@@ -13,7 +16,7 @@ is_prod = os.getenv("FLASK_ENV") == "production"
 PROXY_ORIGIN = f"http://localhost:{os.getenv('PROXY_PORT', '8082')}"
 VALIDATOR_PROXY_URL = f"{PROXY_ORIGIN}/validate/"
 VALIDATE_API_URL = f"{PROXY_ORIGIN}/api/v1/validate"
-EXAMPLE_DIR = Path(__file__).resolve().parents[2] / "example_data" / "dcatus"
+EXAMPLE_DIR = EXAMPLE_DATA / "dcatus"
 
 
 @pytest.fixture()
@@ -27,10 +30,9 @@ class TestValidator:
         """
         basic run of the validator form using default values and fetching via url
         """
-        # schema
-        expect(upage.locator("select[name=schema]")).to_have_value(
-            "dcatus1.1: federal dataset"
-        )
+        # schema defaults to DCAT-US 3.0
+        expect(upage.locator("select[name=schema]")).to_have_value("dcatus3.0 catalog")
+        upage.locator("select[name=schema]").select_option("dcatus1.1: federal dataset")
         # fetch_method
         expect(upage.locator("select[name=fetch_method]")).to_have_value("url")
 
@@ -47,9 +49,10 @@ class TestValidator:
 
         upage.locator("input[type=submit]").click()
 
-        # error table should be visible and with 5 validation errors
-        expect(upage.locator(".error-list")).to_be_visible()
-        expect(upage.locator(".error-block")).to_have_count(5)
+        # the 5 errors are all on one dataset, so one block lists all 5
+        expect(upage.locator("#record-issues")).to_be_visible()
+        expect(upage.locator("#record-issues .error-block")).to_have_count(1)
+        expect(upage.locator("#record-issues .error-block li")).to_have_count(5)
 
     def test_ui_validate_by_json(self, upage, dcatus_long_description_json):
         """
@@ -61,11 +64,12 @@ class TestValidator:
         # add a test dcatus doc
         upage.locator("textarea[name=json_text]").fill(dcatus_long_description_json)
 
+        upage.locator("select[name=schema]").select_option("dcatus1.1: federal dataset")
         upage.locator("input[type=submit]").click()
 
         # error table should be visible and with 5 validation errors
-        expect(upage.locator(".error-list")).to_be_visible()
-        expect(upage.locator(".error-block")).to_have_count(1)
+        expect(upage.locator("#record-issues")).to_be_visible()
+        expect(upage.locator("#record-issues .error-block")).to_have_count(1)
 
     def test_ui_validate_by_json_dcatus3(
         self, upage, dcatus_3_catalog_missing_identifier
@@ -86,8 +90,8 @@ class TestValidator:
         upage.locator("input[type=submit]").click()
 
         # error table should be visible and with 5 validation errors
-        expect(upage.locator(".error-list")).to_be_visible()
-        expect(upage.locator(".error-block")).to_have_count(1)
+        expect(upage.locator("#record-issues")).to_be_visible()
+        expect(upage.locator("#record-issues .error-block")).to_have_count(1)
 
     def test_download_button_triggers_csv(self, upage, dcatus_many_invalid_json):
         """
@@ -98,9 +102,8 @@ class TestValidator:
         upage.locator("textarea[name=json_text]").fill(dcatus_many_invalid_json)
         upage.locator("input[type=submit]").click()
 
-        # Confirm we have more errors than the display cap so the button is present.
-        error_blocks = upage.locator(".error-block")
-        expect(error_blocks).to_have_count(10)  # only first 10 are rendered
+        # every error is on the one dataset, so it's a single block
+        expect(upage.locator("#record-issues .error-block")).to_have_count(1)
         expect(upage.locator("#btn-download")).to_be_visible()
 
         # Download triggered by the button click.
@@ -120,8 +123,8 @@ class TestValidator:
             assert line.count('"') >= 4, f"Malformed CSV row: {line}"
 
     def test_ui_shows_warnings_with_summary_and_csv(self, upage):
-        """Warnings render in their own section: counts by type, the cards,
-        and a CSV of every warning (GSA/data.gov#6380)."""
+        """Errors and warnings share one summary table and the job page's issue
+        blocks; warnings have their own CSV (GSA/data.gov#6380)."""
         upage.locator("select[name=fetch_method]").select_option("paste")
         upage.locator("select[name=schema]").select_option("dcatus3.0 catalog")
         upage.locator("textarea[name=json_text]").fill(
@@ -129,14 +132,25 @@ class TestValidator:
         )
         upage.locator("input[type=submit]").click()
 
-        # duplicates are errors, as they are at harvest time
-        expect(upage.locator(".error-block")).to_have_count(2)
-        expect(upage.locator(".warning-block")).to_have_count(4)
+        # one block per record, like the job page: 2 duplicates (errors, as at
+        # harvest time) and 4 warnings across 4 records
+        blocks = upage.locator("#record-issues .error-block")
+        expect(blocks).to_have_count(4)
+        expect(upage.locator("#record-issues .issue-tag--error")).to_have_count(2)
 
-        summary = upage.locator("#warning-summary tbody tr")
-        expect(summary).to_have_count(3)
-        expect(summary.first).to_contain_text("SpatialTransformationException")
-        expect(summary.first).to_contain_text("2")
+        # one summary for errors and warnings, like the harvest job page's
+        summary = upage.locator("#issue-summary tbody tr")
+        expect(summary).to_have_count(4)
+        expect(summary.first).to_have_text(
+            re.compile(r"error\s*DuplicateIdentifierException\s*2")
+        )
+        expect(summary.nth(1)).to_contain_text("SpatialTransformationException")
+        # a record's two spatial warnings of different types are two sections
+        expect(upage.locator("#record-issues .issue-tag--warning")).to_have_count(4)
+        # warnings carry the record's title, as job-page blocks do
+        expect(blocks.filter(has_text="parity/bad-geometry")).to_contain_text(
+            "Title: Unparseable Geometry"
+        )
 
         with upage.expect_download() as download_info:
             upage.locator("#btn-download-warnings").click()
@@ -188,10 +202,11 @@ class TestValidator:
         upage.locator("input[type=file][name=json_file]").set_input_files(
             str(json_file)
         )
+        upage.locator("select[name=schema]").select_option("dcatus1.1: federal dataset")
         upage.locator("input[type=submit]").click()
 
-        expect(upage.locator(".error-list")).to_be_visible()
-        expect(upage.locator(".error-block")).to_have_count(1)
+        expect(upage.locator("#record-issues")).to_be_visible()
+        expect(upage.locator("#record-issues .error-block")).to_have_count(1)
 
     def test_ui_upload_rejects_non_json_extension(self, upage, tmp_path):
         """
@@ -208,7 +223,7 @@ class TestValidator:
         expect(upage.locator("#upload_field .usa-error-message")).to_have_text(
             "Only .json files are accepted."
         )
-        expect(upage.locator(".error-list")).not_to_be_visible()
+        expect(upage.locator("#record-issues")).not_to_be_visible()
 
     def test_ui_upload_invalid_json_content(self, upage, tmp_path):
         """
@@ -227,7 +242,7 @@ class TestValidator:
         expect(upage.locator("#upload_field .usa-error-message")).to_have_text(
             "Invalid JSON at line 1, column 1."
         )
-        expect(upage.locator(".error-list")).not_to_be_visible()
+        expect(upage.locator("#record-issues")).not_to_be_visible()
 
     def test_ui_shows_the_upload_size_limit(self, upage):
         """The form advertises the limit it enforces."""
@@ -334,9 +349,10 @@ class TestValidator:
         upage.locator("input[type=file][name=json_file]").set_input_files(
             str(json_file)
         )
+        upage.locator("select[name=schema]").select_option("dcatus1.1: federal dataset")
         upage.locator("input[type=submit]").click()
 
-        expect(upage.locator(".error-block")).to_have_count(1)
+        expect(upage.locator("#record-issues .error-block")).to_have_count(1)
 
     def test_ui_dcatus3_info(self, upage):
         """
@@ -358,6 +374,9 @@ class TestValidatorApi:
         assert res.json() == {
             "validation_errors": [[0, "$, 'identifier' is a required property"]],
             "validation_warnings": [],
+            "issue_summary": [
+                {"severity": "error", "type": "ValidationException", "count": 1}
+            ],
         }
 
     def test_api_validate_by_bad_url(self, upage, validator_api_url):
@@ -384,6 +403,9 @@ class TestValidatorApi:
                 ]
             ],
             "validation_warnings": [],
+            "issue_summary": [
+                {"severity": "error", "type": "ValidationException", "count": 1}
+            ],
         }
 
     def test_unversioned_path_redirects(self, upage, validator_api_json):
@@ -465,7 +487,7 @@ class TestValidatorApiResponses:
         self._submit_url(upage)
 
         expect(upage.locator("#url_field .usa-error-message")).to_have_text(message)
-        expect(upage.locator(".error-list")).to_have_count(0)
+        expect(upage.locator("#record-issues")).to_have_count(0)
 
     def test_dropped_connection_is_reported_generically(self, upage):
         upage.route("**/api/v1/validate", lambda route: route.abort())
@@ -489,7 +511,7 @@ class TestValidatorApiResponses:
         )
         self._submit_url(upage)
 
-        blocks = upage.locator(".error-block")
+        blocks = upage.locator("#record-issues .error-block")
         expect(blocks).to_have_count(2)
         expect(blocks.nth(0)).to_contain_text("0 (dataset position)")
         expect(blocks.nth(1)).to_contain_text("<img src=x onerror=alert(1)>")
@@ -509,10 +531,54 @@ class TestValidatorApiResponses:
         self._submit_url(upage)
 
         expect(upage.locator("#validator-results")).to_contain_text(
-            "Validation stopped early."
+            "Stopped at 1 error."
         )
         expect(upage.locator("#validator-results")).to_contain_text(
-            "Fix the reported errors and validate again"
+            "Fix these and validate again to find the rest."
+        )
+
+    def _mock_warnings(self, upage, count, incomplete):
+        warning = {
+            "identifier": "a",
+            "record_type": "dataset",
+            "warning_type": "invalid_tel",
+            "message": "m",
+        }
+        body = {
+            "validation_errors": [],
+            "validation_warnings": [warning] * count,
+            "warnings_incomplete": incomplete,
+        }
+        upage.route(
+            "**/api/v1/validate",
+            lambda route: route.fulfill(
+                status=200, content_type="application/json", body=json.dumps(body)
+            ),
+        )
+        self._submit_url(upage)
+
+    def test_results_open_with_counts_and_limits(self, upage):
+        self._mock_warnings(upage, 3, False)
+
+        expect(upage.locator("#results-overview")).to_have_text(
+            "Found 0 errors and 3 warnings. The validator reports up to "
+            "1,000 errors and 1,000 warnings for each catalog."
+        )
+
+    def test_warning_limit_is_explained(self, upage):
+        self._mock_warnings(upage, 1000, True)
+
+        expect(upage.locator("#validator-results")).to_contain_text(
+            "Stopped at 1,000 warnings."
+        )
+
+    def test_warning_checks_skipping_records_is_explained(self, upage):
+        self._mock_warnings(upage, 1, True)
+
+        results = upage.locator("#validator-results")
+        expect(results).to_contain_text("Not every record was checked for warnings.")
+        expect(results).to_contain_text(
+            "Fix the reported errors and validate again to see the rest."
         )
 
     def test_fetch_method_is_locked_while_validating(self, upage):

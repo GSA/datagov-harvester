@@ -385,6 +385,16 @@ DCATUS3_NON_DATASET_RECORD_TYPES = {
 }
 
 
+# Record types persisted only as a HarvestRecord, no Dataset row. Excludes
+# "data_series" and "data_service" on purpose: see Dataset.type in
+# database/models.py.
+RECORD_TYPES_WITHOUT_DATASET_ROW = {"catalog_record"}
+
+# Record types the harvester drops when their identifier field is missing. The
+# other types get an identifier resolved from the title instead.
+IDENTIFIER_REQUIRED_RECORD_TYPES = {"dataset", "catalog_record"}
+
+
 def split_dcatus3_catalog(catalog: dict) -> tuple[list, dict]:
     """Split a DCAT-US 3.0 Catalog into (datasets, records_by_type), exactly as
     the harvest runner processes it: every non-dataset record type, plus every

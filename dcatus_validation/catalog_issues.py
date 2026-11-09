@@ -10,10 +10,13 @@ records get `detect_dcat_warnings`, and every schema-valid record type that
 becomes a dataset gets the spatial transformation check.
 """
 
+from collections import Counter
 from typing import NamedTuple
 
 from dcatus_validation.catalog import (
     DCATUS3_NON_DATASET_RECORD_TYPES,
+    IDENTIFIER_REQUIRED_RECORD_TYPES,
+    RECORD_TYPES_WITHOUT_DATASET_ROW,
     RESOLVED_IDENTIFIER_KEY,
     find_indexes_for_duplicates,
     normalize_dataset_identifier,
@@ -24,17 +27,26 @@ from dcatus_validation.content_warnings import detect_dcat_warnings
 from dcatus_validation.spatial import PlaceLookup, translate_spatial
 from dcatus_validation.validate import record_validator
 
-# harvester.exceptions.SpatialTransformationException; the harvester stores
-# exception-based issues under their class name.
+# Issue types as the harvester stores them: exception-based issues under the
+# exception's class name (see harvester/harvest.py `_report_error`).
+VALIDATION_ERROR_TYPE = "ValidationException"
+DUPLICATE_IDENTIFIER_TYPE = "DuplicateIdentifierException"
 SPATIAL_TRANSFORMATION_TYPE = "SpatialTransformationException"
 
 # Record types the harvester turns into a dataset row, which is where its
-# spatial transformation check runs (see RECORD_TYPES_WITHOUT_DATASET_ROW).
-_SPATIAL_CHECKED_TYPES = {"dataset", "data_service", "data_series"}
+# spatial transformation check runs.
+_SPATIAL_CHECKED_TYPES = {
+    "dataset",
+    *DCATUS3_NON_DATASET_RECORD_TYPES,
+} - RECORD_TYPES_WITHOUT_DATASET_ROW
 
-# Record types filter_datasets_with_no_identifier drops when the identifier
-# field is missing. The other types get an identifier resolved from the title.
-_IDENTIFIER_REQUIRED_TYPES = {"dataset", "catalog_record"}
+
+def duplicate_identifier_message(identifier) -> str:
+    return f"Duplicate identifier '{identifier}' found"
+
+
+def spatial_transformation_message(spatial) -> str:
+    return f"unable to spatially fix {spatial}"
 
 
 class CatalogWarning(NamedTuple):
@@ -42,6 +54,12 @@ class CatalogWarning(NamedTuple):
     record_type: str
     warning_type: str
     message: str
+    title: str | None = None
+
+
+def _title(record: dict) -> str | None:
+    title = record.get("title")
+    return title if isinstance(title, str) else None
 
 
 def _label(record: dict, identifier_field: str, position: int) -> str | int:
@@ -52,7 +70,7 @@ def _label(record: dict, identifier_field: str, position: int) -> str | int:
 def _drop_missing_identifiers(
     records: list, record_type: str, identifier_field: str
 ) -> list:
-    if record_type not in _IDENTIFIER_REQUIRED_TYPES:
+    if record_type not in IDENTIFIER_REQUIRED_RECORD_TYPES:
         return records
     return [
         r
@@ -68,7 +86,7 @@ def _drop_duplicates(records: list, identifier_field: str) -> tuple[list, list]:
     errors = []
     for idx in sorted(dropped):
         identifier = record_identifier(records[idx], identifier_field)
-        errors.append([identifier or "", f"Duplicate identifier '{identifier}' found"])
+        errors.append([identifier or "", duplicate_identifier_message(identifier)])
     kept = [(idx, record) for idx, record in enumerate(records) if idx not in dropped]
     return kept, errors
 
@@ -100,7 +118,8 @@ def _spatial_warning(
         label,
         record_type,
         SPATIAL_TRANSFORMATION_TYPE,
-        f"unable to spatially fix {spatial}",
+        spatial_transformation_message(spatial),
+        _title(record),
     )
 
 
@@ -149,9 +168,12 @@ def find_catalog_issues(
             continue
         for position, record in kept:
             label = _label(record, identifier_field, position)
+            record_warnings = []
             if is_dcatus3:
-                warnings += [
-                    CatalogWarning(label, record_type, w.warning_type, w.message)
+                record_warnings += [
+                    CatalogWarning(
+                        label, record_type, w.warning_type, w.message, _title(record)
+                    )
                     for w in detect_dcat_warnings(record, place_lookup)
                 ]
             if record_type in _SPATIAL_CHECKED_TYPES:
@@ -159,10 +181,29 @@ def find_catalog_issues(
                     record, label, record_type, schema_name, place_lookup
                 )
                 if spatial is not None:
-                    warnings.append(spatial)
+                    record_warnings.append(spatial)
+            warnings += record_warnings
             if max_warnings is not None and len(warnings) > max_warnings:
                 warnings = warnings[:max_warnings]
                 warnings_incomplete = True
                 break
 
     return duplicate_errors, warnings, warnings_incomplete
+
+
+def summarize_issues(
+    schema_error_count: int, duplicate_error_count: int, warnings: list
+) -> list[dict]:
+    """Rows like the job page's record issue type summary: severity, type and
+    count, ordered by severity then type."""
+    counts = Counter()
+    if schema_error_count:
+        counts["error", VALIDATION_ERROR_TYPE] = schema_error_count
+    if duplicate_error_count:
+        counts["error", DUPLICATE_IDENTIFIER_TYPE] = duplicate_error_count
+    for warning in warnings:
+        counts["warning", warning.warning_type] += 1
+    return [
+        {"severity": severity, "type": issue_type, "count": count}
+        for (severity, issue_type), count in sorted(counts.items())
+    ]
