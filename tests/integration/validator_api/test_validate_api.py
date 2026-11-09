@@ -825,7 +825,9 @@ ACCEPTED_BY_URL = {
 
 
 @pytest.mark.parametrize("body", ACCEPTED_BY_URL.values(), ids=list(ACCEPTED_BY_URL))
-def test_url_documents_orjson_handles_differently(validator_client, monkeypatch, body):
+def test_url_documents_with_unusual_encodings_or_values(
+    validator_client, monkeypatch, body
+):
     old, new = _both(validator_client, monkeypatch, body, FEDERAL, "url")
 
     assert new == old
@@ -841,7 +843,7 @@ def test_url_documents_orjson_handles_differently(validator_client, monkeypatch,
     ],
     ids=["BOM", "lone surrogate", "integer beyond 64 bits", "non-ASCII"],
 )
-def test_pasted_documents_orjson_handles_differently(
+def test_pasted_documents_with_unusual_encodings_or_values(
     validator_client, monkeypatch, text
 ):
     old, new = _both(validator_client, monkeypatch, text, FEDERAL, "paste")
@@ -1301,7 +1303,7 @@ class TestQuery:
 
 # The paste route holds a pasted catalog once while it's parsed
 # (GSA/data.gov#6460). Before, the decoded text, werkzeug's cached request body
-# and cached JSON, and orjson's UTF-8 copy were all alive at once: ~1.1GB for a
+# and cached JSON, and a UTF-8 copy for parsing were all alive at once: ~1.1GB for a
 # 150MB paste on Linux, ~1.6GB if the text wasn't pure ASCII.  A small catalog
 # is enough: tracemalloc counts Python's allocations exactly, so what's alive
 # when parsing starts is the same multiple of the document's size at any size.

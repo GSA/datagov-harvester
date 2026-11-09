@@ -2,8 +2,7 @@
 
 Python jsonschema alone takes tens of seconds on a catalog near
 MAX_UPLOAD_MB (GSA/data.gov#6460). The fast path reaches the same answer
-sooner: orjson parses the document (fetch.parse_json_document), and
-jsonschema-rs decides which records are valid. Python jsonschema still produces
+sooner: jsonschema-rs decides which records are valid. Python jsonschema still produces
 every error, exactly as before, for whatever jsonschema-rs could not show is
 valid. The messages, their paths and order, and the MAX_VALIDATION_ERRORS cap
 all still come from Python jsonschema alone.

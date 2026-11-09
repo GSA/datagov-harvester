@@ -16,7 +16,6 @@ import socket
 import time
 from urllib.parse import urljoin, urlparse
 
-import orjson
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.connection import HTTPConnection, HTTPSConnection
@@ -28,7 +27,6 @@ from dcatus_validation.errors import (
     CatalogTooDeeplyNested,
 )
 from dcatus_validation.limits import (
-    MAX_DOCUMENT_NESTING_DEPTH,
     MAX_UPLOAD_BYTES,
     MAX_UPLOAD_MB,
 )
@@ -231,41 +229,18 @@ def _reject_nonfinite_json_constant(_value: str):
     raise InvalidCatalogSource(INVALID_JSON_NUMBER_MESSAGE)
 
 
-def _check_json_text_nesting(document: str) -> None:
-    """Count JSON containers without interpreting brackets inside strings."""
-    depth = 0
-    in_string = False
-    escaped = False
+def parse_json_document(document: str | bytes | bytearray):
+    """Parse strict JSON and normalize unsupported encoding/numeric failures.
 
-    for character in document:
-        if in_string:
-            if escaped:
-                escaped = False
-            elif character == "\\":
-                escaped = True
-            elif character == '"':
-                in_string = False
-            continue
-
-        if character == '"':
-            in_string = True
-        elif character in "[{":
-            depth += 1
-            if depth > MAX_DOCUMENT_NESTING_DEPTH:
-                raise CatalogTooDeeplyNested(NESTING_TOO_DEEP_MESSAGE)
-        elif character in "]}" and depth:
-            depth -= 1
-
-
-def _parse_json_document_stdlib(document: str | bytes | bytearray):
-    """The pure-Python parser, the only one before orjson. Every document
-    orjson refuses is re-parsed with it, so a refused document gets the same
-    error as it always has."""
+    Nesting is checked after parsing (validate._check_catalog_nesting). On
+    Python 3.14 json.loads parses deep documents without exhausting the stack
+    and raises RecursionError past what it can, reported here as too deeply
+    nested (GSA/data.gov#6460).
+    """
     try:
         if not isinstance(document, str):
             encoded_document = bytes(document)
             document = encoded_document.decode(json.detect_encoding(encoded_document))
-        _check_json_text_nesting(document)
         return json.loads(
             document,
             parse_int=_parse_json_integer,
@@ -274,82 +249,21 @@ def _parse_json_document_stdlib(document: str | bytes | bytearray):
         )
     except UnicodeDecodeError:
         raise InvalidCatalogSource(INVALID_JSON_ENCODING_MESSAGE) from None
-
-
-# orjson parses an integer literal outside the 64-bit range as the nearest
-# float, where the stdlib path keeps the exact int. Any such float is at least
-# 2**63 in magnitude, so a parsed float that large is re-parsed by the stdlib.
-_ORJSON_EXACT_INTEGER_LIMIT = float(2**63)
-_ORJSON_REFUSED = object()
-
-
-def _has_float_beyond_exact_integers(document) -> bool:
-    """Whether any float in `document` is at least 2**63 in magnitude. A walk
-    that does not recurse."""
-    if type(document) is float:
-        return not -_ORJSON_EXACT_INTEGER_LIMIT < document < _ORJSON_EXACT_INTEGER_LIMIT
-    if type(document) not in (dict, list):
-        return False
-    pending = [document]
-    while pending:
-        container = pending.pop()
-        values = container.values() if type(container) is dict else container
-        for value in values:
-            value_type = type(value)
-            if value_type is dict or value_type is list:
-                pending.append(value)
-            elif value_type is float and not (
-                -_ORJSON_EXACT_INTEGER_LIMIT < value < _ORJSON_EXACT_INTEGER_LIMIT
-            ):
-                return True
-    return False
-
-
-def _parse_json_document_orjson(document: str | bytes | bytearray):
-    """orjson's parse of `document` (~20 times faster than the stdlib path)
-    when it is exactly what the stdlib path returns, otherwise _ORJSON_REFUSED.
-    Everything orjson refuses (BOMs, UTF-16/32, lone surrogates, NaN, syntax
-    errors, nesting past 1024) or parses differently (integers past 64 bits)
-    is re-parsed by the stdlib path, so it gets the same value or error as
-    before. Deep documents it accepts are held to MAX_DOCUMENT_NESTING_DEPTH
-    by validate.py after parsing.
-    """
-    try:
-        parsed = orjson.loads(document)
-    except (orjson.JSONDecodeError, TypeError):
-        return _ORJSON_REFUSED
-    if _has_float_beyond_exact_integers(parsed):
-        return _ORJSON_REFUSED
-    return parsed
-
-
-def parse_json_document(document: str | bytes | bytearray):
-    """Parse strict JSON and normalize unsupported encoding/numeric failures.
-
-    Raises json.JSONDecodeError (with the position the stdlib parser reports),
-    InvalidCatalogSource or CatalogTooDeeplyNested exactly as the pure-Python
-    parser does, whichever parser accepted the document.
-    """
-    parsed = _parse_json_document_orjson(document)
-    if parsed is not _ORJSON_REFUSED:
-        return parsed
-    return _parse_json_document_stdlib(document)
+    except RecursionError:
+        raise CatalogTooDeeplyNested(NESTING_TOO_DEEP_MESSAGE) from None
 
 
 def parse_pasted_json_document(document: bytes | memoryview):
     """parse_json_document(text) for pasted text given as its UTF-8 bytes, so
-    the caller can drop the text first (GSA/data.gov#6460). The stdlib path
-    gets the text back, not the bytes, so a leading BOM is still refused and
-    NULs aren't read as UTF-16 or UTF-32.
+    the caller can drop the text first (GSA/data.gov#6460). Decoding as UTF-8,
+    rather than guessing the encoding as bytes are, keeps a leading BOM refused
+    and NULs from being read as UTF-16 or UTF-32, as for the text itself.
     """
-    parsed = _parse_json_document_orjson(document)
-    if parsed is not _ORJSON_REFUSED:
-        return parsed
     try:
         text = str(document, "utf-8")
     except UnicodeDecodeError:
         raise InvalidCatalogSource(INVALID_JSON_ENCODING_MESSAGE) from None
-    return _parse_json_document_stdlib(text)
+    return parse_json_document(text)
 
 
 class _PinnedConnectionMixin:

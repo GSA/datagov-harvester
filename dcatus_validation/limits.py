@@ -15,8 +15,8 @@ MAX_RESULT_MESSAGE_CHARS = 4000
 
 # Keep attacker-controlled documents comfortably below Python's recursion
 # limit, independent of the parser and interpreter patch version in use.
-# orjson parses deeper documents without recursing, so validate.py checks this
-# after parsing (GSA/data.gov#6460).
+# Checked after parsing, by validate.py's walk; json.loads raises RecursionError,
+# reported the same way, for a document too deep to parse (GSA/data.gov#6460).
 MAX_DOCUMENT_NESTING_DEPTH = 100
 
 # Largest validator API request body. Pasted catalogs arrive as a JSON string,

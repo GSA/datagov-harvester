@@ -1,4 +1,4 @@
-"""The fast path (orjson, jsonschema-rs and the pre-crawled 1.1 registry) gives
+"""The fast path (jsonschema-rs and the pre-crawled 1.1 registry) gives
 exactly the old pure-Python path's results (GSA/data.gov#6460): golden
 examples, edge cases, systematic mutations and Hypothesis fuzzing, each
 comparing the whole outcome of both paths (see use_fast_path): the errors
@@ -63,15 +63,11 @@ CAPS = (MAX_VALIDATION_ERRORS, None, 1, 2, 7)
 
 @contextlib.contextmanager
 def use_fast_path(enabled: bool):
-    """With enabled=False, parse and validate the old pure-Python way, the
-    reference the fast path must match: orjson refuses every document, so the
-    stdlib parser parses it, and every document is validated by Python
-    jsonschema alone, as one that isn't plain JSON is."""
+    """With enabled=False, validate with Python jsonschema alone, the reference
+    the fast path must match, as a document that isn't plain JSON is."""
     if enabled:
         yield
         return
-    # Looked up now: tests/unit/dcatus_validation/test_fetch.py reloads fetch.
-    fetch = importlib.import_module("dcatus_validation.fetch")
     validate = importlib.import_module("dcatus_validation.validate")
     check_nesting = validate._check_catalog_nesting
 
@@ -79,13 +75,8 @@ def use_fast_path(enabled: bool):
         check_nesting(document)
         return False
 
-    with (
-        mock.patch.object(
-            fetch, "_parse_json_document_orjson", return_value=fetch._ORJSON_REFUSED
-        ),
-        mock.patch.object(
-            validate, "_check_catalog_nesting", side_effect=not_plain_json
-        ),
+    with mock.patch.object(
+        validate, "_check_catalog_nesting", side_effect=not_plain_json
     ):
         yield
 
@@ -1357,12 +1348,11 @@ def _native(schema):
 
 
 class TestReferencePath:
-    """The equivalence tests compare the fast path with equivalence_helpers'
-    use_fast_path(False): that has to be Python jsonschema and the stdlib parser
-    alone."""
+    """The equivalence tests compare the fast path with use_fast_path(False),
+    which has to be Python jsonschema alone."""
 
     @pytest.mark.parametrize("schema_name", SCHEMA_NAMES)
-    def test_it_never_touches_jsonschema_rs_or_orjson(self, schema_name):
+    def test_it_never_touches_jsonschema_rs(self, schema_name):
         from dcatus_validation.fetch import parse_json_document
 
         document = (EXAMPLES / "dcatus_multiple_invalid.json").read_bytes()
@@ -1371,7 +1361,6 @@ class TestReferencePath:
 
         with (
             use_fast_path(False),
-            mock.patch("orjson.loads", side_effect=AssertionError("orjson used")),
             mock.patch.object(
                 fast_path.Prefilter,
                 "is_valid",
