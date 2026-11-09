@@ -897,6 +897,21 @@ def test_proxy_body_limit_sits_just_above_the_validator_limit(config_path):
     assert MAX_REQUEST_BYTES < proxy_limit <= MAX_REQUEST_BYTES + 2 * 1024 * 1024
 
 
+def test_proxy_passes_the_validators_own_errors_through():
+    """The proxy intercepts upstream errors for the admin app's HTML pages; for
+    the validator that turned its JSON 503 "busy, try again" into a 405 for a
+    POST, so the validate API goes through a location that doesn't."""
+    config = Path("proxy/nginx-common.conf").read_text()
+    validate = re.search(
+        r"location ~ \^/api\(/v1\)\?/validate\(/document\)\?\$ \{([^}]*)\}", config
+    )
+    named = re.search(r"location @proxy_to_validator \{(.*?)\n\}", config, re.S)
+
+    assert "try_files $uri @proxy_to_validator;" in validate.group(1)
+    assert "proxy_intercept_errors off;" in named.group(1)
+    assert "proxy_pass https://${backend_servers}${request_uri};" in named.group(1)
+
+
 def test_proxy_disk_holds_several_maximum_size_uploads():
     """nginx spools request bodies to the proxy app's disk, which also serves
     the admin app, so it has room for several maximum-size uploads at once."""
