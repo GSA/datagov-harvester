@@ -1800,6 +1800,21 @@ def build_report_email_section(
     return "\n".join(lines)
 
 
+def format_recipient_list(notification_emails):
+    """
+    Format notification emails as comma-separated string or 'None'.
+
+    Args:
+        notification_emails: List of email addresses or None
+
+    Returns:
+        Comma-separated string of emails or "None"
+    """
+    if not notification_emails:
+        return "None"
+    return ", ".join(notification_emails)
+
+
 def is_valid_uuid4(uuid_string) -> bool:
     """
     Checks if a given string is a valid UUID 4. All h20 db ids are version 4. see Base(DeclarativeBase)
