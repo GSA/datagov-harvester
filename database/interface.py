@@ -1063,7 +1063,10 @@ class HarvesterDBInterface:
             self.db.rollback()
 
     def clear_current_issues_missing_from_source(
-        self, harvest_source_id: str, present_keys: set, keep_job_id: str
+        self,
+        harvest_source_id: str,
+        present_keys: set[tuple[str, str]],
+        keep_job_id: str,
     ) -> int:
         """Drop current issues for (identifier, record_type) pairs the source no
         longer lists, and return how many pairs were cleared.
@@ -1083,26 +1086,25 @@ class HarvesterDBInterface:
                 .filter(issue.harvest_source_id == harvest_source_id)
                 .distinct()
             }
-            candidates = keys - set(present_keys)
-            # Only the few candidates need their job looked up; joining every
-            # issue to harvest_record costs seconds on a source with 300k+.
-            kept = set()
-            for batch in batched(sorted(candidates), 500):
-                kept |= {
-                    (identifier, record_type)
-                    for identifier, record_type in self.db.query(
-                        issue.identifier, issue.record_type
-                    )
-                    .join(HarvestRecord, HarvestRecord.id == issue.harvest_record_id)
-                    .filter(
-                        issue.harvest_source_id == harvest_source_id,
-                        HarvestRecord.harvest_job_id == keep_job_id,
-                        tuple_(issue.identifier, issue.record_type).in_(batch),
-                    )
-                    .distinct()
-                }
-            stale = candidates - kept
-            for batch in batched(sorted(stale), 500):
+            # Start from this job's records, not every issue: this runs before
+            # records are processed, so the job has written only a few.
+            kept = {
+                (identifier, record_type)
+                for identifier, record_type in self.db.query(
+                    issue.identifier, issue.record_type
+                )
+                .select_from(HarvestRecord)
+                .join(issue, issue.harvest_record_id == HarvestRecord.id)
+                .filter(
+                    HarvestRecord.harvest_job_id == keep_job_id,
+                    issue.harvest_source_id == harvest_source_id,
+                )
+                .distinct()
+            }
+            stale = keys - present_keys - kept
+            # Batched to stay under Postgres's bind-parameter limit: a clear
+            # job lists nothing, so every issue on the source is stale.
+            for batch in batched(stale, 500):
                 self.db.query(issue).filter(
                     issue.harvest_source_id == harvest_source_id,
                     tuple_(issue.identifier, issue.record_type).in_(batch),
@@ -1110,7 +1112,11 @@ class HarvesterDBInterface:
             self.db.commit()
             return len(stale)
         except Exception as e:
-            logger.error("Error: %s", e)
+            logger.error(
+                "Error clearing current issues missing from source %s: %s",
+                harvest_source_id,
+                e,
+            )
             self.db.rollback()
             return 0
 
