@@ -1046,6 +1046,7 @@ class HarvestSource:
                     sample_datasets=sample_datasets,
                     catalog_base_url=CATALOG_BASE_URL,
                     notification_frequency=source.notification_frequency,
+                    notification_emails=self.notification_emails,
                 )
                 send_email_to_recipients(
                     [recipient], subject, recipient_body, html_body=html_body
