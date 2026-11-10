@@ -1173,32 +1173,39 @@ class HarvesterDBInterface:
         deleted, so a record that only ever errored would keep its issues
         forever. Issues written by keep_job_id are kept: they come from records
         this job already handled, like ones without a harvestable identifier."""
+        issue = HarvestRecordCurrentIssue
         try:
-            rows = (
-                self.db.query(
-                    HarvestRecordCurrentIssue.identifier,
-                    HarvestRecordCurrentIssue.record_type,
-                    HarvestRecord.harvest_job_id,
+            keys = {
+                (identifier, record_type)
+                for identifier, record_type in self.db.query(
+                    issue.identifier, issue.record_type
                 )
-                .outerjoin(
-                    HarvestRecord,
-                    HarvestRecord.id == HarvestRecordCurrentIssue.harvest_record_id,
-                )
-                .filter(
-                    HarvestRecordCurrentIssue.harvest_source_id == harvest_source_id
-                )
+                .filter(issue.harvest_source_id == harvest_source_id)
                 .distinct()
-                .all()
-            )
-            kept = {(i, t) for i, t, job_id in rows if job_id == keep_job_id}
-            stale = {(i, t) for i, t, _ in rows} - set(present_keys) - kept
+            }
+            candidates = keys - set(present_keys)
+            # Only the few candidates need their job looked up; joining every
+            # issue to harvest_record costs seconds on a source with 300k+.
+            kept = set()
+            for batch in batched(sorted(candidates), 500):
+                kept |= {
+                    (identifier, record_type)
+                    for identifier, record_type in self.db.query(
+                        issue.identifier, issue.record_type
+                    )
+                    .join(HarvestRecord, HarvestRecord.id == issue.harvest_record_id)
+                    .filter(
+                        issue.harvest_source_id == harvest_source_id,
+                        HarvestRecord.harvest_job_id == keep_job_id,
+                        tuple_(issue.identifier, issue.record_type).in_(batch),
+                    )
+                    .distinct()
+                }
+            stale = candidates - kept
             for batch in batched(sorted(stale), 500):
-                self.db.query(HarvestRecordCurrentIssue).filter(
-                    HarvestRecordCurrentIssue.harvest_source_id == harvest_source_id,
-                    tuple_(
-                        HarvestRecordCurrentIssue.identifier,
-                        HarvestRecordCurrentIssue.record_type,
-                    ).in_(batch),
+                self.db.query(issue).filter(
+                    issue.harvest_source_id == harvest_source_id,
+                    tuple_(issue.identifier, issue.record_type).in_(batch),
                 ).delete(synchronize_session=False)
             self.db.commit()
             return len(stale)
