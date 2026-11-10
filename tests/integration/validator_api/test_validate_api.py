@@ -90,7 +90,7 @@ class TestValidate:
 
     def test_url(self, validator_client, monkeypatch, dcatus_no_identifier_json):
         get = Mock(return_value=_json_response(dcatus_no_identifier_json))
-        monkeypatch.setattr("dcatus_validation.fetch._pinned_get", get)
+        monkeypatch.setattr("dcatus_validation.fetch._http_get", get)
 
         res = validator_client.post(
             URL,
@@ -112,7 +112,7 @@ class TestValidate:
         self, validator_client, monkeypatch, dcatus_multiple_invalid_json
     ):
         monkeypatch.setattr(
-            "dcatus_validation.fetch._pinned_get",
+            "dcatus_validation.fetch._http_get",
             Mock(return_value=_json_response(dcatus_multiple_invalid_json)),
         )
 
@@ -551,7 +551,7 @@ class TestRefusedUrlIsExplained:
         resolve = Mock()
         get = Mock()
         monkeypatch.setattr("dcatus_validation.fetch._resolve_addresses", resolve)
-        monkeypatch.setattr("dcatus_validation.fetch._pinned_get", get)
+        monkeypatch.setattr("dcatus_validation.fetch._http_get", get)
 
         res = validator_client.post(
             URL, json=self._url_form("https://sub.rbndr.us/catalog.json")
@@ -568,7 +568,7 @@ class TestRefusedUrlIsExplained:
             "dcatus_validation.fetch.time.monotonic", lambda: next(clock)
         )
         monkeypatch.setattr(
-            "dcatus_validation.fetch._pinned_get",
+            "dcatus_validation.fetch._http_get",
             Mock(side_effect=requests.exceptions.Timeout("timed out")),
         )
 
@@ -581,7 +581,7 @@ class TestRefusedUrlIsExplained:
 
     def test_connect_timeout(self, validator_client, monkeypatch):
         monkeypatch.setattr(
-            "dcatus_validation.fetch._pinned_get",
+            "dcatus_validation.fetch._http_get",
             Mock(side_effect=requests.exceptions.ConnectTimeout("syn lost")),
         )
 
@@ -608,7 +608,7 @@ class TestRefusedUrlIsExplained:
         """Still a 400 the submitter can act on, but requests' own text - which
         can name internal paths - must not reach the response body."""
         monkeypatch.setattr(
-            "dcatus_validation.fetch._pinned_get",
+            "dcatus_validation.fetch._http_get",
             Mock(
                 side_effect=requests.exceptions.SSLError(
                     "verify failed: /internal/path/ca-bundle.crt"
@@ -726,7 +726,7 @@ def _submit(client, monkeypatch, body: bytes | str, schema, fetch_method, fast):
     else:
         raw = body if isinstance(body, bytes) else body.encode("utf-8", "surrogatepass")
         monkeypatch.setattr(
-            "dcatus_validation.fetch._pinned_get",
+            "dcatus_validation.fetch._http_get",
             Mock(side_effect=lambda *args, **kwargs: _response(raw)),
         )
         payload = {
@@ -1455,7 +1455,7 @@ class TestOneLargeDocumentAtATime:
 
         document = _document_of_size(LARGE + 1)
         monkeypatch.setattr(
-            "dcatus_validation.fetch._pinned_get",
+            "dcatus_validation.fetch._http_get",
             Mock(side_effect=lambda *a, **k: _json_response(document)),
         )
         query = urlencode({"schema": FEDERAL, "fetch_method": "paste"})
