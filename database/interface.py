@@ -408,8 +408,9 @@ class HarvesterDBInterface:
     def archive_harvest_source(self, source_id, user_email):
         """Archive a harvest source instead of deleting it.
 
-        Removes harvest records and associated errors/warnings to free database space.
-        Keeps harvest job rows and their summary counts for audit purposes.
+        Marks the source as archived while preserving all harvest records,
+        errors, and job history for audit purposes. Archived sources cannot
+        be harvested but their historical data remains accessible.
 
         Args:
             source_id: ID of the harvest source to archive
@@ -424,31 +425,6 @@ class HarvesterDBInterface:
             return message, status
 
         source = self.db.get(HarvestSource, source_id)
-
-        self.db.execute(
-            text("""
-                DELETE FROM harvest_record_error
-                WHERE harvest_record_id IN (
-                    SELECT id FROM harvest_record WHERE harvest_source_id = :source_id
-                )
-            """),
-            {"source_id": source_id},
-        )
-
-        self.db.execute(
-            text("""
-                DELETE FROM harvest_record_current_issue
-                WHERE harvest_record_id IN (
-                    SELECT id FROM harvest_record WHERE harvest_source_id = :source_id
-                )
-            """),
-            {"source_id": source_id},
-        )
-
-        self.db.execute(
-            text("DELETE FROM harvest_record WHERE harvest_source_id = :source_id"),
-            {"source_id": source_id},
-        )
 
         source.is_archived = True
         source.is_locked = True
@@ -465,7 +441,8 @@ class HarvesterDBInterface:
     def unarchive_harvest_source(self, source_id):
         """Unarchive a harvest source, restoring it to active status.
 
-        Does not restore removed harvest records or error messages.
+        All harvest records and error messages are preserved during archiving,
+        so they remain accessible after unarchiving.
 
         Args:
             source_id: ID of the harvest source to unarchive
