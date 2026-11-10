@@ -65,6 +65,7 @@ from harvester.utils.general_utils import (
     extract_dcatus3_catalog_services,
     extract_dcatus3_nested_datasets,
     find_indexes_for_duplicates,
+    format_recipient_list,
     get_datetime,
     group_record_error_fields,
     make_record_mapping,
@@ -949,6 +950,7 @@ class HarvestSource:
                     "A harvest job failed and did not complete.\n"
                     f"- Organization: {org_name}\n"
                     f"- Harvest source: {self.name}\n"
+                    f"- Report recipients: {format_recipient_list(self.notification_emails)}\n"
                     f"- Error: {error_message}\n"
                     f"- Technical details: {job_url}\n\n"
                     "====\n"
@@ -981,6 +983,7 @@ class HarvestSource:
                     "A harvest job has been successfully completed.\n"
                     f"- Organization: {org_name}\n"
                     f"- Harvest source: {self.name}\n"
+                    f"- Report recipients: {format_recipient_list(self.notification_emails)}\n"
                     f"{report_section}"
                     f"- Technical details: {job_url}\n\n"
                     f"Summary of the job ({self.job_id}):\n"
