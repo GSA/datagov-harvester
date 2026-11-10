@@ -54,7 +54,7 @@ class TestDynamicRouteTable:
                     "location": "/organization_list/",
                 },
             },
-            r"((main|api|api_v1)\.(add|edit|cancel|update|delete|trigger)_(organization|harvest_source|harvest_job|harvest_record))": {
+            r"((main|api|api_v1)\.(add|edit|cancel|update|delete|trigger|unarchive)_(organization|harvest_source|harvest_job|harvest_record))": {
                 "(POST|HEAD|PUT|DELETE)": {
                     "status_code": 302,
                     "location": LOCATION_ENUMS["LOGIN"],
@@ -508,8 +508,8 @@ class TestHarvestSourceDeleteRedirects:
             sess["user"] = "tester@gsa.gov"
 
         with patch(
-            "app.main.harvest_sources.enqueue_harvest_source_delete",
-            return_value=("delete result", status),
+            "app.main.harvest_sources.enqueue_harvest_source_archive",
+            return_value=("archive result", status),
         ):
             response = client.post(
                 f"/harvest_source/{source_id}",

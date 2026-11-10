@@ -33,6 +33,14 @@ def view_harvest_job(job_id=None):
             return
 
     job = deps.db.get_harvest_job(job_id)
+
+    if job and job.source and job.source.is_archived:
+        data = {
+            "harvest_job": job,
+            "source_archived": True,
+        }
+        return render_template("view_job_data.html", data=data)
+
     show_record_type = bool(
         job and job.source and job.source.schema_type == "dcatus3.0"
     )
