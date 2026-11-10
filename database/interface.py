@@ -469,6 +469,8 @@ class HarvesterDBInterface:
     def unarchive_harvest_source(self, source_id):
         """Unarchive a harvest source, restoring it to active status.
 
+        Does not restore removed harvest records or error messages.
+
         Args:
             source_id: ID of the harvest source to unarchive
 
@@ -484,6 +486,7 @@ class HarvesterDBInterface:
             return "Harvest source is not archived", 400
 
         source.is_archived = False
+        source.is_locked = False
         source.archived_at = None
         source.archived_by = None
 
