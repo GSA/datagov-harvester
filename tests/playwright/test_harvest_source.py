@@ -153,7 +153,7 @@ class TestHarvestSourceAuthed:
                 actions.get_by_role("button", name=re.compile(rf"^{name}\b"))
             ).to_be_visible()
 
-    def test_cant_delete_harvest_source_with_records(self, apage):
+    def test_cant_archive_harvest_source_with_records(self, apage):
         apage.once("dialog", lambda dialog: dialog.accept())
         apage.get_by_role("button", name=re.compile(r"^Archive\b")).click()
         expect(apage.locator(".usa-alert--error")).to_contain_text(

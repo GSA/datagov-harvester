@@ -1,4 +1,4 @@
-"""CF/local task entrypoint: delete a harvest source (CASCADE commit)."""
+"""CF/local task entrypoint: archive a harvest source (soft delete)."""
 
 import logging
 import sys
@@ -17,7 +17,7 @@ def delete_source(source_id: str) -> int:
         logger.error(message)
         return 1
     except Exception as e:
-        logger.error("Harvest source delete failed :: %s", repr(e))
+        logger.error("Harvest source archive failed :: %s", repr(e))
         return 1
     finally:
         db_interface.close()

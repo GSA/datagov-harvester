@@ -7,7 +7,7 @@ function confirmSubmit(event) {
         'lock': 'Are you sure you want to lock harvesting for this source?',
         'unlock': 'Are you sure you want to unlock harvesting for this source?',
         'clear': 'Are you sure you want to clear all datasets?',
-        'delete': 'Are you sure you want to delete this source? Deletion may take some time.'
+        'archive': 'Are you sure you want to archive this source? Archiving may take some time.'
     };
     if (!confirm(messageEnum[type])) {
         event.preventDefault(); // Prevents the form from submitting if the user cancels
