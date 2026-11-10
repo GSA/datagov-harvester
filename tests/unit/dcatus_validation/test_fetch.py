@@ -1,11 +1,18 @@
 import itertools
+import json
+import os
+import re
 import socket
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pytest
 import requests
+import yaml
+from hypothesis import HealthCheck, given, settings
+from hypothesis import strategies as st
 
 import dcatus_validation.fetch as fetch
 from dcatus_validation.errors import CatalogTooDeeplyNested
@@ -16,12 +23,27 @@ from dcatus_validation.fetch import (
     FETCH_TIMEOUT_SECONDS,
     INVALID_JSON_ENCODING_MESSAGE,
     INVALID_JSON_NUMBER_MESSAGE,
+    PAYLOAD_TOO_LARGE_MESSAGE,
     InvalidCatalogSource,
     fetch_json_from_url,
     is_public_ip,
     parse_json_document,
 )
-from dcatus_validation.limits import MAX_DOCUMENT_NESTING_DEPTH
+from dcatus_validation.limits import (
+    MAX_DOCUMENT_NESTING_DEPTH,
+    MAX_REQUEST_BYTES,
+    MAX_REQUEST_OVERHEAD_BYTES,
+    MAX_UPLOAD_BYTES,
+    MAX_UPLOAD_MB,
+)
+
+
+def _json_body_of_size(size: int) -> bytes:
+    """A valid JSON catalog of exactly `size` bytes."""
+    prefix, suffix = b'{"dataset": [], "padding": "', b'"}'
+    body = prefix + b"x" * (size - len(prefix) - len(suffix)) + suffix
+    assert len(body) == size
+    return body
 
 
 def _json_response(body=b'{"dataset": []}'):
@@ -99,27 +121,80 @@ class TestFetchJsonFromUrl:
         get.assert_called_once()
         redirect.close.assert_called()
 
+    @pytest.mark.parametrize(
+        "size_offset, accepted",
+        [(-1, True), (0, True), (1, False)],
+        ids=["just-under", "at", "just-over"],
+    )
+    @patch("dcatus_validation.fetch._pinned_get")
+    def test_fetch_json_from_url_size_limit_boundary(
+        self, mock_get, monkeypatch, size_offset, accepted
+    ):
+        """The limit is inclusive: a body of exactly MAX_UPLOAD_BYTES is
+        fetched, one byte more is refused. The limit is patched down so the
+        boundary is cheap to build; test_size_limit_is_150mb pins the real
+        value."""
+        limit = 4096
+        monkeypatch.setattr(fetch, "MAX_UPLOAD_BYTES", limit)
+        body = _json_body_of_size(limit + size_offset)
+        mock_get.return_value = _json_response(body)
+
+        if accepted:
+            assert fetch_json_from_url("https://example.com/data.json") == (
+                json.loads(body)
+            )
+        else:
+            with pytest.raises(InvalidCatalogSource) as exc_info:
+                fetch_json_from_url("https://example.com/data.json")
+            assert exc_info.value.public_message == PAYLOAD_TOO_LARGE_MESSAGE
+
+    @pytest.mark.parametrize(
+        "size_offset, accepted",
+        [(-1, True), (0, True), (1, False)],
+        ids=["just-under", "at", "just-over"],
+    )
+    @patch("dcatus_validation.fetch._pinned_get")
+    def test_fetch_json_from_url_content_length_boundary(
+        self, mock_get, monkeypatch, size_offset, accepted
+    ):
+        """A Content-Length over the limit is refused before any of the body
+        is read; one at the limit is allowed through to the streamed count."""
+        limit = 4096
+        monkeypatch.setattr(fetch, "MAX_UPLOAD_BYTES", limit)
+        response = _json_response(b'{"dataset": []}')
+        response.headers["Content-Length"] = str(limit + size_offset)
+        mock_get.return_value = response
+
+        if accepted:
+            assert fetch_json_from_url("https://example.com/data.json") == {
+                "dataset": []
+            }
+        else:
+            with pytest.raises(InvalidCatalogSource, match=PAYLOAD_TOO_LARGE_MESSAGE):
+                fetch_json_from_url("https://example.com/data.json")
+            response.iter_content.assert_not_called()
+
     @patch("dcatus_validation.fetch._pinned_get")
     def test_fetch_json_from_url_exceeds_size_limit(self, mock_get):
-        """Test that fetch_json_from_url raises ValueError when content exceeds 10MB"""
-        mock_response = Mock()
-        mock_response.status_code = 200
-        mock_response.headers = {"Content-Type": "application/json"}
-        mock_response.raise_for_status = Mock()
-        mock_response.close = Mock()
-
-        large_content = b"x" * (11 * 1024 * 1024)
-        mock_response.iter_content = Mock(return_value=[large_content])
-        mock_get.return_value = mock_response
+        """At the real limit: a body one byte over 150MB is refused, built
+        from a reused chunk rather than one 150MB allocation."""
+        chunk = b"x" * (1024 * 1024)
+        chunk_count = MAX_UPLOAD_MB
+        mock_get.return_value = _json_response()
+        mock_get.return_value.iter_content = Mock(
+            side_effect=lambda chunk_size: itertools.chain(
+                itertools.repeat(chunk, chunk_count), [b"x"]
+            )
+        )
 
         with pytest.raises(
-            ValueError, match="JSON payload too large - must be 10MB or less."
+            ValueError, match="JSON payload too large - must be 150MB or less."
         ):
             fetch_json_from_url("https://example.com/large-file.json")
 
     @patch("dcatus_validation.fetch._pinned_get")
     def test_fetch_json_from_url_within_size_limit(self, mock_get):
-        """Test that fetch_json_from_url succeeds when content is within 10MB limit"""
+        """Test that fetch_json_from_url succeeds when content is within the limit"""
         mock_response = Mock()
         mock_response.status_code = 200
         mock_response.headers = {"Content-Type": "application/json"}
@@ -155,15 +230,22 @@ class TestFetchJsonFromUrl:
         assert fetch_json_from_url("https://example.com/data.json") == {"test": "data"}
 
     @pytest.mark.parametrize("encoding", ["utf-8", "utf-16", "utf-32"])
-    @patch("dcatus_validation.fetch.json.loads")
-    def test_deep_json_is_rejected_before_parsing(self, mock_loads, encoding):
+    def test_json_deeper_than_the_limit_still_parses(self, encoding):
+        """Nesting is checked after parsing, by validate.py's walk."""
         depth = MAX_DOCUMENT_NESTING_DEPTH + 1
+        document = ("[" * depth + "0" + "]" * depth).encode(encoding)
+
+        assert parse_json_document(document)
+
+    @pytest.mark.parametrize("encoding", ["utf-8", "utf-16", "utf-32"])
+    def test_json_too_deep_to_parse_is_too_deeply_nested(self, encoding):
+        """json.loads raises RecursionError rather than exhausting the stack
+        (GSA/data.gov#6460); that is reported as too deeply nested."""
+        depth = 1_000_000
         document = ("[" * depth + "0" + "]" * depth).encode(encoding)
 
         with pytest.raises(CatalogTooDeeplyNested):
             parse_json_document(document)
-
-        mock_loads.assert_not_called()
 
     def test_nesting_characters_inside_strings_are_ignored(self):
         brackets = "[" * (MAX_DOCUMENT_NESTING_DEPTH + 1)
@@ -174,32 +256,35 @@ class TestFetchJsonFromUrl:
     @patch("dcatus_validation.fetch._pinned_get")
     def test_fetch_json_from_url_content_length_exceeds_limit(self, mock_get):
         """Test that fetch_json_from_url raises ValueError when Content-Length
-        header exceeds 10MB"""
+        header exceeds 150MB"""
         mock_response = Mock()
         mock_response.status_code = 200
         mock_response.headers = {
             "Content-Type": "application/json",
-            "Content-Length": str(11 * 1024 * 1024),
+            "Content-Length": str(MAX_UPLOAD_BYTES + 1),
         }
         mock_response.raise_for_status = Mock()
         mock_get.return_value = mock_response
 
         with pytest.raises(
-            ValueError, match="JSON payload too large - must be 10MB or less."
+            ValueError, match="JSON payload too large - must be 150MB or less."
         ):
             fetch_json_from_url("https://example.com/large-file.json")
 
     @patch("dcatus_validation.fetch._pinned_get")
-    def test_fetch_json_from_url_stops_streaming_when_limit_exceeded(self, mock_get):
-        """Test that fetch_json_from_url stops downloading chunks when size
-        exceeds 10MB"""
+    def test_fetch_json_from_url_stops_streaming_when_limit_exceeded(
+        self, mock_get, monkeypatch
+    ):
+        """Test that fetch_json_from_url stops downloading chunks once the
+        size exceeds the limit (patched down to 10 chunks' worth)"""
+        chunk_size = 1024
+        monkeypatch.setattr(fetch, "MAX_UPLOAD_BYTES", 10 * chunk_size)
         mock_response = Mock()
         mock_response.status_code = 200
         mock_response.headers = {"Content-Type": "application/json"}
         mock_response.raise_for_status = Mock()
         mock_response.close = Mock()
 
-        chunk_size = 1024 * 1024  # 1MB
         chunks_generated = []
 
         def generate_chunks():
@@ -212,16 +297,11 @@ class TestFetchJsonFromUrl:
         )
         mock_get.return_value = mock_response
 
-        with pytest.raises(
-            ValueError, match="JSON payload too large - must be 10MB or less."
-        ):
+        with pytest.raises(InvalidCatalogSource, match=PAYLOAD_TOO_LARGE_MESSAGE):
             fetch_json_from_url("https://example.com/large-file.json")
 
-        # Verify we stopped after ~10 chunks (10MB), not all 15
-        assert len(chunks_generated) <= 11, (
-            f"Downloaded {len(chunks_generated)} chunks, should have stopped around "
-            f"10-11"
-        )
+        # Verify we stopped after the 11th chunk crossed the limit, not all 15
+        assert len(chunks_generated) == 11
         mock_response.close.assert_called_once()
 
     @patch("dcatus_validation.fetch._pinned_get")
@@ -360,9 +440,10 @@ class TestFetchJsonFromUrl:
 
     def test_connect_attempts_fit_inside_the_fetch_budget(self):
         """Every connect attempt fits inside the one deadline, each allows for
-        a quick SYN retransmit (~1s, then ~3s), and validation (up to ~12s at
-        10MB) has to fit after the fetch inside CloudFront's 30s, with
-        padding."""
+        a quick SYN retransmit (~1s, then ~3s), and validation has to fit
+        after the fetch inside CloudFront's 30s, with padding. The fast path
+        validates even a 150MB catalog in ~2s on a fast laptop
+        (GSA/data.gov#6460); 12s leaves room for slower production CPUs."""
         assert FETCH_CONNECT_TIMEOUT_SECONDS >= 3.5
         assert FETCH_CONNECT_TIMEOUT_SECONDS * FETCH_CONNECT_ATTEMPTS <= (
             FETCH_TIMEOUT_SECONDS
@@ -768,3 +849,161 @@ class TestPrivateAddressDefault:
         finally:
             monkeypatch.undo()
             importlib.reload(dcatus_validation.fetch)
+
+
+NGINX_SIZE_UNITS = {"": 1, "k": 1024, "m": 1024 * 1024, "g": 1024 * 1024 * 1024}
+
+
+def _validate_location_body_limit(config_path: str) -> int:
+    """client_max_body_size inside the validate API location block, in bytes."""
+    config = Path(config_path).read_text()
+    location = re.search(
+        r"location ~ \^/api\(/v1\)\?/validate\(/document\)\?\$ \{(?P<body>[^}]*)\}",
+        config,
+    )
+    assert location, f"no validate API location in {config_path}"
+    size = re.search(
+        r"client_max_body_size\s+(\d+)([kKmMgG]?);", location.group("body")
+    )
+    assert size, f"no client_max_body_size in {config_path}'s validate location"
+    return int(size.group(1)) * NGINX_SIZE_UNITS[size.group(2).lower()]
+
+
+def test_size_limit_is_150mb():
+    """GSA/data.gov#6460: 150MB, not the 600MB one Census file asked for."""
+    assert MAX_UPLOAD_MB == 150
+    assert MAX_UPLOAD_BYTES == 150 * 1024 * 1024
+    assert PAYLOAD_TOO_LARGE_MESSAGE == (
+        "JSON payload too large - must be 150MB or less."
+    )
+
+
+def test_request_limit_fits_a_json_escaped_document_at_the_limit():
+    """1.5x the document limit, for JSON escaping, plus the other API fields:
+    225MB + 1KB, so nginx's 226M sits just above it (GSA/data.gov#6460)."""
+    assert MAX_REQUEST_BYTES == MAX_UPLOAD_BYTES * 3 // 2 + MAX_REQUEST_OVERHEAD_BYTES
+    assert MAX_REQUEST_BYTES == 225 * 1024 * 1024 + 1024
+
+
+@pytest.mark.parametrize(
+    "config_path", ["proxy/nginx-common.conf", "nginx-local-proxy.conf"]
+)
+def test_proxy_body_limit_sits_just_above_the_validator_limit(config_path):
+    """Above MAX_REQUEST_BYTES, so the validator's own JSON 413 is what callers
+    see rather than nginx's bare HTML one; within a few MB of it, so nginx
+    still refuses anything far larger before buffering it to disk."""
+    proxy_limit = _validate_location_body_limit(config_path)
+
+    assert MAX_REQUEST_BYTES < proxy_limit <= MAX_REQUEST_BYTES + 2 * 1024 * 1024
+
+
+def test_proxy_passes_the_validators_own_errors_through():
+    """The proxy intercepts upstream errors for the admin app's HTML pages; for
+    the validator that turned its JSON 503 "busy, try again" into a 405 for a
+    POST, so the validate API goes through a location that doesn't."""
+    config = Path("proxy/nginx-common.conf").read_text()
+    validate = re.search(
+        r"location ~ \^/api\(/v1\)\?/validate\(/document\)\?\$ \{([^}]*)\}", config
+    )
+    named = re.search(r"location @proxy_to_validator \{(.*?)\n\}", config, re.S)
+
+    assert "try_files $uri @proxy_to_validator;" in validate.group(1)
+    assert "proxy_intercept_errors off;" in named.group(1)
+    assert "proxy_pass https://${backend_servers}${request_uri};" in named.group(1)
+
+
+def test_proxy_disk_holds_several_maximum_size_uploads():
+    """nginx spools request bodies to the proxy app's disk, which also serves
+    the admin app, so it has room for several maximum-size uploads at once."""
+    manifest = yaml.safe_load(
+        re.sub(r"\(\((\w+)\)\)", r"\1", Path("manifest.yml").read_text())
+    )
+    [proxy] = [a for a in manifest["applications"] if a["name"].endswith("-proxy")]
+    match = re.fullmatch(r"(\d+)([MG])", proxy["disk_quota"])
+    disk = int(match.group(1)) * NGINX_SIZE_UNITS[match.group(2).lower()]
+
+    assert disk >= 8 * _validate_location_body_limit("proxy/nginx-common.conf")
+
+
+# Pasted text arrives as its UTF-8 bytes (parse_pasted_json_document), so the
+# validator can drop the text before parsing (GSA/data.gov#6460). It must end
+# exactly as parsing the text itself does.
+
+EXAMPLE_COUNT = int(os.getenv("DCATUS_EQUIVALENCE_EXAMPLES", "300"))
+HYPOTHESIS_SETTINGS = settings(
+    max_examples=EXAMPLE_COUNT,
+    derandomize=True,
+    deadline=None,
+    suppress_health_check=list(HealthCheck),
+)
+JSON_VALUES = st.recursive(
+    st.none()
+    | st.booleans()
+    | st.integers()
+    | st.floats(allow_nan=False, allow_infinity=False)
+    | st.text(),
+    lambda children: st.lists(children, max_size=4)
+    | st.dictionaries(st.text(max_size=6), children, max_size=4),
+    max_leaves=12,
+)
+
+
+def parse_outcome(document):
+    """What a caller can observe: the value (repr keeps 1, 1.0 and True, and
+    key order, apart) or the error and everything it carries."""
+    # Through the module: a test above reloads it, which replaces
+    # InvalidCatalogSource and parse_json_document.
+    try:
+        return ("value", repr(fetch.parse_json_document(document)))
+    except json.JSONDecodeError as error:
+        return ("JSONDecodeError", error.msg, error.lineno, error.colno, error.pos)
+    except fetch.InvalidCatalogSource as error:
+        return ("InvalidCatalogSource", error.public_message)
+    except Exception as error:
+        return (type(error).__name__, str(error))
+
+
+def pasted_outcome(text):
+    """parse_outcome for the validator's paste path, which parses the UTF-8
+    encoding of the pasted text (parse_pasted_json_document)."""
+    try:
+        return ("value", repr(fetch.parse_pasted_json_document(text.encode("utf-8"))))
+    except json.JSONDecodeError as error:
+        return ("JSONDecodeError", error.msg, error.lineno, error.colno, error.pos)
+    except fetch.InvalidCatalogSource as error:
+        return ("InvalidCatalogSource", error.public_message)
+    except Exception as error:
+        return (type(error).__name__, str(error))
+
+
+PASTED_TEXTS = {
+    "BOM": '﻿{"dataset": []}',
+    "leading NUL (bytes would guess UTF-16)": '\x00{"dataset": []}',
+    "NUL pairs (bytes would guess UTF-32)": '\x00\x00\x00{"dataset": []}',
+    "integer beyond 64 bits": '{"dataset": [{"title": 18446744073709551616}]}',
+    "NaN": '{"dataset": [NaN]}',
+    "syntax error on line 3": '{\n  "dataset": [\n    {"title": "x",}\n  ]\n}',
+    "non-ASCII": '{"dataset": [{"title": "Données ’ \U0001f600"}]}',
+    "nested 101 deep": "[" * 101 + "]" * 101,
+    "nested 1,000,000 deep": "[" * 1_000_000 + "]" * 1_000_000,
+    "empty": "",
+    "escaped lone surrogate": '{"dataset": [{"title": "\\ud800"}]}',
+}
+
+
+@pytest.mark.parametrize("text", PASTED_TEXTS.values(), ids=list(PASTED_TEXTS))
+def test_pasted_bytes_parse_like_the_pasted_text(text):
+    """The paste route parses the text's UTF-8 bytes so it can drop the text
+    first (GSA/data.gov#6460). That must end exactly as parsing the text did,
+    including the refusals bytes would otherwise change: a leading BOM, and
+    NULs that bytes parsing reads as UTF-16 or UTF-32."""
+    assert pasted_outcome(text) == parse_outcome(text)
+
+
+@HYPOTHESIS_SETTINGS
+@given(
+    JSON_VALUES.map(lambda value: json.dumps(value, ensure_ascii=False))
+    | st.text(max_size=60)
+)
+def test_random_pasted_texts_parse_like_the_text(text):
+    assert pasted_outcome(text) == parse_outcome(text)
