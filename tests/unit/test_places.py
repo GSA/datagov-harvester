@@ -1,30 +1,21 @@
-import csv
-from collections import Counter
-
 import pytest
 
 from dcatus_validation import places
+from scripts.refresh_location_names import write_location_names
 
 
 @pytest.fixture
 def snapshot(tmp_path, monkeypatch):
-    """Point the lookup at a small CSV built from these locations rows (one
-    entry per row, so a repeated name has a row count above 1). Names in
-    in_postal_code are flagged as appearing inside a postal-code name."""
+    """Point the lookup at a small SQLite file built from these locations rows,
+    one entry per row. Names in no_geom are rows without a geometry."""
 
-    def use(names, in_postal_code=()):
-        path = tmp_path / "location_names.csv"
-        with open(path, "w", newline="") as f:
-            writer = csv.writer(f)
-            writer.writerow(["display_name", "row_count", "in_postal_code_name"])
-            for name, count in Counter(names).items():
-                writer.writerow([name, count, int(name in in_postal_code)])
+    def use(names, no_geom=()):
+        path = tmp_path / "location_names.sqlite"
+        write_location_names([(name, name not in no_geom) for name in names], path)
         monkeypatch.setattr(places, "LOCATION_NAMES_PATH", path)
-        places._snapshot.cache_clear()
         places.snapshot_place_lookup.cache_clear()
 
     yield use
-    places._snapshot.cache_clear()
     places.snapshot_place_lookup.cache_clear()
 
 
@@ -35,6 +26,11 @@ class TestSnapshotPlaceLookup:
         assert places.snapshot_place_lookup("fairfax county") == (
             "Fairfax County, Virginia"
         )
+
+    def test_non_ascii_case_folds(self, snapshot):
+        snapshot(["Côte d'Ivoire"])
+
+        assert places.snapshot_place_lookup("CÔTE") == "Côte d'Ivoire"
 
     def test_name_shared_by_two_rows_does_not_resolve(self, snapshot):
         # the harvester's .scalar() raises on more than one row
@@ -47,10 +43,24 @@ class TestSnapshotPlaceLookup:
 
         assert places.snapshot_place_lookup("Virginia") is None
 
-    def test_two_matches_inside_one_name_still_resolve(self, snapshot):
-        snapshot(["Ia Ia Town", "Ohio"])
+    def test_city_inside_a_postal_code_name_does_not_resolve(self, snapshot):
+        snapshot(
+            [
+                "Abbeville County, South Carolina",
+                "Abbeville, AL (36310)",
+                "Abbeville, AL (36310)",
+            ]
+        )
 
-        assert places.snapshot_place_lookup("ia") == "Ia Ia Town"
+        assert places.snapshot_place_lookup("Abbeville") is None
+        assert places.snapshot_place_lookup("Abbeville County") == (
+            "Abbeville County, South Carolina"
+        )
+
+    def test_row_without_geometry_does_not_resolve(self, snapshot):
+        snapshot(["Ohio"], no_geom={"Ohio"})
+
+        assert places.snapshot_place_lookup("Ohio") is None
 
     def test_no_match(self, snapshot):
         snapshot(["Ohio"])
@@ -75,20 +85,13 @@ class TestSnapshotPlaceLookup:
 
         assert places.snapshot_place_lookup("Ohio\\") == "x Ohio%"
 
-    def test_name_inside_a_postal_code_name_does_not_resolve(self, snapshot):
-        # "Angola" is also inside "Angola, IN (46703)", whose rows were left out
-        snapshot(["Angola"], in_postal_code={"Angola"})
 
-        assert places.snapshot_place_lookup("Angola") is None
-
-    def test_newline_never_matches_across_names(self, snapshot):
-        snapshot(["Ohio", "Utah"])
-
-        assert places.snapshot_place_lookup("ohio\nutah") is None
+def test_empty_table_is_refused(tmp_path):
+    with pytest.raises(SystemExit):
+        write_location_names([], tmp_path / "location_names.sqlite")
 
 
 def test_bundled_snapshot_loads_and_resolves_a_unique_name():
-    places._snapshot.cache_clear()
     places.snapshot_place_lookup.cache_clear()
     places.load_location_names()
 
