@@ -199,7 +199,7 @@ class TestFlashColors:
         self, admin_client, interface_no_jobs, source_data_dcatus, status, expected
     ):
         with patch(
-            "app.main.harvest_sources.enqueue_harvest_source_archive",
+            "app.main.harvest_sources.enqueue_harvest_source_delete",
             return_value=("delete result", status),
         ):
             response = admin_client.post(

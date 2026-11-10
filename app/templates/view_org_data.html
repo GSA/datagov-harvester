@@ -127,12 +127,9 @@
                 </thead>
                 <tbody>
                     {% for source in data.harvest_sources %}
-                    <tr {% if source.is_archived %}class="archived-row"{% endif %}>
-                        <td data-sort-value={{source.date_created}}>
-                            <a href="{{ url_for('main.view_harvest_source', source_id=source.id) }}">{{source.name}}</a>
-                            {% if source.is_archived %}
-                            <span class="usa-tag usa-tag--big margin-left-1">Archived</span>
-                            {% endif %}
+                    <tr>
+                        <td data-sort-value={{source.date_created}}><a
+                                href="{{ url_for('main.view_harvest_source', source_id=source.id) }}">{{source.name}}</a>
                         </td>
                         <td scope="row" class="text-center">
                             {% if data.harvest_jobs[source.id] %}

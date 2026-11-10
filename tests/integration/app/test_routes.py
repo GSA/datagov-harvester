@@ -54,7 +54,7 @@ class TestDynamicRouteTable:
                     "location": "/organization_list/",
                 },
             },
-            r"((main|api|api_v1)\.(add|edit|cancel|update|delete|trigger|unarchive)_(organization|harvest_source|harvest_job|harvest_record))": {
+            r"((main|api|api_v1)\.(add|edit|cancel|update|delete|trigger)_(organization|harvest_source|harvest_job|harvest_record))": {
                 "(POST|HEAD|PUT|DELETE)": {
                     "status_code": 302,
                     "location": LOCATION_ENUMS["LOGIN"],
@@ -508,8 +508,8 @@ class TestHarvestSourceDeleteRedirects:
             sess["user"] = "tester@gsa.gov"
 
         with patch(
-            "app.main.harvest_sources.enqueue_harvest_source_archive",
-            return_value=("archive result", status),
+            "app.main.harvest_sources.enqueue_harvest_source_delete",
+            return_value=("delete result", status),
         ):
             response = client.post(
                 f"/harvest_source/{source_id}",
@@ -684,8 +684,6 @@ class TestJSONResponses:
             json_res = json.loads(res.data)
             if "count" in json_res:
                 assert json_res["count"] == response
-            elif "data" in json_res:
-                assert len(json_res["data"]) == response
             elif "error" in json_res:
                 assert json_res["error"] == response
             else:
@@ -697,10 +695,10 @@ class TestJSONResponses:
         """
         checks the content of the json response when navigating to "/organizations/"
         """
-        res = client.get("/api/v1/organizations/?envelope=true")
+        res = client.get("/api/v1/organizations/")
         assert res.status_code == 200
 
-        assert res.json["data"] == [
+        assert res.json == [
             {
                 "aliases": ["testorg"],
                 "code_repo_exempt": False,
@@ -714,8 +712,6 @@ class TestJSONResponses:
                 "source_count": 1,
             }
         ]
-        assert "meta" in res.json
-        assert "links" in res.json
 
 
 class TestHarvestRecordRawAPI:
@@ -1065,6 +1061,7 @@ class TestRecordIssueSeverityAPI:
 
         assert res.status_code == 200
         assert {e["severity"] for e in res.json} == {"error", "warning"}
+        # every seeded error plus the warning this fixture added
         assert len(res.json) == len(record_error_data) + 1
 
     def test_severity_facet_is_not_double_filtered(
@@ -1639,12 +1636,10 @@ class TestPaginationValidation:
         interface.add_organization(organization_data)
         interface.add_harvest_source(source_data_dcatus)
 
-        response = client.get("/api/v1/harvest_sources/?per_page=0&envelope=true")
+        response = client.get("/api/v1/harvest_sources/?per_page=0")
 
         assert response.status_code == 200
-        assert response.json["data"] == []
-        assert "meta" in response.json
-        assert "links" in response.json
+        assert response.json == []
 
     def test_per_page_negative_returns_422(
         self, client, interface, organization_data, source_data_dcatus
@@ -1665,13 +1660,11 @@ class TestPaginationValidation:
         interface.add_organization(organization_data)
         interface.add_harvest_source(source_data_dcatus)
 
-        response = client.get("/api/v1/harvest_sources/?per_page=1&envelope=true")
+        response = client.get("/api/v1/harvest_sources/?per_page=1")
 
         assert response.status_code == 200
         data = response.json
-        assert len(data["data"]) == 1
-        assert "meta" in data
-        assert "links" in data
+        assert len(data) == 1
 
     def test_per_page_validation_consistent_across_endpoints(
         self, client, interface_with_fixture_json
@@ -1687,12 +1680,14 @@ class TestPaginationValidation:
         ]
 
         for endpoint in endpoints:
-            response = client.get(f"{endpoint}?per_page=0&envelope=true")
+            # per_page=0 should return empty array
+            response = client.get(f"{endpoint}?per_page=0")
             assert response.status_code == 200, f"{endpoint} should accept per_page=0"
             assert (
-                response.json["data"] == []
-            ), f"{endpoint} should return empty data array for per_page=0"
+                response.json == []
+            ), f"{endpoint} should return empty array for per_page=0"
 
+            # Negative per_page should return 422
             response = client.get(f"{endpoint}?per_page=-1")
             assert (
                 response.status_code == 422

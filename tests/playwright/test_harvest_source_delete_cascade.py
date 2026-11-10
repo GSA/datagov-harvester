@@ -1,17 +1,21 @@
-"""Archiving a "cleared" harvest source must preserve its child rows.
+"""Deleting a "cleared" harvest source must cascade its child rows.
 
-The other archive tests cover a source with no records at all, or the 409
-refusal when a source still has live records. This test verifies that
-`archive_harvest_source` correctly marks a cleared source as archived while
-preserving all harvest_record and harvest_record_error rows in the table.
+The other delete tests cover a source with no records at all, or the 409
+refusal when a source still has live records. Neither reaches the cascade:
+`delete_harvest_source` counts only the *latest* synced record per identifier
+whose action is not "delete", so a source that has been cleared reports zero
+records while its harvest_record / harvest_record_error rows are all still in
+the table. That is the path that OOM-killed the web worker in production, and
+the path ON DELETE CASCADE plus passive_deletes is meant to fix.
 
-UI archive schedules a CF/local background task and returns immediately with a
-"may take some time" flash; this test waits for the archive to finish in the
-app database before asserting the source is marked archived and child rows remain.
+UI delete schedules a CF/local background task and returns immediately with a
+"may take some time" flash; this test waits for the cascade to finish in the
+app database before asserting child rows are gone.
 
-The fixture seeds a dataset as well as records. Datasets ensure that the archive
-operation correctly preserves all related data: `dataset.harvest_source_id` points
-to the archived source, and all job/record history remains accessible.
+The fixture seeds a dataset as well as records. Datasets are what make this a
+regression test rather than a smoke test: `dataset.harvest_source_id` is NOT
+NULL, so without passive_deletes on the backref SQLAlchemy tries to NULL it
+and the delete fails with IntegrityError instead of cascading.
 
 Rows are committed on their own connection because the app under test is a
 separate process; the shared `session` fixture rolls back, so anything seeded
@@ -22,7 +26,7 @@ They also have to land in the *app's* database, which is not the one
 on APP_DATABASE_PORT, and a second db on DATABASE_PORT that host-side pytest
 owns and that the autouse `dbapp` fixture drops and recreates per test. Seeding
 through DATABASE_URI would write to that second db, so the browser would 404 on
-the source and never render an Archive button.
+the source and never render a Delete button.
 """
 
 import os
@@ -44,32 +48,14 @@ APP_DATABASE_PORT = int(os.getenv("APP_DATABASE_PORT", "5433"))
 
 
 def _wait_for_source_gone(engine, source_id, timeout_seconds=DELETE_WAIT_SECONDS):
-    """Poll until the background archive task removes the source row (legacy)."""
+    """Poll until the background delete task removes the source row."""
     deadline = time.monotonic() + timeout_seconds
     while time.monotonic() < deadline:
         if _child_row_counts(engine, source_id)["sources"] == 0:
             return
         time.sleep(0.25)
     raise AssertionError(
-        f"Harvest source {source_id} was not archived within {timeout_seconds}s"
-    )
-
-
-def _wait_for_source_archived(engine, source_id, timeout_seconds=DELETE_WAIT_SECONDS):
-    """Poll until the background archive task marks the source as archived."""
-    deadline = time.monotonic() + timeout_seconds
-    while time.monotonic() < deadline:
-        with engine.connect() as conn:
-            result = conn.execute(
-                text("SELECT is_archived FROM harvest_source WHERE id = :source_id"),
-                {"source_id": source_id},
-            )
-            row = result.fetchone()
-            if row and row[0] is True:
-                return
-        time.sleep(0.25)
-    raise AssertionError(
-        f"Harvest source {source_id} was not archived within {timeout_seconds}s"
+        f"Harvest source {source_id} was not deleted within {timeout_seconds}s"
     )
 
 
@@ -94,7 +80,7 @@ def cleared_source(engine):
     """A source whose records were all cleared, with errors and a dataset.
 
     Every record's latest action is "delete", so the UI's record count reports
-    zero and the Archive button is allowed through.
+    zero and the Delete button is allowed through to the cascade.
     """
     org_id = str(uuid.uuid4())
     source_id = str(uuid.uuid4())
@@ -198,8 +184,9 @@ def cleared_source(engine):
 
     yield {"source_id": source_id, "org_id": org_id, "name": source_name}
 
-    # The test archives the source itself, but we still clean up all test data.
-    # Tear down child-first for explicit cleanup of the test fixture.
+    # The test deletes the source itself, so normally there is nothing left to
+    # do. Tear down child-first anyway rather than leaning on ON DELETE CASCADE:
+    # this fixture has to clean up even when the cascade under test is missing.
     with engine.begin() as conn:
         conn.execute(
             text("DELETE FROM dataset WHERE harvest_source_id = :id"),
@@ -270,8 +257,8 @@ def _child_row_counts(engine, source_id):
         }
 
 
-class TestHarvestSourceArchive:
-    def test_archive_cleared_source_preserves_children(
+class TestHarvestSourceDeleteCascade:
+    def test_delete_cleared_source_cascades_children(
         self, authed_page, engine, cleared_source
     ):
         source_id = cleared_source["source_id"]
@@ -288,25 +275,24 @@ class TestHarvestSourceArchive:
         authed_page.goto(f"/harvest_source/{source_id}")
 
         # Assert positively that the page found the seeded source before reaching
-        # for the Archive button. If the fixture ever seeds a db the app isn't
+        # for the Delete button. If the fixture ever seeds a db the app isn't
         # reading, the button is simply absent and a bare click would fail as an
         # opaque locator timeout rather than naming the real problem.
         expect(authed_page.locator("h1")).to_have_text(cleared_source["name"])
 
         authed_page.once("dialog", lambda dialog: dialog.accept())
-        authed_page.get_by_role("button", name=re.compile(r"^Archive\b")).click()
+        authed_page.get_by_role("button", name=re.compile(r"^Delete\b")).click()
 
         expect(authed_page.locator(".usa-alert--success")).to_contain_text(
-            ["This harvest source may take some time to archive."]
+            ["This harvest source may take some time to delete."]
         )
 
-        _wait_for_source_archived(engine, source_id)
+        _wait_for_source_gone(engine, source_id)
 
-        # After archiving, source is marked archived but related records remain
         assert _child_row_counts(engine, source_id) == {
-            "sources": 1,
-            "jobs": 1,
-            "records": RECORD_COUNT,
-            "record_errors": RECORD_COUNT,
-            "datasets": 1,
+            "sources": 0,
+            "jobs": 0,
+            "records": 0,
+            "record_errors": 0,
+            "datasets": 0,
         }

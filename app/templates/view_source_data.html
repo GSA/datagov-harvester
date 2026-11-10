@@ -29,19 +29,6 @@
     <div class="display-flex flex-align-center flex-wrap">
         <h1 class="margin-right-2">{{data.source.name}}</h1>
     </div>
-
-    {% if data.source.is_archived %}
-    <div class="usa-alert usa-alert--warning margin-top-2 margin-bottom-3" role="alert">
-        <div class="usa-alert__body">
-            <h2 class="usa-alert__heading">This harvest source is archived</h2>
-            <p class="usa-alert__text">
-                This source was archived on {{ data.source.archived_at | utc_isoformat }} by {{ data.source.archived_by }}.
-                Archived sources are locked and cannot be modified or harvested. All historical job information remains available.
-            </p>
-        </div>
-    </div>
-    {% endif %}
-
     <h2>Configuration</h2>
     <div class="config-table harvest-source-config-properties">
         <table class="usa-table usa-table--borderless width-full">
@@ -92,13 +79,6 @@
     <div class="config-actions harvest-source-config-actions">
         <form method="POST" action>
             {{ form.hidden_tag() }}
-            {% if data.source.is_archived %}
-            <ul class="usa-button-group">
-                <li class="usa-button-group__item">
-                    {{ confirm_button.render(form.unarchive, 'usa-button', 'unarchive') }}
-                </li>
-            </ul>
-            {% else %}
             <ul class="usa-button-group">
                 <li class="usa-button-group__item">
                     {{form.edit(class_='usa-button')}}
@@ -117,7 +97,8 @@
                     {{ confirm_button.render(form.clear, 'usa-button--outline', 'clear') }}
                 </li>
                 <li class="usa-button-group__item">
-                    {{ confirm_button.render(form.delete, 'usa-button--secondary', 'archive') }}
+                    {{ confirm_button.render(form.delete, 'usa-button--secondary', 'delete') }}
+
                 </li>
             </ul>
             <fieldset class="usa-fieldset margin-top-2">
@@ -126,7 +107,6 @@
                     {{form.force_check.label(class_='usa-checkbox__label')}}
                 </div>
             </fieldset>
-            {% endif %}
         </form>
     </div>
     {% endif %}
