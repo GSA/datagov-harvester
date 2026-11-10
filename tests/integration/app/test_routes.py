@@ -8,6 +8,7 @@ from unittest.mock import Mock, patch
 import pytest
 from flask import Response
 
+from app.constants import SLUG_ERROR_MESSAGE
 from app.deps import UnsafeTemplateEnvError, render_block
 from harvester.harvest import HarvestSource
 
@@ -1447,6 +1448,182 @@ def test_harvest_source_list_search_includes_description(
     response_text = response.data.decode()
     assert "Environmental monitoring data" in response_text
     assert "data-meta=" in response_text
+
+
+class TestOrganizationEditAPIValidation:
+    """The edit API validates its input with the same rules as create."""
+
+    @pytest.fixture
+    def headers(self, app):
+        return {
+            "X-API-Key": app.config["API_TOKEN"],
+            "Content-Type": "application/json",
+        }
+
+    @pytest.fixture
+    def org(self, interface, organization_data):
+        interface.add_organization(organization_data)
+        return organization_data
+
+    def edit(self, client, org_id, data, headers):
+        return client.post(
+            f"/api/v1/organization/edit/{org_id}", json=data, headers=headers
+        )
+
+    def test_valid_edit_succeeds(self, client, interface, org, headers):
+        response = self.edit(
+            client,
+            org["id"],
+            {
+                "name": "Renamed Org",
+                "slug": "renamed-org-2",
+                "organization_type": "Non-Profit",
+                "aliases": ["renamed"],
+            },
+            headers,
+        )
+
+        assert response.status_code == 200
+        assert response.get_json() == {"message": f"Updated org with ID: {org['id']}"}
+        updated = interface.get_organization(org["id"])
+        assert updated.name == "Renamed Org"
+        assert updated.slug == "renamed-org-2"
+        assert updated.organization_type == "Non-Profit"
+        assert updated.aliases == ["renamed"]
+
+    def test_keeping_its_own_slug_succeeds(self, client, interface, org, headers):
+        response = self.edit(
+            client, org["id"], {"name": "Same Slug", "slug": org["slug"]}, headers
+        )
+
+        assert response.status_code == 200
+        assert interface.get_organization(org["id"]).name == "Same Slug"
+
+    def test_edit_without_slug_succeeds(self, client, interface, org, headers):
+        response = self.edit(
+            client, org["id"], {"description": "New description"}, headers
+        )
+
+        assert response.status_code == 200
+        updated = interface.get_organization(org["id"])
+        assert updated.description == "New description"
+        assert updated.slug == org["slug"]
+
+    @pytest.mark.parametrize(
+        "slug,message",
+        [
+            ("Fixture-Org", SLUG_ERROR_MESSAGE),
+            ("fixture_org", SLUG_ERROR_MESSAGE),
+            ("fixture org", SLUG_ERROR_MESSAGE),
+            ("", SLUG_ERROR_MESSAGE),
+            ("fixture-org\n", SLUG_ERROR_MESSAGE),
+            ("a" * 101, "Longer than maximum length 100."),
+            (None, "Field may not be null."),
+        ],
+    )
+    def test_invalid_slug_is_rejected(
+        self, client, interface, org, headers, slug, message
+    ):
+        response = self.edit(client, org["id"], {"slug": slug}, headers)
+
+        assert response.status_code == 400
+        assert response.get_json() == {"error": f"slug: {message}"}
+        assert interface.get_organization(org["id"]).slug == org["slug"]
+
+    def test_slug_of_max_length_is_accepted(self, client, interface, org, headers):
+        response = self.edit(client, org["id"], {"slug": "a" * 100}, headers)
+
+        assert response.status_code == 200
+        assert interface.get_organization(org["id"]).slug == "a" * 100
+
+    def test_slug_of_another_org_is_rejected(self, client, interface, org, headers):
+        other = interface.add_organization({"name": "Other Org", "slug": "other-org"})
+
+        response = self.edit(client, org["id"], {"slug": "other-org"}, headers)
+
+        assert response.status_code == 400
+        assert response.get_json() == {"error": "slug: Slug must be unique."}
+        assert interface.get_organization(org["id"]).slug == org["slug"]
+        assert interface.get_organization(other.id).slug == "other-org"
+
+    @pytest.mark.parametrize("field", ["not_a_field", "id", "sources"])
+    def test_unknown_field_is_rejected(self, client, interface, org, headers, field):
+        response = self.edit(
+            client, org["id"], {"name": "Renamed Org", field: "x"}, headers
+        )
+
+        assert response.status_code == 400
+        assert response.get_json() == {"error": f"{field}: Unknown field."}
+        assert interface.get_organization(org["id"]).name == org["name"]
+
+    def test_invalid_organization_type_is_rejected(
+        self, client, interface, org, headers
+    ):
+        response = self.edit(
+            client, org["id"], {"organization_type": "Not A Real Type"}, headers
+        )
+
+        assert response.status_code == 400
+        assert response.get_json()["error"].startswith("organization_type: ")
+        assert (
+            interface.get_organization(org["id"]).organization_type
+            == org["organization_type"]
+        )
+
+    def test_invalid_code_repo_url_is_rejected(self, client, org, headers):
+        response = self.edit(
+            client, org["id"], {"code_repo_url": "ftp://github.com/test"}, headers
+        )
+
+        assert response.status_code == 400
+        assert response.get_json() == {
+            "error": "code_repo_url: URL must start with http:// or https://"
+        }
+
+    def test_every_invalid_field_is_reported(self, client, org, headers):
+        response = self.edit(
+            client,
+            org["id"],
+            {"slug": "Bad", "code_repo_url": "ftp://github.com/test"},
+            headers,
+        )
+
+        assert response.status_code == 400
+        error = response.get_json()["error"]
+        assert f"slug: {SLUG_ERROR_MESSAGE}" in error
+        assert "code_repo_url: URL must start with http:// or https://" in error
+
+    @pytest.mark.parametrize("code_repo_url", [None, "", "   "])
+    def test_blank_code_repo_url_clears_it(
+        self, client, interface, organization_data, headers, code_repo_url
+    ):
+        org_data = organization_data.copy()
+        org_data["code_repo_url"] = "https://github.com/test-org"
+        interface.add_organization(org_data)
+
+        response = self.edit(
+            client, org_data["id"], {"code_repo_url": code_repo_url}, headers
+        )
+
+        assert response.status_code == 200
+        assert interface.get_organization(org_data["id"]).code_repo_url is None
+
+    def test_non_object_body_is_rejected(self, client, org, headers):
+        response = self.edit(client, org["id"], ["slug", "x"], headers)
+
+        assert response.status_code == 400
+        assert response.get_json() == {"error": "Invalid input type."}
+
+    @pytest.mark.parametrize("api_key", [None, "invalid_token"])
+    def test_auth_is_still_required(self, client, interface, org, api_key):
+        headers = {"Content-Type": "application/json"}
+        if api_key:
+            headers["X-API-Key"] = api_key
+
+        response = self.edit(client, org["id"], {"name": "Renamed Org"}, headers)
+
+        assert response.status_code == 401
+        assert interface.get_organization(org["id"]).name == org["name"]
 
 
 class TestPaginationValidation:
