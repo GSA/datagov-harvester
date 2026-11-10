@@ -1800,7 +1800,7 @@ def build_report_email_section(
     return "\n".join(lines)
 
 
-def format_recipient_list(notification_emails):
+def format_recipient_list(notification_emails: list[str] | None) -> str:
     """
     Format notification emails as comma-separated string or 'None'.
 
@@ -1812,7 +1812,8 @@ def format_recipient_list(notification_emails):
     """
     if not notification_emails:
         return "None"
-    return ", ".join(notification_emails)
+    filtered = [str(email) for email in notification_emails if email]
+    return ", ".join(filtered) if filtered else "None"
 
 
 def is_valid_uuid4(uuid_string) -> bool:
