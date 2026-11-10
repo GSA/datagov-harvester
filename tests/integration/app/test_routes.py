@@ -53,7 +53,7 @@ class TestDynamicRouteTable:
                     "location": "/organization_list/",
                 },
             },
-            r"((main|api|api_v1)\.(add|edit|cancel|update|delete|trigger)_(organization|harvest_source|harvest_job|harvest_record))": {
+            r"((main|api|api_v1)\.(add|edit|cancel|update|delete|trigger|unarchive)_(organization|harvest_source|harvest_job|harvest_record))": {
                 "(POST|HEAD|PUT|DELETE)": {
                     "status_code": 302,
                     "location": LOCATION_ENUMS["LOGIN"],
