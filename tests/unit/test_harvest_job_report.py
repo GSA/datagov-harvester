@@ -228,3 +228,19 @@ class TestReportRecipientsDisplay:
         formatted = format_recipient_list(None)
 
         assert formatted == "None"
+
+    def test_plain_text_section_filters_empty_strings(self):
+        from harvester.utils.general_utils import format_recipient_list
+
+        recipients = ["admin@example.com", "", "data@example.com", None]
+        formatted = format_recipient_list(recipients)
+
+        assert formatted == "admin@example.com, data@example.com"
+
+    def test_plain_text_section_handles_all_empty_strings(self):
+        from harvester.utils.general_utils import format_recipient_list
+
+        recipients = ["", "", None]
+        formatted = format_recipient_list(recipients)
+
+        assert formatted == "None"
