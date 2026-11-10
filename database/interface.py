@@ -426,26 +426,22 @@ class HarvesterDBInterface:
         source = self.db.get(HarvestSource, source_id)
 
         self.db.execute(
-            text(
-                """
+            text("""
                 DELETE FROM harvest_record_error
                 WHERE harvest_record_id IN (
                     SELECT id FROM harvest_record WHERE harvest_source_id = :source_id
                 )
-            """
-            ),
+            """),
             {"source_id": source_id},
         )
 
         self.db.execute(
-            text(
-                """
+            text("""
                 DELETE FROM harvest_record_current_issue
                 WHERE harvest_record_id IN (
                     SELECT id FROM harvest_record WHERE harvest_source_id = :source_id
                 )
-            """
-            ),
+            """),
             {"source_id": source_id},
         )
 
@@ -1986,16 +1982,14 @@ class HarvesterDBInterface:
 
     def refresh_dataset_mv(self):
         try:
-            self.db.execute(
-                text("""
+            self.db.execute(text("""
                     DO $$
                     BEGIN
                         IF EXISTS (SELECT 1 FROM pg_class WHERE relname = 'dataset' AND relkind = 'm') THEN
                             REFRESH MATERIALIZED VIEW CONCURRENTLY dataset;
                         END IF;
                     END $$;
-                """)
-            )
+                """))
             self.db.commit()
         except Exception as e:
             logger.error("Error: %s", e)
