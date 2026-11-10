@@ -1,3 +1,5 @@
+import time
+
 import pytest
 
 from dcatus_validation import places
@@ -13,10 +15,10 @@ def snapshot(tmp_path, monkeypatch):
         path = tmp_path / "location_names.sqlite"
         write_location_names([(name, name not in no_geom) for name in names], path)
         monkeypatch.setattr(places, "LOCATION_NAMES_PATH", path)
-        places.snapshot_place_lookup.cache_clear()
+        places._cached_lookup.cache_clear()
 
     yield use
-    places.snapshot_place_lookup.cache_clear()
+    places._cached_lookup.cache_clear()
 
 
 class TestSnapshotPlaceLookup:
@@ -61,29 +63,41 @@ class TestSnapshotPlaceLookup:
         snapshot(["Ohio"], no_geom={"Ohio"})
 
         assert places.snapshot_place_lookup("Ohio") is None
+        assert places.snapshot_place_lookup("oh") is None
 
     def test_no_match(self, snapshot):
         snapshot(["Ohio"])
 
         assert places.snapshot_place_lookup("Nowhere") is None
 
-    def test_like_wildcards_match_as_in_postgres(self, snapshot):
+    def test_like_wildcards_are_plain_characters(self, snapshot):
+        # unlike the harvester's ILIKE; see the places.py docstring
         snapshot(["Ohio", "Utah"])
 
-        assert places.snapshot_place_lookup("O_io") == "Ohio"
-        assert places.snapshot_place_lookup("U%h") == "Utah"
+        assert places.snapshot_place_lookup("O_io") is None
+        assert places.snapshot_place_lookup("U%h") is None
         assert places.snapshot_place_lookup("%") is None
 
-    def test_escaped_wildcard_is_literal(self, snapshot):
+    def test_percent_matches_only_a_literal_percent(self, snapshot):
         snapshot(["100% County", "1000 County"])
 
-        assert places.snapshot_place_lookup("100\\%") == "100% County"
+        assert places.snapshot_place_lookup("100%") == "100% County"
+        assert places.snapshot_place_lookup("100\\%") is None
 
-    def test_trailing_escape_escapes_the_closing_wildcard(self, snapshot):
-        # the harvester builds f"%{name}%", so "Ohio\\" means "ends in Ohio%"
-        snapshot(["Ohio", "x Ohio%", "Ohio% y"])
+    def test_backslash_and_quote_are_plain_characters(self, snapshot):
+        snapshot(["Ohio", "x Ohio\\", 'Say "Ohio"'])
 
-        assert places.snapshot_place_lookup("Ohio\\") == "x Ohio%"
+        assert places.snapshot_place_lookup("Ohio\\") == "x Ohio\\"
+        assert places.snapshot_place_lookup('"Ohio"') == 'Say "Ohio"'
+
+    def test_short_names_use_the_same_rule(self, snapshot):
+        snapshot(["Ohio", "Utah", "Côte"])
+
+        assert places.snapshot_place_lookup("ô") == "Côte"
+        assert places.snapshot_place_lookup("OH") == "Ohio"
+        assert places.snapshot_place_lookup("h") is None
+        assert places.snapshot_place_lookup("") is None
+        assert places.snapshot_place_lookup("zz") is None
 
 
 def test_empty_table_is_refused(tmp_path):
@@ -92,7 +106,27 @@ def test_empty_table_is_refused(tmp_path):
 
 
 def test_bundled_snapshot_loads_and_resolves_a_unique_name():
-    places.snapshot_place_lookup.cache_clear()
+    places._cached_lookup.cache_clear()
     places.load_location_names()
 
     assert places.snapshot_place_lookup("United States") == "United States"
+
+
+@pytest.mark.parametrize(
+    "label",
+    ["%%%%%%%%\x01", "%_" * 50 + "\x01", "%" * 1_000_000, "a%" * 1_000_000],
+)
+def test_wildcard_and_long_labels_return_quickly(snapshot, label):
+    snapshot(["Ohio", "Utah", "Abbeville County, South Carolina"])
+
+    start = time.monotonic()
+    places.snapshot_place_lookup(label)
+
+    assert time.monotonic() - start < 1
+
+
+def test_names_longer_than_any_location_are_not_cached(snapshot):
+    snapshot(["Ohio"])
+
+    assert places.snapshot_place_lookup("Ohio" + "x") is None
+    assert places._cached_lookup.cache_info().currsize == 0

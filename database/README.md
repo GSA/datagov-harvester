@@ -30,8 +30,8 @@ project.
 
 The public validator has no database binding, so it answers place-name lookups
 from `dcatus_validation/reference_data/location_names.sqlite`: every row of this
-table's `display_name` (no geometry), queried with the same `LIKE` as the
-harvester. Whenever the locations table is reloaded, rebuild it from prod and
+table's `display_name` (no geometry) behind a trigram index, matched the way the
+harvester's `ILIKE '%name%'` lookup does (see `dcatus_validation/places.py`). Whenever the locations table is reloaded, rebuild it from prod and
 commit the result. With `cf target -s prod` and the tunnel from
 `./cf_connect.sh` open in another shell:
 

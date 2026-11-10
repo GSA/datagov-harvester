@@ -36,6 +36,7 @@ ROWS = [
     ("country", "100% Island"),
     ("country", "1000 Islands"),
     ("country", "Côte d'Ivoire"),
+    ("country", "Fiji"),
     ("country", "Nogeomland"),
 ]
 NO_GEOM = {"Nogeomland"}
@@ -54,15 +55,12 @@ QUERIES = [
     "Georgia",
     "Nowhere",
     "",
-    "Fair_ax",
-    "Fair%Virginia",
-    "100\\%",
-    "100%",
     "Islands",
     "Abbeville",
     "CÔTE",
+    "fj",
+    "ji",
     "Nogeomland",
-    "Ohio\\",
 ]
 
 
@@ -86,9 +84,9 @@ def db_lookup(interface, tmp_path, monkeypatch):
     location_names = tmp_path / "location_names.sqlite"
     write_location_names(fetch_rows(interface.db.connection()), location_names)
     monkeypatch.setattr(places, "LOCATION_NAMES_PATH", location_names)
-    places.snapshot_place_lookup.cache_clear()
+    places._cached_lookup.cache_clear()
     yield places.snapshot_place_lookup
-    places.snapshot_place_lookup.cache_clear()
+    places._cached_lookup.cache_clear()
 
 
 @pytest.mark.parametrize("query", QUERIES)
@@ -97,3 +95,20 @@ def test_validator_lookup_matches_database_lookup(interface, db_lookup, query):
     validator_resolves = db_lookup(query) is not None
 
     assert validator_resolves == database_resolves
+
+
+def test_known_gap_like_wildcards_are_literal(interface, db_lookup):
+    # Documented in dcatus_validation/places.py: the database treats %, _ and \
+    # as ILIKE wildcards/escape, the validator matches them as plain characters.
+    assert interface.get_geo_from_string("Fair_ax") is not None
+    assert db_lookup("Fair_ax") is None
+
+    assert interface.get_geo_from_string("Fair%Virginia") is not None
+    assert db_lookup("Fair%Virginia") is None
+
+    assert interface.get_geo_from_string("100\\%") is not None
+    assert db_lookup("100\\%") is None
+
+    # "%100%%" also matches "1000 Islands"; the literal "100%" does not
+    assert interface.get_geo_from_string("100%") is None
+    assert db_lookup("100%") == "100% Island"

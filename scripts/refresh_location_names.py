@@ -11,6 +11,7 @@ Usage:
 
 import sqlite3
 import sys
+from collections import defaultdict
 from pathlib import Path
 
 from sqlalchemy import Connection, create_engine, text
@@ -21,6 +22,9 @@ OUTPUT_PATH = (
     / "reference_data"
     / "location_names.sqlite"
 )
+
+# The trigram index can't answer needles shorter than this.
+TRIGRAM = 3
 
 
 def fetch_rows(conn: Connection) -> list[tuple[str, bool]]:
@@ -33,6 +37,26 @@ def fetch_rows(conn: Connection) -> list[tuple[str, bool]]:
     return [(name, has_geom) for name, has_geom in rows]
 
 
+def _short_substrings(rows: list[tuple[str, bool]]) -> list[tuple]:
+    """Every substring under TRIGRAM characters, with how many rows contain it
+    (capped at 2) and, when exactly one does, that row."""
+    found = defaultdict(list)
+    for index, (name, _) in enumerate(rows):
+        lowered = name.lower()
+        subs = {
+            lowered[i : i + size]
+            for size in range(1, TRIGRAM)
+            for i in range(len(lowered) - size + 1)
+        }
+        for sub in subs:
+            if len(found[sub]) < 2:
+                found[sub].append(index)
+    return [
+        (sub, len(hits), *(rows[hits[0]] if len(hits) == 1 else (None, None)))
+        for sub, hits in sorted(found.items())
+    ]
+
+
 def write_location_names(rows: list[tuple[str, bool]], path: Path) -> None:
     if not rows:
         raise SystemExit("locations table is empty; refusing to write")
@@ -41,13 +65,26 @@ def write_location_names(rows: list[tuple[str, bool]], path: Path) -> None:
     tmp.unlink(missing_ok=True)
     conn = sqlite3.connect(tmp)
     conn.execute(
-        "CREATE TABLE locations (display_name TEXT NOT NULL,"
-        " name_lower TEXT NOT NULL, has_geom INTEGER NOT NULL)"
+        "CREATE VIRTUAL TABLE locations USING fts5("
+        "name_lower, display_name UNINDEXED, has_geom UNINDEXED,"
+        " tokenize='trigram')"
     )
     conn.executemany(
         "INSERT INTO locations VALUES (?, ?, ?)",
-        [(name, name.lower(), int(has_geom)) for name, has_geom in rows],
+        [(name.lower(), name, int(has_geom)) for name, has_geom in rows],
     )
+    conn.execute(
+        "CREATE TABLE short_substrings (sub TEXT PRIMARY KEY, match_count INTEGER,"
+        " display_name TEXT, has_geom INTEGER) WITHOUT ROWID"
+    )
+    conn.executemany(
+        "INSERT INTO short_substrings VALUES (?, ?, ?, ?)", _short_substrings(rows)
+    )
+    conn.execute("CREATE TABLE meta (max_name_chars INTEGER)")
+    conn.execute(
+        "INSERT INTO meta VALUES (?)", (max(len(name.lower()) for name, _ in rows),)
+    )
+    conn.execute("INSERT INTO locations(locations) VALUES ('optimize')")
     conn.commit()
     conn.execute("VACUUM")
     conn.close()
