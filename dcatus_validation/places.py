@@ -1,105 +1,94 @@
 """Place-name lookup for the public validator, matching the harvest runner's
-`HarvesterDBInterface.get_geo_from_string` without a database.
+`HarvesterDBInterface.get_geo_from_string` without the harvest database.
 
 The harvester resolves a name with `display_name ILIKE '%<name>%'` and
-`.scalar()`, so a name resolves only when exactly one locations row matches;
-more than one raises and resolves nothing. This module applies the same rule to
-`reference_data/location_names.csv`: every non-postal-code row (counties,
-states, countries) with its row count, and a flag for names that also appear
-inside a postal-code name. Postal-code rows themselves are left out because
-each has at least two rows, so they only ever make a match ambiguous.
+`.scalar()`, so a name resolves only when exactly one locations row matches and
+that row has a geometry. `reference_data/location_names.sqlite` holds every
+locations row (display name and whether it has a geometry, not the geometry
+itself) behind a trigram index, and this module applies the same rule.
 
-Known gaps:
-- A query that matches one kept name but is also part of a postal-code name
-  without being that whole name (e.g. "Abbeville", which is both
-  "Abbeville County, South Carolina" and "Abbeville, AL (36310)") resolves here
-  but not at harvest.
-- `%`, `_` and `\\` are matched as plain characters, not as ILIKE wildcards. A
-  wildcard match scans every name instead of one substring search, and a
-  submitter can make each name unique to dodge the cache, so honoring them let
-  one document run for many minutes. Real place names don't contain them.
+Known gap: `%`, `_` and `\\` are matched as plain characters, not as ILIKE
+wildcards. Honoring them means scanning every row per lookup, and a submitter
+can make each name unique to dodge the cache, so one document could run for
+minutes. Real place names don't contain them.
 
-It answers whether a name resolves, not with what geometry: the validator only
-reports warnings. Regenerate the CSV with `scripts/refresh_location_names.py`.
+Regenerate the file with `scripts/refresh_location_names.py`.
 """
 
-import csv
-from bisect import bisect_right
+import sqlite3
+import threading
 from functools import lru_cache
 from pathlib import Path
 
 LOCATION_NAMES_PATH = (
-    Path(__file__).resolve().parent / "reference_data" / "location_names.csv"
+    Path(__file__).resolve().parent / "reference_data" / "location_names.sqlite"
 )
 
+# Matches scripts/refresh_location_names.py; shorter needles use a lookup table.
+_TRIGRAM = 3
 
-class _Snapshot:
-    def __init__(self, rows: list[dict]):
-        self.names = [row["display_name"] for row in rows]
-        self.row_counts = [int(row["row_count"]) for row in rows]
-        self.in_postal_code_name = [row["in_postal_code_name"] == "1" for row in rows]
-        lowered = [name.lower() for name in self.names]
-        # One newline-delimited string makes a plain substring search a single
-        # C-level str.find instead of a Python loop over every name.
-        self.haystack = "\n".join(lowered)
-        self.starts = []
-        offset = 0
-        for name in lowered:
-            self.starts.append(offset)
-            offset += len(name) + 1
+_local = threading.local()
+
+
+def _connection() -> sqlite3.Connection:
+    # One read-only connection per thread: gunicorn runs gthread workers.
+    if getattr(_local, "path", None) != LOCATION_NAMES_PATH:
+        uri = f"{LOCATION_NAMES_PATH.as_uri()}?mode=ro&immutable=1"
+        _local.conn = sqlite3.connect(uri, uri=True, check_same_thread=False)
+        _local.path = LOCATION_NAMES_PATH
+    return _local.conn
 
 
 @lru_cache(maxsize=1)
-def _snapshot() -> _Snapshot:
-    with open(LOCATION_NAMES_PATH, newline="") as f:
-        return _Snapshot(list(csv.DictReader(f)))
+def _max_name_chars(path: Path) -> int:
+    return _connection().execute("SELECT max_name_chars FROM meta").fetchone()[0]
 
 
 def load_location_names() -> None:
-    """Load the CSV now, so a missing or broken file fails at startup."""
-    _snapshot()
-
-
-def _substring_matches(snapshot: _Snapshot, needle: str):
-    """Yield each row whose name contains needle, once per row."""
-    if "\n" in needle:
-        return
-    position = snapshot.haystack.find(needle)
-    while position >= 0:
-        row = bisect_right(snapshot.starts, position) - 1
-        yield row
-        if row + 1 >= len(snapshot.starts):
-            return
-        position = snapshot.haystack.find(needle, snapshot.starts[row + 1])
-
-
-# Longer names are looked up uncached so submitted text can't pile up in a
-# cache that lives as long as the worker.
-_MAX_CACHED_NAME_CHARS = 256
+    """Open the file now, so a missing or broken one fails at startup."""
+    _max_name_chars(LOCATION_NAMES_PATH)
+    _connection().execute("SELECT 1 FROM locations LIMIT 1").fetchall()
 
 
 def snapshot_place_lookup(name: str) -> str | None:
-    """Return the matching display name when exactly one locations row matches
-    `name` the way the harvester's lookup would, else None."""
-    if len(name) > _MAX_CACHED_NAME_CHARS:
-        return _lookup(name)
+    """Return the matching display name when the harvester's lookup would
+    resolve `name` to a geometry, else None."""
+    # Longer than every name, so it can't match; checked before the cache so
+    # submitted text can't pile up there.
+    if len(name) > _max_name_chars(LOCATION_NAMES_PATH):
+        return None
     return _cached_lookup(name)
 
 
-def _lookup(name: str) -> str | None:
-    snapshot = _snapshot()
-    matches = _substring_matches(snapshot, name.lower())
-
-    matched_row = None
-    total_rows = 0
-    for row in matches:
-        total_rows += snapshot.row_counts[row]
-        if total_rows > 1:
-            return None
-        matched_row = row
-    if matched_row is None or snapshot.in_postal_code_name[matched_row]:
+@lru_cache(maxsize=4096)
+def _cached_lookup(name: str) -> str | None:
+    needle = name.lower()
+    if not needle:
         return None
-    return snapshot.names[matched_row]
+    if len(needle) < _TRIGRAM:
+        row = (
+            _connection()
+            .execute(
+                "SELECT match_count, display_name, has_geom FROM short_substrings"
+                " WHERE sub = ?",
+                (needle,),
+            )
+            .fetchone()
+        )
+        if row is None or row[0] != 1 or not row[2]:
+            return None
+        return row[1]
 
-
-_cached_lookup = lru_cache(maxsize=4096)(_lookup)
+    phrase = '"' + needle.replace('"', '""') + '"'
+    rows = (
+        _connection()
+        .execute(
+            "SELECT display_name, has_geom FROM locations WHERE locations MATCH ?"
+            " LIMIT 2",
+            (phrase,),
+        )
+        .fetchall()
+    )
+    if len(rows) != 1 or not rows[0][1]:
+        return None
+    return rows[0][0]

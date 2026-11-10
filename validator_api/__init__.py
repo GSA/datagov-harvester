@@ -137,7 +137,7 @@ def create_app():
             return jsonify({"message": "Not Found"}), 404
         return redirect(target, code=308)
 
-    # Schemas and the place-name CSV load before the app can answer
+    # Schemas and the place-name data load before the app can answer
     # anything, so a healthy instance is one that can validate.
     load_schema_validators()
     load_location_names()

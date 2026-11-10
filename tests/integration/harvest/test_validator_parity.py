@@ -1,7 +1,7 @@
 """The public validator must report what a real harvest of the same catalog
 reports beyond schema errors: duplicate identifiers and warnings
 (GSA/data.gov#6380). Both sides use the test database's place lookup here, so
-this covers the record pipeline; the CSV place lookup is tested separately."""
+this covers the record pipeline; the place-name lookup is tested separately."""
 
 import json
 from unittest.mock import patch

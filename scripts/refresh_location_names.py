@@ -1,78 +1,104 @@
-"""Regenerate dcatus_validation/reference_data/location_names.csv, the place-name
-data the public validator uses instead of the harvester's locations table
-(GSA/data.gov#6380).
+"""Regenerate dcatus_validation/reference_data/location_names.sqlite, the
+place-name data the public validator uses instead of the harvester's locations
+table (GSA/data.gov#6380).
 
-Input is the same locations.csv that database/load_locations.sh loads into the
-locations table (see database/README.md for where it lives).
-
-The harvester resolves a name only when exactly one locations row matches
-`display_name ILIKE '%<name>%'`. US postal-code rows are 95% of the table, but
-every postal-code name has at least two rows, so a postal code never resolves;
-it only makes other names ambiguous. The output therefore keeps every other row
-(counties, states, countries) with its row count, plus a flag for names that
-also appear inside a postal-code name, which the validator treats as ambiguous.
+Reads every locations row from a harvest database. To pull from cloud.gov, see
+database/export_validator_locations.sh.
 
 Usage:
-    poetry run python scripts/refresh_location_names.py path/to/locations.csv
+    poetry run python scripts/refresh_location_names.py postgresql+psycopg://user:pass@host:port/db
 """
 
-import csv
+import sqlite3
 import sys
-from collections import Counter
+from collections import defaultdict
 from pathlib import Path
+
+from sqlalchemy import Connection, create_engine, text
 
 OUTPUT_PATH = (
     Path(__file__).resolve().parents[1]
     / "dcatus_validation"
     / "reference_data"
-    / "location_names.csv"
+    / "location_names.sqlite"
 )
-POSTAL_CODE_TYPE = "us_postalcode"
+
+# The trigram index can't answer needles shorter than this.
+TRIGRAM = 3
 
 
-def build_rows(csv_path: Path) -> list[list]:
-    csv.field_size_limit(sys.maxsize)
-    with open(csv_path, newline="") as f:
-        rows = list(csv.DictReader(f))
-    if not rows or not {"display_name", "type"} <= rows[0].keys():
-        raise SystemExit(f"{csv_path} needs display_name and type columns")
-    # A matched row with no geometry resolves to nothing in the harvester; this
-    # file can't express that, so refuse rather than drift from it.
-    missing = [row["display_name"] for row in rows if not row.get("the_geom")]
-    if missing:
-        raise SystemExit(f"{len(missing)} rows have no geometry, e.g. {missing[0]!r}")
+def fetch_rows(conn: Connection) -> list[tuple[str, bool]]:
+    rows = conn.execute(
+        text(
+            "SELECT display_name, the_geom IS NOT NULL FROM locations"
+            " WHERE display_name IS NOT NULL ORDER BY display_name"
+        )
+    ).all()
+    return [(name, has_geom) for name, has_geom in rows]
 
-    postal_counts = Counter(
-        row["display_name"] for row in rows if row["type"] == POSTAL_CODE_TYPE
-    )
-    single = [name for name, count in postal_counts.items() if count < 2]
-    if single:
-        # Dropping postal codes is only exact while none can resolve alone.
-        raise SystemExit(f"{len(single)} postal-code names have one row: {single[0]!r}")
-    postal_names = "\n".join(name.lower() for name in postal_counts)
 
-    kept = Counter(
-        row["display_name"] for row in rows if row["type"] != POSTAL_CODE_TYPE
-    )
+def _short_substrings(rows: list[tuple[str, bool]]) -> list[tuple]:
+    """Every substring under TRIGRAM characters, with how many rows contain it
+    (capped at 2) and, when exactly one does, that row."""
+    found = defaultdict(list)
+    for index, (name, _) in enumerate(rows):
+        lowered = name.lower()
+        subs = {
+            lowered[i : i + size]
+            for size in range(1, TRIGRAM)
+            for i in range(len(lowered) - size + 1)
+        }
+        for sub in subs:
+            if len(found[sub]) < 2:
+                found[sub].append(index)
     return [
-        [name, count, int(name.lower() in postal_names)]
-        for name, count in sorted(kept.items())
+        (sub, len(hits), *(rows[hits[0]] if len(hits) == 1 else (None, None)))
+        for sub, hits in sorted(found.items())
     ]
 
 
-def write_location_names(rows: list[list], path: Path) -> None:
-    with open(path, "w", newline="") as f:
-        writer = csv.writer(f, lineterminator="\n")
-        writer.writerow(["display_name", "row_count", "in_postal_code_name"])
-        writer.writerows(rows)
+def write_location_names(rows: list[tuple[str, bool]], path: Path) -> None:
+    if not rows:
+        raise SystemExit("locations table is empty; refusing to write")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(".tmp")
+    tmp.unlink(missing_ok=True)
+    conn = sqlite3.connect(tmp)
+    conn.execute(
+        "CREATE VIRTUAL TABLE locations USING fts5("
+        "name_lower, display_name UNINDEXED, has_geom UNINDEXED,"
+        " tokenize='trigram')"
+    )
+    conn.executemany(
+        "INSERT INTO locations VALUES (?, ?, ?)",
+        [(name.lower(), name, int(has_geom)) for name, has_geom in rows],
+    )
+    conn.execute(
+        "CREATE TABLE short_substrings (sub TEXT PRIMARY KEY, match_count INTEGER,"
+        " display_name TEXT, has_geom INTEGER) WITHOUT ROWID"
+    )
+    conn.executemany(
+        "INSERT INTO short_substrings VALUES (?, ?, ?, ?)", _short_substrings(rows)
+    )
+    conn.execute("CREATE TABLE meta (max_name_chars INTEGER)")
+    conn.execute(
+        "INSERT INTO meta VALUES (?)", (max(len(name.lower()) for name, _ in rows),)
+    )
+    conn.execute("INSERT INTO locations(locations) VALUES ('optimize')")
+    conn.commit()
+    conn.execute("VACUUM")
+    conn.close()
+    tmp.replace(path)
 
 
 def main() -> None:
     if len(sys.argv) != 2:
         raise SystemExit(__doc__)
-    rows = build_rows(Path(sys.argv[1]))
+    engine = create_engine(sys.argv[1])
+    with engine.connect() as conn:
+        rows = fetch_rows(conn)
     write_location_names(rows, OUTPUT_PATH)
-    print(f"Wrote {len(rows)} names to {OUTPUT_PATH}")
+    print(f"Wrote {len(rows)} rows to {OUTPUT_PATH}")
 
 
 if __name__ == "__main__":

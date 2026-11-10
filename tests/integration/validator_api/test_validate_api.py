@@ -552,7 +552,7 @@ class TestWarnings:
         assert body["validation_errors"] == [
             ["parity-1-1-a", "Duplicate identifier 'parity-1-1-a' found"]
         ]
-        # "United States" resolves through the bundled place-name CSV
+        # "United States" resolves through the bundled place-name data
         assert body["validation_warnings"] == [
             {
                 "identifier": "parity-1-1-b",

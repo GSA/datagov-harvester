@@ -994,6 +994,7 @@ class HarvesterDBInterface:
         record_type: str,
         identifier: str,
         harvest_record_id: str,
+        skip_types: tuple[str, ...] = (),
     ) -> bool:
         """Replace the current-state issues for this identifier with
         whatever harvest_record_id's issues are right now.
@@ -1002,20 +1003,29 @@ class HarvesterDBInterface:
         this run's harvest_record_error rows for harvest_record_id. If the
         record now has no issues, this clears any carried-forward ones.
 
+        Issues whose type is in skip_types are neither cleared nor copied,
+        for types the caller manages per source rather than per record.
+
         Returns False on a DB error (and rolls back) instead of raising, so
         callers that process many identifiers in a loop can skip one and
         keep going; callers that need to know should check the return value.
         """
         try:
-            self.db.query(HarvestRecordCurrentIssue).filter_by(
-                harvest_source_id=harvest_source_id,
-                record_type=record_type,
-                identifier=identifier,
-            ).delete(synchronize_session=False)
-
+            stale = self.db.query(HarvestRecordCurrentIssue).filter(
+                HarvestRecordCurrentIssue.harvest_source_id == harvest_source_id,
+                HarvestRecordCurrentIssue.record_type == record_type,
+                HarvestRecordCurrentIssue.identifier == identifier,
+            )
             current_errors = self.db.query(HarvestRecordError).filter_by(
                 harvest_record_id=harvest_record_id
             )
+            if skip_types:
+                stale = stale.filter(HarvestRecordCurrentIssue.type.notin_(skip_types))
+                current_errors = current_errors.filter(
+                    HarvestRecordError.type.notin_(skip_types)
+                )
+            stale.delete(synchronize_session=False)
+
             for error in current_errors:
                 self.db.add(
                     HarvestRecordCurrentIssue(
@@ -1035,6 +1045,20 @@ class HarvesterDBInterface:
             logger.error("Error: %s", e)
             self.db.rollback()
             return False
+
+    def clear_current_issues_by_type(
+        self, harvest_source_id: str, issue_type: str
+    ) -> None:
+        """Drop every outstanding issue of one type for a source."""
+        try:
+            self.db.query(HarvestRecordCurrentIssue).filter_by(
+                harvest_source_id=harvest_source_id,
+                type=issue_type,
+            ).delete(synchronize_session=False)
+            self.db.commit()
+        except Exception as e:
+            logger.error("Error: %s", e)
+            self.db.rollback()
 
     def clear_current_record_issues(
         self, harvest_source_id: str, record_type: str, identifier: str
@@ -1348,24 +1372,41 @@ class HarvesterDBInterface:
 
     def upsert_dataset(self, dataset_data: dict):
         slug = dataset_data.get("slug")
+        source_id = dataset_data["harvest_source_id"]
+
         if not slug:
             raise ValueError("dataset_data must include a slug")
 
         stmt = insert(Dataset).values(**dataset_data)
+
+        # Ownership fields should never be reassigned in an upsert.
+        protected = {
+            "id",
+            "slug",
+            "harvest_source_id",
+        }
+
         update_cols = {
             column: getattr(stmt.excluded, column)
             for column in dataset_data
-            if column != "slug"
+            if column not in protected
         }
         stmt = stmt.on_conflict_do_update(
             index_elements=[Dataset.slug],
             set_=update_cols,
-        )
+            where=Dataset.harvest_source_id == source_id,
+        ).returning(Dataset.id)
 
         nested = self.db.begin_nested()
         dataset = None
         try:
-            self.db.execute(stmt)
+            result = self.db.execute(stmt).scalar_one_or_none()
+            if result is None:
+                logger.warning(
+                    f"Slug '{slug}' is owned by another harvest source; "
+                    f"attempted source={source_id}"
+                )
+                return
             self.db.flush()
             dataset = self.get_dataset_by_slug(slug)
             self._apply_popularity_from_view_count(dataset)
