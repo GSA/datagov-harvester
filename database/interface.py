@@ -408,6 +408,9 @@ class HarvesterDBInterface:
     def archive_harvest_source(self, source_id, user_email):
         """Archive a harvest source instead of deleting it.
 
+        Removes harvest records and associated errors/warnings to free database space.
+        Keeps harvest job rows and their summary counts for audit purposes.
+
         Args:
             source_id: ID of the harvest source to archive
             user_email: Email of the user performing the archive operation
@@ -421,6 +424,36 @@ class HarvesterDBInterface:
             return message, status
 
         source = self.db.get(HarvestSource, source_id)
+
+        self.db.execute(
+            text(
+                """
+                DELETE FROM harvest_record_error
+                WHERE harvest_record_id IN (
+                    SELECT id FROM harvest_record WHERE harvest_source_id = :source_id
+                )
+            """
+            ),
+            {"source_id": source_id},
+        )
+
+        self.db.execute(
+            text(
+                """
+                DELETE FROM harvest_record_current_issue
+                WHERE harvest_record_id IN (
+                    SELECT id FROM harvest_record WHERE harvest_source_id = :source_id
+                )
+            """
+            ),
+            {"source_id": source_id},
+        )
+
+        self.db.execute(
+            text("DELETE FROM harvest_record WHERE harvest_source_id = :source_id"),
+            {"source_id": source_id},
+        )
+
         source.is_archived = True
         source.is_locked = True
         source.archived_at = datetime.now(timezone.utc)
