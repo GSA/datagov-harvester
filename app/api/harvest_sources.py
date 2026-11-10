@@ -48,6 +48,8 @@ def add_harvest_source_api():
 @valid_id_required
 def edit_harvest_source_api(source_id: str):
     existing_source = deps.db.get_harvest_source(source_id)
+    if existing_source and existing_source.is_archived:
+        return {"error": "Cannot edit an archived harvest source"}, 403
     old_frequency = existing_source.frequency if existing_source else None
     old_locked = existing_source.is_locked if existing_source else None
     updated_source = deps.db.update_harvest_source(source_id, request.json)
@@ -92,6 +94,21 @@ def delete_harvest_source(source_id):
         return make_response(jsonify({"message": message}), 500)
 
 
+@api.route("/harvest_source/<source_id>/unarchive", methods=["POST"])
+@api.doc(hide=True)
+@login_required
+@valid_id_required
+def unarchive_harvest_source(source_id):
+    try:
+        message, status = deps.db.unarchive_harvest_source(source_id)
+        _log_mutation("unarchive", "harvest_source", source_id, status=status)
+        return make_response(jsonify({"message": message}), status)
+    except Exception as e:
+        message = f"Failed to unarchive harvest source :: {repr(e)}"
+        logger.error(message)
+        return make_response(jsonify({"message": message}), 500)
+
+
 @api.route("/harvest_source/harvest/<source_id>/<job_type>", methods=["GET"])
 @api.doc(hide=True)
 @login_required
@@ -100,6 +117,10 @@ def trigger_harvest_source(source_id, job_type):
         return JSON_NOT_FOUND()
     if job_type not in ["harvest", "force_harvest", "clear", "validate"]:
         return JSON_NOT_FOUND()
+    source = deps.db.get_harvest_source(source_id)
+    if source and source.is_archived:
+        flash("Cannot perform harvest actions on an archived source", "error")
+        return redirect(url_for("main.view_harvest_source", source_id=source_id))
     message, category = deps.load_manager.trigger_manual_job(source_id, job_type)
     flash(message, category)
     return redirect(url_for("main.view_harvest_source", source_id=source_id))

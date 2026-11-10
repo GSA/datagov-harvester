@@ -170,8 +170,7 @@ class OrganizationForm(FlaskForm):
     logo = StringField(
         "Logo",
         description=(
-            "URL to the organization's logo. "
-            "Defaults to a placeholder if left blank."
+            "URL to the organization's logo. Defaults to a placeholder if left blank."
         ),
         validators=[Optional(), URL()],
         filters=[strip_filter],
@@ -245,6 +244,7 @@ class HarvestTriggerForm(FlaskForm):
         "Clear",
     )
     delete = SubmitField("Archive")
+    unarchive = SubmitField("Unarchive")
     force_check = BooleanField("Force Update")
 
 

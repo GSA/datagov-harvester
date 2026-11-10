@@ -433,6 +433,34 @@ class HarvesterDBInterface:
             200,
         )
 
+    def unarchive_harvest_source(self, source_id):
+        """Unarchive a harvest source, restoring it to active status.
+
+        Args:
+            source_id: ID of the harvest source to unarchive
+
+        Returns:
+            tuple[str, int]: ``(message, status)`` - success message with 200,
+            or error message with appropriate status code
+        """
+        source = self.db.get(HarvestSource, source_id)
+        if source is None:
+            return "Harvest source not found", 404
+
+        if not source.is_archived:
+            return "Harvest source is not archived", 400
+
+        source.is_archived = False
+        source.archived_at = None
+        source.archived_by = None
+
+        self.db.commit()
+
+        return (
+            f"Unarchived harvest source with ID:{source_id} successfully",
+            200,
+        )
+
     def can_delete_harvest_source(self, source_id):
         """Deprecated: Use can_archive_harvest_source() instead."""
         return self.can_archive_harvest_source(source_id)
@@ -1922,14 +1950,16 @@ class HarvesterDBInterface:
 
     def refresh_dataset_mv(self):
         try:
-            self.db.execute(text("""
+            self.db.execute(
+                text("""
                     DO $$
                     BEGIN
                         IF EXISTS (SELECT 1 FROM pg_class WHERE relname = 'dataset' AND relkind = 'm') THEN
                             REFRESH MATERIALIZED VIEW CONCURRENTLY dataset;
                         END IF;
                     END $$;
-                """))
+                """)
+            )
             self.db.commit()
         except Exception as e:
             logger.error("Error: %s", e)

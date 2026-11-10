@@ -92,6 +92,13 @@
     <div class="config-actions harvest-source-config-actions">
         <form method="POST" action>
             {{ form.hidden_tag() }}
+            {% if data.source.is_archived %}
+            <ul class="usa-button-group">
+                <li class="usa-button-group__item">
+                    {{ confirm_button.render(form.unarchive, 'usa-button', 'unarchive') }}
+                </li>
+            </ul>
+            {% else %}
             <ul class="usa-button-group">
                 <li class="usa-button-group__item">
                     {{form.edit(class_='usa-button')}}
@@ -110,13 +117,7 @@
                     {{ confirm_button.render(form.clear, 'usa-button--outline', 'clear') }}
                 </li>
                 <li class="usa-button-group__item">
-                    {% if data.source.is_archived %}
-                    <button type="button" class="usa-button usa-button--secondary" disabled>
-                        {{ 'check' | usa_icon | safe }} Archived
-                    </button>
-                    {% else %}
                     {{ confirm_button.render(form.delete, 'usa-button--secondary', 'archive') }}
-                    {% endif %}
                 </li>
             </ul>
             <fieldset class="usa-fieldset margin-top-2">
@@ -125,6 +126,7 @@
                     {{form.force_check.label(class_='usa-checkbox__label')}}
                 </div>
             </fieldset>
+            {% endif %}
         </form>
     </div>
     {% endif %}

@@ -622,6 +622,10 @@ def update_harvest_source_actions(source_id: str):
     if form.edit.data:
         return redirect(url_for("main.edit_harvest_source", source_id=source_id))
     elif form.lock.data or form.unlock.data:
+        source = deps.db.get_harvest_source(source_id)
+        if source and source.is_archived:
+            flash("Cannot lock/unlock an archived harvest source", "error")
+            return redirect(url_for("main.view_harvest_source", source_id=source_id))
         locked = bool(form.lock.data)
         source = deps.db.set_harvest_source_lock(source_id, locked)
         if source is None:
@@ -635,10 +639,18 @@ def update_harvest_source_actions(source_id: str):
             )
         return redirect(url_for("main.view_harvest_source", source_id=source_id))
     elif form.harvest.data:
+        source = deps.db.get_harvest_source(source_id)
+        if source and source.is_archived:
+            flash("Cannot harvest an archived source", "error")
+            return redirect(url_for("main.view_harvest_source", source_id=source_id))
         if form.force_check.data:
             return trigger_manual_job_helper(source_id, "force_harvest")
         return trigger_manual_job_helper(source_id)
     elif form.clear.data:
+        source = deps.db.get_harvest_source(source_id)
+        if source and source.is_archived:
+            flash("Cannot clear an archived source", "error")
+            return redirect(url_for("main.view_harvest_source", source_id=source_id))
         return trigger_manual_job_helper(source_id, "clear")
     elif form.delete.data:
         try:
@@ -659,6 +671,17 @@ def update_harvest_source_actions(source_id: str):
             logger.error(message)
             flash(message, "error")
             return redirect(url_for("main.view_harvest_source", source_id=source_id))
+    elif form.unarchive.data:
+        try:
+            message, status = deps.db.unarchive_harvest_source(source_id)
+            _log_mutation("unarchive", "harvest_source", source_id, status=status)
+            category = "success" if status == 200 else "error"
+            flash(message, category)
+        except Exception as e:
+            message = f"Failed to unarchive harvest source :: {repr(e)}"
+            logger.error(message)
+            flash(message, "error")
+        return redirect(url_for("main.view_harvest_source", source_id=source_id))
 
     return redirect(url_for("main.view_harvest_source", source_id=source_id))
 
@@ -677,6 +700,9 @@ def harvest_source_list():
 def edit_harvest_source(source_id: str):
     if source_id:
         source = deps.db.get_harvest_source(source_id)
+        if source and source.is_archived:
+            flash("Cannot edit an archived harvest source", "error")
+            return redirect(url_for("main.view_harvest_source", source_id=source_id))
         organizations = deps.db.get_all_organizations()
         if source and organizations:
             organization_choices = sorted(
