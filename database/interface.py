@@ -1,5 +1,6 @@
 import logging
 from datetime import datetime, timedelta, timezone
+from itertools import batched
 from typing import List, Optional
 
 import sqlalchemy.sql.operators as sa_operators
@@ -14,6 +15,7 @@ from sqlalchemy import (
     inspect,
     literal,
     text,
+    tuple_,
 )
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import NoResultFound
@@ -1059,6 +1061,51 @@ class HarvesterDBInterface:
         except Exception as e:
             logger.error("Error: %s", e)
             self.db.rollback()
+
+    def clear_current_issues_missing_from_source(
+        self, harvest_source_id: str, present_keys: set, keep_job_id: str
+    ) -> int:
+        """Drop current issues for (identifier, record_type) pairs the source no
+        longer lists, and return how many pairs were cleared.
+
+        A record that disappears from the source normally loses its issues when
+        it's deleted, but only records whose last harvest succeeded are ever
+        deleted, so a record that only ever errored would keep its issues
+        forever. Issues written by keep_job_id are kept: they come from records
+        this job already handled, like ones without a harvestable identifier."""
+        try:
+            rows = (
+                self.db.query(
+                    HarvestRecordCurrentIssue.identifier,
+                    HarvestRecordCurrentIssue.record_type,
+                    HarvestRecord.harvest_job_id,
+                )
+                .outerjoin(
+                    HarvestRecord,
+                    HarvestRecord.id == HarvestRecordCurrentIssue.harvest_record_id,
+                )
+                .filter(
+                    HarvestRecordCurrentIssue.harvest_source_id == harvest_source_id
+                )
+                .distinct()
+                .all()
+            )
+            kept = {(i, t) for i, t, job_id in rows if job_id == keep_job_id}
+            stale = {(i, t) for i, t, _ in rows} - set(present_keys) - kept
+            for batch in batched(sorted(stale), 500):
+                self.db.query(HarvestRecordCurrentIssue).filter(
+                    HarvestRecordCurrentIssue.harvest_source_id == harvest_source_id,
+                    tuple_(
+                        HarvestRecordCurrentIssue.identifier,
+                        HarvestRecordCurrentIssue.record_type,
+                    ).in_(batch),
+                ).delete(synchronize_session=False)
+            self.db.commit()
+            return len(stale)
+        except Exception as e:
+            logger.error("Error: %s", e)
+            self.db.rollback()
+            return 0
 
     def clear_current_record_issues(
         self, harvest_source_id: str, record_type: str, identifier: str
