@@ -169,3 +169,16 @@ jobs:
           multiple-files: |
             Unit tests, pytest-coverage-unit.txt, pytest-unit.xml
             Integration Tests, pytest-coverage-integration.txt, pytest-integration.xml
+
+  # Branch protection requires a check named "Pytests". always() plus the
+  # explicit result check matters: a skipped required job counts as passing.
+  pytests:
+    needs: [unit, integration]
+    if: always()
+    runs-on: ubuntu-latest
+    name: Pytests
+    steps:
+      - name: Require unit and integration jobs to pass
+        run: |
+          test "${{ needs.unit.result }}" = success
+          test "${{ needs.integration.result }}" = success
