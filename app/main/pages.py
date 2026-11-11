@@ -10,6 +10,7 @@ from app.constants import (
     MAX_VALIDATION_WARNINGS,
 )
 from app.deps import (
+    CATALOG_BASE_URL,
     _log_mutation,
     logger,
     render_block,
@@ -34,6 +35,11 @@ def index():
 def view_dataset(dataset_slug: str):
     """View a dataset detail page by slug, and handle slug edits via POST."""
     dataset = deps.db.get_dataset_by_slug(dataset_slug)
+
+    data = {
+        "catalog_base_url": CATALOG_BASE_URL,
+        "dataset": dataset,
+    }
 
     if request.method == "POST":
         if not session.get("user"):
@@ -82,7 +88,6 @@ def view_dataset(dataset_slug: str):
                 )
                 return redirect(url_for("main.view_dataset", dataset_slug=dataset_slug))
         else:
-            data = {"dataset": dataset}
             return (
                 render_template(
                     "view_dataset_data.html",
@@ -97,7 +102,6 @@ def view_dataset(dataset_slug: str):
         db_interface=deps.db,
         data={"slug": dataset.slug} if dataset else {},
     )
-    data = {"dataset": dataset}
     return render_template(
         "view_dataset_data.html",
         data=data,
