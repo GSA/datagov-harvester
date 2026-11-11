@@ -4,6 +4,8 @@
  * own gunicorn workers (see GSA/data.gov#6293). */
 
 const VALIDATOR_API_URL = "/api/v1/validate";
+// Takes a pasted or uploaded catalog as the request body itself.
+const VALIDATOR_DOCUMENT_URL = "/api/v1/validate/document";
 const VALIDATOR_UNAVAILABLE_MESSAGE =
     "The validator is unavailable right now. Please try again later.";
 
@@ -71,42 +73,29 @@ function fieldErrorMessage(method) {
     return null;
 }
 
-/* JSON may be UTF-8, -16 or -32 (RFC 8259); like Python's json.detect_encoding,
- * tell them apart by BOM or by where the nulls fall in the first bytes. Browsers
- * can't decode UTF-32, so those fall through to UTF-8 and fail as invalid JSON. */
-function detectEncoding(bytes) {
-    if (bytes[0] === 0xfe && bytes[1] === 0xff) return "utf-16be";
-    if (bytes[0] === 0xff && bytes[1] === 0xfe) return "utf-16le";
-    if (bytes.length >= 2 && bytes[0] === 0 && bytes[1] !== 0) return "utf-16be";
-    if (bytes.length >= 2 && bytes[0] !== 0 && bytes[1] === 0) return "utf-16le";
-    return "utf-8";
-}
-
-async function readJsonFile(file) {
-    const bytes = new Uint8Array(await file.arrayBuffer());
-    // TextDecoder strips a leading BOM for whichever encoding it's given
-    return new TextDecoder(detectEncoding(bytes), { fatal: true }).decode(bytes);
-}
-
-/* ── build the validator API payload for the selected fetch method ── */
-async function buildPayload(method) {
+/* ── build the validator API request for the selected fetch method ──
+ * A pasted or uploaded catalog goes as the request body itself: never read
+ * into a JS string or JSON-escaped, so the browser holds no copy of an
+ * uploaded file, and pasted text only as the textarea's value and its UTF-8
+ * Blob. The validator decodes a file (UTF-8 or UTF-16) the way this page used
+ * to (GSA/data.gov#6460). */
+function buildRequest(method) {
     const schema = document.getElementById("schema").value;
+    const headers = { "Content-Type": "application/json" };
 
     if (method === "url") {
-        return { schema, fetch_method: "url", url: document.getElementById("url").value };
+        const url = document.getElementById("url").value;
+        return [
+            VALIDATOR_API_URL,
+            { method: "POST", headers, body: JSON.stringify({ schema, fetch_method: "url", url }) },
+        ];
     }
 
-    if (method === "paste") {
-        return {
-            schema,
-            fetch_method: "paste",
-            json_text: document.getElementById("json_text").value,
-        };
-    }
-
-    // "upload": read the file client-side and send it the same way a paste is sent
-    const json_text = await readJsonFile(document.getElementById("json_file").files[0]);
-    return { schema, fetch_method: "paste", json_text };
+    const body = method === "paste"
+        ? new Blob([document.getElementById("json_text").value])
+        : document.getElementById("json_file").files[0];
+    const query = new URLSearchParams({ schema, fetch_method: method });
+    return [`${VALIDATOR_DOCUMENT_URL}?${query}`, { method: "POST", headers, body }];
 }
 
 /* ── turn a 400/413/422 response body into a message to show the submitter ── */
@@ -279,21 +268,10 @@ document.addEventListener("DOMContentLoaded", function () {
         });
 
         try {
-            let payload;
-            try {
-                payload = await buildPayload(method);
-            } catch (e) {
-                showFieldError(method, "Could not read the uploaded file.");
-                return;
-            }
-
+            const [url, options] = buildRequest(method);
             let response;
             try {
-                response = await fetch(VALIDATOR_API_URL, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify(payload),
-                });
+                response = await fetch(url, options);
             } catch (e) {
                 showFieldError(method, VALIDATOR_UNAVAILABLE_MESSAGE);
                 return;
@@ -314,7 +292,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 return;
             }
 
-            if ([400, 413, 422].includes(response.status)) {
+            if ([400, 413, 422, 503].includes(response.status)) {
                 // a 413 without a JSON body is nginx's own, refused before the validator saw it
                 const fallback = response.status === 413
                     ? "Submission is too large. Maximum size is " + window.MAX_UPLOAD_LABEL + "."
