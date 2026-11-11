@@ -14,6 +14,9 @@ import shapely.wkt
 from shapely.geometry import LineString, Point
 from shapely.geometry import mapping as shapely_geom_mapping
 
+from dcatus_validation.deadline import check_deadline
+from dcatus_validation.limits import SPATIAL_SECONDS_PER_MB
+
 logger = logging.getLogger(__name__)
 
 # Resolves a place name to a GeoJSON string, or None. A caller that only needs
@@ -448,6 +451,8 @@ def translate_spatial(input_value, place_lookup: PlaceLookup | None = None) -> s
         spatial_value = input_value
     else:
         return ""
+
+    check_deadline(len(spatial_value) / 1_000_000 * SPATIAL_SECONDS_PER_MB)
 
     if isinstance(spatial_value, str):
         wkt_geojson = translate_wkt_to_geojson(spatial_value)

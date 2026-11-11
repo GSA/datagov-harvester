@@ -10,8 +10,10 @@ from apiflask.fields import String
 from flask import jsonify, make_response, request
 
 from dcatus_validation.catalog_issues import find_catalog_issues, summarize_issues
+from dcatus_validation.deadline import ValidationTimedOut, validation_deadline
 from dcatus_validation.errors import (
     NESTING_TOO_DEEP_MESSAGE,
+    VALIDATION_TIMED_OUT_MESSAGE,
     CatalogTooDeeplyNested,
 )
 from dcatus_validation.fetch import (
@@ -29,6 +31,7 @@ from dcatus_validation.limits import (
     MAX_UPLOAD_BYTES,
     MAX_VALIDATION_ERRORS,
     MAX_VALIDATION_WARNINGS,
+    VALIDATION_DEADLINE_SECONDS,
 )
 from dcatus_validation.places import snapshot_place_lookup
 from dcatus_validation.validate import SCHEMA_NAMES, validate_records_limited
@@ -159,8 +162,9 @@ _RESPONSES = {
     },
     422: {
         "description": (
-            "Catalog cannot be walked, e.g. nested too deeply (`error`), or "
-            "the request itself is invalid (`message`/`detail`)"
+            "Catalog cannot be checked: nested too deeply, or took too long "
+            "to check (`error`); or the request itself is invalid "
+            "(`message`/`detail`)"
         ),
         "content": {"application/json": {"schema": ValidationErrorResponseSchema}},
     },
@@ -188,6 +192,7 @@ def _validation_response(fetch_method: str, schema: str, load_catalog):
 
     try:
         with contextlib.ExitStack() as stack:
+            stack.enter_context(validation_deadline(VALIDATION_DEADLINE_SECONDS))
             data = load_catalog(lambda size: _hold_large_document_slot(stack, size))
             errors, validation_incomplete = validate_records_limited(
                 data,
@@ -229,6 +234,13 @@ def _validation_response(fetch_method: str, schema: str, load_catalog):
         response = make_response(jsonify({"error": VALIDATOR_BUSY_MESSAGE}), 503)
         response.headers["Retry-After"] = "60"
         return response
+    except ValidationTimedOut:
+        logger.warning(
+            "API validator ran out of time fetch_method=%s schema=%s",
+            fetch_method,
+            schema,
+        )
+        return make_response(jsonify({"error": VALIDATION_TIMED_OUT_MESSAGE}), 422)
     except CatalogTooDeeplyNested:
         # Use a constant so exception data cannot reach the client.
         logger.warning("API Validator could not walk the document")

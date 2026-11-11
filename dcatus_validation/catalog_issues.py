@@ -24,6 +24,7 @@ from dcatus_validation.catalog import (
     split_dcatus3_catalog,
 )
 from dcatus_validation.content_warnings import detect_dcat_warnings
+from dcatus_validation.deadline import check_deadline
 from dcatus_validation.spatial import PlaceLookup, translate_spatial
 from dcatus_validation.validate import record_validator
 
@@ -167,6 +168,7 @@ def find_catalog_issues(
         if warnings_incomplete:
             continue
         for position, record in kept:
+            check_deadline()
             label = _label(record, identifier_field, position)
             record_warnings = []
             if is_dcatus3:

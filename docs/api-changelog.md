@@ -41,6 +41,15 @@ beyond schema errors, for both DCAT-US 1.1 and 3.0:
 
 Existing `validation_errors` entries are unchanged.
 
+#### Validator time limit
+
+**Issue:** GSA/data.gov#6380  
+**Endpoints:** `POST /api/v1/validate`, `POST /api/v1/validate/document`
+
+A catalog that can't be fetched and checked within 25 seconds now gets a 422
+with `{"error": "This catalog took too long to check. ..."}`, instead of the
+request timing out at CloudFront (504) with no JSON body.
+
 #### Optional structured response envelope for collection endpoints
 
 **Issue:** GSA/data.gov#6392  

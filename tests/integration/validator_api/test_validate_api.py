@@ -2,6 +2,7 @@ import gc
 import itertools
 import json
 import threading
+import time
 import tracemalloc
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -13,7 +14,10 @@ import pytest
 import requests
 
 from dcatus_validation import fetch
-from dcatus_validation.errors import NESTING_TOO_DEEP_MESSAGE
+from dcatus_validation.errors import (
+    NESTING_TOO_DEEP_MESSAGE,
+    VALIDATION_TIMED_OUT_MESSAGE,
+)
 from dcatus_validation.fetch import (
     BLOCKED_VALIDATOR_DOMAIN_MESSAGE,
     FETCH_TIMEOUT_SECONDS,
@@ -579,6 +583,57 @@ def _legacy_dataset(identifier):
             "hasEmail": "mailto:c@example.gov",
         },
     }
+
+
+class TestDeadline:
+    @pytest.mark.parametrize(
+        "schema", ["dcatus1.1: federal dataset", "dcatus3.0 catalog"]
+    )
+    def test_a_catalog_that_runs_out_of_time_gets_a_json_422(
+        self, validator_client, monkeypatch, schema
+    ):
+        monkeypatch.setattr("validator_api.api.VALIDATION_DEADLINE_SECONDS", 0)
+        catalog = {
+            "conformsTo": "https://project-open-data.cio.gov/v1.1/schema",
+            "@type": "Catalog",
+            "dataset": [_legacy_dataset("a")],
+        }
+
+        res = _post_catalog(validator_client, schema, catalog)
+
+        assert res.status_code == 422
+        assert res.get_json() == {"error": VALIDATION_TIMED_OUT_MESSAGE}
+
+    def test_the_document_endpoint_runs_out_of_time_the_same_way(
+        self, validator_client, monkeypatch
+    ):
+        monkeypatch.setattr("validator_api.api.VALIDATION_DEADLINE_SECONDS", 0)
+        document = json.dumps({"dataset": [_legacy_dataset("a")]})
+
+        res = validator_client.post(
+            f"{URL}/document?schema=dcatus1.1: federal dataset&fetch_method=paste",
+            data=document,
+        )
+
+        assert res.status_code == 422
+        assert res.get_json() == {"error": VALIDATION_TIMED_OUT_MESSAGE}
+
+    def test_a_huge_spatial_value_is_refused_without_parsing_it(
+        self, validator_client, monkeypatch
+    ):
+        monkeypatch.setattr("validator_api.api.VALIDATION_DEADLINE_SECONDS", 2)
+        point = [-77.12345, 38.12345]
+        polygon = json.dumps({"type": "Polygon", "coordinates": [[point] * 400_000]})
+        dataset = dict(_legacy_dataset("a"), spatial=polygon)
+
+        start = time.monotonic()
+        res = _post_catalog(
+            validator_client, "dcatus1.1: federal dataset", {"dataset": [dataset]}
+        )
+
+        assert time.monotonic() - start < 2
+        assert res.status_code == 422
+        assert res.get_json() == {"error": VALIDATION_TIMED_OUT_MESSAGE}
 
 
 class TestWarnings:

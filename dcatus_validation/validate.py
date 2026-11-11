@@ -8,6 +8,7 @@ from itertools import islice
 from jsonschema import Draft202012Validator, FormatChecker
 
 from dcatus_validation.catalog import DCATUS3_NON_DATASET_RECORD_TYPES
+from dcatus_validation.deadline import check_deadline
 from dcatus_validation.errors import (
     NESTING_TOO_DEEP_MESSAGE,
     CatalogTooDeeplyNested,
@@ -218,6 +219,7 @@ def _validate_records(
         records = dcatus_catalog["dataset"]
 
         for idx, record in enumerate(records):
+            check_deadline()
             remaining = None if max_errors is None else max_errors - len(output)
             if remaining == 0:
                 return output, True
