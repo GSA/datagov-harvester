@@ -1,3 +1,4 @@
+# ruff: noqa: E402  (imports below use_worker_database() must stay after it)
 import json
 import logging
 import os
@@ -18,6 +19,12 @@ from opensearchpy.exceptions import NotFoundError
 from sqlalchemy import text
 from sqlalchemy.orm import scoped_session, sessionmaker
 
+from tests.xdist_db import use_worker_database
+
+load_dotenv()
+use_worker_database()
+
+# isort: split
 from app import create_app
 from database.interface import HarvesterDBInterface
 from database.models import HarvestJob, HarvestSource, Locations, Organization, db
@@ -28,7 +35,6 @@ from search.config import INDEX_NAME
 from search.reader import OpenSearchReader
 from search.writer import OpenSearchWriter
 
-load_dotenv()
 os.environ.setdefault("HARVEST_API_TOKEN", "test-harvest-api-token")
 
 logger = logging.getLogger("pytest.conftest")
