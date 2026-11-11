@@ -1906,8 +1906,15 @@ class TestMetricsPagination:
         response = client.get("/metrics/?jobs_page=0")
         assert response.status_code == 200
 
-    def test_metrics_pagination_buttons_have_href_attributes(self, client, job):
+    def test_metrics_pagination_buttons_have_href_attributes(
+        self, client, interface, source
+    ):
         """Test pagination buttons include href attributes for bookmarkable URLs."""
+        for i in range(15):
+            interface.add_harvest_job(
+                {"harvest_source_id": source.id, "status": "complete"}
+            )
+
         response = client.get("/metrics/")
 
         assert response.status_code == 200
