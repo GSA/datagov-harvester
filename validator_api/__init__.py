@@ -16,11 +16,13 @@ from urllib.parse import urlsplit
 from apiflask import APIFlask
 from flask import jsonify, redirect, request
 from flask_talisman import Talisman
+from loguru import logger as loguru_logger
 from werkzeug.exceptions import RequestEntityTooLarge
 
 from config.logger_config import LOGGING_CONFIG
 from config.security import TALISMAN_BASELINE_OPTIONS
 from dcatus_validation.limits import MAX_REQUEST_BYTES, MAX_UPLOAD_MB
+from dcatus_validation.places import load_location_names
 from dcatus_validation.validate import load_schema_validators
 
 logger = logging.getLogger("validator_api")
@@ -135,9 +137,16 @@ def create_app():
             return jsonify({"message": "Not Found"}), 404
         return redirect(target, code=308)
 
-    # Schemas load before the app can answer anything, so a healthy instance is
-    # one that can validate.
+    # Schemas and the place-name data load before the app can answer
+    # anything, so a healthy instance is one that can validate.
     load_schema_validators()
+    load_location_names()
+    # geojson_validator logs three loguru lines per spatial value it checks,
+    # which a large catalog turns into tens of thousands per request.
+    loguru_logger.disable("geojson_validator")
+    # The shared spatial code logs submitted spatial values for harvest
+    # debugging; the validator must not log submitter content.
+    logging.getLogger("dcatus_validation.spatial").disabled = True
 
     # /health is Cloud Foundry's http health check (manifest.yml), on the
     # internal route. /validator/health is the same check through

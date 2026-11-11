@@ -3,8 +3,10 @@
 set -o errexit
 set -o pipefail
 
-DB_HOSTNAME=$(cf env datagov-harvest-admin | grep '"host":' | sed -E 's/.*"host": "(.*)".*/\1/')
+APP=${APP:-datagov-harvest}
 
-DB_PORT=$(cf env datagov-harvest-admin | grep '"port":' | sed -E 's/.*"port": "(.*)".*/\1/')
+CREDS=$(cf curl "/v3/apps/$(cf app "$APP" --guid)/env" | jq -e '.system_env_json.VCAP_SERVICES["aws-rds"][0].credentials')
+DB_HOSTNAME=$(jq -r .host <<< "$CREDS")
+DB_PORT=$(jq -r .port <<< "$CREDS")
 
-cf ssh -L "15432:$DB_HOSTNAME:$DB_PORT" datagov-harvest-admin
+cf ssh -L "15432:$DB_HOSTNAME:$DB_PORT" "$APP"

@@ -2,7 +2,6 @@ import itertools
 import json
 import os
 import re
-import socket
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -53,7 +52,6 @@ def _json_response(body=b'{"dataset": []}'):
     response.raise_for_status = Mock()
     response.close = Mock()
     response.iter_content = Mock(return_value=[body])
-    response._validator_timeout_controller = Mock()
     return response
 
 
@@ -70,7 +68,7 @@ class TestFetchJsonFromUrl:
         resolve = Mock()
         get = Mock()
         monkeypatch.setattr(fetch, "_resolve_addresses", resolve)
-        monkeypatch.setattr(fetch, "_pinned_get", get)
+        monkeypatch.setattr(fetch, "_http_get", get)
 
         with pytest.raises(
             InvalidCatalogSource, match=BLOCKED_VALIDATOR_DOMAIN_MESSAGE
@@ -94,7 +92,7 @@ class TestFetchJsonFromUrl:
         resolve = Mock(return_value=["8.8.8.8"])
         get = Mock(return_value=_json_response())
         monkeypatch.setattr(fetch, "_resolve_addresses", resolve)
-        monkeypatch.setattr(fetch, "_pinned_get", get)
+        monkeypatch.setattr(fetch, "_http_get", get)
 
         assert fetch_json_from_url(f"https://{host}/data.json") == {"dataset": []}
         resolve.assert_called_once_with(host, None)
@@ -110,7 +108,7 @@ class TestFetchJsonFromUrl:
         resolve = Mock(return_value=["8.8.8.8"])
         get = Mock(return_value=redirect)
         monkeypatch.setattr(fetch, "_resolve_addresses", resolve)
-        monkeypatch.setattr(fetch, "_pinned_get", get)
+        monkeypatch.setattr(fetch, "_http_get", get)
 
         with pytest.raises(
             InvalidCatalogSource, match=BLOCKED_VALIDATOR_DOMAIN_MESSAGE
@@ -126,7 +124,7 @@ class TestFetchJsonFromUrl:
         [(-1, True), (0, True), (1, False)],
         ids=["just-under", "at", "just-over"],
     )
-    @patch("dcatus_validation.fetch._pinned_get")
+    @patch("dcatus_validation.fetch._http_get")
     def test_fetch_json_from_url_size_limit_boundary(
         self, mock_get, monkeypatch, size_offset, accepted
     ):
@@ -153,7 +151,7 @@ class TestFetchJsonFromUrl:
         [(-1, True), (0, True), (1, False)],
         ids=["just-under", "at", "just-over"],
     )
-    @patch("dcatus_validation.fetch._pinned_get")
+    @patch("dcatus_validation.fetch._http_get")
     def test_fetch_json_from_url_content_length_boundary(
         self, mock_get, monkeypatch, size_offset, accepted
     ):
@@ -174,7 +172,7 @@ class TestFetchJsonFromUrl:
                 fetch_json_from_url("https://example.com/data.json")
             response.iter_content.assert_not_called()
 
-    @patch("dcatus_validation.fetch._pinned_get")
+    @patch("dcatus_validation.fetch._http_get")
     def test_fetch_json_from_url_exceeds_size_limit(self, mock_get):
         """At the real limit: a body one byte over 150MB is refused, built
         from a reused chunk rather than one 150MB allocation."""
@@ -192,7 +190,7 @@ class TestFetchJsonFromUrl:
         ):
             fetch_json_from_url("https://example.com/large-file.json")
 
-    @patch("dcatus_validation.fetch._pinned_get")
+    @patch("dcatus_validation.fetch._http_get")
     def test_fetch_json_from_url_within_size_limit(self, mock_get):
         """Test that fetch_json_from_url succeeds when content is within the limit"""
         mock_response = Mock()
@@ -225,7 +223,7 @@ class TestFetchJsonFromUrl:
         response.headers = (
             {} if content_type is None else {"Content-Type": content_type}
         )
-        monkeypatch.setattr(fetch, "_pinned_get", Mock(return_value=response))
+        monkeypatch.setattr(fetch, "_http_get", Mock(return_value=response))
 
         assert fetch_json_from_url("https://example.com/data.json") == {"test": "data"}
 
@@ -253,7 +251,7 @@ class TestFetchJsonFromUrl:
 
         assert parse_json_document(document) == {"value": brackets}
 
-    @patch("dcatus_validation.fetch._pinned_get")
+    @patch("dcatus_validation.fetch._http_get")
     def test_fetch_json_from_url_content_length_exceeds_limit(self, mock_get):
         """Test that fetch_json_from_url raises ValueError when Content-Length
         header exceeds 150MB"""
@@ -271,7 +269,7 @@ class TestFetchJsonFromUrl:
         ):
             fetch_json_from_url("https://example.com/large-file.json")
 
-    @patch("dcatus_validation.fetch._pinned_get")
+    @patch("dcatus_validation.fetch._http_get")
     def test_fetch_json_from_url_stops_streaming_when_limit_exceeded(
         self, mock_get, monkeypatch
     ):
@@ -304,7 +302,7 @@ class TestFetchJsonFromUrl:
         assert len(chunks_generated) == 11
         mock_response.close.assert_called_once()
 
-    @patch("dcatus_validation.fetch._pinned_get")
+    @patch("dcatus_validation.fetch._http_get")
     def test_fetch_json_from_url_times_out(self, mock_get, caplog, monkeypatch):
         """A hung/unresponsive target raises a clear, logged ValueError instead
         of hanging the worker indefinitely."""
@@ -337,7 +335,7 @@ class TestFetchJsonFromUrl:
             requests.exceptions.ReadTimeout("handshake stalled"),
         ],
     )
-    @patch("dcatus_validation.fetch._pinned_get")
+    @patch("dcatus_validation.fetch._http_get")
     def test_fetch_json_from_url_connect_phase_timeout(
         self, mock_get, caplog, monkeypatch, error
     ):
@@ -370,7 +368,7 @@ class TestFetchJsonFromUrl:
             requests.exceptions.ReadTimeout("handshake stalled"),
         ],
     )
-    @patch("dcatus_validation.fetch._pinned_get")
+    @patch("dcatus_validation.fetch._http_get")
     def test_fetch_json_from_url_retries_a_stalled_connect(self, mock_get, error):
         """The data.nola.gov case: one connection's handshake stalls, the next
         connects straight away."""
@@ -379,28 +377,7 @@ class TestFetchJsonFromUrl:
         assert fetch_json_from_url("https://example.com/flaky.json") == {"dataset": []}
         assert mock_get.call_count == 2
 
-    @patch("dcatus_validation.fetch._pinned_get")
-    def test_fetch_json_from_url_retries_with_another_approved_address(
-        self, mock_get, monkeypatch
-    ):
-        monkeypatch.setattr(
-            "dcatus_validation.fetch._resolve_addresses",
-            lambda hostname, port=None: ["2001:4860:4860::8888", "8.8.8.8"],
-        )
-        mock_get.side_effect = [
-            requests.exceptions.ConnectionError("network unreachable"),
-            _json_response(),
-        ]
-
-        assert fetch_json_from_url("https://example.com/catalog.json") == {
-            "dataset": []
-        }
-        assert [call.args[1] for call in mock_get.call_args_list] == [
-            "2001:4860:4860::8888",
-            "8.8.8.8",
-        ]
-
-    @patch("dcatus_validation.fetch._pinned_get")
+    @patch("dcatus_validation.fetch._http_get")
     def test_fetch_json_from_url_does_not_retry_at_the_deadline(
         self, mock_get, monkeypatch
     ):
@@ -418,7 +395,7 @@ class TestFetchJsonFromUrl:
 
         assert mock_get.call_count == 1
 
-    @patch("dcatus_validation.fetch._pinned_get")
+    @patch("dcatus_validation.fetch._http_get")
     def test_fetch_json_from_url_body_timeout_after_a_retry(
         self, mock_get, monkeypatch
     ):
@@ -450,7 +427,7 @@ class TestFetchJsonFromUrl:
         )
         assert FETCH_TIMEOUT_SECONDS + 12 <= 25
 
-    @patch("dcatus_validation.fetch._pinned_get")
+    @patch("dcatus_validation.fetch._http_get")
     def test_fetch_json_from_url_passes_timeout_to_requests(self, mock_get):
         """requests.get is bounded by FETCH_TIMEOUT_SECONDS, not unbounded."""
         mock_response = Mock()
@@ -469,15 +446,8 @@ class TestFetchJsonFromUrl:
         assert 0 < connect_timeout <= FETCH_CONNECT_TIMEOUT_SECONDS
         assert 0 < read_timeout <= FETCH_TIMEOUT_SECONDS
         assert connect_timeout < read_timeout
-        stream_timeouts = (
-            mock_response._validator_timeout_controller.settimeout.call_args_list
-        )
-        assert stream_timeouts
-        assert all(
-            0 < call.args[0] <= FETCH_TIMEOUT_SECONDS for call in stream_timeouts
-        )
 
-    @patch("dcatus_validation.fetch._pinned_get")
+    @patch("dcatus_validation.fetch._http_get")
     def test_fetch_json_from_url_follows_redirect_to_public_url(self, mock_get):
         """A single redirect to another public URL is followed and validated."""
         redirect_response = Mock()
@@ -500,7 +470,7 @@ class TestFetchJsonFromUrl:
         assert mock_get.call_count == 2
         assert mock_get.call_args_list[1].args[0] == "https://example.com/final.json"
 
-    @patch("dcatus_validation.fetch._pinned_get")
+    @patch("dcatus_validation.fetch._http_get")
     def test_fetch_json_from_url_redirect_budget_shrinks_over_time(
         self, mock_get, monkeypatch
     ):
@@ -537,7 +507,7 @@ class TestFetchJsonFromUrl:
         assert second_read == pytest.approx(FETCH_TIMEOUT_SECONDS - 4)
         assert second_read < first_read
 
-    @patch("dcatus_validation.fetch._pinned_get")
+    @patch("dcatus_validation.fetch._http_get")
     def test_fetch_json_from_url_redirect_chain_exceeding_budget_times_out(
         self, mock_get, monkeypatch
     ):
@@ -564,7 +534,7 @@ class TestFetchJsonFromUrl:
         # never attempted a second request once the shared budget was gone
         assert mock_get.call_count == 1
 
-    @patch("dcatus_validation.fetch._pinned_get")
+    @patch("dcatus_validation.fetch._http_get")
     def test_fetch_json_from_url_rejects_redirect_to_private_address_in_prod(
         self, mock_get, monkeypatch
     ):
@@ -587,7 +557,7 @@ class TestFetchJsonFromUrl:
         # never followed the redirect to the private address
         mock_get.assert_called_once()
 
-    @patch("dcatus_validation.fetch._pinned_get")
+    @patch("dcatus_validation.fetch._http_get")
     def test_fetch_json_from_url_caps_redirect_chain(self, mock_get):
         """A redirect loop/chain longer than MAX_FETCH_REDIRECTS is rejected
         rather than followed indefinitely."""
@@ -600,7 +570,7 @@ class TestFetchJsonFromUrl:
         with pytest.raises(ValueError, match="Too many redirects."):
             fetch_json_from_url("https://example.com/redirect-me")
 
-    @patch("dcatus_validation.fetch._pinned_get")
+    @patch("dcatus_validation.fetch._http_get")
     def test_rejections_raise_disclosable_exception(self, mock_get, monkeypatch):
         """Every submitter-actionable refusal raises InvalidCatalogSource, which
         is what lets both callers show the reason - the API answers 400 with
@@ -622,7 +592,7 @@ class TestFetchJsonFromUrl:
         with pytest.raises(InvalidCatalogSource, match="Invalid JSON at line 1"):
             fetch_json_from_url("https://example.com/page.html")
 
-    @patch("dcatus_validation.fetch._pinned_get")
+    @patch("dcatus_validation.fetch._http_get")
     def test_unparseable_json_is_reported_by_position_only(self, mock_get):
         """A fetched document that won't parse is described by line/column, with
         neither the decoder's own text nor the document itself in the message -
@@ -646,7 +616,7 @@ class TestFetchJsonFromUrl:
         # the decoder's own phrasing is not reused
         assert "Expecting" not in message
 
-    @patch("dcatus_validation.fetch._pinned_get")
+    @patch("dcatus_validation.fetch._http_get")
     def test_invalid_json_encoding_is_a_submission_error(self, mock_get):
         mock_get.return_value = _json_response(b'{"secret":"\xff"}')
 
@@ -662,14 +632,14 @@ class TestFetchJsonFromUrl:
             b'{"value": ' + b"9" * 5000 + b"}",
         ],
     )
-    @patch("dcatus_validation.fetch._pinned_get")
+    @patch("dcatus_validation.fetch._http_get")
     def test_unsupported_json_numbers_are_submission_errors(self, mock_get, body):
         mock_get.return_value = _json_response(body)
 
         with pytest.raises(InvalidCatalogSource, match=INVALID_JSON_NUMBER_MESSAGE):
             fetch_json_from_url("https://example.com/broken.json")
 
-    @patch("dcatus_validation.fetch._pinned_get")
+    @patch("dcatus_validation.fetch._http_get")
     def test_unexpected_transport_error_is_not_leaked(self, mock_get, caplog):
         """A connection-level failure is still reported as a refusal the
         submitter can act on, but with a fixed message - requests' own error
@@ -686,74 +656,6 @@ class TestFetchJsonFromUrl:
         assert any("SSLError" in record.message for record in caplog.records)
         assert not any("ca-bundle" in record.message for record in caplog.records)
 
-    def test_pinned_get_ignores_ambient_credentials_and_proxies(self, monkeypatch):
-        monkeypatch.setenv("https_proxy", "http://proxy.internal:8080")
-        monkeypatch.setenv("REQUESTS_CA_BUNDLE", "/tmp/test-ca.pem")
-
-        with patch("requests.Session.get") as session_get:
-            session_get.return_value = Mock()
-            response = fetch._pinned_get(
-                "https://example.com/data.json",
-                "93.184.216.34",
-                (1, 2),
-            )
-
-        assert response._validator_session.trust_env is False
-        assert session_get.call_args.kwargs["allow_redirects"] is False
-        assert session_get.call_args.kwargs["verify"] == "/tmp/test-ca.pem"
-        response._validator_session.close()
-
-    def test_hostname_resolution_is_pinned_for_the_connection(self, monkeypatch):
-        class CatalogHandler(BaseHTTPRequestHandler):
-            def do_GET(self):
-                body = b'{"dataset": []}'
-                self.send_response(200)
-                self.send_header("Content-Type", "application/json")
-                self.send_header("Content-Length", str(len(body)))
-                self.end_headers()
-                self.wfile.write(body)
-
-            def log_message(self, format, *args):
-                pass
-
-        server = ThreadingHTTPServer(("127.0.0.1", 0), CatalogHandler)
-        thread = threading.Thread(target=server.serve_forever, daemon=True)
-        thread.start()
-
-        original_getaddrinfo = socket.getaddrinfo
-        hostname_resolutions = 0
-
-        def rebinding_getaddrinfo(host, port, *args, **kwargs):
-            nonlocal hostname_resolutions
-            if host == "rebind.test":
-                hostname_resolutions += 1
-                if hostname_resolutions > 1:
-                    raise AssertionError("hostname was resolved more than once")
-                return [
-                    (
-                        socket.AF_INET,
-                        socket.SOCK_STREAM,
-                        socket.IPPROTO_TCP,
-                        "",
-                        ("127.0.0.1", port),
-                    )
-                ]
-            return original_getaddrinfo(host, port, *args, **kwargs)
-
-        monkeypatch.setattr(fetch, "ALLOW_PRIVATE_ADDRESSES", True)
-        monkeypatch.setattr(socket, "getaddrinfo", rebinding_getaddrinfo)
-        try:
-            result = fetch_json_from_url(
-                f"http://rebind.test:{server.server_port}/catalog.json"
-            )
-        finally:
-            server.shutdown()
-            server.server_close()
-            thread.join()
-
-        assert result == {"dataset": []}
-        assert hostname_resolutions == 1
-
     def test_url_credentials_are_rejected_without_being_logged(
         self, caplog, monkeypatch
     ):
@@ -764,7 +666,7 @@ class TestFetchJsonFromUrl:
 
         assert "hunter2" not in caplog.text
 
-    @patch("dcatus_validation.fetch._pinned_get")
+    @patch("dcatus_validation.fetch._http_get")
     def test_signed_query_is_not_logged(self, mock_get, caplog):
         mock_get.return_value = _json_response()
 
@@ -849,6 +751,131 @@ class TestPrivateAddressDefault:
         finally:
             monkeypatch.undo()
             importlib.reload(dcatus_validation.fetch)
+
+
+class _ForwardProxy:
+    """A minimal forward proxy on localhost that records what it was asked for.
+
+    Plain-HTTP targets arrive in absolute form and are answered directly with a
+    small catalog. CONNECT requests are refused with 403, the way the egress
+    proxy refuses a denied host or port.
+    """
+
+    def __init__(self):
+        self.requests = []
+        proxy = self
+
+        class Handler(BaseHTTPRequestHandler):
+            def do_GET(self):
+                proxy.requests.append((self.command, self.path))
+                body = b'{"dataset": []}'
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+
+            def do_CONNECT(self):
+                proxy.requests.append((self.command, self.path))
+                self.send_response(403)
+                self.end_headers()
+
+            def log_message(self, format, *args):
+                pass
+
+        self.server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        self.url = f"http://127.0.0.1:{self.server.server_port}"
+        self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
+
+    def __enter__(self):
+        self.thread.start()
+        return self
+
+    def __exit__(self, *exc):
+        self.server.shutdown()
+        self.server.server_close()
+        self.thread.join()
+
+
+class TestEgressProxy:
+    """On cloud.gov, `.profile` sets http_proxy/https_proxy from the egress
+    proxy's proxy_url, and fetches go through it like the harvester's do."""
+
+    # Through the module, not the names imported above:
+    # TestPrivateAddressDefault reloads it, replacing its classes.
+
+    @pytest.fixture(autouse=True)
+    def public_target(self, monkeypatch):
+        """The targets resolve to a public address that isn't serving them, so
+        a fetch can only return the proxy's answer if it went through it."""
+        monkeypatch.setattr(fetch, "ALLOW_PRIVATE_ADDRESSES", False)
+        monkeypatch.setattr(
+            fetch, "_resolve_addresses", lambda hostname, port=None: ["8.8.8.8"]
+        )
+        monkeypatch.delenv("no_proxy", raising=False)
+        monkeypatch.delenv("NO_PROXY", raising=False)
+
+    def test_fetch_uses_the_proxy_from_the_environment(self, monkeypatch):
+        with _ForwardProxy() as proxy:
+            monkeypatch.setenv("http_proxy", proxy.url)
+            monkeypatch.setenv("https_proxy", proxy.url)
+
+            assert fetch.fetch_json_from_url("http://catalog.test/data.json") == {
+                "dataset": []
+            }
+            with pytest.raises(fetch.InvalidCatalogSource, match="Could not retrieve"):
+                fetch.fetch_json_from_url("https://catalog.test:8443/data.json")
+
+        assert proxy.requests == [
+            ("GET", "http://catalog.test/data.json"),
+            ("CONNECT", "catalog.test:8443"),
+        ]
+
+    @pytest.mark.parametrize(
+        "proxy_env, no_proxy, expected",
+        [
+            ({"https_proxy": "http://proxy.test:8080"}, None, "egress=proxy"),
+            ({}, None, "egress=direct"),
+            (
+                {"https_proxy": "http://proxy.test:8080"},
+                "catalog.test",
+                "egress=direct",
+            ),
+        ],
+        ids=["proxy-set", "proxy-unset", "no-proxy-match"],
+    )
+    @patch("dcatus_validation.fetch._http_get")
+    def test_fetch_log_says_whether_it_goes_through_the_proxy(
+        self, mock_get, monkeypatch, caplog, proxy_env, no_proxy, expected
+    ):
+        """Operators check this field to catch an unset proxy_url."""
+        for name in ("http_proxy", "https_proxy", "HTTP_PROXY", "HTTPS_PROXY"):
+            monkeypatch.delenv(name, raising=False)
+        for name, value in proxy_env.items():
+            monkeypatch.setenv(name, value)
+        if no_proxy:
+            monkeypatch.setenv("no_proxy", no_proxy)
+        mock_get.return_value = _json_response(b'{"dataset": []}')
+
+        with caplog.at_level("INFO"):
+            fetch.fetch_json_from_url("https://catalog.test/data.json")
+
+        fetch_logs = [
+            r.message for r in caplog.records if "Validator fetching" in r.message
+        ]
+        assert len(fetch_logs) == 1
+        assert expected in fetch_logs[0]
+
+    def test_private_targets_are_refused_before_reaching_the_proxy(self, monkeypatch):
+        monkeypatch.setattr(
+            fetch, "_resolve_addresses", lambda hostname, port=None: ["10.0.0.5"]
+        )
+        with _ForwardProxy() as proxy:
+            monkeypatch.setenv("http_proxy", proxy.url)
+            with pytest.raises(fetch.InvalidCatalogSource, match="private/internal"):
+                fetch.fetch_json_from_url("http://internal.test/data.json")
+
+        assert proxy.requests == []
 
 
 NGINX_SIZE_UNITS = {"": 1, "k": 1024, "m": 1024 * 1024, "g": 1024 * 1024 * 1024}

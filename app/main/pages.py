@@ -3,7 +3,12 @@ from datetime import timedelta
 from flask import flash, redirect, render_template, request, session, url_for
 
 from app import deps, htmx
-from app.constants import MAX_UPLOAD_BYTES, MAX_UPLOAD_MB
+from app.constants import (
+    MAX_UPLOAD_BYTES,
+    MAX_UPLOAD_MB,
+    MAX_VALIDATION_ERRORS,
+    MAX_VALIDATION_WARNINGS,
+)
 from app.deps import (
     CATALOG_BASE_URL,
     _log_mutation,
@@ -277,4 +282,6 @@ def view_validators():
         form=form,
         max_upload_bytes=MAX_UPLOAD_BYTES,
         max_upload_mb=MAX_UPLOAD_MB,
+        max_validation_errors=MAX_VALIDATION_ERRORS,
+        max_validation_warnings=MAX_VALIDATION_WARNINGS,
     )

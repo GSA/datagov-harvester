@@ -1,3 +1,4 @@
+import copy
 import json
 import logging
 import os
@@ -19,6 +20,8 @@ from sqlalchemy.orm import scoped_session, sessionmaker
 from app import create_app
 from database.interface import HarvesterDBInterface
 from database.models import HarvestJob, HarvestSource, Locations, Organization, db
+from dcatus_validation.messages import open_json
+from dcatus_validation.schema_paths import DCATUS3_COMPLETE_EXAMPLE
 from harvester.lib.load_manager import create_future_date
 from harvester.utils.general_utils import dataset_to_hash, sort_dataset
 from search.client import OpenSearchClient
@@ -32,6 +35,15 @@ os.environ.setdefault("HARVEST_API_TOKEN", "test-harvest-api-token")
 logger = logging.getLogger("pytest.conftest")
 
 EXAMPLE_DATA = Path(__file__).parents[1] / "example_data"
+
+
+def dcatus3_complete_example(**changes) -> dict:
+    """A fresh copy of the upstream DCAT-US 3.0 complete example dataset, with
+    changes applied; a change of None removes that field."""
+    record = copy.deepcopy(open_json(DCATUS3_COMPLETE_EXAMPLE))
+    record.update(changes)
+    return {key: value for key, value in record.items() if value is not None}
+
 
 HARVEST_SOURCE_URL = os.getenv("HARVEST_SOURCE_URL")
 
@@ -128,10 +140,6 @@ def default_function_fixture(interface, monkeypatch):
         patch("harvester.exceptions.db_interface", interface),
         patch("harvester.lib.load_manager.interface", interface),
         patch("app.deps.db", interface),
-        patch(
-            "harvester.utils.general_utils._get_geo_lookup_interface",
-            lambda: interface,
-        ),
     ):
         yield
     logger.info("Patching complete. Unpatching")
@@ -478,6 +486,36 @@ def source_data_dcatus_no_identifier(organization_data: dict) -> dict:
         "organization_id": organization_data["id"],
         "frequency": "daily",
         "url": f"{HARVEST_SOURCE_URL}/dcatus/dcatus_no_identifier.json",
+        "schema_type": "dcatus1.1: federal",
+        "source_type": "document",
+        "notification_frequency": "always",
+    }
+
+
+@pytest.fixture
+def source_data_dcatus3_0_validator_parity(organization_data: dict) -> dict:
+    return {
+        "id": "5f0a3c1e-2b7d-4e8a-9c6f-1d2e3f4a5b6c",
+        "name": "Test Source DCAT-US 3.0 (validator parity)",
+        "notification_emails": ["email@example.com"],
+        "organization_id": organization_data["id"],
+        "frequency": "daily",
+        "url": f"{HARVEST_SOURCE_URL}/dcatus/dcatus3_0_validator_parity.json",
+        "schema_type": "dcatus3.0",
+        "source_type": "document",
+        "notification_frequency": "always",
+    }
+
+
+@pytest.fixture
+def source_data_dcatus_validator_parity(organization_data: dict) -> dict:
+    return {
+        "id": "6a1b4d2f-3c8e-4f9b-8d7a-2e3f4a5b6c7d",
+        "name": "Test Source DCAT-US 1.1 (validator parity)",
+        "notification_emails": ["email@example.com"],
+        "organization_id": organization_data["id"],
+        "frequency": "daily",
+        "url": f"{HARVEST_SOURCE_URL}/dcatus/dcatus_validator_parity.json",
         "schema_type": "dcatus1.1: federal",
         "source_type": "document",
         "notification_frequency": "always",

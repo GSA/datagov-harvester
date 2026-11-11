@@ -15,6 +15,41 @@ See [app/api/README.md](../app/api/README.md) for the API versioning policy.
 
 ### Added
 
+#### Validator warnings and duplicate identifiers
+
+**Issue:** GSA/data.gov#6380  
+**Endpoints:** `POST /api/v1/validate`, `POST /api/v1/validate/document`
+
+The validator now also reports what a harvest of the catalog would report
+beyond schema errors, for both DCAT-US 1.1 and 3.0:
+
+- New `validation_warnings` field (always present): a list of
+  `{identifier, record_type, warning_type, message, title}` objects for
+  content-quality warnings, including spatial values that can't be resolved.
+  `warning_type` is the same value the harvester records for that warning.
+  Warnings never make a catalog invalid.
+- New `issue_summary` field (always present): a list of
+  `{severity, type, count}` objects counting errors and warnings by type, as
+  on the harvest job page.
+- New `warnings_incomplete` field (present only when true): warning checks
+  stopped at the 1000-warning limit, or the catalog was too malformed to split
+  into records.
+- Duplicate identifiers are now included in `validation_errors` as
+  `[identifier, "Duplicate identifier '<identifier>' found"]`, because the
+  harvester skips the duplicate record. They count toward the existing
+  1000-error limit.
+
+Existing `validation_errors` entries are unchanged.
+
+#### Validator time limit
+
+**Issue:** GSA/data.gov#6380  
+**Endpoints:** `POST /api/v1/validate`, `POST /api/v1/validate/document`
+
+A catalog that can't be fetched and checked within 25 seconds now gets a 422
+with `{"error": "This catalog took too long to check. ..."}`, instead of the
+request timing out at CloudFront (504) with no JSON body.
+
 #### Optional structured response envelope for collection endpoints
 
 **Issue:** GSA/data.gov#6392  

@@ -16,8 +16,20 @@ LARGE_DOCUMENT_BYTES = 50 * 1024 * 1024
 # validation errors. The public API stops before that amplification can exhaust
 # a worker; direct/offline callers of validate_records remain uncapped.
 MAX_VALIDATION_ERRORS = 1000
+# Same reasoning for content-quality warnings, capped separately so a catalog
+# full of warnings can't hide its errors (or the reverse).
+MAX_VALIDATION_WARNINGS = 1000
 MAX_RESULT_IDENTIFIER_CHARS = 1000
 MAX_RESULT_MESSAGE_CHARS = 4000
+
+# Time budget for one validator request, from arrival to answer, URL fetch
+# included. CloudFront gives up on the origin at 30s; the margin covers
+# writing the response and the proxies in between (dcatus_validation.deadline).
+VALIDATION_DEADLINE_SECONDS = 25
+# A spatial value is parsed in one shapely call, which can't be stopped once
+# it starts. Measured at up to 0.25s per MB on a developer laptop; doubled for
+# slower cloud.gov CPUs. A value expected to overrun the budget stops it first.
+SPATIAL_SECONDS_PER_MB = 0.5
 
 # Keep attacker-controlled documents comfortably below Python's recursion
 # limit, independent of the parser and interpreter patch version in use.

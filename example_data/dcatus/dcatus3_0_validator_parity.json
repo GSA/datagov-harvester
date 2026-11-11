@@ -1,0 +1,147 @@
+{
+  "@type": "Catalog",
+  "@id": "https://example.gov/parity.json",
+  "conformsTo": {
+    "@type": "Standard",
+    "title": "DCAT-US 3.0"
+  },
+  "title": "Validator and harvester parity catalog",
+  "description": "Schema-valid records that exercise duplicate identifiers, content warnings, and spatial checks.",
+  "dataset": [
+    {
+      "@type": "Dataset",
+      "title": "Legacy Access Rights",
+      "description": "Legacy Access Rights for validator/harvester parity.",
+      "identifier": "https://example.gov/parity/legacy",
+      "publisher": {
+        "@type": "Organization",
+        "name": "Test Agency"
+      },
+      "contactPoint": {
+        "@type": "Kind",
+        "fn": "Parity Contact",
+        "hasEmail": "mailto:parity@example.gov"
+      },
+      "accessRights": "non-public",
+      "spatial": {
+        "@type": "Location",
+        "bbox": "POLYGON((-125 24, -66 24, -66 50, -125 50, -125 24))"
+      }
+    },
+    {
+      "@type": "Dataset",
+      "title": "Duplicate Of Legacy",
+      "description": "Duplicate Of Legacy for validator/harvester parity.",
+      "identifier": "https://example.gov/parity/legacy",
+      "publisher": {
+        "@type": "Organization",
+        "name": "Test Agency"
+      },
+      "contactPoint": {
+        "@type": "Kind",
+        "fn": "Parity Contact",
+        "hasEmail": "mailto:parity@example.gov"
+      },
+      "accessRights": "restricted public"
+    },
+    {
+      "@type": "Dataset",
+      "title": "Unknown Place Label",
+      "description": "Unknown Place Label for validator/harvester parity.",
+      "identifier": "https://example.gov/parity/unknown-place",
+      "publisher": {
+        "@type": "Organization",
+        "name": "Test Agency"
+      },
+      "contactPoint": {
+        "@type": "Kind",
+        "fn": "Parity Contact",
+        "hasEmail": "mailto:parity@example.gov"
+      },
+      "spatial": {
+        "@type": "Location",
+        "prefLabel": "Nowhere In Particular"
+      }
+    },
+    {
+      "@type": "Dataset",
+      "title": "Unparseable Geometry",
+      "description": "Unparseable Geometry for validator/harvester parity.",
+      "identifier": "https://example.gov/parity/bad-geometry",
+      "publisher": {
+        "@type": "Organization",
+        "name": "Test Agency"
+      },
+      "contactPoint": {
+        "@type": "Kind",
+        "fn": "Parity Contact",
+        "hasEmail": "mailto:parity@example.gov"
+      },
+      "spatial": {
+        "@type": "Location",
+        "geometry": "POINT (east north)"
+      }
+    },
+    {
+      "@type": "Dataset",
+      "title": "Known Place Label",
+      "description": "Known Place Label for validator/harvester parity.",
+      "identifier": "https://example.gov/parity/known-place",
+      "publisher": {
+        "@type": "Organization",
+        "name": "Test Agency"
+      },
+      "contactPoint": {
+        "@type": "Kind",
+        "fn": "Parity Contact",
+        "hasEmail": "mailto:parity@example.gov"
+      },
+      "spatial": {
+        "@type": "Location",
+        "prefLabel": "United States"
+      }
+    }
+  ],
+  "service": [
+    {
+      "@type": "DataService",
+      "title": "Parity Service One",
+      "description": "Parity Service One for parity.",
+      "identifier": "https://example.gov/parity/services/one",
+      "endpointURL": [
+        "https://api.example.gov/parity/v1"
+      ],
+      "publisher": {
+        "@type": "Organization",
+        "name": "Test Agency"
+      },
+      "contactPoint": [
+        {
+          "@type": "Kind",
+          "fn": "Parity Service Contact",
+          "hasEmail": "mailto:svc@example.gov"
+        }
+      ]
+    },
+    {
+      "@type": "DataService",
+      "title": "Duplicate Parity Service",
+      "description": "Duplicate Parity Service for parity.",
+      "identifier": "https://example.gov/parity/services/one",
+      "endpointURL": [
+        "https://api.example.gov/parity/v1"
+      ],
+      "publisher": {
+        "@type": "Organization",
+        "name": "Test Agency"
+      },
+      "contactPoint": [
+        {
+          "@type": "Kind",
+          "fn": "Parity Service Contact",
+          "hasEmail": "mailto:svc@example.gov"
+        }
+      ]
+    }
+  ]
+}

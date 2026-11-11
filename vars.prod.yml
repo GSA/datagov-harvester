@@ -16,6 +16,8 @@ validator_disk_quota: 2G
 
 # Placeholder for manifest ((asset_version)); CI overrides via --var on deploy
 asset_version: set-at-deploy
+# Placeholder for manifest ((app_version)); CI overrides via --var on deploy
+app_version: set-at-deploy
 
 CF_API_URL: https://api.fr.cloud.gov
 CATALOG_BASE_URL: https://catalog.data.gov

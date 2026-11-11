@@ -1,7 +1,10 @@
 # The validator's document limit, advertised on the /validate/ page and checked
-# in the browser before it submits to the validator API.
+# in the browser before it submits to the validator API, and its result limits,
+# explained on that page.
 from dcatus_validation.limits import MAX_UPLOAD_BYTES as MAX_UPLOAD_BYTES
 from dcatus_validation.limits import MAX_UPLOAD_MB as MAX_UPLOAD_MB
+from dcatus_validation.limits import MAX_VALIDATION_ERRORS as MAX_VALIDATION_ERRORS
+from dcatus_validation.limits import MAX_VALIDATION_WARNINGS as MAX_VALIDATION_WARNINGS
 from shared.constants import (
     ORGANIZATION_TYPE_SELECT_CHOICES as ORGANIZATION_TYPE_SELECT_CHOICES,
 )
@@ -37,6 +40,8 @@ __all__ = [
     "ORGANIZATION_TYPE_SELECT_CHOICES",
     "MAX_UPLOAD_MB",
     "MAX_UPLOAD_BYTES",
+    "MAX_VALIDATION_ERRORS",
+    "MAX_VALIDATION_WARNINGS",
     "ADMIN_MAX_REQUEST_MB",
     "ADMIN_MAX_REQUEST_BYTES",
 ]
