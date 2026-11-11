@@ -65,6 +65,7 @@ from harvester.utils.general_utils import (
     extract_dcatus3_catalog_services,
     extract_dcatus3_nested_datasets,
     find_indexes_for_duplicates,
+    format_recipient_list,
     get_datetime,
     group_record_error_fields,
     make_record_mapping,
@@ -593,6 +594,16 @@ class HarvestSource:
             }
         internal_ids = set(self.internal_records.keys())
         self.deletions = internal_ids - external_ids
+        # Deletions only cover records that last harvested successfully, so
+        # clear issues for any other record the source dropped.
+        cleared = self.db_interface.clear_current_issues_missing_from_source(
+            self.id, external_ids, self.job_id
+        )
+        if cleared:
+            logger.info(
+                "cleared outstanding issues for %s records no longer in the source",
+                cleared,
+            )
 
     def iter_internal_records_to_be_deleted(self) -> any:
         """
@@ -949,6 +960,7 @@ class HarvestSource:
                     "A harvest job failed and did not complete.\n"
                     f"- Organization: {org_name}\n"
                     f"- Harvest source: {self.name}\n"
+                    f"- Report recipients: {format_recipient_list(self.notification_emails)}\n"
                     f"- Error: {error_message}\n"
                     f"- Technical details: {job_url}\n\n"
                     "====\n"
@@ -981,6 +993,7 @@ class HarvestSource:
                     "A harvest job has been successfully completed.\n"
                     f"- Organization: {org_name}\n"
                     f"- Harvest source: {self.name}\n"
+                    f"- Report recipients: {format_recipient_list(self.notification_emails)}\n"
                     f"{report_section}"
                     f"- Technical details: {job_url}\n\n"
                     f"Summary of the job ({self.job_id}):\n"
@@ -1046,6 +1059,7 @@ class HarvestSource:
                     sample_datasets=sample_datasets,
                     catalog_base_url=CATALOG_BASE_URL,
                     notification_frequency=source.notification_frequency,
+                    notification_emails=self.notification_emails,
                 )
                 send_email_to_recipients(
                     [recipient], subject, recipient_body, html_body=html_body
