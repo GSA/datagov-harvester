@@ -594,6 +594,16 @@ class HarvestSource:
             }
         internal_ids = set(self.internal_records.keys())
         self.deletions = internal_ids - external_ids
+        # Deletions only cover records that last harvested successfully, so
+        # clear issues for any other record the source dropped.
+        cleared = self.db_interface.clear_current_issues_missing_from_source(
+            self.id, external_ids, self.job_id
+        )
+        if cleared:
+            logger.info(
+                "cleared outstanding issues for %s records no longer in the source",
+                cleared,
+            )
 
     def iter_internal_records_to_be_deleted(self) -> any:
         """
