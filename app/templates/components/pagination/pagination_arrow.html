@@ -3,7 +3,9 @@
   #}
   {% macro pagination_arrow(direction, pagination, htmx_vars) %}
     {% set page_var = ((pagination.current - 1) if direction == 'previous' else (pagination.current + 1)) | string() %}
-    {% set placeholder_link = htmx_vars.endpoint_url ~ "?" ~ htmx_vars.page_param ~ "=" ~ page_var %}
+    {% set url_params = request.args.to_dict(flat=True) %}
+    {% set _ = url_params.update({htmx_vars.page_param: page_var}) %}
+    {% set placeholder_link = htmx_vars.endpoint_url ~ "?" ~ url_params|urlencode %}
 
     {% set link_attrs = {
       'class': 'usa-pagination__link usa-pagination__'  ~ direction ~ '-page',
@@ -12,8 +14,10 @@
 
     <li class="usa-pagination__item usa-pagination__arrow">
       <a
-        hx-get="{{ placeholder_link | default("javascript:void(0);") }}"
+        href="{{ placeholder_link }}"
+        hx-get="{{ placeholder_link }}"
         hx-target="{{htmx_vars.target_div}}"
+        hx-push-url="true"
         class="{{ link_attrs.class }}"
         aria-label="{{ link_attrs.aria_label }}"
       >
