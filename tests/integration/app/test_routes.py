@@ -1874,3 +1874,56 @@ class TestQueryParameterValidation:
         data = response.get_json()
         assert "error" in data
         assert "invalid_param" in data["error"]
+
+
+class TestMetricsPagination:
+    def test_metrics_loads_specific_jobs_page_from_url(self, client, job):
+        """Test metrics page loads specific jobs page when URL parameter is provided."""
+        response = client.get("/metrics/?jobs_page=3")
+
+        assert response.status_code == 200
+        assert b"Recently completed harvest jobs" in response.data
+
+    def test_metrics_loads_specific_errors_page_from_url(self, client, job):
+        """Test metrics page loads specific errors page when URL parameter is provided."""
+        response = client.get("/metrics/?errors_page=2")
+
+        assert response.status_code == 200
+        assert b"Recent failed jobs" in response.data
+
+    def test_metrics_handles_invalid_jobs_page_number(self, client):
+        """Test metrics page handles invalid jobs page numbers gracefully."""
+        response = client.get("/metrics/?jobs_page=999")
+        assert response.status_code == 200
+
+    def test_metrics_handles_negative_jobs_page_number(self, client):
+        """Test metrics page handles negative page numbers gracefully."""
+        response = client.get("/metrics/?jobs_page=-1")
+        assert response.status_code == 200
+
+    def test_metrics_handles_zero_jobs_page_number(self, client):
+        """Test metrics page handles zero page numbers gracefully."""
+        response = client.get("/metrics/?jobs_page=0")
+        assert response.status_code == 200
+
+    def test_metrics_pagination_buttons_have_href_attributes(
+        self, client, interface, source
+    ):
+        """Test pagination buttons include href attributes for bookmarkable URLs."""
+        for i in range(15):
+            interface.add_harvest_job(
+                {"harvest_source_id": source.id, "status": "complete"}
+            )
+
+        response = client.get("/metrics/")
+
+        assert response.status_code == 200
+        html = response.data.decode()
+
+        assert 'href="/metrics/?' in html
+
+    def test_metrics_preserves_independent_pagination_state(self, client, job):
+        """Test jobs and errors pagination states are independent."""
+        response = client.get("/metrics/?jobs_page=3&errors_page=2")
+
+        assert response.status_code == 200

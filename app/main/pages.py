@@ -116,6 +116,11 @@ def view_metrics():
     jobs_page = request.args.get("jobs_page", 1, type=convert_to_int)
     errors_page = request.args.get("errors_page", 1, type=convert_to_int)
 
+    if jobs_page is None or jobs_page < 1:
+        jobs_page = 1
+    if errors_page is None or errors_page < 1:
+        errors_page = 1
+
     count_jobs = deps.db.pget_harvest_jobs(
         facets=time_filter + ",status eq complete",
         count=True,
@@ -135,6 +140,17 @@ def view_metrics():
         count=count_errors,
         current=errors_page,
     )
+
+    if (
+        pagination_jobs.current > pagination_jobs.page_count
+        and pagination_jobs.page_count > 0
+    ):
+        pagination_jobs.current = pagination_jobs.page_count
+    if (
+        pagination_errors.current > pagination_errors.page_count
+        and pagination_errors.page_count > 0
+    ):
+        pagination_errors.current = pagination_errors.page_count
 
     if htmx:
         htmx_target = request.headers.get("HX-Target", "")
