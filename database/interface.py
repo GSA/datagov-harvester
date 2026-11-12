@@ -281,14 +281,11 @@ class HarvesterDBInterface:
         if not include_archived:
             query = query.filter(~HarvestSource.is_archived)
 
-        sources = query.all()
+        query = query.order_by(
+            HarvestSource.is_archived.asc(), HarvestSource.name.asc()
+        )
 
-        if include_archived:
-            active_sources = [s for s in sources if not s.is_archived]
-            archived_sources = [s for s in sources if s.is_archived]
-            return active_sources + archived_sources
-
-        return sources
+        return query.all()
 
     def get_harvest_source_by_jobid(self, jobid):
         harvest_job = self.db.query(HarvestJob).filter_by(id=jobid).first()
@@ -312,14 +309,11 @@ class HarvesterDBInterface:
         if not include_archived:
             query = query.filter(~HarvestSource.is_archived)
 
-        sources = query.all()
+        query = query.order_by(
+            HarvestSource.is_archived.asc(), HarvestSource.name.asc()
+        )
 
-        if include_archived:
-            active_sources = [s for s in sources if not s.is_archived]
-            archived_sources = [s for s in sources if s.is_archived]
-            return active_sources + archived_sources
-
-        return sources
+        return query.all()
 
     def update_harvest_source(self, source_id, updates):
         source, _ = self.try_update_harvest_source(source_id, updates)
@@ -408,9 +402,9 @@ class HarvesterDBInterface:
     def archive_harvest_source(self, source_id, user_email):
         """Archive a harvest source instead of deleting it.
 
-        Marks the source as archived while preserving all harvest records,
-        errors, and job history for audit purposes. Archived sources cannot
-        be harvested but their historical data remains accessible.
+        Marks the source as archived and locked. The source must be cleared
+        first (0 active harvest records). Job history is preserved for audit
+        purposes. Archived sources cannot be harvested or modified.
 
         Args:
             source_id: ID of the harvest source to archive
@@ -441,8 +435,9 @@ class HarvesterDBInterface:
     def unarchive_harvest_source(self, source_id):
         """Unarchive a harvest source, restoring it to active status.
 
-        All harvest records and error messages are preserved during archiving,
-        so they remain accessible after unarchiving.
+        Note: Harvest records are removed during the clear operation (which is
+        required before archiving), so unarchiving does not restore any records.
+        Job history is preserved and remains accessible.
 
         Args:
             source_id: ID of the harvest source to unarchive
@@ -469,16 +464,6 @@ class HarvesterDBInterface:
             f"Unarchived harvest source with ID:{source_id} successfully",
             200,
         )
-
-    def can_delete_harvest_source(self, source_id):
-        """Deprecated: Use can_archive_harvest_source() instead."""
-        return self.can_archive_harvest_source(source_id)
-
-    def delete_harvest_source(self, source_id, user_email=None):
-        """Deprecated: Use archive_harvest_source() instead."""
-        if user_email is None:
-            user_email = "unknown"
-        return self.archive_harvest_source(source_id, user_email)
 
     ## HARVEST JOB
     def add_harvest_job(self, job_data):

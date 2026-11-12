@@ -17,7 +17,6 @@ from app.forms import HarvestSourceForm, HarvestTriggerForm, ReharvestForm
 from app.paginate import Pagination
 from app.util import make_new_source_contract
 from database.interface import HarvestSourceLockedError, StaleReharvestLinkError
-from harvester.lib.source_delete import enqueue_harvest_source_archive
 from harvester.utils.general_utils import (
     convert_to_int,
     dynamic_map_list_items_to_dict,
@@ -27,8 +26,6 @@ from harvester.utils.notification_frequency import notification_frequency_notice
 from harvester.utils.reharvest_links import read_reharvest_token
 
 from . import main
-
-enqueue_harvest_source_delete = enqueue_harvest_source_archive
 
 
 def trigger_manual_job_helper(source_id, job_type="harvest"):
@@ -652,14 +649,12 @@ def update_harvest_source_actions(source_id: str):
             flash("Cannot clear an archived source", "error")
             return redirect(url_for("main.view_harvest_source", source_id=source_id))
         return trigger_manual_job_helper(source_id, "clear")
-    elif form.delete.data:
+    elif form.archive.data:
         try:
             user_email = g.get("request_actor", "unknown")
-            message, status = enqueue_harvest_source_archive(
-                source_id, user_email, deps.db
-            )
+            message, status = deps.db.archive_harvest_source(source_id, user_email)
             _log_mutation("archive", "harvest_source", source_id, status=status)
-            category = "success" if status == 202 else "error"
+            category = "success" if status == 200 else "error"
             flash(message, category)
             if status == 409:
                 return redirect(

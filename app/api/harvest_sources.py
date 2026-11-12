@@ -23,7 +23,6 @@ from app.deps import (
     login_required,
     valid_id_required,
 )
-from harvester.lib.source_delete import enqueue_harvest_source_archive
 from harvester.utils.general_utils import is_valid_uuid4
 
 from . import api
@@ -85,7 +84,7 @@ def edit_harvest_source_api(source_id: str):
 def delete_harvest_source(source_id):
     try:
         user_email = g.get("request_actor", "unknown")
-        message, status = enqueue_harvest_source_archive(source_id, user_email, deps.db)
+        message, status = deps.db.archive_harvest_source(source_id, user_email)
         _log_mutation("archive", "harvest_source", source_id, status=status)
         return make_response(jsonify({"message": message}), status)
     except Exception as e:

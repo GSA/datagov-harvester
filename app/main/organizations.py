@@ -67,7 +67,8 @@ def view_organization(org_identifier: str):
     org_id = org.id if org is not None else org_identifier
 
     form = OrganizationTriggerForm() if session.get("user") else None
-    sources = deps.db.get_harvest_source_by_org(org_id, include_archived=False)
+    show_archived = request.args.get("show_archived", "false").lower() == "true"
+    sources = deps.db.get_harvest_source_by_org(org_id, include_archived=show_archived)
     future_harvest_jobs = {}
     for source in sources:
         if source.date_next_run:
@@ -86,6 +87,7 @@ def view_organization(org_identifier: str):
         "harvest_sources": sources,
         "harvest_jobs": harvest_jobs,
         "future_harvest_jobs": future_harvest_jobs,
+        "show_archived": show_archived,
     }
     return render_template(
         "view_org_data.html",

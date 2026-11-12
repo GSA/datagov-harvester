@@ -36,13 +36,9 @@
             {% set status_class = _status_tag.get(job.status, '') %}
             <tr>
                 <td class="job-table-id" data-sort-value="{{ job.id }}">
-                    {% if job.source and job.source.is_archived %}
+                    <a href="{{ url_for('main.view_harvest_job', job_id=job.id) }}">
                         {{ job.id[:6] }}
-                    {% else %}
-                        <a href="{{ url_for('main.view_harvest_job', job_id=job.id) }}">
-                            {{ job.id[:6] }}
-                        </a>
-                    {% endif %}
+                    </a>
                 </td>
                 {% if show_source %}
                 <td class="job-table-source" data-sort-value="{{ job.source.name }}">
