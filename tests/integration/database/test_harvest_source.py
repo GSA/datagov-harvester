@@ -149,7 +149,7 @@ def test_delete_harvest_source(
     record_data_dcatus[0]["harvest_source_id"] = source_2.id
     record = interface.add_harvest_record(record_data_dcatus[0])
 
-    response = interface.delete_harvest_source(source_2.id)
+    response = interface.archive_harvest_source(source_2.id, "test@example.com")
     assert response == (
         "Failed: 1 records in the Harvest source, please clear it first.",
         409,
@@ -163,7 +163,7 @@ def test_delete_harvest_source(
     # all latest records are labelled as "delete" allowing harvest source
     # archive to occur
     interface.update_harvest_record(record.id, {"action": "delete"})
-    response = interface.delete_harvest_source(source_2.id)
+    response = interface.archive_harvest_source(source_2.id, "test@example.com")
     assert response[1] == 200
     assert "Archived harvest source" in response[0]
 
@@ -214,7 +214,9 @@ def test_delete_harvest_source_does_not_load_children(
     engine = interface.db.get_bind()
     event.listen(engine, "before_cursor_execute", record_statement)
     try:
-        message, status = interface.delete_harvest_source(source.id)
+        message, status = interface.archive_harvest_source(
+            source.id, "test@example.com"
+        )
     finally:
         event.remove(engine, "before_cursor_execute", record_statement)
 
@@ -272,7 +274,7 @@ def test_delete_harvest_source_with_datasets(
     # latest record action is "create", so clear it first to pass the 409 guard
     interface.update_harvest_record(record.id, {"action": "delete"})
 
-    message, status = interface.delete_harvest_source(source_id)
+    message, status = interface.archive_harvest_source(source_id, "test@example.com")
     assert status == 200
 
     interface.db.expire_all()
