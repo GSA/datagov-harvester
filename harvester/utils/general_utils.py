@@ -1433,8 +1433,12 @@ def _unwrap_location(input_value):
     return None
 
 
-def translate_spatial(input_value) -> str:
-    """Normalize spatial strings/dicts into GeoJSON strings when possible."""
+def translate_spatial(input_value, literal_place_names: bool = False) -> str:
+    """Normalize spatial strings/dicts into GeoJSON strings when possible.
+
+    literal_place_names matches % _ and \\ in a place name as plain characters
+    instead of ILIKE wildcards (see get_geo_from_string).
+    """
 
     input_value = _unwrap_location(input_value)
 
@@ -1457,7 +1461,8 @@ def translate_spatial(input_value) -> str:
     dbi = _get_geo_lookup_interface()
     if dbi is not None:
         try:
-            resolved_geojson = dbi.get_geo_from_string(spatial_value)
+            lookup_kwargs = {"literal": True} if literal_place_names else {}
+            resolved_geojson = dbi.get_geo_from_string(spatial_value, **lookup_kwargs)
             if resolved_geojson:
                 return resolved_geojson
         except Exception:  # pragma: no cover - defensive lookup

@@ -1,4 +1,5 @@
 import logging
+import re
 from datetime import datetime, timedelta, timezone
 from itertools import batched
 from typing import List, Optional
@@ -1781,13 +1782,16 @@ class HarvesterDBInterface:
             )
         ]
 
-    def get_geo_from_string(self, location_name):
+    def get_geo_from_string(self, location_name, literal=False):
         """get a geometry from the locations table using the location name
-        (e.g. California, New York)"""
+        (e.g. California, New York). With literal=True, % _ and \\ in the name
+        are matched as plain characters instead of ILIKE wildcards."""
+        if literal:
+            location_name = re.sub(r"([\\%_])", r"\\\1", location_name)
         try:
             location = (
                 self.db.query(func.ST_AsGeoJSON(Locations.the_geom))
-                .filter(Locations.display_name.ilike(f"%{location_name}%"))
+                .filter(Locations.display_name.ilike(f"%{location_name}%", escape="\\"))
                 .scalar()
             )
             return location
