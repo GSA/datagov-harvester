@@ -113,7 +113,17 @@ wait-for-app: ## Wait until flask has finished db upgrade and is serving
 	while [ $$i -lt 60 ]; do \
 		code=$$(curl -sS -o /dev/null -w '%{http_code}' http://localhost:8080/ 2>/dev/null || true); \
 		case $$code in \
-			2*|3*) echo "App is up (HTTP $$code)."; exit 0 ;; \
+			2*|3*) \
+				echo "App is up (HTTP $$code). Verifying migrations..."; \
+				docker compose logs app 2>&1 | grep -q "Serving Flask app" && \
+				docker compose logs app 2>&1 | grep -q "Running upgrade"; \
+				if [ $$? -eq 0 ]; then \
+					echo "Migrations verified."; \
+					exit 0; \
+				else \
+					echo "App is up but migrations not complete yet..."; \
+				fi; \
+			;; \
 		esac; \
 		i=$$((i + 1)); \
 		sleep 1; \

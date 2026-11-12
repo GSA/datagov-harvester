@@ -11,7 +11,70 @@
 } %}
 {% block content %}
 <div class="wrapper job-data">
-    {% if not data.job %}
+    {% if data.source_archived %}
+    <h1>Harvest Job from Archived Source</h1>
+    <div class="usa-alert usa-alert--info" role="alert">
+        <div class="usa-alert__body">
+            <h2 class="usa-alert__heading">This job belongs to an archived source</h2>
+            <p class="usa-alert__text">
+                This harvest job belongs to a source that has been archived. Record and error details
+                have been removed to free database space. Job summary counts are preserved for audit purposes.
+            </p>
+            {% if data.harvest_job and data.harvest_job.source %}
+            <p class="usa-alert__text">
+                <a href="{{ url_for('main.view_harvest_source', source_id=data.harvest_job.harvest_source_id) }}">
+                    View archived source: {{ data.harvest_job.source.name }}
+                </a>
+            </p>
+            {% endif %}
+        </div>
+    </div>
+    {% if data.harvest_job %}
+    <h2>Job Summary</h2>
+    <table class="usa-table usa-table--borderless width-full">
+        <tr>
+            <td>Job ID</td>
+            <td>{{ data.harvest_job.id }}</td>
+        </tr>
+        <tr>
+            <td>Status</td>
+            <td>{{ data.harvest_job.status }}</td>
+        </tr>
+        <tr>
+            <td>Date Created</td>
+            <td>{{ data.harvest_job.date_created }}</td>
+        </tr>
+        <tr>
+            <td>Date Finished</td>
+            <td>{{ data.harvest_job.date_finished | else_na }}</td>
+        </tr>
+        <tr>
+            <td>Records Added</td>
+            <td>{{ data.harvest_job.records_added }}</td>
+        </tr>
+        <tr>
+            <td>Records Updated</td>
+            <td>{{ data.harvest_job.records_updated }}</td>
+        </tr>
+        <tr>
+            <td>Records Deleted</td>
+            <td>{{ data.harvest_job.records_deleted }}</td>
+        </tr>
+        <tr>
+            <td>Records Errored</td>
+            <td>{{ data.harvest_job.records_errored }}</td>
+        </tr>
+        <tr>
+            <td>Records Warned</td>
+            <td>{{ data.harvest_job.records_warned }}</td>
+        </tr>
+        <tr>
+            <td>Records Ignored</td>
+            <td>{{ data.harvest_job.records_ignored }}</td>
+        </tr>
+    </table>
+    {% endif %}
+    {% elif not data.job %}
     <h1>Harvest job not found</h1>
     <div class="usa-alert usa-alert--error" role="alert">
         <div class="usa-alert__body">

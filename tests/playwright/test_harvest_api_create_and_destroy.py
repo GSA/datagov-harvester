@@ -94,7 +94,8 @@ class TestHarvestAPICreateAndDestroy:
                 "Content-Type": "application/json",
             },
         )
-        assert res.status == 202
+        assert res.status == 200
         assert (
-            res.json()["message"] == "This harvest source may take some time to delete."
+            res.json()["message"]
+            == f"Archived harvest source with ID:{source_id} successfully"
         )

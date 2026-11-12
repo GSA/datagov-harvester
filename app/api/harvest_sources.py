@@ -5,6 +5,7 @@ from apiflask.schemas import FileSchema
 from flask import (
     Response,
     flash,
+    g,
     jsonify,
     make_response,
     redirect,
@@ -22,7 +23,6 @@ from app.deps import (
     login_required,
     valid_id_required,
 )
-from harvester.lib.source_delete import enqueue_harvest_source_delete
 from harvester.utils.general_utils import is_valid_uuid4
 
 from . import api
@@ -47,6 +47,8 @@ def add_harvest_source_api():
 @valid_id_required
 def edit_harvest_source_api(source_id: str):
     existing_source = deps.db.get_harvest_source(source_id)
+    if existing_source and existing_source.is_archived:
+        return {"error": "Cannot edit an archived harvest source"}, 403
     old_frequency = existing_source.frequency if existing_source else None
     old_locked = existing_source.is_locked if existing_source else None
     updated_source = deps.db.update_harvest_source(source_id, request.json)
@@ -79,13 +81,29 @@ def edit_harvest_source_api(source_id: str):
 @api.doc(hide=True)
 @login_required
 @valid_id_required
-def delete_harvest_source(source_id):
+def archive_harvest_source_endpoint(source_id):
     try:
-        message, status = enqueue_harvest_source_delete(source_id, deps.db)
-        _log_mutation("delete", "harvest_source", source_id, status=status)
+        user_email = g.get("request_actor", "unknown")
+        message, status = deps.db.archive_harvest_source(source_id, user_email)
+        _log_mutation("archive", "harvest_source", source_id, status=status)
         return make_response(jsonify({"message": message}), status)
     except Exception as e:
-        message = f"Failed to delete harvest source :: {repr(e)}"
+        message = f"Failed to archive harvest source :: {repr(e)}"
+        logger.error(message)
+        return make_response(jsonify({"message": message}), 500)
+
+
+@api.route("/harvest_source/<source_id>/unarchive", methods=["POST"])
+@api.doc(hide=True)
+@login_required
+@valid_id_required
+def unarchive_harvest_source(source_id):
+    try:
+        message, status = deps.db.unarchive_harvest_source(source_id)
+        _log_mutation("unarchive", "harvest_source", source_id, status=status)
+        return make_response(jsonify({"message": message}), status)
+    except Exception as e:
+        message = f"Failed to unarchive harvest source :: {repr(e)}"
         logger.error(message)
         return make_response(jsonify({"message": message}), 500)
 
@@ -98,6 +116,10 @@ def trigger_harvest_source(source_id, job_type):
         return JSON_NOT_FOUND()
     if job_type not in ["harvest", "force_harvest", "clear", "validate"]:
         return JSON_NOT_FOUND()
+    source = deps.db.get_harvest_source(source_id)
+    if source and source.is_archived:
+        flash("Cannot perform harvest actions on an archived source", "error")
+        return redirect(url_for("main.view_harvest_source", source_id=source_id))
     message, category = deps.load_manager.trigger_manual_job(source_id, job_type)
     flash(message, category)
     return redirect(url_for("main.view_harvest_source", source_id=source_id))

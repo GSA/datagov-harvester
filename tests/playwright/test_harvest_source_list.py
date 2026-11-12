@@ -19,11 +19,12 @@ class TestHarvestSourceListUnauthed:
         expect(upage).to_have_title("Harvest Source List")
 
     def test_can_see_source_list(self, upage):
+        # Should show only non-archived sources (2 sources)
         expect(upage.locator("table.usa-table tbody tr")).to_have_count(2)
         expect(upage.locator("table.usa-table tbody tr th[scope='row']")).to_have_text(
             [
-                "Test Source",
                 "Test ISO19115 source",
+                "Test Source",
             ]
         )
 

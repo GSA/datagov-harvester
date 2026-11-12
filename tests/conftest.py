@@ -2059,11 +2059,16 @@ def dataset_payload(
     source_data_dcatus,
     translated_spatial=None,
 ):
+    source_id = (
+        source_data_dcatus.get("id")
+        if isinstance(source_data_dcatus, dict)
+        else source_data_dcatus.id
+    )
     payload = {
         "slug": slug,
         "dcat": {"title": slug},
         "organization_id": organization_data["id"],
-        "harvest_source_id": source_data_dcatus["id"],
+        "harvest_source_id": source_id,
         "harvest_record_id": record.id,
         "last_harvested_date": datetime.now(timezone.utc),
     }
