@@ -7,6 +7,8 @@ from itertools import islice
 
 from jsonschema import Draft202012Validator, FormatChecker
 
+from dcatus_validation.catalog import DCATUS3_NON_DATASET_RECORD_TYPES
+from dcatus_validation.deadline import check_deadline
 from dcatus_validation.errors import (
     NESTING_TOO_DEEP_MESSAGE,
     CatalogTooDeeplyNested,
@@ -24,6 +26,7 @@ from dcatus_validation.fast_path import (
 )
 from dcatus_validation.limits import MAX_DOCUMENT_NESTING_DEPTH
 from dcatus_validation.messages import (
+    DCATUS3_DEFINITIONS_URL,
     assemble_validation_errors,
     build_dcatus3_validator,
     open_json,
@@ -131,6 +134,21 @@ def _validator_for_schema(schema_name: str):
     return build_dcatus3_validator(DCATUS3_DEFINITIONS_DIR)
 
 
+@lru_cache(maxsize=None)
+def record_validator(schema_name: str, record_type: str = "dataset"):
+    """The validator the harvest runner applies to one record of record_type."""
+    if schema_name.startswith("dcatus1.1"):
+        return _validator_for_schema(schema_name)
+    schema_ref = (
+        "dataset"
+        if record_type == "dataset"
+        else DCATUS3_NON_DATASET_RECORD_TYPES[record_type]["schema_ref"]
+    )
+    return build_dcatus3_validator(
+        DCATUS3_DEFINITIONS_DIR, root_ref=DCATUS3_DEFINITIONS_URL + schema_ref
+    )
+
+
 def _dcatus1_1_schema_path(schema_name: str):
     return {
         "dcatus1.1: federal dataset": DCATUS1_1_DIR / "federal_dataset.json",
@@ -201,6 +219,7 @@ def _validate_records(
         records = dcatus_catalog["dataset"]
 
         for idx, record in enumerate(records):
+            check_deadline()
             remaining = None if max_errors is None else max_errors - len(output)
             if remaining == 0:
                 return output, True
@@ -252,6 +271,8 @@ def load_schema_validators() -> None:
         _validator_for_schema(schema_name)
         _fast_validators_for_schema(schema_name)
     _dcatus1_1_structure_prefilter()
+    for record_type in ["dataset", *DCATUS3_NON_DATASET_RECORD_TYPES]:
+        record_validator("dcatus3.0 catalog", record_type)
 
 
 def validate_records(dcatus_catalog: dict, schema_name: str) -> list:

@@ -9,8 +9,11 @@ from apiflask import APIBlueprint, Schema, validators
 from apiflask.fields import String
 from flask import jsonify, make_response, request
 
+from dcatus_validation.catalog_issues import find_catalog_issues, summarize_issues
+from dcatus_validation.deadline import ValidationTimedOut, validation_deadline
 from dcatus_validation.errors import (
     NESTING_TOO_DEEP_MESSAGE,
+    VALIDATION_TIMED_OUT_MESSAGE,
     CatalogTooDeeplyNested,
 )
 from dcatus_validation.fetch import (
@@ -27,7 +30,10 @@ from dcatus_validation.limits import (
     MAX_RESULT_MESSAGE_CHARS,
     MAX_UPLOAD_BYTES,
     MAX_VALIDATION_ERRORS,
+    MAX_VALIDATION_WARNINGS,
+    VALIDATION_DEADLINE_SECONDS,
 )
+from dcatus_validation.places import snapshot_place_lookup
 from dcatus_validation.validate import SCHEMA_NAMES, validate_records_limited
 from validator_api.schemas import (
     ValidationErrorResponseSchema,
@@ -76,21 +82,56 @@ def _truncate_result_text(value: str, max_chars: int) -> str:
     return f"{value[: max_chars - len(suffix)]}{suffix}"
 
 
+def _bound_identifier(identifier):
+    if isinstance(identifier, str):
+        return _truncate_result_text(identifier, MAX_RESULT_IDENTIFIER_CHARS)
+    return identifier
+
+
 def _bound_validation_results(errors: list) -> list:
-    bounded = []
-    for identifier, message in errors:
-        if isinstance(identifier, str):
-            identifier = _truncate_result_text(
-                identifier,
-                MAX_RESULT_IDENTIFIER_CHARS,
-            )
-        bounded.append(
-            [
-                identifier,
-                _truncate_result_text(message, MAX_RESULT_MESSAGE_CHARS),
-            ]
+    return [
+        [
+            _bound_identifier(identifier),
+            _truncate_result_text(message, MAX_RESULT_MESSAGE_CHARS),
+        ]
+        for identifier, message in errors
+    ]
+
+
+def _bound_warnings(warnings: list) -> list:
+    return [
+        {
+            "identifier": _bound_identifier(w.identifier),
+            "record_type": w.record_type,
+            "warning_type": w.warning_type,
+            "message": _truncate_result_text(w.message, MAX_RESULT_MESSAGE_CHARS),
+            "title": (
+                _truncate_result_text(w.title, MAX_RESULT_IDENTIFIER_CHARS)
+                if w.title is not None
+                else None
+            ),
+        }
+        for w in warnings
+    ]
+
+
+def _catalog_issues(data, schema_name: str) -> tuple[list, list, bool]:
+    """Duplicate-identifier errors and content warnings, or none (flagged
+    incomplete) when the catalog is too malformed to split into records; its
+    schema errors already say why."""
+    if not isinstance(data, dict):
+        return [], [], False
+    try:
+        return find_catalog_issues(
+            data,
+            schema_name,
+            place_lookup=snapshot_place_lookup,
+            max_warnings=MAX_VALIDATION_WARNINGS,
         )
-    return bounded
+    # What malformed records raise when walked; anything else is a real bug.
+    except (AttributeError, TypeError, ValueError, KeyError):
+        logger.info("API validator could not split the catalog for warning checks")
+        return [], [], True
 
 
 def _take_pasted_document(json_data) -> bytes:
@@ -121,8 +162,9 @@ _RESPONSES = {
     },
     422: {
         "description": (
-            "Catalog cannot be walked, e.g. nested too deeply (`error`), or "
-            "the request itself is invalid (`message`/`detail`)"
+            "Catalog cannot be checked: nested too deeply, or took too long "
+            "to check (`error`); or the request itself is invalid "
+            "(`message`/`detail`)"
         ),
         "content": {"application/json": {"schema": ValidationErrorResponseSchema}},
     },
@@ -144,24 +186,45 @@ def _validation_response(fetch_method: str, schema: str, load_catalog):
     same for both endpoints. load_catalog calls hold(size) before parsing, so a
     large document holds the instance's slot until the answer is ready."""
     errors = []
+    warnings = []
+    issue_summary = []
+    warnings_incomplete = False
 
     try:
         with contextlib.ExitStack() as stack:
+            stack.enter_context(validation_deadline(VALIDATION_DEADLINE_SECONDS))
             data = load_catalog(lambda size: _hold_large_document_slot(stack, size))
             errors, validation_incomplete = validate_records_limited(
                 data,
                 schema,
                 max_errors=MAX_VALIDATION_ERRORS,
             )
+            duplicate_errors, warnings, warnings_incomplete = _catalog_issues(
+                data, schema
+            )
             del data
+        # Duplicates are errors at harvest time (the record is dropped), so
+        # they share the error list and its cap.
+        schema_error_count = len(errors)
+        errors += duplicate_errors
+        if len(errors) > MAX_VALIDATION_ERRORS:
+            errors = errors[:MAX_VALIDATION_ERRORS]
+            validation_incomplete = True
+        issue_summary = summarize_issues(
+            schema_error_count, len(errors) - schema_error_count, warnings
+        )
         errors = _bound_validation_results(errors)
+        warnings = _bound_warnings(warnings)
         logger.info(
             "API validator completed fetch_method=%s schema=%s "
-            "validation_errors=%s validation_incomplete=%s",
+            "validation_errors=%s validation_incomplete=%s "
+            "validation_warnings=%s warnings_incomplete=%s",
             fetch_method,
             schema,
             len(errors),
             validation_incomplete,
+            len(warnings),
+            warnings_incomplete,
         )
     except _ValidatorBusy:
         logger.warning(
@@ -171,6 +234,13 @@ def _validation_response(fetch_method: str, schema: str, load_catalog):
         response = make_response(jsonify({"error": VALIDATOR_BUSY_MESSAGE}), 503)
         response.headers["Retry-After"] = "60"
         return response
+    except ValidationTimedOut:
+        logger.warning(
+            "API validator ran out of time fetch_method=%s schema=%s",
+            fetch_method,
+            schema,
+        )
+        return make_response(jsonify({"error": VALIDATION_TIMED_OUT_MESSAGE}), 422)
     except CatalogTooDeeplyNested:
         # Use a constant so exception data cannot reach the client.
         logger.warning("API Validator could not walk the document")
@@ -204,9 +274,15 @@ def _validation_response(fetch_method: str, schema: str, load_catalog):
             500,
         )
 
-    result = {"validation_errors": errors}
+    result = {
+        "validation_errors": errors,
+        "validation_warnings": warnings,
+        "issue_summary": issue_summary,
+    }
     if validation_incomplete:
         result["validation_incomplete"] = True
+    if warnings_incomplete:
+        result["warnings_incomplete"] = True
     return make_response(jsonify(result), 200)
 
 
@@ -215,7 +291,12 @@ def _validation_response(fetch_method: str, schema: str, load_catalog):
 @api.output(ValidationResultSchema, status_code=200)
 @api.doc(
     summary="Validate a DCAT catalog against a v1.1 or v3.0 schema",
-    description="Downloads or parses a DCATUS catalog and validates each dataset.",
+    description=(
+        "Downloads or parses a DCATUS catalog and validates each dataset. Also "
+        "reports what a harvest of the catalog would: duplicate identifiers (as "
+        "errors, since the duplicate is skipped) and content-quality warnings, "
+        "which never make a catalog invalid."
+    ),
     responses=_RESPONSES,
 )
 def validator(json_data):

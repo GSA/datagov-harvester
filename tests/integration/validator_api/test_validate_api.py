@@ -2,6 +2,7 @@ import gc
 import itertools
 import json
 import threading
+import time
 import tracemalloc
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -13,7 +14,10 @@ import pytest
 import requests
 
 from dcatus_validation import fetch
-from dcatus_validation.errors import NESTING_TOO_DEEP_MESSAGE
+from dcatus_validation.errors import (
+    NESTING_TOO_DEEP_MESSAGE,
+    VALIDATION_TIMED_OUT_MESSAGE,
+)
 from dcatus_validation.fetch import (
     BLOCKED_VALIDATOR_DOMAIN_MESSAGE,
     FETCH_TIMEOUT_SECONDS,
@@ -30,7 +34,9 @@ from dcatus_validation.limits import (
     MAX_UPLOAD_BYTES,
     MAX_UPLOAD_MB,
     MAX_VALIDATION_ERRORS,
+    MAX_VALIDATION_WARNINGS,
 )
+from tests.conftest import EXAMPLE_DATA
 from tests.unit.dcatus_validation.test_equivalence import use_fast_path as fast_path
 from tests.utils.large_catalog import (
     FEDERAL,
@@ -40,6 +46,9 @@ from tests.utils.large_catalog import (
 from validator_api import create_app
 
 URL = "/api/v1/validate"
+# A clean result: no errors, warnings or issue summary.
+NO_ISSUES = {"validation_errors": [], "validation_warnings": [], "issue_summary": []}
+ONE_SCHEMA_ERROR = [{"severity": "error", "type": "ValidationException", "count": 1}]
 
 
 def _json_response(body: str):
@@ -85,7 +94,9 @@ class TestValidate:
                     "https://www.arcgis.com/home/item.html?id=99731bb0369848169d98f31ce83fb0e2",
                     "$.license, 'center' does not match any of the acceptable formats: 'uri', 'null', '^(\\\\[\\\\[REDACTED).*?(\\\\]\\\\])$'",
                 ]
-            ]
+            ],
+            "validation_warnings": [],
+            "issue_summary": ONE_SCHEMA_ERROR,
         }
 
     def test_url(self, validator_client, monkeypatch, dcatus_no_identifier_json):
@@ -104,7 +115,9 @@ class TestValidate:
         assert res.status_code == 200
         # dataset position, not a string, when the dataset has no identifier
         assert res.get_json() == {
-            "validation_errors": [[0, "$, 'identifier' is a required property"]]
+            "validation_errors": [[0, "$, 'identifier' is a required property"]],
+            "validation_warnings": [],
+            "issue_summary": ONE_SCHEMA_ERROR,
         }
         assert get.call_args.args[0] == "https://example.com/data.json"
 
@@ -145,7 +158,9 @@ class TestValidate:
         assert res.get_json() == {
             "validation_errors": [
                 ["", "$.dataset[0], 'identifier' is a required property"]
-            ]
+            ],
+            "validation_warnings": [],
+            "issue_summary": ONE_SCHEMA_ERROR,
         }
 
     def test_valid_catalog_has_no_errors(self, validator_client):
@@ -159,7 +174,11 @@ class TestValidate:
         )
 
         assert res.status_code == 200
-        assert res.get_json() == {"validation_errors": []}
+        assert res.get_json() == {
+            "validation_errors": [],
+            "validation_warnings": [],
+            "issue_summary": [],
+        }
 
     def test_unversioned_path_redirects_to_latest(self, validator_client):
         res = validator_client.post("/api/validate", json={})
@@ -283,7 +302,9 @@ class TestRequestValidation:
 
         assert res.status_code == 200
         assert res.get_json() == {
-            "validation_errors": [["", "$, 'dataset' is a required property"]]
+            "validation_errors": [["", "$, 'dataset' is a required property"]],
+            "validation_warnings": [],
+            "issue_summary": ONE_SCHEMA_ERROR,
         }
 
     def test_url_credentials_are_refused(self, validator_client):
@@ -383,7 +404,7 @@ class TestLimits:
 
         if accepted:
             assert res.status_code == 200
-            assert res.get_json() == {"validation_errors": []}
+            assert res.get_json() == NO_ISSUES
         else:
             assert res.status_code == 400
             assert res.get_json() == {"error": PAYLOAD_TOO_LARGE_MESSAGE}
@@ -404,7 +425,11 @@ class TestLimits:
         res = validator_client.post(URL, data=body, content_type="application/json")
 
         assert res.status_code == 200
-        assert res.get_json() == {"validation_errors": []}
+        assert res.get_json() == {
+            "validation_errors": [],
+            "validation_warnings": [],
+            "issue_summary": [],
+        }
 
     def test_escape_heavy_document_at_the_limit_gets_a_json_413(
         self, validator_client, small_limits
@@ -532,6 +557,257 @@ class TestLimits:
         assert message.endswith("... [truncated]")
         assert len(identifier) == MAX_RESULT_IDENTIFIER_CHARS
         assert len(message) == MAX_RESULT_MESSAGE_CHARS
+
+
+EXAMPLE_DIR = EXAMPLE_DATA / "dcatus"
+
+
+def _post_catalog(client, schema, catalog):
+    body = catalog if isinstance(catalog, str) else json.dumps(catalog)
+    return client.post(
+        URL, json={"schema": schema, "fetch_method": "paste", "json_text": body}
+    )
+
+
+def _legacy_dataset(identifier):
+    return {
+        "@type": "Dataset",
+        "title": f"Dataset {identifier}",
+        "description": "d",
+        "identifier": identifier,
+        "accessRights": "non-public",
+        "publisher": {"@type": "Organization", "name": "Agency"},
+        "contactPoint": {
+            "@type": "Kind",
+            "fn": "Contact",
+            "hasEmail": "mailto:c@example.gov",
+        },
+    }
+
+
+class TestDeadline:
+    @pytest.mark.parametrize(
+        "schema", ["dcatus1.1: federal dataset", "dcatus3.0 catalog"]
+    )
+    def test_a_catalog_that_runs_out_of_time_gets_a_json_422(
+        self, validator_client, monkeypatch, schema
+    ):
+        monkeypatch.setattr("validator_api.api.VALIDATION_DEADLINE_SECONDS", 0)
+        catalog = {
+            "conformsTo": "https://project-open-data.cio.gov/v1.1/schema",
+            "@type": "Catalog",
+            "dataset": [_legacy_dataset("a")],
+        }
+
+        res = _post_catalog(validator_client, schema, catalog)
+
+        assert res.status_code == 422
+        assert res.get_json() == {"error": VALIDATION_TIMED_OUT_MESSAGE}
+
+    def test_the_document_endpoint_runs_out_of_time_the_same_way(
+        self, validator_client, monkeypatch
+    ):
+        monkeypatch.setattr("validator_api.api.VALIDATION_DEADLINE_SECONDS", 0)
+        document = json.dumps({"dataset": [_legacy_dataset("a")]})
+
+        res = validator_client.post(
+            f"{URL}/document?schema=dcatus1.1: federal dataset&fetch_method=paste",
+            data=document,
+        )
+
+        assert res.status_code == 422
+        assert res.get_json() == {"error": VALIDATION_TIMED_OUT_MESSAGE}
+
+    def test_a_huge_spatial_value_is_refused_without_parsing_it(
+        self, validator_client, monkeypatch
+    ):
+        monkeypatch.setattr("validator_api.api.VALIDATION_DEADLINE_SECONDS", 2)
+        point = [-77.12345, 38.12345]
+        polygon = json.dumps({"type": "Polygon", "coordinates": [[point] * 400_000]})
+        dataset = dict(_legacy_dataset("a"), spatial=polygon)
+
+        start = time.monotonic()
+        res = _post_catalog(
+            validator_client, "dcatus1.1: federal dataset", {"dataset": [dataset]}
+        )
+
+        assert time.monotonic() - start < 2
+        assert res.status_code == 422
+        assert res.get_json() == {"error": VALIDATION_TIMED_OUT_MESSAGE}
+
+
+class TestWarnings:
+    def test_dcatus3_warnings_and_duplicates(self, validator_client):
+        res = _post_catalog(
+            validator_client,
+            "dcatus3.0 catalog",
+            (EXAMPLE_DIR / "dcatus3_0_validator_parity.json").read_text(),
+        )
+
+        assert res.status_code == 200
+        body = res.get_json()
+        assert body["validation_errors"] == [
+            [
+                "https://example.gov/parity/legacy",
+                "Duplicate identifier 'https://example.gov/parity/legacy' found",
+            ],
+            [
+                "https://example.gov/parity/services/one",
+                "Duplicate identifier 'https://example.gov/parity/services/one' "
+                "found",
+            ],
+        ]
+        assert sorted(
+            (w["identifier"].rsplit("/", 1)[-1], w["record_type"], w["warning_type"])
+            for w in body["validation_warnings"]
+        ) == [
+            ("bad-geometry", "dataset", "SpatialTransformationException"),
+            ("bad-geometry", "dataset", "unresolvable_spatial_value"),
+            ("legacy", "dataset", "legacy_access_rights"),
+            ("unknown-place", "dataset", "SpatialTransformationException"),
+        ]
+        assert "warnings_incomplete" not in body
+        assert body["issue_summary"] == [
+            {"severity": "error", "type": "DuplicateIdentifierException", "count": 2},
+            {
+                "severity": "warning",
+                "type": "SpatialTransformationException",
+                "count": 2,
+            },
+            {"severity": "warning", "type": "legacy_access_rights", "count": 1},
+            {"severity": "warning", "type": "unresolvable_spatial_value", "count": 1},
+        ]
+
+    def test_issue_summary_counts_schema_errors_and_duplicates_separately(
+        self, validator_client
+    ):
+        catalog = {"dataset": [_legacy_dataset("a"), _legacy_dataset("a"), {}]}
+
+        body = _post_catalog(
+            validator_client, "dcatus1.1: federal dataset", catalog
+        ).get_json()
+
+        schema_errors = [
+            e for e in body["validation_errors"] if "Duplicate" not in e[1]
+        ]
+        assert body["issue_summary"] == [
+            {
+                "severity": "error",
+                "type": "DuplicateIdentifierException",
+                "count": 1,
+            },
+            {
+                "severity": "error",
+                "type": "ValidationException",
+                "count": len(schema_errors),
+            },
+        ]
+
+    def test_dcatus1_1_spatial_warning_and_duplicate(self, validator_client):
+        res = _post_catalog(
+            validator_client,
+            "dcatus1.1: federal dataset",
+            (EXAMPLE_DIR / "dcatus_validator_parity.json").read_text(),
+        )
+
+        body = res.get_json()
+        assert body["validation_errors"] == [
+            ["parity-1-1-a", "Duplicate identifier 'parity-1-1-a' found"]
+        ]
+        # "United States" resolves through the bundled place-name data
+        assert body["validation_warnings"] == [
+            {
+                "identifier": "parity-1-1-b",
+                "record_type": "dataset",
+                "warning_type": "SpatialTransformationException",
+                "message": "unable to spatially fix Nowhere In Particular",
+                "title": "Parity parity-1-1-b",
+            }
+        ]
+
+    def test_warnings_never_add_errors(self, validator_client):
+        res = _post_catalog(
+            validator_client,
+            "dcatus3.0 catalog",
+            (EXAMPLE_DIR / "dcatus3_0_warning.json").read_text(),
+        )
+
+        body = res.get_json()
+        assert body["validation_errors"] == []
+        assert [w["warning_type"] for w in body["validation_warnings"]] == [
+            "date_out_of_order",
+            "invalid_media_type",
+        ]
+
+    def test_warning_amplification_is_capped(self, validator_client):
+        datasets = [
+            _legacy_dataset(f"https://example.gov/d/{i}")
+            for i in range(MAX_VALIDATION_WARNINGS + 5)
+        ]
+        # a duplicate past the warning cap is still reported
+        datasets.append(_legacy_dataset("https://example.gov/d/0"))
+        catalog = {
+            "@type": "Catalog",
+            "title": "t",
+            "description": "d",
+            "dataset": datasets,
+        }
+
+        body = _post_catalog(validator_client, "dcatus3.0 catalog", catalog).get_json()
+
+        assert len(body["validation_warnings"]) == MAX_VALIDATION_WARNINGS
+        assert body["warnings_incomplete"] is True
+        assert body["validation_errors"] == [
+            [
+                "https://example.gov/d/0",
+                "Duplicate identifier 'https://example.gov/d/0' found",
+            ]
+        ]
+
+    def test_warning_values_are_bounded(self, validator_client):
+        # spatial is only checked on schema-valid records, as at harvest
+        valid = json.loads((EXAMPLE_DIR / "dcatus_validator_parity.json").read_text())
+        dataset = valid["dataset"][0]
+        dataset["identifier"] = "i" * (MAX_RESULT_IDENTIFIER_CHARS + 1)
+        dataset["spatial"] = "m" * (MAX_RESULT_MESSAGE_CHARS + 1)
+        dataset["title"] = "t" * (MAX_RESULT_IDENTIFIER_CHARS + 1)
+        catalog = {"dataset": [dataset]}
+
+        body = _post_catalog(
+            validator_client, "dcatus1.1: federal dataset", catalog
+        ).get_json()
+
+        (warning,) = body["validation_warnings"]
+        assert len(warning["identifier"]) == MAX_RESULT_IDENTIFIER_CHARS
+        assert len(warning["message"]) == MAX_RESULT_MESSAGE_CHARS
+        assert warning["message"].endswith("... [truncated]")
+        assert len(warning["title"]) == MAX_RESULT_IDENTIFIER_CHARS
+
+    @pytest.mark.parametrize(
+        "malformed",
+        [
+            {"dataset": "x"},
+            {"dataset": [1]},
+            {"service": "x"},
+            {"catalog": "x"},
+            {"catalog": [1]},
+            {"datasetSeries": [{"seriesMember": "x"}]},
+            {"service": [{"servesDataset": [1]}]},
+            {"record": [1]},
+        ],
+    )
+    def test_catalog_too_malformed_to_split_still_validates(
+        self, validator_client, malformed
+    ):
+        catalog = {"@type": "Catalog", "title": "t", "description": "d", **malformed}
+
+        res = _post_catalog(validator_client, "dcatus3.0 catalog", catalog)
+
+        assert res.status_code == 200
+        body = res.get_json()
+        assert body["validation_errors"]
+        assert body["validation_warnings"] == []
+        assert body["warnings_incomplete"] is True
 
 
 class TestRefusedUrlIsExplained:
@@ -974,7 +1250,7 @@ class TestPastedCatalog:
         res = _post(validator_client, body)
 
         assert res.status_code == 200
-        assert res.get_json() == {"validation_errors": []}
+        assert res.get_json() == NO_ISSUES
 
     def test_every_record_is_validated(self, validator_client, catalog_file):
         """The one bad record, last in a catalog at the limit, is reported."""
@@ -1252,7 +1528,7 @@ class TestDocumentLimits:
         result = _document(validator_client, FEDERAL, body, fetch_method)
 
         if accepted:
-            assert result == (200, {"validation_errors": []})
+            assert result == (200, NO_ISSUES)
         else:
             assert result == (400, {"error": PAYLOAD_TOO_LARGE_MESSAGE})
 
@@ -1343,7 +1619,7 @@ def _alive_when_parsing_starts(client, url, body: bytes) -> int:
         tracemalloc.stop()
 
     assert res.status_code == 200
-    assert res.get_json() == {"validation_errors": []}
+    assert res.get_json() == NO_ISSUES
     [alive] = alive_at_parse
     return alive
 
@@ -1438,11 +1714,8 @@ class TestOneLargeDocumentAtATime:
 
         assert (busy.status_code, busy.get_json()) == (503, BUSY)
         assert busy.headers["Retry-After"] == "60"
-        assert (allowed.status_code, allowed.get_json()) == (
-            200,
-            {"validation_errors": []},
-        )
-        assert first["result"] == (200, {"validation_errors": []})
+        assert (allowed.status_code, allowed.get_json()) == (200, NO_ISSUES)
+        assert first["result"] == (200, NO_ISSUES)
         assert after.status_code == 200
 
     def test_every_way_in_takes_the_slot(

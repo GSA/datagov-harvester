@@ -50,8 +50,11 @@ All limits are in `dcatus_validation/limits.py` unless noted.
 | JSON nesting | 100 levels (`MAX_DOCUMENT_NESTING_DEPTH`) | A walk after parsing (`validate._check_catalog_nesting`) refuses anything deeper before validation starts. On Python 3.14 `json.loads` parses deep documents without exhausting the stack (about 47,000 levels in a gunicorn worker thread on Linux) and raises `RecursionError` beyond that, which is refused the same way. |
 | JSON numbers | finite only | `NaN`/`Infinity` and integers too large to parse are refused. |
 | Large documents at once | 1 per instance over 50MB (`LARGE_DOCUMENT_BYTES`) | A file lock in `validator_api/api.py`, shared by the instance's gunicorn workers, held while the document is parsed and validated. Another large one gets a JSON 503 with `Retry-After: 60`. |
-| Validation errors returned | 1000, with `validation_incomplete: true` | `MAX_VALIDATION_ERRORS`. This stops a small document from expanding into millions of errors. |
-| Result text | identifiers 1000 chars, messages 4000 | Truncated in `validator_api/api.py`. |
+| Validation errors returned | 1000, with `validation_incomplete: true` | `MAX_VALIDATION_ERRORS`. This stops a small document from expanding into millions of errors. Duplicate-identifier errors count toward it. |
+| Validation warnings returned | 1000, with `warnings_incomplete: true` | `MAX_VALIDATION_WARNINGS`, counted separately from errors so neither can crowd out the other. Duplicate detection still runs to the end after the cap. |
+| Result text | identifiers 1000 chars, messages 4000 | Truncated in `validator_api/api.py`, for errors and warnings alike. |
+| Validation time | 25s per request, URL fetch included (`VALIDATION_DEADLINE_SECONDS`) | `dcatus_validation/deadline.py`. Checked between records while validating and looking for warnings, and before each spatial value. A request past it gets a JSON 422 (`VALIDATION_TIMED_OUT_MESSAGE`) instead of CloudFront's 504 at 30s. Gunicorn's worker threads can't be interrupted, so the checks are the only stop; DCAT-US 3.0 schema validation is one call, about 1s at 150MB, with no check inside it. |
+| Spatial parsing | budgeted per value | Parsed with shapely and geojson_validator, the same as at harvest. A single value is one uninterruptible call, measured at up to 0.25s per MB on a developer laptop, so before parsing one the validator estimates its cost at 0.5s per MB (`SPATIAL_SECONDS_PER_MB`) and stops with the time-limit error if that would overrun the budget. Across a catalog, place names, bbox strings and simple polygons cost 0.01 to 0.02s per MB and large self-intersecting polygons 0.14s per MB, about 21s at the 150MB limit. |
 
 The document limit was raised from 10MB to 150MB in GSA/data.gov#6460. That covers nearly every agency catalog without sizing the service for the largest outlier, a ~600MB Census file. What it costs:
 
@@ -64,6 +67,7 @@ Changing `MAX_UPLOAD_MB` means rechecking both of these, and keeping `client_max
 
 - **Only safe literals reach the submitter.** `InvalidCatalogSource.public_message` is built only from literals and numbers. Never interpolate another exception's text into it: `json.JSONDecodeError.doc`, for example, holds the whole fetched document, which the submitter may not otherwise be able to read. JSON parse errors report only line and column (`invalid_json_message`).
 - **Unexpected errors are generic.** Anything unanticipated returns a fixed 500 message, and the log records only the exception *type*, because `requests` exception text can include signed URLs or credentials.
+- **Spatial values are never logged.** `dcatus_validation/spatial.py` logs spatial values for the harvester, so the validator app disables that logger. It also disables geojson_validator's own loguru output, which would otherwise write three lines per spatial value.
 - **Logged URLs are redacted.** Fetch targets are logged as scheme, host, and port plus a 12-character SHA-256 hash for correlation (`_target_for_log`). Paths, query strings, and credentials are never logged.
 
 ## HTTP hardening
@@ -77,7 +81,7 @@ Changing `MAX_UPLOAD_MB` means rechecking both of these, and keeping `client_max
 
 - `GET /health` on the internal route is Cloud Foundry's http health check (`manifest.yml`).
 - `GET /validator/health` is the same check through the proxy's public route, for uptime monitoring.
-- Both return `{"status": "ok"}`. The app builds every schema validator at startup (`load_schema_validators`), so an instance whose schemas are missing or broken (for example, the `_external/dcat-us` submodule wasn't checked out) fails to start instead of passing the health check and then failing requests.
+- Both return `{"status": "ok"}`. The app builds every schema validator at startup (`load_schema_validators`) and opens the place-name SQLite file (`load_location_names`), so an instance whose schemas or place-name data are missing or broken (for example, the `_external/dcat-us` submodule wasn't checked out) fails to start instead of passing the health check and then failing requests.
 
 ## Fast path
 
@@ -92,5 +96,7 @@ Validation is ~20 times faster than Python jsonschema alone, with the same resul
 - Never put exception text, fetched content, or raw URLs into a response or a log line.
 - Any new route must be added to `proxy/nginx-common.conf` (and `nginx-local-proxy.conf`) explicitly. The proxy forwards nothing to the validator by default.
 - Keep `validator_api` and `dcatus_validation` free of `app`, `harvester`, and `database` imports. The import guard enforces this, so don't weaken it.
+- Warning checks run the harvester's own code (`dcatus_validation/content_warnings.py`, `spatial.py`, `catalog.py`, `catalog_issues.py`). Change them there, never in a validator-only copy, and keep `tests/integration/harvest/test_validator_parity.py` passing so the validator keeps reporting what a harvest reports.
+- The validator answers place-name lookups from `dcatus_validation/reference_data/location_names.sqlite`, not the database: every locations row's display name behind a trigram index, built from prod with `database/export_validator_locations.sh` whenever the locations table is reloaded. It gives the harvester's answer for every name, except that `%`, `_` and `\` are matched as plain characters, not as `ILIKE` wildcards. Each lookup is an index query (about 0.01 ms, including names built to dodge the cache), and a name longer than every location name returns before the cache. See `dcatus_validation/places.py`.
 - Add a test with each new limit or check, next to the existing ones in `tests/unit/dcatus_validation/` and `tests/integration/validator_api/`.
 - Never take a message, path or count from jsonschema-rs. It only answers valid or invalid, and Python jsonschema reports every error. Adding a keyword to `fast_path.RUST_KEYWORDS` needs the same review and differential tests as the existing ones.

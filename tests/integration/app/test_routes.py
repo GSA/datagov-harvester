@@ -1009,7 +1009,7 @@ class TestRecordIssueSeverityAPI:
     """
 
     # Nothing here reads the type column and nothing validates it against
-    # harvester.utils.dcat_warnings, so a synthetic type says what this row is.
+    # dcatus_validation.content_warnings, so a synthetic type says what this row is.
     # Naming a real warning would imply a coupling that doesn't exist, and would
     # rot when that rule is renamed or dropped -- as invalid_iri just was.
     WARNING_TYPE = "TestException"

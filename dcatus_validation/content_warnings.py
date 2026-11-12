@@ -40,12 +40,13 @@ import json
 import re
 from collections import Counter
 from datetime import date, datetime
+from functools import partial
 from pathlib import Path
 from typing import NamedTuple, Optional
 
 from jsonschema import FormatChecker
 
-from harvester.utils.general_utils import is_number, translate_spatial
+from dcatus_validation.spatial import PlaceLookup, is_number, translate_spatial
 
 _REFERENCE_DATA_DIR = Path(__file__).resolve().parent / "reference_data"
 
@@ -310,7 +311,9 @@ def _warn_expected_data_type(value) -> Optional[DcatWarning]:
     return None
 
 
-def _warn_spatial_unresolved(field: str, value) -> Optional[DcatWarning]:
+def _warn_spatial_unresolved(
+    field: str, value, place_lookup: PlaceLookup | None
+) -> Optional[DcatWarning]:
     """Warn if a spatial value cannot be resolved to a geographic area.
 
     Skip values that are neither a string nor a dict with "type" and
@@ -327,9 +330,7 @@ def _warn_spatial_unresolved(field: str, value) -> Optional[DcatWarning]:
             return None
         if field == "bbox" and value.get("type") != "Polygon":
             return None
-    # Matched literally, as the public validator does (it can't afford
-    # wildcard matching); real place names never contain % _ or \.
-    if translate_spatial(value, literal_place_names=True):
+    if translate_spatial(value, place_lookup):
         return None
     return DcatWarning(
         "unresolvable_spatial_value",
@@ -603,10 +604,10 @@ def _kind_warnings(obj: dict) -> list:
     return warnings
 
 
-def _location_warnings(obj: dict) -> list:
+def _location_warnings(obj: dict, place_lookup: PlaceLookup | None = None) -> list:
     warnings = []
-    _append(warnings, _warn_spatial_unresolved("bbox", obj.get("bbox")))
-    _append(warnings, _warn_spatial_unresolved("geometry", obj.get("geometry")))
+    for field in ("bbox", "geometry"):
+        _append(warnings, _warn_spatial_unresolved(field, obj.get(field), place_lookup))
     return warnings
 
 
@@ -682,7 +683,7 @@ def _walk_objects(node):
             yield from _walk_objects(item)
 
 
-def detect_dcat_warnings(data: dict) -> list:
+def detect_dcat_warnings(data: dict, place_lookup: PlaceLookup | None = None) -> list:
     """Detect DCAT-US 3 content-quality warnings in a dataset record.
 
     Walks the record and dispatches each typed object to its class rules,
@@ -690,14 +691,21 @@ def detect_dcat_warnings(data: dict) -> list:
     "dcat:Dataset") dispatches the same as its bare form ("Dataset"). Returns
     a flat list of `DcatWarning` tuples (empty when the record is clean).
     Invalid `@id` IRIs are schema `format` errors, not warnings.
+
+    place_lookup resolves place names in Location values; see
+    dcatus_validation.spatial.translate_spatial.
     """
+    rules = {
+        **_TYPE_RULES,
+        "Location": partial(_location_warnings, place_lookup=place_lookup),
+    }
     warnings = []
     for obj in _walk_objects(data):
         type_value = obj.get("@type")
         # Non-string @type is a schema error, and unhashable for `_TYPE_RULES.get`.
         if not isinstance(type_value, str):
             continue
-        rule = _TYPE_RULES.get(_local_name(type_value))
+        rule = rules.get(_local_name(type_value))
         if rule is not None:
             _append(warnings, rule(obj))
     return warnings

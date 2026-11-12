@@ -5,6 +5,7 @@ import re
 import sys
 import time
 from dataclasses import dataclass, field
+from functools import partial
 from itertools import chain
 from typing import List
 
@@ -18,17 +19,35 @@ sys.path.insert(1, "/".join(os.path.realpath(__file__).split("/")[0:-2]))
 
 
 from database.models import HarvestSource as HarvestSourceORM
+from dcatus_validation.catalog import (
+    DCATUS3_NON_DATASET_RECORD_TYPES,
+    IDENTIFIER_REQUIRED_RECORD_TYPES,
+    RECORD_TYPES_WITHOUT_DATASET_ROW,
+    RESOLVED_IDENTIFIER_KEY,
+    describe_identifier_error,
+    find_indexes_for_duplicates,
+    munge_title_to_name,
+    normalize_dataset_identifier,
+    record_identifier,
+    split_dcatus3_catalog,
+)
+from dcatus_validation.catalog_issues import (
+    VALIDATION_ERROR_TYPE,
+    duplicate_identifier_message,
+    spatial_transformation_message,
+)
+from dcatus_validation.content_warnings import DcatWarning, detect_dcat_warnings
 from dcatus_validation.fetch import USER_AGENT
 from dcatus_validation.messages import (
     assemble_validation_errors,
-    build_dcatus3_validator,
     open_json,
 )
 from dcatus_validation.schema_paths import (
     DCATUS1_1_DIR,
     DCATUS3_DATASET_SCHEMA,
-    DCATUS3_DEFINITIONS_DIR,
 )
+from dcatus_validation.spatial import munge_spatial, translate_spatial_to_geojson
+from dcatus_validation.validate import record_validator
 
 # ruff: noqa: E402
 from harvester import CATALOG_BASE_URL, SMTP_CONFIG, HarvesterDBInterface, db_interface
@@ -49,37 +68,21 @@ from harvester.exceptions import (
 from harvester.lib.harvest_reporter import HarvestReporter
 from harvester.lib.load_manager import LoadManager
 from harvester.lib.task_handler import create_task_handler
-from harvester.utils.dcat_warnings import DcatWarning, detect_dcat_warnings
 from harvester.utils.general_utils import (
     DT_PLACEHOLDER,
-    RESOLVED_IDENTIFIER_KEY,
     add_uuid_to_package_name,
-    backfill_catalog_record_identifiers,
     build_report_email_section,
     dataset_to_hash,
-    describe_identifier_error,
     download_file,
-    extract_dcatus3_catalog_dataset_series,
-    extract_dcatus3_catalog_datasets,
-    extract_dcatus3_catalog_records,
-    extract_dcatus3_catalog_services,
-    extract_dcatus3_nested_datasets,
-    find_indexes_for_duplicates,
     format_recipient_list,
     get_datetime,
     group_record_error_fields,
     make_record_mapping,
-    merge_dcatus3_datasets,
-    munge_spatial,
-    munge_title_to_name,
-    normalize_dataset_identifier,
     prepare_distributions,
     prepare_transform_msg,
-    resolve_object_identifier,
     send_email_to_recipients,
     sort_dataset,
     strip_dcatus3_catalog_objects,
-    translate_spatial_to_geojson,
     traverse_waf,
 )
 from harvester.utils.harvest_job_email import (
@@ -95,36 +98,16 @@ logger = logging.getLogger("harvest_runner")
 UNCHANGED_COUNT_BATCH_SIZE = 100
 UNCHANGED_COUNT_FLUSH_SECONDS = 2
 
-# DCAT-US 3.0 record types other than "dataset" (which has its own more
-# complex extraction path shared with WAF/ISO sources). Each entry's
-# "extractor" pulls its objects out of a dcatus3.0 Catalog dict; its
-# "identifier_field" is the dict key that holds the record's identifier --
-# CatalogRecord and DatasetSeries have no "identifier" field, only a
-# top-level "@id". "schema_ref" is the dcatus3.0 definitions root_ref used
-# to build this type's validator -- built from this registry (not
-# hand-listed) so a new entry can't forget to wire up validation.
-NON_DATASET_RECORD_TYPES = {
-    "data_service": {
-        "extractor": extract_dcatus3_catalog_services,
-        "identifier_field": "identifier",
-        "schema_ref": "dataservice",
-    },
-    "catalog_record": {
-        "extractor": extract_dcatus3_catalog_records,
-        "identifier_field": "@id",
-        "schema_ref": "catalogrecord",
-    },
-    "data_series": {
-        "extractor": extract_dcatus3_catalog_dataset_series,
-        "identifier_field": "@id",
-        "schema_ref": "datasetseries",
-    },
+# Harvest source schema_type -> the public validator's schema name, so
+# validator_for returns the same cached validators (record_validator).
+VALIDATOR_SCHEMA_NAMES = {
+    "dcatus1.1: federal": "dcatus1.1: federal dataset",
+    "dcatus1.1: non-federal": "dcatus1.1: non-federal dataset",
+    "dcatus3.0": "dcatus3.0 catalog",
 }
 
-# Record types persisted only as a HarvestRecord, no Dataset row. Excludes
-# "data_series" and "data_service" on purpose: see Dataset.type in
-# database/models.py.
-RECORD_TYPES_WITHOUT_DATASET_ROW = {"catalog_record"}
+# harvest worker count
+harvest_worker_sync_count = int(os.getenv("HARVEST_WORKER_SYNC_COUNT", 1))
 
 
 @dataclass
@@ -157,8 +140,8 @@ class HarvestSource:
     external_records: dict = field(default_factory=lambda: {}, repr=False)
     # DCAT-US 3.0 record types other than "dataset" (data_service,
     # catalog_record, ...), keyed by record_type. Always empty for other
-    # schema types. See NON_DATASET_RECORD_TYPES for the catalog field and
-    # identifier field backing each record_type.
+    # schema types. See DCATUS3_NON_DATASET_RECORD_TYPES for the catalog
+    # field and identifier field backing each record_type.
     external_records_by_type: dict = field(default_factory=lambda: {}, repr=False)
     # keyed by (identifier, record_type), not identifier alone, so a Dataset
     # and a DataService sharing an identifier don't collide.
@@ -194,24 +177,17 @@ class HarvestSource:
             raise Exception
 
         self.dataset_schema = open_json(self.schema_file)
-        if self.schema_type == "dcatus3.0":
-            # validate one record at a time against the dcatus3.0 schema
-            # matching its record_type, which plugs into the same per-record
-            # validation flow as dcatus1.1.
+        if self.schema_type in VALIDATOR_SCHEMA_NAMES:
+            # validate one record at a time against the schema matching its
+            # record_type, with the same validators the public validator uses.
+            record_types = ["dataset"]
+            if self.schema_type == "dcatus3.0":
+                record_types += list(DCATUS3_NON_DATASET_RECORD_TYPES)
+            schema_name = VALIDATOR_SCHEMA_NAMES[self.schema_type]
             self._validators = {
-                "dataset": build_dcatus3_validator(
-                    DCATUS3_DEFINITIONS_DIR,
-                    root_ref="https://resources.data.gov/dcat-us/3.0.0/definitions/dataset",
-                ),
+                record_type: record_validator(schema_name, record_type)
+                for record_type in record_types
             }
-            for record_type, config in NON_DATASET_RECORD_TYPES.items():
-                self._validators[record_type] = build_dcatus3_validator(
-                    DCATUS3_DEFINITIONS_DIR,
-                    root_ref=(
-                        "https://resources.data.gov/dcat-us/3.0.0/definitions/"
-                        f"{config['schema_ref']}"
-                    ),
-                )
         else:
             self._validators = {
                 "dataset": Draft202012Validator(
@@ -416,7 +392,7 @@ class HarvestSource:
         harvest_record_id = new_record.id if new_record else None
 
         raise DuplicateIdentifierException(
-            f"Duplicate identifier '{identifier}' found for source: {self.name}",
+            f"{duplicate_identifier_message(identifier)} for source: {self.name}",
             self.job_id,
             harvest_record_id,
         )
@@ -434,9 +410,7 @@ class HarvestSource:
         indices = find_indexes_for_duplicates(records, identifier_field)
         for idx in indices:
             try:
-                identifier = normalize_dataset_identifier(
-                    records[idx].get(RESOLVED_IDENTIFIER_KEY)
-                ) or normalize_dataset_identifier(records[idx].get(identifier_field))
+                identifier = record_identifier(records[idx], identifier_field)
                 self.write_duplicate_to_db(identifier, record_type)
             except DuplicateIdentifierException:
                 del records[idx]
@@ -455,7 +429,7 @@ class HarvestSource:
             self.id, DuplicateIdentifierException.__name__
         )
         self._filter_duplicate_identifiers_from(self.external_records, "dataset")
-        for record_type, config in NON_DATASET_RECORD_TYPES.items():
+        for record_type, config in DCATUS3_NON_DATASET_RECORD_TYPES.items():
             self._filter_duplicate_identifiers_from(
                 self.external_records_by_type.get(record_type, []),
                 record_type,
@@ -560,13 +534,14 @@ class HarvestSource:
         self.external_records = self._filter_records_with_no_identifier(
             self.external_records, "dataset"
         )
-        self.external_records_by_type["catalog_record"] = (
-            self._filter_records_with_no_identifier(
-                self.external_records_by_type.get("catalog_record", []),
-                "catalog_record",
-                NON_DATASET_RECORD_TYPES["catalog_record"]["identifier_field"],
+        for record_type in IDENTIFIER_REQUIRED_RECORD_TYPES - {"dataset"}:
+            self.external_records_by_type[record_type] = (
+                self._filter_records_with_no_identifier(
+                    self.external_records_by_type.get(record_type, []),
+                    record_type,
+                    DCATUS3_NON_DATASET_RECORD_TYPES[record_type]["identifier_field"],
+                )
             )
-        )
 
     def determine_internal_deletions(self) -> None:
         """
@@ -581,15 +556,9 @@ class HarvestSource:
             (normalize_dataset_identifier(record.get("identifier")), "dataset")
             for record in self.external_records
         }
-        for record_type, config in NON_DATASET_RECORD_TYPES.items():
+        for record_type, config in DCATUS3_NON_DATASET_RECORD_TYPES.items():
             external_ids |= {
-                (
-                    normalize_dataset_identifier(record.get(RESOLVED_IDENTIFIER_KEY))
-                    or normalize_dataset_identifier(
-                        record.get(config["identifier_field"])
-                    ),
-                    record_type,
-                )
+                (record_identifier(record, config["identifier_field"]), record_type)
                 for record in self.external_records_by_type.get(record_type, [])
             }
         internal_ids = set(self.internal_records.keys())
@@ -685,7 +654,7 @@ class HarvestSource:
                     None,  # there is no record id to associate
                 )
 
-        for record_type, config in NON_DATASET_RECORD_TYPES.items():
+        for record_type, config in DCATUS3_NON_DATASET_RECORD_TYPES.items():
             records = self.external_records_by_type.get(record_type, [])
             identifier_field = config["identifier_field"]
             while len(records) > 0:
@@ -736,44 +705,10 @@ class HarvestSource:
                     catalog = download_file(self.url, ".json")
 
                     if self.schema_type == "dcatus3.0":
-                        self.external_records_by_type = {
-                            record_type: config["extractor"](catalog)
-                            for record_type, config in NON_DATASET_RECORD_TYPES.items()
-                        }
-                        self.external_records_by_type["catalog_record"] = (
-                            backfill_catalog_record_identifiers(
-                                self.external_records_by_type.get("catalog_record", [])
-                            )
-                        )
-                        self.external_records_by_type["data_service"] = (
-                            resolve_object_identifier(
-                                self.external_records_by_type.get("data_service", [])
-                            )
-                        )
-                        self.external_records_by_type["data_series"] = (
-                            resolve_object_identifier(
-                                self.external_records_by_type.get("data_series", [])
-                            )
-                        )
-                        self.external_records = merge_dcatus3_datasets(
-                            extract_dcatus3_catalog_datasets(catalog),
-                            extract_dcatus3_nested_datasets(
-                                self.external_records_by_type.get("data_service", []),
-                                "servesDataset",
-                                parent_identifier_field=NON_DATASET_RECORD_TYPES[
-                                    "data_service"
-                                ]["identifier_field"],
-                            ),
-                            extract_dcatus3_nested_datasets(
-                                self.external_records_by_type.get("data_series", []),
-                                "seriesMember",
-                                "first",
-                                "last",
-                                parent_identifier_field=NON_DATASET_RECORD_TYPES[
-                                    "data_series"
-                                ]["identifier_field"],
-                            ),
-                        )
+                        (
+                            self.external_records,
+                            self.external_records_by_type,
+                        ) = split_dcatus3_catalog(catalog)
                         self.db_interface.update_harvest_job(
                             self.job_id,
                             {"dcatus_catalog": strip_dcatus3_catalog_objects(catalog)},
@@ -1495,7 +1430,7 @@ class Record:
         e_msg = re.sub(r"\\+", r"\\", repr(e))
 
         error_type = (
-            "ValidationException"
+            VALIDATION_ERROR_TYPE
             if isinstance(e, ValidationError)
             else e.__class__.__name__
         )
@@ -1562,7 +1497,15 @@ class Record:
         # validity and never change the record's status. A record can be both
         # validated (or errored) and warned.
         if self.harvest_source.schema_type == "dcatus3.0":
-            warnings = detect_dcat_warnings(record)
+            # Matched literally, as the public validator does (it can't afford
+            # wildcard matching); real place names never contain % _ or \.
+            warnings = detect_dcat_warnings(
+                record,
+                partial(
+                    self.harvest_source.db_interface.get_geo_from_string,
+                    literal=True,
+                ),
+            )
             for warning in warnings:
                 self._report_warning(warning)
             if warnings:
@@ -1627,12 +1570,14 @@ class Record:
         if self.harvest_source.schema_type.startswith("iso19115") and spatial_value:
             spatial_value = munge_spatial(spatial_value)
 
-        translated_spatial = translate_spatial_to_geojson(spatial_value)
+        translated_spatial = translate_spatial_to_geojson(
+            spatial_value, self.harvest_source.db_interface.get_geo_from_string
+        )
         payload["translated_spatial"] = translated_spatial
         try:
             if metadata.get("spatial") and translated_spatial is None:
                 raise SpatialTransformationException(
-                    f"unable to spatially fix {metadata.get('spatial')}",
+                    spatial_transformation_message(metadata.get("spatial")),
                     self.harvest_source.job_id,
                     self.id,
                     is_error=False,
