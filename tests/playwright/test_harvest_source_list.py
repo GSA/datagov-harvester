@@ -23,8 +23,8 @@ class TestHarvestSourceListUnauthed:
         expect(upage.locator("table.usa-table tbody tr")).to_have_count(2)
         expect(upage.locator("table.usa-table tbody tr th[scope='row']")).to_have_text(
             [
-                "Test Source",
                 "Test ISO19115 source",
+                "Test Source",
             ]
         )
 

@@ -197,7 +197,7 @@ def test_current_record_issues_cascade_on_source_delete(
         }
     )
 
-    interface.delete_harvest_source(source_id)
+    interface.archive_harvest_source(source_id, "test@example.com")
 
     assert (
         interface.db.query(HarvestRecordCurrentIssue)

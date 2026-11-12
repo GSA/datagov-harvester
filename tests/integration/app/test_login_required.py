@@ -96,7 +96,7 @@ class TestLogin:
         source_edit_text = '<input class="usa-button" id="edit" name="edit" type="submit" value="Edit">'
         source_harvest_text = '<input class="usa-button usa-button--outline" id="harvest" name="harvest" type="submit" value="Harvest">'
         source_clear_text = '<button class="usa-button usa-button--outline confirm-submit" data-action="clear" id="clear" name="clear" type="submit" value="Clear" title="Confirmation required">'
-        source_archive_text = '<button class="usa-button usa-button--secondary confirm-submit" data-action="archive" id="delete" name="delete" type="submit" value="Archive" title="Confirmation required">'
+        source_archive_text = '<button class="usa-button usa-button--secondary confirm-submit" data-action="archive" id="archive" name="archive" type="submit" value="Archive" title="Confirmation required">'
         assert res.status_code == 200
         assert res.text.find(button_string_text) != -1
         assert res.text.find(source_edit_text) != -1
@@ -115,7 +115,7 @@ class TestLogin:
         source_edit_text = '<input class="usa-button" id="edit" name="edit" type="submit" value="Edit">'
         source_harvest_text = '<input class="usa-button usa-button--outline" id="harvest" name="harvest" type="submit" value="Harvest">'
         source_clear_text = '<button class="usa-button usa-button--outline confirm-submit" data-action="clear" id="clear" name="clear" type="submit" value="Clear" title="Confirmation required">'
-        source_archive_text = '<button class="usa-button usa-button--secondary confirm-submit" data-action="archive" id="delete" name="delete" type="submit" value="Archive" title="Confirmation required">'
+        source_archive_text = '<button class="usa-button usa-button--secondary confirm-submit" data-action="archive" id="archive" name="archive" type="submit" value="Archive" title="Confirmation required">'
         assert res.status_code == 200
         assert res.text.find(button_string_text) == -1
         assert res.text.find(source_edit_text) == -1

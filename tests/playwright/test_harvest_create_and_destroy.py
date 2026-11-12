@@ -101,7 +101,7 @@ class TestHarvestCreateAndDestroy:
         apage_with_org.once("dialog", lambda dialog: dialog.accept())
         apage_with_org.get_by_role("button", name=re.compile(r"^Archive\b")).click()
         expect(apage_with_org.locator(".usa-alert--success")).to_contain_text(
-            ["This harvest source may take some time to archive."]
+            ["Archived harvest source with ID"]
         )
         # Archive happens in background; wait for it to complete by checking that
         # the source no longer appears in the non-archived list

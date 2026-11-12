@@ -117,7 +117,7 @@ def test_delete_harvest_source(
     assert source is not None
 
     # Case 1: Harvest source has no records, so it can be archived successfully
-    response = interface.delete_harvest_source(source.id)
+    response = interface.archive_harvest_source(source.id, "test@example.com")
     # ruff: noqa: E501
     assert response == (
         "Archived harvest source with ID:2f2652de-91df-4c63-8b53-bfced20b276b successfully",

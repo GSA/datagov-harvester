@@ -1,4 +1,4 @@
-from flask import flash, redirect, render_template, session, url_for
+from flask import flash, redirect, render_template, request, session, url_for
 
 from app import deps
 from app.deps import (

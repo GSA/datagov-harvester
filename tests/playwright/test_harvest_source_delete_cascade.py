@@ -297,7 +297,7 @@ class TestHarvestSourceArchive:
         authed_page.get_by_role("button", name=re.compile(r"^Archive\b")).click()
 
         expect(authed_page.locator(".usa-alert--success")).to_contain_text(
-            ["This harvest source may take some time to archive."]
+            ["Archived harvest source with ID"]
         )
 
         _wait_for_source_archived(engine, source_id)
