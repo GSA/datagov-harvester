@@ -81,7 +81,7 @@ def edit_harvest_source_api(source_id: str):
 @api.doc(hide=True)
 @login_required
 @valid_id_required
-def delete_harvest_source(source_id):
+def archive_harvest_source_endpoint(source_id):
     try:
         user_email = g.get("request_actor", "unknown")
         message, status = deps.db.archive_harvest_source(source_id, user_email)
