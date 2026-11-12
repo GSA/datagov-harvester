@@ -2,11 +2,12 @@ import json
 import logging
 import os
 import tempfile
+from contextlib import ExitStack
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Generator, List
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import MagicMock, Mock, NonCallableMock, patch
 
 import pytest
 from click.testing import CliRunner
@@ -14,6 +15,7 @@ from dotenv import load_dotenv
 from flask import Flask
 from jinja2 import FileSystemLoader
 from opensearchpy.exceptions import NotFoundError
+from sqlalchemy import text
 from sqlalchemy.orm import scoped_session, sessionmaker
 
 from app import create_app
@@ -73,11 +75,67 @@ def enable_named_logger_propagation():
         named_logger.propagate = original_propagation[named_logger.name]
 
 
-@pytest.fixture(autouse=True)
-def dbapp(app):
+DB_TEST_DIRS = ("integration", "playwright", "scripts")
+NO_DB_MESSAGE = (
+    "This test reached the database without requesting a DB fixture. "
+    "Add `interface` (or `session`/`dbapp`/`client`) to its arguments."
+)
+
+
+def _no_db_interface() -> NonCallableMock:
+    # A spec'd mock rather than a bare raising object so tests can still
+    # patch individual methods (e.g. patch("app.deps.db.verify_user")).
+    stub = NonCallableMock(spec=HarvesterDBInterface)
+    for name in dir(HarvesterDBInterface):
+        if not name.startswith("_") and callable(getattr(HarvesterDBInterface, name)):
+            getattr(stub, name).side_effect = RuntimeError(NO_DB_MESSAGE)
+    return stub
+
+
+DB_INTERFACE_TARGETS = (
+    "harvester.harvest.db_interface",
+    "harvester.exceptions.db_interface",
+    "harvester.lib.load_manager.interface",
+    "app.deps.db",
+)
+
+
+def _needs_db(request) -> bool:
+    # fixturenames is the full closure, so the root client/session/interface
+    # fixtures all show up as "dbapp" here; local DB-free overrides don't.
+    if "dbapp" in request.fixturenames:
+        return True
+    test_path = request.node.path.relative_to(Path(__file__).parent)
+    return test_path.parts[0] in DB_TEST_DIRS
+
+
+@pytest.fixture(scope="session")
+def db_schema(app):
     with app.app_context():
         db.drop_all()  # drop unconditionally in case tests errored and the db isn't clean...
         db.create_all()
+    yield
+
+
+@pytest.fixture()
+def dbapp(app, db_schema):
+    with app.app_context():
+        # Rollback-based isolation won't work: many tests commit through db.session.
+        db.session.remove()
+        # Earlier tests can leave connections mid-transaction (e.g. harvest
+        # subprocesses started by the local task handler); TRUNCATE would
+        # deadlock or hang on them. This db only serves pytest, so end them.
+        db.session.execute(
+            text(
+                "SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
+                "WHERE datname = current_database() "
+                "AND pid <> pg_backend_pid() AND state <> 'idle'"
+            )
+        )
+        db.session.execute(text("SET lock_timeout = '10s'"))
+        tables = ", ".join(f'"{t.name}"' for t in db.metadata.sorted_tables)
+        db.session.execute(text(f"TRUNCATE {tables} RESTART IDENTITY CASCADE"))
+        db.session.commit()
         # Add US location, used in multiple tests
         us = Locations(
             **{
@@ -95,12 +153,12 @@ def dbapp(app):
 
 
 @pytest.fixture()
-def client(app: dbapp):
+def client(app, dbapp):
     return app.test_client()
 
 
 @pytest.fixture()
-def session(app: dbapp) -> Generator[Any, scoped_session, Any]:
+def session(app, dbapp) -> Generator[Any, scoped_session, Any]:
     with app.app_context():
         connection = db.engine.connect()
         transaction = connection.begin()
@@ -120,21 +178,22 @@ def interface(session) -> HarvesterDBInterface:
 
 
 @pytest.fixture(autouse=True)
-def default_function_fixture(interface, monkeypatch):
+def default_function_fixture(request, monkeypatch):
     monkeypatch.delenv("ENABLE_LOCAL_DEV_LOGIN", raising=False)
-    logger.info("Patching core.feature.service")
-    with (
-        patch("harvester.harvest.db_interface", interface),
-        patch("harvester.exceptions.db_interface", interface),
-        patch("harvester.lib.load_manager.interface", interface),
-        patch("app.deps.db", interface),
-        patch(
-            "harvester.utils.general_utils._get_geo_lookup_interface",
-            lambda: interface,
-        ),
-    ):
+    if _needs_db(request):
+        interface = request.getfixturevalue("interface")
+    else:
+        interface = _no_db_interface()
+    with ExitStack() as stack:
+        for target in DB_INTERFACE_TARGETS:
+            stack.enter_context(patch(target, interface))
+        stack.enter_context(
+            patch(
+                "harvester.utils.general_utils._get_geo_lookup_interface",
+                lambda: interface,
+            )
+        )
         yield
-    logger.info("Patching complete. Unpatching")
 
 
 @pytest.fixture

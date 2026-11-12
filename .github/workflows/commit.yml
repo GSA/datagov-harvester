@@ -37,14 +37,14 @@ jobs:
       - name: Run linting
         run: make lint-check
 
-  test:
+  unit:
     environment: development
     env:
         CF_SERVICE_USER: ${{secrets.CF_SERVICE_USER}}
         CF_SERVICE_AUTH: ${{secrets.CF_SERVICE_AUTH}}
         FLASK_APP_SECRET_KEY: ${{secrets.FLASK_APP_SECRET_KEY}}
     runs-on: ubuntu-latest
-    name: Pytests
+    name: Unit + Script Tests
     steps:
       - name: Check out the code
         uses: actions/checkout@v7
@@ -69,14 +69,97 @@ jobs:
           poetry env use ${{ env.PY_VERSION }}
           poetry install
 
-      - name: Run Pytest
-        run: make test-ci
+      - name: Start test database
+        run: make up-test-db
+
+      - name: Run unit tests
+        run: make test-unit
+
+      - name: Run script tests
+        run: make test-scripts
 
       - name: Verify database/interface.py imports standalone
         run: poetry run python -c "import database.interface"
 
+      - name: Upload coverage
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: coverage-unit
+          path: |
+            pytest-coverage-unit.txt
+            pytest-unit.xml
+
+  integration:
+    environment: development
+    env:
+        CF_SERVICE_USER: ${{secrets.CF_SERVICE_USER}}
+        CF_SERVICE_AUTH: ${{secrets.CF_SERVICE_AUTH}}
+        FLASK_APP_SECRET_KEY: ${{secrets.FLASK_APP_SECRET_KEY}}
+    runs-on: ubuntu-latest
+    name: Integration Tests
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 1
+          submodules: true
+      - name: Create local .env from sample
+        run: cp .env.sample .env
+      - name: Set up Python ${{ env.PY_VERSION }}
+        uses: actions/setup-python@v7
+        with:
+          python-version: ${{ env.PY_VERSION }}
+
+      - name: Install Poetry
+        uses: abatilo/actions-poetry@v4
+        with:
+          poetry-version: ${{ env.POETRY_VERSION }}
+          poetry-plugins: "poetry-plugin-export"
+
+      - name: Install Dependencies
+        run: |
+          poetry env use ${{ env.PY_VERSION }}
+          poetry install
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Build app image
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          load: true
+          tags: datagov-harvester-app
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Start services
+        run: make up
+
+      - name: Run integration tests
+        run: make test-integration
+
       - name: Verify migrations match vendored models
         run: docker compose exec -T app flask db check
+
+      - name: Upload coverage
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: coverage-integration
+          path: |
+            pytest-coverage-integration.txt
+            pytest-integration.xml
+
+  coverage:
+    needs: [unit, integration]
+    runs-on: ubuntu-latest
+    name: Coverage Report
+    steps:
+      - name: Download coverage
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: coverage-*
+          merge-multiple: true
 
       - name: Report test coverage
         uses: MishaKav/pytest-coverage-comment@main
@@ -86,3 +169,16 @@ jobs:
           multiple-files: |
             Unit tests, pytest-coverage-unit.txt, pytest-unit.xml
             Integration Tests, pytest-coverage-integration.txt, pytest-integration.xml
+
+  # Branch protection requires a check named "Pytests". always() plus the
+  # explicit result check matters: a skipped required job counts as passing.
+  pytests:
+    needs: [unit, integration]
+    if: always()
+    runs-on: ubuntu-latest
+    name: Pytests
+    steps:
+      - name: Require unit and integration jobs to pass
+        run: |
+          test "${{ needs.unit.result }}" = success
+          test "${{ needs.integration.result }}" = success
