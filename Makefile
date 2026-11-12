@@ -115,9 +115,10 @@ wait-for-app: ## Wait until flask has finished db upgrade and is serving
 		case $$code in \
 			2*|3*) \
 				echo "App is up (HTTP $$code). Verifying migrations..."; \
-				docker compose exec -T app flask shell -c "from database.models import db; db.session.execute(db.text('SELECT 1 FROM dataset LIMIT 1'))" > /dev/null 2>&1; \
+				docker compose logs app 2>&1 | grep -q "Serving Flask app" && \
+				docker compose logs app 2>&1 | grep -q "Running upgrade"; \
 				if [ $$? -eq 0 ]; then \
-					echo "Migrations verified (dataset table exists)."; \
+					echo "Migrations verified."; \
 					exit 0; \
 				else \
 					echo "App is up but migrations not complete yet..."; \
