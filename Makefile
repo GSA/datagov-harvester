@@ -82,7 +82,10 @@ re-up-debug: clean up-debug load-test-data ## resets system to clean fixture sta
 
 up: ## Sets up local flask and harvest runner docker environments. harvest runner gets DATABASE_PORT from .env
 	DATABASE_PORT=5433 docker compose up -d
-	docker compose -p harvest-app up db -d
+	docker compose -p harvest-app up db -d --wait
+
+up-test-db: ## Starts only the db host-side pytest uses (enough for unit + script tests)
+	docker compose -p harvest-app up db -d --wait
 
 up-unified: ## For testing when you want a shared db between flask and harvester
 	docker compose up -d
