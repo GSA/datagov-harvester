@@ -1,5 +1,6 @@
 # ruff: noqa: F841
 
+import json
 import smtplib
 from unittest.mock import Mock, patch
 
@@ -194,6 +195,43 @@ class TestHarvestJobExceptionHandling:
 
         harvest_error = interface.get_harvest_job_errors_by_job(harvest_job.id)[0]
         assert harvest_error.message in body
+
+    def test_send_notification_emails_prefixes_non_prod_subject(
+        self,
+        interface,
+        organization_data,
+        source_data_dcatus_bad_url,
+        job_data_dcatus_bad_url,
+        monkeypatch,
+    ):
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_dcatus_bad_url)
+        harvest_job = interface.add_harvest_job(job_data_dcatus_bad_url)
+
+        harvest_source = HarvestSource(harvest_job.id)
+
+        with pytest.raises(ExtractExternalException):
+            harvest_source.acquire_minimum_external_data()
+
+        job_results = {
+            "records_added": 0,
+            "records_updated": 0,
+            "records_deleted": 0,
+            "records_ignored": 0,
+            "records_errored": 0,
+            "records_warned": 0,
+            "records_validated": 0,
+        }
+        harvest_source.notification_emails = ["user@example.com"]
+        monkeypatch.setenv("VCAP_APPLICATION", json.dumps({"space_name": "staging"}))
+
+        with patch("harvester.harvest.send_email_to_recipients") as send_email_mock:
+            harvest_source.send_notification_emails(job_results, job_status="error")
+
+        subject = send_email_mock.call_args.args[1]
+        html_body = send_email_mock.call_args.kwargs["html_body"]
+        assert subject == "Stage Harvest Job Failed"
+        assert "Stage Harvest Job Failed" in html_body
 
 
 def make_http_error(status_code):
