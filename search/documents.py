@@ -102,6 +102,7 @@ class DatasetDocument:
         skip_fields = set(date_fields) | {"publisher", "spatial", "temporal"}
         for field, value in normalized_dcat.items():
             if field in skip_fields:
+                cls._validate_no_empty_keys(value, field)
                 continue
             normalized_dcat[field] = cls._normalize_dcat_metadata_value(value)
         return normalized_dcat
