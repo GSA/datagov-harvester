@@ -684,6 +684,8 @@ class TestJSONResponses:
             json_res = json.loads(res.data)
             if "count" in json_res:
                 assert json_res["count"] == response
+            elif "data" in json_res:
+                assert len(json_res["data"]) == response
             elif "error" in json_res:
                 assert json_res["error"] == response
             else:
@@ -695,10 +697,10 @@ class TestJSONResponses:
         """
         checks the content of the json response when navigating to "/organizations/"
         """
-        res = client.get("/api/v1/organizations/")
+        res = client.get("/api/v1/organizations/?envelope=true")
         assert res.status_code == 200
 
-        assert res.json == [
+        assert res.json["data"] == [
             {
                 "aliases": ["testorg"],
                 "code_repo_exempt": False,
@@ -712,6 +714,8 @@ class TestJSONResponses:
                 "source_count": 1,
             }
         ]
+        assert "meta" in res.json
+        assert "links" in res.json
 
 
 class TestHarvestRecordRawAPI:
@@ -1061,7 +1065,6 @@ class TestRecordIssueSeverityAPI:
 
         assert res.status_code == 200
         assert {e["severity"] for e in res.json} == {"error", "warning"}
-        # every seeded error plus the warning this fixture added
         assert len(res.json) == len(record_error_data) + 1
 
     def test_severity_facet_is_not_double_filtered(
@@ -1636,10 +1639,12 @@ class TestPaginationValidation:
         interface.add_organization(organization_data)
         interface.add_harvest_source(source_data_dcatus)
 
-        response = client.get("/api/v1/harvest_sources/?per_page=0")
+        response = client.get("/api/v1/harvest_sources/?per_page=0&envelope=true")
 
         assert response.status_code == 200
-        assert response.json == []
+        assert response.json["data"] == []
+        assert "meta" in response.json
+        assert "links" in response.json
 
     def test_per_page_negative_returns_422(
         self, client, interface, organization_data, source_data_dcatus
@@ -1660,11 +1665,13 @@ class TestPaginationValidation:
         interface.add_organization(organization_data)
         interface.add_harvest_source(source_data_dcatus)
 
-        response = client.get("/api/v1/harvest_sources/?per_page=1")
+        response = client.get("/api/v1/harvest_sources/?per_page=1&envelope=true")
 
         assert response.status_code == 200
         data = response.json
-        assert len(data) == 1
+        assert len(data["data"]) == 1
+        assert "meta" in data
+        assert "links" in data
 
     def test_per_page_validation_consistent_across_endpoints(
         self, client, interface_with_fixture_json
@@ -1680,14 +1687,12 @@ class TestPaginationValidation:
         ]
 
         for endpoint in endpoints:
-            # per_page=0 should return empty array
-            response = client.get(f"{endpoint}?per_page=0")
+            response = client.get(f"{endpoint}?per_page=0&envelope=true")
             assert response.status_code == 200, f"{endpoint} should accept per_page=0"
             assert (
-                response.json == []
-            ), f"{endpoint} should return empty array for per_page=0"
+                response.json["data"] == []
+            ), f"{endpoint} should return empty data array for per_page=0"
 
-            # Negative per_page should return 422
             response = client.get(f"{endpoint}?per_page=-1")
             assert (
                 response.status_code == 422

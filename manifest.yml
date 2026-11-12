@@ -8,6 +8,10 @@ applications:
       - logstack-space-drain
     path: ./proxy
     memory: 100M
+    # nginx spools each request body to disk before passing it on; validator
+    # submissions can be 226M (proxy/nginx-common.conf), so leave room for
+    # several at once beyond the 1G default (GSA/data.gov#6460).
+    disk_quota: 2G
     instances: ((proxy_instances))
     routes:
       - route: ((route_external))
@@ -50,6 +54,7 @@ applications:
       NEW_RELIC_CONFIG_FILE: /home/vcap/app/config/newrelic.ini
       NEW_RELIC_MONITOR_DB_ACTIVITY: ((new_relic_monitor_db_activity))
       ASSET_VERSION: ((asset_version))
+      APP_VERSION: ((app_version))
       SERVED_BY: ((app_name))
     command: ./app-start.sh
 

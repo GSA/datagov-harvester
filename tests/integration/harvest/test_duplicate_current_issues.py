@@ -131,3 +131,55 @@ class TestDuplicateCurrentIssues:
             skip_types=(DUPLICATE,),
         )
         assert len(_duplicate_issues(interface, source_id)) == 2
+
+
+class TestRecordsDroppedFromSource:
+    def test_dropping_a_record_that_never_harvested_clears_its_issues(
+        self,
+        interface,
+        organization_data,
+        source_data_dcatus,
+        job_data_dcatus,
+        record_data_dcatus,
+    ):
+        """A record that only ever errored is never deleted (only records whose
+        last harvest succeeded are), so dropping it from the source must clear
+        its outstanding issues some other way."""
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_dcatus)
+        source_id = source_data_dcatus["id"]
+        old_job = interface.add_harvest_job(
+            {**job_data_dcatus, "id": str(uuid.uuid4())}
+        )
+        for identifier in ("dropped", "kept"):
+            record = interface.add_harvest_record(
+                {
+                    **record_data_dcatus[2],
+                    "id": str(uuid.uuid4()),
+                    "identifier": identifier,
+                    "harvest_job_id": old_job.id,
+                    "status": "error",
+                }
+            )
+            interface.add_harvest_record_error(
+                {
+                    "message": "invalid",
+                    "type": "ValidationException",
+                    "harvest_job_id": old_job.id,
+                    "harvest_record_id": record.id,
+                    "severity": "error",
+                }
+            )
+
+        job = interface.add_harvest_job({**job_data_dcatus, "id": str(uuid.uuid4())})
+        harvest_source = HarvestSource(job.id)
+        harvest_source.external_records = [{"identifier": "kept"}]
+        harvest_source.determine_internal_deletions()
+
+        remaining = (
+            interface.db.query(HarvestRecordCurrentIssue)
+            .filter_by(harvest_source_id=source_id)
+            .all()
+        )
+        assert {issue.identifier for issue in remaining} == {"kept"}
+        assert harvest_source.deletions == set()
