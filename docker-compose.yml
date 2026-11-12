@@ -27,7 +27,10 @@ services:
       volumes:
         - postgres_data:/var/lib/postgresql/data
       healthcheck:
-        test: ["CMD-SHELL", "pg_isready"]
+        # TCP, not the default socket check: on a fresh volume the image's
+        # init-time server is socket-only, so a socket check reports healthy
+        # just before postgres restarts and refuses connections.
+        test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
         interval: 5s
         timeout: 5s
         retries: 5
@@ -62,6 +65,7 @@ services:
         retries: 5
   app:
     build: .
+    image: datagov-harvester-app
     depends_on:
       db:
         condition: service_healthy
@@ -91,7 +95,9 @@ services:
   # datagov-harvest-validator. Built from this repo like `app`, but needs no
   # database or .env secrets.
   validator:
-    build: .
+    # Reuses the app image instead of building the same Dockerfile twice.
+    image: datagov-harvester-app
+    pull_policy: never
     volumes:
       - .:/app
     environment:

@@ -155,6 +155,11 @@ class HarvestSource(Base):
     send_report_email = Column(Boolean, nullable=False, server_default="false")
 
     is_locked = Column(Boolean, nullable=False, server_default=text("false"))
+    is_archived = Column(
+        Boolean, nullable=False, server_default=text("false"), index=True
+    )
+    archived_at = Column(DateTime, nullable=True)
+    archived_by = Column(String, nullable=True)
     collection_parent_url = Column(String)
     date_next_run = Column(DateTime, index=True)
 
@@ -163,7 +168,10 @@ class HarvestSource(Base):
 # 2 models (Organization & HarvestSource)
 Organization.source_count = column_property(
     select(func.count(HarvestSource.id))
-    .where(HarvestSource.organization_id == Organization.id)
+    .where(
+        HarvestSource.organization_id == Organization.id,
+        HarvestSource.is_archived.is_(False),
+    )
     .correlate_except(HarvestSource)
     .scalar_subquery()
 )

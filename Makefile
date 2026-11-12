@@ -82,7 +82,10 @@ re-up-debug: clean up-debug load-test-data ## resets system to clean fixture sta
 
 up: ## Sets up local flask and harvest runner docker environments. harvest runner gets DATABASE_PORT from .env
 	DATABASE_PORT=5433 docker compose up -d
-	docker compose -p harvest-app up db -d
+	docker compose -p harvest-app up db -d --wait
+
+up-test-db: ## Starts only the db host-side pytest uses (enough for unit + script tests)
+	docker compose -p harvest-app up db -d --wait
 
 up-unified: ## For testing when you want a shared db between flask and harvester
 	docker compose up -d
@@ -110,7 +113,17 @@ wait-for-app: ## Wait until flask has finished db upgrade and is serving
 	while [ $$i -lt 60 ]; do \
 		code=$$(curl -sS -o /dev/null -w '%{http_code}' http://localhost:8080/ 2>/dev/null || true); \
 		case $$code in \
-			2*|3*) echo "App is up (HTTP $$code)."; exit 0 ;; \
+			2*|3*) \
+				echo "App is up (HTTP $$code). Verifying migrations..."; \
+				docker compose logs app 2>&1 | grep -q "Serving Flask app" && \
+				docker compose logs app 2>&1 | grep -q "Running upgrade"; \
+				if [ $$? -eq 0 ]; then \
+					echo "Migrations verified."; \
+					exit 0; \
+				else \
+					echo "App is up but migrations not complete yet..."; \
+				fi; \
+			;; \
 		esac; \
 		i=$$((i + 1)); \
 		sleep 1; \

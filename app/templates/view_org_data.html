@@ -102,6 +102,16 @@
             </a>
             {% endif %}
         </div>
+        <div class="margin-bottom-2">
+            <a href="{{ url_for('main.view_organization', org_identifier=data.organization.id, show_archived='true' if not data.show_archived else 'false') }}"
+               class="usa-button usa-button--outline">
+              {% if data.show_archived %}
+                Hide Archived Sources
+              {% else %}
+                Show Archived Sources
+              {% endif %}
+            </a>
+        </div>
         {% if not data.harvest_sources %}
         <div class="usa-alert usa-alert--info">
             <div class="usa-alert__body">
@@ -127,9 +137,12 @@
                 </thead>
                 <tbody>
                     {% for source in data.harvest_sources %}
-                    <tr>
-                        <td data-sort-value={{source.date_created}}><a
-                                href="{{ url_for('main.view_harvest_source', source_id=source.id) }}">{{source.name}}</a>
+                    <tr {% if source.is_archived %}class="archived-row"{% endif %}>
+                        <td data-sort-value={{source.date_created}}>
+                            <a href="{{ url_for('main.view_harvest_source', source_id=source.id) }}">{{source.name}}</a>
+                            {% if source.is_archived %}
+                            <span class="usa-tag usa-tag--big margin-left-1">Archived</span>
+                            {% endif %}
                         </td>
                         <td scope="row" class="text-center">
                             {% if data.harvest_jobs[source.id] %}

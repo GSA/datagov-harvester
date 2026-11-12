@@ -5,6 +5,7 @@ import re
 import sys
 import time
 from dataclasses import dataclass, field
+from functools import partial
 from itertools import chain
 from typing import List
 
@@ -1496,8 +1497,14 @@ class Record:
         # validity and never change the record's status. A record can be both
         # validated (or errored) and warned.
         if self.harvest_source.schema_type == "dcatus3.0":
+            # Matched literally, as the public validator does (it can't afford
+            # wildcard matching); real place names never contain % _ or \.
             warnings = detect_dcat_warnings(
-                record, self.harvest_source.db_interface.get_geo_from_string
+                record,
+                partial(
+                    self.harvest_source.db_interface.get_geo_from_string,
+                    literal=True,
+                ),
             )
             for warning in warnings:
                 self._report_warning(warning)

@@ -5,21 +5,19 @@ RUN apk upgrade --no-cache
 
 WORKDIR /app
 
-COPY . /app
+RUN pip install poetry && poetry config virtualenvs.create false
 
-RUN pip install poetry
-
-# poetry try use virtualenv if .venv is present
-RUN poetry config virtualenvs.create false
-RUN rm -rf /app/.venv
-
-RUN poetry install --without=dev
+# Dependencies first so this layer stays cached until the lockfile changes.
+COPY pyproject.toml poetry.lock README.md /app/
+RUN poetry install --without=dev --no-root
 
 ARG DEV
 
 RUN if [ $DEV ]; \
-    then poetry install --with=dev; \
+    then poetry install --with=dev --no-root; \
     fi
+
+COPY . /app
 
 EXPOSE 8080
 

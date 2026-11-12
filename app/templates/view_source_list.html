@@ -28,6 +28,16 @@
       </button>
     </form>
   </div>
+  <div class="margin-top-2">
+    <a href="{{ url_for('main.harvest_source_list', show_archived='true' if not data.show_archived else 'false') }}"
+       class="usa-button usa-button--outline">
+      {% if data.show_archived %}
+        Hide Archived Sources
+      {% else %}
+        Show Archived Sources
+      {% endif %}
+    </a>
+  </div>
 </div>
 
 <div class="list-page-results-header margin-bottom-1">
@@ -51,9 +61,12 @@
         </thead>
         <tbody>
             {% for source in data.harvest_sources %}
-            <tr data-meta="{{ source.name }} {{ source.description or '' }}">
+            <tr data-meta="{{ source.name }} {{ source.description or '' }}" {% if source.is_archived %}class="archived-row"{% endif %}>
                 <th scope="row" data-label="Name">
                     <a href="{{ url_for('main.view_harvest_source', source_id=source.id) }}">{{ source.name }}</a>
+                    {% if source.is_archived %}
+                    <span class="usa-tag usa-tag--big margin-left-1">Archived</span>
+                    {% endif %}
                 </th>
                 <td data-label="Organization">{{ source.org.name if source.org else "N/A" }}</td>
                 <td data-label="Source type">{{ source.source_type | else_na }}</td>

@@ -1,4 +1,5 @@
 import json
+from unittest.mock import patch
 
 import pytest
 
@@ -122,6 +123,37 @@ class TestValidateDataset:
 
         test_record = next(external_records_to_process)
         assert test_record.validate()
+
+    def test_dcatus3_0_warning_place_lookup_is_literal(
+        self,
+        interface,
+        organization_data,
+        source_data_dcatus3_0,
+        job_data_dcatus3_0,
+    ):
+        # the dataset's spatial conversion keeps ILIKE wildcards; the warning
+        # check doesn't, matching the public validator
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_dcatus3_0)
+        harvest_job = interface.add_harvest_job(job_data_dcatus3_0)
+
+        harvest_source = HarvestSource(harvest_job.id)
+        harvest_source.acquire_minimum_external_data()
+        test_record = next(harvest_source.external_records_to_process())
+
+        def call_lookup(record, place_lookup):
+            place_lookup("Fair_ax")
+            return []
+
+        with (
+            patch.object(
+                harvest_source.db_interface, "get_geo_from_string", return_value=None
+            ) as lookup,
+            patch("harvester.harvest.detect_dcat_warnings", side_effect=call_lookup),
+        ):
+            test_record.validate()
+
+        lookup.assert_called_once_with("Fair_ax", literal=True)
 
     def test_validate_dcatus3_0_spatial_temporal(
         self,

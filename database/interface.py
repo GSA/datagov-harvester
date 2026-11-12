@@ -1,4 +1,5 @@
 import logging
+import re
 from datetime import datetime, timedelta, timezone
 from itertools import batched
 from typing import List, Optional
@@ -267,11 +268,27 @@ class HarvesterDBInterface:
         result = self.db.query(HarvestSource).filter_by(id=source_id).first()
         return result
 
-    def get_harvest_source_by_org(self, org_id):
-        harvest_source = (
-            self.db.query(HarvestSource).filter_by(organization_id=org_id).all()
+    def get_harvest_source_by_org(self, org_id, include_archived=False):
+        """Get harvest sources for an organization.
+
+        Args:
+            org_id: ID of the organization
+            include_archived: If False, exclude archived sources. If True, include
+                             archived sources but sort them to the end of the list.
+
+        Returns:
+            List of HarvestSource objects
+        """
+        query = self.db.query(HarvestSource).filter_by(organization_id=org_id)
+
+        if not include_archived:
+            query = query.filter(~HarvestSource.is_archived)
+
+        query = query.order_by(
+            HarvestSource.is_archived.asc(), HarvestSource.name.asc()
         )
-        return [src for src in harvest_source]
+
+        return query.all()
 
     def get_harvest_source_by_jobid(self, jobid):
         harvest_job = self.db.query(HarvestJob).filter_by(id=jobid).first()
@@ -280,9 +297,26 @@ class HarvesterDBInterface:
         else:
             return harvest_job.source
 
-    def get_all_harvest_sources(self):
-        harvest_sources = self.db.query(HarvestSource).all()
-        return [source for source in harvest_sources]
+    def get_all_harvest_sources(self, include_archived=False):
+        """Get all harvest sources, optionally excluding archived ones.
+
+        Args:
+            include_archived: If False, exclude archived sources. If True, include
+                             archived sources but sort them to the end of the list.
+
+        Returns:
+            List of HarvestSource objects
+        """
+        query = self.db.query(HarvestSource)
+
+        if not include_archived:
+            query = query.filter(~HarvestSource.is_archived)
+
+        query = query.order_by(
+            HarvestSource.is_archived.asc(), HarvestSource.name.asc()
+        )
+
+        return query.all()
 
     def update_harvest_source(self, source_id, updates):
         source, _ = self.try_update_harvest_source(source_id, updates)
@@ -342,8 +376,8 @@ class HarvesterDBInterface:
             self.db.rollback()
             raise
 
-    def can_delete_harvest_source(self, source_id):
-        """Return whether a harvest source may be deleted.
+    def can_archive_harvest_source(self, source_id):
+        """Return whether a harvest source may be archived.
 
         Returns:
             tuple[bool, str | None, int]: ``(ok, message, status)``.
@@ -362,23 +396,75 @@ class HarvesterDBInterface:
         if record_count == 0:
             return True, None, 200
 
-        # ruff: noqa: E501
         return (
             False,
             f"Failed: {record_count} records in the Harvest source, please clear it first.",
             409,
         )
 
-    def delete_harvest_source(self, source_id):
-        ok, message, status = self.can_delete_harvest_source(source_id)
+    def archive_harvest_source(self, source_id, user_email):
+        """Archive a harvest source instead of deleting it.
+
+        Marks the source as archived and locked. The source must be cleared
+        first (0 active harvest records). Job history is preserved for audit
+        purposes. Archived sources cannot be harvested or modified.
+
+        Args:
+            source_id: ID of the harvest source to archive
+            user_email: Email of the user performing the archive operation
+
+        Returns:
+            tuple[str, int]: ``(message, status)`` - success message with 200,
+            or error message with appropriate status code
+        """
+        ok, message, status = self.can_archive_harvest_source(source_id)
         if not ok:
             return message, status
 
         source = self.db.get(HarvestSource, source_id)
-        self.db.delete(source)
+
+        source.is_archived = True
+        source.is_locked = True
+        source.archived_at = datetime.now(timezone.utc)
+        source.archived_by = user_email
+
         self.db.commit()
+
         return (
-            f"Deleted harvest source with ID:{source_id} successfully",
+            f"Archived harvest source with ID:{source_id} successfully",
+            200,
+        )
+
+    def unarchive_harvest_source(self, source_id):
+        """Unarchive a harvest source, restoring it to active status.
+
+        Note: Harvest records are removed during the clear operation (which is
+        required before archiving), so unarchiving does not restore any records.
+        Job history is preserved and remains accessible.
+
+        Args:
+            source_id: ID of the harvest source to unarchive
+
+        Returns:
+            tuple[str, int]: ``(message, status)`` - success message with 200,
+            or error message with appropriate status code
+        """
+        source = self.db.get(HarvestSource, source_id)
+        if source is None:
+            return "Harvest source not found", 404
+
+        if not source.is_archived:
+            return "Harvest source is not archived", 400
+
+        source.is_archived = False
+        source.is_locked = False
+        source.archived_at = None
+        source.archived_by = None
+
+        self.db.commit()
+
+        return (
+            f"Unarchived harvest source with ID:{source_id} successfully",
             200,
         )
 
@@ -1781,13 +1867,16 @@ class HarvesterDBInterface:
             )
         ]
 
-    def get_geo_from_string(self, location_name):
+    def get_geo_from_string(self, location_name, literal=False):
         """get a geometry from the locations table using the location name
-        (e.g. California, New York)"""
+        (e.g. California, New York). With literal=True, % _ and \\ in the name
+        are matched as plain characters instead of ILIKE wildcards."""
+        if literal:
+            location_name = re.sub(r"([\\%_])", r"\\\1", location_name)
         try:
             location = (
                 self.db.query(func.ST_AsGeoJSON(Locations.the_geom))
-                .filter(Locations.display_name.ilike(f"%{location_name}%"))
+                .filter(Locations.display_name.ilike(f"%{location_name}%", escape="\\"))
                 .scalar()
             )
             return location

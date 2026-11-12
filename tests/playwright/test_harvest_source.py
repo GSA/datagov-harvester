@@ -42,6 +42,12 @@ class TestHarvestSourceUnauthed:
                 "False",
                 "Is locked",
                 "False",
+                "Is archived",
+                "False",
+                "Archived at",
+                "None",
+                "Archived by",
+                "None",
                 "Date next run",
                 "N/A",
                 "ID",
@@ -142,14 +148,14 @@ class TestHarvestSourceAuthed:
         actions = apage.locator(".harvest-source-config-actions")
         for name in ("Edit", "Harvest"):
             expect(actions.get_by_role("button", name=name, exact=True)).to_be_visible()
-        for name in ("Lock", "Clear", "Delete"):
+        for name in ("Lock", "Clear", "Archive"):
             expect(
                 actions.get_by_role("button", name=re.compile(rf"^{name}\b"))
             ).to_be_visible()
 
-    def test_cant_delete_harvest_source_with_records(self, apage):
+    def test_cant_archive_harvest_source_with_records(self, apage):
         apage.once("dialog", lambda dialog: dialog.accept())
-        apage.get_by_role("button", name=re.compile(r"^Delete\b")).click()
+        apage.get_by_role("button", name=re.compile(r"^Archive\b")).click()
         expect(apage.locator(".usa-alert--error")).to_contain_text(
             ["Failed: 2 records in the Harvest source, please clear it first."]
         )
