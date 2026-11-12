@@ -9,6 +9,7 @@ every test.
 """
 
 from pathlib import Path
+from unittest.mock import Mock, patch
 
 from dcatus_validation.messages import open_json
 from dcatus_validation.schema_paths import DCATUS3_COMPLETE_EXAMPLE
@@ -348,6 +349,17 @@ class TestLocationSpatial:
         warnings = detect_dcat_warnings(data)
         assert types(warnings) == ["unresolvable_spatial_value"]
         assert "could not be resolved" in warnings[0].message
+
+    def test_place_name_wildcards_are_matched_literally(self):
+        # the dataset's spatial conversion keeps ILIKE wildcards; this warning
+        # check doesn't, matching the public validator
+        fake_dbi = Mock(get_geo_from_string=Mock(return_value=None))
+        with patch(
+            "harvester.utils.general_utils._get_geo_lookup_interface",
+            lambda: fake_dbi,
+        ):
+            detect_dcat_warnings({"@type": "Location", "geometry": "Fair_ax"})
+        fake_dbi.get_geo_from_string.assert_called_once_with("Fair_ax", literal=True)
 
     def test_resolvable_polygon_object_passes(self):
         data = {

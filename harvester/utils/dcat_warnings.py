@@ -327,7 +327,9 @@ def _warn_spatial_unresolved(field: str, value) -> Optional[DcatWarning]:
             return None
         if field == "bbox" and value.get("type") != "Polygon":
             return None
-    if translate_spatial(value):
+    # Matched literally, as the public validator does (it can't afford
+    # wildcard matching); real place names never contain % _ or \.
+    if translate_spatial(value, literal_place_names=True):
         return None
     return DcatWarning(
         "unresolvable_spatial_value",
