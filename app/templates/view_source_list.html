@@ -28,6 +28,16 @@
       </button>
     </form>
   </div>
+  <div class="margin-top-2">
+    <a href="{{ url_for('main.harvest_source_list', show_archived='true' if not data.show_archived else 'false') }}"
+       class="usa-button usa-button--outline">
+      {% if data.show_archived %}
+        Hide Archived Sources
+      {% else %}
+        Show Archived Sources
+      {% endif %}
+    </a>
+  </div>
 </div>
 
 <div class="list-page-results-header margin-bottom-1">
