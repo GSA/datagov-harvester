@@ -6,6 +6,12 @@ MAPPINGS = {
             "type": "text",
             "analyzer": TEXT_ANALYZER,
             "search_analyzer": TEXT_ANALYZER,
+            "fields": {
+                "normalized": {
+                    "type": "keyword",
+                    "normalizer": KEYWORD_NORMALIZER,
+                },
+            },
         },
         "slug": {"type": "keyword"},
         "type": {"type": "keyword"},
