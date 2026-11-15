@@ -1,6 +1,7 @@
 """Prepare Natural Earth country polygons for Data.gov #5111."""
 
 import argparse
+import argparse
 import csv
 import tempfile
 import zipfile
@@ -114,3 +115,13 @@ def prepare(existing_csv, country_zip, output_csv):
             matched[row["id"]] = updated
             used_sources.add(index)
             geometry_types[geom.geom_type] += 1
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("existing_csv", type=Path)
+    parser.add_argument("country_zip", type=Path)
+    parser.add_argument("output_csv", type=Path)
+    args = parser.parse_args()
+
+    prepare(args.existing_csv, args.country_zip, args.output_csv)
