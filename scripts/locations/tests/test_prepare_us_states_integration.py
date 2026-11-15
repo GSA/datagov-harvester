@@ -8,7 +8,7 @@ import zipfile
 from pathlib import Path
 
 import shapefile
-from shapely import wkb, get_srid
+from shapely import get_srid, wkb
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 

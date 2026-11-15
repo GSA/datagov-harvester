@@ -8,9 +8,9 @@ from pathlib import Path
 
 import shapefile
 from pyproj import Transformer
+from shapely import wkb
 from shapely.geometry import shape
 from shapely.ops import transform
-from shapely import wkb
 
 COLUMNS = [
     "name", "type", "display_name",

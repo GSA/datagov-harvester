@@ -1,8 +1,8 @@
 """Prepare 2026 Census county polygons for Data.gov issue #5111."""
 
 import argparse
-import os
 import csv
+import os
 import tempfile
 import zipfile
 from collections import Counter
@@ -10,7 +10,7 @@ from pathlib import Path
 
 import shapefile
 from pyproj import Transformer
-from shapely import wkb, transform
+from shapely import transform, wkb
 from shapely.geometry import shape
 
 COLUMNS = [

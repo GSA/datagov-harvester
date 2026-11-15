@@ -9,7 +9,7 @@ from shapely.geometry import Polygon
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from prepare_us_states import normalize, load_states
+from prepare_us_states import load_states, normalize
 
 
 class TestPrepareUSStates(unittest.TestCase):

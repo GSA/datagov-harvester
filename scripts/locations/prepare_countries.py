@@ -9,7 +9,7 @@ from pathlib import Path
 
 import shapefile
 from pyproj import CRS, Transformer
-from shapely import wkb, transform
+from shapely import transform, wkb
 from shapely.geometry import shape
 
 COLUMNS = [

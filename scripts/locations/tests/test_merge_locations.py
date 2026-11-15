@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from merge_locations import merge, FIELDS
+from merge_locations import FIELDS, merge
 
 
 class TestMergeLocations(unittest.TestCase):
