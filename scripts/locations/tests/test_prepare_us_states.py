@@ -18,12 +18,14 @@ class TestPrepareUSStates(unittest.TestCase):
         self.assertEqual(normalize("  New   York "), "new york")
 
     def test_ewkb_round_trip(self):
-        geometry = Polygon([
-            (-100, 30),
-            (-99, 30),
-            (-99, 31),
-            (-100, 31),
-        ])
+        geometry = Polygon(
+            [
+                (-100, 30),
+                (-99, 30),
+                (-99, 31),
+                (-100, 31),
+            ]
+        )
 
         encoded = wkb.dumps(geometry, hex=True, srid=4326)
         decoded = wkb.loads(bytes.fromhex(encoded))
@@ -42,27 +44,35 @@ class TestPrepareUSStates(unittest.TestCase):
                 writer = csv.DictWriter(
                     f,
                     fieldnames=[
-                        "name", "type", "display_name",
-                        "the_geom", "type_order", "id",
+                        "name",
+                        "type",
+                        "display_name",
+                        "the_geom",
+                        "type_order",
+                        "id",
                     ],
                 )
                 writer.writeheader()
-                writer.writerow({
-                    "name": "Texas",
-                    "type": "us_state",
-                    "display_name": "Texas",
-                    "the_geom": "sample",
-                    "type_order": "1",
-                    "id": "1",
-                })
-                writer.writerow({
-                    "name": "United States",
-                    "type": "country",
-                    "display_name": "United States",
-                    "the_geom": "sample",
-                    "type_order": "0",
-                    "id": "2",
-                })
+                writer.writerow(
+                    {
+                        "name": "Texas",
+                        "type": "us_state",
+                        "display_name": "Texas",
+                        "the_geom": "sample",
+                        "type_order": "1",
+                        "id": "1",
+                    }
+                )
+                writer.writerow(
+                    {
+                        "name": "United States",
+                        "type": "country",
+                        "display_name": "United States",
+                        "the_geom": "sample",
+                        "type_order": "0",
+                        "id": "2",
+                    }
+                )
 
             states = load_states(csv_path)
 

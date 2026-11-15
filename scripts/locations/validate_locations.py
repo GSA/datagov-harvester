@@ -11,8 +11,12 @@ from shapely import wkb
 csv.field_size_limit(sys.maxsize if sys.maxsize <= 2147483647 else 2147483647)
 
 REQUIRED_COLUMNS = {
-    "name", "type", "display_name",
-    "the_geom", "type_order", "id",
+    "name",
+    "type",
+    "display_name",
+    "the_geom",
+    "type_order",
+    "id",
 }
 
 

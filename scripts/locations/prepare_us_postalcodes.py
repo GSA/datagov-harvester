@@ -30,10 +30,7 @@ def prepare(existing_csv, zcta_zip, output_csv):
             if re.fullmatch(r"\d{5}", name):
                 code = name
             else:
-                match = re.search(
-                    r"\((\d{5})\)\s*$",
-                    row["display_name"].strip()
-                )
+                match = re.search(r"\((\d{5})\)\s*$", row["display_name"].strip())
                 if not match:
                     raise ValueError("Unexpected postal-code format")
                 code = match.group(1)
@@ -66,8 +63,7 @@ def prepare(existing_csv, zcta_zip, output_csv):
         with zipfile.ZipFile(zcta_zip) as archive:
             for extension in (".shp", ".shx", ".dbf", ".prj"):
                 members = [
-                    n for n in archive.namelist()
-                    if n.lower().endswith(extension)
+                    n for n in archive.namelist() if n.lower().endswith(extension)
                 ]
                 if len(members) != 1:
                     raise ValueError(f"Expected one {extension} file")
@@ -80,19 +76,13 @@ def prepare(existing_csv, zcta_zip, output_csv):
         prj = next(folder.glob("*.prj"))
 
         source_crs = CRS.from_wkt(prj.read_text(encoding="utf-8"))
-        transformer = Transformer.from_crs(
-            source_crs, "EPSG:4326", always_xy=True
-        )
+        transformer = Transformer.from_crs(source_crs, "EPSG:4326", always_xy=True)
 
         with shapefile.Reader(str(shp)) as reader:
-            with output_csv.open(
-                "w", encoding="utf-8", newline=""
-            ) as output:
+            with output_csv.open("w", encoding="utf-8", newline="") as output:
                 field_names = [f[0] for f in reader.fields[1:]]
                 if "ZCTA5CE20" not in field_names:
-                    raise ValueError(
-                        f"ZCTA5CE20 field missing: {field_names}"
-                    )
+                    raise ValueError(f"ZCTA5CE20 field missing: {field_names}")
 
                 writer = csv.DictWriter(output, fieldnames=FIELDS)
                 writer.writeheader()
@@ -109,9 +99,7 @@ def prepare(existing_csv, zcta_zip, output_csv):
                         continue
 
                     geom = shape(item.shape.__geo_interface__)
-                    geom = transform(
-                        geom, transformer.transform, interleaved=False
-                    )
+                    geom = transform(geom, transformer.transform, interleaved=False)
 
                     if (
                         geom.is_empty
@@ -121,9 +109,7 @@ def prepare(existing_csv, zcta_zip, output_csv):
                         invalid_geometries += 1
                         continue
 
-                    geometry_hex = wkb.dumps(
-                        geom, hex=True, srid=4326
-                    )
+                    geometry_hex = wkb.dumps(geom, hex=True, srid=4326)
 
                     for original in by_zip[code]:
                         updated = original.copy()

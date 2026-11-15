@@ -23,20 +23,24 @@ class TestMergeLocations(unittest.TestCase):
     def test_merge_preserves_metadata_and_unmatched_records(self):
         original_rows = [
             {
-                "name": "Place A", "type": "country",
-                "display_name": "Place A", "the_geom": "OLD_A",
-                "type_order": "1", "id": "10",
+                "name": "Place A",
+                "type": "country",
+                "display_name": "Place A",
+                "the_geom": "OLD_A",
+                "type_order": "1",
+                "id": "10",
             },
             {
-                "name": "Place B", "type": "country",
-                "display_name": "Place B", "the_geom": "OLD_B",
-                "type_order": "1", "id": "11",
+                "name": "Place B",
+                "type": "country",
+                "display_name": "Place B",
+                "the_geom": "OLD_B",
+                "type_order": "1",
+                "id": "11",
             },
         ]
 
-        updated_rows = [
-            {**original_rows[0], "the_geom": "NEW_A"}
-        ]
+        updated_rows = [{**original_rows[0], "the_geom": "NEW_A"}]
 
         source = self.write_csv("source.csv", original_rows)
         updates = self.write_csv("updates.csv", updated_rows)
@@ -53,9 +57,12 @@ class TestMergeLocations(unittest.TestCase):
 
     def test_merge_rejects_changed_metadata(self):
         original = {
-            "name": "Place A", "type": "country",
-            "display_name": "Place A", "the_geom": "OLD_A",
-            "type_order": "1", "id": "10",
+            "name": "Place A",
+            "type": "country",
+            "display_name": "Place A",
+            "the_geom": "OLD_A",
+            "type_order": "1",
+            "id": "10",
         }
 
         source = self.write_csv("source.csv", [original])
@@ -69,15 +76,16 @@ class TestMergeLocations(unittest.TestCase):
 
     def test_merge_rejects_duplicate_ids(self):
         original = {
-            "name": "Place A", "type": "country",
-            "display_name": "Place A", "the_geom": "OLD_A",
-            "type_order": "1", "id": "10",
+            "name": "Place A",
+            "type": "country",
+            "display_name": "Place A",
+            "the_geom": "OLD_A",
+            "type_order": "1",
+            "id": "10",
         }
 
         source = self.write_csv("source.csv", [original])
-        update = self.write_csv(
-            "updates.csv", [original, original]
-        )
+        update = self.write_csv("updates.csv", [original, original])
 
         with self.assertRaises(ValueError):
             merge(source, [update], self.folder / "merged.csv")

@@ -13,8 +13,12 @@ from shapely.geometry import shape
 from shapely.ops import transform
 
 COLUMNS = [
-    "name", "type", "display_name",
-    "the_geom", "type_order", "id",
+    "name",
+    "type",
+    "display_name",
+    "the_geom",
+    "type_order",
+    "id",
 ]
 
 
@@ -40,16 +44,14 @@ def load_states(csv_path):
 
 def load_census(zip_path):
     census = {}
-    transformer = Transformer.from_crs(
-        "EPSG:4269", "EPSG:4326", always_xy=True
-    )
+    transformer = Transformer.from_crs("EPSG:4269", "EPSG:4326", always_xy=True)
 
     with tempfile.TemporaryDirectory() as directory:
         with zipfile.ZipFile(zip_path) as archive:
             members = [
-                m for m in archive.namelist()
-                if Path(m).suffix.lower()
-                in {".shp", ".shx", ".dbf", ".prj"}
+                m
+                for m in archive.namelist()
+                if Path(m).suffix.lower() in {".shp", ".shx", ".dbf", ".prj"}
             ]
 
             for member in members:
@@ -99,9 +101,7 @@ def prepare(existing_path, zip_path, output_path):
         geometry = census[key]
 
         updated = row.copy()
-        updated["the_geom"] = wkb.dumps(
-            geometry, hex=True, srid=4326
-        )
+        updated["the_geom"] = wkb.dumps(geometry, hex=True, srid=4326)
 
         matches.append(updated)
 
@@ -115,9 +115,7 @@ def prepare(existing_path, zip_path, output_path):
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    with output_path.open(
-        "w", encoding="utf-8", newline=""
-    ) as f:
+    with output_path.open("w", encoding="utf-8", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=COLUMNS)
         writer.writeheader()
         writer.writerows(matches)

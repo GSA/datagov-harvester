@@ -13,8 +13,12 @@ from shapely import transform, wkb
 from shapely.geometry import shape
 
 COLUMNS = [
-    "name", "type", "display_name",
-    "the_geom", "type_order", "id",
+    "name",
+    "type",
+    "display_name",
+    "the_geom",
+    "type_order",
+    "id",
 ]
 csv.field_size_limit(2147483647)
 
@@ -24,15 +28,11 @@ def normalize(value):
 
 
 def prepare(existing_csv, country_zip, output_csv):
-    with existing_csv.open(
-        encoding="utf-8-sig", newline=""
-    ) as file:
+    with existing_csv.open(encoding="utf-8-sig", newline="") as file:
         reader = csv.DictReader(file)
         if not set(COLUMNS).issubset(reader.fieldnames or []):
             raise ValueError("Missing required CSV columns")
-        existing = [
-            row for row in reader if row["type"] == "country"
-        ]
+        existing = [row for row in reader if row["type"] == "country"]
 
     with tempfile.TemporaryDirectory() as tmp:
         folder = Path(tmp)
@@ -40,8 +40,7 @@ def prepare(existing_csv, country_zip, output_csv):
         with zipfile.ZipFile(country_zip) as archive:
             for extension in (".shp", ".shx", ".dbf", ".prj"):
                 members = [
-                    m for m in archive.namelist()
-                    if m.lower().endswith(extension)
+                    m for m in archive.namelist() if m.lower().endswith(extension)
                 ]
                 if len(members) != 1:
                     raise ValueError(f"Expected one {extension}")
@@ -51,13 +50,9 @@ def prepare(existing_csv, country_zip, output_csv):
                 archive.extract(member, folder)
 
         prj = next(folder.glob("*.prj"))
-        source_crs = CRS.from_wkt(
-            prj.read_text(encoding="utf-8")
-        )
+        source_crs = CRS.from_wkt(prj.read_text(encoding="utf-8"))
         target_crs = CRS.from_epsg(4326)
-        transformer = Transformer.from_crs(
-            source_crs, target_crs, always_xy=True
-        )
+        transformer = Transformer.from_crs(source_crs, target_crs, always_xy=True)
 
         shp = next(folder.glob("*.shp"))
         records = []
@@ -71,9 +66,7 @@ def prepare(existing_csv, country_zip, output_csv):
                 for field in ("ADMIN", "NAME", "NAME_EN"):
                     alias = normalize(data.get(field))
                     if alias:
-                        aliases.setdefault(alias, set()).add(
-                            len(records) - 1
-                        )
+                        aliases.setdefault(alias, set()).add(len(records) - 1)
 
         matched = {}
         ambiguous = 0
@@ -95,9 +88,7 @@ def prepare(existing_csv, country_zip, output_csv):
                 continue
 
             geom = shape(records[index].shape.__geo_interface__)
-            geom = transform(
-                geom, transformer.transform, interleaved=False
-            )
+            geom = transform(geom, transformer.transform, interleaved=False)
 
             if (
                 geom.is_empty
@@ -107,9 +98,7 @@ def prepare(existing_csv, country_zip, output_csv):
                 continue
 
             updated = row.copy()
-            updated["the_geom"] = wkb.dumps(
-                geom, hex=True, srid=4326
-            )
+            updated["the_geom"] = wkb.dumps(geom, hex=True, srid=4326)
 
             matched[row["id"]] = updated
             used_sources.add(index)

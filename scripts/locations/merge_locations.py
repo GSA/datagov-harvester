@@ -8,8 +8,12 @@ import tempfile
 from pathlib import Path
 
 FIELDS = [
-    "name", "type", "display_name",
-    "the_geom", "type_order", "id",
+    "name",
+    "type",
+    "display_name",
+    "the_geom",
+    "type_order",
+    "id",
 ]
 
 METADATA = [field for field in FIELDS if field != "the_geom"]
@@ -66,16 +70,20 @@ def merge(source, updates, output):
                              type_order, the_geom)
                             VALUES (?, ?, ?, ?, ?, ?)
                             """,
-                            tuple(row[key] for key in (
-                                "id", "name", "type",
-                                "display_name", "type_order",
-                                "the_geom",
-                            )),
+                            tuple(
+                                row[key]
+                                for key in (
+                                    "id",
+                                    "name",
+                                    "type",
+                                    "display_name",
+                                    "type_order",
+                                    "the_geom",
+                                )
+                            ),
                         )
                     except sqlite3.IntegrityError as exc:
-                        raise ValueError(
-                            f"Duplicate replacement ID in {path}"
-                        ) from exc
+                        raise ValueError(f"Duplicate replacement ID in {path}") from exc
 
                     count += 1
 
@@ -89,9 +97,7 @@ def merge(source, updates, output):
             preserved_count = 0
             seen_ids = set()
 
-            with staged_output.open(
-                "w", encoding="utf-8", newline=""
-            ) as f:
+            with staged_output.open("w", encoding="utf-8", newline="") as f:
                 writer = csv.DictWriter(f, fieldnames=FIELDS)
                 writer.writeheader()
 
@@ -100,9 +106,7 @@ def merge(source, updates, output):
                     record_id = row["id"]
 
                     if record_id in seen_ids:
-                        raise ValueError(
-                            f"Duplicate original ID: {record_id}"
-                        )
+                        raise ValueError(f"Duplicate original ID: {record_id}")
                     seen_ids.add(record_id)
 
                     updated = conn.execute(
@@ -125,9 +129,7 @@ def merge(source, updates, output):
                         )
 
                         if original_metadata != updated[:4]:
-                            raise ValueError(
-                                f"Metadata differs for ID: {record_id}"
-                            )
+                            raise ValueError(f"Metadata differs for ID: {record_id}")
 
                         row["the_geom"] = updated[4]
                         replaced_count += 1

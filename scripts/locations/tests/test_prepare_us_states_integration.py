@@ -25,27 +25,31 @@ class TestStateConverterIntegration(unittest.TestCase):
             output_csv = root / "output.csv"
 
             columns = [
-                "name", "type", "display_name",
-                "the_geom", "type_order", "id",
+                "name",
+                "type",
+                "display_name",
+                "the_geom",
+                "type_order",
+                "id",
             ]
 
             # Create 51 synthetic state records to satisfy
             # the converter's existing record-count check.
-            with source_csv.open(
-                "w", encoding="utf-8", newline=""
-            ) as file:
+            with source_csv.open("w", encoding="utf-8", newline="") as file:
                 writer = csv.DictWriter(file, fieldnames=columns)
                 writer.writeheader()
 
                 for index in range(51):
-                    writer.writerow({
-                        "name": f"Test State {index}",
-                        "type": "us_state",
-                        "display_name": f"Test State {index}",
-                        "the_geom": "",
-                        "type_order": "2",
-                        "id": str(index + 1),
-                    })
+                    writer.writerow(
+                        {
+                            "name": f"Test State {index}",
+                            "type": "us_state",
+                            "display_name": f"Test State {index}",
+                            "the_geom": "",
+                            "type_order": "2",
+                            "id": str(index + 1),
+                        }
+                    )
 
             shapefile_base = root / "states"
 
@@ -55,13 +59,17 @@ class TestStateConverterIntegration(unittest.TestCase):
                 for index in range(51):
                     x = -120 + index
 
-                    writer.poly([[
-                        [x, 30],
-                        [x + 0.5, 30],
-                        [x + 0.5, 30.5],
-                        [x, 30.5],
-                        [x, 30],
-                    ]])
+                    writer.poly(
+                        [
+                            [
+                                [x, 30],
+                                [x + 0.5, 30],
+                                [x + 0.5, 30.5],
+                                [x, 30.5],
+                                [x, 30],
+                            ]
+                        ]
+                    )
 
                     writer.record(f"Test State {index}")
 
@@ -83,9 +91,7 @@ class TestStateConverterIntegration(unittest.TestCase):
 
             self.assertTrue(output_csv.exists())
 
-            with output_csv.open(
-                encoding="utf-8", newline=""
-            ) as file:
+            with output_csv.open(encoding="utf-8", newline="") as file:
                 rows = list(csv.DictReader(file))
 
             self.assertEqual(len(rows), 51)
@@ -94,13 +100,9 @@ class TestStateConverterIntegration(unittest.TestCase):
                 self.assertEqual(row["id"], str(index + 1))
                 self.assertEqual(row["type"], "us_state")
                 self.assertEqual(row["type_order"], "2")
-                self.assertEqual(
-                    row["display_name"], f"Test State {index}"
-                )
+                self.assertEqual(row["display_name"], f"Test State {index}")
 
-                geometry = wkb.loads(
-                    bytes.fromhex(row["the_geom"])
-                )
+                geometry = wkb.loads(bytes.fromhex(row["the_geom"]))
 
                 self.assertTrue(geometry.is_valid)
                 self.assertFalse(geometry.is_empty)

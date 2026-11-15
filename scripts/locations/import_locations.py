@@ -20,9 +20,7 @@ def main():
 
     parts = args.table.split(".")
     if len(parts) != 2 or not all(
-        part.replace("_", "").isalnum()
-        and not part[0].isdigit()
-        for part in parts
+        part.replace("_", "").isalnum() and not part[0].isdigit() for part in parts
     ):
         parser.error("Use --table schema.table")
 
@@ -40,18 +38,14 @@ def main():
             cur.execute("SELECT PostGIS_Version()")
             print("PostGIS:", cur.fetchone()[0])
 
-            cur.execute(
-                """
+            cur.execute("""
                 CREATE TEMP TABLE locations_stage (
                     id TEXT PRIMARY KEY,
                     the_geom_hex TEXT NOT NULL
                 ) ON COMMIT DROP
-                """
-            )
+                """)
 
-            with args.csv_file.open(
-                encoding="utf-8-sig", newline=""
-            ) as file:
+            with args.csv_file.open(encoding="utf-8-sig", newline="") as file:
                 reader = csv.DictReader(file)
 
                 with cur.copy(
@@ -59,9 +53,7 @@ def main():
                 ) as copy:
                     count = 0
                     for row in reader:
-                        copy.write_row(
-                            (row["id"], row["the_geom"])
-                        )
+                        copy.write_row((row["id"], row["the_geom"]))
                         count += 1
 
             print("Staged records:", count)
@@ -71,24 +63,19 @@ def main():
 
             # Lock the table for a consistent count and update.
             cur.execute(
-                sql.SQL("LOCK TABLE {} IN SHARE ROW EXCLUSIVE MODE")
-                .format(table)
+                sql.SQL("LOCK TABLE {} IN SHARE ROW EXCLUSIVE MODE").format(table)
             )
 
-            cur.execute(
-                sql.SQL("""
+            cur.execute(sql.SQL("""
                     SELECT count(*)
                     FROM locations_stage s
                     JOIN {} t ON t.id::text = s.id
-                """).format(table)
-            )
+                """).format(table))
             matched = cur.fetchone()[0]
             print("Matching database IDs:", matched)
 
             if matched != count:
-                raise ValueError(
-                    "Destination does not contain every staged ID"
-                )
+                raise ValueError("Destination does not contain every staged ID")
 
             cur.execute("""
                 SELECT count(*)
@@ -112,8 +99,7 @@ def main():
                 raise ValueError("Unexpected geometry SRID")
 
             if args.apply:
-                cur.execute(
-                    sql.SQL("""
+                cur.execute(sql.SQL("""
                         UPDATE {} AS t
                         SET the_geom = ST_GeomFromEWKB(
                             decode(s.the_geom_hex, 'hex')
@@ -124,8 +110,7 @@ def main():
                               ST_GeomFromEWKB(
                                   decode(s.the_geom_hex, 'hex')
                               )
-                    """).format(table)
-                )
+                    """).format(table))
                 print("Updated database rows:", cur.rowcount)
                 conn.commit()
                 print("Transaction committed")

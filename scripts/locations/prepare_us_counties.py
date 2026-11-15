@@ -14,8 +14,12 @@ from shapely import transform, wkb
 from shapely.geometry import shape
 
 COLUMNS = [
-    "name", "type", "display_name",
-    "the_geom", "type_order", "id",
+    "name",
+    "type",
+    "display_name",
+    "the_geom",
+    "type_order",
+    "id",
 ]
 
 csv.field_size_limit(2147483647)
@@ -28,9 +32,7 @@ def normalize(value):
 def extract_shapefile(zip_path, directory):
     with zipfile.ZipFile(zip_path) as archive:
         for member in archive.namelist():
-            if Path(member).suffix.lower() in {
-                ".shp", ".shx", ".dbf", ".prj"
-            }:
+            if Path(member).suffix.lower() in {".shp", ".shx", ".dbf", ".prj"}:
                 if Path(member).name != member:
                     raise ValueError("Unexpected ZIP structure")
                 archive.extract(member, directory)
@@ -59,13 +61,8 @@ def load_states(state_zip):
 def prepare(existing_csv, state_zip, county_zip, output_csv):
     states = load_states(state_zip)
 
-    with existing_csv.open(
-        encoding="utf-8-sig", newline=""
-    ) as file:
-        existing = [
-            row for row in csv.DictReader(file)
-            if row["type"] == "us_county"
-        ]
+    with existing_csv.open(encoding="utf-8-sig", newline="") as file:
+        existing = [row for row in csv.DictReader(file) if row["type"] == "us_county"]
 
     lookup = {}
     unresolved_states = 0
@@ -81,9 +78,7 @@ def prepare(existing_csv, state_zip, county_zip, output_csv):
         key = (statefp, normalize(county))
         lookup.setdefault(key, []).append(row)
 
-    transformer = Transformer.from_crs(
-        "EPSG:4269", "EPSG:4326", always_xy=True
-    )
+    transformer = Transformer.from_crs("EPSG:4269", "EPSG:4326", always_xy=True)
 
     matches = {}
     duplicates = set()
@@ -131,9 +126,7 @@ def prepare(existing_csv, state_zip, county_zip, output_csv):
                         flush=True,
                     )
 
-                row["the_geom"] = wkb.dumps(
-                    geom, hex=True, srid=4326
-                )
+                row["the_geom"] = wkb.dumps(geom, hex=True, srid=4326)
 
                 matches[row["id"]] = row
                 geometry_types[geom.geom_type] += 1
@@ -154,9 +147,7 @@ def prepare(existing_csv, state_zip, county_zip, output_csv):
 
     output_csv.parent.mkdir(parents=True, exist_ok=True)
 
-    with output_csv.open(
-        "w", encoding="utf-8", newline=""
-    ) as file:
+    with output_csv.open("w", encoding="utf-8", newline="") as file:
         writer = csv.DictWriter(file, fieldnames=COLUMNS)
         writer.writeheader()
 
