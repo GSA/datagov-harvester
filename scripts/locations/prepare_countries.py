@@ -1,7 +1,6 @@
 """Prepare Natural Earth country polygons for Data.gov #5111."""
 
 import argparse
-import argparse
 import csv
 import tempfile
 import zipfile
