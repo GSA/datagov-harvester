@@ -170,10 +170,12 @@ def test_record_errors_by_severity(
     } == {"error", "warning"}
 
     # the view and CSV paths expose severity too
-    view_issues = interface.get_harvest_record_errors_by_job(
+    view_records = interface.get_harvest_record_errors_by_job(
         job.id, for_view=True, per_page=999
     )
-    assert {issue.severity for issue in view_issues} == {"error", "warning"}
+    assert {
+        issue["severity"] for record in view_records for issue in record["issues"]
+    } == {"error", "warning"}
     streamed_issues = list(interface.stream_harvest_record_errors_by_job(job.id))
     assert {issue["severity"] for issue in streamed_issues} == {"error", "warning"}
 

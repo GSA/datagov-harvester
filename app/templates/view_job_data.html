@@ -11,7 +11,70 @@
 } %}
 {% block content %}
 <div class="wrapper job-data">
-    {% if not data.job %}
+    {% if data.source_archived %}
+    <h1>Harvest Job from Archived Source</h1>
+    <div class="usa-alert usa-alert--info" role="alert">
+        <div class="usa-alert__body">
+            <h2 class="usa-alert__heading">This job belongs to an archived source</h2>
+            <p class="usa-alert__text">
+                This harvest job belongs to a source that has been archived. Record and error details
+                have been removed to free database space. Job summary counts are preserved for audit purposes.
+            </p>
+            {% if data.harvest_job and data.harvest_job.source %}
+            <p class="usa-alert__text">
+                <a href="{{ url_for('main.view_harvest_source', source_id=data.harvest_job.harvest_source_id) }}">
+                    View archived source: {{ data.harvest_job.source.name }}
+                </a>
+            </p>
+            {% endif %}
+        </div>
+    </div>
+    {% if data.harvest_job %}
+    <h2>Job Summary</h2>
+    <table class="usa-table usa-table--borderless width-full">
+        <tr>
+            <td>Job ID</td>
+            <td>{{ data.harvest_job.id }}</td>
+        </tr>
+        <tr>
+            <td>Status</td>
+            <td>{{ data.harvest_job.status }}</td>
+        </tr>
+        <tr>
+            <td>Date Created</td>
+            <td>{{ data.harvest_job.date_created }}</td>
+        </tr>
+        <tr>
+            <td>Date Finished</td>
+            <td>{{ data.harvest_job.date_finished | else_na }}</td>
+        </tr>
+        <tr>
+            <td>Records Added</td>
+            <td>{{ data.harvest_job.records_added }}</td>
+        </tr>
+        <tr>
+            <td>Records Updated</td>
+            <td>{{ data.harvest_job.records_updated }}</td>
+        </tr>
+        <tr>
+            <td>Records Deleted</td>
+            <td>{{ data.harvest_job.records_deleted }}</td>
+        </tr>
+        <tr>
+            <td>Records Errored</td>
+            <td>{{ data.harvest_job.records_errored }}</td>
+        </tr>
+        <tr>
+            <td>Records Warned</td>
+            <td>{{ data.harvest_job.records_warned }}</td>
+        </tr>
+        <tr>
+            <td>Records Ignored</td>
+            <td>{{ data.harvest_job.records_ignored }}</td>
+        </tr>
+    </table>
+    {% endif %}
+    {% elif not data.job %}
     <h1>Harvest job not found</h1>
     <div class="usa-alert usa-alert--error" role="alert">
         <div class="usa-alert__body">
@@ -128,7 +191,12 @@
         <p class="text-base-dark">
             Shows only warnings and errors found during this job. For all
             open warnings, see
-            <a href="{{ url_for('main.view_harvest_source_warnings', source_id=data.job.harvest_source_id) }}">Outstanding Warnings</a>.
+            <a href="{{ url_for('main.view_harvest_source_warnings', source_id=data.job.harvest_source_id) }}">Outstanding Warnings</a>
+            {% if data.source_issue_record_count %}
+            ({{ data.source_issue_record_count }} record{{ "s" if data.source_issue_record_count != 1 }} with
+            {{ data.source_issue_error_total }} error{{ "s" if data.source_issue_error_total != 1 }} and
+            {{ data.source_issue_warning_total }} warning{{ "s" if data.source_issue_warning_total != 1 }})
+            {% endif %}.
         </p>
         {% if not data.record_errors %}
         <div class="usa-alert usa-alert--info">
@@ -164,43 +232,11 @@
 
         <div class="usa-table-container--scrollable" tabindex="0">
             {% block record_errors_table %}
+            {% import 'components/error_block.j2' as error_block_macro %}
             <div id="error_results_pagination">
                 <div class="error-list">
                     {% for record_error in data.record_errors %}
-                    <div class="error-block">
-                        <h3>{{ record_error.error.id }}</h3>
-                        <p class="word-break-all"><strong>Identifier:</strong> {{ record_error.identifier if record_error.identifier else "N/A"
-                            }}</p>
-                        <p><strong>Title:</strong> {{ record_error.title if record_error.title else "N/A" }}</p>
-                        <p><strong>Harvest Record ID:</strong>
-                            {% if record_error.error.harvest_record_id %}
-                            <a
-                                href="{{ url_for('api_v1.get_harvest_record', record_id=record_error.error.harvest_record_id) }}">
-                                {{ record_error.error.harvest_record_id }}
-                            </a>
-                            {% else %}
-                            N/A
-                            {% endif %}
-                        </p>
-                        <!-- mixup between deployed app and testing env. TODO: fix this. -->
-                        {% if record_error.error.type in ["ValidationError", "ValidationException"] %}
-                            <p>
-                                <strong>Error Message:</strong> 
-                                <ul>
-                                    {% for msg in record_error.error.message %}
-                                        <li>{{msg}}</li>
-                                    {% endfor %}
-                                </ul>
-                            </p>
-                        {% else %}
-                            <p><strong>Error Message:</strong> {{ record_error.error.message }}</p>
-                        {% endif %} 
-                        <p><strong>Severity:</strong> {{ record_error.error.severity | else_na }}</p>
-                        <p><strong>Type:</strong> {{ record_error.error.type }}</p>
-                        <p class="utc-date" data-utc-date="{{record_error.error.date_created | utc_isoformat }}">
-                            <strong>Date Created:</strong> {{ record_error.error.date_created | else_na }}
-                        </p>
-                    </div>
+                    {{ error_block_macro.error_block(record_error) }}
                     {% endfor %}
                 </div>
                 {% if pagination.count > data.record_errors|count %}

@@ -22,7 +22,13 @@ from wtforms.validators import (
     ValidationError,
 )
 
-from app.constants import ORGANIZATION_TYPE_SELECT_CHOICES
+from app.constants import (
+    ORGANIZATION_SLUG_MAX_LENGTH,
+    ORGANIZATION_SLUG_TAKEN_MESSAGE,
+    ORGANIZATION_TYPE_SELECT_CHOICES,
+    SLUG_ERROR_MESSAGE,
+    SLUG_REGEX,
+)
 from shared.constants import SOURCE_TYPE_VALUES
 
 is_prod = os.getenv("FLASK_ENV") == "production"
@@ -157,21 +163,15 @@ class OrganizationForm(FlaskForm):
         ),
         validators=[
             DataRequired(),
-            Length(max=100),
-            Regexp(
-                r"^[a-z0-9-]*$",
-                message=(
-                    "Slug can only contain lowercase letters, digits, and hyphens."
-                ),
-            ),
+            Length(max=ORGANIZATION_SLUG_MAX_LENGTH),
+            Regexp(SLUG_REGEX, message=SLUG_ERROR_MESSAGE),
         ],
         filters=[strip_filter],
     )
     logo = StringField(
         "Logo",
         description=(
-            "URL to the organization's logo. "
-            "Defaults to a placeholder if left blank."
+            "URL to the organization's logo. Defaults to a placeholder if left blank."
         ),
         validators=[Optional(), URL()],
         filters=[strip_filter],
@@ -218,7 +218,7 @@ class OrganizationForm(FlaskForm):
         existing = db_interface.get_organization_by_slug(field.data)
 
         if existing and existing.id != self.organization_id:
-            raise ValidationError("Slug must be unique.")
+            raise ValidationError(ORGANIZATION_SLUG_TAKEN_MESSAGE)
 
     def validate_code_repo_url(self, field):
         """Validate that code_repo_url starts with http:// or https://."""
@@ -244,7 +244,8 @@ class HarvestTriggerForm(FlaskForm):
     clear = SubmitField(
         "Clear",
     )
-    delete = SubmitField("Delete")
+    archive = SubmitField("Archive")
+    unarchive = SubmitField("Unarchive")
     force_check = BooleanField("Force Update")
 
 
@@ -274,12 +275,7 @@ class DatasetSlugForm(FlaskForm):
         validators=[
             DataRequired(),
             Length(max=200),
-            Regexp(
-                r"^[a-z0-9-]+$",
-                message=(
-                    "Slug can only contain lowercase letters, digits, and hyphens."
-                ),
-            ),
+            Regexp(SLUG_REGEX, message=SLUG_ERROR_MESSAGE),
         ],
         filters=[strip_filter],
     )

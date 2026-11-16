@@ -28,3 +28,8 @@ Hitting `/api/<path>` without a version prefix redirects (308) to whichever vers
 4. Update the wiki page and the endpoint's Swagger docs with the version split.
 
 Note: `API_VERSIONS` in `app/routes.py` currently mounts the entire `api` blueprint per version, which versions the whole API, not individual endpoints. Landing one endpoint on `v2` while the rest stay on `v1` needs that mechanism to change to per-route overrides first.
+
+## Optional features in v1
+
+**Collection response envelope (2026-11):**
+All collection endpoints (`/api/v1/organizations/`, `/api/v1/harvest_sources/`, `/api/v1/harvest_jobs/`, `/api/v1/harvest_records/`, `/api/v1/harvest_job_errors/`, `/api/v1/harvest_record_errors/`) support an optional `?envelope=true` query parameter. Without this parameter, endpoints return a raw array (default, backward compatible). With `?envelope=true`, endpoints return a structured object with `{data: [...], meta: {...}, links: {...}}` format that includes pagination metadata, ordering information, version tracking, and HATEOAS navigation links.

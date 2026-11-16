@@ -140,3 +140,107 @@ class TestBuildReportEmailSection:
         section = build_report_email_section([], [dataset], "")
         assert "- fixture-dataset-1" in section
         assert "http" not in section
+
+
+class TestReportRecipientsDisplay:
+    def test_renders_single_recipient(self):
+        from harvester.utils.harvest_job_email import render_harvest_job_email_html
+
+        html = render_harvest_job_email_html(
+            title="Test Report",
+            introduction="Test intro",
+            source_name="Test Source",
+            job_id="test-job-123",
+            job_url="http://example.com/job/123",
+            refresh_url="http://example.com/refresh",
+            notification_emails=["admin@example.com"],
+        )
+
+        assert "Report recipients" in html
+        assert "admin@example.com" in html
+
+    def test_renders_multiple_recipients(self):
+        from harvester.utils.harvest_job_email import render_harvest_job_email_html
+
+        html = render_harvest_job_email_html(
+            title="Test Report",
+            introduction="Test intro",
+            source_name="Test Source",
+            job_id="test-job-123",
+            job_url="http://example.com/job/123",
+            refresh_url="http://example.com/refresh",
+            notification_emails=["admin@example.com", "data@example.com"],
+        )
+
+        assert "Report recipients" in html
+        assert "admin@example.com, data@example.com" in html
+
+    def test_renders_no_recipients_as_none(self):
+        from harvester.utils.harvest_job_email import render_harvest_job_email_html
+
+        html = render_harvest_job_email_html(
+            title="Test Report",
+            introduction="Test intro",
+            source_name="Test Source",
+            job_id="test-job-123",
+            job_url="http://example.com/job/123",
+            refresh_url="http://example.com/refresh",
+            notification_emails=[],
+        )
+
+        assert "Report recipients" in html
+        assert "None" in html
+
+    def test_renders_null_recipients_as_none(self):
+        from harvester.utils.harvest_job_email import render_harvest_job_email_html
+
+        html = render_harvest_job_email_html(
+            title="Test Report",
+            introduction="Test intro",
+            source_name="Test Source",
+            job_id="test-job-123",
+            job_url="http://example.com/job/123",
+            refresh_url="http://example.com/refresh",
+            notification_emails=None,
+        )
+
+        assert "Report recipients" in html
+        assert "None" in html
+
+    def test_plain_text_section_includes_recipients(self):
+        from harvester.utils.general_utils import format_recipient_list
+
+        recipients = ["admin@example.com", "data@example.com"]
+        formatted = format_recipient_list(recipients)
+
+        assert formatted == "admin@example.com, data@example.com"
+
+    def test_plain_text_section_handles_empty_list(self):
+        from harvester.utils.general_utils import format_recipient_list
+
+        formatted = format_recipient_list([])
+
+        assert formatted == "None"
+
+    def test_plain_text_section_handles_none(self):
+        from harvester.utils.general_utils import format_recipient_list
+
+        formatted = format_recipient_list(None)
+
+        assert formatted == "None"
+
+    def test_plain_text_section_filters_empty_strings(self):
+        from harvester.utils.general_utils import format_recipient_list
+
+        recipients = ["admin@example.com", "", "data@example.com", None]
+        formatted = format_recipient_list(recipients)
+
+        assert formatted == "admin@example.com, data@example.com"
+
+    def test_plain_text_section_handles_all_empty_strings(self):
+        from harvester.utils.general_utils import format_recipient_list
+
+        recipients = ["", "", None]
+        formatted = format_recipient_list(recipients)
+
+        assert formatted == "None"

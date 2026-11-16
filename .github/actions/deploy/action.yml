@@ -72,6 +72,13 @@ runs:
         echo "asset_version=${asset_version}" >> "$GITHUB_ENV"
         echo "Static asset version: ${asset_version}"
 
+    - name: Set application version
+      shell: bash
+      run: |
+        app_version="$(.github/scripts/compute-app-version.sh)"
+        echo "app_version=${app_version}" >> "$GITHUB_ENV"
+        echo "Application version (commit SHA): ${app_version}"
+
     - name: Set up Python ${{ inputs.python-version }}
       uses: actions/setup-python@v6
       with:
@@ -95,6 +102,7 @@ runs:
           ${{ inputs.command }}
           --vars-file vars.${{ inputs.cf_space }}.yml
           --var asset_version=${{ env.asset_version }}
+          --var app_version=${{ env.app_version }}
           ${{ inputs.manifest_vars }}
         cf_org: ${{ inputs.cf_org }}
         cf_space: ${{ inputs.cf_space }}

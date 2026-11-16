@@ -31,6 +31,10 @@
                     <td style="border-bottom: 1px solid #dfe1e2;">{{ source_name }}</td>
                   </tr>
                   <tr>
+                    <th align="left" style="width: 150px; border-bottom: 1px solid #dfe1e2;">Report recipients</th>
+                    <td style="border-bottom: 1px solid #dfe1e2;">{% if notification_emails %}{{ notification_emails|join(', ') }}{% else %}None{% endif %}</td>
+                  </tr>
+                  <tr>
                     <th align="left" style="width: 150px; border-bottom: 1px solid #dfe1e2;">Job ID</th>
                     <td style="border-bottom: 1px solid #dfe1e2;">{{ job_id }}</td>
                   </tr>

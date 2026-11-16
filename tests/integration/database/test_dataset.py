@@ -1,4 +1,6 @@
+import logging
 from datetime import datetime, timezone
+from uuid import uuid4
 
 from database.models import DatasetViewCount
 from tests.conftest import create_record_for_dataset, dataset_payload
@@ -160,3 +162,75 @@ def test_count_missing_outdated_datasets(
     # 1 missing and 1 outdated dataset
     count, sample_records = interface.get_missing_or_outdated_dataset_count_and_sample()
     assert count == 2 & len(sample_records) == 2
+
+
+def test_upsert_dataset_rejects_different_harvest_source(
+    interface,
+    fixtures_json,
+    source_data_dcatus_2,
+    caplog,
+):
+    # Create organization and two harvest sources.
+    interface.add_organization(fixtures_json["organization"][0])
+
+    source_a = interface.add_harvest_source(fixtures_json["source"][0])
+    source_b = interface.add_harvest_source(source_data_dcatus_2)
+
+    # Create Source A's original harvest record and dataset.
+    interface.add_harvest_job(fixtures_json["job"][0])
+
+    record_a = interface.add_harvest_record(fixtures_json["record"][0])
+    original = interface.insert_dataset(fixtures_json["dataset"][0])
+
+    original_id = original.id
+    original_title = original.dcat["title"]
+
+    # Create a new harvest record belonging to Source B.
+    job_b = interface.add_harvest_job(
+        {
+            "harvest_source_id": source_b.id,
+            "status": "new",
+        }
+    )
+
+    record_b = interface.add_harvest_record(
+        {
+            "identifier": "source-b-identifier",
+            "harvest_job_id": job_b.id,
+            "harvest_source_id": source_b.id,
+            "action": "create",
+            "status": "success",
+        }
+    )
+
+    # Source B attempts to overwrite Source A's dataset.
+    conflicting_data = {
+        **fixtures_json["dataset"][0],
+        "id": str(uuid4()),
+        "harvest_source_id": source_b.id,
+        "harvest_record_id": record_b.id,
+        "dcat": {
+            **original.dcat,
+            "title": "Overwritten by Source B",
+        },
+    }
+
+    # Verify the ownership conflict produces a warning.
+    with caplog.at_level(logging.WARNING):
+        interface.upsert_dataset(conflicting_data)
+
+    assert any(
+        record.levelno == logging.WARNING and original.slug in record.getMessage()
+        for record in caplog.records
+    )
+
+    # Reload from PostgreSQL.
+    interface.db.expire_all()
+    dataset = interface.get_dataset_by_slug(original.slug)
+
+    # Verify Source A's dataset was not overwritten.
+    assert dataset is not None
+    assert dataset.id == original_id
+    assert dataset.harvest_source_id == source_a.id
+    assert dataset.harvest_record_id == record_a.id
+    assert dataset.dcat["title"] == original_title

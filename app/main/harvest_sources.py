@@ -1,6 +1,6 @@
 import json
 
-from flask import current_app, flash, redirect, render_template, request, url_for
+from flask import current_app, flash, g, redirect, render_template, request, url_for
 
 from app import deps, htmx
 from app.deps import (
@@ -15,9 +15,8 @@ from app.deps import (
 )
 from app.forms import HarvestSourceForm, HarvestTriggerForm, ReharvestForm
 from app.paginate import Pagination
-from app.util import make_new_record_error_contract, make_new_source_contract
+from app.util import make_new_source_contract
 from database.interface import HarvestSourceLockedError, StaleReharvestLinkError
-from harvester.lib.source_delete import enqueue_harvest_source_delete
 from harvester.utils.general_utils import (
     convert_to_int,
     dynamic_map_list_items_to_dict,
@@ -81,7 +80,7 @@ def refresh_harvest_source():
     def link_issue():
         """Describe the current reason this signed link cannot request a job."""
         source = deps.db.get_harvest_source(source_id)
-        if source is None:
+        if source is None or (source and source.is_archived):
             return None, (
                 "This harvest source has been removed.",
                 "Contact the Data.gov team if this source should be restored "
@@ -381,13 +380,21 @@ def view_harvest_source(source_id: str):
             count=True,
         )
         # open issues right now, not just what the last job wrote (#6440)
-        current_error_count = deps.db.get_current_record_issues_by_source(
-            source_id,
-            count=True,
+        issue_record_count = deps.db.get_current_record_issues_by_source(
+            source_id, for_view=True, count=True
+        )
+        issue_summary = deps.db.get_record_issues_summary_by_source(source_id)
+        issue_error_total = sum(
+            row["count"] for row in issue_summary if row["severity"] == "error"
+        )
+        issue_warning_total = sum(
+            row["count"] for row in issue_summary if row["severity"] == "warning"
         )
         summary_data = {
             "records_count": records_count,
-            "last_job_errors": current_error_count,
+            "issue_record_count": issue_record_count,
+            "issue_error_total": issue_error_total,
+            "issue_warning_total": issue_warning_total,
             "last_job_finished": None,
             "next_job_scheduled": None,
             "active_job_in_progress": False,
@@ -500,11 +507,11 @@ def view_harvest_source(source_id: str):
         )
 
 
-def _load_json_title(json_string, error_type):
+def _load_json_title(json_string, issue_types):
     try:
         if json_string is None:
             return None
-        if error_type == "TransformationException":
+        if "TransformationException" in issue_types:
             # can't json load an xml doc
             return None
         return json.loads(json_string).get("title", None)
@@ -517,6 +524,7 @@ def _load_json_title(json_string, error_type):
 @valid_id_required
 def view_harvest_source_warnings(source_id: str):
     source = deps.db.get_harvest_source(source_id)
+    show_record_type = bool(source and source.schema_type == "dcatus3.0")
 
     record_error_count = deps.db.get_current_record_issues_by_source(
         source_id, for_view=True, count=True
@@ -531,16 +539,27 @@ def view_harvest_source_warnings(source_id: str):
         current=request.args.get("page", 1, type=convert_to_int),
     )
     record_error_summary = deps.db.get_record_issues_summary_by_source(source_id)
+    error_total = sum(
+        row["count"] for row in record_error_summary if row["severity"] == "error"
+    )
+    warning_total = sum(
+        row["count"] for row in record_error_summary if row["severity"] == "warning"
+    )
     record_errors = deps.db.get_current_record_issues_by_source(
         source_id, page=pagination.db_current, for_view=True
     )
     record_errors_dict = [
         {
-            "error": make_new_record_error_contract(row),
-            "identifier": row[-2],
-            "title": _load_json_title(row[-1], row[3]),
+            "identifier": record["identifier"] or record["harvest_record_id"],
+            "harvest_record_id": record["harvest_record_id"],
+            "record_type": record["record_type"] if show_record_type else None,
+            "title": _load_json_title(
+                record["title_source"], [issue["type"] for issue in record["issues"]]
+            ),
+            "date_created": record["date_created"],
+            "issues": record["issues"],
         }
-        for row in record_errors
+        for record in record_errors
     ]
 
     if htmx:
@@ -567,6 +586,9 @@ def view_harvest_source_warnings(source_id: str):
         data = {
             "source": source,
             "record_error_summary": record_error_summary,
+            "record_count": record_error_count,
+            "error_total": error_total,
+            "warning_total": warning_total,
             "record_errors": record_errors_dict,
             "htmx_vars": htmx_vars,
         }
@@ -597,6 +619,10 @@ def update_harvest_source_actions(source_id: str):
     if form.edit.data:
         return redirect(url_for("main.edit_harvest_source", source_id=source_id))
     elif form.lock.data or form.unlock.data:
+        source = deps.db.get_harvest_source(source_id)
+        if source and source.is_archived:
+            flash("Cannot lock/unlock an archived harvest source", "error")
+            return redirect(url_for("main.view_harvest_source", source_id=source_id))
         locked = bool(form.lock.data)
         source = deps.db.set_harvest_source_lock(source_id, locked)
         if source is None:
@@ -610,36 +636,61 @@ def update_harvest_source_actions(source_id: str):
             )
         return redirect(url_for("main.view_harvest_source", source_id=source_id))
     elif form.harvest.data:
+        source = deps.db.get_harvest_source(source_id)
+        if source and source.is_archived:
+            flash("Cannot harvest an archived source", "error")
+            return redirect(url_for("main.view_harvest_source", source_id=source_id))
         if form.force_check.data:
             return trigger_manual_job_helper(source_id, "force_harvest")
         return trigger_manual_job_helper(source_id)
     elif form.clear.data:
+        source = deps.db.get_harvest_source(source_id)
+        if source and source.is_archived:
+            flash("Cannot clear an archived source", "error")
+            return redirect(url_for("main.view_harvest_source", source_id=source_id))
         return trigger_manual_job_helper(source_id, "clear")
-    elif form.delete.data:
+    elif form.archive.data:
         try:
-            message, status = enqueue_harvest_source_delete(source_id, deps.db)
-            _log_mutation("delete", "harvest_source", source_id, status=status)
-            # 202: the delete task was scheduled; anything else was refused
-            flash(message, "success" if status == 202 else "error")
+            user_email = g.get("request_actor", "unknown")
+            message, status = deps.db.archive_harvest_source(source_id, user_email)
+            _log_mutation("archive", "harvest_source", source_id, status=status)
+            category = "success" if status == 200 else "error"
+            flash(message, category)
             if status == 409:
                 return redirect(
                     url_for("main.view_harvest_source", source_id=source_id)
                 )
             return redirect(url_for("main.harvest_source_list"))
         except Exception as e:
-            message = f"Failed to delete harvest source :: {repr(e)}"
+            message = f"Failed to archive harvest source :: {repr(e)}"
             logger.error(message)
             flash(message, "error")
             return redirect(url_for("main.view_harvest_source", source_id=source_id))
+    elif form.unarchive.data:
+        try:
+            message, status = deps.db.unarchive_harvest_source(source_id)
+            _log_mutation("unarchive", "harvest_source", source_id, status=status)
+            category = "success" if status == 200 else "error"
+            flash(message, category)
+        except Exception as e:
+            message = f"Failed to unarchive harvest source :: {repr(e)}"
+            logger.error(message)
+            flash(message, "error")
+        return redirect(url_for("main.view_harvest_source", source_id=source_id))
 
     return redirect(url_for("main.view_harvest_source", source_id=source_id))
 
 
 @main.route("/harvest_source_list/", methods=["GET"])
 def harvest_source_list():
-    sources = deps.db.get_all_harvest_sources()
-    data = {"harvest_sources": sources}
-    logger.info("Rendered harvest source list count=%s", len(sources) if sources else 0)
+    show_archived = request.args.get("show_archived", "false").lower() == "true"
+    sources = deps.db.get_all_harvest_sources(include_archived=show_archived)
+    data = {"harvest_sources": sources, "show_archived": show_archived}
+    logger.info(
+        "Rendered harvest source list count=%s show_archived=%s",
+        len(sources) if sources else 0,
+        show_archived,
+    )
     return render_template("view_source_list.html", data=data)
 
 
@@ -649,6 +700,9 @@ def harvest_source_list():
 def edit_harvest_source(source_id: str):
     if source_id:
         source = deps.db.get_harvest_source(source_id)
+        if source and source.is_archived:
+            flash("Cannot edit an archived harvest source", "error")
+            return redirect(url_for("main.view_harvest_source", source_id=source_id))
         organizations = deps.db.get_all_organizations()
         if source and organizations:
             organization_choices = sorted(

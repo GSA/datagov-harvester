@@ -2,8 +2,11 @@
 
 The validator is public and unauthenticated, so every URL it fetches is
 attacker-chosen: the checks here (scheme, private/internal addresses on every
-redirect hop, size, one overall time budget) are what keep that from being used
-to reach internal services.
+redirect hop, size, a time budget) reject what they can with a specific
+message. Like the harvester, fetches use requests' environment settings, so on
+cloud.gov they go through the app's egress proxy (`.profile` sets
+https_proxy/http_proxy from proxy_url), which enforces egress itself: HTTPS
+only, and no private or internal addresses.
 """
 
 import hashlib
@@ -17,17 +20,12 @@ import time
 from urllib.parse import urljoin, urlparse
 
 import requests
-from requests.adapters import HTTPAdapter
-from urllib3.connection import HTTPConnection, HTTPSConnection
-from urllib3.connectionpool import HTTPConnectionPool, HTTPSConnectionPool
-from urllib3.poolmanager import SSL_KEYWORDS
 
 from dcatus_validation.errors import (
     NESTING_TOO_DEEP_MESSAGE,
     CatalogTooDeeplyNested,
 )
 from dcatus_validation.limits import (
-    MAX_DOCUMENT_NESTING_DEPTH,
     MAX_UPLOAD_BYTES,
     MAX_UPLOAD_MB,
 )
@@ -126,8 +124,9 @@ PAYLOAD_TOO_LARGE_MESSAGE = (
 
 # The binding ceiling is CloudFront's hard 30s for the whole request
 # (harvest.data.gov/api/v1/validate), and validation only starts once the
-# fetch is done: roughly 0.5-1.2 s/MB, so up to ~12s for a 10MB catalog. 12s
-# here keeps that worst case near 25s, leaving padding for proxy hops.
+# fetch is done: ~2s even for a 150MB catalog (GSA/data.gov#6460). 12s here
+# keeps the worst case well under 30s, leaving padding for proxy hops.
+# Fetching 150MB in 12s needs a server sending ~100Mbps.
 # Answering inside the ceiling means a slow or hung target produces a clean,
 # logged rejection instead of us being disconnected mid-request.
 #
@@ -142,6 +141,10 @@ PAYLOAD_TOO_LARGE_MESSAGE = (
 # connect attempt is short - long enough for a single quick retransmit - and
 # a connect-phase timeout is retried on a new connection, all inside the one
 # deadline. A dead host still fails by FETCH_TIMEOUT_SECONDS.
+#
+# The deadline is checked between body reads, and each read is bounded by the
+# time left when the request started, so a body that trickles in and then
+# stalls can overrun it by up to one read timeout.
 FETCH_TIMEOUT_SECONDS = 12
 FETCH_CONNECT_TIMEOUT_SECONDS = 4
 FETCH_CONNECT_ATTEMPTS = 3
@@ -229,39 +232,18 @@ def _reject_nonfinite_json_constant(_value: str):
     raise InvalidCatalogSource(INVALID_JSON_NUMBER_MESSAGE)
 
 
-def _check_json_text_nesting(document: str) -> None:
-    """Count JSON containers without interpreting brackets inside strings."""
-    depth = 0
-    in_string = False
-    escaped = False
-
-    for character in document:
-        if in_string:
-            if escaped:
-                escaped = False
-            elif character == "\\":
-                escaped = True
-            elif character == '"':
-                in_string = False
-            continue
-
-        if character == '"':
-            in_string = True
-        elif character in "[{":
-            depth += 1
-            if depth > MAX_DOCUMENT_NESTING_DEPTH:
-                raise CatalogTooDeeplyNested(NESTING_TOO_DEEP_MESSAGE)
-        elif character in "]}" and depth:
-            depth -= 1
-
-
 def parse_json_document(document: str | bytes | bytearray):
-    """Parse strict JSON and normalize unsupported encoding/numeric failures."""
+    """Parse strict JSON and normalize unsupported encoding/numeric failures.
+
+    Nesting is checked after parsing (validate._check_catalog_nesting). On
+    Python 3.14 json.loads parses deep documents without exhausting the stack
+    and raises RecursionError past what it can, reported here as too deeply
+    nested (GSA/data.gov#6460).
+    """
     try:
         if not isinstance(document, str):
             encoded_document = bytes(document)
             document = encoded_document.decode(json.detect_encoding(encoded_document))
-        _check_json_text_nesting(document)
         return json.loads(
             document,
             parse_int=_parse_json_integer,
@@ -270,141 +252,41 @@ def parse_json_document(document: str | bytes | bytearray):
         )
     except UnicodeDecodeError:
         raise InvalidCatalogSource(INVALID_JSON_ENCODING_MESSAGE) from None
+    except RecursionError:
+        raise CatalogTooDeeplyNested(NESTING_TOO_DEEP_MESSAGE) from None
 
 
-class _PinnedConnectionMixin:
-    """Connect to the approved IP while retaining the hostname for Host/TLS."""
-
-    def __init__(self, *args, pinned_ip: str, timeout_controller, **kwargs):
-        self._pinned_ip = pinned_ip
-        self._timeout_controller = timeout_controller
-        super().__init__(*args, **kwargs)
-
-    def _new_conn(self):
-        dns_host = self._dns_host
-        try:
-            self._dns_host = self._pinned_ip
-            return super()._new_conn()
-        finally:
-            self._dns_host = dns_host
-
-    def connect(self):
-        super().connect()
-        self._timeout_controller.attach(self.sock)
-
-
-class _SocketTimeoutController:
-    """Set read deadlines without depending on urllib3 response internals."""
-
-    def __init__(self):
-        self._socket = None
-
-    def attach(self, connected_socket) -> None:
-        self._socket = connected_socket
-
-    def settimeout(self, timeout: float) -> None:
-        if self._socket is None:
-            raise RuntimeError("Validator response socket is unavailable")
-        if self._socket.fileno() < 0:
-            return
-        self._socket.settimeout(timeout)
-
-
-class _PinnedHTTPConnection(_PinnedConnectionMixin, HTTPConnection):
-    pass
-
-
-class _PinnedHTTPSConnection(_PinnedConnectionMixin, HTTPSConnection):
-    pass
-
-
-class _PinnedHTTPConnectionPool(HTTPConnectionPool):
-    ConnectionCls = _PinnedHTTPConnection
-
-
-class _PinnedHTTPSConnectionPool(HTTPSConnectionPool):
-    ConnectionCls = _PinnedHTTPSConnection
-
-
-class _PinnedAddressAdapter(HTTPAdapter):
-    """A one-address adapter used for one request and then closed."""
-
-    def __init__(self, pinned_ip: str, timeout_controller):
-        self._pinned_ip = pinned_ip
-        self._timeout_controller = timeout_controller
-        self._pools = []
-        super().__init__()
-
-    def get_connection_with_tls_context(self, request, verify, proxies=None, cert=None):
-        if proxies:
-            raise RuntimeError("Proxies are not supported by the pinned URL fetcher")
-
-        host_params, pool_kwargs = self.build_connection_pool_key_attributes(
-            request, verify, cert
-        )
-        pool_class = (
-            _PinnedHTTPSConnectionPool
-            if host_params["scheme"] == "https"
-            else _PinnedHTTPConnectionPool
-        )
-        if host_params["scheme"] == "http":
-            for keyword in SSL_KEYWORDS:
-                pool_kwargs.pop(keyword, None)
-        pool = pool_class(
-            host_params["host"],
-            host_params["port"],
-            pinned_ip=self._pinned_ip,
-            timeout_controller=self._timeout_controller,
-            **pool_kwargs,
-        )
-        self._pools.append(pool)
-        return pool
-
-    def close(self):
-        for pool in self._pools:
-            pool.close()
-        self._pools.clear()
-        super().close()
-
-
-def _pinned_get(target: str, ip: str, timeout: tuple[float, float]):
+def parse_pasted_json_document(document: bytes | memoryview):
+    """parse_json_document(text) for pasted text given as its UTF-8 bytes, so
+    the caller can drop the text first (GSA/data.gov#6460). Decoding as UTF-8,
+    rather than guessing the encoding as bytes are, keeps a leading BOM refused
+    and NULs from being read as UTF-16 or UTF-32, as for the text itself.
     """
-    Fetch target through the IP that passed validation. A fresh Session avoids
-    ambient proxy and netrc credentials, either of which would hand hostname
-    resolution back to another component after the security check.
-    """
-    session = requests.Session()
-    session.trust_env = False
-    timeout_controller = _SocketTimeoutController()
-    session.mount("http://", _PinnedAddressAdapter(ip, timeout_controller))
-    session.mount("https://", _PinnedAddressAdapter(ip, timeout_controller))
-    verify = os.getenv("REQUESTS_CA_BUNDLE") or True
-
     try:
-        response = session.get(
-            target,
-            headers={"User-Agent": USER_AGENT},
-            stream=True,
-            timeout=timeout,
-            allow_redirects=False,
-            verify=verify,
-        )
-    except Exception:
-        session.close()
-        raise
-
-    response._validator_session = session
-    response._validator_timeout_controller = timeout_controller
-    return response
+        text = str(document, "utf-8")
+    except UnicodeDecodeError:
+        raise InvalidCatalogSource(INVALID_JSON_ENCODING_MESSAGE) from None
+    return parse_json_document(text)
 
 
-def _close_response(response: requests.Response) -> None:
-    session = getattr(response, "_validator_session", None)
-    try:
-        response.close()
-    finally:
-        if session is not None:
-            session.close()
+def _http_get(target: str, timeout: tuple[float, float]) -> requests.Response:
+    """Fetch one hop. Redirects are followed by the caller, so each one is
+    checked by _validate_fetch_target first."""
+    return requests.get(
+        target,
+        headers={"User-Agent": USER_AGENT},
+        stream=True,
+        timeout=timeout,
+        allow_redirects=False,
+    )
+
+
+def _egress_for_log(url: str) -> str:
+    """'proxy' if requests will send `url` through a proxy from the
+    environment (https_proxy/http_proxy, honoring no_proxy), else 'direct'.
+    On cloud.gov 'direct' means proxy_url is unset."""
+    proxies = requests.utils.get_environ_proxies(url)
+    return "proxy" if requests.utils.select_proxy(url, proxies) else "direct"
 
 
 def _target_for_log(url: str) -> str:
@@ -466,12 +348,18 @@ def _validate_fetch_target(url: str) -> list[str]:
     return addresses
 
 
-def fetch_json_from_url(url: str) -> dict:
+def fetch_json_from_url(url: str, before_parse=None) -> dict:
+    """Fetch and parse the catalog at `url`. before_parse(size), if given, is
+    called with the document's size once it's downloaded, before parsing."""
     # DNS validation is part of the fetch, so time spent resolving the
     # submitted hostname counts against the same deadline as the request.
     deadline = time.monotonic() + FETCH_TIMEOUT_SECONDS
-    approved_addresses = _validate_fetch_target(url)
-    logger.info("Validator fetching target=%s", _target_for_log(url))
+    _validate_fetch_target(url)
+    logger.info(
+        "Validator fetching target=%s egress=%s",
+        _target_for_log(url),
+        _egress_for_log(url),
+    )
 
     # One deadline for the whole operation, not a fresh FETCH_TIMEOUT_SECONDS
     # per redirect hop - otherwise a chain of MAX_FETCH_REDIRECTS redirects,
@@ -486,17 +374,13 @@ def fetch_json_from_url(url: str) -> dict:
             )
         return remaining
 
-    def _get(target: str, addresses: list[str]) -> requests.Response:
+    def _get(target: str) -> requests.Response:
         attempts = 0
         while True:
             remaining = _remaining_budget()
-            ip = addresses[attempts % len(addresses)]
             try:
-                # _pinned_get opens a fresh connection to the address that
-                # passed validation, so DNS cannot change underneath us.
-                result = _pinned_get(
+                return _http_get(
                     target,
-                    ip,
                     timeout=(
                         min(FETCH_CONNECT_TIMEOUT_SECONDS, remaining),
                         remaining,
@@ -521,34 +405,21 @@ def fetch_json_from_url(url: str) -> dict:
                     _target_for_log(target),
                 )
                 continue
-            except requests.exceptions.ConnectionError:
-                # One unusable address (commonly an IPv6 address on an
-                # IPv4-only network) must not hide another approved address.
-                attempts += 1
-                if attempts >= FETCH_CONNECT_ATTEMPTS:
-                    raise
-                logger.info(
-                    "Validator URL fetch connect attempt %s failed, retrying target=%s",
-                    attempts,
-                    _target_for_log(target),
-                )
-                continue
-            return result
 
     response = None
     try:
         for _ in range(MAX_FETCH_REDIRECTS + 1):
-            response = _get(url, approved_addresses)
+            response = _get(url)
             if response.status_code not in _REDIRECT_STATUS_CODES:
                 break
 
             location = response.headers.get("Location")
-            _close_response(response)
+            response.close()
             if not location:
                 raise InvalidCatalogSource("Redirected without a Location header.")
 
             url = urljoin(url, location)
-            approved_addresses = _validate_fetch_target(url)
+            _validate_fetch_target(url)
         else:
             raise InvalidCatalogSource("Too many redirects.")
 
@@ -560,26 +431,23 @@ def fetch_json_from_url(url: str) -> dict:
 
         chunks = []
         total_size = 0
-        chunk_iterator = iter(response.iter_content(chunk_size=8192))
-        while True:
-            # requests' read timeout is fixed when the request starts. Reduce
-            # the socket timeout before every body read so a late stall cannot
-            # consume a second full FETCH_TIMEOUT_SECONDS.
-            response._validator_timeout_controller.settimeout(_remaining_budget())
-            try:
-                chunk = next(chunk_iterator)
-            except StopIteration:
-                break
-            except requests.exceptions.ConnectionError:
-                # iter_content wraps urllib3's body ReadTimeoutError in
-                # ConnectionError. Reclassify it when the deadline caused it.
+        try:
+            for chunk in response.iter_content(chunk_size=8192):
+                # requests' read timeout bounds each read, not the whole body,
+                # so a slow trickle is stopped here at the next read after the
+                # deadline. A single stalled read can still run one read
+                # timeout past it.
                 _remaining_budget()
-                raise
-            if chunk:
-                total_size += len(chunk)
-                if total_size > MAX_UPLOAD_BYTES:
-                    raise InvalidCatalogSource(PAYLOAD_TOO_LARGE_MESSAGE)
-                chunks.append(chunk)
+                if chunk:
+                    total_size += len(chunk)
+                    if total_size > MAX_UPLOAD_BYTES:
+                        raise InvalidCatalogSource(PAYLOAD_TOO_LARGE_MESSAGE)
+                    chunks.append(chunk)
+        except requests.exceptions.ConnectionError:
+            # iter_content wraps urllib3's body ReadTimeoutError in
+            # ConnectionError. Reclassify it when the deadline caused it.
+            _remaining_budget()
+            raise
     except _ConnectPhaseTimeout as e:
         logger.warning(
             "Validator URL fetch could not connect in time attempts=%s target=%s",
@@ -613,12 +481,17 @@ def fetch_json_from_url(url: str) -> dict:
         raise InvalidCatalogSource(UNEXPECTED_FETCH_ERROR_MESSAGE)
     finally:
         if response is not None:
-            _close_response(response)
+            response.close()
 
     content = b"".join(chunks)
+    # Don't hold the document twice while it's parsed.
+    del chunks
 
     if len(content) > MAX_UPLOAD_BYTES:
         raise InvalidCatalogSource(PAYLOAD_TOO_LARGE_MESSAGE)
+
+    if before_parse is not None:
+        before_parse(len(content))
 
     try:
         return parse_json_document(content)

@@ -197,13 +197,13 @@ def test_current_record_issues_cascade_on_source_delete(
         }
     )
 
-    interface.delete_harvest_source(source_id)
+    interface.archive_harvest_source(source_id, "test@example.com")
 
     assert (
         interface.db.query(HarvestRecordCurrentIssue)
         .filter_by(harvest_source_id=source_id)
         .count()
-        == 0
+        == 1
     )
 
 
@@ -262,16 +262,119 @@ def test_get_current_record_issues_by_source_for_view(
         }
     )
 
-    rows = interface.get_current_record_issues_by_source(source_id, for_view=True)
-    assert len(rows) == 1
-    row = rows[0]
-    # (harvest_record_id, harvest_job_id, date_created, type, severity,
-    #  message, id, identifier, source_raw/transform)
-    assert row[0] == record.id
-    assert row[1] is None  # current-state issues aren't tied to a job
-    assert row[2] == error.date_created
-    assert row[3] == "TestException"
-    assert row[4] == "warning"
-    assert row[5] == "a warning"
-    assert row[6] == error.id  # same id as the harvest_record_error row
-    assert row[7] == record.identifier
+    records = interface.get_current_record_issues_by_source(source_id, for_view=True)
+    assert len(records) == 1
+    record_view = records[0]
+    assert record_view["harvest_record_id"] == record.id
+    assert record_view["identifier"] == record.identifier
+    assert record_view["date_created"] == error.date_created
+    assert len(record_view["issues"]) == 1
+    issue = record_view["issues"][0]
+    assert issue["type"] == "TestException"
+    assert issue["severity"] == "warning"
+    assert issue["messages"] == ["a warning"]
+
+
+def _add_issue(interface, record_template, job_id, identifier, source_id=None):
+    record = interface.add_harvest_record(
+        {
+            **record_template,
+            "id": str(uuid.uuid4()),
+            "identifier": identifier,
+            "harvest_job_id": job_id,
+            "harvest_source_id": source_id or record_template["harvest_source_id"],
+            "status": "error",
+        }
+    )
+    interface.add_harvest_record_error(
+        {
+            "message": f"{identifier} is invalid",
+            "type": "ValidationException",
+            "harvest_job_id": job_id,
+            "harvest_record_id": record.id,
+            "severity": "error",
+        }
+    )
+
+
+def _issue_identifiers(interface, source_id):
+    return {
+        issue.identifier
+        for issue in interface.db.query(HarvestRecordCurrentIssue).filter_by(
+            harvest_source_id=source_id
+        )
+    }
+
+
+def test_clear_current_issues_missing_from_source(
+    interface,
+    organization_data,
+    source_data_dcatus,
+    job_data_dcatus,
+    record_data_dcatus,
+):
+    """Issues for records the source no longer lists are cleared, even though
+    those records never harvested successfully and so are never deleted."""
+    interface.add_organization(organization_data)
+    interface.add_harvest_source(source_data_dcatus)
+    source_id = source_data_dcatus["id"]
+    old_job = interface.add_harvest_job({**job_data_dcatus, "id": str(uuid.uuid4())})
+    this_job = interface.add_harvest_job({**job_data_dcatus, "id": str(uuid.uuid4())})
+    template = record_data_dcatus[2]
+
+    _add_issue(interface, template, old_job.id, "gone")
+    _add_issue(interface, template, old_job.id, "still-listed")
+    # e.g. a record without a harvestable identifier, already handled this job
+    _add_issue(interface, template, this_job.id, "Title Without Identifier")
+
+    cleared = interface.clear_current_issues_missing_from_source(
+        source_id, {("still-listed", "dataset")}, this_job.id
+    )
+
+    assert cleared == 1
+    assert _issue_identifiers(interface, source_id) == {
+        "still-listed",
+        "Title Without Identifier",
+    }
+
+
+def test_clear_current_issues_missing_from_source_leaves_other_sources(
+    interface,
+    organization_data,
+    source_data_dcatus,
+    job_data_dcatus,
+    record_data_dcatus,
+):
+    interface.add_organization(organization_data)
+    interface.add_harvest_source(source_data_dcatus)
+    other_source = interface.add_harvest_source(
+        {
+            **source_data_dcatus,
+            "id": str(uuid.uuid4()),
+            "name": "Other source",
+            "url": "https://example.com/other-source/data.json",
+        }
+    )
+    job = interface.add_harvest_job(job_data_dcatus)
+    other_job = interface.add_harvest_job(
+        {
+            **job_data_dcatus,
+            "id": str(uuid.uuid4()),
+            "harvest_source_id": other_source.id,
+        }
+    )
+    _add_issue(interface, record_data_dcatus[2], job.id, "gone")
+    _add_issue(
+        interface,
+        record_data_dcatus[2],
+        other_job.id,
+        "gone",
+        source_id=other_source.id,
+    )
+
+    interface.clear_current_issues_missing_from_source(
+        source_data_dcatus["id"], set(), str(uuid.uuid4())
+    )
+
+    assert _issue_identifiers(interface, source_data_dcatus["id"]) == set()
+    assert _issue_identifiers(interface, other_source.id) == {"gone"}

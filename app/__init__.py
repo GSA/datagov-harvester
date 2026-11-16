@@ -13,7 +13,7 @@ from flask_migrate import Migrate
 from flask_talisman import Talisman
 from werkzeug.exceptions import RequestEntityTooLarge
 
-from app.constants import MAX_UPLOAD_BYTES, MAX_UPLOAD_MB
+from app.constants import ADMIN_MAX_REQUEST_BYTES, ADMIN_MAX_REQUEST_MB
 from app.filters import (
     elapsed_time,
     else_na,
@@ -154,10 +154,10 @@ def create_app():
     if os.getenv("FLASK_ENV") != "production":
         # Pick up template edits during local dev without restarting the process.
         app.config["TEMPLATES_AUTO_RELOAD"] = True
-    app.config["MAX_CONTENT_LENGTH"] = MAX_UPLOAD_BYTES
+    app.config["MAX_CONTENT_LENGTH"] = ADMIN_MAX_REQUEST_BYTES
     # Flask 3.1 caps non-file form fields at 500KB by default, which rejected
     # pasted catalogs far below MAX_CONTENT_LENGTH.
-    app.config["MAX_FORM_MEMORY_SIZE"] = MAX_UPLOAD_BYTES
+    app.config["MAX_FORM_MEMORY_SIZE"] = ADMIN_MAX_REQUEST_BYTES
     app.config["SESSION_COOKIE_NAME"] = os.getenv(
         "SESSION_COOKIE_NAME", "harvest_session"
     )
@@ -330,9 +330,11 @@ def create_app():
         (GSA/data.gov#6067)
         """
         logger.warning(
-            "Rejected request over the %sMB limit path=%s", MAX_UPLOAD_MB, request.path
+            "Rejected request over the %sMB limit path=%s",
+            ADMIN_MAX_REQUEST_MB,
+            request.path,
         )
-        message = f"Submission too large - must be {MAX_UPLOAD_MB}MB or less."
+        message = f"Submission too large - must be {ADMIN_MAX_REQUEST_MB}MB or less."
 
         if request.path.startswith("/api/"):
             return jsonify({"error": message}), 413

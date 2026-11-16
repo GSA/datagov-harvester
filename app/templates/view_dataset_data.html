@@ -20,6 +20,17 @@
     {% else %}
     <div class="display-flex flex-align-center flex-wrap">
         <h1 class="margin-right-2">{{ data.dataset.slug }}</h1>
+        {% if data.catalog_base_url %}
+        <a
+            class="usa-button usa-button--outline"
+            target="_blank"
+            rel="noopener noreferrer"
+            href="{{ data.catalog_base_url.rstrip('/') }}/dataset/{{ data.dataset.slug }}"
+        >
+            View on catalog
+            {{ 'launch' | usa_icon | safe }}
+        </a>
+        {% endif %}
     </div>
 
     <h2>Dataset details</h2>

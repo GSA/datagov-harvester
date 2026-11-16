@@ -383,6 +383,19 @@ The public DCAT-US validation API, deployed as its own Cloud Foundry app so vali
 
 Locally, `docker compose` runs it as the `validator` service, plus a `proxy` service (`nginx-local-proxy.conf`, port 8082) that reproduces the cloud.gov routing and body limits, since the Flask dev server has no nginx in front of it. `/validate/` only works end to end through port 8082.
 
+#### Validator egress proxy
+
+The validator fetches through its own [cg-egress-proxy](https://github.com/GSA-TTS/cg-egress-proxy), separate from the admin app's. It allows every domain (the admin app's proxy uses the per-space allow list) and HTTPS (port 443) only; the egress space's security groups keep it off private networks. Like the harvester, the validator picks the proxy up from `https_proxy`/`http_proxy`, which `.profile` sets from `proxy_url`; with it unset, fetches go direct.
+
+Its lists live in GSA/data.gov (`egress/acl/datagov-harvest-validator.<space>.allow.acl` and `.deny.acl`, explained in that repo's `egress/README.md`). It's deployed per space by that repo's "enable egress proxy" workflow: choose `datagov-harvest-validator` and the space. The workflow runs `cf-deployproxy`, which:
+- pushes `proxy-gsa-datagov-<space>-datagov-harvest-validator` to `<space>-egress`;
+- adds the network policy from the validator to it;
+- sets `proxy_url` on the validator and restarts it.
+
+Re-running it rotates the proxy credentials. "disable egress proxy" undoes it, after which the validator fetches directly.
+
+To check it: the validator logs `egress=proxy` for each fetch, and the proxy app's logs show each request it allowed or refused (`cf logs proxy-gsa-datagov-<space>-datagov-harvest-validator` in `<space>-egress`).
+
 #### User management
 
 The Data.gov team are the only intended users of the harvester admin app. Since users are rarely added or deleted, no user management UI has been built and adding/deleting users must be done via the command line.

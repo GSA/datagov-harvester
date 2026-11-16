@@ -1,4 +1,18 @@
-from flask import flash, jsonify, make_response, redirect, request, url_for
+import csv
+import json
+
+from apiflask.schemas import FileSchema
+from flask import (
+    Response,
+    flash,
+    g,
+    jsonify,
+    make_response,
+    redirect,
+    request,
+    stream_with_context,
+    url_for,
+)
 
 from app import deps
 from app.deps import (
@@ -9,7 +23,6 @@ from app.deps import (
     login_required,
     valid_id_required,
 )
-from harvester.lib.source_delete import enqueue_harvest_source_delete
 from harvester.utils.general_utils import is_valid_uuid4
 
 from . import api
@@ -34,6 +47,8 @@ def add_harvest_source_api():
 @valid_id_required
 def edit_harvest_source_api(source_id: str):
     existing_source = deps.db.get_harvest_source(source_id)
+    if existing_source and existing_source.is_archived:
+        return {"error": "Cannot edit an archived harvest source"}, 403
     old_frequency = existing_source.frequency if existing_source else None
     old_locked = existing_source.is_locked if existing_source else None
     updated_source = deps.db.update_harvest_source(source_id, request.json)
@@ -66,13 +81,29 @@ def edit_harvest_source_api(source_id: str):
 @api.doc(hide=True)
 @login_required
 @valid_id_required
-def delete_harvest_source(source_id):
+def archive_harvest_source_endpoint(source_id):
     try:
-        message, status = enqueue_harvest_source_delete(source_id, deps.db)
-        _log_mutation("delete", "harvest_source", source_id, status=status)
+        user_email = g.get("request_actor", "unknown")
+        message, status = deps.db.archive_harvest_source(source_id, user_email)
+        _log_mutation("archive", "harvest_source", source_id, status=status)
         return make_response(jsonify({"message": message}), status)
     except Exception as e:
-        message = f"Failed to delete harvest source :: {repr(e)}"
+        message = f"Failed to archive harvest source :: {repr(e)}"
+        logger.error(message)
+        return make_response(jsonify({"message": message}), 500)
+
+
+@api.route("/harvest_source/<source_id>/unarchive", methods=["POST"])
+@api.doc(hide=True)
+@login_required
+@valid_id_required
+def unarchive_harvest_source(source_id):
+    try:
+        message, status = deps.db.unarchive_harvest_source(source_id)
+        _log_mutation("unarchive", "harvest_source", source_id, status=status)
+        return make_response(jsonify({"message": message}), status)
+    except Exception as e:
+        message = f"Failed to unarchive harvest source :: {repr(e)}"
         logger.error(message)
         return make_response(jsonify({"message": message}), 500)
 
@@ -85,6 +116,85 @@ def trigger_harvest_source(source_id, job_type):
         return JSON_NOT_FOUND()
     if job_type not in ["harvest", "force_harvest", "clear", "validate"]:
         return JSON_NOT_FOUND()
+    source = deps.db.get_harvest_source(source_id)
+    if source and source.is_archived:
+        flash("Cannot perform harvest actions on an archived source", "error")
+        return redirect(url_for("main.view_harvest_source", source_id=source_id))
     message, category = deps.load_manager.trigger_manual_job(source_id, job_type)
     flash(message, category)
     return redirect(url_for("main.view_harvest_source", source_id=source_id))
+
+
+@api.route("/harvest_source/<string:source_id>/warnings/download", methods=["GET"])
+@api.doc(
+    responses={
+        200: {
+            "description": "Outstanding record issues report as CSV file",
+            "content": {"text/csv": {"schema": {"type": "string"}}},
+        },
+        404: {"description": "Source not found"},
+    }
+)
+@api.output(FileSchema, content_type="text/csv")
+@valid_id_required
+def download_current_record_issues_by_source(source_id):
+    try:
+
+        class Echo:
+            def write(self, value):
+                return value
+
+        csv_writer = csv.writer(Echo())
+
+        def generate_csv():
+            header = [
+                "record_error_id",
+                "identifier",
+                "title",
+                "harvest_record_id",
+                "record_error_type",
+                "severity",
+                "message",
+                "date_created",
+            ]
+            yield csv_writer.writerow(header)
+
+            for error in deps.db.stream_current_record_issues_by_source(source_id):
+                title = ""
+                source_raw = error["source_raw"]
+                if source_raw:
+                    try:
+                        title = json.loads(source_raw).get("title", "")
+                    except (json.JSONDecodeError, AttributeError):
+                        title = ""
+
+                row = [
+                    str(error["id"]) if error["id"] else "",
+                    str(error["identifier"]) if error["identifier"] else "",
+                    str(title),
+                    (
+                        str(error["harvest_record_id"])
+                        if error["harvest_record_id"]
+                        else ""
+                    ),
+                    str(error["type"]) if error["type"] else "",
+                    str(error["severity"]) if error["severity"] else "",
+                    str(error["message"]) if error["message"] else "",
+                    str(error["date_created"]) if error["date_created"] else "",
+                ]
+                yield csv_writer.writerow(row)
+
+        return Response(
+            stream_with_context(generate_csv()),
+            mimetype="text/csv",
+            headers={
+                "Content-Disposition": (
+                    f"attachment; filename={source_id}_outstanding_issues.csv"
+                ),
+                "Content-Type": "text/csv",
+            },
+        )
+
+    except Exception as e:
+        logger.error(f"Error in download_current_record_issues_by_source: {repr(e)}")
+        return "Error generating error report", 500

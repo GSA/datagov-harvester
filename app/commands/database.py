@@ -5,6 +5,7 @@ from sqlalchemy import text
 
 from database.interface import HarvesterDBInterface
 from database.models import db
+from harvester.exceptions import DuplicateIdentifierException
 
 database = Blueprint("database", __name__)
 interface = HarvesterDBInterface()
@@ -100,7 +101,11 @@ def backfill_current_record_issues(dry_run: bool) -> None:
 
         for record in latest_records:
             if interface.sync_current_record_issues(
-                source.id, record.record_type, record.identifier, record.id
+                source.id,
+                record.record_type,
+                record.identifier,
+                record.id,
+                skip_types=(DuplicateIdentifierException.__name__,),
             ):
                 resynced_identifiers += 1
             else:

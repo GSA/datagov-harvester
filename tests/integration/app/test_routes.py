@@ -8,6 +8,7 @@ from unittest.mock import Mock, patch
 import pytest
 from flask import Response
 
+from app.constants import SLUG_ERROR_MESSAGE
 from app.deps import UnsafeTemplateEnvError, render_block
 from harvester.harvest import HarvestSource
 
@@ -53,7 +54,7 @@ class TestDynamicRouteTable:
                     "location": "/organization_list/",
                 },
             },
-            r"((main|api|api_v1)\.(add|edit|cancel|update|delete|trigger)_(organization|harvest_source|harvest_job|harvest_record))": {
+            r"((main|api|api_v1)\.(add|edit|cancel|update|delete|trigger|unarchive)_(organization|harvest_source|harvest_job|harvest_record))": {
                 "(POST|HEAD|PUT|DELETE)": {
                     "status_code": 302,
                     "location": LOCATION_ENUMS["LOGIN"],
@@ -184,6 +185,10 @@ class TestDynamicRouteTable:
             },
             "api_v1.download_harvest_errors_by_job": {
                 "GET": "Invalid error type. Must be 'job' or 'record'"
+            },
+            "api_v1.download_current_record_issues_by_source": {
+                "GET": "record_error_id,identifier,title,harvest_record_id,"
+                "record_error_type,severity,message,date_created"
             },
         }
         for route in client.application.url_map.iter_rules():
@@ -488,7 +493,7 @@ class TestHarvestSourceDeleteRedirects:
     @pytest.mark.parametrize(
         ("status", "expected_location"),
         [
-            (202, "/harvest_source_list/"),
+            (200, "/harvest_source_list/"),
             (404, "/harvest_source_list/"),
             (409, "/harvest_source/{source_id}"),
             (500, "/harvest_source_list/"),
@@ -503,12 +508,12 @@ class TestHarvestSourceDeleteRedirects:
             sess["user"] = "tester@gsa.gov"
 
         with patch(
-            "app.main.harvest_sources.enqueue_harvest_source_delete",
-            return_value=("delete result", status),
+            "app.deps.db.archive_harvest_source",
+            return_value=("archive result", status),
         ):
             response = client.post(
                 f"/harvest_source/{source_id}",
-                data={"delete": "Delete"},
+                data={"archive": "Archive"},
             )
 
         assert response.status_code == 302
@@ -679,6 +684,8 @@ class TestJSONResponses:
             json_res = json.loads(res.data)
             if "count" in json_res:
                 assert json_res["count"] == response
+            elif "data" in json_res:
+                assert len(json_res["data"]) == response
             elif "error" in json_res:
                 assert json_res["error"] == response
             else:
@@ -690,10 +697,10 @@ class TestJSONResponses:
         """
         checks the content of the json response when navigating to "/organizations/"
         """
-        res = client.get("/api/v1/organizations/")
+        res = client.get("/api/v1/organizations/?envelope=true")
         assert res.status_code == 200
 
-        assert res.json == [
+        assert res.json["data"] == [
             {
                 "aliases": ["testorg"],
                 "code_repo_exempt": False,
@@ -707,6 +714,8 @@ class TestJSONResponses:
                 "source_count": 1,
             }
         ]
+        assert "meta" in res.json
+        assert "links" in res.json
 
 
 class TestHarvestRecordRawAPI:
@@ -1056,7 +1065,6 @@ class TestRecordIssueSeverityAPI:
 
         assert res.status_code == 200
         assert {e["severity"] for e in res.json} == {"error", "warning"}
-        # every seeded error plus the warning this fixture added
         assert len(res.json) == len(record_error_data) + 1
 
     def test_severity_facet_is_not_double_filtered(
@@ -1445,6 +1453,182 @@ def test_harvest_source_list_search_includes_description(
     assert "data-meta=" in response_text
 
 
+class TestOrganizationEditAPIValidation:
+    """The edit API validates its input with the same rules as create."""
+
+    @pytest.fixture
+    def headers(self, app):
+        return {
+            "X-API-Key": app.config["API_TOKEN"],
+            "Content-Type": "application/json",
+        }
+
+    @pytest.fixture
+    def org(self, interface, organization_data):
+        interface.add_organization(organization_data)
+        return organization_data
+
+    def edit(self, client, org_id, data, headers):
+        return client.post(
+            f"/api/v1/organization/edit/{org_id}", json=data, headers=headers
+        )
+
+    def test_valid_edit_succeeds(self, client, interface, org, headers):
+        response = self.edit(
+            client,
+            org["id"],
+            {
+                "name": "Renamed Org",
+                "slug": "renamed-org-2",
+                "organization_type": "Non-Profit",
+                "aliases": ["renamed"],
+            },
+            headers,
+        )
+
+        assert response.status_code == 200
+        assert response.get_json() == {"message": f"Updated org with ID: {org['id']}"}
+        updated = interface.get_organization(org["id"])
+        assert updated.name == "Renamed Org"
+        assert updated.slug == "renamed-org-2"
+        assert updated.organization_type == "Non-Profit"
+        assert updated.aliases == ["renamed"]
+
+    def test_keeping_its_own_slug_succeeds(self, client, interface, org, headers):
+        response = self.edit(
+            client, org["id"], {"name": "Same Slug", "slug": org["slug"]}, headers
+        )
+
+        assert response.status_code == 200
+        assert interface.get_organization(org["id"]).name == "Same Slug"
+
+    def test_edit_without_slug_succeeds(self, client, interface, org, headers):
+        response = self.edit(
+            client, org["id"], {"description": "New description"}, headers
+        )
+
+        assert response.status_code == 200
+        updated = interface.get_organization(org["id"])
+        assert updated.description == "New description"
+        assert updated.slug == org["slug"]
+
+    @pytest.mark.parametrize(
+        "slug,message",
+        [
+            ("Fixture-Org", SLUG_ERROR_MESSAGE),
+            ("fixture_org", SLUG_ERROR_MESSAGE),
+            ("fixture org", SLUG_ERROR_MESSAGE),
+            ("", SLUG_ERROR_MESSAGE),
+            ("fixture-org\n", SLUG_ERROR_MESSAGE),
+            ("a" * 101, "Longer than maximum length 100."),
+            (None, "Field may not be null."),
+        ],
+    )
+    def test_invalid_slug_is_rejected(
+        self, client, interface, org, headers, slug, message
+    ):
+        response = self.edit(client, org["id"], {"slug": slug}, headers)
+
+        assert response.status_code == 400
+        assert response.get_json() == {"error": f"slug: {message}"}
+        assert interface.get_organization(org["id"]).slug == org["slug"]
+
+    def test_slug_of_max_length_is_accepted(self, client, interface, org, headers):
+        response = self.edit(client, org["id"], {"slug": "a" * 100}, headers)
+
+        assert response.status_code == 200
+        assert interface.get_organization(org["id"]).slug == "a" * 100
+
+    def test_slug_of_another_org_is_rejected(self, client, interface, org, headers):
+        other = interface.add_organization({"name": "Other Org", "slug": "other-org"})
+
+        response = self.edit(client, org["id"], {"slug": "other-org"}, headers)
+
+        assert response.status_code == 400
+        assert response.get_json() == {"error": "slug: Slug must be unique."}
+        assert interface.get_organization(org["id"]).slug == org["slug"]
+        assert interface.get_organization(other.id).slug == "other-org"
+
+    @pytest.mark.parametrize("field", ["not_a_field", "id", "sources"])
+    def test_unknown_field_is_rejected(self, client, interface, org, headers, field):
+        response = self.edit(
+            client, org["id"], {"name": "Renamed Org", field: "x"}, headers
+        )
+
+        assert response.status_code == 400
+        assert response.get_json() == {"error": f"{field}: Unknown field."}
+        assert interface.get_organization(org["id"]).name == org["name"]
+
+    def test_invalid_organization_type_is_rejected(
+        self, client, interface, org, headers
+    ):
+        response = self.edit(
+            client, org["id"], {"organization_type": "Not A Real Type"}, headers
+        )
+
+        assert response.status_code == 400
+        assert response.get_json()["error"].startswith("organization_type: ")
+        assert (
+            interface.get_organization(org["id"]).organization_type
+            == org["organization_type"]
+        )
+
+    def test_invalid_code_repo_url_is_rejected(self, client, org, headers):
+        response = self.edit(
+            client, org["id"], {"code_repo_url": "ftp://github.com/test"}, headers
+        )
+
+        assert response.status_code == 400
+        assert response.get_json() == {
+            "error": "code_repo_url: URL must start with http:// or https://"
+        }
+
+    def test_every_invalid_field_is_reported(self, client, org, headers):
+        response = self.edit(
+            client,
+            org["id"],
+            {"slug": "Bad", "code_repo_url": "ftp://github.com/test"},
+            headers,
+        )
+
+        assert response.status_code == 400
+        error = response.get_json()["error"]
+        assert f"slug: {SLUG_ERROR_MESSAGE}" in error
+        assert "code_repo_url: URL must start with http:// or https://" in error
+
+    @pytest.mark.parametrize("code_repo_url", [None, "", "   "])
+    def test_blank_code_repo_url_clears_it(
+        self, client, interface, organization_data, headers, code_repo_url
+    ):
+        org_data = organization_data.copy()
+        org_data["code_repo_url"] = "https://github.com/test-org"
+        interface.add_organization(org_data)
+
+        response = self.edit(
+            client, org_data["id"], {"code_repo_url": code_repo_url}, headers
+        )
+
+        assert response.status_code == 200
+        assert interface.get_organization(org_data["id"]).code_repo_url is None
+
+    def test_non_object_body_is_rejected(self, client, org, headers):
+        response = self.edit(client, org["id"], ["slug", "x"], headers)
+
+        assert response.status_code == 400
+        assert response.get_json() == {"error": "Invalid input type."}
+
+    @pytest.mark.parametrize("api_key", [None, "invalid_token"])
+    def test_auth_is_still_required(self, client, interface, org, api_key):
+        headers = {"Content-Type": "application/json"}
+        if api_key:
+            headers["X-API-Key"] = api_key
+
+        response = self.edit(client, org["id"], {"name": "Renamed Org"}, headers)
+
+        assert response.status_code == 401
+        assert interface.get_organization(org["id"]).name == org["name"]
+
+
 class TestPaginationValidation:
     """Test validation of pagination parameters across list endpoints."""
 
@@ -1455,10 +1639,12 @@ class TestPaginationValidation:
         interface.add_organization(organization_data)
         interface.add_harvest_source(source_data_dcatus)
 
-        response = client.get("/api/v1/harvest_sources/?per_page=0")
+        response = client.get("/api/v1/harvest_sources/?per_page=0&envelope=true")
 
         assert response.status_code == 200
-        assert response.json == []
+        assert response.json["data"] == []
+        assert "meta" in response.json
+        assert "links" in response.json
 
     def test_per_page_negative_returns_422(
         self, client, interface, organization_data, source_data_dcatus
@@ -1479,11 +1665,13 @@ class TestPaginationValidation:
         interface.add_organization(organization_data)
         interface.add_harvest_source(source_data_dcatus)
 
-        response = client.get("/api/v1/harvest_sources/?per_page=1")
+        response = client.get("/api/v1/harvest_sources/?per_page=1&envelope=true")
 
         assert response.status_code == 200
         data = response.json
-        assert len(data) == 1
+        assert len(data["data"]) == 1
+        assert "meta" in data
+        assert "links" in data
 
     def test_per_page_validation_consistent_across_endpoints(
         self, client, interface_with_fixture_json
@@ -1499,14 +1687,12 @@ class TestPaginationValidation:
         ]
 
         for endpoint in endpoints:
-            # per_page=0 should return empty array
-            response = client.get(f"{endpoint}?per_page=0")
+            response = client.get(f"{endpoint}?per_page=0&envelope=true")
             assert response.status_code == 200, f"{endpoint} should accept per_page=0"
             assert (
-                response.json == []
-            ), f"{endpoint} should return empty array for per_page=0"
+                response.json["data"] == []
+            ), f"{endpoint} should return empty data array for per_page=0"
 
-            # Negative per_page should return 422
             response = client.get(f"{endpoint}?per_page=-1")
             assert (
                 response.status_code == 422
