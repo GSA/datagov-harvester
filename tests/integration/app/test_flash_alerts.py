@@ -189,7 +189,7 @@ class TestFlashColors:
     @pytest.mark.parametrize(
         ("status", "expected"),
         [
-            (202, "usa-alert--success"),
+            (200, "usa-alert--success"),
             (404, "usa-alert--error"),
             (409, "usa-alert--error"),
             (500, "usa-alert--error"),
@@ -199,12 +199,12 @@ class TestFlashColors:
         self, admin_client, interface_no_jobs, source_data_dcatus, status, expected
     ):
         with patch(
-            "app.main.harvest_sources.enqueue_harvest_source_delete",
-            return_value=("delete result", status),
+            "app.deps.db.archive_harvest_source",
+            return_value=("archive result", status),
         ):
             response = admin_client.post(
                 f"/harvest_source/{source_data_dcatus['id']}",
-                data={"delete": "Delete"},
+                data={"archive": "Archive"},
                 follow_redirects=True,
             )
         assert notification_classes(response.text) == [expected]

@@ -1,6 +1,6 @@
 import json
 
-from flask import current_app, flash, redirect, render_template, request, url_for
+from flask import current_app, flash, g, redirect, render_template, request, url_for
 
 from app import deps, htmx
 from app.deps import (
@@ -17,7 +17,6 @@ from app.forms import HarvestSourceForm, HarvestTriggerForm, ReharvestForm
 from app.paginate import Pagination
 from app.util import make_new_source_contract
 from database.interface import HarvestSourceLockedError, StaleReharvestLinkError
-from harvester.lib.source_delete import enqueue_harvest_source_delete
 from harvester.utils.general_utils import (
     convert_to_int,
     dynamic_map_list_items_to_dict,
@@ -81,7 +80,7 @@ def refresh_harvest_source():
     def link_issue():
         """Describe the current reason this signed link cannot request a job."""
         source = deps.db.get_harvest_source(source_id)
-        if source is None:
+        if source is None or (source and source.is_archived):
             return None, (
                 "This harvest source has been removed.",
                 "Contact the Data.gov team if this source should be restored "
@@ -620,6 +619,10 @@ def update_harvest_source_actions(source_id: str):
     if form.edit.data:
         return redirect(url_for("main.edit_harvest_source", source_id=source_id))
     elif form.lock.data or form.unlock.data:
+        source = deps.db.get_harvest_source(source_id)
+        if source and source.is_archived:
+            flash("Cannot lock/unlock an archived harvest source", "error")
+            return redirect(url_for("main.view_harvest_source", source_id=source_id))
         locked = bool(form.lock.data)
         source = deps.db.set_harvest_source_lock(source_id, locked)
         if source is None:
@@ -633,36 +636,61 @@ def update_harvest_source_actions(source_id: str):
             )
         return redirect(url_for("main.view_harvest_source", source_id=source_id))
     elif form.harvest.data:
+        source = deps.db.get_harvest_source(source_id)
+        if source and source.is_archived:
+            flash("Cannot harvest an archived source", "error")
+            return redirect(url_for("main.view_harvest_source", source_id=source_id))
         if form.force_check.data:
             return trigger_manual_job_helper(source_id, "force_harvest")
         return trigger_manual_job_helper(source_id)
     elif form.clear.data:
+        source = deps.db.get_harvest_source(source_id)
+        if source and source.is_archived:
+            flash("Cannot clear an archived source", "error")
+            return redirect(url_for("main.view_harvest_source", source_id=source_id))
         return trigger_manual_job_helper(source_id, "clear")
-    elif form.delete.data:
+    elif form.archive.data:
         try:
-            message, status = enqueue_harvest_source_delete(source_id, deps.db)
-            _log_mutation("delete", "harvest_source", source_id, status=status)
-            # 202: the delete task was scheduled; anything else was refused
-            flash(message, "success" if status == 202 else "error")
+            user_email = g.get("request_actor", "unknown")
+            message, status = deps.db.archive_harvest_source(source_id, user_email)
+            _log_mutation("archive", "harvest_source", source_id, status=status)
+            category = "success" if status == 200 else "error"
+            flash(message, category)
             if status == 409:
                 return redirect(
                     url_for("main.view_harvest_source", source_id=source_id)
                 )
             return redirect(url_for("main.harvest_source_list"))
         except Exception as e:
-            message = f"Failed to delete harvest source :: {repr(e)}"
+            message = f"Failed to archive harvest source :: {repr(e)}"
             logger.error(message)
             flash(message, "error")
             return redirect(url_for("main.view_harvest_source", source_id=source_id))
+    elif form.unarchive.data:
+        try:
+            message, status = deps.db.unarchive_harvest_source(source_id)
+            _log_mutation("unarchive", "harvest_source", source_id, status=status)
+            category = "success" if status == 200 else "error"
+            flash(message, category)
+        except Exception as e:
+            message = f"Failed to unarchive harvest source :: {repr(e)}"
+            logger.error(message)
+            flash(message, "error")
+        return redirect(url_for("main.view_harvest_source", source_id=source_id))
 
     return redirect(url_for("main.view_harvest_source", source_id=source_id))
 
 
 @main.route("/harvest_source_list/", methods=["GET"])
 def harvest_source_list():
-    sources = deps.db.get_all_harvest_sources()
-    data = {"harvest_sources": sources}
-    logger.info("Rendered harvest source list count=%s", len(sources) if sources else 0)
+    show_archived = request.args.get("show_archived", "false").lower() == "true"
+    sources = deps.db.get_all_harvest_sources(include_archived=show_archived)
+    data = {"harvest_sources": sources, "show_archived": show_archived}
+    logger.info(
+        "Rendered harvest source list count=%s show_archived=%s",
+        len(sources) if sources else 0,
+        show_archived,
+    )
     return render_template("view_source_list.html", data=data)
 
 
@@ -672,6 +700,9 @@ def harvest_source_list():
 def edit_harvest_source(source_id: str):
     if source_id:
         source = deps.db.get_harvest_source(source_id)
+        if source and source.is_archived:
+            flash("Cannot edit an archived harvest source", "error")
+            return redirect(url_for("main.view_harvest_source", source_id=source_id))
         organizations = deps.db.get_all_organizations()
         if source and organizations:
             organization_choices = sorted(

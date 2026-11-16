@@ -96,13 +96,13 @@ class TestLogin:
         source_edit_text = '<input class="usa-button" id="edit" name="edit" type="submit" value="Edit">'
         source_harvest_text = '<input class="usa-button usa-button--outline" id="harvest" name="harvest" type="submit" value="Harvest">'
         source_clear_text = '<button class="usa-button usa-button--outline confirm-submit" data-action="clear" id="clear" name="clear" type="submit" value="Clear" title="Confirmation required">'
-        source_delete_text = '<button class="usa-button usa-button--secondary confirm-submit" data-action="delete" id="delete" name="delete" type="submit" value="Delete" title="Confirmation required">'
+        source_archive_text = '<button class="usa-button usa-button--secondary confirm-submit" data-action="archive" id="archive" name="archive" type="submit" value="Archive" title="Confirmation required">'
         assert res.status_code == 200
         assert res.text.find(button_string_text) != -1
         assert res.text.find(source_edit_text) != -1
         assert res.text.find(source_harvest_text) != -1
         assert res.text.find(source_clear_text) != -1
-        assert res.text.find(source_delete_text) != -1
+        assert res.text.find(source_archive_text) != -1
 
     # Logged out user cannot see the harvest source action buttons
     def test_harvest_data_edit_buttons__logged_out(
@@ -115,13 +115,13 @@ class TestLogin:
         source_edit_text = '<input class="usa-button" id="edit" name="edit" type="submit" value="Edit">'
         source_harvest_text = '<input class="usa-button usa-button--outline" id="harvest" name="harvest" type="submit" value="Harvest">'
         source_clear_text = '<button class="usa-button usa-button--outline confirm-submit" data-action="clear" id="clear" name="clear" type="submit" value="Clear" title="Confirmation required">'
-        source_delete_text = '<button class="usa-button usa-button--secondary confirm-submit" data-action="delete" id="delete" name="delete" type="submit" value="Delete" title="Confirmation required">'
+        source_archive_text = '<button class="usa-button usa-button--secondary confirm-submit" data-action="archive" id="archive" name="archive" type="submit" value="Archive" title="Confirmation required">'
         assert res.status_code == 200
         assert res.text.find(button_string_text) == -1
         assert res.text.find(source_edit_text) == -1
         assert res.text.find(source_harvest_text) == -1
         assert res.text.find(source_clear_text) == -1
-        assert res.text.find(source_delete_text) == -1
+        assert res.text.find(source_archive_text) == -1
 
     def test_harvest_source_post_clear__logged_out(
         self, client, interface_no_jobs, source_data_dcatus
