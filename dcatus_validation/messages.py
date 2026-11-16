@@ -217,9 +217,12 @@ def _collect_validation_messages(
     return recorded
 
 
+DCATUS3_DEFINITIONS_URL = "https://resources.data.gov/dcat-us/3.0.0/definitions/"
+
+
 def build_dcatus3_validator(
     definitions_dir,
-    root_ref="https://resources.data.gov/dcat-us/3.0.0/definitions/catalog",
+    root_ref=DCATUS3_DEFINITIONS_URL + "catalog",
 ):
     """Build a DCAT-US 3.0 validator for the selected root definition."""
     registry = Registry()

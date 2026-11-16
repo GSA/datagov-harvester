@@ -1,11 +1,8 @@
-import json
-import os
 from enum import Enum as PyEnum
 
 import marshmallow
 from apiflask import Schema, validators
 from apiflask.fields import (
-    URL,
     UUID,
     Boolean,
     DateTime,
@@ -18,6 +15,12 @@ from apiflask.fields import (
 )
 from marshmallow import ValidationError, validate
 
+from app.constants import (
+    ORGANIZATION_SLUG_MAX_LENGTH,
+    SLUG_ERROR_MESSAGE,
+    SLUG_OPENAPI_PATTERN,
+    SLUG_REGEX,
+)
 from shared.constants import (
     ACTION_VALUES,
     FREQUENCY_VALUES,
@@ -29,8 +32,6 @@ from shared.constants import (
     SEVERITY_VALUES,
     SOURCE_TYPE_VALUES,
 )
-
-IS_PROD = os.getenv("FLASK_ENV") == "production"
 
 
 def _to_enum(name, values):
@@ -63,7 +64,7 @@ ErrorInfo = Schema.from_dict(
         "message": String(),
         "severity": Enum(SEVERITY_ENUM),
         "harvest_record_id": UUID(required=True),
-        "harvest_job_id": UUID(required=True),
+        "harvest_job_id": UUID(allow_none=True),
     },
     name="ErrorInfo",
 )
@@ -114,12 +115,11 @@ class OrgCreate(Schema):
     slug = String(
         required=True,
         validate=[
-            validators.Length(max=100),
-            validators.Regexp(
-                r"^[a-z0-9-]+$",
-                error="Slug can only contain lowercase letters, digits, and hyphens.",
-            ),
+            validators.Length(max=ORGANIZATION_SLUG_MAX_LENGTH),
+            validators.Regexp(SLUG_REGEX, error=SLUG_ERROR_MESSAGE),
         ],
+        # apispec would publish SLUG_REGEX, which JavaScript can't read
+        metadata={"pattern": SLUG_OPENAPI_PATTERN},
     )
     organization_type = Enum(ORGANIZATION_TYPE_ENUM)
     aliases = List(String())
@@ -150,6 +150,28 @@ class OrgCreate(Schema):
         return data
 
 
+class OrgUpdate(OrgCreate):
+    """Input for the organization edit API.
+
+    Derived from OrgCreate so edit and create share the same field rules
+    (slug pattern and length, URL protocol, organization type, ...). Every
+    field is optional because an edit is a partial update, but a field that
+    is present must still pass the create rules, so an empty slug is still
+    rejected. The id can't be edited, so it is excluded and, like any other
+    unknown field, rejected. code_repo_url also accepts null, which clears
+    it, as this endpoint has always allowed.
+    """
+
+    class Meta:
+        exclude = ("id",)
+
+    code_repo_url = String(allow_none=True)
+
+    def __init__(self, *args, **kwargs):
+        kwargs.setdefault("partial", True)
+        super().__init__(*args, **kwargs)
+
+
 class OrgInfo(OrgCreate):
     id = UUID(required=True)
     source_count = Integer()
@@ -166,27 +188,74 @@ class RecordIssueQuery(Schema):
     severity = Enum(SEVERITY_ENUM)
 
 
-class QueryInfo(Schema):
-    """Query input for various object types.
+class BaseQueryInfo(Schema):
+    """Base query parameters available to all collection endpoints."""
 
-    Parameter availability varies by endpoint:
-    - organizations: facets only (no harvest_job_id or harvest_source_id)
-    - harvest_sources: organization_id, facets
-    - harvest_jobs: harvest_source_id, facets
-    - harvest_records: harvest_source_id, harvest_job_id, facets
-    - harvest_job_errors: harvest_job_id, facets
-    - harvest_record_errors: harvest_job_id, harvest_record_id, severity, facets
-    """
-
+    facets = String()
     harvest_job_id = UUID()
     harvest_source_id = UUID()
-    facets = String()
+    facets = String(
+        metadata={
+            "description": (
+                "Advanced filtering using facet syntax. "
+                "Format: 'field operator value' where operator is one of: "
+                "eq (equal), ne (not equal), gt (greater than), lt (less than), "
+                "like_op (SQL LIKE pattern matching). "
+                "Example: 'status eq complete' or 'date_created gt 2024-01-01'"
+            )
+        }
+    )
     page = Integer()
     per_page = Integer()
     paginate = Boolean()
     count = Boolean()
     order_by = String()
-    # only meaningful for harvest_record_errors; omit it to get every issue
+
+
+class OrganizationsQueryInfo(BaseQueryInfo):
+    """Query input for /organizations/ endpoint."""
+
+    pass
+
+
+class HarvestSourcesQueryInfo(BaseQueryInfo):
+    """Query input for /harvest_sources/ endpoint."""
+
+    organization_id = UUID()
+
+
+class HarvestJobsQueryInfo(BaseQueryInfo):
+    """Query input for /harvest_jobs/ endpoint."""
+
+    harvest_source_id = UUID()
+
+
+class HarvestRecordsQueryInfo(BaseQueryInfo):
+    """Query input for /harvest_records/ endpoint."""
+
+    harvest_source_id = UUID()
+    harvest_job_id = UUID()
+
+
+class HarvestJobErrorsQueryInfo(BaseQueryInfo):
+    """Query input for /harvest_job_errors/ endpoint."""
+
+    harvest_job_id = UUID()
+
+
+class HarvestRecordErrorsQueryInfo(BaseQueryInfo):
+    """Query input for /harvest_record_errors/ endpoint."""
+
+    harvest_job_id = UUID()
+    harvest_record_id = UUID()
+    severity = Enum(SEVERITY_ENUM)
+
+
+class QueryInfo(BaseQueryInfo):
+    """Legacy query input schema for backward compatibility."""
+
+    harvest_job_id = UUID()
+    harvest_source_id = UUID()
     severity = Enum(SEVERITY_ENUM)
 
 
@@ -219,59 +288,3 @@ class SourceInfo(Schema):
     is_locked = Boolean(required=True)
     collection_parent_url = String()
     date_next_run = DateTime()
-
-
-class ValidatorInfo(Schema):
-    schema = String(
-        required=True,
-        validate=validators.OneOf(
-            [
-                "dcatus1.1: federal dataset",
-                "dcatus1.1: non-federal dataset",
-            ]
-        ),
-    )
-    fetch_method = String(
-        required=True,
-        validate=validators.OneOf(
-            [
-                "url",
-                "paste",
-            ]
-        ),
-    )
-    url = URL(require_tld=IS_PROD)
-
-    @marshmallow.validates_schema
-    def validate_url(self, data, **kwargs):
-        if data.get("fetch_method") == "url" and not data.get("url"):
-            raise ValidationError("'url' field is required when fetch_method is 'url'")
-
-    json_text = String()
-
-    @marshmallow.validates_schema
-    def validate_json_text(self, data, **kwargs):
-        if data.get("fetch_method") == "paste":
-            if not data.get("json_text"):
-                raise ValidationError(
-                    "'json_text' field is required when fetch_method is 'paste'"
-                )
-            else:
-                try:
-                    json.loads(data.get("json_text"))
-                except json.JSONDecodeError:
-                    raise ValidationError("Invalid JSON")
-
-
-class ValidationResultSchema(Schema):
-    validation_errors = List(
-        List(
-            String(),
-            validate=validate.Length(equal=2),
-        ),
-        required=True,
-    )
-
-
-class ValidationErrorResponseSchema(Schema):
-    error = String(required=True)

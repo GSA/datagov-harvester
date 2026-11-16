@@ -1,3 +1,38 @@
+def test_harvest_jobs_collection_default_returns_array(client, interface):
+    """Test harvest jobs endpoint returns array by default (backward compatible)."""
+    org = interface.add_organization(
+        {
+            "name": "Test Org",
+            "organization_type": "Federal Government",
+            "slug": "test-org",
+        }
+    )
+    source = interface.add_harvest_source(
+        {
+            "name": "Test Source",
+            "organization_id": org.id,
+            "notification_emails": [],
+            "frequency": "manual",
+            "notification_frequency": "on_error",
+            "url": "http://example.com",
+            "schema_type": "dcatus1.1: federal",
+            "source_type": "document",
+        }
+    )
+    interface.add_harvest_job({"harvest_source_id": source.id, "status": "complete"})
+    interface.add_harvest_job({"harvest_source_id": source.id, "status": "complete"})
+    interface.db.commit()
+
+    response = client.get("/api/v1/harvest_jobs/")
+
+    assert response.status_code == 200
+    data = response.get_json()
+
+    assert isinstance(data, list)
+    assert len(data) == 2
+    assert "data" not in data
+
+
 def test_harvest_jobs_collection_response_structure(client, interface):
     """Test harvest jobs endpoint returns structured response."""
     org = interface.add_organization(
@@ -23,7 +58,7 @@ def test_harvest_jobs_collection_response_structure(client, interface):
     interface.add_harvest_job({"harvest_source_id": source.id, "status": "complete"})
     interface.db.commit()
 
-    response = client.get("/api/v1/harvest_jobs/")
+    response = client.get("/api/v1/harvest_jobs/?envelope=true")
 
     assert response.status_code == 200
     data = response.get_json()
@@ -62,7 +97,7 @@ def test_harvest_jobs_collection_meta_structure(client, interface):
         )
     interface.db.commit()
 
-    response = client.get("/api/v1/harvest_jobs/?page=0&per_page=10")
+    response = client.get("/api/v1/harvest_jobs/?page=0&per_page=10&envelope=true")
 
     assert response.status_code == 200
     data = response.get_json()
@@ -108,7 +143,7 @@ def test_harvest_jobs_collection_links_structure(client, interface):
         )
     interface.db.commit()
 
-    response = client.get("/api/v1/harvest_jobs/?page=1&per_page=10")
+    response = client.get("/api/v1/harvest_jobs/?page=1&per_page=10&envelope=true")
 
     assert response.status_code == 200
     data = response.get_json()
@@ -135,7 +170,7 @@ def test_organizations_collection_response_structure(client, interface):
     )
     interface.db.commit()
 
-    response = client.get("/api/v1/organizations/")
+    response = client.get("/api/v1/organizations/?envelope=true")
 
     assert response.status_code == 200
     data = response.get_json()
@@ -168,7 +203,7 @@ def test_harvest_sources_collection_response_structure(client, interface):
     )
     interface.db.commit()
 
-    response = client.get("/api/v1/harvest_sources/")
+    response = client.get("/api/v1/harvest_sources/?envelope=true")
 
     assert response.status_code == 200
     data = response.get_json()
@@ -180,7 +215,7 @@ def test_harvest_sources_collection_response_structure(client, interface):
 
 def test_harvest_records_collection_response_structure(client):
     """Test harvest records endpoint returns structured response (404 when no data)."""
-    response = client.get("/api/v1/harvest_records/")
+    response = client.get("/api/v1/harvest_records/?envelope=true")
     assert response.status_code == 404
 
 
@@ -189,7 +224,7 @@ def test_harvest_job_errors_collection_response_structure(client):
 
     Returns 404 when no data.
     """
-    response = client.get("/api/v1/harvest_job_errors/")
+    response = client.get("/api/v1/harvest_job_errors/?envelope=true")
     assert response.status_code == 404
 
 
@@ -198,7 +233,7 @@ def test_harvest_record_errors_collection_response_structure(client):
 
     Returns 404 when no data.
     """
-    response = client.get("/api/v1/harvest_record_errors/")
+    response = client.get("/api/v1/harvest_record_errors/?envelope=true")
     assert response.status_code == 404
 
 
@@ -227,7 +262,9 @@ def test_collection_response_with_facets(client, interface):
     interface.add_harvest_job({"harvest_source_id": source.id, "status": "error"})
     interface.db.commit()
 
-    response = client.get("/api/v1/harvest_jobs/?facets=status eq complete")
+    response = client.get(
+        "/api/v1/harvest_jobs/?facets=status eq complete&envelope=true"
+    )
 
     assert response.status_code == 200
     data = response.get_json()
@@ -235,3 +272,217 @@ def test_collection_response_with_facets(client, interface):
     assert "data" in data
     assert len(data["data"]) == 1
     assert data["meta"]["total"] == 1
+
+
+def test_pagination_clamps_per_page_to_max(client, interface):
+    """Test that per_page is clamped to 100 max."""
+    org = interface.add_organization(
+        {
+            "name": "Test Org",
+            "organization_type": "Federal Government",
+            "slug": "test-org",
+        }
+    )
+    source = interface.add_harvest_source(
+        {
+            "name": "Test Source",
+            "organization_id": org.id,
+            "notification_emails": [],
+            "frequency": "manual",
+            "notification_frequency": "on_error",
+            "url": "http://example.com",
+            "schema_type": "dcatus1.1: federal",
+            "source_type": "document",
+        }
+    )
+    for i in range(150):
+        interface.add_harvest_job(
+            {"harvest_source_id": source.id, "status": "complete"}
+        )
+    interface.db.commit()
+
+    response = client.get("/api/v1/harvest_jobs/?per_page=500&envelope=true")
+    assert response.status_code == 200
+    data = response.get_json()
+
+    assert data["meta"]["per_page"] == 100
+    assert len(data["data"]) == 100
+    assert data["links"]["next"] is not None
+
+
+def test_pagination_false_reports_single_page(client, interface):
+    """Test that paginate=false is treated as a single page."""
+    org = interface.add_organization(
+        {
+            "name": "Test Org",
+            "organization_type": "Federal Government",
+            "slug": "test-org",
+        }
+    )
+    source = interface.add_harvest_source(
+        {
+            "name": "Test Source",
+            "organization_id": org.id,
+            "notification_emails": [],
+            "frequency": "manual",
+            "notification_frequency": "on_error",
+            "url": "http://example.com",
+            "schema_type": "dcatus1.1: federal",
+            "source_type": "document",
+        }
+    )
+    for i in range(25):
+        interface.add_harvest_job(
+            {"harvest_source_id": source.id, "status": "complete"}
+        )
+    interface.db.commit()
+
+    response = client.get("/api/v1/harvest_jobs/?paginate=false&envelope=true")
+    assert response.status_code == 200
+    data = response.get_json()
+
+    assert data["meta"]["per_page"] == 25
+    assert len(data["data"]) == 25
+    assert data["links"]["next"] is None
+
+
+def test_negative_page_clamped_to_zero(client, interface):
+    """Test that negative page numbers are clamped to 0."""
+    org = interface.add_organization(
+        {
+            "name": "Test Org",
+            "organization_type": "Federal Government",
+            "slug": "test-org",
+        }
+    )
+    source = interface.add_harvest_source(
+        {
+            "name": "Test Source",
+            "organization_id": org.id,
+            "notification_emails": [],
+            "frequency": "manual",
+            "notification_frequency": "on_error",
+            "url": "http://example.com",
+            "schema_type": "dcatus1.1: federal",
+            "source_type": "document",
+        }
+    )
+    interface.add_harvest_job({"harvest_source_id": source.id, "status": "complete"})
+    interface.db.commit()
+
+    response = client.get("/api/v1/harvest_jobs/?page=-1&envelope=true")
+    assert response.status_code == 200
+    data = response.get_json()
+
+    assert data["meta"]["page"] == 0
+
+
+def test_order_by_default_reports_date_created(client, interface):
+    """Test that default ordering reports the actual column (date_created)."""
+    org = interface.add_organization(
+        {
+            "name": "Test Org",
+            "organization_type": "Federal Government",
+            "slug": "test-org",
+        }
+    )
+    source = interface.add_harvest_source(
+        {
+            "name": "Test Source",
+            "organization_id": org.id,
+            "notification_emails": [],
+            "frequency": "manual",
+            "notification_frequency": "on_error",
+            "url": "http://example.com",
+            "schema_type": "dcatus1.1: federal",
+            "source_type": "document",
+        }
+    )
+    interface.add_harvest_job({"harvest_source_id": source.id, "status": "complete"})
+    interface.db.commit()
+
+    response = client.get("/api/v1/harvest_jobs/?envelope=true")
+    assert response.status_code == 200
+    data = response.get_json()
+
+    assert data["meta"]["order_by"] == "date_created"
+
+
+def test_order_by_desc_reports_descending_date_created(client, interface):
+    """Test that order_by=desc reports -date_created."""
+    org = interface.add_organization(
+        {
+            "name": "Test Org",
+            "organization_type": "Federal Government",
+            "slug": "test-org",
+        }
+    )
+    source = interface.add_harvest_source(
+        {
+            "name": "Test Source",
+            "organization_id": org.id,
+            "notification_emails": [],
+            "frequency": "manual",
+            "notification_frequency": "on_error",
+            "url": "http://example.com",
+            "schema_type": "dcatus1.1: federal",
+            "source_type": "document",
+        }
+    )
+    interface.add_harvest_job({"harvest_source_id": source.id, "status": "complete"})
+    interface.db.commit()
+
+    response = client.get("/api/v1/harvest_jobs/?order_by=desc&envelope=true")
+    assert response.status_code == 200
+    data = response.get_json()
+
+    assert data["meta"]["order_by"] == "-date_created"
+
+
+def test_order_by_explicit_column(client, interface):
+    """Test that explicit column ordering is reported correctly."""
+    org = interface.add_organization(
+        {
+            "name": "Test Org",
+            "organization_type": "Federal Government",
+            "slug": "test-org",
+        }
+    )
+    source = interface.add_harvest_source(
+        {
+            "name": "Test Source",
+            "organization_id": org.id,
+            "notification_emails": [],
+            "frequency": "manual",
+            "notification_frequency": "on_error",
+            "url": "http://example.com",
+            "schema_type": "dcatus1.1: federal",
+            "source_type": "document",
+        }
+    )
+    interface.add_harvest_job({"harvest_source_id": source.id, "status": "complete"})
+    interface.db.commit()
+
+    response = client.get("/api/v1/harvest_jobs/?order_by=-status&envelope=true")
+    assert response.status_code == 200
+    data = response.get_json()
+
+    assert data["meta"]["order_by"] == "-status"
+
+
+def test_order_by_organizations_defaults_to_name(client, interface):
+    """Test that organizations default to name column."""
+    interface.add_organization(
+        {
+            "name": "Test Org",
+            "organization_type": "Federal Government",
+            "slug": "test-org",
+        }
+    )
+    interface.db.commit()
+
+    response = client.get("/api/v1/organizations/?envelope=true")
+    assert response.status_code == 200
+    data = response.get_json()
+
+    assert data["meta"]["order_by"] == "name"

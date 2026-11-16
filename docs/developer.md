@@ -98,6 +98,23 @@ We use [Ruff](https://github.com/astral-sh/ruff) to format and lint our Python f
  - Create a branch from `main`. We prefer short descriptive branch names.
  - To test changes in the `development` space in Cloud.gov, merge changes into the `develop` branch. Coordinate with other developers by announcing your plans in #datagov-devsecops.
 
+## Alert banners
+
+Every `flash()` call passes an explicit category, and
+`app/templates/components/alert.j2` is the only place that maps a category to
+a USWDS alert class:
+
+| Category  | Color  | Use for                                                    |
+|-----------|--------|------------------------------------------------------------|
+| `success` | green  | the requested action completed                             |
+| `warning` | yellow | partial success, a non-fatal problem, or nothing changed   |
+| `error`   | red    | the action failed, or the input or link was invalid        |
+| `info`    | blue   | neutral information that reports no action outcome         |
+
+`LoadManager` methods that report to the UI (`trigger_manual_job`,
+`start_job`, `stop_job`) return a `(message, category)` tuple, so callers can
+flash the message without parsing it.
+
 ## DCAT-US 3.0 schemas
 
 The DCAT-US 3.0 JSON Schemas are **not in this repo**. They come from
@@ -368,9 +385,9 @@ Locally, `docker compose` runs it as the `validator` service, plus a `proxy` ser
 
 #### Validator egress proxy
 
-The validator fetches through its own [cg-egress-proxy](https://github.com/GSA-TTS/cg-egress-proxy), separate from the admin app's. It allows every domain (the admin app's proxy uses the per-space allow list), denies private ranges, and allows HTTPS (port 443) only. Like the harvester, the validator picks the proxy up from `https_proxy`/`http_proxy`, which `.profile` sets from `proxy_url`; with it unset, fetches go direct.
+The validator fetches through its own [cg-egress-proxy](https://github.com/GSA-TTS/cg-egress-proxy), separate from the admin app's. It allows every domain (the admin app's proxy uses the per-space allow list) and HTTPS (port 443) only; the egress space's security groups keep it off private networks. Like the harvester, the validator picks the proxy up from `https_proxy`/`http_proxy`, which `.profile` sets from `proxy_url`; with it unset, fetches go direct.
 
-Its lists live in GSA/data.gov (`egress/acl/datagov-harvest-validator.allow.acl` and `.deny.acl`, explained in that repo's `egress/README.md`). It's deployed per space by that repo's "enable egress proxy" workflow: choose `datagov-harvest-validator` and the space. The workflow runs `cf-deployproxy`, which:
+Its lists live in GSA/data.gov (`egress/acl/datagov-harvest-validator.<space>.allow.acl` and `.deny.acl`, explained in that repo's `egress/README.md`). It's deployed per space by that repo's "enable egress proxy" workflow: choose `datagov-harvest-validator` and the space. The workflow runs `cf-deployproxy`, which:
 - pushes `proxy-gsa-datagov-<space>-datagov-harvest-validator` to `<space>-egress`;
 - adds the network policy from the validator to it;
 - sets `proxy_url` on the validator and restarts it.

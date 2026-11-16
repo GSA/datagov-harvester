@@ -289,8 +289,8 @@ class TestViewHarvestJob:
 
         assert resp.text.count("mixed-issue-record-001") == 1
         assert resp.text.count('class="issue-section"') == 2
-        assert "usa-tag bg-error-dark text-white" in resp.text
-        assert "usa-tag bg-warning" in resp.text
+        assert "usa-tag issue-tag--error" in resp.text
+        assert "usa-tag issue-tag--warning" in resp.text
         assert "record is invalid" in resp.text
         assert "keyword appears twice" in resp.text
 
@@ -332,6 +332,34 @@ class TestViewHarvestJob:
         assert resp.text.count('class="issue-section"') == 1
         assert "first duplicate keyword" in resp.text
         assert "second duplicate keyword" in resp.text
+
+    def test_record_issue_messages_are_html_escaped(self, client, interface, job):
+        harvest_record = interface.add_harvest_record(
+            {
+                "harvest_job_id": job.id,
+                "harvest_source_id": job.source.id,
+                "identifier": "escape-record-001",
+                "status": "error",
+            }
+        )
+        for message in [
+            "<ValidationError: \"$.landingPage, 'ADD ME' is not a uri\">",
+            '<ValidationError: "$.title is required">',
+        ]:
+            interface.add_harvest_record_error(
+                {
+                    "harvest_job_id": job.id,
+                    "harvest_record_id": harvest_record.id,
+                    "type": "ValidationException",
+                    "message": message,
+                    "severity": "error",
+                }
+            )
+
+        resp = client.get(f"/harvest_job/{job.id}")
+
+        assert "<ValidationError" not in resp.text
+        assert "&lt;ValidationError" in resp.text
 
     def test_job_accept_json(self, client, job_with_many_errors):
         resp = client.get(

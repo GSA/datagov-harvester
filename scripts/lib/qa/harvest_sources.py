@@ -33,7 +33,7 @@ class HarvestSources(OutputBase):
                 "&fq=collection_package_id:*%20OR%20"
             )
         else:
-            self.harvest_sources_url = "https://datagov-harvest.app.cloud.gov/api/harvest_sources/?paginate=false"
+            self.harvest_sources_url = "https://datagov-harvest.app.cloud.gov/api/harvest_sources/?paginate=false&envelope=true"
             self.harvest_sources_dset_count_url = (
                 f"{CATALOG_NEXT_BASE_URL}/api/action/package_search"
                 f"?facet.field=%5B%22harvest_source_title%22%5D&facet.limit=-1"
@@ -46,7 +46,11 @@ class HarvestSources(OutputBase):
             if self.source_type == "catalog":
                 self.sources = res.json()["result"]["results"]
             else:
-                self.sources = res.json()
+                response_data = res.json()
+                if isinstance(response_data, dict) and "data" in response_data:
+                    self.sources = response_data["data"]
+                else:
+                    self.sources = response_data
         self.sources = {source["name"]: source for source in self.sources}
 
     def map_names_and_titles(self, harvest_counts):

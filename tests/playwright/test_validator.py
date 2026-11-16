@@ -1,7 +1,16 @@
+import gc
+import json
 import os
+import re
 
 import pytest
+import requests
 from playwright.sync_api import expect
+
+from dcatus_validation.fetch import PAYLOAD_TOO_LARGE_MESSAGE
+from dcatus_validation.limits import MAX_UPLOAD_BYTES
+from tests.conftest import EXAMPLE_DATA
+from tests.utils.large_catalog import FEDERAL, write_catalog
 
 is_prod = os.getenv("FLASK_ENV") == "production"
 
@@ -12,6 +21,7 @@ is_prod = os.getenv("FLASK_ENV") == "production"
 PROXY_ORIGIN = f"http://localhost:{os.getenv('PROXY_PORT', '8082')}"
 VALIDATOR_PROXY_URL = f"{PROXY_ORIGIN}/validate/"
 VALIDATE_API_URL = f"{PROXY_ORIGIN}/api/v1/validate"
+EXAMPLE_DIR = EXAMPLE_DATA / "dcatus"
 
 
 @pytest.fixture()
@@ -25,10 +35,9 @@ class TestValidator:
         """
         basic run of the validator form using default values and fetching via url
         """
-        # schema
-        expect(upage.locator("select[name=schema]")).to_have_value(
-            "dcatus1.1: federal dataset"
-        )
+        # schema defaults to DCAT-US 3.0
+        expect(upage.locator("select[name=schema]")).to_have_value("dcatus3.0 catalog")
+        upage.locator("select[name=schema]").select_option("dcatus1.1: federal dataset")
         # fetch_method
         expect(upage.locator("select[name=fetch_method]")).to_have_value("url")
 
@@ -45,9 +54,10 @@ class TestValidator:
 
         upage.locator("input[type=submit]").click()
 
-        # error table should be visible and with 5 validation errors
-        expect(upage.locator(".error-list")).to_be_visible()
-        expect(upage.locator(".error-block")).to_have_count(5)
+        # the 5 errors are all on one dataset, so one block lists all 5
+        expect(upage.locator("#record-issues")).to_be_visible()
+        expect(upage.locator("#record-issues .error-block")).to_have_count(1)
+        expect(upage.locator("#record-issues .error-block li")).to_have_count(5)
 
     def test_ui_validate_by_json(self, upage, dcatus_long_description_json):
         """
@@ -59,11 +69,12 @@ class TestValidator:
         # add a test dcatus doc
         upage.locator("textarea[name=json_text]").fill(dcatus_long_description_json)
 
+        upage.locator("select[name=schema]").select_option("dcatus1.1: federal dataset")
         upage.locator("input[type=submit]").click()
 
         # error table should be visible and with 5 validation errors
-        expect(upage.locator(".error-list")).to_be_visible()
-        expect(upage.locator(".error-block")).to_have_count(1)
+        expect(upage.locator("#record-issues")).to_be_visible()
+        expect(upage.locator("#record-issues .error-block")).to_have_count(1)
 
     def test_ui_validate_by_json_dcatus3(
         self, upage, dcatus_3_catalog_missing_identifier
@@ -84,8 +95,8 @@ class TestValidator:
         upage.locator("input[type=submit]").click()
 
         # error table should be visible and with 5 validation errors
-        expect(upage.locator(".error-list")).to_be_visible()
-        expect(upage.locator(".error-block")).to_have_count(1)
+        expect(upage.locator("#record-issues")).to_be_visible()
+        expect(upage.locator("#record-issues .error-block")).to_have_count(1)
 
     def test_download_button_triggers_csv(self, upage, dcatus_many_invalid_json):
         """
@@ -96,9 +107,8 @@ class TestValidator:
         upage.locator("textarea[name=json_text]").fill(dcatus_many_invalid_json)
         upage.locator("input[type=submit]").click()
 
-        # Confirm we have more errors than the display cap so the button is present.
-        error_blocks = upage.locator(".error-block")
-        expect(error_blocks).to_have_count(10)  # only first 10 are rendered
+        # every error is on the one dataset, so it's a single block
+        expect(upage.locator("#record-issues .error-block")).to_have_count(1)
         expect(upage.locator("#btn-download")).to_be_visible()
 
         # Download triggered by the button click.
@@ -116,6 +126,53 @@ class TestValidator:
         assert len(lines) > 1, "CSV should contain at least one error row"
         for line in lines[1:]:
             assert line.count('"') >= 4, f"Malformed CSV row: {line}"
+
+    def test_ui_shows_warnings_with_summary_and_csv(self, upage):
+        """Errors and warnings share one summary table and the job page's issue
+        blocks; warnings have their own CSV (GSA/data.gov#6380)."""
+        upage.locator("select[name=fetch_method]").select_option("paste")
+        upage.locator("select[name=schema]").select_option("dcatus3.0 catalog")
+        upage.locator("textarea[name=json_text]").fill(
+            (EXAMPLE_DIR / "dcatus3_0_validator_parity.json").read_text()
+        )
+        upage.locator("input[type=submit]").click()
+
+        # one block per record, like the job page: 2 duplicates (errors, as at
+        # harvest time) and 4 warnings across 4 records
+        blocks = upage.locator("#record-issues .error-block")
+        expect(blocks).to_have_count(4)
+        expect(upage.locator("#record-issues .issue-tag--error")).to_have_count(2)
+
+        # one summary for errors and warnings, like the harvest job page's
+        summary = upage.locator("#issue-summary tbody tr")
+        expect(summary).to_have_count(4)
+        expect(summary.first).to_have_text(
+            re.compile(r"error\s*DuplicateIdentifierException\s*2")
+        )
+        expect(summary.nth(1)).to_contain_text("SpatialTransformationException")
+        # a record's two spatial warnings of different types are two sections
+        expect(upage.locator("#record-issues .issue-tag--warning")).to_have_count(4)
+        # warnings carry the record's title, as job-page blocks do
+        expect(blocks.filter(has_text="parity/bad-geometry")).to_contain_text(
+            "Title: Unparseable Geometry"
+        )
+
+        with upage.expect_download() as download_info:
+            upage.locator("#btn-download-warnings").click()
+
+        download = download_info.value
+        assert download.suggested_filename == "validation_warnings.csv"
+        lines = download.path().read_text(encoding="utf-8").strip().splitlines()
+        assert lines[0] == '"Identifier","Record type","Warning type","Message"'
+        assert len(lines) == 5
+
+    def test_ui_reports_no_warnings(self, upage, dcatus_long_description_json):
+        upage.locator("select[name=fetch_method]").select_option("paste")
+        upage.locator("textarea[name=json_text]").fill(dcatus_long_description_json)
+        upage.locator("input[type=submit]").click()
+
+        expect(upage.get_by_text("No warnings found")).to_be_visible()
+        expect(upage.locator("#btn-download-warnings")).to_have_count(0)
 
     def test_ui_upload_field_hidden_by_default(self, upage):
         """
@@ -150,10 +207,11 @@ class TestValidator:
         upage.locator("input[type=file][name=json_file]").set_input_files(
             str(json_file)
         )
+        upage.locator("select[name=schema]").select_option("dcatus1.1: federal dataset")
         upage.locator("input[type=submit]").click()
 
-        expect(upage.locator(".error-list")).to_be_visible()
-        expect(upage.locator(".error-block")).to_have_count(1)
+        expect(upage.locator("#record-issues")).to_be_visible()
+        expect(upage.locator("#record-issues .error-block")).to_have_count(1)
 
     def test_ui_upload_rejects_non_json_extension(self, upage, tmp_path):
         """
@@ -170,7 +228,7 @@ class TestValidator:
         expect(upage.locator("#upload_field .usa-error-message")).to_have_text(
             "Only .json files are accepted."
         )
-        expect(upage.locator(".error-list")).not_to_be_visible()
+        expect(upage.locator("#record-issues")).not_to_be_visible()
 
     def test_ui_upload_invalid_json_content(self, upage, tmp_path):
         """
@@ -189,24 +247,28 @@ class TestValidator:
         expect(upage.locator("#upload_field .usa-error-message")).to_have_text(
             "Invalid JSON at line 1, column 1."
         )
-        expect(upage.locator(".error-list")).not_to_be_visible()
+        expect(upage.locator("#record-issues")).not_to_be_visible()
 
     def test_ui_shows_the_upload_size_limit(self, upage):
         """The form advertises the limit it enforces."""
         upage.locator("select[name=fetch_method]").select_option("upload")
-        expect(upage.locator("#json_file-hint")).to_have_text("Maximum size: 10 MB.")
+        expect(upage.locator("#json_file-hint")).to_have_text("Maximum size: 150 MB.")
 
         upage.locator("select[name=fetch_method]").select_option("paste")
-        expect(upage.locator("#json_text-hint")).to_have_text("Maximum size: 10 MB.")
+        expect(upage.locator("#json_text-hint")).to_have_text("Maximum size: 150 MB.")
+        assert upage.evaluate("window.MAX_UPLOAD_BYTES") == 150 * 1024 * 1024
 
     def test_ui_upload_rejects_file_exceeding_size_limit(self, upage):
-        """Refused client-side: inline error, nothing uploaded."""
+        """Refused client-side: inline error, nothing uploaded. The page's
+        limit is lowered so the test needn't push a 150MB file into the
+        browser; test_ui_shows_the_upload_size_limit pins the real one."""
+        upage.evaluate("window.MAX_UPLOAD_BYTES = 1024")
         upage.locator("select[name=fetch_method]").select_option("upload")
         upage.locator("input[type=file][name=json_file]").set_input_files(
             {
                 "name": "large.json",
                 "mimeType": "application/json",
-                "buffer": b"x" * (11 * 1024 * 1024),  # 11MB, over the 10MB cap
+                "buffer": b"x" * 1025,  # one byte over the lowered limit
             }
         )
 
@@ -215,38 +277,38 @@ class TestValidator:
         upage.locator("input[type=submit]").click()
 
         expect(upage.locator("#upload_field .usa-error-message")).to_have_text(
-            "File is too large. Maximum size is 10 MB."
+            "File is too large. Maximum size is 150 MB."
         )
         assert upage.evaluate("window.__sameDocument") is True
 
     def test_ui_paste_rejects_json_exceeding_size_limit(self, upage):
-        """Same guard on the paste path, measured in bytes."""
+        """Same guard on the paste path, measured in bytes: 513 two-byte
+        characters are under the lowered limit in characters, over it in
+        bytes."""
+        upage.evaluate("window.MAX_UPLOAD_BYTES = 1024")
         upage.locator("select[name=fetch_method]").select_option("paste")
-        upage.evaluate(
-            "document.getElementById('json_text').value = 'x'.repeat(11 * 1024 * 1024)"
-        )
+        upage.evaluate("document.getElementById('json_text').value = 'é'.repeat(513)")
 
         upage.evaluate("window.__sameDocument = true")
         upage.locator("input[type=submit]").click()
 
         expect(upage.locator("#json_field .usa-error-message")).to_have_text(
-            "Pasted JSON is too large. Maximum size is 10 MB."
+            "Pasted JSON is too large. Maximum size is 150 MB."
         )
         assert upage.evaluate("window.__sameDocument") is True
 
     def test_ui_paste_near_the_limit_reaches_the_validator(self, upage):
         """
-        A document under the 10MB cap is sent JSON-escaped inside json_text,
-        which can grow the request past the proxy's general 12M body limit;
-        the validate route has to allow more (proxy/nginx-common.conf,
-        nginx-local-proxy.conf) or nginx refuses it before the validator sees it.
+        A paste bigger than the proxy's general 12M body limit reaches the
+        validator: the validate routes allow more (proxy/nginx-common.conf,
+        nginx-local-proxy.conf), or nginx would refuse it first.
         """
         upage.locator("select[name=fetch_method]").select_option("paste")
-        # ~8.5MB of mostly quotes, so escaping makes the request ~14MB
+        # ~13MB, sent as the request body itself
         upage.evaluate("""document.getElementById('json_text').value =
-                '{"dataset": [], "padding": [' + '"",'.repeat(2900000) + '""]}'""")
-        # The submit handler serializes ~8.5MB on the main thread, which can
-        # outlast the 2.5s default on a slow CI runner.
+                '{"dataset": [], "padding": [' + '"",'.repeat(4400000) + '""]}'""")
+        # Encoding ~13MB for the request can outlast the 2.5s default on a
+        # slow CI runner.
         upage.locator("input[type=submit]").click(timeout=30000)
 
         expect(upage.locator("#validator-results h2")).to_have_text(
@@ -285,7 +347,36 @@ class TestValidator:
         upage.locator("input[type=submit]").click()
 
         expect(upage.locator(f"{field} .usa-error-message")).to_have_text(message)
-        assert not [url for url in requests if url.endswith("/api/v1/validate")]
+        assert not [url for url in requests if "/api/v1/validate" in url]
+
+    def test_ui_upload_sends_the_file_itself(
+        self, upage, dcatus_long_description_json, tmp_path
+    ):
+        """GSA/data.gov#6460: the page sends an uploaded file as the request
+        body, untouched, so the browser never reads it into a JS string or
+        JSON-escapes it."""
+        content = dcatus_long_description_json.encode("utf-8")
+        json_file = tmp_path / "catalog.json"
+        json_file.write_bytes(content)
+        sent = []
+        upage.on(
+            "request",
+            lambda req: sent.append(req) if "/api/v1/validate" in req.url else None,
+        )
+
+        upage.locator("select[name=fetch_method]").select_option("upload")
+        upage.locator("input[type=file][name=json_file]").set_input_files(
+            str(json_file)
+        )
+        upage.locator("input[type=submit]").click()
+
+        expect(upage.locator(".error-block")).to_have_count(1)
+        [request] = sent
+        assert "/api/v1/validate/document?" in request.url
+        assert "fetch_method=upload" in request.url
+        # Playwright doesn't expose a File body, but its length shows it went
+        # as is: not JSON-escaped inside json_text.
+        assert request.all_headers()["content-length"] == str(len(content))
 
     def test_ui_upload_utf16_file(self, upage, dcatus_long_description_json, tmp_path):
         """UTF-16 with a BOM decodes the way json.loads(bytes) used to accept it."""
@@ -296,9 +387,10 @@ class TestValidator:
         upage.locator("input[type=file][name=json_file]").set_input_files(
             str(json_file)
         )
+        upage.locator("select[name=schema]").select_option("dcatus1.1: federal dataset")
         upage.locator("input[type=submit]").click()
 
-        expect(upage.locator(".error-block")).to_have_count(1)
+        expect(upage.locator("#record-issues .error-block")).to_have_count(1)
 
     def test_ui_dcatus3_info(self, upage):
         """
@@ -318,7 +410,11 @@ class TestValidatorApi:
         assert res.status == 200
         assert res.headers["x-served-by"] == "datagov-harvest-validator"
         assert res.json() == {
-            "validation_errors": [[0, "$, 'identifier' is a required property"]]
+            "validation_errors": [[0, "$, 'identifier' is a required property"]],
+            "validation_warnings": [],
+            "issue_summary": [
+                {"severity": "error", "type": "ValidationException", "count": 1}
+            ],
         }
 
     def test_api_validate_by_bad_url(self, upage, validator_api_url):
@@ -343,7 +439,11 @@ class TestValidatorApi:
                     "https://www.arcgis.com/home/item.html?id=99731bb0369848169d98f31ce83fb0e2",
                     "$.license, 'center' does not match any of the acceptable formats: 'uri', 'null', '^(\\\\[\\\\[REDACTED).*?(\\\\]\\\\])$'",
                 ]
-            ]
+            ],
+            "validation_warnings": [],
+            "issue_summary": [
+                {"severity": "error", "type": "ValidationException", "count": 1}
+            ],
         }
 
     def test_unversioned_path_redirects(self, upage, validator_api_json):
@@ -362,7 +462,8 @@ class TestValidatorApi:
         expect(unauthed_page.get_by_role("heading", level=1)).to_contain_text(
             "Datagov Validator"
         )
-        expect(unauthed_page.locator(".opblock-post")).to_have_count(1)
+        # /validate and /validate/document
+        expect(unauthed_page.locator(".opblock-post")).to_have_count(2)
         # "Try it out" must go through the proxy, like every other caller
         expect(unauthed_page.locator(".servers select")).to_have_value(PROXY_ORIGIN)
 
@@ -406,8 +507,17 @@ class TestValidatorApiResponses:
                 413,
                 "text/html",
                 "<html><body><h1>413 Request Entity Too Large</h1></body></html>",
-                "Submission is too large. Maximum size is 10 MB.",
+                "Submission is too large. Maximum size is 150 MB.",
             ),
+            (
+                503,
+                "application/json",
+                '{"error": "The validator is busy with another large catalog. '
+                'Please try again in a minute."}',
+                "The validator is busy with another large catalog. "
+                "Please try again in a minute.",
+            ),
+            (503, "text/html", "<html>Service Unavailable</html>", UNAVAILABLE),
             (502, "text/html", "<html>Bad Gateway</html>", UNAVAILABLE),
             (500, "application/json", '{"error": "internal detail"}', UNAVAILABLE),
             (200, "application/json", '{"unexpected": "shape"}', UNAVAILABLE),
@@ -425,7 +535,7 @@ class TestValidatorApiResponses:
         self._submit_url(upage)
 
         expect(upage.locator("#url_field .usa-error-message")).to_have_text(message)
-        expect(upage.locator(".error-list")).to_have_count(0)
+        expect(upage.locator("#record-issues")).to_have_count(0)
 
     def test_dropped_connection_is_reported_generically(self, upage):
         upage.route("**/api/v1/validate", lambda route: route.abort())
@@ -449,7 +559,7 @@ class TestValidatorApiResponses:
         )
         self._submit_url(upage)
 
-        blocks = upage.locator(".error-block")
+        blocks = upage.locator("#record-issues .error-block")
         expect(blocks).to_have_count(2)
         expect(blocks.nth(0)).to_contain_text("0 (dataset position)")
         expect(blocks.nth(1)).to_contain_text("<img src=x onerror=alert(1)>")
@@ -469,10 +579,54 @@ class TestValidatorApiResponses:
         self._submit_url(upage)
 
         expect(upage.locator("#validator-results")).to_contain_text(
-            "Validation stopped early."
+            "Stopped at 1 error."
         )
         expect(upage.locator("#validator-results")).to_contain_text(
-            "Fix the reported errors and validate again"
+            "Fix these and validate again to find the rest."
+        )
+
+    def _mock_warnings(self, upage, count, incomplete):
+        warning = {
+            "identifier": "a",
+            "record_type": "dataset",
+            "warning_type": "invalid_tel",
+            "message": "m",
+        }
+        body = {
+            "validation_errors": [],
+            "validation_warnings": [warning] * count,
+            "warnings_incomplete": incomplete,
+        }
+        upage.route(
+            "**/api/v1/validate",
+            lambda route: route.fulfill(
+                status=200, content_type="application/json", body=json.dumps(body)
+            ),
+        )
+        self._submit_url(upage)
+
+    def test_results_open_with_counts_and_limits(self, upage):
+        self._mock_warnings(upage, 3, False)
+
+        expect(upage.locator("#results-overview")).to_have_text(
+            "Found 0 errors and 3 warnings. The validator reports up to "
+            "1,000 errors and 1,000 warnings for each catalog."
+        )
+
+    def test_warning_limit_is_explained(self, upage):
+        self._mock_warnings(upage, 1000, True)
+
+        expect(upage.locator("#validator-results")).to_contain_text(
+            "Stopped at 1,000 warnings."
+        )
+
+    def test_warning_checks_skipping_records_is_explained(self, upage):
+        self._mock_warnings(upage, 1, True)
+
+        results = upage.locator("#validator-results")
+        expect(results).to_contain_text("Not every record was checked for warnings.")
+        expect(results).to_contain_text(
+            "Fix the reported errors and validate again to see the rest."
         )
 
     def test_fetch_method_is_locked_while_validating(self, upage):
@@ -515,3 +669,148 @@ class TestValidatorApiResponses:
         content = download_info.value.path().read_text(encoding="utf-8")
         assert "\"'=HYPERLINK(" in content
         assert '"\'@SUM(1,1)"' in content
+
+
+# Real-size submissions end to end: the browser and the HTTP request the
+# /validate/ page makes, through the local nginx proxy (nginx-local-proxy.conf)
+# to the validator container (GSA/data.gov#6460). Catalogs are generated at
+# test time under tmp_path and deleted before each test returns.
+# tests/integration/validator_api/test_large_uploads.py covers the same sizes
+# against the app directly, including URL fetches.
+
+
+MIB = 1024 * 1024
+# nginx's own client_max_body_size for the validate location.
+PROXY_BODY_LIMIT = 226 * MIB
+
+
+@pytest.fixture(autouse=True)
+def release_memory():
+    yield
+    gc.collect()
+
+
+@pytest.fixture
+def catalog_file(tmp_path):
+    written = []
+
+    def make(size):
+        path = tmp_path / f"catalog-{len(written)}.json"
+        written.append(path)
+        write_catalog(path, size)
+        return path
+
+    yield make
+    for path in written:
+        path.unlink(missing_ok=True)
+
+
+def _post_pasted(path):
+    """The request the page sends for a pasted or uploaded catalog."""
+    body = json.dumps(
+        {"schema": FEDERAL, "fetch_method": "paste", "json_text": path.read_text()}
+    ).encode()
+    path.unlink()
+    assert len(body) < PROXY_BODY_LIMIT
+    return requests.post(
+        VALIDATE_API_URL,
+        data=body,
+        headers={"Content-Type": "application/json"},
+        timeout=120,
+    )
+
+
+class TestLargeSubmissionsThroughTheProxy:
+    def test_a_valid_catalog_at_the_limit_is_validated(self, catalog_file):
+        res = _post_pasted(catalog_file(MAX_UPLOAD_BYTES))
+
+        assert res.status_code == 200
+        assert res.json() == {
+            "validation_errors": [],
+            "validation_warnings": [],
+            "issue_summary": [],
+        }
+
+    @pytest.mark.parametrize("size", [151 * MIB, 200 * MIB], ids=["151MB", "200MB"])
+    def test_a_catalog_over_the_limit_gets_the_validators_json_refusal(
+        self, catalog_file, size
+    ):
+        """Not nginx's bare 413: the body is within the proxy's limit, so the
+        validator answers, with its own message."""
+        res = _post_pasted(catalog_file(size))
+
+        assert res.status_code == 400
+        assert res.headers["Content-Type"].startswith("application/json")
+        assert res.json() == {"error": PAYLOAD_TOO_LARGE_MESSAGE}
+
+
+class TestCatalogAsTheBodyThroughTheProxy:
+    """/validate/document, how the page sends catalogs."""
+
+    @staticmethod
+    def _post(path):
+        with open(path, "rb") as body:
+            res = requests.post(
+                f"{VALIDATE_API_URL}/document",
+                params={"schema": FEDERAL, "fetch_method": "upload"},
+                data=body,
+                headers={"Content-Type": "application/json"},
+                timeout=120,
+            )
+        path.unlink()
+        return res
+
+    def test_a_valid_catalog_at_the_limit_is_validated(self, catalog_file):
+        res = self._post(catalog_file(MAX_UPLOAD_BYTES))
+
+        assert res.status_code == 200
+        assert res.json() == {
+            "validation_errors": [],
+            "validation_warnings": [],
+            "issue_summary": [],
+        }
+
+    def test_a_catalog_over_the_limit_gets_the_validators_json_refusal(
+        self, catalog_file
+    ):
+        res = self._post(catalog_file(200 * MIB))
+
+        assert res.status_code == 400
+        assert res.headers["Content-Type"].startswith("application/json")
+        assert res.json() == {"error": PAYLOAD_TOO_LARGE_MESSAGE}
+
+
+class TestLargeUploadsInTheBrowser:
+    @pytest.fixture
+    def upload_page(self, unauthed_page):
+        unauthed_page.goto(VALIDATOR_PROXY_URL)
+        # catalog_file writes DCAT-US 1.1 federal records; 3.0 is the default
+        unauthed_page.locator("select[name=schema]").select_option(FEDERAL)
+        unauthed_page.locator("select[name=fetch_method]").select_option("upload")
+        return unauthed_page
+
+    def test_a_valid_catalog_at_the_limit_is_uploaded_and_validated(
+        self, upload_page, catalog_file
+    ):
+        path = catalog_file(MAX_UPLOAD_BYTES)
+        upload_page.locator("input[type=file][name=json_file]").set_input_files(
+            str(path)
+        )
+        upload_page.locator("input[type=submit]").click(timeout=60000)
+
+        expect(upload_page.locator("#validator-results")).to_contain_text(
+            "No validation errors found", timeout=120000
+        )
+
+    def test_a_file_over_the_limit_is_refused_before_uploading(
+        self, upload_page, catalog_file
+    ):
+        path = catalog_file(MAX_UPLOAD_BYTES + 1)
+        upload_page.locator("input[type=file][name=json_file]").set_input_files(
+            str(path)
+        )
+        upload_page.locator("input[type=submit]").click()
+
+        expect(upload_page.locator("#upload_field .usa-error-message")).to_have_text(
+            "File is too large. Maximum size is 150 MB."
+        )

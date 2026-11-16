@@ -6,26 +6,15 @@ Draft202012Validator from `_external/dcat-us/jsonschema/definitions/`, so a
 future rule that duplicates a schema constraint fails at runtime.
 """
 
-import copy
-
 import pytest
 
-from dcatus_validation.messages import (
-    assemble_validation_errors,
-    build_dcatus3_validator,
-    open_json,
-)
-from dcatus_validation.schema_paths import (
-    DCATUS3_COMPLETE_EXAMPLE,
-    DCATUS3_DEFINITIONS_DIR,
-)
-from harvester.utils.dcat_warnings import detect_dcat_warnings
+from dcatus_validation.content_warnings import detect_dcat_warnings
+from dcatus_validation.messages import assemble_validation_errors
+from dcatus_validation.validate import record_validator
+from tests.conftest import dcatus3_complete_example
 
-DATASET_REF = "https://resources.data.gov/dcat-us/3.0.0/definitions/dataset"
-
-# Building the validator compiles every DCAT-US 3 definition; build it once
-# per module rather than once per test.
-VALIDATOR = build_dcatus3_validator(DCATUS3_DEFINITIONS_DIR, root_ref=DATASET_REF)
+# Compiles every DCAT-US 3 definition once; cached for the session.
+VALIDATOR = record_validator("dcatus3.0 catalog", "dataset")
 
 # The upstream complete example is schema-valid but not warning-free: its
 # vanity tel number ("+1-555-CLIMATE") already trips a warning (invalid_tel).
@@ -34,30 +23,14 @@ VALIDATOR = build_dcatus3_validator(DCATUS3_DEFINITIONS_DIR, root_ref=DATASET_RE
 # a record starts with zero warnings. (Its WKT `geometry` used to trip a
 # second baseline warning, unresolvable_spatial_value, until WKT support
 # landed in GSA/data.gov#6264.)
-#
-# Baseline warnings are deliberately *not* precomputed into a module-level
-# constant here (unlike VALIDATOR above). Detecting warnings can exercise
-# `translate_spatial`'s DB-backed lookup fallback, which tests/conftest.py's
-# autouse `default_function_fixture` only points at a safe, per-test,
-# rolled-back session once a test is actually running. Computing it at
-# import time (module collection, before any test/fixture runs) would
-# instead reach the real module-level `harvester.db_interface` and leak an
-# uncommitted transaction. So `_new_warning_types` recomputes the baseline
-# fresh on every call, inside the test.
-BASE_RECORD = open_json(DCATUS3_COMPLETE_EXAMPLE)
-
-
-def _record() -> dict:
-    """A fresh deep copy of the base record for a test to mutate."""
-    return copy.deepcopy(BASE_RECORD)
+BASELINE_WARNINGS = detect_dcat_warnings(dcatus3_complete_example())
 
 
 def _new_warning_types(mutated: dict) -> list:
     """Warning types produced by `mutated` that are not already produced by
     the unmutated base record."""
-    baseline = detect_dcat_warnings(BASE_RECORD)
     produced = detect_dcat_warnings(mutated)
-    return [w.warning_type for w in produced if w not in baseline]
+    return [w.warning_type for w in produced if w not in BASELINE_WARNINGS]
 
 
 def _schema_errors(mutated: dict) -> list:
@@ -246,7 +219,7 @@ WARNING_ON_CLEAN_DATA_CASES = [
 class TestWarningsOnlyFireOnSchemaCleanData:
     @pytest.mark.parametrize("mutate, expected_type", WARNING_ON_CLEAN_DATA_CASES)
     def test_warning_fires_without_a_schema_error(self, mutate, expected_type):
-        mutated = _record()
+        mutated = dcatus3_complete_example()
         mutate(mutated)
 
         # Would fail if a warning rule restated a schema constraint.
@@ -471,7 +444,7 @@ SCHEMA_VIOLATION_CASES = [
 class TestSchemaViolationsProduceNoWarning:
     @pytest.mark.parametrize("mutate", SCHEMA_VIOLATION_CASES)
     def test_schema_violation_has_no_matching_warning(self, mutate):
-        mutated = _record()
+        mutated = dcatus3_complete_example()
         mutate(mutated)
 
         assert _schema_errors(mutated), "mutation should be a schema violation"

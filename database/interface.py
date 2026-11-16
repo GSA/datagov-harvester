@@ -1,5 +1,6 @@
 import logging
 from datetime import datetime, timedelta, timezone
+from itertools import batched
 from typing import List, Optional
 
 import sqlalchemy.sql.operators as sa_operators
@@ -14,6 +15,7 @@ from sqlalchemy import (
     inspect,
     literal,
     text,
+    tuple_,
 )
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import NoResultFound
@@ -720,6 +722,10 @@ class HarvesterDBInterface:
                     harvest_source_id=record.harvest_source_id,
                     record_type=record.record_type,
                     identifier=record.identifier,
+                    harvest_record_id=error.harvest_record_id,
+                    severity=error.severity,
+                    type=error.type,
+                    date_created=error.date_created,
                 )
             )
             self.db.commit()
@@ -858,6 +864,10 @@ class HarvesterDBInterface:
                 HarvestRecord, HarvestRecord.id == HarvestRecordError.harvest_record_id
             )
             .filter(HarvestRecordError.harvest_job_id == job_id)
+            # explicit order, not implicit index-scan order: callers (e.g.
+            # tests asserting error insertion order) depend on a stable
+            # ordering that must not shift when the query plan changes.
+            .order_by(HarvestRecordError.date_created, HarvestRecordError.id)
         )
 
         if severity is not None:
@@ -986,6 +996,7 @@ class HarvesterDBInterface:
         record_type: str,
         identifier: str,
         harvest_record_id: str,
+        skip_types: tuple[str, ...] = (),
     ) -> bool:
         """Replace the current-state issues for this identifier with
         whatever harvest_record_id's issues are right now.
@@ -994,20 +1005,29 @@ class HarvesterDBInterface:
         this run's harvest_record_error rows for harvest_record_id. If the
         record now has no issues, this clears any carried-forward ones.
 
+        Issues whose type is in skip_types are neither cleared nor copied,
+        for types the caller manages per source rather than per record.
+
         Returns False on a DB error (and rolls back) instead of raising, so
         callers that process many identifiers in a loop can skip one and
         keep going; callers that need to know should check the return value.
         """
         try:
-            self.db.query(HarvestRecordCurrentIssue).filter_by(
-                harvest_source_id=harvest_source_id,
-                record_type=record_type,
-                identifier=identifier,
-            ).delete(synchronize_session=False)
-
+            stale = self.db.query(HarvestRecordCurrentIssue).filter(
+                HarvestRecordCurrentIssue.harvest_source_id == harvest_source_id,
+                HarvestRecordCurrentIssue.record_type == record_type,
+                HarvestRecordCurrentIssue.identifier == identifier,
+            )
             current_errors = self.db.query(HarvestRecordError).filter_by(
                 harvest_record_id=harvest_record_id
             )
+            if skip_types:
+                stale = stale.filter(HarvestRecordCurrentIssue.type.notin_(skip_types))
+                current_errors = current_errors.filter(
+                    HarvestRecordError.type.notin_(skip_types)
+                )
+            stale.delete(synchronize_session=False)
+
             for error in current_errors:
                 self.db.add(
                     HarvestRecordCurrentIssue(
@@ -1015,6 +1035,10 @@ class HarvesterDBInterface:
                         harvest_source_id=harvest_source_id,
                         record_type=record_type,
                         identifier=identifier,
+                        harvest_record_id=error.harvest_record_id,
+                        severity=error.severity,
+                        type=error.type,
+                        date_created=error.date_created,
                     )
                 )
             self.db.commit()
@@ -1023,6 +1047,78 @@ class HarvesterDBInterface:
             logger.error("Error: %s", e)
             self.db.rollback()
             return False
+
+    def clear_current_issues_by_type(
+        self, harvest_source_id: str, issue_type: str
+    ) -> None:
+        """Drop every outstanding issue of one type for a source."""
+        try:
+            self.db.query(HarvestRecordCurrentIssue).filter_by(
+                harvest_source_id=harvest_source_id,
+                type=issue_type,
+            ).delete(synchronize_session=False)
+            self.db.commit()
+        except Exception as e:
+            logger.error("Error: %s", e)
+            self.db.rollback()
+
+    def clear_current_issues_missing_from_source(
+        self,
+        harvest_source_id: str,
+        present_keys: set[tuple[str, str]],
+        keep_job_id: str,
+    ) -> int:
+        """Drop current issues for (identifier, record_type) pairs the source no
+        longer lists, and return how many pairs were cleared.
+
+        A record that disappears from the source normally loses its issues when
+        it's deleted, but only records whose last harvest succeeded are ever
+        deleted, so a record that only ever errored would keep its issues
+        forever. Issues written by keep_job_id are kept: they come from records
+        this job already handled, like ones without a harvestable identifier."""
+        issue = HarvestRecordCurrentIssue
+        try:
+            keys = {
+                (identifier, record_type)
+                for identifier, record_type in self.db.query(
+                    issue.identifier, issue.record_type
+                )
+                .filter(issue.harvest_source_id == harvest_source_id)
+                .distinct()
+            }
+            # Start from this job's records, not every issue: this runs before
+            # records are processed, so the job has written only a few.
+            kept = {
+                (identifier, record_type)
+                for identifier, record_type in self.db.query(
+                    issue.identifier, issue.record_type
+                )
+                .select_from(HarvestRecord)
+                .join(issue, issue.harvest_record_id == HarvestRecord.id)
+                .filter(
+                    HarvestRecord.harvest_job_id == keep_job_id,
+                    issue.harvest_source_id == harvest_source_id,
+                )
+                .distinct()
+            }
+            stale = keys - present_keys - kept
+            # Batched to stay under Postgres's bind-parameter limit: a clear
+            # job lists nothing, so every issue on the source is stale.
+            for batch in batched(stale, 500):
+                self.db.query(issue).filter(
+                    issue.harvest_source_id == harvest_source_id,
+                    tuple_(issue.identifier, issue.record_type).in_(batch),
+                ).delete(synchronize_session=False)
+            self.db.commit()
+            return len(stale)
+        except Exception as e:
+            logger.error(
+                "Error clearing current issues missing from source %s: %s",
+                harvest_source_id,
+                e,
+            )
+            self.db.rollback()
+            return 0
 
     def clear_current_record_issues(
         self, harvest_source_id: str, record_type: str, identifier: str
@@ -1051,25 +1147,22 @@ class HarvesterDBInterface:
         See get_harvest_record_errors_by_job_for_view for the two-step
         pagination-by-distinct-record approach this mirrors.
         """
-        # harvest_record_id/date_created/type/message/severity live on
-        # harvest_record_error; HarvestRecordCurrentIssue.id is that row's
-        # id (FK), so this join is always exactly one row per current-issue
-        # row.
-        record_ids_q = (
-            self.db.query(
-                HarvestRecordError.harvest_record_id.label("harvest_record_id"),
-                func.min(HarvestRecordError.date_created).label("first_seen"),
-            )
-            .select_from(HarvestRecordCurrentIssue)
-            .join(
-                HarvestRecordError,
-                HarvestRecordError.id == HarvestRecordCurrentIssue.id,
-            )
-            .filter(HarvestRecordCurrentIssue.harvest_source_id == harvest_source_id)
-        )
+        # harvest_record_id/date_created are denormalized onto
+        # HarvestRecordCurrentIssue (kept in sync at write time), so this
+        # stage never touches harvest_record_error: that table grows with
+        # every job ever run, while a source's current issues stay bounded
+        # by its own record count, and this runs on every page view.
+        record_ids_q = self.db.query(
+            HarvestRecordCurrentIssue.harvest_record_id.label("harvest_record_id"),
+            func.min(HarvestRecordCurrentIssue.date_created).label("first_seen"),
+        ).filter(HarvestRecordCurrentIssue.harvest_source_id == harvest_source_id)
         if severity is not None:
-            record_ids_q = record_ids_q.filter(HarvestRecordError.severity == severity)
-        record_ids_q = record_ids_q.group_by(HarvestRecordError.harvest_record_id)
+            record_ids_q = record_ids_q.filter(
+                HarvestRecordCurrentIssue.severity == severity
+            )
+        record_ids_q = record_ids_q.group_by(
+            HarvestRecordCurrentIssue.harvest_record_id
+        )
 
         if kwargs.get("count") is True:
             return self.db.query(record_ids_q.subquery())
@@ -1160,10 +1253,7 @@ class HarvesterDBInterface:
         )
 
         if severity is not None:
-            query = query.join(
-                HarvestRecordError,
-                HarvestRecordError.id == HarvestRecordCurrentIssue.id,
-            ).filter(HarvestRecordError.severity == severity)
+            query = query.filter(HarvestRecordCurrentIssue.severity == severity)
 
         for_view = kwargs.get("for_view", False)
         if for_view:
@@ -1176,25 +1266,61 @@ class HarvesterDBInterface:
     def get_record_issues_summary_by_source(self, harvest_source_id: str):
         """Get a summary of all current record issues for this source,
         grouped by severity."""
+        # severity/type are denormalized onto HarvestRecordCurrentIssue, so
+        # this never has to join harvest_record_error (see
+        # get_current_record_issues_by_source_for_view for why that matters).
         query = (
             self.db.query(
-                HarvestRecordError.severity,
-                HarvestRecordError.type,
+                HarvestRecordCurrentIssue.severity,
+                HarvestRecordCurrentIssue.type,
                 func.count(),
             )
-            .select_from(HarvestRecordCurrentIssue)
-            .join(
-                HarvestRecordError,
-                HarvestRecordError.id == HarvestRecordCurrentIssue.id,
-            )
             .where(HarvestRecordCurrentIssue.harvest_source_id == harvest_source_id)
-            .group_by(HarvestRecordError.severity, HarvestRecordError.type)
-            .order_by(HarvestRecordError.severity, HarvestRecordError.type)
+            .group_by(
+                HarvestRecordCurrentIssue.severity, HarvestRecordCurrentIssue.type
+            )
+            .order_by(
+                HarvestRecordCurrentIssue.severity, HarvestRecordCurrentIssue.type
+            )
         )
         return [
             {"severity": severity, "type": error_type, "count": error_count}
             for severity, error_type, error_count in query
         ]
+
+    def stream_current_record_issues_by_source(
+        self, harvest_source_id: str, batch_size=1000
+    ):
+        """Stream current-state record issues for CSV export without
+        OFFSET pagination. See stream_harvest_record_errors_by_job for the
+        job-scoped equivalent.
+        """
+        query = text("""
+            SELECT
+                harvest_record_error.id,
+                harvest_record_current_issue.identifier,
+                CASE
+                    WHEN left(ltrim(harvest_record.source_raw), 1) IN ('{', '[')
+                    THEN harvest_record.source_raw
+                    ELSE NULL
+                END AS source_raw,
+                harvest_record_error.harvest_record_id,
+                harvest_record_error.type,
+                harvest_record_error.severity,
+                harvest_record_error.message,
+                harvest_record_error.date_created
+            FROM harvest_record_current_issue
+            JOIN harvest_record_error
+                ON harvest_record_error.id = harvest_record_current_issue.id
+            LEFT OUTER JOIN harvest_record
+                ON harvest_record.id = harvest_record_error.harvest_record_id
+            WHERE harvest_record_current_issue.harvest_source_id = :harvest_source_id
+        """)
+        return (
+            self.db.execute(query, {"harvest_source_id": harvest_source_id})
+            .mappings()
+            .yield_per(batch_size)
+        )
 
     ## HARVEST RECORD
     def add_harvest_record(self, record_data):
@@ -1306,24 +1432,41 @@ class HarvesterDBInterface:
 
     def upsert_dataset(self, dataset_data: dict):
         slug = dataset_data.get("slug")
+        source_id = dataset_data["harvest_source_id"]
+
         if not slug:
             raise ValueError("dataset_data must include a slug")
 
         stmt = insert(Dataset).values(**dataset_data)
+
+        # Ownership fields should never be reassigned in an upsert.
+        protected = {
+            "id",
+            "slug",
+            "harvest_source_id",
+        }
+
         update_cols = {
             column: getattr(stmt.excluded, column)
             for column in dataset_data
-            if column != "slug"
+            if column not in protected
         }
         stmt = stmt.on_conflict_do_update(
             index_elements=[Dataset.slug],
             set_=update_cols,
-        )
+            where=Dataset.harvest_source_id == source_id,
+        ).returning(Dataset.id)
 
         nested = self.db.begin_nested()
         dataset = None
         try:
-            self.db.execute(stmt)
+            result = self.db.execute(stmt).scalar_one_or_none()
+            if result is None:
+                logger.warning(
+                    f"Slug '{slug}' is owned by another harvest source; "
+                    f"attempted source={source_id}"
+                )
+                return
             self.db.flush()
             dataset = self.get_dataset_by_slug(slug)
             self._apply_popularity_from_view_count(dataset)
@@ -1877,3 +2020,20 @@ def order_by_helper(model, order_by):
         raise InvalidOrderByException(f"Invalid order_by field: {column_name}")
     column = getattr(model, column_name)
     return column.desc() if descending else column.asc()
+
+
+def resolve_order_by_string(model, order_by):
+    """Resolve order_by parameter to the actual column and direction string.
+
+    Returns the resolved order_by string (e.g., "-date_created", "name")
+    that reflects what order_by_helper actually applies.
+    """
+    default_column = "date_created" if hasattr(model, "date_created") else "name"
+    if not order_by or order_by in ("asc", "desc"):
+        column_name, descending = default_column, order_by == "desc"
+    else:
+        descending = order_by.startswith("-")
+        column_name = order_by[1:] if descending else order_by
+    if column_name not in model.__table__.columns.keys():
+        raise InvalidOrderByException(f"Invalid order_by field: {column_name}")
+    return f"-{column_name}" if descending else column_name

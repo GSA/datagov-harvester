@@ -127,7 +127,7 @@ def login():
             if next_url and _is_safe_redirect_target(next_url):
                 return redirect(next_url)
             return redirect(url_for("main.index"))
-        flash("Invalid username or password.", "danger")
+        flash("Invalid username or password.", "error")
         logger.warning(
             "Local dev login failed from ip=%s",
             get_client_ip(),
@@ -277,5 +277,5 @@ def callback():
             usr_ssoid,
             request_ip,
         )
-        flash("Please request registration from the admin before proceeding.")
+        flash("Please request registration from the admin before proceeding.", "error")
         return redirect(url_for("main.index"))

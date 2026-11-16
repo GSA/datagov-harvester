@@ -26,7 +26,6 @@ from dcatus_validation.errors import (
     CatalogTooDeeplyNested,
 )
 from dcatus_validation.limits import (
-    MAX_DOCUMENT_NESTING_DEPTH,
     MAX_UPLOAD_BYTES,
     MAX_UPLOAD_MB,
 )
@@ -125,8 +124,9 @@ PAYLOAD_TOO_LARGE_MESSAGE = (
 
 # The binding ceiling is CloudFront's hard 30s for the whole request
 # (harvest.data.gov/api/v1/validate), and validation only starts once the
-# fetch is done: roughly 0.5-1.2 s/MB, so up to ~12s for a 10MB catalog. 12s
-# here keeps that worst case near 25s, leaving padding for proxy hops.
+# fetch is done: ~2s even for a 150MB catalog (GSA/data.gov#6460). 12s here
+# keeps the worst case well under 30s, leaving padding for proxy hops.
+# Fetching 150MB in 12s needs a server sending ~100Mbps.
 # Answering inside the ceiling means a slow or hung target produces a clean,
 # logged rejection instead of us being disconnected mid-request.
 #
@@ -232,39 +232,18 @@ def _reject_nonfinite_json_constant(_value: str):
     raise InvalidCatalogSource(INVALID_JSON_NUMBER_MESSAGE)
 
 
-def _check_json_text_nesting(document: str) -> None:
-    """Count JSON containers without interpreting brackets inside strings."""
-    depth = 0
-    in_string = False
-    escaped = False
-
-    for character in document:
-        if in_string:
-            if escaped:
-                escaped = False
-            elif character == "\\":
-                escaped = True
-            elif character == '"':
-                in_string = False
-            continue
-
-        if character == '"':
-            in_string = True
-        elif character in "[{":
-            depth += 1
-            if depth > MAX_DOCUMENT_NESTING_DEPTH:
-                raise CatalogTooDeeplyNested(NESTING_TOO_DEEP_MESSAGE)
-        elif character in "]}" and depth:
-            depth -= 1
-
-
 def parse_json_document(document: str | bytes | bytearray):
-    """Parse strict JSON and normalize unsupported encoding/numeric failures."""
+    """Parse strict JSON and normalize unsupported encoding/numeric failures.
+
+    Nesting is checked after parsing (validate._check_catalog_nesting). On
+    Python 3.14 json.loads parses deep documents without exhausting the stack
+    and raises RecursionError past what it can, reported here as too deeply
+    nested (GSA/data.gov#6460).
+    """
     try:
         if not isinstance(document, str):
             encoded_document = bytes(document)
             document = encoded_document.decode(json.detect_encoding(encoded_document))
-        _check_json_text_nesting(document)
         return json.loads(
             document,
             parse_int=_parse_json_integer,
@@ -273,6 +252,21 @@ def parse_json_document(document: str | bytes | bytearray):
         )
     except UnicodeDecodeError:
         raise InvalidCatalogSource(INVALID_JSON_ENCODING_MESSAGE) from None
+    except RecursionError:
+        raise CatalogTooDeeplyNested(NESTING_TOO_DEEP_MESSAGE) from None
+
+
+def parse_pasted_json_document(document: bytes | memoryview):
+    """parse_json_document(text) for pasted text given as its UTF-8 bytes, so
+    the caller can drop the text first (GSA/data.gov#6460). Decoding as UTF-8,
+    rather than guessing the encoding as bytes are, keeps a leading BOM refused
+    and NULs from being read as UTF-16 or UTF-32, as for the text itself.
+    """
+    try:
+        text = str(document, "utf-8")
+    except UnicodeDecodeError:
+        raise InvalidCatalogSource(INVALID_JSON_ENCODING_MESSAGE) from None
+    return parse_json_document(text)
 
 
 def _http_get(target: str, timeout: tuple[float, float]) -> requests.Response:
@@ -285,6 +279,14 @@ def _http_get(target: str, timeout: tuple[float, float]) -> requests.Response:
         timeout=timeout,
         allow_redirects=False,
     )
+
+
+def _egress_for_log(url: str) -> str:
+    """'proxy' if requests will send `url` through a proxy from the
+    environment (https_proxy/http_proxy, honoring no_proxy), else 'direct'.
+    On cloud.gov 'direct' means proxy_url is unset."""
+    proxies = requests.utils.get_environ_proxies(url)
+    return "proxy" if requests.utils.select_proxy(url, proxies) else "direct"
 
 
 def _target_for_log(url: str) -> str:
@@ -346,12 +348,18 @@ def _validate_fetch_target(url: str) -> list[str]:
     return addresses
 
 
-def fetch_json_from_url(url: str) -> dict:
+def fetch_json_from_url(url: str, before_parse=None) -> dict:
+    """Fetch and parse the catalog at `url`. before_parse(size), if given, is
+    called with the document's size once it's downloaded, before parsing."""
     # DNS validation is part of the fetch, so time spent resolving the
     # submitted hostname counts against the same deadline as the request.
     deadline = time.monotonic() + FETCH_TIMEOUT_SECONDS
     _validate_fetch_target(url)
-    logger.info("Validator fetching target=%s", _target_for_log(url))
+    logger.info(
+        "Validator fetching target=%s egress=%s",
+        _target_for_log(url),
+        _egress_for_log(url),
+    )
 
     # One deadline for the whole operation, not a fresh FETCH_TIMEOUT_SECONDS
     # per redirect hop - otherwise a chain of MAX_FETCH_REDIRECTS redirects,
@@ -476,9 +484,14 @@ def fetch_json_from_url(url: str) -> dict:
             response.close()
 
     content = b"".join(chunks)
+    # Don't hold the document twice while it's parsed.
+    del chunks
 
     if len(content) > MAX_UPLOAD_BYTES:
         raise InvalidCatalogSource(PAYLOAD_TOO_LARGE_MESSAGE)
+
+    if before_parse is not None:
+        before_parse(len(content))
 
     try:
         return parse_json_document(content)

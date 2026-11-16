@@ -51,6 +51,7 @@ def render_harvest_job_email_html(
     catalog_base_url=None,
     footer_message=_SUBSCRIPTION_FOOTER,
     notification_frequency=None,
+    notification_emails=None,
 ):
     """Render all email content; Jinja escapes names, errors, and URLs."""
     summary = (
@@ -85,4 +86,5 @@ def render_harvest_job_email_html(
         footer_message=footer_message,
         link_guidance=reharvest_link_guidance(),
         frequency_notice=notification_frequency_notice(notification_frequency),
+        notification_emails=notification_emails,
     )

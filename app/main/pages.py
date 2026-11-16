@@ -3,8 +3,14 @@ from datetime import timedelta
 from flask import flash, redirect, render_template, request, session, url_for
 
 from app import deps, htmx
-from app.constants import MAX_UPLOAD_BYTES, MAX_UPLOAD_MB
+from app.constants import (
+    MAX_UPLOAD_BYTES,
+    MAX_UPLOAD_MB,
+    MAX_VALIDATION_ERRORS,
+    MAX_VALIDATION_WARNINGS,
+)
 from app.deps import (
+    CATALOG_BASE_URL,
     _log_mutation,
     logger,
     render_block,
@@ -30,9 +36,14 @@ def view_dataset(dataset_slug: str):
     """View a dataset detail page by slug, and handle slug edits via POST."""
     dataset = deps.db.get_dataset_by_slug(dataset_slug)
 
+    data = {
+        "catalog_base_url": CATALOG_BASE_URL,
+        "dataset": dataset,
+    }
+
     if request.method == "POST":
         if not session.get("user"):
-            flash("You must be logged in to edit a dataset slug.")
+            flash("You must be logged in to edit a dataset slug.", "error")
             return redirect(url_for("main.view_dataset", dataset_slug=dataset_slug))
 
         form = DatasetSlugForm(
@@ -41,7 +52,7 @@ def view_dataset(dataset_slug: str):
             db_interface=deps.db,
         )
         if dataset is None:
-            flash("Dataset not found.")
+            flash("Dataset not found.", "error")
             return redirect(url_for("main.harvest_source_list"))
 
         if form.validate():
@@ -73,11 +84,10 @@ def view_dataset(dataset_slug: str):
             else:
                 flash(
                     f"Failed to update slug. Error: {os_error}",
-                    "danger",
+                    "error",
                 )
                 return redirect(url_for("main.view_dataset", dataset_slug=dataset_slug))
         else:
-            data = {"dataset": dataset}
             return (
                 render_template(
                     "view_dataset_data.html",
@@ -92,7 +102,6 @@ def view_dataset(dataset_slug: str):
         db_interface=deps.db,
         data={"slug": dataset.slug} if dataset else {},
     )
-    data = {"dataset": dataset}
     return render_template(
         "view_dataset_data.html",
         data=data,
@@ -273,4 +282,6 @@ def view_validators():
         form=form,
         max_upload_bytes=MAX_UPLOAD_BYTES,
         max_upload_mb=MAX_UPLOAD_MB,
+        max_validation_errors=MAX_VALIDATION_ERRORS,
+        max_validation_warnings=MAX_VALIDATION_WARNINGS,
     )

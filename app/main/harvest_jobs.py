@@ -89,10 +89,34 @@ def view_harvest_job(job_id=None):
             pagination=pagination.to_dict(),
         )
     else:
+        source_issue_record_count = None
+        source_issue_error_total = None
+        source_issue_warning_total = None
+        if job and job.harvest_source_id:
+            source_issue_record_count = deps.db.get_current_record_issues_by_source(
+                job.harvest_source_id, for_view=True, count=True
+            )
+            source_issue_summary = deps.db.get_record_issues_summary_by_source(
+                job.harvest_source_id
+            )
+            source_issue_error_total = sum(
+                row["count"]
+                for row in source_issue_summary
+                if row["severity"] == "error"
+            )
+            source_issue_warning_total = sum(
+                row["count"]
+                for row in source_issue_summary
+                if row["severity"] == "warning"
+            )
+
         data = {
             "job": job,
             "record_error_summary": record_error_summary,
             "record_errors": record_errors_dict,
+            "source_issue_record_count": source_issue_record_count,
+            "source_issue_error_total": source_issue_error_total,
+            "source_issue_warning_total": source_issue_warning_total,
             "htmx_vars": htmx_vars,
         }
         if job and job.status == "in_progress":

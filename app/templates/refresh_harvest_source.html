@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% from 'components/alert.j2' import alert_class %}
 
 {% block title %}<title>Refresh harvest source</title>{% endblock %}
 
@@ -7,7 +8,7 @@
     <h1>Refresh harvest source</h1>
     {% if source %}<p><strong>Source:</strong> <a href="{{ url_for('main.view_harvest_source', source_id=source.id) }}">{{ source.name }}</a></p>{% endif %}
     {% if message %}
-    <div class="usa-alert usa-alert--info" role="status">
+    <div class="usa-alert {{ alert_class(category) }}" role="status">
         <div class="usa-alert__body">
             <p class="usa-alert__text">{{ message }}</p>
             {% if explanation %}<p class="usa-alert__text">{{ explanation }}</p>{% endif %}

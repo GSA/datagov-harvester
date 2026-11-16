@@ -129,12 +129,14 @@
             <tr>
                 <td>Outstanding record issues</td>
                 <td>
-                    {% if data.summary_data["last_job_errors"] %}
+                    {% if data.summary_data["issue_record_count"] %}
                     <a href="{{ url_for('main.view_harvest_source_warnings', source_id=data.source.id) }}">
-                        {{data.summary_data["last_job_errors"]}}
+                        {{ data.summary_data["issue_record_count"] }} record{{ "s" if data.summary_data["issue_record_count"] != 1 }} with
+                        {{ data.summary_data["issue_error_total"] }} error{{ "s" if data.summary_data["issue_error_total"] != 1 }} and
+                        {{ data.summary_data["issue_warning_total"] }} warning{{ "s" if data.summary_data["issue_warning_total"] != 1 }}
                     </a>
                     {% else %}
-                    {{data.summary_data["last_job_errors"] | else_na }}
+                    {{ data.summary_data["issue_record_count"] | else_na }}
                     {% endif %}
                 </td>
             </tr>

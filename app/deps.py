@@ -1,6 +1,6 @@
 import logging
 import os
-from functools import wraps
+from functools import cache, wraps
 
 from dotenv import load_dotenv
 from flask import Response, current_app, g, jsonify, request, session
@@ -35,6 +35,40 @@ def JSON_NOT_FOUND():
     """
     response = jsonify({"error": STATUS_STRINGS_ENUM[404]})
     response.status_code = 404
+    return response
+
+
+def format_validation_messages(messages) -> str:
+    """Flatten marshmallow error messages into one readable string.
+
+    {"slug": ["Bad slug."], "aliases": {0: ["Not a valid string."]}} becomes
+    "slug: Bad slug.; aliases.0: Not a valid string.". Errors that aren't tied
+    to a field (marshmallow's "_schema" key) are listed without a prefix.
+    """
+    parts = []
+
+    def walk(path, value):
+        if isinstance(value, dict):
+            for key, child in value.items():
+                key = "" if key == "_schema" else str(key)
+                walk(f"{path}.{key}" if path and key else path or key, child)
+        elif isinstance(value, (list, tuple)):
+            for child in value:
+                walk(path, child)
+        else:
+            parts.append(f"{path}: {value}" if path else str(value))
+
+    walk("", messages)
+    return "; ".join(parts)
+
+
+def JSON_VALIDATION_ERROR(messages, status_code=400):
+    """Return a JSON error for marshmallow validation messages.
+
+    Uses the {"error": "<message>"} shape the rest of the API returns.
+    """
+    response = jsonify({"error": format_validation_messages(messages)})
+    response.status_code = status_code
     return response
 
 
@@ -201,37 +235,39 @@ def create_harvest_source(source_data):
     return source, f"Added new harvest source with ID: {source.id}. {job_message}", 200
 
 
+@cache
 def get_application_version():
     """
-    Get application version from VCAP_APPLICATION or git describe.
+    Get application version from environment or git.
+
+    Cached after first call since the version cannot change while the process runs.
+
+    Checks in order:
+    1. APP_VERSION env var (commit SHA set during deploy)
+    2. git rev-parse (local development)
 
     Returns:
-        Version string (e.g., "2026.09.30.1") or "unknown"
+        Version string (e.g., "a1b2c3d") or "unknown"
     """
-    import json
     import os
     import subprocess
 
-    vcap_app = os.environ.get("VCAP_APPLICATION")
-    if vcap_app:
-        try:
-            vcap_data = json.loads(vcap_app)
-            app_version = vcap_data.get("application_version", "")
-            if "-" in app_version:
-                return app_version.split("-", 1)[1]
-            return app_version
-        except (json.JSONDecodeError, KeyError):
-            pass
+    # Check for APP_VERSION env var (set in manifest from --var app_version
+    # during deploy)
+    app_version = os.environ.get("APP_VERSION")
+    if app_version:
+        return app_version
 
+    # Fall back to git for local development
     try:
         result = subprocess.run(
-            ["git", "describe", "--tags", "--always"],
+            ["git", "rev-parse", "--short=7", "HEAD"],
             capture_output=True,
             text=True,
             check=True,
             timeout=5,
         )
-        return result.stdout.strip().lstrip("v")
+        return result.stdout.strip()
     except Exception:
         pass
 
@@ -259,6 +295,28 @@ def get_api_version_from_path(path):
 
     latest_version, _ = API_VERSIONS[-1]
     return latest_version
+
+
+def get_model_class_from_name(model_name):
+    """Get the model class from the model name string."""
+    from database.models import (
+        HarvestJob,
+        HarvestJobError,
+        HarvestRecord,
+        HarvestRecordError,
+        HarvestSource,
+        Organization,
+    )
+
+    model_map = {
+        "organizations": Organization,
+        "harvest_sources": HarvestSource,
+        "harvest_records": HarvestRecord,
+        "harvest_jobs": HarvestJob,
+        "harvest_job_errors": HarvestJobError,
+        "harvest_record_errors": HarvestRecordError,
+    }
+    return model_map.get(model_name)
 
 
 def build_collection_response(
@@ -320,7 +378,8 @@ def build_collection_response(
         "next": build_url(page + 1) if page < page_count - 1 else None,
         "previous": build_url(page - 1) if page > 0 else None,
         "documentation": "/openapi/docs",
-        "changelog": "/api/changelog",
+        # TODO: Set to "/api/changelog" once #6364/#6369 is implemented
+        "changelog": None,
     }
 
     return {"data": data, "meta": meta, "links": links}
