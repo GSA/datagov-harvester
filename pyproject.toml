@@ -19,6 +19,8 @@ python-dotenv = ">=1"
 deepdiff = ">=8.6.1"
 ckanapi = ">=4.7"
 beautifulsoup4 = "^4.14.3"
+soupsieve = ">=4.0.1,<5.0.0" # Security floor for BeautifulSoup's transitive dependency (Snyk #1107)
+dnspython = ">=2.9.2,<3.0.0" # SNYK-PYTHON-DNSPYTHON-22549580 via email-validator
 sqlalchemy = "^2.0.51"
 flask = "^3.1.3"
 click = "8.5.0"
