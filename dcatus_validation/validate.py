@@ -149,6 +149,22 @@ def record_validator(schema_name: str, record_type: str = "dataset"):
     )
 
 
+@lru_cache(maxsize=None)
+def record_prefilter(
+    schema_name: str, record_type: str = "dataset"
+) -> Prefilter | None:
+    """jsonschema-rs in front of record_validator(schema_name, record_type),
+    or None when the fast path declined its schemas."""
+    if schema_name.startswith("dcatus1.1"):
+        return _fast_validators_for_schema(schema_name).prefilter
+    validator = record_validator(schema_name, record_type)
+    return build_prefilter(
+        validator.schema,
+        validator,
+        load_dcatus3_definitions(DCATUS3_DEFINITIONS_DIR),
+    )
+
+
 def _dcatus1_1_schema_path(schema_name: str):
     return {
         "dcatus1.1: federal dataset": DCATUS1_1_DIR / "federal_dataset.json",
@@ -273,6 +289,7 @@ def load_schema_validators() -> None:
     _dcatus1_1_structure_prefilter()
     for record_type in ["dataset", *DCATUS3_NON_DATASET_RECORD_TYPES]:
         record_validator("dcatus3.0 catalog", record_type)
+        record_prefilter("dcatus3.0 catalog", record_type)
 
 
 def validate_records(dcatus_catalog: dict, schema_name: str) -> list:

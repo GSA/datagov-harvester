@@ -26,7 +26,7 @@ from dcatus_validation.catalog import (
 from dcatus_validation.content_warnings import detect_dcat_warnings
 from dcatus_validation.deadline import check_deadline
 from dcatus_validation.spatial import PlaceLookup, translate_spatial
-from dcatus_validation.validate import record_validator
+from dcatus_validation.validate import record_prefilter, record_validator
 
 # Issue types as the harvester stores them: exception-based issues under the
 # exception's class name (see harvester/harvest.py `_report_error`).
@@ -95,6 +95,11 @@ def _drop_duplicates(records: list, identifier_field: str) -> tuple[list, list]:
 def _is_schema_valid(record: dict, schema_name: str, record_type: str) -> bool:
     # The harvester validates the record without its resolved-identifier key.
     record = {k: v for k, v in record.items() if k != RESOLVED_IDENTIFIER_KEY}
+    prefilter = record_prefilter(schema_name, record_type)
+    if prefilter is not None and prefilter.is_valid(record):
+        return True
+    # Python jsonschema can't be interrupted once started.
+    check_deadline()
     try:
         return record_validator(schema_name, record_type).is_valid(record)
     except RecursionError:
@@ -170,15 +175,17 @@ def find_catalog_issues(
         for position, record in kept:
             check_deadline()
             label = _label(record, identifier_field, position)
+            remaining = None if max_warnings is None else max_warnings - len(warnings)
             record_warnings = []
             if is_dcatus3:
                 record_warnings += [
                     CatalogWarning(
                         label, record_type, w.warning_type, w.message, _title(record)
                     )
-                    for w in detect_dcat_warnings(record, place_lookup)
+                    for w in detect_dcat_warnings(record, place_lookup, remaining)
                 ]
-            if record_type in _SPATIAL_CHECKED_TYPES:
+            over_cap = remaining is not None and len(record_warnings) > remaining
+            if record_type in _SPATIAL_CHECKED_TYPES and not over_cap:
                 spatial = _spatial_warning(
                     record, label, record_type, schema_name, place_lookup
                 )

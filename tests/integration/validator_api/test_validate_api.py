@@ -739,6 +739,24 @@ class TestWarnings:
             "invalid_media_type",
         ]
 
+    def test_one_record_past_the_warning_cap_is_capped(self, validator_client):
+        dataset = _legacy_dataset("https://example.gov/d/0")
+        dataset["distribution"] = [
+            {"@type": "Distribution", "mediaType": f"not/a-type-{i}"}
+            for i in range(MAX_VALIDATION_WARNINGS + 5)
+        ]
+        catalog = {
+            "@type": "Catalog",
+            "title": "t",
+            "description": "d",
+            "dataset": [dataset],
+        }
+
+        body = _post_catalog(validator_client, "dcatus3.0 catalog", catalog).get_json()
+
+        assert len(body["validation_warnings"]) == MAX_VALIDATION_WARNINGS
+        assert body["warnings_incomplete"] is True
+
     def test_warning_amplification_is_capped(self, validator_client):
         datasets = [
             _legacy_dataset(f"https://example.gov/d/{i}")
