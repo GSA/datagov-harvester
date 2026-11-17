@@ -948,7 +948,7 @@ class HarvestSource:
             sample_datasets = None
 
             if job_status == "error":
-                subject = "Harvest Job Failed"
+                subject = f"Harvest Job Failed for {self.name}"
                 job_errors = self.db_interface.get_harvest_job_errors_by_job(
                     self.job_id
                 )

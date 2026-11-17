@@ -8,8 +8,8 @@ from harvester.utils.env_utils import with_environment_prefix
 @pytest.mark.parametrize(
     "space_name,expected",
     [
-        ("development", "Dev Harvest Job Failed"),
-        ("staging", "Stage Harvest Job Failed"),
+        ("development", "(Dev) Harvest Job Failed"),
+        ("staging", "(Stage) Harvest Job Failed"),
         ("prod", "Harvest Job Failed"),
     ],
 )

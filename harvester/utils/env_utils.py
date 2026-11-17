@@ -16,6 +16,6 @@ def cf_space_name() -> str | None:
 
 
 def with_environment_prefix(title: str) -> str:
-    """Prefix non-prod titles with the environment, e.g. "Dev Harvest Job Failed"."""
+    """Prefix non-prod titles with the environment, e.g. "(Dev) Harvest Job Failed"."""
     prefix = SPACE_EMAIL_PREFIXES.get(cf_space_name())
-    return f"{prefix} {title}" if prefix else title
+    return f"({prefix}) {title}" if prefix else title

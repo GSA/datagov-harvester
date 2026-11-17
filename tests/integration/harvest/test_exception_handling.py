@@ -189,7 +189,7 @@ class TestHarvestJobExceptionHandling:
 
         subject = send_email_mock.call_args.args[1]
         body = send_email_mock.call_args.args[2]
-        assert subject == "Harvest Job Failed"
+        assert subject == f"Harvest Job Failed for {harvest_source.name}"
         assert "failed" in body
         assert "successfully completed" not in body
 
@@ -230,8 +230,9 @@ class TestHarvestJobExceptionHandling:
 
         subject = send_email_mock.call_args.args[1]
         html_body = send_email_mock.call_args.kwargs["html_body"]
-        assert subject == "Stage Harvest Job Failed"
-        assert "Stage Harvest Job Failed" in html_body
+        expected = f"(Stage) Harvest Job Failed for {harvest_source.name}"
+        assert subject == expected
+        assert expected in html_body
 
 
 def make_http_error(status_code):
