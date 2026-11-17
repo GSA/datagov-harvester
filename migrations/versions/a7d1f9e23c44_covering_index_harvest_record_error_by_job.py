@@ -1,7 +1,7 @@
 """replace ix_hre_job_id with a covering (job_id, record_id) index
 
 Revision ID: a7d1f9e23c44
-Revises: effa2ad9f73c
+Revises: 7bb0241d77e2
 Create Date: 2026-11-02 00:00:00.000000
 
 The record-issue view groups harvest_record_error by harvest_record_id

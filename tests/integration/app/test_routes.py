@@ -54,7 +54,7 @@ class TestDynamicRouteTable:
                     "location": "/organization_list/",
                 },
             },
-            r"((main|api|api_v1)\.(add|edit|cancel|update|delete|trigger)_(organization|harvest_source|harvest_job|harvest_record))": {
+            r"((main|api|api_v1)\.(add|edit|cancel|update|delete|trigger|unarchive)_(organization|harvest_source|harvest_job|harvest_record))": {
                 "(POST|HEAD|PUT|DELETE)": {
                     "status_code": 302,
                     "location": LOCATION_ENUMS["LOGIN"],
@@ -493,7 +493,7 @@ class TestHarvestSourceDeleteRedirects:
     @pytest.mark.parametrize(
         ("status", "expected_location"),
         [
-            (202, "/harvest_source_list/"),
+            (200, "/harvest_source_list/"),
             (404, "/harvest_source_list/"),
             (409, "/harvest_source/{source_id}"),
             (500, "/harvest_source_list/"),
@@ -508,12 +508,12 @@ class TestHarvestSourceDeleteRedirects:
             sess["user"] = "tester@gsa.gov"
 
         with patch(
-            "app.main.harvest_sources.enqueue_harvest_source_delete",
-            return_value=("delete result", status),
+            "app.deps.db.archive_harvest_source",
+            return_value=("archive result", status),
         ):
             response = client.post(
                 f"/harvest_source/{source_id}",
-                data={"delete": "Delete"},
+                data={"archive": "Archive"},
             )
 
         assert response.status_code == 302
