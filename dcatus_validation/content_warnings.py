@@ -46,6 +46,7 @@ from typing import NamedTuple, Optional
 
 from jsonschema import FormatChecker
 
+from dcatus_validation.deadline import check_deadline
 from dcatus_validation.spatial import PlaceLookup, is_number, translate_spatial
 
 _REFERENCE_DATA_DIR = Path(__file__).resolve().parent / "reference_data"
@@ -683,7 +684,11 @@ def _walk_objects(node):
             yield from _walk_objects(item)
 
 
-def detect_dcat_warnings(data: dict, place_lookup: PlaceLookup | None = None) -> list:
+def detect_dcat_warnings(
+    data: dict,
+    place_lookup: PlaceLookup | None = None,
+    limit: int | None = None,
+) -> list:
     """Detect DCAT-US 3 content-quality warnings in a dataset record.
 
     Walks the record and dispatches each typed object to its class rules,
@@ -694,6 +699,9 @@ def detect_dcat_warnings(data: dict, place_lookup: PlaceLookup | None = None) ->
 
     place_lookup resolves place names in Location values; see
     dcatus_validation.spatial.translate_spatial.
+
+    With a limit, the walk stops as soon as it has more than `limit` warnings,
+    so the caller can tell the list was cut short.
     """
     rules = {
         **_TYPE_RULES,
@@ -701,6 +709,7 @@ def detect_dcat_warnings(data: dict, place_lookup: PlaceLookup | None = None) ->
     }
     warnings = []
     for obj in _walk_objects(data):
+        check_deadline()
         type_value = obj.get("@type")
         # Non-string @type is a schema error, and unhashable for `_TYPE_RULES.get`.
         if not isinstance(type_value, str):
@@ -708,4 +717,6 @@ def detect_dcat_warnings(data: dict, place_lookup: PlaceLookup | None = None) ->
         rule = rules.get(_local_name(type_value))
         if rule is not None:
             _append(warnings, rule(obj))
+            if limit is not None and len(warnings) > limit:
+                break
     return warnings
