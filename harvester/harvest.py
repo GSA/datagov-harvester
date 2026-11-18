@@ -50,6 +50,7 @@ from harvester.lib.harvest_reporter import HarvestReporter
 from harvester.lib.load_manager import LoadManager
 from harvester.lib.task_handler import create_task_handler
 from harvester.utils.dcat_warnings import DcatWarning, detect_dcat_warnings
+from harvester.utils.env_utils import with_environment_prefix
 from harvester.utils.general_utils import (
     DT_PLACEHOLDER,
     RESOLVED_IDENTIFIER_KEY,
@@ -947,7 +948,7 @@ class HarvestSource:
             sample_datasets = None
 
             if job_status == "error":
-                subject = "Harvest Job Failed"
+                subject = f"Harvest Job Failed for {self.name}"
                 job_errors = self.db_interface.get_harvest_job_errors_by_job(
                     self.job_id
                 )
@@ -1009,6 +1010,7 @@ class HarvestSource:
                     "updates.\n"
                     "Please do not reply to this email, as it is not monitored."
                 )
+            subject = with_environment_prefix(subject)
             support_recipient = SMTP_CONFIG.get("recipient")
             user_recipients = self.notification_emails
             all_recipients = [
