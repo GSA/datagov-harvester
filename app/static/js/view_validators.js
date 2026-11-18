@@ -535,7 +535,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 return;
             }
 
-            if ([400, 413, 422, 503].includes(response.status)) {
+            if ([400, 413, 422, 429, 503].includes(response.status)) {
                 // a 413 without a JSON body is nginx's own, refused before the validator saw it
                 const fallback = response.status === 413
                     ? "Submission is too large. Maximum size is " + window.MAX_UPLOAD_LABEL + "."
