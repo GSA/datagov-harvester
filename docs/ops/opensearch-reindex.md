@@ -12,6 +12,25 @@ cuts over with no downtime. Nothing needs to be run by hand.
 See [Zero-downtime OpenSearch deployment](opensearch-zero-downtime-deployment.md)
 for the full release sequence and failure recovery.
 
+## Title sorting rollout (GSA/data.gov#6512)
+
+The `title.normalized` keyword subfield requires a full reindex of existing
+datasets. Adding the mapping alone does not populate the subfield for documents
+already in the index. Label the harvester mapping PR
+`force re-index recommended` and complete the replacement-cluster release in
+each environment before deploying catalog's `sort=title` support there.
+
+Before deploying catalog, verify the replacement index has the subfield with
+the `lowercase_normalizer` normalizer, and compare the counts of documents
+with an indexed `title` and `title.normalized`. Check a search ordered by
+`title.normalized` ascending, with missing values last and `_id` descending
+as a tie-breaker, including a title containing uppercase letters.
+
+After deploying catalog, smoke-test `/search?sort=title`, query/filter
+preservation in the UI, and cursor pagination. If the catalog release needs
+to be rolled back, the added subfield is compatible with the previous catalog
+version; it does not require reverting the index mapping.
+
 ## Manual / advanced
 
 The following exist for ops troubleshooting — repairing drift outside of a
