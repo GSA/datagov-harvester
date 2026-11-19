@@ -16,7 +16,7 @@ from dotenv import load_dotenv
 from flask import Flask
 from jinja2 import FileSystemLoader
 from opensearchpy.exceptions import NotFoundError
-from sqlalchemy import text
+from sqlalchemy import event, text
 from sqlalchemy.orm import scoped_session, sessionmaker
 
 from app import create_app
@@ -107,9 +107,9 @@ def _no_db_interface() -> NonCallableMock:
 DB_INTERFACE_TARGETS = (
     "harvester.harvest.db_interface",
     "harvester.exceptions.db_interface",
-    "harvester.lib.load_manager.interface",
     "app.deps.db",
 )
+LOAD_MANAGER_INTERFACE_TARGET = "harvester.lib.load_manager.interface"
 
 
 def _needs_db(request) -> bool:
@@ -189,16 +189,34 @@ def interface(session) -> HarvesterDBInterface:
     return HarvesterDBInterface(session=session)
 
 
+@pytest.fixture()
+def load_manager_interface(session) -> Generator[Any, HarvesterDBInterface, Any]:
+    # Mirrors production: the load manager owns its session, so closing it
+    # doesn't detach objects held by the other components' session. The test
+    # session outlives a request, so expire it to see the load manager's writes.
+    load_manager_session_factory = sessionmaker(bind=session.bind, autoflush=True)
+    event.listen(
+        load_manager_session_factory, "after_commit", lambda _: session.expire_all()
+    )
+    load_manager_session = scoped_session(load_manager_session_factory)
+    yield HarvesterDBInterface(session=load_manager_session)
+    load_manager_session.remove()
+
+
 @pytest.fixture(autouse=True)
 def default_function_fixture(request, monkeypatch):
     monkeypatch.delenv("ENABLE_LOCAL_DEV_LOGIN", raising=False)
     if _needs_db(request):
         interface = request.getfixturevalue("interface")
+        load_manager_interface = request.getfixturevalue("load_manager_interface")
     else:
-        interface = _no_db_interface()
+        interface = load_manager_interface = _no_db_interface()
     with ExitStack() as stack:
         for target in DB_INTERFACE_TARGETS:
             stack.enter_context(patch(target, interface))
+        stack.enter_context(
+            patch(LOAD_MANAGER_INTERFACE_TARGET, load_manager_interface)
+        )
         yield
 
 

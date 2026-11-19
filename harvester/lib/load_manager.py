@@ -1,6 +1,7 @@
 import logging
 import os
 from datetime import datetime
+from functools import wraps
 
 from sqlalchemy.orm import scoped_session, sessionmaker
 
@@ -27,6 +28,17 @@ MAX_TASKS_COUNT = int(os.getenv("HARVEST_RUNNER_MAX_TASKS", 5))
 
 
 logger = logging.getLogger("harvest_admin")
+
+
+def closes_session(method):
+    @wraps(method)
+    def wrapper(*args, **kwargs):
+        try:
+            return method(*args, **kwargs)
+        finally:
+            interface.close()
+
+    return wrapper
 
 
 class LoadManager:
@@ -239,6 +251,7 @@ class LoadManager:
         self._clean_old_jobs()
         self._start_new_jobs()
 
+    @closes_session
     def start_job(self, job_id, job_type="harvest"):
         """
         prepares the jobs in the database then starts the job as a cloud foundry
@@ -346,6 +359,7 @@ class LoadManager:
         # No revert here; the outer handler owns cleanup for any failure below.
         self.handler.start_task(**task_contract)
 
+    @closes_session
     def stop_job(self, job_id, job_type="harvest"):
         """task manager stop interface, takes a job_id
 
@@ -397,6 +411,7 @@ class LoadManager:
         logger.info(message)
         return message, "success"
 
+    @closes_session
     def reschedule_next_run(self, source_id):
         """Set date_next_run on harvest source registration or frequency change.
 
@@ -415,6 +430,7 @@ class LoadManager:
         logger.info(message)
         return message
 
+    @closes_session
     def schedule_next_job(self, source_id):
         """Stamp date_next_run if the source does not already have a future run."""
         source = interface.get_harvest_source(source_id)
@@ -436,6 +452,7 @@ class LoadManager:
         logger.info(message)
         return message
 
+    @closes_session
     def trigger_manual_job(self, source_id, job_type="harvest"):
         """manual trigger harvest job, takes a source_id
 
