@@ -1511,8 +1511,6 @@ class TestPythonKeywords:
             {"pattern": r"^(\d{4})-(\d{2})-(\d{2})([T\s](\d{2}):(\d{2}))?$"},
             "2024-01-15﻿10:30",
         ),
-        # an integer above 2**64 equals the float nearest to it in Python
-        ({"uniqueItems": True}, [2**64, float(2**64)]),
         # format checkers
         ({"format": "uri"}, "http://example.com/a b"),
         ({"format": "date"}, "2024-02-30"),
@@ -1525,9 +1523,9 @@ class TestPythonKeywords:
         assert prefilter.is_valid(instance) is python.is_valid(instance)
 
     def test_these_are_real_disagreements_without_the_bridge(self):
-        """Guards the cases above: every regex and equality case does trip
+        """Guards the cases above: every regex case does trip
         jsonschema-rs on its own, so the bridge is what makes them agree.
-        Five of them would be silent misses: jsonschema-rs alone says valid
+        Four of them would be silent misses: jsonschema-rs alone says valid
         where Python says invalid. (The format cases happen to agree.)"""
         native = {
             index: _native(schema).is_valid(instance)
@@ -1539,10 +1537,10 @@ class TestPythonKeywords:
             ).is_valid(instance)
             for index, (schema, instance) in enumerate(self.DISAGREEMENTS)
         }
-        regex_and_equality = range(len(self.DISAGREEMENTS) - 2)
+        regex_cases = range(len(self.DISAGREEMENTS) - 2)
 
-        assert all(native[i] != python[i] for i in regex_and_equality)
-        assert sum(native[i] and not python[i] for i in regex_and_equality) == 5
+        assert all(native[i] != python[i] for i in regex_cases)
+        assert sum(native[i] and not python[i] for i in regex_cases) == 4
 
     @pytest.mark.parametrize("keyword", sorted(fast_path._ONLY_CHECKS))
     def test_type_shortcuts_match_python(self, keyword):

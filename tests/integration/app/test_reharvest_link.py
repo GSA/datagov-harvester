@@ -411,7 +411,9 @@ def test_refresh_link_explains_missing_job_and_removed_source(
     )
     assert "Contact the Data.gov team" in missing_job.text
 
-    _, status = interface_no_jobs.delete_harvest_source(source_data_dcatus["id"])
+    _, status = interface_no_jobs.archive_harvest_source(
+        source_data_dcatus["id"], "test@example.com"
+    )
     assert status == 200
     missing_source = client.get(path)
     assert missing_source.status_code == 410
@@ -493,7 +495,9 @@ def test_refresh_link_explains_source_removed_during_confirmation(
     )["value"]
 
     def remove_source(*args, **kwargs):
-        _, status = interface_no_jobs.delete_harvest_source(source_data_dcatus["id"])
+        _, status = interface_no_jobs.archive_harvest_source(
+            source_data_dcatus["id"], "test@example.com"
+        )
         assert status == 200
         raise ValueError("Harvest source not found")
 
