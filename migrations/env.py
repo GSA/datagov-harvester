@@ -144,8 +144,9 @@ def terminate_database_connections(connectable) -> None:
     autocommit_engine = connectable.execution_options(isolation_level="AUTOCOMMIT")
 
     terminate_sql = text(
-        "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE pid <> pg_backend_pid() "
-        "AND state = 'active' or state = 'idle in transaction'"
+        "SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
+        "WHERE datname = current_database() AND pid <> pg_backend_pid() "
+        "AND state IN ('active', 'idle in transaction')"
     )
 
     with autocommit_engine.connect() as connection:

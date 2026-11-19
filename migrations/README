@@ -61,10 +61,10 @@ SELECT
   pg_terminate_backend(pid)
 FROM 
   pg_stat_activity
-WHERE 
-  pid <> pg_backend_pid()
-  AND 
-    STATE = 'active' OR STATE = 'idle in transaction';
+WHERE
+  datname = current_database()
+  AND pid <> pg_backend_pid()
+  AND STATE IN ('active', 'idle in transaction');
 ```
 
 
