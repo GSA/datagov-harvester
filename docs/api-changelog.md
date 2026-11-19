@@ -162,6 +162,16 @@ When using `?envelope=true`, the `links` object provides hypermedia navigation:
 
 ### Fixed
 
+#### Rate-limited API requests get a JSON 429
+
+**Issue:** GSA/data.gov#6513  
+**Endpoints:** All `/api/` endpoints
+
+A request blocked by the WAF now gets a 429 with
+`{"error": "Unusual activity detected from your network. ..."}` instead of an
+HTML page. Blocked POSTs (including `POST /api/v1/validate` and
+`POST /api/v1/validate/document`) used to get an HTML 405.
+
 #### Pagination edge cases now handled correctly
 
 **Issue:** GSA/data.gov#6392  
