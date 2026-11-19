@@ -2,8 +2,10 @@ import logging
 import os
 from datetime import datetime
 
-from database.interface import HarvestSourceLockedError
-from harvester import SMTP_CONFIG
+from sqlalchemy.orm import scoped_session, sessionmaker
+
+from database.interface import HarvesterDBInterface, HarvestSourceLockedError
+from harvester import SMTP_CONFIG, engine
 from harvester.lib.task_handler import create_task_handler
 from harvester.utils.env_utils import with_environment_prefix
 from harvester.utils.general_utils import (
@@ -18,8 +20,8 @@ from harvester.utils.harvest_job_email import (
 from harvester.utils.notification_frequency import notification_frequency_notice
 from harvester.utils.reharvest_links import create_reharvest_url
 
-# use the session scoped interface already made for the harvester
-from .. import db_interface as interface
+session = scoped_session(sessionmaker(bind=engine, autoflush=True))
+interface = HarvesterDBInterface(session=session)
 
 MAX_TASKS_COUNT = int(os.getenv("HARVEST_RUNNER_MAX_TASKS", 5))
 
