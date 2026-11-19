@@ -171,7 +171,7 @@ _RESPONSES = {
     429: {
         "description": (
             "Too many requests from this address, blocked before reaching the "
-            "validator; wait for `Retry-After` seconds"
+            "validator; try again later"
         ),
         "content": {"application/json": {"schema": ValidationErrorResponseSchema}},
     },

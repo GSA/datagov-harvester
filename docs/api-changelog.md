@@ -170,8 +170,7 @@ When using `?envelope=true`, the `links` object provides hypermedia navigation:
 A request blocked by the WAF now gets a 429 with
 `{"error": "Unusual activity detected from your network. ..."}` instead of an
 HTML page. Blocked POSTs (including `POST /api/v1/validate` and
-`POST /api/v1/validate/document`) used to get an HTML 405. Rate-limit blocks
-also send `Retry-After: 300`.
+`POST /api/v1/validate/document`) used to get an HTML 405.
 
 #### Pagination edge cases now handled correctly
 

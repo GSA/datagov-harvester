@@ -27,9 +27,7 @@ def test_api_paths_get_json_block_page():
     assert isinstance(body["error"], str)
 
 
-def test_rate_limit_blocks_send_retry_after():
-    maps = (PROXY / "nginx-maps.conf").read_text()
+def test_block_does_not_reveal_the_rate_limit_window():
     config = (PROXY / "nginx-malicious.conf").read_text()
 
-    assert "ratelimit  300;" in maps
-    assert "add_header Retry-After $waf_retry_after always;" in config
+    assert "Retry-After" not in config
