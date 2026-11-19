@@ -316,6 +316,7 @@ class TestEmptyFieldNameExceptionHandling:
         self,
         interface,
         organization_data,
+        mock_catalog_download,
     ):
         from database.models import Dataset
 
@@ -359,20 +360,21 @@ class TestEmptyFieldNameExceptionHandling:
         interface.add_harvest_source(source_data)
         harvest_job = interface.add_harvest_job(job_data)
 
-        with patch("harvester.harvest.download_file") as mock_download:
-            mock_download.return_value = {
+        mock_catalog_download(
+            {
                 "@context": "https://project-open-data.cio.gov/v1.1/schema/catalog.jsonld",
                 "dataset": [bad_dataset],
             }
+        )
 
-            harvest_source = HarvestSource(harvest_job.id)
-            harvest_source.acquire_data_sources()
+        harvest_source = HarvestSource(harvest_job.id)
+        harvest_source.acquire_data_sources()
 
-            external_records = harvest_source.external_records_to_process()
-            test_record = list(external_records)[0]
-            test_record.compare()
-            test_record.validate()
-            test_record.sync()
+        external_records = harvest_source.external_records_to_process()
+        test_record = list(external_records)[0]
+        test_record.compare()
+        test_record.validate()
+        test_record.sync()
 
         interface_record = interface.get_harvest_record(test_record.id)
         assert interface_record.status == "error"
@@ -394,6 +396,7 @@ class TestEmptyFieldNameExceptionHandling:
         self,
         interface,
         organization_data,
+        mock_catalog_download,
     ):
         from database.models import Dataset
 
@@ -436,20 +439,21 @@ class TestEmptyFieldNameExceptionHandling:
         interface.add_harvest_source(source_data)
         harvest_job = interface.add_harvest_job(job_data)
 
-        with patch("harvester.harvest.download_file") as mock_download:
-            mock_download.return_value = {
+        mock_catalog_download(
+            {
                 "@context": "https://project-open-data.cio.gov/v1.1/schema/catalog.jsonld",
                 "dataset": [valid_dataset],
             }
+        )
 
-            harvest_source = HarvestSource(harvest_job.id)
-            harvest_source.acquire_data_sources()
+        harvest_source = HarvestSource(harvest_job.id)
+        harvest_source.acquire_data_sources()
 
-            external_records = harvest_source.external_records_to_process()
-            test_record = list(external_records)[0]
-            test_record.compare()
-            test_record.validate()
-            test_record.sync()
+        external_records = harvest_source.external_records_to_process()
+        test_record = list(external_records)[0]
+        test_record.compare()
+        test_record.validate()
+        test_record.sync()
 
         interface_record = interface.get_harvest_record(test_record.id)
         assert interface_record.status == "success"

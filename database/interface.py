@@ -1795,6 +1795,9 @@ class HarvesterDBInterface:
             )
             return self.db.query(subq.c.identifier).filter(subq.c.action != "delete")
 
+        return self._latest_harvest_records_query(queries, include_slug)
+
+    def _latest_harvest_records_query(self, queries, include_slug):
         subq = (
             self.db.query(HarvestRecord)
             .filter(*queries)
@@ -1866,6 +1869,19 @@ class HarvesterDBInterface:
                 source_id, include_slug=True
             )
         ]
+
+    def iter_latest_harvest_records_by_source(self, source_id, batch_size=10000):
+        """Same rows as get_latest_harvest_records_by_source, streamed in
+        batches so a large source never holds every row at once."""
+        query = self._latest_harvest_records_query(
+            [
+                HarvestRecord.status == "success",
+                HarvestRecord.harvest_source_id == source_id,
+            ],
+            include_slug=True,
+        ).yield_per(batch_size)
+        for row in query:
+            yield dict(row._mapping)
 
     def get_geo_from_string(self, location_name, literal=False):
         """get a geometry from the locations table using the location name

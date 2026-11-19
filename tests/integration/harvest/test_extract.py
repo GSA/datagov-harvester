@@ -1,3 +1,4 @@
+import json
 from datetime import datetime
 from pathlib import Path
 from unittest.mock import Mock
@@ -121,7 +122,8 @@ class TestExtract:
         harvest_source.acquire_minimum_external_data()
 
         assert len(harvest_source.external_records) == 1
-        record = harvest_source.external_records[0]
+        (processed,) = harvest_source.external_records_to_process()
+        record = json.loads(processed.source_raw)
         assert record["spatial"] == {
             "@type": "Location",
             "bbox": "POLYGON((-125 24, -66 24, -66 50, -125 50, -125 24))",
@@ -397,16 +399,22 @@ class TestExtract:
             r["parent_identifier"] == "https://example.gov/series/annual-report"
             for r in harvest_source.external_records
         )
+
+        harvest_source.filter_duplicate_identifiers()
+        assert len(harvest_source.external_records) == 2
+
+        processed = {
+            r.identifier: json.loads(r.source_raw)
+            for r in harvest_source.external_records_to_process()
+            if r.record_type == "dataset"
+        }
         # top-level description wins over the series member's copy
-        assert by_identifier["https://example.gov/datasets/annual-report-2023"][
+        assert processed["https://example.gov/datasets/annual-report-2023"][
             "description"
         ] == (
             "The first dataset in the series, also listed at the "
             "catalog's top level."
         )
-
-        harvest_source.filter_duplicate_identifiers()
-        assert len(harvest_source.external_records) == 2
 
     def test_check_iso_dcatus_schema(
         self,
