@@ -190,7 +190,7 @@ def interface(session) -> HarvesterDBInterface:
 
 
 @pytest.fixture()
-def load_manager_interface(session) -> Generator[Any, HarvesterDBInterface, Any]:
+def load_manager_interface(session) -> Generator[HarvesterDBInterface, None, None]:
     load_manager_session = scoped_session(
         sessionmaker(bind=session.bind, autoflush=True)
     )
