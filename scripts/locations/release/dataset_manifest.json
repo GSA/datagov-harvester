@@ -1,0 +1,14 @@
+{
+  "filename": "locations_final_candidate.csv",
+  "status": "candidate - geographic review required",
+  "records": 63730,
+  "counts_by_type": {
+    "us_postalcode": 60288,
+    "us_county": 3141,
+    "country": 250,
+    "us_state": 51
+  },
+  "sha256": "edb06effd5465135f9a1d429093527e8becd7a75503804b50f715597d71c3312",
+  "format": "CSV, hexadecimal EWKB, EPSG:4326",
+  "unresolved_legacy_geometries": 810
+}
