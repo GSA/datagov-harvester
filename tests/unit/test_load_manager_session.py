@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta
 from unittest.mock import MagicMock, call, patch
 
 import pytest
@@ -43,6 +44,18 @@ class TestLoadManagerSessionLifecycle:
 
         manager.schedule_next_job("source-id")
 
+        assert mock_interface.mock_calls[-1] == call.close()
+
+    def test_schedule_next_job_closes_session_when_already_scheduled(
+        self, manager, mock_interface
+    ):
+        mock_interface.get_harvest_source.return_value = MagicMock(
+            frequency="daily", date_next_run=datetime.now() + timedelta(days=1)
+        )
+
+        manager.schedule_next_job("source-id")
+
+        mock_interface.update_harvest_source.assert_not_called()
         assert mock_interface.mock_calls[-1] == call.close()
 
     def test_reschedule_next_run_closes_session(self, manager, mock_interface):
