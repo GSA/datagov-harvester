@@ -1,3 +1,4 @@
+import threading
 from unittest import TestCase
 from unittest.mock import Mock, patch
 
@@ -15,6 +16,8 @@ class TestRecordCountBatch(TestCase):
         self.source._pending_count = 0
         self.source._pending_count_since = None
         self.source.timings = HarvestTimings()
+        self.source._counts_lock = threading.Lock()
+        self.source._opensearch_lock = threading.Lock()
         self.source._opensearch_documents = []
         self.source._opensearch_needs_refresh = False
 

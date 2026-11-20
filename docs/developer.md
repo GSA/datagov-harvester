@@ -43,6 +43,10 @@ Note that you do not need to set the `CF_SERVICE_USER` and `CF_SERVICE_AUTH` var
 
 In deployed (Cloud.gov) environments, harvest jobs run as Cloud Foundry tasks via `CFHandler`. Locally there is no CF task API, so the app falls back to `LocalTaskHandler`, which runs the same `python harvester/harvest.py <job_id> <job_type>` command as a child subprocess of the running app. The handler is selected automatically by `create_task_handler()` (`harvester/lib/task_handler.py`): it uses `CFHandler` only when running on Cloud Foundry or when all three `CF_*` credentials are configured, and otherwise uses `LocalTaskHandler`. This means you can register a harvest source and trigger a harvest locally without any Cloud Foundry credentials.
 
+#### Record workers
+
+`HARVEST_RECORD_WORKERS` sets how many threads process records at once within a harvest job (default `1`, records run one at a time in order). Record processing mostly waits on Postgres, OpenSearch, and MDTranslator, so a few workers overlap that waiting; 4 gave about 4x throughput on a local 2,000-record DCAT-US harvest, and 8 added little because the runner becomes CPU-bound. Deleted records finish before new and changed records start. WAF harvests only speed up if MDTranslator can serve requests in parallel.
+
 #### Optional: running the harvest runner on the host
 
 The normal path is to trigger harvests from the app (UI or API) and let

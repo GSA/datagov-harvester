@@ -3,11 +3,12 @@ import logging
 import os
 import re
 import sys
+import threading
 import time
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from functools import partial
-from itertools import chain
 from typing import List
 
 import requests
@@ -159,6 +160,13 @@ class HarvestSource:
     _opensearch_documents: list = field(default_factory=list, init=False, repr=False)
     _opensearch_needs_refresh: bool = field(default=False, init=False, repr=False)
     _geo_cache: dict = field(default_factory=dict, init=False, repr=False)
+    # guard state that record workers share (see harvest_records)
+    _counts_lock: threading.Lock = field(
+        default_factory=threading.Lock, init=False, repr=False, compare=False
+    )
+    _opensearch_lock: threading.Lock = field(
+        default_factory=threading.Lock, init=False, repr=False, compare=False
+    )
     _pending_count_since: float | None = field(default=None, init=False, repr=False)
     timings: HarvestTimings = field(
         default_factory=HarvestTimings, init=False, repr=False
@@ -334,18 +342,19 @@ class HarvestSource:
             validated
             warned
         """
-        self.reporter.update(action)
-        if self._pending_count_since is None:
-            self._pending_count_since = time.monotonic()
-        self._pending_count += 1
-        if (
-            self._pending_count < RECORD_COUNT_BATCH_SIZE
-            and time.monotonic() - self._pending_count_since
-            < RECORD_COUNT_FLUSH_SECONDS
-        ):
-            return
+        with self._counts_lock:
+            self.reporter.update(action)
+            if self._pending_count_since is None:
+                self._pending_count_since = time.monotonic()
+            self._pending_count += 1
+            if (
+                self._pending_count < RECORD_COUNT_BATCH_SIZE
+                and time.monotonic() - self._pending_count_since
+                < RECORD_COUNT_FLUSH_SECONDS
+            ):
+                return
 
-        self._persist_job_record_counts()
+            self._persist_job_record_counts()
 
     def _persist_job_record_counts(self) -> None:
         """persist the current counts to the database and reset the pending count."""
@@ -356,8 +365,9 @@ class HarvestSource:
 
     def flush_pending_counts(self) -> None:
         """Persist the last partial batch when record processing ends."""
-        if self._pending_count:
-            self._persist_job_record_counts()
+        with self._counts_lock:
+            if self._pending_count:
+                self._persist_job_record_counts()
 
     def geo_from_string(self, location_name, literal=False):
         """db_interface.get_geo_from_string, cached for the job: records
@@ -378,14 +388,21 @@ class HarvestSource:
         return location
 
     def queue_opensearch_document(self, document: dict) -> None:
-        self._opensearch_documents.append(document)
-        if len(self._opensearch_documents) >= OPENSEARCH_BATCH_SIZE:
-            self.flush_opensearch_documents()
+        with self._opensearch_lock:
+            self._opensearch_documents.append(document)
+            if len(self._opensearch_documents) < OPENSEARCH_BATCH_SIZE:
+                return
+            documents, self._opensearch_documents = self._opensearch_documents, []
+        self._index_opensearch_documents(documents)
 
     def flush_opensearch_documents(self) -> None:
-        """Bulk index queued documents without refreshing the index; a
-        refresh per document was a large share of harvest time."""
-        documents, self._opensearch_documents = self._opensearch_documents, []
+        with self._opensearch_lock:
+            documents, self._opensearch_documents = self._opensearch_documents, []
+        self._index_opensearch_documents(documents)
+
+    def _index_opensearch_documents(self, documents: list) -> None:
+        """Bulk index documents without refreshing the index; a refresh per
+        document was a large share of harvest time."""
         if not documents or self.opensearch is None:
             return
         self.note_opensearch_change()
@@ -886,13 +903,9 @@ class HarvestSource:
                 )
             )
 
-            # deletions would occur first based on the arg positions
-            records = chain(internal_records_to_delete, external_records_to_process)
-
-            for record in records:
-                with self.timings.time("record"):
-                    record.harvest()
-                del record
+            # deletions finish before new and changed records start
+            self.harvest_records(internal_records_to_delete)
+            self.harvest_records(external_records_to_process)
 
         except (ExtractInternalException, ExtractExternalException):
             self.finish_job_with_status("error")
@@ -902,6 +915,53 @@ class HarvestSource:
             self.flush_pending_counts()
             self.finish_opensearch_writes()
             logger.info("harvest timings: %s", self.timings.summary())
+
+    def harvest_records(self, records) -> None:
+        """Run harvest() on each record, on HARVEST_RECORD_WORKERS threads.
+
+        Record processing is mostly waiting on Postgres, OpenSearch, and
+        MDTranslator, so a few threads overlap that waiting. With one worker
+        records run in order on this thread, as before.
+        """
+        workers = max(1, int(os.getenv("HARVEST_RECORD_WORKERS", "1")))
+        if workers == 1:
+            for record in records:
+                self._harvest_record(record)
+            return
+
+        # create the shared client here rather than racing in the workers
+        _ = self.opensearch
+        # cap queued records so a large source isn't pulled into memory
+        max_in_flight = workers * 2
+        in_flight = set()
+        with ThreadPoolExecutor(
+            max_workers=workers, thread_name_prefix="harvest-record"
+        ) as pool:
+            try:
+                for record in records:
+                    if len(in_flight) >= max_in_flight:
+                        done, in_flight = wait(in_flight, return_when=FIRST_COMPLETED)
+                        for future in done:
+                            future.result()
+                    in_flight.add(pool.submit(self._harvest_record_in_worker, record))
+            finally:
+                done, _ = wait(in_flight)
+            for future in done:
+                future.result()
+
+    def _harvest_record(self, record) -> None:
+        with self.timings.time("record"):
+            record.harvest()
+
+    def _harvest_record_in_worker(self, record) -> None:
+        try:
+            self._harvest_record(record)
+        finally:
+            # each worker thread has its own scoped session; hand its
+            # connection back between records
+            remove = getattr(self.db_interface.db, "remove", None)
+            if remove is not None:
+                remove()
 
     def finish_job_with_status(self, status: str):
         """

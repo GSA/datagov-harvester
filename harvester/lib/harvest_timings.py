@@ -1,3 +1,4 @@
+import threading
 import time
 from collections import defaultdict
 from contextlib import contextmanager
@@ -13,6 +14,7 @@ class HarvestTimings:
     def __init__(self):
         self._seconds = defaultdict(float)
         self._calls = defaultdict(int)
+        self._lock = threading.Lock()
 
     @contextmanager
     def time(self, step: str):
@@ -20,8 +22,10 @@ class HarvestTimings:
         try:
             yield
         finally:
-            self._seconds[step] += time.perf_counter() - start
-            self._calls[step] += 1
+            elapsed = time.perf_counter() - start
+            with self._lock:
+                self._seconds[step] += elapsed
+                self._calls[step] += 1
 
     def report(self) -> dict:
         return {

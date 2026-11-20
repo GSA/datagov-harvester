@@ -1,3 +1,4 @@
+import threading
 from unittest import TestCase
 from unittest.mock import Mock, patch
 
@@ -14,6 +15,8 @@ class TestOpenSearchBatching(TestCase):
         self.source._opensearch.index_documents.return_value = (1, 0, [])
         self.source._opensearch_initialized = True
         self.source.timings = HarvestTimings()
+        self.source._counts_lock = threading.Lock()
+        self.source._opensearch_lock = threading.Lock()
 
     @patch("harvester.harvest.OPENSEARCH_BATCH_SIZE", 3)
     def test_full_batch_is_sent_without_refresh(self):
