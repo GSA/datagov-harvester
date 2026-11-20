@@ -1,5 +1,6 @@
 import logging
 import re
+import uuid
 from datetime import datetime, timedelta, timezone
 from itertools import batched
 from typing import List, Optional
@@ -792,28 +793,72 @@ class HarvesterDBInterface:
             self.db.rollback()
             return None
 
+    def add_harvest_record_errors(
+        self, error_rows: list[dict], mirror: bool = True
+    ) -> bool:
+        """Insert several errors in one commit, then mirror them in one more.
+
+        Same end state as calling add_harvest_record_error for each row, with
+        two commits in total instead of two per row. Pass mirror=False when
+        sync_current_record_issues is about to rebuild the record's current
+        issues anyway.
+        """
+        issues = [
+            {"id": str(uuid.uuid4()), "date_created": datetime.now(timezone.utc), **row}
+            for row in error_rows
+        ]
+        try:
+            self.db.add_all(HarvestRecordError(**issue) for issue in issues)
+            self.db.commit()
+        except Exception as e:
+            logger.error("Error: %s", e)
+            self.db.rollback()
+            return False
+        if mirror:
+            self._mirror_current_record_issues(issues)
+        return True
+
     def _mirror_current_record_issue(self, error: HarvestRecordError) -> None:
+        self._mirror_current_record_issues(
+            [
+                {
+                    "id": error.id,
+                    "harvest_record_id": error.harvest_record_id,
+                    "severity": error.severity,
+                    "type": error.type,
+                    "date_created": error.date_created,
+                }
+            ]
+        )
+
+    def _mirror_current_record_issues(self, issues: list[dict]) -> None:
         """Keep harvest_record_current_issue in sync as errors are written,
         rather than waiting on the full resync in sync_current_record_issues.
+        Takes plain values so callers don't reload expired error rows.
         """
-        if not error.harvest_record_id:
-            return
-        record = self.db.get(HarvestRecord, error.harvest_record_id)
-        if record is None:
-            return
+        records = {}
         try:
-            self.db.add(
-                HarvestRecordCurrentIssue(
-                    id=error.id,
-                    harvest_source_id=record.harvest_source_id,
-                    record_type=record.record_type,
-                    identifier=record.identifier,
-                    harvest_record_id=error.harvest_record_id,
-                    severity=error.severity,
-                    type=error.type,
-                    date_created=error.date_created,
+            for issue in issues:
+                record_id = issue["harvest_record_id"]
+                if not record_id:
+                    continue
+                if record_id not in records:
+                    records[record_id] = self.db.get(HarvestRecord, record_id)
+                record = records[record_id]
+                if record is None:
+                    continue
+                self.db.add(
+                    HarvestRecordCurrentIssue(
+                        id=issue["id"],
+                        harvest_source_id=record.harvest_source_id,
+                        record_type=record.record_type,
+                        identifier=record.identifier,
+                        harvest_record_id=record_id,
+                        severity=issue["severity"],
+                        type=issue["type"],
+                        date_created=issue["date_created"],
+                    )
                 )
-            )
             self.db.commit()
         except Exception as e:
             logger.error("Error: %s", e)

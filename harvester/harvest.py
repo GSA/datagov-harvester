@@ -5,6 +5,7 @@ import re
 import sys
 import time
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from functools import partial
 from itertools import chain
 from typing import List
@@ -1447,13 +1448,7 @@ class Record:
         to `raise e` after calling this method.
         """
 
-        e_msg = re.sub(r"\\+", r"\\", repr(e))
-
-        error_type = (
-            VALIDATION_ERROR_TYPE
-            if isinstance(e, ValidationError)
-            else e.__class__.__name__
-        )
+        e_msg, error_type = self._error_message_and_type(e)
 
         self.status = "error"
         log_non_critical_error(
@@ -1463,6 +1458,43 @@ class Record:
             error_type,
             emit_log=False,
         )
+
+    @staticmethod
+    def _error_message_and_type(e) -> tuple[str, str]:
+        e_msg = re.sub(r"\\+", r"\\", repr(e))
+        error_type = (
+            VALIDATION_ERROR_TYPE
+            if isinstance(e, ValidationError)
+            else e.__class__.__name__
+        )
+        return e_msg, error_type
+
+    def _report_validation_issues(self, errors: list, warnings: list) -> None:
+        """Persist validate()'s errors and warnings together, with the same
+        rows _report_error and _report_warning would write one at a time."""
+
+        def row(message, issue_type, severity):
+            return {
+                "message": message,
+                "type": issue_type,
+                "date_created": datetime.now(timezone.utc),
+                "harvest_job_id": self.harvest_source.job_id,
+                "harvest_record_id": self.id,
+                "severity": severity,
+            }
+
+        rows = [row(*self._error_message_and_type(e), "error") for e in errors]
+        rows += [row(w.message, w.warning_type, "warning") for w in warnings]
+        if not rows:
+            return
+        # harvest() calls sync_current_issues() next, which rebuilds this
+        # record's current issues from these rows
+        self.harvest_source.db_interface.add_harvest_record_errors(rows, mirror=False)
+        if errors:
+            self.status = "error"
+            self.harvest_source.db_interface.update_harvest_record(
+                self.id, {"status": "error"}
+            )
 
     def _report_warning(self, warning: DcatWarning) -> None:
         """Persist a DCAT-US 3 content-quality warning.
@@ -1502,17 +1534,11 @@ class Record:
         else:
             record = self.transformed_data
 
-        # save ourselves a second call to is_valid by keeping a flag of
-        # whether we saw any errors
-        valid = True
-
         validator = self.harvest_source.validator_for(self.record_type)
         with self.harvest_source.timings.time("record.validate.schema"):
             errors = list(assemble_validation_errors(validator.iter_errors(record)))
-        with self.harvest_source.timings.time("record.validate.report_errors"):
-            for error in errors:
-                valid = False
-                self._report_error(error)
+        valid = not errors
+        warnings = []
 
         # DCAT-US 3 content-quality warnings are detected regardless of schema
         # validity and never change the record's status. A record can be both
@@ -1528,11 +1554,11 @@ class Record:
                         literal=True,
                     ),
                 )
-            with self.harvest_source.timings.time("record.validate.report_warnings"):
-                for warning in warnings:
-                    self._report_warning(warning)
             if warnings:
                 self.harvest_source.update_job_record_count_by_action("warned")
+
+        with self.harvest_source.timings.time("record.validate.report_issues"):
+            self._report_validation_issues(errors, warnings)
 
         if valid:
             self.harvest_source.update_job_record_count_by_action("validated")
