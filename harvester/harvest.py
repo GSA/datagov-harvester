@@ -105,6 +105,11 @@ OPENSEARCH_BATCH_SIZE = 100
 # a queued document waits at most this long; see queue_opensearch_document
 OPENSEARCH_FLUSH_SECONDS = 2
 GEO_CACHE_SIZE = 1024
+# first citation title in an ISO 19115 document, before MDTranslator runs
+ISO_TITLE_PATTERN = re.compile(
+    r"<gmd:title>\s*<gco:CharacterString>([^<]*)</gco:CharacterString>"
+)
+
 
 # Harvest source schema_type -> the public validator's schema name, so
 # validator_for returns the same cached validators (record_validator).
@@ -963,28 +968,35 @@ class HarvestSource:
 
         # create the shared client here rather than racing in the workers
         _ = self.opensearch
+        # One single-threaded lane per worker. Records that would get the same
+        # slug go to the same lane, so they keep catalog order and the first
+        # one still gets the slug without a uuid suffix.
+        lanes = [
+            ThreadPoolExecutor(max_workers=1, thread_name_prefix=f"harvest-record-{n}")
+            for n in range(workers)
+        ]
         # cap queued records so a large source isn't pulled into memory
         max_in_flight = workers * 2
         in_flight = set()
-        with ThreadPoolExecutor(
-            max_workers=workers, thread_name_prefix="harvest-record"
-        ) as pool:
-            try:
-                for record in records:
-                    if len(in_flight) >= max_in_flight:
-                        done, in_flight = wait(in_flight, return_when=FIRST_COMPLETED)
-                        for future in done:
-                            future.result()
-                    in_flight.add(pool.submit(self._harvest_record_in_worker, record))
-            except BaseException:
-                # stopping (an error or SIGTERM): skip records not started yet
-                for future in in_flight:
-                    future.cancel()
-                raise
-            finally:
-                done, _ = wait(in_flight)
-            for future in done:
-                future.result()
+        try:
+            for record in records:
+                if len(in_flight) >= max_in_flight:
+                    done, in_flight = wait(in_flight, return_when=FIRST_COMPLETED)
+                    for future in done:
+                        future.result()
+                lane = lanes[hash(record.slug_key()) % workers]
+                in_flight.add(lane.submit(self._harvest_record_in_worker, record))
+        except BaseException:
+            # stopping (an error or SIGTERM): skip records not started yet
+            for future in in_flight:
+                future.cancel()
+            raise
+        finally:
+            done, _ = wait(in_flight)
+            for lane in lanes:
+                lane.shutdown(wait=True)
+        for future in done:
+            future.result()
 
     def _harvest_record(self, record) -> None:
         with self.timings.time("record"):
@@ -2000,6 +2012,23 @@ class Record:
             self.harvest_source.update_job_record_count_by_action("errored")
 
         return False
+
+    def slug_key(self) -> str:
+        """The slug this record's title would produce, read from the raw
+        source; harvest_records uses it to keep same-slug records in order.
+        Falls back to the identifier when no title can be read."""
+        title = None
+        try:
+            if self.harvest_source.schema_type.startswith("iso19115"):
+                match = ISO_TITLE_PATTERN.search(self.source_raw or "")
+                title = match.group(1) if match else None
+            else:
+                title = json.loads(self.source_raw).get("title")
+        except (ValueError, AttributeError, TypeError):
+            pass
+        if not isinstance(title, str) or not title.strip():
+            return f"identifier:{self.identifier}"
+        return munge_title_to_name(title)
 
     def _ensure_date_finished(self) -> None:
         if not self._date_finished:
