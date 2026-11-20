@@ -100,6 +100,7 @@ logger = logging.getLogger("harvest_runner")
 
 RECORD_COUNT_BATCH_SIZE = 100
 RECORD_COUNT_FLUSH_SECONDS = 2
+OPENSEARCH_BATCH_SIZE = 500
 
 # Harvest source schema_type -> the public validator's schema name, so
 # validator_for returns the same cached validators (record_validator).
@@ -154,6 +155,8 @@ class HarvestSource:
     _opensearch: object = field(default=None, init=False, repr=False)
     _opensearch_initialized: bool = field(default=False, init=False, repr=False)
     _pending_count: int = field(default=0, init=False, repr=False)
+    _opensearch_documents: list = field(default_factory=list, init=False, repr=False)
+    _opensearch_needs_refresh: bool = field(default=False, init=False, repr=False)
     _pending_count_since: float | None = field(default=None, init=False, repr=False)
     timings: HarvestTimings = field(
         default_factory=HarvestTimings, init=False, repr=False
@@ -353,6 +356,55 @@ class HarvestSource:
         """Persist the last partial batch when record processing ends."""
         if self._pending_count:
             self._persist_job_record_counts()
+
+    def queue_opensearch_document(self, document: dict) -> None:
+        self._opensearch_documents.append(document)
+        if len(self._opensearch_documents) >= OPENSEARCH_BATCH_SIZE:
+            self.flush_opensearch_documents()
+
+    def flush_opensearch_documents(self) -> None:
+        """Bulk index queued documents without refreshing the index; a
+        refresh per document was a large share of harvest time."""
+        documents, self._opensearch_documents = self._opensearch_documents, []
+        if not documents or self.opensearch is None:
+            return
+        self.note_opensearch_change()
+        try:
+            with self.timings.time("opensearch_flush"):
+                succeeded, failed, errors = self.opensearch.index_documents(
+                    documents, refresh_after=False
+                )
+        except Exception as e:
+            logger.exception(
+                "OpenSearch indexing error for %s datasets: %s", len(documents), e
+            )
+            return
+        if failed:
+            logger.error(
+                "OpenSearch indexing failed for %s of %s datasets: %s",
+                failed,
+                len(documents),
+                errors,
+            )
+        else:
+            logger.info("Indexed %s datasets in OpenSearch", succeeded)
+
+    def note_opensearch_change(self) -> None:
+        """Mark the index as changed so finish_opensearch_writes refreshes it."""
+        self._opensearch_needs_refresh = True
+
+    def finish_opensearch_writes(self) -> None:
+        """Send any queued documents and refresh once so this job's writes
+        are searchable."""
+        self.flush_opensearch_documents()
+        if not self._opensearch_needs_refresh or self.opensearch is None:
+            return
+        self._opensearch_needs_refresh = False
+        try:
+            with self.timings.time("opensearch_refresh"):
+                self.opensearch.refresh()
+        except Exception as e:
+            logger.exception("OpenSearch refresh error: %s", e)
 
     def get_source_orm(self) -> HarvestSourceORM:
         """Get the harvest source object from the database."""
@@ -828,6 +880,7 @@ class HarvestSource:
         finally:
             # A harvest may end before the count or time threshold is reached.
             self.flush_pending_counts()
+            self.finish_opensearch_writes()
             logger.info("harvest timings: %s", self.timings.summary())
 
     def finish_job_with_status(self, status: str):
@@ -1639,6 +1692,8 @@ class Record:
         return payload
 
     def _index_dataset_in_opensearch(self, dataset) -> None:
+        """Build the dataset's search document now, so a bad document fails
+        this record, and queue it for the next bulk index."""
         client = self.harvest_source.opensearch
         if client is None:
             if dataset is not None:
@@ -1649,21 +1704,10 @@ class Record:
             return
         if dataset is None:
             return
+        from search.documents import DatasetDocument
+
         try:
-            succeeded, failed, errors = client.index_datasets([dataset])
-            if failed:
-                logger.error(
-                    "OpenSearch indexing failed for dataset %s (slug %s): %s",
-                    dataset.id,
-                    dataset.slug,
-                    errors,
-                )
-            elif succeeded:
-                logger.info(
-                    "Indexed dataset '%s' (slug: %s) in OpenSearch",
-                    dataset.dcat.get("title", dataset.id),
-                    dataset.slug,
-                )
+            document = DatasetDocument(dataset).dataset_to_document()
         except EmptyFieldNameException as e:
             logger.error(
                 "Validation failed for dataset %s (slug %s): %s",
@@ -1679,6 +1723,8 @@ class Record:
                 dataset.slug,
                 e,
             )
+            return
+        self.harvest_source.queue_opensearch_document(document)
 
     def _delete_dataset_from_opensearch(self, dataset) -> None:
         client = self.harvest_source.opensearch
@@ -1692,7 +1738,8 @@ class Record:
         if dataset is None:
             return
         try:
-            client.delete_dataset_by_id(dataset.id)
+            client.delete_dataset_by_id(dataset.id, refresh_after=False)
+            self.harvest_source.note_opensearch_change()
             logger.info(
                 "Removed dataset (slug: %s) from OpenSearch index",
                 dataset.slug,

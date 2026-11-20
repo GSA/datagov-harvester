@@ -15,6 +15,8 @@ class TestRecordCountBatch(TestCase):
         self.source._pending_count = 0
         self.source._pending_count_since = None
         self.source.timings = HarvestTimings()
+        self.source._opensearch_documents = []
+        self.source._opensearch_needs_refresh = False
 
     def test_unchanged_records_write_once_per_batch(self):
         with patch("harvester.harvest.time.monotonic", return_value=0):
