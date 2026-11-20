@@ -669,6 +669,7 @@ class TestValidateWarnings:
         assert harvest_source.reporter.errored == 0
 
         # the count is persisted to the harvest_job row, not just the reporter
+        harvest_source.flush_pending_counts()
         harvest_job = interface.get_harvest_job(harvest_source.job_id)
         assert harvest_job.records_warned == 1
 
@@ -769,6 +770,7 @@ class TestValidateWarnings:
         assert harvest_source.reporter.validated == 3
         assert harvest_source.reporter.warned == 2
 
+        harvest_source.flush_pending_counts()
         stored_job = interface.get_harvest_job(harvest_job.id)
         assert stored_job.records_warned == 2
 
