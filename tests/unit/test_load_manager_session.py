@@ -1,4 +1,4 @@
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, call, patch
 
 import pytest
 
@@ -83,6 +83,20 @@ class TestLoadManagerSessionLifecycle:
 
         mock_interface.close.assert_called()
         manager.handler.start_task.assert_not_called()
+
+    def test_start_job_closes_session_after_revert_when_task_fails_to_start(
+        self, manager, mock_interface
+    ):
+        mock_interface.pget_harvest_jobs.return_value = []
+        manager.handler.start_task.side_effect = RuntimeError("cf down")
+
+        _, category = manager.start_job("job-id")
+
+        assert category == "error"
+        assert mock_interface.mock_calls[-2] == call.update_harvest_job(
+            "job-id", {"status": "new", "date_started": None}
+        )
+        assert mock_interface.mock_calls[-1] == call.close()
 
     def test_session_closes_when_operation_raises(
         self, manager, mock_interface, finished_task
