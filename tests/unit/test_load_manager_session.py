@@ -129,6 +129,16 @@ class TestLoadManagerSessionLifecycle:
 
         assert mock_interface.mock_calls[-1] == call.close()
 
+    def test_start_new_jobs_closes_session_when_listing_tasks_raises(
+        self, manager, mock_interface
+    ):
+        manager.handler.num_running_app_tasks.side_effect = RuntimeError("cf down")
+
+        with pytest.raises(RuntimeError):
+            manager._start_new_jobs()
+
+        assert mock_interface.mock_calls[-1] == call.close()
+
     def test_failed_job_email_closes_session_before_sending(
         self, manager, mock_interface
     ):

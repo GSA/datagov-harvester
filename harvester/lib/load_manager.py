@@ -201,6 +201,7 @@ class LoadManager:
                 f"next run at {next_run}."
             )
 
+    @closes_session
     def _start_new_jobs(self, check_from_task=False):
         """Start new jobs to be done, up to the max tasks count.
 
@@ -208,44 +209,37 @@ class LoadManager:
         task before it stops so we adjust the running_tasks calculation and
         only schedule at most one new job.
         """
-        try:
-            running_tasks = self.handler.num_running_app_tasks()
-            if running_tasks is None:
-                # None here indicates that tasks couldn't be listed with the API
-                # so be safe by not doing anything.
-                logger.warning(
-                    "Not starting new jobs because tasks could not be listed"
-                )
-                return
+        running_tasks = self.handler.num_running_app_tasks()
+        if running_tasks is None:
+            # None here indicates that tasks couldn't be listed with the API
+            # so be safe by not doing anything.
+            logger.warning("Not starting new jobs because tasks could not be listed")
+            return
 
-            self._enqueue_due_sources()
+        self._enqueue_due_sources()
 
-            if check_from_task:
-                running_tasks -= 1
+        if check_from_task:
+            running_tasks -= 1
 
-            if running_tasks >= MAX_TASKS_COUNT:
-                logger.info(
-                    f"{running_tasks} running tasks >= max tasks count ({MAX_TASKS_COUNT})."  # noqa E501
-                )
-                return
-            else:
-                slots = MAX_TASKS_COUNT - running_tasks
+        if running_tasks >= MAX_TASKS_COUNT:
+            logger.info(
+                f"{running_tasks} running tasks >= max tasks count ({MAX_TASKS_COUNT})."  # noqa E501
+            )
+            return
+        else:
+            slots = MAX_TASKS_COUNT - running_tasks
 
-            if check_from_task:
-                # from a task only do 1 at most
-                slots = 1 if slots > 0 else 0
+        if check_from_task:
+            # from a task only do 1 at most
+            slots = 1 if slots > 0 else 0
 
-            # invoke cf_task with next jobs
-            # then mark the job as running in the DB
-            jobs = [
-                job.to_dict()
-                for job in interface.get_new_harvest_jobs_in_past(limit=slots)
-            ]
-            for job in jobs:
-                self.start_job(job["id"], job["job_type"])
-        finally:
-            # closes the scoped_session object
-            interface.close()
+        # invoke cf_task with next jobs
+        # then mark the job as running in the DB
+        jobs = [
+            job.to_dict() for job in interface.get_new_harvest_jobs_in_past(limit=slots)
+        ]
+        for job in jobs:
+            self.start_job(job["id"], job["job_type"])
 
     @closes_session
     def start(self):
