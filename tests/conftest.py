@@ -107,9 +107,9 @@ def _no_db_interface() -> NonCallableMock:
 DB_INTERFACE_TARGETS = (
     "harvester.harvest.db_interface",
     "harvester.exceptions.db_interface",
-    "harvester.lib.load_manager.interface",
     "app.deps.db",
 )
+LOAD_MANAGER_INTERFACE_TARGET = "harvester.lib.load_manager.interface"
 
 
 def _needs_db(request) -> bool:
@@ -189,16 +189,29 @@ def interface(session) -> HarvesterDBInterface:
     return HarvesterDBInterface(session=session)
 
 
+@pytest.fixture()
+def load_manager_interface(session) -> Generator[HarvesterDBInterface, None, None]:
+    load_manager_session = scoped_session(
+        sessionmaker(bind=session.bind, autoflush=True)
+    )
+    yield HarvesterDBInterface(session=load_manager_session)
+    load_manager_session.remove()
+
+
 @pytest.fixture(autouse=True)
 def default_function_fixture(request, monkeypatch):
     monkeypatch.delenv("ENABLE_LOCAL_DEV_LOGIN", raising=False)
     if _needs_db(request):
         interface = request.getfixturevalue("interface")
+        load_manager_interface = request.getfixturevalue("load_manager_interface")
     else:
-        interface = _no_db_interface()
+        interface = load_manager_interface = _no_db_interface()
     with ExitStack() as stack:
         for target in DB_INTERFACE_TARGETS:
             stack.enter_context(patch(target, interface))
+        stack.enter_context(
+            patch(LOAD_MANAGER_INTERFACE_TARGET, load_manager_interface)
+        )
         yield
 
 

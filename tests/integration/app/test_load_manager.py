@@ -80,6 +80,7 @@ class TestLoadManager:
         )
 
         # date_created is never overwritten; date_started records the actual start
+        interface_no_jobs.db.expire_all()
         started_job = interface_no_jobs.get_harvest_job(job_id)
         assert started_job.status == "in_progress"
         assert started_job.date_created == original_created
@@ -216,6 +217,7 @@ class TestLoadManager:
             )
             == 0
         )
+        interface_with_multiple_jobs.db.expire_all()
         source = interface_with_multiple_jobs.get_harvest_source(
             source_data_dcatus["id"]
         )
@@ -429,6 +431,7 @@ class TestLoadManager:
             "success",
         )
         # Assert job status updated
+        interface_no_jobs.db.expire_all()
         jobs = interface_no_jobs.pget_harvest_jobs(
             facets=f"harvest_source_id eq {source_id}"
         )
@@ -482,6 +485,7 @@ class TestLoadManager:
             "warning",
         )
         # Assert job status updated
+        interface_no_jobs.db.expire_all()
         jobs = interface_no_jobs.pget_harvest_jobs(
             facets=f"harvest_source_id eq {source_id}"
         )
@@ -674,6 +678,7 @@ class TestLoadManager:
         load_manager = LoadManager()
         load_manager._start_new_jobs(check_from_task=True)
 
+        interface_no_jobs.db.expire_all()
         jobs = [interface_no_jobs.db.get(HarvestJob, job_id) for job_id in job_ids]
 
         # one task created

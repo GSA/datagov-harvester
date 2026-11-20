@@ -1,9 +1,12 @@
 import logging
 import os
 from datetime import datetime
+from functools import wraps
 
-from database.interface import HarvestSourceLockedError
-from harvester import SMTP_CONFIG
+from sqlalchemy.orm import scoped_session, sessionmaker
+
+from database.interface import HarvesterDBInterface, HarvestSourceLockedError
+from harvester import SMTP_CONFIG, engine
 from harvester.lib.task_handler import create_task_handler
 from harvester.utils.env_utils import with_environment_prefix
 from harvester.utils.general_utils import (
@@ -18,13 +21,24 @@ from harvester.utils.harvest_job_email import (
 from harvester.utils.notification_frequency import notification_frequency_notice
 from harvester.utils.reharvest_links import create_reharvest_url
 
-# use the session scoped interface already made for the harvester
-from .. import db_interface as interface
+session = scoped_session(sessionmaker(bind=engine, autoflush=True))
+interface = HarvesterDBInterface(session=session)
 
 MAX_TASKS_COUNT = int(os.getenv("HARVEST_RUNNER_MAX_TASKS", 5))
 
 
 logger = logging.getLogger("harvest_admin")
+
+
+def closes_session(method):
+    @wraps(method)
+    def wrapper(*args, **kwargs):
+        try:
+            return method(*args, **kwargs)
+        finally:
+            interface.close()
+
+    return wrapper
 
 
 class LoadManager:
@@ -42,6 +56,7 @@ class LoadManager:
                 continue
             source = interface.get_harvest_source(source_id)
             notification_frequency = source.notification_frequency if source else None
+            interface.close()
             frequency_notice = notification_frequency_notice(notification_frequency)
             refresh_url = create_reharvest_url(
                 SMTP_CONFIG["base_url"],
@@ -186,6 +201,7 @@ class LoadManager:
                 f"next run at {next_run}."
             )
 
+    @closes_session
     def _start_new_jobs(self, check_from_task=False):
         """Start new jobs to be done, up to the max tasks count.
 
@@ -193,50 +209,45 @@ class LoadManager:
         task before it stops so we adjust the running_tasks calculation and
         only schedule at most one new job.
         """
-        try:
-            running_tasks = self.handler.num_running_app_tasks()
-            if running_tasks is None:
-                # None here indicates that tasks couldn't be listed with the API
-                # so be safe by not doing anything.
-                logger.warning(
-                    "Not starting new jobs because tasks could not be listed"
-                )
-                return
+        running_tasks = self.handler.num_running_app_tasks()
+        if running_tasks is None:
+            # None here indicates that tasks couldn't be listed with the API
+            # so be safe by not doing anything.
+            logger.warning("Not starting new jobs because tasks could not be listed")
+            return
 
-            self._enqueue_due_sources()
+        self._enqueue_due_sources()
 
-            if check_from_task:
-                running_tasks -= 1
+        if check_from_task:
+            running_tasks -= 1
 
-            if running_tasks >= MAX_TASKS_COUNT:
-                logger.info(
-                    f"{running_tasks} running tasks >= max tasks count ({MAX_TASKS_COUNT})."  # noqa E501
-                )
-                return
-            else:
-                slots = MAX_TASKS_COUNT - running_tasks
+        if running_tasks >= MAX_TASKS_COUNT:
+            logger.info(
+                f"{running_tasks} running tasks >= max tasks count ({MAX_TASKS_COUNT})."  # noqa E501
+            )
+            return
+        else:
+            slots = MAX_TASKS_COUNT - running_tasks
 
-            if check_from_task:
-                # from a task only do 1 at most
-                slots = 1 if slots > 0 else 0
+        if check_from_task:
+            # from a task only do 1 at most
+            slots = 1 if slots > 0 else 0
 
-            # invoke cf_task with next jobs
-            # then mark the job as running in the DB
-            jobs = [
-                job.to_dict()
-                for job in interface.get_new_harvest_jobs_in_past(limit=slots)
-            ]
-            for job in jobs:
-                self.start_job(job["id"], job["job_type"])
-        finally:
-            # closes the scoped_session object
-            interface.close()
+        # invoke cf_task with next jobs
+        # then mark the job as running in the DB
+        jobs = [
+            job.to_dict() for job in interface.get_new_harvest_jobs_in_past(limit=slots)
+        ]
+        for job in jobs:
+            self.start_job(job["id"], job["job_type"])
 
+    @closes_session
     def start(self):
         """Queue and start due harvest jobs from a dedicated runner task."""
         self._clean_old_jobs()
         self._start_new_jobs()
 
+    @closes_session
     def start_job(self, job_id, job_type="harvest"):
         """
         prepares the jobs in the database then starts the job as a cloud foundry
@@ -344,6 +355,7 @@ class LoadManager:
         # No revert here; the outer handler owns cleanup for any failure below.
         self.handler.start_task(**task_contract)
 
+    @closes_session
     def stop_job(self, job_id, job_type="harvest"):
         """task manager stop interface, takes a job_id
 
@@ -395,6 +407,7 @@ class LoadManager:
         logger.info(message)
         return message, "success"
 
+    @closes_session
     def reschedule_next_run(self, source_id):
         """Set date_next_run on harvest source registration or frequency change.
 
@@ -413,6 +426,7 @@ class LoadManager:
         logger.info(message)
         return message
 
+    @closes_session
     def schedule_next_job(self, source_id):
         """Stamp date_next_run if the source does not already have a future run."""
         source = interface.get_harvest_source(source_id)
@@ -434,6 +448,7 @@ class LoadManager:
         logger.info(message)
         return message
 
+    @closes_session
     def trigger_manual_job(self, source_id, job_type="harvest"):
         """manual trigger harvest job, takes a source_id
 
