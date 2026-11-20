@@ -64,6 +64,9 @@ class OpenSearchWriter:
                 )
                 time.sleep(wait_seconds)
 
+    def refresh(self):
+        self._refresh()
+
     def _refresh(
         self,
         timeout_retries: int = DEFAULT_TIMEOUT_RETRIES,
@@ -94,6 +97,21 @@ class OpenSearchWriter:
         documents = [
             DatasetDocument(dataset).dataset_to_document() for dataset in datasets
         ]
+        return self.index_documents(
+            documents,
+            refresh_after=refresh_after,
+            timeout_retries=timeout_retries,
+            timeout_backoff_base=timeout_backoff_base,
+        )
+
+    def index_documents(
+        self,
+        documents: list,
+        refresh_after=True,
+        timeout_retries: int = DEFAULT_TIMEOUT_RETRIES,
+        timeout_backoff_base: float = DEFAULT_TIMEOUT_BACKOFF_BASE,
+    ):
+        """Bulk index documents already built with DatasetDocument."""
 
         def _stream_bulk():
             succeeded_local = 0
