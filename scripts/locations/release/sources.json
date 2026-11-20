@@ -1,0 +1,47 @@
+{
+  "issue": "https://github.com/GSA/data.gov/issues/5111",
+  "manifest_created": "2026-11-20",
+  "geometry_crs": "EPSG:4326",
+  "source_files": [
+    {
+      "category": "us_state",
+      "dataset": "Census TIGER/Line 2026 States",
+      "url": "https://www2.census.gov/geo/tiger/TIGER2026/STATE/tl_2026_us_state.zip",
+      "filename": "us_states_2026.zip",
+      "sha256": "2e17ea40dff3e00163eec87a26efa0b0ff7e8fe364a191bf1a7754dcb49ea326",
+      "bytes": 9957057
+    },
+    {
+      "category": "us_county",
+      "dataset": "Census TIGER/Line 2026 Counties",
+      "url": "https://www2.census.gov/geo/tiger/TIGER2026/COUNTY/tl_2026_us_county.zip",
+      "filename": "us_counties_2026.zip",
+      "sha256": "b527c9ba7aeb8f17ef118f026eae5e5a938aa1d00b873bc32342d0dce59321c0",
+      "bytes": 83378454
+    },
+    {
+      "category": "country",
+      "dataset": "Natural Earth 10m Admin 0 Countries",
+      "url": "https://naturalearth.s3.amazonaws.com/10m_cultural/ne_10m_admin_0_countries.zip",
+      "filename": "countries.zip",
+      "sha256": "ce1ac7036499a0edd641fbc093cd209a98f96a49d2eca8480aaacad35138a7f6",
+      "bytes": 4930492
+    },
+    {
+      "category": "us_postalcode",
+      "dataset": "Census TIGER/Line 2025 ZCTA5",
+      "url": "https://www2.census.gov/geo/tiger/TIGER2025/ZCTA520/tl_2025_us_zcta520.zip",
+      "filename": "us_zcta_2025.zip",
+      "sha256": "e87129634eefe8719ef06ce4cfdf6588520be2e359360e590aaae90e4afb1911",
+      "bytes": 529118424
+    }
+  ],
+  "legacy_baseline": {
+    "filename": "locations.csv",
+    "sha256": "dfaef850e762db101cad9aa46fe76b83dde711fda2e6714e06ed58579a1cd668",
+    "bytes": 16052218,
+    "status": "Origin and version require team verification",
+    "retained_geometry_records": 810
+  },
+  "release_status": "candidate - not approved"
+}
