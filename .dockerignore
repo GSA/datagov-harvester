@@ -1,0 +1,12 @@
+.git
+.github
+.venv
+.worktrees
+**/__pycache__
+**/node_modules
+.pytest_cache
+.coverage
+pytest-*.xml
+pytest-coverage-*.txt
+e2e-report
+tests/badges
